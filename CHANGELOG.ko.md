@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 292c6588e1c45579a60dc425dc111c73f1dc13871cd12ab3e68195517a9f382c -->
+<!-- source-sha256: be26098f7111ac9822b9beca61499433d37052b241960cb65a00aa910681a19c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K459: `make land`은 변경된 경로가 dependency manifest 또는 lock(`package.json`, lock 파일, `pyproject.toml`, `Cargo.toml`, `go.mod`, requirements 파일)이면 `dependency-policy-check`를 실행하며, 저장소의 owner 선언이 무엇을 적었든 그렇다. `owner-check`가 `scripts/kit/dependency-files.mts`의 glob을 선언에 덧붙이므로, `package.json`의 변경은 review 항목 없이 land되지 않는다 (K459). red: `node --test --test-name-pattern=K459 tests/kit/land.test.mts`는 b0a99e5c에서 exit 1이다(`package.json`이 gate를 고르지 않음: missing expected exception). green: `make item-test ID=K459`가 통과한다(1 test, none skipped) (K459).
 - K439-4-1: 추적되는 composer.lock의 provider 항목을, 그 lock에서 update 명령을 실행하기 전에 쓴다. 그래서 낡은 polyspec 항목(crudui의 polyspec/ordered-json 0.0.9처럼 이전 release의 php >=8.5)이 다른 패키지의 추적 update를 Composer의 platform 검사에서 더 이상 실패시키지 않는다. `scripts/kit/dependency-review.mts`의 `runUpdateSteps`는 plan의 전과 후에 항목을 쓴다 (K439-4-1). 붉은 확인: `node --test --test-name-pattern=K439-4-1 tests/kit/dependency-review.test.mts`가 18cf55d5에서 exit 1이다(추적 update 실패: polyspec/orm 0.0.18은 php >=8.5를 요구한다). 초록 확인: `make item-test ID=K439-4-1`이 통과한다(1 test, none skipped) (K439-4-1).
 - K462는 done입니다. 항목은 이 커밋에서 [o]이며, red는 수정 전 K462 test 실행이고 green은 이 커밋의 K462 test입니다 (K462).
 - `link.mjs providers <checkout>...`은 checkout의 npm provider마다 이름, 탭, package folder를 이름순으로 한 줄씩 출력합니다. link가 provider를 읽는 규칙(제외 경로 제외, package folder를 저장소 루트보다 우선)을 따르므로, 소비자는 polyspec 패키지의 folder를 규칙을 복사하지 않고 kit에서 얻습니다 (K462).

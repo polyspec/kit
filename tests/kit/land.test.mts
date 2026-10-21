@@ -211,6 +211,45 @@ test('land selects no gate that runs tests (K394-1)', (t) => {
   assert.ok(printed.includes('test-x runs tests, which the Verification of the rows runs; land does not run it'));
 });
 
+// K459: a change to a dependency manifest or lock selects dependency-policy-check, whatever the owner declaration of the repository
+// says: the declaration here owns the manifests and locks with docs-check alone, as a repository whose rules do not name the gate.
+// The gate fails while a dependency file of the checkout exists, so a refusal names the gate; a branch that changes no dependency
+// file runs it not.
+test('land runs dependency-policy-check for a change to any dependency manifest or lock (K459)', { timeout: 120000 }, (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': ['kit-gates: docs-check commits-check dependency-policy-check', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'dependency-policy-check:', '\t@for f in package.json package-lock.json composer.json composer.lock pyproject.toml uv.lock Cargo.toml Cargo.lock go.mod go.sum requirements-dev.txt; do test ! -f "$$f" || { echo "$$f has no review entry" >&2; exit 1; }; done'].join('\n') + '\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', '**/*.json', '**/*.toml', '**/*.lock', '**/go.*', '**/requirements*.txt'], targets: ['docs-check'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const manifests = ['package.json', 'package-lock.json', 'composer.json', 'composer.lock', 'pyproject.toml', 'uv.lock', 'Cargo.toml', 'Cargo.lock', 'go.mod', 'go.sum', 'requirements-dev.txt'];
+  for (const [index, file] of manifests.entries()) {
+    const folder = path.join(parent, `repo-${index}`);
+    const branch = `feat-dep-${index}`;
+    git(main, 'worktree', 'add', '--quiet', folder, '-b', branch, 'main');
+    put(folder, { [file]: '{}\n' });
+    git(folder, 'add', '-A');
+    git(folder, 'commit', '--quiet', '-m', `change ${file}`);
+    const mainBefore = git(main, 'rev-parse', 'main');
+    assert.throws(() => land(main, branch, { print: () => {} }), /dependency-policy-check/, `${file} selects dependency-policy-check`);
+    assert.equal(git(main, 'rev-parse', 'main'), mainBefore, `${file}: main is unchanged after the refusal`);
+  }
+  const folder = path.join(parent, 'repo-src');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-src', 'main');
+  put(folder, { 'src/a.txt': 'a\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'a');
+  const printed: string[] = [];
+  land(main, 'feat-src', { print: text => printed.push(text) });
+  assert.equal(printed.some(text => text.startsWith('dependency-policy-check in ')), false, 'a change to no dependency file runs no dependency gate');
+});
+
 // K429-1: the shell that runs make land, and every ancestor of land, may name the worktree in its command line or stand in it;
 // they run make land and are no process of the worktree.
 test('land leaves its own ancestors out of the processes of the worktree (K429-1)', () => {
