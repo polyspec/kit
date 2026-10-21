@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -24,7 +24,7 @@ test('make land merges a rebased branch only after the gates it touches pass, an
   initRepository(main, '--initial-branch=main');
   // lint-x fails on a file bad.txt under src; docs-check and commits-check are the other kit gates and pass.
   put(main, {
-    'Makefile': 'kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttest ! -f src/bad.txt\n',
+    'Makefile': 'kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttest ! -f src/bad.txt\nbuild:\n\ttrue\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
@@ -66,6 +66,53 @@ test('make land merges a rebased branch only after the gates it touches pass, an
   assert.equal(git(main, 'rev-parse', 'main'), mainBefore, 'main is unchanged after the refusal of a branch not rebased');
 });
 
+test('K453: land runs make build in the main checkout after the fast-forward, so dist holds the merged sources (K453)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  // build copies src/x.txt to dist/x.txt, as a provider's build copies its sources to its output (dist/ is ignored).
+  put(main, {
+    'Makefile': 'kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttrue\nbuild:\n\tmkdir -p dist && cp src/x.txt dist/x.txt\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'dist/\nvar/\n',
+    'src/x.txt': 'v1\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  git(main, 'worktree', 'add', '--quiet', path.join(parent, 'repo-k453'), '-b', 'feat/k453', 'main');
+  const folder = path.join(parent, 'repo-k453');
+  put(folder, { 'src/x.txt': 'v2\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'x');
+  const branch = git(main, 'rev-parse', 'feat/k453');
+  const printed: string[] = [];
+  land(main, 'feat/k453', { print: text => printed.push(text) });
+  assert.equal(git(main, 'rev-parse', 'main'), branch, 'main fast-forwards to the branch');
+  assert.equal(readFileSync(path.join(main, 'dist/x.txt'), 'utf8'), 'v2\n', 'dist holds the merged sources after land');
+  assert.ok(printed.some(text => /make build in .* (passed|finished)/.test(text)), 'land prints the build with its elapsed time');
+});
+
+test('K453: a build that fails after the fast-forward fails land and names the build (K453)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': 'kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nbuild:\n\techo "compile error in x" >&2; exit 3\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] }, null, 2) + '\n',
+    'src/x.txt': 'v1\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  git(main, 'worktree', 'add', '--quiet', path.join(parent, 'repo-k453'), '-b', 'feat/k453', 'main');
+  const folder = path.join(parent, 'repo-k453');
+  put(folder, { 'src/x.txt': 'v2\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'x');
+  assert.throws(() => land(main, 'feat/k453', { print: () => {} }), /make build.*compile error in x/s);
+});
+
 test('land refuses a gate that fails only on a finding that main does not have (K394-1)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -73,7 +120,7 @@ test('land refuses a gate that fails only on a finding that main does not have (
   initRepository(main, '--initial-branch=main');
   // findings-x prints one finding line per line of findings.txt and fails while that file is not empty; main is red with src/a.txt.
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
@@ -125,7 +172,7 @@ test('land compares the output of a gate without the temporary folders that it m
   initRepository(main, '--initial-branch=main');
   // fresh-x prints a path in a new temporary folder on each run, as duplication-check does, and fails with the finding of main.
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check fresh-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'fresh-x:', '\t@folder=$$(mktemp -d); echo "Using config from $$folder/jscpd.json"; rmdir "$$folder"; echo "finding: src/a.txt"; exit 1'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check commits-check fresh-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'fresh-x:', '\t@folder=$$(mktemp -d); echo "Using config from $$folder/jscpd.json"; rmdir "$$folder"; echo "finding: src/a.txt"; exit 1', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['fresh-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
@@ -155,7 +202,7 @@ test('land counts no progress line of a kit tool as a finding of a gate that fai
   // info-x prints a progress line for each line of info.txt, a stderr finding for each line of findings.txt, and the lines of
   // lint.txt on stdout as a linter does; it fails while findings.txt is not empty.
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check info-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'info-x:', '\t@sed "s/^/[info-x] tools root /" info.txt; cat lint.txt; sed "s/^/[info-x] finding: /" findings.txt >&2; test ! -s findings.txt'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check commits-check info-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'info-x:', '\t@sed "s/^/[info-x] tools root /" info.txt; cat lint.txt; sed "s/^/[info-x] finding: /" findings.txt >&2; test ! -s findings.txt', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'info.txt', 'findings.txt', 'lint.txt'], targets: ['info-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
@@ -191,7 +238,7 @@ test('land selects no gate that runs tests (K394-1)', (t) => {
   initRepository(main, '--initial-branch=main');
   // parity-check and test-x fail when run; the owner map selects both for src, so land must run neither.
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check parity-check test-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'parity-check:', '\tfalse', 'test-x:', '\tfalse'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check commits-check parity-check test-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'parity-check:', '\tfalse', 'test-x:', '\tfalse', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['parity-check', 'test-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
@@ -282,7 +329,7 @@ test('land lists the processes of the worktree and refuses while one runs (K429)
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'Makefile': 'kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttest ! -f src/bad.txt\n',
+    'Makefile': 'kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttest ! -f src/bad.txt\nbuild:\n\ttrue\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
@@ -336,7 +383,7 @@ test('a commit on main passes when the gate fails only on findings that HEAD alr
   t.after(() => rmSync(main, { recursive: true, force: true }));
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
@@ -372,7 +419,7 @@ test('a commit on main is not refused for a recipe line that make echoes on one 
   t.after(() => rmSync(main, { recursive: true, force: true }));
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\ttrue $(shell cat src/count.txt)', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\ttrue $(shell cat src/count.txt)', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/count.txt': 'one\n',
@@ -395,7 +442,7 @@ test('a commit on main is not refused for a progress line that differs from HEAD
   t.after(() => rmSync(main, { recursive: true, force: true }));
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@echo "[build-x] inputs $$(cat src/count.txt)"', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@echo "[build-x] inputs $$(cat src/count.txt)"', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/count.txt': 'one\n',
@@ -420,7 +467,7 @@ test('make land stops the servers of the worktree before it removes the worktree
   initRepository(main, '--initial-branch=main');
   // stop-servers kills the pid that server.pid of the worktree names, as the server-stop target of orm stops its servers.
   put(main, {
-    'Makefile': 'WORKTREE_STOP := stop-servers\nkit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttrue\nstop-servers:\n\tkill "$$(cat server.pid)"\n',
+    'Makefile': 'WORKTREE_STOP := stop-servers\nkit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttrue\nstop-servers:\n\tkill "$$(cat server.pid)"\nbuild:\n\ttrue\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\nserver.pid\n',
     'src/.keep': '',
@@ -454,7 +501,7 @@ test('make land keeps the worktree and names the stop target when it fails (K441
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'Makefile': 'WORKTREE_STOP := stop-broken\nkit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttrue\nstop-broken:\n\t@echo "the servers do not stop" >&2; exit 3\n',
+    'Makefile': 'WORKTREE_STOP := stop-broken\nkit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttrue\nstop-broken:\n\t@echo "the servers do not stop" >&2; exit 3\nbuild:\n\ttrue\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
@@ -474,7 +521,7 @@ test('make land keeps the worktree and names the stop target when it fails (K441
 // K404-1: a commit on main and make land judge a failing gate with the same function, so one new finding refuses both, named by the
 // same line. The gate fails on the staged tree of main (the commit) and on the branch (land), and only its c.txt line is new.
 test('a commit on main and make land refuse the same new finding of a gate (K404-1)', (t) => {
-  const findingsMakefile = ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n';
+  const findingsMakefile = ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n';
   const sandbox = () => {
     const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-same-')));
     t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -534,7 +581,7 @@ test('the land command refuses a gate that exits 2 with its exit status, not an 
   initRepository(main, '--initial-branch=main');
   // findings-x fails while findings.txt names a finding; main is green, so the branch that adds one is refused by its exit status.
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',

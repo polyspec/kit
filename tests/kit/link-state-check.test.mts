@@ -3,11 +3,20 @@
 // a plain copy among links is a finding. Composer runs as a stub that answers `vendor` to `config vendor-dir`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, realpathSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { rebuild } from '../../scripts/kit/link-build.mts';
 import { linkFindings, recipeFindings } from '../../scripts/kit/link-state-check.mts';
 import { put, tree } from './tree.mts';
+
+/** Commits every file of `root` (K453 tests: the build inputs of a provider are its tracked files). */
+function commitAll(root: string, message: string) {
+  for (const args of [['add', '-A'], ['commit', '--quiet', '-m', message]]) {
+    const result = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8' });
+    if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed in ${root}: ${result.stderr}`);
+  }
+}
 
 /** A consumer whose Composer vendor records polyspec/y and polyspec/z at 0.0.1; `link` says which of them are links. */
 function consumer(t: TestContext, link: Record<string, boolean>) {
@@ -259,4 +268,35 @@ test('a recipe that fetches the crates of a lock naming a polyspec crate is a fi
 test('a recipe that builds the crate named by its own Cargo.toml is no finding (K448-5)', () => {
   const makefile = 'build-own:\n\tcargo build --locked\n';
   assert.deepEqual(recipeFindings('.', ['Makefile', 'Cargo.toml'], file => (file === 'Makefile' ? makefile : '[package]\nname = "polyspec-ordered-json"\nversion = "0.0.1"\n')), []);
+});
+
+test('a linked npm provider whose build is stale is a finding that names the rebuild, and a rebuilt provider passes (K453)', (t) => {
+  const provider = tree(t, {
+    'package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1', main: './dist/x.mjs' }),
+    'Makefile': 'build:\n\tmkdir -p dist\n\tcp src/x.mjs dist/x.mjs\n',
+    '.gitignore': 'dist/\nvar/\n',
+    'src/x.mjs': 'export const v = 1;\n',
+  });
+  commitAll(provider, 'provider');
+  const consumer = tree(t, { 'package.json': '{"name": "cons"}' });
+  mkdirSync(path.join(consumer, 'node_modules/@polyspec'), { recursive: true });
+  symlinkSync(provider, path.join(consumer, 'node_modules/@polyspec/x'));
+  commitAll(consumer, 'consumer');
+  const finding = (state: RegExp) => linkFindings(consumer, process.env).filter(text => state.test(text));
+
+  // The provider has never been built: its output dist/x.mjs is missing.
+  assert.deepEqual(finding(/^npm @polyspec\/x: the build of .* is stale \(missing dist\/x\.mjs\); fix: run link\.mjs rebuild /), [
+    `npm @polyspec/x: the build of ${realpathSync(provider)} is stale (missing dist/x.mjs); fix: run link.mjs rebuild ${realpathSync(provider)}`,
+  ]);
+  rebuild(provider, () => {});
+  assert.deepEqual(linkFindings(consumer, process.env), [], 'a rebuilt provider passes');
+
+  // A source that is newer than the output and differs from the recorded build makes the build stale, until it is rebuilt.
+  const source = path.join(provider, 'src/x.mjs');
+  writeFileSync(source, 'export const v = 2;\n');
+  const future = new Date(Date.now() + 60_000);
+  utimesSync(source, future, future);
+  assert.deepEqual(finding(/is stale \(src\/x\.mjs is newer than dist\/x\.mjs\)/).length, 1, 'a changed source leaves the build stale');
+  rebuild(provider, () => {});
+  assert.deepEqual(linkFindings(consumer, process.env), [], 'the rebuilt provider passes again');
 });

@@ -15,6 +15,8 @@ import path from 'node:path';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { installedPackages, isKitHookEntry, kitHookCheckout, kitNodeRunnable, trackedWorkspaceFolders, workspaceHookEntry, workspaceSettings } from './link.mts';
+import { buildState } from './link-build.mts';
+import { git } from './git.mts';
 import { EXCLUDED, type Ecosystem, type Tool, trackedManifests, workspaceOf } from './link-providers.mts';
 import { isTable, readToml } from './toml.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
@@ -350,11 +352,27 @@ function workspaceHookFindings(root: string): string[] {
   return found;
 }
 
+/**
+ * K453: the findings of the linked npm providers whose build is stale, read by buildState (link-build.mts). A consumer judges the build it
+ * uses, since land builds nothing: a build after a fast-forward cannot be undone when it fails, and main also moves by direct commits.
+ */
+function buildFindings(installed: readonly Installed[]): string[] {
+  const found: string[] = [];
+  for (const item of installed) {
+    if (item.ecosystem !== 'npm' || !isLink(item.folder) || !existsSync(path.join(item.folder, 'package.json'))) continue;
+    const folder = realpathSync(item.folder);
+    const repository = git(folder, 'rev-parse', '--show-toplevel').trim();
+    const state = buildState(repository, folder);
+    if (state.startsWith('stale')) found.push(`npm ${item.name}: the build of ${repository} is ${state}; fix: run link.mjs rebuild ${repository}`);
+  }
+  return found;
+}
+
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const installed = [...npmInstalled(root), ...composerInstalled(root, env)];
   const folders = manifestFolders(root);
-  const found = [...workspaceHookFindings(root), ...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root, env), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined), extraInstallTargets(root))];
+  const found = [...workspaceHookFindings(root), ...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root, env), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...buildFindings(installed), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined), extraInstallTargets(root))];
   const linked = installed.some(item => isLink(item.folder));
   for (const item of installed) {
     const shown = path.relative(root, item.folder);

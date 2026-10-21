@@ -72,7 +72,8 @@ export function worktreeProcesses(folder: string, { ps, lsof }: MachineListing, 
 export function machineListing(): MachineListing {
   const ps = spawnSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 1 << 28 });
   if (ps.error || ps.status !== 0) throw new Error(`ps could not list the processes: ${ps.error?.message ?? ps.stderr}`);
-  const lsof = spawnSync('lsof', ['-Fpn'], { encoding: 'utf8', maxBuffer: 1 << 28 });
+  // -n and -P skip the name and port lookups, which took 5.6 s on the machine of K453 against 0.4 s with them; land runs this twice.
+  const lsof = spawnSync('lsof', ['-nP', '-Fpn'], { encoding: 'utf8', maxBuffer: 1 << 28 });
   if (lsof.error && (lsof.error as NodeJS.ErrnoException).code === 'ENOENT') throw new Error('lsof is missing: make needs it to find the processes that run in a worktree (K441-1); install lsof and run again');
   if (lsof.error) throw new Error(`lsof could not run: ${lsof.error.message}`);
   return { ps: ps.stdout, lsof: lsof.stdout };
@@ -176,6 +177,22 @@ export function gatesOf(folder: string, changed: string[]): { gates: string[]; e
 }
 
 /**
+ * Runs `make build` in the main checkout `root` after the fast-forward (K453), so its build output, which is ignored and read by linked
+ * consumers, holds the merged sources. A failing build throws, so land does not report success.
+ */
+function buildMain(root: string, print: (text: string) => void): void {
+  const started = Date.now();
+  print(`make build in ${root}`);
+  const result = spawnSync('make', ['--no-print-directory', 'build'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
+  const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+  if (result.error) throw new Error(`make build could not start in ${root}: ${result.error.message}`);
+  if (result.status !== 0) {
+    throw new Error(`make build failed in ${root} after the merge (${result.status ?? result.signal}, ${elapsed}s); main already holds the merge:\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-40).join('\n')}`);
+  }
+  print(`make build in ${root} passed (${elapsed}s)`);
+}
+
+/**
  * Lands `branch` on main in the repository of `root` (the main checkout); throws, merging nothing, when a refusal applies or a gate
  * fails. A branch that main contains skips the gates and the merge.
  */
@@ -225,6 +242,7 @@ export function land(root: string, branch: string, { print = (text: string) => c
     }
     git(root, 'merge', '--ff-only', branch);
     print(`merged ${branch} into main`);
+    buildMain(root, print);
   }
   let kept = false;
   if (folder !== undefined) {
