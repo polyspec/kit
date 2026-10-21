@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 8fe4e467b4a3e6d2eb729a2f6fdccf3eacc8b4089301d3d52ee699a771cc24d4 -->
+<!-- source-sha256: 0fd7d48ff033a4fbc64491663b4931036bb88d2223be5eeab3f1bf3ca837b3bc -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -322,3 +322,4 @@
 | K449 | docs 또는 chore 커밋이 code나 test 파일을 스테이징하면 commit-msg 검사가 거부한다(K380-2 후속). 원인: docs(plan)으로 커밋된 수정(K448-1, 0e3194c5)이 검사를 통과해 잘못된 제목이 main에 들어갔다. 인수 조건: 스테이징 경로에 code나 test 파일(scripts/, src/, tests/, packages/, *.mts, *.ts, *.go, *.php, *.py, *.rs, 또는 Makefile이나 *.mk recipe 변경)이 있는 docs나 chore 커밋은 경로를 적어 거부되며, 작성자에게 수정만 따로 스테이징해 자기 type으로 커밋하라고 알린다. red fixture: scripts/kit/link.mts가 담긴 docs(plan) 커밋이 지금 통과한다. | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node --test --test-name-pattern=K449 tests/kit/commits.test.mts` | [~] |
 | K452 | run-tests의 확장 실행(--php-extension, 라이브러리 없음)이 라이브러리 실행과 같은 PHPUnit 설정과 bootstrap을 읽는다: bootstrap 함수를 부르는 orm 같은 테스트는 지금 확장에서 실패한다(S10: 테스트는 바뀌지 않고 실행된다) | scripts/kit/run-tests.mts | `node --test --test-name-pattern=K452 tests/kit/run-tests.test.mts` | [ ] |
 | K452-1 | PHP 확장 실행은 PHPUnit이 시작되기 전에 각 --php-extension이 로드됐는지 확인하고, 로드되지 않으면 .so 경로와 그것이 빌드된 PHP 버전·API를 실행 중인 것과 함께 명명하며 실패한다: PHP 8.5용 .so가 PHP 8.4에서 조용히 라이브러리를 시험하면 안 된다(P8) | scripts/kit/run-tests.mts | `node --test --test-name-pattern=K452-1 tests/kit/run-tests.test.mts` | [ ] |
+| K453 | make land이 land 뒤 연결된 소비자가 쓰는 kit dist/를 다시 만든다(K453). 원인: make land는 gitignore된 kit dist/를 다시 만들지 않아, 연결된 소비자가 land할 때마다 오래된 run-tests를 실행한다. 근거: 14:42의 dist에는 19:22에 수동 make build를 하기 전까지 K371-1이 없었다. 완료 기준: fast-forward 뒤 land가 main checkout에서 make build를 실행해 dist/가 병합된 source를 담고, build가 실패하면 land는 성공을 보고하기 전에 실패한다. 현재 빨간 상태: scripts/kit을 바꾸는 branch를 land하면 dist/가 병합 전 source를 담는다. | `scripts/kit/land.mts`, `tests/kit/land.test.mts` | `node scripts/kit/run-tests.mts node --test-name-pattern=K453 -- tests/kit/land.test.mts` | [ ] |
