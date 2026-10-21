@@ -646,6 +646,34 @@ test('the gap watch arms at the start of the run and after a test ends, and a te
   });
 });
 
+// K371-1-1: a node file that never reports a test and never yields to its event loop. The file-side watch of test-exit-deadline runs in
+// that file's own thread, so it cannot end it; only the gap watch of the runner can. The file's own 20 s loop bounds the fixture: on a
+// base without the gap watch the run ends after 20 s, so the deadline of this test is far above the expected stop.
+test('a node file that never reports a test and never yields is stopped by the gap watch (K371-1-1)', { timeout: 60_000 }, (t) => {
+  const root = checkout(t, { 'tests/busy.test.mjs': 'const end = Date.now() + 20000;\nwhile (Date.now() < end) {}\n' });
+  const began = Date.now();
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/busy.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI }, timeout: 40_000 });
+  const elapsed = Date.now() - began;
+  assert.equal(result.status, 1, output(result));
+  assert.match(output(result), /⏱ node \. tests\/busy\.test\.mjs: no test started within 2 s after the start of the run; the run elapsed [\d.]+s; stopping `[^`]*node --test/);
+  assert.ok(elapsed < 10_000, `the run took ${elapsed} ms, expected the gap stop at 2 s, not the file's 20 s loop`);
+});
+
+// A file that holds a handle and never reports a test is ended by the gap watch at its timeout, with or without a name pattern that
+// matches no test. The preload of the file and the gap watch both expire at the same time, so either message may name the stop.
+test('a node file that holds a handle and never reports a test is ended at its timeout (K371-1-1)', { timeout: 60_000 }, (t) => {
+  const root = checkout(t, { 'tests/hold.test.mjs': "import net from 'node:net';\nnet.createServer().listen(0);\n", 'tests/idle.test.mjs': 'setInterval(() => {}, 1000);\n' });
+  const stop = /no test started (?:within 2 s after the start of the run|or ended within 2000 ms of the process start)/;
+  for (const args of [['--', 'tests/hold.test.mjs'], ['--', '--test-name-pattern', 'nomatch', 'tests/idle.test.mjs']]) {
+    const began = Date.now();
+    const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI }, timeout: 40_000 });
+    const elapsed = Date.now() - began;
+    assert.equal(result.status, 1, output(result));
+    assert.match(output(result), stop, output(result));
+    assert.ok(elapsed < 10_000, `${args.join(' ')} took ${elapsed} ms, expected the stop at 2 s`);
+  }
+});
+
 // A stopped tool leaves no process (K141): the runner starts the tool in its own process group and stops the whole group, at a
 // timeout and when the runner itself is interrupted. The hanging stub starts a grandchild, as the mise shim starts the
 // interpreter, and records both pids in a file of its own directory; t.after kills every recorded pid that is still alive, so a
