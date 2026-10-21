@@ -178,7 +178,8 @@ export function land(root: string, branch: string, { print = (text: string) => c
     for (const gate of excluded) print(`${gate} runs tests, which the Verification of the rows runs; land does not run it`);
     print(`gates of ${branch} in ${folder}: ${gates.join(', ')}`);
     for (const gate of gates) {
-      const args = gate === 'commits-check' ? ['--no-print-directory', gate, `RANGE=main..${branch}`] : ['--no-print-directory', gate];
+      // make -s: the recipes that make echoes differ between checkouts and are not findings of the gate (K446-3).
+      const args = gate === 'commits-check' ? ['--no-print-directory', '-s', gate, `RANGE=main..${branch}`] : ['--no-print-directory', '-s', gate];
       print(`${gate} in ${folder}`);
       const result = spawnSync('make', args, { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
       if (result.error) throw new Error(`make ${gate} could not start in ${folder}: ${result.error.message}`);
@@ -241,7 +242,7 @@ export function runCommitGates(folder: string, changed: string[], print: (text: 
   const { gates } = gatesOf(folder, changed);
   for (const gate of gates.filter(gate => gate !== 'commits-check')) {
     print(`${gate} in ${folder}`);
-    const result = spawnSync('make', ['--no-print-directory', gate], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
+    const result = spawnSync('make', ['--no-print-directory', '-s', gate], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
     if (result.error) throw new Error(`make ${gate} could not start in ${folder}: ${result.error.message}`);
     if (result.status === 0) continue;
     const head = mkdtempSync(path.join(tmpdir(), 'kit-commit-gate-'));
@@ -249,7 +250,7 @@ export function runCommitGates(folder: string, changed: string[], print: (text: 
       const made = spawnSync('git', ['worktree', 'add', '--quiet', '--detach', head, 'HEAD'], { cwd: folder, encoding: 'utf8' });
       if (made.status !== 0) throw new Error(`git worktree add of HEAD failed: ${made.stderr}`);
       for (const shared of ['var', 'node_modules']) if (existsSync(path.join(folder, shared)) && !existsSync(path.join(head, shared))) symlinkSync(path.join(folder, shared), path.join(head, shared));
-      const base = spawnSync('make', ['--no-print-directory', gate], { cwd: head, encoding: 'utf8', maxBuffer: 1 << 28 });
+      const base = spawnSync('make', ['--no-print-directory', '-s', gate], { cwd: head, encoding: 'utf8', maxBuffer: 1 << 28 });
       if (base.error) throw new Error(`make ${gate} could not start on HEAD: ${base.error.message}`);
       const added = newLines(linesOf(`${result.stdout}${result.stderr}`, folder, folder), linesOf(`${base.stdout}${base.stderr}`, head, folder));
       if (added.length === 0) { print(`${gate} fails on HEAD too, with no finding that HEAD lacks`); continue; }

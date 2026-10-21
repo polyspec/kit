@@ -1,13 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 51412814f79f0eb3eefd7ef455ee64fe0defc877b6c337a4a184fdade8c6574e -->
+<!-- source-sha256: 79720cef2ac677198963ae34378864a940682f930f144b44c1c1d3bb46f36a16 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make land`와 main의 `make commit`은 각 gate를 `make -s`로 실행하므로, checkout마다 다른 make의 recipe 출력 줄을
+  HEAD에 없는 finding으로 읽지 않는다(K446-3).
 - K439-1: composer-provider-entries는 각 composer.lock의 platform과 platform-overrides를 그 디렉터리의 composer.json에서 다시 계산하고, release-consumer lock은 건드리지 않는다 (K439-1). Red: node --test --test-name-pattern=K439-1 tests/kit/dependency-review.test.mts가 exit 1(export와 재계산 없음); green: 파일 전체 15개 통과, K439-1 포함. (K439-1).
-
 - `make land`와 main의 `make commit`은 체크아웃의 실제 경로와 논리 경로를 같은 키로 읽으므로, 경로만 다른 변경 없는 finding으로 거부되지 않는다(K446-2).
 - main에서 `make commit`은 선택된 gate를 `make land`처럼 HEAD와 비교하고, HEAD에 없는 finding만 거부하므로 HEAD가 이미 가진 finding은 관계없는 변경을 막지 않는다(K446-1).
 - lock을 composer install하는 recipe는 뒤에 link 단계가 있어도 거부되며, sibling이 제공하는 polyspec 패키지를 처음부터
