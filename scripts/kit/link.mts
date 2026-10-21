@@ -373,9 +373,30 @@ function linkManifest(project: string, links: readonly { name: string; folder: s
   const required = { ...(isJsonObject(manifest.require) ? manifest.require : {}), ...(isJsonObject(manifest['require-dev']) ? manifest['require-dev'] : {}) };
   // K379-1: a fork provides the version that the consumer pins (2.6.0-p1), written as its tag (v2.6.0-p1), not the release that the lock
   // recorded before the pin: a stale version there makes Composer refuse the fork in the partial update.
+  // K379-2: the exact pin of a fork is the one that the consumer or a linked provider requires (require and require-dev); two different
+  // pins fail the link, naming both.
+  const exact = /^v?\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
+  const pins = new Map<string, Set<string>>();
+  const addPins = (source: Record<string, unknown>) => {
+    for (const block of ['require', 'require-dev'] as const) {
+      const requirements = isJsonObject(source[block]) ? source[block] : {};
+      for (const [name, pin] of Object.entries(requirements)) {
+        if (typeof pin !== 'string' || !exact.test(pin)) continue;
+        pins.set(name, (pins.get(name) ?? new Set<string>()).add(pin));
+      }
+    }
+  };
+  addPins(manifest);
+  for (const link of links) {
+    const providerManifest: unknown = existsSync(path.join(link.folder, MANIFESTS.composer)) ? readJsonOf(path.join(link.folder, MANIFESTS.composer)) : undefined;
+    if (isJsonObject(providerManifest)) addPins(providerManifest);
+  }
   const versionOf = (name: string, fork: boolean): string | undefined => {
     const pin = required[name];
-    if (fork && typeof pin === 'string' && /^v?\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/.test(pin)) return `v${pin.replace(/^v/, '')}`;
+    const found = [...(pins.get(name) ?? [])];
+    if (fork && found.length > 1) throw new Error(`${name} is pinned at ${found.join(' and ')}, by the consumer and its linked providers, so the link cannot choose one (K379-2)`);
+    const [only] = found;
+    if (fork && only !== undefined && found.length === 1) return `v${only.replace(/^v/, '')}`;
     return versions.get(name) ?? (typeof pin === 'string' && /^v?\d+\.\d+\.\d+$/.test(pin) ? pin : undefined);
   };
   const paths = links.map(({ name, folder, fork }) => ({ type: 'path', url: folder, options: { symlink: true, ...(versionOf(name, fork === true) === undefined ? {} : { versions: { [name]: versionOf(name, fork === true) } }) } }));

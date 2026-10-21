@@ -1472,3 +1472,30 @@ test('make composer-install of a nested Composer project links the polyspec pack
   assert.doesNotMatch(log(), /^composer install/m, 'no composer install of the tracked lock runs in the nested project');
   assert.equal(realpathSync(path.join(board, 'vendor/polyspec/y')), path.join(provider, 'packages/php'), 'the nested project links the provider folder');
 });
+
+// K379-2: a fork that only a linked provider pins takes the version of that pin, written as its tag, not the release of the lock: the
+// consumer does not require the fork, and the provider polyspec/y, which the consumer requires, pins it at 2.6.0-p1.
+test('link --siblings gives a fork the version that a linked provider pins (K379-2)', (t) => {
+  const { root, consumer, env, provider } = workspace(t);
+  const fork = repository(path.join(root, 'forks'), 'json-schema', {
+    'composer.json': JSON.stringify({ name: 'opis/json-schema', autoload: { 'psr-4': { 'Opis\\JsonSchema\\': 'src/' } } }),
+  });
+  put(provider, {
+    'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', require: { 'opis/json-schema': '2.6.0-p1' }, repositories: [{ type: 'vcs', url: 'https://github.com/min-0-max/json-schema' }], autoload: { 'psr-4': { 'Y\\': 'src/' } } }),
+  });
+  git(provider, 'add', '-A');
+  git(provider, 'commit', '--quiet', '-m', 'pin the fork');
+  put(consumer, {
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' } }),
+    'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1' }, { name: 'opis/json-schema', version: '2.6.0' }] }),
+    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' }, { name: 'opis/json-schema', version: '2.6.0', 'install-path': '../opis/json-schema' }] }),
+    'var/contracts/vendor/opis/json-schema/composer.json': '{"name":"opis/json-schema"}',
+  });
+  const checkouts = siblingCheckouts(consumer).checkouts;
+  assert.ok(checkouts.includes(fork), 'the fork of forks/ is a checkout');
+  const lines: string[] = [];
+  assert.equal(link({ checkouts, directories: [consumer], check: false, print: text => lines.push(text), env }), true, lines.join('\n'));
+  const manifest: unknown = JSON.parse(readFileSync(path.join(consumer, 'composer.link.json'), 'utf8'));
+  if (!isJsonObject(manifest) || !Array.isArray(manifest.repositories)) throw new Error('composer.link.json holds no repositories');
+  assert.deepEqual(manifest.repositories.find(item => isJsonObject(item) && item.url === fork), { type: 'path', url: fork, options: { symlink: true, versions: { 'opis/json-schema': 'v2.6.0-p1' } } });
+});

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9af0e3db266862b5f5663d77e12fdfe0ad942cd46fdf3484c22d6855ae5169d5 -->
+<!-- source-sha256: a33b27cb8a0ec5b8a41ba025df52b42ff11b19443079b489e874fc1170d58dcc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K379-2: 링크는 소비자나 연결된 provider가 요구하는 정확한 고정 버전(require와 require-dev)을 tag로 써서 fork를 연결하고, 두 고정 버전이 다르면 둘을 함께 적고 실패한다 (K379-2). Red: node --test --test-name-pattern=K379-2 tests/kit/link.test.mts가 exit 1(link manifest가 lock 버전 2.6.0을 씀); green: link 테스트 파일 82개 전부 통과, K379-2 포함. (K379-2).
 - main의 `make commit`은 `make land`처럼 gate의 finding을 읽고 kit 도구가 대괄호 이름으로 찍는 진행 줄은 빼므로, HEAD와 다른
   진행 줄이 commit을 거부하지 않는다(K446-4).
 - `make land`와 main의 `make commit`은 각 gate를 `make -s`로 실행하므로, checkout마다 다른 make의 recipe 출력 줄을
