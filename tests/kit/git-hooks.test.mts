@@ -185,7 +185,7 @@ test('an amend that restages a document of a fix commit with its test passes the
   writeFileSync(path.join(work, 'src/tool.mts'), 'export const tool = 1;\n');
   writeFileSync(path.join(work, 'tests/tool.test.mts'), "import test from 'node:test';\n");
   git(work, 'add', '-A');
-  const fix = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'fix(hooks): Check the tool (#K380-2)\n\nThe body names the change.\n']);
+  const fix = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'fix(hooks): Check the tool (#T1-1)\n\nThe body names the change.\n']);
   assert.equal(fix.status, 0, fix.stderr);
 
   writeFileSync(path.join(work, 'docs/notes.md'), '# Notes\n');
@@ -195,7 +195,7 @@ test('an amend that restages a document of a fix commit with its test passes the
 
   writeFileSync(path.join(work, 'src/tool.mts'), 'export const tool = 2;\n');
   git(work, 'add', 'src/tool.mts');
-  const plain = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'fix(hooks): Change the tool (#K380-2)\n\nThe body names the change.\n']);
+  const plain = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'fix(hooks): Change the tool (#T1-1)\n\nThe body names the change.\n']);
   assert.equal(plain.status, 1, 'a plain fix commit that changes no test is refused');
   assert.match(plain.stderr, /commit-fix-test/);
 });

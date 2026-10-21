@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K380-2-1: the K380-2 amend test names in its fixture commits only the row `T1-1` that the fixture tree holds, so `commit-row` passes on main and the test checks the amend it names (K380-2-1). Red: `node --test --test-name-pattern=K380-2 tests/kit/git-hooks.test.mts` exits 1 on 66a4fb26 (commit-row: the subject names K380-2); green: `make item-test ID=K380-2-1` passes (1 test, none skipped) (K380-2-1).
 - K468 is recorded as done in this commit: its row moves from [~] to [o], and its changelog line is the one above (K468).
 - K468 is done: its row is [o] in this commit, whose red is the K468 test run before the fix and whose green is the K468 tests of this commit (K468). A tracked Composer, npm or pylock file names no 0.0.x polyspec package: the declarations live in config/polyspec.json, `make polyspec-lock-check` fails on a tracked name, and link installs each declared package from its sibling checkout (K468).
 - K464: the sibling rule of `make dependency-policy-check` reports a version mismatch of a direct dependency only from the checkout that is off its reviewed target in config/dependency-review.json, and both checkouts when both are at their targets and the targets differ; it reads a sibling from its committed main, names a sibling it cannot read as not evaluated, and no finding text carries the review date, which stays in the progress output (K464).

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 97714a82fffb45470c0bd5366c80b8c481925469d1f72685215f9cd66933e701 -->
+<!-- source-sha256: bdb56481df21073863c3971cd73e334ea3b42138f2386ee2738fd210b8478490 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K380-2-1: K380-2 amend 테스트의 fixture commit이 fixture tree가 갖고 있는 row `T1-1`만 적는다. 그래서 `commit-row`는 main에서 통과하고 테스트는 자신이 이름을 붙이는 amend를 검사한다 (K380-2-1). red: `node --test --test-name-pattern=K380-2 tests/kit/git-hooks.test.mts`는 66a4fb26에서 exit 1이다(commit-row: subject이 K380-2를 적음). green: `make item-test ID=K380-2-1`이 통과한다(1 test, none skipped) (K380-2-1).
 - K468는 이 커밋에서 done으로 기록된다: 항목이 [~]에서 [o]로 바뀌고, 그 changelog 줄은 위의 줄이다 (K468).
 - K468는 done입니다. 항목은 이 커밋에서 [o]이며, red는 수정 전 K468 test 실행이고 green은 이 커밋의 K468 test입니다 (K468). 추적되는 Composer, npm, pylock 파일은 0.0.x polyspec 패키지를 이름으로 적지 않는다. 선언은 config/polyspec.json에 있고, `make polyspec-lock-check`가 추적되는 이름을 실패시키며, link는 선언된 각 패키지를 형제 checkout에서 설치한다 (K468).
 - K464: `make dependency-policy-check`의 sibling 규칙은 direct dependency의 버전 불일치를 config/dependency-review.json의 reviewed target에서 벗어난 체크아웃만 보고하며, 둘 다 target에 있고 target이 다르면 둘 다 보고한다. sibling은 commit된 main에서 읽고, 읽을 수 없는 sibling은 not evaluated로 명시한다. finding 문장에는 review 날짜가 없고 날짜는 progress 출력에 남는다 (K464).
