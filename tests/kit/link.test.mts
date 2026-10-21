@@ -1525,7 +1525,7 @@ test('make composer-install of a nested Composer project links the polyspec pack
 
 // K379-2: a fork that only a linked provider pins takes the version of that pin, written as its tag, not the release of the lock: the
 // consumer does not require the fork, and the provider polyspec/y, which the consumer requires, pins it at 2.6.0-p1.
-test('link --siblings gives a fork the version that a linked provider pins (K379-2)', (t) => {
+test('K479: link --siblings gives a fork the version that a linked provider pins (K379-2)', (t) => {
   const { root, consumer, env, provider } = workspace(t);
   const fork = repository(path.join(root, 'forks'), 'json-schema', {
     'composer.json': JSON.stringify({ name: 'opis/json-schema', autoload: { 'psr-4': { 'Opis\\JsonSchema\\': 'src/' } } }),
@@ -1690,7 +1690,7 @@ test('every Go module of the kit checkout gets a git-ignored go.work (K440-2)', 
   }
 });
 
-test('K468: a Composer package that config/polyspec.json declares is linked through composer.link.json alone, at the version of its provider composer.json; the tracked files name it nowhere', (t) => {
+test('K479 K468: a Composer package that config/polyspec.json declares is linked through composer.link.json alone, at the version of its provider composer.json; the tracked files name it nowhere', (t) => {
   const { provider, consumer, env } = workspace(t);
   put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', version: '0.0.1', autoload: { 'psr-4': { 'Y\\': 'src/' } } }) });
   put(consumer, {
@@ -1706,7 +1706,7 @@ test('K468: a Composer package that config/polyspec.json declares is linked thro
   assert.deepEqual(seen.targets, ['polyspec/y']);
   assert.deepEqual(seen.repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.1' } } });
   const linkManifest = readJsonObject(consumer, 'composer.link.json');
-  assert.deepEqual(linkManifest.require, { 'psr/log': '3.0.0', 'polyspec/y': '*' }, 'the link manifest requires the declared package');
+  assert.deepEqual(linkManifest.require, { 'psr/log': '3.0.0', 'polyspec/y': '0.0.1' }, 'the link manifest requires the exact provider version, never a wildcard');
   assert.deepEqual(readJsonObject(consumer, 'composer.json').require, { 'psr/log': '3.0.0' }, 'the tracked composer.json is unchanged');
 });
 
@@ -1738,3 +1738,48 @@ test('K468: a declared npm package that package.json does not name and that is n
   assert.equal(ok, true, text);
   assert.equal(realpathSync(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
 });
+
+test('K479: unrequired Composer links use provider metadata even when the tracked lock disagrees', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', version: '0.0.2' }) });
+  put(consumer, {
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'psr/log': '3.0.0' } }),
+    'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1' }] }),
+  });
+  const before = readFileSync(path.join(consumer, 'composer.json'), 'utf8');
+  const lock = readFileSync(path.join(consumer, 'composer.lock'), 'utf8');
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  const generated = readJsonObject(consumer, 'composer.link.json');
+  assert.deepEqual(generated.require, { 'psr/log': '3.0.0', 'polyspec/y': '0.0.2' });
+  assert.deepEqual(seenUpdate(consumer).repositories[0], { type: 'path', url: path.join(provider, 'packages/php'), options: { symlink: true, versions: { 'polyspec/y': '0.0.2' } } });
+  assert.equal(readFileSync(path.join(consumer, 'composer.json'), 'utf8'), before);
+  assert.equal(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'), lock);
+});
+
+for (const version of [undefined, null, 1, '*', 'latest', '^0.0.1', '']) {
+  test('K479: unrequired Composer links reject non-exact provider version ' + JSON.stringify(version), (t) => {
+    const { provider, consumer, env } = workspace(t);
+    put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', version }) });
+    put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app' }), 'composer.lock': JSON.stringify({ packages: [] }) });
+    const expected = version === null || typeof version === 'number'
+      ? new RegExp('composer.json: /version must be string')
+      : new RegExp('polyspec/y has no exact provider version.*K479');
+    assert.throws(() => linkLines([consumer], env), expected);
+    assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false);
+  });
+}
+
+for (const block of ['require', 'require-dev']) {
+  test('K479: existing Composer ' + block + ' constraints are preserved', (t) => {
+    const { consumer, env } = workspace(t);
+    put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', [block]: { 'polyspec/y': '^0.0.1' } }), 'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1' }] }) });
+    const before = readFileSync(path.join(consumer, 'composer.json'), 'utf8');
+    const { ok, text } = linkLines([consumer], env);
+    assert.equal(ok, true, text);
+    const generated = readJsonObject(consumer, 'composer.link.json');
+    assert.deepEqual(generated[block], { 'polyspec/y': '^0.0.1' });
+    if (block === 'require-dev') assert.equal(generated.require, undefined);
+    assert.equal(readFileSync(path.join(consumer, 'composer.json'), 'utf8'), before);
+  });
+}

@@ -429,6 +429,7 @@ function linkManifest(project: string, links: readonly { name: string; folder: s
     if (fork && found.length > 1) throw new Error(`${name} is pinned at ${found.join(' and ')}, by the consumer and its linked providers, so the link cannot choose one (K379-2)`);
     const [only] = found;
     if (fork && only !== undefined && found.length === 1) return `v${only.replace(/^v/, '')}`;
+    if (pin === undefined) return providerVersion(name);
     return versions.get(name) ?? (typeof pin === 'string' && /^v?\d+\.\d+\.\d+$/.test(pin) ? pin : undefined) ?? providerVersion(name);
   };
   const paths = links.map(({ name, folder, fork }) => ({ type: 'path', url: folder, options: { symlink: true, ...(versionOf(name, fork === true) === undefined ? {} : { versions: { [name]: versionOf(name, fork === true) } }) } }));
@@ -447,10 +448,13 @@ function linkManifest(project: string, links: readonly { name: string; folder: s
   }
   const added = [...paths, ...provided];
   const repositories = isJsonObject(existing) ? { ...Object.fromEntries(added.map((entry, index) => [`polyspec-link-${index}`, entry])), ...existing } : [...added, ...declaredList(existing)];
-  // K468: a linked package that no requirement names is required as '*' in the link manifest, so Composer updates it; the tracked
-  // composer.json names none.
-  const unrequired = links.filter(({ name }) => required[name] === undefined);
-  const withRequire = unrequired.length === 0 ? manifest : { ...manifest, require: { ...(isJsonObject(manifest.require) ? manifest.require : {}), ...Object.fromEntries(unrequired.map(({ name }) => [name, '*'])) } };
+  // K479: unrequired links use validated provider metadata, never a wildcard or a stale lock version.
+  const unrequired = links.filter(({ name }) => required[name] === undefined).map(({ name, fork }): [string, string] => {
+    const version = versionOf(name, fork === true);
+    if (version === undefined || !exact.test(version)) throw new Error(`${name} has no exact provider version for its linked Composer requirement (K479)`);
+    return [name, version];
+  });
+  const withRequire = unrequired.length === 0 ? manifest : { ...manifest, require: { ...(isJsonObject(manifest.require) ? manifest.require : {}), ...Object.fromEntries(unrequired) } };
   return { ...withRequire, repositories };
 }
 

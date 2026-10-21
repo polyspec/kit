@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0ac5638f972dd3bebd45d980c2fddd71719be0307fbe1ea001938d9888eb15b4 -->
+<!-- source-sha256: 6d265fc56be162f8c763cccc90813a83575fbecc782f04bd7ac87edaaf928e57 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K479: 생성된 Composer link requirement는 provider의 exact version을 사용하고, 없거나 잘못된 provider version을 거부하며 선언된 constraint와 tracked manifest를 보존한다. 선언되지 않은 package의 path repository도 오래된 tracked lock 대신 같은 provider version을 사용하며, fork는 충돌을 검증한 linked-provider의 exact pin을 유지한다 (K379-2). Red: focused regression은 `0.0.1` 대신 `*`를 보고했고, 최종 baseline 실행은 behavioral failure 7개를 기록했다. Green: K379-2를 포함한 focused K479 test 12개가 모두 통과했다 (K479).
 
 - K476: Go workspace discovery와 go.mod/go.work reader는 checkout mise shim을 checkout의 mise environment로 실행하여, dependency-review가 managed Go shim을 가공되지 않은 process environment로 호출하지 않게 한다 (K476).
 

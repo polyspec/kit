@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K479: generated Composer link requirements use exact provider versions, reject missing or malformed provider versions, and preserve declared constraints and tracked manifests. Path repositories use the same provider version for undeclared packages, not a stale tracked lock; forks retain their conflict-checked exact linked-provider pin (K379-2). Red: the focused regression reported `*` instead of `0.0.1`; the final baseline run had 7 behavioral failures. Green: all 12 focused K479 tests passed, including K379-2 (K479).
+
 - K476: Go workspace discovery, go.mod and go.work readers now run checkout mise shims with the checkout mise environment, so dependency-review does not invoke a managed Go shim with a bare process environment (K476).
 
 - K435-1: Go and PyPI targeted releases now have focused tests for registry validation and exact update planning, and a completeness test keeps coverage aligned with every target-release handler (K435-1).
