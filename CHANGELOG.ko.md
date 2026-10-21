@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4b4556f36f9069219904d042793be5625356f47013b5f468aa79d9296c6df6e0 -->
+<!-- source-sha256: 6e5f3e85ba5dbb3e951b67a0d24b80f88555e23b91d945846e35d260e4f39af0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- link는 --project 아래 consumer 자신의 Python 프로젝트도 K398의 editable wheel로 --no-deps와 함께 설치하고 direct_url.json을
+  그 폴더의 editable 기록으로 다시 쓰므로, container가 read-only로 mount한 checkout에 아무것도 쓰지 않는다. `uv pip install
+  -e`는 남지 않으며, K398의 거부가 그것에도 적용된다(K398-1).
 - fork의 링크는 consumer가 고정한 버전을 지킨다: 링크 manifest는 fork checkout의 path repository에 lock이 고정 전에 기록한
   release가 아니라 consumer composer.json의 정확한 핀을 태그로(2.6.0-p1을 v2.6.0-p1로) 주므로, Composer는 partial update에서
   forks/<name>의 fork를 받는다(K379-1).

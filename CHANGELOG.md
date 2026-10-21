@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- The link installs the consumer's own Python projects under --project from the editable wheel of K398 too, with --no-deps,
+  and rewrites their direct_url.json to the editable record of their folder, so it writes nothing into a checkout that a
+  container mounts read-only; no `uv pip install -e` remains, and the refusals of K398 apply to them (K398-1).
 - The link of a fork keeps the version that the consumer pins: the link manifest gives the path repository of a fork checkout
   the exact pin of the consumer's composer.json as its tag (2.6.0-p1 as v2.6.0-p1), not a release that the lock recorded
   before the pin, so Composer takes the fork from forks/<name> in the partial update (K379-1).
