@@ -18,6 +18,7 @@ import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
+import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
 
 /** What the Composer stub saw in its last update: the file it read, the packages it was given and the repositories of that file. */
@@ -1597,4 +1598,16 @@ test('link cargo --siblings runs cargo with the sibling crates patched and the a
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.match(log(), /cargo --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=.* fetch --locked/);
+});
+
+// K440-1: link writes a git-ignored go.work into each Go module of a checkout, kit's own tools included (scripts/kit/symbols/go), so the
+// checkout of kit must ignore it; otherwise link fails before it writes the workspace hook of K440.
+test('every Go module of the kit checkout gets a git-ignored go.work (K440-1)', () => {
+  const root = repositoryRoot();
+  const modules = trackedManifests(root, ['go.mod']);
+  assert.ok(modules.length > 0, 'the checkout tracks a Go module');
+  for (const manifest of modules) {
+    const work = path.join(root, path.dirname(manifest), 'go.work');
+    assert.equal(isIgnored(work), true, `${work} is not ignored by Git, so link fails on it`);
+  }
 });

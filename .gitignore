@@ -21,3 +21,7 @@ __pycache__/
 test-results/
 playwright-report/
 coverage/
+
+# Files that link writes into each Go module (K205): a go.work and its go.work.sum, in kit tools too (K440-1)
+go.work
+go.work.sum
