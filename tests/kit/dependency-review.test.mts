@@ -395,6 +395,20 @@ test('a target version that the registry lacks fails UPDATE before any dependenc
   assert.deepEqual(stub.calls().filter(call => call.startsWith('npm install')), [], stub.calls().join('\n'));
 });
 
+test('a target that breaks the PHP policy fails UPDATE before any dependency changes, and names it (K435)', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t, root);
+  // The release 3.0.3 requires php >=8.5, which the platform of the policy (8.2.0 for the fixture lock) does not satisfy.
+  stub.registry({ ...FIXTURE_REGISTRY, composer: { 'fixture-php': { 'psr/log': '3.0.4' } }, packagist: { 'psr/log': ['3.0.2', '3.0.3', '3.0.4'] }, packagistPhp: { 'psr/log': '>=8.5.0' } });
+  const file = writeTargets(root, { composer: { 'psr/log': '3.0.3' } });
+  const result = review(root, ['--update', '--targets', file], stub.env);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /psr\/log[^\n]*3\.0\.3[^\n]*php >=8\.5/, result.stdout);
+  assert.deepEqual(stub.calls().filter(call => /^composer (require|update)/.test(call)), [], stub.calls().join('\n'));
+});
+
 test('RECORD with TARGETS records the snapshot moment of the file as the review moment (K435)', (t) => {
   const root = fixture(t);
   installCargoAuditStub(root);

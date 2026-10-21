@@ -104,7 +104,7 @@ if (packagist) {
   // Packagist's metadata of a package: each release with its PHP requirement, as the platform check of the review reads it.
   const versions = registry.packagist?.[packagist[1]];
   if (!versions) { console.error('404 ' + url); process.exit(22); }
-  console.log(JSON.stringify({ packages: { [packagist[1]]: versions.map(version => ({ version, require: { php: '>=8.0.0' } })) } }));
+  console.log(JSON.stringify({ packages: { [packagist[1]]: versions.map(version => ({ version, require: { php: registry.packagistPhp?.[packagist[1]] ?? '>=8.0.0' } })) } }));
   process.exit(0);
 }
 const match = /^https:\\/\\/pypi\\.org\\/pypi\\/([^/]+)(?:\\/([^/]+))?\\/json$/.exec(url);
