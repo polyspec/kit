@@ -17,7 +17,6 @@
 //                    of its tree, the test that covers the same requirement (K339)
 //   commit-row       the id of the subject is an item of a checklist of docs/plans in the tree of the commit (the index for the hook);
 //                    the first commit of a repository passes
-//   commit-on-main   the message being committed is not committed on main once main has a commit (K404)
 //   commit-identity  when config/commit-identity.json exists, the author and the committer are the identity that it
 //                    declares (K405)
 //   commit-generated the paths that a commit adds, copies, modifies or renames have no generated segment that the
@@ -123,11 +122,6 @@ export function nextIdentityFindings(root: string): CommitFinding[] {
  * branch, which make land merges into main by fast-forward, so no commit is made on main; the first commit of a repository creates
  * main, which no branch can land on, and passes.
  */
-export function branchFindings(root: string): CommitFinding[] {
-  const branch = gitResult(root, 'symbolic-ref', '--quiet', '--short', 'HEAD');
-  if (branch.status !== 0 || branch.stdout.trim() !== 'main' || gitResult(root, 'rev-parse', '--verify', '--quiet', 'HEAD').status !== 0) return [];
-  return [{ rule: 'commit-on-main', message: 'HEAD is main; a row is committed on its own branch, and make land merges it into main by fast-forward (P10). Fix: make worktree-setup NAME=<name> ID=<id>, and commit in that worktree' }];
-}
 
 /** The findings of a commit `message` as `{ rule, message }`. */
 export function messageFindings(message: string, config: CommitRules) {
@@ -487,7 +481,7 @@ if (isMain(import.meta.url)) {
       const amend = takeAmend(root);
       const message = fileMessage(readFileSync(values.message, 'utf8'));
       label = 'the message being committed';
-      findings = message === null ? [] : [...branchFindings(root), ...messageFindings(message, config), ...nextIdentityFindings(root), ...indexItemFindings(root, config, message, amend)].map(found => `${found.rule}: ${found.message}`);
+      findings = message === null ? [] : [...messageFindings(message, config), ...nextIdentityFindings(root), ...indexItemFindings(root, config, message, amend)].map(found => `${found.rule}: ${found.message}`);
     } else {
       label = `the commits of ${values.range ?? 'HEAD'}`;
       console.log(`[check-commits] reading ${label}`);

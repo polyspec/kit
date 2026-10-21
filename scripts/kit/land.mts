@@ -130,7 +130,7 @@ function newLines(branch: { line: string; key: string }[], main: { key: string }
  * ALWAYS_GATES. The test gates are not returned but in `excluded`, so no test target runs. Throws on a changed path that no
  * owner declares.
  */
-function gatesOf(folder: string, changed: string[]): { gates: string[]; excluded: string[]; reasons: string[] } {
+export function gatesOf(folder: string, changed: string[]): { gates: string[]; excluded: string[]; reasons: string[] } {
   const declaration = readConfig<OwnerDeclaration>(folder, DECLARATION, 'owner-checks.schema.json');
   const exists = (file: string) => existsSync(path.join(folder, file));
   const selection = select(declaration, changed, [], exists, importGraph(folder, trackedFiles(folder)));
@@ -224,5 +224,19 @@ if (isMain(import.meta.url)) {
     if (!(error instanceof Error)) throw error;
     console.error(`[land] ${error.message}`);
     process.exit(1);
+  }
+}
+
+/**
+ * Runs the static gates of land that the changed paths of `folder` select, before a commit on main (K446): `make <gate>` in the
+ * folder, the commit gate (commits-check) left to the commit itself. Throws, naming the gate and its output, when one fails.
+ */
+export function runCommitGates(folder: string, changed: string[], print: (text: string) => void = text => console.log(`[plan] ${text}`)): void {
+  const { gates } = gatesOf(folder, changed);
+  for (const gate of gates.filter(gate => gate !== 'commits-check')) {
+    print(`${gate} in ${folder}`);
+    const result = spawnSync('make', ['--no-print-directory', gate], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
+    if (result.error) throw new Error(`make ${gate} could not start in ${folder}: ${result.error.message}`);
+    if (result.status !== 0) throw new Error(`the gate ${gate} fails, so nothing is committed on main:\n${result.stdout}${result.stderr}`);
   }
 }
