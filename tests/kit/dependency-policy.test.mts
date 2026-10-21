@@ -607,6 +607,9 @@ test('shared pins compare tracked Composer locks, not generated link locks or ma
   const findings = sharedPinFindings(trackedLag, [sibling]).findings;
   assert.equal(findings.length, 1, JSON.stringify(findings));
   assert.match(findings[0]?.problem ?? '', /locked at 2\.5\.0/);
+
+  writeFileSync(path.join(trackedLag, 'composer.json'), JSON.stringify({ name: 'example/orm', require: {} }));
+  assert.equal(sharedPinFindings(trackedLag, [sibling]).findings.length, 1, 'an uncommitted manifest edit does not erase a committed direct pin');
 });
 
 test('the sibling side is the committed main of the sibling, not its working tree (K464)', (t) => {

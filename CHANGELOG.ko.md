@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9469f72d8a23b006b37681078287fff7100a2d8daf8256af2398e2beb3d30a9c -->
+<!-- source-sha256: 86fe5125828d2568f9b860342b1c055aa46daa78240ae55df553a97da18727e5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K464-1-1: shared-pin 비교를 commit된 tracked source로 옮긴 뒤 사용하지 않는 working-tree source reader와 import를 제거했다. `make lint-ts`가 통과한다 (K464-1-1).
 
 - K464-1: sibling rule은 현재 checkout의 commit된 HEAD와 각 sibling의 commit된 main에서 추적되는 Composer pin을 비교하며, 생성된 Composer link 파일과 분리한다. Link 파일은 K326-2의 runtime platform 및 validation rule에서 계속 판단한다. K464 focused test는 생성된 link 불일치, 실제 tracked 불일치, commit되지 않은 tracked lock 수정을 검증한다 (K464-1).
 

@@ -6,7 +6,7 @@
 // breaks and its fix, one line each, and fails when there is one.
 //
 //   node scripts/kit/check-dependency-policy.mts [--root <checkout>]
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { POLICY, RECORD, UPDATE, acceptedText, advisoryExceptions, advisoryKey, completeAdvisoryException, dependencyKey, lockEcosystem, lockFix, localSpecDirectory, readState, advisoryRelease } from './dependency-state.mts';
 import { isPrerelease, isVersionText, older } from './version.mts';
@@ -22,7 +22,7 @@ import type { DependencyPolicy } from './dependency-state.mts';
 import { present } from './present.mts';
 import { isLinked } from './linked-package.mts';
 import { LINK_LOCK, LINK_MANIFEST, judgedComposerFiles } from './composer-project.mts';
-import { repositoryName, siblingCheckouts, trackedManifests } from './link-providers.mts';
+import { repositoryName, siblingCheckouts } from './link-providers.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { SYMBOLS } from './install-symbols.mts';
@@ -468,20 +468,6 @@ type Source = {
   /** The file as T, validated against the schema file `schema`; a ConfigError names a file that is missing. */
   json<T>(file: string, schema: string): T;
 };
-
-/** The working tree of the checkout `root`. */
-function workingSource(root: string): Source {
-  return {
-    root,
-    has: file => existsSync(path.join(root, file)),
-    text: file => readFileSync(path.join(root, file), 'utf8'),
-    files: names => trackedManifests(root, names),
-    folders: parent => (existsSync(path.join(root, parent)) ? readdirSync(path.join(root, parent), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => path.posix.join(parent, entry.name)) : []),
-    json<T>(file: string, schema: string): T {
-      return readConfig<T>(root, file, schema);
-    },
-  };
-}
 
 /**
  * The committed tree of `ref` in the checkout `root`: the files that git lists there, read with git show, so a sibling is compared by
