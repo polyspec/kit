@@ -338,10 +338,23 @@ const commitOf = (root: string, rev: string) => {
  * The item findings of the change being committed with `message`: the index against HEAD, or, for an amend (K380-2), against the
  * parent of HEAD, since the commit that the amend makes replaces HEAD. A root commit has no parent, so the empty tree.
  */
+/**
+ * The commit-type finding of a docs or chore commit that stages code, a test, a recipe or a script (K449): such a change is a fix or
+ * a feat with its own type, staged alone, so a documents commit names only documents.
+ */
+const CODE_PATH = /^(?:scripts|src|tests|packages)\/|\.(?:mts|ts|go|php|py|rs)$|(?:^|\/)Makefile$|\.mk$/;
+export function typeFindings(message: string, staged: readonly string[]): CommitFinding[] {
+  const type = /^(docs|chore)\(/.exec(message.split('\n')[0] ?? '')?.[1];
+  const code = staged.filter(file => CODE_PATH.test(file));
+  if (type === undefined || code.length === 0) return [];
+  return [{ rule: 'commit-type', message: `a ${type} commit stages code, a test or a recipe (${code.join(', ')}); stage the fix alone and commit it with its own type, such as fix or feat (K449)` }];
+}
+
 export function indexItemFindings(root: string, config: CommitRules, message: string, amend = false) {
   const base = commitOf(root, amend ? 'HEAD^' : 'HEAD');
   const against = base ?? EMPTY_TREE;
-  const found = itemFindings(root, config, {
+  const staged = git(root, 'diff', '--cached', '--name-only', against).split('\n').filter(Boolean);
+  const found = [...typeFindings(message, staged), ...itemFindings(root, config, {
     before: file => (base ? fileAt(root, base, file) : ''),
     after: file => fileAt(root, '', file),
     changed: git(root, 'diff', '--cached', '--name-only', against).split('\n').filter(Boolean),
@@ -351,7 +364,7 @@ export function indexItemFindings(root: string, config: CommitRules, message: st
     changedLines: file => changedLineNumbers(git(root, 'diff', '--cached', '-U0', against, '--', file)),
     deleted: git(root, 'diff', '--cached', '--name-only', '--no-renames', '--diff-filter=D', against).split('\n').filter(isTestFile),
     tracked: file => trackedAt(root, '', file),
-  });
+  })];
   // The first commit of a repository has no HEAD, so it has no base and passes.
   return base === undefined ? found : [...found, ...rowFindings(root, message, '')];
 }

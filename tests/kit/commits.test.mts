@@ -443,3 +443,15 @@ test('a docs(plan) or chore commit that stages code, a test or a recipe is refus
   git('add', 'docs/notes.md');
   assert.deepEqual(indexItemFindings(root, CONFIG, 'docs(plan): Note (#K1)').filter(entry => entry.rule === 'commit-type'), [], 'a document may be committed as docs');
 });
+
+// K449: a chore commit is held to the same rule, and a recipe is code: a Makefile staged with a chore is refused, a document is not.
+test('a chore commit that stages a Makefile is refused, and a chore that stages a document is not (K449)', (t) => {
+  const { root, git } = repository(t, ['feat(core): Start (#K1)'], ['K1']);
+  put(root, { 'Makefile': 'all:\n\ttrue\n' });
+  git('add', 'Makefile');
+  assert.equal(indexItemFindings(root, CONFIG, 'chore(plan): Close K1 (#K1)').filter(entry => entry.rule === 'commit-type').length, 1, 'a Makefile is a recipe');
+  git('reset', '-q');
+  put(root, { 'docs/readme.md': 'r\n' });
+  git('add', 'docs/readme.md');
+  assert.deepEqual(indexItemFindings(root, CONFIG, 'chore(plan): Note (#K1)').filter(entry => entry.rule === 'commit-type'), [], 'a document may be committed as chore');
+});
