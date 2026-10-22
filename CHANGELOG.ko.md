@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a92c11fcd975cb4e8eceae8d01d4227d931adc5ddaec904f06684542efdb6872 -->
+<!-- source-sha256: 4e074ccd96b64616fd35f887b5a0aef3228e6117ec5d8342ed358424309ec742 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K489: `make cargo-fetch`는 sibling checkout의 crate를 그 checkout이 저장소(config/release.json)를 선언하거나 소비자의 Cargo.lock이 그 crate 중 하나를 이름 붙일 때만 patch하므로, 소비자 옆의 무관한 polyspec checkout이 "declares no repositoryUrl"로 fetch를 멈추지 않는다 (K489). Red: 수정 전 `node --test --test-name-pattern=K489 tests/kit/link.test.mts`가 그 오류로 실패했고, green은 같은 명령이 1/1 통과한다.
 - `make npm-install`은 `CHECKOUTS`로 저장소 root를 받고, sibling checkout처럼 packages/ 아래 패키지 폴더를 스스로 찾는다. 그래서 소비자는 link할 checkout을 넘길 뿐 제공자의 구조를 읽지 않는다. 패키지 폴더도, 패키지 폴더를 가진 root도 아닌 checkout은 거부된다(K494). Red: `node --test --test-name-pattern=K494 tests/kit/npm-install.test.mts`가 ce55629e에서 "is a repository root, not a package folder"로 실패했다.
 - `make item-red BEFORE=`는 추가된 새 모듈이 없어서만 나는 red를 거부한다. 실패한 모든 실행이 change가 추가하고 `<rev>` tree에 없는 파일만 가리키면 옛 동작의 red가 아니므로, 거부 메시지가 그 파일을 이름으로 밝히고 양쪽에 있는 진입점으로 테스트하라고 안내한다 (K389-3).
 - `make uv-install`은 프로젝트가 이름을 선언한 각 checkout을 이름과 무관하게 처음부터 link하고 sync에서 그 이름으로 제외한다. 그래서 limepie-contracts라는 sibling은 release가 되지 않는다. `SYNC="<flags>"`는 uv sync에 `--no-install-project`와 `--all-groups`를 전달하고 다른 flag는 거부한다(K487). Red: 747470df에서 `node --test --test-name-pattern=K487 tests/kit/uv-install.test.mts`가 실패했다. limepie-contracts checkout이 release로 설치되었고, SYNC flag는 무시되었다.

@@ -1683,6 +1683,18 @@ test('link cargo --siblings runs cargo with the sibling crates patched and the a
   assert.match(log(), /cargo --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=.* fetch --locked/);
 });
 
+// K489: cargo --siblings patches the crates of a sibling checkout that the consumer's lock names from git, and needs nothing from a checkout
+// that has no config/release.json and that the lock does not name, such as an unrelated polyspec checkout (fsm) beside the consumer.
+test('link cargo --siblings patches no crate of a checkout without config/release.json that the lock does not name (K489)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  repository(path.dirname(consumer), 'other', { 'rust/Cargo.toml': '[package]\nname = "polyspec-other"\nversion = "0.0.1"\n' });
+  git(path.join(path.dirname(consumer), 'other'), 'remote', 'add', 'origin', 'https://github.com/polyspec/other.git');
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(log(), /patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=/);
+  assert.doesNotMatch(log(), /polyspec-other/);
+});
+
 // K440-2: link writes a git-ignored go.work into each Go module of a checkout, kit's own tools included (scripts/kit/symbols/go), so the
 // checkout of kit must ignore it; otherwise link fails before it writes the workspace hook of K440.
 test('every Go module of the kit checkout gets a git-ignored go.work (K440-2)', () => {
