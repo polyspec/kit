@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { commitItem, editItem, newItem, newPlan, setState, splitPlan, testItem, verifyDone } from '../../scripts/kit/plan.mts';
+import { commitItem, editItem, newItem, newPlan, setState, splitPlan, stagedNewRowIds, testItem, verifyDone } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { readRecord } from '../../scripts/kit/gate-red.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
@@ -886,4 +886,20 @@ test('commit refuses a new checklist row staged on main and names the branch rou
   assert.equal(spawnSync('git', ['checkout', '-q', '-B', 'register-T2'], { cwd: root }).status, 0);
   commitItem(root, commit, identity);
   assert.equal(spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim(), 'register-T2');
+});
+
+// K499-1: the rows of HEAD are read whatever the size of the checklist: orm's checklist is over 1 MB, the default buffer of a child
+// process, so its rows looked new and a plain state change on main was refused as a new row.
+test('a state change of a checklist over one megabyte stages no new row on main (K499-1)', (t) => {
+  const root = committed(t, 'T1');
+  assert.equal(spawnSync('git', ['checkout', '-q', '-B', 'main'], { cwd: root }).status, 0);
+  const file = path.join(root, 'docs/plans/parser/checklist.md');
+  writeFileSync(file, `${readFileSync(file, 'utf8')}\n${'A paragraph that makes the checklist large. '.repeat(30000)}\n`);
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'large']]) {
+    assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  }
+  assert.ok(statSync(file).size > 1024 * 1024, 'the checklist is over one megabyte');
+  setState(root, { id: 'T1', state: '[~]' });
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  assert.deepEqual(stagedNewRowIds(root), [], 'the row of T1 is no new row');
 });
