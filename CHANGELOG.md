@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The gap watch of run-tests bounds the start of a test process by a start-up bound of 120 s, and the gaps after the process reports that it is up by the test timeout, so the start of an interpreter on a loaded machine no longer fails a passing run; a process that never reports up is stopped at the start-up bound with its own message (K549).
 - The turn of the event loop that the test-exit-deadline preload awaits around each test uses the setTimeout of the process start, so a test that mocks the timers no longer hangs its hook (K547).
 - uv-install reads the provided packages that an environment holds from their dist-info records and reinstalls each, also when its folder is gone (K545).
 - The events of a node test reach run-tests when the test ends, also when the test blocks the event loop: the test-exit-deadline preload turns the loop once before and after each test, so a file of synchronous tests that together outlast the deadline is no longer stopped while it passes; tests/kit/lint-ts.test.mts no longer fails at 30 s (K546).

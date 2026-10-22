@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 20a24d9c6c7a707c85c00f2ed6da1e048f53a683ba2ed09859ecfc18d5066acf -->
+<!-- source-sha256: 90c70bb988a889d6b46501b6d4bf7fad19ea747f36df5f97bee0c8fcac0e3db1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- run-tests의 gap watch는 test process의 시작을 120초의 start-up bound로, process가 up을 알린 뒤의 gap을 test timeout으로 묶으므로, 부하가 걸린 machine에서 interpreter의 시작이 더는 통과하는 run을 실패시키지 않는다. up을 알리지 않는 process는 자기 메시지와 함께 start-up bound에서 멈춘다(K549).
 - test-exit-deadline preload가 각 test 앞뒤에서 기다리는 event loop 한 바퀴는 process 시작 때의 setTimeout을 쓰므로, timer를 mock하는 test가 더는 hook을 멈추지 않는다(K547).
 - uv-install은 환경이 가진 제공 패키지를 dist-info 기록으로 읽고, 폴더가 없어도 그 각각을 다시 설치한다(K545).
 - node test의 event는 test가 event loop를 막을 때도 test가 끝날 때 run-tests에 도착한다. test-exit-deadline preload가 각 test의 앞뒤에서 loop를 한 번 돌리므로, 합쳐서 deadline보다 오래 걸리는 동기 test 파일이 통과하는 중에 멈추지 않고, tests/kit/lint-ts.test.mts가 더는 30초에 실패하지 않는다(K546).
