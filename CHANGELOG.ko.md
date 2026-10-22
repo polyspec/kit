@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2e6b10d4f1c0ec2578643def9f822f836bb3d0857945155a0dd2a3e1484bc1af -->
+<!-- source-sha256: 6520328282e79140c1f06fd931d1c30c07ca05e9f0c6390320543cd706ca06e2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- link는 제공된 각 Python 패키지 폴더를 provider로 가는 파일별 link의 진짜 폴더로 만들므로 어떤 uv 설치도 link를 통해 provider checkout에 쓰지 않고, uv 전의 link 해제는 중첩된 link에도 닿는다(K541).
 - 문장 없는 catch는 lint를 통과하지 못한다. lint-ts는 catch-check(oxc-parser)를 돌려, oxlint no-empty가 주석이 있으면 통과시키는 문장 없는 catch 절과 .catch callback을 거부하고, lint-rust는 catch-check-rust(package의 syn crate, offline 빌드)를 돌려 clippy가 lint하지 않는 그런 Err(..) arm과 `if let Err(..)` branch를 거부한다. Python, PHP, Go는 ruff S110, phpcs EmptyStatement, staticcheck SA9003이 이미 다룬다(K537).
 - owner-validate은 kit이 내보내는 owner 규칙의 glob을 consumer의 경로에 대해 확인하지 않는다. consumer는 commit하는 hook처럼 그 일부만 가지기 때문이다(K542).
 - link와 uv-install은 각 uv 설치 전에 Python 환경의 패키지 link를 지우므로, uv가 link를 통해 provider checkout에 쓰지 않는다(K539).

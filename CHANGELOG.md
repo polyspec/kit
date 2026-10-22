@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- link makes each provided Python package folder a real folder of per-file links into the provider, so no uv install writes through a link into a provider checkout, and the release of the links before uv reaches nested links (K541).
 - No catch without a statement passes the lints: lint-ts runs catch-check (oxc-parser) and refuses a catch clause or .catch callback without a statement, which oxlint no-empty passes when it holds a comment; lint-rust runs catch-check-rust (a syn crate of the package, built offline) and refuses such an Err(..) arm or `if let Err(..)` branch, which clippy does not lint. ruff S110, phpcs EmptyStatement and staticcheck SA9003 already cover Python, PHP and Go (K537).
 - owner-validate checks no glob of the owner rules that kit ships against the paths of a consumer, which holds only some of them, such as the hooks that it commits (K542).
 - link and uv-install remove the package links of a Python environment before each uv install, so uv never writes through a link into a provider checkout (K539).
