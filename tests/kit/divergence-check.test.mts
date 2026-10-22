@@ -71,3 +71,21 @@ test('a guard of the library that defines a function only when the extension doe
   assert.deepEqual(files, ['config/parity.json', 'packages/php/src/generated/Gen.php']);
   assert.equal(divergenceFindings(files, read).length, 1);
 });
+
+// K543: a test declares its environment and asserts it, so a probe in an assertion that holds no branch is no finding; the same probe in
+// the condition of an if, in a ternary within an assertion or before a skip still is.
+test('an assertion of the environment of a test passes, and a probe in a branch is still a finding (K543)', () => {
+  const texts: Record<string, string> = {
+    'config/parity.json': JSON.stringify({ implementations: [{ language: 'php', roots: ['php'] }, { language: 'python', roots: ['py'] }, { language: 'rust', roots: ['rs'] }] }),
+    'php/tests/LoadedTest.php': "<?php\n    $this->assertTrue(extension_loaded('polyspec_orm'));\n    self::assertSame('Darwin', PHP_OS_FAMILY);\n",
+    'php/tests/BranchTest.php': "<?php\n    if (!extension_loaded('polyspec_orm')) {\n        $this->markTestSkipped();\n    }\n    $this->assertSame(PHP_OS === 'Linux' ? 1 : 2, $count);\n",
+    'py/tests/test_platform.py': "    assert sys.platform == 'darwin'\n    self.assertEqual(sys.version_info[0], 3)\n    if sys.platform == 'linux':\n        pass\n",
+    'rs/tests/env.rs': "    assert!(cfg!(target_os = \"macos\"));\n    #[cfg(target_os = \"linux\")]\n    fn linux() {}\n",
+  };
+  assert.deepEqual(run(texts).map(finding => finding.split(':').slice(0, 2).join(':')), [
+    'php/tests/BranchTest.php:2',
+    'php/tests/BranchTest.php:5',
+    'py/tests/test_platform.py:3',
+    'rs/tests/env.rs:2',
+  ]);
+});
