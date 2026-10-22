@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 8e49a5c145c4510bb158b0af8065ac015975fe052430e6cc80a4f5a03299c62d -->
+<!-- source-sha256: f87467f105a8441079b482665fbc065da05d07b00fe07abe39c6c5f82e28f41e -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -180,9 +180,7 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   (`*.test.{ts,mts,cts,mjs,cjs,js}`, vitest의 `*.{test,spec}.*`, `*Test.php`, `*_test.go`, `tests/`와 `#[test]`, `test_*.py`).
   repository는 파일을 더할 수만 있고 좁힐 수 없으며, test처럼 이름 붙은 파일은 binding이 실행합니다.
   Enforced by: `make parity-declarations-check`
-- S4 버전: lock의 모든 의존성이 동작함을 보인 뒤에만 정합니다. 생태계에 LTS가 있으면 최신 LTS, 없으면 의존성이 지원하는
-  최신 stable, 또는 LTS에 근접한 더 새 non-LTS를 씁니다. 선언 하한은 pin 정밀도로 pin과 같고, 모든 repository가 같은
-  pin을 쓰며, 예외는 범위, 이유, 재시도 조건과 함께 선언하고, source build로 조용히 fallback하지 않습니다.
+- S4 버전: kit은 버전도 pin도 강제하지 않습니다. 각 package manager와 그 lock이 정합니다.
   Enforced by: `make toolchain-check`, `make dependency-policy-check`
 - S5 폴더: 모든 monorepo는 같은 root 폴더(`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`, `examples/`,
   `benchmarks/`, `config/`)를 가집니다. 주 spec의 runtime port는 `packages/<runtime>/`, 다른 component는

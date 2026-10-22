@@ -3,11 +3,12 @@
 // a plain copy among links is a finding. Composer runs as a stub that answers `vendor` to `config vendor-dir`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, realpathSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { rebuild } from '../../scripts/kit/link-build.mts';
-import { linkFindings, lockSourceFindings, recipeFindings } from '../../scripts/kit/link-state-check.mts';
+import { linkFindings, lockSourceFindings } from '../../scripts/kit/link-state-check.mts';
 import { put, tree } from './tree.mts';
 
 /** Commits every file of `root` (K453 tests: the build inputs of a provider are its tracked files). */
@@ -18,24 +19,6 @@ function commitAll(root: string, message: string) {
   }
 }
 
-/** A consumer whose Composer vendor records polyspec/y and polyspec/z at 0.0.1; `link` says which of them are links. */
-function consumer(t: TestContext, link: Record<string, boolean>) {
-  const root = tree(t, {
-    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1', 'polyspec/z': '0.0.1' } }),
-    'vendor/composer/installed.json': JSON.stringify({ packages: ['y', 'z'].map(name => ({ name: `polyspec/${name}`, version: '0.0.1', 'install-path': `../polyspec/${name}`, require: { php: '>=8.5' }, dist: { type: link[name] ? 'path' : 'zip' } })) }),
-    'provider/y/composer.json': JSON.stringify({ name: 'polyspec/y', require: { php: '>=8.4' } }),
-    'provider/z/composer.json': JSON.stringify({ name: 'polyspec/z' }),
-  });
-  mkdirSync(path.join(root, 'vendor/polyspec'), { recursive: true });
-  for (const name of ['y', 'z'] as const) {
-    if (link[name]) symlinkSync(path.join(root, 'provider', name), path.join(root, 'vendor/polyspec', name));
-    else put(root, { [`vendor/polyspec/${name}/composer.json`]: JSON.stringify({ name: `polyspec/${name}` }) });
-  }
-  const stub = path.join(root, 'composer-stub');
-  writeFileSync(stub, '#!/bin/sh\necho vendor\n');
-  chmodSync(stub, 0o755);
-  return { root, env: { ...process.env, COMPOSER_BIN: stub } };
-}
 
 // K507: a tracked lock records each polyspec package at its release source; a path or link source is a finding, the local link is state only.
 const CARGO_PATH_LOCK = 'version = 4\n\n[[package]]\nname = "app"\nversion = "0.0.0"\ndependencies = [\n "polyspec-ordered-json",\n]\n\n[[package]]\nname = "polyspec-ordered-json"\nversion = "0.0.9"\ndependencies = [\n "serde",\n]\n';
@@ -71,36 +54,6 @@ test('a tracked composer.lock that installs a polyspec package from a path is a 
   assert.deepEqual(lockFindings(t, { 'composer.lock': release }, 'composer.lock'), []);
 });
 
-test('linked packages pass whatever version and requirement their record holds, since the link counts as the released version (K305-1)', (t) => {
-  const { root, env } = consumer(t, { y: true, z: true });
-  assert.deepEqual(linkFindings(root, env), []);
-});
-
-test('a link over the install of a release archive is a finding: Composer installed the package from a zip, not from its path repository (K318)', (t) => {
-  const { root, env } = consumer(t, { y: true, z: true });
-  put(root, { 'vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y', dist: { type: 'zip' } }, { name: 'polyspec/z', version: '0.0.1', 'install-path': '../polyspec/z', dist: { type: 'path' } }] }) });
-  assert.deepEqual(linkFindings(root, env), ["composer polyspec/y: vendor/polyspec/y is a link over an install from zip, not Composer's own path install; run kit link"]);
-});
-
-test('a plain copy among links is a finding that names the package, and a checkout without a link passes (K305-1)', (t) => {
-  const mixed = consumer(t, { y: true, z: false });
-  assert.deepEqual(linkFindings(mixed.root, mixed.env), ['composer polyspec/z: vendor/polyspec/z is a copy at 0.0.1, not a link, while other packages are linked']);
-  const none = consumer(t, { y: false, z: false });
-  assert.deepEqual(linkFindings(none.root, none.env), [], 'CI installs the released copies: nothing is linked');
-});
-
-test('a link that resolves to no package of that name, an npm copy among links and a go.work use folder without a go.mod are findings (K305-1)', (t) => {
-  const root = tree(t, { 'package.json': '{"name": "cons"}', 'go.mod': 'module cons\n', 'go.work': 'go 1.26\n\nuse (\n\t.\n\t../gone\n)\n' });
-  mkdirSync(path.join(root, 'node_modules/@polyspec'), { recursive: true });
-  symlinkSync(path.join(root, 'missing'), path.join(root, 'node_modules/@polyspec/x'));
-  put(root, { 'node_modules/@polyspec/w/package.json': JSON.stringify({ name: '@polyspec/w', version: '0.0.3' }) });
-  assert.deepEqual(linkFindings(root, process.env), [
-    'go ../gone: the use folder of go.work holds no go.mod',
-    'npm @polyspec/w: node_modules/@polyspec/w is a copy at 0.0.3, not a link, while other packages are linked',
-    'npm @polyspec/x: the link node_modules/@polyspec/x resolves to no package folder',
-  ]);
-});
-
 // K399-2: a go.work that link wrote below a tracked go.work lacks the modules of that workspace, which link uses too.
 test('a git-ignored go.work below a tracked go.work that lacks the workspace modules is a finding, and passes once it uses them (K399-2)', (t) => {
   const root = tree(t, {
@@ -123,120 +76,6 @@ test('the Composer projects that kit writes are no consumer project, so a reposi
   assert.deepEqual(linkFindings(root, { ...process.env, COMPOSER_BIN: '' }), []);
 });
 
-// K349: a vendor installed from the tracked lock demands the platform of that lock, which a polyspec package of another PHP cannot meet.
-test('a linked vendor whose platform check demands another PHP than .php-version is a finding (K349)', (t) => {
-  const { root, env } = consumer(t, { y: true, z: true });
-  put(root, { '.php-version': '8.4\n', 'vendor/composer/platform_check.php': '<?php\nif (!(PHP_VERSION_ID >= 80500)) {\n}\n' });
-  assert.deepEqual(linkFindings(root, env), ['composer vendor/composer/platform_check.php: demands PHP id 80500 while .php-version names 80401; the vendor was installed from the tracked lock, run kit link']);
-  put(root, { 'vendor/composer/platform_check.php': '<?php\nif (!(PHP_VERSION_ID >= 80401)) {\n}\n' });
-  assert.deepEqual(linkFindings(root, env), []);
-});
-
-// K384: Composer demands the highest floor of the installed packages, so a vendor of packages that require >=8.4 demands 80400.
-test('a vendor whose platform check demands an older floor than .php-version is no finding, and a newer one is (K384)', (t) => {
-  const { root, env } = consumer(t, { y: true, z: true });
-  put(root, { '.php-version': '8.4.1\n', 'vendor/composer/platform_check.php': '<?php\nif (!(PHP_VERSION_ID >= 80400)) {\n}\n' });
-  assert.deepEqual(linkFindings(root, env), []);
-  put(root, { 'vendor/composer/platform_check.php': '<?php\nif (!(PHP_VERSION_ID >= 80500)) {\n}\n' });
-  assert.deepEqual(linkFindings(root, env), ['composer vendor/composer/platform_check.php: demands PHP id 80500 while .php-version names 80401; the vendor was installed from the tracked lock, run kit link']);
-});
-
-// The manifests of a repository that declares a polyspec dependency in each ecosystem, which the recipe rule needs (K349-2).
-const POLYSPEC_MANIFESTS: Record<string, string> = {
-  'package.json': JSON.stringify({ devDependencies: { '@polyspec/kit': '0.0.54' } }),
-  'composer.json': JSON.stringify({ require: { 'polyspec/x': '0.0.1' } }),
-  'pyproject.toml': '[project]\nname = "c"\nversion = "0"\ndependencies = ["polyspec-x==0.0.1"]\n',
-};
-
-test('a recipe that installs from a lock without the kit link step after it is a finding, and unlink and the link step pass (K349)', () => {
-  const makefile = [
-    'a-install:', '	composer install', '	$(MAKE) link', '',
-    'b-install:', '	npm ci', '	@echo done', '',
-    'c-install:', '	uv sync --frozen', '	node kit link --siblings', '',
-    'unlink:', '	npm ci', '',
-    'd-install:', '	$(MAKE) link', '	composer install', '',
-  ].join('\n');
-  assert.deepEqual(recipeFindings('.', ['Makefile', 'scripts/kit/kit.mk', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file] ?? 'x:\n\tnpm ci\n')), [
-    'Makefile:2: the recipe a-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
-    'Makefile:6: the recipe b-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
-    'Makefile:18: the recipe d-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
-  ]);
-});
-
-test('a recipe that installs through a make variable without the link step after it is a finding (K349-1)', () => {
-  const makefile = [
-    'a-install:', '\t$(COMPOSER) install', '',
-    'b-install:', '\t$(NPM) ci', '',
-    'c-install:', '\t${UV} sync --frozen', '',
-    'd-install:', '\t$(COMPOSER) install', '\t$(MAKE) link', '',
-    'e-install:', '\t$(NPM) ci', '\tnode kit link --siblings', '',
-    'f-install:', '\t${UV} sync --frozen', '\tnode kit link --siblings', '',
-  ].join('\n');
-  assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file])), [
-    'Makefile:2: the recipe a-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
-    'Makefile:5: the recipe b-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
-    'Makefile:8: the recipe c-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
-    'Makefile:11: the recipe d-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
-  ]);
-});
-
-// K375: a worktree that links its install directories to the main checkout runs the sources of the main checkout.
-test('an install directory that is a symbolic link, and a workspace package that resolves outside the checkout, are findings (K375)', (t) => {
-  const other = tree(t, {});
-  const linked = tree(t, {});
-  symlinkSync(other, path.join(linked, 'node_modules'));
-  assert.deepEqual(linkFindings(linked, process.env), ['install directory node_modules is a symbolic link: remove the link and install the worktree from its own sources']);
-
-  const workspace = JSON.stringify({ name: 'root', workspaces: ['packages/a'] });
-  const outside = tree(t, { 'packages/a/package.json': JSON.stringify({ name: '@x/a' }) });
-  const foreign = tree(t, { 'package.json': workspace, 'packages/a/package.json': JSON.stringify({ name: '@x/a' }) });
-  mkdirSync(path.join(foreign, 'node_modules/@x'), { recursive: true });
-  symlinkSync(path.join(outside, 'packages/a'), path.join(foreign, 'node_modules/@x/a'));
-  const found = linkFindings(foreign, process.env);
-  assert.equal(found.length, 1);
-  assert.match(found[0] ?? '', /node_modules\/@x\/a/);
-
-  const own = tree(t, { 'package.json': workspace, 'packages/a/package.json': JSON.stringify({ name: '@x/a' }) });
-  mkdirSync(path.join(own, 'node_modules/@x'), { recursive: true });
-  symlinkSync(path.join(own, 'packages/a'), path.join(own, 'node_modules/@x/a'));
-  assert.deepEqual(linkFindings(own, process.env), []);
-});
-
-// K349-2: the recipe rule holds where a link can link, outside the chain of make install, which links last.
-test('the recipe rule holds only for an ecosystem with a polyspec dependency, and not for a recipe that make install reaches (K349-2)', () => {
-  const kitLike = ['install-packages:', '\t$(NPM) ci', ''].join('\n');
-  assert.deepEqual(recipeFindings('.', ['Makefile', 'package.json'], file => (file === 'Makefile' ? kitLike : JSON.stringify({ devDependencies: { typescript: '6.0.0' } }))), [], 'a repository without a polyspec dependency has nothing to link');
-  const consumer = ['install: install-kit repo-install', 'install-kit:', '\t$(MAKE) --no-print-directory install-packages', 'install-packages:', '\t$(NPM) ci', 'repo-install:', '\tcomposer install', 'gen:', '\tcomposer install', ''].join('\n');
-  assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? consumer : POLYSPEC_MANIFESTS[file])), [
-    'Makefile:9: the recipe gen installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
-  ], 'install reaches install-packages by a make call and repo-install by a prerequisite, and links last; gen is outside it');
-});
-
-// K403: fsm reaches its npm install through variables: install: fsm-install, fsm-install: install-kit $(PACKAGE_DEPS), and the rule of
-// $(NPM_DEP), one of PACKAGE_DEPS, makes fsm-js-install.
-test('the recipes that make install reaches through the variables of the Makefiles are reached (K403)', () => {
-  const makefile = [
-    'NPM_DEP := packages/js/node_modules/.package-lock.json',
-    'PHP_DEP = var/deps/php',
-    'PACKAGE_DEPS := $(NPM_DEP)',
-    'PACKAGE_DEPS += ${PHP_DEP}',
-    'export JS_INSTALL ?= fsm-js-install',
-    'install: fsm-install',
-    'fsm-install: install-kit $(PACKAGE_DEPS)',
-    '$(NPM_DEP): packages/js/package-lock.json',
-    '\t$(ONLINE) $(MAKE) $(JS_INSTALL)',
-    '$(PHP_DEP) var/deps/other: composer.lock',
-    '\tcomposer install',
-    'fsm-js-install:',
-    '\tcd packages/js && $(NPM) ci --allow-remote=root --no-audit --no-fund',
-    'gen:',
-    '\tcd packages/js && $(NPM) ci',
-    '',
-  ].join('\n');
-  assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file])), [
-    'Makefile:15: the recipe gen installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line',
-  ], 'install reaches fsm-js-install through PACKAGE_DEPS, NPM_DEP and JS_INSTALL, and var/deps/php through PHP_DEP; gen is outside it');
-});
 
 test('a trusted-configs entry other than the checkout own mise.toml is a finding (K397)', (t) => {
   const root = tree(t, { 'mise.toml': '[tools]\nnode = "26.11.1"\n' });
@@ -251,57 +90,34 @@ test('a trusted-configs entry other than the checkout own mise.toml is a finding
   assert.deepEqual(linkFindings(root, process.env), [`mise trusted-configs Users-maxkwon-dd34fea3d53e4d0: trusts ${home}, not the mise.toml of the checkout; run make install-tools`]);
 });
 
-// K428: a tools project of a repository outside its workspaces installs from its own lock in a target that install-packages runs
-// through INSTALL_PACKAGES_EXTRA; make install links after it through install-link, so the target needs no link step of its own.
-test('a target that installs a lock with no link after it is a finding, unless INSTALL_PACKAGES_EXTRA names it (K428)', (t) => {
-  const manifest = JSON.stringify({ devDependencies: { '@polyspec/kit': '0.0.54' } });
-  const plain = tree(t, { 'package.json': manifest, Makefile: 'svelte-tools-install:\n\tnpm ci --prefix tools\n' });
-  assert.deepEqual(linkFindings(plain, process.env), ['Makefile:2: the recipe svelte-tools-install installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line']);
-  const named = tree(t, { 'package.json': manifest, Makefile: 'INSTALL_PACKAGES_EXTRA := svelte-tools-install\nsvelte-tools-install:\n\tnpm ci --prefix tools\n' });
-  assert.deepEqual(linkFindings(named, process.env), []);
-});
-
-test('a recipe that runs make composer-install installs through the link, so no link step is asked after it (K432)', () => {
-  const makefile = [
-    'app-install:', '\t$(MAKE) composer-install DIR=app', '',
-    'pkg-install:', '\tmake composer-install DIR=packages/php', '\t@echo done', '',
-    'lock-install:', '\tcomposer install', '',
-  ].join('\n');
-  assert.deepEqual(recipeFindings('.', ['Makefile', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file])), [
-    'Makefile:9: the recipe lock-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)',
-  ]);
-});
-
-// K448-1: a tracked Composer project below the root (hyper examples/board) with a copy of a polyspec package in its vendor is a
-// finding of the gate, whichever install made the copy, so a consumer's own composer install is caught too.
-test('a copy of a polyspec package in the vendor of a nested Composer project is a finding of the gate (K448-1)', (t) => {
-  const { root, env } = consumer(t, { y: true, z: true });
-  put(root, { 'examples/board/composer.json': JSON.stringify({ name: 'cons/board', require: { 'polyspec/z': '0.0.1' } }), 'examples/board/composer.lock': '{}', 'examples/board/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/z', version: '0.0.1', 'install-path': '../polyspec/z', dist: { type: 'zip' } }] }), 'examples/board/vendor/polyspec/z/composer.json': JSON.stringify({ name: 'polyspec/z' }) });
-  assert.deepEqual(linkFindings(root, env), ['composer polyspec/z: examples/board/vendor/polyspec/z is a copy at 0.0.1, not a link, while other packages are linked']);
-});
-
-// K448-1: a recipe that runs composer install of a tracked lock is refused even with the link step after it, since the release is
-// installed first; the recipe must run make composer-install, which links from the start (K448-1).
-test('a recipe that runs composer install of a lock is refused even with the link step after it, and names make composer-install (K448-1)', () => {
-  const makefile = ['a-install:', '\tcomposer install --working-dir=examples/board', '\t$(MAKE) link', ''].join('\n');
-  assert.deepEqual(recipeFindings('.', ['Makefile', 'scripts/kit/kit.mk', ...Object.keys(POLYSPEC_MANIFESTS)], file => (file === 'Makefile' ? makefile : POLYSPEC_MANIFESTS[file] ?? 'x:\n\tnpm ci\n')), ['Makefile:2: the recipe a-install installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)']);
-});
-
-// K448-5: a recipe that fetches the crates of a lock naming a polyspec crate of a sibling checkout fetches the git tag of the crate,
-// so it must run make cargo-fetch, which links the sibling crates through a [patch] path (cargo's own link).
-test('a recipe that fetches the crates of a lock naming a polyspec crate is a finding (K448-5)', () => {
-  const makefile = ['ci-setup:', '\tcargo fetch --locked', '', 'good-setup:', '\t$(MAKE) cargo-fetch DIR=.', ''].join('\n');
-  const cargoToml = '[dependencies]\npolyspec-ordered-json = { git = "https://github.com/polyspec/ordered-json", tag = "v0.0.9" }\n';
-  assert.deepEqual(recipeFindings('.', ['Makefile', 'Cargo.toml'], file => (file === 'Makefile' ? makefile : cargoToml)), [
-    'Makefile:2: the recipe ci-setup fetches the crates of a lock that names a polyspec crate; run $(MAKE) cargo-fetch DIR=<project> instead, which links the sibling crates through a [patch] path (K448-5)',
-  ]);
-  assert.deepEqual(recipeFindings('.', ['Makefile', 'Cargo.toml'], file => (file === 'Makefile' ? 'ci-setup:\n\tcargo fetch --locked\n' : '[dependencies]\nserde = "1"\n')), [], 'a lock without a polyspec crate is not a finding');
-});
-
-// K448-5: the crate that a Cargo.toml names itself is no dependency of the lock, so its own build is no finding.
-test('a recipe that builds the crate named by its own Cargo.toml is no finding (K448-5)', () => {
-  const makefile = 'build-own:\n\tcargo build --locked\n';
-  assert.deepEqual(recipeFindings('.', ['Makefile', 'Cargo.toml'], file => (file === 'Makefile' ? makefile : '[package]\nname = "polyspec-ordered-json"\nversion = "0.0.1"\n')), []);
+// K448: an installed package folder that a sibling checkout provides is a link to that checkout, never a copy: a copy in the vendor of a
+// nested Composer project (hyper examples/board) is a finding whatever its version, and the folder linked to its provider passes.
+test('a provided package folder that is a copy is a finding, and its link to the provider passes (K448)', (t) => {
+  const workspace = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-folders-')));
+  t.after(() => rmSync(workspace, { recursive: true, force: true }));
+  const git = (cwd: string, ...args: string[]) => {
+    const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  const repository = (name: string, files: Record<string, string>) => {
+    const folder = path.join(workspace, name);
+    mkdirSync(folder, { recursive: true });
+    git(folder, 'init', '--quiet', '--initial-branch=main');
+    put(folder, files);
+    git(folder, 'add', '-A');
+    git(folder, 'commit', '--quiet', '-m', 'base');
+    git(folder, 'remote', 'add', 'origin', `https://github.com/polyspec/${name}.git`);
+    return folder;
+  };
+  const provider = repository('zrepo', { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/z' }) });
+  const consumer = repository('cons', { 'composer.json': JSON.stringify({ name: 'cons/app' }), 'examples/board/composer.json': JSON.stringify({ name: 'cons/board', require: { 'polyspec/z': '9.9.9' } }), '.gitignore': 'vendor/\n' });
+  put(consumer, { 'examples/board/vendor/polyspec/z/composer.json': JSON.stringify({ name: 'polyspec/z', version: '9.9.9' }) });
+  const findings = linkFindings(consumer).filter(line => line.includes('polyspec/z'));
+  assert.equal(findings.length, 1, findings.join('\n'));
+  assert.match(findings[0] ?? '', /^composer polyspec\/z: examples\/board\/vendor\/polyspec\/z is a copy, not a link to /);
+  rmSync(path.join(consumer, 'examples/board/vendor/polyspec/z'), { recursive: true, force: true });
+  symlinkSync(path.join(provider, 'packages/php'), path.join(consumer, 'examples/board/vendor/polyspec/z'));
+  assert.deepEqual(linkFindings(consumer).filter(line => line.includes('polyspec/z')), [], 'the link to the provider passes');
 });
 
 test('a linked npm provider whose build is stale is a finding that names the rebuild, and a rebuilt provider passes (K453)', (t) => {

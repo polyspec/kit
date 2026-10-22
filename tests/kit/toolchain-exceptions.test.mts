@@ -3,9 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { Pinning, readExceptions } from '../../scripts/kit/toolchain-exceptions.mts';
-import { typescriptFindings } from '../../scripts/kit/toolchain-floors.mts';
-import { PINS } from '../../scripts/kit/toolchain-pins.mts';
+import { readExceptions } from '../../scripts/kit/toolchain-exceptions.mts';
 import { schemaFile, validate } from '../../scripts/kit/schema-validate.mts';
 import { tree } from './tree.mts';
 
@@ -20,37 +18,6 @@ const svelte = (t: TestContext, exceptions: unknown[]) => tree(t, {
   'packages/generator-svelte/package.json': json({ devDependencies: { typescript: '6.0.3' } }),
   'packages/generator-svelte/package-lock.json': json({ packages: { '': { devDependencies: { typescript: '6.0.3' } }, 'node_modules/typescript': { version: '6.0.3' } } }),
   'packages/other/package.json': json({ devDependencies: { typescript: '6.0.3' } }),
-});
-
-test('without an exception, TypeScript 6 of generator-svelte is a deviation from the pin', (t) => {
-  const root = svelte(t, []);
-  const { exceptions, findings } = readExceptions(root);
-  assert.deepEqual(findings, []);
-  assert.deepEqual(typescriptFindings(root, new Pinning(PINS, exceptions)), [
-    'packages/generator-svelte/package-lock.json: packages["node_modules/typescript"].version is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
-    'packages/generator-svelte/package.json: devDependencies.typescript is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
-    'packages/other/package.json: devDependencies.typescript is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
-  ]);
-});
-
-test('a declared exception allows its channel under its scope only, and a used exception is not stale', (t) => {
-  const root = svelte(t, [SVELTE, NIGHTLY]);
-  const { exceptions, findings } = readExceptions(root);
-  assert.deepEqual(findings, []);
-  const pinning = new Pinning(PINS, exceptions);
-  assert.deepEqual(typescriptFindings(root, pinning), [
-    'packages/other/package.json: devDependencies.typescript is "6.0.3"; kit pins typescript 7.0.2, so it must be "7.0.2"',
-  ]);
-  assert.deepEqual(pinning.stale(), [], 'the Rust nightly is read by parity, so it is never stale');
-});
-
-test('an exception that nothing uses is stale and names its retry condition', (t) => {
-  const root = svelte(t, [{ ...SVELTE, scope: 'packages/other', channel: '6.0.2' }]);
-  const pinning = new Pinning(PINS, readExceptions(root).exceptions);
-  typescriptFindings(root, pinning);
-  assert.deepEqual(pinning.stale(), [
-    'config/toolchain.json exceptions[0]: nothing under packages/other uses typescript 6.0.2, so the exception is stale; remove it (its retry condition: the Svelte tools admit TypeScript 7)',
-  ]);
 });
 
 test('an exception without scope, reason or retry, of an unpinned tool, a wrong channel or a missing scope fails', (t) => {

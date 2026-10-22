@@ -4,30 +4,18 @@
 // accepts and fails when there is one. The check runs only as the command (`make dependency-policy-mutation-check`); importing the
 // module runs nothing.
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import { check } from './check-dependency-policy.mts';
 import { POLICY, RECORD, readPolicy } from './dependency-state.mts';
 import { writeJson } from './bootstrap/files.mts';
-import { readConfig } from './schema-validate.mts';
 import { readComposerManifest } from './manifests.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { readGoWork } from './toolchain-files.mts';
 import { present } from './present.mts';
 
-
-/** The fields of config/dependency-review.json that the mutations change. */
-interface ReviewRecordJson {
-  dependencies: { manifest: string; package: string; version: string; latest: string | null }[];
-  locks: { lock: string; advisories: unknown[] }[];
-}
-
-/** The field of config/dependency-policy.json that a mutation changes. */
-interface PolicyJson {
-  composerPlatforms?: { php: string }[];
-}
 
 /** A finding of check-dependency-policy.mts, with the fields that a mutation expects. */
 interface Finding {
@@ -81,50 +69,14 @@ function copy(directory: string) {
   }
 }
 
-// The policy and the review record, validated against their schemas, as far as the mutations read and change them.
-const SCHEMA_OF = { [POLICY]: 'dependency-policy.schema.json', [RECORD]: 'dependency-review.schema.json' };
-const editJson = <T,>(root: string, file: typeof POLICY | typeof RECORD, edit: (data: T) => void) => {
-  const data = readConfig<T>(root, file, SCHEMA_OF[file]);
-  edit(data);
-  writeJson(join(root, file), data);
-};
 
-const reviewRecord = (root: string) => readConfig<ReviewRecordJson>(root, RECORD, SCHEMA_OF[RECORD]);
-// The first registry dependency of the review record, whatever its ecosystem: the one that the outdated mutation changes.
-const firstDependency = (root: string) => {
-  const [first] = reviewRecord(root).dependencies;
-  if (!first) throw new Error(`${RECORD} records no dependency`);
-  return first;
-};
-const firstLock = (root: string) => {
-  const [first] = reviewRecord(root).locks;
-  if (!first) throw new Error(`${RECORD} records no lock`);
-  return first.lock;
-};
 const hasComposer = (root: string) => readPolicy(root).composerPlatforms.length > 0;
 // The first Composer manifest of the policy, which applies (hasComposer) holds.
 const firstComposerManifest = (root: string) => present(readPolicy(root).composerPlatforms[0], 'composerPlatforms[0]').manifest;
 
 // A mutation applies when the repository has what it changes: `applies` is absent for the ones every repository has.
+// K448: the gate judges no version, review or advisory (S4), so no mutation of the review record or the PHP platform is rejected.
 const MUTATIONS: Mutation[] = [
-  {
-    name: 'an outdated dependency without an exception',
-    applies: root => reviewRecord(root).dependencies.length > 0,
-    apply: root => editJson(root, RECORD, (record: ReviewRecordJson) => {
-      // applies holds a record with a dependency.
-      const item = present(record.dependencies[0], 'record.dependencies[0]');
-      // The record names a release newer than the locked one: the last number of the locked version, plus one.
-      item.latest = item.version.replace(/(\d+)$/, number => String(Number(number) + 1));
-    }),
-    expect: finding => finding.rule === 'latest' && finding.subject === `${firstDependency(repositoryRoot()).manifest} ${firstDependency(repositoryRoot()).package}`,
-  },
-  {
-    name: 'a Composer platform other than the declared minimum PHP',
-    applies: hasComposer,
-    // applies holds a policy with a Composer platform.
-    apply: root => editJson(root, POLICY, (policy: PolicyJson) => { present(present(policy.composerPlatforms, 'policy.composerPlatforms')[0], 'policy.composerPlatforms[0]').php = '8.1.0'; }),
-    expect: finding => finding.rule === 'platform',
-  },
   {
     // Composer's content-hash of the lock covers the version of the manifest, so a version bump re-locks the manifest with
     // composer update --lock (K180); composer validate --strict fails the lock that it outdated.
@@ -137,17 +89,6 @@ const MUTATIONS: Mutation[] = [
       writeJson(join(root, file), manifest);
     },
     expect: finding => finding.rule === 'composerLock' && finding.subject === firstComposerManifest(repositoryRoot()),
-  },
-  {
-    name: 'a lock changed without a review',
-    apply: root => appendFileSync(join(root, firstLock(root)), '\n'),
-    expect: finding => finding.rule === 'record' && finding.subject === firstLock(repositoryRoot()),
-  },
-  {
-    name: 'a lock with an advisory at its review',
-    // The record of every repository holds a lock, as firstLock reads it.
-    apply: root => editJson(root, RECORD, (record: ReviewRecordJson) => { present(record.locks[0], 'record.locks[0]').advisories = [{ package: 'example', version: '1.0.0', id: 'GHSA-0000-0000-0000', severity: 'high', title: 'mutation' }]; }),
-    expect: finding => finding.rule === 'advisory',
   },
 ];
 

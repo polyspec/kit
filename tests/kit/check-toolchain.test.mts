@@ -73,28 +73,9 @@ test('every declared tool at its declared version passes, offline, and the run p
   const { root, stubs } = setup(t);
   const result = check(root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, `[check-toolchain] node ${NODE}, npm 12.2.0, rust ${RUST}, php ${PHP}.3, go ${GO}, python ${PYTHON}, ruff 0.16.10, govulncheck 1.1.4, cargoAudit 0.22.2, composer 2.10.3\n[check-toolchain] 10 tools run at the declared versions\n`);
+  assert.equal(result.stdout, `[check-toolchain] node ${NODE}, npm 12.2.0, rust ${RUST}, php ${PHP}.3, go ${GO}, python ${PYTHON}, ruff 0.16.10, govulncheck 1.1.4, cargoAudit 0.22.2, composer 2.10.3\n[check-toolchain] 10 tools run from the tools of the checkout\n`);
   assert.equal(result.stderr, '');
   assert.deepEqual(stubs.calls().map(line => known(line.split(' ')[0], 'line.split(…)[0]')).sort(), ['composer', 'go', 'npm', 'php', 'python3', 'ruff', 'rustc', 'composer', 'go', 'npm', 'php', 'python3', 'ruff', 'rustc'].sort(), 'only version commands run, each once for the check and once for the evidence');
-});
-
-test('every tool that differs is named with the declaring file, the expected and the running version, and the fix', (t) => {
-  const { root, stubs } = setup(t, {
-    npm: '12.1.0', go: 'go1.26.0', rustc: 'rustc 1.97.0 (abcdef123 2026-01-01)', php: '8.3.9', python3: 'Python 3.13.2',
-    composer: 'Composer version 2.9.0 2026-01-01 00:00:00', ruff: 'ruff 0.15.0',
-  });
-  const result = check(root, stubs.env);
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.stderr.trim().split('\n'), [
-    '[check-toolchain] npm: 12.1.0 runs here and packageManager of package.json declares 12.2.0; fix: make install-tools TOOLS=npm',
-    `[check-toolchain] rust: 1.97.0 runs here and rust-toolchain.toml channel declares ${RUST}; fix: make install-tools`,
-    `[check-toolchain] php: 8.3.9 runs here and config/toolchain.json php declares ${PHP}; fix: make install-tools finds the PHP of .php-version; install it first with brew install php@${PHP} or apt install php${PHP}-cli`,
-    `[check-toolchain] go: 1.26.0 runs here and mise.toml tools.go declares ${GO}; fix: make install-tools`,
-    `[check-toolchain] python: 3.13.2 runs here and mise.toml tools.python declares ${PYTHON}; fix: make install-tools`,
-    '[check-toolchain] ruff: 0.15.0 runs here and mise.toml tools.ruff declares 0.16.10; fix: make install-tools',
-    '[check-toolchain] composer: 2.9.0 runs here and mise.toml tools.http:composer declares 2.10.3; fix: make install-tools',
-    '[check-toolchain] 7 of 10 tools differ from the declared versions',
-  ]);
 });
 
 // The lint tools of K77: vulture, golangci-lint and deadcode of mise.toml, and phpcs and PHPStan of the locked PHP lint project.
@@ -123,25 +104,6 @@ const lintOutputs = ({ vulture = '2.16', golangci = '2.14.0', tools = '0.52.0', 
   phpcs: `PHP_CodeSniffer version ${phpcs} (stable) by Squiz and PHPCSStandards`,
   phpstan: `PHPStan - PHP Static Analysis Tool ${phpstan}`,
 });
-const LINT_TOOLS = ['vulture', 'golangciLint', 'deadcode', 'phpcs', 'phpstan'];
-
-test('the lint tools pass at their declared releases and each other release fails with its declaration and the fix', (t) => {
-  const good = lintSetup(t, lintOutputs());
-  const passed = check(good.root, good.stubs.env, ...LINT_TOOLS);
-  assert.equal(passed.status, 0, passed.stderr);
-  assert.match(passed.stdout, /vulture 2\.16, golangciLint 2\.14\.0, deadcode 0\.52\.0, phpcs 4\.0\.4, phpstan 2\.3\.1\n\[check-toolchain\] 5 tools run at the declared versions/);
-  const { root, stubs } = lintSetup(t, lintOutputs({ vulture: '2.15', golangci: '2.13.0', tools: '0.51.0', phpcs: '4.0.3', phpstan: '2.3.0' }));
-  const result = check(root, stubs.env, ...LINT_TOOLS);
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.stderr.trim().split('\n'), [
-    '[check-toolchain] vulture: 2.15 runs here and mise.toml tools.pypi:vulture declares 2.16; fix: make install-tools',
-    '[check-toolchain] golangciLint: 2.13.0 runs here and mise.toml tools.golangci-lint declares 2.14.0; fix: make install-tools',
-    '[check-toolchain] deadcode: 0.51.0 runs here and mise.toml tools.go:golang.org/x/tools/cmd/deadcode declares 0.52.0; fix: make install-tools',
-    '[check-toolchain] phpcs: 4.0.3 runs here and config/php-lint/composer.lock declares 4.0.4; fix: make install-tools',
-    '[check-toolchain] phpstan: 2.3.0 runs here and config/php-lint/composer.lock declares 2.3.1; fix: make install-tools',
-    '[check-toolchain] 5 of 5 tools differ from the declared versions',
-  ]);
-});
 
 test('the vendored PHP lint is no tool to check in a repository that declares no PHP', (t) => {
   const { root, stubs } = setup(t, OUTPUTS, { 'package.json': FILES['package.json'], 'config/php-lint/composer.lock': LINT_LOCK });
@@ -150,47 +112,6 @@ test('the vendored PHP lint is no tool to check in a repository that declares no
   assert.match(result.stdout, /^\[check-toolchain\] npm 12\.2\.0\n\[check-toolchain\] 1 tools run/);
 });
 
-test('the Node.js, cargo-audit and govulncheck releases are compared exactly', (t) => {
-  const audit = { node: '1.2.3', 'github:rustsec/rustsec': '0.22.3', 'go:golang.org/x/vuln/cmd/govulncheck': '1.1.5' };
-  const { root, stubs } = setup(t, OUTPUTS, { ...FILES, 'mise.toml': miseToml(audit), 'mise.lock': miseLock(audit) });
-  const result = check(root, stubs.env);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, new RegExp(`node: ${NODE.replaceAll('.', '\\.')} runs here and mise\\.toml tools\\.node declares 1\\.2\\.3; fix: make install-tools TOOLS=npm`));
-  assert.match(result.stderr, /cargoAudit: 0\.22\.2 runs here and mise\.toml tools\.github:rustsec\/rustsec declares 0\.22\.3; fix: make install-tools/);
-  assert.match(result.stderr, /govulncheck: 1\.1\.4 runs here and mise\.toml tools\.go:golang\.org\/x\/vuln\/cmd\/govulncheck declares 1\.1\.5; fix: make install-tools/);
-});
-
-// The Cargo tools of K143: cargo-nextest and cargo-deny of mise.toml, run from their shims. The stubs print what
-// cargo-nextest 0.9.146 and cargo-deny 0.20.2 print for --version (measured on macos-arm64).
-const CARGO_MISE = { 'github:nextest-rs/nextest': '0.9.146', 'cargo-deny': '0.20.2' };
-const CARGO_FILES = { 'mise.toml': miseToml(CARGO_MISE), 'mise.lock': miseLock(CARGO_MISE) };
-const cargoOutputs = ({ nextest = '0.9.146', deny = '0.20.2' } = {}) => ({
-  'cargo-nextest': `cargo-nextest ${nextest} (8af696ddc 2026-09-21)\nrelease: ${nextest}\ncommit-hash: 8af696ddcce8fff2962d6a5168b6d138b8616a35\ncommit-date: 2026-09-21\nhost: aarch64-apple-darwin`,
-  'cargo-deny': `cargo-deny ${deny}`,
-});
-
-test('cargo-nextest and cargo-deny of mise.toml pass at their releases and each other release fails with its declaration (K143)', (t) => {
-  const good = setup(t, cargoOutputs(), CARGO_FILES);
-  const passed = check(good.root, good.stubs.env);
-  assert.equal(passed.status, 0, passed.stderr);
-  assert.equal(passed.stdout, '[check-toolchain] cargoNextest 0.9.146, cargoDeny 0.20.2\n[check-toolchain] 2 tools run at the declared versions\n');
-  assert.deepEqual(good.stubs.calls().map(line => line.split(' ').slice(0, 2).join(' ')), ['cargo-nextest --version', 'cargo-deny --version', 'cargo-nextest --version', 'cargo-deny --version']);
-  const { root, stubs } = setup(t, cargoOutputs({ nextest: '0.9.145', deny: '0.20.1' }), CARGO_FILES);
-  const result = check(root, stubs.env);
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.stderr.trim().split('\n'), [
-    '[check-toolchain] cargoNextest: 0.9.145 runs here and mise.toml tools.github:nextest-rs/nextest declares 0.9.146; fix: make install-tools',
-    '[check-toolchain] cargoDeny: 0.20.1 runs here and mise.toml tools.cargo-deny declares 0.20.2; fix: make install-tools',
-    '[check-toolchain] 2 of 2 tools differ from the declared versions',
-  ]);
-});
-
-test('PHP is compared by minor release, and the Python of mise.toml by its exact release', (t) => {
-  const { root, stubs } = setup(t, { ...OUTPUTS, php: `${PHP}.99` });
-  assert.deepEqual(toolchainMismatches(['php', 'python'], { root, env: stubs.env }), []);
-  const other = setup(t, { ...OUTPUTS, php: '8.3.0', python3: 'Python 3.14.0' });
-  assert.equal(toolchainMismatches(['php', 'python'], { root: other.root, env: other.stubs.env }).length, 2);
-});
 
 test('the commands of var/tools/bin and the shims of mise run before those of PATH, and the toolchain selection is off', (t) => {
   const { root, stubs } = setup(t, { ...OUTPUTS, npm: '12.0.0', go: OUTPUTS.go, rustc: OUTPUTS.rustc, ruff: 'ruff 0.1.0' });
@@ -276,27 +197,6 @@ test('the make target toolchain-check passes the tools to the check', () => {
   assert.equal(dry.stdout.trim(), `${path.join(root, 'var/tools/bin/node')} scripts/kit/check-toolchain.mts npm go`);
 });
 
-test('uv is probed by its version line from its shim, and a uv of another release names mise.toml and the fix', (t) => {
-  const files = { ...FILES, 'mise.toml': miseToml({ uv: '0.12.11' }), 'mise.lock': miseLock({ uv: '0.12.11' }) };
-  const same = setup(t, { uv: 'uv 0.12.11 (4b53f66b7 2026-09-08 aarch64-apple-darwin)' }, files);
-  assert.deepEqual(toolchainVersions(['uv'], { root: same.root, env: same.stubs.env, run: undefined }).uv, '0.12.11');
-  assert.deepEqual(toolchainMismatches(['uv'], { root: same.root, env: same.stubs.env }), []);
-  const older = setup(t, { uv: 'uv 0.12.10 (4b53f66b7 2026-09-08 aarch64-apple-darwin)' }, files);
-  assert.deepEqual(toolchainMismatches(['uv'], { root: older.root, env: older.stubs.env }), ['uv: 0.12.10 runs here and mise.toml tools.uv declares 0.12.11; fix: make install-tools']);
-});
-
-test('mise.lock must pin every tool of mise.toml, whichever tools run (K127)', (t) => {
-  const { root, stubs } = setup(t, OUTPUTS, { ...FILES, 'mise.lock': miseLock({ ...MISE, ruff: '0.16.9' }) });
-  const result = check(root, stubs.env, 'npm');
-  assert.equal(result.status, 1, result.stdout);
-  assert.deepEqual(result.stderr.trim().split('\n'), [
-    '[check-toolchain] mise.lock does not pin ruff 0.16.10; run make toolchain-lock',
-    '[check-toolchain] 1 findings of the pins of mise.lock',
-  ]);
-  rmSync(path.join(root, 'mise.lock'));
-  assert.match(check(root, stubs.env, 'npm').stderr, /mise\.lock is missing; run make toolchain-lock/);
-});
-
 // mise's documentation says to commit the sidecar folder of mise.lock: mise install --locked of a fresh checkout replays the uv
 // lock in it, so an untracked or deleted sidecar fails there; a repository that deleted it to pass its layout check lost it (K192).
 test('the uv lock sidecar that mise.lock names is a tracked folder of the checkout, its tracked files present (K192)', (t) => {
@@ -312,50 +212,6 @@ test('the uv lock sidecar that mise.lock names is a tracked folder of the checko
   track(root, SIDECAR);
   rmSync(path.join(root, SIDECAR, 'uv.lock'));
   assert.match(check(root, stubs.env, 'vulture').stderr, new RegExp(`whose tracked file ${SIDECAR.replaceAll('.', '\\.')}/uv\\.lock is missing; restore it with git checkout -- `));
-});
-
-test('the go and the python of mise.toml are checked against the pins of kit (S4)', (t) => {
-  const other = { ...MISE, go: '1.0.0', python: '3.0.1' };
-  const { root, stubs } = setup(t, OUTPUTS, { ...FILES, 'mise.toml': miseToml(other), 'mise.lock': miseLock(other) });
-  const result = check(root, stubs.env, 'npm');
-  assert.equal(result.status, 1, result.stdout);
-  assert.match(result.stderr, new RegExp(`mise\\.toml: tools\\.go is "1\\.0\\.0"; kit pins go ${GO.replaceAll('.', '\\.')}, so it must be "${GO.replaceAll('.', '\\.')}"`));
-  assert.match(result.stderr, new RegExp(`mise\\.toml: tools\\.python minor is "3\\.0"; kit pins python ${PINS.python.replaceAll('.', '\\.')}, so it must be "${PINS.python.replaceAll('.', '\\.')}"`));
-});
-
-test('the check fails on an engines.node that is not the floor of the pin, whichever tools run', (t) => {
-  const { root, stubs } = setup(t, OUTPUTS, { ...FILES, 'package.json': '{ "packageManager": "npm@12.2.0", "engines": { "node": ">=20" } }' });
-  const result = check(root, stubs.env, 'npm');
-  assert.equal(result.status, 1, result.stdout);
-  assert.match(result.stderr, new RegExp(`\\[check-toolchain\\] package\\.json: engines\\.node is ">=20"; kit pins node ${NODE.replaceAll('.', '\\.')}, so it must be ">=${NODE.replaceAll('.', '\\.')}"`));
-});
-
-test('a declaration that differs from the pin of kit fails the check, whichever tools run (S4)', (t) => {
-  const { root, stubs } = setup(t, OUTPUTS, { ...FILES, 'rust-toolchain.toml': '[toolchain]\nchannel = "1.0.0"\n' });
-  const result = check(root, stubs.env, 'npm');
-  assert.equal(result.status, 1, result.stdout);
-  assert.deepEqual(result.stderr.trim().split('\n'), [
-    `[check-toolchain] rust-toolchain.toml: channel is "1.0.0"; kit pins rust ${RUST}, so it must be "${RUST}"`,
-    '[check-toolchain] 1 declarations differ from the pins of kit',
-  ]);
-});
-
-test('a malformed or stale exception fails the check, and a used one passes it', (t) => {
-  const exception = { tool: 'node', channel: NODE, scope: '.', reason: 'a test of the exceptions', retry: 'never' };
-  const config = (exceptions: unknown[]) => JSON.stringify({ ...JSON.parse(FILES['config/toolchain.json']), exceptions });
-  const stale = setup(t, OUTPUTS, { ...FILES, 'config/toolchain.json': config([exception, { ...exception, retry: '' }]) });
-  const failed = check(stale.root, stale.stubs.env, 'npm');
-  assert.equal(failed.status, 1, failed.stdout);
-  assert.deepEqual(failed.stderr.trim().split('\n'), [
-    '[check-toolchain] config/toolchain.json exceptions[1] has no retry; an exception declares tool, channel, scope, reason, retry',
-    `[check-toolchain] config/toolchain.json exceptions[0]: nothing under . uses node ${NODE}, so the exception is stale; remove it (its retry condition: never)`,
-    '[check-toolchain] 2 findings of the exceptions of config/toolchain.json',
-  ]);
-  // The exception allows a Node.js other than the pin in mise.toml and in engines.node.
-  const other = { ...exception, channel: '99.0.0' };
-  const used = setup(t, OUTPUTS, { ...FILES, 'mise.toml': miseToml({ ...MISE, node: '99.0.0' }), 'mise.lock': miseLock({ ...MISE, node: '99.0.0' }), 'package.json': '{ "packageManager": "npm@12.2.0", "engines": { "node": ">=99.0.0" } }', 'config/toolchain.json': config([other]) });
-  const passed = check(used.root, used.stubs.env, 'npm');
-  assert.equal(passed.status, 0, passed.stderr);
 });
 
 test('a repository with a PHP extension needs curl or wget and tar for the arginfo of gen_stub.php, and toolchain-check names the missing one (K303)', (t) => {

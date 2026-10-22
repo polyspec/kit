@@ -20,21 +20,17 @@
 //                 packages <dir> python|npm | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
-import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import { crc32 } from 'node:zlib';
+import { fileURLToPath } from 'node:url';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
-import { buildState, rebuild } from './link-build.mts';
-import {
-  assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider,
-  providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf,
-} from './link-providers.mts';
+import { rebuild } from './link-build.mts';
+import { folderFindings, linkFolders, providedFolders } from './link-folders.mts';
+import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { declaredFor as declaredIn } from './polyspec-lock-check.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -76,12 +72,6 @@ function readJsonOf(file: string): unknown {
   }
 }
 
-/** The JSON that a command prints, an error naming the command when it is malformed. */
-function parseOutput(text: string, what: string): unknown {
-  try { return JSON.parse(text) as unknown; } catch (error) {
-    throw new Error(`${what} printed no valid JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
-  }
-}
 
 /** The consumer of a directory: its work tree, its repository, the folder that bounds it, whether it is a named project, and its tracked manifests. */
 type Consumer = { top: string; repository: string; scope: string; project: boolean; manifests: (ecosystem: Ecosystem, all?: boolean) => string[] };
@@ -125,15 +115,6 @@ function providerFor(work: Run, consumer: Consumer, ecosystem: Ecosystem, name: 
   return found.repository === consumer.repository ? 'own' : found;
 }
 
-/**
- * K226: a package that the project provides itself (`own`: its npm workspace members, its Composer names) and no checkout
- * provides is satisfied, reported as workspace and never linked. Returns whether it was one.
- */
-function projectPackage(work: Run, ecosystem: Ecosystem, name: string, provider: Provider | 'own' | 'no provider', own: ReadonlySet<string>): boolean {
-  if (provider !== 'no provider' || !own.has(name)) return false;
-  line(work, 'workspace', ecosystem, `${name} (provided by this project)`);
-  return true;
-}
 
 /** Reports a polyspec package that is not linked for `reason`, which fails the run; own packages are listed and pass. */
 function unlinkable(work: Run, ecosystem: Ecosystem, name: string, reason: string) {
@@ -146,32 +127,7 @@ function unlinkable(work: Run, ecosystem: Ecosystem, name: string, reason: strin
 // A fork's pin is a version of the fork (K379), which the install records and checks, so the rule does not apply to a fork.
 const pinProblem = (version: string, provider: Provider): string | undefined => (isForkCheckout(provider.checkout) || ZERO.test(version) ? undefined : `pinned ${version}, not 0.0.x`);
 
-/** Reports the state of the link `installed` of `provider`: linked, or STALE when its npm build is behind its sources. */
-function reportLink(work: Run, ecosystem: Ecosystem, name: string, provider: Provider) {
-  const state = ecosystem === 'npm' ? buildState(provider.checkout, provider.folder) : 'fresh';
-  if (!state.startsWith('stale')) { line(work, 'linked', ecosystem, `${name} -> ${provider.folder}`); return; }
-  line(work, 'STALE', ecosystem, `${name} -> ${provider.folder}: ${state}; run link.mjs rebuild ${provider.checkout}`);
-  if (work.check) work.failed = true;
-}
 
-/**
- * Links the installed copy `installed` (pinned at `version`) of `name` to `provider`, or with check reports it. Returns
- * whether a link was made.
- */
-function linkCopy(work: Run, ecosystem: Ecosystem, name: string, installed: string, version: string, provider: Provider): boolean {
-  // A link that resolves to its provider is kept only in the form that link writes, relative to its folder (K326-3): an absolute target
-  // that an earlier run wrote is re-made.
-  const absolute = lstatSync(installed).isSymbolicLink() && path.isAbsolute(readlinkSync(installed));
-  if (real(installed) === realpathSync(provider.folder) && !absolute) { reportLink(work, ecosystem, name, provider); return false; }
-  const problem = pinProblem(version, provider);
-  if (problem) { unlinkable(work, ecosystem, name, `${problem}: ${installed}`); return false; }
-  if (work.check) { unlinkable(work, ecosystem, name, absolute ? `${installed} (absolute target, which link re-makes relative)` : installed); return false; }
-  assertIgnored(installed);
-  rmSync(installed, { recursive: true, force: true });
-  symlinkSync(path.relative(path.dirname(installed), provider.folder), installed);
-  line(work, 'linked', ecosystem, `${name} -> ${provider.folder} (now)`);
-  return true;
-}
 
 /** The file `relative` of the links of the consumer `top`, in its var/link; Git must ignore it there, or the link fails. */
 export function linkFile(top: string, relative: string): string {
@@ -182,25 +138,6 @@ export function linkFile(top: string, relative: string): string {
 
 // --- npm: npm query lists the installed copies; every @polyspec folder of a node_modules is either such a copy or a link.
 
-/** Every folder of the node_modules trees of `project` whose package name `linkable` accepts, as it is found: a link or a folder. */
-function linkableFolders(project: string, linkable: (name: string) => boolean): { name: string; folder: string }[] {
-  const found: { name: string; folder: string }[] = [];
-  const walk = (modules: string) => {
-    if (!existsSync(modules)) return;
-    for (const entry of readdirSync(modules, { withFileTypes: true })) {
-      if (entry.name.startsWith('.')) continue;
-      const folder = path.join(modules, entry.name);
-      const scoped = entry.name.startsWith('@') && entry.isDirectory();
-      const packages = scoped ? readdirSync(folder, { withFileTypes: true }).map(item => ({ item, at: path.join(folder, item.name), name: `${entry.name}/${item.name}` })) : [{ item: entry, at: folder, name: entry.name }];
-      for (const { item, at, name } of packages) {
-        if (linkable(name)) found.push({ name, folder: at });
-        if (item.isDirectory()) walk(path.join(at, 'node_modules'));
-      }
-    }
-  };
-  walk(path.join(project, 'node_modules'));
-  return found.sort((a, b) => (a.folder < b.folder ? -1 : a.folder > b.folder ? 1 : 0));
-}
 
 /** The npm dependencies that the npm manifest `file` declares, in every section and overrides. */
 function declaredNpm(file: string): string[] {
@@ -209,65 +146,6 @@ function declaredNpm(file: string): string[] {
     .flatMap(section => (isJsonObject(manifest[section]) ? Object.keys(manifest[section]) : []));
 }
 
-function linkNpm(work: Run, consumer: Consumer) {
-  const files = consumer.manifests('npm');
-  const projects = files.map(file => path.dirname(file)).filter(folder => existsSync(path.join(folder, 'node_modules')));
-  const seen = new Set<string>();
-  // A name is linked when it is a polyspec package or a package that a provider provides (K220: a private provider too); other packages are no concern.
-  const linkable = (name: string) => name.startsWith('@polyspec/') || work.found.has(providerKey('npm', name));
-  // K226: the packages that npm query lists at a folder of the project itself, not below a node_modules: its workspace members.
-  const own = new Set<string>();
-  if (projects.length) {
-    const npm = consumerTool(consumer.top, 'npm', work.env);
-    const queries = projects.map(project => ({ project, queried: parseOutput(run(npm.command, ['query', '*'], { cwd: project, env: npm.env }), `npm query in ${project}`) }));
-    for (const { queried } of queries) {
-      for (const entry of Array.isArray(queried) ? queried.filter(isJsonObject) : []) {
-        if (typeof entry.name === 'string' && typeof entry.location === 'string' && entry.location !== '' && !entry.location.startsWith('..') && !entry.location.includes('node_modules/')) own.add(entry.name);
-      }
-    }
-    for (const { project, queried } of queries) {
-      const versions = new Map<string, string>();
-      for (const entry of Array.isArray(queried) ? queried.filter(isJsonObject) : []) {
-        if (typeof entry.location === 'string' && entry.location.includes('node_modules/') && !entry.location.startsWith('..') && typeof entry.version === 'string') versions.set(path.join(project, entry.location), entry.version);
-      }
-      for (const { name, folder } of linkableFolders(project, linkable)) {
-        seen.add(name);
-        const provider = providerFor(work, consumer, 'npm', name);
-        if (typeof provider === 'string') { if (!projectPackage(work, 'npm', name, provider, own)) unlinkable(work, 'npm', name, provider); continue; }
-        const version = versions.get(folder);
-        // Without a version from npm query there is no pin to judge, so only the copy that is the provider already passes.
-        if (version === undefined) {
-          if (real(folder) === realpathSync(provider.folder)) reportLink(work, 'npm', name, provider);
-          else unlinkable(work, 'npm', name, `not recorded by npm query: ${folder}`);
-          continue;
-        }
-        linkCopy(work, 'npm', name, folder, version, provider);
-      }
-    }
-  }
-  for (const name of new Set(files.flatMap(declaredNpm).filter(linkable))) {
-    if (seen.has(name)) continue;
-    const provider = providerFor(work, consumer, 'npm', name);
-    if (projectPackage(work, 'npm', name, provider, own)) continue;
-    unlinkable(work, 'npm', name, typeof provider === 'string' ? provider : 'not installed');
-  }
-  // K468: a package that config/polyspec.json declares and that no installed copy holds is linked from its provider as a symbolic link in
-  // the node_modules of its project, since the tracked lock never names it; the copies that npm query lists are linked above.
-  for (const file of files) {
-    const folder = path.dirname(file);
-    for (const name of declaredIn(consumer.top, 'npm', folder).filter(linkable)) {
-      const installed = path.join(folder, 'node_modules', name);
-      if (existsSync(installed)) continue;
-      const provider = providerFor(work, consumer, 'npm', name);
-      if (typeof provider === 'string') { unlinkable(work, 'npm', name, provider); continue; }
-      if (work.check) { unlinkable(work, 'npm', name, `not installed in ${folder}`); continue; }
-      assertIgnored(installed);
-      mkdirSync(path.dirname(installed), { recursive: true });
-      symlinkSync(path.relative(path.dirname(installed), provider.folder), installed);
-      line(work, 'linked', 'npm', `${name} -> ${provider.folder} (declared, now)`);
-    }
-  }
-}
 
 // --- Composer: the vendor of each Composer project of the consumer, and Composer's record of it.
 
@@ -279,27 +157,7 @@ export function installedPackages(record: string): Record<string, unknown>[] {
   return list.filter(isJsonObject);
 }
 
-/**
- * K226: the Composer names that the project at `project` provides itself: the name of its composer.json and the name of the
- * composer.json of each path repository it declares (a literal folder; a glob is not expanded, so it provides nothing).
- */
-function ownComposer(project: string): Set<string> {
-  const manifest = readComposerManifestFile(path.join(project, MANIFESTS.composer));
-  const names = new Set<string>(manifest.name ? [manifest.name] : []);
-  for (const repository of manifest.repositories ?? []) {
-    if (repository.type !== 'path' || repository.url === undefined) continue;
-    const file = path.resolve(project, repository.url, MANIFESTS.composer);
-    const name = existsSync(file) ? readComposerManifestFile(file).name : undefined;
-    if (name) names.add(name);
-  }
-  return names;
-}
 
-/** The polyspec names that the Composer project `project` declares: its composer.json and config/polyspec.json (K483-1). */
-function declaredPolyspec(top: string, project: string): string[] {
-  const file = path.join(project, 'composer.json');
-  return [...new Set([...(existsSync(file) ? declaredComposer(file) : []), ...declaredIn(top, 'composer', project)])];
-}
 
 /** The polyspec names that the composer.json `file` requires, in require and require-dev. */
 function declaredComposer(file: string): string[] {
@@ -345,49 +203,13 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
   return [...found].map(([vendor, entry]) => ({ project: entry.project, vendor, installed: entry.installed, declared: [...entry.declared].sort() }));
 }
 
-/** The names of the Composer packages that the project's own path repositories provide, never its root package. */
-function ownPathPackages(project: string): string[] {
-  const root = readComposerManifestFile(path.join(project, MANIFESTS.composer)).name;
-  return [...ownComposer(project)].filter(name => name !== root);
-}
 
 /** The lines of the Git exclude file of the work tree `top` that keep the Composer link files out of Git without a tracked change. */
 const COMPOSER_LINK_FILES = ['composer.link.json', 'composer.link.lock'] as const;
 
-/** Adds the Composer link files to .git/info/exclude of the repository of `top` (the common Git directory, so a worktree shares it). */
-function excludeComposerLinkFiles(top: string) {
-  const file = path.join(repositoryOf(top), 'info/exclude');
-  const text = existsSync(file) ? readFileSync(file, 'utf8') : '';
-  const missing = COMPOSER_LINK_FILES.filter(name => !text.split('\n').includes(name));
-  if (missing.length === 0) return;
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${missing.join('\n')}\n`);
-}
 
-/** The released version of every package of composer.lock `lock`, by name. */
-function lockedVersions(lock: string): Map<string, string> {
-  const parsed = readJsonOf(lock);
-  const found = new Map<string, string>();
-  if (!isJsonObject(parsed)) return found;
-  for (const list of [parsed.packages, parsed['packages-dev']]) {
-    for (const item of Array.isArray(list) ? list : []) if (isJsonObject(item) && typeof item.name === 'string' && typeof item.version === 'string') found.set(item.name, item.version);
-  }
-  return found;
-}
 
-/**
- * The polyspec packages of the Composer project `project` of the repository `top`: those that config/polyspec.json declares for it, and
- * any that its composer.lock still holds (K468).
- */
-function polyspecOf(top: string, project: string): string[] {
-  return [...new Set([...declaredIn(top, 'composer', project), ...lockedPolyspec(project)])];
-}
 
-/** The polyspec packages that the composer.lock of `project` holds, by name; none without a lock. */
-function lockedPolyspec(project: string): string[] {
-  const lock = path.join(project, 'composer.lock');
-  return existsSync(lock) ? [...lockedVersions(lock).keys()].filter(name => name.startsWith('polyspec/')) : [];
-}
 
 /**
  * The composer.json of the link run of `project` (K304-1): the tracked one with a path repository for each linked folder in front
@@ -395,240 +217,12 @@ function lockedPolyspec(project: string): string[] {
  * symbolic link, and `versions` gives the package the version that the lock recorded, so the link counts as the installed
  * released version.
  */
-/** The items of a list that a manifest declares, else none. */
-function declaredList(value: unknown): unknown[] {
-  const list: unknown[] = Array.isArray(value) ? value : [];
-  return list;
-}
 
-function linkManifest(project: string, links: readonly { name: string; folder: string; fork?: boolean }[], versions: ReadonlyMap<string, string>): Record<string, unknown> {
-  const manifest = readJsonOf(path.join(project, MANIFESTS.composer));
-  if (!isJsonObject(manifest)) throw new Error(`${project}/${MANIFESTS.composer} is no object`);
-  // The version of a linked package is the release that the lock recorded, else the exact release that the project requires, so
-  // Composer takes the folder for the release and prefers no archive of the same version (K304-2).
-  const required = { ...(isJsonObject(manifest.require) ? manifest.require : {}), ...(isJsonObject(manifest['require-dev']) ? manifest['require-dev'] : {}) };
-  // K379-1: a fork provides the version that the consumer pins (2.6.0-p1), written as its tag (v2.6.0-p1), not the release that the lock
-  // recorded before the pin: a stale version there makes Composer refuse the fork in the partial update.
-  // K379-2: the exact pin of a fork is the one that the consumer or a linked provider requires (require and require-dev); two different
-  // pins fail the link, naming both.
-  const exact = /^v?\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
-  const pins = new Map<string, Set<string>>();
-  const addPins = (source: Record<string, unknown>) => {
-    for (const block of ['require', 'require-dev'] as const) {
-      const requirements = isJsonObject(source[block]) ? source[block] : {};
-      for (const [name, pin] of Object.entries(requirements)) {
-        if (typeof pin !== 'string' || !exact.test(pin)) continue;
-        pins.set(name, (pins.get(name) ?? new Set<string>()).add(pin));
-      }
-    }
-  };
-  addPins(manifest);
-  for (const link of links) {
-    const providerManifest: unknown = existsSync(path.join(link.folder, MANIFESTS.composer)) ? readJsonOf(path.join(link.folder, MANIFESTS.composer)) : undefined;
-    if (isJsonObject(providerManifest)) addPins(providerManifest);
-  }
-  // K468: a linked package that no requirement names has the version of its provider's own composer.json.
-  const providerVersion = (name: string): string | undefined => {
-    const link = links.find(item => item.name === name);
-    const provider: unknown = link === undefined ? undefined : readJsonOf(path.join(link.folder, MANIFESTS.composer));
-    return isJsonObject(provider) && typeof provider.version === 'string' ? provider.version : undefined;
-  };
-  const versionOf = (name: string, fork: boolean): string | undefined => {
-    const pin = required[name];
-    const found = [...(pins.get(name) ?? [])];
-    if (fork && found.length > 1) throw new Error(`${name} is pinned at ${found.join(' and ')}, by the consumer and its linked providers, so the link cannot choose one (K379-2)`);
-    const [only] = found;
-    if (fork && only !== undefined && found.length === 1) return `v${only.replace(/^v/, '')}`;
-    if (pin === undefined) return providerVersion(name);
-    return versions.get(name) ?? (typeof pin === 'string' && /^v?\d+\.\d+\.\d+$/.test(pin) ? pin : undefined) ?? providerVersion(name);
-  };
-  const paths = links.map(({ name, folder, fork }) => ({ type: 'path', url: folder, options: { symlink: true, ...(versionOf(name, fork === true) === undefined ? {} : { versions: { [name]: versionOf(name, fork === true) } }) } }));
-  const existing = manifest.repositories;
-  // Composer reads repositories only from the root manifest (K330): the repositories that a linked package declares, such as the
-  // fork that it requires, are written into the link manifest too, so the link resolves them.
-  const key = (entry: unknown) => JSON.stringify(entry);
-  const present = new Set((Array.isArray(existing) ? existing : isJsonObject(existing) ? Object.values(existing) : []).map(key));
-  const provided: unknown[] = [];
-  for (const { folder } of links) {
-    const provider = readJsonOf(path.join(folder, MANIFESTS.composer));
-    const declared = isJsonObject(provider) ? provider.repositories : undefined;
-    for (const entry of Array.isArray(declared) ? declared : isJsonObject(declared) ? Object.values(declared) : []) {
-      if (isJsonObject(entry) && entry.type !== 'path' && !present.has(key(entry))) { present.add(key(entry)); provided.push(entry); }
-    }
-  }
-  const added = [...paths, ...provided];
-  const repositories = isJsonObject(existing) ? { ...Object.fromEntries(added.map((entry, index) => [`polyspec-link-${index}`, entry])), ...existing } : [...added, ...declaredList(existing)];
-  // K479: unrequired links use validated provider metadata, never a wildcard or a stale lock version.
-  const unrequired = links.filter(({ name }) => required[name] === undefined).map(({ name, fork }): [string, string] => {
-    const version = versionOf(name, fork === true);
-    if (version === undefined || !exact.test(version)) throw new Error(`${name} has no exact provider version for its linked Composer requirement (K479)`);
-    return [name, version];
-  });
-  // Composer strict validation rejects exact constraints even in this generated manifest. Keep the provider's real version in
-  // the path repository's versions map, and express linked requirements as caret ranges so Composer can resolve that version
-  // without an exact-constraint warning. The tracked manifest is never changed (K479, K481).
-  const linkedNames = new Set(links.map(link => link.name));
-  const range = (version: string) => `^${version.replace(/^v/, '')}`;
-  const requirements = (value: unknown): Record<string, unknown> => isJsonObject(value)
-    ? Object.fromEntries(Object.entries(value).map(([name, constraint]) => [name, linkedNames.has(name) && typeof constraint === 'string' && exact.test(constraint) ? range(constraint) : constraint]))
-    : {};
-  const withRequire: Record<string, unknown> = { ...manifest, require: { ...requirements(manifest.require), ...Object.fromEntries(unrequired.map(([name, version]) => [name, range(version)])) } };
-  if (isJsonObject(manifest['require-dev'])) withRequire['require-dev'] = requirements(manifest['require-dev']);
-  return { ...withRequire, repositories };
-}
 
-/**
- * K392-3: writes the link files that a linked project lacks, as the link run writes them: the manifest of its linked folders
- * (linkManifest), and the link lock as a copy of the tracked lock. A file that exists is kept. Without a tracked lock nothing is
- * written, and the project is reported NOT linked.
- */
-function writeMissingLinkFiles(work: Run, top: string, project: string, linked: { name: string; folder: string }[], lock: string) {
-  const missing = COMPOSER_LINK_FILES.filter(name => !existsSync(path.join(project, name)));
-  const [first] = linked;
-  if (first === undefined) return;
-  if (!existsSync(lock)) { unlinkable(work, 'composer', first.name, `no composer.lock in ${project}`); return; }
-  excludeComposerLinkFiles(top);
-  // The link manifest is derived from current provider metadata; refresh it even when an earlier run created it. The link lock
-  // remains the user's persistent partial-update state and is copied from the tracked lock only when absent.
-  writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, linked, lockedVersions(lock)), null, 4)}\n`);
-  if (missing.includes(COMPOSER_LINK_FILES[1])) copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
-}
 
-/**
- * The partial update of the Composer project `project` from its link files (K304-1): composer.link.json, the link manifest of the
- * folders `links` (name and folder), and composer.link.lock, the copy of the tracked lock that is written only while it is missing.
- * Composer runs with COMPOSER=composer.link.json and updates the `targets`, so the tracked composer.json and composer.lock stay.
- */
-function updateLinkedComposer(composer: Tool, top: string, project: string, links: readonly { name: string; folder: string }[], targets: readonly string[]) {
-  const lock = path.join(project, 'composer.lock');
-  excludeComposerLinkFiles(top);
-  writeAtomic(path.join(project, COMPOSER_LINK_FILES[0]), `${JSON.stringify(linkManifest(project, links, lockedVersions(lock)), null, 4)}\n`);
-  // The link lock is written from the tracked lock only when it is missing, and kept afterwards (K392): what `dependency-review UPDATE=1`
-  // applied to it stays, and the partial update changes only the linked packages there; the packages that it does not link keep their
-  // versions. A tracked lock that gained a package is not copied over it: remove the link lock to take the tracked lock again.
-  if (!existsSync(path.join(project, COMPOSER_LINK_FILES[1]))) copyFileSync(lock, path.join(project, COMPOSER_LINK_FILES[1]));
-  run(composer.command, ['update', ...targets, '--with-dependencies', '--no-scripts', '--no-plugins', '--no-interaction', '--working-dir', project], { env: { ...composer.env, COMPOSER: COMPOSER_LINK_FILES[0] } });
-}
 
-/**
- * Installs the Composer project of `directory` through the links (K432) when the sibling `checkouts` provide a polyspec package that its
- * composer.lock holds: the link files are written and the partial update runs from them, so each provided package resolves from its folder
- * and the released metadata of the lock is never read. Returns the names that it linked; none when no checkout provides one, and then the
- * caller installs the tracked lock.
- */
-export function linkComposerInstall({ directory, checkouts, composer, print, env }: { directory: string; checkouts: readonly string[]; composer: Tool; print: Print; env: NodeJS.ProcessEnv }): string[] {
-  const consumer = consumerOf(directory, true);
-  const project = consumer.scope;
-  const work: Run = { found: providers(checkouts, undefined, consumer.top, consumer.top), check: false, print, failed: false, env };
-  // A declared polyspec package that no checkout provides fails before any install, in every mode: a release is never installed in its place (K483-1).
-  const missing = declaredPolyspec(consumer.top, project).filter(name => providerFor(work, consumer, 'composer', name) === 'no provider');
-  if (missing.length > 0) throw new Error(`${missing.join(', ')} has no checkout: give the checkout that provides it, and never a release`);
-  const links = polyspecOf(consumer.top, project).flatMap(name => {
-    const provider = providerFor(work, consumer, 'composer', name);
-    return typeof provider === 'string' ? [] : [{ name, folder: provider.folder }];
-  });
-  if (links.length === 0) return [];
-  updateLinkedComposer(composer, consumer.top, project, links, links.map(item => item.name));
-  const record = path.join(composerVendor(project, composer), 'composer/installed.json');
-  for (const { name, folder } of links) {
-    const entry = installedPackages(record).find(item => item.name === name);
-    const copy = typeof entry?.['install-path'] === 'string' ? path.resolve(path.dirname(record), entry['install-path']) : undefined;
-    if (copy === undefined || real(copy) !== realpathSync(folder)) throw new Error(`composer update did not link ${name} to ${folder}`);
-    line(work, 'linked', 'composer', `${name} -> ${folder} (now)`);
-  }
-  return links.map(item => item.name);
-}
 
-function linkComposer(work: Run, consumer: Consumer) {
-  if (!consumer.manifests('composer').length) return;
-  const composer = consumerTool(consumer.top, 'composer', work.env);
-  for (const { project, vendor, installed, declared } of composerProjects(consumer, composer)) {
-    // A declared name that is not installed, as the npm copies of a consumer that does not record it.
-    const own = ownComposer(project);
-    const notInstalled = (name: string) => {
-      const provider = providerFor(work, consumer, 'composer', name);
-      if (projectPackage(work, 'composer', name, provider, own)) return;
-      unlinkable(work, 'composer', name, typeof provider === 'string' ? provider : `not installed in ${vendor}`);
-    };
-    // A vendor without installed.json, as in a fresh checkout, names the polyspec packages of its composer.lock too.
-    if (!installed) { new Set([...declared, ...polyspecOf(consumer.top, project)]).forEach(notInstalled); continue; }
-    const record = path.join(vendor, 'composer/installed.json');
-    const names = new Set<string>();
-    const recorded = new Set<string>();
-    const toLink: { name: string; folder: string; copy: string; provider: Provider }[] = [];
-    const linkedNow: { name: string; folder: string; fork: boolean }[] = [];
-    for (const entry of installedPackages(record)) {
-      if (typeof entry.name !== 'string') continue;
-      // A package of another vendor is linked only when a checkout provides it, such as a fork of forks/ (K379); any other is left alone.
-      if (!entry.name.startsWith('polyspec/') && typeof providerFor(work, consumer, 'composer', entry.name) === 'string') continue;
-      names.add(entry.name);
-      if (typeof entry['install-path'] !== 'string') { unlinkable(work, 'composer', entry.name, `no install-path in ${record}`); continue; }
-      const copy = path.resolve(path.dirname(record), entry['install-path']);
-      recorded.add(copy);
-      const provider = providerFor(work, consumer, 'composer', entry.name);
-      if (projectPackage(work, 'composer', entry.name, provider, own)) continue;
-      if (typeof provider === 'string') { unlinkable(work, 'composer', entry.name, provider); continue; }
-      const version = typeof entry.version === 'string' ? entry.version : '';
-      // A link is Composer's own: the record says the package was installed from a path repository. A symbolic link over an
-      // archive install, which the earlier mechanism made, is installed anew (K318).
-      const installedFromPath = isJsonObject(entry.dist) && entry.dist.type === 'path';
-      if (real(copy) === realpathSync(provider.folder) && installedFromPath) { reportLink(work, 'composer', entry.name, provider); linkedNow.push({ name: entry.name, folder: provider.folder, fork: isForkCheckout(provider.checkout) }); continue; }
-      const problem = pinProblem(version, provider);
-      if (problem) unlinkable(work, 'composer', entry.name, `${problem}: ${copy}`);
-      else if (work.check) unlinkable(work, 'composer', entry.name, real(copy) === realpathSync(provider.folder) ? `${copy} is a link over a ${isJsonObject(entry.dist) ? String(entry.dist.type) : 'copy'} install, not Composer's path install` : copy);
-      else toLink.push({ name: entry.name, folder: provider.folder, copy, provider });
-    }
-    for (const name of declared) if (!names.has(name)) notInstalled(name);
-    const folder = path.join(vendor, 'polyspec');
-    for (const item of existsSync(folder) ? readdirSync(folder) : []) {
-      if (!recorded.has(path.join(folder, item))) unlinkable(work, 'composer', `polyspec/${item}`, `a plain copy that Composer does not record: ${path.join(folder, item)}`);
-    }
-    if (work.check) {
-      // A project linked from its vendor that lacks a link file is reported, as the next link run writes the file (K392-3).
-      const [first] = linkedNow;
-      for (const name of COMPOSER_LINK_FILES) if (first !== undefined && !existsSync(path.join(project, name))) unlinkable(work, 'composer', first.name, `no ${name} in ${project}`);
-      continue;
-    }
-    // Composer installs the linked folders itself (K304-1): a path repository with `symlink` in a git-ignored composer.link.json,
-    // a copy of the lock beside it, and a partial update of the polyspec packages and the project's own path packages only, so
-    // the record, the autoload rules and the platform check come from the composer.json of each folder, the versions are
-    // checked by Composer at that install, and every other package stays at its locked release.
-    const lock = path.join(project, 'composer.lock');
-    // Composer resolves the whole partial update at once, so the folders that are already linked stay in it: a package of the project
-    // that requires one of them is resolved against the folder, not against the release that the lock recorded.
-    const ownTargets = ownPathPackages(project).filter(name => names.has(name) && !toLink.some(item => item.name === name) && !linkedNow.some(item => item.name === name));
-    // A project that link finds linked from its vendor runs no composer update, so the link files that it lacks are written here (K392-3).
-    if (toLink.length === 0 && ownTargets.length === 0) {
-      if (linkedNow.length > 0) writeMissingLinkFiles(work, consumer.top, project, linkedNow, lock);
-      continue;
-    }
-    if (!existsSync(lock)) { for (const item of toLink) unlinkable(work, 'composer', item.name, `no composer.lock in ${project}`); continue; }
-    const all = [...toLink.map(item => ({ name: item.name, folder: item.folder, fork: isForkCheckout(item.provider.checkout) })), ...linkedNow];
-    const targets = [...all.map(item => item.name), ...ownTargets];
-    updateLinkedComposer(composer, consumer.top, project, all, targets);
-    for (const item of toLink) {
-      if (real(item.copy) === realpathSync(item.provider.folder)) line(work, 'linked', 'composer', `${item.name} -> ${item.provider.folder} (now)`);
-      else unlinkable(work, 'composer', item.name, `composer update did not link ${item.copy}`);
-    }
-  }
-}
 
-/**
- * K347: after a rebuild of a provider, `composer dump-autoload` of each linked Composer project of the consumers `directories`
- * (the project whose composer.link.json link wrote), so that its autoload names only the files that exist now (a provider may
- * have removed one). A project that is not linked is left as it is.
- */
-export function refreshComposerAutoload({ directories, print, env = process.env }: { directories: readonly string[]; print: Print; env?: NodeJS.ProcessEnv }): void {
-  for (const consumer of directories.map(directory => consumerOf(directory))) {
-    if (!consumer.manifests('composer').length) continue;
-    const composer = consumerTool(consumer.top, 'composer', env);
-    for (const { project, installed } of composerProjects(consumer, composer)) {
-      if (!installed || !existsSync(path.join(project, COMPOSER_LINK_FILES[0]))) continue;
-      run(composer.command, ['dump-autoload', '--no-scripts', '--no-plugins', '--no-interaction', '--working-dir', project], { env: { ...composer.env, COMPOSER: COMPOSER_LINK_FILES[0] } });
-      print(`  autoload   composer ${project}`);
-    }
-  }
-}
 
 // --- Python: the environment of each pyproject, uv's project environment of its workspace root. Each provider is installed into it
 // from an editable wheel that link writes (K398): its metadata and a .pth naming its import root, no source, so the folder is only
@@ -654,30 +248,8 @@ function syncPython(uv: Tool, target: { venv: string; workspace: string }, ...fl
   run(uv.command, ['sync', '--locked', ...flags], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
 }
 
-/** Writes `lines` to the file `relative` of the links of the consumer, through a temporary file and a rename; returns its path. */
-function writeLinkFile(consumer: Consumer, relative: string, lines: readonly string[]): string {
-  const file = linkFile(consumer.top, relative);
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(`${file}.partial`, `${lines.join('\n')}\n`);
-  renameSync(`${file}.partial`, file);
-  return file;
-}
 
-/** The file name of an install's input for the environment `venv`, in var/link: a hash of its path, one file per environment. */
-const inputName = (venv: string, kind: string): string => path.join(kind, `${createHash('sha256').update(venv).digest('hex').slice(0, 12)}.txt`);
 
-/**
- * The locked releases of the workspace as the constraints of an install (K237): uv export of every group, without the linked
- * packages, which the install gives their checkout versions.
- */
-function lockedConstraints(consumer: Consumer, uv: Tool, workspace: string, venv: string, linked: ReadonlySet<string>): string {
-  const exported = run(uv.command, ['export', '--frozen', '--all-groups', '--no-hashes', '--no-annotate', '--no-header', '--no-emit-workspace'], { cwd: workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: venv } });
-  const pins = exported.split('\n').filter(line => {
-    const name = /^([A-Za-z0-9._-]+)==/.exec(line)?.[1];
-    return name !== undefined && !linked.has(normalizeName(name));
-  });
-  return writeLinkFile(consumer, inputName(venv, 'constraints'), pins);
-}
 
 /**
  * The PEP 751 lock of the workspace `workspace`, of a project that has no uv.lock: pylock.toml, else the first pylock.<name>.toml
@@ -689,19 +261,6 @@ function pylockOf(workspace: string): string | undefined {
   return name === undefined ? undefined : path.join(workspace, name);
 }
 
-/**
- * The locked releases of a PEP 751 lock `lock` as the constraints of an install: each package of the lock that has a version,
- * without the linked packages, as lockedConstraints writes them.
- */
-function pylockConstraints(consumer: Consumer, lock: string, venv: string, linked: ReadonlySet<string>): string {
-  const packages = readTomlFile(lock).packages;
-  const pins = (Array.isArray(packages) ? packages : []).flatMap((item: unknown) => {
-    if (!isJsonObject(item) || typeof item.name !== 'string' || typeof item.version !== 'string') return [];
-    const name = normalizeName(item.name);
-    return linked.has(name) ? [] : [`${name}==${item.version}`];
-  });
-  return writeLinkFile(consumer, inputName(venv, 'constraints'), pins);
-}
 
 /**
  * The locked releases of the linked packages `names` in the PEP 751 lock `lock` (K401-1): each as the requirement `name==version`
@@ -719,81 +278,12 @@ function pylockReleases(lock: string, names: readonly string[]): { pins: { name:
   };
 }
 
-/**
- * The overrides of an install of the linked packages (K237, K316-1, K398): each linked package, a provider or a project of the
- * consumer, is named by its wheel, so that another package that requires it by its release URL takes the wheel, a requirement that
- * beats the one of the command line.
- */
-function linkedOverrides(consumer: Consumer, venv: string, ready: readonly { provider: Provider; wheel: string }[]): string {
-  return writeLinkFile(consumer, inputName(venv, 'overrides'), ready.map(({ provider, wheel }) => `${provider.name} @ ${pathToFileURL(wheel).href}`));
-}
 
-/**
- * The project of the pyproject `file` (the consumer's own, or a member of its workspace), as a provider of its folder, so that it is
- * installed as an editable install of its folder like a provider (K224); undefined when the file declares no [project] name.
- */
-function ownProject(consumer: Consumer, file: string): Provider | undefined {
-  const project = readTomlFile(file).project;
-  if (!isJsonObject(project) || typeof project.name !== 'string') return undefined;
-  return { ecosystem: 'python', name: project.name, folder: path.dirname(file), repository: consumer.repository, checkout: consumer.top };
-}
 
-/** What an environment installs of a distribution (K230): the path that PEP 610 direct_url.json names ('none' when none is a file, 'absent' when it is not installed) and whether RECORD holds the PEP 660 editable marker. */
-type Installed = { path: string; editable: boolean };
 
-/** Reads the installed state of `names` in the environment `venv` with its own python, outside any checkout (-I): the state, not a listing of it (K230). */
-const READ_INSTALLED = [
-  'import importlib.metadata as metadata, json, sys',
-  'from urllib.parse import unquote, urlparse',
-  'for name in sys.argv[1:]:',
-  '    try:',
-  '        dist = metadata.distribution(name)',
-  '    except metadata.PackageNotFoundError:',
-  "        print(name, 'absent', 'no', sep='\\t')",
-  '        continue',
-  "    text = dist.read_text('direct_url.json')",
-  "    url = json.loads(text).get('url', '') if text else ''",
-  "    location = unquote(urlparse(url).path) if url.startswith('file:') else 'none'",
-  "    editable = bool(json.loads(text).get('dir_info', {}).get('editable')) if text else False",
-  "    print(name, location, 'yes' if editable else 'no', sep='\\t')",
-].join('\n');
 
-/**
- * The requirements that the installed packages of `venv` do not meet, by the normalized name of the package that states them,
- * as uv pip check reports them (K238): uv evaluates each requirement's environment markers with the environment's interpreter,
- * so a requirement whose marker holds is checked and one whose marker does not is not.
- */
-function unmetPython(uv: Tool, venv: string): Map<string, string> {
-  const unmet = new Map<string, string>();
-  const output = run(uv.command, ['pip', 'check', '--python', path.join(venv, 'bin/python')], { env: uv.env, statuses: [0, 1] });
-  for (const line of output.split('\n')) {
-    const name = /^The package `([^`]+)` requires `/.exec(line)?.[1];
-    if (name !== undefined && !unmet.has(normalizeName(name))) unmet.set(normalizeName(name), `${line.trim()} (${venv})`);
-  }
-  return unmet;
-}
 
-/** The installed state of each of `names` in `venv`, by name (K230). */
-function installedFiles(venv: string, names: readonly string[], env: NodeJS.ProcessEnv): Map<string, Installed> {
-  const found = new Map<string, Installed>();
-  if (!names.length) return found;
-  for (const line of run(path.join(venv, 'bin/python'), ['-I', '-c', READ_INSTALLED, ...names], { cwd: venv, env }).split('\n')) {
-    const [name, location, editable] = line.split('\t');
-    if (name && location && editable) found.set(name, { path: location, editable: editable === 'yes' });
-  }
-  return found;
-}
 
-/**
- * Why the installed state of `provider` is not the editable install of its folder, or undefined when it is (K230, K316): a
- * link is reported only when the environment itself holds that editable install.
- */
-function editableProblem(provider: Provider, state: Installed | undefined, venv: string): string | undefined {
-  if (state === undefined || state.path === 'absent') return `not installed in ${venv}`;
-  if (state.path === 'none') return `not installed from the folder of the checkout in ${venv}: a registry or archive install`;
-  if (real(state.path) !== real(provider.folder)) return `installed from ${state.path}, not the editable install of ${provider.folder} in ${venv}`;
-  return state.editable ? undefined : `installed from its folder without the editable install in ${venv}`;
-}
 
 /** The normalized project names of the PEP 508 requirements of `list`, a URL requirement too; any other item is ignored. */
 function requirementNames(list: readonly unknown[]): string[] {
@@ -824,385 +314,23 @@ function manifestPython(file: string): string[] {
   return manifestNames(file).filter(name => name.startsWith('polyspec-'));
 }
 
-/** `names` with every polyspec package that their providers require, as providers; a requirement without a provider is reported. */
-function closure(work: Run, consumer: Consumer, names: Iterable<string>): Provider[] {
-  const result = new Map<string, Provider>();
-  const pending = [...names];
-  for (let name = pending.pop(); name !== undefined; name = pending.pop()) {
-    if (result.has(name)) continue;
-    const provider = providerFor(work, consumer, 'python', name);
-    if (typeof provider === 'string') { unlinkable(work, 'python', name, provider); continue; }
-    result.set(name, provider);
-    pending.push(...declaredPython(provider.checkout, path.join(provider.folder, MANIFESTS.python)));
-  }
-  return [...result.values()].sort((a, b) => a.name.localeCompare(b.name));
-}
 
-/** The installed distributions of `venv` by normalized name: version and editable location (uv pip list --format json). */
-function installedPython(uv: Tool, venv: string): Map<string, { version: string }> {
-  const listed = parseOutput(run(uv.command, ['pip', 'list', '--format', 'json', '--python', path.join(venv, 'bin/python')], { env: uv.env }), `uv pip list in ${venv}`);
-  const found = new Map<string, { version: string }>();
-  for (const item of Array.isArray(listed) ? listed.filter(isJsonObject) : []) {
-    if (typeof item.name !== 'string' || typeof item.version !== 'string') continue;
-    found.set(normalizeName(item.name), { version: item.version });
-  }
-  return found;
-}
 
-/** The project.version of the pyproject `file`, or undefined. */
-function projectVersion(file: string): string | undefined {
-  const project = readTomlFile(file).project;
-  const version = isJsonObject(project) ? project.version : undefined;
-  return typeof version === 'string' ? version : undefined;
-}
 
-/**
- * The metadata of the editable wheel of a provider `folder` (K398), read from its pyproject.toml: the [project] table, and `root`, the
- * import root of its .pth. The build backend is never run, so a provider whose metadata the backend computes is refused, with the reason
- * as a string: a dynamic field, a package-dir of other than the root "", or a build backend that compiles code.
- */
-type PythonWheel = { name: string; version: string; requiresPython: string | undefined; requires: string[]; scripts: [string, string][]; root: string | undefined; mappings: [string, string][] };
 
-/** The build backends that compile code (K398): their metadata and their extension modules come from a build that link does not run. */
-const COMPILED_BACKENDS = ['maturin', 'scikit_build_core', 'mesonpy'];
 
-/** The [project] fields that a build backend may compute, which the wheel cannot take from the pyproject.toml (K398). */
-const DYNAMIC_FIELDS = ['version', 'dependencies', 'requires-python', 'scripts'];
 
-function pythonWheel(folder: string): PythonWheel | string {
-  const file = path.join(folder, MANIFESTS.python);
-  const document = readTomlFile(file);
-  const project = document.project;
-  if (!isJsonObject(project) || typeof project.name !== 'string') return `${file} declares no [project] name`;
-  const dynamic = declaredList(project.dynamic).map(String).filter(field => DYNAMIC_FIELDS.includes(field));
-  if (dynamic.length) return `${file} declares ${dynamic.join(', ')} dynamic: its build backend computes it`;
-  if (typeof project.version !== 'string') return `${file} declares no static version`;
-  const system = document['build-system'];
-  const backend = isJsonObject(system) && typeof system['build-backend'] === 'string' ? system['build-backend'] : '';
-  if (COMPILED_BACKENDS.some(name => backend.startsWith(name))) return `build backend ${backend} compiles code`;
-  const tool = document.tool;
-  const setuptools: Record<string, unknown> = isJsonObject(tool) && isJsonObject(tool.setuptools) ? tool.setuptools : {};
-  const setup = path.join(folder, 'setup.py');
-  if (setuptools['ext-modules'] !== undefined || (existsSync(setup) && /ext_modules|Extension\(/.test(readFileSync(setup, 'utf8')))) return `${folder} compiles extension modules`;
-  // A static package-dir that maps a package to a folder of its own (K398-2) is served by a finder of the wheel; the packages it maps
-  // must be listed in setuptools.packages, as setuptools requires for such a mapping.
-  const packageDir = setuptools['package-dir'] ?? {};
-  if (!isJsonObject(packageDir) || Object.values(packageDir).some(value => typeof value !== 'string')) return `${file} declares a package-dir that is not a static map of strings`;
-  const mappings: [string, string][] = Object.entries(packageDir).filter(([key]) => key !== '').map(([key, value]) => [key, path.join(folder, String(value))]);
-  // Each listed package resolves through the longest package-dir prefix that it starts with (K398-3), so a prefix mapped to "." needs
-  // no listing of its own.
-  const listed = declaredList(setuptools.packages).map(String);
-  const prefixes = Object.keys(packageDir).filter(key => key !== '');
-  const unresolved = mappings.length && typeof packageDir[''] !== 'string' ? listed.filter(name => !prefixes.some(prefix => name === prefix || name.startsWith(`${prefix}.`))) : [];
-  if (unresolved.length) return `${file} lists ${unresolved.join(', ')} in setuptools.packages, which no package-dir prefix maps`;
-  const requires = declaredList(project.dependencies);
-  if (!requires.every((item): item is string => typeof item === 'string')) return `${file} declares a dependency that is not a string`;
-  const scripts = Object.entries(isJsonObject(project.scripts) ? project.scripts : {});
-  if (scripts.some(([, target]) => typeof target !== 'string')) return `${file} declares a script that is not a string`;
-  const mapped = packageDir[''];
-  const requiresPython = project['requires-python'];
-  return {
-    name: project.name,
-    version: project.version,
-    requiresPython: typeof requiresPython === 'string' ? requiresPython : undefined,
-    requires,
-    scripts: scripts.map(([name, target]) => [name, String(target)]),
-    root: typeof mapped === 'string' ? path.join(folder, mapped) : mappings.length ? undefined : existsSync(path.join(folder, 'src')) ? path.join(folder, 'src') : folder,
-    mappings,
-  };
-}
 
-/**
- * The finder of the editable wheel that maps each package of a static package-dir to its folder (K398-2): a meta path finder that
- * takes the top-level name of the package from its folder's __init__.py and the folder's submodules through the package's __path__.
- */
-function finderLines(mappings: readonly [string, string][]): string[] {
-  return [
-    'import importlib.abc',
-    'import importlib.util',
-    'import os',
-    'import sys',
-    'import importlib.machinery',
-    `MAPPING = ${JSON.stringify(Object.fromEntries(mappings))}`,
-    'class _Namespace:',
-    '    def create_module(self, spec):',
-    '        return None',
-    '    def exec_module(self, module):',
-    '        return None',
-    'def _namespace(name, locations):',
-    '    spec = importlib.machinery.ModuleSpec(name, _Namespace(), is_package=True)',
-    '    spec.submodule_search_locations = list(locations)',
-    '    return spec',
-    'class _Finder(importlib.abc.MetaPathFinder):',
-    '    def find_spec(self, name, path=None, target=None):',
-    '        # The longest package-dir prefix that the name starts with maps it (K398-3).',
-    '        prefix = max((key for key in MAPPING if name == key or name.startswith(key + ".")), key=len, default=None)',
-    '        if prefix is not None:',
-    '            rest = name[len(prefix) + 1:] if name != prefix else ""',
-    '            location = os.path.join(MAPPING[prefix], *rest.split(".")) if rest else MAPPING[prefix]',
-    '            init = os.path.join(location, "__init__.py")',
-    '            if os.path.isfile(init):',
-    '                return importlib.util.spec_from_file_location(name, init, submodule_search_locations=[location])',
-    '            return _namespace(name, [location]) if os.path.isdir(location) else None',
-    '        # A parent of a mapped prefix, such as limepie of limepie.module.x, is a namespace package with no folder of its own.',
-    '        if any(key.startswith(name + ".") for key in MAPPING):',
-    '            return _namespace(name, [])',
-    '        return None',
-    'def install():',
-    '    if not any(isinstance(finder, _Finder) for finder in sys.meta_path):',
-    '        sys.meta_path.insert(0, _Finder())',
-  ];
-}
 
-/** The entries of the wheel of `wheel` (K398): its dist-info (METADATA, WHEEL, entry_points.txt when it has scripts, RECORD) and the .pth. */
-function wheelEntries(wheel: PythonWheel): { name: string; data: Buffer }[] {
-  const dist = normalizeName(wheel.name).replace(/-/g, '_');
-  const info = `${dist}-${wheel.version}.dist-info`;
-  const text = (lines: readonly string[]) => Buffer.from(`${lines.join('\n')}\n`, 'utf8');
-  const entries = [
-    { name: `${info}/METADATA`, data: text(['Metadata-Version: 2.1', `Name: ${wheel.name}`, `Version: ${wheel.version}`, ...(wheel.requiresPython === undefined ? [] : [`Requires-Python: ${wheel.requiresPython}`]), ...wheel.requires.map(requirement => `Requires-Dist: ${requirement}`)]) },
-    { name: `${info}/WHEEL`, data: text(['Wheel-Version: 1.0', 'Generator: polyspec-kit-link', 'Root-Is-Purelib: true', 'Tag: py3-none-any']) },
-    ...(wheel.scripts.length ? [{ name: `${info}/entry_points.txt`, data: text(['[console_scripts]', ...wheel.scripts.map(([name, target]) => `${name} = ${target}`)]) }] : []),
-    ...(wheel.mappings.length ? [{ name: `__editable___${dist}_finder.py`, data: text(finderLines(wheel.mappings)) }] : []),
-    { name: `__editable__.${dist}.pth`, data: text([...(wheel.root === undefined ? [] : [wheel.root]), ...(wheel.mappings.length ? [`import __editable___${dist}_finder; __editable___${dist}_finder.install()`] : [])]) },
-  ];
-  const record = [...entries.map(({ name, data }) => `${name},sha256=${createHash('sha256').update(data).digest('base64url')},${data.length}`), `${info}/RECORD,,`];
-  return [...entries, { name: `${info}/RECORD`, data: text(record) }];
-}
 
-/** A zip archive of `entries`, each stored without compression and dated 1980-01-01, so that its bytes are the same on each run (K398). */
-function zipOf(entries: readonly { name: string; data: Buffer }[]): Buffer {
-  const dosDate = 0x21;
-  const parts: Buffer[] = [];
-  const central: Buffer[] = [];
-  let offset = 0;
-  for (const { name, data } of entries) {
-    const bytes = Buffer.from(name, 'utf8');
-    const checksum = crc32(data);
-    const header = Buffer.alloc(30);
-    header.writeUInt32LE(0x04034b50, 0);
-    header.writeUInt16LE(20, 4);
-    header.writeUInt16LE(0x0800, 6);
-    header.writeUInt16LE(dosDate, 12);
-    header.writeUInt32LE(checksum, 14);
-    header.writeUInt32LE(data.length, 18);
-    header.writeUInt32LE(data.length, 22);
-    header.writeUInt16LE(bytes.length, 26);
-    const record = Buffer.alloc(46);
-    record.writeUInt32LE(0x02014b50, 0);
-    record.writeUInt16LE(20, 4);
-    record.writeUInt16LE(20, 6);
-    record.writeUInt16LE(0x0800, 8);
-    record.writeUInt16LE(dosDate, 14);
-    record.writeUInt32LE(checksum, 16);
-    record.writeUInt32LE(data.length, 20);
-    record.writeUInt32LE(data.length, 24);
-    record.writeUInt16LE(bytes.length, 28);
-    record.writeUInt32LE(offset, 42);
-    parts.push(header, bytes, data);
-    central.push(record, bytes);
-    offset += header.length + bytes.length + data.length;
-  }
-  const directory = Buffer.concat(central);
-  const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
-  end.writeUInt16LE(entries.length, 8);
-  end.writeUInt16LE(entries.length, 10);
-  end.writeUInt32LE(directory.length, 12);
-  end.writeUInt32LE(offset, 16);
-  return Buffer.concat([...parts, directory, end]);
-}
 
-/** Writes the editable wheel of `wheel` into var/link/python of the consumer, and returns its path (K398). */
-function writeWheel(consumer: Consumer, wheel: PythonWheel, state?: string): string {
-  const name = path.join('python', `${normalizeName(wheel.name).replace(/-/g, '_')}-${wheel.version}-py3-none-any.whl`);
-  // A state that the caller gives is an install output outside the source checkouts (K488): it is not checked against Git.
-  const file = state === undefined ? linkFile(consumer.top, name) : path.join(state, name);
-  writeAtomic(file, zipOf(wheelEntries(wheel)));
-  return file;
-}
 
-/** The script that writes the PEP 610 record of an editable install of the folder named by its URL (argv 2) over the direct_url.json of the distribution named by argv 1 (K398). */
-const WRITE_DIRECT_URL = [
-  'import importlib.metadata as metadata, json, pathlib, sys',
-  "record = next(file for file in metadata.distribution(sys.argv[1]).files if file.name == 'RECORD')",
-  "pathlib.Path(record.locate()).parent.joinpath('direct_url.json').write_text(json.dumps({'url': sys.argv[2], 'dir_info': {'editable': True}}))",
-].join('\n');
 
-function linkPython(work: Run, consumer: Consumer) {
-  const files = consumer.manifests('python');
-  if (!files.some(file => declaredPython(consumer.top, file).length)) return;
-  const uv = consumerTool(consumer.top, 'uv', work.env);
-  // Every project of an environment is a member of it: with --no-install-workspace the sync installs none of them, so each
-  // member, polyspec or not, is installed as an editable install of its folder (K224). An environment with no polyspec package is not synced.
-  const byVenv = new Map<string, { workspace: string; names: Set<string>; projects: Provider[] }>();
-  for (const file of files) {
-    const target = pythonTarget(uv, file);
-    const declared = declaredPython(consumer.top, file);
-    if (typeof target === 'string') { for (const name of declared) unlinkable(work, 'python', name, target); continue; }
-    const entry = byVenv.get(target.venv) ?? { workspace: target.workspace, names: new Set<string>(), projects: [] };
-    for (const name of declared) entry.names.add(name);
-    const project = ownProject(consumer, file);
-    if (project) entry.projects.push(project);
-    byVenv.set(target.venv, entry);
-  }
-  for (const [venv, { workspace, names, projects }] of byVenv) {
-    if (!names.size) continue;
-    const installed = installedPython(uv, venv);
-    // The wheel metadata of each provider, read before any install: a provider whose metadata kit cannot read is refused (K398).
-    const wheels = new Map<string, PythonWheel>();
-    const linked = [
-      ...closure(work, consumer, names).filter((provider) => {
-        const wheel = pythonWheel(provider.folder);
-        if (typeof wheel === 'string') { unlinkable(work, 'python', provider.name, wheel); return false; }
-        wheels.set(provider.name, wheel);
-        // A declared package that the environment lacks (a sync of the consumer's install leaves out the polyspec packages and removes
-        // the editables of an earlier link) is installed as the editable of its folder, as one over a release wheel is (K316-2); its
-        // pin is the version of the folder then.
-        const found = installed.get(provider.name);
-        const version = found?.version ?? projectVersion(path.join(provider.folder, MANIFESTS.python));
-        if (version === undefined) { unlinkable(work, 'python', provider.name, `not installed in ${venv}, and ${path.join(provider.folder, MANIFESTS.python)} declares no version`); return false; }
-        const problem = pinProblem(version, provider);
-        if (problem) unlinkable(work, 'python', provider.name, `${problem} in ${venv}`);
-        return !problem;
-      }),
-      // An own project is installed from its editable wheel as a provider is (K398-1): a project whose metadata the wheel cannot
-      // take is refused, and is not installed from its folder instead.
-      ...projects.filter((project) => {
-        const wheel = pythonWheel(project.folder);
-        if (typeof wheel === 'string') { unlinkable(work, 'python', project.name, wheel); return false; }
-        wheels.set(project.name, wheel);
-        return true;
-      }),
-    ];
-    // A link is reported from the installed state of the environment, after each install too (K230); a listing is not proof.
-    // A linked package is linked and its requirements are met (K238): the unmet requirements are those that uv pip check states.
-    const stateOf = (names: readonly string[]) => installedFiles(venv, names, work.env);
-    const problemOf = (provider: Provider, state: Map<string, Installed>, unmet: ReadonlyMap<string, string>): string | undefined =>
-      editableProblem(provider, state.get(provider.name), venv) ?? unmet.get(normalizeName(provider.name));
-    const reportLinks = (state: Map<string, Installed>, now: boolean) => {
-      const unmet = unmetPython(uv, venv);
-      for (const provider of linked) {
-        const problem = problemOf(provider, state, unmet);
-        if (problem) unlinkable(work, 'python', provider.name, problem);
-        else line(work, 'linked', 'python', `${provider.name} -> ${provider.folder} (${venv}${now ? ', now' : ''})`);
-      }
-    };
-    const state = stateOf(linked.map(provider => provider.name));
-    const unmet = unmetPython(uv, venv);
-    if (work.check || linked.every(provider => problemOf(provider, state, unmet) === undefined)) {
-      reportLinks(state, false);
-      continue;
-    }
-    // The constraints are the locked releases of the uv.lock of the workspace, or of its PEP 751 lock when it has no uv.lock (K401).
-    const pylock = existsSync(path.join(workspace, 'uv.lock')) ? undefined : pylockOf(workspace);
-    if (pylock === undefined && !existsSync(path.join(workspace, 'uv.lock'))) {
-      for (const provider of linked) unlinkable(work, 'python', provider.name, `no uv.lock or pylock.toml in ${workspace}: run the repository's install`);
-      continue;
-    }
-    // No sync (K239): the consumer's install already synced the environment, and a sync would reinstall any other package
-    // from its lock source. The install below changes the linked packages only; its dependencies are added at the locked releases.
-    // Each linked package is installed from the wheel that link writes for it (K398): every entry of linked has its wheel metadata.
-    const ready = linked.flatMap((provider) => {
-      const wheel = wheels.get(provider.name);
-      return wheel === undefined ? [] : [{ provider, wheel: writeWheel(consumer, wheel) }];
-    });
-    const lockedNames = new Set(ready.map(({ provider }) => normalizeName(provider.name)));
-    const constraints = pylock === undefined ? lockedConstraints(consumer, uv, workspace, venv, lockedNames) : pylockConstraints(consumer, pylock, venv, lockedNames);
-    const overrides = linkedOverrides(consumer, venv, ready);
-    // A project of the consumer's own environment is installed with --no-deps (K280): the consumer's lock sync provides its
-    // dependencies, and a dependency that the lock provides another way (a path dependency of no index) cannot be resolved here.
-    const own = new Set(projects.map(project => project.name));
-    const python = path.join(venv, 'bin/python');
-    const installs = [
-      { flags: ['--constraints', constraints, '--overrides', overrides], items: ready.filter(({ provider }) => !own.has(provider.name)) },
-      { flags: ['--no-deps'], items: ready.filter(({ provider }) => own.has(provider.name)) },
-    ];
-    for (const { flags, items } of installs) {
-      if (!items.length) continue;
-      run(uv.command, ['pip', 'install', '--python', python, ...flags, ...items.flatMap(({ provider }) => ['--reinstall-package', provider.name]), ...items.map(({ wheel }) => wheel)], { cwd: consumer.top, env: uv.env });
-      // The wheel records its install as a non-editable one of its file: the PEP 610 record is written as the editable install of the folder (K398).
-      for (const { provider } of items) run(python, ['-I', '-c', WRITE_DIRECT_URL, provider.name, pathToFileURL(provider.folder).href], { cwd: venv, env: work.env });
-    }
-    reportLinks(stateOf(linked.map(provider => provider.name)), true);
-  }
-}
 
 // --- uv install (K448-3): the environment of a project installed with its polyspec packages linked from the start.
 
-/**
- * The polyspec packages of `names` and of the packages they require, each as the provider that a checkout gives; a name without a
- * checkout fails before uv runs, since an install would then take its release (K448-3).
- */
-function polyspecClosure(byName: ReadonlyMap<string, Provider>, names: readonly string[]): Provider[] {
-  const result = new Map<string, Provider>();
-  const pending = [...names];
-  for (let name = pending.pop(); name !== undefined; name = pending.pop()) {
-    if (result.has(name)) continue;
-    const provider = byName.get(name);
-    if (provider === undefined) throw new Error(`${name} has no checkout among the given checkouts; give the checkout that provides it, and never a release`);
-    result.set(name, provider);
-    pending.push(...declaredPython(provider.checkout, path.join(provider.folder, MANIFESTS.python)).map(normalizeName));
-  }
-  return [...result.values()].sort((a, b) => a.name.localeCompare(b.name));
-}
 
-/** The sync flags that uv install passes to uv sync: the ones that a consumer needs for its install (K487). */
-const UV_INSTALL_SYNC_FLAGS = ['--no-install-project', '--all-groups'];
 
-/**
- * Installs the uv environment of the project `directory` in place of uv sync (K448-3). Each declared polyspec package, and each
- * polyspec package that uv.lock holds, is excluded from `uv sync --locked`, so no release of it is installed. Each one that a
- * checkout provides is then installed from the editable wheel that link writes for it (K398), with --no-deps: the sync installed
- * the locked dependencies. A polyspec package with no checkout fails before uv runs. Third-party packages come from uv.lock.
- */
-export function uvInstall({ directory, checkouts, sync = [], state, env = process.env, print }: { directory: string; checkouts: readonly string[]; sync?: readonly string[]; state?: string | undefined; env?: NodeJS.ProcessEnv; print: Print }): void {
-  // The link state of the install is written under state, an absolute folder of the caller (K488); without it, under var/link of the consumer.
-  if (state !== undefined && !path.isAbsolute(state)) throw new Error(`STATE must be an absolute path, got ${state}`);
-  for (const flag of sync) {
-    if (!UV_INSTALL_SYNC_FLAGS.includes(flag)) throw new Error(`unsupported sync flag ${flag}: uv install passes only ${UV_INSTALL_SYNC_FLAGS.join(' and ')}`);
-  }
-  const consumer = consumerOf(directory, true);
-  const uv = consumerTool(consumer.top, 'uv', env);
-  const byName = new Map<string, Provider>();
-  for (const provider of providers(checkouts, undefined, consumer.top, consumer.top).values()) {
-    if (provider.ecosystem === 'python') byName.set(normalizeName(provider.name), provider);
-  }
-  for (const file of consumer.manifests('python')) {
-    // A declared polyspec package with no checkout is refused before uv runs (K448-3).
-    const declared = declaredPython(consumer.top, file).map(normalizeName);
-    polyspecClosure(byName, declared);
-    const target = installTarget(uv, file);
-    const lock = path.join(target.workspace, 'uv.lock');
-    if (!existsSync(lock)) throw new Error(`${target.workspace} has no uv.lock: the install syncs its locked releases`);
-    const packages = readTomlFile(lock).package;
-    const locked = Array.isArray(packages) ? packages.filter(isJsonObject).flatMap(item => typeof item.name === 'string' ? [normalizeName(item.name)] : []) : [];
-    // A given checkout whose name the project declares is linked from the start, whatever its name (K487): its name is excluded from the sync.
-    const named = manifestNames(file).map(normalizeName).filter(name => byName.has(name));
-    const linked = polyspecClosure(byName, [...declared, ...locked.filter(name => name.startsWith('polyspec-')), ...named]);
-    const names = linked.map(provider => normalizeName(provider.name));
-    run(uv.command, ['sync', '--locked', ...sync, ...names.flatMap(name => ['--no-install-package', name])], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
-    if (linked.length === 0) {
-      print(`uv-install ${target.workspace}: no polyspec package of its uv.lock; uv sync of the locked releases into ${target.venv}`);
-      continue;
-    }
-    const python = path.join(target.venv, 'bin/python');
-    const wheels = linked.map((provider) => {
-      const wheel = pythonWheel(provider.folder);
-      if (typeof wheel === 'string') throw new Error(wheel);
-      return writeWheel(consumer, wheel, state);
-    });
-    run(uv.command, ['pip', 'install', '--python', python, '--no-deps', ...names.flatMap(name => ['--reinstall-package', name]), ...wheels], { cwd: consumer.top, env: uv.env });
-    for (const provider of linked) run(python, ['-I', '-c', WRITE_DIRECT_URL, provider.name, pathToFileURL(provider.folder).href], { cwd: target.venv, env: uv.env });
-    const unmet = unmetPython(uv, target.venv);
-    const broken = linked.flatMap((provider) => {
-      const problem = unmet.get(normalizeName(provider.name));
-      return problem === undefined ? [] : [`${provider.name}: ${problem}`];
-    });
-    if (broken.length) throw new Error(`uv install of ${target.workspace}: a linked package's requirement is not met: ${broken.join('; ')}`);
-    for (const provider of linked) print(`  linked     python   ${provider.name} -> ${provider.folder} (${target.venv})`);
-  }
-}
 
 // --- Go: a go.work at the root of each module of the consumer, which go reads by itself (K205).
 
@@ -1294,12 +422,40 @@ export function link({ checkouts, directories, check, print, env = process.env, 
   const work: Run = { found: providers(checkouts, go, first?.top ?? process.cwd(), first?.top), check, print, failed: false, env };
   for (const consumer of consumers) {
     print(`== ${consumer.scope}`);
-    linkNpm(work, consumer);
-    linkComposer(work, consumer);
-    linkPython(work, consumer);
+    linkPackageFolders(work, consumer);
     linkGo(work, consumer);
   }
   return !work.failed;
+}
+
+/** The vendor folder that the composer.json of `project` names in config.vendor-dir, read from the file, else vendor. */
+function vendorDirOf(project: string): string | undefined {
+  const file = path.join(project, MANIFESTS.composer);
+  if (!existsSync(file)) return undefined;
+  const manifest = readJsonOf(file);
+  const config = isJsonObject(manifest) ? manifest.config : undefined;
+  return isJsonObject(config) && typeof config['vendor-dir'] === 'string' ? config['vendor-dir'] : undefined;
+}
+
+/**
+ * K448: the link of the installed package folders of the consumer. Each folder of a project of the consumer (each folder of a tracked
+ * package.json, composer.json or pyproject.toml, and the top) whose installed polyspec package a provider of the run provides becomes a
+ * direct symlink to the provider's package folder, a copy removed; with `check`, each folder that is a copy or links elsewhere is
+ * reported. No package manager runs and no version is read.
+ */
+function linkPackageFolders(work: Run, consumer: Consumer) {
+  const projects = new Set([consumer.scope, ...(['npm', 'composer', 'python'] as const).flatMap(ecosystem => consumer.manifests(ecosystem).map(file => path.dirname(file)))]);
+  for (const project of [...projects].sort()) {
+    const folders = providedFolders(project, work.found.values(), { vendorDir: vendorDirOf(project) });
+    if (work.check) {
+      const findings = folderFindings(consumer.top, folders);
+      for (const finding of findings) line(work, 'NOT linked', finding.split(' ')[0] ?? '', finding.slice(finding.indexOf(' ') + 1));
+      if (findings.length > 0) work.failed = true;
+      continue;
+    }
+    linkFolders(folders);
+    for (const item of folders) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
+  }
 }
 
 /** The polyspec packages of `ecosystem` that the consumer `directory` declares, for a recipe (uv sync --no-install-package). */
@@ -1627,7 +783,6 @@ if (isMain(import.meta.url)) {
         break;
       case 'rebuild':
         for (const repository of rest) rebuild(workTreeOf(repository), print);
-        refreshComposerAutoload({ directories, print });
         break;
       case 'providers': {
         // The npm providers of the checkouts that the arguments name, one line each: the name, a tab and the package folder, sorted by

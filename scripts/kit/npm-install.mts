@@ -1,90 +1,23 @@
-// Installs the npm packages of a consumer in place of its npm ci (K448-2, `make npm-install DIR=<project>`). A polyspec package that a
-// sibling checkout provides is linked from the start: the install runs in a temporary folder whose package.json names each such
-// package as a file: dependency of its checkout (an absolute path), so npm links the folder and fetches no release. The result is
-// moved into the project, with each link made absolute. The tracked package.json and package-lock.json are never written. Without a
-// sibling that provides a package the project declares, as in CI, npm ci runs on the tracked lock.
+// Installs the npm packages of a consumer (`make npm-install DIR=<project>`, K448): npm ci of the tracked lock as it is, then each
+// installed package that a checkout provides becomes a direct symlink to the checkout's package folder (link-folders.mts). No file:
+// spec, no temporary manifest and no npm resolution touch a provided package, so no version is read. The tracked package.json and
+// package-lock.json are never written.
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, lstatSync, mkdirSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { readJsonObject } from './bootstrap/files.mts';
 import { isMain } from './paths.mts';
 import { declaredFor } from './polyspec-lock-check.mts';
+import { checkoutProviders, linkFolders, providedFolders } from './link-folders.mts';
 import { workTreeOf } from './link-providers.mts';
 
 const SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
-/** The name of the package that `checkout` provides, read from its package.json; undefined when it has none. */
-function nameOf(checkout: string): string | undefined {
-  if (!existsSync(path.join(checkout, 'package.json'))) return undefined;
-  const name = readJsonObject(checkout, 'package.json').name;
-  return typeof name === 'string' ? name : undefined;
-}
-
-/** The package name of an overrides key without its version or range: "@scope/name@1.0.0" and "name@^2" name "@scope/name" and "name". */
-function packageNameOf(key: string): string {
-  const at = key.indexOf('@', key.startsWith('@') ? 1 : 0);
-  return at === -1 ? key : key.slice(0, at);
-}
-
 /**
- * The workspace patterns of a manifest (`workspaces` as a list, or as an object with `packages`), each re-anchored from the temporary folder
- * to the project, so that npm links the workspace folders of the project and no workspace is dropped (K465). A negated pattern keeps its `!`.
- */
-function workspacesIn(workspaces: unknown, fromTemporary: string): unknown {
-  const anchor = (entry: unknown): unknown => {
-    if (typeof entry !== 'string') return entry;
-    const negated = entry.startsWith('!');
-    const joined = path.posix.join(fromTemporary, negated ? entry.slice(1) : entry);
-    return negated ? `!${joined}` : joined;
-  };
-  const anchorAll = (entries: unknown[]): unknown[] => entries.map((entry: unknown) => anchor(entry));
-  if (Array.isArray(workspaces)) return anchorAll(workspaces);
-  if (typeof workspaces === 'object' && workspaces !== null && 'packages' in workspaces && Array.isArray(workspaces.packages)) {
-    return { ...workspaces, packages: anchorAll(workspaces.packages) };
-  }
-  return workspaces;
-}
-
-/** The links under `dir` whose target does not exist, each with its path; a link of a scope folder is read too. */
-function danglingLinksIn(dir: string): string[] {
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir).flatMap((entry) => {
-    const item = path.join(dir, entry);
-    if (lstatSync(item).isSymbolicLink()) return existsSync(item) ? [] : [item];
-    return entry.startsWith('@') || entry === '.bin' ? danglingLinksIn(item) : [];
-  });
-}
-
-/** The package folders that a repository root holds under packages/: each directory there with a package.json, sorted. */
-function packageFoldersOf(checkout: string): string[] {
-  // K448-13: a package may sit deeper than one folder under packages/ (hyper: packages/server/ts), so the folders are searched to a depth of
-  // three, not only the direct children; node_modules is never searched.
-  const found: string[] = [];
-  const visit = (folder: string, depth: number) => {
-    if (depth > 3) return;
-    for (const entry of readdirSync(folder).sort()) {
-      if (entry === 'node_modules') continue;
-      const child = path.join(folder, entry);
-      if (!lstatSync(child).isDirectory()) continue;
-      if (existsSync(path.join(child, 'package.json'))) found.push(child);
-      visit(child, depth + 1);
-    }
-  };
-  const packages = path.join(checkout, 'packages');
-  if (existsSync(packages) && lstatSync(packages).isDirectory()) visit(packages, 1);
-  return found;
-}
-
-/** The entries of a section of a manifest object, or none when the section is absent or not an object (K484). */
-function manifestSection(manifest: Record<string, unknown>, section: string): Record<string, unknown> {
-  const value = manifest[section];
-  return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
-}
-
-/**
- * Installs the packages of `directory` and returns the path that it took: `linked` (a sibling package of the project is linked from
- * its checkout) or `locked` (npm ci of the tracked lock). `npm` is the npm to run; the environment is `env`.
+ * Installs the packages of `directory` and returns the path that it took: `linked` (a package of the project is linked to its checkout)
+ * or `locked` (no checkout provides one). The tracked lock is installed as it is, with npm ci, and each installed package that a checkout
+ * provides is then replaced by a direct symlink to its checkout (K448), so npm resolves nothing of a provided package and no version is
+ * read. `npm` is the npm to run; the environment is `env`.
  */
 export function npmInstall({ directory, checkouts, npm = 'npm', env = process.env, print, explicit = false, added = [] }: {
   directory: string; checkouts: readonly string[]; npm?: string; env?: NodeJS.ProcessEnv; print: (text: string) => void; explicit?: boolean;
@@ -98,136 +31,42 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
   };
   // The packages that config/polyspec.json declares for the project are declared too (K468): the tracked manifest names none.
   const declared = new Set([...SECTIONS.flatMap(section => Object.keys(sectionOf(section))), ...declaredFor(workTreeOf(project), 'npm', project)]);
-  // The packages of the lock too: a transitive package is named only there, and a sibling checkout that provides it is linked through
-  // an override of the temporary manifest (K448-7).
-  const lock = path.join(project, 'package-lock.json');
-  const locked = new Set<string>();
-  if (existsSync(lock)) {
-    const packages = readJsonObject(project, 'package-lock.json').packages;
-    if (typeof packages === 'object' && packages !== null) {
-      for (const key of Object.keys(packages)) {
-        const at = key.lastIndexOf('node_modules/');
-        if (at !== -1) locked.add(key.slice(at + 'node_modules/'.length));
-      }
-    }
-  }
-  const wanted = new Set([...declared, ...locked]);
-  // A checkout that the caller names is a package folder or a repository root (K494): a root holds its npm packages under packages/
-  // (template's @polyspec/template is in packages/ts), which the kit finds itself, as for the sibling checkouts (K448-11), so a consumer
-  // never walks the layout of a provider. A checkout that provides no npm package, such as a PHP-only fork in the list that link takes
-  // too, provides none (K494-1); a named entry that is no existing directory is refused, naming it.
-  if (explicit) {
-    for (const checkout of checkouts) {
-      if (!existsSync(checkout) || !lstatSync(checkout).isDirectory()) throw new Error(`${checkout} is no existing directory`);
-    }
-  // An added checkout (ADD, K485) is an existing directory too; it provides its packages whether or not the project declares them.
-  for (const checkout of added) {
+  // A checkout that the caller names is a package folder or a repository root (K494): a root holds its npm packages under packages/, which
+  // the kit finds itself; a checkout that provides no npm package provides none (K494-1); a named entry that is no directory is refused.
+  for (const checkout of [...(explicit ? checkouts : []), ...added]) {
     if (!existsSync(checkout) || !lstatSync(checkout).isDirectory()) throw new Error(`${checkout} is no existing directory`);
   }
-  }
-  const provided = new Map<string, string>();
-  // A checkout with package folders gives those folders and never itself, since a root may carry the name of the package it holds
-  // (ordered-json names its root @polyspec/ordered-json, as packages/js); a checkout without them is a package folder (K494-2).
-  for (const checkout of checkouts.flatMap(checkout => {
-    const folders = packageFoldersOf(checkout);
-    return folders.length ? folders : [checkout];
-  })) {
-    const name = nameOf(checkout);
-    if (name !== undefined && wanted.has(name) && !provided.has(name)) provided.set(name, path.resolve(checkout));
-  }
-  // An added checkout (ADD, K485) provides its packages whether or not the project declares them; a package that the project does not
-  // declare is installed as a file: dependency of the temporary manifest (K484), so the tracked manifest and lock name none of them.
+  const provided = new Map(checkoutProviders(checkouts, 'npm').map(item => [item.name, item.folder]));
+  // An added checkout (ADD, K485) provides its packages whether or not the project declares them: each is linked even when npm ci did
+  // not install it.
+  const forced = new Map<string, string>();
   for (const checkout of added) {
-    const named = [checkout, ...packageFoldersOf(checkout)].flatMap(folder => { const name = nameOf(folder); return name === undefined ? [] : [{ name, folder }]; });
+    const named = checkoutProviders([checkout], 'npm');
     if (named.length === 0) throw new Error(`${checkout} holds no package with a name; ADD takes a package folder or a repository root`);
-    for (const { name, folder } of named) if (!provided.has(name)) provided.set(name, path.resolve(folder));
+    for (const item of named) forced.set(item.name, item.folder);
   }
-  // A declared @polyspec package that no checkout provides is a failure in every mode, whether the checkouts are named, found as siblings
-  // or absent: it is never a reason to run npm ci of the released tarballs (K448-7, K483-1).
-  const missing = [...wanted].filter(name => name.startsWith('@polyspec/') && !provided.has(name) && declared.has(name));
-  if (missing.length) throw new Error(`${missing.join(', ')} has no checkout: give the checkout that provides it, and never a release`);
-  if (provided.size === 0) {
-    print(`npm-install ${project}: no sibling checkout provides a package the project declares; npm ci of the tracked lock`);
-    const ci = spawnSync(npm, ['ci', '--no-audit', '--no-fund'], { cwd: project, env, encoding: 'utf8' });
-    if (ci.status !== 0) throw new Error(`npm ci of ${project} exited ${ci.status}: ${ci.stderr}`);
+  // A declared @polyspec package that no checkout provides is a failure in every mode (K448-7, K483-1).
+  const missing = [...declared].filter(name => name.startsWith('@polyspec/') && !provided.has(name) && !forced.has(name));
+  if (missing.length) throw new Error(`${missing.join(', ')} has no checkout: give the checkout that provides it`);
+  // npm ci empties node_modules and keeps the directory itself, so a node_modules that is a mount point stays (K486).
+  const ci = spawnSync(npm, ['ci', '--no-audit', '--no-fund'], { cwd: project, env, encoding: 'utf8' });
+  if (ci.status !== 0) throw new Error(`npm ci of ${project} exited ${ci.status}: ${ci.stderr}`);
+  const folders = providedFolders(project, [...provided].map(([name, folder]) => ({ ecosystem: 'npm' as const, name, folder, repository: folder, checkout: folder })));
+  for (const [name, folder] of forced) {
+    const installed = path.join(project, 'node_modules', name);
+    if (!folders.some(item => item.folder === installed)) {
+      mkdirSync(path.dirname(installed), { recursive: true });
+      if (!existsSync(installed)) symlinkSync(folder, installed);
+      folders.push({ ecosystem: 'npm', name, folder: installed, target: folder });
+    }
+  }
+  if (folders.length === 0) {
+    print(`npm-install ${project}: npm ci of the tracked lock; no installed package is provided by a checkout`);
     return 'locked';
   }
-  // The temporary folder lies under the real path of tmpdir(), so the relative paths of the workspaces are plain climbs: npm drops a
-  // workspace whose path crosses a symbolic link, such as /var to /private/var on macOS (K465).
-  const temporary = mkdtempSync(path.join(realpathSync(tmpdir()), 'kit-npm-install-'));
-  try {
-    const linked: Record<string, unknown> = { ...manifest };
-    // The workspaces of the root are the project's own packages: the temporary install reads them from the project (K465).
-    if ('workspaces' in manifest) linked.workspaces = workspacesIn(manifest.workspaces, path.posix.relative(temporary.split(path.sep).join('/'), project.split(path.sep).join('/')));
-    const fromProject = (spec: string): string =>
-      spec.startsWith('file:') && !path.isAbsolute(spec.slice('file:'.length)) ? `file:${path.resolve(project, spec.slice('file:'.length))}` : spec;
-    for (const section of SECTIONS) {
-      const deps: Record<string, unknown> = sectionOf(section);
-      if (Object.keys(deps).length === 0) continue;
-      for (const [name, folder] of provided) if (name in deps) deps[name] = `file:${folder}`;
-      // The manifest is installed from a temporary folder, so a relative file: spec of the project is given from the project folder
-      // (K448-12).
-      for (const [name, spec] of Object.entries(deps)) if (typeof spec === 'string') deps[name] = fromProject(spec);
-      linked[section] = deps;
-    }
-    // Every overrides entry that names a provided package, at any depth, takes its checkout folder: npm refuses an override of a direct
-    // dependency whose spec differs from the dependency's (EOVERRIDE, npm docs: package.json, overrides), so no asset spec of a provided
-    // package stays in the temporary manifest (K448-10). The other overrides of the manifest are kept.
-    const rewrite = (entries: Record<string, unknown>): Record<string, unknown> => Object.fromEntries(Object.entries(entries).map(([key, value]) => {
-      const folder = provided.get(packageNameOf(key));
-      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-        const nested = rewrite(Object.fromEntries(Object.entries(value)));
-        if (folder !== undefined) nested['.'] = `file:${folder}`;
-        return [key, nested];
-      }
-      return [key, folder !== undefined ? `file:${folder}` : typeof value === 'string' ? fromProject(value) : value];
-    }));
-    const overrides = rewrite(sectionOf('overrides'));
-    // A package that only the lock names, transitively, is installed only when the project declares it: npm does not place a package that an
-    // override names unless a dependency of the tree requires it as a direct dependency. So each such package is declared as a file: dependency
-    // of the temporary manifest, which npm links to its folder (K484; an override alone places nothing, measured).
-    // The dependencies as the section loop above left them, with the lock-only siblings added.
-    const topLevel: Record<string, unknown> = { ...manifestSection(linked, 'dependencies') };
-    for (const [name, folder] of provided) if (!declared.has(name) && !(name in topLevel)) topLevel[name] = `file:${folder}`;
-    if (Object.keys(topLevel).length) linked.dependencies = topLevel;
-    if (Object.keys(overrides).length) linked.overrides = overrides;
-    writeFileSync(path.join(temporary, 'package.json'), JSON.stringify(linked, null, 2) + '\n');
-    if (existsSync(lock)) copyFileSync(lock, path.join(temporary, 'package-lock.json'));
-    // The npm configuration of the project holds for the install, as it does for npm run in the project (K502).
-    if (existsSync(path.join(project, '.npmrc'))) copyFileSync(path.join(project, '.npmrc'), path.join(temporary, '.npmrc'));
-    const install = spawnSync(npm, ['install', '--no-audit', '--no-fund', '--ignore-scripts'], { cwd: temporary, env, encoding: 'utf8' });
-    if (install.status !== 0) throw new Error(`npm install of the linked packages of ${project} exited ${install.status}: ${install.stderr}`);
-    // npm links a file: folder with a relative symlink: make each one absolute before the folder moves.
-    const modules = path.join(temporary, 'node_modules');
-    const scopes = existsSync(modules) ? readdirSync(modules) : [];
-    const absolute = (dir: string) => {
-      for (const entry of readdirSync(dir)) {
-        const item = path.join(dir, entry);
-        if (entry.startsWith('@') && lstatSync(item).isDirectory()) { absolute(item); continue; }
-        if (!lstatSync(item).isSymbolicLink()) continue;
-        const target = path.resolve(dir, readlinkSync(item));
-        unlinkSync(item);
-        symlinkSync(target, item);
-      }
-    };
-    void scopes;
-    absolute(modules);
-    // The node_modules of the project keeps its directory: its entries are replaced by the installed ones (K486), so a directory that
-    // cannot be removed, such as a mount point, stays. The copy keeps each symbolic link as it is, since the links are absolute.
-    const destination = path.join(project, 'node_modules');
-    if (existsSync(destination)) for (const entry of readdirSync(destination)) rmSync(path.join(destination, entry), { recursive: true, force: true });
-    if (existsSync(modules)) {
-      mkdirSync(destination, { recursive: true });
-      cpSync(modules, destination, { recursive: true, verbatimSymlinks: true });
-    }
-    // An install that leaves a dangling link of the project fails, never exits 0 with it (K465).
-    const dangling = danglingLinksIn(destination);
-    if (dangling.length) throw new Error(`npm install of ${project} left dangling links: ${dangling.join(', ')}`);
-    print(`npm-install ${project}: linked ${[...provided.keys()].join(', ')} from their checkouts`);
-    return 'linked';
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
+  linkFolders(folders);
+  print(`npm-install ${project}: npm ci of the tracked lock, then linked ${folders.map(item => item.name).join(', ')} to their checkouts`);
+  return 'linked';
 }
 
 if (isMain(import.meta.url)) {

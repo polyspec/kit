@@ -1,21 +1,15 @@
 #!/usr/bin/env node
-// Checks that every tool of the checkout runs at the version that the checkout declares, without a network
-// (`make toolchain-check`):
+// Checks that every declared tool of the checkout runs from the tools of the checkout, without a network (`make toolchain-check`):
 //
-//   node scripts/kit/check-toolchain.mts [tool...]      the tools: node npm mise rust php phpunit phpcs phpstan, and the tools of mise.toml: go python uv ruff alint golangciLint deadcode govulncheck cargoAudit cargoNextest cargoDeny composer vulture
+//   node scripts/kit/check-toolchain.mts [tool...]      the tools: node npm mise rust php phpunit phpcs phpstan, and the tools of mise.toml: go python uv ruff alint golangciLint deadcode govulncheck 
 //
 // Without a tool name it checks every declared tool; naming an undeclared tool fails. A tool of mise.toml runs from its shim in
 // var/tools/mise/shims (mise-tools.mts), never from PATH, in the environment of mise of the checkout; var/tools/bin and the
 // shims come first on PATH, GOTOOLCHAIN=local keeps go from selecting another toolchain and RUSTUP_AUTO_INSTALL=0 keeps rustup
-// from installing one. PHP is declared by minor release, so a patch release of the minor passes and the running patch is the
-// evidence of the run; every other tool is compared by its exact release. mise.lock must pin every tool of mise.toml
-// (miseLockFindings of toolchain-mise.mts), and each tool that it does not is a finding, as is a uv lock sidecar that mise.lock
-// names and Git does not track (miseLockSidecarFindings, K192). Every named tool is checked, also after a mismatch, and each mismatch names the file that
-// declares the tool, the expected and the running release, and the fix. A run that checks no tool fails. Whichever tools run,
-// every declaration also equals the pin that kit ships (toolchain-pins.mts), and so does every manifest floor
-// (toolchain-floors.mts), or the channel of an exception of config/toolchain.json whose scope holds the file
-// (toolchain-exceptions.mts). Each other declaration or floor, a malformed exception and a stale one are findings, and so
-// is a key of an .npmrc that keeps npm from linking.
+// from installing one. A tool that is missing or fails to start is a finding that names its fix; the release that runs is shown and
+// never compared, since kit enforces no version (S4, K448): the checkout's mise.toml and its lock decide it. A uv lock sidecar that
+// mise.lock names and Git does not track (miseLockSidecarFindings, K192) and a key of an .npmrc that keeps npm from linking are
+// findings too.
 import { phpInstall } from './install-php.mts';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -25,11 +19,9 @@ import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { declaredRust } from './toolchain-files.mts';
-import { declaredMiseTools, miseLockFindings, miseLockSidecarFindings, MISE_TOOLS } from './toolchain-mise.mts';
+import { declaredMiseTools, miseLockSidecarFindings, MISE_TOOLS } from './toolchain-mise.mts';
 import { declaredLintTools } from './toolchain-lint.mts';
-import { PINS } from './toolchain-pins.mts';
-import { Pinning, readExceptions } from './toolchain-exceptions.mts';
-import { floorFindings, npmrcFindings, pinFindings } from './toolchain-floors.mts';
+import { npmrcFindings } from './toolchain-floors.mts';
 import { present } from './present.mts';
 import { commandWords } from './recipe-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -136,7 +128,11 @@ export function toolchainVersions(tools: string[] = TOOLS, { root = repositoryRo
   }));
 }
 
-/** One line for each of `tools` that does not run at its declared version; `run` starts a command and returns `{ status, stdout, stderr, error }`. */
+/**
+ * One line for each of `tools` that does not run from the tools of the checkout (K448, S4): a tool that is missing or fails to start is
+ * the finding; its release is shown, never compared, since the checkout's mise.toml and its lock decide it. `run` starts a command and
+ * returns `{ status, stdout, stderr, error }`.
+ */
 export function toolchainMismatches(tools: string[], { root = repositoryRoot(), env = toolchainEnvironment(root), run = defaultRun(root, env) }: ToolchainOptions = {}) {
   const declared = declaredTools(root);
   const mismatches: string[] = [];
@@ -145,23 +141,10 @@ export function toolchainMismatches(tools: string[], { root = repositoryRoot(), 
     if (!declared[tool]) throw new Error(`${tool} is not declared; declare it in config/toolchain.json or in its file, or leave it out of the tools to check`);
     const found = probe(root, tool, run);
     const { source } = declared[tool];
-    // PHP is declared by minor release; the patch of the run is evidence, not a requirement.
-    const minors = declared[tool].minors;
-    if (found.absent) {
-      mismatches.push(`${tool}: the toolchain ${found.absent} is not installed; ${source} declares ${expectation(declared[tool])}; fix: ${probes[tool].fix(declared[tool].version)}`);
-      continue;
-    }
-    if (found.error) {
-      mismatches.push(`${tool}: ${found.error}; ${source} declares ${expectation(declared[tool])}; fix: ${probes[tool].fix(minors ? minors.join(' or ') : declared[tool].version)}`);
-      continue;
-    }
-    // probe returns a release whenever it returns no error.
-    const minor = present(found.release, 'found.release').split('.').slice(0, 2).join('.');
-    const accepted = minors ? minors.includes(minor) : found.release === declared[tool].version;
-    if (!accepted) {
-      const fix = probes[tool].fix(minors ? minors.join(' or ') : declared[tool].version);
-      mismatches.push(`${tool}: ${found.release} runs here and ${source} declares ${expectation(declared[tool])}; fix: ${fix}`);
-    }
+    // The declaration is named for the fix, never compared with the running release.
+    const declares = (declared[tool].minors ?? [declared[tool].version]).join(' or ');
+    if (found.absent) mismatches.push(`${tool}: the toolchain ${found.absent} is not installed; ${source} declares ${declares}; fix: ${probes[tool].fix(declared[tool].version)}`);
+    else if (found.error) mismatches.push(`${tool}: ${found.error}; ${source} declares ${declares}; fix: ${probes[tool].fix(declared[tool].minors ? declared[tool].minors.join(' or ') : declared[tool].version)}`);
   }
   return mismatches;
 }
@@ -206,8 +189,6 @@ export function bareFpmFindings(root: string): string[] {
   return findings;
 }
 
-const expectation = (entry: DeclaredTool) => (entry.minors ?? [entry.version]).join(' or ');
-
 if (isMain(import.meta.url)) {
   try {
     const requested = process.argv.slice(2);
@@ -216,25 +197,17 @@ if (isMain(import.meta.url)) {
     const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declared[tool]);
     if (tools.length === 0) throw new Error('no toolchain is declared, so nothing is checked; declare a tool in mise.toml, config/toolchain.json, .php-version, rust-toolchain.toml or packageManager of package.json');
     const mismatches = toolchainMismatches(tools);
-    // Every declaration and every floor equals the pin of kit, or the channel of a declared exception, whichever tools run.
-    const { exceptions, findings: malformed } = readExceptions(repositoryRoot());
-    const pinning = new Pinning(PINS, exceptions);
-    const pins = pinFindings(declared, pinning);
-    const floors = floorFindings(repositoryRoot(), pinning, env);
-    const excepted = [...malformed, ...pinning.stale()];
+    // No declaration is compared with a pin and no floor with a declaration (K448, S4): the checkout's own files decide its versions.
     const links = npmrcFindings(repositoryRoot(), env);
-    const locked = [...miseLockFindings(repositoryRoot()), ...miseLockSidecarFindings(repositoryRoot())];
+    const locked = miseLockSidecarFindings(repositoryRoot());
     const system = [...arginfoToolFindings(repositoryRoot()), ...bareFpmFindings(repositoryRoot())];
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
-    for (const line of [...mismatches, ...pins, ...floors, ...excepted, ...links, ...locked, ...system]) console.error(`[check-toolchain] ${line}`);
-    if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools differ from the declared versions`);
-    if (pins.length > 0) console.error(`[check-toolchain] ${pins.length} declarations differ from the pins of kit`);
-    if (floors.length > 0) console.error(`[check-toolchain] ${floors.length} manifest floors differ from the pins of kit`);
-    if (excepted.length > 0) console.error(`[check-toolchain] ${excepted.length} findings of the exceptions of config/toolchain.json`);
+    for (const line of [...mismatches, ...links, ...locked, ...system]) console.error(`[check-toolchain] ${line}`);
+    if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools do not run from the tools of the checkout`);
     if (links.length > 0) console.error(`[check-toolchain] ${links.length} keys of .npmrc keep npm from linking`);
     if (locked.length > 0) console.error(`[check-toolchain] ${locked.length} findings of the pins of mise.lock`);
-    if (mismatches.length > 0 || pins.length > 0 || floors.length > 0 || excepted.length > 0 || links.length > 0 || locked.length > 0 || system.length > 0) process.exitCode = 1;
-    else console.log(`[check-toolchain] ${tools.length} tools run at the declared versions`);
+    if (mismatches.length > 0 || links.length > 0 || locked.length > 0 || system.length > 0) process.exitCode = 1;
+    else console.log(`[check-toolchain] ${tools.length} tools run from the tools of the checkout`);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     // The declarations and the check fail with an Error.

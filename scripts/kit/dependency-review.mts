@@ -2,14 +2,13 @@
 // The dependency review: `make dependency-review`, a developer command that no check and no gating CI job runs. It
 // asks the registries for the latest stable release of every registry dependency (scripts/kit/dependency-state.mts
 // defines them) that its publisher has not deprecated, and for the advisories of every lock, and reports each newer
-// stable release without an exception, each stale exception and each advisory with its fix, one line each; it fails
-// when there is one.
+// stable release without an exception, each stale exception and each advisory with its fix, one line each, for the developer
+// to read; it never fails over them, since kit enforces no version (S4, K448).
 //
 //   node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update] [--targets <file>]
 //
 // --record writes what it reviewed to config/dependency-review.json: the time, the sha256 and the advisories of every
-// lock, and the locked and latest stable version of every registry dependency. The gate scripts/kit/check-dependency-policy.mts
-// compares the checkout with that record without a network.
+// lock, and the locked and latest stable version of every registry dependency, for the developer; no gate reads it (K448).
 // --update first raises every newer dependency without an exception to its latest stable release, keeping the range
 // operator of its manifest, and updates the packages with an advisory; `npm dedupe` then installs one version of each
 // npm package that one version satisfies, since an install for one workspace keeps the release of the root; then it
@@ -1026,7 +1025,9 @@ function main(): void {
     writeJson(path.join(root, RECORD), result.record);
     say(`wrote ${RECORD}: ${result.record.dependencies.length} registry dependencies and ${result.record.locks.length} locks reviewed at ${result.record.reviewed}`);
   }
-  process.exitCode = result.lines.length ? 1 : 0;
+  // K448: a newer release and an advisory are reported, never a failure: kit enforces no version (S4), and each package manager and its
+  // lock decide.
+  process.exitCode = 0;
 }
 
 if (isMain(import.meta.url)) {

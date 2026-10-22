@@ -12,16 +12,12 @@
 // installs the released packages. A finding names the ecosystem and the package.
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
-import { composerVendor } from './composer-vendor.mts';
-import { composerCommand } from './install-composer-project.mts';
-import { installedPackages, isKitHookEntry, kitHookCheckout, kitNodeRunnable, trackedWorkspaceFolders, workspaceHookEntry, workspaceSettings } from './link.mts';
+import { isKitHookEntry, kitHookCheckout, kitNodeRunnable, trackedWorkspaceFolders, workspaceHookEntry, workspaceSettings } from './link.mts';
 import { buildState } from './link-build.mts';
 import { git } from './git.mts';
-import { EXCLUDED, type Ecosystem, type Tool, trackedManifests, workspaceOf } from './link-providers.mts';
+import { providers, siblingCheckouts, type Tool, trackedManifests, workspaceOf } from './link-providers.mts';
+import { folderFindings, providedFolders } from './link-folders.mts';
 import { isTable, readToml } from './toml.mts';
-import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
-import { makeDatabase } from './owner-check.mts';
-import { expandMake } from './recipe-tools.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { ignoredPaths, trackedFiles } from './tracked-files.mts';
@@ -29,8 +25,6 @@ import { isJsonObject, isStringList, readJsonObject } from './bootstrap/files.mt
 import { foreignTrusts } from './bootstrap/install-mise.mts';
 import { branchStates } from './worktree-prune.mts';
 
-// Only a package pinned at 0.0.x is linked (docs/operations/local-links.md).
-const ZERO = /^v?0\.0\./;
 const isLink = (file: string) => lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink() === true;
 
 /** A polyspec package found installed: its ecosystem, name, folder and version. */
@@ -50,28 +44,6 @@ function npmInstalled(root: string): Installed[] {
   return found;
 }
 
-/** The polyspec packages that installed.json of each Composer vendor of `root` records. */
-function composerInstalled(root: string, env: NodeJS.ProcessEnv): Installed[] {
-  // The Composer projects that kit writes (the copies of kit-sync, config/php-lint, the PHPUnit project) are tools of kit, no
-  // consumer project: nothing of them is linked, and they need no Composer here (K320).
-  const kitFile = writtenByKit(copiesOf(runningKit()));
-  const projects = [...new Set(trackedFiles(root).filter(file => path.posix.basename(file) === 'composer.json' && !kitFile(file) && !file.startsWith('config/php-lint/') && !file.startsWith('config/phpunit/')).map(file => path.join(root, path.posix.dirname(file))))];
-  if (projects.length === 0) return [];
-  const tool = { command: env.COMPOSER_BIN || composerCommand(root, 'link-state-check'), env: env.COMPOSER_BIN ? env : toolsEnvironment(root, env) };
-  const found: Installed[] = [];
-  const seen = new Set<string>();
-  for (const project of projects) {
-    const record = path.join(composerVendor(project, tool), 'composer/installed.json');
-    if (seen.has(record) || !existsSync(record)) continue;
-    seen.add(record);
-    for (const entry of installedPackages(record)) {
-      if (typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/') || typeof entry['install-path'] !== 'string') continue;
-      const dist = isJsonObject(entry.dist) ? entry.dist.type : undefined;
-      found.push({ ecosystem: 'composer', name: entry.name, folder: path.resolve(path.dirname(record), entry['install-path']), version: typeof entry.version === 'string' ? entry.version : undefined, dist: typeof dist === 'string' ? dist : 'none' });
-    }
-  }
-  return found;
-}
 
 /**
  * The findings of the go.work files of `root`: each `use` folder holds a go.mod. A go.work that link wrote (untracked and git-ignored)
@@ -110,86 +82,9 @@ function goFindings(root: string, env: NodeJS.ProcessEnv): string[] {
   return found;
 }
 
-/** The PHP that .php-version names, as the id of the platform of K322 (<major>.<minor>.1 as 8<major>0<minor>01), or undefined. */
-function expectedPhpId(root: string): number | undefined {
-  const file = path.join(root, '.php-version');
-  if (!existsSync(file)) return undefined;
-  const [major, minor] = readFileSync(file, 'utf8').trim().split('.').map(Number);
-  return major === undefined || minor === undefined || Number.isNaN(major) || Number.isNaN(minor) ? undefined : major * 10000 + minor * 100 + 1;
-}
 
-/**
- * While a Composer project is linked, its vendor must read the composer.json of the links (K349): the platform check that Composer
- * wrote demands the PHP that .php-version names. A vendor installed from the tracked lock demands the platform of that lock, which a
- * polyspec package of another PHP cannot meet, so a demand above .php-version is the finding (K384). A lower floor is the floor of
- * the packages, which Composer writes as the highest floor they require (">=8.4" is 80400), and it is no finding.
- */
-function platformFindings(root: string, installed: readonly Installed[]): string[] {
-  const expected = expectedPhpId(root);
-  if (expected === undefined) return [];
-  const found: string[] = [];
-  for (const vendor of new Set(installed.filter(item => item.ecosystem === 'composer' && isLink(item.folder)).map(item => path.dirname(path.dirname(item.folder))))) {
-    const file = path.join(vendor, 'composer/platform_check.php');
-    if (!existsSync(file)) continue;
-    const demanded = /PHP_VERSION_ID >= (\d+)/.exec(readFileSync(file, 'utf8'))?.[1];
-    if (demanded !== undefined && Number(demanded) > expected) found.push(`composer ${path.relative(root, file)}: demands PHP id ${demanded} while .php-version names ${expected}; the vendor was installed from the tracked lock, run kit link`);
-  }
-  return found;
-}
 
-// The install from a lock of each ecosystem: the tool named literally, or through its make variable such as $(COMPOSER) install (K349-1).
-const INSTALLS: { ecosystem: Ecosystem; pattern: RegExp }[] = [
-  { ecosystem: 'composer', pattern: /\bcomposer\s+install\b|\$[({]COMPOSER(?:_BIN)?[)}]\s+install\b/ },
-  { ecosystem: 'npm', pattern: /\bnpm\s+ci\b|\$[({]NPM[)}]\s+ci\b/ },
-  { ecosystem: 'python', pattern: /\buv\s+sync\b|\$[({]UV[)}]\s+sync\b/ },
-];
-const LINKS = /\blink\b/;
-// composer-install installs through the link where a sibling provides a polyspec package (K432), so its line is an install that links.
-// A composer install of a lock, which installs the released polyspec packages of the lock before a link replaces them (K448-1).
-const COMPOSER_LOCK = /\bcomposer\s+install\b|\$[({]COMPOSER(?:_BIN)?[)}]\s+install\b/;
-const COMPOSER_INSTALL = /(?:\$[({]MAKE[)}]|\bmake)\s+composer-install\b/;
-// cargo fetches the crates of a lock: a polyspec crate of a sibling checkout is locked at its git tag, which the cargo link replaces (K448-5).
-const CARGO_FETCH = /\bcargo\s+(?:fetch|build)\b/;
-// A dependency of a Cargo.toml on a polyspec crate, inline or as a table: `polyspec-x = ...` or `[dependencies.polyspec-x]`.
-const CARGO_POLYSPEC_DEPENDENCY = /^polyspec[-_][\w-]*\s*=|^\[[\w.-]*dependencies\.polyspec[-_]/m;
-// An install into a tool project of kit, not a project of the repository: no polyspec package is linked there (K320).
-const TOOL_PROJECT = /--working-dir[= ]\S*(?:scripts\/kit|config\/php-lint|config\/phpunit|var)\//;
-// A make call of a recipe and the targets it names.
-const MAKE_CALL = /\$[({]MAKE[)}]((?:\s+[^\s;&|]+)+)/;
-// An assignment of a make variable: =, :=, ::=, ?= or +=, after export or override (K403).
-const ASSIGNMENT = /^(?:(?:export|override)\s+)*([A-Za-z0-9_.-]+)\s*(::?=|\?=|\+=|=)\s*(.*)$/;
-// The head of a rule: its targets, a colon that starts no assignment, and its prerequisites.
-const RULE_HEAD = /^([^\s#:=][^#:=]*?)\s*:(?![:=])([^#;]*)/;
-// A reference to a make variable by its name, $(NAME) or ${NAME}.
-const REFERENCE = /\$[({]([A-Za-z0-9_.-]+)[)}]/g;
 
-/**
- * The ecosystems in which the tracked manifests of `files` declare a polyspec dependency, which a link can link (K349-2); the manifests
- * that provide nothing to a link (tests, examples, fixtures, config, as link-providers.mts leaves them out) declare none.
- */
-function polyspecEcosystems(files: readonly string[], read: (file: string) => string | undefined): Set<Ecosystem> {
-  const found = new Set<Ecosystem>();
-  const names = (value: unknown) => (isJsonObject(value) ? Object.keys(value) : []);
-  for (const file of files.filter(name => !EXCLUDED.test(name))) {
-    const text = read(file);
-    if (text === undefined) continue;
-    const base = path.posix.basename(file);
-    if (base === 'package.json') {
-      const manifest = JSON.parse(text) as unknown;
-      if (isJsonObject(manifest) && ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'].some(kind => names(manifest[kind]).some(name => name.startsWith('@polyspec/')))) found.add('npm');
-    } else if (base === 'composer.json') {
-      const manifest = JSON.parse(text) as unknown;
-      if (isJsonObject(manifest) && ['require', 'require-dev'].some(kind => names(manifest[kind]).some(name => name.startsWith('polyspec/')))) found.add('composer');
-    } else if (base === 'pyproject.toml') {
-      // The requirements of the project, its extras and its dependency groups, read as TOML.
-      const toml = readToml(text, file);
-      const project = isTable(toml.project) ? toml.project : {};
-      const lists = [project.dependencies, ...(isTable(project['optional-dependencies']) ? Object.values(project['optional-dependencies']) : []), ...(isTable(toml['dependency-groups']) ? Object.values(toml['dependency-groups']) : [])];
-      if (lists.some(list => Array.isArray(list) && list.some(entry => typeof entry === 'string' && /^polyspec[-_.]/i.test(entry.trim())))) found.add('python');
-    }
-  }
-  return found;
-}
 
 /**
  * A recipe of the Makefiles of the repository that installs from a lock (composer install, npm ci, uv sync) runs the kit link step
@@ -198,71 +93,7 @@ function polyspecEcosystems(files: readonly string[], read: (file: string) => st
  * make install reaches, through a prerequisite or a $(MAKE) call, since install links last, after every install (K349-2, K360-2). The
  * unlink recipe, which restores the locks by design, and the files that kit copies are left out.
  */
-// The targets of `extras` (INSTALL_PACKAGES_EXTRA, K428) need no link step of their own: install-packages runs them and make install links after them.
-export function recipeFindings(root: string, files: readonly string[], read: (file: string) => string | undefined, extras: ReadonlySet<string> = new Set()): string[] {
-  const ecosystems = polyspecEcosystems(files, read);
-  const makefiles = files.filter(name => (name === 'Makefile' || name.endsWith('.mk')) && !name.startsWith('scripts/kit/'));
-  // The targets and prerequisites of a rule are read after the expansion of the variables that the Makefiles assign, so a target
-  // that install reaches through a variable, as fsm-install: install-kit $(PACKAGE_DEPS), is reached (K403). A variable that no
-  // Makefile of the repository assigns, as those of kit.mk, stays as it is written.
-  const variables = new Map<string, string>();
-  for (const file of makefiles) {
-    for (const text of (read(file) ?? '').split('\n')) {
-      const assignment = text.startsWith('\t') ? null : ASSIGNMENT.exec(text);
-      if (!assignment) continue;
-      const [, name = '', operator, value = ''] = assignment;
-      if (operator === '+=') variables.set(name, [variables.get(name), value].filter(Boolean).join(' '));
-      else if (operator !== '?=' || !variables.has(name)) variables.set(name, value);
-    }
-  }
-  const expand = (text: string, depth = 0): string => (depth > 20 ? text : text.replace(REFERENCE, (reference, name: string) => {
-    const value = variables.get(name);
-    return value === undefined ? reference : expand(value, depth + 1);
-  }));
-  const words = (text: string) => expand(text).split(/\s+/).filter(Boolean);
-  const rules: { file: string; targets: string[]; prerequisites: string[]; recipe: { line: number; text: string }[] }[] = [];
-  for (const file of makefiles) {
-    let rule: (typeof rules)[number] | undefined;
-    (read(file) ?? '').split('\n').forEach((text, index) => {
-      if (text.startsWith('\t')) { rule?.recipe.push({ line: index + 1, text }); return; }
-      const head = ASSIGNMENT.test(text) ? null : RULE_HEAD.exec(text);
-      rule = head ? { file, targets: words(head[1] ?? ''), prerequisites: words(head[2] ?? ''), recipe: [] } : undefined;
-      if (rule) rules.push(rule);
-    });
-  }
-  // The targets that make install reaches: its prerequisites and the targets that their recipes make, transitively.
-  const reached = new Set<string>();
-  const visit = (target: string) => {
-    if (reached.has(target)) return;
-    reached.add(target);
-    for (const rule of rules.filter(entry => entry.targets.includes(target))) {
-      for (const next of rule.prerequisites) visit(next);
-      for (const { text } of rule.recipe) for (const word of words(MAKE_CALL.exec(text)?.[1] ?? '')) if (/^[A-Za-z0-9_./-]+$/.test(word)) visit(word);
-    }
-  };
-  visit('install');
-  const found: string[] = [];
-  // A Cargo.toml that depends on a polyspec crate: its lock names the crate at a git tag (K448-5). The package's own name is no dependency.
-  const cargoPolyspec = files.some(name => path.posix.basename(name) === 'Cargo.toml' && !EXCLUDED.test(name) && CARGO_POLYSPEC_DEPENDENCY.test(read(name) ?? ''));
-  // A rule of several targets runs one recipe, so it is reached when one of its targets is.
-  for (const { file, targets, recipe } of rules) {
-    const target = targets.join(' ');
-    if (targets.includes('unlink') || targets.some(name => reached.has(name) || extras.has(name))) continue;
-    const index = recipe.findIndex(({ text }) => !TOOL_PROJECT.test(text) && !COMPOSER_INSTALL.test(text) && INSTALLS.some(({ ecosystem, pattern }) => ecosystems.has(ecosystem) && pattern.test(text)));
-    // A Composer install of a lock is refused even with the link after it: the release is installed first, which the user rule
-    // forbids, so the recipe runs make composer-install, which links from the start (K448-1).
-    if (index !== -1 && COMPOSER_LOCK.test(recipe[index]?.text ?? '')) {
-      found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs a lock of Composer that a polyspec package of a sibling checkout provides; run $(MAKE) composer-install DIR=<project> instead, which links from the start (K448-1)`);
-    } else if (index !== -1 && !recipe.slice(index + 1).some(({ text }) => LINKS.test(text))) {
-      found.push(`${file}:${recipe[index]?.line}: the recipe ${target} installs from a lock without the kit link step after it; add $(MAKE) link (or kit link --siblings) as the next line`);
-    }
-    const fetch = cargoPolyspec ? recipe.findIndex(({ text }) => CARGO_FETCH.test(text)) : -1;
-    if (fetch !== -1) found.push(`${file}:${recipe[fetch]?.line}: the recipe ${target} fetches the crates of a lock that names a polyspec crate; run $(MAKE) cargo-fetch DIR=<project> instead, which links the sibling crates through a [patch] path (K448-5)`);
-  }
-  return found;
-}
 
-const INSTALL_DIRECTORIES = ['node_modules', 'vendor', '.venv', 'target', 'var'];
 const MANIFESTS = new Set(['package.json', 'composer.json', 'pyproject.toml', 'Cargo.toml']);
 
 /** The folders of `root` that hold a manifest of a tracked file, and the root itself, relative to `root`. */
@@ -272,15 +103,6 @@ function manifestFolders(root: string): string[] {
   return [...folders].sort();
 }
 
-/** The findings of the install directories of `folders` that are symbolic links. */
-function installLinkFindings(root: string, folders: readonly string[]): string[] {
-  const found: string[] = [];
-  for (const folder of folders) for (const name of INSTALL_DIRECTORIES) {
-    const dir = path.join(root, folder, name);
-    if (isLink(dir)) found.push(`install directory ${path.relative(root, dir)} is a symbolic link: remove the link and install the worktree from its own sources`);
-  }
-  return found;
-}
 
 /** The workspace packages that "workspaces" of the root declares: each package name, with the folder it is in (relative to `root`). */
 function workspacePackages(root: string): Map<string, string> {
@@ -326,11 +148,6 @@ function mergedFindings(root: string): string[] {
     .map(state => `branch ${state.branch}${state.folder === undefined ? '' : ` in worktree ${path.relative(root, state.folder) || '.'}`} is merged into main and left. Fix: make worktree-prune`);
 }
 
-/** The make targets that INSTALL_PACKAGES_EXTRA of the Makefile of `root` names, read from the make database (K428). */
-function extraInstallTargets(root: string): Set<string> {
-  const make = makeDatabase(root);
-  return new Set(expandMake(make.variables.get('INSTALL_PACKAGES_EXTRA') ?? '', make.variables).split(/\s+/).filter(Boolean));
-}
 
 /**
  * K440, K440-2: the findings of the workspace folder of `root` whose kit checkout has claude-hook. Three classes, one message each: the
@@ -370,11 +187,16 @@ function buildFindings(installed: readonly Installed[]): string[] {
 
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
 // K507: a tracked lock records each polyspec package at its release source, never a path or a link: the local link is state only, so
-// the tracked lock stays the release record (local is canonical). Each lock is read with its own structure.
+// the tracked lock stays the release record (local is canonical). Each lock is read with its own structure. K448: a file: entry that
+// names the release tarball of the package is that record, and the repository's own packages (its workspace members, its in-repo path
+// repositories, its Cargo members) are paths by right and never findings.
 const LOCK_FILES = ['Cargo.lock', 'package-lock.json', 'composer.lock'];
 const CARGO_POLYSPEC = /^polyspec[-_.]/i;
 
-/** The findings of one tracked lock `file` with its text; `members` names the Cargo packages of its own workspace, which have no source. */
+/** The release tarball of an npm package, as a release publishes it: polyspec-<name>-npm-<version>.tgz. */
+const RELEASE_TARBALL = /^file:(?:.*\/)?polyspec-[\w.-]+-npm-[^/]+\.tgz$/;
+
+/** The findings of one tracked lock `file` with its text; `members` names the packages of the repository itself, which are never findings. */
 export function lockSourceFindings(file: string, text: string, members: ReadonlySet<string> = new Set()): string[] {
   const base = path.posix.basename(file);
   if (base === 'Cargo.lock') {
@@ -391,50 +213,67 @@ export function lockSourceFindings(file: string, text: string, members: Readonly
     const packages = isJsonObject(parsed.packages) ? parsed.packages : {};
     return Object.entries(packages).flatMap(([key, entry]) => {
       const name = key.replace(/^.*node_modules\//, '');
-      if (key === '' || !isJsonObject(entry) || !name.startsWith('@polyspec/')) return [];
+      if (key === '' || !isJsonObject(entry) || !name.startsWith('@polyspec/') || members.has(name)) return [];
       const resolved = typeof entry.resolved === 'string' ? entry.resolved : undefined;
-      if (entry.link !== true && resolved !== undefined && !resolved.startsWith('file:')) return [];
+      if (entry.link !== true && resolved !== undefined && (!resolved.startsWith('file:') || RELEASE_TARBALL.test(resolved))) return [];
       const short = name.replace('@polyspec/', '');
       return [`${file}: ${name} ${String(entry.version)} is a link or a path, not its release; the tracked lock names its release tarball, https://github.com/polyspec/${short}/releases/download/v${String(entry.version)}/<tarball>`];
     });
   }
   const listed: unknown[] = [parsed.packages, parsed['packages-dev']].flatMap((list: unknown) => (Array.isArray(list) ? list as unknown[] : []));
   return listed.flatMap((entry: unknown) => {
-    if (!isJsonObject(entry) || typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/')) return [];
+    if (!isJsonObject(entry) || typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/') || members.has(entry.name)) return [];
     if (!isJsonObject(entry.dist) || entry.dist.type !== 'path') return [];
     return [`${file}: ${entry.name} ${String(entry.version)} is installed from a path, not its release; the tracked lock names its release archive from its polyspec repository`];
   });
 }
 
+/** The names of the packages that the repository of `root` provides itself: each tracked package.json, composer.json and Cargo.toml. */
+function ownNames(root: string): Set<string> {
+  return new Set(trackedManifests(root, ['package.json', 'composer.json', 'Cargo.toml']).flatMap((item) => {
+    const text = readFileSync(path.join(root, item), 'utf8');
+    if (item.endsWith('Cargo.toml')) {
+      const pkg = readToml(text, item).package;
+      return isTable(pkg) && typeof pkg.name === 'string' ? [pkg.name] : [];
+    }
+    const manifest: unknown = JSON.parse(text);
+    return isJsonObject(manifest) && typeof manifest.name === 'string' ? [manifest.name] : [];
+  }));
+}
+
 /** The findings of every tracked lock of LOCK_FILES (K507). */
 function trackedLockFindings(root: string): string[] {
-  return trackedManifests(root, LOCK_FILES).flatMap((file) => {
-    const folder = path.posix.dirname(file);
-    const members = new Set(trackedManifests(root, ['Cargo.toml']).filter(item => folder === '.' || item.startsWith(`${folder}/`)).flatMap((item) => {
-      const pkg = readToml(readFileSync(path.join(root, item), 'utf8'), item).package;
-      return isTable(pkg) && typeof pkg.name === 'string' ? [pkg.name] : [];
-    }));
-    return lockSourceFindings(file, readFileSync(path.join(root, file), 'utf8'), members);
+  const members = ownNames(root);
+  return trackedManifests(root, LOCK_FILES).flatMap(file => lockSourceFindings(file, readFileSync(path.join(root, file), 'utf8'), members));
+}
+
+/** The vendor folder that the composer.json of `project` names in config.vendor-dir, read from the file, else undefined (vendor). */
+function vendorDirOf(project: string): string | undefined {
+  const file = path.join(project, 'composer.json');
+  if (!existsSync(file)) return undefined;
+  const config = readJsonObject(file).config;
+  return isJsonObject(config) && typeof config['vendor-dir'] === 'string' ? config['vendor-dir'] : undefined;
+}
+
+/**
+ * K448: the findings of the installed package folders of `root` that a sibling checkout provides: a folder that is a copy, or that
+ * links elsewhere than to its provider. Nothing about a version is judged.
+ */
+function folderLinkFindings(root: string, folders: readonly string[]): string[] {
+  const provided = [...providers(siblingCheckouts(root).checkouts, undefined, root, root).values()];
+  return folders.flatMap((folder) => {
+    const project = path.join(root, folder);
+    return folderFindings(root, providedFolders(project, provided, { vendorDir: vendorDirOf(project) }));
   });
 }
 
+/**
+ * The findings of the links of `root`, sorted: K507's release record of the tracked locks, the folder of each provided package (a link to
+ * its provider, never a copy), the workspace links, go.work, and the hook, trust, merged-worktree and build checks of the checkout.
+ */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
-  const installed = [...npmInstalled(root), ...composerInstalled(root, env)];
   const folders = manifestFolders(root);
-  const found = [...trackedLockFindings(root), ...workspaceHookFindings(root), ...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root, env), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...buildFindings(installed), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined), extraInstallTargets(root))];
-  const linked = installed.some(item => isLink(item.folder));
-  for (const item of installed) {
-    const shown = path.relative(root, item.folder);
-    if (isLink(item.folder)) {
-      const manifest = item.ecosystem === 'npm' ? 'package.json' : 'composer.json';
-      if (!existsSync(path.join(item.folder, manifest))) found.push(`${item.ecosystem} ${item.name}: the link ${shown} resolves to no package folder`);
-      else if (readJsonObject(path.join(item.folder, manifest)).name !== item.name) found.push(`${item.ecosystem} ${item.name}: the link ${shown} resolves to ${realpathSync(item.folder)}, which names another package`);
-      else if (item.ecosystem === 'composer' && item.dist !== 'path') found.push(`composer ${item.name}: ${shown} is a link over an install from ${item.dist}, not Composer's own path install; run kit link`);
-    } else if (linked && item.version !== undefined && ZERO.test(item.version)) {
-      found.push(`${item.ecosystem} ${item.name}: ${shown} is a copy at ${item.version}, not a link, while other packages are linked`);
-    }
-  }
-  return found.sort();
+  return [...trackedLockFindings(root), ...folderLinkFindings(root, folders), ...workspaceHookFindings(root), ...workspaceLinkFindings(root, folders), ...goFindings(root, env), ...trustFindings(root), ...mergedFindings(root), ...buildFindings(npmInstalled(root))].sort();
 }
 
 if (isMain(import.meta.url)) {
@@ -444,5 +283,5 @@ if (isMain(import.meta.url)) {
   if (findings.length) {
     console.error(`[link-state-check] ${findings.length} findings. Fix: kit link ${root} <checkout>...`);
     process.exitCode = 1;
-  } else console.log('[link-state-check] every installed polyspec package of 0.0.x is a link that resolves, or nothing is linked');
+  } else console.log('[link-state-check] every installed package that a sibling checkout provides is a link to it');
 }

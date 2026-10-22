@@ -1,37 +1,45 @@
-// Installs the Composer project of a consumer in place of its composer install (K432, `make composer-install DIR=<project>`). Where a
-// sibling checkout provides a polyspec package that the composer.lock of the project holds, the packages are installed through the
-// link (linkComposerInstall of link.mts): composer.link.json and composer.link.lock, then a partial update from them with
-// COMPOSER=composer.link.json, so the provided folders resolve from their checkouts and the released metadata is never read. Without
-// such a sibling, as in CI, composer install runs on the tracked lock, with the Composer and environment of install-composer-project.mts.
+// Installs the Composer project of a consumer (K432, K448, `make composer-install DIR=<project>`): composer install of the tracked lock as it
+// is, with the Composer and environment of install-composer-project.mts, then each installed package that a checkout provides becomes a
+// direct symlink to the checkout's package folder (link-folders.mts). No link manifest, no partial update and no version is read.
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { checkoutProviders, linkFolders, providedFolders } from './link-folders.mts';
 import { siblingCheckouts, workTreeOf } from './link-providers.mts';
-import { linkComposerInstall } from './link.mts';
 import { isMain } from './paths.mts';
 import { composerCommand, composerEnvironment } from './install-composer-project.mts';
 import { run } from './process.mts';
 
+/** The vendor folder that the composer.json of `project` names in config.vendor-dir, else undefined (vendor). */
+function vendorDirOf(project: string): string | undefined {
+  const file = path.join(project, 'composer.json');
+  if (!existsSync(file)) return undefined;
+  const manifest: unknown = JSON.parse(readFileSync(file, 'utf8'));
+  const config = typeof manifest === 'object' && manifest !== null && 'config' in manifest ? manifest.config : undefined;
+  return typeof config === 'object' && config !== null && 'vendor-dir' in config && typeof config['vendor-dir'] === 'string' ? config['vendor-dir'] : undefined;
+}
+
 /**
- * Installs the Composer project of `directory` and returns the path that it took: `linked` (the polyspec packages of the link) or
- * `locked` (composer install of the tracked lock). COMPOSER_BIN names the Composer when the recipe gives it, as the links do.
- * `noDev` installs the tracked lock with --no-dev, the production install (K483-2).
+ * Installs the Composer project of `directory` and returns the path that it took: `linked` (a package of the project is linked to its
+ * checkout) or `locked`. COMPOSER_BIN names the Composer when the recipe gives it. `noDev` installs with --no-dev (K483-2).
  */
 export function composerInstall({ directory, checkouts, env = process.env, print, noDev = false }: {
   directory: string; checkouts: readonly string[]; env?: NodeJS.ProcessEnv; print: (text: string) => void; noDev?: boolean;
 }): 'linked' | 'locked' {
   const project = path.resolve(directory);
   const composer = { command: env.COMPOSER_BIN ?? composerCommand(workTreeOf(project), 'make composer-install'), env: composerEnvironment(workTreeOf(project)) };
-  const linked = linkComposerInstall({ directory: project, checkouts, composer, print, env });
-  if (linked.length > 0) {
-    print(`composer-install ${project}: installed through the link of ${linked.join(', ')}`);
-    return 'linked';
-  }
-  print(`composer-install ${project}: no sibling checkout provides a polyspec package of its composer.lock; composer install of the tracked lock`);
   run(composer.command, ['install', '--no-interaction', ...(noDev ? ['--no-dev'] : [])], { cwd: project, env: composer.env });
-  return 'locked';
+  const folders = providedFolders(project, checkoutProviders(checkouts, 'composer'), { vendorDir: vendorDirOf(project) });
+  if (folders.length === 0) {
+    print(`composer-install ${project}: composer install of the tracked lock; no installed package is provided by a checkout`);
+    return 'locked';
+  }
+  linkFolders(folders);
+  print(`composer-install ${project}: composer install of the tracked lock, then linked ${folders.map(item => item.name).join(', ')} to their checkouts`);
+  return 'linked';
 }
 
 if (isMain(import.meta.url)) {
-  // Arguments after DIR are the checkouts that provide the polyspec packages (K501, as npm-install takes them, K448-9), and --no-dev.
+  // Arguments after DIR are the checkouts that provide the polyspec packages (K501), and --no-dev.
   const [directory, ...given] = process.argv.slice(2);
   const checkouts = given.filter(argument => argument !== '--no-dev');
   if (directory === undefined || checkouts.some(argument => argument.startsWith('--'))) {

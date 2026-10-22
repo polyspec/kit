@@ -192,10 +192,7 @@ tool lands, a standard binds the work as written here.
   (`*.test.{ts,mts,cts,mjs,cjs,js}`, vitest's `*.{test,spec}.*`, `*Test.php`, `*_test.go`, `tests/` and `#[test]`,
   `test_*.py`); a repository may add files but never narrow the set, and a file named like a test is run by a binding.
   Enforced by: `make parity-declarations-check`
-- S4 Versions: a version is chosen only after every locked dependency is shown to work with it; the latest LTS where the
-  ecosystem has one, otherwise the latest stable release the dependencies support, or a newer non-LTS close to the LTS.
-  The declared floor equals the pinned toolchain at the pin's precision, every repository uses the same pins, an exception
-  is declared with its scope, reason and retry condition, and nothing falls back silently to a source build.
+- S4 Versions: kit enforces no version or pin; each package manager and its lock decide.
   Enforced by: `make toolchain-check`, `make dependency-policy-check`
 - S5 Folders: every monorepo has the same root folders (`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`,
   `examples/`, `benchmarks/`, `config/`). Runtime ports of the main spec live in `packages/<runtime>/`, other components in

@@ -178,7 +178,7 @@ kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-v
 
 
 .PHONY: link-state-check
-link-state-check: ## Fail while an installed 0.0.x polyspec package is a copy among links, or a link resolves to no package: npm, Composer and go.work (K305-1, P30); offline
+link-state-check: ## Fail while an installed package folder that a sibling checkout provides is a copy or links elsewhere, a tracked lock records a provided polyspec package as a path or a link (K507), or a workspace link, go.work, the hook, the trust or a merged worktree is wrong; no version is judged (K448, S4); offline
 	$(NODE) $(KIT)/link-state-check.$(KIT_EXT)
 
 .PHONY: polyspec-lock-check
@@ -371,14 +371,15 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 
 # --- link: the local links of 0.0.x development (docs/operations/local-links.md, K201, K205). CHECKOUTS names the main checkouts
 # that provide the packages (scripts/kit/link.mts); PROJECT, when given, names the consumer whose manifests directly in it
-# are linked, else the whole tree of the checkout. link points every installed polyspec package pinned at 0.0.x at its
-# provider's source and never builds; link-check lists each one as linked, NOT linked, STALE or own; unlink restores the
-# locked installs. link writes a git-ignored go.work at each Go module, which go reads by itself; unlink removes it.
+# are linked, else the whole tree of the checkout. link replaces each installed package folder that a provider gives with a direct
+# relative symlink to the provider's folder and never builds; no package manager runs and no version is read (K448); link-check
+# lists each provided folder that is a copy or links elsewhere; unlink restores the locked installs. link writes a git-ignored
+# go.work at each Go module, which go reads by itself; unlink removes it.
 .PHONY: link link-check unlink
-link: ## Link every installed polyspec package pinned at 0.0.x to its source in CHECKOUTS, else in the checkouts beside the repository, also from a worktree (PROJECT names the consumer); never builds; offline
+link: ## Replace each installed package folder that a checkout of CHECKOUTS, else the checkouts beside the repository, provides with a direct relative symlink to it, a copy removed, also from a worktree (PROJECT names the consumer); no package manager runs and no version is read (K448); never builds; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) link $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
-link-check: ## List every installed polyspec package pinned at 0.0.x as linked, NOT linked or STALE against CHECKOUTS, else the checkouts beside the repository; offline
+link-check: ## List each installed package folder that a checkout of CHECKOUTS, else the checkouts beside the repository, provides and that is a copy or links elsewhere, as NOT linked, and fail on one (K448); offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
 .PHONY: worktree-setup
@@ -395,23 +396,20 @@ land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout
 worktree-prune: ## Remove the worktree and delete the branch of every branch merged into main (its own commits all in main, after its reflog creation point), running the WORKTREE_STOP targets of the worktree first, and list the others with the reason: a dirty worktree, an unmerged, fresh or reflog-less branch (K381); also list the processes that name a path of a removed worktree folder, by pid and path, and kill none; offline
 	$(NODE) $(KIT)/worktree-prune.$(KIT_EXT)
 
-# composer-install is the install of a consumer's Composer project in place of its composer install: through the link when a sibling
-# checkout provides a polyspec package of the composer.lock of DIR, else composer install of the tracked lock.
+# composer-install installs a consumer's Composer project: composer install of the tracked lock, then the link of the folders (K448).
 .PHONY: composer-install
-composer-install: ## Install the Composer project DIR in place of its composer install (CHECKOUTS names the checkouts that provide its polyspec packages, K501): through the link when a sibling checkout provides a polyspec package of its composer.lock, else composer install of the tracked lock (K432); NO_DEV=1 installs with --no-dev (K483-2)
+composer-install: ## Install the Composer project DIR with composer install of its tracked lock, then link each installed package that a checkout of CHECKOUTS, else a sibling checkout, provides (K448); NO_DEV=1 installs with --no-dev (K483-2)
 	$(ONLINE) $(NODE) $(KIT)/composer-install.$(KIT_EXT) $(DIR) $(if $(NO_DEV),--no-dev) $(CHECKOUTS)
 
-# npm-install is the install of a consumer's npm packages in place of its npm ci: a sibling checkout's polyspec package is linked from the
-# start, through a temporary manifest, so no release is fetched (K448-2).
+# npm-install installs a consumer's npm packages: npm ci of the tracked lock, then the link of the folders (K448).
 .PHONY: npm-install
-npm-install: ## Install the npm packages of DIR in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, no release fetched (K448-2); CHECKOUTS names the checkouts to link, each a package folder or a repository root whose package folders under packages/ the kit finds itself, and a checkout with no npm package provides none (K448-9, K494, K494-1); ADD=<checkout>... links each named checkout whether or not the project declares its package (K485)
+npm-install: ## Install the npm packages of DIR with npm ci of its tracked lock, then link each installed package that a checkout of CHECKOUTS, else a sibling checkout, provides, each a package folder or a repository root whose package folders under packages/ the kit finds itself (K448, K494); ADD=<checkout>... links each named checkout whether or not the project declares its package (K485); a declared polyspec package with no checkout is refused (K483-1)
 	NPM_BIN=$(NPM) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR) $(CHECKOUTS) $(addprefix --add ,$(ADD))
 
-# uv-install is the install of a consumer's uv environment in place of its uv sync: a sibling checkout's polyspec package is installed
-# from its editable wheel from the start, so no release is installed (K448-3).
+# uv-install installs a consumer's uv environment: uv sync of the tracked lock, then the link of the folders (K448).
 .PHONY: uv-install
-uv-install: ## Install the uv environment of DIR in place of uv sync: each polyspec package that a checkout provides is linked from the start, no release installed (K448-3); CHECKOUTS names the checkouts, each linked from the start when the project declares its name (K487), SYNC passes --no-install-project and --all-groups, STATE (an absolute folder) receives the link state so no source checkout is written (K488), and a declared polyspec package with none is refused
-	UV_SYNC="$(SYNC)" UV_STATE="$(STATE)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR) $(CHECKOUTS)
+uv-install: ## Install the uv environment of DIR with uv sync --frozen of its tracked uv.lock, then link each installed package of site-packages that a checkout of CHECKOUTS, else a sibling checkout, provides (K448); SYNC passes --no-install-project and --all-groups and refuses any other flag (K487)
+	UV_SYNC="$(SYNC)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR) $(CHECKOUTS)
 
 # cargo-fetch is the fetch of a consumer's Cargo crates in place of its cargo fetch: through the link of cargo, with the polyspec crates
 # of the sibling checkouts patched to their paths, so the git tag of a sibling crate is never fetched (K448-5).
