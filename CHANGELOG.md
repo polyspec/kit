@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A PHP extension run probes each --php-extension before PHPUnit starts: one that does not load names its .so path, what PHP reports (the API it was built for), and the running PHP, instead of testing the library silently on the wrong PHP (K452-1).
+
 - K452 is done (K452): the extension run of run-tests passes the package phpunit.xml as --configuration, so the bootstrap loads as in the library run.
 
 ### 2026-10-22 — The extension run gives PHPUnit the package configuration (K452)

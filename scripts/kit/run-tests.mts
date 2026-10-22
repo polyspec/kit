@@ -152,6 +152,20 @@ function checkoutFile(file: string): string {
 }
 
 /** The command of a tool with its progress and timeout arguments. */
+// K452-1: each --php-extension is loaded by the PHP of the run before PHPUnit starts. One that does not load (a build for another
+// PHP or PHP API) returns a problem that names its .so path, what PHP reports, and the running PHP, so a run never tests the
+// library silently on the wrong PHP.
+export function probeExtensions(extensions: string[], php: string): string | undefined {
+  for (const extension of extensions) {
+    const probe = spawnSync(php, ['-n', '-d', `extension=${extension}`, '-r', 'exit(0);'], { encoding: 'utf8' });
+    const reported = `${probe.stdout}${probe.stderr}`.trim();
+    if (probe.status === 0 && !/Unable to load|compiled with module API|undefined symbol/.test(reported)) continue;
+    const running = spawnSync(php, ['-n', '-r', 'echo PHP_VERSION, " ", PHP_API;'], { encoding: 'utf8' }).stdout.trim();
+    return `the PHP extension ${extension} does not load in the running PHP ${running}; PHP reports: ${reported}`;
+  }
+  return undefined;
+}
+
 export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [], venv, module, library }: ToolOptions, root = repositoryRoot()) {
   const milliseconds = String(timeoutSeconds * 1000);
   switch (tool) {
@@ -254,6 +268,11 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   const unbuilt = options.phpExtensions.find(extension => !existsSync(extension));
   if (unbuilt) {
     write(`✖ ${label}: the PHP extension ${path.relative(root, unbuilt)} is not built; build it before the run\n`);
+    return 1;
+  }
+  const unloaded = options.phpExtensions.length ? probeExtensions(options.phpExtensions, checkoutFile(toolsPath(root, 'bin', 'php'))) : undefined;
+  if (unloaded) {
+    write(`✖ ${label}: ${unloaded}\n`);
     return 1;
   }
   const venvRefusal = options.venv && venvProblem(options.venv, root);

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 650d790745b98c9a35198da69d2d1828f57c07bfd4e9761b5b74d5446654ba22 -->
+<!-- source-sha256: 295204d043c7b1a9723869d2c05d102ee3b3d1d64ae5dff8440ef7c8934ec3fb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 확장 실행은 PHPUnit을 시작하기 전에 각 --php-extension을 검사한다: 로드되지 않는 것은 .so 경로, PHP가 보고하는 내용(빌드된 API), 실행 중인 PHP를 이름으로 대므로, 라이브러리를 잘못된 PHP에서 조용히 테스트하지 않는다 (K452-1).
 
 - K452를 마친다 (K452): run-tests의 확장 실행이 패키지 phpunit.xml을 --configuration으로 넘겨, 라이브러리 실행과 같이 bootstrap이 로드된다.
 

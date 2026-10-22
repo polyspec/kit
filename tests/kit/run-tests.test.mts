@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { parseArguments, PYTHON_START, run, toolCommand } from '../../scripts/kit/run-tests.mts';
+import { parseArguments, probeExtensions, PYTHON_START, run, toolCommand } from '../../scripts/kit/run-tests.mts';
 import { libraryTestRun } from '../../scripts/kit/php-library-autoload.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from '../../scripts/kit/test-output.mts';
 import { inputsDigest } from '../../scripts/kit/tracked-files.mts';
@@ -990,4 +990,21 @@ test('an extension run gives PHPUnit the package configuration so its bootstrap 
 const withConfig = tree(t, { 'p/composer.json': '{}\n', 'p/phpunit.xml.dist': '<phpunit bootstrap="tests/bootstrap.php"/>\n', 'var/tools/bin/php': '#!/bin/sh\n' });
 const configured = toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: path.join(withConfig, 'p'), args: [], phpExtensions: ['/r/e.so'] }, withConfig);
 assert.ok(configured.args.includes('--configuration'), `the extension run passes no configuration: ${configured.args.join(' ')}`);
+});
+
+// K452-1: each --php-extension is probed before PHPUnit starts; one built for another PHP names its .so path, the API it was built
+// for, and the running PHP, instead of testing the library silently on the wrong PHP.
+test('a PHP extension built for another PHP fails the probe naming its path, its build and the running PHP (K452-1)', (t) => {
+  const root = tree(t, {
+    'php': '#!/bin/sh\ncase "$*" in\n  *bad.so*) echo "PHP Warning: Module compiled with module API=20230831" >&2; echo "PHP    compiled with module API=20240924" >&2; exit 1 ;;\nesac\necho "8.4.1 20240924"\n',
+  });
+  const php = path.join(root, 'php');
+  chmodSync(php, 0o755);
+  assert.equal(probeExtensions([path.join(root, 'good.so')], php), undefined);
+  const problem = probeExtensions([path.join(root, 'bad.so')], php);
+  assert.ok(problem, 'a mismatched extension must fail the probe');
+  assert.match(problem, /bad\.so/);
+  assert.match(problem, /20230831/);
+  assert.match(problem, /8\.4\.1/);
+  assert.match(problem, /20240924/);
 });
