@@ -843,3 +843,26 @@ test('K516: land called from a detached worktree lands into the main checkout (K
   git(main, 'checkout', '--quiet', '--detach');
   assert.throws(() => land(detached, 'feat/none', { print: () => {} }), /no checkout has main checked out/);
 });
+
+// K522: the gates of a commit and of a land read the owner rules as owner-validate does, the repository's own and those that kit
+// ships in kit.owners of the installed package, so a consumer commits the hooks that make hooks writes, which kit owns.
+test('a commit on main of a path that only the shipped owner rules own passes the gate selection (K522)', (t) => {
+  const main = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-commit-')));
+  t.after(() => rmSync(main, { recursive: true, force: true }));
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': ['kit-gates: docs-check commits-check hooks-check', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'hooks-check:', '\ttrue', 'build:', '\ttrue', ''].join('\n'),
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] }, null, 2) + '\n',
+    '.gitignore': 'node_modules/\n',
+    'node_modules/@polyspec/kit/package.json': JSON.stringify({ name: '@polyspec/kit', version: '0.0.1', kit: { owners: [{ paths: ['.githooks/reference-transaction'], targets: ['hooks-check'] }] } }),
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  put(main, { '.githooks/reference-transaction': '#!/bin/sh\n' });
+  git(main, 'add', '.githooks/reference-transaction');
+  assert.doesNotThrow(() => runCommitGates(main, ['.githooks/reference-transaction'], () => {}), 'the shipped owner owns the hook');
+  put(main, { 'other.txt': 'x\n' });
+  git(main, 'add', 'other.txt');
+  assert.throws(() => runCommitGates(main, ['other.txt'], () => {}), /other\.txt: no owner/, 'a path that no rule owns is still refused');
+});

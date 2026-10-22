@@ -14,6 +14,7 @@ import { validate, type OwnerDeclaration } from '../../scripts/kit/owner-check.m
 import { globExpression } from '../../scripts/kit/glob.mts';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { tree } from './tree.mts';
+import { COMMIT_MSG, PRE_COMMIT, PRE_MERGE_COMMIT, PRE_PUSH, PREPARE_COMMIT_MSG, REFERENCE_TRANSACTION } from '../../scripts/kit/git-hooks.mts';
 import { readFixture } from './json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 
@@ -266,4 +267,12 @@ test('the owner rules that kit ships name no lint configuration that kit no long
   assert.ok(owners.length > 0, 'kit ships owner rules');
   const paths: unknown[] = owners.flatMap((owner: unknown): unknown[] => (isJsonObject(owner) && Array.isArray(owner.paths) ? owner.paths.map((glob: unknown) => glob) : []));
   assert.deepEqual(paths.filter(glob => (RETIRED_COPIES as readonly unknown[]).includes(glob)), []);
+});
+
+// K522: the owner rules that kit ships own every hook that make hooks writes, so a consumer that commits them needs no rule of its own.
+test('the owner rules that kit ships own every hook that make hooks writes (K522)', () => {
+  const manifest: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../package.json'), 'utf8'));
+  const owners = isJsonObject(manifest) && isJsonObject(manifest.kit) && Array.isArray(manifest.kit.owners) ? manifest.kit.owners : [];
+  const paths: unknown[] = owners.flatMap((owner: unknown): unknown[] => (isJsonObject(owner) && Array.isArray(owner.paths) ? owner.paths.map((glob: unknown) => glob) : []));
+  for (const hook of [PRE_COMMIT, PRE_MERGE_COMMIT, PRE_PUSH, COMMIT_MSG, PREPARE_COMMIT_MSG, REFERENCE_TRANSACTION]) assert.ok(paths.includes(hook), `${hook} is owned`);
 });
