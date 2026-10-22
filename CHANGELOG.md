@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- make land lands into the checkout that has main checked out, wherever it is called from, and fails naming the missing main checkout when none has main (K516).
 - polyspec-lock-check and config/polyspec.json are removed: a tracked lock records the release of each polyspec package, and the gates clone the sibling repositories that the release URLs of the tracked locks name (K515).
 - kit-check names each lint configuration that kit no longer copies and that the repository still holds, with make kit-sync as its fix (K514-1).
 - make item-new on main commits the registration of its row in one docs(plan) commit with BODY_FILE, refusing before it writes anything without BODY_FILE or with another change staged (K499-2).
