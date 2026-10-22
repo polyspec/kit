@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 893804d1244a266a741663b7306a886484be73bb2b3df1e29c7e94f3b01a125d -->
+<!-- source-sha256: 7bea4d38d4a85dd1bc28973e76ef5b38f512885c03d505a9543ba1ff8f68ffff -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -393,3 +393,4 @@
 | K491 | dependency-state 테스트는 fixture checkout을 make 환경(make의 MISE_LOCKED, 앞선 checkout의 var/tools PATH)에서 실행하여 실패한다: fixture의 go stub이 mise로 재귀하고(shim fallback recursion), 복사본의 lockfile에 python과 ruff가 없다; fixture의 도구는 checkout의 var/tools 밖에서, MISE_LOCKED을 뺀 테스트 자신의 환경으로 찾는다 | tests/kit/checkout.mts, tests/kit/checkout-stubs.mts | `node --test tests/kit/dependency-toolchain.test.mts` | [o] |
 | K493 | dependency-policy-check가 패키지별로 범위를 정한다: PACKAGES=<name,...>는 그 이름의 finding만 보고하고 실패하며, 범위 없는 gate는 그대로다. Cause: 한 finding을 고치는 row는 Verification이 전체 gate인 동안 닫힐 수 없고, 그 gate에는 다른 row의 finding이 있다 (flowmark-orm KSTD-5-27 ~ 36) | scripts/kit/check-dependency-policy.mts, scripts/kit/kit.mk, tests/kit/dependency-policy.test.mts | `node --test --test-name-pattern="scoped to one package" tests/kit/dependency-policy.test.mts` | [o] |
 | K477 | PHP 애플리케이션 예시는 framework 제품 이름을 적지 않는다. 원인: PRINCIPLES.md의 S10과 K359, K425 row가 userland framework 위 애플리케이션의 예로 Symfony Console CLI라는 제품 이름을 든다. 일반적인 설명으로 충분하다. 인수 조건: PRINCIPLES.md, PRINCIPLES.ko.md 및 두 checklist의 K359, K425 row가 "PHP console application"이라고 적히고, 한국어 짝은 source-sha256이 다시 찍힌다. | PRINCIPLES.md, PRINCIPLES.ko.md, docs/plans/common-standard/checklist.md, docs/plans/common-standard/checklist.ko.md | `make text-absent FILE=PRINCIPLES.md TEXT="Symfony Console CLI"` `make text-absent FILE=PRINCIPLES.ko.md TEXT="Symfony Console CLI"` | [o] |
+| K502 | npm-install은 project의 npm 설정으로 설치한다: project의 `.npmrc`를 임시 설치 폴더로 복사하므로, 그 설정(예: platform peer를 checkout에서 link하는 limepie 패키지의 `legacy-peer-deps=true`, limepie S-617)이 project에서 npm을 실행할 때와 같이 적용된다. 원인: npm-install은 작성한 package.json과 lock만 든 임시 폴더에서 npm을 실행하므로, npm이 project의 `.npmrc`를 읽지 않아 project 설정이라면 설치하지 않을 peer를 registry에서 설치한다. 인수 조건: `.npmrc`가 있는 project는 임시 설치 폴더에 같은 파일을 받고 설치의 npm이 그것을 읽는다. `.npmrc`가 없는 project는 지금처럼 설치된다. 추적되는 `.npmrc`는 쓰이지 않는다. Red fixture: 설치의 stub npm은 지금 `.npmrc`를 찾지 못한다. | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test --test-name-pattern=K502 tests/kit/npm-install.test.mts` | [o] |

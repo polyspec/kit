@@ -193,6 +193,8 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     if (Object.keys(overrides).length) linked.overrides = overrides;
     writeFileSync(path.join(temporary, 'package.json'), JSON.stringify(linked, null, 2) + '\n');
     if (existsSync(lock)) copyFileSync(lock, path.join(temporary, 'package-lock.json'));
+    // The npm configuration of the project holds for the install, as it does for npm run in the project (K502).
+    if (existsSync(path.join(project, '.npmrc'))) copyFileSync(path.join(project, '.npmrc'), path.join(temporary, '.npmrc'));
     const install = spawnSync(npm, ['install', '--no-audit', '--no-fund', '--ignore-scripts'], { cwd: temporary, env, encoding: 'utf8' });
     if (install.status !== 0) throw new Error(`npm install of the linked packages of ${project} exited ${install.status}: ${install.stderr}`);
     // npm links a file: folder with a relative symlink: make each one absolute before the folder moves.

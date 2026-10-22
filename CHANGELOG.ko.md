@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4f195bd3efdf7e7577c6cb140dab3e2995b67f5e9860a1c4d7a5c1365ea7dc67 -->
+<!-- source-sha256: 54f749473ffa6fb1b09c3c881950c0aba24539aaadb8631d87412aa2e12ed83f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make npm-install`은 project의 `.npmrc`를 임시 설치 폴더로 복사하므로, npm이 project의 설정(예: checkout이 제공하는 platform peer를 위한 `legacy-peer-deps=true`)으로 설치한다(K502). Red: `node --test --test-name-pattern=K502 tests/kit/npm-install.test.mts`가 71ef287d에서 실패했다: 설치의 npm이 `.npmrc`를 찾지 못했다.
 - PHP 애플리케이션 예시는 framework 제품 이름을 적지 않는다: PRINCIPLES.md의 S10과 한국어 짝, common-standard checklist의 K359, K425 row가 userland framework 위 애플리케이션의 예로 framework 제품이 아닌 PHP console application을 든다 (K477). red: 수정 전 make text-absent FILE=PRINCIPLES.md TEXT="Symfony Console CLI"가 exit 2, green: 수정 후 같은 실행 (K477).
 - `dependency-policy-check`가 `--packages <name,...>`(`make dependency-policy-check PACKAGES=`)를 받으며, 그 패키지 이름을 가진 finding만 보고하고 실패한다. 범위 없는 gate는 그대로다(K493).
 - `make npm-install`은 `ADD=<checkout>...`을 받아, 프로젝트가 선언하지 않은 패키지의 폴더도 처음부터 link한다. 임시 manifest의 file: 의존성이며, 추적 package.json과 package-lock.json은 그 패키지를 이름 짓지 않는다(K485).

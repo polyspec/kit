@@ -160,6 +160,29 @@ test('make npm-install links the package folder of a root that shares its packag
   assert.ok(!recorded.includes(`"file:${repository}"`), 'the root is not linked');
 });
 
+// K502: the project's .npmrc is copied into the temporary install folder, so npm installs with the configuration of the project.
+test('make npm-install installs with the .npmrc of the project (K502)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-rc-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const folder = path.join(root, 'template/packages/ts');
+  mkdirSync(folder, { recursive: true });
+  writeFileSync(path.join(folder, 'package.json'), JSON.stringify({ name: '@polyspec/template', version: '0.0.11', main: 'index.js' }));
+  const project = path.join(root, 'app');
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/template': 'https://example.invalid/template-0.0.11.tgz' } }, null, 2) + '\n');
+  writeFileSync(path.join(project, 'package-lock.json'), '{"name":"app","lockfileVersion":3,"requires":true,"packages":{}}\n');
+  writeFileSync(path.join(project, '.npmrc'), 'legacy-peer-deps=true\n');
+  // The stub npm records the .npmrc of the folder that it installs in.
+  const stub = path.join(root, 'npm');
+  writeFileSync(stub, '#!/bin/sh\nif [ "$1" = install ]; then if [ -f .npmrc ]; then cat .npmrc >> "$NPM_LOG"; else echo "no .npmrc" >> "$NPM_LOG"; fi; mkdir -p node_modules; fi\n', { mode: 0o755 });
+  const log = path.join(root, 'npm.log');
+  const kit = fileURLToPath(new URL('../..', import.meta.url));
+  const made = spawnSync('make', ['--no-print-directory', '-C', kit, 'npm-install', `DIR=${project}`, `CHECKOUTS=${folder}`, `NPM=${stub}`, `NODE=${process.execPath}`], { encoding: 'utf8', env: { ...process.env, NPM_LOG: log } });
+  assert.equal(made.status, 0, made.stderr);
+  assert.match(readFileSync(log, 'utf8'), /^legacy-peer-deps=true$/m, 'the npm of the install reads the .npmrc of the project');
+  assert.equal(readFileSync(path.join(project, '.npmrc'), 'utf8'), 'legacy-peer-deps=true\n', 'the tracked .npmrc is not written');
+});
+
 // K448-10: an overrides entry of the manifest that names a provided package takes the checkout folder of its direct dependency, so npm
 // accepts the temporary manifest; an override of a direct dependency must have the same spec (npm docs, package.json, overrides).
 test('npm install links a provided package whose manifest overrides entry names the same asset (K448-10)', (t) => {

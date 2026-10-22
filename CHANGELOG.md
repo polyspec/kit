@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make npm-install` copies the project's `.npmrc` into its temporary install folder, so npm installs with the configuration of the project, such as `legacy-peer-deps=true` for platform peers that the checkouts provide (K502). Red: `node --test --test-name-pattern=K502 tests/kit/npm-install.test.mts` failed on 71ef287d: the npm of the install found no `.npmrc`.
 - The PHP application example names no framework product: S10 of PRINCIPLES.md and its Korean twin, and the K359 and K425 rows of the common-standard checklist, name a PHP console application as the example of an application on a userland framework, not a framework product (K477). Red: make text-absent FILE=PRINCIPLES.md TEXT="Symfony Console CLI" exit 2 before the fix; green: the same run after it (K477).
 - `dependency-policy-check` takes `--packages <name,...>` (`make dependency-policy-check PACKAGES=`) and reports and fails only on the findings that name those packages; the unscoped gate is unchanged (K493).
 - `make npm-install` takes `ADD=<checkout>...`, which links each named package folder from the start even when the project does not declare its package, as a file: dependency of the temporary manifest; the tracked package.json and package-lock.json name none of them (K485).
