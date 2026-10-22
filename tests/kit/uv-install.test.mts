@@ -23,9 +23,11 @@ function fixture(t: { after: (fn: () => void) => void }, installed: string[]) {
   writeFileSync(script, `import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ') + '\\n');
+// The environment is the one of UV_PROJECT_ENVIRONMENT, else .venv, as uv takes it.
+const site = path.join(process.env.UV_PROJECT_ENVIRONMENT ?? '.venv', ${JSON.stringify(SITE.replace('.venv/', ''))});
 if (process.argv[2] === 'sync') for (const item of ${JSON.stringify(installed)}) {
-  mkdirSync(path.join(${JSON.stringify(SITE)}, item), { recursive: true });
-  writeFileSync(path.join(${JSON.stringify(SITE)}, item, '__init__.py'), '# release copy\\n');
+  mkdirSync(path.join(site, item), { recursive: true });
+  writeFileSync(path.join(site, item, '__init__.py'), '# release copy\\n');
 }
 `);
   const uv = path.join(root, 'uv');
@@ -76,4 +78,16 @@ test('uv install passes --no-install-project and --all-groups to its sync, and r
   assert.equal(refused.status, 1);
   assert.match(refused.output, /SYNC takes --no-install-project and --all-groups, not --reinstall/);
   assert.equal(readFileSync(log, 'utf8'), 'sync --frozen --no-install-project --all-groups\n', 'no uv runs for a refused flag');
+});
+
+// K448-14: the environment of the project is the one that uv syncs, UV_PROJECT_ENVIRONMENT when it is set (limepie's python/var/venv),
+// so its packages are linked; .venv is only uv's default.
+test('uv install links the packages of the environment that UV_PROJECT_ENVIRONMENT names (K448-14)', (t) => {
+  const { root, project, env } = fixture(t, ['polyspec/orm']);
+  const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
+  const { status, output } = run([project, orm], { ...env, UV_PROJECT_ENVIRONMENT: 'var/venv' });
+  assert.equal(status, 0, output);
+  const installed = path.join(project, 'var/venv/lib/python3.14/site-packages/polyspec/orm');
+  assert.equal(lstatSync(installed).isSymbolicLink(), true, output);
+  assert.equal(realpathSync(installed), realpathSync(path.join(orm, 'src/polyspec/orm')));
 });
