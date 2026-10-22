@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- suppression-check reads a Rust allow or expect through its closing )], so the reason of an attribute that rustfmt writes over several lines counts (K527).
 - make npm-install runs npm ci with allow-remote=root, as install-packages does, so a consumer lock that names the release of kit installs (K526).
 - The gates of a commit and of a land read the owner rules that kit ships, as owner-validate does, and kit.owners owns every hook that make hooks writes, so a consumer commits its hooks (K522).
 - make worktree-setup gives each Composer project of a worktree a vendor folder of links to the main checkout's packages and an autoload of its own, so the repository's own classes load from the worktree (K521).
