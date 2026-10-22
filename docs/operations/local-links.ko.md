@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 051735aaf60a48bf3919b39c80cd3921742bc53e5df812970c0ab70a5af9e6e1 -->
+<!-- source-sha256: 8666cf5b817c38d907d08e253b2ada9ad0275044cc69b30c9f69c7068cc11cfc -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -42,8 +42,8 @@ link는 kit 도구 `scripts/kit/link.mts`와 `scripts/kit/link-folders.mts`입�
 
 ## Worktree
 
-- 사용자는 2026-10-22에 worktree는 아무것도 설치하지 않는다고 판정했습니다. worktree는 도구와 의존 폴더(`var/tools`, `node_modules`)를 main checkout의 것으로 link합니다. worktree branch는 `main`에서 만든 `<type>/<name>-<id>`이고(P10) `make land`로 `main`에 들어갑니다. worktree의 Composer `vendor`는 사용자 판정을 기다립니다. 생성된 autoload가 그것을 설치한 checkout의 절대 경로를 가지기 때문입니다.
-- `make worktree-setup`은 worktree를 만들고 그 `node_modules`를 main checkout의 것으로 link하며 아무것도 설치하지 않습니다(K519). 도구에는 link가 필요 없습니다. worktree에서 kit.mk와 kit의 도구는 main checkout의 `var/tools`(mise의 data dir, install, shim과 `var/tools/bin`)를 worktree 자신의 `mise.toml`과 함께 씁니다. worktree에서 `make install`과 `make install-tools`는 거부됩니다.
+- 사용자는 2026-10-22에 worktree는 아무것도 설치하지 않는다고 판정했습니다. worktree는 도구와 의존 폴더(`var/tools`, `node_modules`)를 main checkout의 것으로 link합니다. worktree branch는 `main`에서 만든 `<type>/<name>-<id>`이고(P10) `make land`로 `main`에 들어갑니다. worktree의 Composer vendor 폴더는 패키지, `bin`, installed 기록을 main checkout의 것으로 link한 진짜 폴더이며, `composer dump-autoload`가 오프라인으로 쓰는 자기 autoload를 가집니다. autoload는 그것을 쓴 checkout의 소스를 가리키기 때문입니다(K521).
+- `make worktree-setup`은 worktree를 만들고 그 `node_modules`를 main checkout의 것으로 link하며, 각 Composer 프로젝트에 link로 된 vendor 폴더와 자기 autoload를 주고(K521), 아무것도 설치하지 않습니다(K519). 도구에는 link가 필요 없습니다. worktree에서 kit.mk와 kit의 도구는 main checkout의 `var/tools`(mise의 data dir, install, shim과 `var/tools/bin`)를 worktree 자신의 `mise.toml`과 함께 씁니다. worktree에서 `make install`과 `make install-tools`는 거부됩니다.
 - `main`은 `make land`와 pre-commit hook을 통과한 commit만 씁니다(K495). 두 번째 land는 첫 번째의 lock을 기다리고, `main`보다 뒤처진 branch는 그 worktree에서 rebase되며, `main`의 수동 merge, reset, update-ref는 reference-transaction hook이 거부합니다.
 - worktree와 branch는 branch가 `main`에 merge되면 바로 지웁니다. `make land`는 land한 branch를 지우고, `make worktree-prune`은 merge된 모든 branch를 지웁니다. merge된 branch가 남아 있으면 `make link-state-check`가 실패합니다(K381).
 
