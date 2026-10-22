@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5e567d856559075b55c3000272cfa8a76b43900e66237d3ae43696c46654803b -->
+<!-- source-sha256: c5775423e42a1050f4c1903721b4de5b4e300b55f4a446fcb4dfdb2ab62c8eb2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- land는 실행하는 각 make의 출력이 닫히기가 아니라 종료를 기다리고, 30분 기한을 넘긴 실행은 target을 이름 붙여 멈춘다(K531).
 - link는 --project 폴더의 uv workspace member를 읽고, Composer처럼 config.vendor-dir보다 COMPOSER_VENDOR_DIR을 먼저 읽으며, member의 hatchling sources를 설치된 package 경로로 대응시키고, 설치 폴더가 없는 선언된 polyspec package를 link와 check에서 이름과 함께 실패시킨다(K529).
 - worktree-setup은 worktree에 main checkout의 패키지로 link한 node_modules를 주되 저장소 자기 workspace 패키지는 worktree 안으로 link하므로, worktree가 자기 TypeScript를 시험한다(K530).
 - claude-hook은 sh, bash, zsh, dash -c의 script를 모든 규칙으로 읽으므로, 그 안에서 sleep하는 loop도 밖에서처럼 거부된다(K528).

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- land waits for the exit of each make it runs, not for the close of its output, and stops a run past its deadline of 30 minutes with the target named (K531).
 - link takes the uv workspace members of its project folder, reads COMPOSER_VENDOR_DIR before config.vendor-dir as Composer does, maps a member's hatchling sources to its installed package path, and fails with the name of a declared polyspec package that has no installed folder, in link and check (K529).
 - worktree-setup gives a worktree a node_modules of links to the main checkout's packages, with the repository's own workspace packages linked into the worktree, so a worktree tests its own TypeScript (K530).
 - The claude-hook reads the script of sh, bash, zsh and dash -c with all its rules, so a loop that sleeps there is refused as it is outside (K528).
