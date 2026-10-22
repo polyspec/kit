@@ -9,6 +9,7 @@
 //             whose pyproject maps its directories in the hatchling wheel sources links each directory to its mapped package path (K529)
 import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
+import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
 import type { Provider } from './link-providers.mts';
 
@@ -156,9 +157,8 @@ export function composerVendorDir(project: string, env: NodeJS.ProcessEnv): stri
   if (fromEnvironment !== undefined && fromEnvironment !== '') return fromEnvironment;
   const file = path.join(project, MANIFEST.composer);
   if (!existsSync(file)) return undefined;
-  const config = (JSON.parse(readFileSync(file, 'utf8')) as { config?: { 'vendor-dir'?: unknown } }).config;
-  const declared = config?.['vendor-dir'];
-  return typeof declared === 'string' ? declared : undefined;
+  const config = readJsonObject(file).config;
+  return isJsonObject(config) && typeof config['vendor-dir'] === 'string' ? config['vendor-dir'] : undefined;
 }
 
 /**

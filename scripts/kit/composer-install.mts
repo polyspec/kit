@@ -1,7 +1,6 @@
 // Installs the Composer project of a consumer (K432, K448, `make composer-install DIR=<project>`): composer install of the tracked lock as it
 // is, with the Composer and environment of install-composer-project.mts, then each installed package that a checkout provides becomes a
 // direct symlink to the checkout's package folder (link-folders.mts). No link manifest, no partial update and no version is read.
-import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { checkoutProviders, composerVendorDir, linkFolders, providedFolders } from './link-folders.mts';
 import { siblingCheckouts, workTreeOf } from './link-providers.mts';
