@@ -173,51 +173,11 @@
       },
       {
         "paths": [
-          "ruff.toml"
-        ],
-        "targets": [
-          "lint-python",
-          "kit-check"
-        ]
-      },
-      {
-        "paths": [
-          "phpcs.xml.dist",
-          "phpstan.dist.neon",
           "config/php-lint/composer.json",
           "config/php-lint/composer.lock"
         ],
         "targets": [
           "lint-php",
-          "kit-check"
-        ]
-      },
-      {
-        "paths": [
-          ".golangci.yml"
-        ],
-        "targets": [
-          "lint-go",
-          "kit-check"
-        ]
-      },
-      {
-        "paths": [
-          "clippy.toml"
-        ],
-        "targets": [
-          "lint-rust",
-          "kit-check"
-        ]
-      },
-      {
-        "paths": [
-          ".oxlintrc.json",
-          "knip.json",
-          "config/api-extractor.kit.json"
-        ],
-        "targets": [
-          "lint-ts",
           "kit-check"
         ]
       }

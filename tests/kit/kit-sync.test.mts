@@ -210,9 +210,11 @@ test('a consumer after kit-sync passes owner-validate with the rules that kit sh
   const files = Object.fromEntries(Object.values(copies).map(from => [from, `${from}\n`]));
   const root = repository(t, { copies, files });
   sync(root);
+  // make hooks writes the hooks of kit, pre-merge-commit among them (K495), which a rule that kit ships owns.
   write(root, '.githooks/prepare-commit-msg', '#!/bin/sh\n');
+  write(root, '.githooks/pre-merge-commit', '#!/bin/sh\n');
   write(root, 'config/owner-checks.json', '{}\n');
-  const tracked = [...Object.keys(copies), '.githooks/prepare-commit-msg', 'config/owner-checks.json', 'package.json', 'package-lock.json'];
+  const tracked = [...Object.keys(copies), '.githooks/prepare-commit-msg', '.githooks/pre-merge-commit', 'config/owner-checks.json', 'package.json', 'package-lock.json'];
   const own: OwnerDeclaration = { owners: [{ paths: ['package.json', 'package-lock.json', 'config/owner-checks.json'], targets: ['owner-validate'] }] };
   const targets = new Set((kit.kit?.owners ?? []).flatMap(rule => rule.targets ?? []).concat(['owner-validate']));
   const project = { make: { targets: new Map([...targets].map(name => [name, { prerequisites: [], recipe: '' }])), variables: new Map<string, string>() }, scripts: {}, workspaces: [], prefixes: [] };
