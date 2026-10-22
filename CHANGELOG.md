@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+### 2026-10-22 — The extension run gives PHPUnit the package configuration (K452)
+
+- `scripts/kit/run-tests.mts` passes the package's `phpunit.xml` (or `phpunit.xml.dist`) as `--configuration` to an extension run (K452), so the bootstrap it names loads as in the library run, and the orm-like test that calls a bootstrap function no longer fails under the extension. Red: `node --test --test-name-pattern=K452 tests/kit/run-tests.test.mts` fails before the fix on 6d3db7685abd; green: passes, and the 62 tests of the file pass.
+
 - The Claude Code hook entry that `link --project` writes into `<dir>/.claude/settings.local.json` names the node of the kit checkout, so the link and its check agree whatever node runs each of them; the check reports a missing kit node (K498-3).
 - `make commit` on main refuses a checklist row of a new item that the index stages there, and names the branch route for its registration; a land of a main checkout with a staged change is already refused (K499).
 - K509: `make polyspec-lock-check` exempts a polyspec name that config/polyspec.json declares for the project folder of the tracked manifest, so a consumer that declares its kit package passes the gate (K509). Red: `node --test --test-name-pattern=K509 tests/kit/polyspec-lock.test.mts` failed on 1096cb67 (the declared @polyspec/kit was a finding); green: the file passes 10 of 10.

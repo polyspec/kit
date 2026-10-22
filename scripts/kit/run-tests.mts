@@ -187,7 +187,10 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
       // autoloader of the library; the file prepended to it names the autoloader without the sources of the library.
       // The PHP of both runs is the wrapper of var/tools/bin that install-tools writes for the checkout, never the php of PATH (K393).
       if (library) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), '-d', `auto_prepend_file=${library.prepend}`, library.phpunit, '--teamcity', ...args] };
-      if (phpExtensions.length) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), phpunit, '--teamcity', ...args] };
+      // K452: an extension run gives PHPUnit the configuration of the package, so the bootstrap that it names loads as in the library run.
+      const configuration = ['phpunit.xml', 'phpunit.xml.dist'].map(file => path.join(cwd, file)).find(file => existsSync(file));
+      const configured = configuration === undefined ? [] : ['--configuration', configuration];
+      if (phpExtensions.length) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), phpunit, '--teamcity', ...configured, ...args] };
       return { command: phpunit, args: ['--teamcity', ...args] };
     }
     case 'python':

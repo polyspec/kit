@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: af94541cfe0ef5df4f0af1a15bc0241572cf1b9d1786dd1f0d82286cf421cdb8 -->
+<!-- source-sha256: 296d251f269b76f0ce4784329e31f514e2d9ef904d503504f36039913a250e03 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+### 2026-10-22 — 확장 실행이 PHPUnit에 패키지 설정을 준다 (K452)
+
+- `scripts/kit/run-tests.mts`가 확장 실행에 패키지의 `phpunit.xml`(또는 `phpunit.xml.dist`)을 `--configuration`으로 넘긴다(K452). 그래서 설정이 지정한 bootstrap이 라이브러리 실행과 같이 로드되고, bootstrap 함수를 부르는 orm 같은 테스트가 확장에서 더는 실패하지 않는다. Red: `node --test --test-name-pattern=K452 tests/kit/run-tests.test.mts`가 6d3db7685abd에서 수정 전 실패; green: 통과, 이 파일의 62개 테스트 모두 통과.
 
 - `link --project`가 `<dir>/.claude/settings.local.json`에 쓰는 Claude Code hook 항목은 kit checkout의 node를 이름으로 든다. 그래서 link와 check를 어느 node로 실행하든 서로 일치하며, check는 kit node가 없으면 보고한다(K498-3).
 - main에서 `make commit`은 index가 그곳에 stage한 새 item의 checklist row를 거부하고, 그 등록의 branch 경로를 이름으로 든다. 변경이 stage된 main checkout의 land는 이미 거부된다(K499).

@@ -984,3 +984,10 @@ test('the tools of kit are taken from the checkout, never from PATH (K393-1)', (
     process.env.PATH = previous;
   }
 });
+
+// K452: an extension run gives PHPUnit the configuration of the package, so the bootstrap that it names is loaded as in the library run.
+test('an extension run gives PHPUnit the package configuration so its bootstrap loads (K452)', (t) => {
+const withConfig = tree(t, { 'p/composer.json': '{}\n', 'p/phpunit.xml.dist': '<phpunit bootstrap="tests/bootstrap.php"/>\n', 'var/tools/bin/php': '#!/bin/sh\n' });
+const configured = toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: path.join(withConfig, 'p'), args: [], phpExtensions: ['/r/e.so'] }, withConfig);
+assert.ok(configured.args.includes('--configuration'), `the extension run passes no configuration: ${configured.args.join(' ')}`);
+});
