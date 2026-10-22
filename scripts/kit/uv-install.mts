@@ -3,7 +3,7 @@
 // (link-folders.mts). Without CHECKOUTS, the sibling checkouts of the repository are used. No editable wheel is written and no version is
 // read; the tracked pyproject.toml and uv.lock are never written.
 import path from 'node:path';
-import { checkoutProviders, linkFolders, providedFolders } from './link-folders.mts';
+import { checkoutProviders, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { siblingCheckouts } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
@@ -25,6 +25,8 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
     const sync = (env.UV_SYNC ?? '').split(/\s+/).filter(flag => flag !== '');
     const refused = sync.filter(flag => !SYNC_FLAGS.has(flag));
     if (refused.length) throw new Error(`SYNC takes ${[...SYNC_FLAGS].join(' and ')}, not ${refused.join(' ')}`);
+    // K539: uv writes through a package link of the environment into its provider checkout, so the links go first.
+    for (const link of releaseEnvironmentLinks(project, env.UV_PROJECT_ENVIRONMENT)) write(`uv-install ${project}: unlinked ${link}, so uv writes no provider checkout\n`);
     run(env.UV ?? 'uv', ['sync', '--frozen', ...sync], { cwd: project, env });
     const folders = providedFolders(project, checkoutProviders(checkouts, 'python'), { environment: env.UV_PROJECT_ENVIRONMENT });
     linkFolders(folders);

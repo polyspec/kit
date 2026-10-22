@@ -7,7 +7,7 @@
 //   Python    <site-packages>/<package path>       -> the same package path under the provider's source root (src/ when it has one),
 //             one link per package, so the packages of one namespace (polyspec/orm, polyspec/ordered_json) link apart; a source root
 //             whose pyproject maps its directories in the hatchling wheel sources links each directory to its mapped package path (K529)
-import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
@@ -125,6 +125,29 @@ const present = (file: string): boolean => {
  * The site-packages folders of the environment of `project`, the one that uv syncs: `environment` (UV_PROJECT_ENVIRONMENT, relative to the
  * project or absolute, K448-14), else .venv; each is <environment>/lib/<python>/site-packages.
  */
+/**
+ * Removes each entry of the site-packages of the environment of `project` (`environment` as in sitePackages) that is a link
+ * resolving outside the environment, a package folder that link made into a provider checkout, and returns the removed paths
+ * (K539): uv writes and deletes through such a link, so every uv install of the environment removes them first; the link only
+ * goes, never its target. A dangling link goes too.
+ */
+export function releaseEnvironmentLinks(project: string, environment: string | undefined): string[] {
+  const venv = path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment);
+  const own = existsSync(venv) ? realpathSync(venv) : venv;
+  const removed: string[] = [];
+  for (const folder of sitePackages(project, environment)) {
+    for (const name of readdirSync(folder)) {
+      const entry = path.join(folder, name);
+      if (!lstatSync(entry).isSymbolicLink()) continue;
+      const target = existsSync(entry) ? realpathSync(entry) : undefined;
+      if (target !== undefined && target.startsWith(`${own}${path.sep}`)) continue;
+      unlinkSync(entry);
+      removed.push(entry);
+    }
+  }
+  return removed;
+}
+
 function sitePackages(project: string, environment: string | undefined): string[] {
   const lib = path.join(path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment), 'lib');
   if (!existsSync(lib)) return [];

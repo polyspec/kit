@@ -25,7 +25,7 @@ import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { rebuild } from './link-build.mts';
-import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders } from './link-folders.mts';
+import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -237,8 +237,14 @@ function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string
   return target;
 }
 
+/** Removes the package links of the environment of `target` before uv writes into it, naming each (K539). */
+function releaseLinks(target: { venv: string; workspace: string }, print: Print): void {
+  for (const link of releaseEnvironmentLinks(target.workspace, target.venv)) print(`  unlinked   python   ${link}, so uv writes no provider checkout`);
+}
+
 /** uv sync --locked of the environment of `target`, with `flags`: the locked releases, the step before each install of the linked packages. */
-function syncPython(uv: Tool, target: { venv: string; workspace: string }, ...flags: string[]) {
+function syncPython(uv: Tool, target: { venv: string; workspace: string }, print: Print, ...flags: string[]) {
+  releaseLinks(target, print);
   run(uv.command, ['sync', '--locked', ...flags], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
 }
 
@@ -523,6 +529,7 @@ export function unlink({ directories, print, env = process.env, project = false 
           const { pins, missing } = pylockReleases(lock, declaredPython(file));
           for (const name of missing) skip(`python ${path.dirname(file)}: ${name} is not held by ${path.basename(lock)}, not restorable`);
           if (pins.length) {
+            releaseLinks(target, print);
             run(uv.command, ['pip', 'install', '--python', path.join(target.venv, 'bin/python'), ...pins.map(pin => pin.requirement), ...pins.flatMap(pin => ['--reinstall-package', pin.name])], { cwd: target.workspace, env: uv.env });
             print(`  restored   python   ${target.venv}`);
           }
@@ -531,7 +538,7 @@ export function unlink({ directories, print, env = process.env, project = false 
         // The restore selects every group, as the consumer's install does (K238): uv reinstalls only the packages that a sync
         // selects, so a polyspec package of the test group is reinstalled at its locked release only with --all-groups.
         // --inexact keeps every other package (K237).
-        syncPython(uv, target, '--all-groups', '--inexact', ...declaredPython(file).flatMap(name => ['--reinstall-package', name]));
+        syncPython(uv, target, print, '--all-groups', '--inexact', ...declaredPython(file).flatMap(name => ['--reinstall-package', name]));
         print(`  restored   python   ${target.venv}`);
       }
     }
