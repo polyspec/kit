@@ -76,6 +76,12 @@ function packageFoldersOf(checkout: string): string[] {
   return found;
 }
 
+/** The entries of a section of a manifest object, or none when the section is absent or not an object (K484). */
+function manifestSection(manifest: Record<string, unknown>, section: string): Record<string, unknown> {
+  const value = manifest[section];
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
+}
+
 /**
  * Installs the packages of `directory` and returns the path that it took: `linked` (a sibling package of the project is linked from
  * its checkout) or `locked` (npm ci of the tracked lock). `npm` is the npm to run; the environment is `env`.
@@ -160,8 +166,13 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
       return [key, folder !== undefined ? `file:${folder}` : typeof value === 'string' ? fromProject(value) : value];
     }));
     const overrides = rewrite(sectionOf('overrides'));
-    // The packages that only the lock names, transitively, are linked through overrides (K448-7).
-    for (const [name, folder] of provided) if (!declared.has(name) && !(name in overrides)) overrides[name] = `file:${folder}`;
+    // A package that only the lock names, transitively, is installed only when the project declares it: npm does not place a package that an
+    // override names unless a dependency of the tree requires it as a direct dependency. So each such package is declared as a file: dependency
+    // of the temporary manifest, which npm links to its folder (K484; an override alone places nothing, measured).
+    // The dependencies as the section loop above left them, with the lock-only siblings added.
+    const topLevel: Record<string, unknown> = { ...manifestSection(linked, 'dependencies') };
+    for (const [name, folder] of provided) if (!declared.has(name) && !(name in topLevel)) topLevel[name] = `file:${folder}`;
+    if (Object.keys(topLevel).length) linked.dependencies = topLevel;
     if (Object.keys(overrides).length) linked.overrides = overrides;
     writeFileSync(path.join(temporary, 'package.json'), JSON.stringify(linked, null, 2) + '\n');
     if (existsSync(lock)) copyFileSync(lock, path.join(temporary, 'package-lock.json'));

@@ -371,3 +371,22 @@ test('a transitive package named only by the lock, with a release URL, is linked
   assert.equal(realpathSync(link), realpathSync(sibling));
   assert.equal(lines.some(line => /npm ci of the tracked lock/.test(line)), false, 'npm ci never runs');
 });
+
+// K484: a package the project declares keeps its own spec: the lock-only declaration adds no second entry for it.
+test('a package the project declares keeps its own dependency entry, with no second declaration from the lock (K484)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-declared-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sibling = path.join(root, 'template');
+  const project = path.join(root, 'app');
+  mkdirSync(sibling, { recursive: true });
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/template', version: '0.0.11', main: 'index.js' }));
+  writeFileSync(path.join(sibling, 'index.js'), 'module.exports = 3;\n');
+  const tracked = JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/template': 'https://example.invalid/template.tgz' } }, null, 2) + '\n';
+  writeFileSync(path.join(project, 'package.json'), tracked);
+  writeFileSync(path.join(project, 'package-lock.json'), '{"name":"app","lockfileVersion":3,"requires":true,"packages":{}}\n');
+  const took = npmInstall({ directory: project, checkouts: [sibling], print: () => {}, env: process.env });
+  assert.equal(took, 'linked');
+  assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), tracked, 'the tracked manifest is unchanged');
+  assert.equal(lstatSync(path.join(project, 'node_modules/@polyspec/template')).isSymbolicLink(), true, 'the declared package is linked once');
+});
