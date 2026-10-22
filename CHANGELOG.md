@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K452 is done (K452): the extension run of run-tests passes the package phpunit.xml as --configuration, so the bootstrap loads as in the library run.
+
 ### 2026-10-22 — The extension run gives PHPUnit the package configuration (K452)
 
 - `scripts/kit/run-tests.mts` passes the package's `phpunit.xml` (or `phpunit.xml.dist`) as `--configuration` to an extension run (K452), so the bootstrap it names loads as in the library run, and the orm-like test that calls a bootstrap function no longer fails under the extension. Red: `node --test --test-name-pattern=K452 tests/kit/run-tests.test.mts` fails before the fix on 6d3db7685abd; green: passes, and the 62 tests of the file pass.

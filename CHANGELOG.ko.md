@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 296d251f269b76f0ce4784329e31f514e2d9ef904d503504f36039913a250e03 -->
+<!-- source-sha256: 650d790745b98c9a35198da69d2d1828f57c07bfd4e9761b5b74d5446654ba22 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K452를 마친다 (K452): run-tests의 확장 실행이 패키지 phpunit.xml을 --configuration으로 넘겨, 라이브러리 실행과 같이 bootstrap이 로드된다.
 
 ### 2026-10-22 — 확장 실행이 PHPUnit에 패키지 설정을 준다 (K452)
 
