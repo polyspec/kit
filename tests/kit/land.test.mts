@@ -116,6 +116,30 @@ test('K453: a build that fails after the fast-forward fails land and names the b
   assert.throws(() => land(main, 'feat/k453', { print: () => {} }), /make build.*compile error in x/s);
 });
 
+// K513: the build runs on the merge result in the worktree before main moves, as the gates do, so a branch whose build fails leaves main
+// as it was (orm's main went red when its build failed only after the merge).
+test('K513: land refuses a branch whose build fails, before main moves (K513)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': 'kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nbuild:\n\t@if [ -f src/broken.txt ]; then echo "stub hash differs" >&2; exit 3; fi\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] }, null, 2) + '\n',
+    'src/x.txt': 'v1\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const before = git(main, 'rev-parse', 'main');
+  const folder = path.join(parent, 'repo-k513');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat/k513', 'main');
+  put(folder, { 'src/broken.txt': 'x\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'broken');
+  assert.throws(() => land(main, 'feat/k513', { print: () => {} }), /make build.*stub hash differs.*nothing is merged/s);
+  assert.equal(git(main, 'rev-parse', 'main'), before, 'main stays where it was');
+});
+
 test('land refuses a gate that fails only on a finding that main does not have (K394-1)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
