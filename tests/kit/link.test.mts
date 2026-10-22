@@ -936,8 +936,9 @@ test('link replaces the polyspec package of a nested Composer project with a lin
   });
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'board');
-  put(consumer, { 'examples/board/vendor/polyspec/y/composer.json': '{"name":"polyspec/y"}' });
+  put(consumer, { 'examples/board/vendor/polyspec/y/composer.json': '{"name":"polyspec/y"}', 'tests/release-consumer/composer/vendor/polyspec/y/composer.json': '{"name":"polyspec/y"}' });
   const { ok, text } = linkLines([consumer], env);
+  assert.equal(lstatSync(path.join(consumer, 'tests/release-consumer/composer/vendor/polyspec/y')).isSymbolicLink(), false, 'the release consumer keeps the install that it tests');
   assert.equal(ok, true, text);
   const vendor = path.join(consumer, 'examples/board/vendor/polyspec/y');
   assert.equal(lstatSync(vendor).isSymbolicLink(), true, 'the nested project vendor holds a link');

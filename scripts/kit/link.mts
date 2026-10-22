@@ -1,21 +1,17 @@
-// The local links of 0.0.x development (docs/operations/local-links.md, K201, K205). The checkouts that the arguments name are the
-// providers (link-providers.mts): each installed polyspec package of a consumer that is pinned at 0.0.x is pointed at the
-// source of the checkout that provides it. link only links; it never builds (link-build.mts rebuilds):
-//   npm       each copy that `npm query` lists below node_modules becomes a link to the provider's package folder;
-//   Composer  Composer installs the linked packages itself (K304-1): a git-ignored composer.link.json with a path repository
-//             (symlink) per provider folder in front of the repositories, a copy of the lock, and a partial composer update of
-//             the polyspec packages and the path packages of the project, so the record, the autoload rules and the platform
-//             check come from the composer.json of each folder;
-//   Python    each declared polyspec package and each polyspec package below it is installed from an editable wheel that link
-//             writes into var/link/python (K398): the metadata of its pyproject.toml and a .pth of its import root, no source, so
-//             the folder is only read; the consumer's own project is installed from the same editable wheel (K224);
-//             there is no sync (K239);
+// The local links of 0.0.x development (docs/operations/local-links.md, K201, K205, K448). The checkouts that the arguments name are the
+// providers (link-providers.mts): each installed package folder of a consumer that a provider gives is replaced by a direct relative
+// symlink to the provider's package folder, a copy removed (link-folders.mts). No package manager runs and no version is read; link only
+// links, it never builds (link-build.mts rebuilds):
+//   npm       node_modules/<name> of each tracked project;
+//   Composer  <vendor-dir>/<vendor>/<package> of each tracked project, the vendor-dir of its composer.json;
+//   Python    each package of the site-packages of a project's .venv, one link per package of a namespace;
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
 //             go reads by itself; unlink removes it;
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
 // No environment variable declares anything: without checkouts nothing is linked, and the installs stay the locked releases.
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
-// below it; with --project the folder is the consumer and its own manifest is read, tracked or not (K212). Each file that link writes into the consumer is one that Git ignores there (var/link, and each go.work).
+// below it; with --project the folder is the consumer and its own manifest is read, tracked or not (K212). Each file that link writes
+// into the consumer is one that Git ignores there (the links in the install folders, var/link, and each go.work).
 //   node link.mjs link|check [--project <dir>] [--siblings] <checkout>... | unlink [--project <dir>] | rebuild <repository>... |
 //                 packages <dir> python|npm | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
@@ -428,6 +424,9 @@ export function link({ checkouts, directories, check, print, env = process.env, 
   return !work.failed;
 }
 
+// The tracked projects that the folder link leaves as they are: the tests, the fixtures and the release consumer (K447).
+const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?|release-consumer)\//;
+
 /** The vendor folder that the composer.json of `project` names in config.vendor-dir, read from the file, else vendor. */
 function vendorDirOf(project: string): string | undefined {
   const file = path.join(project, MANIFESTS.composer);
@@ -444,7 +443,9 @@ function vendorDirOf(project: string): string | undefined {
  * reported. No package manager runs and no version is read.
  */
 function linkPackageFolders(work: Run, consumer: Consumer) {
-  const projects = new Set([consumer.scope, ...(['npm', 'composer', 'python'] as const).flatMap(ecosystem => consumer.manifests(ecosystem).map(file => path.dirname(file)))]);
+  // K447: every tracked project of the consumer, a nested one below the root such as hyper's examples/board included, as link-state-check
+  // reads them; a test, a fixture or the release consumer keeps the install that it tests.
+  const projects = new Set([consumer.scope, ...(['npm', 'composer', 'python'] as const).flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))]);
   for (const project of [...projects].sort()) {
     const folders = providedFolders(project, work.found.values(), { vendorDir: vendorDirOf(project) });
     if (work.check) {
