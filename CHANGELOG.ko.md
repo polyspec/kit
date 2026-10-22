@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9c4cb4c4812d1cb6f0c893004149c574a15f813dc52043b6e6f3ed0be2c0e3cf -->
+<!-- source-sha256: bd9fd8c9b89041b6328797fe942582be86d46a9dd62e5fdb3394307933c3534e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -10,6 +10,7 @@
 
 ### 2026-10-21 — worktree-setup이 link-state-check 전에 패키지를 빌드한다 (K482)
 
+- K439-5: composer-provider-entries는 Composer writer가 path repository에 쓰지 않는 source와 notification-url을 tracked lock 항목에서 보존하므로, provider 항목은 기록된 release source를 유지한다 (K439-5). Red: node --test --test-name-pattern=K439-5 tests/kit/dependency-review.test.mts가 exit 1(source 소실); green: make 아래에서 파일 30개 통과, K439-5 포함, lint-ts 통과. (K439-5).
 - `scripts/kit/worktree-setup.mts`가 `make install` 뒤, `make link-state-check` 앞에 worktree의 link rebuild(`link rebuild .`, K482)를 실행하므로 새 worktree가 빌드되어 오래됨으로 보고되지 않는다 (K482). rebuild는 worktree가 가진 link 도구를 쓴다: kit 자신의 `scripts/kit/link.mts`, 또는 소비자의 설치된 `node_modules/@polyspec/kit/dist/link.mjs`. K348 fixture에는 소비자 도구를 넣었다. Red: `node --test --test-name-pattern=K482 tests/kit/worktree-setup.test.mts`가 9f7954d54d16에서 수정 전 실패(rebuild 없음, 검사가 빌드를 읽음); green: 통과, `tests/kit/worktree-setup.test.mts` 전체도 통과.
 - commit-msg 검사는 code, test, script나 recipe를 스테이징한 docs나 chore commit을 경로와 함께 거부하므로, 수정은 자기 type으로 커밋한다(K449).
 - `make npm-install`은 임시 manifest 사본으로 설치하므로 프로젝트의 상대 file: 의존성을 프로젝트 폴더 기준 절대 경로로

@@ -609,3 +609,20 @@ test('a consumer vcs repository resolves through the sibling checkout that names
     'a vcs repository that no sibling checkout provides fails naming it',
   );
 });
+
+// K439-5: an entry of a tracked lock keeps the source and the notification-url that the lock recorded, when Composer's writer does not write
+// them for a path repository: the release source of a package is the lock's own fact, not what the path provider writes.
+test('a provider entry keeps the source and the notification-url that the tracked lock recorded (K439-5)', () => {
+  const source = { type: 'git', url: 'https://github.com/PurrPHP/yaml.git', reference: 'c069a72e06e5a11a725b50226122f1eb26eb64fe' };
+  const dist = { type: 'zip', url: 'https://api.github.com/repos/PurrPHP/yaml/zipball/c069a72', shasum: '' };
+  const lock = `${JSON.stringify({ 'content-hash': 'abc', packages: [{ name: 'purrphp/yaml', version: '1.0.0', source, dist, 'notification-url': 'https://packagist.org/downloads/', require: { php: '>=8.1' } }], 'packages-dev': [] }, null, 4)}\n`;
+  const written = new Map([['purrphp/yaml', { name: 'purrphp/yaml', version: '1.0.0', dist: { type: 'path', url: '../../forks/yaml' }, require: { php: '>=8.1' }, type: 'library' }]]);
+  const result = providerEntries(lock, new Map([['purrphp/yaml', { name: 'purrphp/yaml', require: { php: '>=8.1' }, type: 'library' }]]), undefined, written);
+  const parsed: unknown = JSON.parse(result.text);
+  const list: unknown = isJsonObject(parsed) ? parsed.packages : undefined;
+  const entry: unknown = Array.isArray(list) ? list[0] : undefined;
+  assert.ok(isJsonObject(entry), result.text);
+  assert.deepEqual(entry.source, source, 'the release source stays');
+  assert.equal(entry['notification-url'], 'https://packagist.org/downloads/', 'the notification url stays');
+  assert.deepEqual(entry.dist, dist, 'the release dist stays');
+});

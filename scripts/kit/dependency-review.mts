@@ -754,11 +754,15 @@ export function providerEntries(
  * source of the tracked entry. Composer's key order and forms (a license list, the type) are the written ones.
  */
 function composerForm(entry: Record<string, unknown>, written: Record<string, unknown>): Record<string, unknown> {
-  const kept = ['name', 'version', 'dist', 'source'];
+  // K439-5: the release facts of the tracked entry (its source and notification-url) are kept when the writer does not write them for a path
+  // repository; the writer's own keys keep their Composer form.
+  const kept = ['name', 'version', 'dist', 'source', 'notification-url'];
   const next: Record<string, unknown> = {};
-  for (const key of Object.keys(written)) {
+  const keys = [...new Set([...Object.keys(written), ...kept.filter(key => key in entry)])];
+  for (const key of keys) {
     if (key === 'transport-options' || key === 'time') continue;
-    next[key] = kept.includes(key) && key in entry ? entry[key] : written[key];
+    if (kept.includes(key) && key in entry) next[key] = entry[key];
+    else if (key in written) next[key] = written[key];
   }
   return next;
 }
