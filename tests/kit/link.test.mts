@@ -924,3 +924,22 @@ test('link replaces each installed polyspec package folder with a direct symlink
   assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no Composer link manifest is written');
   assert.doesNotMatch(log(), /^(composer|npm) /m, 'no package manager runs');
 });
+
+// K447: link covers every tracked Composer project of the checkout, not only the root: a project below the root with its own lock (hyper
+// examples/board) gets its installed polyspec package linked, as link-state-check reads every tracked manifest.
+test('link replaces the polyspec package of a nested Composer project with a link to its provider (K447)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(consumer, {
+    'examples/board/composer.json': JSON.stringify({ name: 'cons/board', require: { 'polyspec/y': '0.0.1' } }),
+    'examples/board/composer.lock': '{}',
+    'examples/board/.gitignore': 'vendor/\n',
+  });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'board');
+  put(consumer, { 'examples/board/vendor/polyspec/y/composer.json': '{"name":"polyspec/y"}' });
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  const vendor = path.join(consumer, 'examples/board/vendor/polyspec/y');
+  assert.equal(lstatSync(vendor).isSymbolicLink(), true, 'the nested project vendor holds a link');
+  assert.equal(realpathSync(vendor), realpathSync(path.join(provider, 'packages/php')));
+});
