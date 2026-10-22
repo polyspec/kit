@@ -337,7 +337,9 @@ export function readState(root: string, policy: DependencyPolicy) {
     // The project's files are the ones that every rule judges (K326-2): while linked, the link manifest and the link lock that Composer
     // resolved and the vendor holds, since the tracked lock cannot relock while a provider is linked (K326-1).
     const judged = judgedComposerFiles(root, path.posix.dirname(manifestPath));
-    const composer = readComposerManifest(root, judged.manifest);
+    // K490: the declarations are the tracked manifest's (the review record names what the tracked manifest declares); the link manifest is
+    // local install state, so it only decides the versions of the lock below.
+    const composer = readComposerManifest(root, manifestPath);
     const composerLock = readComposerLock(root, judged.lock);
     const locked = new Map([...(composerLock.packages ?? []), ...(composerLock['packages-dev'] ?? [])].map(item => [item.name, item]));
     // A path dist of the repository has a url relative to the project; the link lock records a provider that the link installs with

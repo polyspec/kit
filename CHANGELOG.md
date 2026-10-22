@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K490: The review record names the dependencies that the tracked composer.json declares; a link manifest adds none (K490). Red: make item-red ID=K490 exit 1 (vendor/linked recorded). Green: make item-test ID=K490 passes under make, lint-ts passes. (K490).
 - `link --project <dir>` writes the kit hook entry of `<dir>/.claude/settings.local.json` before the packages are linked, and whatever their result, so a checkout without installs gets the hook (K506).
 - K492: The kit Go pin is go1.27.3, the release without the advisory GO-2026-6809; mise.toml, the lock, the pins file, the symbols go.mod and the tool inventory name it. Red: make item-red ID=K492 exit 1 (kit pin 1.27.2). Green: make item-test ID=K492 passes under make. (K492).
 - `make land` holds a lock for its whole run, so a second land waits for the first, and refuses its merge when main moved while its gates ran, naming the commits that moved it; `make hooks` writes a reference-transaction hook that refuses a move of main except by make land (`KIT_MAIN_WRITER`) or by a commit whose pre-commit hook passed, so a manual `git merge --ff-only`, `git reset` or `git commit --no-verify` on main is refused; run `make hooks` once (K495).

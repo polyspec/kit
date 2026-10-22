@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7cf2bb2b75b77648c1f2c1c071e32e6b492a9880c315ae9f07b6ae5c731120a7 -->
+<!-- source-sha256: 8f382abf22483d5da8e92c77707251caaf4c07080e734750f3276fc7e157ac91 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K490: review record는 tracked composer.json이 선언한 의존성을 적는다; link manifest는 아무것도 더하지 않는다 (K490). Red: make item-red ID=K490 exit 1 (vendor/linked가 기록됨). Green: make 아래 make item-test ID=K490 통과, lint-ts 통과. (K490).
 - `link --project <dir>`는 package를 link하기 전에, 그 결과와 관계없이 `<dir>/.claude/settings.local.json`의 kit hook 항목을 쓰므로, 설치되지 않은 checkout도 hook을 받는다(K506).
 - K492: kit의 Go 핀은 advisory GO-2026-6809가 없는 릴리스 go1.27.3이다; mise.toml, lock, 핀 파일, symbols go.mod, tool inventory가 그것을 적는다. Red: make item-red ID=K492 exit 1 (kit 핀 1.27.2). Green: make 아래 make item-test ID=K492 통과. (K492).
 - `make land`는 실행 내내 lock을 잡으므로 두 번째 land는 첫 번째를 기다리고, gate가 도는 동안 main이 움직였으면 움직인 commit을 이름 붙여 merge를 거부한다. `make hooks`는 reference-transaction hook을 쓰며, 그 hook은 make land(`KIT_MAIN_WRITER`)나 pre-commit hook을 통과한 commit이 아닌 main의 이동을 거부하므로 main에서 수동 `git merge --ff-only`, `git reset`, `git commit --no-verify`는 거부된다. `make hooks`를 한 번 실행하라(K495).
