@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c5bde56b9600a28be9578b09f192f6892c71b20841fa7beb6bd304d61a471905 -->
+<!-- source-sha256: 573f2597216a79b17c74a87280e754ae87e23ae3a7906d037f11466efb8bafcd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PHP 애플리케이션 패키지(composer type project)는 S10 extension 실행 밖에 있고 test-php에서 자기 패키지로 test를 실행한다(K433).
 - commit-msg 검사는 code, test, script나 recipe를 스테이징한 docs나 chore commit을 경로와 함께 거부하므로, 수정은 자기 type으로 커밋한다(K449).
 - `make npm-install`은 임시 manifest 사본으로 설치하므로 프로젝트의 상대 file: 의존성을 프로젝트 폴더 기준 절대 경로로
   npm에 주고, 설치 뒤에도 그 link가 풀린다(K448-12).

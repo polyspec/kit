@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A PHP application package (composer type project) is outside the S10 extension run and runs its own tests under test-php as its own package (K433).
 - The commit-msg check refuses a docs or chore commit that stages code, a test, a script or a recipe, and names the paths, so a fix is committed with its own type (K449).
 - `make npm-install` gives each relative file: dependency of the project to npm as an absolute path from the project folder,
   since it installs from a temporary copy of the manifest, so those links resolve after the install (K448-12).
