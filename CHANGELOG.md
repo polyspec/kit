@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- run-tests builds the tests of go and cargo before it runs them, under a build bound of 20 minutes, so compiling no longer counts as a gap without a test; a build that fails or outlives its bound stops the run with its output and its own message (K549-1).
 - uv-install reinstalls the held packages offline from uv's cache in a run of its own, naming a wheel that the cache lacks, and leaves the project that it installs out (K548).
 - worktree-setup writes the Composer bin proxies of a vendor into the worktree, so every vendor binary of a worktree autoloads the worktree (K550).
 - divergence-check passes a test statement that asserts its environment and holds no branch, and still flags a probe in a branch (K543).

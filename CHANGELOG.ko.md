@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d3f0180e23aa5ed7091308bddea79c0e58e54acd4012286146f46a520c21462f -->
+<!-- source-sha256: b89afd2dce4bc53fe44a740e5107afc5c0ee9dcbf8b088589e01d946bbef27a1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- run-tests는 go와 cargo의 test를 실행하기 전에 20분의 build bound 아래에서 build하므로, compile이 더는 test 없는 gap으로 세어지지 않는다. 실패하거나 bound를 넘는 build는 그 출력과 자기 메시지로 run을 멈춘다(K549-1).
 - uv-install은 가진 패키지를 별도 실행에서 uv cache로 오프라인 재설치하고, cache에 없는 wheel을 이름 붙이며, 자기가 설치하는 프로젝트는 뺀다(K548).
 - worktree-setup은 vendor의 Composer bin proxy를 worktree에 쓰므로, worktree의 모든 vendor 바이너리가 worktree를 autoload한다(K550).
 - divergence-check는 분기 없이 자기 환경을 assert하는 테스트 문장을 통과시키고, 분기 안의 probe는 여전히 잡는다(K543).
