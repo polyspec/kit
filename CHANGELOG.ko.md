@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 409ca08d591183c2a4ac6e9b499aa092349dada7b0c0e310063c71961560874d -->
+<!-- source-sha256: 60b9d9bc90dfb20e616ced41f9531eb68356e517f99b5924e7e0822e1df15061 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- docs/spec이 두 번 정의한 요구사항은 범위 실행을 포함한 모든 parity 선언 검사를 실패시키고, finding은 두 정의의 파일과 줄을 이름 붙인다(K520).
 - uv-install, link, link-state-check는 checkout이 가리키는 uv workspace root의 member를 Python provider에 포함하므로, 설치된 member가 link된다(K518).
 - unit으로 범위를 정한 parity 검사는 schema를 어기는 unit을 빼고 이름을 밝힌 뒤 나머지에 규칙을 실행하므로, 범위 실행이 실행 없이 통과하지 않는다(K517).
 - 링크된 worktree는 main checkout의 도구를 쓰고 아무것도 설치하지 않는다. mise의 data dir, install, shim과 var/tools/bin은 main checkout의 것이고 mise.toml만 worktree 자신의 것이므로 worktree에서 make land가 pypi:vulture를 찾는다. worktree에서 install-tools와 install-kit은 거부되고, worktree-setup은 make install 대신 node_modules를 link한다(K519).

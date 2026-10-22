@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A requirement that docs/spec defines twice fails every parity declarations check, scoped runs included, and the finding names the file and line of both definitions (K520).
 - uv-install, link and link-state-check take the members of a uv workspace root that a checkout names among its Python providers, so an installed member is linked (K518).
 - A parity check scoped to units leaves out the units that break the schema, names them and runs its rules on the rest, so a scoped run never passes without running (K517).
 - A linked worktree runs the tools of its main checkout and installs nothing: the mise data dir, installs, shims and var/tools/bin are the main checkout's with the worktree's own mise.toml, so make land from a worktree finds pypi:vulture; install-tools and install-kit refuse in a worktree, and worktree-setup links node_modules instead of running make install (K519).
