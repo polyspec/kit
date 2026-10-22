@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make npm-install` takes the package folders of a checkout that has them, never the checkout itself, so a root whose package.json carries its package's name (ordered-json) links packages/js (K494-2). Red: `node --test --test-name-pattern=K494-2 tests/kit/npm-install.test.mts` failed on f57380a8, linking the root.
 - `make npm-install` links a sibling package that the lock names only transitively, with a release URL, by declaring it as a file: dependency, so no release is fetched (K484).
 - `make uv-install ... STATE=<dir>` writes the editable wheels of the install under the absolute folder STATE, so an install writes nothing into a source checkout that is mounted read-only; without STATE the wheels stay under var/link of the consumer, and a relative STATE is refused (K488). Red: `node --test --test-name-pattern=K488 tests/kit/uv-install.test.mts` failed on 5d6f9a96 with EACCES at the mkdir of the consumer's var/link.
 - `make npm-install` takes a `CHECKOUTS` entry that provides no npm package, such as a PHP-only fork, and links nothing from it, as `link` does with the same list; only an entry that is no existing directory is refused (K494-1). Red: `node --test --test-name-pattern=K494-1 tests/kit/npm-install.test.mts` failed on 2fbe521f, refusing the composer-only checkout.

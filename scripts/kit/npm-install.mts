@@ -121,7 +121,12 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     }
   }
   const provided = new Map<string, string>();
-  for (const checkout of checkouts.flatMap(checkout => [checkout, ...packageFoldersOf(checkout)])) {
+  // A checkout with package folders gives those folders and never itself, since a root may carry the name of the package it holds
+  // (ordered-json names its root @polyspec/ordered-json, as packages/js); a checkout without them is a package folder (K494-2).
+  for (const checkout of checkouts.flatMap(checkout => {
+    const folders = packageFoldersOf(checkout);
+    return folders.length ? folders : [checkout];
+  })) {
     const name = nameOf(checkout);
     if (name !== undefined && wanted.has(name) && !provided.has(name)) provided.set(name, path.resolve(checkout));
   }

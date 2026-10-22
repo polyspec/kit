@@ -136,6 +136,30 @@ test('make npm-install takes a checkout that provides no npm package and refuses
   assert.match(missing.stderr, /nowhere is no existing directory/);
 });
 
+// K494-2: a repository root whose own package.json carries the name of the package it holds under packages/ (ordered-json) gives its
+// package folder, never itself.
+test('make npm-install links the package folder of a root that shares its package name (K494-2)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-same-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const repository = path.join(root, 'ordered-json');
+  mkdirSync(path.join(repository, 'packages/js'), { recursive: true });
+  writeFileSync(path.join(repository, 'package.json'), JSON.stringify({ name: '@polyspec/ordered-json' }));
+  writeFileSync(path.join(repository, 'packages/js/package.json'), JSON.stringify({ name: '@polyspec/ordered-json', version: '0.0.9', main: 'index.js' }));
+  const project = path.join(root, 'app');
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/ordered-json': 'https://example.invalid/ordered-json-0.0.9.tgz' } }, null, 2) + '\n');
+  writeFileSync(path.join(project, 'package-lock.json'), '{"name":"app","lockfileVersion":3,"requires":true,"packages":{}}\n');
+  const stub = path.join(root, 'npm');
+  writeFileSync(stub, '#!/bin/sh\nprintf "%s\\n" "$1" >> "$NPM_LOG"\nif [ "$1" = install ]; then cat package.json >> "$NPM_LOG"; mkdir -p node_modules; fi\n', { mode: 0o755 });
+  const log = path.join(root, 'npm.log');
+  const kit = fileURLToPath(new URL('../..', import.meta.url));
+  const made = spawnSync('make', ['--no-print-directory', '-C', kit, 'npm-install', `DIR=${project}`, `CHECKOUTS=${repository}`, `NPM=${stub}`, `NODE=${process.execPath}`], { encoding: 'utf8', env: { ...process.env, NPM_LOG: log } });
+  assert.equal(made.status, 0, made.stderr);
+  const recorded = readFileSync(log, 'utf8');
+  assert.ok(recorded.includes(`"file:${path.join(repository, 'packages/js')}"`), 'the package folder is linked');
+  assert.ok(!recorded.includes(`"file:${repository}"`), 'the root is not linked');
+});
+
 // K448-10: an overrides entry of the manifest that names a provided package takes the checkout folder of its direct dependency, so npm
 // accepts the temporary manifest; an override of a direct dependency must have the same spec (npm docs, package.json, overrides).
 test('npm install links a provided package whose manifest overrides entry names the same asset (K448-10)', (t) => {
