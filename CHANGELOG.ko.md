@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 75489a22d51837153f85c29578061a352584092004f5ce9849cbc1b72e7d63cb -->
+<!-- source-sha256: da59a799858a7c706a4308354f651732085930dda75c5c1457e844e4eb379cf2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Python 폴더 link는 uv가 sync하는 환경, 즉 UV_PROJECT_ENVIRONMENT가 설정되면 그것(limepie의 python/var/venv)을, 아니면 .venv를 읽으므로 그 polyspec 패키지가 link된다(K448-14).
 - bootstrap의 install-packages는 다시 package-lock.json을 npm ci로 설치하므로, CI runner처럼 kit.mk가 없는 checkout도 @polyspec/kit을 설치한다. make install은 그 뒤 link한다(K511).
 - link 계약(docs/operations/local-links.md)은 폴더 link를 적는다. polyspec 패키지는 release로 설치된 것으로 보고, 설치 뒤 폴더를 직접 상대 symlink로 바꾸며, 복사본은 금지이고, 어떤 단계도 버전을 판단하지 않으며, worktree는 도구와 의존 폴더를 main checkout의 것으로 link한다(K448-4).
 - `make link`은 checkout의 모든 tracked 프로젝트의 설치된 polyspec 패키지를 link하며, hyper의 examples/board 같은 중첩 Composer 프로젝트도 포함한다. 테스트, fixture, release consumer는 시험하는 설치를 그대로 둔다(K447).
