@@ -21,9 +21,10 @@
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { crc32 } from 'node:zlib';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
@@ -1440,6 +1441,9 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
   return outcome.status ?? 1;
 }
 
+/** A shell word of one single-quoted argument, as the Claude Code hook command runs it. */
+const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
+
 // K440: a Claude Code session started in the workspace folder (the folder of kit and its siblings) loads no .claude/settings.json of
 // kit, so link --siblings writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by its kit checkout.
 const KIT_HOOK = 'scripts/kit/claude-hook.mts';
@@ -1472,7 +1476,6 @@ export function kitNodeRunnable(kit: string): boolean {
 
 /** The PreToolUse entry of the Bash tool that runs the node and the claude-hook of the kit checkout `kit`, both absolute. */
 export function workspaceHookEntry(kit: string) {
-  const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
   return { matcher: 'Bash', hooks: [{ type: 'command', command: `${quote(path.join(kit, KIT_NODE))} ${quote(path.join(kit, KIT_HOOK))}` }] };
 }
 
@@ -1509,6 +1512,69 @@ export function writeWorkspaceHook(workspace: string): string | undefined {
   return file;
 }
 
+// K498: a consumer checkout (link --project) loads the claude-hook of the kit that runs the link, through its untracked
+// .claude/settings.local.json, which the Git exclude of the consumer ignores. The hook is the file beside this module of the same
+// kind (scripts/kit/claude-hook.mts, or dist/claude-hook.mjs of the built package), run by the node of the running link.
+const PROJECT_HOOK_FILE = '.claude/settings.local.json';
+const THIS_MODULE = fileURLToPath(import.meta.url);
+
+/** The settings file of the consumer `project` that the link writes its hook into (K498). */
+export const projectHookFile = (project: string): string => path.join(project, PROJECT_HOOK_FILE);
+
+/** The Bash PreToolUse entry that runs the node of the running link and the claude-hook beside it (K498). */
+function projectHookEntry() {
+  const hook = path.join(path.dirname(THIS_MODULE), `claude-hook${THIS_MODULE.endsWith('.mts') ? '.mts' : '.mjs'}`);
+  return { matcher: 'Bash', hooks: [{ type: 'command', command: `${quote(process.execPath)} ${quote(hook)}` }] };
+}
+
+/** Whether a PreToolUse entry runs a claude-hook of either form (K498). */
+const isClaudeHookEntry = (entry: unknown): boolean => isJsonObject(entry) && Array.isArray(entry.hooks) && entry.hooks.some(hook => isJsonObject(hook) && typeof hook.command === 'string' && /claude-hook\.m[jt]s/.test(hook.command));
+
+/** The settings with `entry` as the one claude-hook entry of PreToolUse, replacing an earlier one; all else is kept (K498). */
+function withProjectHook(settings: Record<string, unknown>, entry: ReturnType<typeof projectHookEntry>): Record<string, unknown> {
+  const hooks = isJsonObject(settings.hooks) ? settings.hooks : {};
+  const pre: unknown[] = Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : [];
+  const index = pre.findIndex(isClaudeHookEntry);
+  const next = index === -1 ? [...pre, entry] : pre.flatMap((item, position) => (position === index ? [entry] : isClaudeHookEntry(item) ? [] : [item]));
+  return { ...settings, hooks: { ...hooks, PreToolUse: next } };
+}
+
+/** Adds the settings file to the Git exclude of the consumer's common directory, when the consumer is a Git checkout (K498). */
+function excludeProjectHook(project: string): void {
+  const common = spawnSync('git', ['-C', project, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' });
+  if (common.status !== 0) return;
+  const exclude = path.join(common.stdout.trim(), 'info', 'exclude');
+  const line = `/${PROJECT_HOOK_FILE}`;
+  const text = existsSync(exclude) ? readFileSync(exclude, 'utf8') : '';
+  if (text.split('\n').includes(line)) return;
+  mkdirSync(path.dirname(exclude), { recursive: true });
+  writeFileSync(exclude, `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${line}\n`);
+}
+
+/** Writes the claude-hook of the running kit into the untracked settings of the consumer `project` (K498); returns the file. */
+export function writeProjectHook(project: string): string {
+  const file = projectHookFile(project);
+  const settings = existsSync(file) ? readJsonObject(project, PROJECT_HOOK_FILE) : {};
+  const next = withProjectHook(settings, projectHookEntry());
+  if (!existsSync(file) || JSON.stringify(next) !== JSON.stringify(settings)) {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeAtomic(file, `${JSON.stringify(next, null, 2)}\n`);
+  }
+  excludeProjectHook(project);
+  return file;
+}
+
+/** The findings of the consumer `project` whose settings lack the claude-hook of the running kit (K498); fix: make link. */
+export function projectHookFindings(project: string): string[] {
+  const file = projectHookFile(project);
+  const settings = existsSync(file) ? readJsonObject(project, PROJECT_HOOK_FILE) : {};
+  const hooks = isJsonObject(settings.hooks) ? settings.hooks : {};
+  const present = (Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : []).filter(isClaudeHookEntry);
+  if (present.length === 0) return [`${file}: no Bash PreToolUse hook runs the claude-hook of the kit that links it (K498); fix: make link`];
+  if (JSON.stringify(present) !== JSON.stringify([projectHookEntry()])) return [`${file}: the Bash PreToolUse hook of the claude-hook differs from the entry the link writes (K498); fix: make link`];
+  return [];
+}
+
 if (isMain(import.meta.url)) {
   const [command, ...rest] = process.argv.slice(2);
   const print: Print = text => process.stdout.write(`${text}\n`);
@@ -1536,6 +1602,9 @@ if (isMain(import.meta.url)) {
       case 'link': case 'check':
         if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined })) process.exitCode = 1;
         else if (command === 'link' && siblings) writeWorkspaceHook(workspaceOf(projectDirectory ?? '.'));
+        // K498: a consumer named by --project loads the claude-hook of the running kit through its untracked settings file.
+        if (projectDirectory !== undefined && command === 'link' && process.exitCode !== 1) writeProjectHook(projectDirectory);
+        if (projectDirectory !== undefined && command === 'check') for (const finding of projectHookFindings(projectDirectory)) { print(finding); process.exitCode = 1; }
         break;
       case 'unlink':
         if (!unlink({ directories, print, project: projectDirectory !== undefined })) process.exitCode = 1;
