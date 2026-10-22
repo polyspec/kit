@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 54b1c605bbcaee2a0c3e20f5393df5557a3e5ad989e7bca90fb9c78c32206cd0 -->
+<!-- source-sha256: 051d6facbe8217757423019986447ae000e40e23af2dcec4082acab996da5f8a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K452-1를 닫는다 (K452-1): 확장 검사가 커밋되었고 커밋된 트리에서 검증되었다.
 
 - K452-1를 마친다 (K452-1): 실행 시작 전에 각 PHP 확장을 검사하고, 로드되지 않는 것은 경로와 실행 중인 PHP를 이름으로 대며 실패한다.
 

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K452-1 is closed (K452-1): the probe of each PHP extension is committed and verified on the committed tree.
+
 - K452-1 is done (K452-1): each PHP extension is probed before the run starts, and one that does not load fails naming its path and the running PHP.
 
 - A PHP extension run probes each --php-extension before PHPUnit starts: one that does not load names its .so path, what PHP reports (the API it was built for), and the running PHP, instead of testing the library silently on the wrong PHP (K452-1).
