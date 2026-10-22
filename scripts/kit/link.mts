@@ -11,13 +11,13 @@
 // No environment variable declares anything: without checkouts nothing is linked, and the installs stay the locked releases.
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
 // below it; with --project the folder is the consumer and its own manifest is read, tracked or not (K212). Each file that link writes
-// into the consumer is one that Git ignores there (the links in the install folders, var/link, and each go.work).
+// into the consumer is one that Git ignores there, and link writes nothing into .git (K512) (the links in the install folders, var/link, and each go.work).
 //   node link.mjs link|check [--project <dir>] [--siblings] <checkout>... | unlink [--project <dir>] | rebuild <repository>... |
 //                 packages <dir> python|npm | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
 import { spawnSync } from 'node:child_process';
-import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
@@ -711,16 +711,13 @@ function withProjectHook(settings: Record<string, unknown>, entry: ReturnType<ty
   return { ...settings, hooks: { ...hooks, PreToolUse: next } };
 }
 
-/** Adds the settings file to the Git exclude of the consumer's common directory, when the consumer is a Git checkout (K498). */
-function excludeProjectHook(project: string): void {
-  const common = spawnSync('git', ['-C', project, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' });
-  if (common.status !== 0) return;
-  const exclude = path.join(common.stdout.trim(), 'info', 'exclude');
-  const line = `/${PROJECT_HOOK_FILE}`;
-  const text = existsSync(exclude) ? readFileSync(exclude, 'utf8') : '';
-  if (text.split('\n').includes(line)) return;
-  mkdirSync(path.dirname(exclude), { recursive: true });
-  writeFileSync(exclude, `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${line}\n`);
+/**
+ * Whether Git ignores the settings file of the consumer `project`, when the consumer is a Git checkout. The link writes nothing into
+ * .git, whose common directory of a worktree is the main checkout's (K512): the consumer's .gitignore ignores the file.
+ */
+function hookFileIgnored(project: string): boolean {
+  if (spawnSync('git', ['-C', project, 'rev-parse', '--git-dir']).status !== 0) return true;
+  return spawnSync('git', ['-C', project, 'check-ignore', '-q', PROJECT_HOOK_FILE]).status === 0;
 }
 
 /** Writes the claude-hook of the running kit into the untracked settings of the consumer `project` (K498); returns the file. */
@@ -732,7 +729,6 @@ export function writeProjectHook(project: string): string {
     mkdirSync(path.dirname(file), { recursive: true });
     writeAtomic(file, `${JSON.stringify(next, null, 2)}\n`);
   }
-  excludeProjectHook(project);
   return file;
 }
 
@@ -744,6 +740,7 @@ export function projectHookFindings(project: string): string[] {
   const present = (Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : []).filter(isClaudeHookEntry);
   if (present.length === 0) return [`${file}: no Bash PreToolUse hook runs the claude-hook of the kit that links it (K498); fix: make link`];
   if (JSON.stringify(present) !== JSON.stringify([projectHookEntry()])) return [`${file}: the Bash PreToolUse hook of the claude-hook differs from the entry the link writes (K498); fix: make link`];
+  if (!hookFileIgnored(project)) return [`${file}: Git does not ignore the settings that the link writes (K512); fix: add the line /${PROJECT_HOOK_FILE} to the .gitignore of ${project}`];
   return [];
 }
 

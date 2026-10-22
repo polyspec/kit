@@ -72,6 +72,7 @@ test('projectHookFindings names the file while it lacks the hook, and passes aft
   const project = consumer(t);
   const file = path.join(project, '.claude/settings.local.json');
   assert.ok(projectHookFindings(project).some(finding => finding.includes(file) && /make link/.test(finding)));
+  writeFileSync(path.join(project, '.gitignore'), '/.claude/settings.local.json\n');
   writeProjectHook(project);
   assert.deepEqual(projectHookFindings(project), []);
 });
