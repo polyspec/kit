@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f333ef25c14938c757d02013e7c0948ed17200a2ee2fc50c151fc1ca2f4046d1 -->
+<!-- source-sha256: 9dd0a013d6c061405c893d5ed72ca22b1312bf0ab8562b9fe834a275cbe09e0a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- worktree-setup은 main checkout이 설치한 모든 npm 프로젝트와 Python 환경을 worktree에 주되, main checkout의 것으로 link하고 저장소 자기 source는 worktree에서 쓴다(K533).
 - makeVenv가 checkout에 없는 uv나 Python과 그것을 설치하는 방법을 다시 알린다. 도구를 찾기 전에 uv, 그다음 python3를 검사하므로 K393-1의 검사가 그 메시지를 가리지 않는다(K535).
 - land는 실행하는 각 make의 출력이 닫히기가 아니라 종료를 기다리고, 30분 기한을 넘긴 실행은 target을 이름 붙여 멈춘다(K531).
 - link는 --project 폴더의 uv workspace member를 읽고, Composer처럼 config.vendor-dir보다 COMPOSER_VENDOR_DIR을 먼저 읽으며, member의 hatchling sources를 설치된 package 경로로 대응시키고, 설치 폴더가 없는 선언된 polyspec package를 link와 check에서 이름과 함께 실패시킨다(K529).

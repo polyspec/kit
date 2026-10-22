@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- worktree-setup gives a worktree every npm project and Python environment that the main checkout installed, linked to the main checkout's with the repository's own sources from the worktree (K533).
 - makeVenv names the missing uv or Python of the checkout and the install that provides it again: it checks uv, then python3, before it resolves them, so the check of K393-1 no longer hides the message (K535).
 - land waits for the exit of each make it runs, not for the close of its output, and stops a run past its deadline of 30 minutes with the target named (K531).
 - link takes the uv workspace members of its project folder, reads COMPOSER_VENDOR_DIR before config.vendor-dir as Composer does, maps a member's hatchling sources to its installed package path, and fails with the name of a declared polyspec package that has no installed folder, in link and check (K529).
