@@ -30,11 +30,20 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
     // K544, K545: the provided packages that the environment holds by their dist-info records, which uv sync reinstalls only when told
     // to, also when their folder is gone; each is reinstalled, since its link goes before the sync and its folder may be missing.
     const held = installedDistributions(project, environment);
-    const installed = providers.filter(provider => held.has(distributionKey(provider.name)));
+    // K548: the project that uv-install installs is no provided package, though a checkout that holds it names it.
+    const installed = providers.filter(provider => path.resolve(provider.folder) !== project && held.has(distributionKey(provider.name)));
     // K539: uv writes through a package link of the environment into its provider checkout, so the links go first.
     for (const link of releaseEnvironmentLinks(project, environment)) write(`uv-install ${project}: unlinked ${link}, so uv writes no provider checkout\n`);
-    const reinstall = installed.flatMap(provider => ['--reinstall-package', provider.name]);
-    run(env.UV ?? 'uv', ['sync', '--frozen', ...sync, ...reinstall], { cwd: project, env });
+    run(env.UV ?? 'uv', ['sync', '--frozen', ...sync], { cwd: project, env });
+    // K548: the reinstall reads only uv's cache, since only the install of the libraries reads the network.
+    if (installed.length > 0) {
+      const reinstall = installed.flatMap(provider => ['--reinstall-package', provider.name]);
+      try {
+        run(env.UV ?? 'uv', ['sync', '--frozen', '--offline', ...sync, ...reinstall], { cwd: project, env });
+      } catch (error) {
+        throw new Error(`${installed.map(provider => provider.name).join(', ')} could not be reinstalled from uv's cache offline; run make uv-install with the network once, or the repository's install of its libraries: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+      }
+    }
     const folders = providedFolders(project, providers, { environment });
     const lost = installed.filter(provider => !folders.some(item => item.name.startsWith(`${provider.name} `)));
     if (lost.length > 0) throw new Error(`${lost.map(provider => provider.name).join(', ')} has no folder in the environment after uv sync, though it was installed; run uv sync --reinstall-package for it in ${project}`);

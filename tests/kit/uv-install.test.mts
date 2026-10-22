@@ -139,7 +139,7 @@ test('uv install reinstalls each provided package whose link it releases, and fa
   writeFileSync(log, '');
   const again = run([project, orm], { ...env, STUB_DIST_INFO: '1' });
   assert.equal(again.status, 0, again.output);
-  assert.match(readFileSync(log, 'utf8'), /^sync --frozen --reinstall-package polyspec-orm$/m, 'the released package is reinstalled');
+  assert.match(readFileSync(log, 'utf8'), /^sync --frozen --offline --reinstall-package polyspec-orm$/m, 'the released package is reinstalled');
   assert.equal(realpathSync(path.join(folder, '__init__.py')), realpathSync(path.join(orm, 'src/polyspec/orm/__init__.py')), 'and linked again');
   rmSync(folder, { recursive: true });
   symlinkSync(path.join(orm, 'src/polyspec/orm'), folder);
@@ -161,7 +161,7 @@ test('uv install reinstalls a provided package whose dist-info stays without its
   writeFileSync(log, '');
   const again = run([project, orm], { ...env, STUB_DIST_INFO: '1' });
   assert.equal(again.status, 0, again.output);
-  assert.match(readFileSync(log, 'utf8'), /^sync --frozen --reinstall-package polyspec-orm$/m, 'the held package is reinstalled');
+  assert.match(readFileSync(log, 'utf8'), /^sync --frozen --offline --reinstall-package polyspec-orm$/m, 'the held package is reinstalled');
   assert.equal(realpathSync(path.join(folder, '__init__.py')), realpathSync(path.join(orm, 'src/polyspec/orm/__init__.py')), 'and linked');
   rmSync(folder, { recursive: true });
   const lost = run([project, orm], { ...env, STUB_DIST_INFO: 'never' });
@@ -175,13 +175,13 @@ test('uv install reinstalls the held packages offline, after its sync, and leave
   const { root, project, log, env } = fixture(t, ['polyspec/orm', 'app_pkg']);
   const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
   mkdirSync(path.join(project, 'src/app_pkg'), { recursive: true });
-  writeFileSync(path.join(project, 'src/app_pkg/__init__.py'), '# the project\\n');
+  writeFileSync(path.join(project, 'src/app_pkg/__init__.py'), '# the project\n');
   assert.equal(run([project, orm], env).status, 0);
   mkdirSync(path.join(project, SITE, 'app-0.dist-info'), { recursive: true });
   writeFileSync(log, '');
   const again = run([project, orm, project], { ...env, STUB_DIST_INFO: '1' });
   assert.equal(again.status, 0, again.output);
-  assert.deepEqual(readFileSync(log, 'utf8').split('\\n').filter(Boolean), ['sync --frozen', 'sync --frozen --offline --reinstall-package polyspec-orm'], 'the reinstall is a run of its own, offline, without the project');
+  assert.deepEqual(readFileSync(log, 'utf8').split('\n').filter(Boolean), ['sync --frozen', 'sync --frozen --offline --reinstall-package polyspec-orm'], 'the reinstall is a run of its own, offline, without the project');
   writeFileSync(log, '');
   const offline = run([project, orm], { ...env, STUB_DIST_INFO: '1', STUB_OFFLINE_FAILS: '1' });
   assert.equal(offline.status, 1, offline.output);
