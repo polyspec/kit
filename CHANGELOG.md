@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K481: generated Composer link manifests express linked exact versions as caret ranges while each path repository keeps the provider's actual version, so strict validation passes without changing the tracked manifest. Real Composer tests prove stale link locks and ordinary exact-version manifest warnings still fail validation (K481).
+
 - K480: Python editable wheels accept listed packages resolved by a default package-dir alongside named mappings, preserve both the import root and finder, and still refuse unmapped packages without a default. Red: both mixed-mapping cases failed with the missing-prefix refusal on the unchanged implementation. Green: all three focused regressions passed (K480).
 
 - K479: generated Composer link requirements use exact provider versions, reject missing or malformed provider versions, and preserve declared constraints and tracked manifests. Path repositories use the same provider version for undeclared packages, not a stale tracked lock; forks retain their conflict-checked exact linked-provider pin (K379-2). Red: the focused regression reported `*` instead of `0.0.1`; the final baseline run had 7 behavioral failures. Green: all 12 focused K479 tests passed, including K379-2 (K479).

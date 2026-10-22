@@ -439,7 +439,7 @@ test('link --siblings links a fork checkout of forks/ beside the checkouts as th
 
 // K379-1: a fork that the consumer pins at an exact version (2.6.0-p1, declared with a vcs repository) is linked with that version, so
 // Composer takes the fork folder for it in the partial update, not the release that the lock recorded.
-test('link --siblings writes the pinned version of a linked fork into the link manifest, so Composer takes it from forks/ (K379-1)', (t) => {
+test('generated Composer link requirements use warning-free ranges and retain exact provider versions (K481, K379-1)', (t) => {
   const { root, consumer, env } = workspace(t);
   const fork = repository(path.join(root, 'forks'), 'json-schema', {
     'composer.json': JSON.stringify({ name: 'opis/json-schema', autoload: { 'psr-4': { 'Opis\\JsonSchema\\': 'src/' } } }),
@@ -461,7 +461,10 @@ test('link --siblings writes the pinned version of a linked fork into the link m
   const manifest: unknown = JSON.parse(readFileSync(path.join(consumer, 'composer.link.json'), 'utf8'));
   if (!isJsonObject(manifest) || !isJsonObject(manifest.require) || !Array.isArray(manifest.repositories)) throw new Error('composer.link.json holds no require and repositories');
   const repositories: unknown[] = manifest.repositories;
-  assert.equal(manifest.require['opis/json-schema'], '2.6.0-p1');
+  assert.equal(manifest.require['opis/json-schema'], '^2.6.0-p1', 'the generated link manifest avoids Composer strict exact-constraint warnings');
+  const trackedManifest = readJsonObject(path.join(consumer, 'composer.json'));
+  if (!isJsonObject(trackedManifest.require)) throw new Error('tracked composer.json has no require');
+  assert.equal(trackedManifest.require['opis/json-schema'], '2.6.0-p1', 'the tracked manifest remains unchanged');
   assert.deepEqual(repositories.find(item => isJsonObject(item) && item.url === fork), { type: 'path', url: fork, options: { symlink: true, versions: { 'opis/json-schema': 'v2.6.0-p1' } } });
 });
 

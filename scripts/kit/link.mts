@@ -454,7 +454,16 @@ function linkManifest(project: string, links: readonly { name: string; folder: s
     if (version === undefined || !exact.test(version)) throw new Error(`${name} has no exact provider version for its linked Composer requirement (K479)`);
     return [name, version];
   });
-  const withRequire = unrequired.length === 0 ? manifest : { ...manifest, require: { ...(isJsonObject(manifest.require) ? manifest.require : {}), ...Object.fromEntries(unrequired) } };
+  // Composer strict validation rejects exact constraints even in this generated manifest. Keep the provider's real version in
+  // the path repository's versions map, and express linked requirements as caret ranges so Composer can resolve that version
+  // without an exact-constraint warning. The tracked manifest is never changed (K479, K481).
+  const linkedNames = new Set(links.map(link => link.name));
+  const range = (version: string) => `^${version.replace(/^v/, '')}`;
+  const requirements = (value: unknown): Record<string, unknown> => isJsonObject(value)
+    ? Object.fromEntries(Object.entries(value).map(([name, constraint]) => [name, linkedNames.has(name) && typeof constraint === 'string' && exact.test(constraint) ? range(constraint) : constraint]))
+    : {};
+  const withRequire: Record<string, unknown> = { ...manifest, require: { ...requirements(manifest.require), ...Object.fromEntries(unrequired.map(([name, version]) => [name, range(version)])) } };
+  if (isJsonObject(manifest['require-dev'])) withRequire['require-dev'] = requirements(manifest['require-dev']);
   return { ...withRequire, repositories };
 }
 

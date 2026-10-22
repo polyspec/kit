@@ -13,6 +13,7 @@ import { initRepository } from '../kit/sandbox-repository.mts';
 import { put } from '../kit/tree.mts';
 import { installedBinary } from './real-tools.mts';
 import { readJsonFile } from '../../scripts/kit/schema-validate.mts';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
 /** Runs `command` in `directory` and fails with its output. */
 function run(directory: string, command: string, ...args: string[]) {
@@ -31,7 +32,7 @@ function repository(root: string, name: string, files: Record<string, string>): 
   return directory;
 }
 
-test('a package whose released archive requires a newer PHP is installed from its folder as a link, and autoloads (K304-1)', (t) => {
+test('linked exact requirements pass strict validation while stale and published manifests still fail (K481, K304-1)', (t) => {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-link-composer-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const composer = installedBinary('composer');
@@ -45,7 +46,7 @@ test('a package whose released archive requires a newer PHP is installed from it
   put(root, { 'archive/composer.json': JSON.stringify({ name: 'polyspec/y', version: '0.0.1', require: { php: '>=99.0' } }), 'archive/Y.php': '<?php\n' });
   run(path.join(root, 'archive'), 'zip', '-q', path.join(archives, 'polyspec-y-0.0.1.zip'), 'composer.json', 'Y.php');
   const consumer = repository(root, 'cons', {
-    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, repositories: [{ type: 'artifact', url: '../archives' }, { packagist: false }], config: { platform: { php: '8.4.1' } } }),
+    'composer.json': JSON.stringify({ name: 'cons/app', license: 'MIT', require: { 'polyspec/y': '0.0.1' }, repositories: [{ type: 'artifact', url: '../archives' }, { packagist: false }], config: { platform: { php: '8.4.1' } } }),
     '.gitignore': 'vendor/\nvar/\n',
   });
   // The state before the link: the lock cannot resolve the archive at PHP 8.4.1, so the lock is made with the platform check off.
@@ -69,6 +70,24 @@ test('a package whose released archive requires a newer PHP is installed from it
   assert.equal(autoload.stdout, 'loaded');
   assert.equal(readFileSync(path.join(consumer, 'composer.json'), 'utf8'), tracked.manifest, 'the tracked composer.json is unchanged');
   assert.equal(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'), tracked.lock, 'the tracked composer.lock is unchanged');
+  const strictLink = spawnSync(composer, ['validate', '--strict', '--no-check-publish', '--no-interaction'], { cwd: consumer, encoding: 'utf8', env: { ...process.env, COMPOSER: 'composer.link.json' } });
+  assert.equal(strictLink.status, 0, `${strictLink.stdout}${strictLink.stderr}`);
+  const publishedValue: unknown = readJsonFile(path.join(consumer, 'composer.json'), 'composer-manifest.schema.json');
+  if (!isJsonObject(publishedValue) || !isJsonObject(publishedValue.require)) throw new Error('published composer.json has no require');
+  publishedValue.require['polyspec/y'] = 'v1.0.0-p1';
+  put(consumer, { 'composer.json': JSON.stringify(publishedValue) });
+  const strictPublished = spawnSync(composer, ['validate', '--strict', '--no-check-publish', '--no-interaction'], { cwd: consumer, encoding: 'utf8' });
+  assert.notEqual(strictPublished.status, 0, 'strict validation still refuses an ordinary manifest exact-version warning');
+  assert.match(`${strictPublished.stdout}${strictPublished.stderr}`, /exact version constraints/);
+  put(consumer, { 'composer.json': tracked.manifest });
+  const generatedValue: unknown = readJsonFile(path.join(consumer, 'composer.link.json'), 'composer-manifest.schema.json');
+  if (!isJsonObject(generatedValue) || !isJsonObject(generatedValue.require)) throw new Error('composer.link.json has no require');
+  generatedValue.require['polyspec/y'] = '^0.0.2';
+  const generated = generatedValue;
+  put(consumer, { 'composer.link.json': JSON.stringify(generated, null, 4) });
+  const staleLink = spawnSync(composer, ['validate', '--strict', '--no-check-publish', '--no-interaction'], { cwd: consumer, encoding: 'utf8', env: { ...process.env, COMPOSER: 'composer.link.json' } });
+  assert.notEqual(staleLink.status, 0, 'strict validation still refuses a stale generated lock');
+  assert.match(`${staleLink.stdout}${staleLink.stderr}`, /lock file is not up to date/);
   assert.equal(run(consumer, 'git', 'status', '--porcelain'), '', 'the link files are ignored by Git');
 });
 

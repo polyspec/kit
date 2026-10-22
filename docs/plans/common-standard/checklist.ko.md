@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 680c62e4bc2f84e331dc8dd0eaa47c16f1959779f6e0a29fe142dc669ed29bda -->
+<!-- source-sha256: c75ddaff9d0881d197d31d8469b967d81785793c1f80d22821a02ebcf656ec56 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -366,3 +366,4 @@
 | K479 | 생성된 composer.link.json은 요구되지 않은 각 연결 Composer 패키지를 wildcard가 아닌 provider의 exact version으로 요구하고, 선언된 제약과 tracked manifest를 보존한다 (K479, K468) | scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K479 -- tests/kit/link.test.mts` | [o] |
 | K479-1 | 이미 연결된 Composer 패키지의 오래된 composer.link.json을 갱신한다 | scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K479-1 -- tests/kit/link.test.mts` | [ ] |
 | K480 | Python 패키지 탐색은 named mapping과 함께 기본 package-dir를 지원한다 | scripts/kit/link.mts, tests/kit/link.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K480 -- tests/kit/link.test.mts` | [o] |
+| K481 | 생성된 Composer link requirement는 lock 무결성을 약화하지 않고 strict validation을 통과한다. | scripts/kit/link.mts, tests/kit/link.test.mts, tests/source/link-composer-real.test.mts, docs/plans/common-standard/checklist.md(.ko), CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K481 -- tests/kit/link.test.mts` `node --test --test-name-pattern=K481 tests/source/link-composer-real.test.mts` | [o] |
