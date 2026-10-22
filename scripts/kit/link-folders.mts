@@ -7,7 +7,7 @@
 //   Python    <site-packages>/<package path>       -> the same package path under the provider's source root (src/ when it has one),
 //             one link per package, so the packages of one namespace (polyspec/orm, polyspec/ordered_json) link apart; a source root
 //             whose pyproject maps its directories in the hatchling wheel sources links each directory to its mapped package path (K529)
-import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
@@ -126,8 +126,8 @@ const present = (file: string): boolean => {
  * project or absolute, K448-14), else .venv; each is <environment>/lib/<python>/site-packages.
  */
 /**
- * Removes each entry of the site-packages of the environment of `project` (`environment` as in sitePackages) that is a link
- * resolving outside the environment, a package folder that link made into a provider checkout, and returns the removed paths
+ * Removes each entry of the site-packages of the environment of `project` (`environment` as in sitePackages), at any depth of its
+ * real folders, that is a link resolving outside the environment, a package folder that link made into a provider checkout, and returns the removed paths
  * (K539): uv writes and deletes through such a link, so every uv install of the environment removes them first; the link only
  * goes, never its target. A dangling link goes too.
  */
@@ -135,16 +135,20 @@ export function releaseEnvironmentLinks(project: string, environment: string | u
   const venv = path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment);
   const own = existsSync(venv) ? realpathSync(venv) : venv;
   const removed: string[] = [];
-  for (const folder of sitePackages(project, environment)) {
+  // K541: the real folders of site-packages at any depth, as a namespace folder that holds a link of its package.
+  const visit = (folder: string) => {
     for (const name of readdirSync(folder)) {
       const entry = path.join(folder, name);
-      if (!lstatSync(entry).isSymbolicLink()) continue;
+      const stat = lstatSync(entry);
+      if (stat.isDirectory()) visit(entry);
+      if (!stat.isSymbolicLink()) continue;
       const target = existsSync(entry) ? realpathSync(entry) : undefined;
       if (target !== undefined && target.startsWith(`${own}${path.sep}`)) continue;
       unlinkSync(entry);
       removed.push(entry);
     }
-  }
+  };
+  for (const folder of sitePackages(project, environment)) visit(folder);
   return removed;
 }
 
@@ -253,10 +257,77 @@ export function hasPythonPackages(provider: Provider): boolean {
 /** Whether `folder` is a symbolic link that resolves to `target`. */
 const linksTo = (folder: string, target: string): boolean => lstatSync(folder).isSymbolicLink() && existsSync(folder) && realpathSync(folder) === realpathSync(target);
 
-/** Replaces each provided folder that is not a link to its target with that link; returns a line for each folder it changed. */
+// The cache that Python writes beside the files of a package, which is no file of the package (K541).
+const PYTHON_CACHE = '__pycache__';
+
+/** The files of the provider folder `target`, relative to it, at any depth, without the caches of Python (K541). */
+function providerFiles(target: string, relative = ''): string[] {
+  return readdirSync(path.join(target, relative), { withFileTypes: true }).flatMap((entry) => {
+    const name = path.join(relative, entry.name);
+    if (entry.isDirectory()) return entry.name === PYTHON_CACHE ? [] : providerFiles(target, name);
+    return [name];
+  }).sort();
+}
+
+/** The entries of the folder `folder`, relative to it, at any depth, without the caches of Python: files, links and empty folders. */
+function treeEntries(folder: string, relative = ''): string[] {
+  return readdirSync(path.join(folder, relative), { withFileTypes: true }).flatMap((entry) => {
+    const name = path.join(relative, entry.name);
+    if (entry.isDirectory()) return entry.name === PYTHON_CACHE ? [] : treeEntries(folder, name);
+    return [name];
+  }).sort();
+}
+
+/**
+ * The findings of the Python package folder of `item` (K541): it is a real folder whose entries are exactly the files of the provider,
+ * each a link to its file; uv deletes and writes through a directory link, and never through the link of a file.
+ */
+function pythonTreeFindings(root: string, item: ProvidedFolder): string[] {
+  const shown = path.relative(root, item.folder);
+  const head = `${item.ecosystem} ${item.name}`;
+  if (lstatSync(item.folder).isSymbolicLink()) return [`${head}: ${shown} is a directory link into the provider, through which uv deletes its files; fix: make link`];
+  const files = providerFiles(item.target);
+  const found = files.flatMap((file) => {
+    const entry = path.join(item.folder, file);
+    const stat = lstatSync(entry, { throwIfNoEntry: false });
+    if (stat === undefined) return [`${head}: ${file} of the provider has no link; fix: make link`];
+    if (!stat.isSymbolicLink()) return [`${head}: ${path.join(shown, file)} is a copy, not a link to ${path.join(item.target, file)}; fix: make link`];
+    return linksTo(entry, path.join(item.target, file)) ? [] : [`${head}: ${path.join(shown, file)} links elsewhere than ${path.join(item.target, file)}; fix: make link`];
+  });
+  const extra = treeEntries(item.folder).filter(entry => !files.includes(entry));
+  return [...found, ...extra.map(entry => `${head}: ${path.join(shown, entry)} is no file of the provider; fix: make link`)];
+}
+
+/**
+ * Makes the Python package folder of `item` a real folder of relative per-file links into the provider (K541), replacing a directory
+ * link, a copy or an outdated tree; a removal takes the links and the copies of the folder, never the files of the provider. Returns
+ * what the folder was, or undefined when it was already the tree.
+ */
+function linkPythonTree(root: string, item: ProvidedFolder): string | undefined {
+  const findings = pythonTreeFindings(root, item);
+  if (findings.length === 0) return undefined;
+  const was = lstatSync(item.folder).isSymbolicLink() ? 'a directory link' : 'a folder that differs from the provider';
+  rmSync(item.folder, { recursive: true, force: true });
+  for (const file of providerFiles(item.target)) {
+    const entry = path.join(item.folder, file);
+    mkdirSync(path.dirname(entry), { recursive: true });
+    symlinkSync(path.relative(path.dirname(entry), path.join(item.target, file)), entry);
+  }
+  return was;
+}
+
+/**
+ * Replaces each provided folder that is not a link to its target with that link, and makes a Python package folder a folder of
+ * per-file links (K541); returns a line for each folder it changed.
+ */
 export function linkFolders(folders: readonly ProvidedFolder[]): string[] {
   const lines: string[] = [];
   for (const item of folders) {
+    if (item.ecosystem === 'python') {
+      const was = linkPythonTree(path.dirname(item.folder), item);
+      if (was !== undefined) lines.push(`${item.ecosystem} ${item.name}: ${item.folder} was ${was}; linked file by file to ${item.target}`);
+      continue;
+    }
     // A link to the right folder stays, unless it is absolute, which is made relative (K326-3).
     if (linksTo(item.folder, item.target) && !path.isAbsolute(readlinkSync(item.folder))) continue;
     const was = lstatSync(item.folder).isSymbolicLink() ? 'a link elsewhere' : 'a copy';
@@ -268,9 +339,10 @@ export function linkFolders(folders: readonly ProvidedFolder[]): string[] {
   return lines;
 }
 
-/** The findings of the provided folders: a copy, or a link to another folder than its provider's. Nothing else is judged. */
+/** The findings of the provided folders: a copy, or a link to another folder than its provider's, and for Python the tree of K541. */
 export function folderFindings(root: string, folders: readonly ProvidedFolder[]): string[] {
   return folders.flatMap((item) => {
+    if (item.ecosystem === 'python') return pythonTreeFindings(root, item);
     const shown = path.relative(root, item.folder);
     if (!lstatSync(item.folder).isSymbolicLink()) return [`${item.ecosystem} ${item.name}: ${shown} is a copy, not a link to ${item.target}; fix: make link`];
     if (!linksTo(item.folder, item.target)) return [`${item.ecosystem} ${item.name}: ${shown} links to ${existsSync(item.folder) ? realpathSync(item.folder) : 'nothing'}, not to ${item.target}; fix: make link`];
