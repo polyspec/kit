@@ -1951,3 +1951,20 @@ test('a repository with one implementation needs no parity declaration; one with
   const findings = checkParity(two, { execute: false }).findings.map(item => item.message);
   assert.deepEqual(findings, ['config/parity.json does not exist, and packages/ holds 3 implementations (packages/ts, packages/validator/go, packages/validator/php); declare them and their units there (scripts/kit/schema/parity.schema.json)']);
 });
+
+// K517: a check that did not run never passes: a run scoped to codec leaves out width, which breaks the schema, names it, and runs
+// the rules on the rest, so the finding of codec counts; with no other unit broken, the run is the same as before.
+test('parity-declarations-check UNITS runs the rules on the named units while another unit breaks the schema (K517)', TIMEOUT, (t) => {
+  const root = repository(t, { edit: config => {
+    delete itemWhere(config.units, (entry: { id: string }) => entry.id === 'width').requirements;
+    itemWhere(config.units, (entry: { id: string }) => entry.id === 'codec').requirements = ['CX-9'];
+    return config;
+  } });
+  const lines: string[] = [];
+  const codec = checkParity(root, { execute: false, env: ENV, say: line => lines.push(line), units: ['codec'] }).findings;
+  assert.ok(codec.some(item => item.unit === 'codec' && item.rule === 'R14'), keys(codec).join('\n'));
+  assert.ok(lines.some(line => /^width breaks the schema of config\/parity\.json and is left out; the rules run on the other units$/.test(line)), lines.join('\n'));
+  const make = spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', 'UNITS=codec'], { cwd: root, env: ENV, encoding: 'utf8' });
+  assert.notEqual(make.status, 0, make.stdout + make.stderr);
+  assert.match(make.stderr, /\[parity\] R14 unknown-requirement codec: cites CX-9/);
+});
