@@ -756,13 +756,15 @@ export function providerEntries(
 function composerForm(entry: Record<string, unknown>, written: Record<string, unknown>): Record<string, unknown> {
   // K439-5: the release facts of the tracked entry (its source and notification-url) are kept when the writer does not write them for a path
   // repository; the writer's own keys keep their Composer form.
-  const kept = ['name', 'version', 'dist', 'source', 'notification-url'];
+  // K439-6: the version is the one Composer's writer resolved (a pinned fork is the pin, not the version the lock recorded before).
+  const kept = ['name', 'dist', 'source', 'notification-url'];
   const next: Record<string, unknown> = {};
   const keys = [...new Set([...Object.keys(written), ...kept.filter(key => key in entry)])];
   for (const key of keys) {
     if (key === 'transport-options' || key === 'time') continue;
     if (kept.includes(key) && key in entry) next[key] = entry[key];
     else if (key in written) next[key] = written[key];
+    else if (key === 'version' && key in entry) next[key] = entry[key];
   }
   return next;
 }

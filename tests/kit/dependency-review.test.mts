@@ -362,7 +362,7 @@ test('the provider entries are Composer\'s own, and a rerun on its lock changes 
   );
 });
 
-test('Composer provider entries use a sibling exact requirement for a path package while preserving the tracked lock version (K468-2)', (t) => {
+test('Composer provider entries use a sibling exact requirement for a path package; the tracked version stays only while it satisfies the locked requirements (K468-2, K439-6)', (t) => {
   const checkout = repositoryRoot();
   const composer = composerOfCheckout(checkout, 'the test of K468-2');
   const toolEnv = toolingEnvironment(checkout);
@@ -392,8 +392,21 @@ test('Composer provider entries use a sibling exact requirement for a path packa
   const resolvedEntries: unknown[] = Array.isArray(parsed.packages) ? parsed.packages.map((item: unknown) => item) : [];
   const yamlEntry = resolvedEntries.find((item: unknown) => isJsonObject(item) && item.name === 'purrphp/yaml');
   assert.ok(isJsonObject(yamlEntry));
-  assert.equal(yamlEntry.version, '1.0.0', 'the tracked lock version remains unchanged');
+  // K439-6 ruling: the tracked 1.0.0 breaks orm's locked requirement 1.0.0-p1, so the writer's version is the entry's version.
+  assert.equal(yamlEntry.version, '1.0.0-p1', 'the tracked version breaks a locked requirement, so the writer resolved version is recorded');
   assert.ok(result.rewritten.includes('purrphp/yaml'), 'provider metadata is rewritten from Composer output');
+  // K468-2: a tracked version that satisfies every locked requirement stays unchanged.
+  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { 'purrphp/yaml': '^1.0' } }));
+  const satisfied = new Map([
+    ['purrphp/yaml', { name: 'purrphp/yaml', type: 'library', require: { php: '^8.3' } }],
+    ['polyspec/orm', { name: 'polyspec/orm', type: 'library', require: { 'purrphp/yaml': '^1.0' } }],
+  ]);
+  const kept = providerEntries(tracked, satisfied, manifest, new Map([['purrphp/yaml', { name: 'purrphp/yaml', version: '1.0.0', dist: { type: 'path', url: '../yaml' }, require: { php: '^8.3' }, type: 'library' }]]));
+  const keptParsed: unknown = JSON.parse(kept.text);
+  const keptList: unknown = isJsonObject(keptParsed) ? keptParsed.packages : undefined;
+  const keptYaml: unknown = Array.isArray(keptList) ? keptList.find((item: unknown) => isJsonObject(item) && item.name === 'purrphp/yaml') : undefined;
+  assert.ok(isJsonObject(keptYaml));
+  assert.equal(keptYaml.version, '1.0.0', 'a tracked version that satisfies the locked requirements stays unchanged');
 });
 
 test('K435-1: targeted Go and PyPI releases validate and produce exact update steps', (t) => {
@@ -625,4 +638,17 @@ test('a provider entry keeps the source and the notification-url that the tracke
   assert.deepEqual(entry.source, source, 'the release source stays');
   assert.equal(entry['notification-url'], 'https://packagist.org/downloads/', 'the notification url stays');
   assert.deepEqual(entry.dist, dist, 'the release dist stays');
+});
+
+// K439-6: a provided package takes the version that Composer's writer chose for it, when the writer resolved a pinned fork to another version:
+// the tracked lock recorded 1.0.0, and the pinned fork is 1.0.0-p1, which the polyspec package requires.
+test('a provider entry records the version that the writer resolved for a pinned fork (K439-6)', () => {
+  const lock = `${JSON.stringify({ 'content-hash': 'abc', packages: [{ name: 'purrphp/yaml', version: '1.0.0', dist: { type: 'path', url: '../../forks/yaml' }, require: { php: '>=8.1' } }], 'packages-dev': [] }, null, 4)}\n`;
+  const written = new Map([['purrphp/yaml', { name: 'purrphp/yaml', version: 'v1.0.0-p1', dist: { type: 'path', url: '../../forks/yaml' }, require: { php: '>=8.1' }, type: 'library' }]]);
+  const result = providerEntries(lock, new Map([['purrphp/yaml', { name: 'purrphp/yaml', require: { php: '>=8.1' }, type: 'library' }]]), undefined, written);
+  const parsed: unknown = JSON.parse(result.text);
+  const list: unknown = isJsonObject(parsed) ? parsed.packages : undefined;
+  const entry: unknown = Array.isArray(list) ? list[0] : undefined;
+  assert.ok(isJsonObject(entry), result.text);
+  assert.equal(entry.version, 'v1.0.0-p1', 'the version is the one the writer resolved for the pinned fork');
 });

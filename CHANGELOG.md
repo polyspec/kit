@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K439-6: composer-provider-entries takes the version Composer's writer resolved when the tracked version breaks a locked requirement, such as a fork pinned by polyspec/orm (K439-6). K468-2's rule narrows to a tracked version that satisfies every locked requirement, by link-owner's ruling. Red: node --test --test-name-pattern=K439-6 tests/kit/dependency-review.test.mts exit 1 (the tracked 1.0.0 was kept); green: the owner file passes 31 of 31 under make, lint-ts passes. (K439-6).
 - `make composer-install` takes `NO_DEV=1`, which installs the tracked lock with `--no-dev` for a production install (K483-2).
 - `composer-install` and `npm-install` refuse a declared polyspec package that has no checkout, in every mode, naming the package, and run no npm ci or composer install in its place (K483-1).
 - K448-13: npm-install finds a sibling package up to three folders down under packages/, so a repository that keeps a package at packages/server/ts (hyper) provides it and npm never fetches the release (K448-13). Red: node --test --test-name-pattern=K448-13 tests/kit/npm-install.test.mts exit 1 (the package was not linked and npm ci fetched it); green: make item-test ID=K448-13 passes, the npm-install file passes 10 of 10, lint-ts passes. (K448-13).
