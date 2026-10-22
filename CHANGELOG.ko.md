@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d45f8985f27a868254e2f89df040d44e478f671687e320abc21d4078ec59c3ad -->
+<!-- source-sha256: 21539601b5893a3eedcd2894f0033e7ada0f674706fc2b418498fbc18145ebb8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- land와 branch commit의 행 ID 검사는 branch가 갈라진 뒤 더하거나 바꾼 행만 main과 비교하므로, 행 문구를 바꾼 main보다 뒤처진 branch가 더는 거부되지 않는다(K497-1).
 - `link --project <dir> --siblings`와 `check --project <dir> --siblings`는 옆에 polyspec checkout이 없는 consumer의 claude-hook 항목을 early return 전에 쓰고 검사한다(K498-4).
 - main의 `make commit`은 checklist의 크기와 상관없이 HEAD의 행을 읽으므로 orm의 checklist(1MB 초과)의 상태 변경은 새 행이 아니며, git이 읽지 못하는 HEAD의 checklist는 원인과 함께 commit을 실패시킨다(K499-1).
 - K452-1를 닫는다 (K452-1): 확장 검사가 커밋되었고 커밋된 트리에서 검증되었다.
