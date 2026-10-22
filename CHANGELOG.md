@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `link --project <dir>` writes the kit hook entry of `<dir>/.claude/settings.local.json` before the packages are linked, and whatever their result, so a checkout without installs gets the hook (K506).
 - K492: The kit Go pin is go1.27.3, the release without the advisory GO-2026-6809; mise.toml, the lock, the pins file, the symbols go.mod and the tool inventory name it. Red: make item-red ID=K492 exit 1 (kit pin 1.27.2). Green: make item-test ID=K492 passes under make. (K492).
 - `make land` holds a lock for its whole run, so a second land waits for the first, and refuses its merge when main moved while its gates ran, naming the commits that moved it; `make hooks` writes a reference-transaction hook that refuses a move of main except by make land (`KIT_MAIN_WRITER`) or by a commit whose pre-commit hook passed, so a manual `git merge --ff-only`, `git reset` or `git commit --no-verify` on main is refused; run `make hooks` once (K495).
 - K448-5-2: `make cargo-fetch` resolves and fetches the patched graph in the link state (var/link) without --locked, so a sibling whose dependencies are ahead of the locked release no longer fails the fetch; the tracked Cargo.lock and Cargo.toml stay unchanged, and a run without siblings stays a plain locked fetch (K448-5-2). Red: `node --test --test-name-pattern=K448-5-2 tests/kit/link.test.mts` failed on 9f3a0ff8 (the fetch ran with --locked); green: the K448, K489 and K440 tests pass (15 of 15).

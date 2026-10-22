@@ -1603,10 +1603,11 @@ if (isMain(import.meta.url)) {
     }
     switch (command) {
       case 'link': case 'check':
+        // K498, K506: a consumer named by --project loads the claude-hook of the running kit through its untracked settings file. The
+        // hook does not depend on the packages, so it is written before they are linked, and whatever their result (the exit status is theirs).
+        if (projectDirectory !== undefined && command === 'link') writeProjectHook(projectDirectory);
         if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined })) process.exitCode = 1;
         else if (command === 'link' && siblings) writeWorkspaceHook(workspaceOf(projectDirectory ?? '.'));
-        // K498: a consumer named by --project loads the claude-hook of the running kit through its untracked settings file.
-        if (projectDirectory !== undefined && command === 'link' && process.exitCode !== 1) writeProjectHook(projectDirectory);
         if (projectDirectory !== undefined && command === 'check') for (const finding of projectHookFindings(projectDirectory)) { print(finding); process.exitCode = 1; }
         break;
       case 'unlink':

@@ -62,3 +62,12 @@ test('projectHookFindings names the file while it lacks the hook, and passes aft
   writeProjectHook(project);
   assert.deepEqual(projectHookFindings(project), []);
 });
+
+// K506: the hook entry is written before the packages are linked, whatever their result, so a checkout without installs gets it.
+test('link --project writes the hook entry even when a polyspec package has no provider and the link fails (K506)', (t) => {
+  const project = consumer(t);
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true, dependencies: { '@polyspec/x': '0.0.1' } }));
+  const result = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--project', project], { encoding: 'utf8' });
+  assert.notEqual(result.status, 0, 'the link fails for the package without a provider');
+  assert.deepEqual(readJsonObject(project, '.claude/settings.local.json'), { hooks: { PreToolUse: [entry] } });
+});

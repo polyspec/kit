@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 88ac5a9acfd3d013b24e1781002834fbbc1b441e15a5fa83b9121f475264e95c -->
+<!-- source-sha256: 0a8eef14a209c31531844125f04341b7551f6ec242de8121afe76b88836e4a36 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -400,4 +400,4 @@
 | K478 | polyspec-lock-check는 link의 ownership discovery를 재사용해 현재 repository 자체 workspace가 실제 제공하는 polyspec package name만 제외하고, 외부 sibling package는 계속 finding으로 보고한다 | scripts/kit/polyspec-lock-check.mts, tests/kit/polyspec-lock.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K478 -- tests/kit/polyspec-lock.test.mts` | [o] |
 | K478-1 | tracked package manifest symlink의 대상이 현재 repository 밖이면 locked external 0.0.x polyspec package에 자체 workspace 면제를 부여하지 않는다 | scripts/kit/polyspec-lock-check.mts, tests/kit/polyspec-lock.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K478-1 -- tests/kit/polyspec-lock.test.mts` | [o] |
 | K492 | kit의 Go 핀은 GO-2026-6809(crypto/x509가 침해된 중간 인증서를 불신)를 고친 릴리스 go1.27.3이다; kit이 저장소로 동기화하는 사본은 더 이상 그 advisory가 있는 stdlib v1.27.2를 고정하지 않는다 (orm KSTD-5-27과 fsm S-55가 이것으로 닫힌다) | mise.toml, mise.lock | `node --test --test-name-pattern=K492 tests/kit/check-toolchain.test.mts` | [o] |
-| K506 | `link --project <dir>`는 package link 전에, 그리고 그 결과와 관계없이 kit hook 항목을 쓰고 검사한다. 원인: K498은 link가 성공한 뒤에만 항목을 쓰므로, package가 설치되지 않은 checkout은 hook을 받지 못하는데 hook은 package에 의존하지 않는다. 완료 기준: `<dir>/.claude/settings.local.json`의 항목과 Git exclude는 package를 link하기 전에 쓰이며, link되지 않은 package가 있어도 쓰인 채로 남고 종료 상태는 link의 것이다; `link check --project <dir>`는 package가 설치되지 않아도 항목이 없거나 다르면 보고한다. 빨강 fixture: package가 설치되지 않은 consumer checkout은 지금 hook을 받지 못한다. | scripts/kit/link.mts, tests/kit/project-hook.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test --test-name-pattern=K506 tests/kit/project-hook.test.mts` | [ ] |
+| K506 | `link --project <dir>`는 package link 전에, 그리고 그 결과와 관계없이 kit hook 항목을 쓰고 검사한다. 원인: K498은 link가 성공한 뒤에만 항목을 쓰므로, package가 설치되지 않은 checkout은 hook을 받지 못하는데 hook은 package에 의존하지 않는다. 완료 기준: `<dir>/.claude/settings.local.json`의 항목과 Git exclude는 package를 link하기 전에 쓰이며, link되지 않은 package가 있어도 쓰인 채로 남고 종료 상태는 link의 것이다; `link check --project <dir>`는 package가 설치되지 않아도 항목이 없거나 다르면 보고한다. 빨강 fixture: package가 설치되지 않은 consumer checkout은 지금 hook을 받지 못한다. | scripts/kit/link.mts, tests/kit/project-hook.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test --test-name-pattern=K506 tests/kit/project-hook.test.mts` | [o] |

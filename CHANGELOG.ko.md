@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c94036b7f4e432c507261f57cd76f6ea54fa2b6ac758c445449d7e7bf4952f06 -->
+<!-- source-sha256: 7cf2bb2b75b77648c1f2c1c071e32e6b492a9880c315ae9f07b6ae5c731120a7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `link --project <dir>`는 package를 link하기 전에, 그 결과와 관계없이 `<dir>/.claude/settings.local.json`의 kit hook 항목을 쓰므로, 설치되지 않은 checkout도 hook을 받는다(K506).
 - K492: kit의 Go 핀은 advisory GO-2026-6809가 없는 릴리스 go1.27.3이다; mise.toml, lock, 핀 파일, symbols go.mod, tool inventory가 그것을 적는다. Red: make item-red ID=K492 exit 1 (kit 핀 1.27.2). Green: make 아래 make item-test ID=K492 통과. (K492).
 - `make land`는 실행 내내 lock을 잡으므로 두 번째 land는 첫 번째를 기다리고, gate가 도는 동안 main이 움직였으면 움직인 commit을 이름 붙여 merge를 거부한다. `make hooks`는 reference-transaction hook을 쓰며, 그 hook은 make land(`KIT_MAIN_WRITER`)나 pre-commit hook을 통과한 commit이 아닌 main의 이동을 거부하므로 main에서 수동 `git merge --ff-only`, `git reset`, `git commit --no-verify`는 거부된다. `make hooks`를 한 번 실행하라(K495).
 - K448-5-2: `make cargo-fetch`는 patch된 그래프를 link 상태(var/link)에서 --locked 없이 해석하고 fetch하므로, dependency가 잠긴 release보다 앞선 sibling이 fetch를 실패시키지 않는다. 추적 Cargo.lock과 Cargo.toml은 그대로이며, sibling 없이 실행하면 plain 잠금 fetch를 유지한다 (K448-5-2). Red: 수정 전 `node --test --test-name-pattern=K448-5-2 tests/kit/link.test.mts`가 9f3a0ff8에서 실패했고(fetch가 --locked로 실행됨), green은 K448, K489, K440 테스트가 15/15 통과한다.
