@@ -202,8 +202,9 @@ test('each tool starts with its progress and timeout arguments and no limit on a
   assert.ok(node.args.some(arg => arg.startsWith('--import=file://') && arg.endsWith('scripts/kit/test-exit-deadline.mts?ms=7000')));
   const vitest = toolCommand({ tool: 'vitest', timeoutSeconds: 7, cwd: '/r', args: [] }, '/r');
   assert.deepEqual(vitest.args.slice(0, 4), ['/r/node_modules/vitest/vitest.mjs', 'run', '--testTimeout=7000', '--hookTimeout=7000']);
-  assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/go'), args: ['test', '-json', '-count=1', '-timeout=0', './...'] });
+  assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/go'), args: ['test', '-json', '-count=1', '-timeout=0', './...'], build: ['test', '-exec=true', './...'] });
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
+  assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').build, ['test', '--no-run', '-p', 'x']);
   assert.deepEqual(toolCommand({ tool: 'python', timeoutSeconds: 7, cwd: '/r', args: ['discover', '-s', 'tests'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/python3'), args: ['-c', PYTHON_START, tool(import.meta.resolve('../../scripts/kit/runners/python.py')), '--timeout', '7', 'discover', '-s', 'tests', '-v'] });
 });
 
@@ -436,10 +437,11 @@ async function inProcess(t: TestContext, args: string[], { path: extraPath, root
 }
 
 // The go of the checkout is the shim of mise in var/tools/mise/shims, never the go of PATH (K393), so a stub of go is written there.
+// The shim builds nothing: run-tests calls it with -exec=true to build the tests before it runs them (K549-1).
 function goShim(root: string, script: string) {
   const file = path.join(root, 'var/tools/mise/shims/go');
   mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, `#!/usr/bin/env node\n${script}\n`);
+  writeFileSync(file, `#!/usr/bin/env node\nif (process.argv.includes('-exec=true')) process.exit(0);\n${script}\n`);
   chmodSync(file, 0o755);
 }
 
@@ -612,18 +614,20 @@ test('a python gap between two tests that outlives the timeout names the end of 
   assert.ok(elapsed < 4000, `the run took ${elapsed} ms, expected the timeout before the 5 s sleep`);
 });
 
-// A go package whose build or bootstrap outlives the timeout emits its first event after the sleep: the gap stops go before it.
-test('a go bootstrap that outlives the timeout stops the tool before its first event (K371-1)', { timeout: 60_000 }, async (t) => {
+// A go test binary whose bootstrap (an init or TestMain) outlives the timeout after it started emits its first test after the
+// sleep: the gap stops go before it. Its build is no test time (K549-1); the bound of the run, far below the sleep, allows the
+// start of the shim for the build.
+test('a go bootstrap that outlives the timeout stops the tool before its first test (K371-1)', { timeout: 60_000 }, async (t) => {
   const root = tree(t);
-  const events = [{ Action: 'start', Package: 'p' }, { Action: 'run', Package: 'p', Test: 'TestA' }, { Action: 'pass', Package: 'p', Test: 'TestA', Elapsed: 0 }, { Action: 'pass', Package: 'p', Elapsed: 0 }];
-  goShim(root, `setTimeout(() => { for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e)); }, 5000);`);
+  const events = [{ Action: 'run', Package: 'p', Test: 'TestA' }, { Action: 'pass', Package: 'p', Test: 'TestA', Elapsed: 0 }, { Action: 'pass', Package: 'p', Elapsed: 0 }];
+  goShim(root, `console.log(JSON.stringify({ Action: 'start', Package: 'p' })); setTimeout(() => { for (const e of ${JSON.stringify(events)}) console.log(JSON.stringify(e)); }, 20_000);`);
   const began = Date.now();
   const result = await inProcess(t, ['go', '--timeout', '1', './...'], { root });
   const elapsed = Date.now() - began;
   assert.equal(result.status, 1, result.text);
   assert.match(result.text, /⏱ no test started within 1 s after the start of the run; the run elapsed [\d.]+s; stopping `[^`]*var\/tools\/mise\/shims\/go test -json`/);
   assert.match(result.text, /✖ go \. \.\/\.\.\.: 0 passed, 0 failed, 1 timed out/);
-  assert.ok(elapsed < 4000, `the run took ${elapsed} ms, expected the timeout before the 5 s sleep`);
+  assert.ok(elapsed < 10_000, `the run took ${elapsed} ms, expected the timeout before the 20 s sleep`);
 });
 
 // The gap watch is armed at the start of the run and after each test ends, and a test start disarms it: a running test has the

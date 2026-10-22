@@ -40,7 +40,7 @@ import { createProgress } from './test-progress.mts';
 import { createGap, parseTestEvent, PROCESS_UP, START_UP_MS, TEST_EVENTS, TEST_EVENTS_FD } from './test-gap.mts';
 import { compactSeconds } from './time.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
-import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
+import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress, type Sink, type TestRef } from './test-output.mts';
 // stopGroup is the group stop of process-group.mts, which run-command shares (K430).
 import { signalGroup, stopGroup } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
@@ -166,7 +166,7 @@ export function probeExtensions(extensions: string[], php: string): string | und
   return undefined;
 }
 
-export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [], venv, module, library }: ToolOptions, root = repositoryRoot()) {
+export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [], venv, module, library }: ToolOptions, root = repositoryRoot()): { command: string; args: string[]; build?: string[] } {
   const milliseconds = String(timeoutSeconds * 1000);
   switch (tool) {
     case 'node':
@@ -184,11 +184,12 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
       // go test has no limit per test; this runner applies it. -timeout=0 removes the limit of go test on a whole test
       // binary, a package.
       // go is the one of mise.toml, run by the shim of the checkout, never the go of PATH.
-      return { command: checkoutFile(miseCommand(root, 'go')), args: ['test', '-json', '-count=1', '-timeout=0', ...args] };
+      // The build runs the test binaries with `true`, which ends at once, so it compiles each binary and runs no test (K549-1).
+      return { command: checkoutFile(miseCommand(root, 'go')), args: ['test', '-json', '-count=1', '-timeout=0', ...args], build: ['test', '-exec=true', ...args] };
     case 'cargo':
       // One test at a time, so each test prints its start before its result. cargo is not pinned by kit: rustup finds it on PATH
       // (rust-toolchain.toml), so it is the one command that is not resolved by the checkout.
-      return { command: 'cargo', args: ['test', ...splitCargo(args).cargo, '--', '--test-threads=1', ...splitCargo(args).harness] };
+      return { command: 'cargo', args: ['test', ...splitCargo(args).cargo, '--', '--test-threads=1', ...splitCargo(args).harness], build: ['test', '--no-run', ...splitCargo(args).cargo] };
     case 'phpunit': {
       // PHPUnit of the vendor directory that Composer gives the package of `cwd`: its own, or that of the nearest Composer
       // project above it, such as the root of a monorepo (composer-vendor.mts, K186); with none, the path of its own, whose
@@ -242,6 +243,12 @@ export function terminateGroup(pgid: number, kill?: Parameters<typeof signalGrou
   return signalGroup(pgid, 'SIGTERM', kill);
 }
 
+/**
+ * The bound of the build that go and cargo run before their tests (K549-1): compiling is no test time and on a loaded machine
+ * takes minutes, so it has its own bound, and the gap watch of the run starts when the tests are built.
+ */
+export const BUILD_MS = 1_200_000;
+
 /** How long a stopped tool has to close after SIGTERM before its group receives SIGKILL. */
 const STOP_GRACE_MS = 5000;
 
@@ -251,12 +258,12 @@ const INTERRUPTS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 /** How often the runner checks that its parent is still the process that started it. */
 const PARENT_POLL_MS = 200;
 
-export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env, startUpMs = START_UP_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv; startUpMs?: number } = {}): Promise<number> {
+export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env, startUpMs = START_UP_MS, buildMs = BUILD_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv; startUpMs?: number; buildMs?: number } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
   // The tests of the PHP library run against the extension with none of the library's sources (K329).
   const library = options.withoutLibrary === undefined ? undefined : libraryTestRun(root, options.withoutLibrary, callerEnv);
-  const { command, args } = toolCommand({ ...options, ...(library === undefined ? {} : { library }) }, root);
+  const { command, args, build } = toolCommand({ ...options, ...(library === undefined ? {} : { library }) }, root);
   const label = `${options.tool} ${path.relative(root, options.cwd) || '.'}${options.args.length ? ` ${options.args.join(' ')}` : ''}`;
   write(`▶ ${label} (each test ${options.timeoutSeconds}s)\n`);
   // A run that selects no test runs a whole runtime, which is a suite and runs only in CI (ci-only.mts).
@@ -298,11 +305,65 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   delete env.NODE_TEST_CONTEXT;
   // The signal that interrupted the run, which the runner ends on once the tool's group is stopped.
   let interrupted: NodeJS.Signals | undefined;
+  // How a process of the run, the build of the tests or the tool (`what`), ended: its status and signal, or why it did not run
+  // to its end, as it was interrupted or could not start.
+  const finished = (ended: Ended, what: string): Exclude<Ended, { error: Error }> | string => {
+    if (interrupted) return `interrupted by ${interrupted}; stopped the process group of ${what}`;
+    // parseArguments accepts only the tools of TOOLS, and INSTALL has each.
+    if (ended.error) return `cannot start ${command}: ${ended.error.message}; ${present(INSTALL[options.tool], 'INSTALL[options.tool]')({ cwd: options.cwd, root })}`;
+    return ended;
+  };
   let onInterrupt: ((signal: NodeJS.Signals) => void) | undefined;
   // The check that the parent is still there (K437): a parent that was killed cannot stop the group, so the runner does, as
   // for a hangup.
   let parentWatch: NodeJS.Timeout | undefined;
   try {
+    // The stop of the process group that runs now: the build of the tests, then the tool. Before either starts there is none.
+    let stopRunning = (): void => {};
+    onInterrupt = (signal) => { interrupted ??= signal; stopRunning(); };
+    for (const signal of INTERRUPTS) process.on(signal, onInterrupt);
+    const parent = process.ppid;
+    parentWatch = setInterval(() => {
+      if (process.ppid === parent) return;
+      clearInterval(parentWatch);
+      onInterrupt?.('SIGHUP');
+    }, PARENT_POLL_MS);
+    // go and cargo build the tests of the run first, under the build bound, so the gap watch of the run measures no compiling
+    // (K549-1). A build that fails, outlives its bound or cannot start fails the run with its output.
+    if (build !== undefined) {
+      const builder = spawn(command, build, { cwd: options.cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+      const output: string[] = [];
+      present(builder.stdout, 'builder.stdout').setEncoding('utf8').on('data', (text: string) => output.push(text)); // The stream is piped.
+      present(builder.stderr, 'builder.stderr').setEncoding('utf8').on('data', (text: string) => output.push(text)); // The stream is piped.
+      const built = new Promise<Ended>((resolve) => {
+        builder.once('error', error => resolve({ error }));
+        builder.once('close', (status, signal) => resolve({ status, signal }));
+      });
+      let buildStopping: Promise<void> | undefined;
+      // A build that could not start has no pid and no group to stop.
+      stopRunning = () => { if (builder.pid !== undefined) buildStopping ??= stopGroup(builder.pid, built, graceMs); };
+      let buildExpired = false;
+      const buildWatch = setTimeout(() => { buildExpired = true; stopRunning(); }, buildMs);
+      const ended = await built;
+      clearTimeout(buildWatch);
+      await buildStopping;
+      const text = `${command} ${build.join(' ')}`;
+      const buildEnd = finished(ended, 'the build of the tests');
+      if (typeof buildEnd === 'string') {
+        write(`✖ ${label}: ${buildEnd}\n`);
+        return 1;
+      }
+      if (buildExpired) {
+        write(output.join(''));
+        write(`⏱ ${label}: the build of the tests did not end within ${buildMs / 1000} s; stopped \`${text}\`\n`);
+        return 1;
+      }
+      if (buildEnd.status !== 0) {
+        write(output.join(''));
+        write(`✖ ${label}: the build of the tests \`${text}\` ended ${buildEnd.signal ? `on ${buildEnd.signal}` : `with exit code ${buildEnd.status}`}\n`);
+        return 1;
+      }
+    }
     const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit', reporter ? 'pipe' : 'ignore'], detached: true });
     // A tool that cannot start, such as a command missing on PATH, fails with its command and the install fix.
     const closed = new Promise<Ended>((resolve) => {
@@ -312,7 +373,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     let stopping: Promise<void> | undefined;
     // A tool that could not start has no pid and no group to stop.
     const stop = () => { if (child.pid !== undefined) stopping ??= stopGroup(child.pid, closed, graceMs); };
-    onInterrupt = (signal) => { interrupted ??= signal; stop(); };
+    stopRunning = stop;
     // The gap watch (K371-1): an interval without a test event outlives the timeout, so the tool is stopped and the run fails.
     let gapExpired = false;
     const gap = createGap({
@@ -326,13 +387,6 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
         stop();
       },
     });
-    for (const signal of INTERRUPTS) process.on(signal, onInterrupt);
-    const parent = process.ppid;
-    parentWatch = setInterval(() => {
-      if (process.ppid === parent) return;
-      clearInterval(parentWatch);
-      onInterrupt?.('SIGHUP');
-    }, PARENT_POLL_MS);
     let timedOut = false;
     const progress = reads ? createProgress({
       write,
@@ -348,23 +402,33 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     // The error lines of the tool, which the summary names when the tool exits without a failing test.
     const errors: string[] = [];
     // The compiler errors of a Go package that does not build, which the summary names.
-    const build: string[] = [];
+    const buildErrors: string[] = [];
     const noting = (handle: (text: string) => void) => (text: string) => {
       if (ERROR_LINE.test(text.trim())) errors.push(text.trim());
       handle(text);
     };
     // The tools that this runner reads have the standard output piped, and cargo and python the standard error too.
     // The process-up report of each tool (K549): node and vitest report it through their reporter; runners/python.py writes
-    // PROCESS_UP first, and a --module harness and PHPUnit report it with their first output. go and cargo build their tests in
-    // the run, so their process counts as up when it starts until the runner builds them first (K549-1).
+    // PROCESS_UP first, and a --module harness and PHPUnit report it with their first output. go reports the start of each
+    // package and cargo the start of each test binary, whose tests the build has compiled (K549-1); the end of a package and
+    // the next binary of cargo return the watch to the start-up bound.
     const up = (id: string) => gap.event({ kind: 'up', id });
     let reported = false;
     const upOnce = () => { if (!reported) { reported = true; up(label); } };
-    if (options.tool === 'go' || cargo) up(label);
+    const launch = (id: string) => gap.event({ kind: 'launch', id });
     if (cargo) {
       const events = cargoEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
-      present(child.stdout, 'child.stdout').setEncoding('utf8').on('data', events.stdout); // The stream is piped for this tool.
-      readline.createInterface({ input: present(child.stderr, 'child.stderr') }).on('line', noting(line => events.stderr(line))); // The stream is piped for this tool.
+      present(child.stdout, 'child.stdout').setEncoding('utf8').on('data', (data: string) => { // The stream is piped for this tool.
+        // libtest writes `running <n> tests` when the binary starts.
+        if (/^running \d+ tests?$/m.test(data)) up(label);
+        events.stdout(data);
+      });
+      readline.createInterface({ input: present(child.stderr, 'child.stderr') }).on('line', noting((line) => { // The stream is piped for this tool.
+        // cargo names each test binary before it starts it.
+        const binary = /^\s*(?:Running|Doc-tests)\s+(?:unittests\s+)?(\S+)/.exec(line);
+        if (binary) launch(present(binary[1], 'binary[1]')); // The group always takes part in a match.
+        events.stderr(line);
+      }));
     } else if (python) {
       // unittest writes its progress to standard error; the standard output of the tests is printed as it is.
       const events = pythonEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
@@ -384,8 +448,19 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
         present(progress, 'progress').line(`  ${text}`);
       });
     } else if (reads) {
-      const phpunit = options.tool === 'go' ? undefined : phpunitEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
-      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', noting(phpunit === undefined ? goEvents(present(sink, 'sink'), build) : (line) => {
+      const toolSink = present(sink, 'sink'); // A tool that this runner reads has a sink.
+      // A go package is a group, whose id is its name: its start is the start of its test binary, and its end returns the watch
+      // to the start-up bound for the next one.
+      const ended = (test: TestRef) => { if (test.id === test.name) launch(`the package after ${test.id}`); };
+      const goSink: Sink = {
+        ...toolSink,
+        start: (test, startOptions) => { if (startOptions?.group) up(test.id); return toolSink.start(test, startOptions); },
+        pass: (test, ms) => { const result = toolSink.pass(test, ms); ended(test); return result; },
+        fail: (test, ms, text) => { const result = toolSink.fail(test, ms, text); ended(test); return result; },
+        skip: (test) => { const result = toolSink.skip(test); ended(test); return result; },
+      };
+      const phpunit = options.tool === 'go' ? undefined : phpunitEvents(toolSink);
+      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', noting(phpunit === undefined ? goEvents(goSink, buildErrors) : (line) => {
         upOnce();
         return phpunit(line);
       })); // A tool that this runner reads has a sink. // The stream is piped for this tool.
@@ -399,20 +474,16 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     const ended = await closed;
     await stopping;
     gap.close();
-    if (interrupted) {
-      write(`✖ ${label}: interrupted by ${interrupted}; stopped the process group of the tool\n`);
+    const toolEnd = finished(ended, 'the tool');
+    if (typeof toolEnd === 'string') {
+      write(`✖ ${label}: ${toolEnd}\n`);
       return 1;
     }
-    if (ended.error) {
-      // parseArguments accepts only the tools of TOOLS, and INSTALL has each.
-      write(`✖ ${label}: cannot start ${command}: ${ended.error.message}; ${present(INSTALL[options.tool], 'INSTALL[options.tool]')({ cwd: options.cwd, root })}\n`);
-      return 1;
-    }
-    const { status, signal } = ended;
+    const { status, signal } = toolEnd;
     const code = status ?? (signal ? 1 : 0);
     let exit;
     if (progress) {
-      const counts = progress.close(label, { exitCode: timedOut || gapExpired ? 0 : code, errors, build });
+      const counts = progress.close(label, { exitCode: timedOut || gapExpired ? 0 : code, errors, build: buildErrors });
       exit = counts.ok && !timedOut ? 0 : 1;
     } else {
       // node --test and vitest print their summary from inside the tool; a tool that then ends on a signal or a nonzero
