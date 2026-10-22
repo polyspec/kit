@@ -10,7 +10,11 @@ import path from 'node:path';
 import test from 'node:test';
 import { npmInstall } from '../../scripts/kit/npm-install.mts';
 
-const LOCK = (names: string[]) => `${JSON.stringify({ name: 'app', lockfileVersion: 3, requires: true, packages: Object.fromEntries([['', {}], ...names.map(name => [`node_modules/${name}`, { version: '0.0.1' }])]) })}\n`;
+const LOCK = (names: string[]) => {
+  const packages: Record<string, { version?: string }> = { '': {} };
+  for (const name of names) packages[`node_modules/${name}`] = { version: '0.0.1' };
+  return `${JSON.stringify({ name: 'app', lockfileVersion: 3, requires: true, packages })}\n`;
+};
 
 /** A stub npm that logs each subcommand to npm.log and, for ci, empties node_modules and installs each package of the lock as a copy. */
 function stubNpm(root: string): { npm: string; log: string } {
