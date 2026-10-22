@@ -44,8 +44,8 @@ function nextId(id: string, held: Iterable<string>): string {
 }
 
 /**
- * The rows of the tree `rev` (`''` is the index) whose ID main holds with another task, when the tree is that of `branch`. The row
- * of the branch's own ID may restate its task. Every local branch counts for the next free ID, since a branch may hold an ID that
+ * The rows of the tree `rev` (`''` is the index) whose ID main holds with another task, when the tree is that of `branch`, among the rows
+ * that the branch adds or changes since its merge-base with main (K497-1). The row of the branch's own ID may restate its task. Every local branch counts for the next free ID, since a branch may hold an ID that
  * main does not yet hold.
  */
 export function rowClashes(root: string, rev: string, branch: string): RowClash[] {
@@ -55,11 +55,16 @@ export function rowClashes(root: string, rev: string, branch: string): RowClash[
   const own = ownIdOf(branch, config.idPattern);
   const clashes: RowClash[] = [];
   const refs = git(root, 'for-each-ref', '--format=%(refname)', 'refs/heads').split('\n').filter(ref => ref !== '');
+  // K497-1: the rows of the merge-base of main and the branch; a row whose task the branch did not change since it forked is no clash,
+  // even when main restated it after the fork.
+  const forked = gitResult(root, 'merge-base', 'refs/heads/main', rev === '' ? 'HEAD' : rev);
+  const base = forked.status === 0 ? forked.stdout.trim() : undefined;
   for (const tracker of trackersOf(config, planFiles(root, rev))) {
     const main = tasksAt(root, 'refs/heads/main', tracker.path, tracker);
+    const atBase = base === undefined ? new Map<string, string>() : tasksAt(root, base, tracker.path, tracker);
     for (const [id, task] of tasksAt(root, rev, tracker.path, tracker)) {
       const onMain = main.get(id);
-      if (onMain === undefined || onMain === task || id === own) continue;
+      if (onMain === undefined || onMain === task || id === own || atBase.get(id) === task) continue;
       const held = new Set<string>(main.keys());
       for (const ref of refs) for (const key of tasksAt(root, ref, tracker.path, tracker).keys()) held.add(key);
       for (const key of tasksAt(root, rev, tracker.path, tracker).keys()) held.add(key);

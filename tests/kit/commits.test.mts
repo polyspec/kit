@@ -508,4 +508,8 @@ test('row-id: a row that only main changed after the branch forked is no clash (
   put(root, { [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union'], ['T7', 'Add the reader']]) });
   git('add', '-A');
   assert.deepEqual(indexItemFindings(root, CONFIG, 'docs(plan): Register T7 (#T7)').filter(found => found.rule === 'row-id'), [], 'T5 is unchanged by the branch');
+  // A row that the branch itself changes is still compared with main.
+  put(root, { [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Link the composer shim'], ['T7', 'Add the reader']]) });
+  git('add', '-A');
+  assert.equal(indexItemFindings(root, CONFIG, 'docs(plan): Register T7 (#T7)').filter(found => found.rule === 'row-id').length, 1, 'a T5 that the branch changes clashes');
 });
