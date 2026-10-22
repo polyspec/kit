@@ -88,7 +88,7 @@ function workspace(t: { after: (fn: () => void) => void }) {
     '    mkdir -p "$UV_PROJECT_ENVIRONMENT/bin"',
     '    echo "home = /usr" > "$UV_PROJECT_ENVIRONMENT/pyvenv.cfg"',
     `    cp ${JSON.stringify(python)} "$UV_PROJECT_ENVIRONMENT/bin/python"`,
-    '    case " $* " in *" --no-install-package polyspec-z "*) ;; *) echo release > "$UV_PROJECT_ENVIRONMENT/release-polyspec-z" ;; esac ;;',
+    '    case " $* " in *" --no-install-package polyspec-z "*) ;; *) echo release > "$UV_PROJECT_ENVIRONMENT/release-polyspec-z" ;; esac; case " $* " in *" --no-install-package limepie-contracts "*) ;; *) echo release > "$UV_PROJECT_ENVIRONMENT/release-limepie-contracts" ;; esac ;;',
     'esac',
     '',
   ].join('\n'));
@@ -131,4 +131,33 @@ test('the uv install command refuses a declared polyspec package with no checkou
   const status = uvInstallCommand([project], { ...process.env, ...env }, text => output.push(text));
   assert.equal(status, 1, output.join(''));
   assert.match(output.join(''), /polyspec-z has no checkout/);
+});
+
+// K487: a given checkout whose name the project declares is linked from the start, whatever its name, and excluded from the sync by it:
+// a sibling named limepie-contracts is installed from its checkout, and no release of it is installed.
+test('uv install links a given checkout named limepie-contracts from the start, whatever its name (K487)', (t) => {
+  const { root, log, consumer, env } = workspace(t);
+  const contracts = path.join(root, 'contracts');
+  repository(contracts, { '.gitignore': 'var/\n', 'packages/contracts/pyproject.toml': '[project]\nname = "limepie-contracts"\nversion = "0.0.1"\ndependencies = []\n' });
+  const project = path.join(consumer, 'python');
+  writeFileSync(path.join(project, 'pyproject.toml'), '[project]\nname = "cons"\nversion = "0"\nrequires-python = ">=3.10"\ndependencies = ["limepie-contracts==0.0.1"]\n');
+  writeFileSync(path.join(project, 'uv.lock'), LOCK.replace('{ name = "polyspec-z" },', '{ name = "limepie-contracts" },').replace('name = "polyspec-z"', 'name = "limepie-contracts"'));
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '-q', '-m', 'lock');
+  uvInstall({ directory: project, checkouts: [contracts], env, print: () => undefined });
+  const calls = readFileSync(log, 'utf8');
+  assert.match(calls, /uv sync --locked --no-install-package limepie-contracts/, calls);
+  assert.equal(existsSync(path.join(project, '.venv', 'release-limepie-contracts')), false, 'no release of limepie-contracts is installed');
+  assert.match(calls, /--reinstall-package limepie-contracts/, calls);
+});
+
+// K487: SYNC passes the sync flags that the consumer needs, and refuses any other flag before uv runs.
+test('uv install passes --no-install-project and --all-groups to its sync, and refuses another sync flag before uv runs (K487)', (t) => {
+  const { log, consumer, env } = workspace(t);
+  const project = path.join(consumer, 'python');
+  uvInstall({ directory: project, checkouts: [path.join(consumer, '..', 'prov')], sync: ['--no-install-project', '--all-groups'], env, print: () => undefined });
+  assert.match(readFileSync(log, 'utf8'), /uv sync --locked --no-install-project --all-groups/);
+  writeFileSync(log, '');
+  assert.throws(() => uvInstall({ directory: project, checkouts: [], sync: ['--bogus'], env, print: () => undefined }), /unsupported sync flag --bogus/);
+  assert.equal(readFileSync(log, 'utf8'), '', 'no uv call runs for a refused flag');
 });
