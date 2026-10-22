@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e1bb9a59834f875dbcb9e6478dab0d030b6b7e5489dce416ba9aa306da22f064 -->
+<!-- source-sha256: d9e29a05e6c932a9e31283b70d775fc2b2f719b7d84030746eebac465bf9838d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- worktree-setup은 worktree에 main checkout의 패키지로 link한 node_modules를 주되 저장소 자기 workspace 패키지는 worktree 안으로 link하므로, worktree가 자기 TypeScript를 시험한다(K530).
 - claude-hook은 sh, bash, zsh, dash -c의 script를 모든 규칙으로 읽으므로, 그 안에서 sleep하는 loop도 밖에서처럼 거부된다(K528).
 - suppression-check는 Rust allow나 expect를 닫는 )]까지 읽으므로, rustfmt가 여러 줄로 쓴 attribute의 reason이 인정된다(K527).
 - make npm-install은 install-packages처럼 allow-remote=root로 npm ci를 실행하므로, kit release를 지정한 consumer lock이 설치된다(K526).

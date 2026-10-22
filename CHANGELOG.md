@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- worktree-setup gives a worktree a node_modules of links to the main checkout's packages, with the repository's own workspace packages linked into the worktree, so a worktree tests its own TypeScript (K530).
 - The claude-hook reads the script of sh, bash, zsh and dash -c with all its rules, so a loop that sleeps there is refused as it is outside (K528).
 - suppression-check reads a Rust allow or expect through its closing )], so the reason of an attribute that rustfmt writes over several lines counts (K527).
 - make npm-install runs npm ci with allow-remote=root, as install-packages does, so a consumer lock that names the release of kit installs (K526).
