@@ -25,10 +25,18 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
     const sync = (env.UV_SYNC ?? '').split(/\s+/).filter(flag => flag !== '');
     const refused = sync.filter(flag => !SYNC_FLAGS.has(flag));
     if (refused.length) throw new Error(`SYNC takes ${[...SYNC_FLAGS].join(' and ')}, not ${refused.join(' ')}`);
+    const providers = checkoutProviders(checkouts, 'python');
+    const environment = env.UV_PROJECT_ENVIRONMENT;
+    // K544: the provided packages that the environment holds before the release, which uv sync reinstalls only when told to.
+    const installed = providers.filter(provider => providedFolders(project, [provider], { environment }).length > 0);
     // K539: uv writes through a package link of the environment into its provider checkout, so the links go first.
-    for (const link of releaseEnvironmentLinks(project, env.UV_PROJECT_ENVIRONMENT)) write(`uv-install ${project}: unlinked ${link}, so uv writes no provider checkout\n`);
-    run(env.UV ?? 'uv', ['sync', '--frozen', ...sync], { cwd: project, env });
-    const folders = providedFolders(project, checkoutProviders(checkouts, 'python'), { environment: env.UV_PROJECT_ENVIRONMENT });
+    const released = releaseEnvironmentLinks(project, environment);
+    for (const link of released) write(`uv-install ${project}: unlinked ${link}, so uv writes no provider checkout\n`);
+    const reinstall = released.length > 0 ? installed.flatMap(provider => ['--reinstall-package', provider.name]) : [];
+    run(env.UV ?? 'uv', ['sync', '--frozen', ...sync, ...reinstall], { cwd: project, env });
+    const folders = providedFolders(project, providers, { environment });
+    const lost = installed.filter(provider => !folders.some(item => item.name.startsWith(`${provider.name} `)));
+    if (lost.length > 0) throw new Error(`${lost.map(provider => provider.name).join(', ')} has no folder in the environment after uv sync, though it was installed; run uv sync --reinstall-package for it in ${project}`);
     linkFolders(folders);
     write(`uv-install ${project}: uv sync of the tracked lock${folders.length ? `, then linked ${folders.map(item => item.name).join(', ')} to their checkouts` : ''}\n`);
     return 0;
