@@ -25,23 +25,27 @@ export type LinkProblem = { line: number; column: number; message: string };
 /** The syntax tree of `text`, parsed: CommonMark with GFM and YAML front matter. */
 const parseTree = (text: string) => fromMarkdown(text, { extensions: [gfm(), frontmatter()], mdastExtensions: [gfmFromMarkdown(), frontmatterFromMarkdown()] });
 
-// K510: the trees of the texts parsed last, by their text, so the blocks and the prose lines of one checklist share one parse; a tree is
-// large, so fewer are kept than blocks.
-const TREES = 16;
-const parsedTrees = new Map<string, ReturnType<typeof parseTree>>();
-
-/** The syntax tree of `text`; a text parsed before returns that tree, which a caller reads and never changes. */
-function parse(text: string): ReturnType<typeof parseTree> {
-  const known = parsedTrees.get(text);
-  if (known !== undefined) return known;
-  const tree = parseTree(text);
-  if (parsedTrees.size >= TREES) {
-    const oldest = parsedTrees.keys().next();
-    if (oldest.done !== true) parsedTrees.delete(oldest.value);
-  }
-  parsedTrees.set(text, tree);
-  return tree;
+/**
+ * K510: the result of `compute` for a text, kept for the `size` texts read last, so a text is computed once: the push gate reads the
+ * checklists of every pushed commit, and many commits share a text. A caller reads a result and never changes it.
+ */
+function byText<T>(size: number, compute: (text: string) => T): (text: string) => T {
+  const kept = new Map<string, T>();
+  return (text) => {
+    const known = kept.get(text);
+    if (known !== undefined) return known;
+    const result = compute(text);
+    if (kept.size >= size) {
+      const oldest = kept.keys().next();
+      if (oldest.done !== true) kept.delete(oldest.value);
+    }
+    kept.set(text, result);
+    return result;
+  };
 }
+
+// The syntax tree of a text, parsed once for the blocks and the prose lines of one checklist; a tree is large, so 16 are kept.
+const parse = byText(16, parseTree);
 
 /** A node as the parser writes it: every node of a parsed text has its position. */
 type Placed = { position?: { start: { line: number; column: number; offset?: number | undefined }; end: { line: number; column: number; offset?: number | undefined } } | undefined };
@@ -102,24 +106,11 @@ export function withoutInlineCode(line: string): string {
   return blankInlineCode(line, parse(line));
 }
 
-// K510: the prose lines of the texts read last, by their text, as the blocks of lineBlocks are kept.
-const readProse = new Map<string, { line: number; text: string }[]>();
-
 /**
  * The prose lines of `text` as `{ line, text }`: outside fenced blocks and front matter, inline code blanked. A text read before returns
- * the lines of that read, so a caller reads them and never changes them.
+ * the lines of that read (K510), so a caller reads them and never changes them.
  */
-export function proseLines(text: string): { line: number; text: string }[] {
-  const known = readProse.get(text);
-  if (known !== undefined) return known;
-  const lines = parseProse(text);
-  if (readProse.size >= BLOCK_TEXTS) {
-    const oldest = readProse.keys().next();
-    if (oldest.done !== true) readProse.delete(oldest.value);
-  }
-  readProse.set(text, lines);
-  return lines;
-}
+export const proseLines: (text: string) => { line: number; text: string }[] = byText(64, parseProse);
 
 /** The prose lines of `text`, parsed from its Markdown. */
 function parseProse(text: string): { line: number; text: string }[] {
@@ -236,26 +227,11 @@ export type LineBlock =
   | { kind: 'tableHeader'; names: string[] }
   | { kind: 'tableRow'; cells: LineCell[]; header: number };
 
-// K510: the blocks of the texts read last, by their text. The push gate reads the checklists of every pushed commit, and most commits
-// hold the same checklist text, so a text is parsed once; the oldest text leaves when more than BLOCK_TEXTS are kept.
-const BLOCK_TEXTS = 64;
-const readBlocks = new Map<string, LineBlock[]>();
-
 /**
  * The block of each line of `text` (index 0 is line 1); a nested list item has its own first line. A text read before returns the
- * blocks of that read, so a caller reads them and never changes them.
+ * blocks of that read (K510), so a caller reads them and never changes them.
  */
-export function lineBlocks(text: string): LineBlock[] {
-  const known = readBlocks.get(text);
-  if (known !== undefined) return known;
-  const blocks = parseBlocks(text);
-  if (readBlocks.size >= BLOCK_TEXTS) {
-    const oldest = readBlocks.keys().next();
-    if (oldest.done !== true) readBlocks.delete(oldest.value);
-  }
-  readBlocks.set(text, blocks);
-  return blocks;
-}
+export const lineBlocks: (text: string) => LineBlock[] = byText(64, parseBlocks);
 
 /** The blocks of `text`, parsed from its Markdown. */
 function parseBlocks(text: string): LineBlock[] {

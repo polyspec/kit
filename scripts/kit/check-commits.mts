@@ -476,17 +476,22 @@ const commitStateFindings = (root: string, id: string): CommitFinding[] => {
   return found;
 };
 
+/** The message and identity findings of one commit, under the identity that the checkout declares. */
+const messageAndIdentity = ({ message, author, committer }: CommitMessage, config: CommitRules, declared: ReturnType<typeof declaredIdentity>) => [
+  ...messageFindings(message, config),
+  ...(author === undefined ? [] : identityFindings(author, 'author', declared)),
+  ...(committer === undefined ? [] : identityFindings(committer, 'committer', declared)),
+];
+
 /** The findings of the commits `commits` (from `logMessages`) as lines `<commit>: <rule>: <message>`. */
 export function findingLines(root: string, commits: CommitMessage[], config: CommitRules) {
   const declared = declaredIdentity(root);
-  return commits.flatMap(({ id, message, author, committer }) => [
-    ...messageFindings(message, config),
-    ...(author === undefined ? [] : identityFindings(author, 'author', declared)),
-    ...(committer === undefined ? [] : identityFindings(committer, 'committer', declared)),
-    ...commitItemFindings(root, config, id, message),
-    ...commitRowFindings(root, id, message),
-    ...commitStateFindings(root, id),
-  ].map(found => `${id}: ${found.rule}: ${found.message}`));
+  return commits.flatMap(commit => [
+    ...messageAndIdentity(commit, config, declared),
+    ...commitItemFindings(root, config, commit.id, commit.message),
+    ...commitRowFindings(root, commit.id, commit.message),
+    ...commitStateFindings(root, commit.id),
+  ].map(found => `${commit.id}: ${found.rule}: ${found.message}`));
 }
 
 /**
@@ -495,11 +500,7 @@ export function findingLines(root: string, commits: CommitMessage[], config: Com
  */
 export function messageLines(root: string, commits: CommitMessage[], config: CommitRules) {
   const declared = declaredIdentity(root);
-  return commits.flatMap(({ id, message, author, committer }) => [
-    ...messageFindings(message, config),
-    ...(author === undefined ? [] : identityFindings(author, 'author', declared)),
-    ...(committer === undefined ? [] : identityFindings(committer, 'committer', declared)),
-  ].map(found => `${id}: ${found.rule}: ${found.message}`));
+  return commits.flatMap(commit => messageAndIdentity(commit, config, declared).map(found => `${commit.id}: ${found.rule}: ${found.message}`));
 }
 
 /** The findings of the commits of `range` as lines `<commit>: <rule>: <message>`. */
