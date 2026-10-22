@@ -16,7 +16,10 @@ const LOCK = (names: string[]) => {
   return `${JSON.stringify({ name: 'app', lockfileVersion: 3, requires: true, packages })}\n`;
 };
 
-/** A stub npm that logs each subcommand to npm.log and, for ci, empties node_modules and installs each package of the lock as a copy. */
+/**
+ * A stub npm that logs each subcommand to npm.log and, for ci, writes its allow-remote to npm-ci.env (K526), empties node_modules and
+ * installs each package of the lock as a copy.
+ */
 function stubNpm(root: string): { npm: string; log: string } {
   const log = path.join(root, 'npm.log');
   const script = path.join(root, 'npm-ci.mjs');
@@ -24,6 +27,7 @@ function stubNpm(root: string): { npm: string; log: string } {
 import path from 'node:path';
 appendFileSync(${JSON.stringify(log)}, process.argv[2] + '\\n');
 if (process.argv[2] === 'ci') {
+  writeFileSync(${JSON.stringify(path.join(root, 'npm-ci.env'))}, 'allow-remote=' + (process.env.npm_config_allow_remote ?? 'unset') + '\\n');
   mkdirSync('node_modules', { recursive: true });
   for (const entry of readdirSync('node_modules')) rmSync(path.join('node_modules', entry), { recursive: true, force: true });
   const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
@@ -152,4 +156,13 @@ test('make npm-install ADD=<checkout> passes each checkout to the tool with --ad
   const added = dry('ADD=/work/core /work/template');
   assert.equal(added.status, 0, added.stderr);
   assert.match(added.stdout, /npm-install\.(mts|mjs|js) examples\/app\s+--add \/work\/core --add \/work\/template\s*$/m, added.stdout);
+});
+
+// K526: every consumer lock resolves @polyspec/kit from the URL of its release asset, which npm refuses unless allow-remote opts in, so
+// the npm ci of npm-install runs with allow-remote=root, as install-packages does: only the URLs that package.json names.
+test('npm install runs npm ci with allow-remote=root, so a lock that names the release of kit installs (K526)', (t) => {
+  const { root, project, npm } = fixture(t, 'kit-npm-', { 'left-pad': '1.3.0' }, ['left-pad']);
+  const { npm_config_allow_remote: _unset, ...env } = process.env;
+  npmInstall({ directory: project, checkouts: [], npm, print: () => {}, env });
+  assert.equal(readFileSync(path.join(root, 'npm-ci.env'), 'utf8'), 'allow-remote=root\n');
 });
