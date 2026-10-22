@@ -252,7 +252,7 @@ plan-split: ## Move the items IDS="<id> <id>" with their sub-items from the chec
 # recipe as its raw value (`$(value)`), in single quotes, and an unset text stays unset.
 raw_text = $(foreach v,$(1),$(if $(filter undefined,$(origin $(v))),,$(v)='$(subst ','\'',$(value $(v)))'))
 
-item-new: ## Add the item ID to the checklist of PLAN and its Korean twin in the waiting state, with TASK, TASK_KO, DELIVERABLES and VERIFICATION; offline
+item-new: ## Add the item ID to the checklist of PLAN and its Korean twin in the waiting state, with TASK, TASK_KO, DELIVERABLES and VERIFICATION; on main it commits the registration with BODY_FILE (K499-2); offline
 	$(call raw_text,TASK TASK_KO DELIVERABLES VERIFICATION) $(NODE) $(KIT)/plan.$(KIT_EXT) item-new
 
 # item-edit also rewrites the cause and the retry of a held item (K442): CAUSE, RETRY, CAUSE_KO and RETRY_KO.

@@ -648,12 +648,14 @@ export function stagedNewRowIds(root: string): string[] {
   return [...ids].sort();
 }
 
-export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}): string {
+export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}, { registration }: { registration?: string } = {}): string {
   if (spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status === 0) throw new Error('nothing is staged; stage the change of the item with git add first');
-  // K499: a new checklist row is registered on a branch, so the row is never staged on main.
+  // K499: a new checklist row is registered on a branch, or on main by item-new in its own commit (K499-2), so the row is never left
+  // staged on main.
   const branch = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
   const newRows = branch === 'main' ? stagedNewRowIds(root) : [];
-  if (newRows.length > 0) throw new Error(`the new row of ${newRows.join(', ')} is staged on main; register the item on a branch: git worktree add ../<repository>-<name>-<id> -b <type>/<name>-<id> main, make commit there, then make land`);
+  const registered = registration !== undefined && newRows.length === 1 && newRows[0] === registration;
+  if (newRows.length > 0 && !registered) throw new Error(`the new row of ${newRows.join(', ')} is staged on main; register the item on a branch: git worktree add ../<repository>-<name>-<id> -b <type>/<name>-<id> main, make commit there, then make land`);
   // On main the gates of land guard the commit in the pre-commit hook, which git runs for this commit too (K404-1).
   if (!existsSync(commit.bodyFile)) throw new Error(`the body file ${commit.bodyFile} does not exist; write why the change is made there`);
   const rules = COMMIT_RULES;
@@ -677,6 +679,30 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   return message;
 }
 
+/**
+ * Registers the item `item` on main in one docs(plan) commit of its own with the body of `bodyFile` (K499-2), so no row is left
+ * staged on main. Refuses before it writes anything when the body file is missing or another change is staged; when the commit is
+ * refused, the checklists return to HEAD and the error is thrown.
+ */
+function registerOnMain(root: string, item: Parameters<typeof newItem>[1], bodyFile: string, env: NodeJS.ProcessEnv): void {
+  if (!existsSync(bodyFile)) throw new Error(`the body file ${bodyFile} does not exist; write why the item is registered there`);
+  const staged = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
+  if (staged.length > 0) throw new Error(`item-new on main commits the registration of ${item.id} alone; these files are staged, commit or unstage them first: ${staged.join(', ')}`);
+  const files = Object.keys(newItem(root, item));
+  const add = spawnSync('git', ['add', '--', ...files], { cwd: root, encoding: 'utf8' });
+  try {
+    if (add.status !== 0) throw new Error(`git add of ${files.join(', ')} failed: ${add.stderr.trim()}`);
+    commitItem(root, { id: item.id, type: 'docs', scope: 'plan', subject: `Register ${item.id} as an item`, bodyFile }, env, { registration: item.id });
+  } catch (error) {
+    const unstage = spawnSync('git', ['reset', '-q', 'HEAD', '--', ...files], { cwd: root, encoding: 'utf8' });
+    const restore = unstage.status === 0 ? spawnSync('git', ['checkout', 'HEAD', '--', ...files], { cwd: root, encoding: 'utf8' }) : unstage;
+    if (restore.status !== 0) throw new Error(`${error instanceof Error ? error.message : String(error)}\nand the checklists could not return to HEAD: ${restore.stderr.trim()}`);
+    throw error;
+  }
+  for (const file of files) console.log(`[plan] added ${item.id} to ${file}`);
+  console.log(`[plan] committed the registration of ${item.id} on main`);
+}
+
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
   const [command] = process.argv.slice(2);
@@ -686,7 +712,9 @@ if (isMain(import.meta.url)) {
       for (const file of Object.keys(newPlan(root, { name: required(env.NAME, 'NAME'), title: env.TITLE, titleKo: env.TITLE_KO }))) console.log(`[plan] wrote ${file}`);
     } else if (command === 'item-new') {
       const item = { plan: required(env.PLAN, 'PLAN'), id: required(env.ID, 'ID'), task: env.TASK, taskKo: env.TASK_KO, deliverables: env.DELIVERABLES, verification: env.VERIFICATION };
-      for (const file of Object.keys(newItem(root, item))) console.log(`[plan] added ${item.id} to ${file}`);
+      const branch = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+      if (branch === 'main') registerOnMain(root, item, required(env.BODY_FILE, 'BODY_FILE'), env);
+      else for (const file of Object.keys(newItem(root, item))) console.log(`[plan] added ${item.id} to ${file}`);
     } else if (command === 'item-edit') {
       const id = required(env.ID, 'ID');
       // The cause and the retry of a held item are edited apart from the cells of editItem.

@@ -882,6 +882,7 @@ test('commit refuses a new checklist row staged on main and names the branch rou
   writeFileSync(body, 'Parse the input in the new item.\n');
   const commit = { id: 'T2', type: 'docs', scope: 'plan', subject: 'Register T2 as an item', bodyFile: body };
   assert.throws(() => commitItem(root, commit, identity), /new row of T2 is staged on main[\s\S]*git worktree add[\s\S]*make commit/);
+  assert.throws(() => commitItem(root, commit, identity, { registration: 'T3' }), /new row of T2 is staged on main/, 'a registration of another id is no pass');
   assert.equal(spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status, 1, 'the refused row stays staged, unchanged');
   assert.equal(spawnSync('git', ['checkout', '-q', '-B', 'register-T2'], { cwd: root }).status, 0);
   commitItem(root, commit, identity);
