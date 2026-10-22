@@ -1969,3 +1969,10 @@ test('parity-declarations-check UNITS runs the rules on the named units while an
   assert.notEqual(make.status, 0, make.stdout + make.stderr);
   assert.match(make.stderr, /\[parity\] R14 unknown-requirement codec: cites CX-9/);
 });
+
+// K520: a run scoped to a unit fails while docs/spec defines a requirement twice: the duplicate is a finding of the spec itself.
+test('parity-declarations-check UNITS fails while docs/spec defines a requirement twice (K520)', TIMEOUT, (t) => {
+  const root = repository(t, { files: { 'docs/spec/codec.md': '# Codec\n\n- **CX-1** The codec encodes every vector.\n- **CX-1** Defined again.\n' } });
+  const scoped = checkParity(root, { execute: false, env: ENV, say: () => {}, units: ['codec'] }).findings;
+  assert.ok(scoped.some(item => /CX-1 is defined at docs\/spec\/codec\.md:3 and docs\/spec\/codec\.md:4/.test(item.message)), keys(scoped).join('\n'));
+});

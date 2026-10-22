@@ -112,3 +112,15 @@ test('only a unit with tests traces a requirement: one that only an api unit cit
     'R13 -: docs/spec/api.md defines AB-2, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
   ]);
 });
+
+// K520: a requirement defined twice names the file and line of both definitions, also within one file, and the finding lies on
+// config/parity.json, so every filter of units, rules and ids keeps it.
+test('a requirement defined twice names the file and line of both definitions and lies on config/parity.json (K520)', () => {
+  const twice = { ...SPEC, 'docs/spec/more.md': '# More\n\n- **AB-2** again\n- **AB-2** and again\n' };
+  const all = { ...TESTS, ...twice };
+  const found = requirementFindings({ requirements: { pattern: 'AB-[0-9]+' }, units: [bound({ id: 'codec', requirements: ['AB-1', 'AB-2', 'AB-3'] })] }, Object.keys(all), read(all), new Map());
+  assert.deepEqual(found.map(item => [item.message, item.place]), [
+    ['AB-2 is defined at docs/spec/api.md:4 and docs/spec/more.md:3; a requirement has one definition', 'config/parity.json'],
+    ['AB-2 is defined at docs/spec/api.md:4 and docs/spec/more.md:4; a requirement has one definition', 'config/parity.json'],
+  ]);
+});
