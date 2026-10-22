@@ -24,11 +24,9 @@ import { miseEnvironment } from './bootstrap/install-mise.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { kitGates } from './gate-red.mts';
 import { git, gitResult } from './git.mts';
-import { DECLARATION, importGraph, makeDatabase, select } from './owner-check.mts';
-import type { OwnerDeclaration } from './owner-check.mts';
+import { DECLARATION, importGraph, makeDatabase, ownerDeclaration, select } from './owner-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { expandMake } from './recipe-tools.mts';
-import { readConfig } from './schema-validate.mts';
 import { clashMessage, rowClashes } from './row-ids.mts';
 import { trackedFiles } from './tracked-files.mts';
 
@@ -169,8 +167,9 @@ function newLines(branch: { line: string; key: string }[], main: { key: string }
  * ALWAYS_GATES. The test gates are not returned but in `excluded`, so no test target runs. Throws on a changed path that no
  * owner declares.
  */
-export function gatesOf(folder: string, changed: string[]): { gates: string[]; excluded: string[]; reasons: string[] } {
-  const declaration = readConfig<OwnerDeclaration>(folder, DECLARATION, 'owner-checks.schema.json');
+export function gatesOf(folder: string, changed: string[], installed: string = folder): { gates: string[]; excluded: string[]; reasons: string[] } {
+  // K522: the owner rules as owner-validate reads them, the shipped ones of the checkout that holds node_modules included.
+  const declaration = ownerDeclaration(folder, installed);
   const exists = (file: string) => existsSync(path.join(folder, file));
   const selection = select(declaration, changed, [], exists, importGraph(folder, trackedFiles(folder)));
   if (selection.unowned.length) throw new Error(`${selection.unowned.join(', ')}: no owner in ${DECLARATION} owns the path; add a rule whose paths match it`);
@@ -532,7 +531,7 @@ export function runCommitGates(folder: string, changed: string[], print: (text: 
 function commitGatesOf(folder: string, tree: string, changed: string[], print: (text: string) => void): void {
   const staged = temporaryTree(folder, tree);
   try {
-    const { gates } = gatesOf(staged.dir, changed);
+    const { gates } = gatesOf(staged.dir, changed, folder);
     for (const gate of gates.filter(gate => gate !== 'commits-check')) {
       print(`${gate} in the staged tree`);
       const candidate = runGate(staged.dir, gate);

@@ -15,6 +15,9 @@ import { globExpression } from '../../scripts/kit/glob.mts';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { tree } from './tree.mts';
 import { COMMIT_MSG, PRE_COMMIT, PRE_MERGE_COMMIT, PRE_PUSH, PREPARE_COMMIT_MSG, REFERENCE_TRANSACTION } from '../../scripts/kit/git-hooks.mts';
+
+// The hooks that make hooks writes into every checkout (K495).
+const HOOKS = [PRE_COMMIT, PRE_MERGE_COMMIT, PRE_PUSH, COMMIT_MSG, PREPARE_COMMIT_MSG, REFERENCE_TRANSACTION];
 import { readFixture } from './json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 
@@ -211,11 +214,10 @@ test('a consumer after kit-sync passes owner-validate with the rules that kit sh
   const files = Object.fromEntries(Object.values(copies).map(from => [from, `${from}\n`]));
   const root = repository(t, { copies, files });
   sync(root);
-  // make hooks writes the hooks of kit, pre-merge-commit among them (K495), which a rule that kit ships owns.
-  write(root, '.githooks/prepare-commit-msg', '#!/bin/sh\n');
-  write(root, '.githooks/pre-merge-commit', '#!/bin/sh\n');
+  // make hooks writes the hooks of kit (K495, K522), which a rule that kit ships owns.
+  for (const hook of HOOKS) write(root, hook, '#!/bin/sh\n');
   write(root, 'config/owner-checks.json', '{}\n');
-  const tracked = [...Object.keys(copies), '.githooks/prepare-commit-msg', '.githooks/pre-merge-commit', 'config/owner-checks.json', 'package.json', 'package-lock.json'];
+  const tracked = [...Object.keys(copies), ...HOOKS, 'config/owner-checks.json', 'package.json', 'package-lock.json'];
   const own: OwnerDeclaration = { owners: [{ paths: ['package.json', 'package-lock.json', 'config/owner-checks.json'], targets: ['owner-validate'] }] };
   const targets = new Set((kit.kit?.owners ?? []).flatMap(rule => rule.targets ?? []).concat(['owner-validate']));
   const project = { make: { targets: new Map([...targets].map(name => [name, { prerequisites: [], recipe: '' }])), variables: new Map<string, string>() }, scripts: {}, workspaces: [], prefixes: [] };
@@ -274,5 +276,5 @@ test('the owner rules that kit ships own every hook that make hooks writes (K522
   const manifest: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../package.json'), 'utf8'));
   const owners = isJsonObject(manifest) && isJsonObject(manifest.kit) && Array.isArray(manifest.kit.owners) ? manifest.kit.owners : [];
   const paths: unknown[] = owners.flatMap((owner: unknown): unknown[] => (isJsonObject(owner) && Array.isArray(owner.paths) ? owner.paths.map((glob: unknown) => glob) : []));
-  for (const hook of [PRE_COMMIT, PRE_MERGE_COMMIT, PRE_PUSH, COMMIT_MSG, PREPARE_COMMIT_MSG, REFERENCE_TRANSACTION]) assert.ok(paths.includes(hook), `${hook} is owned`);
+  for (const hook of HOOKS) assert.ok(paths.includes(hook), `${hook} is owned`);
 });

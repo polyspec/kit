@@ -395,6 +395,17 @@ function step(root: string, { name, command, args }: Check) {
   return passed;
 }
 
+/**
+ * The owner rules of the checkout `root`: those of its config/owner-checks.json and those that kit ships with its copies (K410-1), the
+ * kit.owners of the package installed under `installed`, the checkout that holds node_modules (K522: the staged tree of a commit
+ * gate has none). Kit itself declares its own rules, and its copies are paths of its own tree, so it reads no shipped rule.
+ */
+export function ownerDeclaration(root: string, installed: string = root): OwnerDeclaration {
+  const own = readConfig<OwnerDeclaration>(root, DECLARATION, 'owner-checks.schema.json');
+  const shipped = existsSync(path.join(installed, INSTALLED, 'package.json')) ? readNpmManifest(installed, `${INSTALLED}/package.json`) : undefined;
+  return { ...own, owners: [...own.owners, ...(shipped?.kit?.owners ?? [])] };
+}
+
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
   const { values } = parseArgs({ options: { paths: { type: 'string' }, base: { type: 'string' }, 'dry-run': { type: 'boolean' }, validate: { type: 'boolean' } } });
@@ -402,11 +413,7 @@ if (isMain(import.meta.url)) {
     complain(`${DECLARATION} does not exist; declare the owner of each path there (scripts/kit/schema/owner-checks.schema.json)`);
     process.exit(1);
   }
-  // The owner rules that kit ships with its copies (K410-1) join the rules of a consumer: those of the installed package. Kit
-  // itself declares its own rules, and its copies are paths of its own tree, so it reads no shipped rule.
-  const own = readConfig<OwnerDeclaration>(root, DECLARATION, 'owner-checks.schema.json');
-  const shipped = existsSync(path.join(root, INSTALLED, 'package.json')) ? readNpmManifest(root, `${INSTALLED}/package.json`) : undefined;
-  const declaration = { ...own, owners: [...own.owners, ...(shipped?.kit?.owners ?? [])] };
+  const declaration = ownerDeclaration(root);
   const tracked = trackedFiles(root);
   const project = { make: makeDatabase(root), ...npmProject(root, tracked) };
   say(`checking ${DECLARATION} against ${tracked.length} paths`);

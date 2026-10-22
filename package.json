@@ -157,28 +157,25 @@
       },
       {
         "paths": [
-          ".githooks/prepare-commit-msg"
-        ],
-        "targets": [
-          "hooks-check"
-        ]
-      },
-      {
-        "paths": [
-          ".githooks/pre-merge-commit"
-        ],
-        "targets": [
-          "hooks-check"
-        ]
-      },
-      {
-        "paths": [
           "config/php-lint/composer.json",
           "config/php-lint/composer.lock"
         ],
         "targets": [
           "lint-php",
           "kit-check"
+        ]
+      },
+      {
+        "paths": [
+          ".githooks/pre-commit",
+          ".githooks/pre-merge-commit",
+          ".githooks/pre-push",
+          ".githooks/commit-msg",
+          ".githooks/prepare-commit-msg",
+          ".githooks/reference-transaction"
+        ],
+        "targets": [
+          "hooks-check"
         ]
       }
     ]
