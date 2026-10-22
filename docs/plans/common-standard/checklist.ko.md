@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 05c2d83cf9594ce7784cfe5cadd2788c7c5cd9996fbc42711558d0410a666d91 -->
+<!-- source-sha256: cda20755a3f982ced2786f0224cc68cfad798bc923a13da5ea08833a3791806c -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -368,4 +368,5 @@
 | K479 | 생성된 composer.link.json은 요구되지 않은 각 연결 Composer 패키지를 wildcard가 아닌 provider의 exact version으로 요구하고, 선언된 제약과 tracked manifest를 보존한다 (K479, K468) | scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K479 -- tests/kit/link.test.mts` | [o] |
 | K479-1 | 이미 연결된 Composer 패키지의 오래된 composer.link.json을 갱신한다 | scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K479-1 -- tests/kit/link.test.mts` | [ ] |
 | K480 | Python 패키지 탐색은 named mapping과 함께 기본 package-dir를 지원한다 | scripts/kit/link.mts, tests/kit/link.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K480 -- tests/kit/link.test.mts` | [o] |
+| K480-1 | link와 link check는 링크된 provider가 요구하는 패키지 버전을 설치된 트리가 만족하지 않으면 실패한다(K398과 K448 후속). 원인: 개발용 link는 설치된 polyspec 패키지를 checkout으로 바꾸지만 checkout 자신의 require 제약을 lock이 설치한 패키지와 비교하지 않아서, orm main은 purrphp/yaml 1.0.0-p1을 요구하는데 consumer의 lock은 fork 1.0.0을 설치하고 아무것도 보고하지 않는다(limepie S-563). 인수 조건: link와 link check(Composer, npm, uv 모두)는 링크된 provider의 require 제약을 설치된 해당 패키지 버전이 만족하지 않으면 provider, 패키지, 제약, 설치된 버전을 적어 실패한다. red fixture: 설치된 트리에 없는 버전을 요구하는 링크된 provider가 지금은 통과한다. | scripts/kit/link.mts, scripts/kit/link-state-check.mts, tests/kit/link.test.mts | `node --test --test-name-pattern=K480-1 tests/kit/link.test.mts` | [ ] |
 | K481 | 생성된 Composer link requirement는 lock 무결성을 약화하지 않고 strict validation을 통과한다. | scripts/kit/link.mts, tests/kit/link.test.mts, tests/source/link-composer-real.test.mts, docs/plans/common-standard/checklist.md(.ko), CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K481 -- tests/kit/link.test.mts` `node --test --test-name-pattern=K481 tests/source/link-composer-real.test.mts` | [o] |
