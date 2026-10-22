@@ -242,3 +242,17 @@ test('kit-sync removes the lint configurations that kit no longer copies, and th
   const copies = isJsonObject(manifest) && isJsonObject(manifest.kit) && isJsonObject(manifest.kit.copies) ? Object.keys(manifest.kit.copies) : [];
   assert.deepEqual(copies.filter(file => ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json'].includes(file)), []);
 });
+
+// K514-1: a lint configuration that an earlier kit copied and that kit now reads from its package is named by kit-check in a
+// consumer, with kit-sync as its fix, so a stale copy that an editor would still read does not stay in silence.
+test('kit-check names each lint configuration that kit no longer copies, and passes after kit-sync (K514-1)', (t) => {
+  const root = repository(t);
+  sync(root);
+  write(root, 'ruff.toml', 'an old copy\n');
+  write(root, 'config/api-extractor.kit.json', 'an old copy\n');
+  const found = check(root);
+  assert.ok(found.some(line => line.startsWith('ruff.toml: ') && line.includes('make kit-sync')), found.join('\n'));
+  assert.ok(found.some(line => line.startsWith('config/api-extractor.kit.json: ') && line.includes('make kit-sync')), found.join('\n'));
+  sync(root);
+  assert.deepEqual(check(root).filter(line => line.includes('no longer copies')), []);
+});
