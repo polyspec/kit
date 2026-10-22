@@ -21,7 +21,7 @@
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
 import { createHash } from 'node:crypto';
-import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { crc32 } from 'node:zlib';
@@ -158,10 +158,13 @@ function reportLink(work: Run, ecosystem: Ecosystem, name: string, provider: Pro
  * whether a link was made.
  */
 function linkCopy(work: Run, ecosystem: Ecosystem, name: string, installed: string, version: string, provider: Provider): boolean {
-  if (real(installed) === realpathSync(provider.folder)) { reportLink(work, ecosystem, name, provider); return false; }
+  // A link that resolves to its provider is kept only in the form that link writes, relative to its folder (K326-3): an absolute target
+  // that an earlier run wrote is re-made.
+  const absolute = lstatSync(installed).isSymbolicLink() && path.isAbsolute(readlinkSync(installed));
+  if (real(installed) === realpathSync(provider.folder) && !absolute) { reportLink(work, ecosystem, name, provider); return false; }
   const problem = pinProblem(version, provider);
   if (problem) { unlinkable(work, ecosystem, name, `${problem}: ${installed}`); return false; }
-  if (work.check) { unlinkable(work, ecosystem, name, installed); return false; }
+  if (work.check) { unlinkable(work, ecosystem, name, absolute ? `${installed} (absolute target, which link re-makes relative)` : installed); return false; }
   assertIgnored(installed);
   rmSync(installed, { recursive: true, force: true });
   symlinkSync(path.relative(path.dirname(installed), provider.folder), installed);

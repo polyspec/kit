@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make link` re-makes an npm link whose target is absolute, and that resolves to its provider, as a link relative to its folder, the form that link writes and the rules of kit name; the target form is decided in `docs/operations/local-links.md` (K326-3).
 - `make npm-install` takes the package folders of a checkout that has them, never the checkout itself, so a root whose package.json carries its package's name (ordered-json) links packages/js (K494-2). Red: `node --test --test-name-pattern=K494-2 tests/kit/npm-install.test.mts` failed on f57380a8, linking the root.
 - `make npm-install` links a sibling package that the lock names only transitively, with a release URL, by declaring it as a file: dependency, so no release is fetched (K484).
 - `make uv-install ... STATE=<dir>` writes the editable wheels of the install under the absolute folder STATE, so an install writes nothing into a source checkout that is mounted read-only; without STATE the wheels stay under var/link of the consumer, and a relative STATE is refused (K488). Red: `node --test --test-name-pattern=K488 tests/kit/uv-install.test.mts` failed on 5d6f9a96 with EACCES at the mkdir of the consumer's var/link.

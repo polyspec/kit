@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9f87f620c7b2c027e02bfc6cd0fd3cc440a2a94228487f8088a3b8f86579efa3 -->
+<!-- source-sha256: 5eabcc296bd9c8708585e51def3b42de61023b1f76190eda85fa50aa5343fbf4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make link`는 대상이 절대 경로이고 provider로 해석되는 npm 링크를, 링크 폴더 기준 상대 경로 링크로 다시 만든다. link가 쓰는 형식이며 kit 규칙이 정한 형식이다. 대상 형식은 `docs/operations/local-links.ko.md`에 정했다 (K326-3).
 - `make npm-install`은 패키지 폴더를 가진 checkout에서 그 폴더들을 받고 checkout 자신은 받지 않는다. 그래서 package.json이 패키지 이름을 가진 root(ordered-json)도 packages/js를 link한다(K494-2). Red: `node --test --test-name-pattern=K494-2 tests/kit/npm-install.test.mts`가 f57380a8에서 root를 link하며 실패했다.
 - `make npm-install`은 lock에만 transitive로 있고 release URL을 가진 sibling 패키지를 file: 의존성으로 선언해 연결하므로 release를 받지 않는다(K484).
 - `make uv-install ... STATE=<dir>`은 설치의 editable wheel을 절대 경로 폴더 STATE 아래에 쓴다. 그래서 읽기 전용으로 mount된 원본 checkout에는 아무것도 쓰지 않는다. STATE가 없으면 wheel은 지금처럼 소비자의 var/link에 있고, 상대 경로 STATE는 거부한다(K488). Red: 5d6f9a96에서 `node --test --test-name-pattern=K488 tests/kit/uv-install.test.mts`가 소비자 var/link의 mkdir에서 EACCES로 실패했다.

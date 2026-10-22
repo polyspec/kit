@@ -4,7 +4,7 @@
 // Python, go or cargo runs. make is the make of the machine, on Makefiles of the fixture.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
@@ -512,7 +512,9 @@ test('an npm copy that npm query does not record is linked only when it already 
   assert.match(text, /NOT linked npm {6}@polyspec\/x \(not recorded by npm query: .*node_modules\/@polyspec\/x\)/);
   assert.equal(realpathSync(path.join(consumer, 'node_modules/@polyspec/x')), realpathSync(other), 'the foreign link is kept');
   rmSync(path.join(consumer, 'node_modules/@polyspec/x'));
-  symlinkSync(path.join(provider, 'packages/ts'), path.join(consumer, 'node_modules/@polyspec/x'));
+  // The provider link in the form that link writes, relative to its folder (K326-3); an absolute one is re-made, as the K326-3 test shows.
+  const xLink = path.join(consumer, 'node_modules/@polyspec/x');
+  symlinkSync(path.relative(path.dirname(xLink), path.join(provider, 'packages/ts')), xLink);
   put(consumer, { 'npm-query.json': JSON.stringify([{ name: '@polyspec/x', version: '0.0.1', location: 'node_modules/@polyspec/x' }, { name: '@polyspec/kit', version: '0.0.53', location: 'node_modules/@polyspec/kit' }]) });
   const linked = linkLines([consumer], env);
   assert.equal(linked.ok, true, linked.text);
@@ -1889,4 +1891,19 @@ test('make -n composer-install NO_DEV=1 passes --no-dev to the composer-install 
   const noDev = dry('NO_DEV=1');
   assert.equal(noDev.status, 0, noDev.stderr);
   assert.match(noDev.stdout, /composer-install\.(mts|mjs|js) examples\/app --no-dev\s*$/m, noDev.stdout);
+});
+
+// K326-3: link writes the target of a link relative to the link's folder, as the rules of kit name (never absolute). A link that an
+// earlier run wrote absolute, and that still resolves to its provider, is re-made relative by the next link run.
+test('a stale absolute npm link that resolves to its provider is re-made relative by link (K326-3)', (t) => {
+  const { kit, consumer, env } = workspace(t);
+  const first = linkLines([consumer], env);
+  assert.equal(first.ok, true, first.text);
+  const installed = path.join(consumer, 'node_modules/@polyspec/kit');
+  rmSync(installed);
+  symlinkSync(kit, installed);
+  const second = linkLines([consumer], env);
+  assert.equal(second.ok, true, second.text);
+  assert.equal(readlinkSync(installed), path.relative(path.dirname(installed), kit), 'the target is relative to the link folder');
+  assert.equal(realpathSync(installed), realpathSync(kit), 'the link still resolves to the provider');
 });

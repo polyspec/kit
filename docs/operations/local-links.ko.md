@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: dc3e98fc7baf870e932c3710881bdece6e5a5738f16f5790b3c1c00ea90afaa4 -->
+<!-- source-sha256: df97313ee9ee776a02b3a4a549e9b75fff0e9e607eb6529964cb5123176aea4c -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -79,6 +79,8 @@
 - lock에서 설치하는 recipe는 링크할 수 있는 곳에서, install chain 밖에서 설치 직후 같은 recipe 안에서 링크를 실행한다(K349-2). 이 규칙은 저장소가 polyspec 의존성을 선언하는 ecosystem에 적용되며(kit은 선언하지 않는다), `make install`이 prerequisite나 `$(MAKE)` 호출로 이르는 recipe는 `install`의 마지막 `install-link` 하나가 다룬다(K360-2). lock에서 다시 설치하는 generator처럼 그 chain 밖의 recipe는 자기 직후에 링크한다. 예: make할 때마다 `uv sync --frozen`이 도는 `$(PYTHON)` 규칙. 환경을 lock과 비교하는 검사(`uv sync --frozen --check` 등)는 root가 선언된 동안 polyspec 패키지를 빼고 외부 패키지만 정확히 검사한다: `uv sync --frozen --check --inexact`에 `link.mjs packages <dir> python`이 출력한 이름마다 `--no-install-package <name>`을 준다. 링크는 `link.mjs check`가 검사한다.
 - `check`는 모든 설치 사본과 선언된 모든 polyspec 의존을 linked, NOT linked, STALE, own(이 저장소)으로 나열한다. NOT linked와 STALE이 있으면 실패한다.
 - `unlink`는 각 도구 자신의 설치(`npm ci`, 링크를 지운 뒤 그 프로젝트에서 `composer install`, `uv sync --locked`)로 checkout을 되돌리고, 링크가 그 소비자를 위해 쓴 파일(`go.work`, `go.work.sum`, Cargo lock 사본, `composer.link.json`, `composer.link.lock`)만 지운 뒤 비게 된 폴더를 지운다. 폴더를 재귀적으로 지우지 않으므로 중첩된 소비자의 파일은 남으며, 건너뛴 복원을 모두 보고하고 실패한다.
+
+대상 형식(K326-3, P4): link가 만드는 링크의 대상은 링크 폴더 기준의 상대 경로(설치된 사본 폴더와 provider 폴더의 `path.relative`)이므로, worktree 깊이와 무관하게 provider로 해석된다. 상대 형식인 이유는 kit 규칙이 이 저장소가 쓰는 경로를 절대 경로로 쓰지 않는다고 정하기 때문이며, 상대 대상은 모든 checkout과 worktree에서 같게 해석된다. 근거: `scripts/kit/link.mts`는 53cf5030(K201-1) 이후 상대 대상을 쓴다. 이전 실행이 절대 대상으로 쓴 링크(2026-10-15 fsm main의 `node_modules/@polyspec/kit`)도 여전히 해석되어, 해석되는 링크는 link 실행이 그대로 두었다. 이제 다음 link 실행은 절대 대상을 상대로 다시 만들고(K326-3), `link --check`는 그 전까지 NOT linked로 보고한다.
 
 ## Worktree
 
