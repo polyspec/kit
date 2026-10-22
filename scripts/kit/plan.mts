@@ -696,7 +696,7 @@ function registerOnMain(root: string, item: Parameters<typeof newItem>[1], bodyF
   } catch (error) {
     const unstage = spawnSync('git', ['reset', '-q', 'HEAD', '--', ...files], { cwd: root, encoding: 'utf8' });
     const restore = unstage.status === 0 ? spawnSync('git', ['checkout', 'HEAD', '--', ...files], { cwd: root, encoding: 'utf8' }) : unstage;
-    if (restore.status !== 0) throw new Error(`${error instanceof Error ? error.message : String(error)}\nand the checklists could not return to HEAD: ${restore.stderr.trim()}`);
+    if (restore.status !== 0) throw new Error(`${error instanceof Error ? error.message : String(error)}\nand the checklists could not return to HEAD: ${restore.stderr.trim()}`, { cause: error });
     throw error;
   }
   for (const file of files) console.log(`[plan] added ${item.id} to ${file}`);
