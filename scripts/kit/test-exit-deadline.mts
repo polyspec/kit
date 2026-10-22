@@ -17,8 +17,11 @@ type WithHandle = { _handle?: { setBlocking?: (blocking: boolean) => void } };
 // The events of a test leave the process through a stream that is written only when the event loop turns. A test that blocks
 // the loop, such as one that runs tools with spawnSync, ends without a turn before the next one starts, so the events of a file of
 // such tests reached run-tests only when the file ended, and its gap watch (K371-1) stopped a file that was still passing. A
-// timer before and after each test turns the loop once, and the events of the test leave when it ends (K546).
-const turnTheLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
+// timer before and after each test turns the loop once, and the events of the test leave when it ends (K546). The timer is the
+// setTimeout of the process start: a test that mocks the timers (t.mock.timers) replaces the global one, whose timer would then
+// never fire and would hang the hook of that test (K547).
+const realSetTimeout = globalThis.setTimeout;
+const turnTheLoop = (): Promise<void> => new Promise(resolve => realSetTimeout(resolve, 0));
 const RUNNING_TEST_MARGIN_MS = 1000;
 
 const file = process.argv[1];

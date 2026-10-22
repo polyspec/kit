@@ -16,3 +16,12 @@ test('a file of synchronous tests that together outlast the deadline reports eac
   assert.equal(result.status, 0, output);
   assert.match(output, /3 passed, 0 failed, 0 timed out/);
 });
+
+test('a test that mocks setTimeout ends, since the turn around each test keeps the setTimeout of the process start (K547)', { timeout: 60_000 }, (t) => {
+  const mocked = "import test from 'node:test';\ntest('mocks the timers', (t) => { t.mock.timers.enable({ apis: ['setTimeout'] }); });\ntest('runs after it', () => {});\n";
+  const root = tree(t, { 'tests/mocked.test.mjs': mocked });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/mocked.test.mjs'], { cwd: root, encoding: 'utf8' });
+  const output = result.stdout + result.stderr;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /2 passed, 0 failed, 0 timed out/);
+});
