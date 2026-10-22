@@ -707,3 +707,19 @@ test('a remote tarball that a lock resolves for a package the root does not name
   });
   assert.deepEqual(remote(gate(root)), [], 'a remote tarball that the root names by its URL is no finding');
 });
+
+// K493: `--packages <name>[,<name>...]` reports and fails only on the findings that name one of the packages, so a row that fixes
+// one finding can close while the other findings stay for their own rows; the unscoped gate stays the same for land, CI and the batch.
+test('the gate scoped to one package fails on that package only and drops the findings of the others (K493)', (t) => {
+  const root = fixture(t);
+  appendFileSync(path.join(root, 'packages/fixture-php/composer.lock'), '\n');
+  appendFileSync(path.join(root, 'package-lock.json'), '\n');
+  const unscoped = gate(root);
+  assert.equal(unscoped.status, 1);
+  assert.match(unscoped.stderr, /packages\/fixture-php\/composer\.lock/);
+  assert.match(unscoped.stderr, /package-lock\.json/);
+  const scoped = gate(root, toolStubs(root), ['--packages', 'fixture-php']);
+  assert.equal(scoped.status, 1, scoped.stdout + scoped.stderr);
+  assert.match(scoped.stderr, /packages\/fixture-php\/composer\.lock/);
+  assert.doesNotMatch(scoped.stderr, /package-lock\.json/);
+});
