@@ -806,13 +806,18 @@ function declaredPython(top: string, file: string): string[] {
   return [...new Set([...manifestPython(file), ...declaredIn(top, 'python', path.dirname(file))])];
 }
 
-function manifestPython(file: string): string[] {
+/** The names that the pyproject `file` requires, of every polyspec and other package, in its dependencies and dependency groups. */
+function manifestNames(file: string): string[] {
   const document = readTomlFile(file);
   const requirements = [
     ...dependencyArrays(document, file).filter(array => !array.kind.startsWith('group:')).flatMap(array => array.list),
     ...[...dependencyGroups(document, file).values()].flat(),
   ];
-  return [...new Set(requirementNames(requirements).filter(name => name.startsWith('polyspec-')))];
+  return [...new Set(requirementNames(requirements))];
+}
+
+function manifestPython(file: string): string[] {
+  return manifestNames(file).filter(name => name.startsWith('polyspec-'));
 }
 
 /** `names` with every polyspec package that their providers require, as providers; a requirement without a provider is reported. */
@@ -1136,13 +1141,19 @@ function polyspecClosure(byName: ReadonlyMap<string, Provider>, names: readonly 
   return [...result.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+/** The sync flags that uv install passes to uv sync: the ones that a consumer needs for its install (K487). */
+const UV_INSTALL_SYNC_FLAGS = ['--no-install-project', '--all-groups'];
+
 /**
  * Installs the uv environment of the project `directory` in place of uv sync (K448-3). Each declared polyspec package, and each
  * polyspec package that uv.lock holds, is excluded from `uv sync --locked`, so no release of it is installed. Each one that a
  * checkout provides is then installed from the editable wheel that link writes for it (K398), with --no-deps: the sync installed
  * the locked dependencies. A polyspec package with no checkout fails before uv runs. Third-party packages come from uv.lock.
  */
-export function uvInstall({ directory, checkouts, env = process.env, print }: { directory: string; checkouts: readonly string[]; env?: NodeJS.ProcessEnv; print: Print }): void {
+export function uvInstall({ directory, checkouts, sync = [], env = process.env, print }: { directory: string; checkouts: readonly string[]; sync?: readonly string[]; env?: NodeJS.ProcessEnv; print: Print }): void {
+  for (const flag of sync) {
+    if (!UV_INSTALL_SYNC_FLAGS.includes(flag)) throw new Error(`unsupported sync flag ${flag}: uv install passes only ${UV_INSTALL_SYNC_FLAGS.join(' and ')}`);
+  }
   const consumer = consumerOf(directory, true);
   const uv = consumerTool(consumer.top, 'uv', env);
   const byName = new Map<string, Provider>();
@@ -1158,9 +1169,11 @@ export function uvInstall({ directory, checkouts, env = process.env, print }: { 
     if (!existsSync(lock)) throw new Error(`${target.workspace} has no uv.lock: the install syncs its locked releases`);
     const packages = readTomlFile(lock).package;
     const locked = Array.isArray(packages) ? packages.filter(isJsonObject).flatMap(item => typeof item.name === 'string' ? [normalizeName(item.name)] : []) : [];
-    const linked = polyspecClosure(byName, [...declared, ...locked.filter(name => name.startsWith('polyspec-'))]);
+    // A given checkout whose name the project declares is linked from the start, whatever its name (K487): its name is excluded from the sync.
+    const named = manifestNames(file).map(normalizeName).filter(name => byName.has(name));
+    const linked = polyspecClosure(byName, [...declared, ...locked.filter(name => name.startsWith('polyspec-')), ...named]);
     const names = linked.map(provider => normalizeName(provider.name));
-    run(uv.command, ['sync', '--locked', ...names.flatMap(name => ['--no-install-package', name])], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
+    run(uv.command, ['sync', '--locked', ...sync, ...names.flatMap(name => ['--no-install-package', name])], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
     if (linked.length === 0) {
       print(`uv-install ${target.workspace}: no polyspec package of its uv.lock; uv sync of the locked releases into ${target.venv}`);
       continue;

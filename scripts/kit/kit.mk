@@ -410,8 +410,8 @@ npm-install: ## Install the npm packages of DIR in place of npm ci: a polyspec p
 # uv-install is the install of a consumer's uv environment in place of its uv sync: a sibling checkout's polyspec package is installed
 # from its editable wheel from the start, so no release is installed (K448-3).
 .PHONY: uv-install
-uv-install: ## Install the uv environment of DIR in place of uv sync: each polyspec package that a checkout provides is linked from the start, no release installed (K448-3); CHECKOUTS names the checkouts, and a declared polyspec package with none is refused
-	$(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR) $(CHECKOUTS)
+uv-install: ## Install the uv environment of DIR in place of uv sync: each polyspec package that a checkout provides is linked from the start, no release installed (K448-3); CHECKOUTS names the checkouts, each linked from the start when the project declares its name (K487), SYNC passes --no-install-project and --all-groups, and a declared polyspec package with none is refused
+	UV_SYNC="$(SYNC)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR) $(CHECKOUTS)
 
 # cargo-fetch is the fetch of a consumer's Cargo crates in place of its cargo fetch: through the link of cargo, with the polyspec crates
 # of the sibling checkouts patched to their paths, so the git tag of a sibling crate is never fetched (K448-5).

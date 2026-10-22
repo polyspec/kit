@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 23208bac01523d8fbf9c756cfdac689c9f293baedb58c12d7f1915ee4bb93854 -->
+<!-- source-sha256: b6ab5c299b41e80a4b9e7bfdef795f6302c36e5876061127111c7e8a9ee84a72 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make uv-install`은 프로젝트가 이름을 선언한 각 checkout을 이름과 무관하게 처음부터 link하고 sync에서 그 이름으로 제외한다. 그래서 limepie-contracts라는 sibling은 release가 되지 않는다. `SYNC="<flags>"`는 uv sync에 `--no-install-project`와 `--all-groups`를 전달하고 다른 flag는 거부한다(K487). Red: 747470df에서 `node --test --test-name-pattern=K487 tests/kit/uv-install.test.mts`가 실패했다. limepie-contracts checkout이 release로 설치되었고, SYNC flag는 무시되었다.
 - K442 완료: row가 이 commit에서 [o]이다. red는 cc8707a9^(수정 전 commit)에서 실행한 K442 테스트이다. 수정 전 item-edit는 CAUSE와 RETRY를 받지 않아 테스트가 `[plan] VERIFICATION is empty`로 실패하며 exit 1이다 (`make item-red BEFORE=cc8707a9^`로 기록). green은 이 commit의 K442 테스트이다 (K442).
 - `npm-install`은 기존 node_modules의 내용을 바꾸고 디렉터리를 유지하므로, mount point인 node_modules도 설치된다(K486).
 - K439-6: composer-provider-entries는 tracked 버전이 잠긴 요구를 깨뜨릴 때(polyspec/orm이 고정한 fork 등) Composer writer가 고른 버전을 쓴다 (K439-6). K468-2의 규칙은 link-owner 판정에 따라 잠긴 요구를 모두 만족하는 tracked 버전으로 좁혀진다. Red: node --test --test-name-pattern=K439-6 tests/kit/dependency-review.test.mts가 exit 1(tracked 1.0.0이 유지됨); green: make 아래에서 owner 파일 31/31 통과, lint-ts 통과. (K439-6).

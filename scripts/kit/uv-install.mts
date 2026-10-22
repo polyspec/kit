@@ -16,7 +16,9 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
   }
   const checkouts = given.length ? given.map(checkout => path.resolve(checkout)) : siblingCheckouts(path.resolve(directory)).checkouts;
   try {
-    uvInstall({ directory, checkouts, env, print: text => write(`${text}\n`) });
+    // UV_SYNC carries the sync flags of make uv-install SYNC (K487); each is checked by uvInstall.
+    const sync = (env.UV_SYNC ?? '').split(/\s+/).filter(flag => flag !== '');
+    uvInstall({ directory, checkouts, sync, env, print: text => write(`${text}\n`) });
     return 0;
   } catch (error) {
     write(`${error instanceof Error ? error.message : String(error)}\n`);
