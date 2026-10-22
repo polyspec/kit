@@ -10,6 +10,7 @@
 
 ### 2026-10-22 — The Composer shim of a checkout runs with the toolchain environment of kit (K508)
 
+- K508 is closed: its red and green are recorded above (K508).
 - `tests/kit/dependency-review.test.mts` runs the Composer shim of a checkout with kit's toolchain environment (`toolingEnvironment`), which gives the shim the trust and the directories of the checkout (K508). Without it the shim fails with "mise.toml are not trusted". Red: `node --test --test-name-pattern=K508 tests/kit/dependency-review.test.mts` fails before the fix on 51969e466b9f; green: passes.
 - K490: The review record names the dependencies that the tracked composer.json declares; a link manifest adds none (K490). Red: make item-red ID=K490 exit 1 (vendor/linked recorded). Green: make item-test ID=K490 passes under make, lint-ts passes. (K490).
 - `link --project <dir>` writes the kit hook entry of `<dir>/.claude/settings.local.json` before the packages are linked, and whatever their result, so a checkout without installs gets the hook (K506).

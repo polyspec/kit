@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c57e9758e7e1bf701b22c38b46013e8a138361208857d4f5371fdf25885cfb65 -->
+<!-- source-sha256: 60d5fa2d82c751db374b49f49a408fb774b6e24973fa892ba53d73b94e5b2536 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -11,6 +11,7 @@
 
 ### 2026-10-22 — 체크아웃의 Composer 셔임은 kit의 도구 환경으로 실행된다 (K508)
 
+- K508는 닫힌다: red와 green은 위에 기록되어 있다 (K508).
 - `tests/kit/dependency-review.test.mts`가 체크아웃의 Composer 셔임을 kit의 도구 환경(`toolingEnvironment`)으로 실행한다. 그 환경이 셔임에 체크아웃의 신뢰와 디렉터리를 준다 (K508). 없으면 셔임이 "mise.toml are not trusted"로 실패한다. Red: `node --test --test-name-pattern=K508 tests/kit/dependency-review.test.mts`가 51969e466b9f에서 수정 전 실패; green: 통과.
 - K490: review record는 tracked composer.json이 선언한 의존성을 적는다; link manifest는 아무것도 더하지 않는다 (K490). Red: make item-red ID=K490 exit 1 (vendor/linked가 기록됨). Green: make 아래 make item-test ID=K490 통과, lint-ts 통과. (K490).
 - `link --project <dir>`는 package를 link하기 전에, 그 결과와 관계없이 `<dir>/.claude/settings.local.json`의 kit hook 항목을 쓰므로, 설치되지 않은 checkout도 hook을 받는다(K506).
