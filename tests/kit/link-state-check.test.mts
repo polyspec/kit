@@ -37,6 +37,40 @@ function consumer(t: TestContext, link: Record<string, boolean>) {
   return { root, env: { ...process.env, COMPOSER_BIN: stub } };
 }
 
+// K507: a tracked lock records each polyspec package at its release source; a path or link source is a finding, the local link is state only.
+const CARGO_PATH_LOCK = 'version = 4\n\n[[package]]\nname = "app"\nversion = "0.0.0"\ndependencies = [\n "polyspec-ordered-json",\n]\n\n[[package]]\nname = "polyspec-ordered-json"\nversion = "0.0.9"\ndependencies = [\n "serde",\n]\n';
+const CARGO_RELEASE_LOCK = CARGO_PATH_LOCK.replace('version = "0.0.9"\n', 'version = "0.0.9"\nsource = "git+https://github.com/polyspec/ordered-json?tag=v0.0.9#1f822e564e575d3958df8025cf911279c1f2a83b"\n');
+
+function lockFindings(t: TestContext, files: Record<string, string>, file: string) {
+  const root = tree(t, { 'Cargo.toml': '[package]\nname = "app"\nversion = "0.0.0"\n', '.gitignore': 'var/\n', ...files });
+  commitAll(root, 'fixture');
+  return linkFindings(root, process.env).filter(finding => finding.startsWith(`${file}:`));
+}
+
+test('a tracked Cargo.lock that records a polyspec package with no source is a finding naming the file, the package and its release source (K507)', (t) => {
+  const found = lockFindings(t, { 'Cargo.lock': CARGO_PATH_LOCK }, 'Cargo.lock');
+  assert.equal(found.length, 1, found.join('\n'));
+  assert.match(found[0] ?? '', /polyspec-ordered-json.*release source.*git\+https:\/\/github\.com\/polyspec\/ordered-json\?tag=v0\.0\.9/);
+});
+
+test('a tracked Cargo.lock with the release source of its polyspec package passes (K507)', (t) => {
+  assert.deepEqual(lockFindings(t, { 'Cargo.lock': CARGO_RELEASE_LOCK }, 'Cargo.lock'), []);
+});
+
+test('a tracked package-lock.json that links a polyspec package is a finding, and one that names its release passes (K507)', (t) => {
+  const linked = JSON.stringify({ name: 'app', lockfileVersion: 3, packages: { '': {}, 'node_modules/@polyspec/x': { version: '0.0.1', link: true, resolved: 'packages/x' } } });
+  const released = JSON.stringify({ name: 'app', lockfileVersion: 3, packages: { '': {}, 'node_modules/@polyspec/x': { version: '0.0.1', resolved: 'https://github.com/polyspec/x/releases/download/v0.0.1/x.tgz' } } });
+  assert.equal(lockFindings(t, { 'package-lock.json': linked }, 'package-lock.json').length, 1);
+  assert.deepEqual(lockFindings(t, { 'package-lock.json': released }, 'package-lock.json'), []);
+});
+
+test('a tracked composer.lock that installs a polyspec package from a path is a finding, and one from its release passes (K507)', (t) => {
+  const path_ = JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', dist: { type: 'path', url: '../y' } }] });
+  const release = JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', dist: { type: 'zip', url: 'https://github.com/polyspec/y/releases/download/v0.0.1/y.zip' } }] });
+  assert.equal(lockFindings(t, { 'composer.lock': path_ }, 'composer.lock').length, 1);
+  assert.deepEqual(lockFindings(t, { 'composer.lock': release }, 'composer.lock'), []);
+});
+
 test('linked packages pass whatever version and requirement their record holds, since the link counts as the released version (K305-1)', (t) => {
   const { root, env } = consumer(t, { y: true, z: true });
   assert.deepEqual(linkFindings(root, env), []);

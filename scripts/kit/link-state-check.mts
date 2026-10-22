@@ -369,10 +369,59 @@ function buildFindings(installed: readonly Installed[]): string[] {
 }
 
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
+// K507: a tracked lock records each polyspec package at its release source, never a path or a link: the local link is state only, so
+// the tracked lock stays the release record (local is canonical). Each lock is read with its own structure.
+const LOCK_FILES = ['Cargo.lock', 'package-lock.json', 'composer.lock'];
+const CARGO_POLYSPEC = /^polyspec[-_.]/i;
+
+/** The findings of one tracked lock `file` with its text; `members` names the Cargo packages of its own workspace, which have no source. */
+export function lockSourceFindings(file: string, text: string, members: ReadonlySet<string> = new Set()): string[] {
+  const base = path.posix.basename(file);
+  if (base === 'Cargo.lock') {
+    const packages = readToml(text, file).package;
+    return (Array.isArray(packages) ? packages : []).flatMap((item: unknown) => {
+      if (!isTable(item) || typeof item.name !== 'string' || typeof item.version !== 'string' || !CARGO_POLYSPEC.test(item.name) || members.has(item.name) || typeof item.source === 'string') return [];
+      const short = item.name.replace(CARGO_POLYSPEC, '');
+      return [`${file}: ${item.name} ${item.version} records no source, which is a path package; the tracked lock names its release source, git+https://github.com/polyspec/${short}?tag=v${item.version}#<commit> (the local link resolves the sibling at fetch time)`];
+    });
+  }
+  const parsed: unknown = JSON.parse(text);
+  if (!isJsonObject(parsed)) return [];
+  if (base === 'package-lock.json') {
+    const packages = isJsonObject(parsed.packages) ? parsed.packages : {};
+    return Object.entries(packages).flatMap(([key, entry]) => {
+      const name = key.replace(/^.*node_modules\//, '');
+      if (key === '' || !isJsonObject(entry) || !name.startsWith('@polyspec/')) return [];
+      const resolved = typeof entry.resolved === 'string' ? entry.resolved : undefined;
+      if (entry.link !== true && resolved !== undefined && !resolved.startsWith('file:')) return [];
+      const short = name.replace('@polyspec/', '');
+      return [`${file}: ${name} ${String(entry.version)} is a link or a path, not its release; the tracked lock names its release tarball, https://github.com/polyspec/${short}/releases/download/v${String(entry.version)}/<tarball>`];
+    });
+  }
+  const listed: unknown[] = [parsed.packages, parsed['packages-dev']].flatMap((list: unknown) => (Array.isArray(list) ? list as unknown[] : []));
+  return listed.flatMap((entry: unknown) => {
+    if (!isJsonObject(entry) || typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/')) return [];
+    if (!isJsonObject(entry.dist) || entry.dist.type !== 'path') return [];
+    return [`${file}: ${entry.name} ${String(entry.version)} is installed from a path, not its release; the tracked lock names its release archive from its polyspec repository`];
+  });
+}
+
+/** The findings of every tracked lock of LOCK_FILES (K507). */
+function trackedLockFindings(root: string): string[] {
+  return trackedManifests(root, LOCK_FILES).flatMap((file) => {
+    const folder = path.posix.dirname(file);
+    const members = new Set(trackedManifests(root, ['Cargo.toml']).filter(item => folder === '.' || item.startsWith(`${folder}/`)).flatMap((item) => {
+      const pkg = readToml(readFileSync(path.join(root, item), 'utf8'), item).package;
+      return isTable(pkg) && typeof pkg.name === 'string' ? [pkg.name] : [];
+    }));
+    return lockSourceFindings(file, readFileSync(path.join(root, file), 'utf8'), members);
+  });
+}
+
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const installed = [...npmInstalled(root), ...composerInstalled(root, env)];
   const folders = manifestFolders(root);
-  const found = [...workspaceHookFindings(root), ...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root, env), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...buildFindings(installed), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined), extraInstallTargets(root))];
+  const found = [...trackedLockFindings(root), ...workspaceHookFindings(root), ...installLinkFindings(root, folders), ...workspaceLinkFindings(root, folders), ...goFindings(root, env), ...platformFindings(root, installed), ...trustFindings(root), ...mergedFindings(root), ...buildFindings(installed), ...recipeFindings(root, trackedFiles(root), file => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined), extraInstallTargets(root))];
   const linked = installed.some(item => isLink(item.folder));
   for (const item of installed) {
     const shown = path.relative(root, item.folder);

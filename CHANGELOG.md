@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K507: `make link-state-check` refuses a tracked Cargo.lock, package-lock.json or composer.lock that records a polyspec package with a path or link source instead of its release source (a Cargo package with no source, a link or file: resolved, or a Composer path dist), naming the file, the package and the release-source form, so the tracked lock stays the release record (K507). Red: `node --test --test-name-pattern=K507 tests/kit/link-state-check.test.mts` failed on f68fe82e (three path locks passed unnoticed); green: the file passes 25 of 25.
 - K490: The review record names the dependencies that the tracked composer.json declares; a link manifest adds none (K490). Red: make item-red ID=K490 exit 1 (vendor/linked recorded). Green: make item-test ID=K490 passes under make, lint-ts passes. (K490).
 - `link --project <dir>` writes the kit hook entry of `<dir>/.claude/settings.local.json` before the packages are linked, and whatever their result, so a checkout without installs gets the hook (K506).
 - K492: The kit Go pin is go1.27.3, the release without the advisory GO-2026-6809; mise.toml, the lock, the pins file, the symbols go.mod and the tool inventory name it. Red: make item-red ID=K492 exit 1 (kit pin 1.27.2). Green: make item-test ID=K492 passes under make. (K492).

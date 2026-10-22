@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 2e046144cc798e876faf59a29f6d171872a62bd0118844e5e81b18f137d25324 -->
+<!-- source-sha256: c1d0c804f2b0f2bc168465edce467c2622613d2b5b223899413e81ce8be98fd2 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -402,3 +402,4 @@
 | K492 | kit의 Go 핀은 GO-2026-6809(crypto/x509가 침해된 중간 인증서를 불신)를 고친 릴리스 go1.27.3이다; kit이 저장소로 동기화하는 사본은 더 이상 그 advisory가 있는 stdlib v1.27.2를 고정하지 않는다 (orm KSTD-5-27과 fsm S-55가 이것으로 닫힌다) | mise.toml, mise.lock | `node --test --test-name-pattern=K492 tests/kit/check-toolchain.test.mts` | [o] |
 | K506 | `link --project <dir>`는 package link 전에, 그리고 그 결과와 관계없이 kit hook 항목을 쓰고 검사한다. 원인: K498은 link가 성공한 뒤에만 항목을 쓰므로, package가 설치되지 않은 checkout은 hook을 받지 못하는데 hook은 package에 의존하지 않는다. 완료 기준: `<dir>/.claude/settings.local.json`의 항목과 Git exclude는 package를 link하기 전에 쓰이며, link되지 않은 package가 있어도 쓰인 채로 남고 종료 상태는 link의 것이다; `link check --project <dir>`는 package가 설치되지 않아도 항목이 없거나 다르면 보고한다. 빨강 fixture: package가 설치되지 않은 consumer checkout은 지금 hook을 받지 못한다. | scripts/kit/link.mts, tests/kit/project-hook.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test --test-name-pattern=K506 tests/kit/project-hook.test.mts` | [o] |
 | K490 | dependency-review UPDATE=1은 tracked manifest만 기록한다: link manifest(composer.link.json, go.work 모듈)는 선언이 아니라 로컬 설치 상태이므로, review record는 tracked manifest가 선언하지 않는 의존성을 적지 않는다 (S-45-40의 블로커, fsm에서 발견) | scripts/kit/dependency-state.mts, tests/kit/dependency-toolchain.test.mts | `node --test --test-name-pattern=K490 tests/kit/dependency-toolchain.test.mts` | [o] |
+| K507 | link-state-check는 polyspec 패키지를 path 또는 link source로 기록한 추적 lock(Cargo.lock, package-lock.json, composer.lock)을 거부하여 추적 lock이 release 기록으로 남게 한다(K448, local is canonical). 원인: 검사는 설치된 패키지만 읽으므로 source가 없는 polyspec-ordered-json 항목(path 패키지)이 알려지지 않은 채 통과한다. 인수 조건: 추적 lock의 polyspec 패키지 항목이 path 또는 link source이면(Cargo.lock: 구성원이 아닌 polyspec 패키지에 source 없음, package-lock.json: link true 또는 file: resolved, composer.lock: dist type path) 파일, 패키지, release source 형식을 이름 붙인 finding이다. release source를 가진 추적 lock은 통과한다. | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts, CHANGELOG.md, CHANGELOG.ko.md, docs/plans/common-standard/checklist.md, docs/plans/common-standard/checklist.ko.md | `node --test --test-name-pattern=K507 tests/kit/link-state-check.test.mts` | [o] |
