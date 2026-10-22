@@ -3,10 +3,12 @@
 // declarations of the packages that the repository consumes by link live in config/polyspec.json, each with its ecosystem, its
 // project folder (named from the repository root) and its name; a declaration whose project lacks the manifest of its ecosystem is
 // a finding. The check reads the tracked files only: a link file, such as composer.link.json, is written by link and is not checked.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { git } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { providerKey, providers, repositoryOf, type Provider, workTreeOf } from './link-providers.mts';
+import { normalizeName } from './pyproject-dependencies.mts';
 import { readConfigFindings } from './schema-validate.mts';
 import { isStringArray, isTable, readToml } from './toml.mts';
 import { isJsonObject } from './bootstrap/files.mts';
@@ -87,12 +89,46 @@ function namesIn(file: string, text: string): string[] {
 
 const MANIFEST_FILES = new Set(['composer.json', 'composer.lock', 'package.json', 'package-lock.json', 'pyproject.toml', 'pylock.toml']);
 
+/** The ecosystem of a tracked manifest or lock; every caller has already limited `file` to MANIFEST_FILES. */
+function ecosystemOf(file: string): Ecosystem {
+  const base = path.posix.basename(file);
+  if (base.startsWith('composer')) return 'composer';
+  if (base.startsWith('package')) return 'npm';
+  return 'python';
+}
+
+/** Whether `file` resolves inside `root`; a tracked manifest symlink to another checkout is not owned here. */
+function insideCheckout(root: string, file: string): boolean {
+  const relative = path.relative(root, file);
+  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative));
+}
+
+/** The link-discovered providers whose manifests physically resolve inside this repository. */
+function ownedWorkspacePackages(root: string): Map<string, Provider> {
+  const repository = repositoryOf(root);
+  const checkout = realpathSync(workTreeOf(root));
+  const found = providers([], undefined, root, root);
+  return new Map([...found].filter(([, provider]) => {
+    if (provider.ecosystem === 'go' || provider.repository !== repository) return false;
+    const manifest = path.join(provider.folder, MANIFEST[provider.ecosystem]);
+    return insideCheckout(checkout, realpathSync(manifest));
+  }));
+}
+
+/** Whether this package name belongs to a source-backed provider in the repository's own workspace. */
+function ownedByWorkspace(owned: ReadonlyMap<string, Provider>, file: string, name: string): boolean {
+  const ecosystem = ecosystemOf(file);
+  const providerName = ecosystem === 'python' ? normalizeName(name) : name;
+  return owned.has(providerKey(ecosystem, providerName));
+}
+
 /** The findings of the tracked files and of the declarations of `root`, one line each; none when the repository is clean. */
 export function polyspecLockFindings(root: string): string[] {
   const findings: string[] = [];
   const tracked = trackedFiles(root);
+  const owned = ownedWorkspacePackages(root);
   for (const file of tracked.filter(item => MANIFEST_FILES.has(path.posix.basename(item)))) {
-    const names = [...new Set(namesIn(file, readFileSync(path.join(root, file), 'utf8')).filter(isPolyspec))].sort();
+    const names = [...new Set(namesIn(file, readFileSync(path.join(root, file), 'utf8')).filter(isPolyspec).filter(name => !ownedByWorkspace(owned, file, name)))].sort();
     if (names.length > 0) findings.push(`${file}: names ${names.join(', ')}; a tracked file names no polyspec package of 0.0.x, its declaration is in ${CONFIG} (K468)`);
   }
   const declared = declarationsOf(root);

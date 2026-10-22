@@ -2,11 +2,12 @@
 // manifest or lock names none; the declarations of such packages live in config/polyspec.json, which the link installs
 // from the sibling checkouts. Each fixture is a git repository in a temporary folder, with only the files of the case tracked.
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
 import { polyspecLockFindings } from '../../scripts/kit/polyspec-lock-check.mts';
+import { providers } from '../../scripts/kit/link-providers.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 import { git } from '../../scripts/kit/git.mts';
@@ -27,6 +28,75 @@ function repository(t: TestContext, files: Record<string, string>, untracked: Re
 }
 
 const LOCKED_PHP = JSON.stringify({ packages: [{ name: 'polyspec/orm', version: '0.0.18' }, { name: 'psr/log', version: '3.0.0' }] });
+
+test('K478: an own workspace package is allowed but a true sibling remains a finding', (t) => {
+  const root = repository(t, {
+    'package.json': JSON.stringify({ name: 'consumer/root', private: true, workspaces: ['packages/*'], dependencies: { '@polyspec/local': 'workspace:*', '@polyspec/sibling': '0.0.1' } }),
+    'package-lock.json': JSON.stringify({ packages: {
+      '': { name: 'consumer/root', dependencies: { '@polyspec/local': 'workspace:*', '@polyspec/sibling': '0.0.1' } },
+      'packages/local': { name: '@polyspec/local', version: '0.0.1' },
+      'node_modules/@polyspec/local': { resolved: 'packages/local', link: true },
+      'node_modules/@polyspec/sibling': { version: '0.0.1', resolved: '../sibling' },
+    } }),
+    'packages/local/package.json': JSON.stringify({ name: '@polyspec/local', version: '0.0.1' }),
+  });
+  const sibling = mkdtempSync(path.join(tmpdir(), 'polyspec-sibling-'));
+  t.after(() => rmSync(sibling, { recursive: true, force: true }));
+  initRepository(sibling);
+  put(sibling, { 'package.json': JSON.stringify({ name: '@polyspec/sibling', version: '0.0.1' }) });
+  git(sibling, 'add', '-A');
+  git(sibling, 'commit', '--quiet', '-m', 'sibling package');
+
+  const findings = polyspecLockFindings(root);
+  assert.equal(findings.length, 2, findings.join('\n'));
+  assert.ok(findings.every(finding => finding.includes('@polyspec/sibling')), findings.join('\n'));
+  assert.ok(findings.every(finding => !finding.includes('@polyspec/local')), findings.join('\n'));
+});
+
+test('K478: Python PEP 503 separator variants identify the same owned workspace package', (t) => {
+  const root = repository(t, {
+    'packages/python/pyproject.toml': '[project]\nname = "polyspec_local"\nversion = "0.0.1"\n',
+    'packages/python/pylock.toml': 'lock-version = "1.0"\n[[packages]]\nname = "polyspec.local"\nversion = "0.0.1"\n[[packages]]\nname = "polyspec-sibling"\nversion = "0.0.2"\n',
+  });
+  const findings = polyspecLockFindings(root);
+  assert.equal(findings.length, 1, findings.join('\n'));
+  const [finding] = findings;
+  assert.ok(finding);
+  assert.ok(finding.includes('polyspec-sibling'), findings.join('\n'));
+  assert.ok(!finding.includes('polyspec.local'), findings.join('\n'));
+});
+
+test('K478-1: a tracked manifest symlink outside this repository does not own an external release lock', (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), 'polyspec-lock-root-'));
+  const outside = mkdtempSync(path.join(tmpdir(), 'polyspec-lock-outside-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  initRepository(root);
+  initRepository(outside);
+  put(outside, { 'package.json': JSON.stringify({ name: '@polyspec/outside', version: '0.0.1' }) });
+  git(outside, 'add', '-A');
+  git(outside, 'commit', '--quiet', '-m', 'outside package');
+  put(root, {
+    'package.json': JSON.stringify({ name: 'consumer/root', dependencies: { '@polyspec/outside': '0.0.1' } }),
+    'package-lock.json': JSON.stringify({ packages: {
+      '': { name: 'consumer/root', dependencies: { '@polyspec/outside': '0.0.1' } },
+      'node_modules/@polyspec/outside': { version: '0.0.1' },
+    } }),
+  });
+  const providerFolder = path.join(root, 'packages/external');
+  mkdirSync(providerFolder, { recursive: true });
+  symlinkSync(path.join(outside, 'package.json'), path.join(providerFolder, 'package.json'));
+  git(root, 'add', '-A');
+  git(root, 'commit', '--quiet', '-m', 'external manifest symlink');
+
+  const owner = providers([], undefined, root, root).get('npm:@polyspec/outside');
+  assert.ok(owner, 'the link provider scan sees the tracked symlinked manifest');
+  assert.equal(owner.folder, path.join(realpathSync(root), 'packages/external'), 'the provider folder is derived lexically from the tracked manifest');
+  assert.equal(realpathSync(path.join(owner.folder, 'package.json')), realpathSync(path.join(outside, 'package.json')));
+  const findings = polyspecLockFindings(root);
+  assert.equal(findings.length, 2, findings.join('\n'));
+  assert.ok(findings.every(finding => finding.includes('@polyspec/outside')), findings.join('\n'));
+});
 
 test('K468: each tracked manifest or lock that names a polyspec package is a finding, by file and name', (t) => {
   const root = repository(t, {

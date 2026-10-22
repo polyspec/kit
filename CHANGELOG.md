@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K478: the tracked polyspec-lock check uses link's repository-scoped package ownership, allowing the packages of its own workspace and keeping external sibling findings (K478). Red: `node --test-name-pattern=K478` on 8f487225 exit 1 (both own-workspace tests); green: the K478 tests pass.
+- K478-1: a tracked package manifest symlink that resolves outside the checkout gives no ownership to a locked external 0.0.x polyspec package (K478-1). Red: the K478-1 test with the outside-checkout guard removed exit 1; green: the K478-1 test passes.
 - `link --project <dir>` writes the Bash PreToolUse hook of the claude-hook of the kit that runs it into the untracked `<dir>/.claude/settings.local.json`, keeps its other keys, and ignores the file through the Git exclude of `<dir>`; `link check --project <dir>` names the file while the hook is missing (K498).
 - `make npm-install` copies the project's `.npmrc` into its temporary install folder, so npm installs with the configuration of the project, such as `legacy-peer-deps=true` for platform peers that the checkouts provide (K502). Red: `node --test --test-name-pattern=K502 tests/kit/npm-install.test.mts` failed on 71ef287d: the npm of the install found no `.npmrc`.
 - The PHP application example names no framework product: S10 of PRINCIPLES.md and its Korean twin, and the K359 and K425 rows of the common-standard checklist, name a PHP console application as the example of an application on a userland framework, not a framework product (K477). Red: make text-absent FILE=PRINCIPLES.md TEXT="Symfony Console CLI" exit 2 before the fix; green: the same run after it (K477).

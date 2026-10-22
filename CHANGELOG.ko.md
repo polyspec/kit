@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b12e8c25f2d00c703cd7f6db549a3e62cc5c1a1d29d061e8def1f84c4a64a75f -->
+<!-- source-sha256: 656f25a8c4619243d4783e2bcac1a904fa54e1380751f2c03f3db2c4d29979ef -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K478: 추적된 polyspec-lock 검사는 link의 repository 범위 package ownership을 써서 자기 workspace의 package는 허용하고 외부 sibling finding은 유지한다 (K478). red: 8f487225에서 `node --test-name-pattern=K478` exit 1(자기 workspace 테스트 두 개), green: K478 테스트 통과.
+- K478-1: checkout 밖으로 해석되는 추적된 package manifest symlink는 locked 외부 0.0.x polyspec package에 ownership을 주지 않는다 (K478-1). red: checkout 밖 guard를 뺀 상태의 K478-1 테스트 exit 1, green: K478-1 테스트 통과.
 - `link --project <dir>`는 실행한 kit의 claude-hook의 Bash PreToolUse hook을 추적되지 않는 `<dir>/.claude/settings.local.json`에 쓰고, 파일의 다른 key를 유지하며, `<dir>`의 Git exclude로 그 파일을 무시하게 한다. `link check --project <dir>`는 hook이 없으면 그 파일을 이름으로 든다 (K498).
 - `make npm-install`은 project의 `.npmrc`를 임시 설치 폴더로 복사하므로, npm이 project의 설정(예: checkout이 제공하는 platform peer를 위한 `legacy-peer-deps=true`)으로 설치한다(K502). Red: `node --test --test-name-pattern=K502 tests/kit/npm-install.test.mts`가 71ef287d에서 실패했다: 설치의 npm이 `.npmrc`를 찾지 못했다.
 - PHP 애플리케이션 예시는 framework 제품 이름을 적지 않는다: PRINCIPLES.md의 S10과 한국어 짝, common-standard checklist의 K359, K425 row가 userland framework 위 애플리케이션의 예로 framework 제품이 아닌 PHP console application을 든다 (K477). red: 수정 전 make text-absent FILE=PRINCIPLES.md TEXT="Symfony Console CLI"가 exit 2, green: 수정 후 같은 실행 (K477).
