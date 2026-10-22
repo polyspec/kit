@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cb54ffba6df0414a8699a797ae20606fb6018893f81460750030b953c8bf599b -->
+<!-- source-sha256: d77c694360d8948036d9a4c83526e2b4c5bd4fb52bd93b3e1ef7e417fa7d91a9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make npm-install`은 `ADD=<checkout>...`을 받아, 프로젝트가 선언하지 않은 패키지의 폴더도 처음부터 link한다. 임시 manifest의 file: 의존성이며, 추적 package.json과 package-lock.json은 그 패키지를 이름 짓지 않는다(K485).
 - K491: 의존성 테스트 fixture는 make의 mise 설정이 아니라 자신의 테스트 환경에서 돈다. MISE_LOCKED을 빼고, fixture 도구는 checkout의 var/tools 밖에서 PATH가 찾는 것을 쓰므로 checkout의 shim이 mise로 재귀하지 않는다 (K491). Red: make 아래 make item-red ID=K491이 exit 1(go shim 재귀, lockfile에 없는 ruff); green: make 아래 make item-test ID=K491 통과, lint-ts 통과. (K491).
 - K205 테스트 link는 install-packages가 `npm-install DIR=.`를 실행하고 npm-install이 `npm ci`를 실행함을 단정한다. K448-8 이후 kit-bootstrap의 설치 레시피이며, 낡은 `$(NPM) ci` 줄을 대체해 테스트가 main에서 통과한다 (K500).
 - K448-5-1: `make cargo-fetch`는 소비자의 Cargo.lock이 이름하는 sibling crate만 patch하므로, 사용하지 않는 crate가 추적 lock에 patch.unused 항목을 남기지 않고 --locked가 이를 받는다 (K448-5-1). Red: `node --test --test-name-pattern=K448-5-1 tests/kit/link.test.mts`가 f57380a8에서 실패했고(이름 없는 crate에 patch가 쓰였다), green은 K448, K489, K440 테스트가 통과한다.

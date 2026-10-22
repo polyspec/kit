@@ -413,4 +413,45 @@ test('a package the project declares keeps its own dependency entry, with no sec
   assert.equal(took, 'linked');
   assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), tracked, 'the tracked manifest is unchanged');
   assert.equal(lstatSync(path.join(project, 'node_modules/@polyspec/template')).isSymbolicLink(), true, 'the declared package is linked once');
+
+});
+
+// K485: ADD links a checkout whose package the project does not declare from the start: the temporary manifest names it as a file:
+// dependency of its checkout, the tracked manifest and lock stay unchanged, and no npm ci runs.
+test('npm install with ADD links an undeclared checkout from the start, with the tracked files unchanged and no npm ci (K485)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-add-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const checkout = path.join(root, 'core');
+  mkdirSync(checkout, { recursive: true });
+  writeFileSync(path.join(checkout, 'package.json'), JSON.stringify({ name: '@limepie/core', version: '0.0.1', main: 'index.js' }));
+  writeFileSync(path.join(checkout, 'index.js'), 'module.exports = 1;\n');
+  const project = path.join(root, 'app');
+  mkdirSync(project, { recursive: true });
+  const tracked = JSON.stringify({ name: 'app', version: '1.0.0', private: true }, null, 2) + '\n';
+  const lock = '{"name":"app","lockfileVersion":3,"requires":true,"packages":{}}\n';
+  writeFileSync(path.join(project, 'package.json'), tracked);
+  writeFileSync(path.join(project, 'package-lock.json'), lock);
+  // The stub npm records each subcommand, and for install the manifest it installs; it runs no real npm.
+  const log = path.join(root, 'npm.log');
+  const recorded = path.join(root, 'manifest.json');
+  const stub = path.join(root, 'npm');
+  writeFileSync(stub, `#!/bin/sh\nprintf "%s\\n" "$1" >> "${log}"\nif [ "$1" = install ]; then cp package.json "${recorded}"; mkdir -p node_modules; fi\n`, { mode: 0o755 });
+  const lines: string[] = [];
+  const took = npmInstall({ directory: project, checkouts: [], added: [checkout], npm: stub, print: text => lines.push(text), env: process.env });
+  assert.equal(took, 'linked', lines.join('\n'));
+  assert.equal(readFileSync(log, 'utf8'), 'install\n', 'only npm install runs, no npm ci');
+  assert.deepEqual(readJsonObject(root, 'manifest.json').dependencies, { '@limepie/core': `file:${realpathSync(checkout)}` }, 'the temporary manifest names the checkout');
+  assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), tracked, 'the tracked manifest is unchanged');
+  assert.equal(readFileSync(path.join(project, 'package-lock.json'), 'utf8'), lock, 'the tracked lock is unchanged');
+});
+
+test('make npm-install ADD=<checkout> passes each checkout to the tool with --add, and none without ADD (K485)', () => {
+  const kitRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
+  const dry = (...extra: string[]) => spawnSync('make', ['-n', 'npm-install', 'DIR=examples/app', ...extra], { cwd: kitRoot, encoding: 'utf8' });
+  const plain = dry();
+  assert.equal(plain.status, 0, plain.stderr);
+  assert.doesNotMatch(plain.stdout, /--add/, plain.stdout);
+  const added = dry('ADD=/work/core /work/template');
+  assert.equal(added.status, 0, added.stderr);
+  assert.match(added.stdout, /npm-install\.(mts|mjs|js) examples\/app\s+--add \/work\/core --add \/work\/template\s*$/m, added.stdout);
 });
