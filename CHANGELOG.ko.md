@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e8906326bf4eb7b36c8662840787e124b85219498f14725c6ba5c5557214e217 -->
+<!-- source-sha256: 16d6a56c654a3b0bbf09b2340213595ac7eabe1878d0c39c7fb6458fef008e88 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- main의 `make commit`은 checklist의 크기와 상관없이 HEAD의 행을 읽으므로 orm의 checklist(1MB 초과)의 상태 변경은 새 행이 아니며, git이 읽지 못하는 HEAD의 checklist는 원인과 함께 commit을 실패시킨다(K499-1).
 - K452-1를 닫는다 (K452-1): 확장 검사가 커밋되었고 커밋된 트리에서 검증되었다.
 - K452-1를 마친다 (K452-1): 실행 시작 전에 각 PHP 확장을 검사하고, 로드되지 않는 것은 경로와 실행 중인 PHP를 이름으로 대며 실패한다.
 - 확장 실행은 PHPUnit을 시작하기 전에 각 --php-extension을 검사한다: 로드되지 않는 것은 .so 경로, PHP가 보고하는 내용(빌드된 API), 실행 중인 PHP를 이름으로 대므로, 라이브러리를 잘못된 PHP에서 조용히 테스트하지 않는다 (K452-1).
