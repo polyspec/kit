@@ -13,9 +13,10 @@ import { run } from './process.mts';
 /**
  * Installs the Composer project of `directory` and returns the path that it took: `linked` (the polyspec packages of the link) or
  * `locked` (composer install of the tracked lock). COMPOSER_BIN names the Composer when the recipe gives it, as the links do.
+ * `noDev` installs the tracked lock with --no-dev, the production install (K483-2).
  */
-export function composerInstall({ directory, checkouts, env = process.env, print }: {
-  directory: string; checkouts: readonly string[]; env?: NodeJS.ProcessEnv; print: (text: string) => void;
+export function composerInstall({ directory, checkouts, env = process.env, print, noDev = false }: {
+  directory: string; checkouts: readonly string[]; env?: NodeJS.ProcessEnv; print: (text: string) => void; noDev?: boolean;
 }): 'linked' | 'locked' {
   const project = path.resolve(directory);
   const composer = { command: env.COMPOSER_BIN ?? composerCommand(workTreeOf(project), 'make composer-install'), env: composerEnvironment(workTreeOf(project)) };
@@ -25,16 +26,17 @@ export function composerInstall({ directory, checkouts, env = process.env, print
     return 'linked';
   }
   print(`composer-install ${project}: no sibling checkout provides a polyspec package of its composer.lock; composer install of the tracked lock`);
-  run(composer.command, ['install', '--no-interaction'], { cwd: project, env: composer.env });
+  run(composer.command, ['install', '--no-interaction', ...(noDev ? ['--no-dev'] : [])], { cwd: project, env: composer.env });
   return 'locked';
 }
 
 if (isMain(import.meta.url)) {
-  const [directory] = process.argv.slice(2);
-  if (directory === undefined) {
-    process.stderr.write('Usage: node scripts/kit/composer-install.mts <dir>\n');
+  const [directory, ...options] = process.argv.slice(2);
+  const unknown = options.filter(option => option !== '--no-dev');
+  if (directory === undefined || unknown.length > 0) {
+    process.stderr.write('Usage: node scripts/kit/composer-install.mts <dir> [--no-dev]\n');
     process.exitCode = 2;
   } else {
-    composerInstall({ directory, checkouts: siblingCheckouts(path.resolve(directory)).checkouts, print: text => process.stdout.write(`${text}\n`) });
+    composerInstall({ directory, checkouts: siblingCheckouts(path.resolve(directory)).checkouts, noDev: options.includes('--no-dev'), print: text => process.stdout.write(`${text}\n`) });
   }
 }

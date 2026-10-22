@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2bc4b1e2fe7bfae908cb2ddce82d82873af45341bcd9bd6b9f7b292b59d4a7b2 -->
+<!-- source-sha256: 599e339e96887ee3917c9c081cc14a33e4868f1417d008bd3471ead29e113617 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make composer-install`은 `NO_DEV=1`을 받아 추적 lock을 `--no-dev`로 설치한다. production 설치에 쓴다(K483-2).
 - `composer-install`과 `npm-install`은 checkout이 없는 선언된 polyspec 패키지를 모든 모드에서 패키지 이름을 적어 거부하며, 그 대신 npm ci나 composer install을 실행하지 않는다(K483-1).
 - K448-13: npm-install은 packages/ 아래 세 단계까지 형제 패키지를 찾으므로, 패키지를 packages/server/ts에 둔 저장소(hyper)가 그것을 제공하고 npm은 릴리스를 가져오지 않는다 (K448-13). Red: node --test --test-name-pattern=K448-13 tests/kit/npm-install.test.mts가 exit 1(링크되지 않고 npm ci가 가져옴); green: make item-test ID=K448-13 통과, npm-install 파일 10/10, lint-ts 통과. (K448-13).
 - PHP 애플리케이션 패키지(composer type project)는 S10 extension 실행 밖에 있고 test-php에서 자기 패키지로 test를 실행한다(K433).

@@ -1858,3 +1858,23 @@ test('make composer-install refuses a declared polyspec package with no checkout
   }
   assert.doesNotMatch(log(), /^composer (install|update)/m, 'no install or update runs');
 });
+
+// K483-2: composer-install installs with --no-dev when the make option NO_DEV=1 is given, and without it the install is unchanged.
+test('composer-install installs with --no-dev when noDev is given, as make composer-install NO_DEV=1 does (K483-2)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  freshComposer(consumer);
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: {} }) });
+  composerInstall({ directory: consumer, checkouts: [], env, noDev: true, print: () => undefined });
+  assert.match(log(), /^composer install --no-interaction --no-dev$/m, 'the tracked lock is installed without dev packages');
+});
+
+test('make -n composer-install NO_DEV=1 passes --no-dev to the composer-install tool, and without it passes none (K483-2)', () => {
+  const kitRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
+  const dry = (...extra: string[]) => spawnSync('make', ['-n', 'composer-install', 'DIR=examples/app', ...extra], { cwd: kitRoot, encoding: 'utf8' });
+  const withDev = dry();
+  assert.equal(withDev.status, 0, withDev.stderr);
+  assert.match(withDev.stdout, /composer-install\.(mts|mjs|js) examples\/app\s*$/m, withDev.stdout);
+  const noDev = dry('NO_DEV=1');
+  assert.equal(noDev.status, 0, noDev.stderr);
+  assert.match(noDev.stdout, /composer-install\.(mts|mjs|js) examples\/app --no-dev\s*$/m, noDev.stdout);
+});
