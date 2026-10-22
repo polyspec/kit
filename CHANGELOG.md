@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The K205 test of link asserts that install-packages runs `npm-install DIR=.` and that npm-install runs `npm ci`, the install recipe of kit-bootstrap since K448-8, in place of the stale `$(NPM) ci` line, so the test passes on main (K500).
 - K448-5-1: `make cargo-fetch` patches a sibling crate only when the consumer's Cargo.lock names it, so an unused crate no longer records a patch.unused entry in the tracked lock and --locked accepts it (K448-5-1). Red: `node --test --test-name-pattern=K448-5-1 tests/kit/link.test.mts` failed on f57380a8 (the patch was written for an unnamed crate); green: the K448, K489 and K440 tests pass.
 - `make link` re-makes an npm link whose target is absolute, and that resolves to its provider, as a link relative to its folder, the form that link writes and the rules of kit name; the target form is decided in `docs/operations/local-links.md` (K326-3).
 - `make npm-install` takes the package folders of a checkout that has them, never the checkout itself, so a root whose package.json carries its package's name (ordered-json) links packages/js (K494-2). Red: `node --test --test-name-pattern=K494-2 tests/kit/npm-install.test.mts` failed on f57380a8, linking the root.
