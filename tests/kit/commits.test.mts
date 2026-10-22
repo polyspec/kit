@@ -455,3 +455,34 @@ test('a chore commit that stages a Makefile is refused, and a chore that stages 
   git('add', 'docs/readme.md');
   assert.deepEqual(indexItemFindings(root, CONFIG, 'chore(plan): Note (#K1)').filter(entry => entry.rule === 'commit-type'), [], 'a document may be committed as chore');
 });
+
+// K497: a commit on a branch is refused when its index holds a row with an ID that main holds with another task, unless the ID is
+// the row of the branch itself; the finding names the ID, the task on main and the next free ID. main itself is the reference.
+test('row-id: a commit on a branch refuses a row whose ID main holds with another task (K497)', (t) => {
+  const ROWS = { schema: 1, hooks: ['pre-push'], idPattern: 'T[0-9]+' };
+  const root = tree(t, {});
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+  const rows = (pairs: Array<[string, string]>) => `# Plan\n\n| ID | Task | State |\n|---|---|---|\n${pairs.map(([id, task]) => `| ${id} | ${task} | [ ] |`).join('\n')}\n`;
+  git('symbolic-ref', 'HEAD', 'refs/heads/main');
+  put(root, { 'config/checklist.json': JSON.stringify(ROWS), [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union on main']]) });
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '-m', 'feat(core): Start (#T1)').status, 0);
+  const stage = (branch: string, pairs: Array<[string, string]>) => {
+    assert.equal(git('checkout', '-q', '-B', branch, 'main').status, 0);
+    put(root, { [PLAN]: rows(pairs) });
+    git('add', '-A');
+  };
+  stage('fix/other-T9', [['T1', 'Write the parser'], ['T5', 'Link the composer shim']]);
+  const clash = indexItemFindings(root, CONFIG, 'docs(plan): Register T5 (#T5)').filter(found => found.rule === 'row-id');
+  assert.equal(clash.length, 1, JSON.stringify(clash));
+  assert.match(clash[0]?.message ?? '', /T5/);
+  assert.match(clash[0]?.message ?? '', /Print the union on main/);
+  assert.match(clash[0]?.message ?? '', /T6/);
+  stage('fix/edit-T5', [['T1', 'Write the parser'], ['T5', 'Print the union of two types']]);
+  assert.deepEqual(indexItemFindings(root, CONFIG, 'docs(plan): Restate T5 (#T5)').filter(found => found.rule === 'row-id'), [], 'the branch of T5 restates its own row');
+  git('reset', '-q', '--hard');
+  assert.equal(git('checkout', '-q', 'main').status, 0);
+  put(root, { [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union of two types']]) });
+  git('add', '-A');
+  assert.deepEqual(indexItemFindings(root, CONFIG, 'docs(plan): Restate T5 (#T5)').filter(found => found.rule === 'row-id'), [], 'main is the reference');
+});
