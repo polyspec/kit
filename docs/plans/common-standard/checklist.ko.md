@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: cda20755a3f982ced2786f0224cc68cfad798bc923a13da5ea08833a3791806c -->
+<!-- source-sha256: ba29ca168e9e3475085a2ec1f538a2cc0f2dbd60f9ea56fc4c4d17bcdf9175cd -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -370,3 +370,4 @@
 | K480 | Python 패키지 탐색은 named mapping과 함께 기본 package-dir를 지원한다 | scripts/kit/link.mts, tests/kit/link.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K480 -- tests/kit/link.test.mts` | [o] |
 | K480-1 | link와 link check는 링크된 provider가 요구하는 패키지 버전을 설치된 트리가 만족하지 않으면 실패한다(K398과 K448 후속). 원인: 개발용 link는 설치된 polyspec 패키지를 checkout으로 바꾸지만 checkout 자신의 require 제약을 lock이 설치한 패키지와 비교하지 않아서, orm main은 purrphp/yaml 1.0.0-p1을 요구하는데 consumer의 lock은 fork 1.0.0을 설치하고 아무것도 보고하지 않는다(limepie S-563). 인수 조건: link와 link check(Composer, npm, uv 모두)는 링크된 provider의 require 제약을 설치된 해당 패키지 버전이 만족하지 않으면 provider, 패키지, 제약, 설치된 버전을 적어 실패한다. red fixture: 설치된 트리에 없는 버전을 요구하는 링크된 provider가 지금은 통과한다. | scripts/kit/link.mts, scripts/kit/link-state-check.mts, tests/kit/link.test.mts | `node --test --test-name-pattern=K480-1 tests/kit/link.test.mts` | [ ] |
 | K481 | 생성된 Composer link requirement는 lock 무결성을 약화하지 않고 strict validation을 통과한다. | scripts/kit/link.mts, tests/kit/link.test.mts, tests/source/link-composer-real.test.mts, docs/plans/common-standard/checklist.md(.ko), CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node --timeout 60 --test-name-pattern=K481 -- tests/kit/link.test.mts` `node --test --test-name-pattern=K481 tests/source/link-composer-real.test.mts` | [o] |
+| K483 | composer-install은 dev/no-dev 옵션을 받고, checkout이 없는 선언된 polyspec 패키지는 거부한다(K432와 K448-7 후속). 원인: composer-install은 --no-dev 없이 composer install을 실행하므로 limepie의 production 설치가 --no-dev를 잃고, sibling checkout이 없으면 추적 lock의 composer install로 떨어져 release된 polyspec 패키지를 설치한다. 인수 조건: make composer-install DIR=<project> DEV=0은 --no-dev로 설치하며, checkout이 없는 선언된 polyspec 패키지는 모든 모드에서 K448-7의 npm-install처럼 실패한다. red fixture: checkout이 없고 polyspec 패키지를 선언한 composer-install이 지금은 composer install을 실행한다. | scripts/kit/composer-install.mts, scripts/kit/kit.mk, tests/kit/link.test.mts | `node --test --test-name-pattern=K483 tests/kit/link.test.mts` | [ ] |
