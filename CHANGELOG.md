@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- uv-install reinstalls the held packages offline from uv's cache in a run of its own, naming a wheel that the cache lacks, and leaves the project that it installs out (K548).
 - worktree-setup writes the Composer bin proxies of a vendor into the worktree, so every vendor binary of a worktree autoloads the worktree (K550).
 - divergence-check passes a test statement that asserts its environment and holds no branch, and still flags a probe in a branch (K543).
 - The gap watch of run-tests bounds the start of a test process by a start-up bound of 120 s, and the gaps after the process reports that it is up by the test timeout, so the start of an interpreter on a loaded machine no longer fails a passing run; a process that never reports up is stopped at the start-up bound with its own message (K549).
