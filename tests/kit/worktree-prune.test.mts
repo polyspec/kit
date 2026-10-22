@@ -82,14 +82,15 @@ test('worktree-prune removes merged branches and their clean worktrees, and keep
 });
 
 test('link-state-check fails while a merged branch is left (K381)', (t) => {
-  const { main, dirty } = fixture(t);
+  const { main, merged } = fixture(t);
   const findings = linkFindings(main, process.env);
-  const left = findings.filter(finding => /fix\/dirty-K2/.test(finding));
+  const left = findings.filter(finding => /fix\/merged-K1/.test(finding));
   assert.equal(left.length, 1, findings.join('\n'));
-  assert.match(left[0] ?? '', /repo-dirty/, 'the finding names the worktree');
+  assert.match(left[0] ?? '', /repo-merged/, 'the finding names the worktree');
   assert.match(left[0] ?? '', /make worktree-prune/, 'the finding names the fix');
-  assert.equal(existsSync(dirty), true);
-  assert.equal(findings.some(finding => /fix\/fresh-K3|fix\/open-K4|fix\/noreflog-K5/.test(finding)), false, 'the other branches are no finding');
+  assert.equal(existsSync(merged), true);
+  // K532: the merged branch whose worktree has uncommitted changes is in use, not left.
+  assert.equal(findings.some(finding => /fix\/dirty-K2|fix\/fresh-K3|fix\/open-K4|fix\/noreflog-K5/.test(finding)), false, 'the other branches are no finding');
 });
 
 // K381-1: a fresh branch that a rebase moved onto a newer main holds commits of main after its creation point, none of its own; a
@@ -185,10 +186,19 @@ test('link-state-check of a linked worktree accepts the trust of its main checko
   git(own, 'reset', '--quiet', '--hard', 'main');
   put(own, { 'next.txt': 'the next row, uncommitted\n' });
   const state = branchStates(main).find(entry => entry.branch === 'fix/own-K8');
-  assert.equal(state?.merged, false, 'a branch reset onto main is no merged branch');
-  assert.match(state?.reason ?? '', /^fresh/);
+  assert.equal(state?.merged, false, 'a branch that main contains, in a worktree with uncommitted changes, is in use');
+  assert.match(state?.reason ?? '', /^in use/);
+  const moved = path.join(path.dirname(main), 'repo-moved');
+  git(main, 'worktree', 'add', '--quiet', moved, '-b', 'fix/moved-K9', 'main');
+  put(moved, { 'dropped.txt': 'dropped\n' });
+  git(moved, 'add', '-A');
+  git(moved, 'commit', '--quiet', '-m', 'dropped');
+  git(moved, 'reset', '--quiet', '--hard', 'main');
+  const reset = branchStates(main).find(entry => entry.branch === 'fix/moved-K9');
+  assert.equal(reset?.merged, false, 'a branch that a reset moved onto main starts anew');
+  assert.match(reset?.reason ?? '', /^fresh/);
 
   const findings = linkFindings(own, process.env);
-  assert.equal(findings.some(finding => /fix\/dirty-K2|trusted-configs/.test(finding)), false, findings.join('\n'));
-  assert.equal(linkFindings(main, process.env).filter(finding => /fix\/dirty-K2/.test(finding)).length, 1, 'the main checkout names the left branch');
+  assert.equal(findings.some(finding => /fix\/merged-K1|fix\/own-K8|trusted-configs/.test(finding)), false, findings.join('\n'));
+  assert.equal(linkFindings(main, process.env).filter(finding => /fix\/merged-K1/.test(finding)).length, 1, 'the main checkout names the left branch');
 });

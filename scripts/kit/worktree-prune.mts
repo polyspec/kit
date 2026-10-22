@@ -55,6 +55,8 @@ function worktreeFolders(root: string): Map<string, string> {
 // A reflog entry of a commit made on the branch: a rebase (rebase (finish)) or a fast-forward moves the branch onto commits of main
 // and makes none of its own (K381-1).
 const OWN_COMMIT = /^(?:commit|cherry-pick|revert)\b/;
+// A reflog entry that starts the branch anew: its creation, or a reset that moves it, as onto main for the next row (K532).
+const NEW_START = /^(?:branch: (?:Created|Reset)|reset: moving to)\b/;
 
 /**
  * Whether `branch` is merged into main, with the reason (K381): it has commits of its own, which its reflog records as commits made
@@ -63,7 +65,9 @@ const OWN_COMMIT = /^(?:commit|cherry-pick|revert)\b/;
 function mergedReason(root: string, branch: string): { merged: boolean; reason: string } {
   const entries = git(root, 'reflog', 'show', '--format=%gs', `refs/heads/${branch}`).split('\n').filter(line => line !== '');
   if (entries.length === 0) return { merged: false, reason: 'no reflog entry, so its creation point is unknown' };
-  if (!entries.some(entry => OWN_COMMIT.test(entry))) return { merged: false, reason: 'fresh: no commit of its own since its creation' };
+  // The reflog lists the newest entry first; the commits before its latest start belong to an earlier life of the branch.
+  const start = entries.findIndex(entry => NEW_START.test(entry));
+  if (!entries.slice(0, start === -1 ? entries.length : start).some(entry => OWN_COMMIT.test(entry))) return { merged: false, reason: 'fresh: no commit of its own since its creation or its latest reset' };
   const outside = git(root, 'rev-list', branch, '^main').split('\n').filter(line => line !== '');
   if (outside.length > 0) return { merged: false, reason: `${outside.length} of its commits are not in main` };
   return { merged: true, reason: 'merged: all of its commits are in main' };
@@ -74,12 +78,21 @@ export function branchStates(root: string): BranchState[] {
   if (gitResult(root, 'rev-parse', '--verify', '--quiet', 'refs/heads/main').status !== 0) return [];
   const folders = worktreeFolders(root);
   const branches = git(root, 'for-each-ref', '--format=%(refname:lstrip=2)', 'refs/heads').split('\n').filter(name => name !== '' && name !== 'main');
-  return branches.map(branch => ({ branch, folder: folders.get(branch), ...mergedReason(root, branch) }));
+  return branches.map((branch) => {
+    const folder = folders.get(branch);
+    const state = mergedReason(root, branch);
+    // K532: a worktree with uncommitted changes is in use, as by the next row on a branch that main already contains; it is not left.
+    if (!state.merged || folder === undefined) return { branch, folder, ...state };
+    const status = gitResult(folder, 'status', '--porcelain');
+    if (status.status !== 0) return { branch, folder, merged: false, reason: `git status failed in ${folder}: ${status.stderr.trim()}` };
+    if (status.stdout.trim() !== '') return { branch, folder, merged: false, reason: `in use: its worktree ${folder} has uncommitted changes` };
+    return { branch, folder, ...state };
+  });
 }
 
 /**
  * Removes the worktree and deletes the branch of each merged branch of `root`, and reports every branch that is left with its reason;
- * a worktree with uncommitted changes, the checkout that runs the prune and a refusal of `git branch -d` keep the branch.
+ * a worktree with uncommitted changes (branchStates, K532), the checkout that runs the prune and a refusal of `git branch -d` keep the branch.
  */
 export function prune(root: string, { print = (text: string) => console.log(`[worktree-prune] ${text}`) }: { print?: (text: string) => void } = {}): void {
   for (const { branch, folder, merged, reason } of branchStates(root)) {
@@ -90,15 +103,6 @@ export function prune(root: string, { print = (text: string) => console.log(`[wo
     if (folder !== undefined) {
       if (folder === root) {
         print(`kept ${branch}: it is checked out in ${root}, the checkout that runs the prune`);
-        continue;
-      }
-      const status = gitResult(folder, 'status', '--porcelain');
-      if (status.status !== 0) {
-        print(`kept ${branch} in ${folder}: git status failed: ${status.stderr.trim()}`);
-        continue;
-      }
-      if (status.stdout.trim() !== '') {
-        print(`kept ${branch} in ${folder}: it has uncommitted changes`);
         continue;
       }
       const stop = stopTargetOf(folder);

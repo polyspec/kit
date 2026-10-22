@@ -23,6 +23,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { ignoredPaths, trackedFiles } from './tracked-files.mts';
 import { isJsonObject, isStringList, readJsonObject } from './bootstrap/files.mts';
 import { foreignTrusts } from './bootstrap/install-mise.mts';
+import { toolsRoot } from './bootstrap/tool-wrappers.mts';
 import { branchStates } from './worktree-prune.mts';
 
 const isLink = (file: string) => lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink() === true;
@@ -141,10 +142,16 @@ function trustFindings(root: string): string[] {
   return foreignTrusts(root).map(({ name, target }) => `mise trusted-configs ${name}: trusts ${target}, not the mise.toml of the checkout; run make install-tools`);
 }
 
-/** The findings of the merged branches of `root` that are left, with their worktree: `make worktree-prune` removes them (K381). */
+/**
+ * The findings of the merged branches of `root` that are left, with their worktree: `make worktree-prune` removes them (K381). A linked
+ * worktree judges only its own branch, so the branch of another worktree fails no setup of this one; the main checkout judges every
+ * branch (K532).
+ */
 function mergedFindings(root: string): string[] {
+  const checkout = realpathSync(root);
+  const linked = realpathSync(toolsRoot(root)) !== checkout;
   return branchStates(root)
-    .filter(state => state.merged)
+    .filter(state => state.merged && (!linked || (state.folder !== undefined && realpathSync(state.folder) === checkout)))
     .map(state => `branch ${state.branch}${state.folder === undefined ? '' : ` in worktree ${path.relative(root, state.folder) || '.'}`} is merged into main and left. Fix: make worktree-prune`);
 }
 
