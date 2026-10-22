@@ -46,8 +46,10 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
   // A declared @polyspec package that no checkout provides is a failure in every mode (K448-7, K483-1).
   const missing = [...declared].filter(name => name.startsWith('@polyspec/') && !provided.has(name) && !forced.has(name));
   if (missing.length) throw new Error(`${missing.join(', ')} has no checkout: give the checkout that provides it`);
-  // npm ci empties node_modules and keeps the directory itself, so a node_modules that is a mount point stays (K486).
-  const ci = spawnSync(npm, ['ci', '--no-audit', '--no-fund'], { cwd: project, env, encoding: 'utf8' });
+  // npm ci empties node_modules and keeps the directory itself, so a node_modules that is a mount point stays (K486). The lock
+  // resolves @polyspec/kit from the URL of its release asset, which npm refuses unless allow-remote opts in: root allows only the
+  // URLs that package.json names, as install-packages does (K526).
+  const ci = spawnSync(npm, ['ci', '--no-audit', '--no-fund'], { cwd: project, env: { ...env, npm_config_allow_remote: 'root' }, encoding: 'utf8' });
   if (ci.status !== 0) throw new Error(`npm ci of ${project} exited ${ci.status}: ${ci.stderr}`);
   const folders = providedFolders(project, [...provided].map(([name, folder]) => ({ ecosystem: 'npm' as const, name, folder, repository: folder, checkout: folder })));
   for (const [name, folder] of forced) {
