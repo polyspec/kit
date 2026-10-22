@@ -256,3 +256,12 @@ test('kit-check names each lint configuration that kit no longer copies, and pas
   sync(root);
   assert.deepEqual(check(root).filter(line => line.includes('no longer copies')), []);
 });
+
+// K514-2: the owner rules that kit ships own no file that kit no longer copies, so a consumer after kit-sync passes owner-validate.
+test('the owner rules that kit ships name no lint configuration that kit no longer copies (K514-2)', () => {
+  const manifest: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../package.json'), 'utf8'));
+  const owners = isJsonObject(manifest) && isJsonObject(manifest.kit) && Array.isArray(manifest.kit.owners) ? manifest.kit.owners : [];
+  assert.ok(owners.length > 0, 'kit ships owner rules');
+  const paths: unknown[] = owners.flatMap((owner: unknown): unknown[] => (isJsonObject(owner) && Array.isArray(owner.paths) ? owner.paths.map((glob: unknown) => glob) : []));
+  assert.deepEqual(paths.filter(glob => (RETIRED_COPIES as readonly unknown[]).includes(glob)), []);
+});
