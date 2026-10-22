@@ -2,7 +2,7 @@
 // provides with a direct symlink to the package folder of the checkout. The packages of one namespace link apart, and no editable wheel or
 // version is involved. The uv of these tests is a stub: its sync installs each package of SITE as a copy, as a release would be.
 import assert from 'node:assert/strict';
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -25,7 +25,12 @@ import path from 'node:path';
 appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ') + '\\n');
 // The environment is the one of UV_PROJECT_ENVIRONMENT, else .venv, as uv takes it.
 const site = path.join(process.env.UV_PROJECT_ENVIRONMENT ?? '.venv', ${JSON.stringify(SITE.replace('.venv/', ''))});
+// K544: with STUB_DIST_INFO, a package counts as installed by its record, as real uv counts its dist-info: 1 reinstalls it only for
+// --reinstall-package, and never reinstalls it at all.
+const record = process.env.STUB_DIST_INFO;
+const reinstall = process.argv.includes('--reinstall-package');
 if (process.argv[2] === 'sync') for (const item of ${JSON.stringify(installed)}) {
+  if (record === 'never' || (record === '1' && !reinstall)) continue;
   mkdirSync(path.join(site, item), { recursive: true });
   writeFileSync(path.join(site, item, '__init__.py'), '# release copy\\n');
 }
@@ -110,4 +115,27 @@ test('uv install links the installed member of a uv workspace root that a checko
   const broken = run([project, workspace], env);
   assert.notEqual(broken.status, 0);
   assert.match(broken.output, /member missing of the uv workspace .*limepie-python names no folder with a pyproject\.toml/);
+});
+
+// K544: uv-install releases the package links before uv sync (K539), and uv sync reinstalls no package whose dist-info is still there, so
+// a package that was a directory link is gone after it; uv-install reinstalls each provided package that was installed, and fails, naming
+// it, when one ends without its folder.
+test('uv install reinstalls each provided package whose link it releases, and fails on one that ends without its folder (K544)', (t) => {
+  const { root, project, log, env } = fixture(t, ['polyspec/orm']);
+  const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
+  assert.equal(run([project, orm], env).status, 0);
+  // The layout before K541: the package folder is one directory link into the checkout.
+  const folder = path.join(project, SITE, 'polyspec/orm');
+  rmSync(folder, { recursive: true });
+  symlinkSync(path.join(orm, 'src/polyspec/orm'), folder);
+  writeFileSync(log, '');
+  const again = run([project, orm], { ...env, STUB_DIST_INFO: '1' });
+  assert.equal(again.status, 0, again.output);
+  assert.match(readFileSync(log, 'utf8'), /^sync --frozen --reinstall-package polyspec-orm$/m, 'the released package is reinstalled');
+  assert.equal(realpathSync(path.join(folder, '__init__.py')), realpathSync(path.join(orm, 'src/polyspec/orm/__init__.py')), 'and linked again');
+  rmSync(folder, { recursive: true });
+  symlinkSync(path.join(orm, 'src/polyspec/orm'), folder);
+  const lost = run([project, orm], { ...env, STUB_DIST_INFO: 'never' });
+  assert.equal(lost.status, 1, lost.output);
+  assert.match(lost.output, /polyspec-orm .*has no folder in the environment after uv sync/);
 });
