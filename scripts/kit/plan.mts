@@ -46,7 +46,7 @@ import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
 import { isFile } from './test-selection.mts';
 import { fixProvesRed, hasRed, readRecord, recordRed, redLines, writeRecord } from './gate-red.mts';
-import type { GateRecord, Run } from './gate-red.mts';
+import { invalidRed, type GateRecord, type Run } from './gate-red.mts';
 import { spawnSync } from 'node:child_process';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
 import type { FileFinding, Tracker } from './checklist.mts';
@@ -506,6 +506,12 @@ export function itemRed(root: string, id: string, print: (text: string) => void 
   refuseCommands(root, id, commands);
   const runs = before === undefined ? runCommands(root, id, commands, print) : runBefore(root, id, before, commands, print);
   if (runs.every(run => run.status === 0)) throw new Error(`${id}: the Verification passes before the fix, so it proves no red; write the test that reproduces the defect first`);
+  // A failure that is no failing test or gate, such as a timeout, records no red (K540).
+  const invalid = runs.flatMap(run => {
+    const reason = run.status === 0 ? undefined : invalidRed(run.status, run.output);
+    return reason === undefined ? [] : [`\`${run.command}\` exit ${run.status}: ${reason}`];
+  });
+  if (invalid.length > 0) throw new Error(`${id}: the Verification proves no red, and nothing is recorded: ${invalid.join('; ')} (K540)`);
   const head = git(root, 'rev-parse', 'HEAD').trim();
   // The gates of an earlier run on the same HEAD stay; the tests are recorded with the tree of the test files.
   const previous = readRecord(root, id);

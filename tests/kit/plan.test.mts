@@ -992,3 +992,37 @@ test('make item-red BEFORE= builds the repository at BEFORE when the swap change
   assert.match(red.stdout, /make build/, 'the build of BEFORE is named');
   assert.equal(readFileSync(path.join(root, 'pkg/dist/value.txt'), 'utf8'), 'new\n', 'the restore builds the fixed sources again');
 });
+
+// K540: a red is a test or a gate that runs and fails; a command that was not found, a run whose tests ran out of time, and a run
+// that failed before any test ran prove nothing about the behaviour, so item-red records none of them and names why.
+test('make item-red refuses a red of exit 127, a timeout or a run in which no test failed (K540)', (t) => {
+  const root = plans(t, 'parser');
+  const verifications: Record<string, string> = {
+    T1: "sh -c 'exit 127'",
+    T2: "node -e \"console.log('0 passed, 0 failed, 1 timed out, 0 skipped'); process.exit(1)\"",
+    T3: "node -e \"console.log('0 passed, 0 failed, 0 timed out, 0 skipped, no test ran'); process.exit(1)\"",
+    T4: "node -e \"console.log('0 passed, 1 failed, 0 timed out, 0 skipped'); process.exit(1)\"",
+  };
+  for (const [id, command] of Object.entries(verifications)) newItem(root, item('parser', id, { verification: `\`${command}\`` }));
+  const commit = (message: string) => {
+    for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message]]) {
+      assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+    }
+  };
+  commit('base');
+  for (const id of Object.keys(verifications)) {
+    setState(root, { id, state: '[~]' }, () => {});
+    commit(`start ${id}`);
+  }
+  const itemRed = (id: string) => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env: { ...process.env, ID: id }, encoding: 'utf8' });
+  const refusals: Record<string, RegExp> = { T1: /exit 127: the command was not found/, T2: /a test ran out of time and none failed/, T3: /failed before any test failed/ };
+  for (const [id, reason] of Object.entries(refusals)) {
+    const run = itemRed(id);
+    assert.notEqual(run.status, 0, `${id} recorded a red`);
+    assert.match(run.stderr, reason);
+    assert.equal(readRecord(root, id), undefined, `${id} wrote a record`);
+  }
+  const fails = itemRed('T4');
+  assert.equal(fails.status, 0, fails.stderr);
+  assert.ok(readRecord(root, 'T4'), 'a failing test is a red');
+});

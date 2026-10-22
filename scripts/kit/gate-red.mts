@@ -27,6 +27,24 @@ export type GateRecord = { head: string; gates: Run[]; tests?: { tree: string; c
 // for a test that item-red ran.
 const RED_LINE = /^Red-(?:Gate|Test): (.+) exit ([1-9]\d*) at ([0-9a-f]{7,40})$/gm;
 
+// The summary that the test runner of kit prints at the end of a run: the counts of the tests that passed, failed and ran out of time.
+const RUN_SUMMARY = /(\d+) passed, (\d+) failed, (\d+) timed out/g;
+
+/**
+ * Why the failing run of a command proves no red (K540), or undefined when it does: a red is a test or a gate that runs and fails.
+ * Exit 127 is a command that was not found, so nothing ran. A run of the test runner of kit proves a red only when a test failed:
+ * one whose tests ran out of time, or that failed before any test ran (a build, a compile or a load that failed), proves nothing
+ * about the behaviour that the test checks. Any other failing command, such as a gate, is judged by its exit status.
+ */
+export function invalidRed(status: number, output: string): string | undefined {
+  if (status === 127) return 'exit 127: the command was not found, so nothing ran';
+  const summary = [...output.matchAll(RUN_SUMMARY)].at(-1);
+  if (summary === undefined) return undefined;
+  if (Number(summary[2]) > 0) return undefined;
+  if (Number(summary[3]) > 0) return 'a test ran out of time and none failed; build what the test compiles first, then record the red';
+  return 'it failed before any test failed, in a build, a compile or a load, so no test checked the behaviour';
+}
+
 /** The file of the record of the item `id`. */
 export const recordFile = (root: string, id: string) => path.join(root, 'var/plan', `${id}.json`);
 
@@ -71,6 +89,9 @@ export function recordRed(root: string, id: string, commands: readonly string[],
     const result = spawnSync('sh', ['-c', command], { cwd: root, stdio: 'inherit' });
     if (result.error) throw new Error(`\`${command}\` of ${id} could not start: ${result.error.message}`);
     if (result.status === null) throw new Error(`\`${command}\` of ${id} ended with the signal ${result.signal}`);
+    // A gate prints to this process, so only its exit status is judged (K540).
+    const invalid = result.status === 0 ? undefined : invalidRed(result.status, '');
+    if (invalid !== undefined) throw new Error(`\`${command}\` of ${id} proves no red: ${invalid} (K540)`);
     print(`[plan] ${id}: ${command} exit ${result.status}${result.status === 0 ? '; the gate passes on HEAD, so it records no red' : ''}`);
     record.gates.push({ command, status: result.status });
   }
