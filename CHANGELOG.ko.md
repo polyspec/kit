@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5a8af9521b1ce580d326a96410832c8127764b9677fe73f6759ab0173eeab89c -->
+<!-- source-sha256: cbde488bfdf243e6dc6d5aa099b416364d1472911a8c5fc9c305b728de47c32a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit이 내보내는 owner 규칙은 kit이 더는 복사하지 않는 lint 설정을 소유하지 않으므로, kit-sync 뒤의 consumer가 owner-validate를 통과한다(K514-2).
 - make land는 어디서 호출되든 main을 checkout한 checkout으로 land하고, main을 checkout한 checkout이 없으면 그것을 이름 붙여 실패한다(K516).
 - polyspec-lock-check와 config/polyspec.json을 제거했다. 추적되는 lock은 각 polyspec 패키지의 release를 기록하고, gate는 추적되는 lock의 release URL이 이름 붙인 sibling 저장소를 clone한다(K515).
 - kit-check는 kit이 더는 복사하지 않는데 저장소가 아직 가진 lint 설정을 make kit-sync를 고침으로 하여 이름 붙인다(K514-1).
