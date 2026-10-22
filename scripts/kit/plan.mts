@@ -624,8 +624,28 @@ export type ItemCommit = { id: string; type: string; scope: string; subject: str
  * is staged, the body file is missing or empty, or the message or the change fails what the commit-msg hook checks
  * (messageFindings and indexItemFindings of check-commits.mts). `env` adds to the environment of git commit.
  */
+/**
+ * K499: the IDs of the checklist rows that the index adds to a checklist, which HEAD does not hold. Registration of an item commits
+ * its row on a branch; a new row staged on main is refused by make commit and make land.
+ */
+export function stagedNewRowIds(root: string): string[] {
+  const staged = spawnSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(name => /^docs\/plans\/[^/]+\/checklist(\.ko)?\.md$/.test(name));
+  const ids = new Set<string>();
+  for (const file of staged) {
+    const index = spawnSync('git', ['show', `:${file}`], { cwd: root, encoding: 'utf8' }).stdout;
+    const head = spawnSync('git', ['show', `HEAD:${file}`], { cwd: root, encoding: 'utf8' });
+    const known = new Set(head.status === 0 ? rowIds(head.stdout).map(entry => entry.id) : []);
+    for (const { id } of rowIds(index)) if (!known.has(id)) ids.add(id);
+  }
+  return [...ids].sort();
+}
+
 export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}): string {
   if (spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status === 0) throw new Error('nothing is staged; stage the change of the item with git add first');
+  // K499: a new checklist row is registered on a branch, so the row is never staged on main.
+  const branch = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  const newRows = branch === 'main' ? stagedNewRowIds(root) : [];
+  if (newRows.length > 0) throw new Error(`the new row of ${newRows.join(', ')} is staged on main; register the item on a branch: git worktree add ../<repository>-<name>-<id> -b <type>/<name>-<id> main, make commit there, then make land`);
   // On main the gates of land guard the commit in the pre-commit hook, which git runs for this commit too (K404-1).
   if (!existsSync(commit.bodyFile)) throw new Error(`the body file ${commit.bodyFile} does not exist; write why the change is made there`);
   const rules = COMMIT_RULES;

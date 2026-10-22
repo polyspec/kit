@@ -870,3 +870,20 @@ test('make item-red BEFORE= refuses a red that only a missing new module makes (
   const genuine = cli({ ID: 'T2', BEFORE: before });
   assert.equal(genuine.status, 0, genuine.stderr);
 });
+
+// K499: registering an item never leaves main staged: a new checklist row staged on main is refused by make commit, which names the
+// branch route, and the same row committed on a branch is accepted.
+test('commit refuses a new checklist row staged on main and names the branch route, and accepts the same row on a branch (K499)', (t) => {
+  const root = committed(t, 'T1');
+  assert.equal(spawnSync('git', ['checkout', '-q', '-B', 'main'], { cwd: root }).status, 0);
+  newItem(root, item('parser', 'T2'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  const body = path.join(root, 'body.txt');
+  writeFileSync(body, 'Parse the input in the new item.\n');
+  const commit = { id: 'T2', type: 'docs', scope: 'plan', subject: 'Register T2 as an item', bodyFile: body };
+  assert.throws(() => commitItem(root, commit, identity), /new row of T2 is staged on main[\s\S]*git worktree add[\s\S]*make commit/);
+  assert.equal(spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status, 1, 'the refused row stays staged, unchanged');
+  assert.equal(spawnSync('git', ['checkout', '-q', '-B', 'register-T2'], { cwd: root }).status, 0);
+  commitItem(root, commit, identity);
+  assert.equal(spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim(), 'register-T2');
+});

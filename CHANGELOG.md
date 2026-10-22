@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make commit` on main refuses a checklist row of a new item that the index stages there, and names the branch route for its registration; a land of a main checkout with a staged change is already refused (K499).
 - K509: `make polyspec-lock-check` exempts a polyspec name that config/polyspec.json declares for the project folder of the tracked manifest, so a consumer that declares its kit package passes the gate (K509). Red: `node --test --test-name-pattern=K509 tests/kit/polyspec-lock.test.mts` failed on 1096cb67 (the declared @polyspec/kit was a finding); green: the file passes 10 of 10.
 - `make land` rebases a branch that main has left behind onto main in its own clean worktree, under its lock, and runs its gates on the rebased commits, so a land that waited for another lands instead of asking for a rebase; a rebase that conflicts is aborted and refused, naming the files (K495-1).
 - `make composer-install DIR=<project> CHECKOUTS="<checkout>..."` takes the checkouts that provide the polyspec packages of the Composer project after DIR, so the install names its repositories and needs no sibling discovery; `NO_DEV=1` keeps working with them (K501). Red: `node --test --test-name-pattern=K501 tests/kit/link.test.mts` failed on aff8cbac: the CLI refused the checkout argument with its usage message.
