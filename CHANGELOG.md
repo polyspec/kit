@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- land runs make build on the merge result in the worktree before main moves and refuses a branch whose build fails, merging nothing (K513).
 - The link writes nothing into .git: the consumer's .gitignore ignores /.claude/settings.local.json, and link-state-check names the file while Git does not ignore it, so a sandboxed worktree links (K512).
 - The Python folder link reads the environment that uv syncs, UV_PROJECT_ENVIRONMENT when it is set (limepie's python/var/venv), else .venv, so its polyspec packages are linked (K448-14).
 - install-packages of the bootstrap installs package-lock.json with npm ci again, so a checkout without kit.mk, as a CI runner, installs @polyspec/kit; make install links after it (K511).
