@@ -30,6 +30,11 @@ const site = path.join(process.env.UV_PROJECT_ENVIRONMENT ?? '.venv', ${JSON.str
 // --reinstall-package, and never reinstalls it at all.
 const record = process.env.STUB_DIST_INFO;
 const reinstall = process.argv.includes('--reinstall-package');
+// K548: STUB_OFFLINE_FAILS makes an offline run fail as uv does when its cache lacks a wheel.
+if (process.env.STUB_OFFLINE_FAILS && process.argv.includes('--offline')) {
+  process.stderr.write('error: Distribution not found in the cache (offline)\\n');
+  process.exit(2);
+}
 if (process.argv[2] === 'sync') for (const item of ${JSON.stringify(installed)}) {
   if (record === 'never' || (record === '1' && !reinstall)) continue;
   mkdirSync(path.join(site, item), { recursive: true });
@@ -162,4 +167,23 @@ test('uv install reinstalls a provided package whose dist-info stays without its
   const lost = run([project, orm], { ...env, STUB_DIST_INFO: 'never' });
   assert.equal(lost.status, 1, lost.output);
   assert.match(lost.output, /polyspec-orm .*has no folder in the environment after uv sync/);
+});
+
+// K548: the reinstall of the held packages reads only uv's cache, since in a repository only its install of the libraries reads the
+// network, and fails, naming the packages, when the cache lacks a wheel; the project that uv-install installs is no provided package.
+test('uv install reinstalls the held packages offline, after its sync, and leaves the project it installs out (K548)', (t) => {
+  const { root, project, log, env } = fixture(t, ['polyspec/orm', 'app_pkg']);
+  const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
+  mkdirSync(path.join(project, 'src/app_pkg'), { recursive: true });
+  writeFileSync(path.join(project, 'src/app_pkg/__init__.py'), '# the project\\n');
+  assert.equal(run([project, orm], env).status, 0);
+  mkdirSync(path.join(project, SITE, 'app-0.dist-info'), { recursive: true });
+  writeFileSync(log, '');
+  const again = run([project, orm, project], { ...env, STUB_DIST_INFO: '1' });
+  assert.equal(again.status, 0, again.output);
+  assert.deepEqual(readFileSync(log, 'utf8').split('\\n').filter(Boolean), ['sync --frozen', 'sync --frozen --offline --reinstall-package polyspec-orm'], 'the reinstall is a run of its own, offline, without the project');
+  writeFileSync(log, '');
+  const offline = run([project, orm], { ...env, STUB_DIST_INFO: '1', STUB_OFFLINE_FAILS: '1' });
+  assert.equal(offline.status, 1, offline.output);
+  assert.match(offline.output, /polyspec-orm .*uv's cache .*make uv-install/);
 });
