@@ -57,14 +57,16 @@ test('make land merges a rebased branch only after the gates it touches pass, an
   assert.throws(() => land(main, 'feat/b', quiet), /lint-x/);
   assert.equal(git(main, 'rev-parse', 'main'), mainBefore, 'main is unchanged after the refusal');
 
-  // A branch that is not rebased on main: it forks from the base, which main has left behind, and it is refused.
+  // A branch that is not rebased on main: it forks from the base, which main has left behind; land rebases it in its worktree
+  // and merges it on top of main (K495-1).
   const folderC = path.join(parent, 'repo-c');
   git(main, 'worktree', 'add', '--quiet', folderC, '-b', 'feat/c', base);
   put(folderC, { 'src/c.txt': 'c\n' });
   git(folderC, 'add', '-A');
   git(folderC, 'commit', '--quiet', '-m', 'c');
-  assert.throws(() => land(main, 'feat/c', quiet), /rebased/);
-  assert.equal(git(main, 'rev-parse', 'main'), mainBefore, 'main is unchanged after the refusal of a branch not rebased');
+  land(main, 'feat/c', quiet);
+  assert.equal(git(main, 'log', '-1', '--format=%s', 'main'), 'c', 'the rebased branch lands');
+  assert.equal(git(main, 'rev-parse', 'main^'), mainBefore, 'on top of main');
 });
 
 test('K453: land runs make build in the main checkout after the fast-forward, so dist holds the merged sources (K453)', (t) => {

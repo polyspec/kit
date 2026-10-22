@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Lands a branch on main (K394): `make land BRANCH=<branch>`, run in the main checkout. It refuses unless the main checkout is on
-// main and clean, the branch exists and is rebased on main, and a worktree has the branch checked out (its gates run on its own
-// tree and install). It runs the static gates of kit-gates that the changed paths of the branch select through
+// main and clean, the branch exists, and a worktree has the branch checked out (its gates run on its own tree and install); a branch
+// that main has left behind is rebased onto main in that worktree first, and a rebase that conflicts is refused (K495-1). It runs the static gates of kit-gates that the changed paths of the branch select through
 // config/owner-checks.json, always with docs-check and commits-check (commits-check over main..<branch>). No test runs (K394-1): parity-check
 // and every test- target that the owners select are printed as not run. A gate that fails in the worktree is refused only when its
 // output has a line that main does not have: the same gate runs in the main checkout, and a line of the branch output that occurs
@@ -261,6 +261,21 @@ function takeLandLock(root: string, branch: string, print: (text: string) => voi
   }
 }
 
+/**
+ * Rebases `branch` onto main in its worktree `folder` under the land lock (K495-1). A worktree with uncommitted changes is refused as
+ * before; a rebase that conflicts is aborted, so the branch stays as it was, and the conflicting files are named.
+ */
+function rebaseOnMain(folder: string, branch: string, print: (text: string) => void): void {
+  if (git(folder, 'status', '--porcelain').trim() !== '') throw new Error(`${branch} is not rebased on main and its worktree ${folder} has uncommitted changes; commit them, then land again`);
+  const rebased = gitResult(folder, 'rebase', '--quiet', 'main');
+  if (rebased.status !== 0) {
+    const conflicts = git(folder, 'diff', '--name-only', '--diff-filter=U').split('\n').filter(line => line !== '');
+    gitResult(folder, 'rebase', '--abort');
+    throw new Error(`${branch} does not rebase on main without a conflict (${conflicts.length > 0 ? conflicts.join(', ') : rebased.stderr.trim()}); rebase it by hand and land it again; nothing is merged`);
+  }
+  print(`rebased ${branch} on main (${git(folder, 'rev-parse', '--short', 'main').trim()})`);
+}
+
 /** The commits that moved main from `from`, newest first, as `<short sha> <subject>` lines. */
 function movesOf(root: string, from: string): string {
   return git(root, 'log', '--format=%h %s', `${from}..main`).trim();
@@ -296,8 +311,10 @@ function landLocked(root: string, branch: string, print: (text: string) => void)
   if (gitResult(root, 'merge-base', '--is-ancestor', branch, 'main').status === 0) {
     print(`${branch} is contained in main already: no gate runs and nothing is merged`);
   } else {
-    if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) throw new Error(`${branch} is not rebased on main; rebase it on main first`);
     if (folder === undefined) throw new Error(`${branch} has no worktree; the gates run on its own tree and install, so make worktree-setup first`);
+    // K495-1: a branch that main has left behind, as the land this one waited for leaves it, is rebased here; the gates below run on
+    // the rebased commits, so nothing is merged that they did not see.
+    if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) rebaseOnMain(folder, branch, print);
     const gated = git(root, 'rev-parse', 'main').trim();
     const changed = git(root, 'diff', '--name-only', `main...${branch}`).split('\n').filter(line => line !== '');
     const { gates, excluded, reasons } = gatesOf(folder, changed);
