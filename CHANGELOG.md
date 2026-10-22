@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit-check names each lint configuration that kit no longer copies and that the repository still holds, with make kit-sync as its fix (K514-1).
 - make item-new on main commits the registration of its row in one docs(plan) commit with BODY_FILE, refusing before it writes anything without BODY_FILE or with another change staged (K499-2).
 - Each lint reads its configuration from the kit package (ruff.toml, phpcs.xml.dist, phpstan.dist.neon, .golangci.yml, clippy.toml, .oxlintrc.json, knip.json); kit-sync removes these copies and config/api-extractor.kit.json from a repository (K514).
 - land runs make build on the merge result in the worktree before main moves and refuses a branch whose build fails, merging nothing (K513).
