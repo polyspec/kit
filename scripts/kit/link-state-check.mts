@@ -16,7 +16,7 @@ import { isKitHookEntry, kitHookCheckout, kitNodeRunnable, trackedWorkspaceFolde
 import { buildState } from './link-build.mts';
 import { git } from './git.mts';
 import { providers, siblingCheckouts, type Tool, trackedManifests, workspaceOf } from './link-providers.mts';
-import { folderFindings, providedFolders } from './link-folders.mts';
+import { composerVendorDir, folderFindings, providedFolders } from './link-folders.mts';
 import { isTable, readToml } from './toml.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -247,14 +247,6 @@ function trackedLockFindings(root: string): string[] {
   return trackedManifests(root, LOCK_FILES).flatMap(file => lockSourceFindings(file, readFileSync(path.join(root, file), 'utf8'), members));
 }
 
-/** The vendor folder that the composer.json of `project` names in config.vendor-dir, read from the file, else undefined (vendor). */
-function vendorDirOf(project: string): string | undefined {
-  const file = path.join(project, 'composer.json');
-  if (!existsSync(file)) return undefined;
-  const config = readJsonObject(file).config;
-  return isJsonObject(config) && typeof config['vendor-dir'] === 'string' ? config['vendor-dir'] : undefined;
-}
-
 /**
  * K448: the findings of the installed package folders of `root` that a sibling checkout provides: a folder that is a copy, or that
  * links elsewhere than to its provider. Nothing about a version is judged.
@@ -263,7 +255,7 @@ function folderLinkFindings(root: string, folders: readonly string[]): string[] 
   const provided = [...providers(siblingCheckouts(root).checkouts, undefined, root, root).values()];
   return folders.flatMap((folder) => {
     const project = path.join(root, folder);
-    return folderFindings(root, providedFolders(project, provided, { vendorDir: vendorDirOf(project) }));
+    return folderFindings(root, providedFolders(project, provided, { vendorDir: composerVendorDir(project, process.env) }));
   });
 }
 

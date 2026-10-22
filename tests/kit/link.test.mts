@@ -11,6 +11,7 @@ import nodeTest, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildState, buildTargets } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
+import { providedFolders } from '../../scripts/kit/link-folders.mts';
 import { composerInstall } from '../../scripts/kit/composer-install.mts';
 import { linkFindings } from '../../scripts/kit/link-state-check.mts';
 import { cargo, link, unlink } from '../../scripts/kit/link.mts';
@@ -403,6 +404,9 @@ test('a worktree links a package of its own repository to its own folder, never 
   put(tree, {
     'npm-query.json': JSON.stringify([{ name: '@polyspec/own', version: '0.0.1', location: 'node_modules/@polyspec/own' }, { name: '@polyspec/x', version: '0.0.1', location: 'node_modules/@polyspec/x' }]),
     'node_modules/@polyspec/own/package.json': '{}', 'node_modules/@polyspec/x/package.json': '{}',
+    // K529: the packages that the manifests of the worktree declare are installed in it (a worktree's installs are its own copies).
+    'node_modules/@polyspec/kit/package.json': '{}',
+    'var/contracts/vendor/polyspec/y/composer.json': '{"name":"polyspec/y"}',
     'go.mod.json': readFileSync(path.join(consumer, 'go.mod.json'), 'utf8'),
   });
   const { ok, text } = linkLines([tree], env);
@@ -944,3 +948,55 @@ test('link replaces the polyspec package of a nested Composer project with a lin
   assert.equal(lstatSync(vendor).isSymbolicLink(), true, 'the nested project vendor holds a link');
   assert.equal(realpathSync(vendor), realpathSync(path.join(provider, 'packages/php')));
 });
+
+// K529 (a): a uv workspace member maps its source directory to the package path of its wheel target, so the member limepie-contracts
+// links limepie/contracts in the venv of its workspace root (the root holds the member as a provider, and no package folder of src is a package).
+test('K529: a uv workspace member links the package path that its hatchling sources map, and no other folder of its source (K529)', () => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k529-')));
+  try {
+    const hyper = path.join(root, 'hyper');
+    const repo = repository(hyper, 'python', {
+      'pyproject.toml': '[project]\nname = "limepie-python"\nversion = "0"\n\n[tool.uv.workspace]\nmembers = ["contracts"]\n',
+      'contracts/pyproject.toml': '[project]\nname = "limepie-contracts"\nversion = "0"\n\n[tool.hatch.build.targets.wheel]\nsources = {"src" = "limepie/contracts"}\n',
+      'contracts/src/__init__.py': '',
+      'contracts/src/kit/__init__.py': '',
+    });
+    put(repo, {
+      '.venv/pyvenv.cfg': 'home = /usr\n',
+      '.venv/lib/python3.14/site-packages/limepie/contracts/__init__.py': '',
+    });
+    const found = providedFolders(repo, providers([repo], undefined, repo, repo).values(), { environment: '.venv' });
+    const lines = found.map(item => `${item.name} ${path.relative(repo, item.folder)} ${path.relative(repo, item.target)}`);
+    assert.deepEqual(lines, ['limepie-contracts limepie/contracts .venv/lib/python3.14/site-packages/limepie/contracts contracts/src']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// K529 (b): the Composer vendor folder is COMPOSER_VENDOR_DIR when it is set, before config.vendor-dir, as Composer reads it.
+test('K529: link reads COMPOSER_VENDOR_DIR as the vendor folder before config.vendor-dir (K529)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' } }) });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'vendor from the environment');
+  const { ok, text } = linkLines([consumer], { ...env, COMPOSER_VENDOR_DIR: 'var/contracts/vendor' });
+  assert.equal(ok, true, text);
+  const vendor = path.join(consumer, 'var/contracts/vendor/polyspec/y');
+  assert.equal(lstatSync(vendor).isSymbolicLink(), true, 'the package in COMPOSER_VENDOR_DIR is a link');
+  assert.equal(realpathSync(vendor), realpathSync(path.join(provider, 'packages/php')));
+});
+
+// K529 (c): a polyspec package that the composer.json of a project declares, with no installed folder, is a finding in link and in check.
+test('K529: a declared polyspec package with no installed folder fails link and check with its name (K529)', (t) => {
+  const { consumer, env } = workspace(t);
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/not-installed' } }) });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'declared but not installed');
+  const linked = linkLines([consumer], env);
+  assert.equal(linked.ok, false, linked.text);
+  assert.match(linked.text, /NOT linked\s+composer\s+polyspec\/y/);
+  const checked = linkLines([consumer], env, true);
+  assert.equal(checked.ok, false, checked.text);
+  assert.match(checked.text, /NOT linked\s+composer\s+polyspec\/y/);
+});
+

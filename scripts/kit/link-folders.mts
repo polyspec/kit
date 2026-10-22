@@ -5,7 +5,8 @@
 //   npm       node_modules/<name>                  -> the folder of the provider's package.json
 //   Composer  <vendor-dir>/<vendor>/<package>      -> the folder of the provider's composer.json
 //   Python    <site-packages>/<package path>       -> the same package path under the provider's source root (src/ when it has one),
-//             one link per package, so the packages of one namespace (polyspec/orm, polyspec/ordered_json) link apart
+//             one link per package, so the packages of one namespace (polyspec/orm, polyspec/ordered_json) link apart; a source root
+//             whose pyproject maps its directories in the hatchling wheel sources links each directory to its mapped package path (K529)
 import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { readToml } from './toml.mts';
@@ -141,9 +142,44 @@ function pythonPackages(source: string, prefix = ''): string[] {
   });
 }
 
-/** The vendor folder of the Composer project `project`: composer.json's config.vendor-dir, else vendor. */
+/** The vendor folder of the Composer project `project`: the vendor-dir it is given (absolute or relative to the project), else vendor. */
 function vendorDirectory(project: string, vendorDir: string | undefined): string {
-  return path.join(project, vendorDir ?? 'vendor');
+  return path.resolve(project, vendorDir ?? 'vendor');
+}
+
+/**
+ * The vendor-dir of the Composer project `project` as Composer reads it (K529): COMPOSER_VENDOR_DIR of `env` when it is set, else
+ * config.vendor-dir of its composer.json, else undefined (vendor). The value of the environment is read first, as Composer does.
+ */
+export function composerVendorDir(project: string, env: NodeJS.ProcessEnv): string | undefined {
+  const fromEnvironment = env.COMPOSER_VENDOR_DIR;
+  if (fromEnvironment !== undefined && fromEnvironment !== '') return fromEnvironment;
+  const file = path.join(project, MANIFEST.composer);
+  if (!existsSync(file)) return undefined;
+  const config = (JSON.parse(readFileSync(file, 'utf8')) as { config?: { 'vendor-dir'?: unknown } }).config;
+  const declared = config?.['vendor-dir'];
+  return typeof declared === 'string' ? declared : undefined;
+}
+
+/**
+ * The installed package paths of a Python provider folder that its pyproject.toml maps in the wheel target's sources (K529): each
+ * source directory of the folder is installed as the package path of its entry, so the member limepie-contracts maps src to
+ * limepie/contracts. Empty when the pyproject declares no such table.
+ */
+function hatchSources(folder: string): { from: string; to: string }[] {
+  const file = path.join(folder, MANIFEST.python);
+  if (!existsSync(file)) return [];
+  const tool = readToml(readFileSync(file, 'utf8'), file).tool;
+  const hatch = typeof tool === 'object' && tool !== null && 'hatch' in tool ? tool.hatch : undefined;
+  const build = typeof hatch === 'object' && hatch !== null && 'build' in hatch ? hatch.build : undefined;
+  const targets = typeof build === 'object' && build !== null && 'targets' in build ? build.targets : undefined;
+  const wheel = typeof targets === 'object' && targets !== null && 'wheel' in targets ? targets.wheel : undefined;
+  const sources = typeof wheel === 'object' && wheel !== null && 'sources' in wheel ? wheel.sources : undefined;
+  if (typeof sources !== 'object' || sources === null || Array.isArray(sources)) return [];
+  return Object.entries(sources).map(([from, to]) => {
+    if (typeof to !== 'string') throw new Error(`[tool.hatch.build.targets.wheel] sources of ${file}: ${from} is no package path`);
+    return { from, to };
+  });
 }
 
 /**
@@ -161,6 +197,13 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
     } else if (provider.ecosystem === 'composer') {
       const folder = path.join(vendorDirectory(project, vendorDir), provider.name);
       if (present(folder)) found.push({ ecosystem: 'composer', name: provider.name, folder, target: provider.folder });
+    } else if (provider.ecosystem === 'python' && hatchSources(provider.folder).length > 0) {
+      for (const site of sites) {
+        for (const { from, to } of hatchSources(provider.folder)) {
+          const folder = path.join(site, to);
+          if (present(folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
+        }
+      }
     } else if (provider.ecosystem === 'python') {
       const source = existsSync(path.join(provider.folder, 'src')) ? path.join(provider.folder, 'src') : provider.folder;
       for (const site of sites) {
@@ -172,6 +215,16 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
     }
   }
   return found;
+}
+
+/**
+ * Whether the Python provider `provider` names installable package paths: its hatchling sources, or the packages of its source root.
+ * A provider with none installs no folder, so a declaration of it has nothing to link (K529).
+ */
+export function hasPythonPackages(provider: Provider): boolean {
+  if (hatchSources(provider.folder).length > 0) return true;
+  const source = existsSync(path.join(provider.folder, 'src')) ? path.join(provider.folder, 'src') : provider.folder;
+  return pythonPackages(source).length > 0;
 }
 
 /** Whether `folder` is a symbolic link that resolves to `target`. */

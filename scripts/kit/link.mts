@@ -25,7 +25,7 @@ import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { rebuild } from './link-build.mts';
-import { folderFindings, linkFolders, providedFolders } from './link-folders.mts';
+import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -426,13 +426,6 @@ export function link({ checkouts, directories, check, print, env = process.env, 
 const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?|release-consumer)\//;
 
 /** The vendor folder that the composer.json of `project` names in config.vendor-dir, read from the file, else vendor. */
-function vendorDirOf(project: string): string | undefined {
-  const file = path.join(project, MANIFESTS.composer);
-  if (!existsSync(file)) return undefined;
-  const manifest = readJsonOf(file);
-  const config = isJsonObject(manifest) ? manifest.config : undefined;
-  return isJsonObject(config) && typeof config['vendor-dir'] === 'string' ? config['vendor-dir'] : undefined;
-}
 
 /**
  * K448: the link of the installed package folders of the consumer. Each folder of a project of the consumer (each folder of a tracked
@@ -445,7 +438,11 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
   // reads them; a test, a fixture or the release consumer keeps the install that it tests.
   const projects = new Set([consumer.scope, ...(['npm', 'composer', 'python'] as const).flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))]);
   for (const project of [...projects].sort()) {
-    const folders = providedFolders(project, work.found.values(), { vendorDir: vendorDirOf(project) });
+    const folders = providedFolders(project, work.found.values(), { vendorDir: composerVendorDir(project, work.env) });
+    // K529: a polyspec package that the manifests of the project declare, and that a provider of the run provides, has an installed folder.
+    const missing = declaredWithoutFolder(work, consumer, project, folders);
+    for (const name of missing) line(work, 'NOT linked', name.ecosystem, `${name.name}: no installed folder in ${path.relative(consumer.top, project) || '.'}; install the project first`);
+    if (missing.length > 0) work.failed = true;
     if (work.check) {
       const findings = folderFindings(consumer.top, folders);
       for (const finding of findings) line(work, 'NOT linked', finding.split(' ')[0] ?? '', finding.slice(finding.indexOf(' ') + 1));
@@ -455,6 +452,29 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
     linkFolders(folders);
     for (const item of folders) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
   }
+}
+
+/**
+ * The provided packages that the manifests of `project` declare and that have no installed folder among `folders` (K529): a declared
+ * polyspec package with no folder is a finding, never a silent pass. A python member is installed as its package paths, so it is
+ * installed when one of its folders is there.
+ */
+function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, folders: readonly ProvidedFolder[]): { ecosystem: Ecosystem; name: string }[] {
+  const declared: { ecosystem: Ecosystem; name: string }[] = [];
+  const files: [Ecosystem, string, (file: string) => string[]][] = [['composer', MANIFESTS.composer, declaredComposer], ['npm', MANIFESTS.npm, declaredNpm], ['python', MANIFESTS.python, declaredPython]];
+  for (const [ecosystem, manifest, names] of files) {
+    const file = path.join(project, manifest);
+    if (!existsSync(file)) continue;
+    for (const name of names(file)) declared.push({ ecosystem, name });
+  }
+  return declared.filter(({ ecosystem, name }) => {
+    const provider = work.found.get(providerKey(ecosystem, name));
+    // A package of the consumer's own repository is never installed from a folder of another checkout, and a python provider with
+    // no package path installs no folder (K529).
+    if (provider === undefined || provider.repository === repositoryOf(consumer.top)) return false;
+    if (ecosystem === 'python' && !hasPythonPackages(provider)) return false;
+    return !folders.some(folder => folder.ecosystem === ecosystem && (folder.name === name || folder.name.startsWith(`${name} `)));
+  });
 }
 
 /** The polyspec packages of `ecosystem` that the consumer `directory` declares, for a recipe (uv sync --no-install-package). */
