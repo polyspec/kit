@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8e93173822d387f342ee5826b1fa509e1329a0753cfe76b6e79af02ffa5af146 -->
+<!-- source-sha256: b1fa3e6fb5480a57ddb942b0b1f177a7b9dc976a6996b48b668c69d0ecf4c83c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- link와 uv-install은 각 uv 설치 전에 Python 환경의 패키지 link를 지우므로, uv가 link를 통해 provider checkout에 쓰지 않는다(K539).
 - make item-red BEFORE=는 swap이 build 입력을 바꾸면 BEFORE에서 저장소를 build하고 복원 뒤 다시 build하므로, build를 import하는 테스트가 red를 증명한다(K525).
 - main의 make commit과 main에서의 item-new 등록은 land의 lock을 가지므로, 그것들과 land는 서로의 변경을 보지 않고 줄을 선다(K524).
 - lint-go는 deadcode를 모듈 build tag의 합집합으로 판정하므로, 한 tag의 파일이 도달하는 함수는 다른 실행의 finding이 아니다(K536).
