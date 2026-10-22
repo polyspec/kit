@@ -48,7 +48,7 @@ test('a unit that cites a requirement the spec does not define fails (R14)', () 
 test('a requirement defined twice, and a pattern that the spec never matches, fail the declaration', () => {
   const twice = { ...SPEC, 'docs/spec/more.md': '- **AB-2** again\n' };
   assert.deepEqual(run([{ id: 'codec', requirements: ['AB-1', 'AB-2', 'AB-3'] }], twice), [
-    'declaration -: AB-2 is defined in docs/spec/api.md and docs/spec/more.md; a requirement has one definition',
+    'declaration -: AB-2 is defined at docs/spec/api.md:4 and docs/spec/more.md:1; a requirement has one definition',
   ]);
   assert.deepEqual(run([], { 'docs/spec/api.md': '# nothing\n' }), [
     'declaration -: requirements.pattern AB-[0-9]+ matches no requirement of docs/spec; the spec defines each requirement as a list item **<id>** or a heading <id>',

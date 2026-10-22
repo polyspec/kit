@@ -14,7 +14,7 @@
 // Only a suite or feature unit traces a requirement for R13: an api unit runs no test.
 // Each finding that names one requirement carries its id in `requirements`, and R18 carries the shared ids, so IDS selects them (K414-1).
 import { matchesAny } from './glob.mts';
-import { finding, type Finding } from './parity-declaration.mts';
+import { DECLARATION, finding, type Finding } from './parity-declaration.mts';
 
 const SPEC = /^docs\/spec\/(?:.+\/)?[^/]+(?<!\.ko)\.md$/;
 
@@ -23,18 +23,19 @@ export function requirementFindings(config: { requirements: { pattern: string };
   const { pattern } = config.requirements;
   const definition = new RegExp(`^\\s*(?:(?:[-*+]|\\d+[.)])\\s+\\*\\*(${pattern})\\*\\*|#{1,6}\\s+(${pattern})\\b)`);
   const listed = new Set(files);
-  const defined = new Map<string, string>();
+  const defined = new Map<string, { file: string; line: number }>();
   const definers = new Set<string>();
   const findings: Finding[] = [];
   for (const file of [...listed].filter(name => SPEC.test(name)).sort()) {
-    for (const line of read(file).split('\n')) {
+    for (const [index, line] of read(file).split('\n').entries()) {
       const match = definition.exec(line);
       const id = match?.[1] ?? match?.[2];
       if (id === undefined) continue;
       definers.add(file);
       const first = defined.get(id);
-      if (first !== undefined) findings.push(finding('declaration', `${id} is defined in ${first} and ${file}; a requirement has one definition`));
-      else defined.set(id, file);
+      // K520: the duplicate names both places and lies on the declaration, so every filter of a scoped run keeps it.
+      if (first !== undefined) findings.push(finding('declaration', `${id} is defined at ${first.file}:${first.line} and ${file}:${index + 1}; a requirement has one definition`, { place: DECLARATION }));
+      else defined.set(id, { file, line: index + 1 });
     }
   }
   if (defined.size === 0) return [finding('declaration', `requirements.pattern ${pattern} matches no requirement of docs/spec; the spec defines each requirement as a list item **<id>** or a heading <id>`)];
@@ -108,6 +109,6 @@ export function requirementFindings(config: { requirements: { pattern: string };
     const shared = [...new Set(first.unit.requirements)].filter(id => second.unit.requirements.includes(id));
     if (shared.length > 0 && first.files !== second.files) findings.push(finding('R18', `${first.unit.id} and ${second.unit.id} both cite ${shared.join(', ')} from different case sets; a feature is one unit that every implementation tests, so merge the two suites into one unit`, { requirements: shared }));
   }
-  for (const [id, file] of defined) if (!cited.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile`, { requirements: [id] }));
+  for (const [id, { file }] of defined) if (!cited.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile`, { requirements: [id] }));
   return findings;
 }
