@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ef2528dc83e41b358d93447c57b3592fc7302d7ce79acebf7e1cf2a6767f6036 -->
+<!-- source-sha256: 36ff6758215143bf8ad6754aac983c0e9df8f584bf92b794f208c7943888ce9e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- node test의 event는 test가 event loop를 막을 때도 test가 끝날 때 run-tests에 도착한다. test-exit-deadline preload가 각 test의 앞뒤에서 loop를 한 번 돌리므로, 합쳐서 deadline보다 오래 걸리는 동기 test 파일이 통과하는 중에 멈추지 않고, tests/kit/lint-ts.test.mts가 더는 30초에 실패하지 않는다(K546).
 - uv-install은 uv sync 전에 link를 해제한 각 제공 패키지를 다시 설치하고, 폴더 없이 끝난 패키지는 조용히 통과하지 않고 이름 붙여 실패한다(K544).
 - make item-red와 make item-state는 실행되어 실패한 test나 gate만 red로 기록한다. 찾지 못한 명령(exit 127), test가 시간을 넘기고 하나도 실패하지 않은 실행, test 전에 실패한 실행(build, compile, load 실패)은 이유와 함께 거부되고 아무것도 기록되지 않는다(K540).
 - link는 제공된 각 Python 패키지 폴더를 provider로 가는 파일별 link의 진짜 폴더로 만들므로 어떤 uv 설치도 link를 통해 provider checkout에 쓰지 않고, uv 전의 link 해제는 중첩된 link에도 닿는다(K541).

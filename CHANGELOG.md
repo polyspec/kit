@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The events of a node test reach run-tests when the test ends, also when the test blocks the event loop: the test-exit-deadline preload turns the loop once before and after each test, so a file of synchronous tests that together outlast the deadline is no longer stopped while it passes; tests/kit/lint-ts.test.mts no longer fails at 30 s (K546).
 - uv-install reinstalls each provided package whose links it releases before uv sync, and fails naming a package that ends without its folder, instead of a silent pass (K544).
 - make item-red and make item-state record as red only a test or a gate that runs and fails: a command that was not found (exit 127), a run whose tests timed out and none failed, and a run that failed before any test (a build, compile or load failure) are refused with the reason and record nothing (K540).
 - link makes each provided Python package folder a real folder of per-file links into the provider, so no uv install writes through a link into a provider checkout, and the release of the links before uv reaches nested links (K541).
