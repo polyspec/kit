@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 90c70bb988a889d6b46501b6d4bf7fad19ea747f36df5f97bee0c8fcac0e3db1 -->
+<!-- source-sha256: 8d6778c02086313410cf406c60942ce5653a36dbb3cc19cbb5b513c1419fd73b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- divergence-check는 분기 없이 자기 환경을 assert하는 테스트 문장을 통과시키고, 분기 안의 probe는 여전히 잡는다(K543).
 - run-tests의 gap watch는 test process의 시작을 120초의 start-up bound로, process가 up을 알린 뒤의 gap을 test timeout으로 묶으므로, 부하가 걸린 machine에서 interpreter의 시작이 더는 통과하는 run을 실패시키지 않는다. up을 알리지 않는 process는 자기 메시지와 함께 start-up bound에서 멈춘다(K549).
 - test-exit-deadline preload가 각 test 앞뒤에서 기다리는 event loop 한 바퀴는 process 시작 때의 setTimeout을 쓰므로, timer를 mock하는 test가 더는 hook을 멈추지 않는다(K547).
 - uv-install은 환경이 가진 제공 패키지를 dist-info 기록으로 읽고, 폴더가 없어도 그 각각을 다시 설치한다(K545).
