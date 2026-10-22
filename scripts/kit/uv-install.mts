@@ -26,7 +26,7 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
     const refused = sync.filter(flag => !SYNC_FLAGS.has(flag));
     if (refused.length) throw new Error(`SYNC takes ${[...SYNC_FLAGS].join(' and ')}, not ${refused.join(' ')}`);
     run(env.UV ?? 'uv', ['sync', '--frozen', ...sync], { cwd: project, env });
-    const folders = providedFolders(project, checkoutProviders(checkouts, 'python'));
+    const folders = providedFolders(project, checkoutProviders(checkouts, 'python'), { environment: env.UV_PROJECT_ENVIRONMENT });
     linkFolders(folders);
     write(`uv-install ${project}: uv sync of the tracked lock${folders.length ? `, then linked ${folders.map(item => item.name).join(', ')} to their checkouts` : ''}\n`);
     return 0;

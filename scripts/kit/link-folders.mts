@@ -83,9 +83,12 @@ const present = (file: string): boolean => {
   }
 };
 
-/** The site-packages folders of the virtual environments of `project`: .venv/lib/<python>/site-packages. */
-function sitePackages(project: string): string[] {
-  const lib = path.join(project, '.venv', 'lib');
+/**
+ * The site-packages folders of the environment of `project`, the one that uv syncs: `environment` (UV_PROJECT_ENVIRONMENT, relative to the
+ * project or absolute, K448-14), else .venv; each is <environment>/lib/<python>/site-packages.
+ */
+function sitePackages(project: string, environment: string | undefined): string[] {
+  const lib = path.join(path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment), 'lib');
   if (!existsSync(lib)) return [];
   return readdirSync(lib).map(name => path.join(lib, name, 'site-packages')).filter(folder => existsSync(folder));
 }
@@ -112,9 +115,9 @@ function vendorDirectory(project: string, vendorDir: string | undefined): string
  * package that is not installed is left out: the install of the tracked lock installs what the project needs, and the link only
  * replaces it.
  */
-export function providedFolders(project: string, provided: Iterable<Provider>, { vendorDir }: { vendorDir?: string | undefined } = {}): ProvidedFolder[] {
+export function providedFolders(project: string, provided: Iterable<Provider>, { vendorDir, environment = process.env.UV_PROJECT_ENVIRONMENT }: { vendorDir?: string | undefined; environment?: string | undefined } = {}): ProvidedFolder[] {
   const found: ProvidedFolder[] = [];
-  const sites = sitePackages(project);
+  const sites = sitePackages(project, environment);
   for (const provider of provided) {
     if (provider.ecosystem === 'npm') {
       const folder = path.join(project, 'node_modules', provider.name);

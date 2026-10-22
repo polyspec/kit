@@ -90,4 +90,5 @@ test('uv install links the packages of the environment that UV_PROJECT_ENVIRONME
   const installed = path.join(project, 'var/venv/lib/python3.14/site-packages/polyspec/orm');
   assert.equal(lstatSync(installed).isSymbolicLink(), true, output);
   assert.equal(realpathSync(installed), realpathSync(path.join(orm, 'src/polyspec/orm')));
+  assert.match(output, /linked polyspec-orm polyspec\/orm/);
 });
