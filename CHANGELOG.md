@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The gates of a commit and of a land read the owner rules that kit ships, as owner-validate does, and kit.owners owns every hook that make hooks writes, so a consumer commits its hooks (K522).
 - make worktree-setup gives each Composer project of a worktree a vendor folder of links to the main checkout's packages and an autoload of its own, so the repository's own classes load from the worktree (K521).
 - A requirement that docs/spec defines twice fails every parity declarations check, scoped runs included, and the finding names the file and line of both definitions (K520).
 - uv-install, link and link-state-check take the members of a uv workspace root that a checkout names among its Python providers, so an installed member is linked (K518).
