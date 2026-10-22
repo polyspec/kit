@@ -7,18 +7,23 @@ import { siblingCheckouts } from './link-providers.mts';
 import { uvInstall } from './link.mts';
 import { isMain } from './paths.mts';
 
-if (isMain(import.meta.url)) {
-  const [directory, ...given] = process.argv.slice(2);
+/** Runs the install of the arguments `[directory, ...checkouts]`, printing to `write`; returns the exit code. */
+export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv, write: (text: string) => void): number {
+  const [directory, ...given] = args;
   if (directory === undefined) {
-    process.stderr.write('Usage: node scripts/kit/uv-install.mts <dir> [<checkout>...]\n');
-    process.exitCode = 2;
-  } else {
-    const checkouts = given.length ? given.map(checkout => path.resolve(checkout)) : siblingCheckouts(path.resolve(directory)).checkouts;
-    try {
-      uvInstall({ directory, checkouts, env: process.env, print: text => process.stdout.write(`${text}\n`) });
-    } catch (error) {
-      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
-      process.exitCode = 1;
-    }
+    write('Usage: node scripts/kit/uv-install.mts <dir> [<checkout>...]\n');
+    return 2;
   }
+  const checkouts = given.length ? given.map(checkout => path.resolve(checkout)) : siblingCheckouts(path.resolve(directory)).checkouts;
+  try {
+    uvInstall({ directory, checkouts, env, print: text => write(`${text}\n`) });
+    return 0;
+  } catch (error) {
+    write(`${error instanceof Error ? error.message : String(error)}\n`);
+    return 1;
+  }
+}
+
+if (isMain(import.meta.url)) {
+  process.exitCode = uvInstallCommand(process.argv.slice(2), process.env, text => process.stdout.write(text));
 }

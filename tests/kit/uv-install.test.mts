@@ -5,9 +5,9 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { uvInstall } from '../../scripts/kit/link.mts';
+import { uvInstallCommand } from '../../scripts/kit/uv-install.mts';
 
 const LOCK = [
   'version = 1',
@@ -124,11 +124,11 @@ test('uv install refuses a declared polyspec package with no checkout before it 
   assert.equal(readFileSync(log, 'utf8'), '', 'no uv call runs');
 });
 
-test('the uv install CLI refuses a declared polyspec package with no checkout and exits non-zero (K448-3)', (t) => {
+test('the uv install command refuses a declared polyspec package with no checkout and exits non-zero (K448-3)', (t) => {
   const { consumer, env } = workspace(t);
   const project = path.join(consumer, 'python');
-  const cli = fileURLToPath(new URL('../../scripts/kit/uv-install.mts', import.meta.url));
-  const outcome = spawnSync(process.execPath, [cli, project], { encoding: 'utf8', env: { ...process.env, ...env } });
-  assert.notEqual(outcome.status, 0, outcome.stdout);
-  assert.match(outcome.stderr, /polyspec-z has no checkout/);
+  const output: string[] = [];
+  const status = uvInstallCommand([project], { ...process.env, ...env }, text => output.push(text));
+  assert.equal(status, 1, output.join(''));
+  assert.match(output.join(''), /polyspec-z has no checkout/);
 });
