@@ -13,6 +13,7 @@ import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
 import { COMMIT_RULES, indexItemFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
+import { KIT_MAKEFILE } from './kit-tools.mts';
 
 const CONFIG = { 'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"T[0-9]+(?:[.-][0-9]+)*"}\n' };
 
@@ -65,6 +66,21 @@ test('item-new adds a waiting row to a checklist and its twin, a sub-item after 
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.md').map(row => row.split(' | ')[0]), ['| T1', '| T1-1', '| T1-1-1', '| T1-2', '| T2']);
   assert.equal(rows(root, 'docs/plans/parser/checklist.md')[0], '| T1 | Task T1 | `a.mts` | `node --test a.test.mts` | [ ] |');
   assert.equal(rows(root, 'docs/plans/parser/checklist.ko.md')[0], '| T1 | 작업 T1 | `a.mts` | `node --test a.test.mts` | [ ] |');
+});
+
+// K457: make expands a dollar sign of a variable's value, so the texts of item-new and item-edit reach the tool as they are written.
+test('item-new and item-edit write each text through make as given, with its dollar signs, parentheses and quotes (K457)', (t) => {
+  const root = plans(t, 'parser');
+  writeFileSync(path.join(root, 'Makefile'), KIT_MAKEFILE);
+  const text = 'run $(RUN_TESTS) and $$HOME, it\'s "quoted"';
+  const made = spawnSync('make', ['--no-print-directory', '-C', root, 'item-new', 'PLAN=parser', 'ID=T1', `TASK=${text}`, 'TASK_KO=작업', 'DELIVERABLES=`a.mts`', 'VERIFICATION=`node --test a.test.mts`'], { encoding: 'utf8' });
+  assert.equal(made.status, 0, made.stdout + made.stderr);
+  assert.ok((rows(root, 'docs/plans/parser/checklist.md')[0] ?? '').includes(` | ${text} | `), rows(root, 'docs/plans/parser/checklist.md').join('\n'));
+  const edited = `run $(HOME) and $$(date), it's`;
+  const changed = spawnSync('make', ['--no-print-directory', '-C', root, 'item-edit', 'ID=T1', `TASK=${edited}`, 'TASK_KO=작업 $(HOME)'], { encoding: 'utf8' });
+  assert.equal(changed.status, 0, changed.stdout + changed.stderr);
+  assert.ok((rows(root, 'docs/plans/parser/checklist.md')[0] ?? '').includes(` | ${edited} | `), rows(root, 'docs/plans/parser/checklist.md').join('\n'));
+  assert.ok((rows(root, 'docs/plans/parser/checklist.ko.md')[0] ?? '').includes(' | 작업 $(HOME) | '), rows(root, 'docs/plans/parser/checklist.ko.md').join('\n'));
 });
 
 test('item-new escapes a pipe of a cell, and refuses a line break (K249-1)', (t) => {

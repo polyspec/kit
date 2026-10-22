@@ -247,12 +247,17 @@ plan-new: ## Write the plan NAME=<slug> into docs/plans/<slug>/ with TITLE and T
 plan-split: ## Move the items IDS="<id> <id>" with their sub-items from the checklist of the plan FROM to the plan TO (made with TITLE and TITLE_KO when it does not exist), in both languages; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) plan-split
 
+# The texts of a row reach the tool unexpanded (K457): make expands the dollar signs of a variable's value, and exports the expansion,
+# so a text that names a make or shell variable would be stored with its value. Each text that is set is passed to the tool in the
+# recipe as its raw value (`$(value)`), in single quotes, and an unset text stays unset.
+raw_text = $(foreach v,$(1),$(if $(filter undefined,$(origin $(v))),,$(v)='$(subst ','\'',$(value $(v)))'))
+
 item-new: ## Add the item ID to the checklist of PLAN and its Korean twin in the waiting state, with TASK, TASK_KO, DELIVERABLES and VERIFICATION; offline
-	$(NODE) $(KIT)/plan.$(KIT_EXT) item-new
+	$(call raw_text,TASK TASK_KO DELIVERABLES VERIFICATION) $(NODE) $(KIT)/plan.$(KIT_EXT) item-new
 
 # item-edit also rewrites the cause and the retry of a held item (K442): CAUSE, RETRY, CAUSE_KO and RETRY_KO.
 item-edit: ## Replace the Verification cell of the item ID with VERIFICATION, its Deliverables cell with DELIVERABLES, or its Task cells with TASK and TASK_KO, in both languages, through the checks of item-new; with CAUSE, RETRY, CAUSE_KO and RETRY_KO, rewrite the cause and the retry of a bypassed item (its cause for an impossible one) through the checks of item-state; offline
-	$(NODE) $(KIT)/plan.$(KIT_EXT) item-edit
+	$(call raw_text,TASK TASK_KO DELIVERABLES VERIFICATION CAUSE RETRY CAUSE_KO RETRY_KO) $(NODE) $(KIT)/plan.$(KIT_EXT) item-edit
 
 item-state: ## Move the item ID to STATE in both languages along an allowed transition; done needs its changelog line, bypassed CAUSE, RETRY, CAUSE_KO and RETRY_KO, impossible CAUSE and CAUSE_KO; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) item-state
