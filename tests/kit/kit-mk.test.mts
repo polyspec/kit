@@ -3,7 +3,7 @@
 // is unset, and kit-test is kit's own target, since a repository holds no tests/kit.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -52,6 +52,28 @@ test('every recipe runs with the environment of mise of the checkout, and with v
   const env = Object.fromEntries(shown.stdout.trim().split('\n').map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
   for (const [name, value] of Object.entries(miseEnvironment(root))) assert.equal(env[name], value, name);
   assert.equal(env.PATH, [path.join(root, 'var/tools/bin'), path.join(root, 'var/tools/mise/shims'), '/usr/bin', '/bin'].join(path.delimiter));
+});
+
+// K519: in a linked worktree every recipe runs the tools of the main checkout, and the worktree installs none of its own.
+test('a worktree runs the var/tools of the main checkout and installs no tool (K519)', (t) => {
+  const main = realpathSync(tree(t, { 'Makefile': `KIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\nshow:\n\t@env\n`, 'mise.toml': '[tools]\n' }));
+  const git = (cwd: string, ...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
+  assert.equal(git(main, 'init', '--quiet', '--initial-branch=main').status, 0);
+  assert.equal(git(main, 'add', '.').status, 0);
+  assert.equal(git(main, 'commit', '--quiet', '-m', 'base').status, 0);
+  const worktree = `${main}-row`;
+  t.after(() => rmSync(worktree, { recursive: true, force: true }));
+  assert.equal(git(main, 'worktree', 'add', '--quiet', '-b', 'fix/row-K1', worktree).status, 0);
+  const shown = spawnSync('make', ['--no-print-directory', 'show'], { cwd: worktree, encoding: 'utf8', env: { ...process.env, PATH: '/usr/bin:/bin' } });
+  assert.equal(shown.status, 0, shown.stderr);
+  const env = Object.fromEntries(shown.stdout.trim().split('\n').map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
+  for (const [name, value] of Object.entries(miseEnvironment(worktree))) assert.equal(env[name], value, name);
+  assert.equal(env.MISE_DATA_DIR, path.join(main, 'var/tools/mise'));
+  assert.equal(env.MISE_GLOBAL_CONFIG_FILE, path.join(worktree, 'mise.toml'));
+  assert.equal(env.PATH, [path.join(main, 'var/tools/bin'), path.join(main, 'var/tools/mise/shims'), '/usr/bin', '/bin'].join(path.delimiter));
+  const install = spawnSync('make', ['--no-print-directory', 'install-tools'], { cwd: worktree, encoding: 'utf8' });
+  assert.equal(install.status, 2, install.stdout);
+  assert.match(install.stderr, new RegExp(`${worktree} is a worktree that runs the tools of the main checkout ${main} and installs none`));
 });
 
 test('kit-test is a target of the Makefile of kit, not of kit.mk', () => {

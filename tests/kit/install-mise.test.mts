@@ -176,20 +176,25 @@ test('the mise of a checkout takes the checkout as the root of its global config
   assert.match(make, /^MISE_ENVIRONMENT := .*\bMISE_GLOBAL_CONFIG_ROOT\b/m);
 });
 
-// K387: a worktree reads the tools that the main checkout of its repository installed, so its install downloads none of them again;
-// the main checkout keeps its own store, and the data dir, the state and the shims stay those of each checkout.
-test('the mise of a worktree reads the installs of the main checkout, and the main checkout its own (K387)', (t) => {
+// K519: a linked worktree runs the tools of the main checkout of its repository: the data dir, the installs, the state and the
+// shims are those of the main checkout, so a uv tool, whose install mise keys by its data dir, is found; only the global
+// configuration is the worktree's own mise.toml.
+test('the mise of a worktree is that of the main checkout, with the mise.toml of the worktree (K519)', (t) => {
   const main = realpathSync(tree(t, { 'mise.toml': '[tools]\n', 'var/tools/mise/installs/node/26.12.0/bin/node': '' }));
   initRepository(main, '--initial-branch=main');
   spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '-m', 'base'], { cwd: main });
   const worktree = `${main}-row`;
   t.after(() => rmSync(worktree, { recursive: true, force: true }));
   assert.equal(spawnSync('git', ['worktree', 'add', '--quiet', '-b', 'fix/row-K1', worktree], { cwd: main }).status, 0);
-  assert.equal(miseEnvironment(worktree).MISE_SHARED_INSTALL_DIRS, path.join(main, 'var/tools/mise/installs'));
-  assert.equal(miseEnvironment(worktree).MISE_DATA_DIR, path.join(worktree, 'var/tools/mise'), 'the data dir stays that of the worktree');
-  assert.equal(miseEnvironment(main).MISE_SHARED_INSTALL_DIRS, undefined, 'the main checkout is the store');
-  const make = readFileSync(new URL('../../scripts/kit/kit.mk', import.meta.url), 'utf8');
-  assert.match(make, /^export MISE_SHARED_INSTALL_DIRS := \$\(KIT_MAIN_CHECKOUT\)\/var\/tools\/mise\/installs$/m);
+  const environment = miseEnvironment(worktree);
+  for (const [name, value] of Object.entries(miseEnvironment(main))) {
+    if (name === 'MISE_GLOBAL_CONFIG_FILE' || name === 'MISE_GLOBAL_CONFIG_ROOT') continue;
+    assert.equal(environment[name], value, `${name} of the worktree is that of the main checkout`);
+  }
+  assert.equal(environment.MISE_DATA_DIR, path.join(main, 'var/tools/mise'));
+  assert.equal(environment.MISE_GLOBAL_CONFIG_FILE, path.join(worktree, 'mise.toml'));
+  assert.equal(environment.MISE_GLOBAL_CONFIG_ROOT, worktree);
+  assert.equal('MISE_SHARED_INSTALL_DIRS' in environment, false, 'no second store');
 });
 
 test('trustConfig leaves exactly the trust of the checkout mise.toml (K397)', (t) => {
