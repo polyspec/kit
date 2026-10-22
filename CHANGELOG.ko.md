@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8c80bbdb651608821ffefa58e900aca5eb34488877c9605768c49b54ba9092b7 -->
+<!-- source-sha256: 48c943aa86f9a239b3a76ff3d763f138d86f88a1d1387f8827f87aaadd6c4677 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- polyspec-lock-check와 config/polyspec.json을 제거했다. 추적되는 lock은 각 polyspec 패키지의 release를 기록하고, gate는 추적되는 lock의 release URL이 이름 붙인 sibling 저장소를 clone한다(K515).
 - kit-check는 kit이 더는 복사하지 않는데 저장소가 아직 가진 lint 설정을 make kit-sync를 고침으로 하여 이름 붙인다(K514-1).
 - main에서 make item-new는 BODY_FILE로 행 등록을 docs(plan) commit 하나로 commit하며, BODY_FILE이 없거나 다른 변경이 staged면 무엇을 쓰기 전에 거부한다(K499-2).
 - 각 lint는 설정을 kit 패키지에서 읽는다(ruff.toml, phpcs.xml.dist, phpstan.dist.neon, .golangci.yml, clippy.toml, .oxlintrc.json, knip.json). kit-sync는 이 사본들과 config/api-extractor.kit.json을 저장소에서 지운다(K514).
