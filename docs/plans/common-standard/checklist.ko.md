@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 005fb2d20ffadbdb36cd2220ec010754019c39eeaa5ad5024004c1cd794b37eb -->
+<!-- source-sha256: 1f24f1e04f2a3ff774bca311fe6346722a4ba629d5455a1e6047808e3b30797b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -391,3 +391,4 @@
 | K494-2 | npm-install은 패키지 폴더를 가진 checkout에서는 그 폴더들을 받고 checkout 자신은 받지 않는다. 그래서 자기 package.json이 패키지 이름을 가진 저장소 root(ordered-json은 root를 packages/js와 같은 @polyspec/ordered-json으로 이름 짓는다)도 패키지 폴더를 link한다. 원인: 제공 패키지를 [checkout, ...패키지 폴더] 순서로 찾고 먼저 찾은 이름이 이기므로, ordered-json의 root가 link되고 kit link가 @polyspec/ordered-json을 NOT linked로 보고했다. 인수 조건: package.json이 packages/js와 같은 이름인 root는 explicit mode와 sibling mode 모두에서 packages/js를 link한다. 패키지 폴더가 없는 checkout은 여전히 패키지 폴더로 받는다. Red fixture: 그런 root는 지금 root로 link된다. | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test --test-name-pattern=K494-2 tests/kit/npm-install.test.mts` | [o] |
 | K500 | K205 테스트는 설치 레시피가 `$(NPM) ci`를 실행한다고 기대하지만 kit-bootstrap은 더 이상 그렇게 실행하지 않는다(K448-8). 테스트가 낡아서 main에서 실패한다(K443 관련). 원인: kit-bootstrap.mk의 설치 레시피는 K448-8 이후 `$(MAKE) npm-install DIR=.`를 실행하는데, K205 단정은 옛 `$(NPM) ci` 줄에 맞춘다. 수용 기준: K205 테스트가 npm-install을 통해 설치 레시피를 단정하고, npm-install이 `$(NPM) ci`를 실행함을 확인하며, main에서 통과한다. red 픽스처: main에서 K205 테스트가 `$(NPM) ci` 정규식으로 오늘 실패한다. | tests/kit/link.test.mts | `node --test --test-name-pattern=K205 tests/kit/link.test.mts` | [o] |
 | K491 | dependency-state 테스트는 fixture checkout을 make 환경(make의 MISE_LOCKED, 앞선 checkout의 var/tools PATH)에서 실행하여 실패한다: fixture의 go stub이 mise로 재귀하고(shim fallback recursion), 복사본의 lockfile에 python과 ruff가 없다; fixture의 도구는 checkout의 var/tools 밖에서, MISE_LOCKED을 뺀 테스트 자신의 환경으로 찾는다 | tests/kit/checkout.mts, tests/kit/checkout-stubs.mts | `node --test tests/kit/dependency-toolchain.test.mts` | [o] |
+| K493 | dependency-policy-check가 패키지별로 범위를 정한다: PACKAGES=<name,...>는 그 이름의 finding만 보고하고 실패하며, 범위 없는 gate는 그대로다. Cause: 한 finding을 고치는 row는 Verification이 전체 gate인 동안 닫힐 수 없고, 그 gate에는 다른 row의 finding이 있다 (flowmark-orm KSTD-5-27 ~ 36) | scripts/kit/check-dependency-policy.mts, scripts/kit/kit.mk, tests/kit/dependency-policy.test.mts | `node --test tests/kit/dependency-policy.test.mts` | [ ] |
