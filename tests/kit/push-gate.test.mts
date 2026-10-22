@@ -278,3 +278,15 @@ test('a branch that main has merged, or a worktree whose folder breaks its name,
   git(work, 'worktree', 'add', '--quiet', '-b', 'feat/lexer-T3', path.join(path.dirname(work), 'work-lexer-T3'));
   assert.equal(push(work).status, 0, 'a worktree named for its item, on a branch that main has not merged, passes');
 });
+
+// K510: the push gate checks the message and the identity of each pushed commit and the checklists of the pushed tip once; the row,
+// item and twin rules of each historical commit are the commit and land gates' (the commit-msg hook and commits-check), so a push of
+// many commits does not parse every checklist of every commit again. A commit whose subject names a row that its tree lacks is pushed.
+test('a push checks the message of each pushed commit, not the rows of its tree (K510)', (t) => {
+  const { work, remote } = prepared(t);
+  assert.equal(push(work).status, 0);
+  const unnamed = wideNote(work, 'unnamed.txt', 'docs(checklist): Add the notes (#T9)\n\nThe row T9 is in no checklist of this tree.\n');
+  const pushed = push(work);
+  assert.equal(pushed.status, 0, pushed.stderr);
+  assert.equal(remoteHead(remote), unnamed);
+});
