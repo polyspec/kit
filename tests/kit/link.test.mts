@@ -1000,3 +1000,26 @@ test('K529: a declared polyspec package with no installed folder fails link and 
   assert.match(checked.text, /NOT linked\s+composer\s+polyspec\/y/);
 });
 
+
+// K539: link makes the package folder of a provided Python package a link into the provider checkout, and a uv install over the
+// environment writes through such a link; every uv install of the tool first removes the links of the site-packages that resolve
+// outside the environment, so the provider checkout keeps its tracked files.
+test('unlink removes the package links of the environment before uv reinstalls, so the provider checkout is unchanged (K539)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  assert.equal(linkLines([consumer], env).ok, true);
+  const source = path.join(provider, 'packages/python/src/polyspec_z/__init__.py');
+  put(provider, { 'packages/python/src/polyspec_z/__init__.py': 'VALUE = "checkout"\n' });
+  const site = path.join(consumer, 'python/.venv/lib/python3.14/site-packages');
+  mkdirSync(site, { recursive: true });
+  symlinkSync(path.dirname(source), path.join(site, 'polyspec_z'));
+  // A sync that reinstalls a package writes its files into the package folder of the environment, as uv does.
+  const uv = path.join(path.dirname(consumer), 'uv-writes');
+  writeFileSync(uv, `#!/bin/sh\ncase "$1" in sync) mkdir -p ${JSON.stringify(path.join(site, 'polyspec_z'))} && printf 'VALUE = "released"\\n' > ${JSON.stringify(path.join(site, 'polyspec_z/__init__.py'))};; esac\nexec ${JSON.stringify(env.UV)} "$@"\n`);
+  chmodSync(uv, 0o755);
+  const lines: string[] = [];
+  unlink({ directories: [consumer], print: text => lines.push(text), env: { ...env, UV: uv } });
+  assert.equal(readFileSync(source, 'utf8'), 'VALUE = "checkout"\n', 'the provider checkout keeps its tracked file');
+  assert.equal(lstatSync(path.join(site, 'polyspec_z')).isSymbolicLink(), false, 'the package folder is a folder of the environment');
+  assert.equal(readFileSync(path.join(site, 'polyspec_z/__init__.py'), 'utf8'), 'VALUE = "released"\n');
+  assert.match(lines.join('\n'), /polyspec_z/, 'the removed link is named');
+});
