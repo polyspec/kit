@@ -4,15 +4,17 @@
 //   - `golangci-lint run --config <kit>/.golangci.yml ./...`, the configuration of the kit package (K514): the standard linters and
 //     gomoddirectives, which forbids a replace (the modules of a repository resolve each other through its go.work) and a
 //     toolchain line.
-//   - `deadcode -test ./...`, the functions that neither a main package nor a test of the module reaches. deadcode exits 0
-//     when it reports one, so a step with any output fails.
-//   - once more for each build tag that the Go files of the module name in their `//go:build` lines (K406): golangci-lint
-//     with `--build-tags=<tag>` and deadcode with `-tags=<tag>`, so a file behind a tag is linted too. The tags that the go
-//     tool sets itself, such as the platforms and go1.N, are left out (GO_SET_TAGS).
+//   - golangci-lint once more for each build tag that the Go files of the module name in their `//go:build` lines (K406), with
+//     `--build-tags=<tag>`, so a file behind a tag is linted too. The tags that the go tool sets itself, such as the platforms
+//     and go1.N, are left out (GO_SET_TAGS).
+//   - deadcode-union.mts: `deadcode -test ./...` untagged and with each of those tags, judged together (K536): a function that
+//     no main package and no test reaches in any run that compiles its file. deadcode exits 0 when it reports one, so a step
+//     with any output fails.
 // A missing tool or configuration is a failure with its fix, never a skip; lint-steps.mts runs the steps.
 //
 //   node scripts/kit/lint-go.mts
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { foldersOf, lintCommands, lintMain, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
@@ -50,24 +52,25 @@ function moduleTags(root: string, files: readonly string[], folder: string): str
   return [...tags].sort();
 }
 
+// The judgment of deadcode over the build tags of a module (K536), beside this module, built or from source.
+const HERE = fileURLToPath(import.meta.url);
+const DEADCODE_UNION = path.join(path.dirname(HERE), `deadcode-union${path.extname(HERE)}`);
+
 /** The steps of the lint of `root`; throws when a tool or .golangci.yml is missing. */
 export function lintSteps(root: string): LintStep[] {
   const modules = foldersOf(root, 'go.mod');
   if (modules.length === 0) return [];
-  const tools = lintCommands(root, shimsPath(root), ['golangci-lint', 'deadcode'], 'declare golangci-lint and go:golang.org/x/tools/cmd/deadcode in mise.toml and run make install-tools');
+  const tools = lintCommands(root, shimsPath(root), ['golangci-lint', 'deadcode', 'go'], 'declare go, golangci-lint and go:golang.org/x/tools/cmd/deadcode in mise.toml and run make install-tools');
   const files = checkedFiles(root);
   return modules.flatMap((folder) => {
     const golangci = present(tools['golangci-lint'], 'tools[\'golangci-lint\']');
-    const deadcode = present(tools.deadcode, 'tools.deadcode');
+    const tags = moduleTags(root, files, folder);
     return [
       { label: `golangci-lint ${folder}`, command: golangci, args: ['run', `--config=${kitFile('.golangci.yml')}`, './...'], cwd: folder },
-      // deadcode exits 0 when it reports a function, so its output fails the step.
-      { label: `deadcode ${folder}`, command: deadcode, args: ['-test', './...'], cwd: folder, quiet: true },
-      // K406: the files behind each build tag of the module, which the untagged runs never reach.
-      ...moduleTags(root, files, folder).flatMap(tag => [
-        { label: `golangci-lint ${folder} (tag ${tag})`, command: golangci, args: ['run', `--config=${kitFile('.golangci.yml')}`, `--build-tags=${tag}`, './...'], cwd: folder },
-        { label: `deadcode ${folder} (tag ${tag})`, command: deadcode, args: ['-test', `-tags=${tag}`, './...'], cwd: folder, quiet: true },
-      ]),
+      // K406: the files behind each build tag of the module, which the untagged run never reaches.
+      ...tags.map(tag => ({ label: `golangci-lint ${folder} (tag ${tag})`, command: golangci, args: ['run', `--config=${kitFile('.golangci.yml')}`, `--build-tags=${tag}`, './...'], cwd: folder })),
+      // K536: deadcode over the union of the tags; it exits 0 when it reports a function, so its output fails the step.
+      { label: `deadcode ${folder}`, command: process.execPath, args: [DEADCODE_UNION, present(tools.deadcode, 'tools.deadcode'), present(tools.go, 'tools.go'), ...tags], cwd: folder, quiet: true },
     ];
   });
 }

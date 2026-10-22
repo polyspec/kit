@@ -20,7 +20,7 @@ const FILES: Record<string, string> = {
 
 // Each tool is a stub that logs its call; `stub` is "<tool> <shell line>", which that tool runs after it logs, and `stubs` gives such a
 // shell line by tool.
-function checkout(t: TestContext, { installed = ['golangci-lint', 'deadcode'], omit = '', stub = '', stubs = {}, extra = {} }: { installed?: string[]; omit?: string; stub?: string; stubs?: Record<string, string>; extra?: Record<string, string> } = {}) {
+function checkout(t: TestContext, { installed = ['golangci-lint', 'deadcode', 'go'], omit = '', stub = '', stubs = {}, extra = {} }: { installed?: string[]; omit?: string; stub?: string; stubs?: Record<string, string>; extra?: Record<string, string> } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-go-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const [file, text] of Object.entries({ ...FILES, ...extra })) {
@@ -32,11 +32,13 @@ function checkout(t: TestContext, { installed = ['golangci-lint', 'deadcode'], o
   const log = path.join(root, 'calls.log');
   mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
   for (const tool of installed) {
-    writeFileSync(path.join(root, 'var/tools/mise/shims', tool), `#!/bin/sh\necho "${tool} $* [$(basename "$(dirname "$PWD")")]" >> "${log}"\n${stubs[tool] ?? (stub.startsWith(tool) ? stub.slice(tool.length) : '')}\n`);
+    writeFileSync(path.join(root, 'var/tools/mise/shims', tool), `#!/bin/sh\necho "${tool} $* [$(basename "$(dirname "$PWD")")]" >> "${log}"\n${stubs[tool] ?? (stub.startsWith(`${tool} `) ? stub.slice(tool.length) : '')}\n`);
     chmodSync(path.join(root, 'var/tools/mise/shims', tool), 0o755);
   }
   initRepository(root);
-  return { root, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => line.replaceAll(`${root}/`, '')) };
+  // The go list of each deadcode run names its files to the judgment of K536, which its own test reads; the calls are the lints.
+  const calls = () => readFileSync(log, 'utf8').split('\n').filter(line => line !== '' && !line.startsWith('go list')).map(line => line.replaceAll(`${root}/`, ''));
+  return { root, calls };
 }
 
 test('golangci-lint and deadcode -test run in each Go module folder, and not in the kit fixture', (t) => {
@@ -62,8 +64,8 @@ test('lint-go lints the files behind each build tag that the module declares (K4
     `golangci-lint run --config=${kitFile('.golangci.yml')} ./... [codec]`,
     'deadcode -test ./... [codec]',
     `golangci-lint run --config=${kitFile('.golangci.yml')} ./... [packages]`,
-    'deadcode -test ./... [packages]',
     `golangci-lint run --config=${kitFile('.golangci.yml')} --build-tags=extra ./... [packages]`,
+    'deadcode -test ./... [packages]',
     'deadcode -test -tags=extra ./... [packages]',
   ]);
 });
@@ -77,7 +79,7 @@ test('a deadcode finding fails its step although deadcode exits 0, and every ste
 });
 
 test('a missing tool fails with its fix', (t) => {
-  assert.throws(() => lintSteps(checkout(t, { installed: ['golangci-lint'] }).root), /var\/tools\/mise\/shims\/deadcode is missing; declare golangci-lint and go:golang\.org\/x\/tools\/cmd\/deadcode in mise\.toml and run make install-tools/);
+  assert.throws(() => lintSteps(checkout(t, { installed: ['golangci-lint'] }).root), /var\/tools\/mise\/shims\/deadcode is missing; declare go, golangci-lint and go:golang\.org\/x\/tools\/cmd\/deadcode in mise\.toml and run make install-tools/);
 });
 
 // K514: golangci-lint reads the .golangci.yml of the kit package that runs, never a copy of the repository.
