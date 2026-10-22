@@ -271,7 +271,7 @@ test('land runs dependency-policy-check for a change to any dependency manifest 
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check dependency-policy-check', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'dependency-policy-check:', '\t@for f in package.json package-lock.json composer.json composer.lock pyproject.toml uv.lock Cargo.toml Cargo.lock go.mod go.sum requirements-dev.txt; do test ! -f "$$f" || { echo "$$f has no review entry" >&2; exit 1; }; done'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check commits-check dependency-policy-check', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'dependency-policy-check:', '\t@for f in package.json package-lock.json composer.json composer.lock pyproject.toml uv.lock Cargo.toml Cargo.lock go.mod go.sum requirements-dev.txt; do test ! -f "$$f" || { echo "$$f has no review entry" >&2; exit 1; }; done', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', '**/*.json', '**/*.toml', '**/*.lock', '**/go.*', '**/requirements*.txt'], targets: ['docs-check'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
