@@ -152,6 +152,24 @@ export function releaseEnvironmentLinks(project: string, environment: string | u
   return removed;
 }
 
+/** The name of a distribution as a wheel writes it in its dist-info folder: lower case, with each run of -, _ and . as _ (K545). */
+export const distributionKey = (name: string): string => name.toLowerCase().replace(/[-_.]+/g, '_');
+
+/**
+ * The distributions that the environment of `project` holds by their dist-info records (K545), as distributionKey: uv counts a package
+ * as installed by its record, whether its folder is there or not.
+ */
+export function installedDistributions(project: string, environment: string | undefined): Set<string> {
+  const held = new Set<string>();
+  for (const site of sitePackages(project, environment)) {
+    for (const name of readdirSync(site)) {
+      const record = /^(.+?)-[^-]+\.dist-info$/.exec(name);
+      if (record?.[1] !== undefined) held.add(distributionKey(record[1]));
+    }
+  }
+  return held;
+}
+
 function sitePackages(project: string, environment: string | undefined): string[] {
   const lib = path.join(path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment), 'lib');
   if (!existsSync(lib)) return [];

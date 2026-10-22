@@ -3,7 +3,7 @@
 // (link-folders.mts). Without CHECKOUTS, the sibling checkouts of the repository are used. No editable wheel is written and no version is
 // read; the tracked pyproject.toml and uv.lock are never written.
 import path from 'node:path';
-import { checkoutProviders, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
+import { checkoutProviders, distributionKey, installedDistributions, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { siblingCheckouts } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
@@ -27,12 +27,13 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
     if (refused.length) throw new Error(`SYNC takes ${[...SYNC_FLAGS].join(' and ')}, not ${refused.join(' ')}`);
     const providers = checkoutProviders(checkouts, 'python');
     const environment = env.UV_PROJECT_ENVIRONMENT;
-    // K544: the provided packages that the environment holds before the release, which uv sync reinstalls only when told to.
-    const installed = providers.filter(provider => providedFolders(project, [provider], { environment }).length > 0);
+    // K544, K545: the provided packages that the environment holds by their dist-info records, which uv sync reinstalls only when told
+    // to, also when their folder is gone; each is reinstalled, since its link goes before the sync and its folder may be missing.
+    const held = installedDistributions(project, environment);
+    const installed = providers.filter(provider => held.has(distributionKey(provider.name)));
     // K539: uv writes through a package link of the environment into its provider checkout, so the links go first.
-    const released = releaseEnvironmentLinks(project, environment);
-    for (const link of released) write(`uv-install ${project}: unlinked ${link}, so uv writes no provider checkout\n`);
-    const reinstall = released.length > 0 ? installed.flatMap(provider => ['--reinstall-package', provider.name]) : [];
+    for (const link of releaseEnvironmentLinks(project, environment)) write(`uv-install ${project}: unlinked ${link}, so uv writes no provider checkout\n`);
+    const reinstall = installed.flatMap(provider => ['--reinstall-package', provider.name]);
     run(env.UV ?? 'uv', ['sync', '--frozen', ...sync, ...reinstall], { cwd: project, env });
     const folders = providedFolders(project, providers, { environment });
     const lost = installed.filter(provider => !folders.some(item => item.name.startsWith(`${provider.name} `)));

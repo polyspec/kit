@@ -1,6 +1,7 @@
 // K448: `make uv-install` runs uv sync of the tracked uv.lock as it is, then replaces each installed package of site-packages that a checkout
 // provides with a direct symlink to the package folder of the checkout. The packages of one namespace link apart, and no editable wheel or
-// version is involved. The uv of these tests is a stub: its sync installs each package of SITE as a copy, as a release would be.
+// version is involved. The uv of these tests is a stub: its sync installs each package of SITE as a copy with its dist-info record, as a
+// release would be.
 import assert from 'node:assert/strict';
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -33,6 +34,8 @@ if (process.argv[2] === 'sync') for (const item of ${JSON.stringify(installed)})
   if (record === 'never' || (record === '1' && !reinstall)) continue;
   mkdirSync(path.join(site, item), { recursive: true });
   writeFileSync(path.join(site, item, '__init__.py'), '# release copy\\n');
+  // The dist-info record of the distribution, which uv writes with each install (K545).
+  mkdirSync(path.join(site, item.replaceAll('/', '_') + '-0.0.1.dist-info'), { recursive: true });
 }
 `);
   const uv = path.join(root, 'uv');
