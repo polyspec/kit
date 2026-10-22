@@ -686,16 +686,33 @@ export const findingLine = (finding: Finding) => `[dependency-policy] ${finding.
 
 function main(): void {
   const args = process.argv.slice(2);
-  if (!(args.length === 0 || (args.length === 2 && args[0] === '--root'))) {
-    console.error('Usage: node scripts/kit/check-dependency-policy.mts [--root <checkout>]');
-    process.exit(2);
+  const usage = 'Usage: node scripts/kit/check-dependency-policy.mts [--root <checkout>] [--packages <name>[,<name>...]]';
+  let rootArg: string | undefined;
+  let packages: string[] | undefined;
+  for (let i = 0; i < args.length; i += 2) {
+    const value = args[i + 1];
+    if (value === undefined || value === '') {
+      console.error(usage);
+      process.exit(2);
+    }
+    if (args[i] === '--root') rootArg = value;
+    else if (args[i] === '--packages') packages = value.split(',').map(name => name.trim()).filter(name => name !== '');
+    else {
+      console.error(usage);
+      process.exit(2);
+    }
   }
-  // The usage check above accepts no argument or two, so args[1] exists when args is not empty.
-  const root = args.length ? path.resolve(present(args[1], 'args[1]')) : repositoryRoot();
+  const root = rootArg === undefined ? repositoryRoot() : path.resolve(rootArg);
+  // A package scope keeps the findings that name one of its packages, so a row that fixes one finding can close while the other
+  // findings stay for their own rows (K493). The unscoped gate is unchanged.
+  const scope = (list: Finding[]): Finding[] => packages === undefined ? list : list.filter(finding => {
+    const line = findingLine(finding);
+    return packages.some(name => new RegExp(`(^|[\s/@"'(,:])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[\s:,)"'/])`).test(line));
+  });
   // The checkouts beside the repository are compared with its own by their committed main; without a sibling, as in CI, nothing is compared.
   const { checkouts: siblings } = siblingCheckouts(root);
   const shared = sharedPinFindings(root, siblings);
-  const findings = [...check(root), ...shared.findings];
+  const findings = scope([...check(root), ...shared.findings]);
   const accepted = acceptedAdvisories(root);
   for (const line of accepted) process.stdout.write(`${line}\n`);
   for (const line of shared.progress) process.stdout.write(`${line}\n`);

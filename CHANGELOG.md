@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `dependency-policy-check` takes `--packages <name,...>` (`make dependency-policy-check PACKAGES=`) and reports and fails only on the findings that name those packages; the unscoped gate is unchanged (K493).
 - `make npm-install` takes `ADD=<checkout>...`, which links each named package folder from the start even when the project does not declare its package, as a file: dependency of the temporary manifest; the tracked package.json and package-lock.json name none of them (K485).
 - K491: The dependency test fixtures run in the environment of their test, not of make: MISE_LOCKED is dropped, and a fixture tool is the one PATH finds outside the checkout's var/tools, so the shims of the checkout no longer recurse into mise (K491). Red: make item-red ID=K491 exit 1 under make (go shim recursion, ruff not in the lockfile); green: make item-test ID=K491 passes under make, lint-ts passes. (K491).
 - The K205 test of link asserts that install-packages runs `npm-install DIR=.` and that npm-install runs `npm ci`, the install recipe of kit-bootstrap since K448-8, in place of the stale `$(NPM) ci` line, so the test passes on main (K500).
