@@ -907,3 +907,35 @@ test('a state change of a checklist over one megabyte stages no new row on main 
   writeFileSync(body, 'Start T1 on the large checklist.\n');
   assert.doesNotThrow(() => commitItem(root, { id: 'T1', type: 'docs', scope: 'plan', subject: 'Start T1', bodyFile: body }, identity));
 });
+
+// K499-2: on main, item-new commits the registration of its row in one docs(plan) commit with the body of BODY_FILE, so a session
+// that works on main registers a row without a branch; it refuses without BODY_FILE or with another change staged, and changes
+// nothing then.
+test('item-new on main commits the registration of its row, and refuses without BODY_FILE or with another staged change (K499-2)', (t) => {
+  const root = committed(t, 'T1');
+  assert.equal(spawnSync('git', ['checkout', '-q', '-B', 'main'], { cwd: root }).status, 0);
+  const T2 = item('parser', 'T2');
+  const env = { ...process.env, ...identity, PLAN: 'parser', ID: 'T2', TASK: T2.task, TASK_KO: T2.taskKo, DELIVERABLES: T2.deliverables, VERIFICATION: T2.verification };
+  const itemNew = (extra: Record<string, string>) => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-new'], { cwd: root, env: { ...env, ...extra }, encoding: 'utf8' });
+  const head = () => spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  const before = head();
+  const missing = itemNew({});
+  assert.notEqual(missing.status, 0);
+  assert.match(missing.stderr, /BODY_FILE/);
+  assert.equal(head(), before);
+  assert.equal(spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout, '', 'a refused registration changes nothing');
+  const body = path.join(root, '..', 'register-T2.txt');
+  writeFileSync(body, 'The parser needs its second item.\n');
+  writeFileSync(path.join(root, 'other.txt'), 'staged\n');
+  stage(root, 'other.txt');
+  const staged = itemNew({ BODY_FILE: body });
+  assert.notEqual(staged.status, 0);
+  assert.match(staged.stderr, /other\.txt/);
+  assert.equal(head(), before);
+  assert.equal(spawnSync('git', ['reset', '-q', 'HEAD', 'other.txt'], { cwd: root }).status, 0);
+  const done = itemNew({ BODY_FILE: body });
+  assert.equal(done.status, 0, done.stderr);
+  assert.match(log(root), /^docs\(plan\): Register T2 as an item \(#T2\)\n\nThe parser needs its second item\./);
+  assert.equal(spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status, 0, 'nothing stays staged');
+  assert.ok(rows(root, 'docs/plans/parser/checklist.md').some(row => row.startsWith('| T2 ')));
+});
