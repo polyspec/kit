@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { symlinkSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { gateFindings, retiredFindings, ruleTargets, runtimeTargetFindings, symlinkFindings, taskNameFindings } from '../../scripts/kit/kit-check.mts';
+import { check, gateFindings, retiredFindings, ruleTargets, runtimeTargetFindings, symlinkFindings, taskNameFindings } from '../../scripts/kit/kit-check.mts';
 import { tree } from './tree.mts';
 
 test('a tracked symbolic link fails with its path, and a tree without one passes (K254)', (t) => {
@@ -70,4 +70,26 @@ test('lint-rust is required in CHECK_TARGETS only where the repository holds Rus
   const make = { targets, variables: new Map([['CHECK_TARGETS', 'kit-check']]) };
   assert.deepEqual(gateFindings(['docs/a.md', 'src/b.ts'], make), []);
   assert.deepEqual(gateFindings(['packages/rust/src/lib.rs'], make), ['Makefile: CHECK_TARGETS runs no lint-rust, a gate of kit-gates for the Rust of this repository; add it to CHECK_TARGETS']);
+});
+
+// K534: land and the commit gate run what the owners of the changed paths select, so kit-check verifies that the owner rules select,
+// for each source path of a language whose lint is a gate of kit-gates, that lint and duplication-check.
+test('kit-check names a language whose sources the owner rules send to no lint or duplication-check (K534)', (t) => {
+  const repository = (targets: string[]) => {
+    const root = tree(t, {
+      'Makefile': ['CHECK_TARGETS = lint-php duplication-check feature-check', 'check: $(CHECK_TARGETS)', 'kit-gates: lint-php duplication-check',
+        'lint-php:', '\ttrue', 'duplication-check:', '\ttrue', 'feature-check:', '\ttrue', ''].join('\n'),
+      'config/owner-checks.json': `${JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'Makefile', 'config/**'], targets }] })}\n`,
+      'src/a.php': '<?php\n',
+      'src/b.php': '<?php\n',
+    });
+    const added = spawnSync('git', ['add', '-A'], { cwd: root });
+    assert.equal(added.status, 0);
+    return check(root).filter(finding => finding.startsWith('config/owner-checks.json: '));
+  };
+  assert.deepEqual(repository(['feature-check']), [
+    'config/owner-checks.json: 2 PHP source paths, such as src/a.php, select no lint-php, so land and the commit gate never run it on them; add lint-php to the targets of a rule that owns them',
+    'config/owner-checks.json: 2 PHP source paths, such as src/a.php, select no duplication-check, so land and the commit gate never run it on them; add duplication-check to the targets of a rule that owns them',
+  ]);
+  assert.deepEqual(repository(['feature-check', 'lint-php', 'duplication-check']), []);
 });
