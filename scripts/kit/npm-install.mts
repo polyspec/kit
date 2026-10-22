@@ -4,7 +4,7 @@
 // moved into the project, with each link made absolute. The tracked package.json and package-lock.json are never written. Without a
 // sibling that provides a package the project declares, as in CI, npm ci runs on the tracked lock.
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, lstatSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync, renameSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { readJsonObject } from './bootstrap/files.mts';
@@ -184,9 +184,14 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     };
     void scopes;
     absolute(modules);
+    // The node_modules of the project keeps its directory: its entries are replaced by the installed ones (K486), so a directory that
+    // cannot be removed, such as a mount point, stays. The copy keeps each symbolic link as it is, since the links are absolute.
     const destination = path.join(project, 'node_modules');
-    rmSync(destination, { recursive: true, force: true });
-    renameSync(modules, destination);
+    if (existsSync(destination)) for (const entry of readdirSync(destination)) rmSync(path.join(destination, entry), { recursive: true, force: true });
+    if (existsSync(modules)) {
+      mkdirSync(destination, { recursive: true });
+      cpSync(modules, destination, { recursive: true, verbatimSymlinks: true });
+    }
     // An install that leaves a dangling link of the project fails, never exits 0 with it (K465).
     const dangling = danglingLinksIn(destination);
     if (dangling.length) throw new Error(`npm install of ${project} left dangling links: ${dangling.join(', ')}`);

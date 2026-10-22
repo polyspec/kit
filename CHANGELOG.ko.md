@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1c0eadb34696a7e7d2e6e59f1a96a9c42ebea921a331095b0208aece96166043 -->
+<!-- source-sha256: 4bf87d0eccbf3ff46df32e27f0e8ecd1867fc8c89b805d2e25152359f185f6e6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `npm-install`은 기존 node_modules의 내용을 바꾸고 디렉터리를 유지하므로, mount point인 node_modules도 설치된다(K486).
 - K439-6: composer-provider-entries는 tracked 버전이 잠긴 요구를 깨뜨릴 때(polyspec/orm이 고정한 fork 등) Composer writer가 고른 버전을 쓴다 (K439-6). K468-2의 규칙은 link-owner 판정에 따라 잠긴 요구를 모두 만족하는 tracked 버전으로 좁혀진다. Red: node --test --test-name-pattern=K439-6 tests/kit/dependency-review.test.mts가 exit 1(tracked 1.0.0이 유지됨); green: make 아래에서 owner 파일 31/31 통과, lint-ts 통과. (K439-6).
 - `make composer-install`은 `NO_DEV=1`을 받아 추적 lock을 `--no-dev`로 설치한다. production 설치에 쓴다(K483-2).
 - `composer-install`과 `npm-install`은 checkout이 없는 선언된 polyspec 패키지를 모든 모드에서 패키지 이름을 적어 거부하며, 그 대신 npm ci나 composer install을 실행하지 않는다(K483-1).

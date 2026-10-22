@@ -2,7 +2,7 @@
 // the tracked package.json and package-lock.json stay byte for byte.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -262,4 +262,39 @@ test('npm install refuses a declared polyspec package with no checkout in every 
     assert.throws(() => npmInstall({ directory: project, checkouts, npm: stub, explicit, print: () => undefined, env: process.env }), /@polyspec\/missing/, `${mode}: the refusal names the package`);
   }
   assert.equal(existsSync(log), false, 'no npm subcommand runs in any mode');
+});
+
+// K486: npm-install replaces the contents of an existing node_modules and keeps the directory itself. A node_modules that the process
+// cannot remove as a directory, such as a mount point of a container, is therefore not a failure: here the project folder is read-only,
+// so its node_modules cannot be removed or renamed, while its contents are writable as they are inside a mount.
+test('npm install replaces the contents of a node_modules that it cannot remove and keeps the directory (K486)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-k486-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sibling = path.join(root, 'ordered-json');
+  const project = path.join(root, 'app');
+  mkdirSync(sibling, { recursive: true });
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/ordered-json', version: '0.0.9', main: 'index.js' }));
+  writeFileSync(path.join(sibling, 'index.js'), 'module.exports = 1;\n');
+  const tracked = JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/ordered-json': 'https://example.invalid/ordered-json-0.0.9.tgz' } }, null, 2) + '\n';
+  writeFileSync(path.join(project, 'package.json'), tracked);
+  writeFileSync(path.join(project, 'package-lock.json'), '{"name":"app","lockfileVersion":3,"requires":true,"packages":{}}\n');
+  const nodeModules = path.join(project, 'node_modules');
+  mkdirSync(path.join(nodeModules, 'stale'), { recursive: true });
+  writeFileSync(path.join(nodeModules, 'stale/index.js'), 'module.exports = 0;\n');
+  const kept = statSync(nodeModules).ino;
+  chmodSync(project, 0o555);
+  try {
+    const lines: string[] = [];
+    const took = npmInstall({ directory: project, checkouts: [sibling], print: text => lines.push(text), env: process.env });
+    assert.equal(took, 'linked', lines.join('\n'));
+  } finally {
+    chmodSync(project, 0o755);
+  }
+  assert.equal(statSync(nodeModules).ino, kept, 'the node_modules directory is the same directory');
+  assert.equal(existsSync(path.join(nodeModules, 'stale')), false, 'the entries of the earlier install are replaced');
+  const link = path.join(nodeModules, '@polyspec/ordered-json');
+  assert.equal(lstatSync(link).isSymbolicLink(), true, 'the package is a link');
+  assert.equal(realpathSync(link), realpathSync(sibling), 'the link resolves to the sibling folder');
+  assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), tracked, 'the tracked manifest is unchanged');
 });
