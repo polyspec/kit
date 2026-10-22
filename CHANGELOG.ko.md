@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d9e29a05e6c932a9e31283b70d775fc2b2f719b7d84030746eebac465bf9838d -->
+<!-- source-sha256: 5e567d856559075b55c3000272cfa8a76b43900e66237d3ae43696c46654803b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- link는 --project 폴더의 uv workspace member를 읽고, Composer처럼 config.vendor-dir보다 COMPOSER_VENDOR_DIR을 먼저 읽으며, member의 hatchling sources를 설치된 package 경로로 대응시키고, 설치 폴더가 없는 선언된 polyspec package를 link와 check에서 이름과 함께 실패시킨다(K529).
 - worktree-setup은 worktree에 main checkout의 패키지로 link한 node_modules를 주되 저장소 자기 workspace 패키지는 worktree 안으로 link하므로, worktree가 자기 TypeScript를 시험한다(K530).
 - claude-hook은 sh, bash, zsh, dash -c의 script를 모든 규칙으로 읽으므로, 그 안에서 sleep하는 loop도 밖에서처럼 거부된다(K528).
 - suppression-check는 Rust allow나 expect를 닫는 )]까지 읽으므로, rustfmt가 여러 줄로 쓴 attribute의 reason이 인정된다(K527).
