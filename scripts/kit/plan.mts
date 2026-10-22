@@ -54,6 +54,7 @@ import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
 import { privatePaths, stagedTwinFindings } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { buildState, buildTargets } from './link-build.mts';
 import { withLandLock } from './land.mts';
 import { present } from './present.mts';
 
@@ -534,6 +535,7 @@ function runBefore(root: string, id: string, before: string, commands: readonly 
   // The bytes and the mode of each file as the tree holds them now, so that the swap leaves the tree exactly as it was: a file
   // removed for the run comes back with its mode, such as an executable hook (K389-1).
   const saved = new Map(changed.map(file => [file, existsSync(path.join(root, file)) ? { bytes: readFileSync(path.join(root, file)), mode: statSync(path.join(root, file)).mode } : null] as const));
+  let built: string[] = [];
   try {
     for (const file of changed) {
       if (present(sha, file)) {
@@ -543,6 +545,7 @@ function runBefore(root: string, id: string, before: string, commands: readonly 
         rmSync(path.join(root, file), { force: true });
       }
     }
+    built = buildBefore(root, id, changed, print);
     const runs = runCommands(root, id, commands, print);
     // A failing run whose only missing modules are files that the change adds is no red of the old behaviour (K389-3).
     const added = differs.filter(file => !isTestFile(file) && !present(sha, file));
@@ -561,7 +564,34 @@ function runBefore(root: string, id: string, before: string, commands: readonly 
         chmodSync(path.join(root, file), kept.mode & 0o7777);
       }
     }
+    // K525: the build of the restored sources, so the outputs are those of the tree again.
+    if (built.length > 0) runBuild(root, id, built, 'after the restore', print);
   }
+}
+
+/**
+ * The build of the repository `root` at BEFORE (K525): when a swapped file of `changed` is a build input of an npm package of the
+ * repository whose manifest names an output that git does not track, as packages/ts/dist, a test that imports the output would run
+ * the fixed build; the build targets of the repository run, and are returned to run again after the restore. None otherwise. A
+ * package with such an output in a repository without a build target throws, since its red could not be judged.
+ */
+function buildBefore(root: string, id: string, changed: readonly string[], print: (text: string) => void): string[] {
+  const packages = git(root, 'ls-files', '-z', '--', 'package.json', '*/package.json').split('\0').filter(Boolean).map(file => path.dirname(file));
+  const inside = (folder: string, file: string) => folder === '.' || file.startsWith(`${folder}/`);
+  const input = changed.find(file => !file.startsWith('docs/') && packages.some(folder => inside(folder, file) && buildState(root, path.join(root, folder)) !== 'source'));
+  if (input === undefined) return [];
+  const targets = buildTargets(root);
+  if (targets.length === 0) throw new Error(`${id}: ${input} is a build input of a package whose build a test may import, and ${root} has no build target to build it at BEFORE; declare build in its Makefile`);
+  runBuild(root, id, targets, `at BEFORE, since ${input} is a build input`, print);
+  return targets;
+}
+
+/** Runs the build `targets` of `root` for item-red (K525), printing `when`; a failure throws with the end of its output. */
+function runBuild(root: string, id: string, targets: readonly string[], when: string, print: (text: string) => void): void {
+  print(`[plan] ${id}: make ${targets.join(' ')} ${when}`);
+  const result = spawnSync('make', ['--no-print-directory', ...targets], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
+  if (result.error) throw new Error(`${id}: make ${targets.join(' ')} could not start in ${root}: ${result.error.message}`);
+  if (result.status !== 0) throw new Error(`${id}: make ${targets.join(' ')} ${when} failed with exit status ${result.status}:\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-20).join('\n')}`);
 }
 
 /** The cells of the row of the item `id` in the checklist text `text`, or undefined. */
