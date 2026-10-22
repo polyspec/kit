@@ -3,7 +3,7 @@
 // free disk.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -87,4 +87,49 @@ test('worktree-setup refuses a worktree that holds node_modules of its own (K519
   mkdirSync(path.join(folder, 'node_modules'));
   const quiet = { free: () => WORKTREE_DISK_FLOOR, print: () => {} };
   assert.throws(() => setupWorktree(main, { name: 'own', id: 'K519', type: 'fix' }, quiet), /node_modules exists and is not the link to .*; remove it, since a worktree installs nothing \(K519\)/);
+});
+
+// K521: each Composer project gets a real vendor folder of links in the worktree and an autoload of its own, so the repository's own
+// classes load from the worktree: a package and bin link to the main checkout's, a path repository that resolves inside the main
+// checkout links to the same path of the worktree, the installed records link to the main checkout's, and composer dump-autoload runs
+// offline in the project; nothing is installed.
+test('worktree-setup gives a Composer project a vendor folder of links and its own autoload (K521)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'Makefile': 'link-state-check:\n\ttrue\n',
+    '.gitignore': 'node_modules/\nvendor-php/\n',
+    'composer.json': JSON.stringify({ name: 'demo/app', config: { 'vendor-dir': 'vendor-php' }, autoload: { 'psr-4': { 'App\\': 'src/' } } }),
+    'src/Own.php': '<?php\n',
+    'packages/self/composer.json': JSON.stringify({ name: 'demo/self' }),
+    'vendor-php/acme/lib/Lib.php': '<?php\n',
+    'vendor-php/bin/tool': '#!/bin/sh\n',
+    'vendor-php/composer/installed.json': '{"packages":[]}\n',
+    'vendor-php/composer/installed.php': '<?php return [];\n',
+    'vendor-php/composer/autoload_psr4.php': `<?php // ${main}/src\n`,
+    'vendor-php/autoload.php': `<?php // the autoload of ${main}\n`,
+  });
+  mkdirSync(path.join(main, 'vendor-php/demo'), { recursive: true });
+  symlinkSync('../../packages/self', path.join(main, 'vendor-php/demo/self'));
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  // The composer of the test writes the autoload of the folder it runs in and logs its arguments and network setting.
+  const log = path.join(parent, 'composer.log');
+  const composer = path.join(parent, 'composer');
+  writeFileSync(composer, `#!/bin/sh\necho "$* [$(pwd)] network=$COMPOSER_DISABLE_NETWORK" >> "${log}"\necho "<?php // the autoload of $(pwd)" > vendor-php/autoload.php\n`, { mode: 0o755 });
+  const folder = setupWorktree(main, { name: 'php', id: 'T5', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer });
+  const vendor = path.join(folder, 'vendor-php');
+  assert.equal(lstatSync(vendor).isSymbolicLink(), false, 'the vendor folder is a real folder');
+  assert.equal(realpathSync(path.join(vendor, 'acme/lib')), realpathSync(path.join(main, 'vendor-php/acme/lib')), 'a package links to the main checkout');
+  assert.equal(realpathSync(path.join(vendor, 'bin')), realpathSync(path.join(main, 'vendor-php/bin')));
+  assert.equal(realpathSync(path.join(vendor, 'demo/self')), realpathSync(path.join(folder, 'packages/self')), 'a path repository resolves inside the worktree');
+  assert.equal(realpathSync(path.join(vendor, 'composer/installed.json')), realpathSync(path.join(main, 'vendor-php/composer/installed.json')));
+  assert.equal(realpathSync(path.join(vendor, 'composer/installed.php')), realpathSync(path.join(main, 'vendor-php/composer/installed.php')));
+  assert.equal(existsSync(path.join(vendor, 'composer/autoload_psr4.php')), false, 'no autoload of the main checkout is linked');
+  assert.equal(readFileSync(log, 'utf8'), `dump-autoload --no-interaction [${folder}] network=1\n`);
+  assert.equal(readFileSync(path.join(vendor, 'autoload.php'), 'utf8'), `<?php // the autoload of ${folder}\n`, 'the autoload is that of the worktree');
+  assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
 });
