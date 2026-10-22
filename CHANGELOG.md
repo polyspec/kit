@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A linked worktree runs the tools of its main checkout and installs nothing: the mise data dir, installs, shims and var/tools/bin are the main checkout's with the worktree's own mise.toml, so make land from a worktree finds pypi:vulture; install-tools and install-kit refuse in a worktree, and worktree-setup links node_modules instead of running make install (K519).
 - The owner rules that kit ships own no lint configuration that kit no longer copies, so a consumer after kit-sync passes owner-validate (K514-2).
 - make land lands into the checkout that has main checked out, wherever it is called from, and fails naming the missing main checkout when none has main (K516).
 - polyspec-lock-check and config/polyspec.json are removed: a tracked lock records the release of each polyspec package, and the gates clone the sibling repositories that the release URLs of the tracked locks name (K515).

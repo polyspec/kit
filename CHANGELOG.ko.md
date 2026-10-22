@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cbde488bfdf243e6dc6d5aa099b416364d1472911a8c5fc9c305b728de47c32a -->
+<!-- source-sha256: cabc2c835d293cad57823a1cf42c34409a5e7d70abfe7f9cfcd9a3d1940cf469 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 링크된 worktree는 main checkout의 도구를 쓰고 아무것도 설치하지 않는다. mise의 data dir, install, shim과 var/tools/bin은 main checkout의 것이고 mise.toml만 worktree 자신의 것이므로 worktree에서 make land가 pypi:vulture를 찾는다. worktree에서 install-tools와 install-kit은 거부되고, worktree-setup은 make install 대신 node_modules를 link한다(K519).
 - kit이 내보내는 owner 규칙은 kit이 더는 복사하지 않는 lint 설정을 소유하지 않으므로, kit-sync 뒤의 consumer가 owner-validate를 통과한다(K514-2).
 - make land는 어디서 호출되든 main을 checkout한 checkout으로 land하고, main을 checkout한 checkout이 없으면 그것을 이름 붙여 실패한다(K516).
 - polyspec-lock-check와 config/polyspec.json을 제거했다. 추적되는 lock은 각 polyspec 패키지의 release를 기록하고, gate는 추적되는 lock의 release URL이 이름 붙인 sibling 저장소를 clone한다(K515).
