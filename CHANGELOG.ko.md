@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 21539601b5893a3eedcd2894f0033e7ada0f674706fc2b418498fbc18145ebb8 -->
+<!-- source-sha256: f5eae93dc8ebf6dad7e59a04f9b7c8efbc17dea0cdee5f01ff8c97f289a118fc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- push gate는 push되는 각 commit의 메시지와 identity, push되는 tip의 checklist를 한 번 검사하고 checklist 텍스트의 Markdown을 한 번만 파싱하므로, 수백 개 commit의 백업 push가 모든 commit 검사를 다시 실행해 멈춘 것처럼 보이지 않는다. 각 commit의 item, 행, twin 규칙은 commit-msg hook과 land의 commits-check에 남는다(K510).
 - land와 branch commit의 행 ID 검사는 branch가 갈라진 뒤 더하거나 바꾼 행만 main과 비교하므로, 행 문구를 바꾼 main보다 뒤처진 branch가 더는 거부되지 않는다(K497-1).
 - `link --project <dir> --siblings`와 `check --project <dir> --siblings`는 옆에 polyspec checkout이 없는 consumer의 claude-hook 항목을 early return 전에 쓰고 검사한다(K498-4).
 - main의 `make commit`은 checklist의 크기와 상관없이 HEAD의 행을 읽으므로 orm의 checklist(1MB 초과)의 상태 변경은 새 행이 아니며, git이 읽지 못하는 HEAD의 checklist는 원인과 함께 commit을 실패시킨다(K499-1).

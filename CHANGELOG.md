@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The push gate checks the message and the identity of each pushed commit and the checklists of the pushed tip once, and the Markdown of a checklist text is parsed once, so a backup push of hundreds of commits no longer re-runs every commit check and looks hung; the item, row and twin rules of each commit stay with the commit-msg hook and land's commits-check (K510).
 - The row-ID check of land and of a commit on a branch compares with main only the rows that the branch adds or changes since it forked, so a branch behind a main that restated a row is no longer refused (K497-1).
 - `link --project <dir> --siblings` and `check --project <dir> --siblings` write and check the claude-hook entry of a consumer that has no polyspec checkout beside it, before the early return that the link and check take then (K498-4).
 - `make commit` on main reads the rows of HEAD whatever the size of the checklist, so a state change of orm's checklist (over 1 MB) is no new row, and a checklist of HEAD that git cannot read fails the commit with its cause (K499-1).
