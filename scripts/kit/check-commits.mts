@@ -17,6 +17,8 @@
 //                    of its tree, the test that covers the same requirement (K339)
 //   commit-row       the id of the subject is an item of a checklist of docs/plans in the tree of the commit (the index for the hook);
 //                    the first commit of a repository passes
+//   row-id           on a branch, no row of the index holds an ID that main holds with another task, unless the ID is the row
+//                    of the branch itself; the finding names the next free ID (K497)
 //   commit-identity  when config/commit-identity.json exists, the author and the committer are the identity that it
 //                    declares (K405)
 //   commit-generated the paths that a commit adds, copies, modifies or renames have no generated segment that the
@@ -44,6 +46,7 @@ import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
 import { gitIsAncestor, provesRed } from './gate-red.mts';
 import { runCommitGates } from './land.mts';
+import { clashMessage, rowClashes } from './row-ids.mts';
 import { blobContent, CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
 import type { GeneratedConfig } from './generated-files.mts';
 import { CONFIG as DOCUMENTS_CONFIG, twinFindings } from './check-documents.mts';
@@ -366,7 +369,11 @@ export function indexItemFindings(root: string, config: CommitRules, message: st
     tracked: file => trackedAt(root, '', file),
   })];
   // The first commit of a repository has no HEAD, so it has no base and passes.
-  return base === undefined ? found : [...found, ...rowFindings(root, message, '')];
+  if (base === undefined) return found;
+  // K497: on a branch, a row of the index whose ID main holds with another task is refused.
+  const branch = gitResult(root, 'symbolic-ref', '--quiet', '--short', 'HEAD').stdout.trim();
+  const ids: CommitFinding[] = branch === '' ? [] : rowClashes(root, '', branch).map(clash => ({ rule: 'row-id', message: clashMessage(clash) }));
+  return [...found, ...rowFindings(root, message, ''), ...ids];
 }
 
 /** The file of the amend record of `root`, which the git directory of its worktree holds (K380-2). */

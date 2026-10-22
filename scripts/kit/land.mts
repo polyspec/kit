@@ -29,6 +29,7 @@ import type { OwnerDeclaration } from './owner-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { expandMake } from './recipe-tools.mts';
 import { readConfig } from './schema-validate.mts';
+import { clashMessage, rowClashes } from './row-ids.mts';
 import { trackedFiles } from './tracked-files.mts';
 
 // The gates that land whatever the changed paths: the documents and the commit messages of the branch.
@@ -315,6 +316,9 @@ function landLocked(root: string, branch: string, print: (text: string) => void)
     // K495-1: a branch that main has left behind, as the land this one waited for leaves it, is rebased here; the gates below run on
     // the rebased commits, so nothing is merged that they did not see.
     if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) rebaseOnMain(folder, branch, print);
+    // K497: a row of the rebased branch whose ID main holds with another task is refused before any gate runs.
+    const clashes = rowClashes(root, branch, branch);
+    if (clashes.length > 0) throw new Error(`${branch} is refused; nothing is merged:\n${clashes.map(clashMessage).join('\n')}`);
     const gated = git(root, 'rev-parse', 'main').trim();
     const changed = git(root, 'diff', '--name-only', `main...${branch}`).split('\n').filter(line => line !== '');
     const { gates, excluded, reasons } = gatesOf(folder, changed);
