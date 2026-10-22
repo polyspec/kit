@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6ab03f7b952bda364be2e1eac6d4a01b6c541c8e9659c688e341b1648f7fa34c -->
+<!-- source-sha256: db49c5de3e0b6edfab05c90b2fcf4dde4828243c648b731bc9c7696e54b001f2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make npm-install은 install-packages처럼 allow-remote=root로 npm ci를 실행하므로, kit release를 지정한 consumer lock이 설치된다(K526).
 - commit과 land의 gate는 owner-validate처럼 kit이 내보내는 owner 규칙을 읽고, kit.owners는 make hooks가 쓰는 모든 hook을 소유하므로 consumer가 hook을 commit할 수 있다(K522).
 - make worktree-setup은 worktree의 각 Composer 프로젝트에 main checkout의 패키지로 link한 vendor 폴더와 자기 autoload를 주므로, 저장소 자신의 class가 worktree에서 로드된다(K521).
 - docs/spec이 두 번 정의한 요구사항은 범위 실행을 포함한 모든 parity 선언 검사를 실패시키고, finding은 두 정의의 파일과 줄을 이름 붙인다(K520).
