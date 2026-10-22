@@ -815,3 +815,31 @@ test('land refuses a row whose ID main holds with another task, naming the next 
   land(main, 'fix/state-T7', quiet);
   assert.equal(git(main, 'rev-parse', 'main'), state);
 });
+
+// K516: land lands into the checkout that has main checked out, wherever it is called from: a session that runs make land in a
+// worktree on a detached HEAD lands as from the main checkout, and land fails naming the missing main checkout when none has main.
+test('K516: land called from a detached worktree lands into the main checkout (K516)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': 'kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nbuild:\n\ttrue\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] }, null, 2) + '\n',
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const detached = path.join(parent, 'repo-detached');
+  git(main, 'worktree', 'add', '--quiet', '--detach', detached, 'main');
+  const folder = path.join(parent, 'repo-k516');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat/k516', 'main');
+  put(folder, { 'src/x.txt': 'x\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'x');
+  const tip = git(main, 'rev-parse', 'feat/k516');
+  land(detached, 'feat/k516', { print: () => {} });
+  assert.equal(git(main, 'rev-parse', 'main'), tip, 'main of the main checkout moves to the branch');
+  git(main, 'checkout', '--quiet', '--detach');
+  assert.throws(() => land(detached, 'feat/none', { print: () => {} }), /no checkout has main checked out/);
+});
