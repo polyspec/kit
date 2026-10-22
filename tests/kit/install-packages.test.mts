@@ -1,23 +1,22 @@
-// K448-8: install-packages of kit-bootstrap.mk, which every consumer's make install reaches, installs the packages of package-lock.json with
-// make npm-install DIR=. (link from the start, K448-6), not with a bare npm ci, so a sibling-provided polyspec package that the lock pins from
-// a release URL is linked and no release is fetched.
+// K511: install-packages of kit-bootstrap.mk installs the packages of package-lock.json with npm ci, the lock as it is (the release
+// record), so a checkout without kit.mk, as a CI runner, installs @polyspec/kit; make install links after it through install-link.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const bootstrap = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/kit-bootstrap.mk');
 
-test('install-packages of the bootstrap runs make npm-install DIR=. in place of npm ci (K448-8)', () => {
-  const lines = readFileSync(bootstrap, 'utf8').split('\n');
-  const start = lines.findIndex(line => line.startsWith('install-packages:'));
-  assert.notEqual(start, -1, 'install-packages is defined in kit-bootstrap.mk');
-  const recipe: string[] = [];
-  for (const line of lines.slice(start + 1)) {
-    if (!line.startsWith('\t')) break;
-    recipe.push(line);
-  }
-  assert.ok(recipe.some(line => /\$\(MAKE\)[^\n]*npm-install DIR=\./.test(line)), recipe.join('\n'));
-  assert.ok(!recipe.some(line => /\$\(NPM\) ci|\bnpm ci\b/.test(line)), recipe.join('\n'));
+test('install-packages of a checkout without kit.mk runs npm ci of its lock (K511)', (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), 'kit-install-packages-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(path.join(root, 'scripts/kit'), { recursive: true });
+  copyFileSync(bootstrap, path.join(root, 'scripts/kit/kit-bootstrap.mk'));
+  writeFileSync(path.join(root, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\n');
+  const run = spawnSync('make', ['--no-print-directory', '-n', 'install-packages'], { cwd: root, encoding: 'utf8' });
+  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
+  assert.match(run.stdout, /var\/tools\/bin\/npm ci\b/);
 });
