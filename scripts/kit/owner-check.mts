@@ -227,6 +227,8 @@ export function validate(declaration: OwnerDeclaration, tracked: string[], proje
   for (const rule of rules) {
     const label = rule.paths.join(' ');
     rule.paths.forEach((glob, index) => {
+      // K542: a rule that kit ships owns what a consumer may hold, so its glob may match nothing of this repository.
+      if (rule.shipped) return;
       // expressions holds the expression of each glob of paths at its index.
       if (!tracked.some(file => present(rule.expressions[index], 'rule.expressions[index]').test(file))) errors.push(`${DECLARATION}: the glob ${glob} matches no tracked path; remove it or correct it`);
     });
@@ -405,7 +407,7 @@ function step(root: string, { name, command, args }: Check) {
 export function ownerDeclaration(root: string, installed: string = root): OwnerDeclaration {
   const own = readConfig<OwnerDeclaration>(root, DECLARATION, 'owner-checks.schema.json');
   const shipped = existsSync(path.join(installed, INSTALLED, 'package.json')) ? readNpmManifest(installed, `${INSTALLED}/package.json`) : undefined;
-  return { ...own, owners: [...own.owners, ...(shipped?.kit?.owners ?? [])] };
+  return { ...own, owners: [...own.owners, ...(shipped?.kit?.owners ?? []).map(rule => ({ ...rule, shipped: true as const }))] };
 }
 
 if (isMain(import.meta.url)) {
