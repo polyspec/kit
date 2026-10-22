@@ -92,3 +92,22 @@ test('uv install links the packages of the environment that UV_PROJECT_ENVIRONME
   assert.equal(realpathSync(installed), realpathSync(path.join(orm, 'src/polyspec/orm')));
   assert.match(output, /linked polyspec-orm polyspec\/orm/);
 });
+
+// K518: a uv workspace root that a checkout names provides its members too, from [tool.uv.workspace] members of its pyproject.toml:
+// limepie's python root declares the member contracts, the package limepie-contracts, which the unit venvs install as a copy.
+test('uv install links the installed member of a uv workspace root that a checkout names (K518)', (t) => {
+  const { root, project, env } = fixture(t, ['limepie/contracts', 'polyspec/orm']);
+  const workspace = provider(path.join(root, 'limepie-python'), 'limepie-server', ['polyspec/orm']);
+  writeFileSync(path.join(workspace, 'pyproject.toml'), '[project]\nname = "limepie-server"\nversion = "0"\n\n[tool.uv.workspace]\nmembers = ["contracts"]\n');
+  const member = provider(path.join(workspace, 'contracts'), 'limepie-contracts', ['limepie/contracts']);
+  const { status, output } = run([project, workspace], env);
+  assert.equal(status, 0, output);
+  const site = path.join(project, SITE);
+  assert.equal(lstatSync(path.join(site, 'limepie/contracts')).isSymbolicLink(), true, output);
+  assert.equal(realpathSync(path.join(site, 'limepie/contracts')), realpathSync(path.join(member, 'src/limepie/contracts')));
+  assert.equal(realpathSync(path.join(site, 'polyspec/orm')), realpathSync(path.join(workspace, 'src/polyspec/orm')), 'the root links its own packages as before');
+  writeFileSync(path.join(workspace, 'pyproject.toml'), '[project]\nname = "limepie-server"\nversion = "0"\n\n[tool.uv.workspace]\nmembers = ["missing"]\n');
+  const broken = run([project, workspace], env);
+  assert.notEqual(broken.status, 0);
+  assert.match(broken.output, /member missing of the uv workspace .*limepie-python names no folder with a pyproject\.toml/);
+});
