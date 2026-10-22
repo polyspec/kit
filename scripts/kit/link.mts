@@ -1434,7 +1434,10 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
       for (const crate of used) config.push('--config', `patch.${JSON.stringify(url)}.${crate.name}.path=${JSON.stringify(crate.folder)}`);
     }
   }
-  const outcome = execute(tool.command, [...config, ...args], { cwd: directory, env: tool.env });
+  // K448-5-2: with checkouts, the command resolves in the link state (the copy in var/link), so --locked is dropped: it would refuse the
+  // patched graph that a sibling ahead of its release needs, while the tracked Cargo.lock is never written.
+  const runArgs = checkouts.length ? args.filter(argument => argument !== '--locked') : args;
+  const outcome = execute(tool.command, [...config, ...runArgs], { cwd: directory, env: tool.env });
   if (outcome.error) throw new Error(`${tool.command} could not start: ${outcome.error.message}`);
   process.stdout.write(outcome.stdout);
   process.stderr.write(outcome.stderr);

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 656f25a8c4619243d4783e2bcac1a904fa54e1380751f2c03f3db2c4d29979ef -->
+<!-- source-sha256: daf76263266300f9b3c82f482e394fae32cff77b0a5e31e01578e5c6bedfcb87 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K448-5-2: `make cargo-fetch`는 patch된 그래프를 link 상태(var/link)에서 --locked 없이 해석하고 fetch하므로, dependency가 잠긴 release보다 앞선 sibling이 fetch를 실패시키지 않는다. 추적 Cargo.lock과 Cargo.toml은 그대로이며, sibling 없이 실행하면 plain 잠금 fetch를 유지한다 (K448-5-2). Red: 수정 전 `node --test --test-name-pattern=K448-5-2 tests/kit/link.test.mts`가 9f3a0ff8에서 실패했고(fetch가 --locked로 실행됨), green은 K448, K489, K440 테스트가 15/15 통과한다.
 - K478: 추적된 polyspec-lock 검사는 link의 repository 범위 package ownership을 써서 자기 workspace의 package는 허용하고 외부 sibling finding은 유지한다 (K478). red: 8f487225에서 `node --test-name-pattern=K478` exit 1(자기 workspace 테스트 두 개), green: K478 테스트 통과.
 - K478-1: checkout 밖으로 해석되는 추적된 package manifest symlink는 locked 외부 0.0.x polyspec package에 ownership을 주지 않는다 (K478-1). red: checkout 밖 guard를 뺀 상태의 K478-1 테스트 exit 1, green: K478-1 테스트 통과.
 - `link --project <dir>`는 실행한 kit의 claude-hook의 Bash PreToolUse hook을 추적되지 않는 `<dir>/.claude/settings.local.json`에 쓰고, 파일의 다른 key를 유지하며, `<dir>`의 Git exclude로 그 파일을 무시하게 한다. `link check --project <dir>`는 hook이 없으면 그 파일을 이름으로 든다 (K498).

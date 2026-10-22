@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K448-5-2: `make cargo-fetch` resolves and fetches the patched graph in the link state (var/link) without --locked, so a sibling whose dependencies are ahead of the locked release no longer fails the fetch; the tracked Cargo.lock and Cargo.toml stay unchanged, and a run without siblings stays a plain locked fetch (K448-5-2). Red: `node --test --test-name-pattern=K448-5-2 tests/kit/link.test.mts` failed on 9f3a0ff8 (the fetch ran with --locked); green: the K448, K489 and K440 tests pass (15 of 15).
 - K478: the tracked polyspec-lock check uses link's repository-scoped package ownership, allowing the packages of its own workspace and keeping external sibling findings (K478). Red: `node --test-name-pattern=K478` on 8f487225 exit 1 (both own-workspace tests); green: the K478 tests pass.
 - K478-1: a tracked package manifest symlink that resolves outside the checkout gives no ownership to a locked external 0.0.x polyspec package (K478-1). Red: the K478-1 test with the outside-checkout guard removed exit 1; green: the K478-1 test passes.
 - `link --project <dir>` writes the Bash PreToolUse hook of the claude-hook of the kit that runs it into the untracked `<dir>/.claude/settings.local.json`, keeps its other keys, and ignores the file through the Git exclude of `<dir>`; `link check --project <dir>` names the file while the hook is missing (K498).

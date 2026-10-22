@@ -1685,7 +1685,7 @@ test('link cargo --siblings runs cargo with the sibling crates patched and the a
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.match(log(), /cargo --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=.* fetch --locked/);
+  assert.match(log(), /cargo --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=.* fetch$/m);
 });
 
 // K489: cargo --siblings patches the crates of a sibling checkout that the consumer's lock names from git, and needs nothing from a checkout
@@ -1708,6 +1708,26 @@ test('link cargo --siblings patches no crate that the consumer lock does not nam
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.doesNotMatch(log(), /patch\./);
+});
+
+// K448-5-2: cargo --siblings resolves and fetches the patched graph in the link state (var/link), not against the tracked Cargo.lock:
+// the locked flag would refuse the change that a sibling ahead of its release needs, while the tracked lock stays byte-identical.
+test('link cargo --siblings fetches in the link lock without --locked and leaves the tracked Cargo.lock unchanged (K448-5-2)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
+  const before = readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8');
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.doesNotMatch(log(), /fetch --locked/, 'the link lock is resolved, so --locked would refuse the patched graph');
+  assert.match(log(), /resolver\.lockfile-path=.*var\/link\/cargo\/root\/Cargo\.lock.* fetch$/m);
+  assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), before, 'the tracked Cargo.lock is unchanged');
+});
+
+test('link cargo without --siblings runs a plain locked fetch of the release (K448-5-2)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(log(), /^cargo fetch --locked$/m);
 });
 
 // K440-2: link writes a git-ignored go.work into each Go module of a checkout, kit's own tools included (scripts/kit/symbols/go), so the
