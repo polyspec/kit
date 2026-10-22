@@ -291,6 +291,12 @@ function ownComposer(project: string): Set<string> {
   return names;
 }
 
+/** The polyspec names that the Composer project `project` declares: its composer.json and config/polyspec.json (K483-1). */
+function declaredPolyspec(top: string, project: string): string[] {
+  const file = path.join(project, 'composer.json');
+  return [...new Set([...(existsSync(file) ? declaredComposer(file) : []), ...declaredIn(top, 'composer', project)])];
+}
+
 /** The polyspec names that the composer.json `file` requires, in require and require-dev. */
 function declaredComposer(file: string): string[] {
   const manifest = readComposerManifestFile(file);
@@ -510,6 +516,9 @@ export function linkComposerInstall({ directory, checkouts, composer, print, env
   const consumer = consumerOf(directory, true);
   const project = consumer.scope;
   const work: Run = { found: providers(checkouts, undefined, consumer.top, consumer.top), check: false, print, failed: false, env };
+  // A declared polyspec package that no checkout provides fails before any install, in every mode: a release is never installed in its place (K483-1).
+  const missing = declaredPolyspec(consumer.top, project).filter(name => providerFor(work, consumer, 'composer', name) === 'no provider');
+  if (missing.length > 0) throw new Error(`${missing.join(', ')} has no checkout: give the checkout that provides it, and never a release`);
   const links = polyspecOf(consumer.top, project).flatMap(name => {
     const provider = providerFor(work, consumer, 'composer', name);
     return typeof provider === 'string' ? [] : [{ name, folder: provider.folder }];

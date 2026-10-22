@@ -121,12 +121,10 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     const name = nameOf(checkout);
     if (name !== undefined && wanted.has(name) && !provided.has(name)) provided.set(name, path.resolve(checkout));
   }
-  // With the checkouts that the caller names (explicit), a declared @polyspec package that no checkout provides is a failure, not a
-  // reason to run npm ci of the released tarballs (K448-7).
-  if (explicit) {
-    const missing = [...wanted].filter(name => name.startsWith('@polyspec/') && !provided.has(name) && declared.has(name));
-    if (missing.length) throw new Error(`${missing.join(', ')} has no checkout among the given checkouts; give the checkout that provides it, and never a release`);
-  }
+  // A declared @polyspec package that no checkout provides is a failure in every mode, whether the checkouts are named, found as siblings
+  // or absent: it is never a reason to run npm ci of the released tarballs (K448-7, K483-1).
+  const missing = [...wanted].filter(name => name.startsWith('@polyspec/') && !provided.has(name) && declared.has(name));
+  if (missing.length) throw new Error(`${missing.join(', ')} has no checkout: give the checkout that provides it, and never a release`);
   if (provided.size === 0) {
     print(`npm-install ${project}: no sibling checkout provides a package the project declares; npm ci of the tracked lock`);
     const ci = spawnSync(npm, ['ci', '--no-audit', '--no-fund'], { cwd: project, env, encoding: 'utf8' });

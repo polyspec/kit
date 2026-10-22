@@ -1490,9 +1490,11 @@ test('make composer-install in a fresh consumer links the polyspec package of it
   assert.match(lines.join('\n'), /through the link/, 'the path that was taken is printed');
 });
 
+// The lock-only package is not declared by composer.json, so no refusal applies to it (K483-1 refuses a declared package only).
 test('make composer-install without a sibling that provides a polyspec package of the lock runs composer install of the tracked lock (K432)', (t) => {
   const { consumer, env, log } = workspace(t);
   freshComposer(consumer);
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: {} }) });
   const lines: string[] = [];
   composerInstall({ directory: consumer, checkouts: [], env, print: text => lines.push(text) });
   assert.match(log(), /^composer install --no-interaction$/m, 'the tracked lock is installed');
@@ -1844,4 +1846,15 @@ test('K480: a listed package without a default or matching named mapping is refu
   const { text } = linkLines([consumer], env);
   assert.match(text, /ordinary.*no package-dir prefix maps/);
   assert.ok(!existsSync(path.join(consumer, 'var/link/python/polyspec_z-0.0.1-py3-none-any.whl')));
+});
+
+// K483-1: a Composer project that declares a polyspec package with no checkout fails in every mode, naming it, and runs no install.
+test('make composer-install refuses a declared polyspec package with no checkout in every mode and runs no install (K483-1)', (t) => {
+  const { kit, consumer, env, log } = workspace(t);
+  freshComposer(consumer);
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' } }) });
+  for (const checkouts of [[], [kit]]) {
+    assert.throws(() => composerInstall({ directory: consumer, checkouts, env, print: () => undefined }), /polyspec\/y/, `checkouts ${checkouts.length}: the refusal names the package`);
+  }
+  assert.doesNotMatch(log(), /^composer (install|update)/m, 'no install or update runs');
 });

@@ -238,3 +238,28 @@ test('npm install links a sibling package that sits two folders down under packa
   assert.equal(lstatSync(link).isSymbolicLink(), true, 'the package is a link');
   assert.equal(realpathSync(link), realpathSync(server), 'the link resolves to the package folder under packages/server/ts');
 });
+
+// K483-1: a declared polyspec package with no checkout fails in every mode, naming the package, and no npm ci or npm install runs.
+test('npm install refuses a declared polyspec package with no checkout in every mode, naming it, and runs no npm (K483-1)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-k483-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sibling = path.join(root, 'ordered-json');
+  const project = path.join(root, 'app');
+  mkdirSync(sibling, { recursive: true });
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/ordered-json', version: '0.0.9' }));
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/ordered-json': 'https://example.invalid/ordered-json-0.0.9.tgz', '@polyspec/missing': 'https://example.invalid/missing-0.0.1.tgz' } }, null, 2) + '\n');
+  // The stub npm records each subcommand it is run with; it runs no real npm.
+  const log = path.join(root, 'npm.log');
+  const stub = path.join(root, 'npm');
+  writeFileSync(stub, `#!/bin/sh\nprintf "%s\\n" "$1" >> "${log}"\nmkdir -p node_modules\n`, { mode: 0o755 });
+  const modes: [string, string[], boolean][] = [
+    ['no checkout is given or found', [], false],
+    ['a checkout is found that provides another package', [sibling], false],
+    ['the checkouts are named explicitly', [sibling], true],
+  ];
+  for (const [mode, checkouts, explicit] of modes) {
+    assert.throws(() => npmInstall({ directory: project, checkouts, npm: stub, explicit, print: () => undefined, env: process.env }), /@polyspec\/missing/, `${mode}: the refusal names the package`);
+  }
+  assert.equal(existsSync(log), false, 'no npm subcommand runs in any mode');
+});
