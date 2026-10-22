@@ -6,7 +6,7 @@
 // WORKTREE_DISK_FLOOR, and a second run on an existing worktree of that branch links and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statfsSync, symlinkSync, unlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statfsSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { COMMIT_RULES } from './check-commits.mts';
@@ -45,10 +45,9 @@ const NODE_MODULES = 'node_modules';
  * packages, links into the worktree, and the worktree resolves its own code. A link of the whole folder, which K519 made, is replaced;
  * the repository ignores the real folder as it ignores the main checkout's. Nothing is installed.
  */
-function linkNodeModules(main: string, folder: string, print: (text: string) => void): void {
-  const source = path.join(main, NODE_MODULES);
-  const target = path.join(folder, NODE_MODULES);
-  if (!existsSync(source)) throw new Error(`${source} is missing; run make install in the main checkout, whose ${NODE_MODULES} a worktree links`);
+function linkNodeModules(main: string, folder: string, modules: string, print: (text: string) => void): void {
+  const source = path.join(main, modules);
+  const target = path.join(folder, modules);
   const entry = lstatSync(target, { throwIfNoEntry: false });
   if (entry?.isSymbolicLink()) {
     if (path.resolve(folder, readlinkSync(target)) !== source) throw new Error(`${target} is a link to ${readlinkSync(target)}, not to ${source}; remove it, since a worktree installs nothing (K519)`);
@@ -70,13 +69,108 @@ function linkNodeModules(main: string, folder: string, print: (text: string) => 
   for (const item of readdirSync(source, { withFileTypes: true })) {
     const from = path.join(source, item.name);
     if (!item.isDirectory() || !(item.name.startsWith('@') || item.name === '.bin')) {
-      linkEntry(main, folder, NODE_MODULES, from, path.join(target, item.name));
+      linkEntry(main, folder, modules, from, path.join(target, item.name));
       continue;
     }
     mkdirSync(path.join(target, item.name), { recursive: true });
-    for (const name of readdirSync(from)) linkEntry(main, folder, NODE_MODULES, path.join(from, name), path.join(target, item.name, name));
+    for (const name of readdirSync(from)) linkEntry(main, folder, modules, path.join(from, name), path.join(target, item.name, name));
   }
-  print(`[worktree-setup] linked the packages of ${NODE_MODULES} to ${source}, the repository's own into the worktree`);
+  print(`[worktree-setup] linked the packages of ${modules} to ${source}, the repository's own into the worktree`);
+}
+
+/**
+ * The node_modules of each tracked npm lock project of the worktree `folder` that the main checkout `main` installed (K533), relative to
+ * the worktree: the root's, which the tools of kit run from and which the main checkout must hold, and those of the other lock projects,
+ * such as a tools project with its own package-lock.json; a project that the main checkout did not install is named and skipped.
+ */
+function npmProjects(main: string, folder: string, print: (text: string) => void): string[] {
+  if (!existsSync(path.join(main, NODE_MODULES))) throw new Error(`${path.join(main, NODE_MODULES)} is missing; run make install in the main checkout, whose ${NODE_MODULES} a worktree links`);
+  const nested = git(folder, 'ls-files', '-z', '--', '*/package-lock.json').split('\0').filter(Boolean).flatMap((lock) => {
+    const modules = path.join(path.dirname(lock), NODE_MODULES);
+    if (existsSync(path.join(main, modules))) return [modules];
+    print(`[worktree-setup] ${modules} is not installed in the main checkout; the worktree gets none`);
+    return [];
+  });
+  return [NODE_MODULES, ...nested];
+}
+
+// The environment of a Python project that uv syncs, beside its pyproject.toml (K533).
+const VENV = '.venv';
+
+/** The environments of the tracked Python projects of the worktree `folder` that the main checkout `main` holds, relative (K533). */
+function pythonEnvironments(main: string, folder: string): string[] {
+  return git(folder, 'ls-files', '-z', '--', 'pyproject.toml', '*/pyproject.toml').split('\0').filter(Boolean)
+    .map(file => path.join(path.dirname(file), VENV))
+    .filter(venv => existsSync(path.join(main, venv, 'pyvenv.cfg')));
+}
+
+/**
+ * Places the file `source` of an environment of the main checkout `main` at `target` of the worktree `folder` (K533): a file that the
+ * installer wrote with a path of the main checkout, a script, an activate script or an editable .pth, is written with that path of the
+ * worktree and its mode, since the environment of the worktree runs its own sources; any other file links (linkEntry, `venv` the
+ * environment). A target that is no file of the worktree throws.
+ */
+function placeFile(main: string, folder: string, venv: string, source: string, target: string): void {
+  const root = realpathSync(main);
+  const text = readFileSync(source, 'utf8');
+  const named = new RegExp(`${root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w.-])`, 'g');
+  if (!named.test(text)) {
+    linkEntry(main, folder, venv, source, target);
+    return;
+  }
+  const entry = lstatSync(target, { throwIfNoEntry: false });
+  if (entry !== undefined && !entry.isFile()) throw new Error(`${target} exists and is no file that worktree-setup writes; remove it, since a worktree installs nothing (K519)`);
+  writeFileSync(target, text.replace(named, folder), { mode: statSync(source).mode & 0o777 });
+}
+
+/**
+ * The Python environment `venv` of the worktree `folder` (K533): a real folder whose entries link to those of the main checkout `main`,
+ * bin and each site-packages entry by entry; an interpreter link of bin keeps its target, and a file that names a path of the main
+ * checkout is written with the worktree's (placeFile), so the worktree imports and runs its own sources. Nothing is installed.
+ */
+function linkVenv(main: string, folder: string, venv: string, print: (text: string) => void): void {
+  const source = path.join(main, venv);
+  const target = path.join(folder, venv);
+  if (lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error(`${target} is a link to a whole environment, which runs the sources of another checkout; remove it and run worktree-setup again (K533)`);
+  mkdirSync(target, { recursive: true });
+  for (const item of readdirSync(source, { withFileTypes: true })) {
+    const from = path.join(source, item.name);
+    const to = path.join(target, item.name);
+    if (item.name === 'bin' && item.isDirectory()) {
+      mkdirSync(to, { recursive: true });
+      for (const name of readdirSync(from, { withFileTypes: true })) {
+        if (name.isSymbolicLink()) keepLink(path.join(from, name.name), path.join(to, name.name));
+        else if (name.isFile()) placeFile(main, folder, venv, path.join(from, name.name), path.join(to, name.name));
+        else linkEntry(main, folder, venv, path.join(from, name.name), path.join(to, name.name));
+      }
+    } else if (item.name === 'lib' && item.isDirectory()) {
+      for (const python of readdirSync(from)) {
+        const sites = path.join(from, python, 'site-packages');
+        mkdirSync(path.join(to, python, 'site-packages'), { recursive: true });
+        for (const name of readdirSync(path.join(from, python))) {
+          if (name !== 'site-packages') linkEntry(main, folder, venv, path.join(from, python, name), path.join(to, python, name));
+        }
+        for (const name of readdirSync(sites, { withFileTypes: true })) {
+          const place = name.isFile() && name.name.endsWith('.pth') ? placeFile : linkEntry;
+          place(main, folder, venv, path.join(sites, name.name), path.join(to, python, 'site-packages', name.name));
+        }
+      }
+    } else {
+      linkEntry(main, folder, venv, from, to);
+    }
+  }
+  print(`[worktree-setup] linked the environment ${venv} to ${source}, its own sources from the worktree`);
+}
+
+/** Makes `target` a link with the same target as the link `source`, such as an interpreter of an environment; an other entry throws. */
+function keepLink(source: string, target: string): void {
+  const link = readlinkSync(source);
+  const entry = lstatSync(target, { throwIfNoEntry: false });
+  if (entry === undefined) {
+    symlinkSync(link, target);
+    return;
+  }
+  if (!entry.isSymbolicLink() || readlinkSync(target) !== link) throw new Error(`${target} exists and is not the link to ${link}; remove it, since a worktree installs nothing (K519)`);
 }
 
 /** A Composer project of the worktree: its folder relative to the worktree and its vendor folder, from config.vendor-dir. */
@@ -176,7 +270,8 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   } else {
     print(`[worktree-setup] ${folder} is the worktree of ${branch}; linking and checking it again`);
   }
-  linkNodeModules(main, folder, print);
+  for (const modules of npmProjects(main, folder, print)) linkNodeModules(main, folder, modules, print);
+  for (const venv of pythonEnvironments(main, folder)) linkVenv(main, folder, venv, print);
   for (const project of composerProjects(main, folder)) linkVendor(main, folder, project, composer ?? composerCommand(folder, 'make worktree-setup'), print);
   for (const target of ['rebuild', 'link-state-check']) {
     // The rebuild (K482) builds the packages of the worktree's own repository before the check reads their builds: a new worktree has none yet.

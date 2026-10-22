@@ -381,7 +381,7 @@ link-check: ## List each installed package folder that a checkout of CHECKOUTS, 
 	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
 .PHONY: worktree-setup
-worktree-setup: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default) from main, install it from its own sources with make install and check it with link-state-check; refuses under 30 GB of free disk; a second run installs it again (K348); ONLINE
+worktree-setup: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default) from main; links the installs of the main checkout, each npm project, Python environment and Composer vendor folder with the repository's own packages from the worktree, builds the worktree's own packages and checks it with link-state-check; installs nothing (K519, K521, K530, K533); refuses under 30 GB of free disk; a second run converges (K348); ONLINE
 	$(ONLINE) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix)
 
 # WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of

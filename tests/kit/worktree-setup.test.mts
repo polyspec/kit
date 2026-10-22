@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -210,6 +210,7 @@ test('worktree-setup gives each npm project and each Python environment of the m
     'Makefile': 'link-state-check:\n\ttest -f node_modules/@polyspec/kit/dist/link.mjs\n',
     '.gitignore': 'node_modules/\n.venv/\n',
   });
+  chmodSync(path.join(main, venv, 'bin/tool'), 0o755);
   symlinkSync(process.execPath, path.join(main, venv, 'bin/python3.14'));
   symlinkSync('python3.14', path.join(main, venv, 'bin/python'));
   git(main, 'add', '-A');
