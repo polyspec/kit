@@ -704,3 +704,34 @@ test('a land removes the lock of a land that no longer runs (K495)', (t) => {
   assert.equal(git(main, 'rev-parse', 'main'), branch);
   assert.equal(existsSync(lock), false);
 });
+
+// K495-1: land rebases a branch that main has left behind onto main in its own clean worktree, under its lock, and runs its gates on
+// the rebased commits; a rebase that conflicts is aborted, leaves the branch as it was and refuses naming the file.
+test('land rebases a branch behind main in its worktree and lands it, and refuses a conflicting rebase naming the file (K495-1)', (t) => {
+  const { main } = lockFixture(t);
+  // main moves after the branch forked: another land put src/other.txt on it.
+  put(main, { 'src/other.txt': 'other\n' });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'other');
+  const printed: string[] = [];
+  land(main, 'feat/x', { print: text => printed.push(text) });
+  assert.ok(printed.some(text => /rebased feat\/x on main/.test(text)), printed.join('\n'));
+  assert.equal(git(main, 'log', '-1', '--format=%s', 'main'), 'x', 'main holds the rebased branch');
+  assert.equal(git(main, 'log', '-2', '--format=%s', 'main').split('\n')[1], 'other', 'on top of the commit that moved main');
+
+  // A branch that changes src/x.txt while main changes it too: the rebase conflicts, and nothing changes.
+  const folder = path.join(path.dirname(main), 'repo-y');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat/y', 'main');
+  put(folder, { 'src/x.txt': 'y\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'y');
+  const branchY = git(main, 'rev-parse', 'feat/y');
+  put(main, { 'src/x.txt': 'main\n' });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'main changes x');
+  const mainBefore = git(main, 'rev-parse', 'main');
+  assert.throws(() => land(main, 'feat/y', { print: () => {} }), /src\/x\.txt/);
+  assert.equal(git(main, 'rev-parse', 'main'), mainBefore, 'nothing is merged');
+  assert.equal(git(main, 'rev-parse', 'feat/y'), branchY, 'the branch is as it was');
+  assert.equal(git(folder, 'status', '--porcelain'), '', 'the aborted rebase leaves the worktree clean');
+});
