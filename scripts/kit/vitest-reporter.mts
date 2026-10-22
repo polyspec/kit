@@ -61,6 +61,13 @@ export default class ProgressReporter {
     return entity.fullName ? `${file} › ${entity.fullName.replaceAll(' > ', ' › ')}` : file;
   }
 
+  // A worker reports a module queued when it takes the module, before it loads the file: the worker is up (K549). The worker of
+  // the next module starts after a module ends, so the start-up bound holds until a worker takes it. With modules in parallel,
+  // a gap after a test while another module's worker starts has the start-up bound.
+  onTestModuleQueued(testModule: ReportedModule): void {
+    writeTestEvent({ kind: 'up', id: this.id(testModule) });
+  }
+
   onTestModuleStart(testModule: ReportedModule): void {
     this.progress.start(this.id(testModule), { group: true });
   }
@@ -71,6 +78,7 @@ export default class ProgressReporter {
     const duration = testModule.diagnostic().duration;
     if (errors.length || testModule.state() === 'failed') this.progress.fail(id, duration, errorText(errors));
     else this.progress.pass(id, duration);
+    writeTestEvent({ kind: 'launch', id: `the module after ${id}` });
   }
 
   // A suite is a group, so the failure of its own hooks is printed with its elapsed time.

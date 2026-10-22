@@ -9,6 +9,7 @@
 import { writeSync } from 'node:fs';
 import { after, afterEach, beforeEach } from 'node:test';
 import { stopDescendants } from './process-group.mts';
+import { PROCESS_UP } from './test-gap.mts';
 
 // The internal handle of a standard stream; Node.js does not declare it.
 type WithHandle = { _handle?: { setBlocking?: (blocking: boolean) => void } };
@@ -35,6 +36,9 @@ if (file && process.env.NODE_TEST_CONTEXT) {
   (process.stdout as typeof process.stdout & WithHandle)._handle?.setBlocking?.(true);
   // As above.
   (process.stderr as typeof process.stderr & WithHandle)._handle?.setBlocking?.(true);
+  // The process is up before the file loads (K549): node --test passes the line to the reporter as test:stdout at once, also
+  // when the file then blocks its event loop, and the reporter reports the file up to run-tests.
+  writeSync(1, `${PROCESS_UP}\n`);
   // The exit at a deadline stops the children that the tests started first (K454): a process that ends here would leave them
   // running, reparented to launchd, after the run has ended.
   const failAndExit = (message: string) => {

@@ -165,7 +165,7 @@ test('a node file whose top-level await never settles, with a live handle, is en
   const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/pending.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI }, timeout: 30_000 });
   const elapsed = Date.now() - began;
   assert.equal(result.status, 1, output(result));
-  assert.match(output(result), /⏱ node \. tests\/pending\.test\.mjs: no test started (within 2 s after the start of the run|or ended within 2000 ms of the process start)/);
+  assert.match(output(result), /(⏱ node \. tests\/pending\.test\.mjs: no test started within 2 s after the start of tests\/pending\.test\.mjs|tests\/pending\.test\.mjs: no test started or ended within 2000 ms of the process start)/);
   assert.match(output(result), /✖ tests\/pending\.test\.mjs/);
   assert.ok(elapsed < 15_000, `the run took ${elapsed} ms, expected the end at the 2 s deadline`);
 });
@@ -628,26 +628,43 @@ test('a go bootstrap that outlives the timeout stops the tool before its first e
 
 // The gap watch is armed at the start of the run and after each test ends, and a test start disarms it: a running test has the
 // per-test timeout instead. The module is imported in the test, so only this test fails before the module exists.
-test('the gap watch arms at the start of the run and after a test ends, and a test start disarms it (K371-1)', (t) => {
+test('the gap watch arms at the start of the run and after a test ends, and a test start disarms it (K371-1); before a process is up it has the start-up bound (K549)', (t) => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
   return import('../../scripts/kit/test-gap.mts').then(({ createGap, parseTestEvent }) => {
     const expired: string[] = [];
-    const gap = createGap({ timeoutMs: 1000, onExpire: last => expired.push(last) });
+    const gap = createGap({ timeoutMs: 1000, onExpire: problem => expired.push(problem) });
+    gap.event({ kind: 'up', id: 'p' });
     t.mock.timers.tick(999);
     assert.deepEqual<string[]>(expired, []);
     t.mock.timers.tick(1);
-    assert.deepEqual<string[]>(expired, ['the start of the run']);
-    const second = createGap({ timeoutMs: 1000, onExpire: last => expired.push(last) });
+    assert.deepEqual<string[]>(expired, ['no test started within 1 s after the start of the run']);
+    const second = createGap({ timeoutMs: 1000, onExpire: problem => expired.push(problem) });
     second.event({ kind: 'start', id: 'a' });
     t.mock.timers.tick(5000);
-    assert.deepEqual<string[]>(expired, ['the start of the run'], 'a running test is bounded by its own timeout');
+    assert.equal(expired.length, 1, 'a running test is bounded by its own timeout');
     second.event({ kind: 'end', id: 'a' });
     t.mock.timers.tick(999);
-    assert.deepEqual<string[]>(expired, ['the start of the run']);
+    assert.equal(expired.length, 1);
     t.mock.timers.tick(1);
-    assert.deepEqual<string[]>(expired, ['the start of the run', 'the end of a']);
+    assert.deepEqual<string[]>(expired.slice(1), ['no test started within 1 s after the end of a']);
+    // Before its process is up, and again when the tool starts the process of the next file, the watch has the start-up
+    // bound (K549).
+    const third = createGap({ timeoutMs: 1000, startUpMs: 3000, onExpire: problem => expired.push(problem) });
+    third.event({ kind: 'launch', id: 'f.test.mjs' });
+    t.mock.timers.tick(2999);
+    assert.equal(expired.length, 2, 'the start of a process is no test time');
+    third.event({ kind: 'up', id: 'f.test.mjs' });
+    third.event({ kind: 'start', id: 'b' });
+    third.event({ kind: 'end', id: 'b' });
+    third.event({ kind: 'launch', id: 'g.test.mjs' });
+    t.mock.timers.tick(2999);
+    assert.equal(expired.length, 2, 'the start of the next file is no test time');
+    t.mock.timers.tick(1);
+    assert.deepEqual<string[]>(expired.slice(2), ['the process of the tool did not report that it is up within 3 s after the start of g.test.mjs']);
     gap.close();
     second.close();
+    third.close();
+    assert.deepEqual(parseTestEvent('{"kind":"up","id":"f"}'), { kind: 'up', id: 'f' });
     assert.deepEqual(parseTestEvent('{"kind":"end","id":"a"}'), { kind: 'end', id: 'a' });
     assert.throws(() => parseTestEvent('{"kind":"pass","id":"a"}'), /test event/);
   });
@@ -662,7 +679,7 @@ test('a node file that never reports a test and never yields is stopped by the g
   const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/busy.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI }, timeout: 40_000 });
   const elapsed = Date.now() - began;
   assert.equal(result.status, 1, output(result));
-  assert.match(output(result), /⏱ node \. tests\/busy\.test\.mjs: no test started within 2 s after the start of the run; the run elapsed [\d.]+s; stopping `[^`]*node --test/);
+  assert.match(output(result), /⏱ node \. tests\/busy\.test\.mjs: no test started within 2 s after the start of tests\/busy\.test\.mjs; the run elapsed [\d.]+s; stopping `[^`]*node --test/);
   assert.ok(elapsed < 10_000, `the run took ${elapsed} ms, expected the gap stop at 2 s, not the file's 20 s loop`);
 });
 
@@ -670,7 +687,7 @@ test('a node file that never reports a test and never yields is stopped by the g
 // matches no test. The preload of the file and the gap watch both expire at the same time, so either message may name the stop.
 test('a node file that holds a handle and never reports a test is ended at its timeout (K371-1-1)', { timeout: 60_000 }, (t) => {
   const root = checkout(t, { 'tests/hold.test.mjs': "import net from 'node:net';\nnet.createServer().listen(0);\n", 'tests/idle.test.mjs': 'setInterval(() => {}, 1000);\n' });
-  const stop = /no test started (?:within 2 s after the start of the run|or ended within 2000 ms of the process start)/;
+  const stop = /no test started (?:within 2 s after the start of tests\/(?:hold|idle)\.test\.mjs|or ended within 2000 ms of the process start)/;
   for (const args of [['--', 'tests/hold.test.mjs'], ['--', '--test-name-pattern', 'nomatch', 'tests/idle.test.mjs']]) {
     const began = Date.now();
     const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI }, timeout: 40_000 });

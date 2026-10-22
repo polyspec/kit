@@ -37,7 +37,7 @@ import { Readable } from 'node:stream';
 import readline from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createProgress } from './test-progress.mts';
-import { createGap, parseTestEvent, TEST_EVENTS, TEST_EVENTS_FD } from './test-gap.mts';
+import { createGap, parseTestEvent, PROCESS_UP, START_UP_MS, TEST_EVENTS, TEST_EVENTS_FD } from './test-gap.mts';
 import { compactSeconds } from './time.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from './test-output.mts';
@@ -251,7 +251,7 @@ const INTERRUPTS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 /** How often the runner checks that its parent is still the process that started it. */
 const PARENT_POLL_MS = 200;
 
-export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv } = {}): Promise<number> {
+export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env, startUpMs = START_UP_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv; startUpMs?: number } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
   // The tests of the PHP library run against the extension with none of the library's sources (K329).
@@ -317,9 +317,10 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     let gapExpired = false;
     const gap = createGap({
       timeoutMs: options.timeoutSeconds * 1000,
-      onExpire: (lastEvent) => {
+      startUpMs,
+      onExpire: (problem) => {
         gapExpired = true;
-        const text = `no test started within ${options.timeoutSeconds} s after ${lastEvent}; the run elapsed ${compactSeconds(Date.now() - began)}; stopping \`${command} ${args.slice(0, 2).join(' ')}\``;
+        const text = `${problem}; the run elapsed ${compactSeconds(Date.now() - began)}; stopping \`${command} ${args.slice(0, 2).join(' ')}\``;
         if (progress) progress.expire(text);
         else write(`⏱ ${label}: ${text}\n`);
         stop();
@@ -353,6 +354,13 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       handle(text);
     };
     // The tools that this runner reads have the standard output piped, and cargo and python the standard error too.
+    // The process-up report of each tool (K549): node and vitest report it through their reporter; runners/python.py writes
+    // PROCESS_UP first, and a --module harness and PHPUnit report it with their first output. go and cargo build their tests in
+    // the run, so their process counts as up when it starts until the runner builds them first (K549-1).
+    const up = (id: string) => gap.event({ kind: 'up', id });
+    let reported = false;
+    const upOnce = () => { if (!reported) { reported = true; up(label); } };
+    if (options.tool === 'go' || cargo) up(label);
     if (cargo) {
       const events = cargoEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
       present(child.stdout, 'child.stdout').setEncoding('utf8').on('data', events.stdout); // The stream is piped for this tool.
@@ -360,14 +368,27 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     } else if (python) {
       // unittest writes its progress to standard error; the standard output of the tests is printed as it is.
       const events = pythonEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
-      present(child.stderr, 'child.stderr').setEncoding('utf8').on('data', (data: string) => { // The stream is piped for this tool.
+      present(child.stderr, 'child.stderr').setEncoding('utf8').on('data', (written: string) => { // The stream is piped for this tool.
+        let data = written;
+        if (options.module !== undefined) upOnce();
+        else if (data.includes(`${PROCESS_UP}\n`)) {
+          data = data.replace(`${PROCESS_UP}\n`, '');
+          upOnce();
+        }
         for (const text of data.split('\n')) if (ERROR_LINE.test(text.trim())) errors.push(text.trim());
         events(data);
       });
       // python is a tool that this runner reads, so it has a progress.
-      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', text => present(progress, 'progress').line(`  ${text}`));
+      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', (text) => {
+        if (options.module !== undefined) upOnce();
+        present(progress, 'progress').line(`  ${text}`);
+      });
     } else if (reads) {
-      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', noting(options.tool === 'go' ? goEvents(present(sink, 'sink'), build) : phpunitEvents(present(sink, 'sink')))); // A tool that this runner reads has a sink. // The stream is piped for this tool.
+      const phpunit = options.tool === 'go' ? undefined : phpunitEvents(present(sink, 'sink')); // A tool that this runner reads has a sink.
+      readline.createInterface({ input: present(child.stdout, 'child.stdout') }).on('line', noting(phpunit === undefined ? goEvents(present(sink, 'sink'), build) : (line) => {
+        upOnce();
+        return phpunit(line);
+      })); // A tool that this runner reads has a sink. // The stream is piped for this tool.
     }
     if (reporter) {
       // The pipe of the test events is the stream that spawn opened for TEST_EVENTS_FD: a readable one, checked here.

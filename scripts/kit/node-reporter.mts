@@ -8,7 +8,7 @@ import { Transform, type TransformCallback } from 'node:stream';
 import type { EventData } from 'node:test';
 import type { TestEvent } from 'node:test/reporters';
 import { createProgress, type Progress } from './test-progress.mts';
-import { writeTestEvent } from './test-gap.mts';
+import { PROCESS_UP, writeTestEvent } from './test-gap.mts';
 import { testRoot } from './paths.mts';
 import { present } from './present.mts';
 
@@ -76,7 +76,11 @@ export default class ProgressReporter extends Transform {
     const { type, data } = event;
     if (type === 'test:dequeue') {
       const { id, group } = this.id(data);
-      if (group) this.running = realpathSync(present(data.file, 'file')); // group implies file.
+      // node starts the process of a file when it dequeues the file: its start is no test time until it is up (K549).
+      if (group) {
+        this.running = realpathSync(present(data.file, 'file')); // group implies file.
+        writeTestEvent({ kind: 'launch', id });
+      }
       this.progress.start(id, { group });
     } else if (type === 'test:complete') {
       const { id, group } = this.id(data);
@@ -112,6 +116,11 @@ export default class ProgressReporter extends Transform {
         if (data.file) this.failedFiles.add(realpathSync(data.file));
         this.progress.fail(`${file} › ${(error as TestFailure)?.failureType === 'hookFailed' ? 'hook' : data.name}`, duration, failureText(error));
       }
+    } else if (type === 'test:stdout' && data.message.includes(`${PROCESS_UP}\n`)) {
+      // The preload of the file reports its process up (K549); the line is no output of the file.
+      writeTestEvent({ kind: 'up', id: data.file ? path.relative(ROOT, data.file) : '' });
+      const rest = data.message.replace(`${PROCESS_UP}\n`, '');
+      if (rest) this.push(rest);
     } else if (type === 'test:stderr' || type === 'test:stdout') this.push(data.message);
     callback();
   }

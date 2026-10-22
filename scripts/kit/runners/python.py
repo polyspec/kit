@@ -100,5 +100,9 @@ def main(argv):
 
 
 if __name__ == "__main__":
+    # The process is up before it loads a test: the line tells run-tests to bound the gaps by the test timeout from here, and
+    # not by the start-up bound (K549). The text is PROCESS_UP of scripts/kit/test-gap.mts.
+    sys.stderr.write("kit-test-process-up\n")
+    sys.stderr.flush()
     # The runner is started by runpy with its path as argv[1]: its own arguments follow it (K371).
     main(sys.argv[2:])
