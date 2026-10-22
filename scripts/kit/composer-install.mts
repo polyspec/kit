@@ -31,12 +31,18 @@ export function composerInstall({ directory, checkouts, env = process.env, print
 }
 
 if (isMain(import.meta.url)) {
-  const [directory, ...options] = process.argv.slice(2);
-  const unknown = options.filter(option => option !== '--no-dev');
-  if (directory === undefined || unknown.length > 0) {
-    process.stderr.write('Usage: node scripts/kit/composer-install.mts <dir> [--no-dev]\n');
+  // Arguments after DIR are the checkouts that provide the polyspec packages (K501, as npm-install takes them, K448-9), and --no-dev.
+  const [directory, ...given] = process.argv.slice(2);
+  const checkouts = given.filter(argument => argument !== '--no-dev');
+  if (directory === undefined || checkouts.some(argument => argument.startsWith('--'))) {
+    process.stderr.write('Usage: node scripts/kit/composer-install.mts <dir> [--no-dev] [<checkout>...]\n');
     process.exitCode = 2;
   } else {
-    composerInstall({ directory, checkouts: siblingCheckouts(path.resolve(directory)).checkouts, noDev: options.includes('--no-dev'), print: text => process.stdout.write(`${text}\n`) });
+    composerInstall({
+      directory,
+      checkouts: checkouts.length ? checkouts.map(checkout => path.resolve(checkout)) : siblingCheckouts(path.resolve(directory)).checkouts,
+      noDev: given.includes('--no-dev'),
+      print: text => process.stdout.write(`${text}\n`),
+    });
   }
 }

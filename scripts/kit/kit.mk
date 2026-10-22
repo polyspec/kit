@@ -398,8 +398,8 @@ worktree-prune: ## Remove the worktree and delete the branch of every branch mer
 # composer-install is the install of a consumer's Composer project in place of its composer install: through the link when a sibling
 # checkout provides a polyspec package of the composer.lock of DIR, else composer install of the tracked lock.
 .PHONY: composer-install
-composer-install: ## Install the Composer project DIR in place of its composer install: through the link when a sibling checkout provides a polyspec package of its composer.lock, else composer install of the tracked lock (K432); NO_DEV=1 installs with --no-dev (K483-2)
-	$(ONLINE) $(NODE) $(KIT)/composer-install.$(KIT_EXT) $(DIR) $(if $(NO_DEV),--no-dev)
+composer-install: ## Install the Composer project DIR in place of its composer install (CHECKOUTS names the checkouts that provide its polyspec packages, K501): through the link when a sibling checkout provides a polyspec package of its composer.lock, else composer install of the tracked lock (K432); NO_DEV=1 installs with --no-dev (K483-2)
+	$(ONLINE) $(NODE) $(KIT)/composer-install.$(KIT_EXT) $(DIR) $(if $(NO_DEV),--no-dev) $(CHECKOUTS)
 
 # npm-install is the install of a consumer's npm packages in place of its npm ci: a sibling checkout's polyspec package is linked from the
 # start, through a temporary manifest, so no release is fetched (K448-2).
