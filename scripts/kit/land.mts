@@ -289,12 +289,23 @@ function movesOf(root: string, from: string): string {
  */
 export function land(root: string, branch: string, { print = (text: string) => console.log(`[land] ${text}`), sleep = sleepFor }: { print?: (text: string) => void; sleep?: (ms: number) => void } = {}): void {
   if (branch === '') throw new Error('no branch: make land BRANCH=<branch>');
-  const release = takeLandLock(root, branch, print, sleep);
+  // K516: land lands into the checkout that has main checked out, wherever it is called from.
+  const main = mainCheckout(root);
+  const release = takeLandLock(main, branch, print, sleep);
   try {
-    landLocked(root, branch, print);
+    landLocked(main, branch, print);
   } finally {
     release();
   }
+}
+
+/** The checkout of the repository of `root` whose branch is main, from git worktree list; throws when no checkout has main checked out. */
+function mainCheckout(root: string): string {
+  const entries = git(root, 'worktree', 'list', '--porcelain').split('\n\n');
+  const main = entries.find(entry => entry.split('\n').includes('branch refs/heads/main'));
+  const folder = main?.split('\n').find(line => line.startsWith('worktree '))?.slice('worktree '.length);
+  if (folder === undefined) throw new Error(`no checkout has main checked out among the worktrees of ${root}; check out main in the main checkout and land from there`);
+  return folder;
 }
 
 /** The run of land under its lock. */
