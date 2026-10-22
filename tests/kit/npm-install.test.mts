@@ -82,23 +82,45 @@ test('make npm-install forwards CHECKOUTS to the tool, which links the package f
   assert.ok(recorded.includes(`"file:${folder}"`), 'the given package folder is the file: dependency of the install');
 });
 
-// K448-9: a repository root given as a checkout is refused, naming the package folders it contains, instead of being skipped.
-test('the CLI refuses a repository root given as a checkout and names the package folders it contains (K448-9)', (t) => {
+// K494: a repository root given as a checkout is expanded inside the kit to the package folders that it holds under packages/, as the
+// sibling checkouts are (K448-11), so the consumer passes the roots that it links and never walks the layout of a provider.
+test('make npm-install takes a repository root in CHECKOUTS and links its package folder (K494)', (t) => {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-root-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const repository = path.join(root, 'template');
   mkdirSync(path.join(repository, 'packages/ts'), { recursive: true });
   mkdirSync(path.join(repository, 'packages/go'), { recursive: true });
   writeFileSync(path.join(repository, 'package.json'), JSON.stringify({ name: '@polyspec/template-workspace', version: '0.0.0', private: true }));
-  writeFileSync(path.join(repository, 'packages/ts/package.json'), JSON.stringify({ name: '@polyspec/template', version: '0.0.11' }));
+  writeFileSync(path.join(repository, 'packages/ts/package.json'), JSON.stringify({ name: '@polyspec/template', version: '0.0.11', main: 'index.js' }));
+  const project = path.join(root, 'app');
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/template': 'https://example.invalid/template-0.0.11.tgz' } }, null, 2) + '\n');
+  writeFileSync(path.join(project, 'package-lock.json'), '{"name":"app","lockfileVersion":3,"requires":true,"packages":{}}\n');
+  // The stub npm records its subcommand and, for install, the manifest it installs; it runs no real npm.
+  const stub = path.join(root, 'npm');
+  writeFileSync(stub, '#!/bin/sh\nprintf "%s\\n" "$1" >> "$NPM_LOG"\nif [ "$1" = install ]; then cat package.json >> "$NPM_LOG"; mkdir -p node_modules; fi\n', { mode: 0o755 });
+  const log = path.join(root, 'npm.log');
+  const kit = fileURLToPath(new URL('../..', import.meta.url));
+  const made = spawnSync('make', ['--no-print-directory', '-C', kit, 'npm-install', `DIR=${project}`, `CHECKOUTS=${repository}`, `NPM=${stub}`, `NODE=${process.execPath}`], { encoding: 'utf8', env: { ...process.env, NPM_LOG: log } });
+  assert.equal(made.status, 0, made.stderr);
+  const recorded = readFileSync(log, 'utf8');
+  assert.doesNotMatch(recorded, /^ci$/m, 'npm ci of the tracked lock does not run');
+  assert.ok(recorded.includes(`"file:${path.join(repository, 'packages/ts')}"`), 'the package folder of the root is the file: dependency of the install');
+});
+
+// K494: a checkout that is neither a package folder nor a repository root with package folders is refused, naming it.
+test('the CLI refuses a checkout that is neither a package folder nor a root with package folders (K494)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-neither-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const empty = path.join(root, 'empty');
+  mkdirSync(empty, { recursive: true });
   const project = path.join(root, 'app');
   mkdirSync(project, { recursive: true });
   writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/template': 'https://example.invalid/template-0.0.11.tgz' } }));
   const cli = fileURLToPath(new URL('../../scripts/kit/npm-install.mts', import.meta.url));
-  const refused = spawnSync(process.execPath, [cli, project, repository], { encoding: 'utf8', env: { ...process.env, NPM_BIN: 'npm' } });
-  assert.notEqual(refused.status, 0, 'a repository root is refused');
-  assert.match(refused.stderr, /is a repository root, not a package folder/);
-  assert.match(refused.stderr, /packages\/ts/, 'the refusal names the package folder it contains');
+  const refused = spawnSync(process.execPath, [cli, project, empty], { encoding: 'utf8', env: { ...process.env, NPM_BIN: 'npm' } });
+  assert.notEqual(refused.status, 0, 'the checkout is refused');
+  assert.match(refused.stderr, /is neither a package folder nor a repository root with package folders/);
   assert.equal(existsSync(path.join(project, 'node_modules')), false, 'nothing is installed');
 });
 

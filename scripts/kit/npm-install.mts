@@ -105,19 +105,18 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     }
   }
   const wanted = new Set([...declared, ...locked]);
-  // The checkouts that the caller names are package folders (K448-9). A repository root holds them under packages/: it is refused,
-  // naming them, instead of being skipped, so nothing is guessed.
+  // A checkout that the caller names is a package folder or a repository root (K494): a root holds its npm packages under packages/
+  // (template's @polyspec/template is in packages/ts), which the kit finds itself, as for the sibling checkouts (K448-11), so a consumer
+  // never walks the layout of a provider. A named checkout that is neither is refused, naming it, so nothing is guessed.
   if (explicit) {
     for (const checkout of checkouts) {
-      const folders = packageFoldersOf(checkout);
-      if (folders.length) throw new Error(`${checkout} is a repository root, not a package folder; give the package folders it contains: ${folders.join(', ')}`);
-      if (nameOf(checkout) === undefined) throw new Error(`${checkout} is not a package folder: it has no package.json with a name`);
+      if (nameOf(checkout) === undefined && packageFoldersOf(checkout).length === 0) {
+        throw new Error(`${checkout} is neither a package folder nor a repository root with package folders`);
+      }
     }
   }
   const provided = new Map<string, string>();
-  // A sibling checkout is a repository root, whose npm packages sit under packages/ (template's @polyspec/template is in
-  // packages/ts), so its package folders are looked at too; a checkout that the caller names is a package folder already (K448-11).
-  for (const checkout of explicit ? checkouts : checkouts.flatMap(checkout => [checkout, ...packageFoldersOf(checkout)])) {
+  for (const checkout of checkouts.flatMap(checkout => [checkout, ...packageFoldersOf(checkout)])) {
     const name = nameOf(checkout);
     if (name !== undefined && wanted.has(name) && !provided.has(name)) provided.set(name, path.resolve(checkout));
   }
