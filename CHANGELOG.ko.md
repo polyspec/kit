@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8d6778c02086313410cf406c60942ce5653a36dbb3cc19cbb5b513c1419fd73b -->
+<!-- source-sha256: cadba7b8f0ffbe965d6abfc3a26ac2f8fe057018f360887f167c6e07e5b4877f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- worktree-setup은 vendor의 Composer bin proxy를 worktree에 쓰므로, worktree의 모든 vendor 바이너리가 worktree를 autoload한다(K550).
 - divergence-check는 분기 없이 자기 환경을 assert하는 테스트 문장을 통과시키고, 분기 안의 probe는 여전히 잡는다(K543).
 - run-tests의 gap watch는 test process의 시작을 120초의 start-up bound로, process가 up을 알린 뒤의 gap을 test timeout으로 묶으므로, 부하가 걸린 machine에서 interpreter의 시작이 더는 통과하는 run을 실패시키지 않는다. up을 알리지 않는 process는 자기 메시지와 함께 start-up bound에서 멈춘다(K549).
 - test-exit-deadline preload가 각 test 앞뒤에서 기다리는 event loop 한 바퀴는 process 시작 때의 setTimeout을 쓰므로, timer를 mock하는 test가 더는 hook을 멈추지 않는다(K547).
