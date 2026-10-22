@@ -41,6 +41,8 @@ export const DECLARATION = 'config/owner-checks.json';
 /** A rule of config/owner-checks.json (scripts/kit/schema/owner-checks.schema.json): globs of paths and the checks that own them. */
 export type OwnerRule = {
   paths: string[];
+  // K542: a rule that kit ships (kit.owners), which ownerDeclaration joins; never in config/owner-checks.json.
+  shipped?: true;
   targets?: string[];
   scripts?: string[];
   workspaces?: string[];

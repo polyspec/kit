@@ -278,3 +278,21 @@ test('the owner rules that kit ships own every hook that make hooks writes (K522
   const paths: unknown[] = owners.flatMap((owner: unknown): unknown[] => (isJsonObject(owner) && Array.isArray(owner.paths) ? owner.paths.map((glob: unknown) => glob) : []));
   for (const hook of HOOKS) assert.ok(paths.includes(hook), `${hook} is owned`);
 });
+
+// K542: a consumer commits the hooks that it wants, so a glob of a rule that kit ships that matches no tracked path of the consumer is
+// no error, while a glob of its own rules that matches nothing still is.
+test('owner-validate passes a consumer that tracks some of the paths that the shipped rules own (K542)', (t) => {
+  const kit = readFixture<NpmManifest>(path.join(import.meta.dirname, '../..'), 'package.json');
+  const root = repository(t, { copies: {}, files: {} });
+  const some = HOOKS.slice(0, 3);
+  for (const hook of some) write(root, hook, '#!/bin/sh\n');
+  const owned = ['package.json', 'config/owner-checks.json'];
+  const shipped = (kit.kit?.owners ?? []).map(rule => ({ ...rule, shipped: true as const })).filter(rule => rule.paths.some(glob => glob.startsWith('.githooks/')));
+  const targets = new Set(shipped.flatMap(rule => rule.targets ?? []).concat(['owner-validate']));
+  const project = { make: { targets: new Map([...targets].map(name => [name, { prerequisites: [], recipe: '' }])), variables: new Map<string, string>() }, scripts: {}, workspaces: [], prefixes: [] };
+  const exists = (file: string) => existsSync(path.join(root, file));
+  const own = { paths: owned, targets: ['owner-validate'] };
+  assert.deepEqual(validate({ owners: [own, ...shipped] }, [...owned, ...some], project, exists), [], 'the hooks that the consumer lacks are no error');
+  const stale = { paths: ['ruff.toml'], targets: ['owner-validate'] };
+  assert.deepEqual(validate({ owners: [own, stale, ...shipped] }, [...owned, ...some], project, exists), ['config/owner-checks.json: the glob ruff.toml matches no tracked path; remove it or correct it']);
+});
