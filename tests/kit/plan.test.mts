@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { execFileSync, spawn, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
 import { commitItem, editItem, newItem, newPlan, setState, splitPlan, stagedNewRowIds, testItem, verifyDone } from '../../scripts/kit/plan.mts';
@@ -950,11 +950,12 @@ test('a commit on main waits for the land that holds the lock and releases the l
   stage(root, 'a.mts');
   const body = path.join(root, 'body.txt');
   writeFileSync(body, 'Why.\n');
-  // The land that holds the lock ends after three seconds, as a land does.
-  const holder = spawn('sleep', ['3']);
-  t.after(() => holder.kill());
+  // The land that holds the lock ends after three seconds, as a land does. It is no child of this process, as a land is not: init
+  // reaps it at its end, while a child would stay a zombie that answers as running while the commit blocks this process.
+  const holder = Number(execFileSync('sh', ['-c', 'sleep 3 >/dev/null 2>&1 & echo $!'], { encoding: 'utf8' }).trim());
+  t.after(() => spawnSync('kill', [String(holder)]));
   const lock = path.join(root, '.git/kit-land.lock');
-  writeFileSync(lock, JSON.stringify({ pid: holder.pid, branch: 'feat/other' }));
+  writeFileSync(lock, JSON.stringify({ pid: holder, branch: 'feat/other' }));
   const started = Date.now();
   commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse the input', bodyFile: body }, identity);
   assert.ok(Date.now() - started >= 2000, `the commit waited ${Date.now() - started} ms for the land`);

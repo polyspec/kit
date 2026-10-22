@@ -238,6 +238,8 @@ const codeOf = (error: unknown): unknown => (typeof error === 'object' && error 
 /** The pid and the branch that a lock of land names, each undefined when the parsed lock lacks it or holds another type. */
 const pidOf = (lock: unknown): number | undefined => (typeof lock === 'object' && lock !== null && 'pid' in lock && typeof lock.pid === 'number' ? lock.pid : undefined);
 const branchOf = (lock: unknown): string | undefined => (typeof lock === 'object' && lock !== null && 'branch' in lock && typeof lock.branch === 'string' ? lock.branch : undefined);
+// K524: the holder that a lock names, such as the commit of a row on main; a lock of land names its branch only.
+const holderOf = (lock: unknown): string => (typeof lock === 'object' && lock !== null && 'holder' in lock && typeof lock.holder === 'string' ? lock.holder : `the land of ${branchOf(lock) ?? 'an unknown branch'}`);
 
 /** Whether the process `pid` runs: signal 0 checks it without touching it, and EPERM means that it runs as another user. */
 function running(pid: number): boolean {
@@ -254,34 +256,54 @@ function running(pid: number): boolean {
  * is waited for, printing its branch and pid once, up to LOCK_WAIT_MS; the lock of a land that no longer runs, or that names no
  * process, is removed.
  */
-function takeLandLock(root: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void): () => void {
+function takeLandLock(root: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void, holder?: { name: string; outcome: string }): () => void {
   const file = path.resolve(root, git(root, 'rev-parse', '--git-common-dir').trim(), LAND_LOCK);
   const started = Date.now();
   let waiting = false;
   for (;;) {
     try {
-      writeFileSync(file, `${JSON.stringify({ pid: process.pid, branch })}\n`, { flag: 'wx' });
+      writeFileSync(file, `${JSON.stringify({ pid: process.pid, branch, ...(holder === undefined ? {} : { holder: holder.name }) })}\n`, { flag: 'wx' });
       return () => rmSync(file, { force: true });
     } catch (error) {
       if (codeOf(error) !== 'EEXIST') throw error;
     }
-    let holder: unknown;
+    let lock: unknown;
     try {
-      holder = JSON.parse(readFileSync(file, 'utf8'));
+      lock = JSON.parse(readFileSync(file, 'utf8'));
     } catch {
       // A lock that cannot be read, or that went away meanwhile, names no running land.
     }
-    const pid = pidOf(holder);
-    const other = branchOf(holder) ?? 'an unknown branch';
+    const pid = pidOf(lock);
+    const other = holderOf(lock);
     if (pid === undefined || !running(pid)) {
       rmSync(file, { force: true });
-      print(`removed the lock of the land of ${other} (pid ${pid ?? 'unknown'}), which no longer runs`);
+      print(`removed the lock of ${other} (pid ${pid ?? 'unknown'}), which no longer runs`);
       continue;
     }
-    if (Date.now() - started > LOCK_WAIT_MS) throw new Error(`the land of ${other} (pid ${pid}) still holds ${file} after ${LOCK_WAIT_MS / 60000} minutes; nothing is merged`);
-    if (!waiting) print(`${branch} waits for the land of ${other} (pid ${pid}) to end`);
+    if (Date.now() - started > LOCK_WAIT_MS) throw new Error(`${other} (pid ${pid}) still holds ${file} after ${LOCK_WAIT_MS / 60000} minutes; ${holder?.outcome ?? 'nothing is merged'}`);
+    if (!waiting) print(`${holder?.name ?? branch} waits for ${other} (pid ${pid}) to end`);
     waiting = true;
     sleep(LOCK_POLL_MS);
+  }
+}
+
+// Whether this process holds the land lock through withLandLock, which a nested call then takes not again (K524).
+let lockHeld = false;
+
+/**
+ * Runs `work` under the lock of land of the repository of `root`, as `holder`, such as the commit of a row on main (K524): it waits
+ * for a land, or another holder, as a land does, and releases the lock at its end, also when `work` throws. A call within `work`
+ * runs under the lock that this process already holds. `outcome` says what a wait past the deadline leaves undone.
+ */
+export function withLandLock<T>(root: string, holder: string, outcome: string, work: () => T, { print = (text: string) => console.log(`[plan] ${text}`), sleep = sleepFor }: { print?: (text: string) => void; sleep?: (ms: number) => void } = {}): T {
+  if (lockHeld) return work();
+  const release = takeLandLock(mainCheckout(root), 'main', print, sleep, { name: holder, outcome });
+  lockHeld = true;
+  try {
+    return work();
+  } finally {
+    lockHeld = false;
+    release();
   }
 }
 

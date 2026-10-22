@@ -54,6 +54,7 @@ import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
 import { privatePaths, stagedTwinFindings } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { withLandLock } from './land.mts';
 import { present } from './present.mts';
 
 const SLUG = /^[a-z][a-z0-9-]*$/;
@@ -649,6 +650,14 @@ export function stagedNewRowIds(root: string): string[] {
 }
 
 export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}, { registration }: { registration?: string } = {}): string {
+  // K524: a commit on main holds the lock of land, so it and a land queue instead of one finding the staged change of the other.
+  const head = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  if (head !== 'main') return commitStaged(root, commit, env, { registration });
+  return withLandLock(root, `the commit of ${commit.id} on main`, 'nothing is committed', () => commitStaged(root, commit, env, { registration }));
+}
+
+/** The body of commitItem: checks the staged change and its message, and commits it (K249-4). */
+function commitStaged(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv, { registration }: { registration?: string | undefined }): string {
   if (spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status === 0) throw new Error('nothing is staged; stage the change of the item with git add first');
   // K499: a new checklist row is registered on a branch, or on main by item-new in its own commit (K499-2), so the row is never left
   // staged on main.
@@ -685,6 +694,12 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
  * refused, the checklists return to HEAD and the error is thrown.
  */
 function registerOnMain(root: string, item: Parameters<typeof newItem>[1], bodyFile: string, env: NodeJS.ProcessEnv): void {
+  // K524: the rows stay staged while the hooks of the commit run, so the registration holds the lock of land from the first write.
+  withLandLock(root, `the registration of ${item.id} on main`, 'nothing is registered', () => registerLocked(root, item, bodyFile, env));
+}
+
+/** The body of registerOnMain, run under the lock of land (K524). */
+function registerLocked(root: string, item: Parameters<typeof newItem>[1], bodyFile: string, env: NodeJS.ProcessEnv): void {
   if (!existsSync(bodyFile)) throw new Error(`the body file ${bodyFile} does not exist; write why the item is registered there`);
   const staged = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
   if (staged.length > 0) throw new Error(`item-new on main commits the registration of ${item.id} alone; these files are staged, commit or unstage them first: ${staged.join(', ')}`);
