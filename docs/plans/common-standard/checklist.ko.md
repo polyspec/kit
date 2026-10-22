@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 9e25e3da746ebe175c50af858dcb4670d5d16e86fe992443d3ec6f3e4496cd3f -->
+<!-- source-sha256: c20be39f8145786b647e92a452157423a86b39c86c0e75979d5c1f5935b16852 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -365,7 +365,7 @@
 | K468-1 | 같은 package name을 가진 sibling provider보다 consumer workspace package가 우선하여 own package가 잘못 분류되거나 link되지 않는다 | scripts/kit/link-providers.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K468-1 -- tests/kit/link.test.mts` | [o] |
 | K468-2 | 오프라인 Composer provider-entry resolver는 tracked lock version이 오래되었을 때 strict exact Composer requirement에 맞춰 sibling package를 표시하되 tracked version 필드는 바꾸지 않는다 | scripts/kit/dependency-review.mts, tests/kit/dependency-review.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K468-2 -- tests/kit/dependency-review.test.mts` | [o] |
 | K468-2-1 | JSON에서 나온 any 값을 할당하지 않고 K468-2 Composer fixture의 package-list parsing을 type-safe하게 유지한다 | tests/kit/dependency-review.test.mts | `make lint-ts` | [o] |
-| K472 | kit의 oxc-parser 리뷰 기록을 최신 안정 릴리스 0.155.0으로 다시 기록하고 직접 pin을 0.155.0으로 올린다. 원인: 기록이 0.154.0을 최신으로 적고 있다. | package.json, package-lock.json, config/dependency-review.json | `make dependency-policy-check` | [ ] |
+| K472 | kit의 oxc-parser 리뷰 기록을 최신 안정 릴리스 0.155.0으로 다시 기록하고 직접 pin을 0.155.0으로 올린다. 원인: 기록이 0.154.0을 최신으로 적고 있다. | package.json, package-lock.json, config/dependency-review.json | `make dependency-policy-check` | [~] |
 | K473 | vendored gates workflow는 프로젝트 옆에 config/polyspec.json이 선언한 각 저장소를 기본 브랜치로 체크아웃하고, gates 전에 make link를 실행하여, 0.0.x polyspec 패키지를 가진 저장소의 CI가 link 모델에 필요한 sibling 체크아웃을 갖게 한다 (K473, K468). 선언은 저장소를 owner/name으로 명시한다. | workflows/gates.yml, scripts/kit/schema/polyspec.schema.json (a repository per declaration), tests/kit/gates-workflow.test.mts, tests/kit/polyspec-lock.test.mts, docs/operations/local-links.md and its Korean twin | `node --test --test-name-pattern=K473 tests/kit/gates-workflow.test.mts` `node --test --test-name-pattern=K473 tests/kit/polyspec-lock.test.mts` | [o] |
 | K474 | HEAD 또는 main 기준선이 환경 사유로 실패한 게이트는 "기준선도 실패"로 통과하지 않고 그 오류를 명시하며 실패한다. 발견 줄이 없는 실패는 발견이 아니다 (K474). | scripts/kit/land.mts, tests/kit/land.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K474 -- tests/kit/land.test.mts` | [o] |
 | K475 | The provider entries of a tracked composer.lock resolve a consumer vcs repository through the sibling checkout whose origin it names, offline; a vcs repository that no sibling checkout provides fails naming it (K475, K439-4, K468) | scripts/kit/dependency-review.mts, tests/kit/dependency-review.test.mts, docs/operations/local-links.md and its Korean twin | `node --test --test-name-pattern=K475 tests/kit/dependency-review.test.mts` | [-] 원인: 사용자 2026-10-22: 버전 pin 작업 없음. kit은 버전도 pin도 강제하지 않으며 각 package manager와 그 lock이 정한다(S4, K448) |
