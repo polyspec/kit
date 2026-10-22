@@ -128,7 +128,11 @@ export function polyspecLockFindings(root: string): string[] {
   const tracked = trackedFiles(root);
   const owned = ownedWorkspacePackages(root);
   for (const file of tracked.filter(item => MANIFEST_FILES.has(path.posix.basename(item)))) {
-    const names = [...new Set(namesIn(file, readFileSync(path.join(root, file), 'utf8')).filter(isPolyspec).filter(name => !ownedByWorkspace(owned, file, name)))].sort();
+    // K509: a name that config/polyspec.json declares for the project folder of this manifest lives in its declaration, so it is no finding.
+    const ecosystem = ecosystemOf(file);
+    const folder = path.resolve(root, path.posix.dirname(file));
+    const declared = new Set(declarationsOf(root).declarations.filter(item => item.ecosystem === ecosystem && path.resolve(root, item.project) === folder).map(item => item.name));
+    const names = [...new Set(namesIn(file, readFileSync(path.join(root, file), 'utf8')).filter(isPolyspec).filter(name => !ownedByWorkspace(owned, file, name) && !declared.has(name)))].sort();
     if (names.length > 0) findings.push(`${file}: names ${names.join(', ')}; a tracked file names no polyspec package of 0.0.x, its declaration is in ${CONFIG} (K468)`);
   }
   const declared = declarationsOf(root);

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: ab5c86a1c17d7571f8e50ff357077fd8f8c8301e8bd2733ffe503d4d22bf6bfe -->
+<!-- source-sha256: 71c9e89c6401b7a1e708495827e68bd2d86111ae71802a56adc84b3128b824d6 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -407,3 +407,4 @@
 | K501 | composer-install은 명시 CHECKOUTS, 즉 polyspec 패키지를 제공하는 저장소 root를 받는다: make composer-install DIR=<project> CHECKOUTS="<checkout>..."(K432, K483, K448-9 후속) | scripts/kit/composer-install.mts, scripts/kit/kit.mk, tests/kit/link.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test --test-name-pattern=K501 tests/kit/link.test.mts` | [o] |
 | K508 | 체크아웃 Composer 셔임을 실행하는 테스트 헬퍼가 kit의 도구 환경을 준다. 그래서 mise 셔임이 체크아웃의 신뢰와 디렉터리로 실행된다 | tests/kit/dependency-review.test.mts | `node --test --test-name-pattern=K508 tests/kit/dependency-review.test.mts` | [o] |
 | K504 | land의 K459 테스트는 fixture에 build target을 주므로 테스트가 다시 green이 된다(K453과 K459 후속). 원인: K453은 merge 뒤 main checkout에서 make build를 실행하게 했는데, K459 테스트의 fixture는 build target을 선언하지 않으므로 관계없는 branch의 land가 make build failed (2, 0.0s)로 실패하고 테스트는 kit main(8f487225)에서 red다. 인수 조건: K459 fixture는 다른 land fixture처럼 build를 선언하고, tests/kit/land.test.mts의 다른 Makefile fixture에는 빠진 곳이 없다(확인함: 이것 하나뿐). red fixture: K459 테스트가 지금 main에서 실패한다. | tests/kit/land.test.mts | `node --test --test-name-pattern=K459 tests/kit/land.test.mts` | [o] |
+| K509 | polyspec-lock-check는 추적 매니페스트의 프로젝트 폴더에 대해 config/polyspec.json이 선언한 polyspec 이름을 면제한다(K468 후속). 원인: polyspecLockFindings는 저장소가 소유하지 않는 모든 polyspec 이름을 finding으로 낸다. 그래서 finding 메시지가 가리키는 선언이 finding을 지우지 못하며, ssr, fsm, hyper가 선언된 kit 패키지 때문에 검사에 실패한다. 인수 조건: config/polyspec.json이 project .에 대해 선언한 @polyspec/kit을 이름하는 추적 package.json은 finding이 아니며, 선언되지 않은 이름은 여전히 finding이다. | scripts/kit/polyspec-lock-check.mts, tests/kit/polyspec-lock.test.mts, CHANGELOG.md, CHANGELOG.ko.md, docs/plans/common-standard/checklist.md, docs/plans/common-standard/checklist.ko.md | `node --test --test-name-pattern=K509 tests/kit/polyspec-lock.test.mts` | [o] |

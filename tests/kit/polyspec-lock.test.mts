@@ -27,6 +27,16 @@ function repository(t: TestContext, files: Record<string, string>, untracked: Re
   return root;
 }
 
+// K509: a polyspec name that config/polyspec.json declares for the project folder of the tracked manifest is no finding: the declaration
+// is where the name lives (K468), so a consumer that declares its kit package passes the gate.
+test('K509: a manifest that names a polyspec package its config/polyspec.json declares for that project is no finding', (t) => {
+  const root = repository(t, {
+    'package.json': JSON.stringify({ name: 'consumer/app', private: true, devDependencies: { '@polyspec/kit': '0.0.54' } }),
+    'config/polyspec.json': JSON.stringify({ packages: [{ ecosystem: 'npm', project: '.', name: '@polyspec/kit', repository: 'polyspec/kit' }] }),
+  });
+  assert.deepEqual(polyspecLockFindings(root), []);
+});
+
 const LOCKED_PHP = JSON.stringify({ packages: [{ name: 'polyspec/orm', version: '0.0.18' }, { name: 'psr/log', version: '3.0.0' }] });
 
 test('K478: an own workspace package is allowed but a true sibling remains a finding', (t) => {

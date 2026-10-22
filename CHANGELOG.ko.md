@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 228c94f25a28006d37be0ef0ed0c5199d2508cda7990b8ed7fc2772593cccd35 -->
+<!-- source-sha256: e1f40f7ecf27d6fd728f4647de9ae521325241ad538533f8ca9cd1f9ff4e7c5a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K509: `make polyspec-lock-check`는 추적 매니페스트의 프로젝트 폴더에 대해 config/polyspec.json이 선언한 polyspec 이름을 면제하므로, kit 패키지를 선언한 소비자가 검사를 통과한다 (K509). Red: 수정 전 `node --test --test-name-pattern=K509 tests/kit/polyspec-lock.test.mts`가 1096cb67에서 실패했고(선언된 @polyspec/kit이 finding이었다), green은 파일 10/10 통과한다.
 - `make land`는 main이 앞지른 branch를 lock 아래에서 그 깨끗한 worktree에서 main 위로 rebase하고 rebase된 commit에 gate를 실행하므로, 다른 land를 기다린 land는 rebase를 요구하지 않고 land된다. 충돌하는 rebase는 abort하고 파일을 이름 붙여 거부한다(K495-1).
 - `make composer-install DIR=<project> CHECKOUTS="<checkout>..."`은 Composer 프로젝트의 polyspec 패키지를 제공하는 checkout을 DIR 뒤에서 받으므로, 설치가 저장소를 명시하고 sibling 탐색이 필요 없다. `NO_DEV=1`은 그것과 함께 계속 동작한다(K501). Red: aff8cbac에서 `node --test --test-name-pattern=K501 tests/kit/link.test.mts`가 실패했다. CLI가 checkout 인수를 usage 메시지와 함께 거부했다.
 - K507: `make link-state-check`는 polyspec 패키지를 path 또는 link source로 기록한 추적 Cargo.lock, package-lock.json, composer.lock을 거부하며, 파일, 패키지, release source 형식을 이름 붙인다(source 없는 Cargo 패키지, link 또는 file: resolved, Composer path dist). 그래서 추적 lock은 release 기록으로 남는다 (K507). Red: 수정 전 `node --test --test-name-pattern=K507 tests/kit/link-state-check.test.mts`가 f68fe82e에서 실패했고(path lock 3개가 통과), green은 파일 25/25 통과한다.
