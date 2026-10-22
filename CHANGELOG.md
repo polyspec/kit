@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make item-red BEFORE=` refuses a red that only a missing new module makes: a Verification whose failing runs name only files that the change adds, which the tree of `<rev>` lacks, is not a red of the old behaviour, so the refusal names the file and asks for a test through an entry that exists on both sides (K389-3).
 - `make uv-install` links each given checkout whose name the project declares from the start, whatever the name, and excludes it from the sync by that name, so a sibling named limepie-contracts is no release; `SYNC="<flags>"` passes `--no-install-project` and `--all-groups` to uv sync and refuses any other flag (K487). Red: `node --test --test-name-pattern=K487 tests/kit/uv-install.test.mts` failed on 747470df: the limepie-contracts checkout was installed as its release, and SYNC flags were ignored.
 - K442 is done: its row is [o] in this commit, whose red is the K442 test of the pre-fix commit cc8707a9^ (item-edit has no CAUSE and RETRY, so the test fails with `[plan] VERIFICATION is empty`, exit 1; recorded by `make item-red BEFORE=cc8707a9^`) and whose green is the K442 test of this commit (K442).
 - `npm-install` replaces the contents of an existing node_modules and keeps the directory, so a node_modules that is a mount point installs (K486).

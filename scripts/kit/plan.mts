@@ -447,18 +447,43 @@ function testTree(root: string): string {
   return sha256(files.map(file => `${file}\0${existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : ''}\0`).join(''));
 }
 
-/** Runs each command of `commands` in `root` in order, with its output on this process, and returns each with its exit status. */
-function runCommands(root: string, id: string, commands: readonly string[], print: (text: string) => void): Run[] {
-  const runs: Run[] = [];
+/** A run of a command with its output, which the record of the red leaves out. */
+type Captured = Run & { output: string };
+
+/** Runs each command of `commands` in `root` in order, with its output on this process, and returns each with its exit status and output. */
+function runCommands(root: string, id: string, commands: readonly string[], print: (text: string) => void): Captured[] {
+  const runs: Captured[] = [];
   for (const command of commands) {
     print(`[plan] ${id}: ${command}`);
-    const result = spawnSync('sh', ['-c', command], { cwd: root, stdio: 'inherit' });
+    const result = spawnSync('sh', ['-c', command], { cwd: root, encoding: 'utf8' });
     if (result.error) throw new Error(`\`${command}\` of ${id} could not start: ${result.error.message}`);
     if (result.status === null) throw new Error(`\`${command}\` of ${id} ended with the signal ${result.signal}`);
+    process.stdout.write(result.stdout);
+    process.stderr.write(result.stderr);
     print(`[plan] ${id}: ${command} exit ${result.status}`);
-    runs.push({ command, status: result.status });
+    runs.push({ command, status: result.status, output: `${result.stdout}${result.stderr}` });
   }
   return runs;
+}
+
+/** A line of a run's output that names a module or class that a file is missing for (K389-3). */
+const MISSING_MODULE = /Cannot find (?:module|package)|ModuleNotFoundError|No module named|Class .*not found/i;
+
+/**
+ * The files that `output` names as the only missing modules, or undefined when it names none, or names one that `added` lacks: a
+ * red that only a file the change adds makes proves that the file was missing, not that the old behaviour was wrong (K389-3). A
+ * class of PHP is named by its file stem.
+ */
+function missingAdded(output: string, added: readonly string[]): string[] | undefined {
+  const lines = output.split('\n').filter(line => MISSING_MODULE.test(line));
+  if (lines.length === 0) return undefined;
+  const named = new Set<string>();
+  for (const line of lines) {
+    const file = added.find(entry => line.includes(entry) || (MISSING_MODULE.test(line) && line.toLowerCase().includes(path.basename(entry, path.extname(entry)).toLowerCase())));
+    if (file === undefined) return undefined;
+    named.add(file);
+  }
+  return [...named];
 }
 
 /**
@@ -482,7 +507,7 @@ export function itemRed(root: string, id: string, print: (text: string) => void 
   const head = git(root, 'rev-parse', 'HEAD').trim();
   // The gates of an earlier run on the same HEAD stay; the tests are recorded with the tree of the test files.
   const previous = readRecord(root, id);
-  const record: GateRecord = { head, gates: previous?.head === head ? previous.gates : [], tests: { tree: testTree(root), commands: runs } };
+  const record: GateRecord = { head, gates: previous?.head === head ? previous.gates : [], tests: { tree: testTree(root), commands: runs.map(({ command, status }) => ({ command, status })) } };
   writeRecord(root, id, record);
   print(`[plan] ${id}: the Verification fails before the fix on ${head.slice(0, 12)}, so it proves the red; make commit writes it`);
   return record;
@@ -493,7 +518,7 @@ export function itemRed(root: string, id: string, print: (text: string) => void 
  * their content of `before` (a file that `before` lacks is removed). The tree may change under docs/plans only, such as the state
  * that the row takes when it becomes active; each file is then restored to the bytes it had, so the tree is exactly as it was.
  */
-function runBefore(root: string, id: string, before: string, commands: readonly string[], print: (text: string) => void): Run[] {
+function runBefore(root: string, id: string, before: string, commands: readonly string[], print: (text: string) => void): Captured[] {
   const rev = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${before}^{commit}`], { cwd: root, encoding: 'utf8' });
   if (rev.status !== 0) throw new Error(`BEFORE=${before} is no commit`);
   const sha = rev.stdout.trim();
@@ -517,7 +542,16 @@ function runBefore(root: string, id: string, before: string, commands: readonly 
         rmSync(path.join(root, file), { force: true });
       }
     }
-    return runCommands(root, id, commands, print);
+    const runs = runCommands(root, id, commands, print);
+    // A failing run whose only missing modules are files that the change adds is no red of the old behaviour (K389-3).
+    const added = differs.filter(file => !isTestFile(file) && !present(sha, file));
+    const failing = runs.filter(run => run.status !== 0);
+    const missing = failing.map(run => missingAdded(run.output, added));
+    if (failing.length > 0 && missing.every(files => files !== undefined)) {
+      const named = [...new Set(missing.flatMap(files => files ?? []))];
+      throw new Error(`${id}: the Verification fails before the fix only because it imports ${named.join(', ')}, a file that the change adds and the tree of ${before} lacks; such a red proves that the file was missing, not that the old behaviour was wrong; test through an entry that exists on both sides`);
+    }
+    return runs;
   } finally {
     for (const [file, kept] of saved) {
       if (kept === null) rmSync(path.join(root, file), { force: true });

@@ -837,3 +837,36 @@ test('item-edit rewrites the cause and the retry of a held item in both language
   assert.match(retry.stderr, /no retry condition/);
   assert.deepEqual(rows(root, english), after, 'a refused edit writes nothing');
 });
+
+// K389-3: item-red BEFORE= refuses a red that only a missing new module makes, since the test imports a file that the change adds and
+// BEFORE lacks. A genuine assertion failure of the old behaviour is still accepted.
+test('make item-red BEFORE= refuses a red that only a missing new module makes (K389-3)', (t) => {
+  const root = plans(t, 'parser');
+  put(root, { '.gitignore': 'var/\n', 'value.mjs': 'export const value = 1;\n' });
+  newItem(root, item('parser', 'T1', { verification: '`node --input-type=module -e "await import(\'./mod.mjs\')"`' }));
+  newItem(root, item('parser', 'T2', { verification: '`node --input-type=module -e "import(\'./value.mjs\').then(m => process.exit(m.value === 2 ? 0 : 1))"`' }));
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
+  const run = (...args: string[]) => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  const commitAll = (message: string) => { run('add', '-A'); run('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message); };
+  const cli = (env: NodeJS.ProcessEnv) => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' });
+  commitAll('base');
+  const before = run('rev-parse', 'HEAD');
+  put(root, { 'mod.mjs': 'export const added = true;\n', 'tests/mod.test.mts': 'test\n', 'value.mjs': 'export const value = 2;\n' });
+  commitAll('fix(parser): Add the module (#T1)\n\nThe module is added.');
+  setState(root, { id: 'T1', state: '[~]' }, () => {});
+  commitAll('activate T1');
+  setState(root, { id: 'T2', state: '[~]' }, () => {});
+  commitAll('activate T2');
+  // The missing module of T1 is the file the fix adds, so the red is refused and names it.
+  const missing = cli({ ID: 'T1', BEFORE: before });
+  assert.notEqual(missing.status, 0, 'a red that only a missing new module makes is refused');
+  assert.match(missing.stderr, /imports mod\.mjs, a file that the change adds/, missing.stderr);
+  assert.match(missing.stderr, /test through an entry that exists on both sides/, missing.stderr);
+  // T2 fails on the value of the old behaviour, which is a genuine red, so it is accepted.
+  const genuine = cli({ ID: 'T2', BEFORE: before });
+  assert.equal(genuine.status, 0, genuine.stderr);
+});

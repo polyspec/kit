@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b6ab5c299b41e80a4b9e7bfdef795f6302c36e5876061127111c7e8a9ee84a72 -->
+<!-- source-sha256: befceb9c0d630fc22b33983974286fa32c05e4365c81abaf37d91c5634f40fff -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make item-red BEFORE=`는 추가된 새 모듈이 없어서만 나는 red를 거부한다. 실패한 모든 실행이 change가 추가하고 `<rev>` tree에 없는 파일만 가리키면 옛 동작의 red가 아니므로, 거부 메시지가 그 파일을 이름으로 밝히고 양쪽에 있는 진입점으로 테스트하라고 안내한다 (K389-3).
 - `make uv-install`은 프로젝트가 이름을 선언한 각 checkout을 이름과 무관하게 처음부터 link하고 sync에서 그 이름으로 제외한다. 그래서 limepie-contracts라는 sibling은 release가 되지 않는다. `SYNC="<flags>"`는 uv sync에 `--no-install-project`와 `--all-groups`를 전달하고 다른 flag는 거부한다(K487). Red: 747470df에서 `node --test --test-name-pattern=K487 tests/kit/uv-install.test.mts`가 실패했다. limepie-contracts checkout이 release로 설치되었고, SYNC flag는 무시되었다.
 - K442 완료: row가 이 commit에서 [o]이다. red는 cc8707a9^(수정 전 commit)에서 실행한 K442 테스트이다. 수정 전 item-edit는 CAUSE와 RETRY를 받지 않아 테스트가 `[plan] VERIFICATION is empty`로 실패하며 exit 1이다 (`make item-red BEFORE=cc8707a9^`로 기록). green은 이 commit의 K442 테스트이다 (K442).
 - `npm-install`은 기존 node_modules의 내용을 바꾸고 디렉터리를 유지하므로, mount point인 node_modules도 설치된다(K486).
