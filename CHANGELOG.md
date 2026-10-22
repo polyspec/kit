@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The link writes nothing into .git: the consumer's .gitignore ignores /.claude/settings.local.json, and link-state-check names the file while Git does not ignore it, so a sandboxed worktree links (K512).
 - The Python folder link reads the environment that uv syncs, UV_PROJECT_ENVIRONMENT when it is set (limepie's python/var/venv), else .venv, so its polyspec packages are linked (K448-14).
 - install-packages of the bootstrap installs package-lock.json with npm ci again, so a checkout without kit.mk, as a CI runner, installs @polyspec/kit; make install links after it (K511).
 - The link contract (docs/operations/local-links.md) states the folder link: a polyspec package counts as installed at its release, the install is followed by a direct relative symlink of the folder, a copy is forbidden, no step judges a version, and a worktree links its tool and dependency folders to the main checkout (K448-4).
