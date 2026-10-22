@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make npm-install` gives each relative file: dependency of the project to npm as an absolute path from the project folder,
+  since it installs from a temporary copy of the manifest, so those links resolve after the install (K448-12).
 - `make npm-install` without given checkouts looks for a provided package in the package folders of each sibling repository
   (packages/<x>), not only at its root, so it links @polyspec/template from template/packages/ts instead of running npm ci (K448-11).
 - K481: generated Composer link manifests express linked exact versions as caret ranges while each path repository keeps the provider's actual version, so strict validation passes without changing the tracked manifest. Real Composer tests prove stale link locks and ordinary exact-version manifest warnings still fail validation (K481).

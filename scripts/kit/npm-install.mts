@@ -128,10 +128,15 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     const linked: Record<string, unknown> = { ...manifest };
     // The workspaces of the root are the project's own packages: the temporary install reads them from the project (K465).
     if ('workspaces' in manifest) linked.workspaces = workspacesIn(manifest.workspaces, path.posix.relative(temporary.split(path.sep).join('/'), project.split(path.sep).join('/')));
+    const fromProject = (spec: string): string =>
+      spec.startsWith('file:') && !path.isAbsolute(spec.slice('file:'.length)) ? `file:${path.resolve(project, spec.slice('file:'.length))}` : spec;
     for (const section of SECTIONS) {
       const deps: Record<string, unknown> = sectionOf(section);
       if (Object.keys(deps).length === 0) continue;
       for (const [name, folder] of provided) if (name in deps) deps[name] = `file:${folder}`;
+      // The manifest is installed from a temporary folder, so a relative file: spec of the project is given from the project folder
+      // (K448-12).
+      for (const [name, spec] of Object.entries(deps)) if (typeof spec === 'string') deps[name] = fromProject(spec);
       linked[section] = deps;
     }
     // Every overrides entry that names a provided package, at any depth, takes its checkout folder: npm refuses an override of a direct
@@ -144,7 +149,7 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
         if (folder !== undefined) nested['.'] = `file:${folder}`;
         return [key, nested];
       }
-      return [key, folder !== undefined ? `file:${folder}` : value];
+      return [key, folder !== undefined ? `file:${folder}` : typeof value === 'string' ? fromProject(value) : value];
     }));
     const overrides = rewrite(sectionOf('overrides'));
     // The packages that only the lock names, transitively, are linked through overrides (K448-7).

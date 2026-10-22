@@ -191,3 +191,27 @@ test('npm install finds a provided package in the package folders of a sibling r
   assert.equal(took, 'linked', lines.join('\n'));
   assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/template')), realpathSync(folder), 'the link resolves to the package folder');
 });
+
+// K448-12: npm-install installs from a temporary copy of the manifest in another folder, so a relative file: dependency of the
+// project is given to npm as an absolute path from the project folder, and its link resolves after the move (K448-12).
+test('npm install keeps a relative file: dependency of the project resolving next to a linked sibling (K448-12)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sibling = path.join(root, 'ordered-json');
+  const lib = path.join(root, 'app', 'packages', 'lib');
+  const project = path.join(root, 'app', 'tests', 'install');
+  mkdirSync(sibling, { recursive: true });
+  mkdirSync(lib, { recursive: true });
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/ordered-json', version: '0.0.9', main: 'index.js' }));
+  writeFileSync(path.join(sibling, 'index.js'), 'module.exports = 1;\n');
+  writeFileSync(path.join(lib, 'package.json'), JSON.stringify({ name: 'app-lib', version: '1.0.0', main: 'index.js' }));
+  writeFileSync(path.join(lib, 'index.js'), 'module.exports = 2;\n');
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app-install', version: '1.0.0', private: true, dependencies: { 'app-lib': 'file:../../packages/lib', '@polyspec/ordered-json': 'https://example.invalid/ordered-json-0.0.9.tgz' } }, null, 2) + '\n');
+  writeFileSync(path.join(project, 'package-lock.json'), '{"name":"app-install","lockfileVersion":3,"requires":true,"packages":{}}\n');
+  const lines: string[] = [];
+  const took = npmInstall({ directory: project, checkouts: [sibling], print: text => lines.push(text), env: process.env });
+  assert.equal(took, 'linked', lines.join('\n'));
+  assert.equal(realpathSync(path.join(project, 'node_modules/app-lib')), realpathSync(lib), 'the relative file: dependency resolves to its folder');
+  assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/ordered-json')), realpathSync(sibling), 'the sibling is linked');
+});

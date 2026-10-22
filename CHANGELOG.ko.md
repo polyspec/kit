@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 855eebaabbf1ea77094a246eba5f8e9318b9460e7c80ef880a71a9fd7f5fc1f3 -->
+<!-- source-sha256: e796a3d4dfdaaac0da3c534874cf6d201881411d53bd1ea5cff26ccb853b79aa -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make npm-install`은 임시 manifest 사본으로 설치하므로 프로젝트의 상대 file: 의존성을 프로젝트 폴더 기준 절대 경로로
+  npm에 주고, 설치 뒤에도 그 link가 풀린다(K448-12).
 - 체크아웃을 주지 않은 `make npm-install`은 각 형제 저장소의 루트뿐 아니라 패키지 폴더(packages/<x>)에서도 제공 패키지를
   찾으므로, npm ci를 실행하지 않고 template/packages/ts의 @polyspec/template을 link한다(K448-11).
 - K481: 생성된 Composer link manifest는 linked exact version을 caret range로 표현하고 각 path repository에는 provider의 실제 version을 유지하므로 tracked manifest를 바꾸지 않고 strict validation을 통과한다. real Composer test는 stale link lock과 일반 exact-version manifest warning이 계속 validation을 실패시키는 것을 증명한다 (K481).
