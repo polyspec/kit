@@ -332,3 +332,42 @@ test('npm install replaces the contents of a node_modules that it cannot remove 
   assert.equal(realpathSync(link), realpathSync(sibling), 'the link resolves to the sibling folder');
   assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), tracked, 'the tracked manifest is unchanged');
 });
+
+// K484: a package that only the lock names, transitively, with a release URL as its resolved entry, is linked from its sibling
+// checkout; npm ci never runs while the lock names a sibling-provided package (hyper tests/package-install). The tool is a local
+// folder, so no registry is queried.
+test('a transitive package named only by the lock, with a release URL, is linked from its sibling and npm ci never runs (K484)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-transitive-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sibling = path.join(root, 'template');
+  const tool = path.join(root, 'acme-tool');
+  const project = path.join(root, 'package-install');
+  for (const folder of [sibling, tool, project]) mkdirSync(folder, { recursive: true });
+  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/template', version: '0.0.11', main: 'index.js' }));
+  writeFileSync(path.join(sibling, 'index.js'), 'module.exports = 3;\n');
+  writeFileSync(path.join(tool, 'package.json'), JSON.stringify({ name: '@acme/tool', version: '1.0.0', main: 'index.js' }));
+  writeFileSync(path.join(tool, 'index.js'), 'module.exports = 4;\n');
+  const tracked = JSON.stringify({ name: 'pkg-install', version: '0.0.8', private: true, dependencies: { '@acme/tool': 'file:../acme-tool' } }, null, 2) + '\n';
+  writeFileSync(path.join(project, 'package.json'), tracked);
+  // The tool depends on @polyspec/template; the lock records template only as a transitive entry with a release URL.
+  const lock = {
+    name: 'pkg-install', version: '0.0.8', lockfileVersion: 3, requires: true,
+    packages: {
+      '': { name: 'pkg-install', version: '0.0.8', dependencies: { '@acme/tool': 'file:../acme-tool' } },
+      '../acme-tool': { name: '@acme/tool', version: '1.0.0', dependencies: { '@polyspec/template': '0.0.11' } },
+      'node_modules/@acme/tool': { resolved: '../acme-tool', link: true },
+      'node_modules/@polyspec/template': { version: '0.0.11', resolved: 'https://github.com/polyspec/template/releases/download/v0.0.11/polyspec-template-npm-0.0.11.tgz' },
+    },
+  };
+  writeFileSync(path.join(project, 'package-lock.json'), JSON.stringify(lock, null, 2) + '\n');
+  const trackedLock = readFileSync(path.join(project, 'package-lock.json'), 'utf8');
+  const lines: string[] = [];
+  const took = npmInstall({ directory: project, checkouts: [sibling], print: text => lines.push(text), env: process.env });
+  assert.equal(took, 'linked', lines.join('\n'));
+  assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), tracked, 'the tracked manifest is unchanged');
+  assert.equal(readFileSync(path.join(project, 'package-lock.json'), 'utf8'), trackedLock, 'the tracked lock is unchanged');
+  const link = path.join(project, 'node_modules/@polyspec/template');
+  assert.equal(lstatSync(link).isSymbolicLink(), true, 'the transitive package is a link to its sibling');
+  assert.equal(realpathSync(link), realpathSync(sibling));
+  assert.equal(lines.some(line => /npm ci of the tracked lock/.test(line)), false, 'npm ci never runs');
+});
