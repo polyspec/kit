@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bd9fd8c9b89041b6328797fe942582be86d46a9dd62e5fdb3394307933c3534e -->
+<!-- source-sha256: 4ae320d29bf72a44dab4e5514cd349c533967a38695ea24a288e72c2ce7293e8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K448-13: npm-install은 packages/ 아래 세 단계까지 형제 패키지를 찾으므로, 패키지를 packages/server/ts에 둔 저장소(hyper)가 그것을 제공하고 npm은 릴리스를 가져오지 않는다 (K448-13). Red: node --test --test-name-pattern=K448-13 tests/kit/npm-install.test.mts가 exit 1(링크되지 않고 npm ci가 가져옴); green: make item-test ID=K448-13 통과, npm-install 파일 10/10, lint-ts 통과. (K448-13).
 
 - PHP 애플리케이션 패키지(composer type project)는 S10 extension 실행 밖에 있고 test-php에서 자기 패키지로 test를 실행한다(K433).
 

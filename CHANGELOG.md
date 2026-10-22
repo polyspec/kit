@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K448-13: npm-install finds a sibling package up to three folders down under packages/, so a repository that keeps a package at packages/server/ts (hyper) provides it and npm never fetches the release (K448-13). Red: node --test --test-name-pattern=K448-13 tests/kit/npm-install.test.mts exit 1 (the package was not linked and npm ci fetched it); green: make item-test ID=K448-13 passes, the npm-install file passes 10 of 10, lint-ts passes. (K448-13).
+
 - A PHP application package (composer type project) is outside the S10 extension run and runs its own tests under test-php as its own package (K433).
 
 ### 2026-10-21 — worktree-setup rebuilds the packages before its link-state-check (K482)

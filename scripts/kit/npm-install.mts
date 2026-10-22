@@ -58,10 +58,22 @@ function danglingLinksIn(dir: string): string[] {
 
 /** The package folders that a repository root holds under packages/: each directory there with a package.json, sorted. */
 function packageFoldersOf(checkout: string): string[] {
+  // K448-13: a package may sit deeper than one folder under packages/ (hyper: packages/server/ts), so the folders are searched to a depth of
+  // three, not only the direct children; node_modules is never searched.
+  const found: string[] = [];
+  const visit = (folder: string, depth: number) => {
+    if (depth > 3) return;
+    for (const entry of readdirSync(folder).sort()) {
+      if (entry === 'node_modules') continue;
+      const child = path.join(folder, entry);
+      if (!lstatSync(child).isDirectory()) continue;
+      if (existsSync(path.join(child, 'package.json'))) found.push(child);
+      visit(child, depth + 1);
+    }
+  };
   const packages = path.join(checkout, 'packages');
-  if (!existsSync(packages) || !lstatSync(packages).isDirectory()) return [];
-  return readdirSync(packages).sort().map(entry => path.join(packages, entry))
-    .filter(folder => lstatSync(folder).isDirectory() && existsSync(path.join(folder, 'package.json')));
+  if (existsSync(packages) && lstatSync(packages).isDirectory()) visit(packages, 1);
+  return found;
 }
 
 /**

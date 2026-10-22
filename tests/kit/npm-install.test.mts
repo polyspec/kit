@@ -215,3 +215,26 @@ test('npm install keeps a relative file: dependency of the project resolving nex
   assert.equal(realpathSync(path.join(project, 'node_modules/app-lib')), realpathSync(lib), 'the relative file: dependency resolves to its folder');
   assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/ordered-json')), realpathSync(sibling), 'the sibling is linked');
 });
+
+// K448-13: a sibling repository keeps its npm packages under packages/ at any depth (hyper: packages/server/ts), so a repository root
+// provides them and the project links them, never a release fetch.
+test('npm install links a sibling package that sits two folders down under packages/, and fetches no release (K448-13)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-deep-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sibling = path.join(root, 'hyper');
+  const server = path.join(sibling, 'packages/server/ts');
+  const project = path.join(root, 'gui');
+  mkdirSync(server, { recursive: true });
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(server, 'package.json'), JSON.stringify({ name: '@polyspec/hyper-server', version: '0.0.17', main: 'index.js' }));
+  writeFileSync(path.join(server, 'index.js'), 'module.exports = 1;\n');
+  const tracked = JSON.stringify({ name: 'gui', version: '1.0.0', private: true, dependencies: { '@polyspec/hyper-server': 'https://example.invalid/polyspec-hyper-server-npm-0.0.17.tgz' } }, null, 2) + '\n';
+  writeFileSync(path.join(project, 'package.json'), tracked);
+  writeFileSync(path.join(project, 'package-lock.json'), '{"name":"gui","lockfileVersion":3,"requires":true,"packages":{}}\n');
+  const lines: string[] = [];
+  const took = npmInstall({ directory: project, checkouts: [sibling], print: text => lines.push(text), env: process.env });
+  assert.equal(took, 'linked', lines.join('\n'));
+  const link = path.join(project, 'node_modules/@polyspec/hyper-server');
+  assert.equal(lstatSync(link).isSymbolicLink(), true, 'the package is a link');
+  assert.equal(realpathSync(link), realpathSync(server), 'the link resolves to the package folder under packages/server/ts');
+});
