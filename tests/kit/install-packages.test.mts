@@ -19,4 +19,6 @@ test('install-packages of a checkout without kit.mk runs npm ci of its lock (K51
   const run = spawnSync('make', ['--no-print-directory', '-n', 'install-packages'], { cwd: root, encoding: 'utf8' });
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
   assert.match(run.stdout, /var\/tools\/bin\/npm ci\b/);
+  // The link is install-link's, after the tools and the steps of the repository; install-packages calls no target of kit.mk.
+  assert.doesNotMatch(run.stdout, /npm-install|link\.mjs/);
 });
