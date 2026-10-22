@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6d265fc56be162f8c763cccc90813a83575fbecc782f04bd7ac87edaaf928e57 -->
+<!-- source-sha256: f8aace676ec0b73f0d613fb1888e5c734771d2fed55e2a2980c8b2213ddf211c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K480: Python editable wheel은 named mapping과 함께 선언된 default package-dir로 해석되는 listed package를 허용하고 import root와 finder를 모두 보존하며 default 없이 mapping되지 않은 package는 계속 거부한다. Red: 수정 전 mixed-mapping 두 case가 missing-prefix 거부로 실패했다. Green: focused regression 세 개가 모두 통과했다 (K480).
 
 - K479: 생성된 Composer link requirement는 provider의 exact version을 사용하고, 없거나 잘못된 provider version을 거부하며 선언된 constraint와 tracked manifest를 보존한다. 선언되지 않은 package의 path repository도 오래된 tracked lock 대신 같은 provider version을 사용하며, fork는 충돌을 검증한 linked-provider의 exact pin을 유지한다 (K379-2). Red: focused regression은 `0.0.1` 대신 `*`를 보고했고, 최종 baseline 실행은 behavioral failure 7개를 기록했다. Green: K379-2를 포함한 focused K479 test 12개가 모두 통과했다 (K479).
 

@@ -860,7 +860,7 @@ function pythonWheel(folder: string): PythonWheel | string {
   // no listing of its own.
   const listed = declaredList(setuptools.packages).map(String);
   const prefixes = Object.keys(packageDir).filter(key => key !== '');
-  const unresolved = mappings.length ? listed.filter(name => !prefixes.some(prefix => name === prefix || name.startsWith(`${prefix}.`))) : [];
+  const unresolved = mappings.length && typeof packageDir[''] !== 'string' ? listed.filter(name => !prefixes.some(prefix => name === prefix || name.startsWith(`${prefix}.`))) : [];
   if (unresolved.length) return `${file} lists ${unresolved.join(', ')} in setuptools.packages, which no package-dir prefix maps`;
   const requires = declaredList(project.dependencies);
   if (!requires.every((item): item is string => typeof item === 'string')) return `${file} declares a dependency that is not a string`;

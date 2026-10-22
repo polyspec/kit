@@ -1806,3 +1806,39 @@ for (const block of ['require', 'require-dev']) {
     assert.equal(readFileSync(path.join(consumer, 'composer.json'), 'utf8'), before);
   });
 }
+
+
+for (const defaultRoot of ['src', '.']) {
+  test('K480: default package-dir ' + defaultRoot + ' coexists with named mappings', (t) => {
+    const { provider, consumer, env } = workspace(t);
+    put(provider, {
+      'packages/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\n[tool.setuptools]\npackage-dir = {"" = "' + defaultRoot + '", "special" = "custom"}\npackages = ["ordinary", "special.child"]\n',
+      ['packages/python/' + defaultRoot + '/ordinary/__init__.py']: 'VALUE = 1\n',
+      'packages/python/custom/child/__init__.py': 'VALUE = 2\n',
+    });
+    const folder = path.join(provider, 'packages/python');
+    const before = folderState(folder);
+    const { ok, text } = linkLines([consumer], env);
+    assert.equal(ok, true, text);
+    assert.match(text, /linked {5}python {3}polyspec-z -> /);
+    assert.deepEqual(folderState(folder), before);
+    const wheel = path.join(consumer, 'var/link/python/polyspec_z-0.0.1-py3-none-any.whl');
+    const pth = spawnSync('unzip', ['-p', wheel, '__editable__.polyspec_z.pth'], { encoding: 'utf8' });
+    assert.equal(pth.status, 0, pth.stderr);
+    assert.ok(pth.stdout.split('\n').includes(path.join(folder, defaultRoot)), pth.stdout);
+    assert.match(pth.stdout, /__editable___polyspec_z_finder/);
+    const finder = spawnSync('unzip', ['-p', wheel, '__editable___polyspec_z_finder.py'], { encoding: 'utf8' });
+    assert.equal(finder.status, 0, finder.stderr);
+    assert.ok(finder.stdout.includes(JSON.stringify(path.join(folder, 'custom'))), finder.stdout);
+  });
+}
+
+test('K480: a listed package without a default or matching named mapping is refused', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  put(provider, {
+    'packages/python/pyproject.toml': '[project]\nname = "polyspec_z"\nversion = "0.0.1"\n[tool.setuptools]\npackage-dir = {"special" = "custom"}\npackages = ["ordinary", "special.child"]\n',
+  });
+  const { text } = linkLines([consumer], env);
+  assert.match(text, /ordinary.*no package-dir prefix maps/);
+  assert.ok(!existsSync(path.join(consumer, 'var/link/python/polyspec_z-0.0.1-py3-none-any.whl')));
+});
