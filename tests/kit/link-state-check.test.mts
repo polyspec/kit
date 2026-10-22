@@ -7,7 +7,7 @@ import { chmodSync, mkdirSync, realpathSync, symlinkSync, utimesSync, writeFileS
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { rebuild } from '../../scripts/kit/link-build.mts';
-import { linkFindings, recipeFindings } from '../../scripts/kit/link-state-check.mts';
+import { linkFindings, lockSourceFindings, recipeFindings } from '../../scripts/kit/link-state-check.mts';
 import { put, tree } from './tree.mts';
 
 /** Commits every file of `root` (K453 tests: the build inputs of a provider are its tracked files). */
@@ -333,4 +333,17 @@ test('a linked npm provider whose build is stale is a finding that names the reb
   assert.deepEqual(finding(/is stale \(src\/x\.mjs is newer than dist\/x\.mjs\)/).length, 1, 'a changed source leaves the build stale');
   rebuild(provider, () => {});
   assert.deepEqual(linkFindings(consumer, process.env), [], 'the rebuilt provider passes again');
+});
+
+// K448 (K507): a tracked lock keeps the release record of each polyspec package that a sibling checkout provides; a file: entry that
+// names the release tarball is that record, and the repository's own packages (its workspace members, its in-repo path
+// repositories) are never findings, whatever their version.
+test('a release tarball entry and the repository own packages are no lock-source finding (K448)', () => {
+  const npmLock = (entries: Record<string, unknown>) => JSON.stringify({ name: 'c', lockfileVersion: 3, packages: { '': {}, ...entries } });
+  assert.deepEqual(lockSourceFindings('tests/release-consumer/npm/package-lock.json', npmLock({ 'node_modules/@polyspec/kit': { version: '0.0.54', resolved: 'file:polyspec-kit-npm-0.0.54.tgz' } })), [], 'the release tarball is the release record');
+  assert.equal(lockSourceFindings('package-lock.json', npmLock({ 'node_modules/@polyspec/kit': { version: '0.0.54', resolved: 'file:../kit' } })).length, 1, 'a file: folder of a provided package is a finding');
+  const own = new Set(['@polyspec/hyper-build', 'polyspec/hyper-server']);
+  assert.deepEqual(lockSourceFindings('package-lock.json', npmLock({ 'node_modules/@polyspec/hyper-build': { link: true, resolved: 'packages/build' } }), own), [], 'an own workspace member is no finding');
+  const composerLock = JSON.stringify({ packages: [{ name: 'polyspec/hyper-server', version: '0.0.18', dist: { type: 'path', url: 'packages/server/php' } }] });
+  assert.deepEqual(lockSourceFindings('composer.lock', composerLock, own), [], 'an own in-repo path repository is no finding');
 });

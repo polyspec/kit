@@ -1963,3 +1963,24 @@ test('composer-install takes the checkouts after DIR and runs the install with t
   assert.equal(outcome.status, 0, outcome.stderr);
   assert.match(readFileSync(log, 'utf8'), /composer install/);
 });
+
+// K448: the link is the folder. Each installed polyspec package folder that a sibling checkout provides becomes a direct symlink to
+// the provider's package folder, a copy is removed, and no package manager runs: no composer.link.json, no npm, no Composer, so no
+// version, constraint or provider version is read.
+test('link replaces each installed polyspec package folder with a direct symlink to its provider and runs no package manager (K448)', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }) });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'vendor dir');
+  writeFileSync(path.join(consumer, '..', 'tools.log'), '');
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  const vendor = path.join(consumer, 'var/contracts/vendor/polyspec/y');
+  assert.equal(lstatSync(vendor).isSymbolicLink(), true, 'vendor/polyspec/y is a link');
+  assert.equal(realpathSync(vendor), realpathSync(path.join(provider, 'packages/php')));
+  const npm = path.join(consumer, 'node_modules/@polyspec/x');
+  assert.equal(lstatSync(npm).isSymbolicLink(), true, 'node_modules/@polyspec/x is a link');
+  assert.equal(realpathSync(npm), realpathSync(path.join(provider, 'packages/ts')));
+  assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no Composer link manifest is written');
+  assert.doesNotMatch(log(), /^(composer|npm) /m, 'no package manager runs');
+});
