@@ -7,9 +7,7 @@ import { existsSync, lstatSync, mkdirSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { readJsonObject } from './bootstrap/files.mts';
 import { isMain } from './paths.mts';
-import { declaredFor } from './polyspec-lock-check.mts';
 import { checkoutProviders, linkFolders, providedFolders } from './link-folders.mts';
-import { workTreeOf } from './link-providers.mts';
 
 const SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
@@ -29,8 +27,8 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     const value = manifest[section];
     return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.fromEntries(Object.entries(value)) : {};
   };
-  // The packages that config/polyspec.json declares for the project are declared too (K468): the tracked manifest names none.
-  const declared = new Set([...SECTIONS.flatMap(section => Object.keys(sectionOf(section))), ...declaredFor(workTreeOf(project), 'npm', project)]);
+  // The packages that the manifest declares, whose releases the tracked lock records (K507, K515).
+  const declared = new Set(SECTIONS.flatMap(section => Object.keys(sectionOf(section))));
   // A checkout that the caller names is a package folder or a repository root (K494): a root holds its npm packages under packages/, which
   // the kit finds itself; a checkout that provides no npm package provides none (K494-1); a named entry that is no directory is refused.
   for (const checkout of [...(explicit ? checkouts : []), ...added]) {

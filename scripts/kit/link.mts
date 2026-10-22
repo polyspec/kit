@@ -28,7 +28,6 @@ import { rebuild } from './link-build.mts';
 import { folderFindings, linkFolders, providedFolders } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
-import { declaredFor as declaredIn } from './polyspec-lock-check.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain } from './paths.mts';
 import { errorCode, execute, run } from './process.mts';
@@ -193,7 +192,6 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
     if (!chosen) continue;
     const entry = found.get(chosen.vendor) ?? { project: chosen.project, installed: chosen.installed, declared: new Set<string>() };
     for (const name of declaredComposer(file)) entry.declared.add(name);
-    for (const name of declaredIn(consumer.top, 'composer', entry.project)) entry.declared.add(name);
     found.set(chosen.vendor, entry);
   }
   return [...found].map(([vendor, entry]) => ({ project: entry.project, vendor, installed: entry.installed, declared: [...entry.declared].sort() }));
@@ -291,9 +289,9 @@ function requirementNames(list: readonly unknown[]): string[] {
 }
 
 /** The normalized polyspec requirements of the pyproject `file`: dependencies, extras and dependency groups (PEP 508, PEP 735). */
-/** The polyspec packages of the pyproject `file` of the repository `top`: those that the file names and those that config/polyspec.json declares for its folder (K468). */
-function declaredPython(top: string, file: string): string[] {
-  return [...new Set([...manifestPython(file), ...declaredIn(top, 'python', path.dirname(file))])];
+/** The polyspec packages of the pyproject `file`: those that it names, whose releases its lock records (K507, K515). */
+function declaredPython(file: string): string[] {
+  return manifestPython(file);
 }
 
 /** The names that the pyproject `file` requires, of every polyspec and other package, in its dependencies and dependency groups. */
@@ -463,8 +461,8 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
 export function packages(directory: string, ecosystem: 'python' | 'npm'): string[] {
   const consumer = consumerOf(directory);
   const names = ecosystem === 'python'
-    ? consumer.manifests('python').flatMap(file => declaredPython(consumer.top, file))
-    : consumer.manifests('npm').flatMap(file => [...declaredNpm(file), ...declaredIn(consumer.top, 'npm', path.dirname(file))]);
+    ? consumer.manifests('python').flatMap(file => declaredPython(file))
+    : consumer.manifests('npm').flatMap(file => declaredNpm(file));
   return [...new Set(names)].sort();
 }
 
@@ -491,7 +489,7 @@ export function unlink({ directories, print, env = process.env, project = false 
         print(`  restored   composer ${project}`);
       }
     }
-    const pythonFiles = consumer.manifests('python').filter(file => declaredPython(consumer.top, file).length);
+    const pythonFiles = consumer.manifests('python').filter(file => declaredPython(file).length);
     if (pythonFiles.length) {
       const uv = consumerTool(consumer.top, 'uv', env);
       for (const file of pythonFiles) {
@@ -502,10 +500,8 @@ export function unlink({ directories, print, env = process.env, project = false 
           // their editables; a linked package that the lock does not hold has no locked release to restore.
           const lock = pylockOf(target.workspace);
           if (lock === undefined) { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
-          const { pins, missing } = pylockReleases(lock, declaredPython(consumer.top, file));
-          // A package that config/polyspec.json declares has no locked release by design (K468), so it is not a restore that is skipped.
-          const configured = new Set(declaredIn(consumer.top, 'python', path.dirname(file)).map(normalizeName));
-          for (const name of missing.filter(item => !configured.has(normalizeName(item)))) skip(`python ${path.dirname(file)}: ${name} is not held by ${path.basename(lock)}, not restorable`);
+          const { pins, missing } = pylockReleases(lock, declaredPython(file));
+          for (const name of missing) skip(`python ${path.dirname(file)}: ${name} is not held by ${path.basename(lock)}, not restorable`);
           if (pins.length) {
             run(uv.command, ['pip', 'install', '--python', path.join(target.venv, 'bin/python'), ...pins.map(pin => pin.requirement), ...pins.flatMap(pin => ['--reinstall-package', pin.name])], { cwd: target.workspace, env: uv.env });
             print(`  restored   python   ${target.venv}`);
@@ -515,7 +511,7 @@ export function unlink({ directories, print, env = process.env, project = false 
         // The restore selects every group, as the consumer's install does (K238): uv reinstalls only the packages that a sync
         // selects, so a polyspec package of the test group is reinstalled at its locked release only with --all-groups.
         // --inexact keeps every other package (K237).
-        syncPython(uv, target, '--all-groups', '--inexact', ...declaredPython(consumer.top, file).flatMap(name => ['--reinstall-package', name]));
+        syncPython(uv, target, '--all-groups', '--inexact', ...declaredPython(file).flatMap(name => ['--reinstall-package', name]));
         print(`  restored   python   ${target.venv}`);
       }
     }

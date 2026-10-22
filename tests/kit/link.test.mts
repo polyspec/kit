@@ -199,8 +199,8 @@ test('K205: link links the checkouts that it is given with no environment variab
   };
   // Before the package is installed there is no Go, so install-packages must not link: only npm ci.
   const packages = recipeOf('install-packages').join('\n');
-  // The npm install is npm-install (K448-8), which runs npm ci of the lock in the project (K500).
-  assert.match(packages, /\$\(MAKE\) --no-print-directory npm-install DIR=\./);
+  // install-packages installs the tracked lock with npm ci, the release record, and links nothing (K511).
+  assert.match(packages, /\$\(ONLINE\) \$\(NPM\) ci/);
   assert.match(readFileSync(path.join(KIT, 'scripts/kit/npm-install.mts'), 'utf8'), /spawnSync\(npm, \['ci'/, 'npm-install runs npm ci');
   assert.doesNotMatch(packages, /link/);
   // install-kit installs only; the recipe of install links, after all its prerequisites, the steps of the repository included.

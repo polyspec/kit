@@ -26,13 +26,12 @@ test('kit vendors the gates workflow to .github/workflows/gates.yml of every rep
   assert.match(read('package.json'), /"\.github\/workflows\/gates\.yml": "workflows\/gates\.yml"/);
 });
 
-test('K473: the gates workflow clones, beside the project, each repository that config/polyspec.json declares, at its default branch, before install', () => {
+test('K473: the gates workflow clones, beside the project, each sibling repository at its default branch, before install', () => {
   const workflow = read('workflows/gates.yml');
   const step = /^      - name: sibling checkouts\n([\s\S]*?)(?=^      - name: )/m.exec(workflow);
-  assert.ok(step, 'a step named sibling checkouts clones the declared repositories');
-  assert.match(step[1] ?? '', /config\/polyspec\.json/, 'the step reads the declarations');
-  assert.match(step[1] ?? '', /git clone --depth 1 "https:\/\/github\.com\/\$repository\.git"/, 'a clone without a branch takes the default branch');
-  assert.match(step[1] ?? '', /\.\.\/\$\{repository#\*\/\}/, 'each clone lies beside the project, where link reads it');
+  assert.ok(step, 'a step named sibling checkouts clones the sibling repositories');
+  assert.match(step[1] ?? '', /git clone --depth 1 "https:\/\/github\.com\/polyspec\/\$repository\.git"/, 'a clone without a branch takes the default branch');
+  assert.match(step[1] ?? '', /"\.\.\/\$repository"/, 'each clone lies beside the project, where link reads it');
   assert.ok(workflow.indexOf('      - name: sibling checkouts\n') < workflow.indexOf('      - name: install\n'), 'the siblings are cloned before install, which links them');
 });
 
@@ -73,7 +72,7 @@ test('K515: the sibling checkouts step clones each github.com/polyspec repositor
   const workflow = read('workflows/gates.yml');
   const step = /^      - name: sibling checkouts\n([\s\S]*?)(?=^      - name: )/m.exec(workflow);
   assert.ok(step, 'a step named sibling checkouts');
-  const script = /node -e '([\s\S]*?)'\n/.exec(step[1] ?? '');
+  const script = /node -e '([\s\S]*?)'\)/.exec(step[1] ?? '');
   assert.ok(script, 'the step lists the repositories with node');
   const root = mkdtempSync(path.join(tmpdir(), 'kit-siblings-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
