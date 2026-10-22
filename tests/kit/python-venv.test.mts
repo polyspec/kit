@@ -66,6 +66,12 @@ test('makeVenv names the missing uv or Python and the install that provides it',
   writeFileSync(path.join(root, 'var/tools/mise/shims/uv'), '#!/bin/sh\nexit 1\n');
   chmodSync(path.join(root, 'var/tools/mise/shims/uv'), 0o755);
   assert.throws(() => makeVenv({ root, directory }), /var\/tools\/mise\/shims\/python3 is missing; declare python in mise\.toml and run make install-tools/);
+  // With only the Python there, the message names uv, which is the tool that is missing (K535).
+  const other = tree(t);
+  mkdirSync(path.join(other, 'var/tools/mise/shims'), { recursive: true });
+  writeFileSync(path.join(other, 'var/tools/mise/shims/python3'), '#!/bin/sh\nexit 1\n');
+  chmodSync(path.join(other, 'var/tools/mise/shims/python3'), 0o755);
+  assert.throws(() => makeVenv({ root: other, directory: path.join(other, 'pkg/.venv') }), /var\/tools\/mise\/shims\/uv is missing; declare uv in mise\.toml and run make install-tools/);
 });
 
 test('makeVenv refuses an existing directory that is not a venv of the checkout Python, and changes nothing', (t) => {

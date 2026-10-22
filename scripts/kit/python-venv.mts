@@ -15,7 +15,7 @@ import { existsSync, lstatSync, readFileSync, realpathSync, rmSync } from 'node:
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
-import { SHIMS, toolCommand, toolsEnvironment } from './mise-tools.mts';
+import { SHIMS, shimsPath, toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { present } from './present.mts';
 
 const MAKE = (directory: string): string => `make it from the checkout Python, with make python-venv DIR=${directory} or ${SHIMS}/uv venv --python ${SHIMS}/python3 ${directory}`;
@@ -72,11 +72,15 @@ export function existingVenvProblem(directory: string, root: string = repository
  */
 export function makeVenv({ root = repositoryRoot(), directory, env = process.env, print = () => {} }: { root?: string; directory: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void }): void {
   const relative = path.relative(root, directory);
-  const python = toolCommand(root, 'python3');
-  const uv = toolCommand(root, 'uv');
-  for (const [file, tool] of [[uv, 'uv'], [python, 'python']] satisfies [string, string][]) {
-    if (!existsSync(file)) throw new Error(`${path.relative(root, file)} is missing; declare ${tool} in mise.toml and run make install-tools`);
+  // Each tool is checked before toolCommand resolves it, so the message names the tool that is missing and the declaration that
+  // installs it: uv first, then the Python of mise.toml.
+  for (const [name, tool] of [['uv', 'uv'], ['python3', 'python']] satisfies [string, string][]) {
+    if (!existsSync(toolsPath(root, 'bin', name)) && !existsSync(shimsPath(root, name))) {
+      throw new Error(`${path.relative(root, shimsPath(root, name))} is missing; declare ${tool} in mise.toml and run make install-tools`);
+    }
   }
+  const uv = toolCommand(root, 'uv');
+  const python = toolCommand(root, 'python3');
   if (lstatSync(directory, { throwIfNoEntry: false }) !== undefined) {
     const problem = existingVenvProblem(directory, root, env);
     if (problem) throw new Error(`${relative} exists and is not a venv of the checkout Python: ${problem}; it is neither removed nor repaired`);
