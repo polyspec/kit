@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e451e29e02a4fcfcb4bf236b5690a1e4f9d6039e9847482731d1706d40291d3b -->
+<!-- source-sha256: 2e6b10d4f1c0ec2578643def9f822f836bb3d0857945155a0dd2a3e1484bc1af -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 문장 없는 catch는 lint를 통과하지 못한다. lint-ts는 catch-check(oxc-parser)를 돌려, oxlint no-empty가 주석이 있으면 통과시키는 문장 없는 catch 절과 .catch callback을 거부하고, lint-rust는 catch-check-rust(package의 syn crate, offline 빌드)를 돌려 clippy가 lint하지 않는 그런 Err(..) arm과 `if let Err(..)` branch를 거부한다. Python, PHP, Go는 ruff S110, phpcs EmptyStatement, staticcheck SA9003이 이미 다룬다(K537).
 - owner-validate은 kit이 내보내는 owner 규칙의 glob을 consumer의 경로에 대해 확인하지 않는다. consumer는 commit하는 hook처럼 그 일부만 가지기 때문이다(K542).
 - link와 uv-install은 각 uv 설치 전에 Python 환경의 패키지 link를 지우므로, uv가 link를 통해 provider checkout에 쓰지 않는다(K539).
 - make item-red BEFORE=는 swap이 build 입력을 바꾸면 BEFORE에서 저장소를 build하고 복원 뒤 다시 build하므로, build를 import하는 테스트가 red를 증명한다(K525).
