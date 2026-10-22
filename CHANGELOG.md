@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit-check verifies that the owner rules select, for each source path of a language whose lint is a gate of kit-gates, that lint and duplication-check, so land lints what it lands (K534).
 - worktree-setup gives a worktree every npm project and Python environment that the main checkout installed, linked to the main checkout's with the repository's own sources from the worktree (K533).
 - makeVenv names the missing uv or Python of the checkout and the install that provides it again: it checks uv, then python3, before it resolves them, so the check of K393-1 no longer hides the message (K535).
 - land waits for the exit of each make it runs, not for the close of its output, and stops a run past its deadline of 30 minutes with the target named (K531).
