@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- link-state-check accepts the mise trust of the main checkout in a linked worktree, treats a branch whose worktree has uncommitted changes as in use, and judges in a linked worktree only its own branch (K532).
 - kit-check verifies that the owner rules select, for each source path of a language whose lint is a gate of kit-gates, that lint and duplication-check, so land lints what it lands (K534).
 - worktree-setup gives a worktree every npm project and Python environment that the main checkout installed, linked to the main checkout's with the repository's own sources from the worktree (K533).
 - makeVenv names the missing uv or Python of the checkout and the install that provides it again: it checks uv, then python3, before it resolves them, so the check of K393-1 no longer hides the message (K535).

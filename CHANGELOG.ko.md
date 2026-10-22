@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5cfa4cee8c658707e6e692e858faa8b6bf029f592e745fe69df59f385112a0e5 -->
+<!-- source-sha256: 0f86a51a7a22766b03613344b528266c1bc75c31b96a7017a55a7071ecb89705 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- link-state-check은 linked worktree에서 main checkout의 mise trust를 받아들이고, worktree에 commit되지 않은 변경이 있는 branch를 사용 중으로 보며, linked worktree에서는 자기 branch만 판정한다(K532).
 - kit-check은 owner 규칙이 lint가 kit-gates의 gate인 언어의 각 source 경로에 그 lint와 duplication-check를 선택하는지 확인하므로, land가 들이는 것을 lint한다(K534).
 - worktree-setup은 main checkout이 설치한 모든 npm 프로젝트와 Python 환경을 worktree에 주되, main checkout의 것으로 link하고 저장소 자기 source는 worktree에서 쓴다(K533).
 - makeVenv가 checkout에 없는 uv나 Python과 그것을 설치하는 방법을 다시 알린다. 도구를 찾기 전에 uv, 그다음 python3를 검사하므로 K393-1의 검사가 그 메시지를 가리지 않는다(K535).
