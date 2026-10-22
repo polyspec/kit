@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `link --project <dir> --siblings` and `check --project <dir> --siblings` write and check the claude-hook entry of a consumer that has no polyspec checkout beside it, before the early return that the link and check take then (K498-4).
 - `make commit` on main reads the rows of HEAD whatever the size of the checklist, so a state change of orm's checklist (over 1 MB) is no new row, and a checklist of HEAD that git cannot read fails the commit with its cause (K499-1).
 - K452-1 is closed (K452-1): the probe of each PHP extension is committed and verified on the committed tree.
 - K452-1 is done (K452-1): each PHP extension is probed before the run starts, and one that does not load fails naming its path and the running PHP.

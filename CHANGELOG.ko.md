@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 17b351a47c4158f85e02b57da9cc557601ea5dea09f30989723bbe8fc6f126d8 -->
+<!-- source-sha256: d45f8985f27a868254e2f89df040d44e478f671687e320abc21d4078ec59c3ad -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `link --project <dir> --siblings`와 `check --project <dir> --siblings`는 옆에 polyspec checkout이 없는 consumer의 claude-hook 항목을 early return 전에 쓰고 검사한다(K498-4).
 - main의 `make commit`은 checklist의 크기와 상관없이 HEAD의 행을 읽으므로 orm의 checklist(1MB 초과)의 상태 변경은 새 행이 아니며, git이 읽지 못하는 HEAD의 checklist는 원인과 함께 commit을 실패시킨다(K499-1).
 - K452-1를 닫는다 (K452-1): 확장 검사가 커밋되었고 커밋된 트리에서 검증되었다.
 - K452-1를 마친다 (K452-1): 실행 시작 전에 각 PHP 확장을 검사하고, 로드되지 않는 것은 경로와 실행 중인 PHP를 이름으로 대며 실패한다.

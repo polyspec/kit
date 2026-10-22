@@ -65,11 +65,15 @@ test('projectHookFindings names the file while it lacks the hook, and passes aft
 });
 
 // K506: the hook entry is written before the packages are linked, whatever their result, so a checkout without installs gets it.
-test('link --project writes the hook entry even when a polyspec package has no provider and the link fails (K506)', (t) => {
+// K448 links only the packages that a sibling checkout provides, so a package without a provider is not a failure; the failure that
+// remains is a provider that is not a main checkout.
+test('link --project writes the hook entry even when a provider is not a main checkout and the link fails (K506)', (t) => {
   const project = consumer(t);
-  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true, dependencies: { '@polyspec/x': '0.0.1' } }));
-  const result = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--project', project], { encoding: 'utf8' });
-  assert.notEqual(result.status, 0, 'the link fails for the package without a provider');
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+  const provider = path.join(path.dirname(project), 'not-a-checkout');
+  mkdirSync(provider);
+  const result = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--project', project, provider], { encoding: 'utf8' });
+  assert.notEqual(result.status, 0, 'the link fails for a provider that is not a main checkout');
   assert.deepEqual(readJsonObject(project, '.claude/settings.local.json'), { hooks: { PreToolUse: [entry] } });
 });
 
@@ -91,4 +95,22 @@ test('a consumer written by the link passes the check when the check runs under 
   const check = spawnSync(kitNode, [link, 'check', '--project', project], { encoding: 'utf8' });
   const hookFindings = `${check.stdout}${check.stderr}`.split('\n').filter(line => line.includes('claude-hook'));
   assert.deepEqual(hookFindings, [], `the check under the toolchain node reports the written entry as differing: ${hookFindings.join(' | ')}`);
+});
+
+// K498-4: the hook entry is written and checked with --siblings too, when no polyspec checkout lies beside the consumer (K506).
+test('link --project --siblings writes the hook entry when no polyspec checkout lies beside the consumer (K498-4)', (t) => {
+  const project = consumer(t);
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+  const result = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--project', project, '--siblings'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, `the link with no sibling exits 0: ${result.stdout}${result.stderr}`);
+  assert.deepEqual(readJsonObject(project, '.claude/settings.local.json'), { hooks: { PreToolUse: [entry] } });
+});
+
+test('check --project --siblings reports a missing hook entry and exits with a failure when no polyspec checkout lies beside the consumer (K498-4)', (t) => {
+  const project = consumer(t);
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+  const file = path.join(project, '.claude/settings.local.json');
+  const result = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'check', '--project', project, '--siblings'], { encoding: 'utf8' });
+  assert.notEqual(result.status, 0, 'the check fails while the entry is missing');
+  assert.ok(`${result.stdout}${result.stderr}`.includes(file) && /make link/.test(`${result.stdout}${result.stderr}`), `the finding names the file: ${result.stdout}${result.stderr}`);
 });

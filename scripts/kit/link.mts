@@ -760,23 +760,25 @@ if (isMain(import.meta.url)) {
     const siblings = withoutProject.includes('--siblings');
     const positional = withoutProject.filter(argument => argument !== '--siblings');
     const directories = [projectDirectory ?? '.'];
+    // K498, K506: a consumer named by --project gets the claude-hook of the running kit before the packages are linked, whatever
+    // their result, and check reads that entry; both run before the early return below, which a checkout without a polyspec sibling takes.
+    if (projectDirectory !== undefined && command === 'link') writeProjectHook(projectDirectory);
+    const hookFindings = projectDirectory !== undefined && command === 'check' ? projectHookFindings(projectDirectory) : [];
     if (siblings && (command === 'link' || command === 'check')) {
       const found = siblingCheckouts(projectDirectory ?? '.');
       for (const folder of found.skipped) print(`skipped ${folder}: no main checkout of a polyspec repository, whose origin is github.com/polyspec/<its folder>`);
       positional.push(...found.checkouts);
       if (positional.length === 0) {
         print(`no polyspec checkout beside ${workTreeOf(projectDirectory ?? '.')}: nothing is linked and the installs stay the released packages`);
-        process.exit(0);
+        for (const finding of hookFindings) print(finding);
+        process.exit(hookFindings.length === 0 ? 0 : 1);
       }
     }
     switch (command) {
       case 'link': case 'check':
-        // K498, K506: a consumer named by --project loads the claude-hook of the running kit through its untracked settings file. The
-        // hook does not depend on the packages, so it is written before they are linked, and whatever their result (the exit status is theirs).
-        if (projectDirectory !== undefined && command === 'link') writeProjectHook(projectDirectory);
         if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined })) process.exitCode = 1;
         else if (command === 'link' && siblings) writeWorkspaceHook(workspaceOf(projectDirectory ?? '.'));
-        if (projectDirectory !== undefined && command === 'check') for (const finding of projectHookFindings(projectDirectory)) { print(finding); process.exitCode = 1; }
+        for (const finding of hookFindings) { print(finding); process.exitCode = 1; }
         break;
       case 'unlink':
         if (!unlink({ directories, print, project: projectDirectory !== undefined })) process.exitCode = 1;
