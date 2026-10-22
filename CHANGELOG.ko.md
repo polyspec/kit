@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 60b9d9bc90dfb20e616ced41f9531eb68356e517f99b5924e7e0822e1df15061 -->
+<!-- source-sha256: 36b588f5e1484bb2165672b0a73dab35e5eeaaf3a71ba1d19dc1456ba6607e98 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make worktree-setup은 worktree의 각 Composer 프로젝트에 main checkout의 패키지로 link한 vendor 폴더와 자기 autoload를 주므로, 저장소 자신의 class가 worktree에서 로드된다(K521).
 - docs/spec이 두 번 정의한 요구사항은 범위 실행을 포함한 모든 parity 선언 검사를 실패시키고, finding은 두 정의의 파일과 줄을 이름 붙인다(K520).
 - uv-install, link, link-state-check는 checkout이 가리키는 uv workspace root의 member를 Python provider에 포함하므로, 설치된 member가 link된다(K518).
 - unit으로 범위를 정한 parity 검사는 schema를 어기는 unit을 빼고 이름을 밝힌 뒤 나머지에 규칙을 실행하므로, 범위 실행이 실행 없이 통과하지 않는다(K517).

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- make worktree-setup gives each Composer project of a worktree a vendor folder of links to the main checkout's packages and an autoload of its own, so the repository's own classes load from the worktree (K521).
 - A requirement that docs/spec defines twice fails every parity declarations check, scoped runs included, and the finding names the file and line of both definitions (K520).
 - uv-install, link and link-state-check take the members of a uv workspace root that a checkout names among its Python providers, so an installed member is linked (K518).
 - A parity check scoped to units leaves out the units that break the schema, names them and runs its rules on the rest, so a scoped run never passes without running (K517).
