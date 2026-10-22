@@ -131,7 +131,7 @@ file, which `rustup` reads; CI's `setup-node` reads the node of `mise.toml` only
 ### Pins, floors and exceptions (K78)
 
 kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), which the build copies into `dist` beside
-`toolchain-pins.mts`: Node.js 26.12.0, Python 3.14, PHP 8.4, Go 1.27.2, Rust 1.99.0 and TypeScript 7.0.2. Whichever tools
+`toolchain-pins.mts`: Node.js 26.12.0, Python 3.14, PHP 8.4, Go 1.27.3, Rust 1.99.0 and TypeScript 7.0.2. Whichever tools
 `toolchain-check` runs, it fails on each declaration and each manifest floor that is not the pin at the pin's precision
 (`toolchain-floors.mts`, over the files of `checkedFiles`, without the tool environments that mise writes in `.mise`). The
 pins hold versions only; the digests are those of `mise.lock`. Each pin has one source: kit ships the pins, and the

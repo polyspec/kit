@@ -380,3 +380,9 @@ test('toolchain-check refuses php-fpm and php-cgi from PATH, and install-php wra
   assert.match(findings({ 'run.sh': 'set -e\nphp-fpm -y fpm.conf\n' })[0] ?? '', /^run\.sh:2 starts php-fpm/);
   assert.deepEqual(findings({ 'Makefile': 'all:\n\t$(PHP_FPM) -y fpm.conf\n\tvar/tools/bin/php-fpm -y fpm.conf\n' }), []);
 });
+
+// K492: the kit Go pin is the release that fixes GO-2026-6809 (crypto/x509 distrusts compromised intermediate certificates); the copies
+// that kit syncs to the repositories follow this pin, so a pin of go1.27.2 stays the advisory.
+test('the kit Go pin is go1.27.3, the release without the advisory GO-2026-6809 (K492)', () => {
+  assert.equal(PINS.go, '1.27.3');
+});

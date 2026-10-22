@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 0d8aab9e15d1023e5aaa44c260f0c768acf05f07754c048689e6e8d4f042da19 -->
+<!-- source-sha256: 9f10d95e54fece37d061166e8dca8443250b1711f5b5fc13f8eb14ea2a1eb4ae -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -399,3 +399,4 @@
 | K499 | item 등록은 main을 staged 상태로 남기지 않는다: 등록은 그 row를 한 단계로 commit하거나 branch에서 이루어지며, `make land`와 `make commit`은 main에 staged된 새 item의 checklist row를 거부한다. 원인: K497 row가 main에 staged된 채 다른 agent가 land하여 그 land가 막혔고 index를 수동으로 되돌려야 했다. 완료 기준: `make commit`은 main에 staged된 새 row를 거부하며 branch 경로를 이름으로 든다. branch에서 commit된 등록은 `make land`로 land된다. 빨강 fixture: main에 staged된 새 row는 `make commit`이 거부한다. | scripts/kit/plan.mts, scripts/kit/land.mts, tests/kit/plan.test.mts | `node --test --test-name-pattern=K499 tests/kit/plan.test.mts` | [ ] |
 | K478 | polyspec-lock-check는 link의 ownership discovery를 재사용해 현재 repository 자체 workspace가 실제 제공하는 polyspec package name만 제외하고, 외부 sibling package는 계속 finding으로 보고한다 | scripts/kit/polyspec-lock-check.mts, tests/kit/polyspec-lock.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K478 -- tests/kit/polyspec-lock.test.mts` | [o] |
 | K478-1 | tracked package manifest symlink의 대상이 현재 repository 밖이면 locked external 0.0.x polyspec package에 자체 workspace 면제를 부여하지 않는다 | scripts/kit/polyspec-lock-check.mts, tests/kit/polyspec-lock.test.mts | `node scripts/kit/run-tests.mts node --test-name-pattern=K478-1 -- tests/kit/polyspec-lock.test.mts` | [o] |
+| K492 | kit의 Go 핀은 GO-2026-6809(crypto/x509가 침해된 중간 인증서를 불신)를 고친 릴리스 go1.27.3이다; kit이 저장소로 동기화하는 사본은 더 이상 그 advisory가 있는 stdlib v1.27.2를 고정하지 않는다 (orm KSTD-5-27과 fsm S-55가 이것으로 닫힌다) | mise.toml, mise.lock | `node --test --test-name-pattern=K492 tests/kit/check-toolchain.test.mts` | [o] |

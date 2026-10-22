@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 39cbaf8a920db479a5a82047ad6daf5e0bd6c41deebc0bd1388155bbe53f29d9 -->
+<!-- source-sha256: ed4a842adda1e8e71f7265310706586a99cfdb313885825813d3a30930809016 -->
 
 # 도구 목록
 
@@ -129,7 +129,7 @@ Composer dependency는 택하지 않았습니다. gen_stub.php는 자기 PHP와 
 ### Pin, 하한, 예외(K78)
 
 kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아 배포하며(S4), build가 이를 `dist`의
-`toolchain-pins.mts` 옆에 복사합니다. Node.js 26.12.0, Python 3.14, PHP 8.4, Go 1.27.2, Rust 1.99.0, TypeScript 7.0.2입니다.
+`toolchain-pins.mts` 옆에 복사합니다. Node.js 26.12.0, Python 3.14, PHP 8.4, Go 1.27.3, Rust 1.99.0, TypeScript 7.0.2입니다.
 `toolchain-check`는 어떤 도구를 실행하든, pin 정밀도에서 pin과 다른 선언과 manifest 하한마다 실패합니다
 (`toolchain-floors.mts`, `checkedFiles`의 파일 대상, mise가 `.mise`에 쓰는 도구 환경은 제외). pin은 version만 담고,
 digest는 `mise.lock`의 것입니다. pin마다 출처는 하나입니다. kit이 pin을 배포하고, kit을 포함한 모든 checkout의 `mise.toml`은
