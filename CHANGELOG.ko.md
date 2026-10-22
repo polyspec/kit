@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4bf87d0eccbf3ff46df32e27f0e8ecd1867fc8c89b805d2e25152359f185f6e6 -->
+<!-- source-sha256: 6dfc25babd0e65db3892f7df622d9939fee91a2f57f74f4c6be225806dfc9294 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -15,6 +15,7 @@
 
 ### 2026-10-21 — worktree-setup이 link-state-check 전에 패키지를 빌드한다 (K482)
 
+- `make uv-install DIR=<project> CHECKOUTS="<checkout>..."`은 consumer의 uv 환경을 uv sync 대신 설치한다. checkout이 제공하는 polyspec 패키지는 sync에서 제외되고 그 checkout의 editable link로 설치되므로 polyspec release는 설치되지 않으며, checkout이 없는 선언된 polyspec 패키지는 uv를 실행하기 전에 거부된다(K448-3). Red: 428ec1f7에서 `node --test --test-name-pattern=K448-3 tests/kit/uv-install.test.mts`가 "does not provide an export named 'uvInstall'"로 실패했다.
 - K439-5: composer-provider-entries는 Composer writer가 path repository에 쓰지 않는 source와 notification-url을 tracked lock 항목에서 보존하므로, provider 항목은 기록된 release source를 유지한다 (K439-5). Red: node --test --test-name-pattern=K439-5 tests/kit/dependency-review.test.mts가 exit 1(source 소실); green: make 아래에서 파일 30개 통과, K439-5 포함, lint-ts 통과. (K439-5).
 - `scripts/kit/worktree-setup.mts`가 `make install` 뒤, `make link-state-check` 앞에 worktree의 link rebuild(`link rebuild .`, K482)를 실행하므로 새 worktree가 빌드되어 오래됨으로 보고되지 않는다 (K482). rebuild는 worktree가 가진 link 도구를 쓴다: kit 자신의 `scripts/kit/link.mts`, 또는 소비자의 설치된 `node_modules/@polyspec/kit/dist/link.mjs`. K348 fixture에는 소비자 도구를 넣었다. Red: `node --test --test-name-pattern=K482 tests/kit/worktree-setup.test.mts`가 9f7954d54d16에서 수정 전 실패(rebuild 없음, 검사가 빌드를 읽음); green: 통과, `tests/kit/worktree-setup.test.mts` 전체도 통과.
 - commit-msg 검사는 code, test, script나 recipe를 스테이징한 docs나 chore commit을 경로와 함께 거부하므로, 수정은 자기 type으로 커밋한다(K449).

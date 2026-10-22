@@ -631,12 +631,18 @@ export function refreshComposerAutoload({ directories, print, env = process.env 
 // read and no build backend runs. uv installs the wheel with its dependencies and checks Requires-Python at that install. The
 // consumer's own project is installed from its editable wheel too, with --no-deps (K224, K280).
 
-/** The environment of the pyproject `file` and its uv workspace, or why there is none. */
-function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string } | string {
+/** The environment of the pyproject `file`: uv's project environment of its workspace root, which uv sync creates when it is missing. */
+function installTarget(uv: Tool, file: string): { venv: string; workspace: string } {
   const workspace = run(uv.command, ['workspace', 'dir'], { cwd: path.dirname(file), env: uv.env }).trim();
   const venv = uv.env.VENV ? path.resolve(uv.env.VENV) : path.resolve(workspace, uv.env.UV_PROJECT_ENVIRONMENT ?? '.venv');
-  if (!existsSync(path.join(venv, 'pyvenv.cfg'))) return `no environment in ${workspace}: run the repository's install, or give VENV or UV_PROJECT_ENVIRONMENT`;
   return { venv, workspace };
+}
+
+/** The environment of the pyproject `file` and its uv workspace, or why there is none. */
+function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string } | string {
+  const target = installTarget(uv, file);
+  if (!existsSync(path.join(target.venv, 'pyvenv.cfg'))) return `no environment in ${target.workspace}: run the repository's install, or give VENV or UV_PROJECT_ENVIRONMENT`;
+  return target;
 }
 
 /** uv sync --locked of the environment of `target`, with `flags`: the locked releases, the step before each install of the linked packages. */
@@ -1108,6 +1114,72 @@ function linkPython(work: Run, consumer: Consumer) {
       for (const { provider } of items) run(python, ['-I', '-c', WRITE_DIRECT_URL, provider.name, pathToFileURL(provider.folder).href], { cwd: venv, env: work.env });
     }
     reportLinks(stateOf(linked.map(provider => provider.name)), true);
+  }
+}
+
+// --- uv install (K448-3): the environment of a project installed with its polyspec packages linked from the start.
+
+/**
+ * The polyspec packages of `names` and of the packages they require, each as the provider that a checkout gives; a name without a
+ * checkout fails before uv runs, since an install would then take its release (K448-3).
+ */
+function polyspecClosure(byName: ReadonlyMap<string, Provider>, names: readonly string[]): Provider[] {
+  const result = new Map<string, Provider>();
+  const pending = [...names];
+  for (let name = pending.pop(); name !== undefined; name = pending.pop()) {
+    if (result.has(name)) continue;
+    const provider = byName.get(name);
+    if (provider === undefined) throw new Error(`${name} has no checkout among the given checkouts; give the checkout that provides it, and never a release`);
+    result.set(name, provider);
+    pending.push(...declaredPython(provider.checkout, path.join(provider.folder, MANIFESTS.python)).map(normalizeName));
+  }
+  return [...result.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Installs the uv environment of the project `directory` in place of uv sync (K448-3). Each declared polyspec package, and each
+ * polyspec package that uv.lock holds, is excluded from `uv sync --locked`, so no release of it is installed. Each one that a
+ * checkout provides is then installed from the editable wheel that link writes for it (K398), with --no-deps: the sync installed
+ * the locked dependencies. A polyspec package with no checkout fails before uv runs. Third-party packages come from uv.lock.
+ */
+export function uvInstall({ directory, checkouts, env = process.env, print }: { directory: string; checkouts: readonly string[]; env?: NodeJS.ProcessEnv; print: Print }): void {
+  const consumer = consumerOf(directory, true);
+  const uv = consumerTool(consumer.top, 'uv', env);
+  const byName = new Map<string, Provider>();
+  for (const provider of providers(checkouts, undefined, consumer.top, consumer.top).values()) {
+    if (provider.ecosystem === 'python') byName.set(normalizeName(provider.name), provider);
+  }
+  for (const file of consumer.manifests('python')) {
+    // A declared polyspec package with no checkout is refused before uv runs (K448-3).
+    const declared = declaredPython(consumer.top, file).map(normalizeName);
+    polyspecClosure(byName, declared);
+    const target = installTarget(uv, file);
+    const lock = path.join(target.workspace, 'uv.lock');
+    if (!existsSync(lock)) throw new Error(`${target.workspace} has no uv.lock: the install syncs its locked releases`);
+    const packages = readTomlFile(lock).package;
+    const locked = Array.isArray(packages) ? packages.filter(isJsonObject).flatMap(item => typeof item.name === 'string' ? [normalizeName(item.name)] : []) : [];
+    const linked = polyspecClosure(byName, [...declared, ...locked.filter(name => name.startsWith('polyspec-'))]);
+    const names = linked.map(provider => normalizeName(provider.name));
+    run(uv.command, ['sync', '--locked', ...names.flatMap(name => ['--no-install-package', name])], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
+    if (linked.length === 0) {
+      print(`uv-install ${target.workspace}: no polyspec package of its uv.lock; uv sync of the locked releases into ${target.venv}`);
+      continue;
+    }
+    const python = path.join(target.venv, 'bin/python');
+    const wheels = linked.map((provider) => {
+      const wheel = pythonWheel(provider.folder);
+      if (typeof wheel === 'string') throw new Error(wheel);
+      return writeWheel(consumer, wheel);
+    });
+    run(uv.command, ['pip', 'install', '--python', python, '--no-deps', ...names.flatMap(name => ['--reinstall-package', name]), ...wheels], { cwd: consumer.top, env: uv.env });
+    for (const provider of linked) run(python, ['-I', '-c', WRITE_DIRECT_URL, provider.name, pathToFileURL(provider.folder).href], { cwd: target.venv, env: uv.env });
+    const unmet = unmetPython(uv, target.venv);
+    const broken = linked.flatMap((provider) => {
+      const problem = unmet.get(normalizeName(provider.name));
+      return problem === undefined ? [] : [`${provider.name}: ${problem}`];
+    });
+    if (broken.length) throw new Error(`uv install of ${target.workspace}: a linked package's requirement is not met: ${broken.join('; ')}`);
+    for (const provider of linked) print(`  linked     python   ${provider.name} -> ${provider.folder} (${target.venv})`);
   }
 }
 
