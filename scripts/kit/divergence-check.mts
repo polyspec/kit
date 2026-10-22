@@ -4,7 +4,8 @@
 // so, and each is a finding that names the file and the line:
 //   1. a test of an implementation branches on the implementation, the language, the runtime or the platform to change what it
 //      asserts (extension_loaded, function_exists, PHP_VERSION, PHP_OS, sys.version_info, sys.platform, process.versions,
-//      process.platform, runtime.GOOS, runtime.GOARCH, cfg!, #[cfg(...)], os.name);
+//      process.platform, runtime.GOOS, runtime.GOARCH, cfg!, #[cfg(...)], os.name); a statement that only asserts its environment,
+//      with no branch, declares it and is none (K543);
 //   2. the code of an implementation branches on the presence of another implementation (extension_loaded and function_exists: the
 //      PHP library reading whether its extension is loaded, or defining a function only when the extension does not), also in
 //      the sources that a build generates before the gate and Git ignores (K329);
@@ -28,6 +29,12 @@ const SOURCE = /\.(?:php|py|[cm]?[jt]sx?|go|rs)$/;
 // The environment that a test branches on: a call or a name, on a line of code.
 const ENVIRONMENT = /\b(?:extension_loaded|function_exists|PHP_VERSION(?:_ID)?|PHP_OS(?:_FAMILY)?|sys\.version_info|sys\.platform|process\.versions|process\.platform|runtime\.GOOS|runtime\.GOARCH|cfg!|os\.name)\b|#\[cfg\(/;
 const KIT_OWN = /^(?:scripts\/kit\/|tests\/kit\/|tests\/source\/)/;
+// K543: a statement that asserts, with the assertion call of its language, and holds no branch: a test that declares its environment and
+// asserts it fails loudly where the environment differs, so its probe changes nothing that the test asserts.
+const ASSERTION = /^\s*(?:\$this->assert\w*\(|(?:self|static)::assert\w*\(|self\.assert\w*\(|assert[\s(.]|assert(?:_eq|_ne)?!\(|expect\()/;
+const BRANCH = /\?[^?:]*:|\bif\b|&&|\|\||\bmatch\b|\bswitch\b|\bskip/i;
+/** Whether the line of code `code` asserts its environment without branching on it (K543). */
+const assertsEnvironment = (code: string): boolean => ASSERTION.test(code) && !BRANCH.test(code) && !/#\[cfg/.test(code);
 
 const lines = (text: string) => text.split('\n').map((line, index) => ({ number: index + 1, code: line.replace(/^\s*(?:\/\/|#(?!\[)|\*|\/\*).*$/, '') }));
 
@@ -61,7 +68,7 @@ export function divergenceFindings(files: readonly string[], read: (file: string
     const inRoot = roots.some(root => within(root, file));
     if (inRoot && SOURCE.test(file)) {
       for (const { number, code } of lines(text)) {
-        if (isTestFile(file) && ENVIRONMENT.test(code)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
+        if (isTestFile(file) && ENVIRONMENT.test(code) && !assertsEnvironment(code)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
         else if (!isTestFile(file) && /\b(?:extension_loaded|function_exists)\(/.test(code)) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\(/.exec(code)?.[1]}), so the library and its extension coexist through a guard of the run time`);
       }
     }
