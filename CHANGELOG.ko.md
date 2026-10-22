@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 295204d043c7b1a9723869d2c05d102ee3b3d1d64ae5dff8440ef7c8934ec3fb -->
+<!-- source-sha256: 54b1c605bbcaee2a0c3e20f5393df5557a3e5ad989e7bca90fb9c78c32206cd0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K452-1를 마친다 (K452-1): 실행 시작 전에 각 PHP 확장을 검사하고, 로드되지 않는 것은 경로와 실행 중인 PHP를 이름으로 대며 실패한다.
 
 - 확장 실행은 PHPUnit을 시작하기 전에 각 --php-extension을 검사한다: 로드되지 않는 것은 .so 경로, PHP가 보고하는 내용(빌드된 API), 실행 중인 PHP를 이름으로 대므로, 라이브러리를 잘못된 PHP에서 조용히 테스트하지 않는다 (K452-1).
 
