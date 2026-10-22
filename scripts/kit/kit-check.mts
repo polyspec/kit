@@ -159,6 +159,13 @@ export function strayCopies(root: string, copies: { file: string }[]): string[] 
 // The configurations that kit no longer reads.
 const RETIRED = ['config/commits.json'];
 
+/**
+ * The files that an earlier kit copied into the repository and that kit now reads from its package (K514): the lint
+ * configurations, which each lint of kit.mk names by their path in the package. kit-sync removes them, and kit-check names one
+ * that a consumer still holds (K514-1).
+ */
+export const RETIRED_COPIES = ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json'] as const;
+
 // The mode of a symbolic link in the index of Git.
 const LINK_MODE = '120000';
 
@@ -257,7 +264,7 @@ export function check(root: string): string[] {
   if (isSource(root)) return config;
   const kit = installedKit(root);
   if ('finding' in kit) return [...config, kit.finding];
-  const found: string[] = [];
+  const found: string[] = RETIRED_COPIES.filter(file => existsSync(path.join(root, file))).map(file => `${file}: kit no longer copies it and reads it from ${PACKAGE} (K514), so this copy is stale. Fix: make kit-sync, which removes it`);
   for (const { file, from } of kit.copies) {
     if (!existsSync(path.join(root, file))) {
       found.push(`${file}: the copy of ${PACKAGE} ${kit.version} is missing. Fix: make kit-sync`);

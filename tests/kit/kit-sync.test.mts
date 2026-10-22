@@ -8,7 +8,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { check, checkConfig, isSource } from '../../scripts/kit/kit-check.mts';
+import { check, checkConfig, isSource, RETIRED_COPIES } from '../../scripts/kit/kit-check.mts';
 import { sync } from '../../scripts/kit/kit-sync.mts';
 import { validate, type OwnerDeclaration } from '../../scripts/kit/owner-check.mts';
 import { globExpression } from '../../scripts/kit/glob.mts';
@@ -240,7 +240,7 @@ test('kit-sync removes the lint configurations that kit no longer copies, and th
   }
   const manifest: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../package.json'), 'utf8'));
   const copies = isJsonObject(manifest) && isJsonObject(manifest.kit) && isJsonObject(manifest.kit.copies) ? Object.keys(manifest.kit.copies) : [];
-  assert.deepEqual(copies.filter(file => ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json'].includes(file)), []);
+  assert.deepEqual(copies.filter(file => (RETIRED_COPIES as readonly string[]).includes(file)), [], 'kit.copies names no retired copy');
 });
 
 // K514-1: a lint configuration that an earlier kit copied and that kit now reads from its package is named by kit-check in a

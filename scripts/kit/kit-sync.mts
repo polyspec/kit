@@ -11,18 +11,12 @@
 // no network; it prints a line for each change.
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { COPY_DIRECTORY, installedKit, INSTALLED, PACKAGE, strayCopies } from './kit-check.mts';
+import { COPY_DIRECTORY, installedKit, INSTALLED, PACKAGE, RETIRED_COPIES, strayCopies } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 import { readNpmManifest } from './manifests.mts';
 
 const USAGE = 'Usage: node scripts/kit/kit-sync.mts';
-
-/**
- * The files that an earlier kit copied into the repository and that kit now reads from its package (K514): the lint
- * configurations, which each lint of kit.mk names by their path in the package.
- */
-export const RETIRED_COPIES = ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json'] as const;
 
 /** Writes the copies of the installed package into `root`; returns the lines of the changes, empty when the copies match. */
 export function sync(root: string): string[] {
