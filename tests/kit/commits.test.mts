@@ -486,3 +486,26 @@ test('row-id: a commit on a branch refuses a row whose ID main holds with anothe
   git('add', '-A');
   assert.deepEqual(indexItemFindings(root, CONFIG, 'docs(plan): Restate T5 (#T5)').filter(found => found.rule === 'row-id'), [], 'main is the reference');
 });
+
+// K497-1: only a row that the branch adds or changes is compared with main. A branch that forked before main restated a row holds the
+// old task of that row, which the branch never touched; that is no clash.
+test('row-id: a row that only main changed after the branch forked is no clash (K497-1)', (t) => {
+  const ROWS = { schema: 1, hooks: ['pre-push'], idPattern: 'T[0-9]+' };
+  const root = tree(t, {});
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+  const rows = (pairs: Array<[string, string]>) => `# Plan\n\n| ID | Task | State |\n|---|---|---|\n${pairs.map(([id, task]) => `| ${id} | ${task} | [ ] |`).join('\n')}\n`;
+  git('symbolic-ref', 'HEAD', 'refs/heads/main');
+  put(root, { 'config/checklist.json': JSON.stringify(ROWS), [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union']]) });
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '-m', 'feat(core): Start (#T1)').status, 0);
+  assert.equal(git('branch', 'fix/other-T7').status, 0);
+  // main restates T5 after the branch forked.
+  put(root, { [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union of two types']]) });
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '-m', 'docs(plan): Restate T5 (#T5)').status, 0);
+  // The branch adds its own row T7 and keeps the T5 that it forked with.
+  assert.equal(git('checkout', '-q', 'fix/other-T7').status, 0);
+  put(root, { [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union'], ['T7', 'Add the reader']]) });
+  git('add', '-A');
+  assert.deepEqual(indexItemFindings(root, CONFIG, 'docs(plan): Register T7 (#T7)').filter(found => found.rule === 'row-id'), [], 'T5 is unchanged by the branch');
+});
