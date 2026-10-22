@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The PHP application example names no framework product: S10 of PRINCIPLES.md and its Korean twin, and the K359 and K425 rows of the common-standard checklist, name a PHP console application as the example of an application on a userland framework, not a framework product (K477). Red: make text-absent FILE=PRINCIPLES.md TEXT="Symfony Console CLI" exit 2 before the fix; green: the same run after it (K477).
 - `dependency-policy-check` takes `--packages <name,...>` (`make dependency-policy-check PACKAGES=`) and reports and fails only on the findings that name those packages; the unscoped gate is unchanged (K493).
 - `make npm-install` takes `ADD=<checkout>...`, which links each named package folder from the start even when the project does not declare its package, as a file: dependency of the temporary manifest; the tracked package.json and package-lock.json name none of them (K485).
 - K491: The dependency test fixtures run in the environment of their test, not of make: MISE_LOCKED is dropped, and a fixture tool is the one PATH finds outside the checkout's var/tools, so the shims of the checkout no longer recurse into mise (K491). Red: make item-red ID=K491 exit 1 under make (go shim recursion, ruff not in the lockfile); green: make item-test ID=K491 passes under make, lint-ts passes. (K491).

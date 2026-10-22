@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 80a6f9600a6de0061edd1f166c51ae66e6459e6d2bbeeb4019c6c9fa6bd0285e -->
+<!-- source-sha256: 4f195bd3efdf7e7577c6cb140dab3e2995b67f5e9860a1c4d7a5c1365ea7dc67 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PHP 애플리케이션 예시는 framework 제품 이름을 적지 않는다: PRINCIPLES.md의 S10과 한국어 짝, common-standard checklist의 K359, K425 row가 userland framework 위 애플리케이션의 예로 framework 제품이 아닌 PHP console application을 든다 (K477). red: 수정 전 make text-absent FILE=PRINCIPLES.md TEXT="Symfony Console CLI"가 exit 2, green: 수정 후 같은 실행 (K477).
 - `dependency-policy-check`가 `--packages <name,...>`(`make dependency-policy-check PACKAGES=`)를 받으며, 그 패키지 이름을 가진 finding만 보고하고 실패한다. 범위 없는 gate는 그대로다(K493).
 - `make npm-install`은 `ADD=<checkout>...`을 받아, 프로젝트가 선언하지 않은 패키지의 폴더도 처음부터 link한다. 임시 manifest의 file: 의존성이며, 추적 package.json과 package-lock.json은 그 패키지를 이름 짓지 않는다(K485).
 - K491: 의존성 테스트 fixture는 make의 mise 설정이 아니라 자신의 테스트 환경에서 돈다. MISE_LOCKED을 빼고, fixture 도구는 checkout의 var/tools 밖에서 PATH가 찾는 것을 쓰므로 checkout의 shim이 mise로 재귀하지 않는다 (K491). Red: make 아래 make item-red ID=K491이 exit 1(go shim 재귀, lockfile에 없는 ruff); green: make 아래 make item-test ID=K491 통과, lint-ts 통과. (K491).
