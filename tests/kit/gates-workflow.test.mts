@@ -1,7 +1,9 @@
 // Tests of the gates workflow that kit vendors to every repository (workflows/gates.yml, K270): it runs make -k kit-gates with
 // the commit range of the run, and kit-gates reaches every make target that a rule of PRINCIPLES.md names as its check.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -56,4 +58,36 @@ test('kit-gates runs the full parity check, which runs only in CI, so every impl
   const kitMk = read('scripts/kit/kit.mk');
   assert.match(kitMk, /^kit-gates:[^#\n]* parity-check /m);
   assert.match(kitMk, /^ifneq \(\$\(filter parity-check kit-gates,\$\(MAKECMDGOALS\)\),\)$/m, 'the CI guard of parity-check covers kit-gates');
+});
+
+// K515: a tracked lock records the release of each polyspec package (K448, K507), so kit has no check that a tracked file names
+// none and no config/polyspec.json; the gates clone the sibling repositories that the release URLs of the tracked locks name.
+test('K515: kit runs no polyspec lock check and reads no config/polyspec.json', () => {
+  const kitMk = read('scripts/kit/kit.mk');
+  assert.doesNotMatch(kitMk, /polyspec-lock-check/);
+  assert.doesNotMatch(read('PRINCIPLES.md'), /config\/polyspec\.json/);
+  assert.doesNotMatch(read('workflows/gates.yml'), /config\/polyspec\.json/);
+});
+
+test('K515: the sibling checkouts step clones each github.com/polyspec repository that a tracked lock names, but the repository itself', (t) => {
+  const workflow = read('workflows/gates.yml');
+  const step = /^      - name: sibling checkouts\n([\s\S]*?)(?=^      - name: )/m.exec(workflow);
+  assert.ok(step, 'a step named sibling checkouts');
+  const script = /node -e '([\s\S]*?)'\n/.exec(step[1] ?? '');
+  assert.ok(script, 'the step lists the repositories with node');
+  const root = mkdtempSync(path.join(tmpdir(), 'kit-siblings-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const files: Record<string, string> = {
+    'package-lock.json': JSON.stringify({ packages: { 'node_modules/@polyspec/kit': { resolved: 'https://github.com/polyspec/kit/releases/download/v0.0.54/polyspec-kit-0.0.54.tgz' } } }),
+    'php/composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/orm', dist: { url: 'https://github.com/polyspec/orm/releases/download/v0.0.18/orm.zip' } }, { name: 'polyspec/self', dist: { url: 'https://github.com/polyspec/self.git' } }] }),
+    'notes.md': 'https://github.com/polyspec/not-a-lock\n',
+  };
+  for (const [file, text] of Object.entries(files)) {
+    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
+    writeFileSync(path.join(root, file), text);
+  }
+  for (const args of [['init', '-q'], ['add', '-A']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  const listed = spawnSync('node', ['-e', script[1] ?? ''], { cwd: root, encoding: 'utf8', env: { ...process.env, SELF: 'self' } });
+  assert.equal(listed.status, 0, listed.stderr);
+  assert.deepEqual(listed.stdout.trim().split('\n'), ['kit', 'orm']);
 });
