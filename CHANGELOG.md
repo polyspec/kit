@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- lint-go judges deadcode over the union of the build tags of a module, so a function that the files of one tag reach is no finding of another run (K536).
 - link-state-check accepts the mise trust of the main checkout in a linked worktree, treats a branch whose worktree has uncommitted changes as in use, and judges in a linked worktree only its own branch (K532).
 - kit-check verifies that the owner rules select, for each source path of a language whose lint is a gate of kit-gates, that lint and duplication-check, so land lints what it lands (K534).
 - worktree-setup gives a worktree every npm project and Python environment that the main checkout installed, linked to the main checkout's with the repository's own sources from the worktree (K533).

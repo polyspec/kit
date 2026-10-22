@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0f86a51a7a22766b03613344b528266c1bc75c31b96a7017a55a7071ecb89705 -->
+<!-- source-sha256: 1c6fd331cc2109639f7f10dac819616dc532d5f50f9d1f669d6d27b7013d9644 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- lint-go는 deadcode를 모듈 build tag의 합집합으로 판정하므로, 한 tag의 파일이 도달하는 함수는 다른 실행의 finding이 아니다(K536).
 - link-state-check은 linked worktree에서 main checkout의 mise trust를 받아들이고, worktree에 commit되지 않은 변경이 있는 branch를 사용 중으로 보며, linked worktree에서는 자기 branch만 판정한다(K532).
 - kit-check은 owner 규칙이 lint가 kit-gates의 gate인 언어의 각 source 경로에 그 lint와 duplication-check를 선택하는지 확인하므로, land가 들이는 것을 lint한다(K534).
 - worktree-setup은 main checkout이 설치한 모든 npm 프로젝트와 Python 환경을 worktree에 주되, main checkout의 것으로 link하고 저장소 자기 source는 worktree에서 쓴다(K533).
