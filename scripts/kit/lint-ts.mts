@@ -158,6 +158,8 @@ export function lintSteps(root: string): LintStep[] {
       return { label: `${checker.command === 'tsc' || checker.args[0] !== 'run' ? 'tsc' : 'typecheck'} ${folder}`, command: checker.command, args: checker.args, cwd: folder };
     }),
     ...packages.map(folder => ({ label: `api-extractor ${folder}`, command: present(tools['api-extractor'], 'tools[\'api-extractor\']'), args: ['run'], cwd: folder })),
+    // No catch without a statement (K537): oxlint no-empty passes a catch that holds only a comment.
+    { label: 'catch-check', command: process.execPath, args: [siblingTool(import.meta.url, 'catch-check')], cwd: '.' },
   ];
 }
 

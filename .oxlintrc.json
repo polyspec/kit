@@ -11,7 +11,8 @@
 // of a typed place, and a type assertion does not narrow a type; JSON is read through a schema (K158) and an unknown value is
 // narrowed by a check.
 // No swallowed error (K256): no empty block, an empty catch included, and no catch that only rethrows; an error thrown in a
-// catch carries the caught one as its cause (preserve-caught-error, P8, K334).
+// catch carries the caught one as its cause (preserve-caught-error, P8, K334). no-empty passes a catch that holds only a
+// comment, so catch-check, a step of lint-ts, refuses a catch without a statement (K537).
 // No non-null assertion (K156): a value whose type admits undefined or null is read with a check, or with a throwing accessor
 // that names what it expects (present of scripts/kit/present.mts in kit), never asserted away with `!`.
 // oxc/number-arg-out-of-range is off: it allows toFixed and toExponential 0 to 20 and toPrecision 1 to 21, the limits before

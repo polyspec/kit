@@ -248,8 +248,9 @@ test('two clears at once leave one holder: the later clear refuses the lock that
     for (const holder of holders) {
       try {
         holder.release();
-      } catch {
-        // The lock of a holder that the race displaced names another holder.
+      } catch (error) {
+        // The lock of a holder that the race displaced names another holder; any other failure of the release fails the test.
+        if (!(error instanceof Error && /was replaced while process \d+ held it/.test(error.message))) throw error;
       }
     }
   });

@@ -690,7 +690,12 @@ function hangingPython(t: TestContext, { ignoreTerm = false } = {}) {
   const pids = path.join(log, 'pids');
   t.after(() => {
     for (const pid of recorded(pids)) {
-      try { process.kill(pid, 'SIGKILL'); } catch { /* the process has ended */ }
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch (error) {
+        // A process that has ended is gone (ESRCH); any other failure of the kill fails the test.
+        if (!(error instanceof Error && 'code' in error && error.code === 'ESRCH')) throw error;
+      }
     }
     rmSync(log, { recursive: true, force: true });
   });

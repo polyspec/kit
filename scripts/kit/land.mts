@@ -270,8 +270,10 @@ function takeLandLock(root: string, branch: string, print: (text: string) => voi
     let lock: unknown;
     try {
       lock = JSON.parse(readFileSync(file, 'utf8'));
-    } catch {
-      // A lock that cannot be read, or that went away meanwhile, names no running land.
+    } catch (error) {
+      // A lock that went away meanwhile, or one that is half written and no JSON yet, names no running land; any other
+      // failure of the read is the land's own.
+      if (codeOf(error) !== 'ENOENT' && !(error instanceof SyntaxError)) throw error;
     }
     const pid = pidOf(lock);
     const other = holderOf(lock);
