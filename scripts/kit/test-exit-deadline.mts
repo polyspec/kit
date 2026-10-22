@@ -14,6 +14,11 @@ import { stopDescendants } from './process-group.mts';
 type WithHandle = { _handle?: { setBlocking?: (blocking: boolean) => void } };
 
 // The margin that the watch of a running test allows over the test's own timeout.
+// The events of a test leave the process through a stream that is written only when the event loop turns. A test that blocks
+// the loop, such as one that runs tools with spawnSync, ends without a turn before the next one starts, so the events of a file of
+// such tests reached run-tests only when the file ended, and its gap watch (K371-1) stopped a file that was still passing. A
+// timer before and after each test turns the loop once, and the events of the test leave when it ends (K546).
+const turnTheLoop = (): Promise<void> => new Promise(resolve => setTimeout(resolve, 0));
 const RUNNING_TEST_MARGIN_MS = 1000;
 
 const file = process.argv[1];
@@ -40,11 +45,13 @@ if (file && process.env.NODE_TEST_CONTEXT) {
     watch.unref();
   };
   arm(deadline, `no test started or ended within ${deadline} ms of the process start; the file's own code did not settle`);
-  beforeEach((context) => {
+  beforeEach(async (context) => {
     arm(deadline + RUNNING_TEST_MARGIN_MS, `the test "${context.name}" did not settle within ${deadline} ms; the process ends`);
+    await turnTheLoop();
   });
-  afterEach(() => {
+  afterEach(async () => {
     arm(deadline, `no test started or ended within ${deadline} ms of the last test; the file's own code did not settle`);
+    await turnTheLoop();
   });
   after(() => {
     clearTimeout(watch);
