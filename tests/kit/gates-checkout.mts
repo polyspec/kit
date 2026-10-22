@@ -28,10 +28,13 @@ export function git(cwd: string, ...args: string[]) {
 
 /**
  * Commits the index as it is and returns the commit. The fixture builds its own history, and its tests check the push gate, so the
- * commit skips the commit hooks, whose gates of main (K404-1) and message rules these tests do not measure.
+ * commit skips the commit hooks, whose gates of main (K404-1) and message rules these tests do not measure, and writes main as
+ * make land does (K495).
  */
 export function commitIndex(cwd: string, message: string) {
-  git(cwd, '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '--no-verify', '-m', message);
+  const args = ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '--no-verify', '-m', message];
+  const result = run(cwd, 'git', args, { env: { ...process.env, KIT_MAIN_WRITER: 'fixture' } });
+  if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed in ${cwd}: ${result.stderr}`);
   return git(cwd, 'rev-parse', 'HEAD');
 }
 

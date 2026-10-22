@@ -10,12 +10,14 @@
 // fast-forward, removes the worktree when it
 // has no uncommitted change (an ignored install does not count) and deletes the branch. A branch that main already contains
 // skips the gates and the merge, and only what is left is removed. Before a worktree is removed, the make targets that WORKTREE_STOP
-// names in its Makefile stop its servers (K441); a stop that fails keeps the worktree.
+// names in its Makefile stop its servers (K441); a stop that fails keeps the worktree. The whole run holds a lock in the common git
+// folder, so a second land waits for the first, and the merge is refused when main moved while the gates ran; land merges with
+// KIT_MAIN_WRITER set, which the reference-transaction hook of make hooks requires of a move of main (K495).
 //
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
 import type { SpawnSyncReturns } from 'node:child_process';
-import { existsSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { miseEnvironment } from './bootstrap/install-mise.mts';
@@ -194,12 +196,85 @@ function buildMain(root: string, print: (text: string) => void): void {
   print(`make build in ${root} passed (${elapsed}s)`);
 }
 
+// K495: the lock of a land, in the common git folder, which every worktree of the repository shares; the variable that lets the
+// reference-transaction hook of make hooks pass the merge of land; how often a waiting land looks at the lock, and for how long.
+export const LAND_LOCK = 'kit-land.lock';
+export const MAIN_WRITER = 'KIT_MAIN_WRITER';
+const LOCK_POLL_MS = 2000;
+const LOCK_WAIT_MS = 60 * 60 * 1000;
+
+/** Blocks this process for `ms` milliseconds; a waiting land has nothing else to do. */
+function sleepFor(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** Whether the process `pid` runs: signal 0 checks it without touching it, and EPERM means that it runs as another user. */
+function running(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
+ * Takes the lock of a land of `branch` in the repository of `root` and returns its release (K495). A lock that a running land holds
+ * is waited for, printing its branch and pid once, up to LOCK_WAIT_MS; the lock of a land that no longer runs, or that names no
+ * process, is removed.
+ */
+function takeLandLock(root: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void): () => void {
+  const file = path.resolve(root, git(root, 'rev-parse', '--git-common-dir').trim(), LAND_LOCK);
+  const started = Date.now();
+  let waiting = false;
+  for (;;) {
+    try {
+      writeFileSync(file, `${JSON.stringify({ pid: process.pid, branch })}\n`, { flag: 'wx' });
+      return () => rmSync(file, { force: true });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+    let holder: { pid?: unknown; branch?: unknown } = {};
+    try {
+      holder = JSON.parse(readFileSync(file, 'utf8')) as typeof holder;
+    } catch {
+      // A lock that cannot be read, or that went away meanwhile, names no running land.
+    }
+    const pid = typeof holder.pid === 'number' ? holder.pid : undefined;
+    const other = typeof holder.branch === 'string' ? holder.branch : 'an unknown branch';
+    if (pid === undefined || !running(pid)) {
+      rmSync(file, { force: true });
+      print(`removed the lock of the land of ${other} (pid ${pid ?? 'unknown'}), which no longer runs`);
+      continue;
+    }
+    if (Date.now() - started > LOCK_WAIT_MS) throw new Error(`the land of ${other} (pid ${pid}) still holds ${file} after ${LOCK_WAIT_MS / 60000} minutes; nothing is merged`);
+    if (!waiting) print(`${branch} waits for the land of ${other} (pid ${pid}) to end`);
+    waiting = true;
+    sleep(LOCK_POLL_MS);
+  }
+}
+
+/** The commits that moved main from `from`, newest first, as `<short sha> <subject>` lines. */
+function movesOf(root: string, from: string): string {
+  return git(root, 'log', '--format=%h %s', `${from}..main`).trim();
+}
+
 /**
  * Lands `branch` on main in the repository of `root` (the main checkout); throws, merging nothing, when a refusal applies or a gate
- * fails. A branch that main contains skips the gates and the merge.
+ * fails. A branch that main contains skips the gates and the merge. The whole run holds the land lock (K495).
  */
-export function land(root: string, branch: string, { print = (text: string) => console.log(`[land] ${text}`) }: { print?: (text: string) => void } = {}): void {
+export function land(root: string, branch: string, { print = (text: string) => console.log(`[land] ${text}`), sleep = sleepFor }: { print?: (text: string) => void; sleep?: (ms: number) => void } = {}): void {
   if (branch === '') throw new Error('no branch: make land BRANCH=<branch>');
+  const release = takeLandLock(root, branch, print, sleep);
+  try {
+    landLocked(root, branch, print);
+  } finally {
+    release();
+  }
+}
+
+/** The run of land under its lock. */
+function landLocked(root: string, branch: string, print: (text: string) => void): void {
   const head = git(root, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
   if (head !== 'main') throw new Error(`the main checkout ${root} is on ${head}, not on main`);
   const dirty = git(root, 'status', '--porcelain').trim();
@@ -216,6 +291,7 @@ export function land(root: string, branch: string, { print = (text: string) => c
   } else {
     if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) throw new Error(`${branch} is not rebased on main; rebase it on main first`);
     if (folder === undefined) throw new Error(`${branch} has no worktree; the gates run on its own tree and install, so make worktree-setup first`);
+    const gated = git(root, 'rev-parse', 'main').trim();
     const changed = git(root, 'diff', '--name-only', `main...${branch}`).split('\n').filter(line => line !== '');
     const { gates, excluded, reasons } = gatesOf(folder, changed);
     for (const reason of reasons) print(reason);
@@ -242,7 +318,13 @@ export function land(root: string, branch: string, { print = (text: string) => c
       }
       print(`${gate} passed`);
     }
-    git(root, 'merge', '--ff-only', branch);
+    // K495: main must still be the commit the gates ran on; a writer that moved it meanwhile is named, and nothing is merged.
+    if (git(root, 'rev-parse', 'main').trim() !== gated) {
+      throw new Error(`main moved while the gates of ${branch} ran:\n${movesOf(root, gated)}\nrebase ${branch} on main and land it again; nothing is merged`);
+    }
+    const merged = spawnSync('git', ['merge', '--ff-only', branch], { cwd: root, encoding: 'utf8', env: { ...process.env, [MAIN_WRITER]: 'land' } });
+    if (merged.error) throw new Error(`git merge --ff-only ${branch} could not start in ${root}: ${merged.error.message}`);
+    if (merged.status !== 0) throw new Error(`git merge --ff-only ${branch} exited with ${merged.status}: ${merged.stderr.trim()}; nothing is merged`);
     print(`merged ${branch} into main`);
     buildMain(root, print);
   }

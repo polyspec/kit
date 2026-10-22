@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { checkout, git, prepared, run } from './gates-checkout.mts';
+import { checkout, commitIndex, git, prepared, run } from './gates-checkout.mts';
 import { tool } from './kit-tools.mts';
 
 const GENERATED_CONFIG = JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**'] });
@@ -64,7 +64,7 @@ test('the pre-commit hook that git-hooks install writes calls the make target st
   const hook = readFileSync(path.join(work, '.githooks/pre-commit'), 'utf8');
   assert.doesNotMatch(hook, /scripts\/kit|node_modules|\.mts|\.mjs/);
   assert.match(hook, /^make --no-print-directory staged-generated-hook \|\| exit 1$/m);
-  assert.match(hook, /^exec make --no-print-directory commit-gates-hook$/m);
+  assert.match(hook, /^make --no-print-directory commit-gates-hook \|\| exit 1$/m);
 });
 
 test('a staged executable is refused whatever its path, and one that config/generated.json declares passes (K416)', (t) => {
@@ -145,7 +145,7 @@ test('a tracked generated file, executable object or generated-header file is re
   // A tracked symbolic link to a folder and a tracked file deleted from the work tree are read as no file, not as an error.
   symlinkSync('src', path.join(source.work, 'linked'));
   git(source.work, 'add', 'linked');
-  git(source.work, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'link');
+  commitIndex(source.work, 'link');
   rmSync(path.join(source.work, 'src/app.py'));
   const unread = tracked(source.work);
   assert.equal(unread.status, 0, unread.stderr);

@@ -196,8 +196,7 @@ const note = (work: string, name: string, message: string) => {
 const wideNote = (work: string, name: string, message: string) => {
   writeFileSync(path.join(work, name), `${name}\n`);
   git(work, 'add', '--all');
-  git(work, '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '--no-verify', '-m', message);
-  return git(work, 'rev-parse', 'HEAD');
+  return commitIndex(work, message);
 };
 
 test('a push is refused when a pushed commit has a body line wider than bodyMax, and names the commit and the line', (t) => {
