@@ -1680,6 +1680,7 @@ test('make cargo-fetch runs cargo fetch through the link of the sibling checkout
 
 test('link cargo --siblings runs cargo with the sibling crates patched and the arguments unchanged (K448-5)', (t) => {
   const { consumer, env, log } = workspace(t);
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.match(log(), /cargo --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=.* fetch --locked/);
@@ -1689,12 +1690,22 @@ test('link cargo --siblings runs cargo with the sibling crates patched and the a
 // that has no config/release.json and that the lock does not name, such as an unrelated polyspec checkout (fsm) beside the consumer.
 test('link cargo --siblings patches no crate of a checkout without config/release.json that the lock does not name (K489)', (t) => {
   const { consumer, env, log } = workspace(t);
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
   repository(path.dirname(consumer), 'other', { 'rust/Cargo.toml': '[package]\nname = "polyspec-other"\nversion = "0.0.1"\n' });
   git(path.join(path.dirname(consumer), 'other'), 'remote', 'add', 'origin', 'https://github.com/polyspec/other.git');
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.match(log(), /patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=/);
   assert.doesNotMatch(log(), /polyspec-other/);
+});
+
+// K448-5-1: cargo --siblings patches only the crates that the consumer's lock names. A patch of an unnamed crate is unused, and cargo records
+// it as a patch.unused entry of the lock, so the tracked lock of the consumer would change and --locked refuses the fetch.
+test('link cargo --siblings patches no crate that the consumer lock does not name (K448-5-1)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.doesNotMatch(log(), /patch\./);
 });
 
 // K440-2: link writes a git-ignored go.work into each Go module of a checkout, kit's own tools included (scripts/kit/symbols/go), so the

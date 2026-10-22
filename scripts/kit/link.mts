@@ -1418,7 +1418,7 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
     mkdirSync(path.dirname(copy), { recursive: true });
     copyFileSync(path.join(workspace, 'Cargo.lock'), copy);
     config.push('--config', `resolver.lockfile-path=${JSON.stringify(copy)}`);
-    const packages = readTomlFile(copy).packages;
+    const packages = readTomlFile(copy).package;
     const locked = new Set((Array.isArray(packages) ? packages : []).flatMap((item: unknown) => isJsonObject(item) && typeof item.name === 'string' ? [item.name] : []));
     for (const checkout of mainCheckouts(checkouts).filter(item => repositoryOf(item) !== consumer.repository)) {
       const crates = trackedManifests(checkout, ['Cargo.toml']).filter(file => !EXCLUDED.test(file)).flatMap((file) => {
@@ -1426,10 +1426,11 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
         return isJsonObject(pkg) && typeof pkg.name === 'string' ? [{ name: pkg.name, folder: path.join(checkout, path.dirname(file)) }] : [];
       });
       if (!crates.length) continue;
-      // K489: a checkout without config/release.json needs no patch unless the lock names one of its crates, which a git source then needs.
-      if (!existsSync(path.join(checkout, 'config/release.json')) && !crates.some(crate => locked.has(crate.name))) continue;
+      // K448-5-1: a crate the lock does not name is never used, so its patch would be recorded as an unused patch of the lock (K489 needs no release file for it).
+      const used = crates.filter(crate => locked.has(crate.name));
+      if (!used.length) continue;
       const url = declaredUrl(checkout);
-      for (const crate of crates) config.push('--config', `patch.${JSON.stringify(url)}.${crate.name}.path=${JSON.stringify(crate.folder)}`);
+      for (const crate of used) config.push('--config', `patch.${JSON.stringify(url)}.${crate.name}.path=${JSON.stringify(crate.folder)}`);
     }
   }
   const outcome = execute(tool.command, [...config, ...args], { cwd: directory, env: tool.env });
