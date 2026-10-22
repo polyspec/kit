@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6520328282e79140c1f06fd931d1c30c07ca05e9f0c6390320543cd706ca06e2 -->
+<!-- source-sha256: 047e429c2b7653ba432a733a05dd0fb10ba692dbb4392dcb6ab4bc0cabee0082 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make item-red와 make item-state는 실행되어 실패한 test나 gate만 red로 기록한다. 찾지 못한 명령(exit 127), test가 시간을 넘기고 하나도 실패하지 않은 실행, test 전에 실패한 실행(build, compile, load 실패)은 이유와 함께 거부되고 아무것도 기록되지 않는다(K540).
 - link는 제공된 각 Python 패키지 폴더를 provider로 가는 파일별 link의 진짜 폴더로 만들므로 어떤 uv 설치도 link를 통해 provider checkout에 쓰지 않고, uv 전의 link 해제는 중첩된 link에도 닿는다(K541).
 - 문장 없는 catch는 lint를 통과하지 못한다. lint-ts는 catch-check(oxc-parser)를 돌려, oxlint no-empty가 주석이 있으면 통과시키는 문장 없는 catch 절과 .catch callback을 거부하고, lint-rust는 catch-check-rust(package의 syn crate, offline 빌드)를 돌려 clippy가 lint하지 않는 그런 Err(..) arm과 `if let Err(..)` branch를 거부한다. Python, PHP, Go는 ruff S110, phpcs EmptyStatement, staticcheck SA9003이 이미 다룬다(K537).
 - owner-validate은 kit이 내보내는 owner 규칙의 glob을 consumer의 경로에 대해 확인하지 않는다. consumer는 commit하는 hook처럼 그 일부만 가지기 때문이다(K542).
