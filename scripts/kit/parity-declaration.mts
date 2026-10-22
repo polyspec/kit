@@ -4,7 +4,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
-import { ConfigError, readConfigFindings } from './schema-validate.mts';
+import { ConfigError, parseJson, readConfigFindings, SchemaError } from './schema-validate.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import { present } from './present.mts';
 
@@ -481,13 +481,31 @@ function scopeSchemaLines(root: string, lines: string[], units: readonly string[
 }
 
 /**
+ * The declaration of `root` without the units that break its schema, the units at the indices that the schema lines `lines` name
+ * (K517): the rest, which must pass the schema, and the ids of the units left out; or the schema lines of the rest.
+ */
+function withoutBrokenUnits(root: string, lines: readonly string[]): { value: ParityConfig; leftOut: string[] } | { errors: string[] } {
+  const raw: unknown = JSON.parse(readFileSync(path.join(root, DECLARATION), 'utf8'));
+  if (!isJsonObject(raw) || !isJsonList(raw.units)) return { errors: [...lines] };
+  const prefix = `${DECLARATION}: /units/`;
+  const broken = new Set(lines.map(line => (line.startsWith(prefix) ? /^\d+(?=[ /]|$)/.exec(line.slice(prefix.length))?.[0] : undefined)).filter((index): index is string => index !== undefined).map(Number));
+  const leftOut = raw.units.flatMap((unit, index) => (broken.has(index) ? [isJsonObject(unit) && typeof unit.id === 'string' ? unit.id : `#${index}`] : []));
+  try {
+    return { value: parseJson<ParityConfig>(JSON.stringify({ ...raw, units: raw.units.filter((_, index) => !broken.has(index)) }), 'parity.schema.json', DECLARATION), leftOut };
+  } catch (error) {
+    if (error instanceof SchemaError) return { errors: error.lines };
+    throw error;
+  }
+}
+
+/**
  * The declaration of `root` resolved against `files` (the checked files): `{ errors, model }`. The model holds the config, the
  * implementations by name and the case names of each suite unit. The environment references of the runner values are checked
  * as forms only; the runs resolve them (resolveReferences). With `units` a declaration that breaks the schema gives
- * the schema lines of the named units and of the paths outside them; `scoped` counts the lines of other units left out, and
- * when none is left the declaration has no model.
+ * the schema lines of the named units and of the paths outside them; when only other units break it, they are left out,
+ * `leftOut` names them, and the model holds the rest (K517).
  */
-export function readDeclaration(root: string, files: ReadonlySet<string>, only?: readonly string[]): { errors: Finding[]; model?: ParityModel; scoped?: number } {
+export function readDeclaration(root: string, files: ReadonlySet<string>, only?: readonly string[]): { errors: Finding[]; model?: ParityModel; leftOut?: string[] | undefined } {
   let read: ReturnType<typeof readConfigFindings<ParityConfig>>;
   try {
     read = readConfigFindings<ParityConfig>(root, DECLARATION, 'parity.schema.json');
@@ -495,17 +513,25 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     if (!(error instanceof ConfigError)) throw error;
     return { errors: [finding('declaration', error.message, { place: DECLARATION })] };
   }
+  let config: ParityConfig;
+  let leftOut: string[] | undefined;
   if (read.errors && only !== undefined) {
     const scoped = scopeSchemaLines(root, read.errors, only);
     const known = scoped.ids;
     const unknown = known === undefined ? [] : only.filter(id => !known.has(id));
-    return {
-      errors: [...scoped.kept.map(message => finding('declaration', message, { place: DECLARATION })), ...unknown.map(id => finding('declaration', `--unit ${id} names no unit of ${DECLARATION}`, { place: DECLARATION }))],
-      scoped: scoped.dropped,
-    };
+    const errors = [...scoped.kept.map(message => finding('declaration', message, { place: DECLARATION })), ...unknown.map(id => finding('declaration', `--unit ${id} names no unit of ${DECLARATION}`, { place: DECLARATION }))];
+    if (errors.length > 0) return { errors };
+    // K517: only other units break the schema; they are left out, and the rules run on the rest, so a check that did not run never
+    // passes.
+    const reduced = withoutBrokenUnits(root, read.errors);
+    if ('errors' in reduced) return { errors: reduced.errors.map(message => finding('declaration', message, { place: DECLARATION })) };
+    config = reduced.value;
+    leftOut = reduced.leftOut;
+  } else if (read.errors) {
+    return { errors: read.errors.map(message => finding('declaration', message, { place: DECLARATION })) };
+  } else {
+    config = read.value;
   }
-  if (read.errors) return { errors: read.errors.map(message => finding('declaration', message, { place: DECLARATION })) };
-  const config = read.value;
   const errors: Finding[] = [];
   const fail = (message: string) => errors.push(finding('declaration', message, { place: DECLARATION }));
   const implementations = new Map<string, ParityImplementation>();
@@ -699,5 +725,5 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     tests,
     testRunners,
   };
-  return { errors, model };
+  return { errors, model, leftOut };
 }

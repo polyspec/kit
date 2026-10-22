@@ -82,14 +82,12 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     return { findings: [finding('declaration', `${DECLARATION} does not exist, and packages/ holds ${implementations.length} implementations (${implementations.join(', ')}); declare them and their units there (scripts/kit/schema/parity.schema.json)`)], ledger };
   }
   say(`read ${DECLARATION}`);
-  // With --unit, the schema lines of other units do not count; when only those remain, no rule runs on the declaration.
+  // With --unit, the units that break the schema other than the named ones are left out, and the rules run on the rest (K517).
   const declaration = readDeclaration(root, files, units);
   const model = declaration.model;
   if (declaration.errors.length) return { findings: declaration.errors, ledger };
-  if (model === undefined && declaration.scoped !== undefined) {
-    say(`${declaration.scoped} schema findings of other units remain in ${DECLARATION}, and the other rules need a declaration that passes the schema, so they did not run`);
-    return { findings: [], ledger };
-  }
+  const leftOut = declaration.leftOut ?? [];
+  if (leftOut.length) say(`${leftOut.join(', ')} ${leftOut.length === 1 ? 'breaks' : 'break'} the schema of ${DECLARATION} and ${leftOut.length === 1 ? 'is' : 'are'} left out; the rules run on the other units`);
   if (model === undefined) throw new Error(`${DECLARATION}: readDeclaration returned neither errors nor a model`);
   // With --unit, only the named units run: an id that no unit holds fails the run before any binding starts (K221).
   const selected = units === undefined ? undefined : new Set(units);
