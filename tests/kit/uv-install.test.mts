@@ -161,3 +161,24 @@ test('uv install passes --no-install-project and --all-groups to its sync, and r
   assert.throws(() => uvInstall({ directory: project, checkouts: [], sync: ['--bogus'], env, print: () => undefined }), /unsupported sync flag --bogus/);
   assert.equal(readFileSync(log, 'utf8'), '', 'no uv call runs for a refused flag');
 });
+
+// K488: the link state of an install (its editable wheels) is written under STATE, so an install writes nothing into a source checkout
+// that is mounted read-only; a STATE that is not absolute is refused.
+test('uv install writes its link state under STATE and nothing into a read-only consumer top (K488)', (t) => {
+  const { root, consumer, env } = workspace(t);
+  const project = path.join(consumer, 'python');
+  const state = path.join(root, 'state');
+  mkdirSync(state);
+  chmodSync(consumer, 0o555);
+  t.after(() => chmodSync(consumer, 0o755));
+  env.UV_PROJECT_ENVIRONMENT = path.join(root, 'venv');
+  uvInstall({ directory: project, checkouts: [path.join(root, 'prov')], state, env, print: () => undefined });
+  assert.equal(existsSync(path.join(state, 'python')), true, 'the wheel is written under STATE');
+  assert.equal(existsSync(path.join(consumer, 'var')), false, 'nothing is written into the consumer top');
+});
+
+test('uv install refuses a STATE that is not an absolute path (K488)', (t) => {
+  const { consumer, env } = workspace(t);
+  const project = path.join(consumer, 'python');
+  assert.throws(() => uvInstall({ directory: project, checkouts: [], state: 'relative/state', env, print: () => undefined }), /STATE must be an absolute path/);
+});
