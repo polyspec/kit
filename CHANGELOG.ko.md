@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 051d6facbe8217757423019986447ae000e40e23af2dcec4082acab996da5f8a -->
+<!-- source-sha256: e8906326bf4eb7b36c8662840787e124b85219498f14725c6ba5c5557214e217 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,17 +7,14 @@
 ## Unreleased
 
 - K452-1를 닫는다 (K452-1): 확장 검사가 커밋되었고 커밋된 트리에서 검증되었다.
-
 - K452-1를 마친다 (K452-1): 실행 시작 전에 각 PHP 확장을 검사하고, 로드되지 않는 것은 경로와 실행 중인 PHP를 이름으로 대며 실패한다.
-
 - 확장 실행은 PHPUnit을 시작하기 전에 각 --php-extension을 검사한다: 로드되지 않는 것은 .so 경로, PHP가 보고하는 내용(빌드된 API), 실행 중인 PHP를 이름으로 대므로, 라이브러리를 잘못된 PHP에서 조용히 테스트하지 않는다 (K452-1).
-
 - K452를 마친다 (K452): run-tests의 확장 실행이 패키지 phpunit.xml을 --configuration으로 넘겨, 라이브러리 실행과 같이 bootstrap이 로드된다.
 
 ### 2026-10-22 — 확장 실행이 PHPUnit에 패키지 설정을 준다 (K452)
 
+- `make land`와 branch의 `make commit`은 main이 다른 task로 가진 ID의 checklist 행을, 그 ID가 branch 자신의 행이 아니면 거부하고, main과 어떤 로컬 branch도 갖지 않은 다음 ID를 이름 붙인다(K497).
 - `scripts/kit/run-tests.mts`가 확장 실행에 패키지의 `phpunit.xml`(또는 `phpunit.xml.dist`)을 `--configuration`으로 넘긴다(K452). 그래서 설정이 지정한 bootstrap이 라이브러리 실행과 같이 로드되고, bootstrap 함수를 부르는 orm 같은 테스트가 확장에서 더는 실패하지 않는다. Red: `node --test --test-name-pattern=K452 tests/kit/run-tests.test.mts`가 6d3db7685abd에서 수정 전 실패; green: 통과, 이 파일의 62개 테스트 모두 통과.
-
 - `link --project`가 `<dir>/.claude/settings.local.json`에 쓰는 Claude Code hook 항목은 kit checkout의 node를 이름으로 든다. 그래서 link와 check를 어느 node로 실행하든 서로 일치하며, check는 kit node가 없으면 보고한다(K498-3).
 - main에서 `make commit`은 index가 그곳에 stage한 새 item의 checklist row를 거부하고, 그 등록의 branch 경로를 이름으로 든다. 변경이 stage된 main checkout의 land는 이미 거부된다(K499).
 - K509: `make polyspec-lock-check`는 추적 매니페스트의 프로젝트 폴더에 대해 config/polyspec.json이 선언한 polyspec 이름을 면제하므로, kit 패키지를 선언한 소비자가 검사를 통과한다 (K509). Red: 수정 전 `node --test --test-name-pattern=K509 tests/kit/polyspec-lock.test.mts`가 1096cb67에서 실패했고(선언된 @polyspec/kit이 finding이었다), green은 파일 10/10 통과한다.
