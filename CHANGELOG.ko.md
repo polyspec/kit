@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e36b0fa2f2c044ca3945f7a186f5ba35ae6a3d0281c38f01157f6ac1a96dfde1 -->
+<!-- source-sha256: 20a24d9c6c7a707c85c00f2ed6da1e048f53a683ba2ed09859ecfc18d5066acf -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- test-exit-deadline preload가 각 test 앞뒤에서 기다리는 event loop 한 바퀴는 process 시작 때의 setTimeout을 쓰므로, timer를 mock하는 test가 더는 hook을 멈추지 않는다(K547).
 - uv-install은 환경이 가진 제공 패키지를 dist-info 기록으로 읽고, 폴더가 없어도 그 각각을 다시 설치한다(K545).
 - node test의 event는 test가 event loop를 막을 때도 test가 끝날 때 run-tests에 도착한다. test-exit-deadline preload가 각 test의 앞뒤에서 loop를 한 번 돌리므로, 합쳐서 deadline보다 오래 걸리는 동기 test 파일이 통과하는 중에 멈추지 않고, tests/kit/lint-ts.test.mts가 더는 30초에 실패하지 않는다(K546).
 - uv-install은 uv sync 전에 link를 해제한 각 제공 패키지를 다시 설치하고, 폴더 없이 끝난 패키지는 조용히 통과하지 않고 이름 붙여 실패한다(K544).
