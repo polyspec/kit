@@ -629,12 +629,20 @@ export type ItemCommit = { id: string; type: string; scope: string; subject: str
  * its row on a branch; a new row staged on main is refused by make commit and make land.
  */
 export function stagedNewRowIds(root: string): string[] {
-  const staged = spawnSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(name => /^docs\/plans\/[^/]+\/checklist(\.ko)?\.md$/.test(name));
+  // K499-1: a checklist may be larger than the default buffer of a child process (orm's is over 1 MB), so git is read with a buffer that
+  // holds any of them, and a read that fails is an error with its cause, never a checklist without rows.
+  const read = (...args: string[]) => {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 30 });
+    if (result.error || result.status !== 0) throw new Error(`git ${args.join(' ')} failed in ${root}: ${result.error?.message ?? result.stderr.trim()}`);
+    return result.stdout;
+  };
+  const staged = read('diff', '--cached', '--name-only', '--diff-filter=ACMR').split('\n').filter(name => /^docs\/plans\/[^/]+\/checklist(\.ko)?\.md$/.test(name));
   const ids = new Set<string>();
   for (const file of staged) {
-    const index = spawnSync('git', ['show', `:${file}`], { cwd: root, encoding: 'utf8' }).stdout;
-    const head = spawnSync('git', ['show', `HEAD:${file}`], { cwd: root, encoding: 'utf8' });
-    const known = new Set(head.status === 0 ? rowIds(head.stdout).map(entry => entry.id) : []);
+    const index = read('show', `:${file}`);
+    // Only a checklist that HEAD lacks has no rows of HEAD.
+    const inHead = spawnSync('git', ['cat-file', '-e', `HEAD:${file}`], { cwd: root }).status === 0;
+    const known = new Set(inHead ? rowIds(read('show', `HEAD:${file}`)).map(entry => entry.id) : []);
     for (const { id } of rowIds(index)) if (!known.has(id)) ids.add(id);
   }
   return [...ids].sort();

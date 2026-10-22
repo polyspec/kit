@@ -902,4 +902,8 @@ test('a state change of a checklist over one megabyte stages no new row on main 
   setState(root, { id: 'T1', state: '[~]' });
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   assert.deepEqual(stagedNewRowIds(root), [], 'the row of T1 is no new row');
+  // The commit of that state change on main goes through: make commit is not refused as staging a new row.
+  const body = path.join(root, 'body.txt');
+  writeFileSync(body, 'Start T1 on the large checklist.\n');
+  assert.doesNotThrow(() => commitItem(root, { id: 'T1', type: 'docs', scope: 'plan', subject: 'Start T1', bodyFile: body }, identity));
 });
