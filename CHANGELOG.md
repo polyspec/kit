@@ -5,34 +5,23 @@
 
 ## Unreleased
 
+- The commit-msg check refuses a docs or chore commit that stages code, a test, a script or a recipe, and names the paths, so a fix is committed with its own type (K449).
 - `make npm-install` gives each relative file: dependency of the project to npm as an absolute path from the project folder,
   since it installs from a temporary copy of the manifest, so those links resolve after the install (K448-12).
 - `make npm-install` without given checkouts looks for a provided package in the package folders of each sibling repository
   (packages/<x>), not only at its root, so it links @polyspec/template from template/packages/ts instead of running npm ci (K448-11).
 - K481: generated Composer link manifests express linked exact versions as caret ranges while each path repository keeps the provider's actual version, so strict validation passes without changing the tracked manifest. Real Composer tests prove stale link locks and ordinary exact-version manifest warnings still fail validation (K481).
-
 - K480: Python editable wheels accept listed packages resolved by a default package-dir alongside named mappings, preserve both the import root and finder, and still refuse unmapped packages without a default. Red: both mixed-mapping cases failed with the missing-prefix refusal on the unchanged implementation. Green: all three focused regressions passed (K480).
-
 - K479: generated Composer link requirements use exact provider versions, reject missing or malformed provider versions, and preserve declared constraints and tracked manifests. Path repositories use the same provider version for undeclared packages, not a stale tracked lock; forks retain their conflict-checked exact linked-provider pin (K379-2). Red: the focused regression reported `*` instead of `0.0.1`; the final baseline run had 7 behavioral failures. Green: all 12 focused K479 tests passed, including K379-2 (K479).
-
 - K476: Go workspace discovery, go.mod and go.work readers now run checkout mise shims with the checkout mise environment, so dependency-review does not invoke a managed Go shim with a bare process environment (K476).
-
 - K435-1: Go and PyPI targeted releases now have focused tests for registry validation and exact update planning, and a completeness test keeps coverage aligned with every target-release handler (K435-1).
-
 - K439-3-1: the K439-3 real-Composer test now uses the checkout's declared Composer and fails with the install-tools fix instead of skipping when it is unavailable; its verification runs through run-tests, which refuses the skipped-only case (K439-3-1).
-
 - K468-2-1: the Composer regression fixture validates parsed lock entries through unknown-valued elements, so `make lint-ts` passes without unsafe JSON assignments (K468-2-1).
-
 - K468-2: offline Composer provider-entry resolution uses an exact version required by a sibling package when a provider has no declared version; Composer resolves the strict requirement, while the rewritten tracked lock keeps its existing version field (K468-2).
-
 - K468-1: when a consumer workspace and a sibling both provide the same package name, provider discovery keeps the consumer's own package; the sibling no longer causes a duplicate-provider failure or takes ownership (K468-1).
-
 - K464-2: a sibling without a readable committed main, or a checkout without a readable committed HEAD, fails shared-pin evaluation as a finding instead of progress-only output (K464-2).
-
 - K464-1-1: removed the unused working-tree source reader and imports after shared-pin comparison moved to committed tracked sources; `make lint-ts` passes (K464-1-1).
-
 - K464-1: the sibling rule compares tracked Composer pins from the current committed HEAD and each sibling's committed main, independently of generated Composer link files. Link files remain in scope for runtime platform and validation rules (K326-2). The focused K464 tests cover generated-link disagreement, a genuine tracked mismatch, and an uncommitted tracked-lock edit (K464-1).
-
 - K475: the provider entries of a tracked composer.lock resolve a consumer `vcs` repository through the sibling checkout whose `origin` names the same repository, as a path repository of that checkout, so `make dependency-review UPDATE=1` runs offline (COMPOSER_DISABLE_NETWORK) and fails naming a vcs repository that no sibling checkout names. Red: the K475 test of `tests/kit/dependency-review.test.mts` fails before the fix (Composer cannot reach the repository offline) (K475).
 - K469-1 is done: its row is [o] in this commit, whose red is the K469-1 test run with the guard stashed (install-tools wrote through a symbolic var) and whose green is the K469-1 test of this commit (K469-1). `make install-tools` refuses a var that is a symbolic link, so a worktree keeps its own var/tools and its own mise state.
 - K469 is done: its row is [o] in this commit, whose red is the K469 test run with the fix stashed (the staged tree has no trust of its mise.toml, so mise refuses it) and whose green is the K469 test of this commit (K469). The staged tree of a commit on main or of land trusts its mise.toml in the mise state of its checkout, and removes that trust before the tree is removed, so the gates run there instead of mise refusing the untrusted config.
