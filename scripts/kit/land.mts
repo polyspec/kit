@@ -208,13 +208,20 @@ function sleepFor(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
+/** The code of a Node.js system error, such as EEXIST, or undefined for any other value. */
+const codeOf = (error: unknown): unknown => (typeof error === 'object' && error !== null && 'code' in error ? error.code : undefined);
+
+/** The pid and the branch that a lock of land names, each undefined when the parsed lock lacks it or holds another type. */
+const pidOf = (lock: unknown): number | undefined => (typeof lock === 'object' && lock !== null && 'pid' in lock && typeof lock.pid === 'number' ? lock.pid : undefined);
+const branchOf = (lock: unknown): string | undefined => (typeof lock === 'object' && lock !== null && 'branch' in lock && typeof lock.branch === 'string' ? lock.branch : undefined);
+
 /** Whether the process `pid` runs: signal 0 checks it without touching it, and EPERM means that it runs as another user. */
 function running(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM';
+    return codeOf(error) === 'EPERM';
   }
 }
 
@@ -232,16 +239,16 @@ function takeLandLock(root: string, branch: string, print: (text: string) => voi
       writeFileSync(file, `${JSON.stringify({ pid: process.pid, branch })}\n`, { flag: 'wx' });
       return () => rmSync(file, { force: true });
     } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      if (codeOf(error) !== 'EEXIST') throw error;
     }
-    let holder: { pid?: unknown; branch?: unknown } = {};
+    let holder: unknown;
     try {
-      holder = JSON.parse(readFileSync(file, 'utf8')) as typeof holder;
+      holder = JSON.parse(readFileSync(file, 'utf8'));
     } catch {
       // A lock that cannot be read, or that went away meanwhile, names no running land.
     }
-    const pid = typeof holder.pid === 'number' ? holder.pid : undefined;
-    const other = typeof holder.branch === 'string' ? holder.branch : 'an unknown branch';
+    const pid = pidOf(holder);
+    const other = branchOf(holder) ?? 'an unknown branch';
     if (pid === undefined || !running(pid)) {
       rmSync(file, { force: true });
       print(`removed the lock of the land of ${other} (pid ${pid ?? 'unknown'}), which no longer runs`);
