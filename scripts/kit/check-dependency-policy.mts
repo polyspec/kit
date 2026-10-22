@@ -19,7 +19,6 @@ import { readComposerLock, readComposerManifest, readComposerManifestFile, readN
 import type { ComposerLock, ComposerManifest, ComposerPackage, NpmLock, NpmManifest } from './manifests.mts';
 import { fileAt, git, gitResult } from './git.mts';
 import type { DependencyPolicy } from './dependency-state.mts';
-import { present } from './present.mts';
 import { isLinked } from './linked-package.mts';
 import { LINK_LOCK, LINK_MANIFEST, judgedComposerFiles } from './composer-project.mts';
 import { repositoryName, siblingCheckouts } from './link-providers.mts';
@@ -707,7 +706,7 @@ function main(): void {
   // findings stay for their own rows (K493). The unscoped gate is unchanged.
   const scope = (list: Finding[]): Finding[] => packages === undefined ? list : list.filter(finding => {
     const line = findingLine(finding);
-    return packages.some(name => new RegExp(`(^|[\s/@"'(,:])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[\s:,)"'/])`).test(line));
+    return packages.some(name => new RegExp(`(^|[\\s/@"'(,:])${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}($|[\\s:,)"'/])`).test(line));
   });
   // The checkouts beside the repository are compared with its own by their committed main; without a sibling, as in CI, nothing is compared.
   const { checkouts: siblings } = siblingCheckouts(root);
