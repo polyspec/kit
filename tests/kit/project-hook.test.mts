@@ -3,7 +3,7 @@
 // link-state-check names the file while it lacks the hook.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
@@ -14,7 +14,8 @@ import { initRepository } from './sandbox-repository.mts';
 
 const KIT = fileURLToPath(new URL('../../', import.meta.url));
 const HOOK = path.join(KIT, 'scripts/kit/claude-hook.mts');
-const command = `'${process.execPath}' '${HOOK}'`;
+// The entry names the node of this kit, as the link writes it (K498-3), and the claude-hook beside the link.
+const command = `'${path.join(KIT, 'var/tools/bin/node')}' '${HOOK}'`;
 const entry = { matcher: 'Bash', hooks: [{ type: 'command', command }] };
 
 /** A git consumer checkout in a temporary folder, removed when the test ends. */
@@ -70,4 +71,24 @@ test('link --project writes the hook entry even when a polyspec package has no p
   const result = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--project', project], { encoding: 'utf8' });
   assert.notEqual(result.status, 0, 'the link fails for the package without a provider');
   assert.deepEqual(readJsonObject(project, '.claude/settings.local.json'), { hooks: { PreToolUse: [entry] } });
+});
+
+// K498-3: the entry that the link writes is the one its check reads, whatever node runs each of them.
+test('a consumer written by the link passes the check when the check runs under another node binary (K498-3)', (t) => {
+  const project = consumer(t);
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'consumer', private: true }));
+  // The toolchain node of this kit is one node; the writer runs under another, so the two process.execPath values differ.
+  const kitNode = path.join(KIT, 'var/tools/bin/node');
+  assert.ok(existsSync(kitNode), `the toolchain node ${kitNode} is missing: run make install-tools`);
+  const execPathOf = (binary: string) => spawnSync(binary, ['-p', 'process.execPath'], { encoding: 'utf8' }).stdout.trim();
+  const candidates = spawnSync('/bin/sh', ['-c', 'which -a node'], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
+  const writer = [process.execPath, ...candidates].find(binary => execPathOf(binary) !== '' && execPathOf(binary) !== execPathOf(kitNode));
+  assert.ok(writer !== undefined, 'a second node binary that differs from the toolchain node is needed');
+  const link = path.join(KIT, 'scripts/kit/link.mts');
+  // The link writes the entry; it fails for the missing packages after the write, as K506 keeps.
+  spawnSync(writer, [link, 'link', '--project', project], { encoding: 'utf8' });
+  assert.ok(existsSync(path.join(project, '.claude/settings.local.json')), 'the link wrote the settings file');
+  const check = spawnSync(kitNode, [link, 'check', '--project', project], { encoding: 'utf8' });
+  const hookFindings = `${check.stdout}${check.stderr}`.split('\n').filter(line => line.includes('claude-hook'));
+  assert.deepEqual(hookFindings, [], `the check under the toolchain node reports the written entry as differing: ${hookFindings.join(' | ')}`);
 });

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 65948569d43b0d39d7591055fda6dc4d6c424344add1859858ff89c191167950 -->
+<!-- source-sha256: af94541cfe0ef5df4f0af1a15bc0241572cf1b9d1786dd1f0d82286cf421cdb8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `link --project`가 `<dir>/.claude/settings.local.json`에 쓰는 Claude Code hook 항목은 kit checkout의 node를 이름으로 든다. 그래서 link와 check를 어느 node로 실행하든 서로 일치하며, check는 kit node가 없으면 보고한다(K498-3).
 - main에서 `make commit`은 index가 그곳에 stage한 새 item의 checklist row를 거부하고, 그 등록의 branch 경로를 이름으로 든다. 변경이 stage된 main checkout의 land는 이미 거부된다(K499).
 - K509: `make polyspec-lock-check`는 추적 매니페스트의 프로젝트 폴더에 대해 config/polyspec.json이 선언한 polyspec 이름을 면제하므로, kit 패키지를 선언한 소비자가 검사를 통과한다 (K509). Red: 수정 전 `node --test --test-name-pattern=K509 tests/kit/polyspec-lock.test.mts`가 1096cb67에서 실패했고(선언된 @polyspec/kit이 finding이었다), green은 파일 10/10 통과한다.
 - `make land`는 main이 앞지른 branch를 lock 아래에서 그 깨끗한 worktree에서 main 위로 rebase하고 rebase된 commit에 gate를 실행하므로, 다른 land를 기다린 land는 rebase를 요구하지 않고 land된다. 충돌하는 rebase는 abort하고 파일을 이름 붙여 거부한다(K495-1).

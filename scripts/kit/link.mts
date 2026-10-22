@@ -1524,10 +1524,22 @@ const THIS_MODULE = fileURLToPath(import.meta.url);
 /** The settings file of the consumer `project` that the link writes its hook into (K498). */
 export const projectHookFile = (project: string): string => path.join(project, PROJECT_HOOK_FILE);
 
-/** The Bash PreToolUse entry that runs the node of the running link and the claude-hook beside it (K498). */
+/**
+ * The kit checkout or package that holds the running link: its folder beside `dist/` or `scripts/kit/` is the root (K498-3).
+ * The root of the built package is the parent of `dist/`; a source module lies two folders below the root.
+ */
+const kitRoot = (): string => (path.basename(path.dirname(THIS_MODULE)) === 'dist' ? path.resolve(path.dirname(THIS_MODULE), '..') : path.resolve(path.dirname(THIS_MODULE), '../..'));
+
+/**
+ * The Bash PreToolUse entry of the claude-hook of the running kit (K498): the node of that kit (its runnable var/tools/bin/node) and
+ * the claude-hook beside the link. It names no node of the process, so a link and a check run by different nodes build one entry
+ * (K498-3). Throws while the node of the kit is missing or not executable.
+ */
 function projectHookEntry() {
+  const kit = kitRoot();
+  if (!kitNodeRunnable(kit)) throw new Error(`${path.join(kit, KIT_NODE)} is missing or not executable, so the Claude Code hook cannot run; run make -C ${kit} install-tools`);
   const hook = path.join(path.dirname(THIS_MODULE), `claude-hook${THIS_MODULE.endsWith('.mts') ? '.mts' : '.mjs'}`);
-  return { matcher: 'Bash', hooks: [{ type: 'command', command: `${quote(process.execPath)} ${quote(hook)}` }] };
+  return { matcher: 'Bash', hooks: [{ type: 'command', command: `${quote(path.join(kit, KIT_NODE))} ${quote(hook)}` }] };
 }
 
 /** Whether a PreToolUse entry runs a claude-hook of either form (K498). */
