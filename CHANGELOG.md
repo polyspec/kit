@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- owner-validate checks no glob of the owner rules that kit ships against the paths of a consumer, which holds only some of them, such as the hooks that it commits (K542).
 - link and uv-install remove the package links of a Python environment before each uv install, so uv never writes through a link into a provider checkout (K539).
 - make item-red BEFORE= builds the repository at BEFORE when the swap changes a build input, and again after the restore, so a test that imports a build proves its red (K525).
 - make commit on main and the registration of item-new on main hold the lock of land, so they and a land queue instead of one finding the change of the other (K524).
