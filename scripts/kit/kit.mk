@@ -404,7 +404,7 @@ composer-install: ## Install the Composer project DIR in place of its composer i
 # npm-install is the install of a consumer's npm packages in place of its npm ci: a sibling checkout's polyspec package is linked from the
 # start, through a temporary manifest, so no release is fetched (K448-2).
 .PHONY: npm-install
-npm-install: ## Install the npm packages of DIR in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, no release fetched (K448-2); CHECKOUTS names the checkouts to link, each a package folder or a repository root whose package folders under packages/ the kit finds itself (K448-9, K494)
+npm-install: ## Install the npm packages of DIR in place of npm ci: a polyspec package that a sibling checkout provides is linked from the start, no release fetched (K448-2); CHECKOUTS names the checkouts to link, each a package folder or a repository root whose package folders under packages/ the kit finds itself, and a checkout with no npm package provides none (K448-9, K494, K494-1)
 	NPM_BIN=$(NPM) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR) $(CHECKOUTS)
 
 # uv-install is the install of a consumer's uv environment in place of its uv sync: a sibling checkout's polyspec package is installed

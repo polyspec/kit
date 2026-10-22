@@ -107,12 +107,11 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
   const wanted = new Set([...declared, ...locked]);
   // A checkout that the caller names is a package folder or a repository root (K494): a root holds its npm packages under packages/
   // (template's @polyspec/template is in packages/ts), which the kit finds itself, as for the sibling checkouts (K448-11), so a consumer
-  // never walks the layout of a provider. A named checkout that is neither is refused, naming it, so nothing is guessed.
+  // never walks the layout of a provider. A checkout that provides no npm package, such as a PHP-only fork in the list that link takes
+  // too, provides none (K494-1); a named entry that is no existing directory is refused, naming it.
   if (explicit) {
     for (const checkout of checkouts) {
-      if (nameOf(checkout) === undefined && packageFoldersOf(checkout).length === 0) {
-        throw new Error(`${checkout} is neither a package folder nor a repository root with package folders`);
-      }
+      if (!existsSync(checkout) || !lstatSync(checkout).isDirectory()) throw new Error(`${checkout} is no existing directory`);
     }
   }
   const provided = new Map<string, string>();

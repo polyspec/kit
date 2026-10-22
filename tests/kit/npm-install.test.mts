@@ -108,20 +108,32 @@ test('make npm-install takes a repository root in CHECKOUTS and links its packag
   assert.ok(recorded.includes(`"file:${path.join(repository, 'packages/ts')}"`), 'the package folder of the root is the file: dependency of the install');
 });
 
-// K494: a checkout that is neither a package folder nor a repository root with package folders is refused, naming it.
-test('the CLI refuses a checkout that is neither a package folder nor a root with package folders (K494)', (t) => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-neither-')));
+// K494-1: a checkout that provides no npm package, such as a PHP-only fork in the list that link takes too, provides none and fails
+// nothing; only an entry that is no existing directory is refused, naming it.
+test('make npm-install takes a checkout that provides no npm package and refuses a missing one (K494-1)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-none-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const empty = path.join(root, 'empty');
-  mkdirSync(empty, { recursive: true });
+  const repository = path.join(root, 'template');
+  mkdirSync(path.join(repository, 'packages/ts'), { recursive: true });
+  writeFileSync(path.join(repository, 'packages/ts/package.json'), JSON.stringify({ name: '@polyspec/template', version: '0.0.11', main: 'index.js' }));
+  const fork = path.join(root, 'json-schema');
+  mkdirSync(fork, { recursive: true });
+  writeFileSync(path.join(fork, 'composer.json'), JSON.stringify({ name: 'opis/json-schema' }));
   const project = path.join(root, 'app');
   mkdirSync(project, { recursive: true });
-  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/template': 'https://example.invalid/template-0.0.11.tgz' } }));
-  const cli = fileURLToPath(new URL('../../scripts/kit/npm-install.mts', import.meta.url));
-  const refused = spawnSync(process.execPath, [cli, project, empty], { encoding: 'utf8', env: { ...process.env, NPM_BIN: 'npm' } });
-  assert.notEqual(refused.status, 0, 'the checkout is refused');
-  assert.match(refused.stderr, /is neither a package folder nor a repository root with package folders/);
-  assert.equal(existsSync(path.join(project, 'node_modules')), false, 'nothing is installed');
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/template': 'https://example.invalid/template-0.0.11.tgz' } }, null, 2) + '\n');
+  writeFileSync(path.join(project, 'package-lock.json'), '{"name":"app","lockfileVersion":3,"requires":true,"packages":{}}\n');
+  const stub = path.join(root, 'npm');
+  writeFileSync(stub, '#!/bin/sh\nprintf "%s\\n" "$1" >> "$NPM_LOG"\nif [ "$1" = install ]; then cat package.json >> "$NPM_LOG"; mkdir -p node_modules; fi\n', { mode: 0o755 });
+  const log = path.join(root, 'npm.log');
+  const kit = fileURLToPath(new URL('../..', import.meta.url));
+  const make = (checkouts: string) => spawnSync('make', ['--no-print-directory', '-C', kit, 'npm-install', `DIR=${project}`, `CHECKOUTS=${checkouts}`, `NPM=${stub}`, `NODE=${process.execPath}`], { encoding: 'utf8', env: { ...process.env, NPM_LOG: log } });
+  const made = make(`${repository} ${fork}`);
+  assert.equal(made.status, 0, made.stderr);
+  assert.ok(readFileSync(log, 'utf8').includes(`"file:${path.join(repository, 'packages/ts')}"`), 'the package folder of the root is linked');
+  const missing = make(`${repository} ${path.join(root, 'nowhere')}`);
+  assert.notEqual(missing.status, 0, 'an entry that does not exist is refused');
+  assert.match(missing.stderr, /nowhere is no existing directory/);
 });
 
 // K448-10: an overrides entry of the manifest that names a provided package takes the checkout folder of its direct dependency, so npm

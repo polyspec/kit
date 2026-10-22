@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4e074ccd96b64616fd35f887b5a0aef3228e6117ec5d8342ed358424309ec742 -->
+<!-- source-sha256: 3811b51b4f3df5fc4c5fbcbbd47b32b4a34130622185ce3876c90d139efb4cd4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make npm-install`은 npm 패키지를 제공하지 않는 `CHECKOUTS` 항목(예: PHP 전용 fork)을 받고, 같은 목록을 받는 `link`처럼 그것에서는 아무것도 link하지 않는다. 존재하는 디렉터리가 아닌 항목만 거부된다(K494-1). Red: `node --test --test-name-pattern=K494-1 tests/kit/npm-install.test.mts`가 2fbe521f에서 composer 전용 checkout을 거부하며 실패했다.
 - K489: `make cargo-fetch`는 sibling checkout의 crate를 그 checkout이 저장소(config/release.json)를 선언하거나 소비자의 Cargo.lock이 그 crate 중 하나를 이름 붙일 때만 patch하므로, 소비자 옆의 무관한 polyspec checkout이 "declares no repositoryUrl"로 fetch를 멈추지 않는다 (K489). Red: 수정 전 `node --test --test-name-pattern=K489 tests/kit/link.test.mts`가 그 오류로 실패했고, green은 같은 명령이 1/1 통과한다.
 - `make npm-install`은 `CHECKOUTS`로 저장소 root를 받고, sibling checkout처럼 packages/ 아래 패키지 폴더를 스스로 찾는다. 그래서 소비자는 link할 checkout을 넘길 뿐 제공자의 구조를 읽지 않는다. 패키지 폴더도, 패키지 폴더를 가진 root도 아닌 checkout은 거부된다(K494). Red: `node --test --test-name-pattern=K494 tests/kit/npm-install.test.mts`가 ce55629e에서 "is a repository root, not a package folder"로 실패했다.
 - `make item-red BEFORE=`는 추가된 새 모듈이 없어서만 나는 red를 거부한다. 실패한 모든 실행이 change가 추가하고 `<rev>` tree에 없는 파일만 가리키면 옛 동작의 red가 아니므로, 거부 메시지가 그 파일을 이름으로 밝히고 양쪽에 있는 진입점으로 테스트하라고 안내한다 (K389-3).
