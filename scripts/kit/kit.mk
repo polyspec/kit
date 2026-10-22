@@ -8,11 +8,18 @@ ONLINE ?=
 
 # The tools of mise.toml (K127) run from the shims of mise, var/tools/mise/shims, which need the environment of mise of the
 # checkout (miseEnvironment of scripts/kit/bootstrap/install-mise.mts): every recipe runs with it, and with var/tools/bin
-# (npm, npx, mise and the wrappers of the Composer projects) and the shims first on PATH.
-export MISE_DATA_DIR := $(CURDIR)/var/tools/mise
-export MISE_CACHE_DIR := $(CURDIR)/var/tools/mise/cache
-export MISE_STATE_DIR := $(CURDIR)/var/tools/mise/state
-export MISE_CONFIG_DIR := $(CURDIR)/var/tools/mise/config
+# (npm, npx, mise and the wrappers of the Composer projects) and the shims first on PATH. var/tools is that of the main checkout
+# of the repository (KIT_TOOLS, K519): a linked worktree runs the tools that the main checkout installed, its data dir, installs
+# and shims, and keeps only its own mise.toml; outside a repository it is the checkout's own.
+KIT_GIT_COMMON := $(abspath $(shell git rev-parse --git-common-dir 2>/dev/null))
+KIT_MAIN_CHECKOUT := $(realpath $(patsubst %/.git,%,$(filter %/.git,$(KIT_GIT_COMMON))))
+KIT_TOOLS := $(or $(KIT_MAIN_CHECKOUT),$(CURDIR))/var/tools
+# Set in a linked worktree, whose main checkout is another folder: it installs no tool (install-tools refuses, install-kit skips it).
+KIT_WORKTREE := $(if $(KIT_MAIN_CHECKOUT),$(filter-out $(realpath $(CURDIR)),$(KIT_MAIN_CHECKOUT)))
+export MISE_DATA_DIR := $(KIT_TOOLS)/mise
+export MISE_CACHE_DIR := $(KIT_TOOLS)/mise/cache
+export MISE_STATE_DIR := $(KIT_TOOLS)/mise/state
+export MISE_CONFIG_DIR := $(KIT_TOOLS)/mise/config
 export MISE_GLOBAL_CONFIG_FILE := $(CURDIR)/mise.toml
 # mise install records the trust of the root of the global config, the home directory unless this names the checkout (K397-1).
 export MISE_GLOBAL_CONFIG_ROOT := $(CURDIR)
@@ -20,26 +27,18 @@ export MISE_LOCKED := 1
 export MISE_AUTO_INSTALL := 0
 export UV_PYTHON_DOWNLOADS := never
 export UV_NO_CONFIG := 1
-export UV_CACHE_DIR := $(CURDIR)/var/tools/mise/cache/uv
-# A worktree reads the tools that the main checkout of its repository installed (K387, sharedInstalls of install-mise.mts): mise
-# looks in MISE_SHARED_INSTALL_DIRS too, so a worktree installs only the tools that the main checkout lacks.
-KIT_MAIN_CHECKOUT := $(patsubst %/.git,%,$(abspath $(shell git rev-parse --git-common-dir 2>/dev/null)))
-ifneq ($(KIT_MAIN_CHECKOUT),$(CURDIR))
-ifneq ($(wildcard $(KIT_MAIN_CHECKOUT)/var/tools/mise/installs),)
-export MISE_SHARED_INSTALL_DIRS := $(KIT_MAIN_CHECKOUT)/var/tools/mise/installs
-endif
-endif
+export UV_CACHE_DIR := $(KIT_TOOLS)/mise/cache/uv
 MISE_ENVIRONMENT := MISE_DATA_DIR MISE_CACHE_DIR MISE_STATE_DIR MISE_CONFIG_DIR MISE_GLOBAL_CONFIG_FILE MISE_GLOBAL_CONFIG_ROOT MISE_LOCKED MISE_AUTO_INSTALL UV_PYTHON_DOWNLOADS UV_NO_CONFIG UV_CACHE_DIR
-export PATH := $(CURDIR)/var/tools/bin:$(CURDIR)/var/tools/mise/shims:$(PATH)
+export PATH := $(KIT_TOOLS)/bin:$(KIT_TOOLS)/mise/shims:$(PATH)
 
 # A recipe starts a tool of the checkout by its absolute path, never by its bare name: make 3.81 looks up a recipe line
 # without shell syntax on the PATH that make started with, not on the PATH above, so `node` there was the node of the
 # machine (K171). NODE is the Node.js of mise.toml, whose wrapper the bootstrap writes; BOOTSTRAP_NODE is the node of the
 # machine, which only starts the bootstrap that installs NODE and toolchain-lock, which writes the mise.lock that the bootstrap
 # installs NODE from (K174). A repository's own recipes use these variables too.
-NODE := $(CURDIR)/var/tools/bin/node
-NPM := $(CURDIR)/var/tools/bin/npm
-ALINT := $(CURDIR)/var/tools/mise/shims/alint
+NODE := $(KIT_TOOLS)/bin/node
+NPM := $(KIT_TOOLS)/bin/npm
+ALINT := $(KIT_TOOLS)/mise/shims/alint
 BOOTSTRAP_NODE := node
 
 .PHONY: kit-sync kit-check
@@ -67,7 +66,10 @@ cargo-downloads-fetch: ## Download the crates of every Cargo.lock
 # TOOLS=npm is the first step of a checkout, before npm ci installs the packages that the other tools import, so it runs the
 # bootstrap installer of $(KIT)/bootstrap, which imports only Node.js built-ins.
 install-tools: ## Install the tools of mise.lock with mise, and the tools that mise does not install, into var/tools; TOOLS=npm runs the bootstrap; ONLINE
-ifeq ($(TOOLS),npm)
+ifneq ($(KIT_WORKTREE),)
+	@echo "[install-tools] $(CURDIR) is a worktree that runs the tools of the main checkout $(KIT_MAIN_CHECKOUT) and installs none; run make install-tools there (K519)" >&2
+	@exit 1
+else ifeq ($(TOOLS),npm)
 	$(ONLINE) $(BOOTSTRAP_NODE) $(KIT)/bootstrap/bootstrap.$(KIT_EXT)
 else
 	$(ONLINE) $(NODE) $(KIT)/install-tools.$(KIT_EXT) $(TOOLS)
@@ -313,8 +315,8 @@ release-tools: ## Install the tools that config/release.json needs for the relea
 release-tools-path: ## Append var/tools/bin and the shims of mise to GITHUB_PATH and the environment of mise to GITHUB_ENV for the steps that follow; the release workflow runs it after release-tools
 	@test -n "$$GITHUB_PATH" || { echo 'release-tools-path: GITHUB_PATH is not set; run it in the release workflow between steps'; exit 1; }
 	@test -n "$$GITHUB_ENV" || { echo 'release-tools-path: GITHUB_ENV is not set; run it in the release workflow between steps'; exit 1; }
-	@echo "$$PWD/var/tools/mise/shims" >> "$$GITHUB_PATH"
-	@echo "$$PWD/var/tools/bin" >> "$$GITHUB_PATH"
+	@echo "$(KIT_TOOLS)/mise/shims" >> "$$GITHUB_PATH"
+	@echo "$(KIT_TOOLS)/bin" >> "$$GITHUB_PATH"
 	@for name in $(MISE_ENVIRONMENT); do echo "$$name=$$(printenv $$name)"; done >> "$$GITHUB_ENV"
 
 release-tag: ## Create the annotated tag TAG at origin/main and push it, or pass when it is there already; the release workflow runs it on a dispatch (K269)

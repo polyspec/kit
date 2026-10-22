@@ -42,7 +42,7 @@ The link is the kit tool `scripts/kit/link.mts` with `scripts/kit/link-folders.m
 ## Worktrees
 
 - The user ruled on 2026-10-22 that a worktree installs nothing: it links its tool and dependency folders (`var/tools`, `node_modules`) to the main checkout's. A worktree branch is `<type>/<name>-<id>` from `main` (P10) and reaches `main` by `make land`. The Composer `vendor` of a worktree is open for the user's ruling, since its generated autoload holds the absolute paths of the checkout that installed it.
-- `make worktree-setup` still installs the worktree from its own sources; until it links, make the worktree with `git worktree add ../<repository>-<name>-<id> -b <type>/<name>-<id> main` and link `var/tools` and `node_modules` to the main checkout's.
+- `make worktree-setup` makes the worktree, links its `node_modules` to the main checkout's and installs nothing (K519). Its tools need no link: kit.mk and the tools of kit run the `var/tools` of the main checkout in a worktree (the data dir, the installs and the shims of mise, and `var/tools/bin`), with the worktree's own `mise.toml`. `make install` and `make install-tools` refuse in a worktree.
 - `main` is written by `make land` and by commits whose pre-commit hook passed (K495): a second land waits for the first's lock, a branch behind `main` is rebased in its worktree, and a manual merge, reset or update-ref of `main` is refused by the reference-transaction hook.
 - A worktree and its branch are removed as soon as the branch is merged into `main`: `make land` removes the branch that it lands, and `make worktree-prune` removes every merged branch; `make link-state-check` fails while a merged branch is left (K381).
 

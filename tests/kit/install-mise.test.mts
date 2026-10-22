@@ -16,6 +16,8 @@ import type { TestContext } from 'node:test';
 import { KIT } from './kit-tools.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { miseEnvironment, TOOLS_GO_MOD, trustConfig } from '../../scripts/kit/bootstrap/install-mise.mts';
+import { toolsPath, toolsRoot } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
+import { lintCommands } from '../../scripts/kit/lint-steps.mts';
 import { toolchainStubs } from './toolchain-stubs.mts';
 import { tree } from './tree.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -195,6 +197,18 @@ test('the mise of a worktree is that of the main checkout, with the mise.toml of
   assert.equal(environment.MISE_GLOBAL_CONFIG_FILE, path.join(worktree, 'mise.toml'));
   assert.equal(environment.MISE_GLOBAL_CONFIG_ROOT, worktree);
   assert.equal('MISE_SHARED_INSTALL_DIRS' in environment, false, 'no second store');
+});
+
+// K519: the tools of a folder outside a repository, and of a folder that does not exist yet, are its own; a lint finds its tools in an
+// absolute folder of the main checkout as well as in a folder of the checkout.
+test('toolsRoot keeps a folder outside a repository and a missing one, and lintCommands takes an absolute tool folder (K519)', (t) => {
+  const outside = realpathSync(tree(t, { 'var/tools/bin/phpcs': '' }));
+  assert.equal(toolsRoot(outside), outside);
+  assert.equal(toolsRoot('/no/such/checkout'), '/no/such/checkout');
+  assert.equal(toolsPath('/no/such/checkout', 'bin'), '/no/such/checkout/var/tools/bin');
+  assert.deepEqual(lintCommands(outside, toolsPath(outside, 'bin'), ['phpcs'], 'install it'), { phpcs: path.join(outside, 'var/tools/bin/phpcs') });
+  assert.deepEqual(lintCommands(outside, 'var/tools/bin', ['phpcs'], 'install it'), { phpcs: path.join(outside, 'var/tools/bin/phpcs') });
+  assert.throws(() => lintCommands(outside, toolsPath(outside, 'bin'), ['phpstan'], 'install it'), /^Error: var\/tools\/bin\/phpstan is missing; install it$/);
 });
 
 test('trustConfig leaves exactly the trust of the checkout mise.toml (K397)', (t) => {

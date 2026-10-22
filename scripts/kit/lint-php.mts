@@ -25,6 +25,7 @@ import type { LintStep } from './lint-steps.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { present } from './present.mts';
 import { kitFile } from './kit-files.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
 
 // PHPStan needs more memory as a package grows, and php.ini stops it at 128M; a limit only stops the analysis (K346).
 const PHPSTAN_MEMORY_LIMIT = '--memory-limit=-1';
@@ -53,7 +54,7 @@ export function lintSteps(root: string): LintStep[] {
   const files = checkedFiles(root);
   const sources = files.filter(file => file.endsWith('.php') && !file.endsWith('.stub.php'));
   if (sources.length === 0) return [];
-  const tools = lintCommands(root, 'var/tools/bin', ['phpcs', 'phpstan'], 'run make install-tools, which installs config/php-lint');
+  const tools = lintCommands(root, toolsPath(root, 'bin'), ['phpcs', 'phpstan'], 'run make install-tools, which installs config/php-lint');
   const packages = foldersOf(root, 'composer.json');
   const owner = packageOwner(packages);
   const steps: LintStep[] = [{ label: 'phpcs', command: present(tools.phpcs, 'tools.phpcs'), args: ['-q', '-s', '--report=emacs', `--standard=${kitFile('phpcs.xml.dist')}`, ...sources], cwd: '.' }];

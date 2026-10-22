@@ -14,7 +14,6 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
-import { sharedInstalls } from './bootstrap/install-mise.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { SHIMS, toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { present } from './present.mts';
@@ -41,8 +40,7 @@ export function venvProblem(venv: string, root: string = repositoryRoot()): stri
   // The group takes part in every match.
   const home = present(/^home\s*=\s*(.+)$/m.exec(readFileSync(config, 'utf8'))?.[1], '/^home\\s*=\\s*(.+)$/m.exec(readFileSync(config, \'utf8\'))?.[1]').trim();
   const installs = toolsPath(root, 'mise');
-  const shared = sharedInstalls(root);
-  if (!home || !(inside(home, installs) || (shared !== undefined && inside(home, shared)))) {
+  if (!home || !inside(home, installs)) {
     return `${relative} was made from ${home ?? 'no home'}, not from a Python of this checkout (${path.relative(root, installs)}); ${make}`;
   }
   return undefined;

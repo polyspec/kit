@@ -18,7 +18,8 @@ export type LintStep = { label: string; command: string; args: string[]; cwd: st
 /** The path of each command of `names` in the folder `folder` of `root`; throws `${folder}/<name> is missing; ${fix}` for a missing one. */
 export function lintCommands(root: string, folder: string, names: readonly string[], fix: string): Record<string, string> {
   return Object.fromEntries(names.map((name) => {
-    const command = path.join(root, folder, name);
+    // A folder of the checkout, such as node_modules/.bin, or an absolute folder of the tools of the main checkout (K519).
+    const command = path.resolve(root, folder, name);
     if (!existsSync(command)) throw new Error(`${path.relative(root, command)} is missing; ${fix}`);
     return [name, command];
   }));

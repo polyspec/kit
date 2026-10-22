@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { foldersOf, lintCommands, lintMain, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
-import { SHIMS } from './mise-tools.mts';
+import { shimsPath } from './mise-tools.mts';
 import { present } from './present.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { kitFile } from './kit-files.mts';
@@ -54,7 +54,7 @@ function moduleTags(root: string, files: readonly string[], folder: string): str
 export function lintSteps(root: string): LintStep[] {
   const modules = foldersOf(root, 'go.mod');
   if (modules.length === 0) return [];
-  const tools = lintCommands(root, SHIMS, ['golangci-lint', 'deadcode'], 'declare golangci-lint and go:golang.org/x/tools/cmd/deadcode in mise.toml and run make install-tools');
+  const tools = lintCommands(root, shimsPath(root), ['golangci-lint', 'deadcode'], 'declare golangci-lint and go:golang.org/x/tools/cmd/deadcode in mise.toml and run make install-tools');
   const files = checkedFiles(root);
   return modules.flatMap((folder) => {
     const golangci = present(tools['golangci-lint'], 'tools[\'golangci-lint\']');

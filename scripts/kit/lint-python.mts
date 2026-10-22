@@ -14,7 +14,7 @@
 import path from 'node:path';
 import { foldersOf, lintCommands, lintMain, packageOwner, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
-import { SHIMS } from './mise-tools.mts';
+import { shimsPath } from './mise-tools.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { present } from './present.mts';
 import { kitFile } from './kit-files.mts';
@@ -27,7 +27,7 @@ export function lintSteps(root: string): LintStep[] {
   // A repository without Python sources has nothing to lint: no tool and no configuration is needed (K319).
   const files = checkedFiles(root);
   if (!files.some(file => file.endsWith('.py'))) return [];
-  const tools = lintCommands(root, SHIMS, ['ruff', 'vulture'], 'declare ruff and pypi:vulture in mise.toml and run make install-tools');
+  const tools = lintCommands(root, shimsPath(root), ['ruff', 'vulture'], 'declare ruff and pypi:vulture in mise.toml and run make install-tools');
   const packages = foldersOf(root, 'pyproject.toml');
   const owner = packageOwner(packages);
   return [

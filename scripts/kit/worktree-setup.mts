@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // The worktree of a row (K348, docs/operations/local-links.md, Worktrees): `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]`
-// creates the worktree `../<repository>-<name>-<id>` of the main checkout on the branch `<type>/<name>-<id>` from main, installs it
-// from its own sources with `make install` (the tools, the packages and the links, then the steps of the repository), and checks it
-// with `make link-state-check`. It refuses while the free disk is under WORKTREE_DISK_FLOOR, and a second run on an existing worktree
-// of that branch installs and checks it again, so a run leaves the same state.
+// creates the worktree `../<repository>-<name>-<id>` of the main checkout on the branch `<type>/<name>-<id>` from main, links its
+// node_modules to the main checkout's and installs nothing (K519: the tools of var/tools are the main checkout's through kit.mk and
+// toolsPath), rebuilds its own packages and checks it with `make link-state-check`. It refuses while the free disk is under
+// WORKTREE_DISK_FLOOR, and a second run on an existing worktree of that branch links and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
-import { existsSync, statfsSync } from 'node:fs';
+import { appendFileSync, existsSync, lstatSync, readFileSync, readlinkSync, statfsSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { COMMIT_RULES } from './check-commits.mts';
@@ -34,10 +34,40 @@ export function worktreeOf(main: string, { name, id, type }: { name: string; id:
   return { folder: path.join(path.dirname(main), `${path.basename(main)}-${name}-${id}`), branch: `${type}/${name}-${id}` };
 }
 
+/** The folders of the main checkout that a worktree links instead of installing them (K519). */
+export const LINKED_FOLDERS = ['node_modules'] as const;
+
 /**
- * Creates or reuses the worktree of the row in the repository of `root` and runs `make install` and `make link-state-check` in it;
- * returns its folder. Throws, creating nothing, while `free` is under WORKTREE_DISK_FLOOR, and when the folder exists as anything but
- * the worktree of the branch.
+ * Links each of LINKED_FOLDERS of the worktree `folder` to that of the main checkout `main`, and adds the links to the exclude file of
+ * the common git folder, since an ignore pattern with a trailing slash matches a folder and not a link. Throws when the main checkout
+ * has no such folder, or the worktree holds the name as anything but that link.
+ */
+function linkFolders(main: string, folder: string, print: (text: string) => void): void {
+  const exclude = path.join(path.resolve(main, git(main, 'rev-parse', '--git-common-dir').trim()), 'info', 'exclude');
+  for (const name of LINKED_FOLDERS) {
+    const source = path.join(main, name);
+    const target = path.join(folder, name);
+    if (!existsSync(source)) throw new Error(`${source} is missing; run make install in the main checkout, whose ${name} a worktree links`);
+    const entry = lstatSync(target, { throwIfNoEntry: false });
+    if (entry === undefined) {
+      symlinkSync(source, target);
+      print(`[worktree-setup] linked ${name} to ${source}`);
+    } else if (!entry.isSymbolicLink() || path.resolve(folder, readlinkSync(target)) !== source) {
+      throw new Error(`${target} exists and is not the link to ${source}; remove it, since a worktree installs nothing (K519)`);
+    }
+    const pattern = `/${name}`;
+    const lines = existsSync(exclude) ? readFileSync(exclude, 'utf8').split('\n') : [];
+    if (!lines.includes(pattern)) {
+      appendFileSync(exclude, `${lines.length > 0 && lines.at(-1) !== '' ? '\n' : ''}${pattern}\n`);
+      print(`[worktree-setup] excluded ${pattern} in ${exclude}`);
+    }
+  }
+}
+
+/**
+ * Creates or reuses the worktree of the row in the repository of `root`, links its folders (linkFolders), rebuilds its packages and runs
+ * `make link-state-check` in it; returns its folder. Throws, creating nothing, while `free` is under WORKTREE_DISK_FLOOR, and when the
+ * folder exists as anything but the worktree of the branch.
  */
 /**
  * The link tool that rebuilds the packages of a worktree (K482). A consumer runs the link of its installed kit, and kit itself runs its
@@ -62,9 +92,10 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     git(main, 'worktree', 'add', '--quiet', folder, ...(known ? [branch] : ['-b', branch, 'main']));
     print(`[worktree-setup] created ${folder} on ${branch}`);
   } else {
-    print(`[worktree-setup] ${folder} is the worktree of ${branch}; installing it again`);
+    print(`[worktree-setup] ${folder} is the worktree of ${branch}; linking and checking it again`);
   }
-  for (const target of ['install', 'rebuild', 'link-state-check']) {
+  linkFolders(main, folder, print);
+  for (const target of ['rebuild', 'link-state-check']) {
     // The rebuild (K482) builds the packages of the worktree's own repository before the check reads their builds: a new worktree has none yet.
     const [command, args] = target === 'rebuild'
       ? [process.execPath, [linkTool(folder), 'rebuild', '.']]

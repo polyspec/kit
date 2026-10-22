@@ -10,6 +10,7 @@ import { dirname, join, posix } from 'node:path';
 import { check } from './check-dependency-policy.mts';
 import { POLICY, RECORD, readPolicy } from './dependency-state.mts';
 import { writeJson } from './bootstrap/files.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { readComposerManifest } from './manifests.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -63,9 +64,10 @@ function copy(directory: string) {
   spawnSync('git', ['init', '--quiet'], { cwd: directory });
   // The copy runs with the tools of the checkout it was copied from, as a worktree shares them: its var/tools is a link to that
   // folder (K393-1).
-  if (existsSync(join(repositoryRoot(), 'var/tools'))) {
+  const tools = toolsPath(repositoryRoot());
+  if (existsSync(tools)) {
     mkdirSync(join(directory, 'var'), { recursive: true });
-    symlinkSync(join(repositoryRoot(), 'var/tools'), join(directory, 'var/tools'));
+    symlinkSync(tools, join(directory, 'var/tools'));
   }
 }
 

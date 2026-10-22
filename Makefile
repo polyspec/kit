@@ -19,7 +19,7 @@ install-packages: ## Install the packages of package-lock.json with the npm of v
 # The PHP lint runs PHPStan on the PHP symbol extractor with the autoloader of its Composer project, as on every Composer
 # package (lint-php.mts); a consumer installs the extractor into var/tools/symbols-php instead (install-symbols.mts).
 kit-install-symbols-php: ## Install the locked packages of the PHP symbol extractor into scripts/kit/symbols/php/vendor with the Composer of mise.toml, for the PHPStan of lint-php; ONLINE
-	$(ONLINE) env COMPOSER_HOME=$(CURDIR)/var/tools/composer/home COMPOSER_CACHE_DIR=$(CURDIR)/var/tools/composer/cache $(CURDIR)/var/tools/mise/shims/composer install --working-dir=scripts/kit/symbols/php --no-interaction --no-progress --no-scripts --no-plugins --prefer-dist
+	$(ONLINE) env COMPOSER_HOME=$(KIT_TOOLS)/composer/home COMPOSER_CACHE_DIR=$(KIT_TOOLS)/composer/cache $(KIT_TOOLS)/mise/shims/composer install --working-dir=scripts/kit/symbols/php --no-interaction --no-progress --no-scripts --no-plugins --prefer-dist
 
 # kit-test fails when its run changes the checkout: git status --porcelain -uall and the hash of git diff --binary HEAD are
 # recorded under var/ (ignored) before the run and compared after it; the changed status lines are printed.
@@ -66,7 +66,12 @@ typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.j
 install: install-kit kit-install ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools, then the steps of the repository; ONLINE
 kit-install: install-kit ## The install step of kit after its bootstrap: the packages of the PHP symbol extractor (kit-install-symbols-php); ONLINE
 	$(MAKE) --no-print-directory kit-install-symbols-php
-install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order; ONLINE
+install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order; a worktree installs nothing (K519); ONLINE
+ifneq ($(KIT_WORKTREE),)
+	@echo "[install-kit] $(CURDIR) is a worktree, which installs nothing: it runs the tools of the main checkout $(KIT_MAIN_CHECKOUT), and make worktree-setup links its node_modules to the main checkout's (K519)" >&2
+	@exit 1
+else
 	$(MAKE) --no-print-directory install-tools TOOLS=npm
 	$(MAKE) --no-print-directory install-packages
 	$(MAKE) --no-print-directory install-tools
+endif
