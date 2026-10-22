@@ -22,7 +22,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { readNpmManifest } from './manifests.mts';
 import { PHPUNIT_MANIFEST, toolchainConfig } from './bootstrap/toolchain-declared.mts';
 import { MISE_LOCKS } from './toolchain-lock.mts';
-import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
+import { DECLARATION, makeDatabase, ownerDeclaration, select, suiteTargets, type MakeDatabase, type OwnerDeclaration } from './owner-check.mts';
 import { implementationFolders } from './parity-declaration.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { bareToolFindings, testRunnerFindings } from './recipe-tools.mts';
@@ -240,6 +240,37 @@ export function gateFindings(files: readonly string[], make: MakeDatabase): stri
   });
 }
 
+// The gate that every source path selects with the lint of its language (K534).
+const DUPLICATION_GATE = 'duplication-check';
+
+/**
+ * The findings of the owner rules `declaration` for the tracked `files` (K534): for each language whose lint is a gate of kit-gates
+ * in `make`, each source path, outside the copies of kit, selects that lint and duplication-check, since land and the commit gate run
+ * what the owners of the changed paths select. One finding per language and missed gate, with the number of paths and one of them.
+ */
+export function lintSelectionFindings(files: readonly string[], make: MakeDatabase, declaration: OwnerDeclaration): string[] {
+  const gates = make.targets.get('kit-gates')?.prerequisites ?? [];
+  const selected = new Map<string, Set<string | undefined>>();
+  const targetsOf = (file: string) => {
+    const known = selected.get(file);
+    if (known) return known;
+    // The importers of a rule add tests, never targets, so the selection of targets reads no import graph.
+    const targets = new Set(select(declaration, [file], [], () => true, () => []).checks.map(check => check.target));
+    selected.set(file, targets);
+    return targets;
+  };
+  return gates.flatMap((gate) => {
+    const language = LANGUAGE_GATES[gate];
+    if (language === undefined || !gate.startsWith('lint-')) return [];
+    const sources = files.filter(file => language.code.test(file) && !file.startsWith('scripts/kit/'));
+    return [gate, ...(gates.includes(DUPLICATION_GATE) ? [DUPLICATION_GATE] : [])].flatMap((target) => {
+      const missed = sources.filter(file => !targetsOf(file).has(target));
+      if (missed.length === 0) return [];
+      return [`${DECLARATION}: ${missed.length} ${language.name} source paths, such as ${missed[0]}, select no ${target}, so land and the commit gate never run it on them; add ${target} to the targets of a rule that owns them`];
+    });
+  });
+}
+
 /** The targets that kit defines: those of the kit.mk beside this module and of the kit-bootstrap.mk of `root`. */
 function kitTargets(root: string): Set<string> {
   const files = [path.join(path.dirname(fileURLToPath(import.meta.url)), 'kit.mk'), path.join(root, 'scripts/kit/kit-bootstrap.mk')];
@@ -251,7 +282,9 @@ function targetFindings(root: string, make: MakeDatabase): string[] {
   const makefile = path.join(root, 'Makefile');
   const names = existsSync(makefile) ? taskNameFindings(readFileSync(makefile, 'utf8'), kitTargets(root)) : [];
   const files = trackedFiles(root);
-  return [...names, ...runtimeTargetFindings(files, make), ...(isSource(root) ? [] : gateFindings(files, make))];
+  // K534: the owner rules as land reads them select the lint of each language for its sources.
+  const owners = existsSync(path.join(root, DECLARATION)) ? lintSelectionFindings(files, make, ownerDeclaration(root)) : [];
+  return [...names, ...runtimeTargetFindings(files, make), ...(isSource(root) ? [] : gateFindings(files, make)), ...owners];
 }
 
 /**
