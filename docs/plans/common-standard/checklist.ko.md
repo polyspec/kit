@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: ead4572d0490cca958525101616275aebf7383150dd8edd97f1593fba57dc394 -->
+<!-- source-sha256: 15ab5c9da7465fc91c684fd519047673bd63eaf017e3179b69e87a969a5b689a -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -406,3 +406,4 @@
 | K507 | link-state-check는 polyspec 패키지를 path 또는 link source로 기록한 추적 lock(Cargo.lock, package-lock.json, composer.lock)을 거부하여 추적 lock이 release 기록으로 남게 한다(K448, local is canonical). 원인: 검사는 설치된 패키지만 읽으므로 source가 없는 polyspec-ordered-json 항목(path 패키지)이 알려지지 않은 채 통과한다. 인수 조건: 추적 lock의 polyspec 패키지 항목이 path 또는 link source이면(Cargo.lock: 구성원이 아닌 polyspec 패키지에 source 없음, package-lock.json: link true 또는 file: resolved, composer.lock: dist type path) 파일, 패키지, release source 형식을 이름 붙인 finding이다. release source를 가진 추적 lock은 통과한다. | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts, CHANGELOG.md, CHANGELOG.ko.md, docs/plans/common-standard/checklist.md, docs/plans/common-standard/checklist.ko.md | `node --test --test-name-pattern=K507 tests/kit/link-state-check.test.mts` | [o] |
 | K501 | composer-install은 명시 CHECKOUTS, 즉 polyspec 패키지를 제공하는 저장소 root를 받는다: make composer-install DIR=<project> CHECKOUTS="<checkout>..."(K432, K483, K448-9 후속) | scripts/kit/composer-install.mts, scripts/kit/kit.mk, tests/kit/link.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test --test-name-pattern=K501 tests/kit/link.test.mts` | [o] |
 | K508 | 체크아웃 Composer 셔임을 실행하는 테스트 헬퍼가 kit의 도구 환경을 준다. 그래서 mise 셔임이 체크아웃의 신뢰와 디렉터리로 실행된다 | tests/kit/dependency-review.test.mts | `node --test --test-name-pattern=K508 tests/kit/dependency-review.test.mts` | [o] |
+| K504 | land의 K459 테스트는 fixture에 build target을 주므로 테스트가 다시 green이 된다(K453과 K459 후속). 원인: K453은 merge 뒤 main checkout에서 make build를 실행하게 했는데, K459 테스트의 fixture는 build target을 선언하지 않으므로 관계없는 branch의 land가 make build failed (2, 0.0s)로 실패하고 테스트는 kit main(8f487225)에서 red다. 인수 조건: K459 fixture는 다른 land fixture처럼 build를 선언하고, tests/kit/land.test.mts의 다른 Makefile fixture에는 빠진 곳이 없다(확인함: 이것 하나뿐). red fixture: K459 테스트가 지금 main에서 실패한다. | tests/kit/land.test.mts | `node --test --test-name-pattern=K459 tests/kit/land.test.mts` | [ ] |
