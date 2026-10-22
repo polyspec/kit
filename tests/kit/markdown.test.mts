@@ -2,7 +2,7 @@
 // a heading are what GitHub and VitePress render, and a heading anchor is the slug that each of them writes.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { anchors, headingAnchors, links, proseLines, scanFences, withoutInlineCode } from '../../scripts/kit/markdown.mts';
+import { anchors, headingAnchors, lineBlocks, links, proseLines, scanFences, withoutInlineCode } from '../../scripts/kit/markdown.mts';
 
 test('a setext heading has an anchor, as GitHub renders it', () => {
   assert.deepEqual(headingAnchors('The title\n=========\n\nText\n'), ['the-title']);
@@ -63,4 +63,13 @@ test('explicit anchors are the a elements with an id or a name, in a block or in
 
 test('inline code is blanked in its place', () => {
   assert.equal(withoutInlineCode('a `b` c ``d ` e`` f'), 'a     c           f');
+});
+
+// K510: the lines of one text are read once. The push gate reads the checklists of every pushed commit, and most commits hold the same
+// checklist text, so a second read of a text returns the blocks of the first instead of parsing the Markdown again.
+test('the blocks of a text are read once and a second read of the same text returns them (K510)', () => {
+  const text = '| ID | Task | State |\n|---|---|---|\n| T1 | Write the parser | [ ] |\n';
+  const first = lineBlocks(text);
+  assert.equal(lineBlocks(text), first, 'the same text returns the same blocks');
+  assert.notEqual(lineBlocks(`${text}| T2 | Add the reader | [ ] |\n`), first, 'another text is read on its own');
 });
