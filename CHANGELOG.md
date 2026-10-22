@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- make commit on main and the registration of item-new on main hold the lock of land, so they and a land queue instead of one finding the change of the other (K524).
 - lint-go judges deadcode over the union of the build tags of a module, so a function that the files of one tag reach is no finding of another run (K536).
 - link-state-check accepts the mise trust of the main checkout in a linked worktree, treats a branch whose worktree has uncommitted changes as in use, and judges in a linked worktree only its own branch (K532).
 - kit-check verifies that the owner rules select, for each source path of a language whose lint is a gate of kit-gates, that lint and duplication-check, so land lints what it lands (K534).

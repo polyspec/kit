@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1c6fd331cc2109639f7f10dac819616dc532d5f50f9d1f669d6d27b7013d9644 -->
+<!-- source-sha256: 0a35e4f474a25a8567bf4e355b947a2bc061030f950546f360ce1d8cb7b921d8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- main의 make commit과 main에서의 item-new 등록은 land의 lock을 가지므로, 그것들과 land는 서로의 변경을 보지 않고 줄을 선다(K524).
 - lint-go는 deadcode를 모듈 build tag의 합집합으로 판정하므로, 한 tag의 파일이 도달하는 함수는 다른 실행의 finding이 아니다(K536).
 - link-state-check은 linked worktree에서 main checkout의 mise trust를 받아들이고, worktree에 commit되지 않은 변경이 있는 branch를 사용 중으로 보며, linked worktree에서는 자기 branch만 판정한다(K532).
 - kit-check은 owner 규칙이 lint가 kit-gates의 gate인 언어의 각 source 경로에 그 lint와 duplication-check를 선택하는지 확인하므로, land가 들이는 것을 lint한다(K534).
