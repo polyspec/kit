@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d31b924a2355ffacf0566888959a0cc307b2c5ba5fdc56395e27fb6f6c72c6dc -->
+<!-- source-sha256: c57e9758e7e1bf701b22c38b46013e8a138361208857d4f5371fdf25885cfb65 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,6 +8,10 @@
 
 - `make composer-install DIR=<project> CHECKOUTS="<checkout>..."`은 Composer 프로젝트의 polyspec 패키지를 제공하는 checkout을 DIR 뒤에서 받으므로, 설치가 저장소를 명시하고 sibling 탐색이 필요 없다. `NO_DEV=1`은 그것과 함께 계속 동작한다(K501). Red: aff8cbac에서 `node --test --test-name-pattern=K501 tests/kit/link.test.mts`가 실패했다. CLI가 checkout 인수를 usage 메시지와 함께 거부했다.
 - K507: `make link-state-check`는 polyspec 패키지를 path 또는 link source로 기록한 추적 Cargo.lock, package-lock.json, composer.lock을 거부하며, 파일, 패키지, release source 형식을 이름 붙인다(source 없는 Cargo 패키지, link 또는 file: resolved, Composer path dist). 그래서 추적 lock은 release 기록으로 남는다 (K507). Red: 수정 전 `node --test --test-name-pattern=K507 tests/kit/link-state-check.test.mts`가 f68fe82e에서 실패했고(path lock 3개가 통과), green은 파일 25/25 통과한다.
+
+### 2026-10-22 — 체크아웃의 Composer 셔임은 kit의 도구 환경으로 실행된다 (K508)
+
+- `tests/kit/dependency-review.test.mts`가 체크아웃의 Composer 셔임을 kit의 도구 환경(`toolingEnvironment`)으로 실행한다. 그 환경이 셔임에 체크아웃의 신뢰와 디렉터리를 준다 (K508). 없으면 셔임이 "mise.toml are not trusted"로 실패한다. Red: `node --test --test-name-pattern=K508 tests/kit/dependency-review.test.mts`가 51969e466b9f에서 수정 전 실패; green: 통과.
 - K490: review record는 tracked composer.json이 선언한 의존성을 적는다; link manifest는 아무것도 더하지 않는다 (K490). Red: make item-red ID=K490 exit 1 (vendor/linked가 기록됨). Green: make 아래 make item-test ID=K490 통과, lint-ts 통과. (K490).
 - `link --project <dir>`는 package를 link하기 전에, 그 결과와 관계없이 `<dir>/.claude/settings.local.json`의 kit hook 항목을 쓰므로, 설치되지 않은 checkout도 hook을 받는다(K506).
 - K492: kit의 Go 핀은 advisory GO-2026-6809가 없는 릴리스 go1.27.3이다; mise.toml, lock, 핀 파일, symbols go.mod, tool inventory가 그것을 적는다. Red: make item-red ID=K492 exit 1 (kit 핀 1.27.2). Green: make 아래 make item-test ID=K492 통과. (K492).

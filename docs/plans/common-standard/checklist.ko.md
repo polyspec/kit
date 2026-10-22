@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 307c70e44e5a1229949915e7d43ad5dafe271cf38771dcf194692c16a0f0d0e1 -->
+<!-- source-sha256: 5db21c46583ddb7e66299321c2249f1f76fd13f6223596374a054657e624c8f9 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -404,3 +404,4 @@
 | K490 | dependency-review UPDATE=1은 tracked manifest만 기록한다: link manifest(composer.link.json, go.work 모듈)는 선언이 아니라 로컬 설치 상태이므로, review record는 tracked manifest가 선언하지 않는 의존성을 적지 않는다 (S-45-40의 블로커, fsm에서 발견) | scripts/kit/dependency-state.mts, tests/kit/dependency-toolchain.test.mts | `node --test --test-name-pattern=K490 tests/kit/dependency-toolchain.test.mts` | [o] |
 | K507 | link-state-check는 polyspec 패키지를 path 또는 link source로 기록한 추적 lock(Cargo.lock, package-lock.json, composer.lock)을 거부하여 추적 lock이 release 기록으로 남게 한다(K448, local is canonical). 원인: 검사는 설치된 패키지만 읽으므로 source가 없는 polyspec-ordered-json 항목(path 패키지)이 알려지지 않은 채 통과한다. 인수 조건: 추적 lock의 polyspec 패키지 항목이 path 또는 link source이면(Cargo.lock: 구성원이 아닌 polyspec 패키지에 source 없음, package-lock.json: link true 또는 file: resolved, composer.lock: dist type path) 파일, 패키지, release source 형식을 이름 붙인 finding이다. release source를 가진 추적 lock은 통과한다. | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts, CHANGELOG.md, CHANGELOG.ko.md, docs/plans/common-standard/checklist.md, docs/plans/common-standard/checklist.ko.md | `node --test --test-name-pattern=K507 tests/kit/link-state-check.test.mts` | [o] |
 | K501 | composer-install은 명시 CHECKOUTS, 즉 polyspec 패키지를 제공하는 저장소 root를 받는다: make composer-install DIR=<project> CHECKOUTS="<checkout>..."(K432, K483, K448-9 후속) | scripts/kit/composer-install.mts, scripts/kit/kit.mk, tests/kit/link.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test --test-name-pattern=K501 tests/kit/link.test.mts` | [o] |
+| K508 | 체크아웃 Composer 셔임을 실행하는 테스트 헬퍼가 kit의 도구 환경을 준다. 그래서 mise 셔임이 체크아웃의 신뢰와 디렉터리로 실행된다 | tests/kit/dependency-review.test.mts | `node --test --test-name-pattern=K508 tests/kit/dependency-review.test.mts` | [~] |

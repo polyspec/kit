@@ -8,6 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { composerCommand, composerEnvironment as toolingEnvironment } from '../../scripts/kit/install-composer-project.mts';
+import { toolCommand } from '../../scripts/kit/mise-tools.mts';
 import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { composerEntries, composerEnvironment, highestStableRelease, isReleaseConsumerDirectory, providerEntries, runUpdateSteps, targetRelease, TARGET_RELEASE_ECOSYSTEMS, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { TOOLCHAIN } from '../../scripts/kit/dependency-state.mts';
@@ -296,7 +297,9 @@ function composerOfCheckout(checkout: string, user: string): string {
   } catch (error) {
     throw new Error(`${user} needs the Composer of mise.toml, which make install-tools installs: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
-  const version = spawnSync(composer, ['--version'], { encoding: 'utf8' });
+  // K508: the shim of mine runs with the toolchain environment of kit, which gives it the trust and the directories of the checkout.
+  // K508: the shim of mine runs with the toolchain environment of kit, which gives it the trust and the directories of the checkout.
+  const version = spawnSync(composer, ['--version'], { encoding: 'utf8', env: toolingEnvironment(checkout) });
   if (version.error || version.status !== 0) throw new Error(`${user}: ${composer} --version failed, so run make install-tools: ${version.error?.message ?? version.stderr.trim()}`);
   return composer;
 }
@@ -651,4 +654,22 @@ test('a provider entry records the version that the writer resolved for a pinned
   const entry: unknown = Array.isArray(list) ? list[0] : undefined;
   assert.ok(isJsonObject(entry), result.text);
   assert.equal(entry.version, 'v1.0.0-p1', 'the version is the one the writer resolved for the pinned fork');
+});
+
+// K508: the Composer shim of a checkout runs with the toolchain environment of kit. Without that environment the shim finds no trust of the
+// checkout and fails, so the helper that runs it must give the environment of kit, whatever the environment of the test runner.
+test('the Composer shim of a checkout runs with the toolchain environment of kit (K508)', () => {
+  const checkout = repositoryRoot();
+  // The shim is run from a bare environment: no MISE variable of the runner, so the test does not depend on how it was started.
+  const saved = Object.fromEntries(Object.entries(process.env).filter(([name]) => name.startsWith('MISE_')));
+  for (const name of Object.keys(saved)) delete process.env[name];
+  try {
+    // The helper that every test of Composer uses must run the shim with that environment: it is the path under test.
+    const composer = composerOfCheckout(checkout, 'the test of K508');
+    const version = spawnSync(composer, ['--version'], { encoding: 'utf8', env: toolingEnvironment(checkout) });
+    assert.equal(version.status, 0, version.stderr || version.stdout);
+    assert.equal(toolCommand(checkout, 'composer'), composer, 'the helper runs the Composer shim of the checkout');
+  } finally {
+    Object.assign(process.env, saved);
+  }
 });
