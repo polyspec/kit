@@ -962,3 +962,33 @@ test('a commit on main waits for the land that holds the lock and releases the l
   assert.equal(existsSync(lock), false, 'the commit released the lock');
   assert.match(log(root), /^feat\(parser\): Parse the input \(#T1\)/);
 });
+
+// K525: item-red BEFORE= swaps the tracked sources, and a Verification that reads the build of a package, which git does not track,
+// would run the fixed build; the swap of a build input builds the repository at BEFORE, and the restore builds it again.
+test('make item-red BEFORE= builds the repository at BEFORE when the swap changes a build input, and again after (K525)', (t) => {
+  const root = plans(t, 'parser');
+  put(root, {
+    '.gitignore': 'var/\npkg/dist/\n',
+    'Makefile': 'build:\n\tmkdir -p pkg/dist && cp pkg/src/value.txt pkg/dist/value.txt\n',
+    'pkg/package.json': '{"name":"pkg","main":"dist/value.txt"}\n',
+    'pkg/src/value.txt': 'old\n',
+  });
+  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(require(\'fs\').readFileSync(\'pkg/dist/value.txt\', \'utf8\') === \'new\\\\n\' ? 0 : 1)"`' }));
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
+  const gitCommit = (message: string) => {
+    for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message]]) {
+      const run = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      assert.equal(run.status, 0, run.stderr);
+    }
+  };
+  gitCommit('base');
+  put(root, { 'pkg/src/value.txt': 'new\n', 'tests/value.test.mts': 'test\n' });
+  gitCommit('fix(parser): Give the new value (#T1)\n\nThe value is new.');
+  assert.equal(spawnSync('make', ['--no-print-directory', 'build'], { cwd: root }).status, 0);
+  setState(root, { id: 'T1', state: '[~]' }, () => {});
+  const env: NodeJS.ProcessEnv = { ...process.env, ID: 'T1', BEFORE: 'HEAD~1' };
+  const red = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(red.status, 0, `${red.stdout}${red.stderr}`);
+  assert.match(red.stdout, /make build/, 'the build of BEFORE is named');
+  assert.equal(readFileSync(path.join(root, 'pkg/dist/value.txt'), 'utf8'), 'new\n', 'the restore builds the fixed sources again');
+});
