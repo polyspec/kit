@@ -13,6 +13,8 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-ts.mts';
 import { initRepository } from './sandbox-repository.mts';
+import { kitFile, kitPackageRoot } from '../../scripts/kit/kit-files.mts';
+import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
 const FILES: Record<string, string> = {
   '.oxlintrc.json': '{}\n',
@@ -209,4 +211,17 @@ test('a first run of knip that fails or prints no list of hints fails the lint w
   writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ ignoreDependencies: ['@polyspec/kit'] }));
   writeFileSync(path.join(root, 'knip-hints.json'), '[{ "name": "@polyspec/kit" }]');
   assert.throws(() => lintSteps(root), /knip --no-progress --config var\/lint-ts\/knip\.json --reporter \S+knip-ignore-hints\.mts/);
+});
+
+// K514: oxlint and knip read the .oxlintrc.json and knip.json of the kit package that runs, never a copy of the repository.
+test('oxlint and knip read the configurations of the kit package, and a checkout without them lints (K514)', (t) => {
+  const { root } = checkout(t);
+  const steps = lintSteps(root);
+  const oxlint = steps.find(step => step.label.startsWith('oxlint'));
+  assert.ok(oxlint, JSON.stringify(steps));
+  assert.deepEqual(oxlint.args.slice(oxlint.args.indexOf('-c'), oxlint.args.indexOf('-c') + 2), ['-c', kitFile('.oxlintrc.json')]);
+  const kit: unknown = JSON.parse(readFileSync(kitFile('knip.json'), 'utf8'));
+  const merged: unknown = JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8'));
+  assert.ok(typeof kit === 'object' && kit !== null && typeof merged === 'object' && merged !== null);
+  assert.deepEqual(Object.keys(merged).sort(), Object.keys(kit).sort(), 'the knip configuration is that of the kit package');
 });

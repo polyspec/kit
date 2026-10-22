@@ -9,6 +9,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-go.mts';
 import { initRepository } from './sandbox-repository.mts';
+import { kitFile, kitPackageRoot } from '../../scripts/kit/kit-files.mts';
 
 const FILES: Record<string, string> = {
   '.golangci.yml': 'version: "2"\n',
@@ -78,4 +79,12 @@ test('a deadcode finding fails its step although deadcode exits 0, and every ste
 test('a missing tool or .golangci.yml fails with its fix', (t) => {
   assert.throws(() => lintSteps(checkout(t, { installed: ['golangci-lint'] }).root), /var\/tools\/mise\/shims\/deadcode is missing; declare golangci-lint and go:golang\.org\/x\/tools\/cmd\/deadcode in mise\.toml and run make install-tools/);
   assert.throws(() => lintSteps(checkout(t, { omit: '.golangci.yml' }).root), /\.golangci\.yml is missing; it is the golangci-lint configuration that kit copies into every repository \(make kit-sync\)/);
+});
+
+// K514: golangci-lint reads the .golangci.yml of the kit package that runs, never a copy of the repository.
+test('golangci-lint reads the .golangci.yml of the kit package, and a checkout without one lints (K514)', (t) => {
+  const steps = lintSteps(checkout(t).root).filter(step => step.label.startsWith('golangci-lint'));
+  assert.ok(steps.length > 0);
+  for (const step of steps) assert.ok(step.args.includes(`--config=${kitFile('.golangci.yml')}`), step.args.join(' '));
+  assert.equal(kitPackageRoot(), path.dirname(kitFile('.golangci.yml')));
 });

@@ -227,3 +227,18 @@ test('every file that kit-sync writes is owned by a rule that kit ships (K410-1)
     assert.ok(rules.some(({ paths }) => paths.some(glob => globExpression(glob).test(file))), `${file} is written by kit-sync, and no rule of kit.owners in package.json owns it`);
   }
 });
+
+// K514: the lint configurations are read from the kit package and no longer copied; a sync removes the copy that an earlier kit
+// wrote, and kit.copies of the package names none of them.
+test('kit-sync removes the lint configurations that kit no longer copies, and the package copies none of them (K514)', (t) => {
+  const root = repository(t);
+  for (const file of ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json']) write(root, file, 'an old copy\n');
+  const changes = sync(root);
+  for (const file of ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json']) {
+    assert.equal(existsSync(path.join(root, file)), false, file);
+    assert.ok(changes.includes(`removed ${file}`), changes.join('\n'));
+  }
+  const manifest: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../package.json'), 'utf8'));
+  const copies = isJsonObject(manifest) && isJsonObject(manifest.kit) && isJsonObject(manifest.kit.copies) ? Object.keys(manifest.kit.copies) : [];
+  assert.deepEqual(copies.filter(file => ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json'].includes(file)), []);
+});

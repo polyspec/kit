@@ -9,6 +9,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps, P8_LINTS } from '../../scripts/kit/lint-rust.mts';
 import { initRepository } from './sandbox-repository.mts';
+import { kitPackageRoot } from '../../scripts/kit/kit-files.mts';
 
 const FILES: Record<string, string> = {
   'Cargo.toml': '[workspace]\nmembers = ["packages/rust"]\n',
@@ -50,4 +51,10 @@ test('every workspace runs after an earlier one failed, and each failure is name
   t.after(() => { process.env.PATH = saved; });
   assert.deepEqual(lint(root, () => {}), ['cargo clippy .']);
   assert.equal(readFileSync(log, 'utf8').split('\n').filter(Boolean).length, 2);
+});
+
+// K514: clippy reads the clippy.toml of the kit package that runs, through CLIPPY_CONF_DIR, never a copy of the repository.
+test('clippy reads the clippy.toml of the kit package (K514)', (t) => {
+  for (const step of lintSteps(checkout(t))) assert.deepEqual(step.env, { CLIPPY_CONF_DIR: kitPackageRoot() });
+  assert.ok(readFileSync(path.join(kitPackageRoot(), 'clippy.toml'), 'utf8').includes('disallowed-methods'));
 });

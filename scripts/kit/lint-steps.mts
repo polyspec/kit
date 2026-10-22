@@ -13,7 +13,7 @@ import { checkedFiles } from './tracked-files.mts';
  * A step of the lint: the command, its arguments, the folder it runs in relative to the root, and whether any output fails
  * it (`quiet`), for a linter that exits 0 when it reports a finding.
  */
-export type LintStep = { label: string; command: string; args: string[]; cwd: string; quiet?: boolean };
+export type LintStep = { label: string; command: string; args: string[]; cwd: string; quiet?: boolean; env?: Record<string, string> };
 
 /** The path of each command of `names` in the folder `folder` of `root`; throws `${folder}/<name> is missing; ${fix}` for a missing one. */
 export function lintCommands(root: string, folder: string, names: readonly string[], fix: string): Record<string, string> {

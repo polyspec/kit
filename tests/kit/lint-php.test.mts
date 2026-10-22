@@ -12,6 +12,7 @@ import { present } from '../../scripts/kit/present.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { known } from './known.mts';
 import { tree } from './tree.mts';
+import { kitFile } from '../../scripts/kit/kit-files.mts';
 
 const FILES: Record<string, string> = {
   'phpcs.xml.dist': '<ruleset/>\n',
@@ -127,4 +128,12 @@ test('an autoload files entry that is not only namespaced functions and constant
   const classOutput: string[] = [];
   assert.deepEqual(lint(cls.root, text => classOutput.push(text)), ['autoload files']);
   assert.match(classOutput.join(''), /packages\/php\/src\/functions\.php:5:/);
+});
+
+// K514: phpcs and PHPStan read the phpcs.xml.dist and phpstan.dist.neon of the kit package that runs, never a copy.
+test('phpcs and PHPStan read the configurations of the kit package, and a checkout without them lints (K514)', (t) => {
+  const root = checkout(t).root;
+  const steps = lintSteps(root);
+  assert.ok(steps.find(step => step.label === 'phpcs')?.args.includes(`--standard=${kitFile('phpcs.xml.dist')}`), JSON.stringify(steps));
+  assert.ok(steps.filter(step => step.label.startsWith('phpstan')).every(step => step.args.includes(`--configuration=${kitFile('phpstan.dist.neon')}`)), JSON.stringify(steps));
 });

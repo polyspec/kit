@@ -11,6 +11,7 @@ import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-python.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { tree } from './tree.mts';
+import { kitFile } from '../../scripts/kit/kit-files.mts';
 
 const FILES: Record<string, string> = {
   'ruff.toml': '[lint]\nselect = ["F"]\n',
@@ -73,4 +74,13 @@ test('a missing tool and a missing ruff.toml fail with their fix', (t) => {
 
 test('a repository without Python sources lints nothing, with no tool and no configuration installed (K319)', (t) => {
   assert.deepEqual(lintSteps(tree(t, { 'docs/a.md': '# a\n' })), []);
+});
+
+// K514: the configuration is the file of the kit package that runs, never a copy of the repository: ruff reads the ruff.toml of
+// the package, with its cache in the var of the checkout.
+test('ruff reads the ruff.toml of the kit package, and a checkout without one lints (K514)', (t) => {
+  const steps = lintSteps(checkout(t).root);
+  const ruff = steps.filter(step => step.label.startsWith('ruff'));
+  assert.equal(ruff.length, 2);
+  for (const step of ruff) assert.deepEqual(step.args.slice(step.args.indexOf('--config'), step.args.indexOf('--config') + 2), ['--config', kitFile('ruff.toml')]);
 });
