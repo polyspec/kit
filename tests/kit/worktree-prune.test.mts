@@ -4,10 +4,11 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { foreignTrusts } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { linkFindings } from '../../scripts/kit/link-state-check.mts';
 import { branchStates, prune } from '../../scripts/kit/worktree-prune.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -162,4 +163,32 @@ test('worktree-prune keeps a merged worktree that a process runs in, and removes
   assert.ok(lines.some(line => line.includes(`kept fix/run-K5 in ${run}`) && line.includes(`${inside.pid} `)), lines.join('\n'));
   assert.equal(existsSync(named), false, 'a process that only names the worktree in its arguments does not keep it');
   assert.equal(inside.exitCode, null, 'the process in the worktree is left running');
+});
+
+// K532: a linked worktree runs the tools and the trust store of its main checkout (K519), so the trust of the main checkout is its own;
+// a branch reset onto main is fresh, whatever its reflog held before the reset; and link-state-check in a linked worktree judges only
+// the branch of that worktree, while the main checkout names every merged branch (K381).
+test('link-state-check of a linked worktree accepts the trust of its main checkout, a branch reset onto main is fresh, and another worktree is no finding (K532)', (t) => {
+  const { main } = fixture(t);
+  const trusts = path.join(main, 'var/tools/mise/state/trusted-configs');
+  mkdirSync(trusts, { recursive: true });
+  symlinkSync(main, path.join(trusts, 'repo-trust'));
+  const own = path.join(path.dirname(main), 'repo-own');
+  git(main, 'worktree', 'add', '--quiet', own, '-b', 'fix/own-K8', 'main');
+  assert.deepEqual(foreignTrusts(own), [], 'the trust of the main checkout is the trust of its worktree');
+  assert.equal(foreignTrusts(main).length, 0, 'and of the main checkout');
+
+  put(own, { 'own.txt': 'own\n' });
+  git(own, 'add', '-A');
+  git(own, 'commit', '--quiet', '-m', 'own');
+  git(main, 'merge', '--quiet', '--ff-only', 'fix/own-K8');
+  git(own, 'reset', '--quiet', '--hard', 'main');
+  put(own, { 'next.txt': 'the next row, uncommitted\n' });
+  const state = branchStates(main).find(entry => entry.branch === 'fix/own-K8');
+  assert.equal(state?.merged, false, 'a branch reset onto main is no merged branch');
+  assert.match(state?.reason ?? '', /^fresh/);
+
+  const findings = linkFindings(own, process.env);
+  assert.equal(findings.some(finding => /fix\/dirty-K2|trusted-configs/.test(finding)), false, findings.join('\n'));
+  assert.equal(linkFindings(main, process.env).filter(finding => /fix\/dirty-K2/.test(finding)).length, 1, 'the main checkout names the left branch');
 });
