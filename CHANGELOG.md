@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The claude-hook reads the script of sh, bash, zsh and dash -c with all its rules, so a loop that sleeps there is refused as it is outside (K528).
 - suppression-check reads a Rust allow or expect through its closing )], so the reason of an attribute that rustfmt writes over several lines counts (K527).
 - make npm-install runs npm ci with allow-remote=root, as install-packages does, so a consumer lock that names the release of kit installs (K526).
 - The gates of a commit and of a land read the owner rules that kit ships, as owner-validate does, and kit.owners owns every hook that make hooks writes, so a consumer commits its hooks (K522).
