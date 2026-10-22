@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2b38b6c759ae2b0eb1f51932715aa84c3b3e1436519c1cb253594d74b028ff53 -->
+<!-- source-sha256: 23208bac01523d8fbf9c756cfdac689c9f293baedb58c12d7f1915ee4bb93854 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K442 완료: row가 이 commit에서 [o]이다. red는 cc8707a9^(수정 전 commit)에서 실행한 K442 테스트이다. 수정 전 item-edit는 CAUSE와 RETRY를 받지 않아 테스트가 `[plan] VERIFICATION is empty`로 실패하며 exit 1이다 (`make item-red BEFORE=cc8707a9^`로 기록). green은 이 commit의 K442 테스트이다 (K442).
 - `npm-install`은 기존 node_modules의 내용을 바꾸고 디렉터리를 유지하므로, mount point인 node_modules도 설치된다(K486).
 - K439-6: composer-provider-entries는 tracked 버전이 잠긴 요구를 깨뜨릴 때(polyspec/orm이 고정한 fork 등) Composer writer가 고른 버전을 쓴다 (K439-6). K468-2의 규칙은 link-owner 판정에 따라 잠긴 요구를 모두 만족하는 tracked 버전으로 좁혀진다. Red: node --test --test-name-pattern=K439-6 tests/kit/dependency-review.test.mts가 exit 1(tracked 1.0.0이 유지됨); green: make 아래에서 owner 파일 31/31 통과, lint-ts 통과. (K439-6).
 - `make composer-install`은 `NO_DEV=1`을 받아 추적 lock을 `--no-dev`로 설치한다. production 설치에 쓴다(K483-2).

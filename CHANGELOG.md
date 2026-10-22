@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K442 is done: its row is [o] in this commit, whose red is the K442 test of the pre-fix commit cc8707a9^ (item-edit has no CAUSE and RETRY, so the test fails with `[plan] VERIFICATION is empty`, exit 1; recorded by `make item-red BEFORE=cc8707a9^`) and whose green is the K442 test of this commit (K442).
 - `npm-install` replaces the contents of an existing node_modules and keeps the directory, so a node_modules that is a mount point installs (K486).
 - K439-6: composer-provider-entries takes the version Composer's writer resolved when the tracked version breaks a locked requirement, such as a fork pinned by polyspec/orm (K439-6). K468-2's rule narrows to a tracked version that satisfies every locked requirement, by link-owner's ruling. Red: node --test --test-name-pattern=K439-6 tests/kit/dependency-review.test.mts exit 1 (the tracked 1.0.0 was kept); green: the owner file passes 31 of 31 under make, lint-ts passes. (K439-6).
 - `make composer-install` takes `NO_DEV=1`, which installs the tracked lock with `--no-dev` for a production install (K483-2).
