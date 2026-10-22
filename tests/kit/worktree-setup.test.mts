@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -180,5 +180,60 @@ test('worktree-setup links the node_modules of a worktree entry by entry, its ow
   rmSync(path.join(folder, 'node_modules'), { recursive: true });
   symlinkSync(path.join(main, 'node_modules'), path.join(folder, 'node_modules'));
   setupWorktree(main, { name: 'parser', id: 'T1', type: 'fix' }, quiet);
+  check(folder);
+});
+
+// K533: every tracked npm lock project and Python project whose environment the main checkout holds gets it in the worktree under the
+// rule of K530: links to the main checkout's entries, while the files that the installer wrote with paths of the main checkout (the
+// bin scripts, the activate scripts, an editable .pth that names a source of the main checkout) are written with the worktree's paths.
+test('worktree-setup gives each npm project and each Python environment of the main checkout its environment in the worktree (K533)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  const venv = 'py/.venv';
+  const site = `${venv}/lib/python3.14/site-packages`;
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'package-lock.json': '{}\n',
+    'tools/ts/package-lock.json': '{}\n',
+    'tools/ts/node_modules/typescript/index.js': 'module.exports = 3;\n',
+    'tests/other/package-lock.json': '{}\n',
+    'py/pyproject.toml': '[project]\nname = "own"\n',
+    'py/src/own/__init__.py': '',
+    [`${venv}/pyvenv.cfg`]: 'home = /usr/bin\n',
+    [`${venv}/bin/tool`]: `#!${main}/${venv}/bin/python\nimport own\n`,
+    [`${venv}/bin/activate`]: `VIRTUAL_ENV='${main}/${venv}'\n`,
+    [`${site}/dep/__init__.py`]: '',
+    [`${site}/__editable__.own.pth`]: `${main}/py/src\n`,
+    [`${site}/__editable__.sibling.pth`]: `${parent}/sibling/src\n`,
+    'Makefile': 'link-state-check:\n\ttest -f node_modules/@polyspec/kit/dist/link.mjs\n',
+    '.gitignore': 'node_modules/\n.venv/\n',
+  });
+  symlinkSync(process.execPath, path.join(main, venv, 'bin/python3.14'));
+  symlinkSync('python3.14', path.join(main, venv, 'bin/python'));
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const quiet = { free: () => WORKTREE_DISK_FLOOR, print: () => {} };
+  const check = (folder: string) => {
+    assert.ok(lstatSync(path.join(folder, 'tools/ts/node_modules')).isDirectory(), 'a nested npm project has a node_modules of its own');
+    assert.equal(realpathSync(path.join(folder, 'tools/ts/node_modules/typescript')), realpathSync(path.join(main, 'tools/ts/node_modules/typescript')));
+    assert.equal(existsSync(path.join(folder, 'tests/other/node_modules')), false, 'a project that the main checkout did not install gets none');
+    const real = (file: string) => lstatSync(path.join(folder, file));
+    assert.ok(real(venv).isDirectory() && !real(venv).isSymbolicLink(), 'the .venv is a folder of its own');
+    assert.equal(realpathSync(path.join(folder, venv, 'pyvenv.cfg')), realpathSync(path.join(main, venv, 'pyvenv.cfg')));
+    assert.equal(readlinkSync(path.join(folder, venv, 'bin/python3.14')), process.execPath, 'an interpreter link keeps its target');
+    assert.equal(readlinkSync(path.join(folder, venv, 'bin/python')), 'python3.14');
+    assert.equal(readFileSync(path.join(folder, venv, 'bin/tool'), 'utf8'), `#!${folder}/${venv}/bin/python\nimport own\n`, 'a script runs the worktree environment');
+    assert.ok(real(`${venv}/bin/tool`).isFile() && (real(`${venv}/bin/tool`).mode & 0o111) !== 0, 'the script is a file that runs');
+    assert.equal(readFileSync(path.join(folder, venv, 'bin/activate'), 'utf8'), `VIRTUAL_ENV='${folder}/${venv}'\n`);
+    assert.equal(realpathSync(path.join(folder, site, 'dep')), realpathSync(path.join(main, site, 'dep')), 'a dependency links to the main checkout');
+    assert.equal(readFileSync(path.join(folder, site, '__editable__.own.pth'), 'utf8'), `${folder}/py/src\n`, 'the own source is the worktree');
+    assert.ok(real(`${site}/__editable__.sibling.pth`).isSymbolicLink(), 'a .pth that names no path of the main checkout links to it');
+    assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
+  };
+  const folder = setupWorktree(main, { name: 'parser', id: 'T1', type: 'fix' }, quiet);
+  check(folder);
+  assert.equal(setupWorktree(main, { name: 'parser', id: 'T1', type: 'fix' }, quiet), folder, 'a second run converges');
   check(folder);
 });
