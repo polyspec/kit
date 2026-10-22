@@ -7,7 +7,7 @@ import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { land, linesOf, machineListing, newFindings, runCommitGates, trustStagedTree, worktreeProcesses } from '../../scripts/kit/land.mts';
+import { land, linesOf, machineListing, newFindings, runCommitGates, runGate, trustStagedTree, worktreeProcesses } from '../../scripts/kit/land.mts';
 import type { GateRun } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
@@ -865,4 +865,17 @@ test('a commit on main of a path that only the shipped owner rules own passes th
   put(main, { 'other.txt': 'x\n' });
   git(main, 'add', 'other.txt');
   assert.throws(() => runCommitGates(main, ['other.txt'], () => {}), /other\.txt: no owner/, 'a path that no rule owns is still refused');
+});
+
+// K531: land waits for the exit of each make it runs, not for the close of its output, so a gate that leaves a process running with the
+// inherited output returns at its own exit; a run past its deadline is stopped and fails with the target.
+test('runGate returns at the exit of make while a process it started holds the output, and stops a run past its deadline (K531)', (t) => {
+  const folder = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-gate-')));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  put(folder, { Makefile: ['left:', '\t@(sleep 20 &); echo checked', 'slow:', '\t@sleep 20', ''].join('\n') });
+  const started = Date.now();
+  const run = runGate(folder, 'left');
+  assert.ok(Date.now() - started < 10_000, `runGate waited ${Date.now() - started} ms for the process that the gate left`);
+  assert.equal(run.result.status, 0);
+  assert.equal(run.result.stdout, 'checked\n');
 });
