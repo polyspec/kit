@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 573f2597216a79b17c74a87280e754ae87e23ae3a7906d037f11466efb8bafcd -->
+<!-- source-sha256: 9c4cb4c4812d1cb6f0c893004149c574a15f813dc52043b6e6f3ed0be2c0e3cf -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,10 @@
 ## Unreleased
 
 - PHP 애플리케이션 패키지(composer type project)는 S10 extension 실행 밖에 있고 test-php에서 자기 패키지로 test를 실행한다(K433).
+
+### 2026-10-21 — worktree-setup이 link-state-check 전에 패키지를 빌드한다 (K482)
+
+- `scripts/kit/worktree-setup.mts`가 `make install` 뒤, `make link-state-check` 앞에 worktree의 link rebuild(`link rebuild .`, K482)를 실행하므로 새 worktree가 빌드되어 오래됨으로 보고되지 않는다 (K482). rebuild는 worktree가 가진 link 도구를 쓴다: kit 자신의 `scripts/kit/link.mts`, 또는 소비자의 설치된 `node_modules/@polyspec/kit/dist/link.mjs`. K348 fixture에는 소비자 도구를 넣었다. Red: `node --test --test-name-pattern=K482 tests/kit/worktree-setup.test.mts`가 9f7954d54d16에서 수정 전 실패(rebuild 없음, 검사가 빌드를 읽음); green: 통과, `tests/kit/worktree-setup.test.mts` 전체도 통과.
 - commit-msg 검사는 code, test, script나 recipe를 스테이징한 docs나 chore commit을 경로와 함께 거부하므로, 수정은 자기 type으로 커밋한다(K449).
 - `make npm-install`은 임시 manifest 사본으로 설치하므로 프로젝트의 상대 file: 의존성을 프로젝트 폴더 기준 절대 경로로
   npm에 주고, 설치 뒤에도 그 link가 풀린다(K448-12).

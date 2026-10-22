@@ -6,6 +6,10 @@
 ## Unreleased
 
 - A PHP application package (composer type project) is outside the S10 extension run and runs its own tests under test-php as its own package (K433).
+
+### 2026-10-21 — worktree-setup rebuilds the packages before its link-state-check (K482)
+
+- `scripts/kit/worktree-setup.mts` runs the link rebuild of the worktree (`link rebuild .`, K482) after `make install` and before `make link-state-check`, so a fresh worktree is built and not reported stale (K482). The rebuild runs the link tool the worktree holds: kit's own `scripts/kit/link.mts`, or the installed `node_modules/@polyspec/kit/dist/link.mjs` of a consumer. The K348 fixture gets the consumer tool. Red: `node --test --test-name-pattern=K482 tests/kit/worktree-setup.test.mts` fails before the fix on 9f7954d54d16 (no rebuild, the check reads no build); green: passes, and the whole `tests/kit/worktree-setup.test.mts` passes.
 - The commit-msg check refuses a docs or chore commit that stages code, a test, a script or a recipe, and names the paths, so a fix is committed with its own type (K449).
 - `make npm-install` gives each relative file: dependency of the project to npm as an absolute path from the project folder,
   since it installs from a temporary copy of the manifest, so those links resolve after the install (K448-12).

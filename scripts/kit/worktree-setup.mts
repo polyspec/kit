@@ -39,6 +39,15 @@ export function worktreeOf(main: string, { name, id, type }: { name: string; id:
  * returns its folder. Throws, creating nothing, while `free` is under WORKTREE_DISK_FLOOR, and when the folder exists as anything but
  * the worktree of the branch.
  */
+/**
+ * The link tool that rebuilds the packages of a worktree (K482). A consumer runs the link of its installed kit, and kit itself runs its
+ * own scripts/kit/link.mts, which the worktree has as a source; the tool is chosen by which of the two the worktree holds.
+ */
+function linkTool(folder: string): string {
+  const own = path.join(folder, 'scripts/kit/link.mts');
+  return existsSync(own) ? own : path.join(folder, 'node_modules/@polyspec/kit/dist/link.mjs');
+}
+
 export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { free = freeBytes, print = (text: string) => console.log(text) }: { free?: (directory: string) => number; print?: (text: string) => void } = {}): string {
   const main = path.dirname(path.resolve(root, git(root, 'rev-parse', '--git-common-dir').trim()));
   const { folder, branch } = worktreeOf(main, row);
@@ -55,11 +64,15 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   } else {
     print(`[worktree-setup] ${folder} is the worktree of ${branch}; installing it again`);
   }
-  for (const target of ['install', 'link-state-check']) {
-    print(`[worktree-setup] make ${target} in ${folder}`);
-    const result = spawnSync('make', ['--no-print-directory', target], { cwd: folder, stdio: 'inherit' });
-    if (result.error) throw new Error(`make ${target} could not start in ${folder}: ${result.error.message}`);
-    if (result.status !== 0) throw new Error(`make ${target} ended with ${result.status === null ? `the signal ${result.signal}` : `exit status ${result.status}`} in ${folder}`);
+  for (const target of ['install', 'rebuild', 'link-state-check']) {
+    // The rebuild (K482) builds the packages of the worktree's own repository before the check reads their builds: a new worktree has none yet.
+    const [command, args] = target === 'rebuild'
+      ? [process.execPath, [linkTool(folder), 'rebuild', '.']]
+      : ['make', ['--no-print-directory', target]];
+    print(`[worktree-setup] ${target === 'rebuild' ? 'link rebuild' : `make ${target}`} in ${folder}`);
+    const result = spawnSync(command, args, { cwd: folder, stdio: 'inherit' });
+    if (result.error) throw new Error(`${target} could not start in ${folder}: ${result.error.message}`);
+    if (result.status !== 0) throw new Error(`${target} ended with ${result.status === null ? `the signal ${result.signal}` : `exit status ${result.status}`} in ${folder}`);
   }
   return folder;
 }
