@@ -494,3 +494,42 @@ test('the pre-merge-commit hook that make hooks writes calls the make target mer
   assert.doesNotMatch(hook, /scripts\/kit|node_modules|\.mts|\.mjs/);
   assert.match(hook, /^exec make --no-print-directory merge-commit-hook$/m);
 });
+
+// K495: main moves only through make land, which sets KIT_MAIN_WRITER, and through a commit whose pre-commit hook passed. The
+// reference-transaction hook that make hooks writes refuses a fast-forward, an update-ref and a commit with --no-verify on main, and
+// lets a commit on main or on a branch, a pack of the refs and a move under KIT_MAIN_WRITER pass.
+test('the reference-transaction hook refuses a move of main outside make land and a hooked commit (K495)', (t) => {
+  const { work } = prepared(t, { files: { 'config/owner-checks.json': OWNERS } });
+  assert.equal(hooks(work).status, 0);
+  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
+  const run2 = (...args: string[]) => run(work, 'git', [...identity, ...args]);
+  const change = (name: string, subject: string) => {
+    writeFileSync(path.join(work, name), `${name}\n`);
+    git(work, 'add', name);
+    const made = run2('commit', '--quiet', '-m', `${subject}\n\nThe body names the change.\n`);
+    assert.equal(made.status, 0, made.stderr);
+  };
+  change('a.txt', 'feat(hooks): Add the first file (#T1-1)');
+  git(work, 'checkout', '--quiet', '-b', 'fix/move-T1-1');
+  change('b.txt', 'feat(hooks): Add the branch file (#T1-1)');
+  git(work, 'checkout', '--quiet', 'main');
+  const head = git(work, 'rev-parse', 'main');
+
+  const forward = run2('merge', '--ff-only', '--quiet', 'fix/move-T1-1');
+  assert.notEqual(forward.status, 0, 'a fast-forward of main outside make land is refused');
+  assert.match(forward.stderr, /make land/, 'the refusal names make land');
+  assert.equal(git(work, 'rev-parse', 'main'), head);
+  const updated = run2('update-ref', 'refs/heads/main', 'fix/move-T1-1');
+  assert.notEqual(updated.status, 0, 'an update-ref of main is refused');
+  assert.equal(git(work, 'rev-parse', 'main'), head);
+  writeFileSync(path.join(work, 'c.txt'), 'c\n');
+  git(work, 'add', 'c.txt');
+  const skipped = run2('commit', '--quiet', '--no-verify', '-m', 'feat(hooks): Skip the hooks (#T1-1)\n\nThe body names the change.\n');
+  assert.notEqual(skipped.status, 0, 'a commit on main that skips its pre-commit hook is refused');
+  assert.equal(git(work, 'rev-parse', 'main'), head);
+
+  assert.equal(run2('pack-refs', '--all').status, 0, 'a pack of the refs keeps main and passes');
+  const writer = run(work, 'git', [...identity, 'merge', '--ff-only', '--quiet', 'fix/move-T1-1'], { env: { ...process.env, KIT_MAIN_WRITER: 'land' } });
+  assert.equal(writer.status, 0, `make land moves main: ${writer.stderr}`);
+  assert.equal(git(work, 'rev-parse', 'main'), git(work, 'rev-parse', 'fix/move-T1-1'));
+});

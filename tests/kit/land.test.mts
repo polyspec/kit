@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -641,4 +641,66 @@ test('the staged tree trusts its mise.toml in the mise state of its checkout and
   const config = path.join(staged, 'mise.toml');
   const state = path.join(folder, 'var/tools/mise/state');
   assert.deepEqual(readFileSync(calls, 'utf8').trim().split('\n'), [`trust ${config} ${state}`, `trust --untrust ${config} ${state}`]);
+});
+
+// K495: land is the only writer of main besides a commit that passed its pre-commit hook. It holds a lock in the common git folder
+// for its whole run: a land that finds the lock of a running land waits for it, and the lock of a land that no longer runs is
+// removed. Before its merge it refuses when main moved while its gates ran, naming the commits that moved it.
+function lockFixture(t: { after: (fn: () => void) => void }, lint: (main: string) => string = () => 'true') {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': `kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\t${lint(main)}\nbuild:\n\ttrue\n`,
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = path.join(parent, 'repo-x');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat/x', 'main');
+  put(folder, { 'src/x.txt': 'x\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'x');
+  return { main, branch: git(main, 'rev-parse', 'feat/x'), lock: path.join(main, '.git/kit-land.lock') };
+}
+
+test('land refuses when main moves while its gates run and names the commit that moved it (K495)', (t) => {
+  // The gate of the branch commits on main, as another writer would while the gates run.
+  const { main, lock } = lockFixture(t, root => `git -C ${root} -c user.name=t -c user.email=t@t commit --quiet --allow-empty -m moved-while-the-gates-ran`);
+  assert.throws(() => land(main, 'feat/x', { print: () => {} }), (error: Error) => {
+    assert.match(error.message, /moved-while-the-gates-ran/, 'the refusal names the commit that moved main');
+    assert.match(error.message, /nothing is merged/);
+    return true;
+  });
+  assert.equal(git(main, 'log', '-1', '--format=%s', 'main'), 'moved-while-the-gates-ran', 'main keeps the commit of the other writer');
+  assert.equal(existsSync(lock), false, 'the lock is released after a refusal');
+});
+
+test('a land waits for the land that holds the lock and lands after it (K495)', (t) => {
+  const { main, branch, lock } = lockFixture(t);
+  const holder = spawn('sleep', ['60']);
+  t.after(() => holder.kill());
+  writeFileSync(lock, JSON.stringify({ pid: holder.pid, branch: 'feat/other' }));
+  const printed: string[] = [];
+  let waits = 0;
+  // The first land finishes while the second waits: its lock goes away.
+  const options = { print: (text: string) => printed.push(text), sleep: () => { waits += 1; rmSync(lock); } };
+  land(main, 'feat/x', options);
+  assert.ok(printed.some(text => text.includes(`waits for the land of feat/other (pid ${holder.pid})`)), printed.join('\n'));
+  assert.ok(waits >= 1, 'the land waited');
+  assert.equal(git(main, 'rev-parse', 'main'), branch, 'the waiting land lands after the first');
+  assert.equal(existsSync(lock), false, 'the lock is released after the land');
+});
+
+test('a land removes the lock of a land that no longer runs (K495)', (t) => {
+  const { main, branch, lock } = lockFixture(t);
+  const gone = spawnSync('true').pid;
+  writeFileSync(lock, JSON.stringify({ pid: gone, branch: 'feat/gone' }));
+  const printed: string[] = [];
+  land(main, 'feat/x', { print: text => printed.push(text) });
+  assert.ok(printed.some(text => text.includes(`removed the lock of the land of feat/gone (pid ${gone})`)), printed.join('\n'));
+  assert.equal(git(main, 'rev-parse', 'main'), branch);
+  assert.equal(existsSync(lock), false);
 });
