@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The link contract (docs/operations/local-links.md) states the folder link: a polyspec package counts as installed at its release, the install is followed by a direct relative symlink of the folder, a copy is forbidden, no step judges a version, and a worktree links its tool and dependency folders to the main checkout (K448-4).
 - `make link` links the installed polyspec packages of every tracked project of the checkout, a nested Composer project such as hyper's examples/board included; the tests, the fixtures and the release consumer keep the install that they test (K447).
 - The push gate checks the message and the identity of each pushed commit and the checklists of the pushed tip once, and the Markdown of a checklist text is parsed once, so a backup push of hundreds of commits no longer re-runs every commit check and looks hung; the item, row and twin rules of each commit stay with the commit-msg hook and land's commits-check (K510).
 - The row-ID check of land and of a commit on a branch compares with main only the rows that the branch adds or changes since it forked, so a branch behind a main that restated a row is no longer refused (K497-1).

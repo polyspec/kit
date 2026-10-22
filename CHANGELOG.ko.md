@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 41a5c19d6f8b48a1f9639b4d456a45c9f8a0b060077ef19bd0bb0ad9ca288103 -->
+<!-- source-sha256: e0284d7397e9492f0f7a758699be558ee1e8433e9247daf538ab0f79c1988c9d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- link 계약(docs/operations/local-links.md)은 폴더 link를 적는다. polyspec 패키지는 release로 설치된 것으로 보고, 설치 뒤 폴더를 직접 상대 symlink로 바꾸며, 복사본은 금지이고, 어떤 단계도 버전을 판단하지 않으며, worktree는 도구와 의존 폴더를 main checkout의 것으로 link한다(K448-4).
 - `make link`은 checkout의 모든 tracked 프로젝트의 설치된 polyspec 패키지를 link하며, hyper의 examples/board 같은 중첩 Composer 프로젝트도 포함한다. 테스트, fixture, release consumer는 시험하는 설치를 그대로 둔다(K447).
 - push gate는 push되는 각 commit의 메시지와 identity, push되는 tip의 checklist를 한 번 검사하고 checklist 텍스트의 Markdown을 한 번만 파싱하므로, 수백 개 commit의 백업 push가 모든 commit 검사를 다시 실행해 멈춘 것처럼 보이지 않는다. 각 commit의 item, 행, twin 규칙은 commit-msg hook과 land의 commits-check에 남는다(K510).
 - land와 branch commit의 행 ID 검사는 branch가 갈라진 뒤 더하거나 바꾼 행만 main과 비교하므로, 행 문구를 바꾼 main보다 뒤처진 branch가 더는 거부되지 않는다(K497-1).
