@@ -16,8 +16,12 @@ import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
 
-/** A kind of suppression: the files it applies to, the directive, whether a match states its reason, and the form of the reason. */
-type Directive = { files: RegExp; name: string; pattern: RegExp; stated: (rest: string) => boolean; form: string };
+/**
+ * A kind of suppression: the files it applies to, the directive, whether a match states its reason, and the form of the reason. A
+ * directive with `through` reads its reason from the match through the first line that holds `through`, the close of an attribute
+ * that rustfmt writes over several lines (K527).
+ */
+type Directive = { files: RegExp; name: string; pattern: RegExp; stated: (rest: string) => boolean; form: string; through?: string };
 
 const SCRIPT = /\.(?:[cm]?[jt]sx?)$/;
 const DIRECTIVES: Directive[] = [
@@ -27,7 +31,7 @@ const DIRECTIVES: Directive[] = [
   { files: /\.php$/, name: '@phpstan-ignore', pattern: /(@phpstan-ignore(?:-next-line|-line)?)\b(.*)$/, stated: rest => /\(\s*\S[^)]*\)/.test(rest), form: '@phpstan-ignore <identifier> (<reason>)' },
   { files: /\.php$/, name: 'phpcs:ignore', pattern: /\/\/\s*(phpcs:(?:ignore|disable))\b(.*)$/, stated: rest => /\s--\s+\S/.test(rest), form: 'phpcs:ignore <sniff> -- <reason>' },
   { files: /\.go$/, name: 'nolint', pattern: /\/\/\s*(nolint)\b(.*)$/, stated: rest => /^:[A-Za-z0-9_,-]+\s*\/\/\s*\S/.test(rest), form: '//nolint:<linter> // <reason>' },
-  { files: /\.rs$/, name: 'allow', pattern: /(#!?\[(?:allow|expect))\((.*)$/, stated: rest => /\breason\s*=\s*"[^"]+"/.test(rest), form: '#[allow(<lint>, reason = "<reason>")]' },
+  { files: /\.rs$/, name: 'allow', pattern: /(#!?\[(?:allow|expect))\((.*)$/, stated: rest => /\breason\s*=\s*"[^"]+"/.test(rest), form: '#[allow(<lint>, reason = "<reason>")]', through: ')]' },
 ];
 
 /** Whether the position `index` of `line` lies inside a string literal: an odd count of unescaped quotes of one kind before it. */
@@ -36,13 +40,22 @@ function insideString(line: string, index: number): boolean {
   return ['"', "'", '`'].some(quote => (before.split(quote).length - 1) % 2 === 1);
 }
 
+/** The text after the match `rest` on line `index` of `lines`, with the lines after it through the first that holds `through`. */
+function reasonText(lines: string[], index: number, rest: string, through: string | undefined): string {
+  if (through === undefined || rest.includes(through)) return rest;
+  // An attribute that never closes is judged on its own line, so no reason of a later attribute counts for it.
+  const end = lines.findIndex((line, at) => at > index && line.includes(through));
+  return end === -1 ? rest : [rest, ...lines.slice(index + 1, end + 1)].join('\n');
+}
+
 /** The findings of the file `file` with the text `text`: each suppression that states no reason. */
 export function suppressionFindings(file: string, text: string): string[] {
   const directives = DIRECTIVES.filter(directive => directive.files.test(file));
   if (directives.length === 0) return [];
-  return text.split('\n').flatMap((line, index) => directives.flatMap((directive) => {
+  const lines = text.split('\n');
+  return lines.flatMap((line, index) => directives.flatMap((directive) => {
     const match = directive.pattern.exec(line);
-    if (match === null || insideString(line, match.index) || directive.stated(match[2] ?? '')) return [];
+    if (match === null || insideString(line, match.index) || directive.stated(reasonText(lines, index, match[2] ?? '', directive.through))) return [];
     return [`${file}:${index + 1}: ${match[1] ?? directive.name} states no reason; a suppression names the need of the code, as ${directive.form}`];
   }));
 }
