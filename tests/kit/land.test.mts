@@ -878,4 +878,5 @@ test('runGate returns at the exit of make while a process it started holds the o
   assert.ok(Date.now() - started < 10_000, `runGate waited ${Date.now() - started} ms for the process that the gate left`);
   assert.equal(run.result.status, 0);
   assert.equal(run.result.stdout, 'checked\n');
+  assert.throws(() => runGate(folder, 'slow', [], 1000), /make slow ran past its deadline of 1 s in .* and was stopped/);
 });

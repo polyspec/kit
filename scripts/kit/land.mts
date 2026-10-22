@@ -17,7 +17,7 @@
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
 import type { SpawnSyncReturns } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { miseEnvironment } from './bootstrap/install-mise.mts';
@@ -101,8 +101,7 @@ export function stopTargetOf(folder: string): string[] | undefined {
 export function stopServers(folder: string, targets: string[], print: (text: string) => void): void {
   const names = targets.join(' ');
   print(`${names} in ${folder}`);
-  const result = spawnSync('make', ['--no-print-directory', ...targets], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
-  if (result.error) throw new Error(`make ${names} could not start in ${folder}: ${result.error.message}`);
+  const result = runMake(folder, ['--no-print-directory', ...targets]);
   if (result.status !== 0) {
     throw new Error(`the stop target ${names} failed in ${folder} (${result.status ?? result.signal}), so the worktree is kept; its output:\n${result.stdout}${result.stderr}`);
   }
@@ -188,9 +187,8 @@ export function gatesOf(folder: string, changed: string[], installed: string = f
 function build(folder: string, failed: string, print: (text: string) => void): void {
   const started = Date.now();
   print(`make build in ${folder}`);
-  const result = spawnSync('make', ['--no-print-directory', 'build'], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
+  const result = runMake(folder, ['--no-print-directory', 'build']);
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
-  if (result.error) throw new Error(`make build could not start in ${folder}: ${result.error.message}`);
   if (result.status !== 0) {
     throw new Error(`make build failed in ${folder} (${result.status ?? result.signal}, ${elapsed}s):\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-40).join('\n')}\n${failed}`);
   }
@@ -203,6 +201,31 @@ export const LAND_LOCK = 'kit-land.lock';
 export const MAIN_WRITER = 'KIT_MAIN_WRITER';
 const LOCK_POLL_MS = 2000;
 const LOCK_WAIT_MS = 60 * 60 * 1000;
+
+/** The deadline of one make that land runs, a gate, a build or a stop target (K531): 30 minutes. */
+export const MAKE_DEADLINE_MS = 30 * 60 * 1000;
+
+/**
+ * Runs make with `args` in `folder` and returns its run when make exits (K531): its output goes to files, not to pipes, since a wait
+ * on pipes ends only when every holder closes them, and a process that a recipe leaves running holds the inherited output after make
+ * has exited. A run past `deadline` is stopped and throws, naming the target and the deadline; a make that cannot start throws.
+ */
+function runMake(folder: string, args: string[], deadline: number = MAKE_DEADLINE_MS): SpawnSyncReturns<string> {
+  const dir = mkdtempSync(path.join(tmpdir(), 'kit-make-'));
+  const files = [path.join(dir, 'stdout'), path.join(dir, 'stderr')];
+  const [out, err] = files.map(file => openSync(file, 'w'));
+  try {
+    const result = spawnSync('make', args, { cwd: folder, stdio: ['ignore', out, err], timeout: deadline, killSignal: 'SIGTERM' });
+    const target = args.filter(arg => !arg.startsWith('-')).join(' ');
+    if (codeOf(result.error) === 'ETIMEDOUT') throw new Error(`make ${target} ran past its deadline of ${deadline / 1000} s in ${folder} and was stopped`);
+    if (result.error) throw new Error(`make ${target} could not start in ${folder}: ${result.error.message}`);
+    const [stdout = '', stderr = ''] = files.map(file => readFileSync(file, 'utf8'));
+    return { pid: result.pid, output: [null, stdout, stderr], stdout, stderr, status: result.status, signal: result.signal };
+  } finally {
+    for (const fd of [out, err]) if (fd !== undefined) closeSync(fd);
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 /** Blocks this process for `ms` milliseconds; a waiting land has nothing else to do. */
 function sleepFor(ms: number): void {
@@ -421,13 +444,12 @@ function gitIn(cwd: string, ...args: string[]): string {
 }
 
 /**
- * Runs `gate` in `folder` with make -s, with `args` after the gate (such as RANGE=), and returns the run. A make that cannot start throws.
+ * Runs `gate` in `folder` with make -s, with `args` after the gate (such as RANGE=), and returns the run at the exit of make (runMake,
+ * K531). A make that cannot start, or that runs past `deadline`, throws.
  */
-export function runGate(folder: string, gate: string, args: string[] = []): GateRun {
+export function runGate(folder: string, gate: string, args: string[] = [], deadline: number = MAKE_DEADLINE_MS): GateRun {
   // make -s: the recipes that make echoes differ between checkouts and are not findings of the gate (K446-3).
-  const result = spawnSync('make', ['--no-print-directory', '-s', gate, ...args], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
-  if (result.error) throw new Error(`make ${gate} could not start in ${folder}: ${result.error.message}`);
-  return { folder, result };
+  return { folder, result: runMake(folder, ['--no-print-directory', '-s', gate, ...args], deadline) };
 }
 
 /**
