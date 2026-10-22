@@ -1,9 +1,10 @@
-// Tests of scripts/kit/worktree-setup.mts (K348): the worktree of a row is made from main beside the main checkout, linked to the main
-// checkout's node_modules with nothing installed (K519) and checked, a second run converges, and no worktree is made under the floor of
+// Tests of scripts/kit/worktree-setup.mts (K348): the worktree of a row is made from main beside the main checkout, its node_modules
+// linked entry by entry to the main checkout's with nothing installed (K519, K530) and checked, a second run converges, and no worktree is made under the floor of
 // free disk.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -37,9 +38,9 @@ test('worktree-setup makes the worktree of a row from main, links its node_modul
   assert.equal(git(folder, 'rev-parse', '--abbrev-ref', 'HEAD'), 'fix/parser-T1');
   assert.equal(git(folder, 'rev-parse', 'HEAD'), git(main, 'rev-parse', 'main'), 'the branch starts at main');
   assert.equal(existsSync(path.join(folder, 'installs.txt')), false, 'the worktree installs nothing');
-  assert.ok(lstatSync(path.join(folder, 'node_modules')).isSymbolicLink());
-  assert.equal(readlinkSync(path.join(folder, 'node_modules')), path.join(main, 'node_modules'));
-  assert.equal(git(folder, 'status', '--porcelain'), '', 'the link is excluded, so the worktree has no change');
+  assert.ok(lstatSync(path.join(folder, 'node_modules')).isDirectory(), 'the node_modules of the worktree is a folder of its own (K530)');
+  assert.equal(realpathSync(path.join(folder, 'node_modules/@polyspec/kit')), realpathSync(path.join(main, 'node_modules/@polyspec/kit')));
+  assert.equal(git(folder, 'status', '--porcelain'), '', 'the ignored node_modules leaves the worktree with no change');
   const listed = git(main, 'worktree', 'list', '--porcelain');
   assert.equal(setupWorktree(folder, { name: 'parser', id: 'T1', type: 'fix' }, quiet), folder, 'a second run, also from the worktree, finds the same worktree');
   assert.equal(git(main, 'worktree', 'list', '--porcelain'), listed, 'and leaves the same worktrees');
@@ -132,4 +133,50 @@ test('worktree-setup gives a Composer project a vendor folder of links and its o
   assert.equal(readFileSync(log, 'utf8'), `dump-autoload --no-interaction [${folder}] network=1\n`);
   assert.equal(readFileSync(path.join(vendor, 'autoload.php'), 'utf8'), `<?php // the autoload of ${folder}\n`, 'the autoload is that of the worktree');
   assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
+});
+
+// K530: the node_modules of a worktree is a folder of its own: each third-party package and each .bin entry links to the main
+// checkout's, and a package of the repository's own workspace, which the main checkout links to its own packages, links into the
+// worktree, so the worktree resolves its own code. A link of the whole folder, which K519 made, is replaced.
+test('worktree-setup links the node_modules of a worktree entry by entry, its own workspace packages into the worktree (K530)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'node_modules/@polyspec/kit/package.json': '{"name":"@polyspec/kit"}\n',
+    'node_modules/left-pad/package.json': '{"name":"left-pad","main":"index.js"}\n',
+    'node_modules/left-pad/index.js': 'module.exports = 1;\n',
+    'node_modules/left-pad/bin.js': '#!/usr/bin/env node\n',
+    'node_modules/.package-lock.json': '{}\n',
+    'packages/own/package.json': '{"name":"@polyspec/own","main":"index.js"}\n',
+    'packages/own/index.js': 'module.exports = 2;\n',
+    'Makefile': 'link-state-check:\n\ttest -f node_modules/@polyspec/kit/dist/link.mjs\n',
+    '.gitignore': 'node_modules/\n',
+  });
+  symlinkSync('../../packages/own', path.join(main, 'node_modules/@polyspec/own'));
+  mkdirSync(path.join(main, 'node_modules/.bin'));
+  symlinkSync('../left-pad/bin.js', path.join(main, 'node_modules/.bin/lp'));
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const quiet = { free: () => WORKTREE_DISK_FLOOR, print: () => {} };
+  const check = (folder: string) => {
+    const modules = path.join(folder, 'node_modules');
+    assert.ok(lstatSync(modules).isDirectory(), 'the node_modules of the worktree is a folder of its own');
+    const resolve = createRequire(path.join(folder, 'index.js')).resolve;
+    assert.equal(resolve('@polyspec/own'), realpathSync(path.join(folder, 'packages/own/index.js')), 'an own workspace package resolves under the worktree');
+    assert.equal(resolve('left-pad'), realpathSync(path.join(main, 'node_modules/left-pad/index.js')), 'a third-party package resolves to the main checkout');
+    assert.equal(realpathSync(path.join(modules, '.bin/lp')), realpathSync(path.join(main, 'node_modules/left-pad/bin.js')));
+    assert.equal(realpathSync(path.join(modules, '@polyspec/kit')), realpathSync(path.join(main, 'node_modules/@polyspec/kit')));
+    assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
+  };
+  const folder = setupWorktree(main, { name: 'parser', id: 'T1', type: 'fix' }, quiet);
+  check(folder);
+  assert.equal(setupWorktree(main, { name: 'parser', id: 'T1', type: 'fix' }, quiet), folder, 'a second run converges');
+  check(folder);
+  rmSync(path.join(folder, 'node_modules'), { recursive: true });
+  symlinkSync(path.join(main, 'node_modules'), path.join(folder, 'node_modules'));
+  setupWorktree(main, { name: 'parser', id: 'T1', type: 'fix' }, quiet);
+  check(folder);
 });
