@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
 import { commitItem, editItem, newItem, newPlan, setState, splitPlan, stagedNewRowIds, testItem, verifyDone } from '../../scripts/kit/plan.mts';
@@ -939,4 +939,25 @@ test('item-new on main commits the registration of its row, and refuses without 
   assert.match(log(root), /^docs\(plan\): Register T2 as an item \(#T2\)\n\nThe parser needs its second item\./);
   assert.equal(spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status, 0, 'nothing stays staged');
   assert.ok(rows(root, 'docs/plans/parser/checklist.md').some(row => row.startsWith('| T2 ')));
+});
+
+// K524: a commit on main holds the lock of land while it stages and commits, so it and a land queue instead of one finding the change
+// of the other; it waits for a land that holds the lock and releases the lock at its end.
+test('a commit on main waits for the land that holds the lock and releases the lock (K524)', (t) => {
+  const root = committed(t, 'T1');
+  assert.equal(spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim(), 'main');
+  writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
+  stage(root, 'a.mts');
+  const body = path.join(root, 'body.txt');
+  writeFileSync(body, 'Why.\n');
+  // The land that holds the lock ends after three seconds, as a land does.
+  const holder = spawn('sleep', ['3']);
+  t.after(() => holder.kill());
+  const lock = path.join(root, '.git/kit-land.lock');
+  writeFileSync(lock, JSON.stringify({ pid: holder.pid, branch: 'feat/other' }));
+  const started = Date.now();
+  commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse the input', bodyFile: body }, identity);
+  assert.ok(Date.now() - started >= 2000, `the commit waited ${Date.now() - started} ms for the land`);
+  assert.equal(existsSync(lock), false, 'the commit released the lock');
+  assert.match(log(root), /^feat\(parser\): Parse the input \(#T1\)/);
 });
