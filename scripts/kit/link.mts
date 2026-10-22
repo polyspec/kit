@@ -1010,8 +1010,10 @@ function zipOf(entries: readonly { name: string; data: Buffer }[]): Buffer {
 }
 
 /** Writes the editable wheel of `wheel` into var/link/python of the consumer, and returns its path (K398). */
-function writeWheel(consumer: Consumer, wheel: PythonWheel): string {
-  const file = linkFile(consumer.top, path.join('python', `${normalizeName(wheel.name).replace(/-/g, '_')}-${wheel.version}-py3-none-any.whl`));
+function writeWheel(consumer: Consumer, wheel: PythonWheel, state?: string): string {
+  const name = path.join('python', `${normalizeName(wheel.name).replace(/-/g, '_')}-${wheel.version}-py3-none-any.whl`);
+  // A state that the caller gives is an install output outside the source checkouts (K488): it is not checked against Git.
+  const file = state === undefined ? linkFile(consumer.top, name) : path.join(state, name);
   writeAtomic(file, zipOf(wheelEntries(wheel)));
   return file;
 }
@@ -1150,7 +1152,9 @@ const UV_INSTALL_SYNC_FLAGS = ['--no-install-project', '--all-groups'];
  * checkout provides is then installed from the editable wheel that link writes for it (K398), with --no-deps: the sync installed
  * the locked dependencies. A polyspec package with no checkout fails before uv runs. Third-party packages come from uv.lock.
  */
-export function uvInstall({ directory, checkouts, sync = [], env = process.env, print }: { directory: string; checkouts: readonly string[]; sync?: readonly string[]; env?: NodeJS.ProcessEnv; print: Print }): void {
+export function uvInstall({ directory, checkouts, sync = [], state, env = process.env, print }: { directory: string; checkouts: readonly string[]; sync?: readonly string[]; state?: string | undefined; env?: NodeJS.ProcessEnv; print: Print }): void {
+  // The link state of the install is written under state, an absolute folder of the caller (K488); without it, under var/link of the consumer.
+  if (state !== undefined && !path.isAbsolute(state)) throw new Error(`STATE must be an absolute path, got ${state}`);
   for (const flag of sync) {
     if (!UV_INSTALL_SYNC_FLAGS.includes(flag)) throw new Error(`unsupported sync flag ${flag}: uv install passes only ${UV_INSTALL_SYNC_FLAGS.join(' and ')}`);
   }
@@ -1182,7 +1186,7 @@ export function uvInstall({ directory, checkouts, sync = [], env = process.env, 
     const wheels = linked.map((provider) => {
       const wheel = pythonWheel(provider.folder);
       if (typeof wheel === 'string') throw new Error(wheel);
-      return writeWheel(consumer, wheel);
+      return writeWheel(consumer, wheel, state);
     });
     run(uv.command, ['pip', 'install', '--python', python, '--no-deps', ...names.flatMap(name => ['--reinstall-package', name]), ...wheels], { cwd: consumer.top, env: uv.env });
     for (const provider of linked) run(python, ['-I', '-c', WRITE_DIRECT_URL, provider.name, pathToFileURL(provider.folder).href], { cwd: target.venv, env: uv.env });

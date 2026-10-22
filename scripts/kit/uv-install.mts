@@ -18,7 +18,9 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
   try {
     // UV_SYNC carries the sync flags of make uv-install SYNC (K487); each is checked by uvInstall.
     const sync = (env.UV_SYNC ?? '').split(/\s+/).filter(flag => flag !== '');
-    uvInstall({ directory, checkouts, sync, env, print: text => write(`${text}\n`) });
+    // UV_STATE carries the link state folder of make uv-install STATE (K488); empty means the default of the consumer.
+    const state = env.UV_STATE === undefined || env.UV_STATE === '' ? undefined : env.UV_STATE;
+    uvInstall({ directory, checkouts, sync, state, env, print: text => write(`${text}\n`) });
     return 0;
   } catch (error) {
     write(`${error instanceof Error ? error.message : String(error)}\n`);

@@ -169,10 +169,13 @@ test('uv install writes its link state under STATE and nothing into a read-only 
   const project = path.join(consumer, 'python');
   const state = path.join(root, 'state');
   mkdirSync(state);
-  chmodSync(consumer, 0o555);
-  t.after(() => chmodSync(consumer, 0o755));
   env.UV_PROJECT_ENVIRONMENT = path.join(root, 'venv');
-  uvInstall({ directory: project, checkouts: [path.join(root, 'prov')], state, env, print: () => undefined });
+  chmodSync(consumer, 0o555);
+  try {
+    uvInstall({ directory: project, checkouts: [path.join(root, 'prov')], state, env, print: () => undefined });
+  } finally {
+    chmodSync(consumer, 0o755);
+  }
   assert.equal(existsSync(path.join(state, 'python')), true, 'the wheel is written under STATE');
   assert.equal(existsSync(path.join(consumer, 'var')), false, 'nothing is written into the consumer top');
 });

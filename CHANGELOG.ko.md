@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3811b51b4f3df5fc4c5fbcbbd47b32b4a34130622185ce3876c90d139efb4cd4 -->
+<!-- source-sha256: 1df6179b518d46e73945e30f8664f641fe633acbfa4abb6e016771ffe218412a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make uv-install ... STATE=<dir>`은 설치의 editable wheel을 절대 경로 폴더 STATE 아래에 쓴다. 그래서 읽기 전용으로 mount된 원본 checkout에는 아무것도 쓰지 않는다. STATE가 없으면 wheel은 지금처럼 소비자의 var/link에 있고, 상대 경로 STATE는 거부한다(K488). Red: 5d6f9a96에서 `node --test --test-name-pattern=K488 tests/kit/uv-install.test.mts`가 소비자 var/link의 mkdir에서 EACCES로 실패했다.
 - `make npm-install`은 npm 패키지를 제공하지 않는 `CHECKOUTS` 항목(예: PHP 전용 fork)을 받고, 같은 목록을 받는 `link`처럼 그것에서는 아무것도 link하지 않는다. 존재하는 디렉터리가 아닌 항목만 거부된다(K494-1). Red: `node --test --test-name-pattern=K494-1 tests/kit/npm-install.test.mts`가 2fbe521f에서 composer 전용 checkout을 거부하며 실패했다.
 - K489: `make cargo-fetch`는 sibling checkout의 crate를 그 checkout이 저장소(config/release.json)를 선언하거나 소비자의 Cargo.lock이 그 crate 중 하나를 이름 붙일 때만 patch하므로, 소비자 옆의 무관한 polyspec checkout이 "declares no repositoryUrl"로 fetch를 멈추지 않는다 (K489). Red: 수정 전 `node --test --test-name-pattern=K489 tests/kit/link.test.mts`가 그 오류로 실패했고, green은 같은 명령이 1/1 통과한다.
 - `make npm-install`은 `CHECKOUTS`로 저장소 root를 받고, sibling checkout처럼 packages/ 아래 패키지 폴더를 스스로 찾는다. 그래서 소비자는 link할 checkout을 넘길 뿐 제공자의 구조를 읽지 않는다. 패키지 폴더도, 패키지 폴더를 가진 root도 아닌 checkout은 거부된다(K494). Red: `node --test --test-name-pattern=K494 tests/kit/npm-install.test.mts`가 ce55629e에서 "is a repository root, not a package folder"로 실패했다.
