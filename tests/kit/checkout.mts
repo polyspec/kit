@@ -15,6 +15,10 @@ import { readStubLines, STUB_CALL } from './stub-json.mts';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
 
+// K491: the copy of the fixture has no mise.lock of the checkout, so MISE_LOCKED of make refuses its tools (ruff, python); the variable
+// leaves the environment of the tests. The mise settings of the checkout stay, since its own composer shim needs them.
+delete process.env.MISE_LOCKED;
+
 /** A copy of the fixture, removed with `t.after`. */
 export function fixtureCheckout(t: Pick<TestContext, 'after'>) {
   const directory = mkdtempSync(path.join(tmpdir(), 'kit-dependency-checkout-'));

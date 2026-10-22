@@ -24,7 +24,9 @@ export function checkoutTools(root: string, names: readonly string[]): void {
   const bin = path.join(root, 'var/tools/bin');
   mkdirSync(bin, { recursive: true });
   for (const name of names) {
-    const real = execFileSync('/bin/sh', ['-c', `command -v ${name}`], { encoding: 'utf8' }).trim();
+    // K491: the tool is the one that PATH finds outside the checkout's var/tools, whose shims would recurse into mise.
+    const outside = (process.env.PATH ?? '').split(path.delimiter).filter(entry => !entry.includes(`${path.sep}var${path.sep}tools`)).join(path.delimiter);
+    const real = execFileSync('/bin/sh', ['-c', `command -v ${name}`], { encoding: 'utf8', env: { ...process.env, PATH: outside } }).trim();
     const wrapper = path.join(bin, name);
     writeFileSync(wrapper, `#!/bin/sh\nexec '${real}' "$@"\n`);
     chmodSync(wrapper, 0o755);
