@@ -6,7 +6,7 @@
 // WORKTREE_DISK_FLOOR, and a second run on an existing worktree of that branch links and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statfsSync, symlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statfsSync, symlinkSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { COMMIT_RULES } from './check-commits.mts';
@@ -36,33 +36,47 @@ export function worktreeOf(main: string, { name, id, type }: { name: string; id:
 }
 
 /** The folders of the main checkout that a worktree links instead of installing them (K519). */
-export const LINKED_FOLDERS = ['node_modules'] as const;
+// The folder of the npm packages that a worktree links entry by entry to the main checkout's (K519, K530).
+const NODE_MODULES = 'node_modules';
 
 /**
- * Links each of LINKED_FOLDERS of the worktree `folder` to that of the main checkout `main`, and adds the links to the exclude file of
- * the common git folder, since an ignore pattern with a trailing slash matches a folder and not a link. Throws when the main checkout
- * has no such folder, or the worktree holds the name as anything but that link.
+ * The node_modules of the worktree `folder` (K530): a real folder whose entries link to those of the main checkout `main` (linkEntry),
+ * each scope folder and .bin entry by entry, so a package of the repository's own workspace, which the main checkout links to its own
+ * packages, links into the worktree, and the worktree resolves its own code. A link of the whole folder, which K519 made, is replaced;
+ * the repository ignores the real folder as it ignores the main checkout's. Nothing is installed.
  */
-function linkFolders(main: string, folder: string, print: (text: string) => void): void {
-  const exclude = path.join(path.resolve(main, git(main, 'rev-parse', '--git-common-dir').trim()), 'info', 'exclude');
-  for (const name of LINKED_FOLDERS) {
-    const source = path.join(main, name);
-    const target = path.join(folder, name);
-    if (!existsSync(source)) throw new Error(`${source} is missing; run make install in the main checkout, whose ${name} a worktree links`);
-    const entry = lstatSync(target, { throwIfNoEntry: false });
-    if (entry === undefined) {
-      symlinkSync(source, target);
-      print(`[worktree-setup] linked ${name} to ${source}`);
-    } else if (!entry.isSymbolicLink() || path.resolve(folder, readlinkSync(target)) !== source) {
-      throw new Error(`${target} exists and is not the link to ${source}; remove it, since a worktree installs nothing (K519)`);
-    }
-    const pattern = `/${name}`;
-    const lines = existsSync(exclude) ? readFileSync(exclude, 'utf8').split('\n') : [];
-    if (!lines.includes(pattern)) {
-      appendFileSync(exclude, `${lines.length > 0 && lines.at(-1) !== '' ? '\n' : ''}${pattern}\n`);
-      print(`[worktree-setup] excluded ${pattern} in ${exclude}`);
+function linkNodeModules(main: string, folder: string, print: (text: string) => void): void {
+  const source = path.join(main, NODE_MODULES);
+  const target = path.join(folder, NODE_MODULES);
+  if (!existsSync(source)) throw new Error(`${source} is missing; run make install in the main checkout, whose ${NODE_MODULES} a worktree links`);
+  const entry = lstatSync(target, { throwIfNoEntry: false });
+  if (entry?.isSymbolicLink()) {
+    if (path.resolve(folder, readlinkSync(target)) !== source) throw new Error(`${target} is a link to ${readlinkSync(target)}, not to ${source}; remove it, since a worktree installs nothing (K519)`);
+    unlinkSync(target);
+    print(`[worktree-setup] replaced the link of ${target} to the main checkout's folder (K519) with a folder of links (K530)`);
+  } else if (entry !== undefined && !entry.isDirectory()) {
+    throw new Error(`${target} exists and is no folder; remove it, since a worktree installs nothing (K519)`);
+  }
+  mkdirSync(target, { recursive: true });
+  // An entry that the main checkout's folder lacks was installed in the worktree, which installs nothing.
+  for (const name of readdirSync(target)) {
+    const nested = name.startsWith('@') || name === '.bin' ? readdirSync(path.join(target, name)).map(inner => path.join(name, inner)) : [];
+    for (const relative of [name, ...nested]) {
+      if (lstatSync(path.join(source, relative), { throwIfNoEntry: false }) === undefined) {
+        throw new Error(`${path.join(target, relative)} is no entry of ${source}; remove it, since a worktree installs nothing (K519)`);
+      }
     }
   }
+  for (const item of readdirSync(source, { withFileTypes: true })) {
+    const from = path.join(source, item.name);
+    if (!item.isDirectory() || !(item.name.startsWith('@') || item.name === '.bin')) {
+      linkEntry(main, folder, NODE_MODULES, from, path.join(target, item.name));
+      continue;
+    }
+    mkdirSync(path.join(target, item.name), { recursive: true });
+    for (const name of readdirSync(from)) linkEntry(main, folder, NODE_MODULES, path.join(from, name), path.join(target, item.name, name));
+  }
+  print(`[worktree-setup] linked the packages of ${NODE_MODULES} to ${source}, the repository's own into the worktree`);
 }
 
 /** A Composer project of the worktree: its folder relative to the worktree and its vendor folder, from config.vendor-dir. */
@@ -162,7 +176,7 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   } else {
     print(`[worktree-setup] ${folder} is the worktree of ${branch}; linking and checking it again`);
   }
-  linkFolders(main, folder, print);
+  linkNodeModules(main, folder, print);
   for (const project of composerProjects(main, folder)) linkVendor(main, folder, project, composer ?? composerCommand(folder, 'make worktree-setup'), print);
   for (const target of ['rebuild', 'link-state-check']) {
     // The rebuild (K482) builds the packages of the worktree's own repository before the check reads their builds: a new worktree has none yet.

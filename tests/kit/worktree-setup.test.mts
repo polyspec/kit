@@ -75,7 +75,7 @@ test('worktree-setup rebuilds the packages of the worktree before its link-state
 });
 
 // K519: a worktree whose node_modules is a folder of its own is refused, since a worktree installs nothing.
-test('worktree-setup refuses a worktree that holds node_modules of its own (K519)', (t) => {
+test('worktree-setup refuses a package installed in the node_modules of a worktree (K519, K530)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
@@ -85,9 +85,11 @@ test('worktree-setup refuses a worktree that holds node_modules of its own (K519
   git(main, 'commit', '--quiet', '-m', 'base');
   const folder = path.join(parent, 'repo-own-K519');
   git(main, 'worktree', 'add', '--quiet', '-b', 'fix/own-K519', folder, 'main');
-  mkdirSync(path.join(folder, 'node_modules'));
+  // A package installed in the worktree, which the main checkout's node_modules lacks, is refused (K530: the folder itself is the
+  // worktree's own, of links).
+  mkdirSync(path.join(folder, 'node_modules/left-pad'), { recursive: true });
   const quiet = { free: () => WORKTREE_DISK_FLOOR, print: () => {} };
-  assert.throws(() => setupWorktree(main, { name: 'own', id: 'K519', type: 'fix' }, quiet), /node_modules exists and is not the link to .*; remove it, since a worktree installs nothing \(K519\)/);
+  assert.throws(() => setupWorktree(main, { name: 'own', id: 'K519', type: 'fix' }, quiet), /node_modules\/left-pad is no entry of .*; remove it, since a worktree installs nothing \(K519\)/);
 });
 
 // K521: each Composer project gets a real vendor folder of links in the worktree and an autoload of its own, so the repository's own
