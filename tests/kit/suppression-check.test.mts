@@ -48,3 +48,12 @@ test('make suppression-check fails on a tracked suppression without its reason a
   const green = run();
   assert.equal(green.status, 0, green.stdout + green.stderr);
 });
+
+// K527: rustfmt writes each argument of a long attribute on its own line, so the reason of a Rust allow or expect is read through the
+// closing )] of the attribute; one without a reason is still reported at its first line.
+test('a Rust allow over several lines states its reason on a later line, and one without it is reported (K527)', () => {
+  const stated = '//! a fixture\n#![allow(\n    dead_code,\n    reason = "each test binary uses a part of it"\n)]\n\nuse std::fs;\n';
+  assert.deepEqual(suppressionFindings('tests/fixture/mod.rs', stated), []);
+  const bare = '#[allow(\n    dead_code,\n    unused_imports\n)]\nfn f() {}\n';
+  assert.deepEqual(suppressionFindings('src/lib.rs', bare).map(finding => finding.split(' ')[0]), ['src/lib.rs:1:']);
+});
