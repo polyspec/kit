@@ -24,13 +24,6 @@ export function lintCommands(root: string, folder: string, names: readonly strin
   }));
 }
 
-/** Throws for the first configuration file of `files` ([file, tool]) that `root` lacks: the configuration that kit copies. */
-export function requireConfigurations(root: string, files: readonly (readonly [string, string])[]): void {
-  for (const [file, tool] of files) {
-    if (!existsSync(path.join(root, file))) throw new Error(`${file} is missing; it is the ${tool} configuration that kit copies into every repository (make kit-sync)`);
-  }
-}
-
 /** The folders of the checked files of `root` named `name`, such as the Go modules (go.mod), relative to `root`. */
 export const foldersOf = (root: string, name: string): string[] =>
   checkedFiles(root).filter(file => path.posix.basename(file) === name).map(file => path.posix.dirname(file));
@@ -44,7 +37,7 @@ export function runLint(name: string, steps: readonly LintStep[], root: string, 
   const failed: string[] = [];
   for (const step of steps) {
     // A step runs the tools of mise.toml from their shims, in the environment of mise of the checkout.
-    const result = execute(step.command, step.args, { cwd: path.join(root, step.cwd), env: toolsEnvironment(root) });
+    const result = execute(step.command, step.args, { cwd: path.join(root, step.cwd), env: { ...toolsEnvironment(root), ...step.env } });
     const output = `${result.stdout}${result.stderr}`;
     print(output);
     const failure = result.error?.message ?? (result.status !== 0 ? `exit status ${result.status}` : step.quiet && output.trim() ? 'a finding' : undefined);

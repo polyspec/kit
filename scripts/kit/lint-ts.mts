@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // Lints the TypeScript of the checkout with the oxlint, knip and API Extractor of node_modules/.bin (`make lint-ts`):
-//   - `oxlint --type-aware --deny-warnings -c .oxlintrc.json`, the configuration that kit copies, on the checkout; oxlint
+//   - `oxlint --type-aware --deny-warnings -c <kit>/.oxlintrc.json`, the configuration of the kit package (K514), on the checkout; oxlint
 //     reads the files that Git does not ignore, and oxlint-tsgolint checks the rules that need the types of TypeScript 7. In a
 //     consumer it leaves out the copies of kit (`kit.copies` of the installed package, which kit-sync writes and kit-check
 //     compares byte for byte): kit lints them with its own tsconfig and the types of node, and outside the consumer's project
 //     oxlint-tsgolint would check them without those types (K157). It leaves out the files that `ignore` of
 //     config/knip-entries.json declares, which are not code of the repository, such as inputs of tests that are broken on
 //     purpose (K172).
-//   - `knip`, the files, exports and dependencies that nothing uses, from the root with knip.json, which kit copies, and the
+//   - `knip`, the files, exports and dependencies that nothing uses, from the root with the knip.json of the kit package (K514), and the
 //     plugins that read the manifests, through var/lint-ts/knip.json, which knip reads with --config. Of the
 //     `ignoreDependencies` of knip.json, the packages that only make runs, it keeps those that knip needs: knip names an
 //     ignore that matched no issue in a configuration hint, which a consumer cannot fix in the copy (K176), so a first run
@@ -27,7 +27,7 @@
 //   node scripts/kit/lint-ts.mts
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { foldersOf, lintCommands, lintMain, requireConfigurations, runLint } from './lint-steps.mts';
+import { foldersOf, lintCommands, lintMain, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { installedKit, isSource } from './kit-check.mts';
@@ -38,6 +38,7 @@ import { checkedFiles } from './tracked-files.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { execute } from './process.mts';
 import { checkerOf, tsconfigFolders } from './ts-typecheck.mts';
+import { kitFile, kitPackageRoot } from './kit-files.mts';
 
 /**
  * The entries that a repository adds to the layout entries of knip.json, the binaries to its ignoreBinaries, the root
@@ -96,7 +97,7 @@ function unusedIgnores(root: string, knip: string): Set<string> {
  */
 export function knipArguments(root: string, knip: string): string[] {
   const value = knipEntries(root) ?? {};
-  const base = readConfig<KnipJson>(root, 'knip.json', 'knip.schema.json');
+  const base = readConfig<KnipJson>(kitPackageRoot(), 'knip.json', 'knip.schema.json');
   const merged = { ...base };
   if (value.entries) merged.node = { ...base.node, entry: [...(base.node?.entry ?? []), ...Object.keys(value.entries)] };
   if (value.binaries) merged.ignoreBinaries = [...(base.ignoreBinaries ?? []), ...Object.keys(value.binaries)];
@@ -111,7 +112,7 @@ export function knipArguments(root: string, knip: string): string[] {
   }
   writeJson(path.join(root, MERGED_KNIP), merged);
   if (base.ignoreDependencies?.length) {
-    // The ignores of the repository stay, so knip names one that matched no issue; only the copy of knip.json is filtered.
+    // The ignores of the repository stay, so knip names one that matched no issue; only the knip.json of kit is filtered.
     const unused = unusedIgnores(root, knip);
     const own = Object.keys(value.ignoreDependencies ?? {});
     merged.ignoreDependencies = [...base.ignoreDependencies.filter(name => !unused.has(name)), ...own];
@@ -145,12 +146,11 @@ function declaredIgnores(root: string): string[] {
 /** The steps of the lint of `root`; throws when a tool or a configuration is missing. */
 export function lintSteps(root: string): LintStep[] {
   const tools = lintCommands(root, 'node_modules/.bin', ['oxlint', 'knip', 'api-extractor'], 'run npm ci');
-  requireConfigurations(root, [['.oxlintrc.json', 'oxlint'], ['knip.json', 'knip']]);
   const packages = foldersOf(root, 'api-extractor.json');
   return [
     // The unix format names the file, line, column and rule of each finding on one line; oxlint picks the github format under CI, whose annotations
     // leave the rule out, so the format is fixed and the output is the same everywhere.
-    { label: 'oxlint', command: present(tools.oxlint, 'tools.oxlint'), args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', '.oxlintrc.json', ...kitCopyIgnores(root), ...declaredIgnores(root)], cwd: '.' },
+    { label: 'oxlint', command: present(tools.oxlint, 'tools.oxlint'), args: ['--type-aware', '--deny-warnings', '--format', 'unix', '-c', kitFile('.oxlintrc.json'), ...kitCopyIgnores(root), ...declaredIgnores(root)], cwd: '.' },
     { label: 'knip', command: present(tools.knip, 'tools.knip'), args: knipArguments(root, present(tools.knip, 'tools.knip')), cwd: '.' },
     // The types of each project (K309): the tests transpile without checking them.
     ...tsconfigFolders(checkedFiles(root)).map((folder) => {

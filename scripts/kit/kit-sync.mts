@@ -18,6 +18,12 @@ import { readNpmManifest } from './manifests.mts';
 
 const USAGE = 'Usage: node scripts/kit/kit-sync.mts';
 
+/**
+ * The files that an earlier kit copied into the repository and that kit now reads from its package (K514): the lint
+ * configurations, which each lint of kit.mk names by their path in the package.
+ */
+export const RETIRED_COPIES = ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json'] as const;
+
 /** Writes the copies of the installed package into `root`; returns the lines of the changes, empty when the copies match. */
 export function sync(root: string): string[] {
   const kit = installedKit(root);
@@ -37,6 +43,14 @@ export function sync(root: string): string[] {
     rmSync(path.join(root, file));
     changes.push(`removed ${file}`);
     for (let directory = path.dirname(file); directory !== COPY_DIRECTORY && readdirSync(path.join(root, directory)).length === 0; directory = path.dirname(directory)) rmSync(path.join(root, directory), { recursive: true });
+  }
+  // A file that an earlier kit copied and that this kit reads from its package (K514) is removed, with the folder it leaves empty.
+  for (const file of RETIRED_COPIES) {
+    if (!existsSync(path.join(root, file))) continue;
+    rmSync(path.join(root, file));
+    changes.push(`removed ${file}`);
+    const directory = path.dirname(file);
+    if (directory !== '.' && readdirSync(path.join(root, directory)).length === 0) rmSync(path.join(root, directory), { recursive: true });
   }
   return changes;
 }

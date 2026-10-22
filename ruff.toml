@@ -1,6 +1,7 @@
-# The ruff configuration of every polyspec repository, copied by kit; change it in kit, never in a copy. make lint-python runs
-# ruff with --config ruff.toml, so every Python file of the repository is checked with these rules, and config/layout.kit.yml
-# forbids a nested ruff configuration, which would escape them in an editor or a plain ruff run.
+# The ruff configuration of every polyspec repository, read from the kit package (K514); no repository holds a copy.
+# make lint-python runs ruff with --config of this file from the root of the repository, which resolves its relative paths,
+# so every Python file of the repository is checked with these rules, and config/layout.kit.yml forbids a nested ruff
+# configuration, which would escape them in an editor or a plain ruff run.
 target-version = "py314"
 # ruff's own setting for its cache, which otherwise is .ruff_cache at the root (layout S5 refuses it): var holds what the tools
 # write, and the setting holds for every ruff run of the repository, an editor's too. ruff reads the path relative to this file

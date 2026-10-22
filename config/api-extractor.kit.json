@@ -1,4 +1,4 @@
-// The base API Extractor configuration of every polyspec TypeScript package, copied by kit; change it in kit, never in a
+// The base API Extractor configuration of every polyspec TypeScript package, read from the kit package (K514); change it in kit, never in a
 // copy. The api-extractor.json of a package extends it and names its mainEntryPointFilePath; make lint-ts runs API Extractor
 // on each such package, after its build wrote the .d.ts. The API report is enabled because ae-undocumented fires only through
 // it: without the report an undocumented export passes in silence. addToApiReportFile false makes ae-undocumented and

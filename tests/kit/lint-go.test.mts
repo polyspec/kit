@@ -8,11 +8,10 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-go.mts';
-import { initRepository } from './sandbox-repository.mts';
 import { kitFile, kitPackageRoot } from '../../scripts/kit/kit-files.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const FILES: Record<string, string> = {
-  '.golangci.yml': 'version: "2"\n',
   'go.work': 'go 1.27.2\n',
   'packages/go/go.mod': 'module example.com/demo\n',
   'packages/codec/go/go.mod': 'module example.com/codec\n',
@@ -43,9 +42,9 @@ test('golangci-lint and deadcode -test run in each Go module folder, and not in 
   const { root, calls } = checkout(t);
   assert.deepEqual(lint(root, () => {}), []);
   assert.deepEqual(calls(), [
-    'golangci-lint run --config=.golangci.yml ./... [codec]',
+    `golangci-lint run --config=${kitFile('.golangci.yml')} ./... [codec]`,
     'deadcode -test ./... [codec]',
-    'golangci-lint run --config=.golangci.yml ./... [packages]',
+    `golangci-lint run --config=${kitFile('.golangci.yml')} ./... [packages]`,
     'deadcode -test ./... [packages]',
   ]);
 });
@@ -59,11 +58,11 @@ test('lint-go lints the files behind each build tag that the module declares (K4
   });
   assert.deepEqual(lint(root, () => {}), []);
   assert.deepEqual(calls(), [
-    'golangci-lint run --config=.golangci.yml ./... [codec]',
+    `golangci-lint run --config=${kitFile('.golangci.yml')} ./... [codec]`,
     'deadcode -test ./... [codec]',
-    'golangci-lint run --config=.golangci.yml ./... [packages]',
+    `golangci-lint run --config=${kitFile('.golangci.yml')} ./... [packages]`,
     'deadcode -test ./... [packages]',
-    'golangci-lint run --config=.golangci.yml --build-tags=extra ./... [packages]',
+    `golangci-lint run --config=${kitFile('.golangci.yml')} --build-tags=extra ./... [packages]`,
     'deadcode -test -tags=extra ./... [packages]',
   ]);
 });
@@ -76,9 +75,8 @@ test('a deadcode finding fails its step although deadcode exits 0, and every ste
   assert.deepEqual(lint(failing.root, () => {}), ['golangci-lint packages/codec/go', 'golangci-lint packages/go']);
 });
 
-test('a missing tool or .golangci.yml fails with its fix', (t) => {
+test('a missing tool fails with its fix', (t) => {
   assert.throws(() => lintSteps(checkout(t, { installed: ['golangci-lint'] }).root), /var\/tools\/mise\/shims\/deadcode is missing; declare golangci-lint and go:golang\.org\/x\/tools\/cmd\/deadcode in mise\.toml and run make install-tools/);
-  assert.throws(() => lintSteps(checkout(t, { omit: '.golangci.yml' }).root), /\.golangci\.yml is missing; it is the golangci-lint configuration that kit copies into every repository \(make kit-sync\)/);
 });
 
 // K514: golangci-lint reads the .golangci.yml of the kit package that runs, never a copy of the repository.

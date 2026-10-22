@@ -12,13 +12,11 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-ts.mts';
-import { initRepository } from './sandbox-repository.mts';
 import { kitFile, kitPackageRoot } from '../../scripts/kit/kit-files.mts';
 import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const FILES: Record<string, string> = {
-  '.oxlintrc.json': '{}\n',
-  'knip.json': '{}\n',
   'config/api-extractor.kit.json': '{}\n',
   'packages/ts/api-extractor.json': '{}\n',
   'packages/ts/src/index.ts': '',
@@ -52,8 +50,19 @@ function checkout(t: TestContext, { installed = ['oxlint', 'knip', 'api-extracto
   return { root, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => line.replace(/ \[kit-lint-ts-[^\]]*\]$/, ' [root]')) };
 }
 
-const OXLINT = 'oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json';
-const ALL = [`${OXLINT} --ignore-pattern=/scripts/kit/bootstrap/files.mts --ignore-pattern=/.oxlintrc.json [root]`, 'knip --no-progress --config var/lint-ts/knip.json [root]', 'api-extractor run [ts]'];
+const OXLINT = `oxlint --type-aware --deny-warnings --format unix -c ${kitFile('.oxlintrc.json')}`;
+// The knip.json of the kit package that runs (K514), the base of the configuration that knip reads.
+type Knip = { node: { entry: string[] }; ignoreDependencies: string[] };
+const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === 'string');
+function knipOf(value: Record<string, unknown>): Knip {
+  const { node, ignoreDependencies } = value;
+  if (!isJsonObject(node) || !strings(node.entry) || !strings(ignoreDependencies)) throw new Error(`the knip.json of kit has no node.entry or ignoreDependencies: ${JSON.stringify(value)}`);
+  return { node: { entry: node.entry }, ignoreDependencies };
+}
+const KIT_KNIP = knipOf(readJsonObject(kitFile('knip.json')));
+// The first run of knip names the ignores of kit's knip.json that matched no issue (K176, K188), before the steps run.
+const HINTS = `knip --no-progress --config var/lint-ts/knip.json --reporter ${path.join(kitPackageRoot(), 'scripts/kit/knip-ignore-hints.mts')} [root]`;
+const ALL = [HINTS, `${OXLINT} --ignore-pattern=/scripts/kit/bootstrap/files.mts --ignore-pattern=/.oxlintrc.json [root]`, 'knip --no-progress --config var/lint-ts/knip.json [root]', 'api-extractor run [ts]'];
 
 test('oxlint and knip run from the root, and API Extractor in each package but not for the base configuration', (t) => {
   const { root, calls } = checkout(t);
@@ -65,7 +74,7 @@ test('oxlint leaves out no file in kit itself, the source of the copies (K157)',
   const { root, calls } = checkout(t);
   writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: '@polyspec/kit', version: KIT.version, kit: KIT.kit }));
   assert.deepEqual(lint(root, () => {}), []);
-  assert.equal(calls()[0], `${OXLINT} [root]`);
+  assert.equal(calls()[1], `${OXLINT} [root]`);
 });
 
 test('a consumer without package-lock.json fails as kit-check does; another installed version passes (K157, K267)', (t) => {
@@ -101,32 +110,28 @@ test('every step runs after an earlier one failed, and each failure is named', (
   assert.deepEqual(lint(checkout(t, { failing: 'api-extractor' }).root, () => {}), ['api-extractor packages/ts']);
 });
 
-test('a missing tool or configuration fails with its fix', (t) => {
+test('a missing tool fails with its fix', (t) => {
   assert.throws(() => lintSteps(checkout(t, { installed: ['oxlint', 'knip'] }).root), /node_modules\/\.bin\/api-extractor is missing; run npm ci/);
-  assert.throws(() => lintSteps(checkout(t, { omit: '.oxlintrc.json' }).root), /\.oxlintrc\.json is missing; it is the oxlint configuration that kit copies into every repository \(make kit-sync\)/);
-  assert.throws(() => lintSteps(checkout(t, { omit: 'knip.json' }).root), /knip\.json is missing; it is the knip configuration that kit copies into every repository \(make kit-sync\)/);
 });
 
 test('knip reads knip.json with the entries of config/knip-entries.json after its own, from var/lint-ts/knip.json (K145)', (t) => {
   const { root, calls } = checkout(t);
-  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreBinaries: ['make'] }));
   mkdirSync(path.join(root, 'config'), { recursive: true });
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, entries: { 'packages/js/test/probe.mjs': 'make test-js runs it' } }));
   assert.deepEqual(lint(root, () => {}), []);
-  assert.equal(calls()[1], 'knip --no-progress --config var/lint-ts/knip.json [root]');
-  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts', 'packages/js/test/probe.mjs'] }, ignoreBinaries: ['make'] });
+  assert.equal(calls()[2], 'knip --no-progress --config var/lint-ts/knip.json [root]');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { ...KIT_KNIP, node: { entry: [...KIT_KNIP.node.entry, 'packages/js/test/probe.mjs'] } });
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, entries: { '../outside.mjs': 'leaves the repository' } }));
   assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/entries/);
 });
 
 test('knip ignores the binaries of config/knip-entries.json after those of knip.json, and entries are optional (K152)', (t) => {
   const { root, calls } = checkout(t);
-  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreBinaries: ['make'] }));
   mkdirSync(path.join(root, 'config'), { recursive: true });
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, binaries: { container: 'the virtiofs tests run Apple container' } }));
   assert.deepEqual(lint(root, () => {}), []);
-  assert.equal(calls()[1], 'knip --no-progress --config var/lint-ts/knip.json [root]');
-  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignoreBinaries: ['make', 'container'] });
+  assert.equal(calls()[2], 'knip --no-progress --config var/lint-ts/knip.json [root]');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { ...KIT_KNIP, ignoreBinaries: ['container'] });
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, binaries: { 'bin/tool': 'a path, not a binary' } }));
   assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/binaries/);
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1 }));
@@ -135,14 +140,12 @@ test('knip ignores the binaries of config/knip-entries.json after those of knip.
 
 test('knip reads each nested project of config/knip-entries.json as a workspace with its entries and ignored dependencies (K154)', (t) => {
   const { root } = checkout(t);
-  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreBinaries: ['make'] }));
   mkdirSync(path.join(root, 'config'), { recursive: true });
   const fixtures = { reason: 'the npm project that the build tests compile', entries: { 'src/*.{jsx,svelte}': 'the build tests compile each component' }, ignoreDependencies: { 'web-streams-polyfill': 'only the Rust tests load it' } };
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, workspaces: { 'packages/build/tests/fixtures': fixtures, 'tests/minimal': { reason: 'a project of the defaults of knip' } } }));
   assert.deepEqual(lint(root, () => {}), []);
   assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), {
-    node: { entry: ['scripts/**/*.mts'] },
-    ignoreBinaries: ['make'],
+    ...KIT_KNIP,
     workspaces: { 'packages/build/tests/fixtures': { entry: ['src/*.{jsx,svelte}'], ignoreDependencies: ['web-streams-polyfill'] }, 'tests/minimal': {} },
   });
   for (const workspaces of [{ '.': { reason: 'the root is knip.json' } }, { '../outside': { reason: 'leaves the repository' } }, { 'tests/minimal': {} }]) {
@@ -153,12 +156,11 @@ test('knip reads each nested project of config/knip-entries.json as a workspace 
 
 test('knip ignores the files of config/knip-entries.json after the ignore of knip.json (K162), and oxlint leaves them out (K172)', (t) => {
   const { root, calls } = checkout(t);
-  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignore: ['generated/**'] }));
   mkdirSync(path.join(root, 'config'), { recursive: true });
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignore: { 'site/samples/*.mjs': 'the site shows the samples and nothing runs them' } }));
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignore: ['generated/**', 'site/samples/*.mjs'] });
-  assert.equal(calls()[0], `${OXLINT} --ignore-pattern=/scripts/kit/bootstrap/files.mts --ignore-pattern=/.oxlintrc.json --ignore-pattern=/site/samples/*.mjs [root]`);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { ...KIT_KNIP, ignore: ['site/samples/*.mjs'] });
+  assert.equal(calls()[1], `${OXLINT} --ignore-pattern=/scripts/kit/bootstrap/files.mts --ignore-pattern=/.oxlintrc.json --ignore-pattern=/site/samples/*.mjs [root]`);
   for (const ignore of [{}, { '/site/*.mjs': 'an absolute glob' }, { '../site/*.mjs': 'a glob outside the root' }, { '!site/*.mjs': 'a negated glob' }, { 'site/*.mjs': '' }]) {
     writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignore }));
     assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/ignore/, JSON.stringify(ignore));
@@ -167,11 +169,10 @@ test('knip ignores the files of config/knip-entries.json after the ignore of kni
 
 test('knip ignores the root dependencies of config/knip-entries.json after those of knip.json (K159)', (t) => {
   const { root } = checkout(t);
-  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['@polyspec/kit'] }));
   mkdirSync(path.join(root, 'config'), { recursive: true });
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies: { '@example/recipe-tool': 'only the recipes of the Makefile run it' } }));
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { node: { entry: ['scripts/**/*.mts'] }, ignoreDependencies: ['@polyspec/kit', '@example/recipe-tool'] });
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8')), { ...KIT_KNIP, ignoreDependencies: [...KIT_KNIP.ignoreDependencies, '@example/recipe-tool'] });
   for (const ignoreDependencies of [{}, { 'Not A Package': 'not an npm name' }, { 'left-pad': '' }]) {
     writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies }));
     assert.throws(() => lintSteps(root), /config\/knip-entries\.json: \/ignoreDependencies/, JSON.stringify(ignoreDependencies));
@@ -183,32 +184,31 @@ test('knip ignores the root dependencies of config/knip-entries.json after those
 // first run of knip, with the reporter knip-ignore-hints, names them, and lint-ts leaves them out of var/lint-ts/knip.json.
 test('knip ignores only the dependencies of knip.json that knip needs: those its first run does not name as unused (K176, K188)', (t) => {
   const { root, calls } = checkout(t);
-  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ ignoreDependencies: ['@polyspec/kit', 'oxlint', 'oxlint-tsgolint', 'jscpd'] }));
+  assert.deepEqual(KIT_KNIP.ignoreDependencies, ['@polyspec/kit', 'oxlint', 'oxlint-tsgolint', 'jscpd'], 'the ignores of the knip.json of kit');
   const hints = (names: string[], workspace = '.') => writeFileSync(path.join(root, 'knip-hints.json'), JSON.stringify(names.map(name => ({ workspace, name }))));
   const merged = (): unknown => JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8'));
   hints(['oxlint', 'oxlint-tsgolint', 'jscpd']);
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(merged(), { ignoreDependencies: ['@polyspec/kit'] });
+  assert.deepEqual(merged(), { node: KIT_KNIP.node, ignoreDependencies: ['@polyspec/kit'] });
   assert.ok(calls().some(call => /^knip --no-progress --config var\/lint-ts\/knip\.json --reporter \S+knip-ignore-hints\.mts \[root\]$/.test(call)), calls().join('\n'));
   // A script of the repository imports @polyspec/kit, so knip names its ignore as unused (K188).
   hints(['@polyspec/kit', 'oxlint-tsgolint']);
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(merged(), { ignoreDependencies: ['oxlint', 'jscpd'] });
+  assert.deepEqual(merged(), { node: KIT_KNIP.node, ignoreDependencies: ['oxlint', 'jscpd'] });
   // An ignore of the repository itself stays, so knip names it when it matched no issue; a hint of another workspace is not one
   // of the root.
   mkdirSync(path.join(root, 'config'), { recursive: true });
   writeFileSync(path.join(root, 'config/knip-entries.json'), JSON.stringify({ schema: 1, ignoreDependencies: { '@example/recipe-tool': 'only the recipes of the Makefile run it' } }));
   hints(['@example/recipe-tool', '@polyspec/kit']);
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(merged(), { ignoreDependencies: ['oxlint', 'oxlint-tsgolint', 'jscpd', '@example/recipe-tool'] });
+  assert.deepEqual(merged(), { node: KIT_KNIP.node, ignoreDependencies: ['oxlint', 'oxlint-tsgolint', 'jscpd', '@example/recipe-tool'] });
   hints(['jscpd'], 'packages/lint');
   assert.deepEqual(lint(root, () => {}), []);
-  assert.deepEqual(merged(), { ignoreDependencies: ['@polyspec/kit', 'oxlint', 'oxlint-tsgolint', 'jscpd', '@example/recipe-tool'] });
+  assert.deepEqual(merged(), { node: KIT_KNIP.node, ignoreDependencies: ['@polyspec/kit', 'oxlint', 'oxlint-tsgolint', 'jscpd', '@example/recipe-tool'] });
 });
 
 test('a first run of knip that fails or prints no list of hints fails the lint with the command (K188)', (t) => {
   const { root } = checkout(t);
-  writeFileSync(path.join(root, 'knip.json'), JSON.stringify({ ignoreDependencies: ['@polyspec/kit'] }));
   writeFileSync(path.join(root, 'knip-hints.json'), '[{ "name": "@polyspec/kit" }]');
   assert.throws(() => lintSteps(root), /knip --no-progress --config var\/lint-ts\/knip\.json --reporter \S+knip-ignore-hints\.mts/);
 });

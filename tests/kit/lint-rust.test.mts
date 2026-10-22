@@ -8,8 +8,8 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps, P8_LINTS } from '../../scripts/kit/lint-rust.mts';
-import { initRepository } from './sandbox-repository.mts';
 import { kitPackageRoot } from '../../scripts/kit/kit-files.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const FILES: Record<string, string> = {
   'Cargo.toml': '[workspace]\nmembers = ["packages/rust"]\n',
@@ -34,8 +34,8 @@ const CLIPPY = ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D'
 
 test('cargo clippy runs with -D warnings in each workspace folder, and not for a member or the kit fixture', (t) => {
   assert.deepEqual(lintSteps(checkout(t)), [
-    { label: 'cargo clippy .', command: 'cargo', args: CLIPPY, cwd: '.' },
-    { label: 'cargo clippy benchmarks/rust', command: 'cargo', args: CLIPPY, cwd: 'benchmarks/rust' },
+    { label: 'cargo clippy .', command: 'cargo', args: CLIPPY, cwd: '.', env: { CLIPPY_CONF_DIR: kitPackageRoot() } },
+    { label: 'cargo clippy benchmarks/rust', command: 'cargo', args: CLIPPY, cwd: 'benchmarks/rust', env: { CLIPPY_CONF_DIR: kitPackageRoot() } },
   ]);
 });
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Lints the Python of the checkout with the ruff and the vulture of mise.toml, through their shims (`make lint-python`):
-//   - `ruff check` and `ruff format --check` on the root with --config ruff.toml, the configuration that kit copies, so every
+//   - `ruff check` and `ruff format --check` on the root with --config of the ruff.toml of the kit package (K514), so every
 //     Python file is checked with the rules of kit; config/layout.kit.yml forbids a nested ruff configuration. The var
 //     directory holds the installed tools and is excluded.
 //   - vulture on each Python package, a folder with a pyproject.toml: on its Python files of the checkout, from the package
@@ -12,11 +12,12 @@
 //
 //   node scripts/kit/lint-python.mts
 import path from 'node:path';
-import { foldersOf, lintCommands, lintMain, packageOwner, requireConfigurations, runLint } from './lint-steps.mts';
+import { foldersOf, lintCommands, lintMain, packageOwner, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { SHIMS } from './mise-tools.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { present } from './present.mts';
+import { kitFile } from './kit-files.mts';
 
 /** The confidence of vulture's findings that the lint reports: vulture's default, which reports unused functions and classes. */
 export const VULTURE_CONFIDENCE = '60';
@@ -27,12 +28,11 @@ export function lintSteps(root: string): LintStep[] {
   const files = checkedFiles(root);
   if (!files.some(file => file.endsWith('.py'))) return [];
   const tools = lintCommands(root, SHIMS, ['ruff', 'vulture'], 'declare ruff and pypi:vulture in mise.toml and run make install-tools');
-  requireConfigurations(root, [['ruff.toml', 'ruff']]);
   const packages = foldersOf(root, 'pyproject.toml');
   const owner = packageOwner(packages);
   return [
-    { label: 'ruff check .', command: present(tools.ruff, 'tools.ruff'), args: ['check', '--config', 'ruff.toml', '--extend-exclude', 'var', '.'], cwd: '.' },
-    { label: 'ruff format --check .', command: present(tools.ruff, 'tools.ruff'), args: ['format', '--check', '--config', 'ruff.toml', '--extend-exclude', 'var', '.'], cwd: '.' },
+    { label: 'ruff check .', command: present(tools.ruff, 'tools.ruff'), args: ['check', '--config', kitFile('ruff.toml'), '--extend-exclude', 'var', '.'], cwd: '.' },
+    { label: 'ruff format --check .', command: present(tools.ruff, 'tools.ruff'), args: ['format', '--check', '--config', kitFile('ruff.toml'), '--extend-exclude', 'var', '.'], cwd: '.' },
     // A package without a Python file has no code for vulture.
     ...packages.map(folder => ({ folder, sources: files.filter(file => file.endsWith('.py') && owner(file) === folder).map(file => path.posix.relative(folder, file)) }))
       .filter(({ sources }) => sources.length > 0)

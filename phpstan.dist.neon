@@ -1,5 +1,5 @@
-# The PHPStan configuration of every polyspec repository, copied by kit; change it in kit, never in a copy. make lint-php runs
-# PHPStan with this file on each Composer package, with the autoloader of the package. It runs the disallowed calls of S2
+# The PHPStan configuration of every polyspec repository, read from the kit package (K514); no repository holds a copy.
+# make lint-php runs PHPStan with this file on each Composer package, with the autoloader of the package. It runs the disallowed calls of S2
 # only: customRulesetUsed loads no rule level, so the result depends on no level a package may later choose for itself.
 # spaze/phpstan-disallowed-calls is loaded by phpstan/extension-installer (config/php-lint).
 parameters:

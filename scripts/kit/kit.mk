@@ -425,7 +425,7 @@ release-prepare release-tools release-verify release-versions release-assets rel
 
 
 # ---- Lint (K77) ------------------------------------------------------------------------------------------------------
-# Each target runs the lint of one language with the configuration that kit copies (ruff.toml, phpcs.xml.dist,
+# Each target runs the lint of one language with the configuration of the kit package (K514: ruff.toml, phpcs.xml.dist,
 # phpstan.dist.neon, .golangci.yml, .oxlintrc.json, knip.json, config/api-extractor.kit.json) and the tools of var/tools
 # (make install-tools) or node_modules (npm ci). config/layout.kit.yml checks the lint rules that live in manifests.
 .PHONY: lint-python lint-php lint-rust lint-go lint-ts

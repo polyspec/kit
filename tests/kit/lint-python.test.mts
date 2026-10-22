@@ -9,12 +9,11 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-python.mts';
+import { kitFile } from '../../scripts/kit/kit-files.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { tree } from './tree.mts';
-import { kitFile } from '../../scripts/kit/kit-files.mts';
 
 const FILES: Record<string, string> = {
-  'ruff.toml': '[lint]\nselect = ["F"]\n',
   'packages/python/pyproject.toml': '[project]\nname = "demo"\n',
   'packages/python/src/demo/__init__.py': '',
   'packages/python/tests/test_demo.py': '',
@@ -46,8 +45,8 @@ ${failing ? `case "${tool} $1" in "${failing}"*) echo "found a problem" >&2; exi
 }
 
 const ALL = [
-  'ruff check --config ruff.toml --extend-exclude var . [kit-lint-python-',
-  'ruff format --check --config ruff.toml --extend-exclude var . [kit-lint-python-',
+  `ruff check --config ${kitFile('ruff.toml')} --extend-exclude var . [kit-lint-python-`,
+  `ruff format --check --config ${kitFile('ruff.toml')} --extend-exclude var . [kit-lint-python-`,
   'vulture --min-confidence 60 src/demo/__init__.py tests/test_demo.py vulture_whitelist.py [python]',
 ];
 const shape = (calls: string[]) => calls.map(call => call.replace(/\[kit-lint-python-[^\]]*\]$/, '[kit-lint-python-'));
@@ -66,10 +65,9 @@ test('every step runs after an earlier one failed, and each failure is named', (
   assert.deepEqual(lint(vulture.root, () => {}), ['vulture packages/python']);
 });
 
-test('a missing tool and a missing ruff.toml fail with their fix', (t) => {
+test('a missing tool fails with its fix', (t) => {
   assert.throws(() => lintSteps(checkout(t, { installed: ['vulture'] }).root), /var\/tools\/mise\/shims\/ruff is missing; declare ruff and pypi:vulture in mise\.toml and run make install-tools/);
   assert.throws(() => lintSteps(checkout(t, { installed: ['ruff'] }).root), /var\/tools\/mise\/shims\/vulture is missing; declare ruff and pypi:vulture in mise\.toml and run make install-tools/);
-  assert.throws(() => lintSteps(checkout(t, { omit: 'ruff.toml' }).root), /ruff\.toml is missing; it is the ruff configuration that kit copies into every repository \(make kit-sync\)/);
 });
 
 test('a repository without Python sources lints nothing, with no tool and no configuration installed (K319)', (t) => {

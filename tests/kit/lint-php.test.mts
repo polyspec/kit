@@ -1,6 +1,6 @@
 // Tests of the PHP lint: phpcs runs on the PHP files of the checkout without the stubs of an extension, PHPStan on the PHP
 // files of each Composer package from its folder with its autoloader; every step runs after a failure of an earlier one, and
-// a missing tool, configuration or autoloader fails with the fix. phpcs and phpstan are stubs.
+// a missing tool or autoloader fails with the fix. phpcs and phpstan are stubs.
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -8,15 +8,13 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-php.mts';
+import { kitFile } from '../../scripts/kit/kit-files.mts';
 import { present } from '../../scripts/kit/present.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { known } from './known.mts';
 import { tree } from './tree.mts';
-import { kitFile } from '../../scripts/kit/kit-files.mts';
 
 const FILES: Record<string, string> = {
-  'phpcs.xml.dist': '<ruleset/>\n',
-  'phpstan.dist.neon': 'parameters: {}\n',
   'packages/php/composer.json': '{}\n',
   'packages/php/src/Demo.php': '<?php\n',
   'packages/php/tests/DemoTest.php': '<?php\n',
@@ -49,8 +47,8 @@ ${failing ? `case "${tool}" in "${failing}") echo "found a problem" >&2; exit 1;
 }
 
 const ALL = [
-  'phpcs -q -s --report=emacs --standard=phpcs.xml.dist packages/php/src/Demo.php packages/php/tests/DemoTest.php [root]',
-  'phpstan analyse --no-progress --error-format=raw --memory-limit=-1 --configuration=phpstan.dist.neon --autoload-file=vendor/autoload.php src/Demo.php tests/DemoTest.php [php]',
+  `phpcs -q -s --report=emacs --standard=${kitFile('phpcs.xml.dist')} packages/php/src/Demo.php packages/php/tests/DemoTest.php [root]`,
+  `phpstan analyse --no-progress --error-format=raw --memory-limit=-1 --configuration=${kitFile('phpstan.dist.neon')} --autoload-file=vendor/autoload.php src/Demo.php tests/DemoTest.php [php]`,
 ];
 
 test('phpcs runs on the PHP files without the stubs, and PHPStan on each package with PHP files from its folder', (t) => {
@@ -66,9 +64,8 @@ test('every step runs after an earlier one failed, and each failure is named', (
   assert.deepEqual(lint(checkout(t, { failing: 'phpstan' }).root, () => {}), ['phpstan packages/php']);
 });
 
-test('a missing tool, configuration or autoloader fails with its fix', (t) => {
+test('a missing tool or autoloader fails with its fix', (t) => {
   assert.throws(() => lintSteps(checkout(t, { installed: ['phpstan'] }).root), /var\/tools\/bin\/phpcs is missing; run make install-tools, which installs config\/php-lint/);
-  assert.throws(() => lintSteps(checkout(t, { omit: 'phpstan.dist.neon' }).root), /phpstan\.dist\.neon is missing; it is the PHP lint configuration that kit copies into every repository \(make kit-sync\)/);
   assert.throws(() => lintSteps(checkout(t, { omit: 'packages/php/vendor/autoload.php' }).root), /packages\/php\/vendor\/autoload\.php is missing, and no Composer project above packages\/php has one; PHPStan resolves the calls of the package with its autoloader: run composer install in packages\/php, or in the project that requires it/);
 });
 

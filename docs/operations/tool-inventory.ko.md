@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ed4a842adda1e8e71f7265310706586a99cfdb313885825813d3a30930809016 -->
+<!-- source-sha256: ed1025166efe95afef21c8c011251703e50ec24f6e9a5691593cd4963269cb1b -->
 
 # 도구 목록
 
@@ -781,7 +781,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 
 Python lint는 한 저장소의 target으로, package에 `ruff check`와 `ruff format --check`를 실행했습니다. kit은 이것을
 `scripts/kit/lint-python.mts`와 `make lint-python`으로 가져옵니다. ruff는 checkout root에서 `var` 제외 옵션과
-`--config ruff.toml`로 실행하며, ruff.toml은 kit이 복사하는 설정입니다(Lint 설정, K77). ruff는 mise의 shim이고 버전은
+kit 패키지의 `ruff.toml`을 `--config`로 주어 실행합니다(Lint 설정, K77, K514). ruff는 mise의 shim이고 버전은
 `mise.toml`의 `ruff`가 선언한 것이므로(K127) 결과가 머신의 ruff 설정에 의존하지 않습니다. ruff는 ruff 자신의 설정인
 `ruff.toml`의 `cache-dir`로 cache를 `var/ruff`에 두며, 이 설정은 repository의 모든 ruff 실행에 적용됩니다. 전에는 root에
 `.ruff_cache`를 썼고 layout S5가 이를 거부합니다(K147). 앞 단계가 실패해도 모든 단계를
@@ -836,8 +836,8 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   S3의 node:test 파일, kit의 사본을 포함한 `scripts/` 아래 S9의 script, `benchmarks/`의 프로그램입니다. Makefile이 include하는
   `@polyspec/kit`은 무시하는 dependency입니다. Makefile이 실행하는 script는 통과하고, 아무도 import하거나 실행하지 않는 파일은
   여전히 실패합니다(fixture). kit은 같은 설정으로 자신을 lint하며, CI와 `scripts/kit`, `tests`, lint 설정의 owner check에서
-  실행합니다(K142). knip은 아무 issue에도 맞지 않은 설정의 ignore를 configuration hint로 알리고 소비자는 knip.json 사본을 고칠 수
-  없으므로, 사본은 레포가 쓰지 않을 수 있는 ignore를 담지 않습니다(K176). `ignoreBinaries`는 없습니다: kit의 어떤 사본도
+  실행합니다(K142). knip은 아무 issue에도 맞지 않은 설정의 ignore를 configuration hint로 알리고 소비자는 kit의 knip.json을 고칠 수
+  없으므로, 그 파일은 레포가 쓰지 않을 수 있는 ignore를 담지 않습니다(K176, K514). `ignoreBinaries`는 없습니다: kit의 어떤 사본도
   knip이 보고하는 binary를 실행하지 않고, node, git, python3, cargo는 knip 자신이 무시하는 global binary입니다. 레포의
   script와 test가 실행하지만 어떤 npm package도 제공하지 않는 system 도구(make, go, php, Apple `container` 등)는 kit이
   make, go, rustup, shasum, openssl을 선언하듯 `config/knip-entries.json`의 `binaries`에 이유와 함께 선언합니다. 선언한

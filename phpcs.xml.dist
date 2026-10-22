@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!--
-  The phpcs rules of every polyspec repository, copied by kit; change them in kit, never in a copy. make lint-php runs phpcs
-  with this file on the PHP files of the checkout. PSR-12 includes PSR-1, whose MultipleClasses sniff enforces one class per
+  The phpcs rules of every polyspec repository, read from the kit package (K514); no repository holds a copy. make
+  lint-php runs phpcs with this file on the PHP files of the checkout. PSR-12 includes PSR-1, whose MultipleClasses sniff enforces one class per
   file (S2): composer dump-autoload strict-psr does not, since it accepts a file whose first class matches its name and
   drops the others in silence.
 -->

@@ -12,10 +12,11 @@ import type { LintStep } from './lint-steps.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { isTable } from './toml.mts';
 import { readTomlFile } from './toolchain-files.mts';
+import { kitPackageRoot } from './kit-files.mts';
 
 /**
  * The lints that deny a hidden error (P8, K334), after -D warnings: a must_use value that is dropped, a `let _` of a must_use or
- * untyped value, a map_err that ignores its error, and an allow attribute without its reason. The clippy.toml that kit copies
+ * untyped value, a map_err that ignores its error, and an allow attribute without its reason. The clippy.toml of the kit package (K514, through CLIPPY_CONF_DIR)
  * disallows Result::ok and the unwrap_or family.
  */
 export const P8_LINTS = ['-D', 'unused_must_use', '-D', 'clippy::let_underscore_must_use', '-D', 'clippy::let_underscore_untyped', '-D', 'clippy::map_err_ignore', '-D', 'clippy::allow_attributes_without_reason'];
@@ -25,7 +26,7 @@ export function lintSteps(root: string): LintStep[] {
   return checkedFiles(root)
     .filter(file => path.posix.basename(file) === 'Cargo.toml' && isTable(readTomlFile(root, file).workspace))
     .map(file => path.posix.dirname(file))
-    .map(folder => ({ label: `cargo clippy ${folder}`, command: 'cargo', args: ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS], cwd: folder }));
+    .map(folder => ({ label: `cargo clippy ${folder}`, command: 'cargo', args: ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS], cwd: folder, env: { CLIPPY_CONF_DIR: kitPackageRoot() } }));
 }
 
 /** Runs the steps of `root` and returns the labels of those that failed; the output of each step goes through `print`. */

@@ -859,7 +859,7 @@ Left as it is, with the reason:
 
 The Python lint was a target of one repository that ran `ruff check` and `ruff format --check` on its package. kit takes it as
 `scripts/kit/lint-python.mts` and `make lint-python`: ruff runs on the checkout root with `var` excluded and with
-`--config ruff.toml`, the configuration that kit copies (Lint configuration, K77), and ruff is the shim of mise at the version
+`--config` of the `ruff.toml` of the kit package (Lint configuration, K77, K514), and ruff is the shim of mise at the version
 that `ruff` of `mise.toml` declares (K127), so the result does not depend on the ruff configuration of a machine.
 ruff keeps its cache in `var/ruff` by `cache-dir` of `ruff.toml`, ruff's own setting, which holds for every ruff run of the
 repository; it wrote `.ruff_cache` at the root before, which layout S5 refuses (K147).
@@ -920,7 +920,7 @@ does not declare is neither installed nor checked.
   Makefile-run script passes and a file that nothing imports or runs still fails (a fixture). kit lints itself with the
   same configuration, in CI and as an owner check of `scripts/kit`, `tests` and the lint configurations (K142).
   knip names each ignore of its configuration that matched no issue in a configuration hint, and a consumer cannot edit
-  the copy of knip.json, so the copy holds no ignore that a repository may not use (K176). It has no `ignoreBinaries`:
+  the knip.json of kit, so it holds no ignore that a repository may not use (K176, K514). It has no `ignoreBinaries`:
   no copy of kit runs a binary that knip reports, and node, git, python3 and cargo are among the global binaries that
   knip itself ignores. Each system tool that the scripts and tests of a repository run and no npm package provides, such
   as make, go, php or Apple `container`, is declared with its reason in `binaries` of `config/knip-entries.json`, as kit

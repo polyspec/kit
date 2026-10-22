@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Lints the PHP of the checkout with the phpcs and the PHPStan of var/tools (`make lint-php`), the Composer project of
 // config/php-lint:
-//   - phpcs with the root phpcs.xml.dist, the PSR-12 rules that kit copies, on the PHP files of the checkout; PSR-1
+//   - phpcs with the phpcs.xml.dist of the kit package (K514), the PSR-12 rules, on the PHP files of the checkout; PSR-1
 //     MultipleClasses holds one class per file (S2).
 //   - PHPStan with the root phpstan.dist.neon, the disallowed calls of S2 (spl_autoload_register and a ClassLoader changed at
 //     run time), on the PHP files of each Composer package, a folder with a composer.json, from the package folder and with
@@ -20,10 +20,11 @@ import path from 'node:path';
 import { composerVendor, packageAutoloader } from './composer-vendor.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
-import { foldersOf, lintCommands, lintMain, packageOwner, requireConfigurations, runLint } from './lint-steps.mts';
+import { foldersOf, lintCommands, lintMain, packageOwner, runLint } from './lint-steps.mts';
 import type { LintStep } from './lint-steps.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { present } from './present.mts';
+import { kitFile } from './kit-files.mts';
 
 // PHPStan needs more memory as a package grows, and php.ini stops it at 128M; a limit only stops the analysis (K346).
 const PHPSTAN_MEMORY_LIMIT = '--memory-limit=-1';
@@ -53,10 +54,9 @@ export function lintSteps(root: string): LintStep[] {
   const sources = files.filter(file => file.endsWith('.php') && !file.endsWith('.stub.php'));
   if (sources.length === 0) return [];
   const tools = lintCommands(root, 'var/tools/bin', ['phpcs', 'phpstan'], 'run make install-tools, which installs config/php-lint');
-  requireConfigurations(root, [['phpcs.xml.dist', 'PHP lint'], ['phpstan.dist.neon', 'PHP lint']]);
   const packages = foldersOf(root, 'composer.json');
   const owner = packageOwner(packages);
-  const steps: LintStep[] = [{ label: 'phpcs', command: present(tools.phpcs, 'tools.phpcs'), args: ['-q', '-s', '--report=emacs', '--standard=phpcs.xml.dist', ...sources], cwd: '.' }];
+  const steps: LintStep[] = [{ label: 'phpcs', command: present(tools.phpcs, 'tools.phpcs'), args: ['-q', '-s', '--report=emacs', `--standard=${kitFile('phpcs.xml.dist')}`, ...sources], cwd: '.' }];
   const autoloadFiles = packages.flatMap(folder => autoloadFilesOf(root, folder));
   if (autoloadFiles.length > 0) steps.push({ label: 'autoload files', command: 'php', args: [path.join(SYMBOLS, 'php', 'autoload-files.php'), parserAutoloader(root), ...autoloadFiles], cwd: '.' });
   for (const folder of packages) {
@@ -64,7 +64,7 @@ export function lintSteps(root: string): LintStep[] {
     if (own.length === 0) continue;
     const autoloader = packageAutoloader(root, folder, packages);
     if (!autoloader) throw new Error(`${path.relative(root, path.join(composerVendor(path.join(root, folder)), 'autoload.php'))} is missing, and no Composer project above ${folder} has one; PHPStan resolves the calls of the package with its autoloader: run composer install in ${folder}, or in the project that requires it`);
-    steps.push({ label: `phpstan ${folder}`, command: present(tools.phpstan, 'tools.phpstan'), args: ['analyse', '--no-progress', '--error-format=raw', PHPSTAN_MEMORY_LIMIT, `--configuration=${path.join(root, 'phpstan.dist.neon')}`, `--autoload-file=${path.relative(path.join(root, folder), path.join(root, autoloader))}`, ...own], cwd: folder });
+    steps.push({ label: `phpstan ${folder}`, command: present(tools.phpstan, 'tools.phpstan'), args: ['analyse', '--no-progress', '--error-format=raw', PHPSTAN_MEMORY_LIMIT, `--configuration=${kitFile('phpstan.dist.neon')}`, `--autoload-file=${path.relative(path.join(root, folder), path.join(root, autoloader))}`, ...own], cwd: folder });
   }
   return steps;
 }
