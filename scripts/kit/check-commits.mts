@@ -36,7 +36,7 @@
 // of HEAD when the commit amends it (K380-2). The item rules
 // read the checklists of the plan folders at each side of the change (checklist.mts). A merge commit keeps the message that Git writes and is not checked. Each finding is one line
 // `<commit>: <rule>: <message>`; the command exits with status 1 when there is one. The pre-push hook (push-gate.mts) reads the
-// same findings of the commits that a push sends, through `logMessages` and `findingLines`.
+// message and identity findings of the commits that a push sends, through `logMessages` and `messageLines` (K510).
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
@@ -486,6 +486,19 @@ export function findingLines(root: string, commits: CommitMessage[], config: Com
     ...commitItemFindings(root, config, id, message),
     ...commitRowFindings(root, id, message),
     ...commitStateFindings(root, id),
+  ].map(found => `${id}: ${found.rule}: ${found.message}`));
+}
+
+/**
+ * The message and identity findings of the commits `commits` as lines `<commit>: <rule>: <message>` (K510): what the push gate checks of
+ * each pushed commit. The item, row and twin rules of a commit are the commit-msg hook's and land's commits-check, which ran on it.
+ */
+export function messageLines(root: string, commits: CommitMessage[], config: CommitRules) {
+  const declared = declaredIdentity(root);
+  return commits.flatMap(({ id, message, author, committer }) => [
+    ...messageFindings(message, config),
+    ...(author === undefined ? [] : identityFindings(author, 'author', declared)),
+    ...(committer === undefined ? [] : identityFindings(committer, 'committer', declared)),
   ].map(found => `${id}: ${found.rule}: ${found.message}`));
 }
 

@@ -7,7 +7,8 @@
 //                                                `<local ref> <local sha> <remote ref> <remote sha>` of Git on standard
 //                                                input and refuses the push while a checklist of a pushed commit or of the
 //                                                working tree has an item in the active state, or cannot be read, and refuses it while a commit that the push sends has a
-//                                                finding of the commit check (check-commits.mts, COMMIT_RULES, as make commits-check)
+//                                                finding of its message or identity (check-commits.mts, COMMIT_RULES); the item, row and
+//                                                twin rules of each commit are the commit and land gates' (K510)
 //   node scripts/kit/push-gate.mts commit <rev>  the check of a pushed commit, for a push from a checkout without the
 //                                                hook: fails for the same reasons and when the commit does not track a
 //                                                hook of config/checklist.json with mode 100755; prints each line also as
@@ -21,7 +22,7 @@ import { BLOCKING, inspectTrackers, loadConfig, PLANS, trackersOf, workingPlanFi
 import { HOOKS_PATH } from './git-hooks.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { git, gitResult } from './git.mts';
-import { COMMIT_RULES, findingLines, logMessages } from './check-commits.mts';
+import { COMMIT_RULES, logMessages, messageLines } from './check-commits.mts';
 import { present } from './present.mts';
 
 const USAGE = 'Usage: node scripts/kit/push-gate.mts hook | commit <rev>';
@@ -81,12 +82,13 @@ const working = (root: string) => (file: string): string => {
 };
 
 /**
- * The finding lines of the commits that a push of `localSha` to a ref at `remoteSha` sends. A new ref (zero remote sha) sends
- * the commits that no remote ref holds; an update sends the commits after the remote sha.
+ * The message and identity finding lines of the commits that a push of `localSha` to a ref at `remoteSha` sends (K510). A new ref (zero
+ * remote sha) sends the commits that no remote ref holds; an update sends the commits after the remote sha. The checklists of the pushed
+ * tip are read once by inspect; the item, row and twin rules of each commit are the commit and land gates', which ran on it.
  */
 function pushedFindings(root: string, localSha: string, remoteSha: string, rules: CommitRules): string[] {
-  if (NO_OBJECT.test(remoteSha)) return findingLines(root, logMessages(root, [localSha, '--not', '--remotes'], `${localSha} without the remote refs`), rules);
-  return findingLines(root, logMessages(root, [`${remoteSha}..${localSha}`], `${remoteSha}..${localSha}`), rules);
+  if (NO_OBJECT.test(remoteSha)) return messageLines(root, logMessages(root, [localSha, '--not', '--remotes'], `${localSha} without the remote refs`), rules);
+  return messageLines(root, logMessages(root, [`${remoteSha}..${localSha}`], `${remoteSha}..${localSha}`), rules);
 }
 
 /** The refusal lines of the commit findings of a push, empty when there is none. */
