@@ -56,6 +56,40 @@ function packageFoldersOf(checkout: string, ecosystem: keyof typeof MANIFEST): s
   return found;
 }
 
+/** The folders of a member pattern of a uv workspace below `root`: a segment with * matches the folder names of its level. */
+function memberFolders(root: string, pattern: string): string[] {
+  let found = [root];
+  for (const segment of pattern.split('/').filter(part => part !== '' && part !== '.')) {
+    if (!segment.includes('*')) {
+      found = found.map(folder => path.join(folder, segment));
+      continue;
+    }
+    const match = new RegExp(`^${segment.split('*').map(part => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*')}$`);
+    found = found.flatMap(folder => (existsSync(folder) ? readdirSync(folder, { withFileTypes: true }).filter(entry => entry.isDirectory() && match.test(entry.name)).map(entry => path.join(folder, entry.name)) : []));
+  }
+  return found;
+}
+
+/**
+ * The member folders of the uv workspace that the pyproject.toml of `folder` declares in [tool.uv.workspace] members (K518), none
+ * when it declares no workspace; throws when a member names no folder with a pyproject.toml.
+ */
+function workspaceMembers(folder: string): string[] {
+  const file = path.join(folder, 'pyproject.toml');
+  if (!existsSync(file)) return [];
+  const tool = readToml(readFileSync(file, 'utf8'), file).tool;
+  const uv = typeof tool === 'object' && tool !== null && 'uv' in tool ? tool.uv : undefined;
+  const workspace = typeof uv === 'object' && uv !== null && 'workspace' in uv ? uv.workspace : undefined;
+  const members = typeof workspace === 'object' && workspace !== null && 'members' in workspace ? workspace.members : undefined;
+  if (members === undefined) return [];
+  if (!Array.isArray(members) || !members.every((member): member is string => typeof member === 'string')) throw new Error(`[tool.uv.workspace] members of ${file} is no list of folder patterns`);
+  return members.flatMap((member) => {
+    const found = memberFolders(folder, member).filter(candidate => existsSync(path.join(candidate, 'pyproject.toml')));
+    if (found.length === 0) throw new Error(`the member ${member} of the uv workspace ${folder} names no folder with a pyproject.toml`);
+    return found;
+  });
+}
+
 /**
  * The providers of `ecosystem` in the checkouts that the caller names, each a package folder or a repository root (K494): a root with
  * package folders gives those folders and never itself, since a root may carry the name of the package it holds (K494-2); a checkout
@@ -65,7 +99,9 @@ export function checkoutProviders(checkouts: readonly string[], ecosystem: keyof
   const found = new Map<string, Provider>();
   for (const checkout of checkouts) {
     const folders = packageFoldersOf(checkout, ecosystem);
-    for (const folder of folders.length ? folders : [checkout]) {
+    const own = folders.length ? folders : [checkout];
+    // K518: a Python folder that is a uv workspace root provides its members too, from the workspace declaration.
+    for (const folder of ecosystem === 'python' ? [...own, ...own.flatMap(workspaceMembers)] : own) {
       const name = declaredName(folder, ecosystem);
       if (name !== undefined && !found.has(name)) found.set(name, { ecosystem, name, folder: path.resolve(folder), repository: path.resolve(checkout), checkout: path.resolve(checkout) });
     }
