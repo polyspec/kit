@@ -1940,3 +1940,23 @@ test('a stale absolute npm link that resolves to its provider is re-made relativ
   assert.equal(readlinkSync(installed), path.relative(path.dirname(installed), kit), 'the target is relative to the link folder');
   assert.equal(realpathSync(installed), realpathSync(kit), 'the link still resolves to the provider');
 });
+
+// K501: composer-install takes the checkouts that provide its polyspec packages as arguments after DIR, as npm-install does (K448-9).
+test('composer-install takes the checkouts after DIR and runs the install with them (K501)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-composer-k501-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const project = path.join(root, 'app');
+  const checkout = path.join(root, 'provider');
+  mkdirSync(project);
+  mkdirSync(checkout);
+  writeFileSync(path.join(project, 'composer.json'), JSON.stringify({ name: 'app/app', require: {} }));
+  writeFileSync(path.join(project, 'composer.lock'), JSON.stringify({ packages: [], 'packages-dev': [] }));
+  const log = path.join(root, 'composer.log');
+  const bin = path.join(root, 'composer');
+  writeFileSync(bin, `#!/bin/sh\necho "composer $*" >> ${JSON.stringify(log)}\n`);
+  chmodSync(bin, 0o755);
+  const cli = fileURLToPath(new URL('../../scripts/kit/composer-install.mts', import.meta.url));
+  const outcome = spawnSync(process.execPath, [cli, project, checkout], { encoding: 'utf8', env: { ...process.env, COMPOSER_BIN: bin } });
+  assert.equal(outcome.status, 0, outcome.stderr);
+  assert.match(readFileSync(log, 'utf8'), /composer install/);
+});
