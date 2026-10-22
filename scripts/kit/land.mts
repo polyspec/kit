@@ -182,19 +182,20 @@ export function gatesOf(folder: string, changed: string[]): { gates: string[]; e
 }
 
 /**
- * Runs `make build` in the main checkout `root` after the fast-forward (K453), so its build output, which is ignored and read by linked
- * consumers, holds the merged sources. A failing build throws, so land does not report success.
+ * Runs `make build` in `folder`; a failing build throws with `failed`, the end of the message. Land builds the worktree of the branch,
+ * whose tree is the merge result, before main moves (K513), and the main checkout after the fast-forward (K453), so its build output,
+ * which is ignored and read by linked consumers, holds the merged sources.
  */
-function buildMain(root: string, print: (text: string) => void): void {
+function build(folder: string, failed: string, print: (text: string) => void): void {
   const started = Date.now();
-  print(`make build in ${root}`);
-  const result = spawnSync('make', ['--no-print-directory', 'build'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
+  print(`make build in ${folder}`);
+  const result = spawnSync('make', ['--no-print-directory', 'build'], { cwd: folder, encoding: 'utf8', maxBuffer: 1 << 28 });
   const elapsed = ((Date.now() - started) / 1000).toFixed(1);
-  if (result.error) throw new Error(`make build could not start in ${root}: ${result.error.message}`);
+  if (result.error) throw new Error(`make build could not start in ${folder}: ${result.error.message}`);
   if (result.status !== 0) {
-    throw new Error(`make build failed in ${root} after the merge (${result.status ?? result.signal}, ${elapsed}s); main already holds the merge:\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-40).join('\n')}`);
+    throw new Error(`make build failed in ${folder} (${result.status ?? result.signal}, ${elapsed}s):\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-40).join('\n')}\n${failed}`);
   }
-  print(`make build in ${root} passed (${elapsed}s)`);
+  print(`make build in ${folder} passed (${elapsed}s)`);
 }
 
 // K495: the lock of a land, in the common git folder, which every worktree of the repository shares; the variable that lets the
@@ -346,6 +347,8 @@ function landLocked(root: string, branch: string, print: (text: string) => void)
       }
       print(`${gate} passed`);
     }
+    // K513: the build runs on the merge result, the tree of the rebased branch, before main moves, as the gates do.
+    build(folder, `${branch} is refused: its build fails; nothing is merged`, print);
     // K495: main must still be the commit the gates ran on; a writer that moved it meanwhile is named, and nothing is merged.
     if (git(root, 'rev-parse', 'main').trim() !== gated) {
       throw new Error(`main moved while the gates of ${branch} ran:\n${movesOf(root, gated)}\nrebase ${branch} on main and land it again; nothing is merged`);
@@ -354,7 +357,7 @@ function landLocked(root: string, branch: string, print: (text: string) => void)
     if (merged.error) throw new Error(`git merge --ff-only ${branch} could not start in ${root}: ${merged.error.message}`);
     if (merged.status !== 0) throw new Error(`git merge --ff-only ${branch} exited with ${merged.status}: ${merged.stderr.trim()}; nothing is merged`);
     print(`merged ${branch} into main`);
-    buildMain(root, print);
+    build(root, 'main already holds the merge', print);
   }
   let kept = false;
   if (folder !== undefined) {

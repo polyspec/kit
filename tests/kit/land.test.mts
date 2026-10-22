@@ -113,7 +113,10 @@ test('K453: a build that fails after the fast-forward fails land and names the b
   put(folder, { 'src/x.txt': 'v2\n' });
   git(folder, 'add', '-A');
   git(folder, 'commit', '--quiet', '-m', 'x');
+  const before = git(main, 'rev-parse', 'main');
   assert.throws(() => land(main, 'feat/k453', { print: () => {} }), /make build.*compile error in x/s);
+  // K513: the build of the worktree fails first, so main does not move.
+  assert.equal(git(main, 'rev-parse', 'main'), before);
 });
 
 // K513: the build runs on the merge result in the worktree before main moves, as the gates do, so a branch whose build fails leaves main
