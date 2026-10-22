@@ -198,6 +198,15 @@ function polls(words: string[]): boolean {
   return program === '[' && args[0] === '-e';
 }
 
+// The shells whose -c runs a script that the hook reads (K528).
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash']);
+
+/** The script of the arguments `args` of a shell: the word after its -c flag, alone or combined as in -lc, or undefined without one. */
+function shellScript(args: string[]): string | undefined {
+  const flag = args.findIndex(word => /^-[A-Za-z]*c[A-Za-z]*$/.test(word));
+  return flag === -1 ? undefined : args[flag + 1];
+}
+
 /** The refusal of one simple command, its `words`, or null. */
 function commandRefusal(words: string[], context: Context, seen: Set<string>): string | null {
   const { isFileAt } = context;
@@ -212,6 +221,9 @@ function commandRefusal(words: string[], context: Context, seen: Set<string>): s
   const [command, ...args] = rest;
   if (command === undefined) return null;
   const program = path.basename(command);
+  // K528: the script of a shell's -c is one word of the command; it is read as a command of its own, with every rule.
+  const script = SHELLS.has(program) ? shellScript(args) : undefined;
+  if (script !== undefined) return refusalIn(script, context, seen);
   if (program === 'sleep') return waitRefusal(`${words.join(' ')} waits`);
   if (program === 'make') return makeRefusal(args, context, seen);
   if (program === 'git') return gitRefusal(args);
