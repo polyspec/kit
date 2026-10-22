@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 16d6a56c654a3b0bbf09b2340213595ac7eabe1878d0c39c7fb6458fef008e88 -->
+<!-- source-sha256: 17b351a47c4158f85e02b57da9cc557601ea5dea09f30989723bbe8fc6f126d8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -14,6 +14,7 @@
 
 ### 2026-10-22 — 확장 실행이 PHPUnit에 패키지 설정을 준다 (K452)
 
+- link는 폴더다(K448): `make link`, `npm-install`, `composer-install`, `uv-install`은 tracked lock을 그대로 설치한 뒤, checkout이 제공하는 설치 패키지 폴더(node_modules, vendor, site-packages)를 그 checkout으로 가는 직접 상대 symlink로 바꾸고 복사본을 지운다. link에는 composer.link.json, file: spec, editable wheel, package manager의 해석이 남지 않으며, 그 폴더 밖에는 아무것도 쓰지 않는다. kit은 버전도 pin도 강제하지 않는다(S4): link-state-check는 복사본이나 잘못된 link만 판단하고(그리고 이제 release tarball과 저장소 자신의 패키지를 받아들이는 K507의 release 기록), dependency-policy-check는 sharedPin, local, tagged, latest, stale, PHP platform pin, 제약 검사, 검토 기록, advisory를 뺀다. toolchain-check는 release를 비교하지 않고, dependency-review는 실패하지 않고 보고한다. 업데이트 후 `make link`를 한 번 실행하라.
 - `make land`와 branch의 `make commit`은 main이 다른 task로 가진 ID의 checklist 행을, 그 ID가 branch 자신의 행이 아니면 거부하고, main과 어떤 로컬 branch도 갖지 않은 다음 ID를 이름 붙인다(K497).
 - `scripts/kit/run-tests.mts`가 확장 실행에 패키지의 `phpunit.xml`(또는 `phpunit.xml.dist`)을 `--configuration`으로 넘긴다(K452). 그래서 설정이 지정한 bootstrap이 라이브러리 실행과 같이 로드되고, bootstrap 함수를 부르는 orm 같은 테스트가 확장에서 더는 실패하지 않는다. Red: `node --test --test-name-pattern=K452 tests/kit/run-tests.test.mts`가 6d3db7685abd에서 수정 전 실패; green: 통과, 이 파일의 62개 테스트 모두 통과.
 - `link --project`가 `<dir>/.claude/settings.local.json`에 쓰는 Claude Code hook 항목은 kit checkout의 node를 이름으로 든다. 그래서 link와 check를 어느 node로 실행하든 서로 일치하며, check는 kit node가 없으면 보고한다(K498-3).
