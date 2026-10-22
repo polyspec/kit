@@ -125,3 +125,14 @@ test('make test runs the unit tests of every runtime, so it runs only in CI (K24
   assert.match(refusal('make test') ?? '', /make test runs only in CI/);
   assert.match(refusal('make test CASES=x') ?? '', /make test runs only in CI/);
 });
+
+// K528: the script of a shell's -c is one word of the command, so the hook reads it as a command of its own with all its rules.
+test('the hook reads the script of sh, bash, zsh and dash -c, so a loop that sleeps there is refused (K528)', () => {
+  for (const command of [
+    'bash -c "until grep -q x f; do sleep 5; done"',
+    "sh -c 'while ! test -f out; do sleep 15; done'",
+    'zsh -lc "until [ -s out ]; do sleep 2; done"',
+    'cd /x && dash -ec "sleep 30"',
+  ]) assert.match(refusal(command) ?? '', /no known end/, command);
+  assert.equal(refusal('bash -c "grep -q x f && echo found"'), null, 'a script that does not wait is allowed');
+});
