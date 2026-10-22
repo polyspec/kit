@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 40ff8ac46dd5c89733ec71d19ba32ccd0d650f7a9a74684548be8c7fa02877b6 -->
+<!-- source-sha256: 855eebaabbf1ea77094a246eba5f8e9318b9460e7c80ef880a71a9fd7f5fc1f3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 체크아웃을 주지 않은 `make npm-install`은 각 형제 저장소의 루트뿐 아니라 패키지 폴더(packages/<x>)에서도 제공 패키지를
+  찾으므로, npm ci를 실행하지 않고 template/packages/ts의 @polyspec/template을 link한다(K448-11).
 - K481: 생성된 Composer link manifest는 linked exact version을 caret range로 표현하고 각 path repository에는 provider의 실제 version을 유지하므로 tracked manifest를 바꾸지 않고 strict validation을 통과한다. real Composer test는 stale link lock과 일반 exact-version manifest warning이 계속 validation을 실패시키는 것을 증명한다 (K481).
 
 - K480: Python editable wheel은 named mapping과 함께 선언된 default package-dir로 해석되는 listed package를 허용하고 import root와 finder를 모두 보존하며 default 없이 mapping되지 않은 package는 계속 거부한다. Red: 수정 전 mixed-mapping 두 case가 missing-prefix 거부로 실패했다. Green: focused regression 세 개가 모두 통과했다 (K480).

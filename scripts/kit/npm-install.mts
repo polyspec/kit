@@ -103,7 +103,9 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     }
   }
   const provided = new Map<string, string>();
-  for (const checkout of checkouts) {
+  // A sibling checkout is a repository root, whose npm packages sit under packages/ (template's @polyspec/template is in
+  // packages/ts), so its package folders are looked at too; a checkout that the caller names is a package folder already (K448-11).
+  for (const checkout of explicit ? checkouts : checkouts.flatMap(checkout => [checkout, ...packageFoldersOf(checkout)])) {
     const name = nameOf(checkout);
     if (name !== undefined && wanted.has(name) && !provided.has(name)) provided.set(name, path.resolve(checkout));
   }

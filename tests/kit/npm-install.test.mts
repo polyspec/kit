@@ -170,3 +170,24 @@ test('npm install keeps the workspaces of the root and links them to the project
   assert.equal(readlinkSync(workspace).startsWith('/'), true, 'the workspace link is absolute, so it survives the move out of the temporary folder');
   assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/ordered-json')), realpathSync(sibling), 'the provided package is linked beside the workspace');
 });
+
+// K448-11: the sibling checkouts are repository roots, whose npm packages sit under packages/, so a provided package is found in the
+// package folders of a sibling root too, not only at the root (K448-11).
+test('npm install finds a provided package in the package folders of a sibling repository root (K448-11)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const sibling = path.join(root, 'template');
+  const folder = path.join(sibling, 'packages', 'ts');
+  const project = path.join(root, 'app');
+  mkdirSync(folder, { recursive: true });
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/template-repository', private: true }));
+  writeFileSync(path.join(folder, 'package.json'), JSON.stringify({ name: '@polyspec/template', version: '0.0.11', main: 'index.js' }));
+  writeFileSync(path.join(folder, 'index.js'), 'module.exports = 1;\n');
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/template': 'https://example.invalid/template-0.0.11.tgz' } }, null, 2) + '\n');
+  writeFileSync(path.join(project, 'package-lock.json'), '{"name":"app","lockfileVersion":3,"requires":true,"packages":{}}\n');
+  const lines: string[] = [];
+  const took = npmInstall({ directory: project, checkouts: [sibling], print: text => lines.push(text), env: process.env });
+  assert.equal(took, 'linked', lines.join('\n'));
+  assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/template')), realpathSync(folder), 'the link resolves to the package folder');
+});

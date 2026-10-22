@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make npm-install` without given checkouts looks for a provided package in the package folders of each sibling repository
+  (packages/<x>), not only at its root, so it links @polyspec/template from template/packages/ts instead of running npm ci (K448-11).
 - K481: generated Composer link manifests express linked exact versions as caret ranges while each path repository keeps the provider's actual version, so strict validation passes without changing the tracked manifest. Real Composer tests prove stale link locks and ordinary exact-version manifest warnings still fail validation (K481).
 
 - K480: Python editable wheels accept listed packages resolved by a default package-dir alongside named mappings, preserve both the import root and finder, and still refuse unmapped packages without a default. Red: both mixed-mapping cases failed with the missing-prefix refusal on the unchanged implementation. Green: all three focused regressions passed (K480).
