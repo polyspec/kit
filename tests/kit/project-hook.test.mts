@@ -1,6 +1,6 @@
 // K498: the link writes the Bash PreToolUse hook of the kit that runs it into the untracked .claude/settings.local.json of
-// a consumer checkout, keeps the other keys of that file, ignores the file through the Git exclude of the consumer, and
-// link-state-check names the file while it lacks the hook.
+// a consumer checkout and keeps the other keys of that file, and link-state-check names the file while it lacks the hook. K512: the
+// link writes nothing into .git; the consumer's .gitignore ignores the file, and the check names it while Git does not ignore it.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -49,11 +49,23 @@ test('writeProjectHook keeps the other keys and replaces an earlier kit entry, a
   assert.equal(readFileSync(file, 'utf8'), first);
 });
 
-test('the settings.local.json of the consumer is ignored through the Git exclude of the consumer, and no tracked file changes', (t) => {
+// K512: the common Git directory of a worktree is the main checkout's, outside a sandboxed worktree, so the link never writes it.
+test('writeProjectHook writes nothing into the Git directory of the consumer (K512)', (t) => {
   const project = consumer(t);
+  const exclude = path.join(project, '.git/info/exclude');
+  const before = existsSync(exclude) ? readFileSync(exclude, 'utf8') : undefined;
   writeProjectHook(project);
-  assert.equal(spawnSync('git', ['-C', project, 'check-ignore', '-q', '.claude/settings.local.json']).status, 0);
-  assert.equal(spawnSync('git', ['-C', project, 'status', '--porcelain']).stdout.toString(), '');
+  assert.equal(existsSync(exclude) ? readFileSync(exclude, 'utf8') : undefined, before);
+});
+
+test('projectHookFindings names a settings file that Git does not ignore, with the line for the .gitignore (K512)', (t) => {
+  const project = consumer(t);
+  // The global excludes of the machine may ignore the file; the consumer's own .gitignore is what the check reads here.
+  spawnSync('git', ['-C', project, 'config', 'core.excludesFile', '/dev/null']);
+  writeProjectHook(project);
+  assert.ok(projectHookFindings(project).some(finding => finding.includes('/.claude/settings.local.json') && /\.gitignore/.test(finding)), projectHookFindings(project).join('\n'));
+  writeFileSync(path.join(project, '.gitignore'), '/.claude/settings.local.json\n');
+  assert.deepEqual(projectHookFindings(project), []);
 });
 
 test('projectHookFindings names the file while it lacks the hook, and passes after writeProjectHook', (t) => {
