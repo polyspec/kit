@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9df7fc3526045ebc9a9da078ab730ad2f4cedf482e50e398af08119cd7f5a6b0 -->
+<!-- source-sha256: 8269a649403858cb3dfd974ed299a97ee0bbc8364ee3d01bc8e0edb060e5e7be -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 각 lint는 설정을 kit 패키지에서 읽는다(ruff.toml, phpcs.xml.dist, phpstan.dist.neon, .golangci.yml, clippy.toml, .oxlintrc.json, knip.json). kit-sync는 이 사본들과 config/api-extractor.kit.json을 저장소에서 지운다(K514).
 - land는 main이 움직이기 전에 worktree의 merge 결과로 make build를 실행하고, build가 실패하는 branch는 아무것도 merge하지 않고 거부한다(K513).
 - link는 .git에 아무것도 쓰지 않는다. consumer의 .gitignore가 /.claude/settings.local.json을 무시하며, Git이 무시하지 않는 동안 link-state-check가 그 파일을 이름 붙이므로 sandbox 안의 worktree도 link된다(K512).
 - Python 폴더 link는 uv가 sync하는 환경, 즉 UV_PROJECT_ENVIRONMENT가 설정되면 그것(limepie의 python/var/venv)을, 아니면 .venv를 읽으므로 그 polyspec 패키지가 link된다(K448-14).
