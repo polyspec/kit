@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 131074772380eb2519fd5f2ff94c686bbc24573476b2922c73cd201101242a53 -->
+<!-- source-sha256: 8b59946dd3a76083dffbc13a639d8ee10b75c637b84f92bc77b35afe82d9a9ed -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 디스크 하한 아래에서 worktree-setup은 두 시간 쓰이지 않은 Go 빌드 캐시 항목을 지우고, 비운 바이트를 보고하며, 디스크가 여전히 하한 아래일 때만 거부한다(K538).
 - build 입력을 바꾸는 kit 패키지 main의 commit은 make kit-build를 실행하므로, consumer가 live로 link하는 dist가 source를 따른다(K551).
 - make item-red BEFORE=는 Verification이 kit-gates의 gate만 실행하면 바뀐 테스트 파일도 바꾸므로, 테스트 파일의 lint fix가 red를 증명한다(K553).
 - uv-install은 환경이 가진 모든 제공 패키지를 폴더가 없어도 checkout에서 link하고 아무것도 다시 설치하지 않으므로, 네트워크와 cache를 읽지 않는다(K554).

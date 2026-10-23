@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Under the disk floor, worktree-setup trims the entries of the Go build cache unused for two hours, reports the bytes freed, and refuses only when the disk is still under the floor (K538).
 - A commit on main of the kit package that changes an input of its build runs make kit-build, so dist, which consumers link live, follows its sources (K551).
 - make item-red BEFORE= swaps the changed test files too when the Verification runs only gates of kit-gates, so a lint fix in a test file proves its red (K553).
 - uv-install links every provided package that the environment holds from its checkout, also when its folder is missing, and reinstalls none, so it reads no network and no cache (K554).
