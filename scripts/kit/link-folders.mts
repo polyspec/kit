@@ -232,9 +232,12 @@ function hatchSources(folder: string): { from: string; to: string }[] {
  * package that is not installed is left out: the install of the tracked lock installs what the project needs, and the link only
  * replaces it.
  */
-export function providedFolders(project: string, provided: Iterable<Provider>, { vendorDir, environment = process.env.UV_PROJECT_ENVIRONMENT }: { vendorDir?: string | undefined; environment?: string | undefined } = {}): ProvidedFolder[] {
+export function providedFolders(project: string, provided: Iterable<Provider>, { vendorDir, environment = process.env.UV_PROJECT_ENVIRONMENT, held }: { vendorDir?: string | undefined; environment?: string | undefined; held?: ReadonlySet<string> | undefined } = {}): ProvidedFolder[] {
   const found: ProvidedFolder[] = [];
   const sites = sitePackages(project, environment);
+  // K554: a provided Python package that the environment holds by its dist-info gets its folder in the first site-packages, also when
+  // the folder is missing, so link builds it from the checkout; its checkout must hold a package.
+  const wanted = (provider: Provider, site: string, folder: string) => present(folder) || (held?.has(distributionKey(provider.name)) === true && site === sites[0]);
   for (const provider of provided) {
     if (provider.ecosystem === 'npm') {
       const folder = path.join(project, 'node_modules', provider.name);
@@ -246,15 +249,17 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
       for (const site of sites) {
         for (const { from, to } of hatchSources(provider.folder)) {
           const folder = path.join(site, to);
-          if (present(folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
+          if (wanted(provider, site, folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
         }
       }
     } else if (provider.ecosystem === 'python') {
       const source = existsSync(path.join(provider.folder, 'src')) ? path.join(provider.folder, 'src') : provider.folder;
+      const packages = pythonPackages(source);
+      if (packages.length === 0 && held?.has(distributionKey(provider.name)) === true) throw new Error(`${provider.name} is held in the environment, but its checkout ${source} holds no package to link (K554)`);
       for (const site of sites) {
-        for (const relative of pythonPackages(source)) {
+        for (const relative of packages) {
           const folder = path.join(site, relative);
-          if (present(folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${relative}`, folder, target: path.join(source, relative) });
+          if (wanted(provider, site, folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${relative}`, folder, target: path.join(source, relative) });
         }
       }
     }
@@ -303,7 +308,9 @@ function treeEntries(folder: string, relative = ''): string[] {
 function pythonTreeFindings(root: string, item: ProvidedFolder): string[] {
   const shown = path.relative(root, item.folder);
   const head = `${item.ecosystem} ${item.name}`;
-  if (lstatSync(item.folder).isSymbolicLink()) return [`${head}: ${shown} is a directory link into the provider, through which uv deletes its files; fix: make link`];
+  const stat = lstatSync(item.folder, { throwIfNoEntry: false });
+  if (stat === undefined) return [`${head}: ${shown} is missing; fix: make link`];
+  if (stat.isSymbolicLink()) return [`${head}: ${shown} is a directory link into the provider, through which uv deletes its files; fix: make link`];
   const files = providerFiles(item.target);
   const found = files.flatMap((file) => {
     const entry = path.join(item.folder, file);
@@ -324,7 +331,9 @@ function pythonTreeFindings(root: string, item: ProvidedFolder): string[] {
 function linkPythonTree(root: string, item: ProvidedFolder): string | undefined {
   const findings = pythonTreeFindings(root, item);
   if (findings.length === 0) return undefined;
-  const was = lstatSync(item.folder).isSymbolicLink() ? 'a directory link' : 'a folder that differs from the provider';
+  if (!existsSync(item.target)) throw new Error(`${item.name}: the checkout lacks ${item.target}, the package folder to link`);
+  const stat = lstatSync(item.folder, { throwIfNoEntry: false });
+  const was = stat === undefined ? 'missing' : stat.isSymbolicLink() ? 'a directory link' : 'a folder that differs from the provider';
   rmSync(item.folder, { recursive: true, force: true });
   for (const file of providerFiles(item.target)) {
     const entry = path.join(item.folder, file);

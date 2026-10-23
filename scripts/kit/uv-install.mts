@@ -3,7 +3,7 @@
 // (link-folders.mts). Without CHECKOUTS, the sibling checkouts of the repository are used. No editable wheel is written and no version is
 // read; the tracked pyproject.toml and uv.lock are never written.
 import path from 'node:path';
-import { checkoutProviders, distributionKey, installedDistributions, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
+import { checkoutProviders, installedDistributions, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { siblingCheckouts } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
@@ -27,26 +27,15 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
     if (refused.length) throw new Error(`SYNC takes ${[...SYNC_FLAGS].join(' and ')}, not ${refused.join(' ')}`);
     const providers = checkoutProviders(checkouts, 'python');
     const environment = env.UV_PROJECT_ENVIRONMENT;
-    // K544, K545: the provided packages that the environment holds by their dist-info records, which uv sync reinstalls only when told
-    // to, also when their folder is gone; each is reinstalled, since its link goes before the sync and its folder may be missing.
-    const held = installedDistributions(project, environment);
     // K548: the project that uv-install installs is no provided package, though a checkout that holds it names it.
-    const installed = providers.filter(provider => path.resolve(provider.folder) !== project && held.has(distributionKey(provider.name)));
+    const others = providers.filter(provider => path.resolve(provider.folder) !== project);
+    // K545, K554: the provided packages that the environment holds by their dist-info records, whose folders link builds from their
+    // checkouts, also when a folder is missing: a development install ends with per-file links, so nothing is reinstalled.
+    const held = installedDistributions(project, environment);
     // K539: uv writes through a package link of the environment into its provider checkout, so the links go first.
     for (const link of releaseEnvironmentLinks(project, environment)) write(`uv-install ${project}: unlinked ${link}, so uv writes no provider checkout\n`);
     run(env.UV ?? 'uv', ['sync', '--frozen', ...sync], { cwd: project, env });
-    // K548: the reinstall reads only uv's cache, since only the install of the libraries reads the network.
-    if (installed.length > 0) {
-      const reinstall = installed.flatMap(provider => ['--reinstall-package', provider.name]);
-      try {
-        run(env.UV ?? 'uv', ['sync', '--frozen', '--offline', ...sync, ...reinstall], { cwd: project, env });
-      } catch (error) {
-        throw new Error(`${installed.map(provider => provider.name).join(', ')} could not be reinstalled from uv's cache offline; run make uv-install with the network once, or the repository's install of its libraries: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
-      }
-    }
-    const folders = providedFolders(project, providers, { environment });
-    const lost = installed.filter(provider => !folders.some(item => item.name.startsWith(`${provider.name} `)));
-    if (lost.length > 0) throw new Error(`${lost.map(provider => provider.name).join(', ')} has no folder in the environment after uv sync, though it was installed; run uv sync --reinstall-package for it in ${project}`);
+    const folders = providedFolders(project, others, { environment, held });
     linkFolders(folders);
     write(`uv-install ${project}: uv sync of the tracked lock${folders.length ? `, then linked ${folders.map(item => item.name).join(', ')} to their checkouts` : ''}\n`);
     return 0;

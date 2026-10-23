@@ -128,7 +128,7 @@ test('uv install links the installed member of a uv workspace root that a checko
 // K544: uv-install releases the package links before uv sync (K539), and uv sync reinstalls no package whose dist-info is still there, so
 // a package that was a directory link is gone after it; uv-install reinstalls each provided package that was installed, and fails, naming
 // it, when one ends without its folder.
-test('uv install reinstalls each provided package whose link it releases, and fails on one that ends without its folder (K544)', (t) => {
+test('uv install links each provided package whose link it releases again, from its checkout (K544, K554)', (t) => {
   const { root, project, log, env } = fixture(t, ['polyspec/orm']);
   const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
   assert.equal(run([project, orm], env).status, 0);
@@ -137,21 +137,16 @@ test('uv install reinstalls each provided package whose link it releases, and fa
   rmSync(folder, { recursive: true });
   symlinkSync(path.join(orm, 'src/polyspec/orm'), folder);
   writeFileSync(log, '');
-  const again = run([project, orm], { ...env, STUB_DIST_INFO: '1' });
+  const again = run([project, orm], { ...env, STUB_DIST_INFO: 'never' });
   assert.equal(again.status, 0, again.output);
-  assert.match(readFileSync(log, 'utf8'), /^sync --frozen --offline --reinstall-package polyspec-orm$/m, 'the released package is reinstalled');
-  assert.equal(realpathSync(path.join(folder, '__init__.py')), realpathSync(path.join(orm, 'src/polyspec/orm/__init__.py')), 'and linked again');
-  rmSync(folder, { recursive: true });
-  symlinkSync(path.join(orm, 'src/polyspec/orm'), folder);
-  const lost = run([project, orm], { ...env, STUB_DIST_INFO: 'never' });
-  assert.equal(lost.status, 1, lost.output);
-  assert.match(lost.output, /polyspec-orm .*has no folder in the environment after uv sync/);
+  assert.deepEqual(readFileSync(log, 'utf8').split('\n').filter(Boolean), ['sync --frozen'], 'nothing is reinstalled (K554)');
+  assert.equal(realpathSync(path.join(folder, '__init__.py')), realpathSync(path.join(orm, 'src/polyspec/orm/__init__.py')), 'the released package is linked again');
 });
 
 // K545: uv counts a package as installed by its dist-info, so a provided package whose folder is gone while its dist-info stays, as after a
 // run that released the links and reinstalled nothing, is held: uv-install reinstalls it and links it, and fails, naming it, when it ends
 // without its folder. A provided package with no dist-info is not installed in the environment and is left alone.
-test('uv install reinstalls a provided package whose dist-info stays without its folder (K545)', (t) => {
+test('uv install links a provided package whose dist-info stays without its folder (K545, K554)', (t) => {
   const { root, project, log, env } = fixture(t, ['polyspec/orm']);
   const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
   assert.equal(run([project, orm], env).status, 0);
@@ -159,19 +154,14 @@ test('uv install reinstalls a provided package whose dist-info stays without its
   rmSync(folder, { recursive: true });
   mkdirSync(path.join(project, SITE, 'polyspec_orm-0.0.1.dist-info'), { recursive: true });
   writeFileSync(log, '');
-  const again = run([project, orm], { ...env, STUB_DIST_INFO: '1' });
+  const again = run([project, orm], { ...env, STUB_DIST_INFO: 'never' });
   assert.equal(again.status, 0, again.output);
-  assert.match(readFileSync(log, 'utf8'), /^sync --frozen --offline --reinstall-package polyspec-orm$/m, 'the held package is reinstalled');
-  assert.equal(realpathSync(path.join(folder, '__init__.py')), realpathSync(path.join(orm, 'src/polyspec/orm/__init__.py')), 'and linked');
-  rmSync(folder, { recursive: true });
-  const lost = run([project, orm], { ...env, STUB_DIST_INFO: 'never' });
-  assert.equal(lost.status, 1, lost.output);
-  assert.match(lost.output, /polyspec-orm .*has no folder in the environment after uv sync/);
+  assert.equal(realpathSync(path.join(folder, '__init__.py')), realpathSync(path.join(orm, 'src/polyspec/orm/__init__.py')), 'the held package is linked');
 });
 
 // K548: the reinstall of the held packages reads only uv's cache, since in a repository only its install of the libraries reads the
 // network, and fails, naming the packages, when the cache lacks a wheel; the project that uv-install installs is no provided package.
-test('uv install reinstalls the held packages offline, after its sync, and leaves the project it installs out (K548)', (t) => {
+test('uv install leaves the project it installs out of the held packages, and reads no network (K548, K554)', (t) => {
   const { root, project, log, env } = fixture(t, ['polyspec/orm', 'app_pkg']);
   const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
   mkdirSync(path.join(project, 'src/app_pkg'), { recursive: true });
@@ -181,11 +171,8 @@ test('uv install reinstalls the held packages offline, after its sync, and leave
   writeFileSync(log, '');
   const again = run([project, orm, project], { ...env, STUB_DIST_INFO: '1' });
   assert.equal(again.status, 0, again.output);
-  assert.deepEqual(readFileSync(log, 'utf8').split('\n').filter(Boolean), ['sync --frozen', 'sync --frozen --offline --reinstall-package polyspec-orm'], 'the reinstall is a run of its own, offline, without the project');
-  writeFileSync(log, '');
-  const offline = run([project, orm], { ...env, STUB_DIST_INFO: '1', STUB_OFFLINE_FAILS: '1' });
-  assert.equal(offline.status, 1, offline.output);
-  assert.match(offline.output, /polyspec-orm .*uv's cache .*make uv-install/);
+  assert.deepEqual(readFileSync(log, 'utf8').split('\n').filter(Boolean), ['sync --frozen'], 'only the sync runs');
+  assert.ok(lstatSync(path.join(project, SITE, 'app_pkg')).isDirectory(), 'the project stays as uv installed it');
 });
 
 // K554: in a development install a provided package ends as per-file links into its checkout, so uv-install links every held provided
