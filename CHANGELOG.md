@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- uv-install links every provided package that the environment holds from its checkout, also when its folder is missing, and reinstalls none, so it reads no network and no cache (K554).
 - run-tests builds the tests of go and cargo before it runs them, under a build bound of 20 minutes, so compiling no longer counts as a gap without a test; a build that fails or outlives its bound stops the run with its output and its own message (K549-1).
 - uv-install reinstalls the held packages offline from uv's cache in a run of its own, naming a wheel that the cache lacks, and leaves the project that it installs out (K548).
 - worktree-setup writes the Composer bin proxies of a vendor into the worktree, so every vendor binary of a worktree autoloads the worktree (K550).
