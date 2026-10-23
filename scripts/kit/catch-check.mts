@@ -19,27 +19,33 @@ type AstNode = { type: string; start: number } & Record<string, unknown>;
 const isNode = (value: unknown): value is AstNode => typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string' && 'start' in value && typeof value.start === 'number';
 const emptyBlock = (value: unknown): boolean => isNode(value) && value.type === 'BlockStatement' && Array.isArray(value.body) && value.body.length === 0;
 
-/** The 1-based lines of `text` (the file `file`) where a catch clause or a .catch callback holds no statement. */
-export function emptyCatches(file: string, text: string): number[] {
+/** Calls `visit` with each node of the parsed `text` (the file `file`) and the 1-based line where it starts. */
+function eachNode(file: string, text: string, visit: (node: AstNode, line: number) => void): void {
   const { program, errors } = parseSync(file, text);
   const first = errors[0];
   if (first !== undefined) throw new Error(`${file}: ${first.message}`);
-  const lines: number[] = [];
-  const lineOf = (offset: number) => text.slice(0, offset).split('\n').length;
   const walk = (value: unknown): void => {
     if (Array.isArray(value)) {
       for (const item of value) walk(item);
       return;
     }
     if (!isNode(value)) return;
-    if (value.type === 'CatchClause' && emptyBlock(value.body)) lines.push(lineOf(value.start));
-    if (value.type === 'CallExpression' && isNode(value.callee) && value.callee.type === 'MemberExpression' && isNode(value.callee.property)
-      && value.callee.property.name === 'catch' && Array.isArray(value.arguments) && isNode(value.arguments[0]) && emptyBlock(value.arguments[0].body)) {
-      lines.push(lineOf(value.start));
-    }
+    visit(value, text.slice(0, value.start).split('\n').length);
     for (const child of Object.values(value)) if (typeof child === 'object') walk(child);
   };
   walk(program);
+}
+
+/** The 1-based lines of `text` (the file `file`) where a catch clause or a .catch callback holds no statement. */
+export function emptyCatches(file: string, text: string): number[] {
+  const lines: number[] = [];
+  eachNode(file, text, (value, line) => {
+    if (value.type === 'CatchClause' && emptyBlock(value.body)) lines.push(line);
+    if (value.type === 'CallExpression' && isNode(value.callee) && value.callee.type === 'MemberExpression' && isNode(value.callee.property)
+      && value.callee.property.name === 'catch' && Array.isArray(value.arguments) && isNode(value.arguments[0]) && emptyBlock(value.arguments[0].body)) {
+      lines.push(line);
+    }
+  });
   return lines;
 }
 
@@ -51,25 +57,12 @@ const CATCH_ANY = /\/\/\s*catch-any\s+--\s+\S/;
  * accepts every failure as the outcome that it names. A catch after a line that states its reason with CATCH_ANY is none.
  */
 export function bindinglessCatches(file: string, text: string): number[] {
-  const { program, errors } = parseSync(file, text);
-  const first = errors[0];
-  if (first !== undefined) throw new Error(`${file}: ${first.message}`);
   const source = text.split('\n');
   const lines: number[] = [];
-  const walk = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      for (const item of value) walk(item);
-      return;
-    }
-    if (!isNode(value)) return;
-    if (value.type === 'CatchClause' && value.param === null) {
-      const line = text.slice(0, value.start).split('\n').length;
-      const reasoned = [source[line - 2], source[line - 1]].some(near => near !== undefined && CATCH_ANY.test(near));
-      if (!reasoned) lines.push(line);
-    }
-    for (const child of Object.values(value)) if (typeof child === 'object') walk(child);
-  };
-  walk(program);
+  eachNode(file, text, (value, line) => {
+    if (value.type !== 'CatchClause' || value.param !== null) return;
+    if (![source[line - 2], source[line - 1]].some(near => near !== undefined && CATCH_ANY.test(near))) lines.push(line);
+  });
   return lines;
 }
 
