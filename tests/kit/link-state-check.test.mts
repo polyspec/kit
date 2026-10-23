@@ -163,3 +163,24 @@ test('a release tarball entry and the repository own packages are no lock-source
   const composerLock = JSON.stringify({ packages: [{ name: 'polyspec/hyper-server', version: '0.0.18', dist: { type: 'path', url: 'packages/server/php' } }] });
   assert.deepEqual(lockSourceFindings('composer.lock', composerLock, own), [], 'an own in-repo path repository is no finding');
 });
+
+test('a linked npm provider whose package folder is a tree of per-file links is judged by its build state (K558)', (t) => {
+  const provider = tree(t, {
+    'package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1', main: './dist/x.mjs' }),
+    'Makefile': 'build:\n\tmkdir -p dist\n\tcp src/x.mjs dist/x.mjs\n',
+    '.gitignore': 'dist/\nvar/\n',
+    'src/x.mjs': 'export const v = 1;\n',
+  });
+  commitAll(provider, 'provider');
+  const consumer = tree(t, { 'package.json': '{"name": "cons"}' });
+  const folder = path.join(consumer, 'node_modules/@polyspec/x');
+  mkdirSync(folder, { recursive: true });
+  for (const file of ['package.json', 'src/x.mjs']) {
+    mkdirSync(path.dirname(path.join(folder, file)), { recursive: true });
+    symlinkSync(path.join(provider, file), path.join(folder, file));
+  }
+  commitAll(consumer, 'consumer');
+  assert.deepEqual(linkFindings(consumer, process.env).filter(text => /is stale/.test(text)), [
+    `npm @polyspec/x: the build of ${realpathSync(provider)} is stale (missing dist/x.mjs); fix: run link.mjs rebuild ${realpathSync(provider)}`,
+  ]);
+});
