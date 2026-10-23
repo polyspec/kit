@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 2d68cd0c06292ddccb413d5bfef09146e27467169a4b91324131704f7dc65076 -->
+<!-- source-sha256: ba4dda527d348740258ccba122fc67c72d1efdb00e5cceb02cec797dd5e28afd -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -479,3 +479,4 @@
 | K569 | PHP 확장 비교는 internal stub 클래스와 self type을 반영하고 public 추가 선언은 거부한다 | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test --test-name-pattern=K569 tests/kit/php-ext.test.mts` | [o] |
 | K569-1 | internal class parser는 namespace처럼 보이는 문서 텍스트를 무시한다 | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test --test-name-pattern=K569 tests/kit/php-ext.test.mts` | [o] |
 | K570 | land는 duplication finding을 비교할 때 jscpd의 aggregate Total summary 행을 제외한다 | scripts/kit/land.mts, tests/kit/land.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K570 tests/kit/land.test.mts` | [o] |
+| K561 | catch-check은 잡은 것을 살필 수 없는, binding 없는 catch 절을 거부하되 앞 줄이 // catch-any -- <이유>로 이유를 밝히면 통과시킨다(K537 후속). 원인: binding 없는 catch는 어떤 실패든 자기가 이름 붙이는 결과로 받아들인다. 어떤 읽기 오류든 없음으로, 어떤 URL 오류든 URL 아님으로 읽는다. kit 감사에서 일곱 개가 나왔고, oxlint와 K537은 문장을 가진 그런 catch를 통과시킨다. 인수 조건: binding 없는 catch는 그 줄을 이름 붙이는 finding이고, 오류를 binding하는 catch는 통과하며, 이유를 밝힌 뒤의 binding 없는 catch는 통과한다. red fixture: 지금 binding 없는 catch가 catch-check을 통과한다. | `scripts/kit/catch-check.mts`, `tests/kit/catch-check.test.mts` | `node --test --test-name-pattern=K561 tests/kit/catch-check.test.mts` | [~] |
