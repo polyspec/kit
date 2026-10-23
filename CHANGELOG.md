@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The vendor/composer of a worktree holds every file of the main checkout's, the installed records and InstalledVersions.php as files of the worktree, so PHP reads the worktree's install paths (K557).
 - make item-red BEFORE= refuses on main and runs in the worktree of the row, since it swaps the files of the tree (K556).
 - worktree-setup gives a worktree every Python environment of the main checkout wherever the repository keeps it, as var/python, with its editable installs naming the worktree's sources (K555).
 - Under the disk floor, worktree-setup trims the entries of the Go build cache unused for two hours, reports the bytes freed, and refuses only when the disk is still under the floor (K538).

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3b2de5d8abbe671f2ad514c715f898a9bef031d960111e1eda530b2ae2adcf85 -->
+<!-- source-sha256: 768464e94377d0ce209ea0ab16441aaee8eef401a6aacec1e0ade239a6833fb1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- worktree의 vendor/composer는 main checkout의 것의 모든 파일을 가지며, 설치 기록과 InstalledVersions.php는 worktree의 파일이므로 PHP가 worktree의 설치 경로를 읽는다(K557).
 - make item-red BEFORE=는 tree의 파일을 바꾸므로 main에서는 거부되고 행의 worktree에서 실행된다(K556).
 - worktree-setup은 main checkout의 모든 Python 환경을 var/python처럼 저장소가 두는 곳 그대로 worktree에 주고, 그 editable install은 worktree의 source를 이름 붙인다(K555).
 - 디스크 하한 아래에서 worktree-setup은 두 시간 쓰이지 않은 Go 빌드 캐시 항목을 지우고, 비운 바이트를 보고하며, 디스크가 여전히 하한 아래일 때만 거부한다(K538).
