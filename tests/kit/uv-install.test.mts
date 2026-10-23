@@ -187,3 +187,23 @@ test('uv install reinstalls the held packages offline, after its sync, and leave
   assert.equal(offline.status, 1, offline.output);
   assert.match(offline.output, /polyspec-orm .*uv's cache .*make uv-install/);
 });
+
+// K554: in a development install a provided package ends as per-file links into its checkout, so uv-install links every held provided
+// package from its checkout, also when its folder is missing, and reinstalls none: no network and no cache is read. A held package
+// whose checkout lacks its package folder fails, naming it.
+test('uv install links a held package from its checkout when its folder is missing, and reinstalls nothing (K554)', (t) => {
+  const { root, project, log, env } = fixture(t, ['polyspec/orm']);
+  const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
+  assert.equal(run([project, orm], env).status, 0);
+  const folder = path.join(project, SITE, 'polyspec/orm');
+  rmSync(folder, { recursive: true });
+  writeFileSync(log, '');
+  const again = run([project, orm], { ...env, STUB_DIST_INFO: 'never', STUB_OFFLINE_FAILS: '1' });
+  assert.equal(again.status, 0, again.output);
+  assert.deepEqual(readFileSync(log, 'utf8').split('\n').filter(Boolean), ['sync --frozen'], 'no reinstall runs');
+  assert.equal(realpathSync(path.join(folder, '__init__.py')), realpathSync(path.join(orm, 'src/polyspec/orm/__init__.py')), 'the folder is linked from the checkout');
+  rmSync(path.join(orm, 'src/polyspec/orm'), { recursive: true });
+  const lost = run([project, orm], { ...env, STUB_DIST_INFO: 'never' });
+  assert.equal(lost.status, 1, lost.output);
+  assert.match(lost.output, /polyspec-orm is held in the environment, but its checkout .* holds no package/);
+});
