@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // The check that no error is swallowed in silence (K537, follows K256): a catch clause, and a callback of .catch, whose block
 // holds no statement. oxlint no-empty passes such a block when it holds a comment, so a comment-only catch hid every failure
-// of the call it wrapped. Each hit needs a statement: name the outcome, or narrow the error and rethrow the rest. The files are
+// of the call it wrapped. Each hit needs a statement: name the outcome, or narrow the error and rethrow the rest. A catch without
+// a binding cannot narrow, so it is a finding too unless the line before it states why every failure means its outcome (K561). The files are
 // the TypeScript and JavaScript files of the checkout, read with oxc-parser, the parser of oxlint.
 //
 //   node scripts/kit/catch-check.mts
@@ -42,10 +43,45 @@ export function emptyCatches(file: string, text: string): number[] {
   return lines;
 }
 
-/** The findings of the checkout `root`, one per empty catch, as `file:line: message`. */
+// The stated reason of a catch that accepts every failure, on the line before it (K561): `// catch-any -- <reason>`.
+const CATCH_ANY = /\/\/\s*catch-any\s+--\s+\S/;
+
+/**
+ * The 1-based lines of `text` (the file `file`) where a catch clause has no binding (K561): it cannot inspect what it caught, so it
+ * accepts every failure as the outcome that it names. A catch after a line that states its reason with CATCH_ANY is none.
+ */
+export function bindinglessCatches(file: string, text: string): number[] {
+  const { program, errors } = parseSync(file, text);
+  const first = errors[0];
+  if (first !== undefined) throw new Error(`${file}: ${first.message}`);
+  const source = text.split('\n');
+  const lines: number[] = [];
+  const walk = (value: unknown): void => {
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item);
+      return;
+    }
+    if (!isNode(value)) return;
+    if (value.type === 'CatchClause' && value.param === null) {
+      const line = text.slice(0, value.start).split('\n').length;
+      const reasoned = [source[line - 2], source[line - 1]].some(near => near !== undefined && CATCH_ANY.test(near));
+      if (!reasoned) lines.push(line);
+    }
+    for (const child of Object.values(value)) if (typeof child === 'object') walk(child);
+  };
+  walk(program);
+  return lines;
+}
+
+/** The findings of the checkout `root`, one per empty catch (K537) and per catch without a binding (K561), as `file:line: message`. */
 export function catchFindings(root: string): string[] {
-  return checkedFiles(root).filter(file => SCRIPT_FILE.test(file)).flatMap(file => emptyCatches(file, readFileSync(path.join(root, file), 'utf8'))
-    .map(line => `${file}:${line}: a catch holds no statement, so it swallows every error; name the outcome, or narrow the error and rethrow the rest (K537)`));
+  return checkedFiles(root).filter(file => SCRIPT_FILE.test(file)).flatMap((file) => {
+    const text = readFileSync(path.join(root, file), 'utf8');
+    return [
+      ...emptyCatches(file, text).map(line => `${file}:${line}: a catch holds no statement, so it swallows every error; name the outcome, or narrow the error and rethrow the rest (K537)`),
+      ...bindinglessCatches(file, text).map(line => `${file}:${line}: a catch has no binding, so it cannot inspect what it caught and accepts every failure; bind the error and narrow it, or state the reason on the line before with // catch-any -- <reason> (K561)`),
+    ];
+  });
 }
 
 if (isMain(import.meta.url)) {
