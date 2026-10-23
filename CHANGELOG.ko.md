@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 768464e94377d0ce209ea0ab16441aaee8eef401a6aacec1e0ade239a6833fb1 -->
+<!-- source-sha256: 3fdb0654335f42356f22fae8e9d016f7238f442836e5175ffae6de71b18447de -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- docs/operations/release-structure.md는 kit의 릴리스 구조를 검토한다. 안정된 bootstrap 층, 참조로 쓰는 설정, 도구가 요구하는 곳에만 사본, 의존 순서로 묶은 릴리스다(K194).
 - worktree의 vendor/composer는 main checkout의 것의 모든 파일을 가지며, 설치 기록과 InstalledVersions.php는 worktree의 파일이므로 PHP가 worktree의 설치 경로를 읽는다(K557).
 - make item-red BEFORE=는 tree의 파일을 바꾸므로 main에서는 거부되고 행의 worktree에서 실행된다(K556).
 - worktree-setup은 main checkout의 모든 Python 환경을 var/python처럼 저장소가 두는 곳 그대로 worktree에 주고, 그 editable install은 worktree의 source를 이름 붙인다(K555).
