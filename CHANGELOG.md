@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The commit gate installs the staged lock of each nested npm project already installed in the checkout, offline, so gates resolve the dependencies of that staged project (K404-1-2).
 - make item-red judges a failing Verification by the cause of its failure: only a failing run of the test runner is judged by its tests, so a check that reports a finding after passing tests is a red, while a timeout or a build, compile or load failure before any test still proves none (K540-1).
 - docs/operations/release-structure.md reviews the release structure of kit: a stable bootstrap layer, configurations by reference, copies only where a tool requires them, and batched releases in dependency order (K194).
 - The vendor/composer of a worktree holds every file of the main checkout's, the installed records and InstalledVersions.php as files of the worktree, so PHP reads the worktree's install paths (K557).

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8a5495a686e7c48afb692abf31e9b9558e7f921e7cc84bc7e086cfeebef52b60 -->
+<!-- source-sha256: bdc77bf2092aab1bee388974569c05eb62be9b7e0c20d79cbf312ce16f5b6436 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- commit gate는 checkout에 설치된 각 nested npm project의 staged lock을 offline 설치해 gate가 해당 staged project의 dependency를 읽게 한다(K404-1-2).
 - make item-red는 실패한 Verification을 실패의 원인으로 판정한다. test runner의 실패한 run만 그 test로 판정하므로, 통과한 test 뒤에 finding을 낸 check는 red이고, timeout이나 test 전에 실패한 build, compile, load는 여전히 red가 아니다(K540-1).
 - docs/operations/release-structure.md는 kit의 릴리스 구조를 검토한다. 안정된 bootstrap 층, 참조로 쓰는 설정, 도구가 요구하는 곳에만 사본, 의존 순서로 묶은 릴리스다(K194).
 - worktree의 vendor/composer는 main checkout의 것의 모든 파일을 가지며, 설치 기록과 InstalledVersions.php는 worktree의 파일이므로 PHP가 worktree의 설치 경로를 읽는다(K557).
