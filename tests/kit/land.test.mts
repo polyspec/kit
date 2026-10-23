@@ -880,6 +880,14 @@ test('the commit gate installs only nested npm projects already installed in the
   assert.match(calls[0] ?? '', /^ci --offline --no-audit --no-fund\|.*commit-gate-.*\/packages\/installed\|true$/);
   assert.deepEqual(gateTrees(), [], 'the staged snapshot is removed after a passing gate');
 
+  const npmConfigs = () => readdirSync(tmpdir()).filter(name => name.startsWith('kit-npm-ci-')).sort();
+  const configsBeforeProgressFailure = npmConfigs();
+  assert.throws(() => runCommitGates(main, ['packages/installed/package.json', 'packages/installed/package-lock.json'], text => {
+    if (text.endsWith('started')) throw new Error('deliberate progress callback failure');
+  }), /deliberate progress callback failure/);
+  assert.deepEqual(npmConfigs(), configsBeforeProgressFailure, 'the npm config directory is removed when progress reporting fails before npm starts');
+  assert.deepEqual(gateTrees(), [], 'the staged snapshot is removed when progress reporting fails');
+
   const uncachedLock = nestedLock.replaceAll('staged', 'cache-missing');
   put(main, {
     'packages/installed/package.json': JSON.stringify({ name: 'nested-fixture', private: true, dependencies: { 'locked-marker': 'cache-missing' } }, null, 2) + '\n',

@@ -564,13 +564,13 @@ function installNestedNpmProjects(folder: string, staged: string, print: (text: 
     const npm = toolCommand(folder, 'npm');
     const directory = path.join(staged, project);
     const config = mkdtempSync(path.join(tmpdir(), 'kit-npm-ci-'));
-    const environment = toolsEnvironment(folder);
-    for (const name of Object.keys(environment)) if (/^npm_config_/i.test(name)) delete environment[name];
-    Object.assign(environment, { npm_config_offline: 'true', npm_config_userconfig: path.join(config, 'user'), npm_config_globalconfig: path.join(config, 'global') });
-    const args = ['ci', '--offline', '--no-audit', '--no-fund'];
-    const started = Date.now();
-    print(`${npm} ${args.join(' ')} in staged ${project} started`);
     try {
+      const environment = toolsEnvironment(folder);
+      for (const name of Object.keys(environment)) if (/^npm_config_/i.test(name)) delete environment[name];
+      Object.assign(environment, { npm_config_offline: 'true', npm_config_userconfig: path.join(config, 'user'), npm_config_globalconfig: path.join(config, 'global') });
+      const args = ['ci', '--offline', '--no-audit', '--no-fund'];
+      const started = Date.now();
+      print(`${npm} ${args.join(' ')} in staged ${project} started`);
       const result = spawnSync(npm, args, { cwd: directory, env: environment, encoding: 'utf8', maxBuffer: 1 << 28 });
       const elapsed = ((Date.now() - started) / 1000).toFixed(1);
       const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
