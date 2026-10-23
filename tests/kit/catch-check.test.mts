@@ -69,3 +69,9 @@ test('a catch without a binding is a finding unless its reason is stated (K561)'
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   assert.deepEqual(catchFindings(root), ['a.mts:1: a catch has no binding, so it cannot inspect what it caught and accepts every failure; bind the error and narrow it, or state the reason on the line before with // catch-any -- <reason> (K561)']);
 });
+
+// K559: the catches of kit inspect what they caught, narrowing to the class or errno that means their outcome (the audit of
+// 2026-10-23), so catch-check finds none in the checkout of kit.
+test('the sources of kit hold no catch that catch-check refuses (K559)', () => {
+  assert.deepEqual(catchFindings(kitPackageRoot()), []);
+});
