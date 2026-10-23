@@ -1005,14 +1005,17 @@ test('make item-red BEFORE= builds the repository at BEFORE when the swap change
 });
 
 // K540: a red is a test or a gate that runs and fails; a command that was not found, a run whose tests ran out of time, and a run
-// that failed before any test ran prove nothing about the behaviour, so item-red records none of them and names why.
-test('make item-red refuses a red of exit 127, a timeout or a run in which no test failed (K540)', (t) => {
+// that failed before any test ran prove nothing about the behaviour, so item-red records none of them and names why. K540-1: only a
+// failing run of the test runner (its ✖ summary) is judged by its tests; a check that reports a finding after test runs that passed
+// is a red, such as a docs-check whose schema check fails after its tests passed.
+test('make item-red refuses a red of exit 127, a timeout or a run in which no test failed, and records a check finding (K540, K540-1)', (t) => {
   const root = plans(t, 'parser');
   const verifications: Record<string, string> = {
     T1: "sh -c 'exit 127'",
-    T2: "node -e \"console.log('0 passed, 0 failed, 1 timed out, 0 skipped'); process.exit(1)\"",
-    T3: "node -e \"console.log('0 passed, 0 failed, 0 timed out, 0 skipped, no test ran'); process.exit(1)\"",
-    T4: "node -e \"console.log('0 passed, 1 failed, 0 timed out, 0 skipped'); process.exit(1)\"",
+    T2: "node -e \"console.log('✖ node --test: 0 passed, 0 failed, 1 timed out, 0 skipped'); process.exit(1)\"",
+    T3: "node -e \"console.log('✖ cargo .: 0 passed, 0 failed, 0 timed out, 0 skipped, no test ran'); process.exit(1)\"",
+    T4: "node -e \"console.log('✖ node --test: 0 passed, 1 failed, 0 timed out, 0 skipped'); process.exit(1)\"",
+    T5: "node -e \"console.log('✔ node --test: 3 passed, 0 failed, 0 timed out, 0 skipped'); console.log('spec-validity:ok-multiple-keys: the schema rejects multiple.keys'); process.exit(2)\"",
   };
   for (const [id, command] of Object.entries(verifications)) newItem(root, item('parser', id, { verification: `\`${command}\`` }));
   const commit = (message: string) => {
@@ -1033,9 +1036,12 @@ test('make item-red refuses a red of exit 127, a timeout or a run in which no te
     assert.match(run.stderr, reason);
     assert.equal(readRecord(root, id), undefined, `${id} wrote a record`);
   }
-  const fails = itemRed('T4');
-  assert.equal(fails.status, 0, fails.stderr);
-  assert.ok(readRecord(root, 'T4'), 'a failing test is a red');
+  const reds: [string, string][] = [['T4', 'a failing test is a red'], ['T5', 'a check that reports a finding after passing tests is a red']];
+  for (const [id, why] of reds) {
+    const fails = itemRed(id);
+    assert.equal(fails.status, 0, `${id}: ${fails.stderr}`);
+    assert.ok(readRecord(root, id), why);
+  }
 });
 
 // K553: for a lint item the fixed code is the test file itself, so a Verification whose every command runs a gate of kit-gates swaps the

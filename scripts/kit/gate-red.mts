@@ -27,21 +27,23 @@ export type GateRecord = { head: string; gates: Run[]; tests?: { tree: string; c
 // for a test that item-red ran.
 const RED_LINE = /^Red-(?:Gate|Test): (.+) exit ([1-9]\d*) at ([0-9a-f]{7,40})$/gm;
 
-// The summary that the test runner of kit prints at the end of a run: the counts of the tests that passed, failed and ran out of time.
-const RUN_SUMMARY = /(\d+) passed, (\d+) failed, (\d+) timed out/g;
+// The summary that the test runner of kit prints at the end of a run that fails, marked ✖: the counts of the tests that passed,
+// failed and ran out of time. A run that passes marks its summary ✔ (test-progress.mts).
+const FAILED_RUN = /✖ [^\n]*?(\d+) passed, (\d+) failed, (\d+) timed out/g;
 
 /**
- * Why the failing run of a command proves no red (K540), or undefined when it does: a red is a test or a gate that runs and fails.
- * Exit 127 is a command that was not found, so nothing ran. A run of the test runner of kit proves a red only when a test failed:
- * one whose tests ran out of time, or that failed before any test ran (a build, a compile or a load that failed), proves nothing
- * about the behaviour that the test checks. Any other failing command, such as a gate, is judged by its exit status.
+ * Why the failing run of a command proves no red (K540), or undefined when it does, judged by the cause of the failure (K540-1): a
+ * red is a test or a check that runs and reports a failure. Exit 127 is a command that was not found, so nothing ran. A run of the
+ * test runner of kit that failed proves a red only when a test failed: one whose tests ran out of time, or that failed before any
+ * test ran (a build, a compile or a load that failed), proves nothing about the behaviour that the test checks. A command whose
+ * test runs passed, or that runs none, failed in a check that reported its finding, such as a gate or a document check, and is
+ * judged by its exit status: a passing run of the test runner before it is no cause of its failure.
  */
 export function invalidRed(status: number, output: string): string | undefined {
   if (status === 127) return 'exit 127: the command was not found, so nothing ran';
-  const summary = [...output.matchAll(RUN_SUMMARY)].at(-1);
-  if (summary === undefined) return undefined;
-  if (Number(summary[2]) > 0) return undefined;
-  if (Number(summary[3]) > 0) return 'a test ran out of time and none failed; build what the test compiles first, then record the red';
+  const failed = [...output.matchAll(FAILED_RUN)];
+  if (failed.length === 0 || failed.some(run => Number(run[2]) > 0)) return undefined;
+  if (failed.some(run => Number(run[3]) > 0)) return 'a test ran out of time and none failed; build what the test compiles first, then record the red';
   return 'it failed before any test failed, in a build, a compile or a load, so no test checked the behaviour';
 }
 
