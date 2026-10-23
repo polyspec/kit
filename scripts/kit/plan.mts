@@ -54,6 +54,7 @@ import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
 import { privatePaths, stagedTwinFindings } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { isSource } from './kit-check.mts';
 import { buildState, buildTargets } from './link-build.mts';
 import { isTestGate, withLandLock } from './land.mts';
 import { present } from './present.mts';
@@ -693,7 +694,23 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   // K524: a commit on main holds the lock of land, so it and a land queue instead of one finding the staged change of the other.
   const head = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
   if (head !== 'main') return commitStaged(root, commit, env, { registration });
-  return withLandLock(root, `the commit of ${commit.id} on main`, 'nothing is committed', () => commitStaged(root, commit, env, { registration }));
+  return withLandLock(root, `the commit of ${commit.id} on main`, 'nothing is committed', () => {
+    // K551: the files of the commit, read before it, since every consumer links the dist of kit main live.
+    const files = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
+    const message = commitStaged(root, commit, env, { registration });
+    if (isSource(root) && files.some(file => BUILD_INPUT.test(file))) buildKit(root);
+    return message;
+  });
+}
+
+// The inputs of the build of the kit package (K551): the sources of its tools and the files that configure their build.
+const BUILD_INPUT = /^(?:scripts\/kit\/.*\.mts$|tsconfig\.build\.json$|package\.json$)/;
+
+/** Builds the kit package `root` with make kit-build after a commit on main (K551); a failed build throws, naming it. */
+function buildKit(root: string): void {
+  const result = spawnSync('make', ['--no-print-directory', 'kit-build'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
+  if (result.error) throw new Error(`make kit-build could not start in ${root}: ${result.error.message}`);
+  if (result.status !== 0) throw new Error(`the commit is made, but make kit-build failed in ${root} with exit status ${result.status}, so dist is older than its sources; fix the build and run make kit-build:\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-20).join('\n')}`);
 }
 
 /** The body of commitItem: checks the staged change and its message, and commits it (K249-4). */
