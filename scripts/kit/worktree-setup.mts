@@ -12,6 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { COMMIT_RULES } from './check-commits.mts';
 import { git, gitResult } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { shimsPath, toolsEnvironment } from './mise-tools.mts';
 import { composerCommand } from './install-composer-project.mts';
 
 /** The free disk under which no worktree is made, in bytes: 30 GB, the floor of the owner's guidelines for a new worktree. */
@@ -20,6 +21,41 @@ export const WORKTREE_DISK_FLOOR = 30 * 1024 ** 3;
 // A name of a worktree: a slug of lower case letters, digits and hyphens; an id: the letters, digits, dots and hyphens of a row.
 const NAME = /^[a-z][a-z0-9-]*$/;
 const ID = /^[A-Za-z0-9][A-Za-z0-9.-]*$/;
+
+/** The Go build cache of the tools of the repository of `root` (K538), as go env GOCACHE names it; none when the tools hold no go. */
+function goBuildCache(root: string): string | undefined {
+  const go = shimsPath(root, 'go');
+  if (!existsSync(go)) return undefined;
+  const result = spawnSync(go, ['env', 'GOCACHE'], { cwd: root, encoding: 'utf8', env: toolsEnvironment(root) });
+  if (result.error) throw new Error(`go env GOCACHE could not start in ${root}: ${result.error.message}`);
+  if (result.status !== 0) throw new Error(`go env GOCACHE ended with exit status ${result.status} in ${root}: ${result.stderr.trim()}`);
+  const cache = result.stdout.trim();
+  return cache === '' || cache === 'off' ? undefined : cache;
+}
+
+// The age after which an entry of the Go build cache counts as unused (K538): Go refreshes the time of an entry it uses about hourly.
+const GO_CACHE_UNUSED_MS = 2 * 3600 * 1000;
+
+/** Removes each file of the Go build cache `cache` unused for GO_CACHE_UNUSED_MS, and returns their count and bytes (K538). */
+function trimGoCache(cache: string): { entries: number; bytes: number } {
+  const oldest = Date.now() - GO_CACHE_UNUSED_MS;
+  let entries = 0;
+  let bytes = 0;
+  const visit = (folder: string) => {
+    for (const entry of readdirSync(folder, { withFileTypes: true })) {
+      const file = path.join(folder, entry.name);
+      if (entry.isDirectory()) visit(file);
+      if (!entry.isFile() || folder === cache) continue;
+      const stat = statSync(file);
+      if (stat.mtimeMs >= oldest) continue;
+      unlinkSync(file);
+      entries += 1;
+      bytes += stat.size;
+    }
+  };
+  if (existsSync(cache)) visit(cache);
+  return { entries, bytes };
+}
 
 /** The free bytes of the file system of `directory` for an unprivileged user. */
 export const freeBytes = (directory: string): number => {
@@ -282,7 +318,7 @@ function linkTool(folder: string): string {
   return existsSync(own) ? own : path.join(folder, 'node_modules/@polyspec/kit/dist/link.mjs');
 }
 
-export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { free = freeBytes, print = (text: string) => console.log(text), composer }: { free?: (directory: string) => number; print?: (text: string) => void; composer?: string } = {}): string {
+export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { free = freeBytes, print = (text: string) => console.log(text), composer, goCache = goBuildCache }: { free?: (directory: string) => number; print?: (text: string) => void; composer?: string; goCache?: (root: string) => string | undefined } = {}): string {
   const main = path.dirname(path.resolve(root, git(root, 'rev-parse', '--git-common-dir').trim()));
   const { folder, branch } = worktreeOf(main, row);
   const listed = git(main, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
@@ -290,8 +326,17 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   if (existing && existing.branch !== branch) throw new Error(`${folder} is the worktree of ${existing.branch ?? 'a detached HEAD'}, not of ${branch}`);
   if (!existing) {
     if (existsSync(folder)) throw new Error(`${folder} exists and is no worktree of ${branch}; remove it or choose another name`);
-    const available = free(path.dirname(main));
-    if (available < WORKTREE_DISK_FLOOR) throw new Error(`the free disk is ${(available / 1024 ** 3).toFixed(1)} GB, under the floor of ${WORKTREE_DISK_FLOOR / 1024 ** 3} GB for a new worktree; free disk first`);
+    let available = free(path.dirname(main));
+    // K538: under the floor the Go build cache, which Go rebuilds on demand, is trimmed by age first; nothing else is removed.
+    const cache = available < WORKTREE_DISK_FLOOR ? goCache(main) : undefined;
+    let trimmed = '';
+    if (cache !== undefined) {
+      const { entries, bytes } = trimGoCache(cache);
+      print(`[worktree-setup] trimmed ${entries} entries of the Go build cache ${cache}, unused for 2 hours: ${bytes} bytes freed`);
+      trimmed = `after the trim of the Go build cache freed ${bytes} bytes, `;
+      available = free(path.dirname(main));
+    }
+    if (available < WORKTREE_DISK_FLOOR) throw new Error(`${trimmed}the free disk is ${(available / 1024 ** 3).toFixed(1)} GB, under the floor of ${WORKTREE_DISK_FLOOR / 1024 ** 3} GB for a new worktree; free disk first`);
     const known = gitResult(main, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).status === 0;
     git(main, 'worktree', 'add', '--quiet', folder, ...(known ? [branch] : ['-b', branch, 'main']));
     print(`[worktree-setup] created ${folder} on ${branch}`);

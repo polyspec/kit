@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -274,4 +274,34 @@ test('worktree-setup writes the Composer bin proxies into the worktree, so a ven
   assert.ok((lstatSync(path.join(bin, 'tool')).mode & 0o111) !== 0, 'and it runs');
   assert.equal(readlinkSync(path.join(bin, 'shell')), '../acme/lib/bin/shell', 'a link of the bin keeps its relative target');
   assert.equal(setupWorktree(main, { name: 'bin', id: 'T6', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer }), folder, 'a second run converges');
+});
+
+// K538: the free disk under the floor is mostly the Go build cache of parallel worktree builds, which Go rebuilds on demand; the user
+// allowed on 2026-10-23 that worktree-setup trims it, the entries of GOCACHE unused for two hours, reports the bytes it freed, and refuses
+// only when the disk is still under the floor. Nothing else outside the repository is touched.
+test('worktree-setup trims the Go build cache by age under the disk floor, and refuses only when still under it (K538)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'Makefile': 'link-state-check:\n\ttrue\n',
+    '.gitignore': 'node_modules/\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const cache = path.join(parent, 'go-build');
+  put(cache, { 'ab/old-a': 'x'.repeat(1000), 'cd/new-a': 'y'.repeat(10), 'README': 'the cache\n' });
+  const hours = (count: number) => new Date(Date.now() - count * 3600 * 1000);
+  utimesSync(path.join(cache, 'ab/old-a'), hours(3), hours(3));
+  const lines: string[] = [];
+  const free = () => (existsSync(path.join(cache, 'ab/old-a')) ? WORKTREE_DISK_FLOOR - 1 : WORKTREE_DISK_FLOOR);
+  const folder = setupWorktree(main, { name: 'trim', id: 'T7', type: 'fix' }, { free, print: text => lines.push(text), goCache: () => cache });
+  assert.ok(existsSync(folder), 'the worktree is made once the trim freed enough');
+  assert.equal(existsSync(path.join(cache, 'ab/old-a')), false, 'an entry unused for two hours goes');
+  assert.ok(existsSync(path.join(cache, 'cd/new-a')), 'a recent entry stays');
+  assert.match(lines.join('\n'), /trimmed 1 entries of the Go build cache .*go-build, unused for 2 hours: 1000 bytes freed/);
+  utimesSync(path.join(cache, 'cd/new-a'), hours(3), hours(3));
+  assert.throws(() => setupWorktree(main, { name: 'still', id: 'T8', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR - 1, print: () => {}, goCache: () => cache }), /after the trim of the Go build cache freed 10 bytes, the free disk is .* under the floor/);
 });
