@@ -294,9 +294,10 @@ function linkVendor(main: string, folder: string, { project, vendor }: ComposerP
   const target = path.join(folder, vendor);
   if (existsSync(target) && lstatSync(target).isSymbolicLink()) throw new Error(`${target} is a link to a whole vendor folder, whose autoload names the sources of another checkout; remove it and run worktree-setup again (K521)`);
   mkdirSync(path.join(target, 'composer'), { recursive: true });
+  // K557: the installed records, which dump-autoload reads, are files of the worktree: installed.php names its paths by __DIR__.
   for (const name of ['installed.json', 'installed.php']) {
     if (!existsSync(path.join(source, 'composer', name))) throw new Error(`${path.join(source, 'composer', name)} is missing; run make install in the main checkout, whose vendor a worktree links`);
-    linkEntry(main, folder, vendor, path.join(source, 'composer', name), path.join(target, 'composer', name));
+    writeInstalled(path.join(source, 'composer', name), path.join(target, 'composer', name));
   }
   for (const entry of readdirSync(source, { withFileTypes: true })) {
     const from = path.join(source, entry.name);
@@ -320,6 +321,29 @@ function linkVendor(main: string, folder: string, { project, vendor }: ComposerP
   const result = spawnSync(composer, ['dump-autoload', '--no-interaction'], { cwd: path.join(folder, project), env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1' }, encoding: 'utf8' });
   if (result.error) throw new Error(`composer dump-autoload could not start in ${path.join(folder, project)}: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`composer dump-autoload ended with exit status ${result.status} in ${path.join(folder, project)}: ${`${result.stdout}${result.stderr}`.trim()}`);
+  // K557: the files of vendor/composer that composer install wrote and dump-autoload does not, as InstalledVersions.php, are written
+  // as files of the worktree, and the worktree holds the set of the main checkout.
+  const own = path.join(target, 'composer');
+  for (const name of readdirSync(path.join(source, 'composer'))) {
+    if (DUMPED.test(name)) continue;
+    if (lstatSync(path.join(own, name), { throwIfNoEntry: false }) === undefined) writeInstalled(path.join(source, 'composer', name), path.join(own, name));
+  }
+  const missing = readdirSync(path.join(source, 'composer')).filter(name => !readdirSync(own).includes(name));
+  if (missing.length > 0) throw new Error(`${own} lacks ${missing.join(', ')} of the main checkout's vendor/composer after dump-autoload`);
+}
+
+// The files of vendor/composer that composer dump-autoload writes, which come from it and never from the main checkout (K557).
+const DUMPED = /^(?:autoload_[a-z0-9_]+\.php|ClassLoader\.php|platform_check\.php)$/;
+
+/**
+ * Writes the file `source` of the vendor/composer of the main checkout at `target` of the worktree (K557), with its mode: a file that
+ * composer install wrote, whose paths PHP resolves from its own folder through links; a link that an earlier run made is replaced.
+ */
+function writeInstalled(source: string, target: string): void {
+  const entry = lstatSync(target, { throwIfNoEntry: false });
+  if (entry?.isSymbolicLink()) unlinkSync(target);
+  else if (entry !== undefined && !entry.isFile()) throw new Error(`${target} exists and is no file that worktree-setup writes; remove it, since a worktree installs nothing (K519)`);
+  writeFileSync(target, readFileSync(source), { mode: statSync(source).mode & 0o777 });
 }
 
 /**

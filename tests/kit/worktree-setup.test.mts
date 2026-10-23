@@ -122,16 +122,15 @@ test('worktree-setup gives a Composer project a vendor folder of links and its o
   // The composer of the test writes the autoload of the folder it runs in and logs its arguments and network setting.
   const log = path.join(parent, 'composer.log');
   const composer = path.join(parent, 'composer');
-  writeFileSync(composer, `#!/bin/sh\necho "$* [$(pwd)] network=$COMPOSER_DISABLE_NETWORK" >> "${log}"\necho "<?php // the autoload of $(pwd)" > vendor-php/autoload.php\n`, { mode: 0o755 });
+  writeFileSync(composer, `#!/bin/sh\necho "$* [$(pwd)] network=$COMPOSER_DISABLE_NETWORK" >> "${log}"\necho "<?php // the autoload of $(pwd)" > vendor-php/autoload.php\necho "<?php // the autoload of $(pwd)" > vendor-php/composer/autoload_psr4.php\n`, { mode: 0o755 });
   const folder = setupWorktree(main, { name: 'php', id: 'T5', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer });
   const vendor = path.join(folder, 'vendor-php');
   assert.equal(lstatSync(vendor).isSymbolicLink(), false, 'the vendor folder is a real folder');
   assert.equal(realpathSync(path.join(vendor, 'acme/lib')), realpathSync(path.join(main, 'vendor-php/acme/lib')), 'a package links to the main checkout');
   assert.equal(realpathSync(path.join(vendor, 'bin/tool')), realpathSync(path.join(main, 'vendor-php/bin/tool')), 'a bin entry that is no proxy links (K550)');
   assert.equal(realpathSync(path.join(vendor, 'demo/self')), realpathSync(path.join(folder, 'packages/self')), 'a path repository resolves inside the worktree');
-  assert.equal(realpathSync(path.join(vendor, 'composer/installed.json')), realpathSync(path.join(main, 'vendor-php/composer/installed.json')));
-  assert.equal(realpathSync(path.join(vendor, 'composer/installed.php')), realpathSync(path.join(main, 'vendor-php/composer/installed.php')));
-  assert.equal(existsSync(path.join(vendor, 'composer/autoload_psr4.php')), false, 'no autoload of the main checkout is linked');
+  for (const name of ['installed.json', 'installed.php']) assert.ok(lstatSync(path.join(vendor, 'composer', name)).isFile(), `${name} is a file of the worktree (K557)`);
+  assert.equal(readFileSync(path.join(vendor, 'composer/autoload_psr4.php'), 'utf8'), `<?php // the autoload of ${folder}\n`, 'the autoload of vendor/composer is the one that dump-autoload wrote, never the main checkout\'s (K557)');
   assert.equal(readFileSync(log, 'utf8'), `dump-autoload --no-interaction [${folder}] network=1\n`);
   assert.equal(readFileSync(path.join(vendor, 'autoload.php'), 'utf8'), `<?php // the autoload of ${folder}\n`, 'the autoload is that of the worktree');
   assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
