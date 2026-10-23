@@ -1026,3 +1026,30 @@ test('make item-red refuses a red of exit 127, a timeout or a run in which no te
   assert.equal(fails.status, 0, fails.stderr);
   assert.ok(readRecord(root, 'T4'), 'a failing test is a red');
 });
+
+// K553: for a lint item the fixed code is the test file itself, so a Verification whose every command runs a gate of kit-gates swaps the
+// changed test files to BEFORE too; a Verification that runs tests keeps the test files of the fix, which exist before it (K389).
+test('make item-red BEFORE= runs a gate Verification on the test files of BEFORE, and restores them (K553)', (t) => {
+  const root = plans(t, 'parser');
+  put(root, {
+    '.gitignore': 'var/\n',
+    'Makefile': 'kit-gates: lint-x\nlint-x:\n\t@grep -q fixed tests/check.test.mts\n',
+    'tests/check.test.mts': '// unfixed\n',
+  });
+  newItem(root, item('parser', 'T1', { verification: '`make lint-x`' }));
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
+  const gitCommit = (message: string) => {
+    for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message]]) {
+      const run = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+      assert.equal(run.status, 0, run.stderr);
+    }
+  };
+  gitCommit('base');
+  put(root, { 'tests/check.test.mts': '// fixed\n' });
+  gitCommit('fix(parser): Fix the lint finding of the test (#T1)\n\nThe test is fixed.');
+  setState(root, { id: 'T1', state: '[~]' }, () => {});
+  const env: NodeJS.ProcessEnv = { ...process.env, ID: 'T1', BEFORE: 'HEAD~1' };
+  const red = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env, encoding: 'utf8' });
+  assert.equal(red.status, 0, `${red.stdout}${red.stderr}`);
+  assert.equal(readFileSync(path.join(root, 'tests/check.test.mts'), 'utf8'), '// fixed\n', 'the test file of the fix is restored');
+});
