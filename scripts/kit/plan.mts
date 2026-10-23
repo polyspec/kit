@@ -22,7 +22,7 @@
 //              runs each command of the Verification cell of an active item after its test is written and before its fix,
 //              and records the commands that fail with HEAD and the hash of the test files in var/plan/<id>.json; a
 //              Verification that passes proves no red and is refused; BEFORE=<rev> runs it on the content of a commit before
-//              the fix, for a row committed without a record (K389)
+//              the fix, for a row committed without a record (K389), in the worktree of the row and never on main (K556)
 //   commit     ID=<id> TYPE=<type> SCOPE=<scope> SUBJECT=<subject> BODY_FILE=<file>
 //              commits the index with the message type(scope): Subject (#id), a blank line and the body of the file, its
 //              paragraphs wrapped at the width of the commit rules and its trailer lines kept; it refuses what the
@@ -505,6 +505,10 @@ export function itemRed(root: string, id: string, print: (text: string) => void 
   if (state !== ACTIVE) throw new Error(`${id} is ${state}; make item-red runs the Verification of an active item, after its test is written and before its fix`);
   const commands = itemCommands(read(tracker.path), tracker, id);
   refuseCommands(root, id, commands);
+  // K556: the swap of BEFORE= writes the files of the tree, which a main checkout must never hold while every land and gate reads it.
+  if (before !== undefined && git(root, 'rev-parse', '--abbrev-ref', 'HEAD').trim() === 'main') {
+    throw new Error(`${id}: item-red BEFORE= swaps the files of the tree, so it runs in the worktree of the row, never on main; run it there (make worktree-setup)`);
+  }
   const runs = before === undefined ? runCommands(root, id, commands, print) : runBefore(root, id, before, commands, print);
   if (runs.every(run => run.status === 0)) throw new Error(`${id}: the Verification passes before the fix, so it proves no red; write the test that reproduces the defect first`);
   // A failure that is no failing test or gate, such as a timeout, records no red (K540).
