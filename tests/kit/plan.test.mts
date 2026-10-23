@@ -1053,3 +1053,29 @@ test('make item-red BEFORE= runs a gate Verification on the test files of BEFORE
   assert.equal(red.status, 0, `${red.stdout}${red.stderr}`);
   assert.equal(readFileSync(path.join(root, 'tests/check.test.mts'), 'utf8'), '// fixed\n', 'the test file of the fix is restored');
 });
+
+// K551: every consumer links the dist of kit main live, so a commit on main of the kit package that changes an input of its build runs
+// make kit-build after it commits; a commit that changes no build input builds nothing.
+test('a commit on main of the kit package builds it when it changes a build input (K551)', (t) => {
+  const root = committed(t, 'T1');
+  const built = path.join(root, 'dist/built.txt');
+  put(root, {
+    'package.json': '{"name":"@polyspec/kit","version":"0.0.0"}\n',
+    'Makefile': 'kit-build:\n\t@mkdir -p dist && echo built > dist/built.txt\n',
+    '.gitignore': '/dist/\n',
+    'scripts/kit/a.mts': 'export {};\n',
+  });
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'kit']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  const body = path.join(root, 'var/body.txt');
+  mkdirSync(path.dirname(body), { recursive: true });
+  writeFileSync(body, 'Why.\n');
+  put(root, { 'scripts/kit/a.mts': 'export const a = 1;\n' });
+  stage(root, 'scripts/kit/a.mts');
+  commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Change the tool', bodyFile: body }, identity);
+  assert.equal(readFileSync(built, 'utf8'), 'built\n', 'the commit of a build input builds the package');
+  rmSync(path.join(root, 'dist'), { recursive: true });
+  put(root, { 'docs/note.md': '# Note\n' });
+  stage(root, 'docs/note.md');
+  commitItem(root, { id: 'T1', type: 'docs', scope: 'parser', subject: 'Note the tool', bodyFile: body }, identity);
+  assert.equal(existsSync(built), false, 'a commit of no build input builds nothing');
+});
