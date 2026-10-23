@@ -45,7 +45,7 @@ import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
 import { isFile } from './test-selection.mts';
-import { fixProvesRed, hasRed, readRecord, recordRed, redLines, writeRecord } from './gate-red.mts';
+import { fixProvesRed, gateCommands, hasRed, readRecord, recordRed, redLines, writeRecord } from './gate-red.mts';
 import { invalidRed, type GateRecord, type Run } from './gate-red.mts';
 import { spawnSync } from 'node:child_process';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
@@ -55,7 +55,7 @@ import { stamped } from './documents-stamp.mts';
 import { privatePaths, stagedTwinFindings } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { buildState, buildTargets } from './link-build.mts';
-import { withLandLock } from './land.mts';
+import { isTestGate, withLandLock } from './land.mts';
 import { present } from './present.mts';
 
 const SLUG = /^[a-z][a-z0-9-]*$/;
@@ -536,7 +536,11 @@ function runBefore(root: string, id: string, before: string, commands: readonly 
   const outside = dirty.filter(file => !file.startsWith('docs/plans/') && !changelogs.includes(file));
   if (outside.length > 0) throw new Error(`${id}: the tree has changes to tracked files outside docs/plans and the changelogs, ${outside.join(', ')}; commit or stash them before make item-red BEFORE=${before}`);
   const differs = git(root, 'diff', '--name-only', sha, 'HEAD').split('\n').filter(file => file !== '');
-  const changed = [...new Set([...differs, ...dirty, ...changelogs])].filter(file => !isTestFile(file));
+  // K553: a test file stays at the fix, since a behaviour test exists before it, unless every command of the Verification runs a gate of
+  // kit-gates that is no test target: for a lint item the fixed code is the test file itself.
+  const gates = new Set((makeDatabase(root).targets.get('kit-gates')?.prerequisites ?? []).filter(gate => !isTestGate(gate)));
+  const gatesOnly = commands.length > 0 && gateCommands(commands, gates).length === commands.length;
+  const changed = [...new Set([...differs, ...dirty, ...changelogs])].filter(file => gatesOnly || !isTestFile(file));
   const present = (rev: string, file: string) => spawnSync('git', ['cat-file', '-e', `${rev}:${file}`], { cwd: root }).status === 0;
   // The bytes and the mode of each file as the tree holds them now, so that the swap leaves the tree exactly as it was: a file
   // removed for the run comes back with its mode, such as an executable hook (K389-1).

@@ -1033,7 +1033,7 @@ test('make item-red BEFORE= runs a gate Verification on the test files of BEFORE
   const root = plans(t, 'parser');
   put(root, {
     '.gitignore': 'var/\n',
-    'Makefile': 'kit-gates: lint-x\nlint-x:\n\t@grep -q fixed tests/check.test.mts\n',
+    'Makefile': 'kit-gates: lint-x\nlint-x:\n\t@grep -qx "// fixed" tests/check.test.mts\n',
     'tests/check.test.mts': '// unfixed\n',
   });
   newItem(root, item('parser', 'T1', { verification: '`make lint-x`' }));

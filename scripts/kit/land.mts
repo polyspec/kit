@@ -118,7 +118,7 @@ function refuseWhileRunning(folder: string, branch: string, consequence: string)
 }
 
 // A gate that runs tests: parity-check and the test- targets. The Verification of the rows runs the tests, so land never does.
-const isTestGate = (gate: string) => gate === 'parity-check' || gate.startsWith('test-');
+export const isTestGate = (gate: string) => gate === 'parity-check' || gate.startsWith('test-');
 
 // A path inside the temporary folder of the system, which a gate may make afresh on each run, as duplication-check makes the
 // folder of its jscpd configuration (K394-2).
