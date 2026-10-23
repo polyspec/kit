@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -332,4 +332,40 @@ test('worktree-setup gives a worktree a Python environment of the main checkout 
   assert.ok(lstatSync(path.join(folder, 'var/python')).isDirectory(), 'the environment at var/python is a folder of the worktree');
   assert.equal(readFileSync(path.join(folder, site, '__editable__.validator.pth'), 'utf8'), `${folder}/packages/validator/src\n`, 'its editable install names the sources of the worktree');
   assert.equal(existsSync(path.join(folder, 'var/tools')), false, 'the tools of the main checkout are no environment of the worktree');
+});
+
+// K557: composer dump-autoload writes the autoload of vendor/composer, not the files that composer install wrote there, such as
+// InstalledVersions.php, which require installed.php through __DIR__, which PHP resolves through links; so each file of the main
+// checkout's vendor/composer that the worktree lacks after dump-autoload is written as a file of the worktree, and the two sets match.
+test('worktree-setup writes the files of vendor/composer that dump-autoload does not, so the worktree holds the main checkout\'s set (K557)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  const versions = "<?php\nclass InstalledVersions { public static function all() { return require __DIR__ . '/installed.php'; } }\n";
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'composer.json': JSON.stringify({ name: 'acme/app' }),
+    'vendor/composer/installed.json': '{"packages":[]}',
+    'vendor/composer/installed.php': "<?php return ['root' => ['install_path' => __DIR__ . '/../../']];\n",
+    'vendor/composer/InstalledVersions.php': versions,
+    'vendor/composer/LICENSE': 'MIT\n',
+    'vendor/composer/autoload_psr4.php': '<?php // the main checkout\n',
+    'vendor/autoload.php': '<?php // the main checkout\n',
+    'Makefile': 'link-state-check:\n\ttrue\n',
+    '.gitignore': 'node_modules/\nvendor/\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const composer = path.join(parent, 'composer');
+  writeFileSync(composer, '#!/bin/sh\necho "<?php // the worktree" > vendor/autoload.php\necho "<?php // the worktree" > vendor/composer/autoload_psr4.php\n', { mode: 0o755 });
+  const folder = setupWorktree(main, { name: 'files', id: 'T10', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer });
+  const own = path.join(folder, 'vendor/composer');
+  for (const name of ['installed.json', 'installed.php', 'InstalledVersions.php', 'LICENSE']) {
+    assert.ok(lstatSync(path.join(own, name)).isFile(), `${name} is a file of the worktree, whose __DIR__ is the worktree`);
+    assert.equal(readFileSync(path.join(own, name), 'utf8'), readFileSync(path.join(main, 'vendor/composer', name), 'utf8'));
+  }
+  assert.equal(readFileSync(path.join(own, 'autoload_psr4.php'), 'utf8'), '<?php // the worktree\n', 'the autoload is the one that dump-autoload wrote');
+  assert.deepEqual(readdirSync(own).sort(), readdirSync(path.join(main, 'vendor/composer')).sort(), 'the worktree holds the set of the main checkout');
+  assert.equal(setupWorktree(main, { name: 'files', id: 'T10', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer }), folder, 'a second run converges');
 });
