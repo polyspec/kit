@@ -130,14 +130,32 @@ function npmProjects(main: string, folder: string, print: (text: string) => void
   return [NODE_MODULES, ...nested];
 }
 
-// The environment of a Python project that uv syncs, beside its pyproject.toml (K533).
-const VENV = '.venv';
+// The ignored folders that hold no environment of the repository: the npm packages and the tools of the main checkout (K555).
+const NO_ENVIRONMENT = /^(?:.*\/)?node_modules$|^var\/tools$/;
+// How deep below an ignored folder an environment is looked for, as var/python or packages/python/.venv (K555).
+const ENVIRONMENT_DEPTH = 3;
 
-/** The environments of the tracked Python projects of the worktree `folder` that the main checkout `main` holds, relative (K533). */
-function pythonEnvironments(main: string, folder: string): string[] {
-  return git(folder, 'ls-files', '-z', '--', 'pyproject.toml', '*/pyproject.toml').split('\0').filter(Boolean)
-    .map(file => path.join(path.dirname(file), VENV))
-    .filter(venv => existsSync(path.join(main, venv, 'pyvenv.cfg')));
+/**
+ * The Python environments of the main checkout `main`, relative (K533, K555): each folder with a pyvenv.cfg among its ignored folders,
+ * wherever the repository makes it, as the .venv of a project or the UV_PROJECT_ENVIRONMENT var/python of crudui, at most
+ * ENVIRONMENT_DEPTH below an ignored folder; node_modules, the tools and the inside of an environment are not entered.
+ */
+function pythonEnvironments(main: string): string[] {
+  const found: string[] = [];
+  const visit = (relative: string, depth: number) => {
+    if (NO_ENVIRONMENT.test(relative)) return;
+    if (existsSync(path.join(main, relative, 'pyvenv.cfg'))) {
+      found.push(relative);
+      return;
+    }
+    if (depth === 0) return;
+    for (const entry of readdirSync(path.join(main, relative), { withFileTypes: true })) {
+      if (entry.isDirectory()) visit(path.join(relative, entry.name), depth - 1);
+    }
+  };
+  const ignored = git(main, 'ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--directory').split('\0').filter(name => name.endsWith('/'));
+  for (const name of ignored) visit(name.slice(0, -1), ENVIRONMENT_DEPTH);
+  return found.sort();
 }
 
 /**
@@ -344,7 +362,7 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     print(`[worktree-setup] ${folder} is the worktree of ${branch}; linking and checking it again`);
   }
   for (const modules of npmProjects(main, folder, print)) linkNodeModules(main, folder, modules, print);
-  for (const venv of pythonEnvironments(main, folder)) linkVenv(main, folder, venv, print);
+  for (const venv of pythonEnvironments(main)) linkVenv(main, folder, venv, print);
   for (const project of composerProjects(main, folder)) linkVendor(main, folder, project, composer ?? composerCommand(folder, 'make worktree-setup'), print);
   for (const target of ['rebuild', 'link-state-check']) {
     // The rebuild (K482) builds the packages of the worktree's own repository before the check reads their builds: a new worktree has none yet.
