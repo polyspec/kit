@@ -24,6 +24,7 @@ import { miseEnvironment } from './bootstrap/install-mise.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { kitGates } from './gate-red.mts';
 import { git, gitResult } from './git.mts';
+import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { DECLARATION, importGraph, makeDatabase, ownerDeclaration, select } from './owner-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { expandMake } from './recipe-tools.mts';
@@ -514,7 +515,7 @@ const endOf = (run: GateRun) => (run.result.status === null ? `ended with the si
  * resolve them as the checkout does (K404-1-1). Its tool folders `var` and `node_modules` are symbolic links to those of `folder`,
  * which K446 shares. The returned `remove` removes the worktree and the folder.
  */
-function temporaryTree(folder: string, treeish: string): { dir: string; remove: () => void } {
+function temporaryTree(folder: string, treeish: string, print: (text: string) => void): { dir: string; remove: () => void } {
   const dir = mkdtempSync(path.join(path.dirname(folder), `.${path.basename(folder)}-commit-gate-`));
   let added = false;
   let trusted = false;
@@ -541,7 +542,56 @@ function temporaryTree(folder: string, treeish: string): { dir: string; remove: 
     throw error;
   }
   trusted = true;
+  try {
+    installNestedNpmProjects(folder, dir, print);
+  } catch (error) {
+    remove();
+    throw error;
+  }
   return { dir, remove };
+}
+
+/**
+ * Installs nested npm projects that the source checkout has installed already and whose lock the staged tree tracks (K404-1-2): the
+ * staged manifest and lock are authoritative, npm runs at the checkout's pinned tool path, and offline mode cannot resolve or fetch a
+ * different version. A lock project without a source installation is not part of this checkout's environment and is skipped.
+ */
+function installNestedNpmProjects(folder: string, staged: string, print: (text: string) => void): void {
+  const projects = gitIn(staged, 'ls-files', '-z', '--', '*/package-lock.json').split('\0').filter(Boolean).map(path.dirname);
+  for (const project of projects) {
+    if (!existsSync(path.join(folder, project, 'node_modules'))) continue;
+    if (!existsSync(path.join(staged, project, 'package.json'))) throw new Error(`${path.join(project, 'package.json')} is missing in the staged tree; keep the manifest with ${path.join(project, 'package-lock.json')}`);
+    const npm = toolCommand(folder, 'npm');
+    const directory = path.join(staged, project);
+    const config = mkdtempSync(path.join(tmpdir(), 'kit-npm-ci-'));
+    const environment = toolsEnvironment(folder);
+    for (const name of Object.keys(environment)) if (/^npm_config_/i.test(name)) delete environment[name];
+    Object.assign(environment, { npm_config_offline: 'true', npm_config_userconfig: path.join(config, 'user'), npm_config_globalconfig: path.join(config, 'global') });
+    const args = ['ci', '--offline', '--no-audit', '--no-fund'];
+    const started = Date.now();
+    print(`${npm} ${args.join(' ')} in staged ${project} started`);
+    try {
+      const result = spawnSync(npm, args, { cwd: directory, env: environment, encoding: 'utf8', maxBuffer: 1 << 28 });
+      const elapsed = ((Date.now() - started) / 1000).toFixed(1);
+      const output = `${result.stdout ?? ''}${result.stderr ?? ''}`.trim();
+      if (result.error) {
+        print(`${npm} ${args.join(' ')} in staged ${project} could not start (${elapsed}s)`);
+        throw new Error(`npm ci --offline could not start in ${project}: ${result.error.message}; run make install-tools TOOLS=npm`);
+      }
+      if (result.status === 0) {
+        print(`${npm} ${args.join(' ')} in staged ${project} exited 0 (${elapsed}s)`);
+        continue;
+      }
+      const ended = result.status === null ? `signal ${result.signal}` : `exit ${result.status}`;
+      print(`${npm} ${args.join(' ')} in staged ${project} ${ended} (${elapsed}s)`);
+      if (/ENOTCACHED|cache miss|cache is empty/i.test(output)) {
+        throw new Error(`npm ci --offline of ${project} cannot use the package-lock.json from the staged tree because its package is missing from the offline cache; run make install in the checkout to populate it:\n${output}`);
+      }
+      throw new Error(`npm ci --offline of ${project} ${ended} using the staged package.json and package-lock.json:\n${output}`);
+    } finally {
+      rmSync(config, { recursive: true, force: true });
+    }
+  }
 }
 
 /**
@@ -575,14 +625,14 @@ export function runCommitGates(folder: string, changed: string[], print: (text: 
 
 /** The body of runCommitGates, run with the hook variables removed: the gates on the tree `tree` against HEAD (K404-1). */
 function commitGatesOf(folder: string, tree: string, changed: string[], print: (text: string) => void): void {
-  const staged = temporaryTree(folder, tree);
+  const staged = temporaryTree(folder, tree, print);
   try {
     const { gates } = gatesOf(staged.dir, changed, folder);
     for (const gate of gates.filter(gate => gate !== 'commits-check')) {
       print(`${gate} in the staged tree`);
       const candidate = runGate(staged.dir, gate);
       if (candidate.result.status === 0) continue;
-      const head = temporaryTree(folder, 'HEAD');
+      const head = temporaryTree(folder, 'HEAD', print);
       try {
         const added = newFindings(folder, candidate, runGate(head.dir, gate));
         if (added === undefined) {

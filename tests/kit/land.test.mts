@@ -3,14 +3,16 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { land, linesOf, machineListing, newFindings, runCommitGates, runGate, trustStagedTree, worktreeProcesses } from '../../scripts/kit/land.mts';
 import type { GateRun } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
+import { quote } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
 const git = (cwd: string, ...args: string[]) => {
   const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
@@ -818,6 +820,85 @@ test('land refuses a row whose ID main holds with another task, naming the next 
 
 // K516: land lands into the checkout that has main checked out, wherever it is called from: a session that runs make land in a
 // worktree on a detached HEAD lands as from the main checkout, and land fails naming the missing main checkout when none has main.
+test('the commit gate installs only nested npm projects already installed in the checkout from the staged lock (K404-1-2)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-nested-npm-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  const nestedLock = JSON.stringify({
+    name: 'nested-fixture', lockfileVersion: 3, requires: true,
+    packages: {
+      '': { name: 'nested-fixture', dependencies: { 'locked-marker': 'staged' } },
+      'node_modules/locked-marker': { version: 'staged', resolved: 'https://registry.example.test/locked-marker.tgz', integrity: 'sha512-fixture' },
+    },
+  }, null, 2) + '\n';
+  const sourcePackage = JSON.stringify({ name: 'nested-fixture', private: true }, null, 2) + '\n';
+  const emptyLock = JSON.stringify({ name: 'nested-fixture', lockfileVersion: 3, requires: true, packages: { '': { name: 'nested-fixture' } } }, null, 2) + '\n';
+  const npmStub = [
+    '#!/bin/sh',
+    'printf "%s|%s|%s\\n" "$*" "$PWD" "${npm_config_offline:-}" >> ../../var/npm-calls',
+    'if grep -q \'"locked-marker": "cache-missing"\' package.json; then echo "npm error code ENOTCACHED" >&2; exit 1; fi',
+    'if grep -q \'"locked-marker": "staged"\' package.json; then grep -q \'"version": "staged"\' package-lock.json || { echo "staged lock was not used" >&2; exit 9; }; mkdir -p node_modules/locked-marker; printf \'{"name":"locked-marker","version":"staged"}\\n\' > node_modules/locked-marker/package.json; else ! grep -q \'node_modules/locked-marker\' package-lock.json || { echo "staged manifest was not used" >&2; exit 9; }; fi',
+  ].join('\n') + '\n';
+  const recipe = `const fs=require('node:fs'), expected=JSON.parse(fs.readFileSync('packages/installed/package.json','utf8')).dependencies?.['locked-marker']; if(expected){const p=JSON.parse(fs.readFileSync('packages/installed/node_modules/locked-marker/package.json','utf8'));fs.writeFileSync('var/observed-version',p.version+'\\n');if(p.version!==expected){console.log('packages/installed/node_modules/locked-marker/package.json:1: expected '+expected+', got '+p.version);process.exitCode=1;}} if(fs.existsSync('packages/installed/fail.txt')){console.log('packages/installed/fail.txt:1: deliberate gate finding');process.exitCode=1;}`;
+  put(main, {
+    'Makefile': [
+      'kit-gates: docs-check commits-check lint-nested', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue',
+      'lint-nested:', `\t@${quote(process.execPath)} -e ${quote(recipe)}`, 'build:', '\ttrue', '',
+    ].join('\n'),
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['packages/installed/**'], targets: ['lint-nested'] }] }, null, 2) + '\n',
+    '.gitignore': 'node_modules/\nvar/\n',
+    'var/tools/bin/npm': npmStub,
+    'packages/installed/package.json': sourcePackage,
+    'packages/installed/package-lock.json': emptyLock,
+    'packages/uninstalled/package.json': '{ invalid source project is not installed }\n',
+    'packages/uninstalled/package-lock.json': '{ invalid lock must not be installed }\n',
+    'node_modules/locked-marker/package.json': JSON.stringify({ name: 'locked-marker', version: 'root-fallback' }) + '\n',
+    'packages/installed/node_modules/.installed': 'the source checkout has an installation\n',
+  });
+  chmodSync(path.join(main, 'var/tools/bin/npm'), 0o755);
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  put(main, {
+    'packages/installed/package.json': JSON.stringify({ name: 'nested-fixture', private: true, dependencies: { 'locked-marker': 'staged' } }, null, 2) + '\n',
+    'packages/installed/package-lock.json': nestedLock,
+  });
+  git(main, 'add', 'packages/installed/package.json', 'packages/installed/package-lock.json');
+  const stagedManifest: unknown = JSON.parse(git(main, 'show', ':packages/installed/package.json'));
+  assert.ok(isJsonObject(stagedManifest));
+  const dependencies = stagedManifest.dependencies;
+  assert.ok(isJsonObject(dependencies));
+  assert.equal(dependencies['locked-marker'], 'staged');
+
+  const gateTrees = () => readdirSync(parent).filter(name => name.startsWith('.repo-commit-gate-'));
+  const progress: string[] = [];
+  assert.doesNotThrow(() => runCommitGates(main, ['packages/installed/package.json', 'packages/installed/package-lock.json'], text => progress.push(text)));
+  assert.ok(progress.includes('lint-nested in the staged tree'), progress.join('\n'));
+  assert.equal(readFileSync(path.join(main, 'var/observed-version'), 'utf8'), 'staged\n', 'the staged manifest and lock installed their pinned dependency instead of the conflicting root module');
+  const calls = readFileSync(path.join(main, 'var/npm-calls'), 'utf8').trim().split('\n');
+  assert.equal(calls.length, 1, 'the uninstalled nested lock project is not installed');
+  assert.match(calls[0] ?? '', /^ci --offline --no-audit --no-fund\|.*commit-gate-.*\/packages\/installed\|true$/);
+  assert.deepEqual(gateTrees(), [], 'the staged snapshot is removed after a passing gate');
+
+  const uncachedLock = nestedLock.replaceAll('staged', 'cache-missing');
+  put(main, {
+    'packages/installed/package.json': JSON.stringify({ name: 'nested-fixture', private: true, dependencies: { 'locked-marker': 'cache-missing' } }, null, 2) + '\n',
+    'packages/installed/package-lock.json': uncachedLock,
+  });
+  git(main, 'add', 'packages/installed/package.json', 'packages/installed/package-lock.json');
+  assert.throws(() => runCommitGates(main, ['packages/installed/package.json', 'packages/installed/package-lock.json'], () => {}), /missing from the offline cache; run make install/);
+  assert.deepEqual(gateTrees(), [], 'the snapshot is removed when an offline package is missing');
+
+  put(main, {
+    'packages/installed/package.json': JSON.stringify({ name: 'nested-fixture', private: true, dependencies: { 'locked-marker': 'staged' } }, null, 2) + '\n',
+    'packages/installed/package-lock.json': nestedLock,
+  });
+  put(main, { 'packages/installed/fail.txt': 'fail\n' });
+  git(main, 'add', 'packages/installed/package.json', 'packages/installed/package-lock.json', 'packages/installed/fail.txt');
+  assert.throws(() => runCommitGates(main, ['packages/installed/package.json', 'packages/installed/package-lock.json', 'packages/installed/fail.txt'], () => {}), /deliberate gate finding/);
+  assert.deepEqual(gateTrees(), [], 'staged and HEAD snapshots are removed after a refusal');
+});
+
 test('K516: land called from a detached worktree lands into the main checkout (K516)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
