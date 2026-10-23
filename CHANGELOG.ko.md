@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 357b52ebcedad72dce4464925216dbcfa871ec9f0f3f5031d5339a55662b4f87 -->
+<!-- source-sha256: 131074772380eb2519fd5f2ff94c686bbc24573476b2922c73cd201101242a53 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- build 입력을 바꾸는 kit 패키지 main의 commit은 make kit-build를 실행하므로, consumer가 live로 link하는 dist가 source를 따른다(K551).
 - make item-red BEFORE=는 Verification이 kit-gates의 gate만 실행하면 바뀐 테스트 파일도 바꾸므로, 테스트 파일의 lint fix가 red를 증명한다(K553).
 - uv-install은 환경이 가진 모든 제공 패키지를 폴더가 없어도 checkout에서 link하고 아무것도 다시 설치하지 않으므로, 네트워크와 cache를 읽지 않는다(K554).
 - run-tests는 go와 cargo의 test를 실행하기 전에 20분의 build bound 아래에서 build하므로, compile이 더는 test 없는 gap으로 세어지지 않는다. 실패하거나 bound를 넘는 build는 그 출력과 자기 메시지로 run을 멈춘다(K549-1).

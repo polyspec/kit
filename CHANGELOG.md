@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A commit on main of the kit package that changes an input of its build runs make kit-build, so dist, which consumers link live, follows its sources (K551).
 - make item-red BEFORE= swaps the changed test files too when the Verification runs only gates of kit-gates, so a lint fix in a test file proves its red (K553).
 - uv-install links every provided package that the environment holds from its checkout, also when its folder is missing, and reinstalls none, so it reads no network and no cache (K554).
 - run-tests builds the tests of go and cargo before it runs them, under a build bound of 20 minutes, so compiling no longer counts as a gap without a test; a build that fails or outlives its bound stops the run with its output and its own message (K549-1).
