@@ -305,3 +305,31 @@ test('worktree-setup trims the Go build cache by age under the disk floor, and r
   utimesSync(path.join(cache, 'cd/new-a'), hours(3), hours(3));
   assert.throws(() => setupWorktree(main, { name: 'still', id: 'T8', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR - 1, print: () => {}, goCache: () => cache }), /after the trim of the Go build cache freed 10 bytes, the free disk is .* under the floor/);
 });
+
+// K555: a repository keeps its Python environment where its Makefile makes it, as crudui's var/python, the UV_PROJECT_ENVIRONMENT of its
+// uv workspace; each folder with a pyvenv.cfg among the ignored folders of the main checkout, outside node_modules and the tools, is an
+// environment of the worktree under the rule of K533, so its editable install names the worktree's sources.
+test('worktree-setup gives a worktree a Python environment of the main checkout wherever it lives (K555)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  const site = 'var/python/lib/python3.14/site-packages';
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'pyproject.toml': '[tool.uv.workspace]\nmembers = ["packages/validator"]\n',
+    'packages/validator/pyproject.toml': '[project]\nname = "validator"\n',
+    'packages/validator/src/validator/__init__.py': '',
+    'var/python/pyvenv.cfg': 'home = /usr/bin\n',
+    [`${site}/__editable__.validator.pth`]: `${main}/packages/validator/src\n`,
+    'var/tools/mise/installs/python/venv/pyvenv.cfg': 'home = /usr/bin\n',
+    'Makefile': 'link-state-check:\n\ttrue\n',
+    '.gitignore': 'node_modules/\nvar/\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = setupWorktree(main, { name: 'venv', id: 'T9', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {} });
+  assert.ok(lstatSync(path.join(folder, 'var/python')).isDirectory(), 'the environment at var/python is a folder of the worktree');
+  assert.equal(readFileSync(path.join(folder, site, '__editable__.validator.pth'), 'utf8'), `${folder}/packages/validator/src\n`, 'its editable install names the sources of the worktree');
+  assert.equal(existsSync(path.join(folder, 'var/tools')), false, 'the tools of the main checkout are no environment of the worktree');
+});
