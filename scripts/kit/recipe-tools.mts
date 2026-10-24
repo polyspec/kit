@@ -179,7 +179,7 @@ export function commandParts(line: string): string[][] {
     return restored.replace(shellParameterPlaceholder, (placeholder, index: string) => {
       const parameter = shellParameters.values[Number(index)];
       if (parameter === undefined) throw new Error(`recipe-tools wrote ${placeholder} for no shell parameter in \`${line}\``);
-      return `\${${parameter}}`;
+      return parameter;
     });
   };
   const parts: string[][] = [[]];

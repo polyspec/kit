@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { makeDatabase } from '../../scripts/kit/owner-check.mts';
-import { bareToolFindings, commandWords, testRunnerFindings } from '../../scripts/kit/recipe-tools.mts';
+import { bareToolFindings, commandParts, commandWords, testRunnerFindings } from '../../scripts/kit/recipe-tools.mts';
 import { tree } from './tree.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -25,6 +25,13 @@ test('an operator or a blank inside quotes is text of a word, and the quotes are
 
 test('a recipe line that already names the placeholder of a make reference fails instead of losing the word (K187)', () => {
   assert.throws(() => commandWords('${KIT_MAKE_REFERENCE_7} a.mts'), /recipe line `\$\{KIT_MAKE_REFERENCE_7\} a\.mts` already contains KIT_MAKE_REFERENCE_, the placeholder that recipe-tools puts in place of a make reference/);
+});
+
+test('POSIX parameter expansions are restored as their original shell tokens (K563)', () => {
+  assert.deepEqual(commandParts('out=${1:?usage: build.sh <output>}'), [['out=${1:?usage: build.sh <output>}']]);
+  assert.deepEqual(commandParts('echo "${X:-${Y:-a b}}"'), [['echo', '${X:-${Y:-a b}}']]);
+  assert.deepEqual(commandParts('echo \\${X:-a}'), [['echo', '${X:-a}']]);
+  assert.deepEqual(commandParts('echo "${KIT_SHELL_PARAMETER_0:-${Y:-ok}}" KIT_SHELL_PARAMETER_1'), [['echo', '${KIT_SHELL_PARAMETER_0:-${Y:-ok}}', 'KIT_SHELL_PARAMETER_1']]);
 });
 
 test('a recipe that starts a tool of the checkout by its bare name is a finding; an absolute path and a machine tool are not', (t) => {
