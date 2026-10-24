@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- recipe-tools keeps POSIX parameter expansions intact while finding shell commands, so a valid usage expression no longer stops toolchain-check; K563 fails before the fix and passes after it (K563).
 - PHP extension builds generate arginfo offline from the installed parser, and Composer archives materialize generated headers from the tagged stub with deterministic ZIP metadata (K560).
 - The commit gate installs the staged lock of each nested npm project already installed in the checkout, offline, so gates resolve the dependencies of that staged project (K404-1-2).
 - make item-red judges a failing Verification by the cause of its failure: only a failing run of the test runner is judged by its tests, so a check that reports a finding after passing tests is a red, while a timeout or a build, compile or load failure before any test still proves none (K540-1).

@@ -29,9 +29,114 @@ const CONTROL = new Set(['&&', '||', ';', ';;', ';&', ';;&', '&', '|', '|&', '('
 const REFERENCE = /\$\(([^()]*)\)/g;
 const PLACEHOLDER_NAME = 'KIT_MAKE_REFERENCE_';
 const PLACEHOLDER = new RegExp(String.raw`\$\{${PLACEHOLDER_NAME}(\d+)\}`, 'g');
+const SHELL_PARAMETER_PLACEHOLDER_NAME = 'KIT_SHELL_PARAMETER_';
 
 // The rounds of expansion of a reference whose value holds references, as make expands them recursively.
 const MAX_EXPANSION = 16;
+
+/** The closing brace of a shell parameter expansion, respecting nested expansions, quotes and command substitutions. */
+function shellParameterEnd(text: string, start: number): number {
+  let depth = 1;
+  let commandDepth = 0;
+  let quote: "'" | '"' | undefined;
+  let escaped = false;
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === '\\' && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote !== undefined) {
+      if (char === quote) quote = undefined;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (char === '$' && text[index + 1] === '(') {
+      commandDepth += 1;
+      index += 1;
+      continue;
+    }
+    if (commandDepth > 0) {
+      if (char === '(') commandDepth += 1;
+      else if (char === ')') commandDepth -= 1;
+      continue;
+    }
+    if (char === '$' && text[index + 1] === '{') {
+      depth += 1;
+      index += 1;
+    } else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return index;
+    }
+  }
+  return -1;
+}
+
+/** Masks shell parameter expansions so shell-quote can split their words without parsing expansion operators as syntax. */
+function maskShellParameters(text: string): { text: string; name: string; values: string[] } {
+  let name = SHELL_PARAMETER_PLACEHOLDER_NAME;
+  while (text.includes(name)) name += '_';
+  const values: string[] = [];
+  const output: string[] = [];
+  let quote: "'" | '"' | undefined;
+  let escaped = false;
+  for (let index = 0; index < text.length;) {
+    const char = text[index];
+    if (escaped) {
+      output.push(char ?? '');
+      escaped = false;
+      index += 1;
+      continue;
+    }
+    if (char === '\\' && quote !== "'") {
+      output.push(char);
+      escaped = true;
+      index += 1;
+      continue;
+    }
+    if (quote === "'") {
+      output.push(char ?? '');
+      if (char === "'") quote = undefined;
+      index += 1;
+      continue;
+    }
+    if ((char === "'" || char === '"') && quote === undefined) {
+      quote = char;
+      output.push(char);
+      index += 1;
+      continue;
+    }
+    if (char === '"' && quote === '"') {
+      quote = undefined;
+      output.push(char);
+      index += 1;
+      continue;
+    }
+    if (char === '$' && text[index + 1] === '{') {
+      const end = shellParameterEnd(text, index + 2);
+      if (end >= 0) {
+        const expansion = text.slice(index, end + 1);
+        if (!new RegExp(`^\\$\\{${PLACEHOLDER_NAME}\\d+\\}$`).test(expansion)) {
+          output.push(`${name}${values.push(expansion) - 1}`);
+        } else {
+          output.push(expansion);
+        }
+        index = end + 1;
+        continue;
+      }
+    }
+    output.push(char ?? '');
+    index += 1;
+  }
+  return { text: output.join(''), name, values };
+}
 
 /** `text` with the variables of make expanded from `variables`; a function call or an unknown variable stays as written. */
 export function expandMake(text: string, variables: ReadonlyMap<string, string>): string {
@@ -61,12 +166,22 @@ export function commandParts(line: string): string[][] {
     previous = text;
     text = text.replace(REFERENCE, reference => `\${${PLACEHOLDER_NAME}${references.push(reference) - 1}}`);
   }
-  const restore = (word: string): string => word.replace(PLACEHOLDER, (placeholder, index: string) => {
-    const reference = references[Number(index)];
-    // Each placeholder left is one that the loop above wrote, since the line had none of its own.
-    if (reference === undefined) throw new Error(`recipe-tools wrote ${placeholder} for no reference of make in \`${line}\``);
-    return restore(reference);
-  });
+  const shellParameters = maskShellParameters(text);
+  text = shellParameters.text;
+  const shellParameterPlaceholder = new RegExp(String.raw`${shellParameters.name}(\d+)`, 'g');
+  const restore = (word: string): string => {
+    const restored = word.replace(PLACEHOLDER, (placeholder, index: string) => {
+      const reference = references[Number(index)];
+      // Each placeholder left is one that the loop above wrote, since the line had none of its own.
+      if (reference === undefined) throw new Error(`recipe-tools wrote ${placeholder} for no reference of make in \`${line}\``);
+      return restore(reference);
+    });
+    return restored.replace(shellParameterPlaceholder, (placeholder, index: string) => {
+      const parameter = shellParameters.values[Number(index)];
+      if (parameter === undefined) throw new Error(`recipe-tools wrote ${placeholder} for no shell parameter in \`${line}\``);
+      return `\${${parameter}}`;
+    });
+  };
   const parts: string[][] = [[]];
   let redirection = false;
   for (const entry of parse(text, key => `\${${key}}`)) {

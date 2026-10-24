@@ -232,6 +232,18 @@ test('toolchain-check refuses php-fpm and php-cgi from PATH, and install-php wra
   assert.deepEqual(findings({ 'Makefile': 'all:\n\t$(PHP_FPM) -y fpm.conf\n\tvar/tools/bin/php-fpm -y fpm.conf\n' }), []);
 });
 
+test('toolchain-check parses POSIX parameter expansion before finding a bare php-fpm (K563)', (t) => {
+  const root = tree(t, {
+    'build.sh': '#!/bin/sh\nset -eu\nout=${1:?usage: sh build.sh <published polyspec_orm.so>}\nphp-fpm -y fpm.conf\nvar/tools/bin/php-fpm -v\n',
+  });
+  let findings: string[] | undefined;
+  assert.doesNotThrow(() => {
+    findings = bareFpmFindings(root);
+  }, 'the valid POSIX parameter expansion must not stop shell command analysis');
+  assert.equal(findings?.length, 1);
+  assert.match(findings?.[0] ?? '', /^build\.sh:4 starts php-fpm by its bare name/);
+});
+
 // K492: the kit Go pin is the release that fixes GO-2026-6809 (crypto/x509 distrusts compromised intermediate certificates); the copies
 // that kit syncs to the repositories follow this pin, so a pin of go1.27.2 stays the advisory.
 test('the kit Go pin is go1.27.3, the release without the advisory GO-2026-6809 (K492)', () => {
