@@ -22,7 +22,7 @@
 //                              an implementation gives no symbols
 //   R2 missing-binding         a suite or a feature has no binding of an implementation
 //   R3 not-executed            a binding exits with an error, the cases that passed are not exactly the cases of the suite,
-//                              the id of a feature binding did not pass once in a run of its whole test file, or the
+//                              the id of a feature binding did not pass once (Cargo runs its exact id; other file runners run the file), or the
 //                              second run gives another status, case or result than the first; a run whose environment
 //                              reference is unset or empty, or resolves to a path outside the checkout, cannot start
 //   R4 undeclared-suite        a file of the suite globs is the file of no suite unit and lies in no case directory of one

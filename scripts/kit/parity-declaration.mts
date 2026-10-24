@@ -684,7 +684,9 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
         fail(`unit owner release package ${scope.package} has no package manifest under ${part}`);
         return undefined;
       }
-      const owners = config.implementations.filter(entry => entry.roots.some(rootPath => rootPath === part || within(rootPath, part)));
+      // A native Go module can own several implementation roots (one per package), while archive and crate
+      // roots commonly sit at the artifact directory itself. Resolve either layout from the declared package path.
+      const owners = config.implementations.filter(entry => entry.roots.some(rootPath => rootPath === part || within(rootPath, part) || within(part, rootPath)));
       if (owners.length !== 1) {
         fail(`unit owner release package ${scope.package} resolves to ${owners.length} implementation roots; a native package has one owner`);
         return undefined;

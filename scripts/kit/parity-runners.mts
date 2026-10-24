@@ -1,12 +1,13 @@
 // The runners of the language-parity check: the native command that runs the test of a binding, and the outcome of each
 // native test that its output reports. Each runner runs the test tool of its language and reads the tool's output with the
 // shared parsers of test-output.mts, or node:test through its reporter API, so a binding needs no line that the test prints
-// for the check. A suite binding runs the cases of its symbol; a feature binding runs its whole test file, and its id is the
+// for the check. A suite binding runs the cases of its symbol; a feature binding runs its native id (Cargo filters exactly; file
+// runners execute the file), and its id is the
 // native test name as the parser reports it:
 //   go      `go test -json` in the module of the test, with the binding symbol as the test function; a case is a direct
 //           subtest `<symbol>/<case>`; a feature runs the package of the test without -run
 //   cargo   `cargo test` in the crate of the test, with the libtest filter `<symbol>::`; a case is a test `<symbol>::<case>`;
-//           a feature runs the target of the test without a filter
+//           a feature runs only its exact native test id (`--exact`)
 //   node    `node --test --test-reporter=<parity-node-reporter.mts> <test>`, whose lines name each test with its enclosing
 //           suites, joined by ' › '; a case is a top-level test, and a feature id is the joined name
 //   vitest  `node node_modules/vitest/vitest.mjs run <args> --dir <root> --reporter=json --outputFile.json=var/parity/vitest.json
@@ -33,7 +34,7 @@ import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 // The node:test reporter of the node runner.
 const NODE_REPORTER = siblingTool(import.meta.url, 'parity-node-reporter');
 
-/** The kind of the unit of a run: a suite runs the cases of its binding, a feature the whole test file of its binding. */
+/** The kind of the unit of a run: a suite runs its declared cases, a feature runs its native test id. */
 export type RunKind = Exclude<ParityUnit['kind'], 'api'>;
 
 /** The output of a finished run. */
@@ -200,7 +201,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       const name = /^tests\/([^/]+)\.rs$/.exec(relative)?.[1] ?? /^tests\/([^/]+)\/main\.rs$/.exec(relative)?.[1];
       const target = name === undefined ? ['--lib'] : ['--test', name];
       return {
-        args: test => ['test', ...test, '--manifest-path', path.posix.join(crate, 'Cargo.toml'), ...target, '--', '--test-threads=1', ...(kind === 'suite' ? [`${binding.symbol}::`] : [])],
+        args: test => ['test', ...test, '--manifest-path', path.posix.join(crate, 'Cargo.toml'), ...target, ...(kind === 'feature' ? [...new Set(binding.ids ?? [])] : []), '--', '--test-threads=1', ...(kind === 'suite' ? [`${binding.symbol}::`] : []), ...(kind === 'feature' ? ['--exact'] : [])],
         cwd: '.',
         caseOf: kind === 'suite' ? test => after(`${binding.symbol}::`, test.name) : itself,
         read: ({ stdout }, sink) => cargoEvents(sink).stdout(`${stdout}\n`),

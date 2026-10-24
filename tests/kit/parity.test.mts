@@ -134,8 +134,12 @@ const crate = path.dirname(args[args.indexOf('--manifest-path') + 1]);
 const target = args[args.indexOf('--test') + 1];
 // A test target is tests/<name>.rs or, in Cargo's layout of a target with modules, tests/<name>/main.rs.
 const file = args.includes('--lib') ? path.join(crate, 'src/lib.rs') : fs.existsSync(path.join(crate, 'tests', target + '.rs')) ? path.join(crate, 'tests', target + '.rs') : path.join(crate, 'tests', target, 'main.rs');
-const filter = args[args.length - 1].startsWith('--') ? '' : args[args.length - 1];
-const tests = fs.readFileSync(file, 'utf8').split('\\n').map(line => /^(PASS|FAIL) (\\S+)$/.exec(line)).filter(match => match && match[2].startsWith(filter));
+const separator = args.indexOf('--');
+const exact = separator !== -1 && args.slice(separator + 1).includes('--exact');
+const filter = exact ? args[separator - 1] : args[args.length - 1].startsWith('--') ? '' : args[args.length - 1];
+const source = fs.readFileSync(file, 'utf8');
+const ignoresExact = source.split('\\n').includes('HARNESS ignores-exact');
+const tests = source.split('\\n').map(line => /^(PASS|FAIL) (\\S+)$/.exec(line)).filter(match => match && (exact && !ignoresExact ? match[2] === filter : match[2].startsWith(filter)));
 process.stderr.write('   Compiling codec v0.1.0\\n    Finished \\x60test\\x60 profile [unoptimized + debuginfo] target(s) in 0.01s\\n     Running ' + file + '\\n');
 process.stdout.write('\\nrunning ' + tests.length + ' tests\\n');
 let exit = 0;
@@ -544,7 +548,7 @@ const FEATURE = {
 /** The feature change: FEATURE_FILES with `files` over them, and FEATURE (edited by `edit`) as a unit of the declaration. */
 const feature = (files: Record<string, string | null> = {}, edit = (unit: UnitJson) => unit): Change => ({ files: { ...FEATURE_FILES, ...files }, edit: (config) => { config.units.push(edit(structuredClone(FEATURE))); return config; } });
 
-test('a feature unit holds when the id of each binding passed in both unfiltered runs of its test (K75)', TIMEOUT, (t) => {
+test('a feature unit holds when the native id of each binding passes in both runs (K75)', TIMEOUT, (t) => {
   const { findings, ledger } = check(t, feature());
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip').map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), [
@@ -552,7 +556,23 @@ test('a feature unit holds when the id of each binding passed in both unfiltered
   ]);
   const commands = Object.fromEntries(ledger.runs.filter(run => run.unit === 'roundtrip').map(run => [run.implementation, [run.command, ...run.args]]));
   assert.deepEqual(commands.go, ['go', 'test', '-json', '-count=1', '-run', '^(TestRoundtrip)$', './']);
-  assert.deepEqual(commands.rust, ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
+  assert.deepEqual(commands.rust, ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', 'roundtrip::bytes', '--', '--test-threads=1', '--exact']);
+});
+
+test('K566: a Cargo feature executes only its exact native test id', TIMEOUT, (t) => {
+  const { findings, ledger } = check(t, feature({ 'rust/tests/roundtrip.rs': 'PASS roundtrip::bytes\nPASS rollback_failed_sqlite\nPASS rollback_failed_mysql\nPASS rollback_failed_postgres\nPASS savepoint_rollback_failed_sqlite\nPASS savepoint_rollback_failed_mysql\nPASS savepoint_rollback_failed_postgres\nPASS rollback_fault_sqlite\nPASS rollback_fault_mysql\nPASS rollback_fault_postgres\n' }));
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'rust').map(entry => `${entry.case} ${entry.outcome}`), ['roundtrip::bytes pass']);
+  const rustRun = known(ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'rust'), 'the cargo feature run');
+  assert.deepEqual([rustRun.command, ...rustRun.args], ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', 'roundtrip::bytes', '--', '--test-threads=1', '--exact']);
+
+  const zeroMatches = check(t, feature({ 'rust/tests/roundtrip.rs': 'PASS roundtrip::other\n' }));
+  assert.deepEqual(keys(zeroMatches.findings), ['R3 roundtrip rust']);
+  assert.match(findingAt(zeroMatches.findings, 0).message, /not executed: roundtrip::bytes/);
+
+  const ignoredFilter = check(t, feature({ 'rust/tests/roundtrip.rs': 'HARNESS ignores-exact\nPASS roundtrip::bytes\nPASS roundtrip::bytes_database\n' }));
+  assert.deepEqual(keys(ignoredFilter.findings), ['R3 roundtrip rust']);
+  assert.match(findingAt(ignoredFilter.findings, 0).message, /reported outside the exact feature ids.*roundtrip::bytes_database/);
 });
 
 // PHPUnit names a test by its class and method, `<Class>::<method>` (the id that its TeamCity location gives), and a
@@ -692,7 +712,7 @@ test('a cargo test target of tests/<name>/main.rs runs as --test <name> and its 
   }, (unit) => { itemAt(unit.bindings ?? [], 1).test = 'rust/tests/roundtrip/main.rs'; return unit; }));
   assert.deepEqual(findings, []);
   const rust = known(ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'rust'), 'ledger.runs.find(run => run.unit === … && run.implementation === …)');
-  assert.deepEqual([rust.command, ...rust.args], ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', '--', '--test-threads=1']);
+  assert.deepEqual([rust.command, ...rust.args], ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', 'roundtrip::bytes', '--', '--test-threads=1', '--exact']);
 });
 
 // A binding with command runs that command instead of the runner's default, in the directory of its implementation; the runner
@@ -1653,14 +1673,14 @@ test('K566: release owners resolve Go modules and Rust git-tag crates from their
     'docs/spec/owner-scope.md': '# Native package owners\n\n- **RX-4** The example/go package exports its ORM client from its module path.\n- **RX-5** The example-rust package exposes its ORM client from its crate root.\n',
     'config/release.json': JSON.stringify({ packages: [], goModules: { go: 'example/go' }, proof: { gitTag: { 'rust/Cargo.toml': { kind: 'rust', name: 'example-rust', smoke: ['cargo', 'check'] } } } }),
     'go/go.mod': 'module example/go\n',
-    'go/roundtrip_test.go': 'package orm\nfunc TestRoundtrip(t *testing.T) {}\n// RX-4\n',
+    'go/orm/roundtrip_test.go': 'package orm\nfunc TestRoundtrip(t *testing.T) {}\n// RX-4\n',
     'rust/Cargo.toml': '[package]\nname = "example-rust"\n',
     'rust/tests/roundtrip.rs': '#[test]\nfn roundtrip() {}\n// RX-5\n',
   };
   const { findings } = check(t, { files, edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
     config.units.push(
-      { id: 'go-native-package', kind: 'feature', requirements: ['RX-4'], owner: { kind: 'release-package', artifact: 'go-module', package: 'example/go' }, bindings: [{ implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip' }] },
+      { id: 'go-native-package', kind: 'feature', requirements: ['RX-4'], owner: { kind: 'release-package', artifact: 'go-module', package: 'example/go' }, bindings: [{ implementation: 'go', test: 'go/orm/roundtrip_test.go', id: 'TestRoundtrip' }] },
       { id: 'rust-native-package', kind: 'feature', requirements: ['RX-5'], owner: { kind: 'release-package', artifact: 'git-tag', package: 'example-rust' }, bindings: [{ implementation: 'rust', test: 'rust/tests/roundtrip.rs', id: 'roundtrip' }] },
     );
     return config;
@@ -1669,7 +1689,7 @@ test('K566: release owners resolve Go modules and Rust git-tag crates from their
   const crossArtifactSameName = check(t, { files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'example-rust', directory: 'python' }], goModules: { go: 'example/go' }, proof: { gitTag: { 'rust/Cargo.toml': { name: 'example-rust' } } } }) }, edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
     config.units.push(
-      { id: 'go-native-package', kind: 'feature', requirements: ['RX-4'], owner: { kind: 'release-package', artifact: 'go-module', package: 'example/go' }, bindings: [{ implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip' }] },
+      { id: 'go-native-package', kind: 'feature', requirements: ['RX-4'], owner: { kind: 'release-package', artifact: 'go-module', package: 'example/go' }, bindings: [{ implementation: 'go', test: 'go/orm/roundtrip_test.go', id: 'TestRoundtrip' }] },
       { id: 'rust-native-package', kind: 'feature', requirements: ['RX-5'], owner: { kind: 'release-package', artifact: 'git-tag', package: 'example-rust' }, bindings: [{ implementation: 'rust', test: 'rust/tests/roundtrip.rs', id: 'roundtrip' }] },
     );
     return config;

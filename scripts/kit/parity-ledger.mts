@@ -1,8 +1,8 @@
 // R3 of the language-parity check: the checker runs the binding of every suite and feature unit in each applicable implementation
 // and keeps, in memory, the ledger of the runs and of the cases that each run reported. A suite binding holds its unit
 // when its command exits with 0 and the cases that passed are exactly the cases of the suite file: a failed, skipped, missing or
-// extra case is a finding. A feature binding holds its unit when the whole test file, run once for every feature that binds
-// it, exits with 0 and reports its id once as passed. Each run happens twice, and a second run with another exit status,
+// extra case is a finding. A feature binding holds its unit when its native id passes once in two equal successful runs;
+// Cargo filters that id exactly, while file-based runners run the test file. Each run happens twice, and a second run with another exit status,
 // another case or another result is a finding that names the case. No saved report is read. The environment references of the runner values resolve here, and a run whose
 // reference is unset or empty cannot start. Each support file of a file runner (node, php, python) runs once, and one that
 // reports a case is an R5 finding.
@@ -137,7 +137,9 @@ function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, sa
     const binding = present(unit.bindings, 'unit.bindings').find(entry => entry.implementation === implementation.name);
     if (!binding) continue;
     // Bindings of one test file share a run only when they name the same command and the same runner (K422).
-    const key = `${implementation.name}\0${binding.test}\0${JSON.stringify(binding.command ?? null)}\0${binding.runner ?? ''}`;
+    const runner = binding.runner ?? implementation.runner;
+    // A Cargo feature id is an exact libtest filter, so its file cannot combine different unit ids in one run.
+    const key = `${implementation.name}\0${binding.test}\0${JSON.stringify(binding.command ?? null)}\0${binding.runner ?? ''}${runner === 'cargo' ? `\0${binding.id}` : ''}`;
     const entry = files.get(key) ?? { implementation, test: binding.test, command: binding.command, runner: binding.runner, bound: [] };
     entry.bound.push({ unit: unit.id, id: present(binding.id, 'binding.id') });
     files.set(key, entry);
@@ -156,6 +158,10 @@ function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, sa
       first.result.error && `${run.shown} could not start: ${first.result.error.message}`,
       !first.result.error && first.status !== 0 && `exited with ${first.status ?? first.result.signal}${run.detail(first.result).length ? `: ${run.detail(first.result).join(' | ')}` : ''}`,
       first.status !== second.status && `exit ${first.status ?? 'none'} then ${second.status ?? 'none'}`,
+      ...((runner ?? implementation.runner) === 'cargo' ? [first, second].flatMap((attempt, index) => {
+        const unexpected = [...attempt.cases.keys()].filter(name => !bound.some(entry => entry.id === name));
+        return unexpected.length ? [`reported outside the exact feature ids in run ${index + 1}: ${unexpected.join(', ')}`] : [];
+      }) : []),
     ];
     return bound.flatMap(({ unit, id }) => {
       const outcome = first.cases.get(id);
