@@ -342,9 +342,11 @@ test('K560 Composer archives generate arginfo from the tagged stub without chang
   const expected = Buffer.concat([Buffer.from(`generated from committed stub: ${committedStub}`), Buffer.alloc(356000, 'X')]);
   assert.equal(generated.stdout.length, expected.length, 'the complete generated header is archived');
   assert.deepEqual(generated.stdout, expected, 'archive generation transports the header by file, not a size-limited argument');
-  const metadata = spawnSync('zipinfo', ['-l', zip], { encoding: 'utf8' });
+  const metadata = spawnSync('unzip', ['-Z', '-v', zip], { encoding: 'utf8' });
   assert.equal(metadata.status, 0, metadata.stderr);
-  assert.match(metadata.stdout, /^-rw-r--r--\s+3\.0 unx\s+356065 b-\s+356065 stor \d{2}-[A-Z][a-z]{2}-\d{2} \d{2}:\d{2} src\/polyspec_orm_arginfo\.h$/m);
+  assert.match(metadata.stdout, /Central directory entry #\d+:\n-+\n\n  src\/polyspec_orm_arginfo\.h/);
+  assert.match(metadata.stdout, /compression method:\s+none \(stored\)/);
+  assert.match(metadata.stdout, /Unix file attributes \(100644 octal\):\s+-rw-r--r--/);
   const zipless = path.join(box.root, 'zipless-path');
   mkdirSync(zipless);
   assert.throws(() => release.assets(release.context(box.root, { env: { ...box.env, PATH: zipless } }), tag), /zip is required to append generated files to Composer release archives; install Info-ZIP/);

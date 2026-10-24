@@ -30,7 +30,9 @@ function phpWrappers(root: string) {
     writeFileSync(path.join(bin, name), `#!/bin/sh\nexec '${real}' "$@"\n`);
     chmodSync(path.join(bin, name), 0o755);
   }
-  const prefix = execFileSync(programs['php-config']!, ['--prefix'], { encoding: 'utf8' }).trim();
+  const phpConfig = programs['php-config'];
+  assert.ok(phpConfig);
+  const prefix = execFileSync(phpConfig, ['--prefix'], { encoding: 'utf8' }).trim();
   const generator = path.join(prefix, 'lib/php/build/gen_stub.php');
   const source = readFileSync(generator, 'utf8');
   const version = /\$version\s*=\s*"(\d+\.\d+\.\d+)"/.exec(source)?.[1];
@@ -234,7 +236,6 @@ test('the declarations of the extension are compared with the library that decla
   });
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
-  const before = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout;
   phpWrappers(root);
   const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);

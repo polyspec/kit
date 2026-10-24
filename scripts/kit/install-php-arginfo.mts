@@ -10,6 +10,8 @@ import { composerCommand, composerEnvironment } from './install-composer-project
 import { isMain, repositoryRoot } from './paths.mts';
 import { toolCommand } from './mise-tools.mts';
 import { execute } from './process.mts';
+import { errorCode } from './process.mts';
+import { isJsonList, isJsonObject, readJson } from './bootstrap/files.mts';
 
 const PROJECT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-arginfo');
 const PREFIX = 'php-arginfo';
@@ -29,8 +31,11 @@ export function installedGenStub(root: string): { file: string; parser: string }
   const current = genStub(root);
   if (installedSource !== current.source) throw new Error(`${path.relative(root, file)} is stale for the installed PHP; run make install-tools`);
   const project = path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-arginfo');
-  const lock = JSON.parse(readFileSync(path.join(project, 'composer.lock'), 'utf8')) as { packages?: { name?: string; version?: string }[] };
-  const pinned = lock.packages?.find(item => item.name === 'nikic/php-parser')?.version?.replace(/^v/, '');
+  const lock = readJson(project, 'composer.lock');
+  const packages = isJsonObject(lock) && isJsonList(lock.packages) ? lock.packages : [];
+  const parserPackage = packages.find(item => isJsonObject(item) && item.name === 'nikic/php-parser');
+  const version = isJsonObject(parserPackage) ? parserPackage.version : undefined;
+  const pinned = typeof version === 'string' ? version.replace(/^v/, '') : undefined;
   if (pinned !== parser) throw new Error(`${project}/composer.lock pins nikic/php-parser ${pinned ?? 'none'}, but gen_stub.php requires ${parser}; update the pinned arginfo parser`);
   const directory = path.join(folder, `PHP-Parser-${parser}`, 'lib/PhpParser');
   if (!existsSync(directory)) throw new Error(`${path.relative(root, directory)} is missing; run make install-tools, which installs the pinned PHP arginfo generator and parser`);
@@ -59,8 +64,11 @@ export function installPhpArginfo({ root = repositoryRoot(), print = () => {} }:
   const generator = genStub(root);
   const project = PROJECT;
   const lock = readFileSync(path.join(project, 'composer.lock'));
-  const packageLock = JSON.parse(lock.toString()) as { packages?: { name?: string; version?: string }[] };
-  const parser = packageLock.packages?.find(item => item.name === 'nikic/php-parser')?.version?.replace(/^v/, '');
+  const packageLock = readJson(project, 'composer.lock');
+  const packages = isJsonObject(packageLock) && isJsonList(packageLock.packages) ? packageLock.packages : [];
+  const parserPackage = packages.find(item => isJsonObject(item) && item.name === 'nikic/php-parser');
+  const version = isJsonObject(parserPackage) ? parserPackage.version : undefined;
+  const parser = typeof version === 'string' ? version.replace(/^v/, '') : undefined;
   if (parser !== generator.parser) {
     throw new Error(`${project}/composer.lock pins nikic/php-parser ${parser ?? 'none'}, but ${generator.file} requires ${generator.parser}; update the pinned arginfo parser and run make install-tools`);
   }
@@ -72,7 +80,7 @@ export function installPhpArginfo({ root = repositoryRoot(), print = () => {} }:
       if (!existsSync(path.join(directory, 'gen_stub.php')) || !existsSync(path.join(directory, `PHP-Parser-${generator.parser}`, 'lib/PhpParser/ParserFactory.php'))) return undefined;
       try { return readFileSync(path.join(directory, 'RELEASE'), 'utf8'); }
       catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+        if (errorCode(error) === 'ENOENT') return undefined;
         throw error;
       }
     },
