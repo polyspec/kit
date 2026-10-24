@@ -103,6 +103,18 @@ test('run-tests runs its runner over the arguments after --, so it needs their s
   assert.equal(refusal('node scripts/kit/run-tests.mts go -- -run TestParse ./...', named), null);
 });
 
+test('the hook follows a forwarded Cargo command from a Make target without target-name exemptions (K568)', () => {
+  const database = (cargo: string) => ({
+    targets: new Map([['arbitrary-target-name', { prerequisites: [], recipe: `$(NODE) tests/cargo-test.mts arbitrary-target-name -- cargo ${cargo}` }]]),
+    variables: new Map([['NODE', '/repo/var/tools/bin/node']]),
+  });
+  const target = 'make arbitrary-target-name';
+  assert.equal(refusal(target, named, () => database('+1.99.0 test --locked --offline -p polyspec-orm --test package_entry public_package_entry -- --exact --nocapture')), null);
+  assert.match(refusal(target, named, () => database('+1.99.0 test --locked --offline -p polyspec-orm')) ?? '', /whole runtime without a selection/);
+  assert.match(refusal(target, named, () => database('+1.99.0 test --test package_entry -- --exact')) ?? '', /whole runtime without a selection/);
+  assert.match(refusal(target, named, () => database('+1.99.0 test --workspace')) ?? '', /whole runtime without a selection/);
+});
+
 // K353-2: the hook reads the options of run-tests.mts as the runner does, so a command that the runner runs is allowed.
 test('the hook resolves a file of run-tests from its --cwd and takes the arguments after its options, as the runner does (K353-2)', () => {
   const files = new Set(['tests/XTest.php', 'tests/x.test.mts']);

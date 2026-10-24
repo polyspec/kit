@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The Claude hook follows a runner command forwarded after `--` by a Node wrapper, so exact Cargo native cases are recognized through Make targets. An `--exact` run needs a selected test name; no-selection and workspace runs remain refused locally (K568).
+
 - Parity R12 distinguishes feature bindings by implementation and native case id, so one implementation can bind separate database cases from the same test file. It still rejects a repeated case id and duplicate suite or API entries; feature runs execute every declared id twice (K567).
 
 - Parity owner scopes derive applicability from declared coverage parts and release artifacts, preserving shared requirements across clients; Cargo feature bindings run only their exact native test id (K566).

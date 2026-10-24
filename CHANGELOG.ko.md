@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: edf0f0e4a75e78bb8233f6967bad3c8ac2584379a7c0cbeabf6d330aac02d171 -->
+<!-- source-sha256: 42ca27acd23107123d8e008d18bd91fb41ea4d23f72723fd8f253e3c2a50d206 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Claude hook은 Node wrapper가 `--` 뒤에 전달하는 runner command를 따라가므로 Make target을 통한 exact Cargo native case를 인식한다. `--exact` 실행에는 선택된 test name이 필요하며 selection 없는 실행과 workspace 실행은 local에서 계속 거부한다(K568).
 
 - Parity R12는 feature binding을 implementation과 native case id로 구분하여 한 implementation이 같은 test file의 database case를 각각 binding할 수 있다. 같은 case id 반복과 suite/API 중복 항목은 계속 거부하며, feature run은 선언된 모든 id를 각각 두 번 실행한다(K567).
 

@@ -66,14 +66,18 @@ function positionals(tool: string, args: readonly string[]): string[] {
 /**
  * Whether the arguments `args` of the runner `tool` select tests. `isFileAt(path)` tells whether a path names a file.
  * node and phpunit select by a test file or a name filter; vitest by a file filter or a name filter; go by -run; cargo
- * by a test name filter or a test target; python unittest by a test id or -k. Arguments after `--` of cargo go to the
- * test harness and select nothing.
+ * by a test name filter or a test target; python unittest by a test id or -k. For Cargo `-- --exact`, a native test name
+ * before `--` is required; the harness arguments alone select no case.
  */
 export function selects(tool: string, args: readonly string[], isFileAt: (file: string) => boolean = isFile): boolean {
   const own = tool === 'cargo' && args.includes('--') ? args.slice(0, args.indexOf('--')) : args;
+  const command = tool === 'cargo' && own[0] === 'test' ? own.slice(1) : own;
   const filters = FILTERS[tool] ?? [];
-  if (own.some(arg => filters.includes(arg) || filters.some(filter => arg.startsWith(`${filter}=`)))) return true;
-  const words = positionals(tool, own);
+  if (tool === 'cargo' && args.includes('--') && args.slice(args.indexOf('--') + 1).includes('--exact')) {
+    return positionals(tool, command).length > 0;
+  }
+  if (command.some(arg => filters.includes(arg) || filters.some(filter => arg.startsWith(`${filter}=`)))) return true;
+  const words = positionals(tool, command);
   switch (tool) {
     case 'node':
     case 'phpunit':

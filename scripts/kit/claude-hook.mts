@@ -61,12 +61,17 @@ function selection(command: string[], tool: string, args: string[], isFileAt: (f
 function runnerRefusal(program: string, args: string[], isFileAt: (file: string) => boolean): string | null {
   const [first, second] = args;
   const command = [program, ...args];
+  if (program === 'cargo' && first?.startsWith('+')) return runnerRefusal(program, args.slice(1), isFileAt);
   if (program === 'go' && first === 'test') return selection(command, 'go', args.slice(1), isFileAt);
   if (program === 'cargo' && first === 'test') return selection(command, 'cargo', args.slice(1), isFileAt);
   if (program === 'cargo' && first === 'nextest' && second === 'run') return selection(command, 'cargo', args.slice(2), isFileAt);
   if (program === 'phpunit') return selection(command, 'phpunit', args, isFileAt);
   if (program === 'php' && first !== undefined && path.basename(first) === 'phpunit') return selection(command, 'phpunit', args.slice(1), isFileAt);
-  if (program === 'node' && args.includes('--test')) return selection(command, 'node', args.filter(arg => arg !== '--test'), isFileAt);
+  if (program === 'node') {
+    const separator = args.indexOf('--');
+    const nodeArgs = separator === -1 ? args : args.slice(0, separator);
+    if (nodeArgs.includes('--test')) return selection(command, 'node', nodeArgs.filter(arg => arg !== '--test'), isFileAt);
+  }
   if (program === 'vitest') return selection(command, 'vitest', args, isFileAt);
   if (/^python3?(\.\d+)?$/.test(program) && first === '-m' && (second === 'unittest' || second === 'pytest')) return selection(command, 'python', args.slice(2), isFileAt);
   if (program === 'pytest') return selection(command, 'python', args, isFileAt);
@@ -76,6 +81,14 @@ function runnerRefusal(program: string, args: string[], isFileAt: (file: string)
     const { options, args: toolArgs } = runnerWords(args.slice(2));
     const cwd = options.findLast(([flag]) => flag === '--cwd')?.[1] ?? '.';
     return selection(command, second, toolArgs, file => isFileAt(path.isAbsolute(file) ? file : path.join(cwd, file)));
+  }
+  // A node wrapper may forward a command after --; apply the same runner selection rules to that declared command.
+  if (program === 'node') {
+    const separator = args.indexOf('--');
+    if (separator !== -1) {
+      const [forwarded, ...forwardedArgs] = args.slice(separator + 1);
+      if (forwarded !== undefined) return runnerRefusal(path.basename(forwarded), forwardedArgs, isFileAt);
+    }
   }
   return null;
 }
