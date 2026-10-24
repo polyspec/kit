@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 090c8656e0710a8d263c592c6f0987cc2d718d9212fb2b9946224e652205763d -->
+<!-- source-sha256: d47f6af2bfd4dc175a69de42ff70deaa7f88da2f71f50f11264611ebe74ae079 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -476,3 +476,4 @@
 | K567 | R12는 feature binding을 implementation과 native id로 식별하여 한 test의 서로 다른 database case를 각각 binding한다. 원인: TypeScript rollback case는 SQLite, MySQL, PostgreSQL에서 실행되지만 R12가 선택한 native case를 고려하지 않고 implementation 중복으로 거부한다. Acceptance: 한 feature implementation의 서로 다른 id는 통과하고, 같은 test file이든 다른 test file이든 같은 id는 계속 중복으로 거부하며 suite/API의 중복 항목도 거부한다. | scripts/kit/parity-declaration.mts, scripts/kit/parity-ledger.mts, scripts/kit/schema/parity.schema.json, tests/kit/parity.test.mts, docs/operations/tool-inventory.md(.ko.md) | `node --test --test-name-pattern=K567 tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K568 | Hook은 Node test wrapper가 전달하는 runner를 읽고 target 이름 예외 없이 exact Cargo native case를 인식한다. 원인: item-state가 Rust owner target을 Node wrapper까지 따라간 뒤 전달된 Cargo command를 selection이 없는 Node runtime으로 판단한다. Acceptance: 비어 있지 않은 exact native id는 통과하고, 선택된 Cargo target이 없거나 --exact에 id가 없거나 workspace test이면 거부하며 Make target 이름으로 동작을 선택하지 않는다. | scripts/kit/claude-hook.mts, scripts/kit/test-selection.mts, tests/kit/claude-hook.test.mts, tests/kit/test-selection.test.mts, docs/operations/tool-inventory.md(.ko.md) | `node --test --test-name-pattern=K568 tests/kit/claude-hook.test.mts tests/kit/test-selection.test.mts`; `make docs-check` | [o] |
 | K569 | PHP 확장 비교는 internal stub 클래스와 self type을 반영하고 public 추가 선언은 거부한다 | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test --test-name-pattern=K569 tests/kit/php-ext.test.mts` | [o] |
+| K569-1 | internal class parser는 namespace처럼 보이는 문서 텍스트를 무시한다 | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test --test-name-pattern=K569 tests/kit/php-ext.test.mts` | [ ] |
