@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Parity R12 distinguishes feature bindings by implementation and native case id, so one implementation can bind separate database cases from the same test file. It still rejects a repeated case id and duplicate suite or API entries; feature runs execute every declared id twice (K567).
+
 - Parity owner scopes derive applicability from declared coverage parts and release artifacts, preserving shared requirements across clients; Cargo feature bindings run only their exact native test id (K566).
 - The gates workflow builds a freshly cloned sibling Kit before consumer installation, so the consumer bootstrap can load its dist (K565).
 - dependency-policy-check accepts a remote package tarball when the exact name and URL are supplied by root overrides for a direct root or workspace dependency; unrelated package names, URLs and transitive-only overrides still fail (K564).

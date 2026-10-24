@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9a656d0c84094eafffb03d6abcbc9f76f5831ab85bb790b9ee8708fc6c382bb3 -->
+<!-- source-sha256: edf0f0e4a75e78bb8233f6967bad3c8ac2584379a7c0cbeabf6d330aac02d171 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Parity R12는 feature binding을 implementation과 native case id로 구분하여 한 implementation이 같은 test file의 database case를 각각 binding할 수 있다. 같은 case id 반복과 suite/API 중복 항목은 계속 거부하며, feature run은 선언된 모든 id를 각각 두 번 실행한다(K567).
 
 - Parity owner scope는 선언된 coverage part와 release artifact에서 적용 범위를 도출해 공유 requirement를 모든 client에 보존한다. Cargo feature binding은 exact native test id만 실행한다(K566).
 - gates workflow는 consumer를 설치하기 전에 fresh sibling Kit을 build하므로 consumer bootstrap이 Kit의 dist를 읽는다(K565).

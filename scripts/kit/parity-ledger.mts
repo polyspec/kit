@@ -125,8 +125,8 @@ function twice(run: BindingCommand & { shown: string }, root: string, where: { u
 const lastLines = ({ stdout, stderr }: { stdout: string; stderr: string }): string => [stdout ?? '', stderr ?? ''].join('\n').split('\n').filter(line => line.trim()).slice(-20).join(' | ');
 
 /**
- * R3 of the feature units: the test file of each feature binding runs twice as a whole, once for all the features that bind it
- * in its implementation, and each id passes in both runs, once in each, and the runs exit with 0.
+ * R3 of the feature units: each test file runs twice for the native ids that bind it in its implementation, and each id passes
+ * in both runs, once in each, with both runs exiting 0.
  */
 function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, say, units }: { env: Environment; say: (line: string) => void; units?: ReadonlySet<string> | undefined }): Finding[] {
   // The bindings of each test file of an implementation, in declaration order.
@@ -134,21 +134,21 @@ function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, sa
   for (const { unit, implementation } of pairs(model, 'feature')) {
     if (units !== undefined && !units.has(unit.id)) continue;
     // readDeclaration requires bindings and the id of each feature binding.
-    const binding = present(unit.bindings, 'unit.bindings').find(entry => entry.implementation === implementation.name);
-    if (!binding) continue;
-    // Bindings of one test file share a run only when they name the same command and the same runner (K422).
-    const runner = binding.runner ?? implementation.runner;
-    // A Cargo feature id is an exact libtest filter, so its file cannot combine different unit ids in one run.
-    const key = `${implementation.name}\0${binding.test}\0${JSON.stringify(binding.command ?? null)}\0${binding.runner ?? ''}${runner === 'cargo' ? `\0${binding.id}` : ''}`;
-    const entry = files.get(key) ?? { implementation, test: binding.test, command: binding.command, runner: binding.runner, bound: [] };
-    entry.bound.push({ unit: unit.id, id: present(binding.id, 'binding.id') });
-    files.set(key, entry);
+    for (const binding of present(unit.bindings, 'unit.bindings').filter(entry => entry.implementation === implementation.name)) {
+      // Bindings of one test file share a run only when they name the same command and the same runner (K422).
+      const runner = binding.runner ?? implementation.runner;
+      // A Cargo feature id is an exact libtest filter, so its file cannot combine different native ids in one run.
+      const key = `${implementation.name}\0${binding.test}\0${JSON.stringify(binding.command ?? null)}\0${binding.runner ?? ''}${runner === 'cargo' ? `\0${binding.id}` : ''}`;
+      const entry = files.get(key) ?? { implementation, test: binding.test, command: binding.command, runner: binding.runner, bound: [] };
+      entry.bound.push({ unit: unit.id, id: present(binding.id, 'binding.id') });
+      files.set(key, entry);
+    }
   }
   return [...files.values()].flatMap(({ implementation, test, command, runner, bound }) => {
     const where = (unit: string) => ({ unit, implementation: implementation.name, place: test });
     const run = resolvedRun(implementation, root, { test, command, runner, ids: bound.map(entry => entry.id) }, 'feature', env);
     if (run.error) return bound.map(entry => finding('R3', run.error, where(entry.unit)));
-    const units = bound.map(entry => entry.unit).join(', ');
+    const units = [...new Set(bound.map(entry => entry.unit))].join(', ');
     const [first, second] = twice(run, root, { unit: units, implementation: implementation.name }, ledger, say);
     // A failed run names the failing tests that no binding declares, read from its output; none readable is said, never silent.
     const outside = named(first.cases, 'fail').filter(name => !bound.some(entry => entry.id === name));

@@ -756,8 +756,14 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     const seen = new Set();
     for (const entry of owned) {
       if (!implementations.has(entry.implementation)) fail(`${where} names ${entry.implementation}, which is no implementation`);
-      if (seen.has(entry.implementation)) errors.push(finding('R12', `${where} names ${entry.implementation} twice; a unit binds each implementation once, so keep one binding and remove the other`, { unit: unit.id, implementation: entry.implementation, place: DECLARATION }));
-      seen.add(entry.implementation);
+      const identity = unit.kind === 'feature' ? `${entry.implementation}\0${'id' in entry ? entry.id ?? '' : ''}` : entry.implementation;
+      if (seen.has(identity)) {
+        const message = unit.kind === 'feature'
+          ? `${where} binds ${entry.implementation} case ${'id' in entry ? entry.id : ''} twice; keep one binding`
+          : `${where} names ${entry.implementation} twice; a unit binds each implementation once, so keep one binding and remove the other`;
+        errors.push(finding('R12', message, { unit: unit.id, implementation: entry.implementation, place: DECLARATION }));
+      }
+      seen.add(identity);
     }
     if (unit.kind === 'api') {
       if (!('symbols' in unit)) fail(`${where}: a unit of kind api needs symbols`);

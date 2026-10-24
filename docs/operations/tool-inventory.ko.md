@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 1aa87d7884000f5f9592ed814f67542ff88987f213f0a4bd8e7c1d5992088ffe -->
+<!-- source-sha256: cca84c81bbfdc43900ca544867e4a72249453fcec5b3f760a31cdac39c57ef9e -->
 
 # 도구 목록
 
@@ -1343,7 +1343,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 | R9 language-set-drift | `languageLists`가 선언한 다른 파일의 목록이 implementation과 다르거나, pattern이 아무것도 찾지 못합니다. |
 | R10 docs-count | `documents`의 문서가 implementation N개를 세는데, 그 문장이 implementation N개를 모두 적지 않습니다. 다만 문장이 정확히 N개를 적고 passage의 이름을 모두 모은 것이 모든 implementation이면 예외입니다. 또는 이름을 모두 모아도 모든 implementation이 아닌 문장에서 implementation 이름 세 개 이상을 나열합니다. each나 각각 뒤의 수는 항목마다 세므로 count가 아니고("각각 한 구현"), 열거의 다른 항목이 양쪽에 있는 이름의 run은 그 항목들을 나열하므로 list가 아닙니다("Node.js, npm, Go, Rust, PHP minor version, Composer"). 마지막 이름 뒤의 `documents` noun은 항목이 아닙니다 (K197). |
 | R11 undeclared-public | implementation의 extractor가 주는 public symbol을 API unit도 선언하지 않습니다. |
-| R12 duplicate-binding | unit이 `bindings`(또는 `symbols`)에 한 implementation을 두 번 적습니다. 같은 test이든 다른 test이든 마찬가지입니다. unit마다 implementation당 binding은 하나입니다. |
+| R12 duplicate-binding | suite 또는 API unit이 `bindings`나 `symbols`에 한 implementation을 두 번 적습니다. Feature unit은 같은 implementation과 native `id`를 두 번 적으면 안 됩니다. 하나의 feature가 한 implementation의 서로 다른 native id를 binding할 수 있으며, 같은 test file의 database별 case도 해당합니다. |
 | R16 internal-contract | implementation의 `internal` glob이 고른 test가 spec의 requirement(`requirements.pattern`이 맞는 list item이나 heading)를 이름으로 부르면, contract test가 internal test 사이에 숨을 수 없도록 finding이 된다(K313). |
 | R17 leaked-internal | public signature, parent class, interface가 internal symbol을 이름으로 가리킨다. 대상은 docblock에 `@internal`이 있는 PHP class, `_` 하나로 시작하는 Python 이름, entry point가 export하지 않는 TypeScript type(API Extractor `ae-forgotten-export`)이며, 각각 implementation의 extractor(`extract.php`와 `python.py`의 `--leaks`)가 보고한다. finding은 public symbol과 internal symbol을 이름으로 말한다(K307-1). |
 

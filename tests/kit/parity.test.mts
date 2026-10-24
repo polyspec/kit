@@ -811,11 +811,56 @@ test('a feature unit fails R2 without a binding and R3 when its id is missing, f
   assert.match(findingAt(findings, 2).message, /not executed: bytes/);
 });
 
-// One binding per implementation per unit (K209): a second binding of an implementation, with its own test or the same one, is R12.
-test('R12: a unit with two bindings of one implementation fails, and the finding names the unit and the implementation (K209)', TIMEOUT, (t) => {
-  const { findings } = check(t, feature({}, (unit) => { unit.bindings?.push({ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'roundtrip › text' }); return unit; }));
+// One binding per native feature id (K209, K567); a suite or API unit keeps one entry per implementation.
+test('R12: a feature unit rejects the same native id even when the second binding names another test file (K209)', TIMEOUT, (t) => {
+  const { findings } = check(t, feature({ 'ts/tests/other-roundtrip.test.mjs': "import { test } from 'node:test';\ntest('bytes', () => {});\n" }, (unit) => { unit.bindings?.push({ implementation: 'ts', test: 'ts/tests/other-roundtrip.test.mjs', id: 'roundtrip › bytes' }); return unit; }), { execute: false });
   assert.deepEqual(keys(findings), ['R12 roundtrip ts']);
-  assert.equal(findingAt(findings, 0).message, 'unit roundtrip names ts twice; a unit binds each implementation once, so keep one binding and remove the other');
+  assert.equal(findingAt(findings, 0).message, 'unit roundtrip binds ts case roundtrip › bytes twice; keep one binding');
+});
+
+test('parity allows one TypeScript feature case per database under a shared native test file (K567)', TIMEOUT, (t) => {
+  const source = "import { describe, test } from 'node:test';\ndescribe('transaction_rollback', () => {\n  test('sqlite', () => {});\n  test('mysql', () => {});\n  test('postgres', () => {});\n});\n";
+  const { findings, ledger } = check(t, feature({ 'ts/tests/roundtrip.test.mjs': source }, unit => {
+    const ts = itemWhere(unit.bindings ?? [], (entry: { implementation: string }) => entry.implementation === 'ts');
+    ts.id = 'transaction_rollback › sqlite';
+    unit.bindings?.push({ ...ts, id: 'transaction_rollback › mysql' }, { ...ts, id: 'transaction_rollback › postgres' });
+    return unit;
+  }));
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'ts').map(entry => `${entry.case} ${entry.outcome}`), [
+    'transaction_rollback › sqlite pass',
+    'transaction_rollback › mysql pass',
+    'transaction_rollback › postgres pass',
+  ]);
+});
+
+test('parity rejects two bindings of one database-specific native case (K567)', TIMEOUT, (t) => {
+  const { findings } = check(t, feature({}, unit => {
+    const ts = itemWhere(unit.bindings ?? [], (entry: { implementation: string }) => entry.implementation === 'ts');
+    ts.id = 'transaction_rollback › mysql';
+    unit.bindings?.push({ ...ts });
+    return unit;
+  }), { execute: false });
+  assert.deepEqual(keys(findings), ['R12 roundtrip ts']);
+  assert.equal(findingAt(findings, 0).message, 'unit roundtrip binds ts case transaction_rollback › mysql twice; keep one binding');
+});
+
+test('suite and API units still reject duplicate implementation declarations (K567)', TIMEOUT, (t) => {
+  const suite = check(t, { edit: config => {
+    const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'size');
+    const go = binding(config, 'size', 'go');
+    unit.bindings = [...unit.bindings ?? [], { ...go }];
+    return config;
+  } }, { execute: false });
+  assert.deepEqual(keys(suite.findings), ['R12 size go']);
+
+  const api = check(t, { edit: config => {
+    const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'encode');
+    const ts = itemWhere(unit.symbols ?? [], (entry: { implementation: string }) => entry.implementation === 'ts');
+    unit.symbols?.push({ ...ts });
+    return config;
+  } }, { execute: false });
+  assert.deepEqual(keys(api.findings), ['R12 encode ts']);
 });
 
 test('a feature binding names its id and no symbol, and a feature unit has no vector file (K75)', TIMEOUT, (t) => {
