@@ -30,7 +30,7 @@ export const RULES = {
   composerCoverage: `each Composer manifest of the checkout is checked: composerPlatforms of ${POLICY} names it, or a manifest that it names requires it through a path repository; a manifest that kit writes and the Composer consumer project of the release are not`,
   pythonLock: 'each Python lock that the policy names is a PEP 751 pylock.toml with lock-version 1.0 and created-by, every registry file has a sha256, every git package is pinned by a full commit and no package is a local directory',
   npmLock: 'each npm lock that the policy names records the dependencies of every npm manifest that it resolves',
-  rootRemote: 'each remote tarball that an npm lock resolves is named by its URL in a package.json of that lock, the root or a workspace, since allow-remote=root takes only the URLs that a package.json names',
+  rootRemote: 'each remote tarball that an npm lock resolves has a matching dependency name and URL, either in a root or workspace dependency spec or in a root override for that direct dependency, as allow-remote=root permits root and workspace edges only',
   libraryApplication: 'a PHP library of S10 requires no application framework in require, since an application on a userland framework is its own Composer package that requires the library (S10)',
 };
 export const REVIEW = 'make dependency-review RECORD=1';
@@ -184,21 +184,41 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
     }
   }
 
-  // A remote tarball that an npm lock resolves is installed only when a package.json of the lock names its URL, since allow-remote=root
-  // takes only those URLs (K427). The registry of the lock is registry.npmjs.org, so any other http(s) URL of a .tgz is remote.
+  // allow-remote=root permits a remote spec only on a direct project-root or workspace dependency edge (K427). A root override
+  // can change that direct edge's URL without becoming a dependency itself (K564), so the package name and URL must both match.
+  // The registry of the lock is registry.npmjs.org, so any other http(s) URL of a .tgz is remote.
   for (const [lock, npmLock] of state.npmLocks) {
-    const named = new Set<string>();
-    for (const { manifest: manifestPath } of state.manifests.filter(item => item.lock === lock)) {
+    const named = new Map<string, Set<string>>();
+    const directDependencies = new Set<string>();
+    const rootOverrides = new Map<string, string>();
+    const addSpec = (name: string, spec: string) => {
+      const specs = named.get(name) ?? new Set<string>();
+      specs.add(spec);
+      named.set(name, specs);
+    };
+    for (const { directory, manifest: manifestPath } of state.manifests.filter(item => item.lock === lock)) {
       const json = readNpmManifest(root, manifestPath);
-      for (const field of [json.dependencies, json.devDependencies, json.optionalDependencies, json.peerDependencies]) for (const spec of Object.values(field ?? {})) named.add(spec);
+      for (const field of [json.dependencies, json.devDependencies, json.optionalDependencies, json.peerDependencies]) {
+        for (const [name, spec] of Object.entries(field ?? {})) {
+          directDependencies.add(name);
+          addSpec(name, spec);
+        }
+      }
+      if (directory === '.') {
+        for (const [name, spec] of Object.entries(json.overrides ?? {})) {
+          if (typeof spec === 'string') rootOverrides.set(name, spec);
+        }
+      }
     }
+    for (const [name, spec] of rootOverrides) if (directDependencies.has(name)) addSpec(name, spec);
     const text = readFileSync(path.join(root, lock), 'utf8').split('\n');
     for (const [key, locked] of Object.entries(npmLock.packages ?? {})) {
       const resolved = locked.resolved;
-      if (key === '' || locked.link === true || typeof resolved !== 'string' || !isRemoteTarball(resolved) || named.has(resolved)) continue;
+      if (key === '' || locked.link === true || typeof resolved !== 'string' || !isRemoteTarball(resolved)) continue;
       const name = key.slice(key.lastIndexOf('node_modules/') + 'node_modules/'.length);
+      if (named.get(name)?.has(resolved)) continue;
       const line = text.findIndex(item => item.includes(`"${key}": {`)) + 1;
-      add('rootRemote', `${lock} ${name}`, `${lock}:${line} resolves ${name} from ${resolved}, which no package.json of the lock names`, `declare ${name} with this URL in the root package.json, which allow-remote=root (K189) takes`);
+      add('rootRemote', `${lock} ${name}`, `${lock}:${line} resolves ${name} from ${resolved}, which no direct dependency of this name declares and no matching root override authorizes`, `declare ${name} with this URL in a root or workspace dependency, or add this URL to root overrides for a direct dependency, which allow-remote=root (K189) takes`);
     }
   }
 

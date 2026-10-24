@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- dependency-policy-check accepts a remote package tarball when the exact name and URL are supplied by root overrides for a direct root or workspace dependency; unrelated package names, URLs and transitive-only overrides still fail (K564).
 - recipe-tools keeps POSIX parameter expansions intact while finding shell commands, so a valid usage expression no longer stops toolchain-check; K563 fails before the fix and passes after it (K563).
 - PHP extension builds generate arginfo offline from the installed parser, and Composer archives materialize generated headers from the tagged stub with deterministic ZIP metadata (K560).
 - The commit gate installs the staged lock of each nested npm project already installed in the checkout, offline, so gates resolve the dependencies of that staged project (K404-1-2).
