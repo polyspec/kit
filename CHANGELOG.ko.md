@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f930e42f97f8194f6c21d97497387c19460db961954866b7ab5526dd0a0d4040 -->
+<!-- source-sha256: 3b9cb8a9dd67c5cbcc6fe7b201214c528a659d537d45360cc2848a02cb51dad1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- PHP extension declaration check는 stub에 명시된 internal class를 반영하고 PHP `self` type을 선언 class와 비교하며, 선언되지 않은 public class는 계속 거부한다(K569).
 
 - land는 duplication-check finding을 비교할 때 ANSI 색상이 적용된 jscpd 언어별 요약 행을 인식하며 clone 세부 내용은 finding으로 유지한다(K394-5).
 

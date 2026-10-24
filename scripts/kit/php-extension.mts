@@ -135,14 +135,42 @@ export function declarationsOf(text: string): Declarations {
  * The findings of the declarations of the extension against those that the library gives for the same names (S10). A constant
  * is a finding when the library defines none of that name; its value is no part of the comparison (K338).
  */
-export function declarationFindings(extension: Declarations, library: Declarations): string[] {
+/** The fully qualified class names that the extension stub explicitly marks @internal. */
+export function internalClassesOfStub(stub: string): Set<string> {
+  const namespaces = [...stub.matchAll(/\bnamespace\s+([^;{]+);/g)];
+  const internal = new Set<string>();
+  const classes = /\/\*\*([\s\S]*?)\*\/\s*(?:(?:final|abstract|readonly)\s+)*(?:class|interface|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
+  for (const match of stub.matchAll(classes)) {
+    if (!/(?:^|\n)\s*\*?\s*@internal\b/m.test(match[1] ?? '')) continue;
+    const namespace = namespaces.filter(item => item.index !== undefined && item.index < (match.index ?? 0)).at(-1)?.[1]?.trim();
+    if (namespace) internal.add(`${namespace}\\${match[2]}`);
+  }
+  return internal;
+}
+
+export function declarationFindings(extension: Declarations, library: Declarations, internalClasses: ReadonlySet<string> = new Set()): string[] {
+  extension = { ...extension, classes: Object.fromEntries(Object.entries(extension.classes).map(([name, declared]) => [name, selfTypes(declared, name)])) };
+  library = { ...library, classes: Object.fromEntries(Object.entries(library.classes).map(([name, declared]) => [name, selfTypes(declared, name)])) };
   const of = (kind: 'classes' | 'functions', label: string) => Object.entries(extension[kind]).flatMap(([name, declared]) => {
     const own = library[kind][name];
-    if (own === null || own === undefined) return [`${label} ${name}: the extension registers it, and the PHP library declares none`];
+    if (own === null || own === undefined) {
+      if (kind === 'classes' && internalClasses.has(name)) return [];
+      return [`${label} ${name}: the extension registers it, and the PHP library declares none`];
+    }
     return differences(`${label} ${name}`, declared, own);
   });
   const constants = Object.keys(extension.constants).flatMap(name => ((library.constants[name] ?? null) === null ? [`constant ${name}: the extension registers it, and the PHP library declares none`] : []));
   return [...of('classes', 'class'), ...of('functions', 'function'), ...constants];
+}
+
+/** Reflection writes `self` for the PHP library and the declaring class name for an equivalent extension arginfo type. */
+function selfTypes(value: unknown, className: string): unknown {
+  if (Array.isArray(value)) return value.map(item => selfTypes(item, className));
+  if (!isJsonObject(value)) return value;
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+    if ((key === 'type' || key === 'returnType') && typeof item === 'string') return [key, item.replace(/\bself\b/g, className)];
+    return [key, selfTypes(item, className)];
+  }));
 }
 
 /**
@@ -294,7 +322,7 @@ export function declarations(root: string): string[] {
         for (const [name, declared] of Object.entries(found[kind])) if (declared !== null && declared !== undefined) own[kind][name] = declared;
       }
     }
-    return declarationFindings(extension, own);
+    return declarationFindings(extension, own, internalClassesOfStub(readFileSync(path.join(root, names.stub), 'utf8')));
   } finally {
     rmSync(request, { force: true });
   }

@@ -9,7 +9,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { execute } from '../../scripts/kit/process.mts';
-import { declarationFindings, declarations, declarationsOf, extensionFindings, extensionNames, stubHash } from '../../scripts/kit/php-extension.mts';
+import * as phpExtension from '../../scripts/kit/php-extension.mts';
+import { declarationFindings, declarations, declarationsOf, extensionFindings, extensionNames, stubHash, type Declarations } from '../../scripts/kit/php-extension.mts';
 import { installPhpArginfo } from '../../scripts/kit/install-php-arginfo.mts';
 import { put, tree } from './tree.mts';
 
@@ -102,6 +103,22 @@ test('a declaration that differs from the library, or that the library lacks, is
   assert.deepEqual(declarationFindings(extension, extension), []);
   const library = { classes: { 'A\\B': { kind: 'class', methods: { run: method('string') } } }, functions: { 'A\\f': null }, constants: {} };
   assert.deepEqual(declarationFindings(extension, library), ['class A\\B methods run returnType: extension "int", library "string"', 'function A\\f: the extension registers it, and the PHP library declares none']);
+});
+
+test('an extension-only class is allowed only when its stub explicitly marks it internal (K569)', () => {
+  const extension: Declarations = { classes: { 'A\\PublicApi': { kind: 'class' }, 'A\\Callback': { kind: 'class' } }, functions: {}, constants: {} };
+  const library: Declarations = { classes: { 'A\\PublicApi': { kind: 'class' } }, functions: {}, constants: {} };
+  const stub = `<?php\nnamespace A;\n/** @internal callback state */\nfinal class Callback {}\nfinal class PublicApi {}\n`;
+  const internalClasses = phpExtension.internalClassesOfStub?.(stub) ?? new Set<string>();
+  assert.deepEqual(internalClasses, new Set(['A\\Callback']));
+  assert.deepEqual(declarationFindings(extension, library, internalClasses), []);
+  assert.deepEqual(declarationFindings(extension, library), ['class A\\Callback: the extension registers it, and the PHP library declares none']);
+});
+
+test('a library self type equals the declaring class type in extension arginfo (K569)', () => {
+  const extension: Declarations = { classes: { 'A\\PublicApi': { kind: 'class', methods: { make: { returnType: 'A\\PublicApi' } } } }, functions: {}, constants: {} };
+  const library: Declarations = { classes: { 'A\\PublicApi': { kind: 'class', methods: { make: { returnType: 'self' } } } }, functions: {}, constants: {} };
+  assert.deepEqual(declarationFindings(extension, library), []);
 });
 
 // The PHP library of the fixture, with the return type of Counter::next.
