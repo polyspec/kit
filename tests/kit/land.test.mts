@@ -640,6 +640,28 @@ const gateRun = (status: number, output: string): GateRun => ({
   result: { pid: 0, output: [null, output, output], stdout: output, stderr: output, status, signal: null },
 });
 
+test('land compares jscpd clone findings without its changing summary rows (K394-4)', () => {
+  const clone = [
+    '\u001b[1mClone found (go)\u001b[22m',
+    ' - packages/go/a.go [10:1 - 16:2] (7 lines, 40 tokens)',
+    '   packages/go/b.go [20:1 - 26:2]',
+  ].join('\n');
+  const beforeStats = '│ go       │ 32  │ 7000  │ 52000  │ 2 │ 18 (0.04%) │ 163 (0.03%) │';
+  const changedStats = '│ go          │ 326            │ 73986       │ 534691       │ 6            │ 56 (0.08%)       │ 348 (0.07%)       │';
+  const asDuplication = (output: string): GateRun => ({
+    folder: process.cwd(),
+    gate: 'duplication-check',
+    result: { pid: 0, output: [null, output, ''], stdout: output, stderr: '', status: 1, signal: null },
+  });
+
+  assert.equal(newFindings(process.cwd(), asDuplication(`${clone}\n${changedStats}`), asDuplication(`${clone}\n${beforeStats}`)), undefined,
+    'only changed jscpd summary counts and padding do not add a finding');
+
+  const addedClone = `${clone}\n\u001b[1mClone found (php)\u001b[22m\n - packages/php/a.php [1:1 - 7:2] (7 lines, 40 tokens)\n   packages/php/b.php [1:1 - 7:2]`;
+  const added = newFindings(process.cwd(), asDuplication(`${clone}\n${changedStats}\n${addedClone}`), asDuplication(`${clone}\n${beforeStats}`));
+  assert.ok(added?.some(line => line.includes('Clone found (php)')), 'a real added clone remains a finding');
+});
+
 test('a gate whose recipe command is missing on HEAD fails naming the error, not as failing on HEAD too (K474)', () => {
   const error = 'make: *** [lint-ts] Error 127\n';
   assert.throws(() => newFindings(process.cwd(), gateRun(2, error), gateRun(2, error)), /Error 127/);

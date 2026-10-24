@@ -145,9 +145,13 @@ export function linesOf(output: string, folder: string, root: string): { line: s
 // ...); a kit tool prints its findings on stderr, and another tool, such as a linter, prints its findings on stdout without it (K394-3).
 const PROGRESS = /^\[[a-z0-9-]+\] /;
 
+// The per-language rows in jscpd's seven-column console summary describe the scanned tree, not duplicate blocks.
+const JSCPD_STATISTICS = /^\s*│\s*(?:c|go|php|python|rust|typescript|javascript)\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*│\s*[\d,]+\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*$/;
+
 /** The lines of the stdout and the stderr of a gate that land compares: every line of stderr, and the lines of stdout but progress. */
-const findingLines = ({ stdout, stderr }: { stdout: string; stderr: string }, folder: string, root: string) =>
-  [...linesOf(stdout, folder, root).filter(({ line }) => !PROGRESS.test(line)), ...linesOf(stderr, folder, root)];
+const findingLines = ({ stdout, stderr }: { stdout: string; stderr: string }, folder: string, root: string, gate?: string) =>
+  [...linesOf(stdout, folder, root).filter(({ line }) => !PROGRESS.test(line) && !(gate === 'duplication-check' && JSCPD_STATISTICS.test(line))),
+    ...linesOf(stderr, folder, root)];
 
 /** The lines of `branch` that occur more times in `branch` than in `main`, counting repeats, in their order. */
 function newLines(branch: { line: string; key: string }[], main: { key: string }[]): string[] {
@@ -439,6 +443,7 @@ function landLocked(root: string, branch: string, print: (text: string) => void)
 /** One run of a gate in `folder`: the folder and make's outcome, read with make -s (K446-3). */
 export interface GateRun {
   folder: string;
+  gate?: string;
   result: SpawnSyncReturns<string>;
 }
 
@@ -474,7 +479,7 @@ function gitIn(cwd: string, ...args: string[]): string {
  */
 export function runGate(folder: string, gate: string, args: string[] = [], deadline: number = MAKE_DEADLINE_MS): GateRun {
   // make -s: the recipes that make echoes differ between checkouts and are not findings of the gate (K446-3).
-  return { folder, result: runMake(folder, ['--no-print-directory', '-s', gate, ...args], deadline) };
+  return { folder, gate, result: runMake(folder, ['--no-print-directory', '-s', gate, ...args], deadline) };
 }
 
 /**
@@ -488,7 +493,7 @@ export function newFindings(root: string, candidate: GateRun, baseline: GateRun)
   // A failure of the environment is no finding of either run, so it is refused with its own output (K474).
   if (environmentFailure(candidate)) throw new Error(`the gate fails in ${candidate.folder} for an environment reason, which is no finding, ${endOf(candidate)}:\n${outputOf(candidate)}`);
   if (environmentFailure(baseline)) throw new Error(`the gate fails on the baseline ${baseline.folder} for an environment reason, so it cannot be compared with the candidate, ${endOf(baseline)}:\n${outputOf(baseline)}`);
-  const added = newLines(findingLines(candidate.result, candidate.folder, root), findingLines(baseline.result, baseline.folder, root));
+  const added = newLines(findingLines(candidate.result, candidate.folder, root, candidate.gate), findingLines(baseline.result, baseline.folder, root, baseline.gate));
   return added.length === 0 ? undefined : added;
 }
 
@@ -501,7 +506,7 @@ const outputOf = (run: GateRun) => `${run.result.stdout}${run.result.stderr}`;
  * line. Such a run is never compared with a baseline, since a baseline that fails the same way would pass it as failing on HEAD too.
  */
 function environmentFailure(run: GateRun): boolean {
-  return run.result.status === null || /Error 12[67]\b/.test(outputOf(run)) || findingLines(run.result, run.folder, run.folder).length === 0;
+  return run.result.status === null || /Error 12[67]\b/.test(outputOf(run)) || findingLines(run.result, run.folder, run.folder, run.gate).length === 0;
 }
 
 /** The text of how a gate run ended: its exit status, or the signal that ended it. */
