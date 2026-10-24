@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2aae5f5c83e13ca124733e36081e25cf60125058dd9d198e0d02e91f279d5043 -->
+<!-- source-sha256: 9a656d0c84094eafffb03d6abcbc9f76f5831ab85bb790b9ee8708fc6c382bb3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Parity owner scope는 선언된 coverage part와 release artifact에서 적용 범위를 도출해 공유 requirement를 모든 client에 보존한다. Cargo feature binding은 exact native test id만 실행한다(K566).
 - gates workflow는 consumer를 설치하기 전에 fresh sibling Kit을 build하므로 consumer bootstrap이 Kit의 dist를 읽는다(K565).
 - dependency-policy-check는 root override의 정확한 package 이름과 URL이 root 또는 workspace의 직접 dependency와 일치할 때 remote package tarball을 허용한다. 다른 이름, URL과 transitive-only override는 계속 실패한다(K564).
 - recipe-tools는 shell command를 찾을 때 POSIX parameter expansion을 보존하므로, 유효한 usage expression이 toolchain-check를 중단하지 않는다. K563은 수정 전 실패하고 수정 후 통과한다(K563).
