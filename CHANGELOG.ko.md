@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f9c46f8fb74cc4f433c9d055772e76d7057828d793441ad1be3025166779f2c6 -->
+<!-- source-sha256: 2aae5f5c83e13ca124733e36081e25cf60125058dd9d198e0d02e91f279d5043 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- gates workflow는 consumer를 설치하기 전에 fresh sibling Kit을 build하므로 consumer bootstrap이 Kit의 dist를 읽는다(K565).
 - dependency-policy-check는 root override의 정확한 package 이름과 URL이 root 또는 workspace의 직접 dependency와 일치할 때 remote package tarball을 허용한다. 다른 이름, URL과 transitive-only override는 계속 실패한다(K564).
 - recipe-tools는 shell command를 찾을 때 POSIX parameter expansion을 보존하므로, 유효한 usage expression이 toolchain-check를 중단하지 않는다. K563은 수정 전 실패하고 수정 후 통과한다(K563).
 - PHP extension build는 설치된 parser로 arginfo를 offline 생성하고, Composer archive는 tag stub에서 generated header를 만들어 고정된 ZIP metadata와 함께 넣는다(K560).
