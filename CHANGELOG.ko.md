@@ -1,10 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 63d597d98186e3369c3cc7cd335cb81370d8f631155635ba4fe95bf759ac3e44 -->
+<!-- source-sha256: f930e42f97f8194f6c21d97497387c19460db961954866b7ab5526dd0a0d4040 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- land는 duplication-check finding을 비교할 때 ANSI 색상이 적용된 jscpd 언어별 요약 행을 인식하며 clone 세부 내용은 finding으로 유지한다(K394-5).
+
 
 - land는 duplication-check 결과 비교에서 형식이 확인된 jscpd 언어별 통계 행만 제외하고, 새 clone 블록은 계속 통합을 거부한다(K394-4).
 

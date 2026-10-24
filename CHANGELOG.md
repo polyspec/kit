@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+- land recognizes ANSI-colored jscpd per-language summary rows when comparing duplication-check findings, while preserving clone details as findings (K394-5).
+
+
 - land compares duplication-check findings without recognized per-language jscpd statistics rows, while newly added clone blocks still refuse integration (K394-4).
 
 
