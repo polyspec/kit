@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The language-parity check (`make parity-check`, `make parity-declarations-check`). config/parity.json declares the
-// implementations of the repository, the one source of its language set, and the units that every implementation holds:
+// implementations of the repository, the one source of its language set, and the shared units that every implementation holds:
 // vector suites, features, API symbols and the error-code catalog. The facts come from the tree, never from a flag in the declaration: the checker runs the binding of each suite
 // and feature itself and keeps the ledger of the cases and test ids that ran, runs the symbol extractor of each
 // implementation (parity-symbols.mts) and reads the error codes from its generated artifact.
@@ -45,7 +45,7 @@
 //   R17 leaked-internal        a public signature, parent or interface names an internal symbol: @internal (PHP), a _-private name (Python), a type the entry point does not export (TypeScript) (K307-1)
 //   R12 duplicate-binding      a unit names one implementation twice, with its test or its symbol (the declaration check)
 // A declaration that breaks the schema or names what does not exist is a finding of `declaration`, and no rule runs on it.
-// Every unit holds in every implementation: there is no profile, no exclusion and no native-only symbol.
+// Unscoped units hold in every implementation. A feature owner can narrow only through a declared repository owner; there is no free-form profile.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
@@ -149,6 +149,6 @@ if (isMain(import.meta.url)) {
   if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
   for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
   if (findings.length) console.error(`[parity] ${findings.length} findings`);
-  else say(values.declarations ? 'every declaration holds' : 'every unit holds in every implementation');
+  else say(values.declarations ? 'every declaration holds' : 'every applicable unit holds');
   process.exitCode = findings.length ? 1 : 0;
 }

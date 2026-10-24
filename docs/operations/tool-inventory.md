@@ -1398,10 +1398,14 @@ check, and the resolution that reads the reference and not the local wheel).
 
 ## Language parity (K33)
 
-`scripts/kit/parity.mts` checks that every implementation of a repository holds the same units. `config/parity.json` declares
-the implementations, which is the one source of the language set of the repository, and the units. Every unit holds in every
-implementation (S6): the declaration has no profile, exclusion, admit list or native-only symbol, and it holds no state such as
-done or planned: the checker takes every fact from the tree.
+`scripts/kit/parity.mts` checks that every implementation of a repository holds the shared units. `config/parity.json` declares
+the implementations, which is the one source of the language set of the repository, and the units. A unit without an owner applies
+to every implementation (S6). A feature unit may name an owner only through a `coverage-part` of an existing
+`contracts/features.json` coverage owner, or a `release-package` of `config/release.json`; Kit derives the applicable implementation
+from that declared part or package directory. The feature test must belong to that part or package, and each requirement it cites must
+explicitly name the owner. Suites and API units cannot be owner-scoped. There is no free-form profile, implementation allow-list,
+exclusion, admit list or native-only symbol, and the declaration holds no state such as done or planned: the checker takes its facts
+from the tree.
 
 - It runs the binding of each suite and feature in each implementation itself and keeps an in-memory ledger of the runs and
   of the cases and test ids that each run reported. It reads no saved report.
@@ -1461,7 +1465,7 @@ Every finding fails the check. A finding names its rule, unit, implementation an
 |---|---|
 | `declaration` | The declaration has one of these defects. No other rule runs on such a declaration. <br>- It breaks `scripts/kit/schema/parity.schema.json`. <br>- It names a missing file, or an unknown implementation. <br>- A root is the whole repository. <br>- A go or cargo suite binding has no `symbol`, or a go symbol does not match `^Test\w*$`. <br>- A feature binding has no `id` or has a `symbol`, a suite binding has an `id`, or a feature unit has a `file` or `cases`. <br>- A case name repeats, holds whitespace, or holds `/` in a unit with a go binding. <br>- The `entry` of `symbols` does not exist. <br>- A pattern has no group. <br>- The catalog pattern does not read a line of the catalog, or a catalog or artifact pattern reads no code. <br>- A `support` glob selects no test file of its implementation (of its runner's convention, its `tests` or its runner's `testPatterns`) and no file named like a test, a support file lies outside the `roots` of its implementation, a Go support file declares a function that `go test` runs, a cargo support file holds a test attribute, or the test of a binding matches the `support` of its implementation. <br>- A `command`, `args` or `env` value, or a word of a binding `command`, holds a `${` form that is not `${NAME}` (K223). <br>- A binding `command` is empty, or holds a word that the pattern of `args` refuses (S3). <br>- An env sets `PYTHONPATH`, or a path field, or a word of an `args` or `env` value, is absolute, starts with `~` or holds a `..` segment (S3). |
 | R1 missing-implementation | An API unit declares no symbol of an implementation, or the declared symbol is no public symbol that the implementation's extractor gives. Or the extractor of an implementation gives no symbols: its program or nightly is missing, it fails, or it prints no list. |
-| R2 missing-binding | A suite or feature unit has no binding of an implementation. |
+| R2 missing-binding | A suite or feature unit has no binding of an applicable implementation: all implementations for a unit without an owner, or the implementation that Kit derives from its declared owner. |
 | R3 not-executed | The binding cannot start (its program is missing, or an environment reference of its implementation is unset, empty or resolves to a path outside the checkout), exits with a status other than 0, or the cases that passed are not exactly the cases of the suite file. A feature binding fails when the run of its whole test file exits with an error or its `id` did not pass exactly once. Each binding runs twice, so a second run with another exit status, another case or another result is also R3. The finding lists the failed, skipped, missing and extra cases and the differences between the runs. A case that a run reports twice is named by a `reported twice in run <n>` part of the finding. A Go package that does not build adds its compiler output. |
 | R4 undeclared-suite | A file of the `suites` globs is the file of no suite unit and lies in the case directory of none. |
 | R5 undeclared-test | A test file of an implementation (a file in its roots that the convention or `testPatterns` of its runner selects, or a file of its `tests` globs), other than its `support` files, is the test of no binding of that implementation. Or a file in its roots is named like a test (`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`), no convention selects it, and no binding runs it. Or a support file of a node, php or python implementation reports a case when `parity-check` runs it. |
@@ -1543,9 +1547,14 @@ root of any runner whose convention selects it.
 
 ### Feature units (K75)
 
-A unit of kind `feature` names one native test of each implementation: `bindings` of `{ implementation, test,
-id }`, where `id` is the native test id as the runner reports it (see Feature ids above). It has no vector file. `parity-check`
-runs the whole test file of each feature binding, once for every feature that binds that file in that implementation, twice;
+A unit of kind `feature` names one native test of each applicable implementation: `bindings` of `{ implementation, test,
+id }`, where `id` is the native test id as the runner reports it (see Feature ids above). It has no vector file. Without `owner`,
+every implementation applies. With `owner.kind: "coverage-part"`, `owner.feature` and `owner.part` must resolve to an existing feature and
+coverage owner in `contracts/features.json`; the feature must list the unit id in `parity`, list each binding test in `tests`, and the
+test must lie under the declared part. With `owner.kind: "release-package"`, `owner.package` must resolve to a package name in
+`config/release.json`, and the binding test must lie under its package directory. The owner source resolves to exactly one declared
+implementation, and each requirement must name that owner as its subject; shared client requirements therefore stay unscoped.
+`parity-check` runs the whole test file of each feature binding, once for every feature that binds that file in that implementation, twice;
 the binding holds when the run exits with 0 and its `id` passed once in each run. A missing, failed, skipped, repeated or
 changing id is R3, and a feature without a binding of an implementation is R2.
 
@@ -1619,7 +1628,7 @@ a vector file is a declaration finding. A single-file suite keeps the text match
 | `comparators` | the directories of the checks that compare the outputs of several implementations |
 | `tools` | `root` and `reason` of each directory of single-language tooling tests that implement no contract, printed on every run; R6 accepts a test there and R3 and R5 do not judge it; a root that overlaps an implementation root or holds the test of a binding is a declaration finding |
 | `testPatterns` | for each `runner`, the `globs` of its test files across the repository |
-| `units` | `id`, `kind` (`suite`, `feature` or `api`) and `requirements`. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, a matched file a declaration finding, and each case directory holds `case.json`, see Requirements of a case; a go binding reports such a name as nested subtests), the optional `caseFile` of a directory suite and `bindings` (`implementation`, `test`, `symbol`, and the optional argv `command` that replaces the runner's command, see Feature units). An API unit has `symbols` (`implementation`, `symbol`). |
+| `units` | `id`, `kind` (`suite`, `feature` or `api`) and `requirements`. A feature may have `owner`: `{kind: "coverage-part", feature, part}` from `contracts/features.json`, or `{kind: "release-package", package}` from `config/release.json`; the owner source determines its one applicable implementation. Suites and API units cannot have an owner; an unscoped unit applies to all implementations. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, a matched file a declaration finding, and each case directory holds `case.json`, see Requirements of a case; a go binding reports such a name as nested subtests), the optional `caseFile` of a directory suite and `bindings` (`implementation`, `test`, `symbol`, and the optional argv `command` that replaces the runner's command, see Feature units). An API unit has `symbols` (`implementation`, `symbol`). |
 | `errors` | `catalog` (`file`, `pattern`) |
 | `languageLists` | `file` and `pattern` (its first group holds the list; the words of the group are the names) |
 | `documents` | `globs` and `nouns`, the words that a count precedes (`languages`, `언어`) |
@@ -1655,7 +1664,7 @@ such as the other fields of an entry. An example is `^- code: (\w+)$|^  \w+: .*$
 ### Wiring a repository
 
 1. After `make kit-sync`, write `config/parity.json`. Declare every implementation, a suite unit for each vector
-   file and an API unit for each public concept; every unit holds in every implementation.
+   file and an API unit for each public concept. Shared units hold in every implementation; an owner-scoped feature holds in its declared owner.
 2. Make each binding's native test report each case of a suite under the name of its runner (see Runners): a subtest
    `<symbol>/<case>` in Go, a test `<symbol>::<case>` in cargo, a top-level node:test test named `<case>`, a data set named
    `<case>` of the method `<class>::<method>` that the binding names as its symbol in PHPUnit (a `#[DataProvider]` with string

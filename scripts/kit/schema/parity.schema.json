@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/parity.json",
-  "description": "The language-parity declaration, read by scripts/kit/parity.mts: the implementations of the repository (the one source of the language set) and the units that every implementation must hold. The facts come from the tree: the checker runs the bindings and the symbol extractors and reads the error-code artifacts. Every path lies inside the repository (S3): none is absolute, starts with ~ or holds a .. segment, in a path field or in a word (between =, : and whitespace) of a runner argument, env value or binding command, and no env sets PYTHONPATH; a package is tested as installed.",
+  "description": "The language-parity declaration, read by scripts/kit/parity.mts: the implementations of the repository (the one source of the language set) and the shared units that every applicable implementation must hold. Unscoped units apply to every implementation; a feature owner resolves only through a declared coverage part or release package. The facts come from the tree: the checker runs the bindings and the symbol extractors and reads the error-code artifacts. Every path lies inside the repository (S3): none is absolute, starts with ~ or holds a .. segment, in a path field or in a word (between =, : and whitespace) of a runner argument, env value or binding command, and no env sets PYTHONPATH; a package is tested as installed.",
   "type": "object",
   "required": ["schema", "implementations", "requirements", "units"],
   "additionalProperties": false,
@@ -121,6 +121,30 @@
           "file": { "description": "suite: the vector file, or the directory whose case directories cases selects.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
           "cases": { "description": "suite: for a vector file, the path of the case names in the file, $ followed by .<key> and [*] steps and ending with an optional .~ step that selects the keys of an object as the names; for a directory, a glob relative to it whose / steps each match one directory level and whose matches are the case directories, each named by its path relative to the directory (*/* over <group>/<case>/), whose case.json lists in requirements the ids that the case tests (K277). A file that the glob matches is a declaration finding.", "type": "string", "pattern": "^(?:\\$(\\.[A-Za-z_][A-Za-z0-9_-]*|\\[\\*\\])*(\\.~)?|[^$/][^\\s]*)$" },
           "caseFile": { "description": "suite whose file is a directory: the file name that a case directory holds to be a case of this unit, so units that share one directory each take the cases that hold the output they compare (K277).", "type": "string", "pattern": "^(?!\\.\\.$)[^/\\s]+$" },
+          "owner": {
+            "description": "feature: a requirement specific to a declared component or artifact owner. Kit resolves the owner from contracts/features.json or config/release.json; this is not a free-form implementation profile. Requirements for shared behavior remain unscoped. Units without owner apply to every implementation.",
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["kind", "feature", "part"],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": { "const": "coverage-part" },
+                  "feature": { "type": "string", "minLength": 1 },
+                  "part": { "type": "string", "pattern": "^owner/[a-z][a-z0-9-]*$" }
+                }
+              },
+              {
+                "type": "object",
+                "required": ["kind", "package"],
+                "additionalProperties": false,
+                "properties": {
+                  "kind": { "const": "release-package" },
+                  "package": { "type": "string", "minLength": 1 }
+                }
+              }
+            ]
+          },
           "bindings": {
             "description": "suite and feature: the native test of each implementation.",
             "type": "array",

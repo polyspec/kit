@@ -8,9 +8,9 @@ import { CONVENTIONS, finding, sharedRoots, testNamed, within } from './parity-d
 import type { ParityModel, ParityUnit, Runner } from './parity-declaration.mts';
 import { present } from './present.mts';
 
-/** The pairs of each unit of `kind` with each implementation, in declaration order. */
+/** The pairs of each unit of `kind` with each applicable implementation, in declaration order. */
 export function pairs(model: ParityModel, kind: ParityUnit['kind']) {
-  return model.config.units.filter(unit => unit.kind === kind).flatMap(unit => model.config.implementations.map(implementation => ({ unit, implementation })));
+  return model.config.units.filter(unit => unit.kind === kind).flatMap(unit => (model.unitImplementations.get(unit.id) ?? model.config.implementations).map(implementation => ({ unit, implementation })));
 }
 
 /** The public symbols of each implementation, by its name, as its extractor gave them (parity-symbols.mts). */
@@ -32,7 +32,7 @@ export function missingImplementations(model: ParityModel, snapshots: Snapshots)
   });
 }
 
-/** R2: each suite and feature unit has a binding of each implementation. */
+/** R2: each suite and feature unit has a binding of each applicable implementation. */
 export function missingBindings(model: ParityModel) {
   return [...pairs(model, 'suite'), ...pairs(model, 'feature')]
     // readDeclaration reports a suite or feature unit without bindings, and the rules do not run on a declaration with findings.
@@ -60,7 +60,7 @@ export function undeclaredTests(model: ParityModel, files: Iterable<string>) {
   const support = (file: string) => model.config.implementations.some(implementation => matchesAny(implementation.support ?? [], file));
   return model.config.implementations.flatMap((implementation) => {
     const bound = new Set(model.config.units.flatMap(unit => unit.bindings ?? []).filter(entry => entry.implementation === implementation.name).map(entry => entry.test));
-    // readDeclaration gives every implementation its test files.
+    // readDeclaration gives each implementation its test files.
     // A file below the directory of a bound tests/<name>/main.rs is a module of that cargo test target (K148).
     const targetDirectories = implementation.runner === 'cargo' ? [...bound].filter(test => test.endsWith('/main.rs') && path.posix.basename(path.posix.dirname(path.posix.dirname(test))) === 'tests').map(test => path.posix.dirname(test)) : [];
     const unbound = present(model.tests.get(implementation.name), 'model.tests.get(implementation.name)').filter(file => !bound.has(file) && !targetDirectories.some(directory => within(directory, file)) && !matchesAny(implementation.support ?? [], file) && !matchesAny((implementation.internal ?? []).map(item => item.glob), file))

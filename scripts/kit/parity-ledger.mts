@@ -1,5 +1,5 @@
-// R3 of the language-parity check: the checker runs the binding of every suite and feature unit in every implementation of its
-// profile and keeps, in memory, the ledger of the runs and of the cases that each run reported. A suite binding holds its unit
+// R3 of the language-parity check: the checker runs the binding of every suite and feature unit in each applicable implementation
+// and keeps, in memory, the ledger of the runs and of the cases that each run reported. A suite binding holds its unit
 // when its command exits with 0 and the cases that passed are exactly the cases of the suite file: a failed, skipped, missing or
 // extra case is a finding. A feature binding holds its unit when the whole test file, run once for every feature that binds
 // it, exits with 0 and reports its id once as passed. Each run happens twice, and a second run with another exit status,

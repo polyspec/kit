@@ -1,5 +1,5 @@
 // Tests of the requirement trace of the parity check (S6, K273): every requirement that docs/spec defines is cited by a unit
-// of config/parity.json, so the bindings of every implementation of its profile test it, and a unit cites only requirements
+// of config/parity.json, so each applicable binding tests it, and a unit cites only requirements
 // that the spec defines.
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -26,16 +26,16 @@ test('every requirement that the spec defines is cited by a unit: no finding', (
 test('a requirement defined as a numbered list item is a requirement like a bulleted one (K299)', () => {
   const numbered = { ...SPEC, 'docs/spec/steps.md': '## Steps\n\n1. **AB-4** First step.\n2) **AB-5** Second step.\n10. **AB-6** Tenth step.\n+ **AB-7** A plus bullet.\n' };
   assert.deepEqual(run([{ id: 'codec', requirements: ['AB-1', 'AB-2', 'AB-3'] }], numbered), [
-    'R13 -: docs/spec/steps.md defines AB-4, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
-    'R13 -: docs/spec/steps.md defines AB-5, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
-    'R13 -: docs/spec/steps.md defines AB-6, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
-    'R13 -: docs/spec/steps.md defines AB-7, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
+    'R13 -: docs/spec/steps.md defines AB-4, which no unit of config/parity.json cites; add a unit that tests it',
+    'R13 -: docs/spec/steps.md defines AB-5, which no unit of config/parity.json cites; add a unit that tests it',
+    'R13 -: docs/spec/steps.md defines AB-6, which no unit of config/parity.json cites; add a unit that tests it',
+    'R13 -: docs/spec/steps.md defines AB-7, which no unit of config/parity.json cites; add a unit that tests it',
   ]);
 });
 
 test('a requirement that no unit cites is untraced (R13), and the Korean twin and other folders define none', () => {
   assert.deepEqual(run([{ id: 'codec', requirements: ['AB-1', 'AB-3'] }]), [
-    'R13 -: docs/spec/api.md defines AB-2, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
+    'R13 -: docs/spec/api.md defines AB-2, which no unit of config/parity.json cites; add a unit that tests it',
   ]);
 });
 
@@ -85,7 +85,7 @@ test('caseFile restricts the case set of a unit: an id listed only by a case wit
   const files = { ...DIRECTORY, 'tests/cases/a/one/case.json': CASE(['AB-1']), 'tests/cases/a/one/out.html': 'x', 'tests/cases/a/two/case.json': CASE(['AB-2', 'AB-3']) };
   assert.deepEqual(directoryRun([suite('html', ['AB-1', 'AB-2'], 'out.html')], files, { html: ['a/one'] }), [
     'R15 html ts: cites AB-2, which its test ts/b.test.ts does not name; a test names the requirement it tests',
-    'R13 -: docs/spec/api.md defines AB-3, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
+    'R13 -: docs/spec/api.md defines AB-3, which no unit of config/parity.json cites; add a unit that tests it',
   ]);
 });
 
@@ -109,7 +109,7 @@ test('an id of a case.json that the spec does not define is one R14 although two
 
 test('only a unit with tests traces a requirement: one that only an api unit cites is untraced (R13)', () => {
   assert.deepEqual(run([{ id: 'codec', requirements: ['AB-1', 'AB-3'] }, { id: 'surface', kind: 'api', requirements: ['AB-2'], bindings: [] }]), [
-    'R13 -: docs/spec/api.md defines AB-2, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile',
+    'R13 -: docs/spec/api.md defines AB-2, which no unit of config/parity.json cites; add a unit that tests it',
   ]);
 });
 

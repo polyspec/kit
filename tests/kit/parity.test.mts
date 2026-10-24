@@ -31,6 +31,7 @@ type ImplementationJson = Entry & { name: string; runner: string; env?: Entry[] 
 type Declaration = Entry & {
   implementations: ImplementationJson[];
   units: UnitJson[];
+  requirements: { pattern: string };
   suites: string[];
   testPatterns?: { runner: string; globs: string[] }[];
   errors: { catalog: { file: string; pattern: string } };
@@ -1180,7 +1181,7 @@ test('R6: the tests of the PHP extension are those of packages/php, with no shar
     schema: 1, implementations, requirements: { pattern: 'CX-[0-9]+' },
     units: [{ id: 'width', kind: 'feature', requirements: [], bindings: implementations.map(entry => ({ implementation: entry.name, test: 'packages/php/tests/WidthTest.php' })) }],
   };
-  const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map() };
+  const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map(), unitImplementations: new Map() };
   assert.deepEqual(misplacedTests(model, []).map(finding => finding.implementation), []);
 });
 
@@ -1195,7 +1196,7 @@ test('R6: the tests of the PHP extension are those of every PHP library, package
     schema: 1, implementations, requirements: { pattern: 'CX-[0-9]+' },
     units: tests.map((test, index) => ({ id: `unit${index}`, kind: 'feature' as const, requirements: [], bindings: [{ implementation: 'php-ext', test }] })),
   };
-  const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map() };
+  const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map(), unitImplementations: new Map() };
   assert.deepEqual(misplacedTests(model, []).map(finding => finding.implementation), []);
 });
 
@@ -1207,7 +1208,7 @@ test('R6 leaves out a file that an internal glob of any implementation selects (
   const file = 'packages/php-ext/tests/engine/engine.test.mjs';
   const model = (declared: boolean): ParityModel => {
     const list = declared ? implementations : implementations.map(({ internal: _internal, ...entry }) => entry);
-    return { config: { schema: 1, implementations: list, requirements: { pattern: 'CX-[0-9]+' }, units: [] }, implementations: new Map(list.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map([[file, ['node']]]) };
+    return { config: { schema: 1, implementations: list, requirements: { pattern: 'CX-[0-9]+' }, units: [] }, implementations: new Map(list.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map([[file, ['node']]]), unitImplementations: new Map() };
   };
   assert.deepEqual(misplacedTests(model(false), [file]).map(finding => finding.place), [file], 'without the declaration the node test outside the node roots is R6');
   assert.deepEqual(misplacedTests(model(true), [file]), []);
@@ -1534,7 +1535,7 @@ test('an implementation with no manifest of its ecosystem below its roots, or wi
   assert.match(messages(twin, { 'php/tests/twin/a.php': 'PASS x\n' }).join('\n'), /implementation php-twin: it has the roots of php; two implementations of one package only split its tests/);
 });
 
-test('K276: a declaration with profiles, nativeOnly or exclusions fails the schema, since every unit holds in every implementation', TIMEOUT, (t) => {
+test('K276: free-form profiles, nativeOnly and exclusions fail; only a provenance-backed owner scope may narrow a feature', TIMEOUT, (t) => {
   const { findings } = check(t, { edit: (config) => { config.profiles = [{ name: 'all', implementations: ['go'] }]; config.nativeOnly = []; config.exclusions = []; return config; } }, { execute: false });
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"profiles"}',
@@ -1548,6 +1549,97 @@ test('K276-1: a suite that declares admit fails the schema, since every implemen
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: config/parity.json: /units/0 must NOT have additional properties {"additionalProperty":"admit"}',
   ]);
+});
+
+test('K566: a feature owner scope derives its implementation from a declared coverage part and runs its native case', TIMEOUT, (t) => {
+  const files = {
+    'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-1** Go exposes its rollback fault through its test-only entry point.\n',
+    'contracts/features.json': JSON.stringify({ features: [{ id: 'roundtrip', parity: ['go-native-roundtrip'], tests: ['go/roundtrip_test.go'], coverage: { owners: { go: { part: 'go', tests: ['go/roundtrip_test.go'] } } } }] }),
+    'go/roundtrip_test.go': `${FEATURE_FILES['go/roundtrip_test.go']}\n// RX-1\n`,
+  };
+  const change: Change = {
+    files,
+    edit: config => {
+      config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+      config.units.push({
+        id: 'go-native-roundtrip', kind: 'feature', requirements: ['RX-1'], owner: { kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' },
+        bindings: [{ implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip/bytes' }],
+      });
+      return config;
+    },
+  };
+  const noRequirementTrace = check(t, { ...change, files: { ...files, 'go/roundtrip_test.go': FEATURE_FILES['go/roundtrip_test.go'] } }, { execute: false });
+  assert.ok(noRequirementTrace.findings.some(finding => finding.rule === 'R15' && finding.unit === 'go-native-roundtrip' && finding.implementation === 'go' && finding.requirements?.includes('RX-1')));
+  const root = repository(t, change);
+  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['go-native-roundtrip'] });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.runs.map(run => `${run.implementation} ${run.attempt} ${run.status}`), ['go 1 0', 'go 2 0']);
+});
+
+test('K566 rejects component scope for a shared SQL requirement and an unowned coverage part', TIMEOUT, (t) => {
+  const files = {
+    'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-2** Every client executes SQL using its declared dialect.\n',
+    'contracts/features.json': JSON.stringify({ features: [{ id: 'roundtrip', parity: ['go-native-roundtrip'], tests: ['go/roundtrip_test.go'], coverage: { owners: { go: { part: 'go', tests: ['go/roundtrip_test.go'] } } } }] }),
+    'go/roundtrip_test.go': `${FEATURE_FILES['go/roundtrip_test.go']}\n// RX-2\n`,
+  };
+  const makeChange = (owner: Entry): Change => ({
+    files,
+    edit: config => {
+      config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+      config.units.push({ id: 'go-native-roundtrip', kind: 'feature', requirements: ['RX-2'], owner, bindings: [{ implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip/bytes' }] });
+      return config;
+    },
+  });
+  const shared = check(t, makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }), { execute: false });
+  assert.ok(shared.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('requirement RX-2 does not name its owner go')));
+  const nonSubject = check(t, { ...makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }), files: {
+    ...files,
+    'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-2** Rollback fault handling exposes SQL errors through the native entry point.\n',
+  } }, { execute: false });
+  assert.ok(nonSubject.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('requirement RX-2 does not name its owner go')));
+  const unknownPart = check(t, makeChange({ kind: 'coverage-part', feature: 'missing', part: 'owner/go' }), { execute: false });
+  assert.ok(unknownPart.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('feature missing does not exist in contracts/features.json')));
+  const absentOwner = check(t, makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/rust' }), { execute: false });
+  assert.ok(absentOwner.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not name a coverage owner in contracts/features.json')));
+  const unlistedTest = check(t, { ...makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }), edit: config => {
+    config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+    config.units.push({ id: 'go-native-roundtrip', kind: 'feature', requirements: ['RX-2'], owner: { kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }, bindings: [{ implementation: 'go', test: 'go/unlisted_test.go', id: 'TestRoundtrip/bytes' }] });
+    return config;
+  } }, { execute: false });
+  assert.ok(unlistedTest.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not exist')));
+  assert.ok(unlistedTest.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not declare each bound test in its feature tests')));
+});
+
+test('K566: a release-package owner resolves its implementation from config/release.json', TIMEOUT, (t) => {
+  const files = {
+    'docs/spec/owner-scope.md': '# Native package\n\n- **RX-3** The codec-ts package exports its client declarations at its package root.\n',
+    'config/release.json': JSON.stringify({ packages: [{ name: 'codec-ts', directory: 'ts' }] }),
+    'ts/tests/roundtrip.test.mjs': `import { test } from 'node:test';\ntest('native', () => {});\n// RX-3\n`,
+  };
+  const change: Change = {
+    files,
+    edit: config => {
+      config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+      config.units.push({ id: 'ts-native-entry', kind: 'feature', requirements: ['RX-3'], owner: { kind: 'release-package', package: 'codec-ts' }, bindings: [{ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'native' }] });
+      return config;
+    },
+  };
+  const { findings, ledger } = check(t, change);
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.runs.filter(run => run.unit === 'ts-native-entry').map(run => `${run.implementation} ${run.attempt} ${run.status}`), ['ts 1 0', 'ts 2 0']);
+  const mismatched = check(t, { ...change, files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'codec-ts', directory: 'php' }] }) } }, { execute: false });
+  assert.ok(mismatched.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('binds an implementation other than php')));
+  const implementationNameOnly = check(t, { ...change, files: {
+    ...files,
+    'docs/spec/owner-scope.md': '# Native package\n\n- **RX-3** TypeScript exports its client declarations at its package root.\n',
+  } }, { execute: false });
+  assert.ok(implementationNameOnly.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('requirement RX-3 does not name its owner ts')));
+  const extraOwnerOverride = check(t, { ...change, edit: config => {
+    config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+    config.units.push({ id: 'ts-native-entry', kind: 'feature', requirements: ['RX-3'], owner: { kind: 'release-package', package: 'codec-ts', implementations: ['ts'] }, bindings: [{ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'native' }] });
+    return config;
+  } }, { execute: false });
+  assert.ok(extraOwnerOverride.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('additionalProperty')));
 });
 
 test('a declaration that breaks its schema fails, and no rule runs on it', TIMEOUT, (t) => {
@@ -1588,7 +1680,7 @@ test('make parity-check and parity-declarations-check pass without a finding; pa
   const passed = make('parity-check');
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
   assert.match(passed.stdout, /\[parity\] run codec go \(1 of 2\): go test -json -count=1 -run \^TestCodec\$ \.\//);
-  assert.match(passed.stdout, /\[parity\] every unit holds in every implementation/);
+  assert.match(passed.stdout, /\[parity\] every applicable unit holds/);
   writeFileSync(path.join(root, 'python/tests/test_codec.py'), 'PASS test_empty\n# CX-1\n');
   assert.equal(make('parity-declarations-check').status, 0, 'the declarations do not run the bindings');
   assert.notEqual(make('parity-check').status, 0);

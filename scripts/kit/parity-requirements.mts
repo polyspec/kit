@@ -1,6 +1,6 @@
 // The requirement trace of the parity check (S6, K273): docs/spec defines each requirement once, as a list item (bulleted or numbered) **<id>** or a
 // heading <id>, its id matching requirements.pattern of config/parity.json; every unit cites the requirements it tests, so
-// the bindings of every implementation of its profile test each requirement of the spec. The Korean twins (*.ko.md) define
+// the bindings of every applicable implementation test each requirement of the spec. The Korean twins (*.ko.md) define
 // nothing: they translate the English definitions.
 //   R13 untraced-requirement  a requirement of the spec that no unit cites
 //   R14 unknown-requirement   a unit cites an id that the spec does not define
@@ -96,7 +96,7 @@ export function requirementFindings(config: { requirements: { pattern: string };
     for (const file of [...listed].filter(name => matchesAny(globs, name)).sort()) {
       // Only a match that the spec defines is a requirement named (K342): UTF-8 and SHA-256 match a pattern such as [A-Z]+-[0-9]+ and are none.
       const named = [...read(file).matchAll(identifier)].map(match => match[0]).find(id => defined.has(id));
-      if (named !== undefined) findings.push(finding('R16', `the internal test of ${implementation.name} names ${named}, a requirement of the spec; a test of a requirement is a unit that cites it, in every implementation`, { implementation: implementation.name, place: file, requirements: [named] }));
+      if (named !== undefined) findings.push(finding('R16', `the internal test of ${implementation.name} names ${named}, a requirement of the spec; a test of a requirement belongs to a feature unit`, { implementation: implementation.name, place: file, requirements: [named] }));
     }
   }
   // R18: two directory suites that cite a requirement from different case sets are one feature written twice (K350).
@@ -107,8 +107,8 @@ export function requirementFindings(config: { requirements: { pattern: string };
   });
   for (const [index, first] of directories.entries()) for (const second of directories.slice(index + 1)) {
     const shared = [...new Set(first.unit.requirements)].filter(id => second.unit.requirements.includes(id));
-    if (shared.length > 0 && first.files !== second.files) findings.push(finding('R18', `${first.unit.id} and ${second.unit.id} both cite ${shared.join(', ')} from different case sets; a feature is one unit that every implementation tests, so merge the two suites into one unit`, { requirements: shared }));
+    if (shared.length > 0 && first.files !== second.files) findings.push(finding('R18', `${first.unit.id} and ${second.unit.id} both cite ${shared.join(', ')} from different case sets; a shared suite is one unit, so merge the two suites into one unit`, { requirements: shared }));
   }
-  for (const [id, { file }] of defined) if (!cited.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add the unit that tests it in every implementation of its profile`, { requirements: [id] }));
+  for (const [id, { file }] of defined) if (!cited.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add a unit that tests it`, { requirements: [id] }));
   return findings;
 }

@@ -76,9 +76,15 @@ export interface ParityUnit {
   cases?: string;
   /** A directory suite: the file that each of its case directories holds, so only those cases are its cases (K277). */
   caseFile?: string;
+  owner?: ParityOwner;
   bindings?: ParityBinding[];
   symbols?: ParitySymbol[];
 }
+
+/** A feature's native surface, traced to an existing part owner instead of an implementation allow-list. */
+export type ParityOwner =
+  | { kind: 'coverage-part'; feature: string; part: string }
+  | { kind: 'release-package'; package: string };
 
 /** config/parity.json as parity.schema.json describes it. */
 export interface ParityConfig {
@@ -104,6 +110,8 @@ export interface ParityModel {
   cases: Map<string, string[]>;
   tests: Map<string, string[]>;
   testRunners: Map<string, Runner[]>;
+  /** The implementation derived from a unit's declared repository owner, or all implementations when absent. */
+  unitImplementations: Map<string, ParityImplementation[]>;
 }
 
 /** The environment that the references of a runner value read. */
@@ -630,10 +638,103 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
   const names = [...implementations.keys()];
   const units = new Map<string, ParityUnit>();
   const cases = new Map<string, string[]>();
+  const unitImplementations = new Map<string, ParityImplementation[]>();
+  let featureOwners: unknown;
+  let releaseOwners: unknown;
+  const readOwnerRegistry = (file: string, label: string): unknown => {
+    const value = readTrackedJson(root, files, file, label, errors);
+    if (value === undefined) return undefined;
+    return value;
+  };
+  const requirementText = (id: string): string | undefined => {
+    const definition = new RegExp(`^\\s*(?:(?:[-*+]|\\d+[.)])\\s+\\*\\*(${config.requirements.pattern})\\*\\*|#{1,6}\\s+(${config.requirements.pattern})\\b)`);
+    for (const file of [...files].filter(name => /^docs\/spec\/(?:.+\/)?[^/]+(?<!\.ko)\.md$/.test(name)).sort()) {
+      const line = readFileSync(path.join(root, file), 'utf8').split('\n').find(text => {
+        const match = definition.exec(text);
+        return (match?.[1] ?? match?.[2]) === id;
+      });
+      if (line !== undefined) return line;
+    }
+    return undefined;
+  };
+  const scopeOwner = (scope: ParityOwner, unit: ParityUnit): { implementation: ParityImplementation; markers: string[] } | undefined => {
+    if (scope.kind === 'release-package') {
+      if (releaseOwners === undefined) releaseOwners = readOwnerRegistry('config/release.json', 'release package owner');
+      if (!isJsonObject(releaseOwners) || !isJsonList(releaseOwners.packages)) return undefined;
+      const pkg = releaseOwners.packages.find(entry => isJsonObject(entry) && entry.name === scope.package);
+      if (!isJsonObject(pkg) || typeof pkg.directory !== 'string') {
+        fail(`unit owner release package ${scope.package} does not name a package of config/release.json`);
+        return undefined;
+      }
+      const part = pkg.directory;
+      if (!files.has(`${part}/package.json`) && !files.has(`${part}/composer.json`) && !files.has(`${part}/pyproject.toml`) && !files.has(`${part}/Cargo.toml`)) {
+        fail(`unit owner release package ${scope.package} has no package manifest under ${part}`);
+        return undefined;
+      }
+      const owners = config.implementations.filter(entry => entry.roots.some(rootPath => rootPath === part || within(rootPath, part)));
+      if (owners.length !== 1) {
+        fail(`unit owner release package ${scope.package} resolves to ${owners.length} implementation roots; a native package has one owner`);
+        return undefined;
+      }
+      if ((unit.bindings ?? []).some(binding => binding.test !== part && !within(part, binding.test))) fail(`unit owner release package ${scope.package} does not contain every bound test`);
+      const owner = present(owners[0], 'owners[0]');
+      return { implementation: owner, markers: [scope.package] };
+    }
+    if (featureOwners === undefined) featureOwners = readOwnerRegistry('contracts/features.json', 'feature coverage owner');
+    if (!isJsonObject(featureOwners) || !isJsonList(featureOwners.features)) return undefined;
+    const feature = featureOwners.features.find(entry => isJsonObject(entry) && entry.id === scope.feature);
+    if (!isJsonObject(feature)) {
+      fail(`unit owner feature ${scope.feature} does not exist in contracts/features.json`);
+      return undefined;
+    }
+    if (!isJsonList(feature.parity) || !feature.parity.includes(unit.id)) fail(`unit owner feature ${scope.feature} does not name parity unit ${unit.id} in its parity list`);
+    const ownerKey = scope.part.slice('owner/'.length);
+    const coverage = isJsonObject(feature.coverage) ? feature.coverage : undefined;
+    const coverageOwners = coverage && isJsonObject(coverage.owners) ? coverage.owners : undefined;
+    const declared = coverageOwners?.[ownerKey];
+    if (!isJsonObject(declared) || typeof declared.part !== 'string') {
+      fail(`unit owner ${scope.feature}/${scope.part} does not name a coverage owner in contracts/features.json`);
+      return undefined;
+    }
+    const part = declared.part;
+    const owners = config.implementations.filter(entry => entry.roots.some(rootPath => rootPath === part || within(rootPath, part)));
+    if (owners.length !== 1) {
+      fail(`unit owner ${scope.feature}/${scope.part} resolves to ${owners.length} implementation roots; a coverage part has one owner`);
+      return undefined;
+    }
+    if (!isJsonList(feature.tests)) {
+      fail(`unit owner ${scope.feature}/${scope.part} does not declare feature tests`);
+      return undefined;
+    }
+    const featureTests = feature.tests;
+    if (!(unit.bindings ?? []).every(binding => featureTests.includes(binding.test))) fail(`unit owner ${scope.feature}/${scope.part} does not declare each bound test in its feature tests`);
+    const owner = present(owners[0], 'owners[0]');
+    if ((unit.bindings ?? []).some(binding => binding.test !== part && !within(part, binding.test))) fail(`unit owner ${scope.feature}/${scope.part} does not contain every bound test`);
+    return { implementation: owner, markers: [owner.name, ...(owner.prose ?? [])] };
+  };
+  const requirementStartsWithOwner = (id: string, marker: string) => {
+    const text = requirementText(id);
+    if (text === undefined || /\b(?:every|each|all)\s+(?:client|implementation)s?\b/i.test(text)) return false;
+    const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const subject = new RegExp(`^\\s*(?:[-*+]\\s+)?\\*\\*${config.requirements.pattern}\\*\\*\\s+(?:The\\s+)?${escaped}(.*)$`, 'i').exec(text);
+    return subject !== null && !/^\\s+(?:and|or|,)/i.test(subject[1] ?? '');
+  };
   for (const unit of config.units) {
     if (units.has(unit.id)) fail(`the unit ${unit.id} is declared twice`);
     units.set(unit.id, unit);
     const where = `unit ${unit.id}`;
+    if (unit.owner !== undefined) {
+      if (unit.kind !== 'feature') fail(`${where}: only a feature unit can have an owner; suites and API units apply to every implementation`);
+      const resolved = scopeOwner(unit.owner, unit);
+      if (resolved !== undefined) {
+        unitImplementations.set(unit.id, [resolved.implementation]);
+        for (const id of unit.requirements) {
+          const ownerNamed = resolved.markers.some(marker => requirementStartsWithOwner(id, marker));
+          if (!ownerNamed) fail(`${where}: requirement ${id} does not name its owner ${resolved.implementation.name}`);
+        }
+        if ((unit.bindings ?? []).some(binding => binding.implementation !== resolved.implementation.name)) fail(`${where}: an owner-scoped feature binds an implementation other than ${resolved.implementation.name}`);
+      }
+    }
     const owned = unit.kind === 'api' ? unit.symbols ?? [] : unit.bindings ?? [];
     const misplaced = { suite: ['symbols'], feature: ['file', 'cases', 'symbols'], api: ['file', 'cases', 'bindings'] }[unit.kind];
     for (const key of misplaced) if (key in unit) fail(`${where}: a unit of kind ${unit.kind} has no ${key}`);
@@ -724,6 +825,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     cases,
     tests,
     testRunners,
+    unitImplementations,
   };
   return { errors, model, leftOut };
 }
