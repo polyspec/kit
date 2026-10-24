@@ -147,10 +147,12 @@ const PROGRESS = /^\[[a-z0-9-]+\] /;
 
 // The per-language rows in jscpd's seven-column console summary describe the scanned tree, not duplicate blocks.
 const JSCPD_STATISTICS = /^\s*│\s*(?:c|go|php|python|rust|typescript|javascript)\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*│\s*[\d,]+\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*$/;
+const ANSI_SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
+const isJscpdStatistics = (line: string): boolean => JSCPD_STATISTICS.test(line.replace(ANSI_SGR, ''));
 
 /** The lines of the stdout and the stderr of a gate that land compares: every line of stderr, and the lines of stdout but progress. */
 const findingLines = ({ stdout, stderr }: { stdout: string; stderr: string }, folder: string, root: string, gate?: string) =>
-  [...linesOf(stdout, folder, root).filter(({ line }) => !PROGRESS.test(line) && !(gate === 'duplication-check' && JSCPD_STATISTICS.test(line))),
+  [...linesOf(stdout, folder, root).filter(({ line }) => !PROGRESS.test(line) && !(gate === 'duplication-check' && isJscpdStatistics(line))),
     ...linesOf(stderr, folder, root)];
 
 /** The lines of `branch` that occur more times in `branch` than in `main`, counting repeats, in their order. */

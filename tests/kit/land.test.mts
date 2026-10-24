@@ -662,6 +662,33 @@ test('land compares jscpd clone findings without its changing summary rows (K394
   assert.ok(added?.some(line => line.includes('Clone found (php)')), 'a real added clone remains a finding');
 });
 
+test('land recognizes the ANSI-colored jscpd summary rows captured by duplication-check (K394-5)', () => {
+  const clone = [
+    '\u001b[1mClone found (php)\u001b[22m',
+    ' - packages/php-ext/tests/Example.php [10:1 - 16:2] (7 lines, 40 tokens)',
+    '   packages/php-ext/tests/Other.php [20:1 - 26:2]',
+  ].join('\n');
+  const beforeStats = [
+    '\u001b[90m│\u001b[39m c          \u001b[90m│\u001b[39m 45             \u001b[90m│\u001b[39m 50670       \u001b[90m│\u001b[39m 546618       \u001b[90m│\u001b[39m 63           \u001b[90m│\u001b[39m 679 (1.34%)      \u001b[90m│\u001b[39m 4841 (0.89%)      \u001b[90m│\u001b[39m',
+    '\u001b[90m│\u001b[39m go         \u001b[90m│\u001b[39m 319            \u001b[90m│\u001b[39m 72557       \u001b[90m│\u001b[39m 523572       \u001b[90m│\u001b[39m 4            \u001b[90m│\u001b[39m 37 (0.05%)       \u001b[90m│\u001b[39m 222 (0.04%)       \u001b[90m│\u001b[39m',
+  ].join('\n');
+  const changedStats = [
+    '\u001b[90m│\u001b[39m c          \u001b[90m│\u001b[39m 45             \u001b[90m│\u001b[39m 51063       \u001b[90m│\u001b[39m 550320       \u001b[90m│\u001b[39m 2            \u001b[90m│\u001b[39m 18 (0.04%)       \u001b[90m│\u001b[39m 163 (0.03%)       \u001b[90m│\u001b[39m',
+    '\u001b[90m│\u001b[39m go         \u001b[90m│\u001b[39m 326            \u001b[90m│\u001b[39m 73986       \u001b[90m│\u001b[39m 534691       \u001b[90m│\u001b[39m 6            \u001b[90m│\u001b[39m 56 (0.08%)       \u001b[90m│\u001b[39m 348 (0.07%)       \u001b[90m│\u001b[39m',
+  ].join('\n');
+  const asDuplication = (output: string): GateRun => ({
+    folder: process.cwd(),
+    gate: 'duplication-check',
+    result: { pid: 0, output: [null, output, ''], stdout: output, stderr: '', status: 1, signal: null },
+  });
+
+  assert.equal(newFindings(process.cwd(), asDuplication(`${clone}\n${changedStats}`), asDuplication(`${clone}\n${beforeStats}`)), undefined,
+    'the captured ANSI formatting and changed counts do not create findings');
+
+  const added = newFindings(process.cwd(), asDuplication(`${clone}\n${changedStats}\n${clone.replace('Clone found (php)', 'Clone found (go)')}`), asDuplication(`${clone}\n${beforeStats}`));
+  assert.ok(added?.some(line => line.includes('Clone found (go)')), 'a new clone remains a finding');
+});
+
 test('a gate whose recipe command is missing on HEAD fails naming the error, not as failing on HEAD too (K474)', () => {
   const error = 'make: *** [lint-ts] Error 127\n';
   assert.throws(() => newFindings(process.cwd(), gateRun(2, error), gateRun(2, error)), /Error 127/);
