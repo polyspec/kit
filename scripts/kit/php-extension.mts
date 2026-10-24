@@ -137,15 +137,70 @@ export function declarationsOf(text: string): Declarations {
  */
 /** The fully qualified class names that the extension stub explicitly marks @internal. */
 export function internalClassesOfStub(stub: string): Set<string> {
-  const namespaces = [...stub.matchAll(/\bnamespace\s+([^;{]+);/g)];
+  const code = phpCodeWithoutCommentsAndStrings(stub);
+  const namespaces = [...code.matchAll(/\bnamespace\s+([^;{]+);/g)];
   const internal = new Set<string>();
   const classes = /\/\*\*([\s\S]*?)\*\/\s*(?:(?:final|abstract|readonly)\s+)*(?:class|interface|trait|enum)\s+([A-Za-z_][A-Za-z0-9_]*)\b/g;
   for (const match of stub.matchAll(classes)) {
-    if (!/(?:^|\n)\s*\*?\s*@internal\b/m.test(match[1] ?? '')) continue;
+    if (!/@internal\b/.test(match[1] ?? '')) continue;
     const namespace = namespaces.filter(item => item.index !== undefined && item.index < (match.index ?? 0)).at(-1)?.[1]?.trim();
     if (namespace) internal.add(`${namespace}\\${match[2]}`);
   }
   return internal;
+}
+
+/** Keeps PHP code tokens and newlines while removing comments and string contents for namespace discovery. */
+function phpCodeWithoutCommentsAndStrings(source: string): string {
+  const output = source.split('');
+  let state: 'code' | 'line' | 'block' | 'single' | 'double' | 'backtick' = 'code';
+  for (let index = 0; index < source.length; index++) {
+    const char = source[index] ?? '';
+    const next = source[index + 1] ?? '';
+    if (state === 'line') {
+      if (char === '\n') state = 'code';
+      else output[index] = ' ';
+    } else if (state === 'block') {
+      if (char === '*' && next === '/') {
+        output[index] = ' ';
+        output[index + 1] = ' ';
+        index++;
+        state = 'code';
+      } else if (char !== '\n') output[index] = ' ';
+    } else if (state === 'single' || state === 'double' || state === 'backtick') {
+      const end = state === 'single' ? "'" : state === 'double' ? '"' : '`';
+      if (char === '\\') {
+        output[index] = ' ';
+        if (next !== '\n') output[index + 1] = ' ';
+        index++;
+      } else if (char === end) {
+        output[index] = ' ';
+        state = 'code';
+      } else if (char !== '\n') output[index] = ' ';
+    } else if (char === '/' && next === '/') {
+      output[index] = ' ';
+      output[index + 1] = ' ';
+      index++;
+      state = 'line';
+    } else if (char === '#') {
+      output[index] = ' ';
+      state = 'line';
+    } else if (char === '/' && next === '*') {
+      output[index] = ' ';
+      output[index + 1] = ' ';
+      index++;
+      state = 'block';
+    } else if (char === "'") {
+      output[index] = ' ';
+      state = 'single';
+    } else if (char === '"') {
+      output[index] = ' ';
+      state = 'double';
+    } else if (char === '`') {
+      output[index] = ' ';
+      state = 'backtick';
+    }
+  }
+  return output.join('');
 }
 
 export function declarationFindings(extension: Declarations, library: Declarations, internalClasses: ReadonlySet<string> = new Set()): string[] {

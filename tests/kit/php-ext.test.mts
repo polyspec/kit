@@ -108,7 +108,7 @@ test('a declaration that differs from the library, or that the library lacks, is
 test('an extension-only class is allowed only when its stub explicitly marks it internal (K569)', () => {
   const extension: Declarations = { classes: { 'A\\PublicApi': { kind: 'class' }, 'A\\Callback': { kind: 'class' } }, functions: {}, constants: {} };
   const library: Declarations = { classes: { 'A\\PublicApi': { kind: 'class' } }, functions: {}, constants: {} };
-  const stub = `<?php\nnamespace A;\n/** @internal callback state */\nfinal class Callback {}\nfinal class PublicApi {}\n`;
+  const stub = `<?php\nnamespace A;\n/** Documentation example: namespace B\\Fake; */\n/** @internal callback state */\nfinal class Callback {}\nfinal class PublicApi {}\n`;
   const internalClasses = phpExtension.internalClassesOfStub?.(stub) ?? new Set<string>();
   assert.deepEqual(internalClasses, new Set(['A\\Callback']));
   assert.deepEqual(declarationFindings(extension, library, internalClasses), []);

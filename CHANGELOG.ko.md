@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3b9cb8a9dd67c5cbcc6fe7b201214c528a659d537d45360cc2848a02cb51dad1 -->
+<!-- source-sha256: 189cb5f4cdafa590ec725c89c76088b90031ae2192642d1f9cbb9ca662b35d77 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- PHP extension stub parser는 internal class를 찾을 때 comment 안의 namespace 텍스트를 무시한다(K569-1).
 
 - PHP extension declaration check는 stub에 명시된 internal class를 반영하고 PHP `self` type을 선언 class와 비교하며, 선언되지 않은 public class는 계속 거부한다(K569).
 
