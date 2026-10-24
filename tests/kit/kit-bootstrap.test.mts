@@ -3,7 +3,7 @@
 // steps, install-tools TOOLS=npm and install-packages, and stops every other goal with the commands that install it.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -113,4 +113,53 @@ test('install-packages runs the targets that INSTALL_PACKAGES_EXTRA names after 
   const run = make(root, '-s', 'install-packages');
   assert.equal(run.status, 0, run.stdout + run.stderr);
   assert.equal(run.stdout, 'npm allow-remote=root: ci\nnpm allow-remote=root: extra-one\nnpm allow-remote=root: extra-two\n');
+});
+
+test('K565 builds a fresh sibling Kit checkout before the consumer bootstrap selects dist', (t) => {
+  const workflow = readFileSync(path.resolve(KIT, '../../workflows/gates.yml'), 'utf8');
+  const clone = workflow.indexOf('- name: sibling checkouts');
+  const build = workflow.indexOf('- name: build sibling kit');
+  const install = workflow.indexOf('- name: install\n', build);
+  const buildStep = workflow.slice(build, install);
+
+  const workspace = mkdtempSync(path.join(tmpdir(), 'kit-bootstrap-workspace-'));
+  t.after(() => rmSync(workspace, { recursive: true, force: true }));
+  const consumer = path.join(workspace, 'consumer');
+  const sibling = path.join(workspace, 'kit');
+  mkdirSync(path.join(consumer, 'scripts/kit'), { recursive: true });
+  mkdirSync(path.join(sibling, '.git'), { recursive: true });
+  cpSync(path.join(KIT, 'kit-bootstrap.mk'), path.join(consumer, 'scripts/kit/kit-bootstrap.mk'));
+  writeFileSync(path.join(consumer, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\n.PHONY: selected-kit\nselected-kit:\n\t@echo $(KIT)\n');
+  writeFileSync(path.join(sibling, 'Makefile'), [
+    '.PHONY: install-tools install-packages kit-build',
+    'install-tools:',
+    '\t@test "$(TOOLS)" = npm',
+    'install-packages:',
+    '\t@test -d .',
+    'kit-build:',
+    '\t@mkdir -p dist',
+    '\t@printf ".PHONY: from-sibling\\nfrom-sibling:\\n\\t@echo sibling-kit\\n" > dist/kit.mk',
+    '',
+  ].join('\n'));
+  assert.equal(existsSync(path.join(sibling, 'dist/kit.mk')), false, 'the cloned sibling starts without a build');
+  const beforeBuild = make(consumer, 'selected-kit');
+  assert.equal(beforeBuild.status, 2, beforeBuild.stdout + beforeBuild.stderr);
+  assert.match(beforeBuild.stderr, /\.\.\/kit\/dist\/kit\.mk is missing/);
+
+  assert.ok(clone !== -1 && build > clone && install > build, 'the sibling Kit build must follow checkout and precede consumer install');
+  assert.match(buildStep, /if \[ -d \.\.\/kit\/\.git \]; then/);
+  assert.match(buildStep, /make -C \.\.\/kit install-tools TOOLS=npm/);
+  assert.match(buildStep, /make -C \.\.\/kit install-packages/);
+  assert.match(buildStep, /make -C \.\.\/kit kit-build/);
+
+  for (const args of [
+    ['-C', '../kit', 'install-tools', 'TOOLS=npm'],
+    ['-C', '../kit', 'install-packages'],
+    ['-C', '../kit', 'kit-build'],
+  ]) {
+    const result = make(consumer, ...args);
+    assert.equal(result.status, 0, `${args.join(' ')}: ${result.stdout}${result.stderr}`);
+  }
+  assert.equal(make(consumer, 'selected-kit').stdout.trim(), '../kit/dist');
+  assert.equal(make(consumer, 'from-sibling').stdout.trim(), 'sibling-kit');
 });
