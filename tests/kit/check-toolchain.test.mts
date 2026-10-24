@@ -214,16 +214,11 @@ test('the uv lock sidecar that mise.lock names is a tracked folder of the checko
   assert.match(check(root, stubs.env, 'vulture').stderr, new RegExp(`whose tracked file ${SIDECAR.replaceAll('.', '\\.')}/uv\\.lock is missing; restore it with git checkout -- `));
 });
 
-test('a repository with a PHP extension needs curl or wget and tar for the arginfo of gen_stub.php, and toolchain-check names the missing one (K303)', (t) => {
+test('a repository with a PHP extension needs the installed pinned arginfo generator and parser, and toolchain-check names make install-tools (K303, K560)', (t) => {
   const root = tree(t, { 'packages/php-ext/src/config.m4': '', 'docs/a.md': '' });
-  const without = (...missing: string[]) => (command: string) => ({ status: missing.includes(command) ? 127 : 0, stdout: '', error: missing.includes(command) ? new Error(`spawn ${command} ENOENT`) : undefined });
-  assert.deepEqual(arginfoToolFindings(root, without()), []);
-  assert.deepEqual(arginfoToolFindings(root, without('wget')), [], 'gen_stub.php falls back to curl');
-  assert.deepEqual(arginfoToolFindings(root, without('curl')), [], 'and uses wget first');
-  assert.deepEqual(arginfoToolFindings(root, without('curl', 'wget')), ['make php-ext-arginfo: gen_stub.php of the PHP downloads its PHP-Parser with wget, else curl, and neither is installed; fix: install curl or wget']);
-  assert.deepEqual(arginfoToolFindings(root, without('tar')), ['make php-ext-arginfo: gen_stub.php of the PHP unpacks its PHP-Parser with tar, which is not installed; fix: install tar']);
+  assert.deepEqual(arginfoToolFindings(root), ['PHP extension arginfo tools are missing or incomplete: var/tools/php-arginfo/gen_stub.php is missing; run make install-tools, which installs the pinned PHP arginfo generator and parser']);
   const none = tree(t, { 'docs/a.md': '' });
-  assert.deepEqual(arginfoToolFindings(none, without('curl', 'wget', 'tar')), []);
+  assert.deepEqual(arginfoToolFindings(none), []);
 });
 
 test('toolchain-check refuses php-fpm and php-cgi from PATH, and install-php wraps php-fpm of the same prefix (K341)', (t) => {

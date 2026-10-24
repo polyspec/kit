@@ -9,13 +9,13 @@ import { assetsOf, kitModules, shippedAssets, unshippedAssets } from '../../scri
 import { trackedFiles } from '../../scripts/kit/tracked-files.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const BUILD = 'kit-build: ## Build\n\trm -rf dist.next\n\tcp scripts/kit/kit.mk dist.next/kit.mk\n\tcp -R scripts/kit/schema dist.next/schema\n\ttar -C scripts/kit --exclude=vendor -cf - symbols | tar -C dist.next -xf -\n\nother:\n\tcp -R scripts/kit/runners x\n';
+const BUILD = 'kit-build: ## Build\n\trm -rf dist.next\n\tcp scripts/kit/kit.mk dist.next/kit.mk\n\tcp -R scripts/kit/php-arginfo dist.next/php-arginfo\n\tcp -R scripts/kit/schema dist.next/schema\n\ttar -C scripts/kit --exclude=vendor -cf - symbols | tar -C dist.next -xf -\n\nother:\n\tcp -R scripts/kit/runners x\n';
 
 test('a file that a module reads beside itself and kit-build does not ship is a finding (K421)', () => {
   const runner = "const RUNNER = fileURLToPath(new URL('./runners/python.py', import.meta.url));\n";
   const schema = "export const SCHEMAS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'schema');\n";
   assert.deepEqual(assetsOf(runner + schema + "const tool = new URL('./reporter.mts', import.meta.url);\n"), ['runners', 'schema'], 'a compiled module is no asset');
-  assert.deepEqual([...shippedAssets(BUILD)].sort(), ['kit.mk', 'schema', 'symbols'], 'only the recipe of kit-build counts');
+  assert.deepEqual([...shippedAssets(BUILD)].sort(), ['kit.mk', 'php-arginfo', 'schema', 'symbols'], 'only the recipe of kit-build counts');
   assert.deepEqual(unshippedAssets(new Map([['scripts/kit/run-tests.mts', runner], ['scripts/kit/schema-validate.mts', schema]]), BUILD), ['scripts/kit/run-tests.mts: runners']);
 });
 

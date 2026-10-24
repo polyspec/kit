@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // The PHP extension of a repository (S10): one model and one build for every repository.
 //
-//   node scripts/kit/php-extension.mts check          the names, the one stub and the stub hash of the arginfo header
-//   node scripts/kit/php-extension.mts build          the check, then phpize, configure and make in var/php-ext, the library
-//                                                     published to var/php-ext/<extension>.so by a rename
-//   node scripts/kit/php-extension.mts arginfo        the arginfo header written by the rule of phpize, which runs the
-//                                                     gen_stub.php of the PHP; gen_stub downloads its PHP-Parser once; ONLINE
+//   node scripts/kit/php-extension.mts check          the names, the one stub and, when present, the arginfo stub hash
+//   node scripts/kit/php-extension.mts build          the check, then generate arginfo in a temporary source copy, phpize,
+//                                                     configure and make in var/php-ext; publish the library by a rename
+//   node scripts/kit/php-extension.mts arginfo        generate the header under ignored var/php-ext/arginfo with the pinned,
+//                                                     installed gen_stub.php and PHP-Parser; offline
 //   node scripts/kit/php-extension.mts test           the classes and functions that the built extension registers, compared
 //                                                     by Reflection with those of the PHP library (symbols/php/reflection.php),
 //                                                     then the unit tests of runtime-targets.mts with the extension loaded
@@ -16,9 +16,10 @@
 // src/polyspec_<repository>.stub.php. phpize, php-config and php are the wrappers of var/tools/bin of the checkout, the PHP of
 // .php-version, never the ones on PATH (K393-1).
 import { createHash } from 'node:crypto';
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync, statSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { packageVendorFile } from './composer-vendor.mts';
+import { installedGenStub } from './install-php-arginfo.mts';
 import { isJsonObject } from './bootstrap/files.mts';
 import { SYMBOLS } from './install-symbols.mts';
 import { spawnSync } from 'node:child_process';
@@ -102,8 +103,10 @@ export function extensionFindings(files: readonly string[], read: (file: string)
   const stub = read(names.stub);
   if (stub === undefined) return [...found, `${names.stub}: the stub of the extension is missing`];
   const header = read(names.arginfo);
-  const recorded = header === undefined ? undefined : /\* Stub hash: ([0-9a-f]+) \*/.exec(header)?.[1];
-  if (recorded !== stubHash(stub)) found.push(`${names.arginfo}: the stub hash is ${recorded ?? 'missing'}, the stub's is ${stubHash(stub)}. Fix: make php-ext-arginfo`);
+  if (header !== undefined) {
+    const recorded = /\* Stub hash: ([0-9a-f]+) \*/.exec(header)?.[1];
+    if (recorded !== stubHash(stub)) found.push(`${names.arginfo}: the stub hash is ${recorded ?? 'missing'}, the stub's is ${stubHash(stub)}. Fix: make php-ext-arginfo`);
+  }
   return found;
 }
 
@@ -191,28 +194,41 @@ function isSource(entry: string): boolean {
  * so that config.m4 reads the version of the package from ../composer.json (K295). src/ is prepared by phpize; returns the
  * copy (`work`, to remove) and its src/ (`source`, where the build runs).
  */
-function phpized(root: string, label: string): { work: string; source: string } {
+function generateArginfo(root: string, source: string, stub: string): string {
+  let installed: ReturnType<typeof installedGenStub>;
+  try { installed = installedGenStub(root); }
+  catch (error) { throw new Stop(error instanceof Error ? error.message : String(error)); }
+  const php = toolCommand(root, 'php');
+  const file = path.join(source, path.basename(stub));
+  run(php, ['-n', installed.file, file], { cwd: source });
+  return path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h'));
+}
+
+function phpized(root: string, label: string, stub: string): { work: string; source: string } {
   const work = path.join(root, OUTPUT, `${label}.${process.pid}`);
   const source = path.join(work, 'src');
   rmSync(work, { recursive: true, force: true });
   mkdirSync(work, { recursive: true });
-  cpSync(path.join(root, EXTENSION, 'composer.json'), path.join(work, 'composer.json'));
-  cpSync(path.join(root, EXTENSION, 'src'), source, { recursive: true, filter: isSource });
-  // The tools of the PHP of the checkout are its wrappers, never the ones on PATH.
-  console.log(`[php-extension] phpize (${run(toolCommand(root, 'php-config'), ['--version']).trim()})`);
-  run(toolCommand(root, 'phpize'), [], { cwd: source });
-  return { work, source };
+  try {
+    cpSync(path.join(root, EXTENSION, 'composer.json'), path.join(work, 'composer.json'));
+    cpSync(path.join(root, EXTENSION, 'src'), source, { recursive: true, filter: isSource });
+    rmSync(path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h')), { force: true });
+    generateArginfo(root, source, stub);
+    // The tools of the PHP of the checkout are its wrappers, never the ones on PATH.
+    console.log(`[php-extension] phpize (${run(toolCommand(root, 'php-config'), ['--version']).trim()})`);
+    run(toolCommand(root, 'phpize'), [], { cwd: source });
+    return { work, source };
+  } catch (error) {
+    rmSync(work, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 /** Builds the extension of `root` into var/php-ext/<extension>.so; returns its path. */
 export function build(root: string): string {
   const names = checked(root);
-  const { work, source } = phpized(root, 'build');
+  const { work, source } = phpized(root, 'build', names.stub);
   try {
-    // The copy gives every file a new time, so make could find the stub newer than its header and run gen_stub.php, which
-    // downloads; the check above proved the header current, so it is given the time of the stub.
-    const stub = statSync(path.join(source, path.basename(names.stub)));
-    utimesSync(path.join(source, path.basename(names.arginfo)), stub.atime, stub.mtime);
     // P8 for C (K334): the flags of php-config do not fail a call whose result must be checked; the compiler's check does.
     const env = { ...process.env, CFLAGS: `${process.env.CFLAGS ?? ''} -Werror=unused-result`.trim() };
     console.log('[php-extension] configure');
@@ -236,16 +252,21 @@ export function arginfo(root: string): void {
   const owner = repositoryOf(files, reader(root));
   if ('finding' in owner) throw new Stop(owner.finding);
   const names = extensionNames(owner.repository);
-  const { work, source } = phpized(root, 'arginfo');
+  const output = path.join(root, OUTPUT, 'arginfo');
+  const work = path.join(output, `generate.${process.pid}`);
+  const source = path.join(work, 'src');
+  mkdirSync(source, { recursive: true });
+  let temporary: string | undefined;
   try {
-    const header = path.basename(names.arginfo);
-    // The rule of the header lies in the Makefile that ./configure writes, so configure runs first.
-    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`], { cwd: source });
-    rmSync(path.join(source, header), { force: true });
-    run('make', [header], { cwd: source });
-    writeFileSync(path.join(root, names.arginfo), readFileSync(path.join(source, header)));
-    console.log(`[php-extension] wrote ${names.arginfo}`);
+    cpSync(path.join(root, names.stub), path.join(source, path.basename(names.stub)));
+    const generated = generateArginfo(root, source, names.stub);
+    const destination = path.join(output, path.basename(names.arginfo));
+    temporary = `${destination}.tmp.${process.pid}`;
+    copyFileSync(generated, temporary);
+    renameSync(temporary, destination);
+    console.log(`[php-extension] wrote ${path.relative(root, destination)}`);
   } finally {
+    if (temporary) rmSync(temporary, { force: true });
     rmSync(work, { recursive: true, force: true });
   }
 }

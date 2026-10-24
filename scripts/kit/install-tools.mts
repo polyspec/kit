@@ -8,8 +8,8 @@
 // fails the install. Then kit installs what mise does not: the build backend of the Python wheels (config/toolchain.json
 // pythonBackend, by the sha256 of its wheel), the Composer projects of config/phpunit (phpunit) and config/php-lint, the Rust
 // toolchain of rust-toolchain.toml with its components and the Rust channels of config/toolchain.json exceptions (install-rust.mts,
-// with rustup, which stays the toolchain manager of Rust) and the symbol extractors of symbolExtractors, which build with the Go
-// and the Composer of mise. Each is installed only when it is declared, and an install of the release that is present changes
+// with rustup, which stays the toolchain manager of Rust), PHP's pinned arginfo parser when PHP is declared, and the symbol
+// extractors of symbolExtractors, which build with the Go and the Composer of mise. Each is installed only when it is declared, and an install of the release that is present changes
 // nothing, so a second run installs nothing. The tools of the machine are never changed. Node.js is a tool of mise.toml, which
 // the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts finds the release of .php-version there and wraps it (K283). The command takes no tool names: mise.lock is one set of tools. It prints a line for each
 // step and has no time limit.
@@ -20,6 +20,7 @@ import { NPM_WRAPPERS } from './bootstrap/install-npm.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { installPhp, PHP_WRAPPERS } from './install-php.mts';
+import { installPhpArginfo } from './install-php-arginfo.mts';
 import { installPhpLint, PHP_LINT_WRAPPERS } from './install-php-lint.mts';
 import { installPhpunit, PHPUNIT_WRAPPERS } from './install-phpunit.mts';
 import { installRustChannels, installRustToolchain } from './install-rust.mts';
@@ -52,6 +53,7 @@ export function installTools({ root = repositoryRoot(), print = () => {} }: { ro
   const env = toolsEnvironment(root);
   // The wrappers of php come before the installs that run Composer, so that Composer runs on the pinned PHP.
   if (php) installPhp({ root, print });
+  if (php) installPhpArginfo({ root, print });
   if (pythonBackend) installBackend({ root, env, requirement: pythonBackend.requirement, digests: [pythonBackend.sha256], source: pythonBackend.source, print });
   if (phpunit) installPhpunit({ root, declared: phpunit, print });
   if (phpLint) installPhpLint({ root, declared: phpLint, print });

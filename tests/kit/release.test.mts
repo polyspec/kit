@@ -3,7 +3,7 @@
 // gh and npm on PATH; real git, tar and unzip run. No case reaches GitHub or a registry.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
@@ -303,6 +303,64 @@ test('each archive carries the manifest of its package unchanged', (t) => {
   // names holds four archives.
   const zip = spawnSync('unzip', ['-Z1', path.join(target, known(names[2], 'names[2]'))], { encoding: 'utf8' }).stdout.split('\n').filter(Boolean).sort();
   assert.deepEqual(zip, ['composer.json', 'composer.lock', 'src/', 'src/Engine.php']);
+});
+
+test('K560 Composer archives generate arginfo from the tagged stub without changing the checkout', (t) => {
+  const committedStub = "<?php\n// committed extension stub\n";
+  const box = releaseSandbox(t, { mutate(root) {
+    writeFileSync(path.join(root, 'packages/fixture-php/src/polyspec_orm.stub.php'), committedStub);
+    edit<ConfigJson>(root, 'config/release.json', config => ({
+      ...config,
+      packages: config.packages.map(item => item.kind === 'composer' ? { ...item, generated: [{ kind: 'php-arginfo', stub: 'src/polyspec_orm.stub.php', output: 'src/polyspec_orm_arginfo.h' }] } : item),
+    }));
+  } });
+  const prefix = path.join(box.root, 'php-prefix');
+  const generatorSource = '<?php\n$version = "5.0.0";\n';
+  const generator = path.join(box.root, 'var/tools/php-arginfo/gen_stub.php');
+  const parser = path.join(box.root, 'var/tools/php-arginfo/PHP-Parser-5.0.0/lib/PhpParser');
+  mkdirSync(path.join(prefix, 'lib/php/build'), { recursive: true });
+  mkdirSync(parser, { recursive: true });
+  writeFileSync(path.join(prefix, 'lib/php/build/gen_stub.php'), generatorSource);
+  writeFileSync(generator, generatorSource);
+  writeFileSync(path.join(parser, 'ParserFactory.php'), '<?php\n');
+  const bin = path.join(box.root, 'var/tools/bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(path.join(bin, 'php-config'), `#!/bin/sh\nprintf '%s\\n' '${prefix}'\n`);
+  chmodSync(path.join(bin, 'php-config'), 0o755);
+  writeFileSync(path.join(bin, 'php'), "#!/bin/sh\nstub=\nfor arg do case \"$arg\" in *.stub.php) stub=\"$arg\" ;; esac; done\noutput=$(printf '%s' \"$stub\" | sed 's/\\.stub\\.php$/_arginfo.h/')\nprintf 'generated from committed stub: ' > \"$output\"\ncat \"$stub\" >> \"$output\"\nhead -c 356000 /dev/zero | tr '\\000' X >> \"$output\"\n");
+  chmodSync(path.join(bin, 'php'), 0o755);
+
+  const source = path.join(box.root, 'packages/fixture-php/src/polyspec_orm.stub.php');
+  const mutableStub = '<?php\n// changed but not committed\n';
+  writeFileSync(source, mutableStub);
+  const ctx = context(box);
+  const tag = box.tag('v0.0.1');
+  const names = release.assets(ctx, tag);
+  const zip = path.join(box.root, 'var/release/assets', known(names[2], 'Composer archive name'));
+  const generated = spawnSync('unzip', ['-p', zip, 'src/polyspec_orm_arginfo.h']);
+  assert.equal(generated.status, 0, generated.stderr?.toString());
+  const expected = Buffer.concat([Buffer.from(`generated from committed stub: ${committedStub}`), Buffer.alloc(356000, 'X')]);
+  assert.equal(generated.stdout.length, expected.length, 'the complete generated header is archived');
+  assert.deepEqual(generated.stdout, expected, 'archive generation transports the header by file, not a size-limited argument');
+  const metadata = spawnSync('zipinfo', ['-l', zip], { encoding: 'utf8' });
+  assert.equal(metadata.status, 0, metadata.stderr);
+  assert.match(metadata.stdout, /^-rw-r--r--\s+3\.0 unx\s+356065 b-\s+356065 stor \d{2}-[A-Z][a-z]{2}-\d{2} \d{2}:\d{2} src\/polyspec_orm_arginfo\.h$/m);
+  const zipless = path.join(box.root, 'zipless-path');
+  mkdirSync(zipless);
+  assert.throws(() => release.assets(release.context(box.root, { env: { ...box.env, PATH: zipless } }), tag), /zip is required to append generated files to Composer release archives; install Info-ZIP/);
+  assert.equal(existsSync(path.join(box.root, 'var/release/assets')), true, 'missing zip is detected without deleting the prior release output');
+  assert.equal(readFileSync(source, 'utf8'), mutableStub);
+  assert.equal(existsSync(path.join(box.root, 'packages/fixture-php/src/polyspec_orm_arginfo.h')), false);
+  const first = sha256(zip);
+  release.assets(release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY, TZ: 'Pacific/Auckland' } }), tag);
+  assert.equal(sha256(zip), first, 'the generated archive is deterministic across runs and time zones');
+  const failingBin = path.join(box.root, 'var/tools/bin');
+  mkdirSync(failingBin, { recursive: true });
+  writeFileSync(path.join(failingBin, 'zip'), '#!/bin/sh\nif [ "$1" = "-v" ]; then exit 0; fi\nexit 9\n');
+  chmodSync(path.join(failingBin, 'zip'), 0o755);
+  assert.throws(() => release.assets(release.context(box.root, { env: { ...box.env, PATH: `${failingBin}${path.delimiter}${box.env.PATH}` } }), tag), /zip failed while adding src\/polyspec_orm_arginfo\.h .*exit status 9/);
+  assert.equal(sha256(zip), first, 'a failed append leaves the previously published archive untouched');
+  assert.deepEqual(readdirSync(path.join(box.root, 'var/release')), ['assets'], 'a failed append removes its staged asset directory');
 });
 
 test('a packed manifest that differs from the manifest of the commit fails assets', (t) => {

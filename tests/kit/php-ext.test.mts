@@ -1,15 +1,16 @@
-// Tests of the PHP extension of a repository (php-extension.mts, S10): its names, its one stub and the stub hash of its
-// arginfo header, the build with phpize, and the declaration test, which compares by Reflection what the extension registers
+// Tests of the PHP extension of a repository (php-extension.mts, S10): its names, its one stub and the optional arginfo hash,
+// the temporary generation and build with phpize, and the declaration test, which compares by Reflection what the extension registers
 // with what the PHP library declares. The extension of tests/kit/php-ext-fixture registers Polyspec\Demo\add and
 // Polyspec\Demo\Counter; it is built with the phpize, php-config and php on PATH.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { execute } from '../../scripts/kit/process.mts';
 import { declarationFindings, declarations, declarationsOf, extensionFindings, extensionNames, stubHash } from '../../scripts/kit/php-extension.mts';
+import { installPhpArginfo } from '../../scripts/kit/install-php-arginfo.mts';
 import { put, tree } from './tree.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -22,11 +23,23 @@ const HEADER = readFileSync(path.join(FIXTURE, 'polyspec_demo_arginfo.h'), 'utf8
 function phpWrappers(root: string) {
   const bin = path.join(root, 'var/tools/bin');
   mkdirSync(bin, { recursive: true });
+  const programs: Record<string, string> = {};
   for (const name of ['php', 'php-config', 'phpize']) {
     const real = execFileSync('/bin/sh', ['-c', `command -v ${name}`], { encoding: 'utf8' }).trim();
+    programs[name] = real;
     writeFileSync(path.join(bin, name), `#!/bin/sh\nexec '${real}' "$@"\n`);
     chmodSync(path.join(bin, name), 0o755);
   }
+  const prefix = execFileSync(programs['php-config']!, ['--prefix'], { encoding: 'utf8' }).trim();
+  const generator = path.join(prefix, 'lib/php/build/gen_stub.php');
+  const source = readFileSync(generator, 'utf8');
+  const version = /\$version\s*=\s*"(\d+\.\d+\.\d+)"/.exec(source)?.[1];
+  assert.ok(version, `${generator} declares the PHP-Parser release`);
+  const parser = path.join(path.dirname(generator), `PHP-Parser-${version}`);
+  const target = path.join(root, 'var/tools/php-arginfo');
+  mkdirSync(target, { recursive: true });
+  cpSync(generator, path.join(target, 'gen_stub.php'));
+  cpSync(path.join(parser, 'lib/PhpParser'), path.join(target, `PHP-Parser-${version}/lib/PhpParser`), { recursive: true });
 }
 
 // The files of a repository whose extension follows S10, as { path: text }.
@@ -53,6 +66,9 @@ test('the names of an extension follow from the repository, a hyphen an undersco
 
 test('an extension that follows S10 has no finding, and a repository without one has none', () => {
   assert.deepEqual(findings(good()), []);
+  const withoutHeader = good();
+  delete withoutHeader['packages/php-ext/src/polyspec_demo_arginfo.h'];
+  assert.deepEqual(findings(withoutHeader), []);
   assert.deepEqual(findings({ 'packages/php/composer.json': '{"name": "x"}' }), []);
 });
 
@@ -141,6 +157,71 @@ test('the build publishes the extension, which reports the version of its compos
   assert.deepEqual(declarationFindings(registered, declared()), ['class Polyspec\\Demo\\Counter methods next returnType: extension "int", library "string"']);
 });
 
+test('the build generates arginfo from the stub in its temporary source when no header is tracked (K560)', (t) => {
+  const files = good();
+  delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
+  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  const before = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout;
+  phpWrappers(root);
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
+  assert.ok(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')));
+  assert.equal(existsSync(path.join(root, 'packages/php-ext/src/polyspec_demo_arginfo.h')), false, 'generation stays out of package source');
+  assert.equal(spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout, before, 'build output stays ignored');
+});
+
+test('a missing arginfo parser fails before gen_stub can invoke a network downloader (K560)', (t) => {
+  const files = good();
+  delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
+  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
+  const target = path.join(root, 'var/tools/php-arginfo');
+  const version = /\$version\s*=\s*"(\d+\.\d+\.\d+)"/.exec(readFileSync(path.join(target, 'gen_stub.php'), 'utf8'))?.[1];
+  assert.ok(version);
+  const parser = path.join(target, `PHP-Parser-${version}`);
+  rmSync(parser, { recursive: true, force: true });
+  const bin = path.join(root, 'var/network-bin');
+  mkdirSync(bin, { recursive: true });
+  const marker = path.join(root, 'var/network-attempted');
+  for (const command of ['wget', 'curl']) {
+    const script = path.join(bin, command);
+    writeFileSync(script, `#!/bin/sh\nprintf '%s\\n' ${command} >> '${marker}'\nexit 99\n`);
+    chmodSync(script, 0o755);
+  }
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], {
+    cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+  });
+  assert.equal(built.status, 1);
+  assert.match(built.stderr, /PHP-Parser-.* is missing; run make install-tools/);
+  assert.equal(existsSync(marker), false, 'the generator and downloader were not started');
+  assert.equal(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')), false, 'no partial module was published');
+});
+
+test('install-tools stages the pinned PHP generator and parser atomically from locked Composer files (K560)', (t) => {
+  const root = tree(t, { '.php-version': '8.4\n', 'mise.toml': '' });
+  phpWrappers(root);
+  rmSync(path.join(root, 'var/tools/php-arginfo'), { recursive: true, force: true });
+  const composer = path.join(root, 'var/tools/mise/shims/composer');
+  const marker = path.join(root, 'var/composer-installs');
+  mkdirSync(path.dirname(composer), { recursive: true });
+  writeFileSync(composer, `#!/bin/sh\ntest "$1" = install || exit 98\nmkdir -p vendor/nikic/php-parser/lib/PhpParser\nprintf '<?php\\n' > vendor/nikic/php-parser/lib/PhpParser/ParserFactory.php\nprintf 'install\\n' >> '${marker}'\n`);
+  chmodSync(composer, 0o755);
+  installPhpArginfo({ root });
+  const target = path.join(root, 'var/tools/php-arginfo');
+  assert.ok(existsSync(path.join(target, 'gen_stub.php')));
+  const version = /\$version\s*=\s*"(\d+\.\d+\.\d+)"/.exec(readFileSync(path.join(target, 'gen_stub.php'), 'utf8'))?.[1];
+  assert.ok(version);
+  assert.ok(existsSync(path.join(target, `PHP-Parser-${version}/lib/PhpParser/ParserFactory.php`)));
+  assert.equal(existsSync(path.join(target, 'vendor')), false, 'only generator inputs are installed');
+  assert.equal(readFileSync(marker, 'utf8'), 'install\n');
+  installPhpArginfo({ root });
+  assert.equal(readFileSync(marker, 'utf8'), 'install\n', 'a matching installation is kept');
+});
+
 test('the declarations of the extension are compared with the library that declares each name (K293)', (t) => {
   const counter = library('int').replace(/function add[\s\S]*?\n}\n\n/, '');
   const adder = (type: string) => `<?php\n\ndeclare(strict_types=1);\n\nnamespace Polyspec\\Demo;\n\nfunction add(int $a, int $b = 1): ${type}\n{\n    return $a + $b;\n}\n`;
@@ -153,6 +234,7 @@ test('the declarations of the extension are compared with the library that decla
   });
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  const before = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout;
   phpWrappers(root);
   const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);
@@ -182,13 +264,18 @@ test('the build copy holds the sources of the extension only, so a stale build p
   assert.equal(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')), false, 'nothing is published');
 });
 
-test('arginfo configures the copy before it makes the header, so make has its Makefile (K290)', (t) => {
-  const root = tree(t, { ...good(), 'packages/php/src/Demo.php': library('int') });
+test('arginfo writes the generated header atomically under ignored build output (K560)', (t) => {
+  const root = tree(t, { ...good(), '.gitignore': 'var/\n', 'packages/php/src/Demo.php': library('int') });
   cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  const before = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout;
+  phpWrappers(root);
   const written = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'arginfo'], { cwd: root, encoding: 'utf8' });
-  // gen_stub.php downloads its PHP-Parser, so the run may fail offline; it must not fail for want of a Makefile.
-  assert.doesNotMatch(written.stderr, /No rule to make target|No targets specified/, written.stderr);
+  assert.equal(written.status, 0, `${written.stdout}\n${written.stderr}`);
+  const output = path.join(root, 'var/php-ext/arginfo/polyspec_demo_arginfo.h');
+  assert.equal(/\* Stub hash: ([0-9a-f]+) \*/.exec(readFileSync(output, 'utf8'))?.[1], stubHash(STUB));
+  assert.equal(existsSync(path.join(root, 'packages/php-ext/src/polyspec_demo_arginfo.h')), true, 'existing tracked input is not rewritten');
+  assert.equal(spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout, before, 'generated output stays ignored');
 });
 
 test('the sources of the extension are read from the working tree, so generated sources that are not tracked pass the check (K297)', (t) => {

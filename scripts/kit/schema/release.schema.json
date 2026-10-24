@@ -73,6 +73,20 @@
           "name": {
             "type": "string",
             "pattern": "^(@[a-z0-9._-]+/)?[a-z0-9._-]+(/[a-z0-9._-]+)?$"
+          },
+          "generated": {
+            "description": "Artifacts that are generated from the package files of the tagged commit and included in its archive; never written into the checkout.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["kind", "stub", "output"],
+              "additionalProperties": false,
+              "properties": {
+                "kind": { "type": "string", "const": "php-arginfo" },
+                "stub": { "type": "string", "pattern": "^[^/\\\\][^\\\\]*\\.stub\\.php$" },
+                "output": { "type": "string", "pattern": "^[^/\\\\][^\\\\]*_arginfo\\.h$" }
+              }
+            }
           }
         }
       }

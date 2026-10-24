@@ -11,6 +11,7 @@
 // mise.lock names and Git does not track (miseLockSidecarFindings, K192) and a key of an .npmrc that keeps npm from linking are
 // findings too.
 import { phpInstall } from './install-php.mts';
+import { installedGenStub } from './install-php-arginfo.mts';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
@@ -149,18 +150,16 @@ export function toolchainMismatches(tools: string[], { root = repositoryRoot(), 
   return mismatches;
 }
 
-/**
- * The findings of the system commands that `make php-ext-arginfo` needs in a repository with packages/php-ext (K303): the
- * gen_stub.php of the PHP downloads its PHP-Parser with wget, else curl, and unpacks it with tar (build/gen_stub.php of PHP
- * 8.5.10, installPhpParser). They are no tool of mise, so the machine and the CI image provide them.
- */
-export function arginfoToolFindings(root: string, run: Run = defaultRun(root, toolchainEnvironment(root))): string[] {
+/** The findings of the installed, pinned offline generator and parser of PHP extension arginfo. */
+export function arginfoToolFindings(root: string): string[] {
   if (!existsSync(path.join(root, 'packages/php-ext'))) return [];
-  const has = (command: string) => { const result = run(command, ['--version']); return !result.error && result.status === 0; };
-  const found: string[] = [];
-  if (!has('wget') && !has('curl')) found.push('make php-ext-arginfo: gen_stub.php of the PHP downloads its PHP-Parser with wget, else curl, and neither is installed; fix: install curl or wget');
-  if (!has('tar')) found.push('make php-ext-arginfo: gen_stub.php of the PHP unpacks its PHP-Parser with tar, which is not installed; fix: install tar');
-  return found;
+  try {
+    installedGenStub(root);
+    return [];
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    return [`PHP extension arginfo tools are missing or incomplete: ${error.message}`];
+  }
 }
 
 // The PHP commands that a recipe or a script must not start by their bare names: the PATH of the machine finds another PHP's

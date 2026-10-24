@@ -9,7 +9,9 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { builtCopy, installedTool, runKitTest } from './checkout.mts';
+import { builtCopy, installedTool, NPM, runKitTest } from './checkout.mts';
+import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
+import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { initRepository } from '../kit/sandbox-repository.mts';
 import { errorCode } from '../../scripts/kit/process.mts';
 
@@ -28,6 +30,10 @@ test('a sandbox takes the installed tools of var/tools and neither the caches of
 // stands in for the kit: its kit-test target starts a sleep in the background and records its pid.
 const CHECKOUT = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), 'checkout.mts')).href;
 const RUNNER = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/run-tests.mts');
+
+test('K560 source package sandboxes use npm from the main checkout of a linked worktree', () => {
+  assert.equal(NPM, toolsPath(repositoryRoot(), 'bin', 'npm'));
+});
 
 /** Whether the process `pid` exists. */
 function alive(pid: number) {

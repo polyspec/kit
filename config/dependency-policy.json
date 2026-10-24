@@ -1,12 +1,26 @@
 {
   "schema": 1,
-  "composerPlatforms": [],
+  "composerPlatforms": [
+    { "manifest": "scripts/kit/php-arginfo/composer.json", "php": "8.4.1" }
+  ],
   "pythonManifests": [],
   "pythonLocks": [],
   "npmLocks": [
     "package-lock.json"
   ],
-  "exceptions": [],
+  "exceptions": [
+    {
+      "ecosystem": "composer",
+      "manifest": "scripts/kit/php-arginfo/composer.json",
+      "package": "nikic/php-parser",
+      "reason": "PHP 8.4 gen_stub.php declares PHP-Parser 5.0.0 as its paired parser release; the installer reads that declaration and requires the lock to pin the same release before it stages the generator and parser for offline use.",
+      "removalCondition": "the PHP gen_stub.php source selected by .php-version declares a different PHP-Parser release; update the locked release to that declared value and verify make install-tools plus the focused K560 PHP arginfo tests",
+      "verification": [
+        "make install-tools",
+        "node scripts/kit/run-tests.mts node -- --test-name-pattern=K560 tests/kit/php-ext.test.mts"
+      ]
+    }
+  ],
   "advisoryExceptions": [
     {
       "lock": "package-lock.json",

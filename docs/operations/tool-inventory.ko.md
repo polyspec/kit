@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ed1025166efe95afef21c8c011251703e50ec24f6e9a5691593cd4963269cb1b -->
+<!-- source-sha256: 5b19db050a87a57f832ef4055b4082e5db8f86ccde73f363b9da5a03584febff -->
 
 # 도구 목록
 
@@ -66,11 +66,14 @@ PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283). minor�
 일치하는 것이 없으면 시도한 순서, `.php-version`, 설치 명령(`brew install php@<minor>` 또는 `apt install php<minor>-cli`)과
 함께 실패합니다.
 
-`packages/php-ext`가 있는 저장소는 `make php-ext-arginfo`를 위해 `curl` 또는 `wget`과 `tar`도 필요합니다(K303). PHP의 `gen_stub.php`가
-PHP-Parser를 wget, 없으면 curl로 사본의 build folder에 내려받고 tar로 풉니다. 이들은 mise의 도구가 아니므로 machine과 CI image가
-제공하고, `make toolchain-check`가 빠진 것을 이름으로 알립니다. 근거: PHP 8.4(고정된 minor) `gen_stub.php`의 `installPhpParser`. kit의 고정된
-Composer dependency는 택하지 않았습니다. gen_stub.php는 자기 PHP와 맞는 PHP-Parser release를 하나로 정하는데, kit은 고정된 minor마다
-그것을 알 수 없기 때문입니다.
+PHP를 설치하는 저장소는 `make install-tools`에서 PHP `gen_stub.php`가 요구하는 고정 PHP-Parser를 설치합니다.
+Kit은 설치된 parser를 generator와 함께 `var/tools/php-arginfo`에 배치합니다. Build와 `make php-ext-arginfo`는 임시 source 사본에서
+generator를 offline 실행하고, `make php-ext-arginfo` 결과는 ignored `var/php-ext/arginfo`에만 씁니다. 설치가 없거나 오래되면
+`make toolchain-check`가 `make install-tools`를 안내합니다(K303, K560). Parser Composer project와 lock은 kit distribution에 도구와
+함께 포함된 `scripts/kit/php-arginfo`입니다.
+Composer release archive는 generated header를 stub/output 경로로 선언합니다. Release asset은 tag의 stub에서 header를 만들고
+staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, commit timestamp를 고정합니다. `zip`이 없으면
+`make release-assets`가 먼저 설치 안내와 함께 실패하며, Ubuntu release workflow는 asset build 전에 runner의 `zip` 제공 여부를 확인합니다.
 
 ### Go 취약점 (K53)
 

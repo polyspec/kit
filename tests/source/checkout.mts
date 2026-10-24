@@ -12,6 +12,7 @@ import { readFixture } from '../kit/json-fixture.mts';
 import { parseStub } from '../kit/stub-json.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 import { known } from '../kit/known.mts';
+import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
 /** The output of `npm pack --json` of npm 12: each packed package by its name, with its file and its files. */
 type Packed = Record<string, { version: string; filename: string; integrity: string; files: { path: string }[] }>;
@@ -28,7 +29,7 @@ const PACKED: JSONSchemaType<Packed> = {
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /** The npm of packageManager, which make install-tools TOOLS=npm installs; the tests pack with it, not with a machine npm. */
-export const NPM = path.join(ROOT, 'var/tools/bin/npm');
+export const NPM = toolsPath(ROOT, 'bin', 'npm');
 
 /** An entry of package-lock.json of kit. */
 export type LockEntry = { version: string; resolved: string; integrity: string; dev?: boolean; devOptional?: boolean };

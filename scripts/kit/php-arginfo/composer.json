@@ -1,0 +1,16 @@
+{
+    "name": "polyspec/kit-php-arginfo",
+    "description": "The PHP-Parser expected by the pinned PHP gen_stub.php; installed for offline PHP extension arginfo generation.",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.4",
+        "nikic/php-parser": "5.0.*"
+    },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.4.1"
+        }
+    }
+}

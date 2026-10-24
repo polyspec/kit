@@ -150,19 +150,19 @@ build-go build-js build-php build-python build-rust build-ts: ## Build each pack
 lint-js: lint-ts
 
 # The PHP extension of packages/php-ext (php-extension.mts, S10): one build with phpize, the check of its names, its stub and
-# the stub hash of its arginfo header, and the declaration test against the PHP library before its unit tests. A repository
+# the stub hash of its arginfo header when present, the generated header during the temporary build, and the declaration test before its unit tests. A repository
 # without an extension passes them, so every CI runs them.
-build-php-ext: ## Build packages/php-ext with phpize into var/php-ext/polyspec_<repository>.so after the check of lint-php-ext; offline
+build-php-ext: ## Build packages/php-ext with phpize into var/php-ext/polyspec_<repository>.so after the offline arginfo check; offline
 	$(NODE) $(KIT)/php-extension.$(KIT_EXT) build
 
-lint-php-ext: ## Check the names, the one stub and the stub hash of the arginfo header of packages/php-ext (S10); offline
+lint-php-ext: ## Check the names, the one stub and the stub hash when an arginfo header is present (S10); offline
 	$(NODE) $(KIT)/php-extension.$(KIT_EXT) check
 
 test-php-ext: build-php-ext ## Compare the declarations of the built extension with the PHP library, then run its unit tests with CASES=<pattern>; offline
 	$(NODE) $(KIT)/php-extension.$(KIT_EXT) test
 
-php-ext-arginfo: ## Write the arginfo header of packages/php-ext from its stub with the gen_stub.php of the PHP, which downloads its PHP-Parser once; ONLINE
-	$(ONLINE) $(NODE) $(KIT)/php-extension.$(KIT_EXT) arginfo
+php-ext-arginfo: ## Write the ignored arginfo header of packages/php-ext from its stub with the pinned local gen_stub.php; offline
+	$(NODE) $(KIT)/php-extension.$(KIT_EXT) arginfo
 
 .PHONY: test-go test-js test-php test-python test-rust test-ts test-integration test-conformance
 # The unit tests of a runtime with CASES=<pattern>, the name filter of its runner; without CASES, every unit test, which

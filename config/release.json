@@ -19,8 +19,10 @@
     "package.json": "archive"
   },
   "notReleased": {
+    "scripts/kit/catch-check-rust/Cargo.toml": "the private Rust source checker used by lint-rust; it is built from the tool cache and is not a released package",
     "scripts/kit/symbols/go/go.mod": "the Go module of the go symbol extractor of parity, which install-tools builds and the package @polyspec/kit ships in dist/symbols",
     "scripts/kit/symbols/php/composer.json": "the Composer project of the php symbol extractor of parity, which install-tools installs and the package @polyspec/kit ships in dist/symbols",
+    "scripts/kit/php-arginfo/composer.json": "the Composer project that installs the PHP-Parser release declared by PHP's gen_stub.php; install-tools stages it for offline extension arginfo generation and the project itself is not released",
     "tests/release-consumer/npm/package.json": "the npm consumer project that installs the release archive of kit"
   },
   "goModules": {},

@@ -30,6 +30,7 @@ test('make kit-build emits every tool of scripts/kit into dist as .mjs with .mjs
     assert.doesNotMatch(readFileSync(path.join(copy, 'dist', file), 'utf8'), /from '\.{1,2}\/[^']*\.mts'|import\('\.{1,2}\/[^']*\.mts'\)/, `${file} imports a .mts file`);
   }
   assert.equal(readFileSync(path.join(copy, 'dist/kit.mk'), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/kit.mk'), 'utf8'));
+  for (const file of ['composer.json', 'composer.lock']) assert.equal(readFileSync(path.join(copy, 'dist/php-arginfo', file), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/php-arginfo', file), 'utf8'), `dist/php-arginfo/${file}`);
   const schemas = walk(path.join(ROOT, 'scripts/kit/schema'));
   assert.ok(schemas.length > 0);
   for (const schema of schemas) assert.equal(readFileSync(path.join(copy, 'dist/schema', schema), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/schema', schema), 'utf8'), `dist/schema/${schema}`);

@@ -67,11 +67,15 @@ match; `php-config --version` must have the same minor, and a repository with `p
 (`php<minor>-dev` or `brew reinstall php@<minor>`). No match fails with the attempts in order, `.php-version` and the install
 command (`brew install php@<minor>` or `apt install php<minor>-cli`).
 
-A repository with `packages/php-ext` also needs `curl` or `wget`, and `tar`, for `make php-ext-arginfo` (K303): the `gen_stub.php`
-of the PHP downloads its PHP-Parser into the build folder of the copy with wget, else curl, and unpacks it with tar. They are no
-tool of mise, so the machine and the CI image provide them, and `make toolchain-check` names the missing one. Evidence: the
-`installPhpParser` of `gen_stub.php` of PHP 8.4, the pinned minor. A pinned Composer dependency of kit was not chosen, since gen_stub.php
-names the one PHP-Parser release that works with its own PHP, which kit cannot know for each pinned minor.
+A repository with PHP installs uses `make install-tools` to install the pinned PHP-Parser that its PHP `gen_stub.php` requires.
+Kit stages that installed parser beside the matching generator under `var/tools/php-arginfo`; builds and `make php-ext-arginfo`
+run the generator offline in a temporary source copy, and `make php-ext-arginfo` publishes only to ignored `var/php-ext/arginfo`.
+`make toolchain-check` names a missing or stale installation and says to run `make install-tools` (K303, K560). The Composer
+project and lock for the parser are `scripts/kit/php-arginfo`, included in the kit distribution beside the tool.
+Composer release archives declare generated headers by stub and output path. Release assets generate them from the tagged stub,
+then append the staged file with Info-ZIP (`zip`) using stored entries, mode 0644 and the commit timestamp; `make release-assets`
+fails early with installation guidance when `zip` is missing. The Ubuntu release workflow checks that its runner provides `zip`
+before building assets.
 
 ### Go advisories (K53)
 

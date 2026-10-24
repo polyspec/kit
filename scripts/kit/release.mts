@@ -24,8 +24,9 @@
 // path of the go.mod. `assets` builds one archive per package, named `<package>-<language>-<version>.<ext>` with `@scope/`
 // written `scope-` and `vendor/` `vendor-` (`@scope/x` is `scope-x-npm-1.0.0.tgz`, `vendor/x` is `vendor-x-php-1.0.0.zip`):
 // `npm pack` of an npm package, whose output is renamed to that name, and a `git archive` zip of the directory of a Composer
-// package at the tagged commit, with stored entries, the time of the commit and TZ=UTC, so a second run of the same tag
-// writes the same bytes. Each archive carries the manifest of its package unchanged, and
+// package at the tagged commit, with stored entries, the time of the commit and TZ=UTC. Declared generated files are
+// appended from staged files with fixed mode and the same commit time, so a second run of the same tag writes the same
+// bytes without placing generated contents in argv. Each archive carries the manifest of its package unchanged, and
 // the manifest names every package of its scope by an exact version (see manifestProblems). `publish` creates the draft
 // release of the tag through the API with the archives (github-release.mts createDraft) and records its id in
 // var/release/<tag>.json; the notes are the section X.Y.Z, or one line that links the section when it is longer than
@@ -35,7 +36,7 @@
 // backend of pythonBackend of config/toolchain.json (release-wheel.mts); each of its Requires-Dist lines is a registry pin or a polyspec release asset that
 // its lock of consumers.wheel.lock holds (wheel-dependencies.mts).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import semver from 'semver';
@@ -55,6 +56,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
 import { toolCommand } from './mise-tools.mts';
+import { installedGenStub } from './install-php-arginfo.mts';
 
 export const MAIN = 'origin/main';
 export const CONFIG = 'config/release.json';
@@ -82,6 +84,14 @@ export interface ReleasePackage {
   kind: PackageKind;
   directory: string;
   name: string;
+  generated?: ReleaseGeneratedArtifact[];
+}
+
+/** A build artifact materialized from the committed package snapshot only while its Composer archive is made. */
+export interface ReleaseGeneratedArtifact {
+  kind: 'php-arginfo';
+  stub: string;
+  output: string;
 }
 
 /** The consumer project of the npm or the Composer archives: its directory and the smoke command of each package. */
@@ -199,6 +209,14 @@ export function loadConfig(root: string): ReleaseConfig {
     directories.add(directory);
     const manifest = path.posix.join(directory, MANIFEST_OF[kind]);
     if (config.manifests[manifest] !== 'archive') problems.push(`${CONFIG}: the package ${name} needs manifests.${manifest} = "archive", found ${JSON.stringify(config.manifests[manifest] ?? null)}`);
+    for (const generated of config.packages.find(item => item.directory === directory)?.generated ?? []) {
+      if (kind !== 'composer') problems.push(`${CONFIG}: generated artifacts of ${directory} require a Composer package`);
+      if (generated.kind === 'php-arginfo') {
+        const valid = (file: string) => file !== '' && !file.startsWith('/') && !file.includes('\\') && file.split('/').every(part => part !== '' && part !== '.' && part !== '..');
+        if (!valid(generated.stub) || !generated.stub.endsWith('.stub.php')) problems.push(`${CONFIG}: generated php-arginfo stub ${JSON.stringify(generated.stub)} is not a package-relative .stub.php path`);
+        if (!valid(generated.output) || generated.output !== generated.stub.replace(/\.stub\.php$/, '_arginfo.h')) problems.push(`${CONFIG}: generated php-arginfo output ${JSON.stringify(generated.output)} must be the matching _arginfo.h beside its stub`);
+      }
+    }
   }
   const backend = backendFinding(root, config);
   if (backend) problems.push(backend);
@@ -501,6 +519,36 @@ export function packedManifest(ctx: Context, file: string): string {
   return file.endsWith('.tgz') ? run('tar', ['-xzOf', file, 'package/package.json'], at(ctx)) : run('unzip', ['-p', file, 'composer.json'], at(ctx));
 }
 
+/** Generate package artifacts from the tagged sources in a private temporary directory. */
+function generatedArchiveFiles(ctx: Context, commit: string, folder: string, generated: ReleaseGeneratedArtifact[] | undefined): { directory: string; files: { output: string; file: string }[] } | null {
+  if (!generated?.length) return null;
+  const phpArginfo = generated.filter(item => item.kind === 'php-arginfo');
+  if (phpArginfo.length !== generated.length) throw new Stop(`${CONFIG}: an unknown generated artifact kind is declared for ${folder}`);
+  const generator = installedGenStub(ctx.root);
+  const php = toolCommand(ctx.root, 'php');
+  const temporary = mkdtempSync(path.join(tmpdir(), 'kit-release-arginfo-'));
+  try {
+    const files = phpArginfo.map(item => {
+      const stub = path.join(temporary, path.basename(item.stub));
+      const source = run('git', ['show', `${commit}:${path.posix.join(folder, item.stub)}`], at(ctx));
+      writeFileSync(stub, source);
+      const result = execute(php, [generator.file, '--force-regeneration', stub], { cwd: temporary, env: ctx.env });
+      if (result.error) throw new Stop(`${php} could not start while generating ${path.posix.join(folder, item.output)}: ${result.error.message}`);
+      if (result.status !== 0) throw new Stop(`${php} ${path.basename(generator.file)} failed for ${path.posix.join(folder, item.stub)} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
+      const output = path.join(temporary, path.basename(item.output));
+      if (!existsSync(output)) throw new Stop(`${generator.file} did not write ${path.posix.join(folder, item.output)}`);
+      const staged = path.join(temporary, item.output);
+      mkdirSync(path.dirname(staged), { recursive: true });
+      copyFileSync(output, staged);
+      return { output: item.output, file: staged };
+    });
+    return { directory: temporary, files };
+  } catch (error) {
+    rmSync(temporary, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 /**
  * Builds the archive of every package of the tag into var/release/assets and returns their names. The manifests of the
  * tagged commit must pass manifestProblems before a package is packed, and each archive must carry the manifest of its
@@ -510,11 +558,16 @@ export function assets(ctx: Context, tag: string): string[] {
   const { root, config } = ctx;
   const [directory, version] = parseTag(config, tag);
   const target = path.join(root, ASSETS);
-  rmSync(target, { recursive: true, force: true });
   if (directory !== null) {
     ctx.log(`[release] ${tag}: a Go module tag builds no archive`);
+    rmSync(target, { recursive: true, force: true });
     mkdirSync(target, { recursive: true });
     return [];
+  }
+  if (config.packages.some(item => item.generated?.length)) {
+    const zip = execute('zip', ['-v'], { cwd: root, env: ctx.env });
+    if (zip.error) throw new Stop(`zip is required to append generated files to Composer release archives; install Info-ZIP (for example, brew install zip or sudo apt-get install zip), then run make release-assets`);
+    if (zip.status !== 0) throw new Stop(`zip -v failed with exit status ${zip.status}; install a working Info-ZIP command, then run make release-assets`);
   }
   const commit = taggedCommit(ctx, tag);
   const names = assetNames(config, version);
@@ -535,7 +588,9 @@ export function assets(ctx: Context, tag: string): string[] {
   if (problems.length) throw new Stop(`${tag}: the manifests of the commit ${commit} do not install outside the repository: ${problems.join('; ')}`);
   const mtime = new Date(Number(run('git', ['show', '-s', '--format=%ct', commit], at(ctx)).trim()) * 1000).toISOString();
   const next = `${target}.next-${process.pid}`;
+  const previous = `${target}.previous-${process.pid}`;
   rmSync(next, { recursive: true, force: true });
+  rmSync(previous, { recursive: true, force: true });
   mkdirSync(next, { recursive: true });
   try {
     config.packages.forEach(({ kind, directory: folder, name }, index) => {
@@ -553,9 +608,29 @@ export function assets(ctx: Context, tag: string): string[] {
         buildWheel({ root, env: ctx.env, commit, directory: folder, output: next, buildBackend: buildBackend(root) });
       } else {
         // Stored entries, the time of the commit and TZ=UTC give the zip of a tree the same bytes on every machine and at
-        // every time: `git archive` of a tree writes the current time without --mtime, and a zip stores local time.
+        // every time. Files generated from the tagged snapshot are staged with fixed mode and mtime and appended by path;
+        // their contents stay out of argv, whose per-argument limit is platform-dependent.
         // names holds the archive name of each package at its index.
-        run('git', ['archive', '--format=zip', '-0', `--mtime=${mtime}`, `--output=${path.join(next, present(names[index], 'names[index]'))}`, `${commit}:${folder}`], { cwd: root, env: { ...ctx.env, TZ: 'UTC' } });
+        const generated = generatedArchiveFiles(ctx, commit, folder, config.packages[index]?.generated);
+        const archive = path.join(next, present(names[index], 'names[index]'));
+        try {
+          const args = ['archive', '--format=zip', '-0', `--mtime=${mtime}`, `--output=${archive}`, `${commit}:${folder}`];
+          const result = execute('git', args, { cwd: root, env: { ...ctx.env, TZ: 'UTC' } });
+          if (result.error) throw new Stop(`git archive could not start for ${commit}:${folder}: ${result.error.message}`);
+          if (result.status !== 0) throw new Stop(`git archive of ${commit}:${folder} failed with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
+          if (generated) {
+            const epoch = Number(run('git', ['show', '-s', '--format=%ct', commit], at(ctx)).trim());
+            for (const item of generated.files) {
+              chmodSync(item.file, 0o644);
+              utimesSync(item.file, epoch, epoch);
+              const result = execute('zip', ['-q', '-0', '-X', archive, item.output], { cwd: generated.directory, env: { ...ctx.env, TZ: 'UTC' } });
+              if (result.error) throw new Stop(`zip could not start while adding ${item.output} to ${names[index]}: ${result.error.message}`);
+              if (result.status !== 0) throw new Stop(`zip failed while adding ${item.output} to ${names[index]} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
+            }
+          }
+        } finally {
+          if (generated) rmSync(generated.directory, { recursive: true, force: true });
+        }
       }
     });
     const built = readdirSync(next).sort();
@@ -579,9 +654,17 @@ export function assets(ctx: Context, tag: string): string[] {
       ];
     });
     if (failures.length) throw new Stop(`${tag}: the release assets do not install outside the repository: ${failures.join('; ')}`);
-    renameSync(next, target);
+    if (existsSync(target)) renameSync(target, previous);
+    try {
+      renameSync(next, target);
+    } catch (error) {
+      if (existsSync(previous) && !existsSync(target)) renameSync(previous, target);
+      throw error;
+    }
+    rmSync(previous, { recursive: true, force: true });
   } finally {
     rmSync(next, { recursive: true, force: true });
+    if (existsSync(previous) && !existsSync(target)) renameSync(previous, target);
   }
   return names;
 }
