@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 189cb5f4cdafa590ec725c89c76088b90031ae2192642d1f9cbb9ca662b35d77 -->
+<!-- source-sha256: 6b54aa034df2dd668fbfd7d593a45256d5eb75a9857360e392ebf67221eabfdb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- land는 scan total이 달라질 때 duplication finding 비교에서 ANSI 색상 jscpd aggregate Total summary 행을 제외하고 clone finding은 유지한다(K570).
 
 - PHP extension stub parser는 internal class를 찾을 때 comment 안의 namespace 텍스트를 무시한다(K569-1).
 

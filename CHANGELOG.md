@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- land excludes ANSI-colored jscpd aggregate Total summary rows from duplication finding comparisons when scan totals change, while preserving clone findings (K570).
+
 - PHP extension stub parsing ignores namespace text inside comments when identifying explicitly internal classes (K569-1).
 
 - PHP extension declaration checks honor explicitly internal stub classes and compare PHP `self` types by their declaring class; undeclared public classes still fail (K569).
