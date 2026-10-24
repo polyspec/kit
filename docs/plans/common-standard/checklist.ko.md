@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 615e676bdd5195f82bd009d2e9cec7c637ede50f29f4dca65ff67deb78320e9e -->
+<!-- source-sha256: 8ee92fdcc9dc4db066c643962f6d3790719b71f70adf2b2421819cdfb781bbd8 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -477,3 +477,4 @@
 | K568 | Hook은 Node test wrapper가 전달하는 runner를 읽고 target 이름 예외 없이 exact Cargo native case를 인식한다. 원인: item-state가 Rust owner target을 Node wrapper까지 따라간 뒤 전달된 Cargo command를 selection이 없는 Node runtime으로 판단한다. Acceptance: 비어 있지 않은 exact native id는 통과하고, 선택된 Cargo target이 없거나 --exact에 id가 없거나 workspace test이면 거부하며 Make target 이름으로 동작을 선택하지 않는다. | scripts/kit/claude-hook.mts, scripts/kit/test-selection.mts, tests/kit/claude-hook.test.mts, tests/kit/test-selection.test.mts, docs/operations/tool-inventory.md(.ko.md) | `node --test --test-name-pattern=K568 tests/kit/claude-hook.test.mts tests/kit/test-selection.test.mts`; `make docs-check` | [o] |
 | K569 | PHP 확장 비교는 internal stub 클래스와 self type을 반영하고 public 추가 선언은 거부한다 | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test --test-name-pattern=K569 tests/kit/php-ext.test.mts` | [o] |
 | K569-1 | internal class parser는 namespace처럼 보이는 문서 텍스트를 무시한다 | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test --test-name-pattern=K569 tests/kit/php-ext.test.mts` | [o] |
+| K570 | land는 duplication finding을 비교할 때 jscpd의 aggregate Total summary 행을 제외한다 | scripts/kit/land.mts, tests/kit/land.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K570 tests/kit/land.test.mts` | [ ] |
