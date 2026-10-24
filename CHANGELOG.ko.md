@@ -1,10 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 42ca27acd23107123d8e008d18bd91fb41ea4d23f72723fd8f253e3c2a50d206 -->
+<!-- source-sha256: 63d597d98186e3369c3cc7cd335cb81370d8f631155635ba4fe95bf759ac3e44 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- land는 duplication-check 결과 비교에서 형식이 확인된 jscpd 언어별 통계 행만 제외하고, 새 clone 블록은 계속 통합을 거부한다(K394-4).
+
 
 - Claude hook은 Node wrapper가 `--` 뒤에 전달하는 runner command를 따라가므로 Make target을 통한 exact Cargo native case를 인식한다. `--exact` 실행에는 선택된 test name이 필요하며 selection 없는 실행과 workspace 실행은 local에서 계속 거부한다(K568).
 
