@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bdc77bf2092aab1bee388974569c05eb62be9b7e0c20d79cbf312ce16f5b6436 -->
+<!-- source-sha256: 8083d1dd0088231a6c9cdbd04445e135aa6608ffd3b93e6220930de53ad4caee -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PHP extension build는 설치된 parser로 arginfo를 offline 생성하고, Composer archive는 tag stub에서 generated header를 만들어 고정된 ZIP metadata와 함께 넣는다(K560).
 - commit gate는 checkout에 설치된 각 nested npm project의 staged lock을 offline 설치해 gate가 해당 staged project의 dependency를 읽게 한다(K404-1-2).
 - make item-red는 실패한 Verification을 실패의 원인으로 판정한다. test runner의 실패한 run만 그 test로 판정하므로, 통과한 test 뒤에 finding을 낸 check는 red이고, timeout이나 test 전에 실패한 build, compile, load는 여전히 red가 아니다(K540-1).
 - docs/operations/release-structure.md는 kit의 릴리스 구조를 검토한다. 안정된 bootstrap 층, 참조로 쓰는 설정, 도구가 요구하는 곳에만 사본, 의존 순서로 묶은 릴리스다(K194).
