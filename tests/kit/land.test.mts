@@ -662,6 +662,28 @@ test('land compares jscpd clone findings without its changing summary rows (K394
   assert.ok(added?.some(line => line.includes('Clone found (php)')), 'a real added clone remains a finding');
 });
 
+test('land ignores changed ANSI-colored jscpd Total summary padding but keeps clone findings (K570)', () => {
+  const clone = [
+    '\u001b[1mClone found (go)\u001b[22m',
+    ' - packages/go/a.go [10:1 - 16:2] (7 lines, 40 tokens)',
+    '   packages/go/b.go [20:1 - 26:2]',
+  ].join('\n');
+  const beforeTotal = '\u001b[90m│\u001b[39m \u001b[1mTotal:\u001b[22m \u001b[90m│\u001b[39m 999            \u001b[90m│\u001b[39m 99999       \u001b[90m│\u001b[39m 999999       \u001b[90m│\u001b[39m 9            \u001b[90m│\u001b[39m 99 (0.01%)       \u001b[90m│\u001b[39m 999 (0.01%)       \u001b[90m│\u001b[39m';
+  const changedTotal = '\u001b[90m│\u001b[39m \u001b[1mTotal:\u001b[22m \u001b[90m│\u001b[39m 1000           \u001b[90m│\u001b[39m 100000      \u001b[90m│\u001b[39m 1000000      \u001b[90m│\u001b[39m 10           \u001b[90m│\u001b[39m 100 (0.01%)      \u001b[90m│\u001b[39m 1000 (0.01%)      \u001b[90m│\u001b[39m';
+  const asDuplication = (output: string): GateRun => ({
+    folder: process.cwd(),
+    gate: 'duplication-check',
+    result: { pid: 0, output: [null, output, ''], stdout: output, stderr: '', status: 1, signal: null },
+  });
+
+  assert.equal(newFindings(process.cwd(), asDuplication(`${clone}\n${changedTotal}`), asDuplication(`${clone}\n${beforeTotal}`)), undefined,
+    'changed aggregate statistics and column padding do not add a finding');
+
+  const addedClone = '\u001b[1mClone found (php)\u001b[22m\n - packages/php/a.php [1:1 - 7:2] (7 lines, 40 tokens)\n   packages/php/b.php [1:1 - 7:2]';
+  const added = newFindings(process.cwd(), asDuplication(`${clone}\n${changedTotal}\n${addedClone}`), asDuplication(`${clone}\n${beforeTotal}`));
+  assert.ok(added?.some(line => line.includes('Clone found (php)')), 'a real added clone remains a finding');
+});
+
 test('land recognizes the ANSI-colored jscpd summary rows captured by duplication-check (K394-5)', () => {
   const clone = [
     '\u001b[1mClone found (php)\u001b[22m',

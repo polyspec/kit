@@ -145,8 +145,8 @@ export function linesOf(output: string, folder: string, root: string): { line: s
 // ...); a kit tool prints its findings on stderr, and another tool, such as a linter, prints its findings on stdout without it (K394-3).
 const PROGRESS = /^\[[a-z0-9-]+\] /;
 
-// The per-language rows in jscpd's seven-column console summary describe the scanned tree, not duplicate blocks.
-const JSCPD_STATISTICS = /^\s*│\s*(?:c|go|php|python|rust|typescript|javascript)\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*│\s*[\d,]+\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*$/;
+// The per-language rows and aggregate Total row in jscpd's seven-column summary describe the scanned tree, not duplicate blocks.
+const JSCPD_STATISTICS = /^\s*│\s*(?:c|go|php|python|rust|typescript|javascript|Total:)\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*│\s*[\d,]+\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*$/;
 const ANSI_SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
 const isJscpdStatistics = (line: string): boolean => JSCPD_STATISTICS.test(line.replace(ANSI_SGR, ''));
 
