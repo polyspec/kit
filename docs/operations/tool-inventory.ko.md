@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 74325b0c9d5d6109fc4c15f15a3ee7c37369f99f47b3d537ceaea4d94559f903 -->
+<!-- source-sha256: 8812c8608610efca2b73d7177d18b7242add2c43c78d393503ceb1fe101db504 -->
 
 # 도구 목록
 
@@ -1278,7 +1278,7 @@ resolve하는 consumer도 release가 게시한 asset을 내려받습니다.
 
 `scripts/kit/parity.mts`는 repository의 모든 implementation이 적용되는 shared unit을 갖추는지 검사합니다. `config/parity.json`은
 implementation(repository의 language 집합의 유일한 원천)과 unit을 선언합니다. scope가 없는 unit은 모든 implementation에 적용합니다(S6).
-feature unit은 기존 `contracts/features.json` coverage part 또는 `config/release.json` package에서 owner를 도출할 수 있습니다. component나 artifact에만 해당하는 requirement가 owner scope 대상이며, requirement가 owner를 주어로 명시하고 native test가 그 requirement를 이름으로 인용해야 합니다. 공유 client requirement와 SQL 규칙은 계속 모든 implementation에 적용됩니다. 임의 profile, implementation 허용 목록, exclusion, native-only symbol은 scope가 아니며, 완료나 예정 같은 상태도 선언에 담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
+feature unit은 기존 `contracts/features.json` coverage part 또는 `config/release.json`의 archive package, `goModules` module, `proof.gitTag` crate에서 owner를 도출할 수 있습니다. release owner는 `artifact`로 source 유형을 명시하고 source의 package 이름을 정확히 가리킵니다. component나 artifact에만 해당하는 requirement가 owner scope 대상이며, requirement가 owner를 주어로 명시하고 native test가 그 requirement를 이름으로 인용해야 합니다. 공유 client requirement와 SQL 규칙은 계속 모든 implementation에 적용됩니다. 임의 profile, implementation 허용 목록, exclusion, native-only symbol은 scope가 아니며, 완료나 예정 같은 상태도 선언에 담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
 
 - 각 implementation에서 각 suite와 feature의 binding을 직접 실행하고, 실행과 각 실행이 보고한 case와 test id의 ledger를 memory에
   둡니다. 저장된 report는 읽지 않습니다.

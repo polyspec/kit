@@ -136,10 +136,11 @@
               },
               {
                 "type": "object",
-                "required": ["kind", "package"],
+                "required": ["kind", "artifact", "package"],
                 "additionalProperties": false,
                 "properties": {
                   "kind": { "const": "release-package" },
+                  "artifact": { "type": "string", "enum": ["archive", "go-module", "git-tag"] },
                   "package": { "type": "string", "minLength": 1 }
                 }
               }

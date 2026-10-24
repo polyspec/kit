@@ -1620,7 +1620,7 @@ test('K566: a release-package owner resolves its implementation from config/rele
     files,
     edit: config => {
       config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
-      config.units.push({ id: 'ts-native-entry', kind: 'feature', requirements: ['RX-3'], owner: { kind: 'release-package', package: 'codec-ts' }, bindings: [{ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'native' }] });
+      config.units.push({ id: 'ts-native-entry', kind: 'feature', requirements: ['RX-3'], owner: { kind: 'release-package', artifact: 'archive', package: 'codec-ts' }, bindings: [{ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'native' }] });
       return config;
     },
   };
@@ -1629,6 +1629,12 @@ test('K566: a release-package owner resolves its implementation from config/rele
   assert.deepEqual(ledger.runs.filter(run => run.unit === 'ts-native-entry').map(run => `${run.implementation} ${run.attempt} ${run.status}`), ['ts 1 0', 'ts 2 0']);
   const mismatched = check(t, { ...change, files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'codec-ts', directory: 'php' }] }) } }, { execute: false });
   assert.ok(mismatched.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('binds an implementation other than php')));
+  const unknownPackage = check(t, { ...change, edit: config => {
+    config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+    config.units.push({ id: 'ts-native-entry', kind: 'feature', requirements: ['RX-3'], owner: { kind: 'release-package', artifact: 'archive', package: 'missing-package' }, bindings: [{ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'native' }] });
+    return config;
+  } }, { execute: false });
+  assert.ok(unknownPackage.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('missing-package with artifact archive resolves to 0')));
   const implementationNameOnly = check(t, { ...change, files: {
     ...files,
     'docs/spec/owner-scope.md': '# Native package\n\n- **RX-3** TypeScript exports its client declarations at its package root.\n',
@@ -1636,10 +1642,39 @@ test('K566: a release-package owner resolves its implementation from config/rele
   assert.ok(implementationNameOnly.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('requirement RX-3 does not name its owner ts')));
   const extraOwnerOverride = check(t, { ...change, edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
-    config.units.push({ id: 'ts-native-entry', kind: 'feature', requirements: ['RX-3'], owner: { kind: 'release-package', package: 'codec-ts', implementations: ['ts'] }, bindings: [{ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'native' }] });
+    config.units.push({ id: 'ts-native-entry', kind: 'feature', requirements: ['RX-3'], owner: { kind: 'release-package', artifact: 'archive', package: 'codec-ts', implementations: ['ts'] }, bindings: [{ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'native' }] });
     return config;
   } }, { execute: false });
   assert.ok(extraOwnerOverride.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('additionalProperty')));
+});
+
+test('K566: release owners resolve Go modules and Rust git-tag crates from their declared artifacts', TIMEOUT, (t) => {
+  const files = {
+    'docs/spec/owner-scope.md': '# Native package owners\n\n- **RX-4** The example/go package exports its ORM client from its module path.\n- **RX-5** The example-rust package exposes its ORM client from its crate root.\n',
+    'config/release.json': JSON.stringify({ packages: [], goModules: { go: 'example/go' }, proof: { gitTag: { 'rust/Cargo.toml': { kind: 'rust', name: 'example-rust', smoke: ['cargo', 'check'] } } } }),
+    'go/go.mod': 'module example/go\n',
+    'go/roundtrip_test.go': 'package orm\nfunc TestRoundtrip(t *testing.T) {}\n// RX-4\n',
+    'rust/Cargo.toml': '[package]\nname = "example-rust"\n',
+    'rust/tests/roundtrip.rs': '#[test]\nfn roundtrip() {}\n// RX-5\n',
+  };
+  const { findings } = check(t, { files, edit: config => {
+    config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+    config.units.push(
+      { id: 'go-native-package', kind: 'feature', requirements: ['RX-4'], owner: { kind: 'release-package', artifact: 'go-module', package: 'example/go' }, bindings: [{ implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip' }] },
+      { id: 'rust-native-package', kind: 'feature', requirements: ['RX-5'], owner: { kind: 'release-package', artifact: 'git-tag', package: 'example-rust' }, bindings: [{ implementation: 'rust', test: 'rust/tests/roundtrip.rs', id: 'roundtrip' }] },
+    );
+    return config;
+  } }, { execute: false });
+  assert.deepEqual(findings, []);
+  const crossArtifactSameName = check(t, { files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'example-rust', directory: 'python' }], goModules: { go: 'example/go' }, proof: { gitTag: { 'rust/Cargo.toml': { name: 'example-rust' } } } }) }, edit: config => {
+    config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+    config.units.push(
+      { id: 'go-native-package', kind: 'feature', requirements: ['RX-4'], owner: { kind: 'release-package', artifact: 'go-module', package: 'example/go' }, bindings: [{ implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip' }] },
+      { id: 'rust-native-package', kind: 'feature', requirements: ['RX-5'], owner: { kind: 'release-package', artifact: 'git-tag', package: 'example-rust' }, bindings: [{ implementation: 'rust', test: 'rust/tests/roundtrip.rs', id: 'roundtrip' }] },
+    );
+    return config;
+  } }, { execute: false });
+  assert.deepEqual(crossArtifactSameName.findings, []);
 });
 
 test('a declaration that breaks its schema fails, and no rule runs on it', TIMEOUT, (t) => {

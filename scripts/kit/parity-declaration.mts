@@ -84,7 +84,7 @@ export interface ParityUnit {
 /** A feature's native surface, traced to an existing part owner instead of an implementation allow-list. */
 export type ParityOwner =
   | { kind: 'coverage-part'; feature: string; part: string }
-  | { kind: 'release-package'; package: string };
+  | { kind: 'release-package'; artifact: 'archive' | 'go-module' | 'git-tag'; package: string };
 
 /** config/parity.json as parity.schema.json describes it. */
 export interface ParityConfig {
@@ -660,14 +660,27 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
   const scopeOwner = (scope: ParityOwner, unit: ParityUnit): { implementation: ParityImplementation; markers: string[] } | undefined => {
     if (scope.kind === 'release-package') {
       if (releaseOwners === undefined) releaseOwners = readOwnerRegistry('config/release.json', 'release package owner');
-      if (!isJsonObject(releaseOwners) || !isJsonList(releaseOwners.packages)) return undefined;
-      const pkg = releaseOwners.packages.find(entry => isJsonObject(entry) && entry.name === scope.package);
-      if (!isJsonObject(pkg) || typeof pkg.directory !== 'string') {
-        fail(`unit owner release package ${scope.package} does not name a package of config/release.json`);
+      if (!isJsonObject(releaseOwners)) return undefined;
+      const packages = isJsonList(releaseOwners.packages) ? releaseOwners.packages : [];
+      const candidates = scope.artifact === 'archive' ? packages.flatMap(entry => isJsonObject(entry) && entry.name === scope.package && typeof entry.directory === 'string'
+        ? [{ name: entry.name, directory: entry.directory }]
+        : []) : [];
+      if (scope.artifact === 'go-module' && isJsonObject(releaseOwners.goModules)) {
+        for (const [directory, name] of Object.entries(releaseOwners.goModules)) if (name === scope.package) candidates.push({ name, directory });
+      }
+      const proof = isJsonObject(releaseOwners.proof) ? releaseOwners.proof : undefined;
+      const gitTag = proof && isJsonObject(proof.gitTag) ? proof.gitTag : undefined;
+      if (scope.artifact === 'git-tag') {
+        for (const [manifest, entry] of Object.entries(gitTag ?? {})) {
+          if (isJsonObject(entry) && entry.name === scope.package) candidates.push({ name: entry.name, directory: path.posix.dirname(manifest) });
+        }
+      }
+      if (candidates.length !== 1) {
+        fail(`unit owner release package ${scope.package} with artifact ${scope.artifact} resolves to ${candidates.length} declarations in config/release.json`);
         return undefined;
       }
-      const part = pkg.directory;
-      if (!files.has(`${part}/package.json`) && !files.has(`${part}/composer.json`) && !files.has(`${part}/pyproject.toml`) && !files.has(`${part}/Cargo.toml`)) {
+      const part = present(candidates[0], 'candidates[0]').directory;
+      if (!files.has(`${part}/package.json`) && !files.has(`${part}/composer.json`) && !files.has(`${part}/pyproject.toml`) && !files.has(`${part}/Cargo.toml`) && !files.has(`${part}/go.mod`)) {
         fail(`unit owner release package ${scope.package} has no package manifest under ${part}`);
         return undefined;
       }
@@ -716,7 +729,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     const text = requirementText(id);
     if (text === undefined || /\b(?:every|each|all)\s+(?:client|implementation)s?\b/i.test(text)) return false;
     const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const subject = new RegExp(`^\\s*(?:[-*+]\\s+)?\\*\\*${config.requirements.pattern}\\*\\*\\s+(?:The\\s+)?${escaped}(.*)$`, 'i').exec(text);
+    const subject = new RegExp(`^\\s*(?:[-*+]\\s+)?\\*\\*${config.requirements.pattern}\\*\\*\\s+(?:The\\s+)?(?:\\x60${escaped}\\x60|${escaped})(.*)$`, 'i').exec(text);
     return subject !== null && !/^\\s+(?:and|or|,)/i.test(subject[1] ?? '');
   };
   for (const unit of config.units) {
