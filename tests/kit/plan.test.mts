@@ -309,11 +309,6 @@ test('the type check builds the workspace package that tsc cannot find, once, an
 });
 
 const log = (root: string) => spawnSync('git', ['log', '-1', '--format=%B'], { cwd: root, encoding: 'utf8' }).stdout;
-// K556: item-red BEFORE= runs in the worktree of the row, so a fixture on main moves to the branch of its row first.
-const onRowBranch = (root: string) => {
-  if (spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim() !== 'main') return;
-  assert.equal(spawnSync('git', ['checkout', '--quiet', '-b', 'fix/parser-row'], { cwd: root }).status, 0);
-};
 const stage = (root: string, ...files: string[]) => assert.equal(spawnSync('git', ['add', ...files], { cwd: root }).status, 0);
 const identity = { GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.com' };
 
@@ -584,8 +579,6 @@ test('make item-red records a failing Verification, and done requires the record
   // Each row below has its own repository: its commit history is the one that the case names.
   const PLAN_SCRIPT = fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url));
   const FAILS = 'node -e "process.exit(1)"';
-  const PASSES = 'node -e "process.exit(0)"';
-  const LACKS_B = 'node -e "process.exit(require(\'fs\').existsSync(\'b.mts\') ? 0 : 1)"';
   const repo = (rows: Record<string, string>) => {
     const root = plans(t, 'parser');
     put(root, { '.gitignore': 'var/\n' });
@@ -601,15 +594,7 @@ test('make item-red records a failing Verification, and done requires the record
     }
   };
   const revParse = (root: string, rev: string) => spawnSync('git', ['rev-parse', rev], { cwd: root, encoding: 'utf8' }).stdout.trim();
-  const redCli = (root: string, id: string, before?: string) => {
-    const env: NodeJS.ProcessEnv = { ...process.env, ID: id };
-    delete env.BEFORE;
-    if (before !== undefined) {
-      env.BEFORE = before;
-      onRowBranch(root);
-    }
-    return spawnSync(process.execPath, [PLAN_SCRIPT, 'item-red'], { cwd: root, env, encoding: 'utf8' });
-  };
+  const redCli = (root: string, id: string) => spawnSync(process.execPath, [PLAN_SCRIPT, 'item-red'], { cwd: root, env: { ...process.env, ID: id }, encoding: 'utf8' });
 
   // A feat commit made with make commit carries the red of its row, and its later close reads it.
   const feat = repo({ T8: FAILS });
@@ -626,7 +611,7 @@ test('make item-red records a failing Verification, and done requires the record
   setState(feat, { id: 'T8', state: '[o]' }, quiet);
   assert.equal(rows(feat, 'docs/plans/parser/checklist.md').find(row => row.startsWith('| T8 |'))?.endsWith('[o] |'), true, 'the later close reads the feat commit');
 
-  // After a rebase the red may name an ancestor of the parent, which proves it; a commit that is no ancestor proves nothing.
+  // The red line names the head where the red ran, which a rebase rewrites; the record proves it (K562).
   const closed = (redOf: (root: string) => string) => {
     const root = repo({ T9: FAILS });
     setState(root, { id: 'T9', state: '[~]' }, quiet);
@@ -640,49 +625,6 @@ test('make item-red records a failing Verification, and done requires the record
   };
   const rebased = closed(root => revParse(root, 'HEAD~1'));
   assert.deepEqual(rangeFindings(rebased, 'HEAD~1..HEAD', COMMIT_RULES), [], 'a Red line on an ancestor of the parent proves the red');
-  const unrelated = closed(root => {
-    const empty = spawnSync('git', ['mktree'], { cwd: root, input: '', encoding: 'utf8' }).stdout.trim();
-    return spawnSync('git', ['commit-tree', empty, '-m', 'unrelated'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...identity } }).stdout.trim();
-  });
-  assert.match(rangeFindings(unrelated, 'HEAD~1..HEAD', COMMIT_RULES).join('\n'), /commit-fix-test/, 'a Red line on an unrelated commit proves nothing');
-
-  // A row committed with its fix and no record: its row moves to [~] uncommitted, BEFORE= records the red, and the state stays.
-  const before = repo({ T10: LACKS_B });
-  put(before, { 'b.mts': 'export {};\n', 'tests/c.test.mts': 'test\n' });
-  gitCommit(before, 'fix(parser): Fix it (#T10)\n\nThe test names it.');
-  setState(before, { id: 'T10', state: '[~]' }, quiet);
-  // A tracked change outside docs/plans is refused, and the tree is left as it was.
-  writeFileSync(path.join(before, '.gitignore'), 'var/\nnode_modules/\n');
-  const outsideRefused = redCli(before, 'T10', 'HEAD~1');
-  assert.notEqual(outsideRefused.status, 0);
-  assert.match(outsideRefused.stderr, /changes to tracked files outside docs\/plans and the changelogs, \.gitignore/);
-  writeFileSync(path.join(before, '.gitignore'), 'var/\n');
-  assert.equal(redCli(before, 'T10', 'HEAD~1').status, 0, 'the Verification fails before the fix');
-  assert.equal(readRecord(before, 'T10')?.head, revParse(before, 'HEAD'), 'the record has HEAD');
-  assert.deepEqual(readRecord(before, 'T10')?.tests?.commands, [{ command: LACKS_B, status: 1 }]);
-  assert.equal(readFileSync(path.join(before, 'b.mts'), 'utf8'), 'export {};\n', 'the file is restored');
-  assert.deepEqual(rows(before, 'docs/plans/parser/checklist.md').map(row => row.endsWith('[~] |')), [true], 'the [~] state stays in the tree');
-  assert.deepEqual(rows(before, 'docs/plans/parser/checklist.ko.md').map(row => row.endsWith('[~] |')), [true], 'the [~] state of the twin stays in the tree');
-  // The record of the row stays when the row is activated again on the same HEAD (K357).
-  setState(before, { id: 'T10', state: '[ ]' }, quiet);
-  setState(before, { id: 'T10', state: '[~]' }, quiet);
-  assert.ok(readRecord(before, 'T10')?.tests, 'the test record stays');
-  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(before, file), `${CHANGELOG}- Fix (T10).\n`);
-  setState(before, { id: 'T10', state: '[o]' }, quiet);
-
-  // A Verification that passes before the fix is refused, and the tree is restored exactly.
-  const passing = repo({ T11: PASSES });
-  setState(passing, { id: 'T11', state: '[~]' }, quiet);
-  gitCommit(passing, 'start T11');
-  put(passing, { 'b.mts': 'export {};\n', 'tests/d.test.mts': 'test\n' });
-  gitCommit(passing, 'fix(parser): Fix it (#T11)\n\nThe test names it.');
-  const snapshot = readFileSync(path.join(passing, 'b.mts'), 'utf8');
-  const refused = redCli(passing, 'T11', 'HEAD~1');
-  assert.notEqual(refused.status, 0);
-  assert.match(refused.stderr, /T11: the Verification passes before the fix, so it proves no red/);
-  assert.equal(spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: passing, encoding: 'utf8' }).stdout, '', 'git status is clean');
-  assert.equal(readFileSync(path.join(passing, 'b.mts'), 'utf8'), snapshot, 'the file content is the same');
-
   // A Red-Test line holds the whole command, wider than the body, and the width of the body does not apply to it.
   const LONG = `node -e "process.exit(1)" ${'--test-name-pattern=a-long-pattern '.repeat(2).trim()}`;
   const wide = repo({ T12: LONG });
@@ -698,35 +640,9 @@ test('make item-red records a failing Verification, and done requires the record
   assert.deepEqual(rangeFindings(wide, 'HEAD~1..HEAD', COMMIT_RULES), [], 'the commit check takes the wide Red-Test line');
 });
 
-// K389-1: item-red BEFORE= leaves the tree exactly as it was, modes included: an executable file that BEFORE lacks is removed
-// while the Verification runs and comes back executable.
-test('make item-red BEFORE= restores the mode of each file that it swaps (K389-1)', (t) => {
-  const root = plans(t, 'parser');
-  put(root, { '.gitignore': 'var/\n' });
-  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(require(\'fs\').existsSync(\'hook.sh\') ? 0 : 1)"`' }));
-  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
-  const gitCommit = (message: string) => {
-    for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message]]) {
-      const run = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-      assert.equal(run.status, 0, run.stderr);
-    }
-  };
-  gitCommit('base');
-  put(root, { 'hook.sh': '#!/bin/sh\n', 'tests/hook.test.mts': 'test\n' });
-  chmodSync(path.join(root, 'hook.sh'), 0o755);
-  gitCommit('fix(parser): Add the hook (#T1)\n\nThe hook is added.');
-  setState(root, { id: 'T1', state: '[~]' }, () => {});
-  onRowBranch(root);
-  const env: NodeJS.ProcessEnv = { ...process.env, ID: 'T1', BEFORE: 'HEAD~1' };
-  const red = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(red.status, 0, red.stderr);
-  assert.equal(statSync(path.join(root, 'hook.sh')).mode & 0o777, 0o755, 'the executable file comes back executable');
-  assert.equal(spawnSync('git', ['diff', '--summary', '--', 'hook.sh'], { cwd: root, encoding: 'utf8' }).stdout, '', 'git sees no mode change');
-});
-
 // K389-2: the red of a row is recorded on a commit of its branch, which the rebase before make land rewrites, and the row closes after
 // the rebase. K562: the Red-Test line names the head where the red ran, which item-red recorded, never another commit, where the
-// Verification may pass; the record is the proof, so no ancestry is asked. BEFORE= takes a tree whose changelogs the close has changed.
+// Verification may pass; the record is the proof, so no ancestry is asked.
 test('the red of a row survives the rebase of its branch on a newer main, and its line names the head where it ran (K389-2, K562)', (t) => {
   const root = plans(t, 'parser');
   put(root, { '.gitignore': 'var/\n' });
@@ -763,10 +679,6 @@ test('the red of a row survives the rebase of its branch on a newer main, and it
   run('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'rebase', '--quiet', 'main');
   setState(root, { id: 'T1', state: '[~]' }, () => {});
   for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), `${CHANGELOG}- Fix (T1).\n`);
-  // BEFORE= runs on a tree whose changelogs the close has changed, and leaves them as the close wrote them.
-  const before = cli({ ID: 'T1', BEFORE: 'main' });
-  assert.equal(before.status, 0, before.stderr);
-  assert.equal(readFileSync(path.join(root, 'CHANGELOG.md'), 'utf8'), `${CHANGELOG}- Fix (T1).\n`, 'the changelog stays as the close wrote it');
   rmSync(path.join(root, 'var/plan/T1.json'));
   setState(root, { id: 'T1', state: '[o]' }, () => {});
   assert.equal(rows(root, 'docs/plans/parser/checklist.md')[0]?.endsWith('[o] |'), true, 'the row closes after the rebase, from the line of its fix commit');
@@ -844,40 +756,6 @@ test('item-edit rewrites the cause and the retry of a held item in both language
   assert.notEqual(retry.status, 0);
   assert.match(retry.stderr, /no retry condition/);
   assert.deepEqual(rows(root, english), after, 'a refused edit writes nothing');
-});
-
-// K389-3: item-red BEFORE= refuses a red that only a missing new module makes, since the test imports a file that the change adds and
-// BEFORE lacks. A genuine assertion failure of the old behaviour is still accepted.
-test('make item-red BEFORE= refuses a red that only a missing new module makes (K389-3)', (t) => {
-  const root = plans(t, 'parser');
-  put(root, { '.gitignore': 'var/\n', 'value.mjs': 'export const value = 1;\n' });
-  newItem(root, item('parser', 'T1', { verification: '`node --input-type=module -e "await import(\'./mod.mjs\')"`' }));
-  newItem(root, item('parser', 'T2', { verification: '`node --input-type=module -e "import(\'./value.mjs\').then(m => process.exit(m.value === 2 ? 0 : 1))"`' }));
-  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
-  const run = (...args: string[]) => {
-    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
-    return result.stdout.trim();
-  };
-  const commitAll = (message: string) => { run('add', '-A'); run('-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message); };
-  const cli = (env: NodeJS.ProcessEnv) => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' });
-  commitAll('base');
-  const before = run('rev-parse', 'HEAD');
-  put(root, { 'mod.mjs': 'export const added = true;\n', 'tests/mod.test.mts': 'test\n', 'value.mjs': 'export const value = 2;\n' });
-  commitAll('fix(parser): Add the module (#T1)\n\nThe module is added.');
-  setState(root, { id: 'T1', state: '[~]' }, () => {});
-  commitAll('activate T1');
-  setState(root, { id: 'T2', state: '[~]' }, () => {});
-  commitAll('activate T2');
-  // The missing module of T1 is the file the fix adds, so the red is refused and names it.
-  onRowBranch(root);
-  const missing = cli({ ID: 'T1', BEFORE: before });
-  assert.notEqual(missing.status, 0, 'a red that only a missing new module makes is refused');
-  assert.match(missing.stderr, /imports mod\.mjs, a file that the change adds/, missing.stderr);
-  assert.match(missing.stderr, /test through an entry that exists on both sides/, missing.stderr);
-  // T2 fails on the value of the old behaviour, which is a genuine red, so it is accepted.
-  const genuine = cli({ ID: 'T2', BEFORE: before });
-  assert.equal(genuine.status, 0, genuine.stderr);
 });
 
 // K499: registering an item never leaves main staged: a new checklist row staged on main is refused by make commit, which names the
@@ -972,37 +850,6 @@ test('a commit on main waits for the land that holds the lock and releases the l
   assert.match(log(root), /^feat\(parser\): Parse the input \(#T1\)/);
 });
 
-// K525: item-red BEFORE= swaps the tracked sources, and a Verification that reads the build of a package, which git does not track,
-// would run the fixed build; the swap of a build input builds the repository at BEFORE, and the restore builds it again.
-test('make item-red BEFORE= builds the repository at BEFORE when the swap changes a build input, and again after (K525)', (t) => {
-  const root = plans(t, 'parser');
-  put(root, {
-    '.gitignore': 'var/\npkg/dist/\n',
-    'Makefile': 'build:\n\tmkdir -p pkg/dist && cp pkg/src/value.txt pkg/dist/value.txt\n',
-    'pkg/package.json': '{"name":"pkg","main":"dist/value.txt"}\n',
-    'pkg/src/value.txt': 'old\n',
-  });
-  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(require(\'fs\').readFileSync(\'pkg/dist/value.txt\', \'utf8\') === \'new\\\\n\' ? 0 : 1)"`' }));
-  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
-  const gitCommit = (message: string) => {
-    for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message]]) {
-      const run = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-      assert.equal(run.status, 0, run.stderr);
-    }
-  };
-  gitCommit('base');
-  put(root, { 'pkg/src/value.txt': 'new\n', 'tests/value.test.mts': 'test\n' });
-  gitCommit('fix(parser): Give the new value (#T1)\n\nThe value is new.');
-  assert.equal(spawnSync('make', ['--no-print-directory', 'build'], { cwd: root }).status, 0);
-  setState(root, { id: 'T1', state: '[~]' }, () => {});
-  onRowBranch(root);
-  const env: NodeJS.ProcessEnv = { ...process.env, ID: 'T1', BEFORE: 'HEAD~1' };
-  const red = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(red.status, 0, `${red.stdout}${red.stderr}`);
-  assert.match(red.stdout, /make build/, 'the build of BEFORE is named');
-  assert.equal(readFileSync(path.join(root, 'pkg/dist/value.txt'), 'utf8'), 'new\n', 'the restore builds the fixed sources again');
-});
-
 // K540: a red is a test or a gate that runs and fails; a command that was not found, a run whose tests ran out of time, and a run
 // that failed before any test ran prove nothing about the behaviour, so item-red records none of them and names why. K540-1: only a
 // failing run of the test runner (its ✖ summary) is judged by its tests; a check that reports a finding after test runs that passed
@@ -1043,58 +890,6 @@ test('make item-red refuses a red of exit 127, a timeout or a run in which no te
     assert.equal(fails.status, 0, `${id}: ${fails.stderr}`);
     assert.ok(readRecord(root, id), why);
   }
-});
-
-// K553: for a lint item the fixed code is the test file itself, so a Verification whose every command runs a gate of kit-gates swaps the
-// changed test files to BEFORE too; a Verification that runs tests keeps the test files of the fix, which exist before it (K389).
-test('make item-red BEFORE= runs a gate Verification on the test files of BEFORE, and restores them (K553)', (t) => {
-  const root = plans(t, 'parser');
-  put(root, {
-    '.gitignore': 'var/\n',
-    'Makefile': 'kit-gates: lint-x\nlint-x:\n\t@grep -qx "// fixed" tests/check.test.mts\n',
-    'tests/check.test.mts': '// unfixed\n',
-  });
-  newItem(root, item('parser', 'T1', { verification: '`make lint-x`' }));
-  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
-  const gitCommit = (message: string) => {
-    for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message]]) {
-      const run = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
-      assert.equal(run.status, 0, run.stderr);
-    }
-  };
-  gitCommit('base');
-  put(root, { 'tests/check.test.mts': '// fixed\n' });
-  gitCommit('fix(parser): Fix the lint finding of the test (#T1)\n\nThe test is fixed.');
-  setState(root, { id: 'T1', state: '[~]' }, () => {});
-  onRowBranch(root);
-  const env: NodeJS.ProcessEnv = { ...process.env, ID: 'T1', BEFORE: 'HEAD~1' };
-  const red = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env, encoding: 'utf8' });
-  assert.equal(red.status, 0, `${red.stdout}${red.stderr}`);
-  assert.equal(readFileSync(path.join(root, 'tests/check.test.mts'), 'utf8'), '// fixed\n', 'the test file of the fix is restored');
-});
-
-// K556: item-red BEFORE= swaps the files of the tree while its Verification runs, which a main checkout must never hold, since every land,
-// registration and gate reads it; on main it is refused before it swaps, and on the branch of the row it runs.
-test('make item-red BEFORE= refuses on main before it swaps, and runs on the branch of the row (K556)', (t) => {
-  const root = plans(t, 'parser');
-  put(root, { '.gitignore': 'var/\n', 'value.txt': 'old\n' });
-  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(require(\'fs\').readFileSync(\'value.txt\', \'utf8\') === \'new\\\\n\' ? 0 : 1)"`' }));
-  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
-  const gitRun = (...args: string[]) => assert.equal(spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: root, encoding: 'utf8' }).status, 0);
-  gitRun('add', '-A');
-  gitRun('commit', '--quiet', '--no-verify', '-m', 'base');
-  put(root, { 'value.txt': 'new\n', 'tests/value.test.mts': 'test\n' });
-  gitRun('add', '-A');
-  gitRun('commit', '--quiet', '--no-verify', '-m', 'fix(parser): Give the new value (#T1)\n\nThe value is new.');
-  setState(root, { id: 'T1', state: '[~]' }, () => {});
-  const red = () => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env: { ...process.env, ID: 'T1', BEFORE: 'HEAD~1' }, encoding: 'utf8' });
-  const onMain = red();
-  assert.notEqual(onMain.status, 0);
-  assert.match(onMain.stderr, /item-red BEFORE= swaps the files of the tree, so it runs in the worktree of the row, never on main/);
-  assert.equal(readFileSync(path.join(root, 'value.txt'), 'utf8'), 'new\n', 'nothing is swapped on main');
-  gitRun('checkout', '--quiet', '-b', 'fix/parser-T1');
-  const onBranch = red();
-  assert.equal(onBranch.status, 0, `${onBranch.stdout}${onBranch.stderr}`);
 });
 
 // K583: a commit on main of another repository that changes a build input of an npm package with a built output rebuilds it when the

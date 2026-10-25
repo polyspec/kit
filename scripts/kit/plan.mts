@@ -21,8 +21,7 @@
 //   item-red   ID=<id>
 //              runs each command of the Verification cell of an active item after its test is written and before its fix,
 //              and records the commands that fail with HEAD and the hash of the test files in var/plan/<id>.json; a
-//              Verification that passes proves no red and is refused; BEFORE=<rev> runs it on the content of a commit before
-//              the fix, for a row committed without a record (K389), in the worktree of the row and never on main (K556)
+//              Verification that passes proves no red and is refused
 //   commit     ID=<id> TYPE=<type> SCOPE=<scope> SUBJECT=<subject> BODY_FILE=<file>
 //              commits the index with the message type(scope): Subject (#id), a blank line and the body of the file, its
 //              paragraphs wrapped at the width of the commit rules and its trailer lines kept; it refuses what the
@@ -35,7 +34,7 @@
 //
 // make passes the variables of its command line to the recipe in the environment, so a text with quotes or backticks needs
 // no quoting.
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
@@ -45,7 +44,7 @@ import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { itemCommands, verificationFindings } from './verification.mts';
 import { isFile } from './test-selection.mts';
-import { fixProvesRed, gateCommands, hasRed, readRecord, recordRed, redLines, writeRecord } from './gate-red.mts';
+import { fixProvesRed, hasRed, readRecord, recordRed, redLines, writeRecord } from './gate-red.mts';
 import { invalidRed, type GateRecord, type Run } from './gate-red.mts';
 import { spawnSync } from 'node:child_process';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
@@ -55,8 +54,8 @@ import { stamped } from './documents-stamp.mts';
 import { privatePaths, stagedTwinFindings } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { isSource } from './kit-check.mts';
-import { buildState, buildTargets, rebuild } from './link-build.mts';
-import { isTestGate, withLandLock } from './land.mts';
+import { buildState, rebuild } from './link-build.mts';
+import { withLandLock } from './land.mts';
 import { present } from './present.mts';
 
 const SLUG = /^[a-z][a-z0-9-]*$/;
@@ -469,34 +468,14 @@ function runCommands(root: string, id: string, commands: readonly string[], prin
   return runs;
 }
 
-/** A line of a run's output that names a module or class that a file is missing for (K389-3). */
-const MISSING_MODULE = /Cannot find (?:module|package)|ModuleNotFoundError|No module named|Class .*not found/i;
-
-/**
- * The files that `output` names as the only missing modules, or undefined when it names none, or names one that `added` lacks: a
- * red that only a file the change adds makes proves that the file was missing, not that the old behaviour was wrong (K389-3). A
- * class of PHP is named by its file stem.
- */
-function missingAdded(output: string, added: readonly string[]): string[] | undefined {
-  const lines = output.split('\n').filter(line => MISSING_MODULE.test(line));
-  if (lines.length === 0) return undefined;
-  const named = new Set<string>();
-  for (const line of lines) {
-    const file = added.find(entry => line.includes(entry) || (MISSING_MODULE.test(line) && line.toLowerCase().includes(path.basename(entry, path.extname(entry)).toLowerCase())));
-    if (file === undefined) return undefined;
-    named.add(file);
-  }
-  return [...named];
-}
 
 /**
  * Runs each command of the Verification cell of the active item `id` in `root` after its test is written and before its fix, and
  * records the commands that fail in var/plan/<id>.json with HEAD and the hash of the test files: the red that a fix commit
- * proves (Red-Test, check-commits). With `before`, a row committed without a record: the non-test files that differ between that
- * commit and HEAD take their content of `before` while the commands run, and HEAD is restored exactly afterwards. Throws, recording
- * nothing, when the item is not active or the Verification passes, since it then proves no red.
+ * proves (Red-Test, check-commits). Throws, recording nothing, when the item is not active or the Verification passes, since it then
+ * proves no red. The red of an old commit is taken by hand with git (K608).
  */
-export function itemRed(root: string, id: string, print: (text: string) => void = text => console.log(text), before?: string): GateRecord {
+export function itemRed(root: string, id: string, print: (text: string) => void = text => console.log(text)): GateRecord {
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
   const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
@@ -505,11 +484,7 @@ export function itemRed(root: string, id: string, print: (text: string) => void 
   if (state !== ACTIVE) throw new Error(`${id} is ${state}; make item-red runs the Verification of an active item, after its test is written and before its fix`);
   const commands = itemCommands(read(tracker.path), tracker, id);
   refuseCommands(root, id, commands);
-  // K556: the swap of BEFORE= writes the files of the tree, which a main checkout must never hold while every land and gate reads it.
-  if (before !== undefined && git(root, 'rev-parse', '--abbrev-ref', 'HEAD').trim() === 'main') {
-    throw new Error(`${id}: item-red BEFORE= swaps the files of the tree, so it runs in the worktree of the row, never on main; run it there (make worktree-setup)`);
-  }
-  const runs = before === undefined ? runCommands(root, id, commands, print) : runBefore(root, id, before, commands, print);
+  const runs = runCommands(root, id, commands, print);
   if (runs.every(run => run.status === 0)) throw new Error(`${id}: the Verification passes before the fix, so it proves no red; write the test that reproduces the defect first`);
   // A failure that is no failing test or gate, such as a timeout, records no red (K540).
   const invalid = runs.flatMap(run => {
@@ -527,79 +502,6 @@ export function itemRed(root: string, id: string, print: (text: string) => void 
 }
 
 /**
- * Runs `commands` with the files of the plans and the changelogs, and the non-test files that differ between `before` and HEAD, at
- * their content of `before` (a file that `before` lacks is removed). The tree may change under docs/plans only, such as the state
- * that the row takes when it becomes active; each file is then restored to the bytes it had, so the tree is exactly as it was.
- */
-function runBefore(root: string, id: string, before: string, commands: readonly string[], print: (text: string) => void): Captured[] {
-  const rev = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${before}^{commit}`], { cwd: root, encoding: 'utf8' });
-  if (rev.status !== 0) throw new Error(`BEFORE=${before} is no commit`);
-  const sha = rev.stdout.trim();
-  const dirty = spawnSync('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(line => line !== '').map(line => line.slice(3));
-  const changelogs = COMMIT_RULES.changelog ? [COMMIT_RULES.changelog.path, ...(COMMIT_RULES.changelog.translation ? [COMMIT_RULES.changelog.translation] : [])] : [];
-  // The close of a row changes its plans and the changelogs, which the run swaps and restores as the other files (K389-2).
-  const outside = dirty.filter(file => !file.startsWith('docs/plans/') && !changelogs.includes(file));
-  if (outside.length > 0) throw new Error(`${id}: the tree has changes to tracked files outside docs/plans and the changelogs, ${outside.join(', ')}; commit or stash them before make item-red BEFORE=${before}`);
-  const differs = git(root, 'diff', '--name-only', sha, 'HEAD').split('\n').filter(file => file !== '');
-  // K553: a test file stays at the fix, since a behaviour test exists before it, unless every command of the Verification runs a gate of
-  // kit-gates that is no test target: for a lint item the fixed code is the test file itself.
-  const gates = new Set((makeDatabase(root).targets.get('kit-gates')?.prerequisites ?? []).filter(gate => !isTestGate(gate)));
-  const gatesOnly = commands.length > 0 && gateCommands(commands, gates).length === commands.length;
-  const changed = [...new Set([...differs, ...dirty, ...changelogs])].filter(file => gatesOnly || !isTestFile(file));
-  const present = (rev: string, file: string) => spawnSync('git', ['cat-file', '-e', `${rev}:${file}`], { cwd: root }).status === 0;
-  // The bytes and the mode of each file as the tree holds them now, so that the swap leaves the tree exactly as it was: a file
-  // removed for the run comes back with its mode, such as an executable hook (K389-1).
-  const saved = new Map(changed.map(file => [file, existsSync(path.join(root, file)) ? { bytes: readFileSync(path.join(root, file)), mode: statSync(path.join(root, file)).mode } : null] as const));
-  let built: string[] = [];
-  try {
-    for (const file of changed) {
-      if (present(sha, file)) {
-        mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
-        writeFileSync(path.join(root, file), spawnSync('git', ['show', `${sha}:${file}`], { cwd: root }).stdout);
-      } else {
-        rmSync(path.join(root, file), { force: true });
-      }
-    }
-    built = buildBefore(root, id, changed, print);
-    const runs = runCommands(root, id, commands, print);
-    // A failing run whose only missing modules are files that the change adds is no red of the old behaviour (K389-3).
-    const added = differs.filter(file => !isTestFile(file) && !present(sha, file));
-    const failing = runs.filter(run => run.status !== 0);
-    const missing = failing.map(run => missingAdded(run.output, added));
-    if (failing.length > 0 && missing.every(files => files !== undefined)) {
-      const named = [...new Set(missing.flatMap(files => files ?? []))];
-      throw new Error(`${id}: the Verification fails before the fix only because it imports ${named.join(', ')}, a file that the change adds and the tree of ${before} lacks; such a red proves that the file was missing, not that the old behaviour was wrong; test through an entry that exists on both sides`);
-    }
-    return runs;
-  } finally {
-    for (const [file, kept] of saved) {
-      if (kept === null) rmSync(path.join(root, file), { force: true });
-      else {
-        writeFileSync(path.join(root, file), kept.bytes);
-        chmodSync(path.join(root, file), kept.mode & 0o7777);
-      }
-    }
-    // K525: the build of the restored sources, so the outputs are those of the tree again.
-    if (built.length > 0) runBuild(root, id, built, 'after the restore', print);
-  }
-}
-
-/**
- * The build of the repository `root` at BEFORE (K525): when a swapped file of `changed` is a build input of an npm package of the
- * repository whose manifest names an output that git does not track, as packages/ts/dist, a test that imports the output would run
- * the fixed build; the build targets of the repository run, and are returned to run again after the restore. None otherwise. A
- * package with such an output in a repository without a build target throws, since its red could not be judged.
- */
-function buildBefore(root: string, id: string, changed: readonly string[], print: (text: string) => void): string[] {
-  const input = buildInputs(root, changed)[0]?.file;
-  if (input === undefined) return [];
-  const targets = buildTargets(root);
-  if (targets.length === 0) throw new Error(`${id}: ${input} is a build input of a package whose build a test may import, and ${root} has no build target to build it at BEFORE; declare build in its Makefile`);
-  runBuild(root, id, targets, `at BEFORE, since ${input} is a build input`, print);
-  return targets;
-}
-
-/**
  * The files of `files` that are build inputs of an npm package of the repository `root` with a built output, each with the folder of
  * its package (K525, K583): a file of the package outside docs/, in a package whose build state is no `source`.
  */
@@ -608,14 +510,6 @@ function buildInputs(root: string, files: readonly string[]): { file: string; fo
   const built = packages.filter(folder => buildState(root, path.join(root, folder)) !== 'source');
   const inside = (folder: string, file: string) => folder === '.' || file.startsWith(`${folder}/`);
   return files.filter(file => !file.startsWith('docs/')).flatMap(file => built.filter(folder => inside(folder, file)).map(folder => ({ file, folder })));
-}
-
-/** Runs the build `targets` of `root` for item-red (K525), printing `when`; a failure throws with the end of its output. */
-function runBuild(root: string, id: string, targets: readonly string[], when: string, print: (text: string) => void): void {
-  print(`[plan] ${id}: make ${targets.join(' ')} ${when}`);
-  const result = spawnSync('make', ['--no-print-directory', ...targets], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
-  if (result.error) throw new Error(`${id}: make ${targets.join(' ')} could not start in ${root}: ${result.error.message}`);
-  if (result.status !== 0) throw new Error(`${id}: make ${targets.join(' ')} ${when} failed with exit status ${result.status}:\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-20).join('\n')}`);
 }
 
 /** The cells of the row of the item `id` in the checklist text `text`, or undefined. */
@@ -835,7 +729,7 @@ if (isMain(import.meta.url)) {
       for (const file of Object.keys(splitPlan(root, split))) console.log(`[plan] moved ${split.ids.join(' ')} in ${file}`);
     } else if (command === 'item-red') {
       const id = required(env.ID, 'ID');
-      itemRed(root, id, undefined, env.BEFORE || undefined);
+      itemRed(root, id);
     } else if (command === 'item-test') {
       const id = required(env.ID, 'ID');
       console.log(`[plan] ${id}: ${testItem(root, id).length} commands passed`);
