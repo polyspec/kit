@@ -202,7 +202,7 @@ test('the build generates arginfo from the stub in its temporary source when no 
   assert.equal(spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout, before, 'build output stays ignored');
 });
 
-test('the extension build stages a declared tracked C source into its temporary source tree', (t) => {
+test('the extension build stages declared sources and accepts an explicit output and configure argument', (t) => {
   const files = good();
   const config = readFileSync(path.join(ROOT, 'tests/kit/fixture/config/release.json'), 'utf8');
   const release = JSON.parse(config) as Record<string, unknown>;
@@ -233,19 +233,29 @@ test('the extension build stages a declared tracked C source into its temporary 
   files['packages/php-ext/src/config.m4'] = originalConfig.replace(
     '[polyspec_demo.c]',
     '[polyspec_demo.c native/shared.c]',
+  ).replace(
+    'if test "$PHP_POLYSPEC_DEMO" != "no"; then',
+    'PHP_ARG_ENABLE([polyspec-demo-offset], [whether to enable the test offset], [AS_HELP_STRING([--enable-polyspec-demo-offset], [Enable the test offset])], [no])\n\nif test "$PHP_POLYSPEC_DEMO_OFFSET" != "no"; then\n  AC_DEFINE([HAVE_POLYSPEC_DEMO_OFFSET], [1], [Test configure argument])\nfi\n\nif test "$PHP_POLYSPEC_DEMO" != "no"; then',
   );
   const source = readFileSync(path.join(FIXTURE, 'polyspec_demo.c'), 'utf8').replace(
     'static zend_class_entry *counter_entry;',
     'int shared_offset(void);\n\nstatic zend_class_entry *counter_entry;',
   ).replace('RETURN_LONG(a + b);', 'RETURN_LONG(a + b + shared_offset());');
   files['packages/php-ext/src/polyspec_demo.c'] = source;
-  files['packages/php/src/native/shared.c'] = 'int shared_offset(void) { return 40; }\n';
+  files['packages/php/src/native/shared.c'] = '#ifdef HAVE_CONFIG_H\n#include "config.h"\n#endif\n\n#ifdef HAVE_POLYSPEC_DEMO_OFFSET\nint shared_offset(void) { return 40; }\n#else\nint shared_offset(void) { return 0; }\n#endif\n';
+  files['packages/php-ext/testing/mermaid/module.c'] = 'int mermaid_test_source_is_staged(void) { return 1; }\n';
   const root = tree(t, { ...files, '.gitignore': 'var/\n' });
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   phpWrappers(root);
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  const outputPath = path.join(root, 'var/custom-run/polyspec_demo.so');
+  const built = spawnSync(process.execPath, [
+    path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', '--output', outputPath,
+    '--source-copy', 'packages/php-ext/testing/mermaid/module.c', 'src/mermaid_test.c',
+    '--configure-arg', '--enable-polyspec-demo-offset',
+  ], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
-  const output = spawnSync(path.join(root, 'var/tools/bin/php'), ['-d', `extension=${path.join(root, 'var/php-ext/polyspec_demo.so')}`, '-r', 'echo Polyspec\\Demo\\add(1);'], { cwd: root, encoding: 'utf8' });
+  assert.equal(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')), false, 'an explicit output does not also publish to the default location');
+  const output = spawnSync(path.join(root, 'var/tools/bin/php'), ['-d', `extension=${outputPath}`, '-r', 'echo Polyspec\\Demo\\add(1);'], { cwd: root, encoding: 'utf8' });
   assert.equal(output.status, 0, output.stderr);
   assert.equal(output.stdout, '42', 'the compiled extension called the staged shared source');
 });

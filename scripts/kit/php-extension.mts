@@ -2,8 +2,9 @@
 // The PHP extension of a repository (S10): one model and one build for every repository.
 //
 //   node scripts/kit/php-extension.mts check          the names, the one stub and, when present, the arginfo stub hash
-//   node scripts/kit/php-extension.mts build          the check, then generate arginfo in a temporary source copy, phpize,
-//                                                     configure and make in var/php-ext; publish the library by a rename
+//   node scripts/kit/php-extension.mts build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]
+//                                                     the check, then generate arginfo in a temporary source copy, phpize,
+//                                                     configure and make; publish the library by a rename
 //   node scripts/kit/php-extension.mts arginfo        generate the header under ignored var/php-ext/arginfo with the pinned,
 //                                                     installed gen_stub.php and PHP-Parser; offline
 //   node scripts/kit/php-extension.mts test           the classes and functions that the built extension registers, compared
@@ -299,6 +300,16 @@ function generateArginfo(root: string, source: string, stub: string): string {
 
 type SourceCopy = Extract<ReleaseGeneratedArtifact, { kind: 'source-copy' }>;
 
+interface BuildOptions {
+  output?: string;
+  sourceCopies?: SourceCopy[];
+  configureArgs?: string[];
+}
+
+function safeRelativePath(value: string): boolean {
+  return value !== '' && !value.startsWith('~') && !value.startsWith('/') && path.win32.parse(value).root === '' && !value.includes('\\') && value.split('/').every(part => part !== '' && part !== '.' && part !== '..');
+}
+
 /** The declared sources of the PHP extension that the Composer archive also carries. */
 function extensionSourceCopies(root: string): SourceCopy[] {
   if (!existsSync(path.join(root, RELEASE_CONFIG))) return [];
@@ -310,6 +321,8 @@ function extensionSourceCopies(root: string): SourceCopy[] {
 function stageSourceCopies(root: string, source: string, copies: readonly SourceCopy[]): void {
   const tracked = new Set(git(root, 'ls-files', '--cached', '-z').split('\0').filter(Boolean));
   for (const item of copies) {
+    if (!safeRelativePath(item.source)) throw new Stop(`${RELEASE_CONFIG}: source-copy source ${JSON.stringify(item.source)} is not a repository-relative path`);
+    if (!safeRelativePath(item.output)) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${JSON.stringify(item.output)} is not a package-relative path`);
     if (!tracked.has(item.source)) throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} is not a tracked source file`);
     if (!item.output.startsWith('src/')) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} must be below src/ for the PHP extension build`);
     const input = path.join(root, item.source);
@@ -356,25 +369,63 @@ function phpized(root: string, label: string, stub: string, sourceCopies: readon
 }
 
 /** Builds the extension of `root` into var/php-ext/<extension>.so; returns its path. */
-export function build(root: string): string {
+export function build(root: string, options: BuildOptions = {}): string {
   const names = checked(root);
-  const { work, source } = phpized(root, 'build', names.stub, extensionSourceCopies(root));
+  if (options.output !== undefined && !path.isAbsolute(options.output)) throw new Stop('php-extension build --output must be an absolute module path');
+  for (const argument of options.configureArgs ?? []) {
+    if (!/^--[A-Za-z0-9][A-Za-z0-9_-]*(?:=[A-Za-z0-9._-]+)?$/.test(argument)) throw new Stop(`php-extension build: invalid configure argument ${JSON.stringify(argument)}`);
+  }
+  const library = path.resolve(options.output ?? path.join(root, OUTPUT, `${names.extension}.so`));
+  const outputDirectory = path.dirname(library);
+  mkdirSync(outputDirectory, { recursive: true });
+  if (existsSync(library)) {
+    const outputStat = lstatSync(library);
+    if (!outputStat.isFile() || outputStat.isSymbolicLink()) throw new Stop(`php-extension build output ${library} must be a regular file when it already exists`);
+  }
+  const temporaryLibrary = `${library}.tmp.${process.pid}`;
+  const sourceCopies = [...extensionSourceCopies(root), ...(options.sourceCopies ?? [])];
+  const { work, source } = phpized(root, 'build', names.stub, sourceCopies);
   try {
     // P8 for C (K334): the flags of php-config do not fail a call whose result must be checked; the compiler's check does.
     const env = { ...process.env, CFLAGS: `${process.env.CFLAGS ?? ''} -Werror=unused-result`.trim() };
     console.log('[php-extension] configure');
-    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`], { cwd: source, env });
+    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`, ...(options.configureArgs ?? [])], { cwd: source, env });
     console.log('[php-extension] make');
     const made = run('make', [], { cwd: source, env });
     const warnings = made.split('\n').filter(line => /\.[ch]:\d+:\d+: warning:/.test(line));
     if (warnings.length) throw new Stop(`the build of ${names.extension} has compiler warnings:\n${warnings.join('\n')}`);
-    const library = path.join(root, OUTPUT, `${names.extension}.so`);
-    renameSync(path.join(source, 'modules', `${names.extension}.so`), library);
+    renameSync(path.join(source, 'modules', `${names.extension}.so`), temporaryLibrary);
+    renameSync(temporaryLibrary, library);
     console.log(`[php-extension] built ${path.relative(root, library)}`);
     return library;
   } finally {
+    rmSync(temporaryLibrary, { force: true });
     rmSync(work, { recursive: true, force: true });
   }
+}
+
+function buildOptions(args: readonly string[]): BuildOptions {
+  const options: BuildOptions = { sourceCopies: [], configureArgs: [] };
+  for (let index = 0; index < args.length; index += 1) {
+    const option = args[index];
+    if (option === '--output') {
+      const value = args[++index];
+      if (!value || options.output !== undefined) throw new Stop('usage: php-extension.mts build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]');
+      options.output = value;
+    } else if (option === '--source-copy') {
+      const source = args[++index];
+      const output = args[++index];
+      if (!source || !output) throw new Stop('usage: --source-copy requires a tracked repository source and package-relative output');
+      options.sourceCopies?.push({ kind: 'source-copy', source, output });
+    } else if (option === '--configure-arg') {
+      const value = args[++index];
+      if (!value) throw new Stop('usage: --configure-arg requires one configure option');
+      options.configureArgs?.push(value);
+    } else {
+      throw new Stop(`unknown PHP extension build option ${JSON.stringify(option)}`);
+    }
+  }
+  return options;
 }
 
 /** Writes the arginfo header of the extension of `root` with the rule of phpize, which runs gen_stub.php. */
@@ -447,7 +498,7 @@ if (isMain(import.meta.url)) {
       if (found.length) throw new Stop(found.join('\n'));
       console.log('[php-extension] the names, the stub and the arginfo header of the extension match');
     } else if (command === 'build') {
-      build(root);
+      build(root, buildOptions(process.argv.slice(3)));
     } else if (command === 'arginfo') {
       arginfo(root);
     } else {
