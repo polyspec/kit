@@ -3,16 +3,14 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
-import { land, linesOf, machineListing, newFindings, runCommitGates, runGate, trustStagedTree, worktreeProcesses } from '../../scripts/kit/land.mts';
+import { land, linesOf, machineListing, newFindings, runGate, worktreeProcesses } from '../../scripts/kit/land.mts';
 import type { GateRun } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
-import { quote } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
 const git = (cwd: string, ...args: string[]) => {
   const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
@@ -408,29 +406,6 @@ test('a process uses a worktree by its cwd, an open file or its executable, not 
   assert.equal(worktreeProcesses(path.join(parent, 'repo-named'), machineListing()).some(live => live.pid === named.pid), false, 'a process named by its arguments only is no use of the worktree');
 });
 
-// K446-1: make commit on main refuses only the findings that HEAD lacks, as land does (K394-1): a finding that HEAD already has does
-// not block an unrelated change.
-test('a commit on main passes when the gate fails only on findings that HEAD already has (K446-1)', (t) => {
-  const main = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-commit-')));
-  t.after(() => rmSync(main, { recursive: true, force: true }));
-  initRepository(main, '--initial-branch=main');
-  put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
-    '.gitignore': 'var/\n',
-    'src/.keep': '',
-    'findings.txt': 'src/a.txt\n',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  put(main, { 'src/b.txt': 'b\n' });
-  git(main, 'add', 'src/b.txt');
-  assert.doesNotThrow(() => runCommitGates(main, ['src/b.txt'], () => {}), 'an unrelated change passes when HEAD fails with the same finding');
-  put(main, { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
-  git(main, 'add', 'findings.txt');
-  assert.throws(() => runCommitGates(main, ['findings.txt'], () => {}), /findings that HEAD lacks.*src\/c\.txt/s, 'a new finding refuses the commit');
-});
-
 // K446-2: a finding that a checkout prints under its real path (/private/var) and under its logical path (/var) is one finding, so a
 // gate that fails the same way on main and on the branch is not refused for the path it names (K446-2).
 test('the findings of a gate read one key under the real and the logical path of one checkout (K446-2)', (t) => {
@@ -442,52 +417,6 @@ test('the findings of a gate read one key under the real and the logical path of
   const logical = linesOf(`finding: ${logicalFolder}/src/a.txt`, logicalFolder, logicalFolder);
   const real = linesOf(`finding: ${target}/src/a.txt`, logicalFolder, logicalFolder);
   assert.equal(real[0]?.key, logical[0]?.key, 'the real and the logical path of one file give one key');
-});
-
-// K446-3: make echoes each recipe it runs, so a recipe whose text differs between HEAD and the staged tree prints a line on one side
-// only; the comparison runs the gate silently (make -s), so only the output of the gate is compared, not the recipes make echoes.
-test('a commit on main is not refused for a recipe line that make echoes on one side only (K446-3)', (t) => {
-  const main = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-commit-')));
-  t.after(() => rmSync(main, { recursive: true, force: true }));
-  initRepository(main, '--initial-branch=main');
-  put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\ttrue $(shell cat src/count.txt)', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
-    '.gitignore': 'var/\n',
-    'src/count.txt': 'one\n',
-    'findings.txt': 'src/a.txt\n',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  put(main, { 'src/count.txt': 'two\n' });
-  git(main, 'add', 'src/count.txt');
-  assert.doesNotThrow(() => runCommitGates(main, ['src/count.txt'], () => {}), 'an echoed recipe line that differs from HEAD is not a finding');
-  put(main, { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
-  git(main, 'add', 'findings.txt');
-  assert.throws(() => runCommitGates(main, ['findings.txt'], () => {}), /findings that HEAD lacks.*src\/c\.txt/s, 'a new finding still refuses the commit');
-});
-
-// K446-4: make commit on main reads the findings of a gate as land does, without the progress lines that a kit tool prints on stdout
-// with its name in brackets, so a progress line that differs between HEAD and the staged tree is not a finding (K446-4).
-test('a commit on main is not refused for a progress line that differs from HEAD (K446-4)', (t) => {
-  const main = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-commit-')));
-  t.after(() => rmSync(main, { recursive: true, force: true }));
-  initRepository(main, '--initial-branch=main');
-  put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@echo "[build-x] inputs $$(cat src/count.txt)"', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
-    '.gitignore': 'var/\n',
-    'src/count.txt': 'one\n',
-    'findings.txt': 'src/a.txt\n',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  put(main, { 'src/count.txt': 'two\n' });
-  git(main, 'add', 'src/count.txt');
-  assert.doesNotThrow(() => runCommitGates(main, ['src/count.txt'], () => {}), 'a progress line that differs from HEAD is not a finding');
-  put(main, { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
-  git(main, 'add', 'findings.txt');
-  assert.throws(() => runCommitGates(main, ['findings.txt'], () => {}), /findings that HEAD lacks.*src\/c\.txt/s, 'a new finding still refuses the commit');
 });
 
 // K441: a repository declares WORKTREE_STOP, the make target that stops the servers of its worktree. make land runs it in the
@@ -548,60 +477,6 @@ test('make land keeps the worktree and names the stop target when it fails (K441
   assert.throws(() => land(main, 'feat-broken', { print: () => {} }), (error: Error) => error.message.includes('stop-broken') && error.message.includes('the servers do not stop'));
   assert.equal(existsSync(folder), true, 'the worktree is kept');
   assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-broken'], { cwd: main }).status, 0, 'the branch is kept');
-});
-
-// K404-1: a commit on main and make land judge a failing gate with the same function, so one new finding refuses both, named by the
-// same line. The gate fails on the staged tree of main (the commit) and on the branch (land), and only its c.txt line is new.
-test('a commit on main and make land refuse the same new finding of a gate (K404-1)', (t) => {
-  const findingsMakefile = ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n';
-  const sandbox = () => {
-    const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-same-')));
-    t.after(() => rmSync(parent, { recursive: true, force: true }));
-    const main = path.join(parent, 'repo');
-    initRepository(main, '--initial-branch=main');
-    put(main, {
-      'Makefile': findingsMakefile,
-      'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
-      '.gitignore': 'var/\n',
-      'src/.keep': '',
-      'findings.txt': 'src/a.txt\n',
-    });
-    git(main, 'add', '-A');
-    git(main, 'commit', '--quiet', '-m', 'base');
-    return { parent, main };
-  };
-
-  const onMain = sandbox();
-  put(onMain.main, { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
-  git(onMain.main, 'add', 'findings.txt');
-  let commitRefusal = '';
-  try {
-    runCommitGates(onMain.main, ['findings.txt'], () => {});
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    commitRefusal = error.message;
-  }
-
-  const onLand = sandbox();
-  git(onLand.main, 'worktree', 'add', '--quiet', path.join(onLand.parent, 'repo-x'), '-b', 'feat-x', 'main');
-  put(path.join(onLand.parent, 'repo-x'), { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
-  git(path.join(onLand.parent, 'repo-x'), 'add', '-A');
-  git(path.join(onLand.parent, 'repo-x'), 'commit', '--quiet', '-m', 'x');
-  const printed: string[] = [];
-  let landRefusal = '';
-  try {
-    land(onLand.main, 'feat-x', { print: text => printed.push(text) });
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    landRefusal = error.message;
-  }
-  const landed = `${printed.join('\n')}\n${landRefusal}`;
-
-  assert.match(commitRefusal, /findings that HEAD lacks.*finding: src\/c\.txt/s, 'the commit on main refuses the new finding and names it');
-  assert.match(landed, /findings that main does not have:\n.*finding: src\/c\.txt/s, 'make land refuses the same new finding and names it');
-  assert.match(landRefusal, /findings that main does not have; nothing is merged/, 'make land refuses the branch');
-  assert.doesNotMatch(commitRefusal, /src\/a\.txt/, 'a finding that HEAD already has is not named');
-  assert.doesNotMatch(landed, /finding: src\/a\.txt/, 'a finding that main already has is not named');
 });
 
 // K463: the command line of land refuses a gate that exits 2 with that exit status. The entry point runs land when the module loads, so
@@ -744,26 +619,6 @@ test('a gate that fails with no output on the candidate and on HEAD fails naming
 test('a gate that fails with the same findings on HEAD still passes as failing on HEAD too (K474)', () => {
   const finding = 'src/a.ts:1: bad\n';
   assert.equal(newFindings(process.cwd(), gateRun(1, finding), gateRun(1, finding)), undefined);
-});
-
-// K469: the staged tree of a commit on main is trusted by mise in the mise state of its checkout, and that trust is removed with
-// the tree, so the gates run there instead of mise refusing the untrusted mise.toml of the tree. The mise of the checkout is a stub
-// that records each call with the state directory it runs with, so the test reads the trust that the procedure records.
-test('the staged tree trusts its mise.toml in the mise state of its checkout and untrusts it when removed (K469)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const folder = path.join(parent, 'repo');
-  initRepository(folder, '--initial-branch=main');
-  const calls = path.join(parent, 'mise-calls.log');
-  put(folder, { 'var/tools/mise-release/mise/bin/mise': `#!/bin/sh\necho "$* $MISE_STATE_DIR" >> '${calls}'\n` });
-  chmodSync(path.join(folder, 'var/tools/mise-release/mise/bin/mise'), 0o755);
-  const staged = path.join(parent, 'staged');
-  put(staged, { 'mise.toml': '[tools]\n' });
-  trustStagedTree(folder, staged, false);
-  trustStagedTree(folder, staged, true);
-  const config = path.join(staged, 'mise.toml');
-  const state = path.join(folder, 'var/tools/mise/state');
-  assert.deepEqual(readFileSync(calls, 'utf8').trim().split('\n'), [`trust ${config} ${state}`, `trust --untrust ${config} ${state}`]);
 });
 
 // K495: land is the only writer of main besides a commit that passed its pre-commit hook. It holds a lock in the common git folder
@@ -911,95 +766,6 @@ test('land refuses a row whose ID main holds with another task, naming the next 
   assert.equal(git(main, 'rev-parse', 'main'), state);
 });
 
-// K516: land lands into the checkout that has main checked out, wherever it is called from: a session that runs make land in a
-// worktree on a detached HEAD lands as from the main checkout, and land fails naming the missing main checkout when none has main.
-test('the commit gate installs only nested npm projects already installed in the checkout from the staged lock (K404-1-2)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-nested-npm-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  const nestedLock = JSON.stringify({
-    name: 'nested-fixture', lockfileVersion: 3, requires: true,
-    packages: {
-      '': { name: 'nested-fixture', dependencies: { 'locked-marker': 'staged' } },
-      'node_modules/locked-marker': { version: 'staged', resolved: 'https://registry.example.test/locked-marker.tgz', integrity: 'sha512-fixture' },
-    },
-  }, null, 2) + '\n';
-  const sourcePackage = JSON.stringify({ name: 'nested-fixture', private: true }, null, 2) + '\n';
-  const emptyLock = JSON.stringify({ name: 'nested-fixture', lockfileVersion: 3, requires: true, packages: { '': { name: 'nested-fixture' } } }, null, 2) + '\n';
-  const npmStub = [
-    '#!/bin/sh',
-    'printf "%s|%s|%s\\n" "$*" "$PWD" "${npm_config_offline:-}" >> ../../var/npm-calls',
-    'if grep -q \'"locked-marker": "cache-missing"\' package.json; then echo "npm error code ENOTCACHED" >&2; exit 1; fi',
-    'if grep -q \'"locked-marker": "staged"\' package.json; then grep -q \'"version": "staged"\' package-lock.json || { echo "staged lock was not used" >&2; exit 9; }; mkdir -p node_modules/locked-marker; printf \'{"name":"locked-marker","version":"staged"}\\n\' > node_modules/locked-marker/package.json; else ! grep -q \'node_modules/locked-marker\' package-lock.json || { echo "staged manifest was not used" >&2; exit 9; }; fi',
-  ].join('\n') + '\n';
-  const recipe = `const fs=require('node:fs'), expected=JSON.parse(fs.readFileSync('packages/installed/package.json','utf8')).dependencies?.['locked-marker']; if(expected){const p=JSON.parse(fs.readFileSync('packages/installed/node_modules/locked-marker/package.json','utf8'));fs.writeFileSync('var/observed-version',p.version+'\\n');if(p.version!==expected){console.log('packages/installed/node_modules/locked-marker/package.json:1: expected '+expected+', got '+p.version);process.exitCode=1;}} if(fs.existsSync('packages/installed/fail.txt')){console.log('packages/installed/fail.txt:1: deliberate gate finding');process.exitCode=1;}`;
-  put(main, {
-    'Makefile': [
-      'kit-gates: docs-check commits-check lint-nested', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue',
-      'lint-nested:', `\t@${quote(process.execPath)} -e ${quote(recipe)}`, 'build:', '\ttrue', '',
-    ].join('\n'),
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['packages/installed/**'], targets: ['lint-nested'] }] }, null, 2) + '\n',
-    '.gitignore': 'node_modules/\nvar/\n',
-    'var/tools/bin/npm': npmStub,
-    'packages/installed/package.json': sourcePackage,
-    'packages/installed/package-lock.json': emptyLock,
-    'packages/uninstalled/package.json': '{ invalid source project is not installed }\n',
-    'packages/uninstalled/package-lock.json': '{ invalid lock must not be installed }\n',
-    'node_modules/locked-marker/package.json': JSON.stringify({ name: 'locked-marker', version: 'root-fallback' }) + '\n',
-    'packages/installed/node_modules/.installed': 'the source checkout has an installation\n',
-  });
-  chmodSync(path.join(main, 'var/tools/bin/npm'), 0o755);
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  put(main, {
-    'packages/installed/package.json': JSON.stringify({ name: 'nested-fixture', private: true, dependencies: { 'locked-marker': 'staged' } }, null, 2) + '\n',
-    'packages/installed/package-lock.json': nestedLock,
-  });
-  git(main, 'add', 'packages/installed/package.json', 'packages/installed/package-lock.json');
-  const stagedManifest: unknown = JSON.parse(git(main, 'show', ':packages/installed/package.json'));
-  assert.ok(isJsonObject(stagedManifest));
-  const dependencies = stagedManifest.dependencies;
-  assert.ok(isJsonObject(dependencies));
-  assert.equal(dependencies['locked-marker'], 'staged');
-
-  const gateTrees = () => readdirSync(parent).filter(name => name.startsWith('.repo-commit-gate-'));
-  const progress: string[] = [];
-  assert.doesNotThrow(() => runCommitGates(main, ['packages/installed/package.json', 'packages/installed/package-lock.json'], text => progress.push(text)));
-  assert.ok(progress.includes('lint-nested in the staged tree'), progress.join('\n'));
-  assert.equal(readFileSync(path.join(main, 'var/observed-version'), 'utf8'), 'staged\n', 'the staged manifest and lock installed their pinned dependency instead of the conflicting root module');
-  const calls = readFileSync(path.join(main, 'var/npm-calls'), 'utf8').trim().split('\n');
-  assert.equal(calls.length, 1, 'the uninstalled nested lock project is not installed');
-  assert.match(calls[0] ?? '', /^ci --offline --no-audit --no-fund\|.*commit-gate-.*\/packages\/installed\|true$/);
-  assert.deepEqual(gateTrees(), [], 'the staged snapshot is removed after a passing gate');
-
-  const npmConfigs = () => readdirSync(tmpdir()).filter(name => name.startsWith('kit-npm-ci-')).sort();
-  const configsBeforeProgressFailure = npmConfigs();
-  assert.throws(() => runCommitGates(main, ['packages/installed/package.json', 'packages/installed/package-lock.json'], text => {
-    if (text.endsWith('started')) throw new Error('deliberate progress callback failure');
-  }), /deliberate progress callback failure/);
-  assert.deepEqual(npmConfigs(), configsBeforeProgressFailure, 'the npm config directory is removed when progress reporting fails before npm starts');
-  assert.deepEqual(gateTrees(), [], 'the staged snapshot is removed when progress reporting fails');
-
-  const uncachedLock = nestedLock.replaceAll('staged', 'cache-missing');
-  put(main, {
-    'packages/installed/package.json': JSON.stringify({ name: 'nested-fixture', private: true, dependencies: { 'locked-marker': 'cache-missing' } }, null, 2) + '\n',
-    'packages/installed/package-lock.json': uncachedLock,
-  });
-  git(main, 'add', 'packages/installed/package.json', 'packages/installed/package-lock.json');
-  assert.throws(() => runCommitGates(main, ['packages/installed/package.json', 'packages/installed/package-lock.json'], () => {}), /missing from the offline cache; run make install/);
-  assert.deepEqual(gateTrees(), [], 'the snapshot is removed when an offline package is missing');
-
-  put(main, {
-    'packages/installed/package.json': JSON.stringify({ name: 'nested-fixture', private: true, dependencies: { 'locked-marker': 'staged' } }, null, 2) + '\n',
-    'packages/installed/package-lock.json': nestedLock,
-  });
-  put(main, { 'packages/installed/fail.txt': 'fail\n' });
-  git(main, 'add', 'packages/installed/package.json', 'packages/installed/package-lock.json', 'packages/installed/fail.txt');
-  assert.throws(() => runCommitGates(main, ['packages/installed/package.json', 'packages/installed/package-lock.json', 'packages/installed/fail.txt'], () => {}), /deliberate gate finding/);
-  assert.deepEqual(gateTrees(), [], 'staged and HEAD snapshots are removed after a refusal');
-});
-
 test('K516: land called from a detached worktree lands into the main checkout (K516)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -1024,29 +790,6 @@ test('K516: land called from a detached worktree lands into the main checkout (K
   assert.equal(git(main, 'rev-parse', 'main'), tip, 'main of the main checkout moves to the branch');
   git(main, 'checkout', '--quiet', '--detach');
   assert.throws(() => land(detached, 'feat/none', { print: () => {} }), /no checkout has main checked out/);
-});
-
-// K522: the gates of a commit and of a land read the owner rules as owner-validate does, the repository's own and those that kit
-// ships in kit.owners of the installed package, so a consumer commits the hooks that make hooks writes, which kit owns.
-test('a commit on main of a path that only the shipped owner rules own passes the gate selection (K522)', (t) => {
-  const main = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-commit-')));
-  t.after(() => rmSync(main, { recursive: true, force: true }));
-  initRepository(main, '--initial-branch=main');
-  put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check hooks-check', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'hooks-check:', '\ttrue', 'build:', '\ttrue', ''].join('\n'),
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] }, null, 2) + '\n',
-    '.gitignore': 'node_modules/\n',
-    'node_modules/@polyspec/kit/package.json': JSON.stringify({ name: '@polyspec/kit', version: '0.0.1', kit: { owners: [{ paths: ['.githooks/reference-transaction'], targets: ['hooks-check'] }] } }),
-    'src/.keep': '',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  put(main, { '.githooks/reference-transaction': '#!/bin/sh\n' });
-  git(main, 'add', '.githooks/reference-transaction');
-  assert.doesNotThrow(() => runCommitGates(main, ['.githooks/reference-transaction'], () => {}), 'the shipped owner owns the hook');
-  put(main, { 'other.txt': 'x\n' });
-  git(main, 'add', 'other.txt');
-  assert.throws(() => runCommitGates(main, ['other.txt'], () => {}), /other\.txt: no owner/, 'a path that no rule owns is still refused');
 });
 
 // K531: land waits for the exit of each make it runs, not for the close of its output, so a gate that leaves a process running with the

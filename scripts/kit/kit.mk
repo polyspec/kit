@@ -121,7 +121,7 @@ staged-generated-hook: ## The generated-file check of the pre-commit hook: fail 
 push-gate-hook: ## The push gate of the pre-push hook, with the pushed refs on standard input; the hook that make hooks writes runs it
 	$(NODE) $(KIT)/push-gate.$(KIT_EXT) hook
 
-commit-gates-hook: ## The gates of land on the staged tree of a commit on main, which refuse only a finding that HEAD lacks (K404-1, P38); silent on any other commit; the pre-commit hook that make hooks writes runs it
+commit-gates-hook: ## No gate runs on a commit (K603): the gates run once, at land; the pre-commit hook that make hooks writes still calls it
 	@$(NODE) $(KIT)/check-commits.$(KIT_EXT) --commit-gates
 
 merge-commit-hook: ## Refuse a merge commit on main (K404-1, P38): the pre-merge-commit hook that make hooks writes runs it

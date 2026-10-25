@@ -45,7 +45,6 @@ import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } 
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
 import { gitIsAncestor, provesRed } from './gate-red.mts';
-import { runCommitGates } from './land.mts';
 import { clashMessage, rowClashes } from './row-ids.mts';
 import { blobContent, CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
 import type { GeneratedConfig } from './generated-files.mts';
@@ -519,12 +518,8 @@ if (isMain(import.meta.url)) {
       recordAmend(root, values.source ?? '', values.sha ?? '');
       process.exit(0);
     }
-    if (values['commit-gates']) {
-      if (isCommitOnMain(root)) {
-        runCommitGates(root, git(root, 'diff', '--cached', '--name-only').split('\n').filter(file => file !== ''), text => console.log(`[check-commits] ${text}`));
-      }
-      process.exit(0);
-    }
+    // K603: a commit runs no gate; the gates run once, at land. The hooks that make hooks wrote still call this mode.
+    if (values['commit-gates']) process.exit(0);
     if (values['merge-commit']) {
       if (gitResult(root, 'symbolic-ref', '--quiet', '--short', 'HEAD').stdout.trim() === 'main') throw new Error(MERGE_ON_MAIN);
       process.exit(0);

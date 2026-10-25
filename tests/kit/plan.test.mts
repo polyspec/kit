@@ -209,14 +209,13 @@ function typed(t: Parameters<typeof tree>[0]) {
   return root;
 }
 
-test('a commit and an item test refuse a changed TypeScript file with a type error, and accept it once fixed (K309)', (t) => {
+test('an item test refuses a changed TypeScript file with a type error, and a commit then passes once fixed (K309, K603)', (t) => {
   const root = typed(t);
   writeFileSync(path.join(root, 'a.mts'), "export const n: number = 'text';\n");
   stage(root, 'a.mts', 'tsconfig.json');
   const body = path.join(root, 'body.txt');
   writeFileSync(body, 'Why.\n');
   const commit = { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse the input', bodyFile: body };
-  assert.throws(() => commitItem(root, commit, identity), /the type check of \. failed:[\s\S]*TS2322/);
   newItem(root, item('parser', 'T2', { verification: '`node -e "process.exit(0)"`' }));
   assert.throws(() => testItem(root, 'T2', () => {}), /T2: the type check of \. failed:[\s\S]*TS2322/);
   writeFileSync(path.join(root, 'a.mts'), 'export const n: number = 1;\n');
@@ -1074,6 +1073,30 @@ test('make item-red BEFORE= runs a gate Verification on the test files of BEFORE
   assert.equal(readFileSync(path.join(root, 'tests/check.test.mts'), 'utf8'), '// fixed\n', 'the test file of the fix is restored');
 });
 
+// K556: item-red BEFORE= swaps the files of the tree while its Verification runs, which a main checkout must never hold, since every land,
+// registration and gate reads it; on main it is refused before it swaps, and on the branch of the row it runs.
+test('make item-red BEFORE= refuses on main before it swaps, and runs on the branch of the row (K556)', (t) => {
+  const root = plans(t, 'parser');
+  put(root, { '.gitignore': 'var/\n', 'value.txt': 'old\n' });
+  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(require(\'fs\').readFileSync(\'value.txt\', \'utf8\') === \'new\\\\n\' ? 0 : 1)"`' }));
+  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
+  const gitRun = (...args: string[]) => assert.equal(spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: root, encoding: 'utf8' }).status, 0);
+  gitRun('add', '-A');
+  gitRun('commit', '--quiet', '--no-verify', '-m', 'base');
+  put(root, { 'value.txt': 'new\n', 'tests/value.test.mts': 'test\n' });
+  gitRun('add', '-A');
+  gitRun('commit', '--quiet', '--no-verify', '-m', 'fix(parser): Give the new value (#T1)\n\nThe value is new.');
+  setState(root, { id: 'T1', state: '[~]' }, () => {});
+  const red = () => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env: { ...process.env, ID: 'T1', BEFORE: 'HEAD~1' }, encoding: 'utf8' });
+  const onMain = red();
+  assert.notEqual(onMain.status, 0);
+  assert.match(onMain.stderr, /item-red BEFORE= swaps the files of the tree, so it runs in the worktree of the row, never on main/);
+  assert.equal(readFileSync(path.join(root, 'value.txt'), 'utf8'), 'new\n', 'nothing is swapped on main');
+  gitRun('checkout', '--quiet', '-b', 'fix/parser-T1');
+  const onBranch = red();
+  assert.equal(onBranch.status, 0, `${onBranch.stdout}${onBranch.stderr}`);
+});
+
 // K583: a commit on main of another repository that changes a build input of an npm package with a built output rebuilds it when the
 // output is stale, since other checkouts link that main live; a commit that changes no build input builds nothing.
 test('a commit on main that makes a linked build stale rebuilds it (K583)', (t) => {
@@ -1125,28 +1148,4 @@ test('a commit on main of the kit package builds it when it changes a build inpu
   stage(root, 'docs/note.md');
   commitItem(root, { id: 'T1', type: 'docs', scope: 'parser', subject: 'Note the tool', bodyFile: body }, identity);
   assert.equal(existsSync(built), false, 'a commit of no build input builds nothing');
-});
-
-// K556: item-red BEFORE= swaps the files of the tree while its Verification runs, which a main checkout must never hold, since every land,
-// registration and gate reads it; on main it is refused before it swaps, and on the branch of the row it runs.
-test('make item-red BEFORE= refuses on main before it swaps, and runs on the branch of the row (K556)', (t) => {
-  const root = plans(t, 'parser');
-  put(root, { '.gitignore': 'var/\n', 'value.txt': 'old\n' });
-  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(require(\'fs\').readFileSync(\'value.txt\', \'utf8\') === \'new\\\\n\' ? 0 : 1)"`' }));
-  for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), CHANGELOG);
-  const gitRun = (...args: string[]) => assert.equal(spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: root, encoding: 'utf8' }).status, 0);
-  gitRun('add', '-A');
-  gitRun('commit', '--quiet', '--no-verify', '-m', 'base');
-  put(root, { 'value.txt': 'new\n', 'tests/value.test.mts': 'test\n' });
-  gitRun('add', '-A');
-  gitRun('commit', '--quiet', '--no-verify', '-m', 'fix(parser): Give the new value (#T1)\n\nThe value is new.');
-  setState(root, { id: 'T1', state: '[~]' }, () => {});
-  const red = () => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env: { ...process.env, ID: 'T1', BEFORE: 'HEAD~1' }, encoding: 'utf8' });
-  const onMain = red();
-  assert.notEqual(onMain.status, 0);
-  assert.match(onMain.stderr, /item-red BEFORE= swaps the files of the tree, so it runs in the worktree of the row, never on main/);
-  assert.equal(readFileSync(path.join(root, 'value.txt'), 'utf8'), 'new\n', 'nothing is swapped on main');
-  gitRun('checkout', '--quiet', '-b', 'fix/parser-T1');
-  const onBranch = red();
-  assert.equal(onBranch.status, 0, `${onBranch.stdout}${onBranch.stderr}`);
 });

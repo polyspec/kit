@@ -755,7 +755,6 @@ function commitStaged(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv, 
   const newRows = branch === 'main' ? stagedNewRowIds(root) : [];
   const registered = registration !== undefined && newRows.length === 1 && newRows[0] === registration;
   if (newRows.length > 0 && !registered) throw new Error(`the new row of ${newRows.join(', ')} is staged on main; register the item on a branch: git worktree add ../<repository>-<name>-<id> -b <type>/<name>-<id> main, make commit there, then make land`);
-  // On main the gates of land guard the commit in the pre-commit hook, which git runs for this commit too (K404-1).
   if (!existsSync(commit.bodyFile)) throw new Error(`the body file ${commit.bodyFile} does not exist; write why the change is made there`);
   const rules = COMMIT_RULES;
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
@@ -768,10 +767,7 @@ function commitStaged(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv, 
   if (twins.length) throw new Error(twins.join('\n'));
   const findings = [...messageFindings(message, rules), ...nextIdentityFindings(root), ...indexItemFindings(root, rules, message)];
   if (findings.length) throw new Error(findings.map(finding => finding.message).join('\n'));
-  // The types of the TypeScript that the commit changes (K309): vitest and node transpile without checking them, so tsc runs here.
-  const staged = spawnSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
-  const typeFailure = typeErrorMessage(typeErrors(root, foldersOfChanged(root, staged)));
-  if (typeFailure) throw new Error(typeFailure);
+  // K603: a commit checks its message, its rows and its documents; no gate, build or type check runs.
   const result = spawnSync('git', ['commit', '--quiet', '-F', '-'], { cwd: root, input: message, encoding: 'utf8', env: { ...process.env, ...env } });
   if (result.error) throw new Error(`git commit could not start: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`git commit ended with exit status ${result.status}: ${result.stdout}${result.stderr}`);

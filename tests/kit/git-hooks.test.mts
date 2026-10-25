@@ -404,45 +404,6 @@ test('the pre-commit hook on main runs no gate, so a commit that adds a finding 
   assert.notEqual(git(work, 'rev-parse', 'HEAD'), head, 'the commit is made');
 });
 
-// K404-1-1: the commit gate on main reads the kit checklists beside the checkout, as make land does, so a row that names a kit item the
-// kit checklists lack is refused, and a row that names one they hold passes.
-test('the commit gate on main refuses a row that names a kit item beside the checkout lacks, as land does (K404-1-1)', (t) => {
-  const owners = JSON.stringify({ schema: 1, owners: [{ paths: ['**'], targets: ['docs-check'] }] }, null, 2) + '\n';
-  const { work } = prepared(t, { files: { 'config/owner-checks.json': owners, 'config/documents.json': JSON.stringify({ schema: 1, include: ['docs/**/*.md'] }) } });
-  assert.equal(hooks(work).status, 0);
-  // The kit checkout beside the repository holds K365 only.
-  const kit = path.join(path.dirname(work), 'kit');
-  mkdirSync(path.join(kit, 'config'), { recursive: true });
-  mkdirSync(path.join(kit, 'docs/plans/kit'), { recursive: true });
-  writeFileSync(path.join(kit, 'config/checklist.json'), JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: 'K[0-9]+(?:[.-][0-9]+)*' }));
-  writeFileSync(path.join(kit, 'docs/plans/kit/checklist.md'), '# Kit\n\n| ID | Task | Deliverables | Verification | State |\n| --- | --- | --- | --- | --- |\n| K365 | a | `a.mts` | `node --test a.test.mts` | [o] |\n');
-  // A kit checkout is a Git work tree: its checklists are read through git ls-files, so the fixture commits them.
-  git(kit, 'init', '--quiet');
-  git(kit, 'add', '-A');
-  git(kit, '-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '-m', 'Add the kit checklists');
-  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
-  const commit = (subject: string) => run(work, 'git', [...identity, 'commit', '--quiet', '-m', `${subject}\n\nThe body names the change.\n`]);
-  const addRow = (kitItem: string) => {
-    const row = `| T1-2 | waits on ${kitItem} | \`a.mts\` | \`node --test a.test.mts\` | [ ] |`;
-    for (const file of [CHECKLIST, TRANSLATION]) writeFileSync(path.join(work, file), readFileSync(path.join(work, file), 'utf8').replace(/(\| T1-1 \|[^\n]*\n)/, `$1${row}\n`));
-    // The Korean twin carries the sha256 of its English file, as make documents-stamp writes it (the revision check of docs-check).
-    const english = readFileSync(path.join(work, CHECKLIST));
-    const korean = readFileSync(path.join(work, TRANSLATION), 'utf8').replace(/<!-- source-sha256: [0-9a-f]+ -->\n/, '');
-    writeFileSync(path.join(work, TRANSLATION), `<!-- source-sha256: ${createHash('sha256').update(english).digest('hex')} -->\n${korean}`);
-    git(work, 'add', CHECKLIST, TRANSLATION);
-  };
-  addRow('K99999');
-  const refused = commit('docs(checklist): Wait on a kit item (#T1-1)');
-  assert.equal(refused.status, 1, `a row that names a kit item the kit checklists lack is refused on main: ${refused.stdout}${refused.stderr}`);
-  assert.match(refused.stderr, /docs-check/, 'the refusal names the gate');
-  assert.match(refused.stderr, /checklist-kit/, 'the refusal names the finding');
-  assert.match(refused.stderr, /K99999/, 'the refusal names the kit item');
-  git(work, 'reset', '--quiet', '--hard');
-  addRow('K365');
-  const clean = commit('docs(checklist): Wait on a kit item (#T1-1)');
-  assert.equal(clean.status, 0, `a row that names a kit item the kit checklists hold passes: ${clean.stderr}`);
-});
-
 // K404-1: a merge commit on main is refused by the pre-merge-commit hook, so main moves only by commits and fast-forwards. A merge
 // commit on another branch and a fast-forward of main pass.
 test('the pre-merge-commit hook refuses a merge commit on main and passes a fast-forward and a merge on another branch (K404-1)', (t) => {
