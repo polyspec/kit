@@ -119,5 +119,15 @@ test('the vendored Claude Code settings run the hook of the installed package be
   assert.ok(entry, 'a PreToolUse entry for Bash');
   const [hook] = entry.hooks;
   assert.ok(hook, 'the entry runs a hook');
-  assert.match(hook.command, /node_modules\/@polyspec\/kit\/dist\/claude-hook\.mjs/);
+  assert.match(hook.command, /node_modules\/@polyspec\/kit\/scripts\/kit\/claude-hook\.mts/);
+});
+
+// K649: the final full run of a repository runs once on the maintainer's Mac, not in CI; its caller states it with KIT_FULL_RUN=final, and
+// every other run outside CI is still refused.
+test('a suite runs outside CI when its caller states that it is the final run (K649)', () => {
+  assert.equal(ciRefusal('make ci-targets', { KIT_FULL_RUN: 'final' }), null);
+  assert.equal(ciRefusal('a vitest run without a selection', { KIT_FULL_RUN: 'final' }), null);
+  assert.ok(ciRefusal('make ci-targets', {}), 'without the marker the run is refused');
+  assert.ok(ciRefusal('make ci-targets', { KIT_FULL_RUN: '1' }), 'only the value final marks the final run');
+  assert.match(ciRefusal('make ci-targets', {}) ?? '', /KIT_FULL_RUN=final/);
 });
