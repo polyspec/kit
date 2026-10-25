@@ -2,13 +2,14 @@
 // The duplication check of a repository (`make duplication-check`, K248-3): jscpd, a dependency of @polyspec/kit, reads the
 // code of the checkout that .gitignore leaves, in the formats of the runtimes of kit, and fails on a piece of 6 lines or
 // more that exists twice, the sign of a concern that two components hold. The folders that config/duplication.json
-// excludes, each with its reason, are not read.
+// excludes, each with its reason, and the files that config/generated.json declares generated (K640) are not read.
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { isJsonObject, readJson } from './bootstrap/files.mts';
+import { CONFIG as GENERATED, loadGeneratedConfig } from './generated-files.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readConfig } from './schema-validate.mts';
 
@@ -57,11 +58,13 @@ function jscpd(): string {
 /** Runs jscpd over `root` and returns its status and output, which `print` receives; throws when jscpd cannot start. */
 export function duplicationCheck(root: string, print: (text: string) => void = text => process.stdout.write(text)): { status: number; output: string } {
   const excluded = existsSync(path.join(root, CONFIG)) ? readConfig<DuplicationConfig>(root, CONFIG, 'duplication.schema.json').exclude : [];
+  // A generated file repeats what its generator writes for each input; config/generated.json already declares it (K640).
+  const generated = existsSync(path.join(root, GENERATED)) ? (({ paths, exceptions }) => [...paths, ...exceptions])(loadGeneratedConfig(root)) : [];
   // --ignore splits its value at each comma, so a brace glob {a,b} would exclude nothing (K310): the globs go whole in a configuration file.
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-jscpd-'));
   const config = path.join(folder, 'jscpd.json');
   // The S10 stub of a PHP extension declares the library under the same names and signatures, so it is left out by its path (S10, K366).
-  writeFileSync(config, JSON.stringify({ ignore: [...excluded.map(entry => entry.glob), STUB_GLOB] }));
+  writeFileSync(config, JSON.stringify({ ignore: [...excluded.map(entry => entry.glob), ...generated, STUB_GLOB] }));
   const args = ['--config', config, '--min-lines', MIN_LINES, '--format', FORMATS.join(','), '--exit-code', '1', '--reporters', 'console', '--ignore-pattern', HEADER_PATTERNS.join(','), root];
   const result = spawnSync(jscpd(), args, { cwd: root, encoding: 'utf8', env: { ...process.env, NO_COLOR: '1' } });
   rmSync(folder, { recursive: true, force: true });
