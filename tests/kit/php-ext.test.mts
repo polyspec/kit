@@ -13,6 +13,7 @@ import * as phpExtension from '../../scripts/kit/php-extension.mts';
 import { declarationFindings, declarations, declarationsOf, extensionFindings, extensionNames, stubHash, type Declarations } from '../../scripts/kit/php-extension.mts';
 import { installPhpArginfo } from '../../scripts/kit/install-php-arginfo.mts';
 import { put, tree } from './tree.mts';
+import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE = path.join(ROOT, 'tests/kit/php-ext-fixture');
@@ -20,13 +21,14 @@ const STUB = readFileSync(path.join(FIXTURE, 'polyspec_demo.stub.php'), 'utf8');
 const HEADER = readFileSync(path.join(FIXTURE, 'polyspec_demo_arginfo.h'), 'utf8');
 
 // The build tests start the PHP of the checkout, its wrappers in var/tools/bin (K393-1). The fixture checkout gets wrappers that
-// run the PHP of PATH, which these tests build with on purpose: the build is the test, not where its PHP comes from.
+// run the PHP of kit's own var/tools/bin, the PHP of .php-version, whose gen_stub.php needs the PHP-Parser that kit pins; the PHP
+// first on PATH may be another release (K630).
 function phpWrappers(root: string) {
   const bin = path.join(root, 'var/tools/bin');
   mkdirSync(bin, { recursive: true });
   const programs: Record<string, string> = {};
   for (const name of ['php', 'php-config', 'phpize']) {
-    const real = execFileSync('/bin/sh', ['-c', `command -v ${name}`], { encoding: 'utf8' }).trim();
+    const real = toolsPath(ROOT, 'bin', name);
     programs[name] = real;
     writeFileSync(path.join(bin, name), `#!/bin/sh\nexec '${real}' "$@"\n`);
     chmodSync(path.join(bin, name), 0o755);
