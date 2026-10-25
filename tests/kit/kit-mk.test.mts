@@ -155,3 +155,12 @@ test('kit.mk sets no Rust wrapper and no cargo jobs, also for a checkout that de
   assert.equal(env.SCCACHE_DIR, undefined);
   assert.equal(env.CARGO_BUILD_JOBS ?? '', '');
 });
+
+// K605: a repository's Makefile may name its own PACKAGES, as ssr names its crates; dependency-policy-check passes --packages only
+// for the PACKAGES of the command line (K493), so the gate of such a repository runs on every package.
+test('dependency-policy-check passes --packages only for PACKAGES of the command line (K605)', (t) => {
+  const root = realpathSync(tree(t, { 'Makefile': `PACKAGES := a b\nKIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\n` }));
+  const dry = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', 'dependency-policy-check', ...args], { cwd: root, encoding: 'utf8' }).stdout;
+  assert.doesNotMatch(dry(), /--packages/);
+  assert.match(dry('PACKAGES=x'), /--packages x/);
+});
