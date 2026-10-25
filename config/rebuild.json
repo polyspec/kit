@@ -518,9 +518,9 @@
       "kind": "policy",
       "reason": "the rule of P32 and K315 that no implementation diverges from the contract through an escape hatch, a branch on the language, runtime or platform in a test; the patterns are polyspec's"
     },
-    "scripts/kit/gate-red.mts": {
+    "scripts/kit/kit-gates.mts": {
       "kind": "policy",
-      "reason": "the red record of a row before its fix (K357, K389): what a failing run of the Verification proves is a rule of polyspec"
+      "reason": "the gates of kit-gates that land runs for the paths a change selects (K357-1): which checks are gates is a rule of polyspec"
     },
     "scripts/kit/kit-assets.mts": {
       "kind": "policy",

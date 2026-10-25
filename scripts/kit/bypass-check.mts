@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
-import { kitGates } from './gate-red.mts';
+import { kitGates } from './kit-gates.mts';
 
 // The files that are read: tests, scripts, Makefiles and Git hooks; the workflows are the one place that CI is named.
 const READ = /^(?:tests\/|scripts\/|\.githooks\/|Makefile$|.*\.mk$|.*\/Makefile$)/;

@@ -21,7 +21,7 @@ import type { SpawnSyncReturns } from 'node:child_process';
 import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { kitGates } from './gate-red.mts';
+import { kitGates } from './kit-gates.mts';
 import { git, gitResult } from './git.mts';
 import { DECLARATION, importGraph, makeDatabase, ownerDeclaration, select } from './owner-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';

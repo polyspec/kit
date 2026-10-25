@@ -44,14 +44,12 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
-import { provesRed } from './gate-red.mts';
 import { clashMessage, rowClashes } from './row-ids.mts';
 import { blobContent, CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
 import type { GeneratedConfig } from './generated-files.mts';
 import { CONFIG as DOCUMENTS_CONFIG, twinFindings } from './check-documents.mts';
 import type { DocumentsConfig } from './check-documents.mts';
 import { parseJson, readConfig } from './schema-validate.mts';
-import { itemCommands } from './verification.mts';
 
 /** The rules of a commit: the types of its subject, the limits of its lines, and the changelog that a done item changes. */
 export type CommitRules = {
@@ -115,6 +113,14 @@ export function identityFindings(ident: string, role: 'author' | 'committer', de
   return found;
 }
 
+/** The red that `message` states (K624): `red` for a Red line (Red-Gate and Red-Test of earlier commits included), `no-red` for a
+ * No-Red line with a reason, or undefined. */
+export function statedRed(message: string): 'red' | 'no-red' | undefined {
+  if (/^Red(?:-Gate|-Test)?: \S.* exit [1-9]\d* at [0-9a-f]{7,40}$/m.test(message)) return 'red';
+  if (/^No-Red: \S/m.test(message)) return 'no-red';
+  return undefined;
+}
+
 /** The findings of the author and the committer that git gives the next commit of `root` (`git var`). */
 export function nextIdentityFindings(root: string): CommitFinding[] {
   const ident = (name: string) => git(root, 'var', name).replace(/ [0-9]+ [+-][0-9]{4}\n?$/, '').trim();
@@ -154,9 +160,9 @@ export function messageFindings(message: string, config: CommitRules) {
   if (korean !== -1) found.push({ rule: 'commit-language', message: `line ${korean + 1} of the message holds Hangul; a commit message is English (K252)` });
   const footer = lines.findIndex(line => AI_FOOTER.test(line));
   if (footer !== -1) found.push({ rule: 'commit-ai-footer', message: `line ${footer + 1} of the message is the footer of an AI tool; git holds no co-author or session trailer of one (K264). Fix: remove the line` });
-  // A Red-Gate or Red-Test line holds a whole command of the Verification, which no wrap may split (K389).
+  // A Red line holds a whole command of the Verification, which no wrap may split (K389, K624).
   lines.slice(2).forEach((line, index) => {
-    if (line.length > config.bodyMax && /\s/.test(line.trim()) && !/^Red-(?:Gate|Test): /.test(line)) {
+    if (line.length > config.bodyMax && /\s/.test(line.trim()) && !/^Red(?:-Gate|-Test)?: /.test(line)) {
       found.push({ rule: 'commit-width', message: `line ${index + 3} of the message has ${line.length} characters; expected at most ${config.bodyMax}; wrap the body` });
     }
   });
@@ -273,19 +279,15 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
       found.push({ rule: 'commit-changelog', message: `the commit moves ${change.id} to ${change.to} in ${change.tracker.path} but does not change ${file}; record the item in the changelog of both languages` });
     }
   }
-  if (message !== undefined && message.startsWith('fix(')) {
-    // A fix that moves its item to done proves its red with a Red-Gate or Red-Test line: the command of the Verification of the row
-    // failed on the parent, which item-state (a gate, K357) or item-red (a test, K389) recorded. Without such a fix's item, a fix
-    // needs no proof when a test file changes.
-    const id = /\(#([A-Za-z0-9][A-Za-z0-9.-]*)\)$/.exec(message.split('\n')[0] ?? '')?.[1];
-    const done = changes.find(change => change.id === id && change.to === DONE);
-    const commands = () => (done ? itemCommands(after(done.tracker.path), done.tracker, done.id) : []);
-    const proven = provesRed(message, commands);
-    if (done !== undefined && !proven) {
-      found.push({ rule: 'commit-fix-test', message: `the fix commit moves ${done.id} to done without a Red-Gate or Red-Test line of a command of its Verification on the parent; the red is the failing run of the Verification before the fix: make item-red ID=${done.id} records it after the test is written, and make commit writes it` });
-    } else if (done === undefined && !changed.some(file => changesATest(file, after, changedLines))) {
-      found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or, for a finding of a gate of kit-gates that the Verification of its row runs, with the red of the gate on the parent: make item-state records it as the item becomes active on a clean tree, and make commit writes it as a Red-Gate line of the commit that moves the item to done (K357)` });
-    }
+  // The commit that moves a row to done states its red in its body (K624): `Red: <command> exit <n> at <sha>`, the failing run of its
+  // Verification before the change, or `No-Red: <reason>` for a change with no behaviour that a test can show. Only the line is checked.
+  const stated = message === undefined ? undefined : statedRed(message);
+  for (const change of changes.filter(entry => entry.to === DONE)) {
+    if (message !== undefined && stated === undefined) found.push({ rule: 'commit-red', message: `the commit moves ${change.id} to done and its body states no red; add a line Red: <command> exit <n> at <sha>, the failing run of its Verification before the change, or No-Red: <reason> for a change that no test can show` });
+  }
+  // A fix starts with a test that reproduces the defect, unless its body states why none can (K624).
+  if (message !== undefined && message.startsWith('fix(') && stated !== 'no-red' && !changes.some(change => change.to === DONE) && !changed.some(file => changesATest(file, after, changedLines))) {
+    found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or states No-Red: <reason> when no test can show it` });
   }
   // A commit that deletes a test file names the test that replaces it, one that covers the same requirement (K339).
   if (message !== undefined && deleted.length > 0 && ![...message.matchAll(/^Replaced-By: (\S+)$/gm)].some(([, file = '']) => isTestFile(file) && tracked(file))) {

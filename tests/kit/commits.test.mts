@@ -233,8 +233,8 @@ function tracked(t: TestContext, steps: Array<[string, Record<string, string | n
 test('commit-changelog: a commit that moves an item to its done state also changes the changelog in both languages', (t) => {
   const { root } = tracked(t, [
     ['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[~]'], ['S2', '[ ]']]), 'CHANGELOG.md': '# Changelog\n', 'CHANGELOG.ko.md': '# 변경 기록\n' }],
-    ['feat(core): Finish S1 (#S1)', { [PLAN]: plan([['S1', '[o]'], ['S2', '[ ]']]), 'CHANGELOG.md': '# Changelog\n\n- S1\n' }],
-    ['feat(core): Finish S2 (#S2)', { [PLAN]: plan([['S1', '[o]'], ['S2', '[o]']]), 'CHANGELOG.md': '# Changelog\n\n- S1\n- S2\n', 'CHANGELOG.ko.md': '# 변경 기록\n\n- S2\n' }],
+    ['feat(core): Finish S1 (#S1)\n\nNo-Red: a fixture of the item rules\n', { [PLAN]: plan([['S1', '[o]'], ['S2', '[ ]']]), 'CHANGELOG.md': '# Changelog\n\n- S1\n' }],
+    ['feat(core): Finish S2 (#S2)\n\nNo-Red: a fixture of the item rules\n', { [PLAN]: plan([['S1', '[o]'], ['S2', '[o]']]), 'CHANGELOG.md': '# Changelog\n\n- S1\n- S2\n', 'CHANGELOG.ko.md': '# 변경 기록\n\n- S2\n' }],
   ]);
   const findings = rangeFindings(root, 'HEAD~2..HEAD', TRACKED);
   assert.equal(findings.length, 1, findings.join('\n'));
@@ -273,18 +273,38 @@ test('the item rules of the commit-msg hook compare the index with HEAD', (t) =>
   const { root, git } = tracked(t, [['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[~]']]), 'CHANGELOG.md': '# Changelog\n', 'CHANGELOG.ko.md': '# 변경 기록\n' }]]);
   put(root, { [PLAN]: plan([['S1', '[o]']]) });
   git('add', '-A');
-  assert.deepEqual(indexItemFindings(root, TRACKED, 'feat(core): Finish S1 (#S1)').map(found => found.message.split(' does not change ')[1]), ['CHANGELOG.md; record the item in the changelog of both languages', 'CHANGELOG.ko.md; record the item in the changelog of both languages']);
+  assert.deepEqual(indexItemFindings(root, TRACKED, 'feat(core): Finish S1 (#S1)\n\nNo-Red: a fixture of the item rules\n').map(found => found.message.split(' does not change ')[1]), ['CHANGELOG.md; record the item in the changelog of both languages', 'CHANGELOG.ko.md; record the item in the changelog of both languages']);
   put(root, { 'CHANGELOG.md': '# Changelog\n\n- S1\n', 'CHANGELOG.ko.md': '# 변경 기록\n\n- S1\n' });
   git('add', '-A');
-  assert.deepEqual(indexItemFindings(root, TRACKED, 'feat(core): Finish S1 (#S1)'), []);
+  assert.deepEqual(indexItemFindings(root, TRACKED, 'feat(core): Finish S1 (#S1)\n\nNo-Red: a fixture of the item rules\n'), []);
 });
 
 test('a repository without a changelog keeps the one item rule', (t) => {
   const { root } = tracked(t, [
     ['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[~]']]) }],
-    ['feat(core): Finish S1 (#S1)', { [PLAN]: plan([['S1', '[o]']]) }],
+    ['feat(core): Finish S1 (#S1)\n\nNo-Red: a fixture of the item rules\n', { [PLAN]: plan([['S1', '[o]']]) }],
   ]);
   assert.deepEqual(rangeFindings(root, 'HEAD~1..HEAD', CONFIG), []);
+});
+
+// K624: the commit that moves a row to done states its red in its body, `Red: <command> exit <n> at <sha>` or `No-Red: <reason>`;
+// only the line is checked, and the recorder that blocked done is gone.
+test('commit-red: a commit that moves a row to done states its red or why it has none (K624)', (t) => {
+  const steps = (message: string): Array<[string, Record<string, string | null>]> => [
+    ['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[~]']]) }],
+    [message, { [PLAN]: plan([['S1', '[o]']]) }],
+  ];
+  const red = (message: string) => rangeFindings(tracked(t, steps(message)).root, 'HEAD~1..HEAD', CONFIG);
+  assert.match(red('feat(core): Finish S1 (#S1)').join('\n'), /: commit-red: the commit moves S1 to done and its body states no red/);
+  assert.match(red('feat(core): Finish S1 (#S1)\n\nNo-Red: \n').join('\n'), /: commit-red: /, 'a No-Red line names its reason');
+  assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed: node --test a.test.mts exit 1 at 0123abc\n'), []);
+  assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed-Test: node --test a.test.mts exit 1 at 0123abc\n'), [], 'the Red-Test line of an earlier commit counts');
+  assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nNo-Red: the row deletes a script\n'), []);
+  const fix = tracked(t, [
+    ['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[ ]']]), 'src/a.ts': 'export const a = 1;\n' }],
+    ['fix(core): Correct a configuration (#S1)\n\nNo-Red: the configuration has no behaviour a test shows\n', { 'src/a.ts': 'export const a = 2;\n' }],
+  ]);
+  assert.deepEqual(rangeFindings(fix.root, 'HEAD~1..HEAD', CONFIG), [], 'a fix that states No-Red needs no test file');
 });
 
 test('commit-fix-test: a fix commit changes a test file of a runner of kit (K257)', (t) => {
@@ -297,7 +317,7 @@ test('commit-fix-test: a fix commit changes a test file of a runner of kit (K257
   ]);
   const findings = rangeFindings(root, 'HEAD~4..HEAD', TRACKED);
   assert.equal(findings.length, 1, findings.join('\n'));
-  assert.match(findings[0] ?? '', /: commit-fix-test: the fix commit changes no test file \(tests\/, \*\.test\.\*, \*_test\.go, test_\*\.py, \*Test\.php, tests\.rs, #\[cfg\(test\)\] or #\[test\] code of \*\.rs\); a fix starts with a test that reproduces the defect, or, for a finding of a gate of kit-gates .* a Red-Gate line of the commit that moves the item to done \(K357\)$/);
+  assert.match(findings[0] ?? '', /: commit-fix-test: the fix commit changes no test file \(tests\/, \*\.test\.\*, \*_test\.go, test_\*\.py, \*Test\.php, tests\.rs, #\[cfg\(test\)\] or #\[test\] code of \*\.rs\); a fix starts with a test that reproduces the defect, or states No-Red: <reason> when no test can show it$/);
 });
 
 test('commit-fix-test takes a Rust unit test: src/tests.rs and a change inside a cfg(test) module or a #[test] function (K370)', (t) => {
