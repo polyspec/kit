@@ -447,7 +447,7 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
   for (const project of [...projects].sort()) {
     const folders = providedFolders(project, work.found.values(), { vendorDir: composerVendorDir(project, work.env) });
     // K529: a polyspec package that the manifests of the project declare, and that a provider of the run provides, has an installed folder.
-    const missing = declaredWithoutFolder(work, consumer, project, folders);
+    const missing = declaredWithoutFolder(work, consumer, project, [...folders, ...ownerFolders(work, consumer, project)]);
     for (const name of missing) line(work, 'NOT linked', name.ecosystem, `${name.name}: no installed folder in ${path.relative(consumer.top, project) || '.'}; install the project first`);
     if (missing.length > 0) work.failed = true;
     if (work.check) {
@@ -459,6 +459,34 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
     linkFolders(folders);
     for (const item of folders) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
   }
+}
+
+/**
+ * The projects above the workspace member `project` that install its packages of `ecosystem` (K590), nearest first: none when the
+ * member has a lock of its own. An npm member with no package-lock.json is installed by the nearest npm project above it with one,
+ * and node resolves its packages in each node_modules up to that project; a Composer member with no composer.lock is installed by a
+ * Composer project above it whose path repository installs its folder (K396), into that project's vendor.
+ */
+function owners(consumer: Consumer, project: string, ecosystem: 'npm' | 'composer'): string[] {
+  const lock = ecosystem === 'npm' ? 'package-lock.json' : 'composer.lock';
+  if (existsSync(path.join(project, lock))) return [];
+  const found: string[] = [];
+  for (let folder = path.dirname(project); `${folder}/`.startsWith(`${consumer.top}/`); folder = path.dirname(folder)) {
+    if (!existsSync(path.join(folder, MANIFESTS[ecosystem]))) continue;
+    if (ecosystem === 'npm') {
+      found.push(folder);
+      if (existsSync(path.join(folder, lock))) return found;
+    } else if (installsFolder(folder, project)) {
+      return [folder];
+    }
+  }
+  return [];
+}
+
+/** The installed folders of `ecosystem` that the owners of the workspace member `project` hold for it (K590). */
+function ownerFolders(work: Run, consumer: Consumer, project: string): ProvidedFolder[] {
+  return (['npm', 'composer'] as const).flatMap(ecosystem => owners(consumer, project, ecosystem).flatMap(owner =>
+    providedFolders(owner, work.found.values(), { vendorDir: composerVendorDir(owner, work.env) }).filter(folder => folder.ecosystem === ecosystem)));
 }
 
 /**

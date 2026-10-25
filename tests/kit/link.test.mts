@@ -1007,6 +1007,32 @@ test('K529: a declared polyspec package with no installed folder fails link and 
 });
 
 
+// K590: a workspace member has no lock of its own: npm installs an npm workspace member's packages into the node_modules of the root
+// whose package-lock.json installs it, and the root composer.json installs a Composer package through its path repository into the
+// root's vendor. link takes the member's installed folders from that owner; a package that the owner lacks stays a finding of the member.
+test('K590: link takes the installed folders of a workspace member with no lock from the project whose lock installs it (K590)', (t) => {
+  const { consumer, env } = workspace(t);
+  const manifest = readJsonObject(path.join(consumer, 'package.json'));
+  put(consumer, {
+    'package.json': JSON.stringify({ ...manifest, workspaces: ['packages/app'] }),
+    'packages/app/package.json': JSON.stringify({ name: '@cons/app', dependencies: { '@polyspec/x': '0.0.1' } }),
+    'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: 'packages/srv' }], require: { 'polyspec/y': '0.0.1', 'cons/srv': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }),
+    'packages/srv/composer.json': JSON.stringify({ name: 'cons/srv', require: { 'polyspec/y': '0.0.1' } }),
+  });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'workspace members');
+  const linked = linkLines([consumer], env);
+  assert.equal(linked.ok, true, linked.text);
+  assert.doesNotMatch(linked.text, /no installed folder/);
+  const checked = linkLines([consumer], env, true);
+  assert.equal(checked.ok, true, checked.text);
+  // The owner lacks the package: the member is named.
+  rmSync(path.join(consumer, 'node_modules/@polyspec/x'), { recursive: true, force: true });
+  const missing = linkLines([consumer], env);
+  assert.equal(missing.ok, false, missing.text);
+  assert.match(missing.text, /NOT linked\s+npm\s+@polyspec\/x: no installed folder in packages\/app/);
+});
+
 // K539: link makes the package folder of a provided Python package a link into the provider checkout, and a uv install over the
 // environment writes through such a link; every uv install of the tool first removes the links of the site-packages that resolve
 // outside the environment, so the provider checkout keeps its tracked files.
