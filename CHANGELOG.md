@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- land counts only the clone blocks of duplication-check as its findings, so a line of jscpd that describes the run, such as its detection time, refuses no land (K599).
 - land counts the time line that ends a jscpd report as no finding of duplication-check, so an identical clone set is not refused as new (K600).
 - worktree-setup links a provided package of another checkout as the one symlink to that checkout's folder, as the main checkout holds it, never to the main checkout's entry, and replaces such an earlier link (K598).
 - worktree-setup refuses no worktree for the free disk and trims no Go build cache: the floor of 30 GB and the trims of K538 and K538-1 are removed, by the user's ruling (K596).

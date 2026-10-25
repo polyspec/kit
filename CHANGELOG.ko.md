@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 513ed3a95d668858199f969173ca8bd326640fd5b9644b75379aa2904d4965f0 -->
+<!-- source-sha256: 57c0a2d3f9c0524cf80b5d408883022241b684a1db90d647aa39b599ae2771ae -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- land는 duplication-check의 결과로 clone 블록만 세서, detection time처럼 실행을 설명하는 jscpd 줄이 land를 거부하지 않는다 (K599).
 - land는 jscpd 보고서를 끝맺는 시간 줄을 duplication-check의 finding으로 세지 않아, 같은 clone 집합이 새것으로 거부되지 않는다 (K600).
 - worktree-setup은 다른 checkout의 provided package를 main checkout이 가진 것처럼 그 checkout 폴더로의 symlink 하나로 link하고, main checkout 항목으로의 이전 link를 대체한다 (K598).
 - worktree-setup은 자유 디스크 때문에 worktree를 거부하지 않고 Go build cache를 정리하지 않는다. 사용자의 결정에 따라 30 GB floor와 K538, K538-1의 정리를 제거했다 (K596).
