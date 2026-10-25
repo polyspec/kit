@@ -724,10 +724,10 @@ test('make item-red BEFORE= restores the mode of each file that it swaps (K389-1
   assert.equal(spawnSync('git', ['diff', '--summary', '--', 'hook.sh'], { cwd: root, encoding: 'utf8' }).stdout, '', 'git sees no mode change');
 });
 
-// K389-2: the red of a row is recorded on a commit of its branch, which the rebase before make land rewrites; the Red-Test line
-// names the merge-base of HEAD and main, which the rebase keeps as an ancestor, so the row closes after the rebase. BEFORE= takes
-// a tree whose changelogs the close has changed.
-test('the red of a row survives the rebase of its branch on a newer main (K389-2)', (t) => {
+// K389-2: the red of a row is recorded on a commit of its branch, which the rebase before make land rewrites, and the row closes after
+// the rebase. K562: the Red-Test line names the head where the red ran, which item-red recorded, never another commit, where the
+// Verification may pass; the record is the proof, so no ancestry is asked. BEFORE= takes a tree whose changelogs the close has changed.
+test('the red of a row survives the rebase of its branch on a newer main, and its line names the head where it ran (K389-2, K562)', (t) => {
   const root = plans(t, 'parser');
   put(root, { '.gitignore': 'var/\n' });
   newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(require(\'fs\').existsSync(\'b.mts\') ? 0 : 1)"`' }));
@@ -746,6 +746,7 @@ test('the red of a row survives the rebase of its branch on a newer main (K389-2
   put(root, { 'notes.md': 'a commit of the branch\n' });
   commitAll('docs(plan): Register T1 (#T1)');
   setState(root, { id: 'T1', state: '[~]' }, () => {});
+  const ran = run('rev-parse', 'HEAD');
   const red = cli({ ID: 'T1' });
   assert.equal(red.status, 0, red.stderr);
   put(root, { 'b.mts': 'export {};\n', 'tests/b.test.mts': 'test\n' });
@@ -753,7 +754,7 @@ test('the red of a row survives the rebase of its branch on a newer main (K389-2
   const body = path.join(root, 'var/body.txt');
   writeFileSync(body, 'The test reproduces it.\n');
   const message = commitItem(root, { id: 'T1', type: 'fix', scope: 'parser', subject: 'Fix it', bodyFile: body }, identity);
-  assert.match(message, new RegExp(`^Red-Test: .* exit 1 at ${base.slice(0, 12)}$`, 'm'), 'the line names the merge-base with main');
+  assert.match(message, new RegExp(`^Red-Test: .* exit 1 at ${ran.slice(0, 12)}$`, 'm'), 'the line names the head where the red ran');
   run('checkout', '--', 'docs/plans');
   // main moves on, and the branch is rebased on it, as make land needs.
   run('switch', '--quiet', 'main');
