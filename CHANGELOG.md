@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The red of a row is stated, not recorded: the commit that moves a row to done names its red in its body, `Red: <command> exit <n> at <sha>`, or states `No-Red: <reason>` for a change that no test can show, and commits-check checks only that one of the two lines is there; a fix that states No-Red needs no test file. The recorder is deleted: var/plan/<ID>.json, make item-red, the gate runs of item-state, the refusal of done without a record and the hash of the test files that a rebase invalidated (K624).
 - worktree-setup links the main checkout's var/composer-artifacts, the artifact repository that a composer.json names, as one directory symlink, so Composer runs in a worktree; docs/operations/local-links states what a symlink cannot do for a worktree (K622).
 - `make worktree-link-state` prepares a worktree's linked installs and runs `link-state-check` without rebuilding product packages; `worktree-setup` keeps rebuilding first (K619).
 - catch-check-rust no longer reports a narrow Err arm: an arm with a guard, such as `Err(error) if error.kind() == NotFound => {}`, or one whose inner pattern names an error variant handles one named error and leaves every other to a later arm; an empty arm of every error, `Err(_)` or a binding, is still a finding (K620).

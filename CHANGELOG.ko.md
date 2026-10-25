@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3cc359d55c4bd06942a9e9f4d56602b25a53a0f91d3420049a730b0bde0b9c80 -->
+<!-- source-sha256: 95097eae994fda28bf20a073581660506fa1e84fb9d655e2552dd155de212c2a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 행의 red는 기록하지 않고 적습니다. 행을 done으로 옮기는 commit은 body에 red를 `Red: <command> exit <n> at <sha>`로 이름 붙이거나, 테스트가 보일 수 없는 변경이면 `No-Red: <reason>`를 적고, commits-check는 둘 중 한 줄이 있는지만 봅니다. No-Red를 적은 fix는 테스트 파일이 필요 없습니다. 기록기는 삭제했습니다: var/plan/<ID>.json, make item-red, item-state의 gate 실행, 기록 없는 done의 거부, rebase가 무효화하던 테스트 파일 hash(K624).
 - worktree-setup은 main checkout의 var/composer-artifacts, 곧 composer.json이 이름 붙인 artifact repository를 하나의 directory symlink로 link하므로 worktree에서 Composer가 실행됩니다. docs/operations/local-links는 symlink가 worktree에 할 수 없는 일을 적습니다(K622).
 - `make worktree-link-state`는 worktree의 설치 link를 준비하고 product package를 rebuild하지 않은 채 `link-state-check`를 실행합니다. 일반 `worktree-setup`은 계속 먼저 rebuild합니다(K619).
 - catch-check-rust는 좁은 Err arm을 더 보고하지 않습니다. `Err(error) if error.kind() == NotFound => {}`처럼 guard가 있거나 안쪽 pattern이 error variant를 이름 붙인 arm은 이름 붙인 오류 하나만 다루고 나머지는 뒤의 arm에 넘깁니다. 모든 오류를 받는 빈 arm, 곧 `Err(_)`나 binding은 여전히 finding입니다(K620).
