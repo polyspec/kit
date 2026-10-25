@@ -204,11 +204,20 @@ function linkEntry(main: string, folder: string, vendor: string, source: string,
   const resolved = realpathSync(source);
   const within = (root: string) => resolved.startsWith(`${realpathSync(root)}${path.sep}`);
   const inside = within(main) && !within(path.join(main, vendor));
-  const destination = inside ? path.join(folder, path.relative(realpathSync(main), resolved)) : source;
+  // K598: an entry that the main checkout holds as a link out of it, a provided package of another checkout, is the same one link to
+  // that folder (K591), never a link to the main checkout's entry, which link-state-check refuses.
+  const provided = !within(main) && lstatSync(source).isSymbolicLink();
+  const destination = inside ? path.join(folder, path.relative(realpathSync(main), resolved)) : provided ? resolved : source;
   const link = path.relative(path.dirname(target), destination);
   if (existsSync(target) || lstatSync(path.dirname(target)).isDirectory() && readdirSync(path.dirname(target)).includes(path.basename(target))) {
     const entry = lstatSync(target);
     if (entry.isSymbolicLink() && path.resolve(path.dirname(target), readlinkSync(target)) === path.resolve(path.dirname(target), link)) return;
+    // K598: the link of an earlier run to the main checkout's entry of a provided package resolves to the same folder; it is replaced.
+    if (provided && entry.isSymbolicLink() && existsSync(target) && realpathSync(target) === resolved) {
+      unlinkSync(target);
+      symlinkSync(link, target);
+      return;
+    }
     throw new Error(`${target} exists and is not the link to ${destination}; remove it, since a worktree installs nothing (K521)`);
   }
   symlinkSync(link, target);
