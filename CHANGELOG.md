@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A commit on main whose files change a build input of an npm package with a built output rebuilds the repository when that output is stale, so the checkouts that link the main checkout live find its build fresh (K583).
 - An npm package that the consumer declares by a file: dependency on a tarball, which npm unpacks into a real folder, becomes the per-file link tree of its provider, not a link to the tarball; only a dependency on a folder stays the link of K578 (K579).
 - A checkout whose mise.toml declares sccache compiles Rust through one cache under the var/tools of the main checkout, which every worktree shares, capped at 5G; cargo runs half the cores unless the caller sets CARGO_BUILD_JOBS (K581).
 - Under the disk floor worktree-setup trims the Go build cache oldest first until the floor is met, sparing the files of the last 10 minutes, since parallel builds keep the whole cache younger than two hours (K538-1).
