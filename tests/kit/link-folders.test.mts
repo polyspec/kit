@@ -166,3 +166,10 @@ test('an npm package that the consumer declares as a file: dependency stays the 
   assert.equal(linkFolders(providedFolders(path.join(root, 'checks'), [provider])).length, 1, 'a tree there is replaced');
   assert.equal(readlinkSync(folder), '../../var/platforms/app', 'by the link to the declared path');
 });
+
+// K576: a consumer's test builds the per-file link tree of K558 with kit's own linkFolders, through the export of the package.
+test('the package exports ./link-folders with linkFolders, providedFolders and folderFindings (K576)', () => {
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', "const m = await import('@polyspec/kit/link-folders'); console.log([m.linkFolders, m.providedFolders, m.folderFindings].map(f => typeof f).join(' '));"], { cwd: path.resolve(import.meta.dirname, '../..'), encoding: 'utf8' });
+  assert.equal(run.stderr.trim(), '');
+  assert.equal(run.stdout.trim(), 'function function function');
+});
