@@ -1072,6 +1072,7 @@ test('the build of main after the merge runs under the main build lock, after th
   const common = '$$(git rev-parse --git-common-dir)';
   put(main, {
     'Makefile': `kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nbuild:\n\ttest ! -e ${common}/kit-land.lock\n\tif [ "$$(git rev-parse --abbrev-ref HEAD)" = main ]; then test -e ${common}/kit-main-build.lock; fi\n`,
+    'config/owner-checks.json': `${JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] })}\n`,
     'src/.keep': '',
   });
   git(main, 'add', '-A');
