@@ -192,3 +192,28 @@ test('the package exports ./link-folders with linkFolders, providedFolders and f
   assert.equal(run.stderr.trim(), '');
   assert.equal(run.stdout.trim(), 'function function function');
 });
+
+// K574: a linked package of another repository resolves its imports from the consumer (K558), whose lock records the dependencies of
+// the release; a dependency that the checkout added, and its own, are linked to the folders that the provider checkout installed.
+test('link links the dependencies that a linked npm package declares and the consumer lacks, to the provider\'s installs (K574)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-folders-deps-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  put(root, {
+    'prov/.git/HEAD': 'ref: refs/heads/main\n',
+    'prov/packages/x/package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1', dependencies: { 'dep-a': '1.0.0', 'dep-c': '1.0.0' } }),
+    'prov/packages/x/index.js': 'export {};\n',
+    'prov/node_modules/dep-a/package.json': JSON.stringify({ name: 'dep-a', version: '1.0.0', dependencies: { 'dep-b': '1.0.0' } }),
+    'prov/node_modules/dep-b/package.json': JSON.stringify({ name: 'dep-b', version: '1.0.0' }),
+    'prov/node_modules/dep-c/package.json': JSON.stringify({ name: 'dep-c', version: '1.0.0' }),
+    'cons/package.json': JSON.stringify({ name: 'cons', dependencies: { '@polyspec/x': '0.0.1' } }),
+    'cons/node_modules/@polyspec/x/package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1' }),
+    'cons/node_modules/dep-c/package.json': JSON.stringify({ name: 'dep-c', version: '0.9.0' }),
+  });
+  const provider = { ecosystem: 'npm' as const, name: '@polyspec/x', folder: path.join(root, 'prov/packages/x'), repository: path.join(root, 'prov'), checkout: path.join(root, 'prov') };
+  const project = path.join(root, 'cons');
+  assert.match(folderFindings(root, providedFolders(project, [provider])).join('\n'), /npm dep-a: cons\/node_modules\/dep-a is missing/);
+  linkFolders(providedFolders(project, [provider]));
+  for (const name of ['dep-a', 'dep-b']) assert.equal(realpathSync(path.join(project, 'node_modules', name)), path.join(root, 'prov/node_modules', name), `${name} is the provider's install`);
+  assert.equal(lstatSync(path.join(project, 'node_modules/dep-c')).isSymbolicLink(), false, 'a dependency that the consumer has stays');
+  assert.deepEqual(folderFindings(root, providedFolders(project, [provider])), []);
+});
