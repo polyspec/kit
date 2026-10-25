@@ -148,8 +148,10 @@ const PROGRESS = /^\[[a-z0-9-]+\] /;
 
 // The per-language rows and aggregate Total row in jscpd's seven-column summary describe the scanned tree, not duplicate blocks.
 const JSCPD_STATISTICS = /^\s*│\s*(?:c|go|php|python|rust|typescript|javascript|Total:)\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*│\s*[\d,]+\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*$/;
+// The line with which jscpd ends its report, the time of its run, which differs on every run (K600).
+const JSCPD_TIME = /^\s*time:\s*[\d.]+\s*m?s\s*$/;
 const ANSI_SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
-const isJscpdStatistics = (line: string): boolean => JSCPD_STATISTICS.test(line.replace(ANSI_SGR, ''));
+const isJscpdStatistics = (line: string): boolean => [JSCPD_STATISTICS, JSCPD_TIME].some(pattern => pattern.test(line.replace(ANSI_SGR, '')));
 
 /** The lines of the stdout and the stderr of a gate that land compares: every line of stderr, and the lines of stdout but progress. */
 const findingLines = ({ stdout, stderr }: { stdout: string; stderr: string }, folder: string, root: string, gate?: string) =>
