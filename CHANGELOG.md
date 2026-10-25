@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- make worktree-prune is deleted: make land removes the worktree of every merged branch in which no process runs (K626), and no consumer imports prune any longer (orm T238) (K612).
 - The tests of release and of the PHP extension pass lint-ts again: no useless escape in a string, and the fixture configuration is narrowed by a type guard instead of an assertion from any (K629).
 - The worktrees that make land removes after its merge are those of branches with commits of their own, all in main: a fresh branch made from main for a row about to start is kept, though main contains it (K628).
 - The PHP extension builder publishes to a caller-selected absolute module path and accepts declared source-copy and configure arguments, so per-run builds use the shared staging logic (K247-3).
