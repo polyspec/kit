@@ -178,12 +178,12 @@ test('a target is expanded for each set of variables it is called with, so every
 // K359: the working guidelines of the owner are rules of PRINCIPLES.md, each with its Enforced by line in the same rule, and the
 // Korean twin holds the same rule ids. Each phrase is a short part of the rule it belongs to.
 const GUIDELINE_RULES: Array<[id: string, phrase: string]> = [
-  ['P10', '30 GB'],
+  ['P10', 'only by the fast-forward'],
   ['P22', 'Haiku 5.5'],
   ['P24', 'starts from its registered row'],
   ['P36', 'is registered as a row and worked now'],
   ['P37', 'reported only after its check has run'],
-  ['P38', 'One integrator writes the main'],
+  ['P38', 'by one actor per checkout'],
   ['P20', 'order of the conductor'],
   ['S10', 'userland framework'],
 ];
