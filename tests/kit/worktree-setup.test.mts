@@ -342,3 +342,31 @@ test('worktree-setup has no disk floor (K596)', async () => {
   assert.equal(setup.WORKTREE_DISK_FLOOR, undefined);
   assert.equal(setup.freeBytes, undefined);
 });
+
+// K598: a provided package of another checkout is one symlink to its folder (K591), in a worktree as in the main checkout; a link to
+// the main checkout's entry is a link elsewhere, which link-state-check refuses, so worktree-setup writes the provider's link and replaces
+// such a link of an earlier run.
+test('worktree-setup links a provided package of another checkout to that checkout, not to the main checkout\'s entry (K598)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(path.join(parent, 'prov'), { 'package.json': JSON.stringify({ name: '@polyspec/x' }) });
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'Makefile': 'link-state-check:\n\ttrue\n',
+    '.gitignore': 'node_modules/\n',
+  });
+  symlinkSync('../../../prov', path.join(main, 'node_modules/@polyspec/x'));
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = path.join(parent, 'repo-x-T13');
+  git(main, 'worktree', 'add', '--quiet', '-b', 'fix/x-T13', folder, 'main');
+  const entry = path.join(folder, 'node_modules/@polyspec/x');
+  mkdirSync(path.dirname(entry), { recursive: true });
+  symlinkSync(path.join(main, 'node_modules/@polyspec/x'), entry);
+  const options = { print: () => {} };
+  assert.equal(setupWorktree(main, { name: 'x', id: 'T13', type: 'fix' }, options), folder);
+  assert.equal(path.resolve(path.dirname(entry), readlinkSync(entry)), path.join(parent, 'prov'), 'the link names the provider\'s folder itself');
+  assert.equal(setupWorktree(main, { name: 'x', id: 'T13', type: 'fix' }, options), folder, 'a second run converges');
+});
