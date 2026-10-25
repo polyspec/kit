@@ -139,3 +139,30 @@ test('an npm package of the consumer\'s own repository stays the whole-folder li
   assert.deepEqual(linkFolders(folders), []);
   assert.ok(lstatSync(folder).isSymbolicLink(), 'the own package stays a directory link');
 });
+
+// K578: a package that the consumer declares itself as a file: dependency is the link that npm writes to the declared path, which the
+// consumer may require as a link (limepie SK-B-7); it stays that one link, as an own workspace package does, and a tree there goes back.
+test('an npm package that the consumer declares as a file: dependency stays the link to its declared path (K578)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-folders-file-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  put(root, {
+    'app/package.json': JSON.stringify({ name: '@limepie/app', version: '0.0.1' }),
+    'app/index.js': 'export const app = 1;\n',
+    'checks/package.json': JSON.stringify({ name: 'checks', dependencies: { '@limepie/app': 'file:var/platforms/app' } }),
+  });
+  mkdirSync(path.join(root, 'checks/var/platforms'), { recursive: true });
+  symlinkSync(path.join(root, 'app'), path.join(root, 'checks/var/platforms/app'));
+  const folder = path.join(root, 'checks/node_modules/@limepie/app');
+  mkdirSync(path.dirname(folder), { recursive: true });
+  symlinkSync('../../var/platforms/app', folder);
+  const provider = { ecosystem: 'npm' as const, name: '@limepie/app', folder: path.join(root, 'app'), repository: path.join(root, 'app'), checkout: path.join(root, 'app') };
+  const folders = providedFolders(path.join(root, 'checks'), [provider]);
+  assert.deepEqual(folderFindings(root, folders), [], 'the declared link is no finding');
+  assert.deepEqual(linkFolders(folders), [], 'link leaves it');
+  assert.equal(readlinkSync(folder), '../../var/platforms/app', 'it stays the link that npm wrote');
+  rmSync(folder);
+  mkdirSync(folder);
+  symlinkSync('../../../../app/package.json', path.join(folder, 'package.json'));
+  assert.equal(linkFolders(providedFolders(path.join(root, 'checks'), [provider])).length, 1, 'a tree there is replaced');
+  assert.equal(readlinkSync(folder), '../../var/platforms/app', 'by the link to the declared path');
+});
