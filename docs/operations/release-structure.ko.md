@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release-structure -->
-<!-- source-sha256: a9ca11593df5460ad57c8d09dbee9c004a2fbc9f0bae1c57f45ef59e2c89fe37 -->
+<!-- source-sha256: 324f7d5148eb8052c1c0d08bfec9914801f660613e069b9b9e0299f266fa494d -->
 # 릴리스 구조
 
 [English](release-structure.md)
@@ -56,3 +56,17 @@ K514는 이미 lint 설정을 사본에서 빼냈습니다. 각 lint는 설정�
 2번과 3번의 이동은 각각 kit-sync가 쓰는 것을 바꾸므로 다음 릴리스의 묶은 sync를 거치는, K438 뒤의 kit 행입니다. kit 전용 설정 네 종류를
 패키지에서 읽기, caller와 함께 재사용 workflow, principles의 link 문서입니다. 1번은 릴리스 절차(docs/operations/release.md)의
 규칙입니다.
+
+## K614이 한 일
+
+2026-10-25 사용자가 kit-sync 복사본의 제거를 승인했고, K614이 local 개발 checkout의 단순 symbolic link로 그것을 실행합니다.
+
+- bootstrap 층은 복사본이 아닙니다. 저장소는 `../kit/scripts/kit/kit-bootstrap.mk`를 include하고, 그것이 곁의
+  `scripts/kit/bootstrap` installer를 실행합니다.
+- PHP lint project `config/php-lint`는 실행되는 kit에서 읽습니다.
+- `config/commit-identity.json`은 각 저장소의 선언이며, workflow처럼 kit-check가 더 비교하지 않는 그 저장소의 일반 파일입니다.
+- `PRINCIPLES.md`, 그 짝, `.editorconfig`, `.claude/settings.json`은 `../kit`의 파일로 가는 tracked symbolic link입니다.
+- 두 workflow는 GitHub가 symbolic link를 따르지 않으므로 각 저장소의 일반 파일로 남고, kit-check는 더 비교하지 않습니다.
+- `config/layout.kit.yml`과 그것이 이름 붙인 manifest schema 세 개는 kit-check가 비교하는 복사본으로 남습니다. alint 0.18.2가
+  kit에서 읽는 모든 방법을 거부합니다. 저장소 밖의 `extends:`는 "`extends:` target … resolves to … which is outside the lint
+  root"로, 그 파일로 가는 symbolic link도 같은 오류로, 두 번째 `--config`는 "`--config` may be given at most once"로 실패합니다.

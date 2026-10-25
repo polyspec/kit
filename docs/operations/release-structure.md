@@ -58,3 +58,21 @@ K514 already moved the lint configurations out of the copies: each lint reads it
 The moves of points 2 and 3 are each a kit row of its own, after K438, since each changes what kit-sync writes and so takes the
 batched sync of the next release: reading the four kinds of kit-only configuration from the package, the reusable workflows with
 their callers, and the link document of the principles. Point 1 is a rule of the release procedure (docs/operations/release.md).
+
+## What K614 did
+
+On 2026-10-25 the user approved the removal of the kit-sync copies, and K614 carries it out, with the plain symbolic links of a
+local development checkout:
+
+- The bootstrap layer is no copy: a repository includes `../kit/scripts/kit/kit-bootstrap.mk`, which runs the installer of
+  `scripts/kit/bootstrap` beside it.
+- The PHP lint project `config/php-lint` is read from the kit that runs.
+- `config/commit-identity.json` is a declaration of each repository, a plain file of it that kit-check no longer compares, as the
+  workflows are.
+- `PRINCIPLES.md`, its twin, `.editorconfig` and `.claude/settings.json` are tracked symbolic links to the files of `../kit`.
+- The two workflows stay plain files of each repository, since GitHub follows no symbolic link, and kit-check no longer compares
+  them.
+- `config/layout.kit.yml` and the three manifest schemas that it names stay copies, which kit-check compares: alint 0.18.2 refuses
+  every way to read them from kit. An `extends:` outside the repository fails with "`extends:` target … resolves to … which is
+  outside the lint root", a symbolic link to the file fails with the same error, and a second `--config` fails with "`--config`
+  may be given at most once".

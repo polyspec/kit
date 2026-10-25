@@ -46,6 +46,9 @@ const OUTPUTS = {
   python3: `Python ${PYTHON}`,
   composer: 'Composer version 2.10.3 2026-01-01 00:00:00',
   ruff: 'ruff 0.16.10',
+  // The PHP lint of kit, which every checkout that declares PHP declares (K614).
+  phpcs: 'PHP_CodeSniffer version 4.0.4 (stable) by Squiz and PHPCSStandards',
+  phpstan: 'PHPStan - PHP Static Analysis Tool 2.3.1',
 };
 // The commands of mise.toml, which the check runs from their shims in var/tools/mise/shims.
 const MISE_COMMANDS = ['go', 'python3', 'uv', 'ruff', 'alint', 'golangci-lint', 'govulncheck', 'cargo-audit', 'cargo-nextest', 'cargo-deny', 'composer', 'vulture'];
@@ -73,9 +76,9 @@ test('every declared tool at its declared version passes, offline, and the run p
   const { root, stubs } = setup(t);
   const result = check(root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stdout, `[check-toolchain] node ${NODE}, npm 12.2.0, rust ${RUST}, php ${PHP}.3, go ${GO}, python ${PYTHON}, ruff 0.16.10, govulncheck 1.1.4, cargoAudit 0.22.2, composer 2.10.3\n[check-toolchain] 10 tools run from the tools of the checkout\n`);
+  assert.equal(result.stdout, `[check-toolchain] node ${NODE}, npm 12.2.0, rust ${RUST}, php ${PHP}.3, phpcs 4.0.4, phpstan 2.3.1, go ${GO}, python ${PYTHON}, ruff 0.16.10, govulncheck 1.1.4, cargoAudit 0.22.2, composer 2.10.3\n[check-toolchain] 12 tools run from the tools of the checkout\n`);
   assert.equal(result.stderr, '');
-  assert.deepEqual(stubs.calls().map(line => known(line.split(' ')[0], 'line.split(…)[0]')).sort(), ['composer', 'go', 'npm', 'php', 'python3', 'ruff', 'rustc', 'composer', 'go', 'npm', 'php', 'python3', 'ruff', 'rustc'].sort(), 'only version commands run, each once for the check and once for the evidence');
+  assert.deepEqual(stubs.calls().map(line => known(line.split(' ')[0], 'line.split(…)[0]')).sort(), ['composer', 'go', 'npm', 'php', 'phpcs', 'phpstan', 'python3', 'ruff', 'rustc', 'composer', 'go', 'npm', 'php', 'phpcs', 'phpstan', 'python3', 'ruff', 'rustc'].sort(), 'only version commands run, each once for the check and once for the evidence');
 });
 
 // The lint tools of K77: vulture, golangci-lint and deadcode of mise.toml, and phpcs and PHPStan of the locked PHP lint project.

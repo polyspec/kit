@@ -1,8 +1,11 @@
-# The bootstrap of kit in a repository: `include scripts/kit/kit-bootstrap.mk` in its Makefile. This file is a copy that
-# `make kit-sync` writes from the installed package @polyspec/kit; it includes the kit.mk of KIT, which runs the built tools of
-# its dist. The package is installed in two steps, both online: `make install-tools TOOLS=npm` installs the npm of
-# packageManager into var/tools with the copied installer of scripts/kit/bootstrap, then `make install-packages` installs
-# package-lock.json with it, @polyspec/kit included. Until then only those two steps run.
+# The bootstrap of kit in a repository: `include ../kit/scripts/kit/kit-bootstrap.mk` in its Makefile, the file of the kit
+# checkout beside it, never a copy (K614); it includes the kit.mk of KIT, which runs the built tools of its dist. The package is
+# installed in two steps, both online: `make install-tools TOOLS=npm` installs the npm of packageManager into var/tools with the
+# installer of scripts/kit/bootstrap beside this file, then `make install-packages` installs package-lock.json with it,
+# @polyspec/kit included. Until then only those two steps run.
+
+# The folder of this file, the scripts/kit of the kit checkout, which holds the installer of the bootstrap (K614).
+KIT_BOOTSTRAP := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 #
 # KIT is the kit of the repository (K348-1). In a development checkout beside the kit checkout ../kit it is the dist of that
 # checkout from the first make on, the provider that the link installs (P30), so a fresh worktree reads kit.mk before npm ci and
@@ -35,7 +38,7 @@ endif
 .PHONY: install-tools
 install-tools: ## Install the npm of packageManager into var/tools, before the package is installed; only TOOLS=npm; ONLINE
 ifeq ($(TOOLS),npm)
-	$(ONLINE) $(BOOTSTRAP_NODE) scripts/kit/bootstrap/bootstrap.mts
+	$(ONLINE) $(BOOTSTRAP_NODE) $(KIT_BOOTSTRAP)/bootstrap/bootstrap.mts
 else
 	@echo "install-tools: only TOOLS=npm runs before the package is installed; run make install, which runs install-tools TOOLS=npm, install-packages, install-tools and install-link" >&2; exit 2
 endif

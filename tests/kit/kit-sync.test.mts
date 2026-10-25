@@ -4,7 +4,7 @@
 // package. The package here is a stub directory under node_modules; no test runs npm or uses the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -136,16 +136,17 @@ test('the commands run in the repository of their working directory and print th
   assert.equal(refused.stderr, '[kit-sync] kit-sync takes no argument: it writes the copies of the installed package. Usage: node scripts/kit/kit-sync.mts\n');
 });
 
-test('the package.json of kit declares its copies: the bootstrap, the release workflow and the principles, each a file of kit', () => {
+// K614: a repository includes the bootstrap of the kit checkout beside it and links PRINCIPLES.md, .editorconfig and
+// .claude/settings.json, so kit copies only what alint must read inside the repository: config/layout.kit.yml and the three
+// manifest schemas that it names.
+test('the package.json of kit declares as its copies only config/layout.kit.yml and the three schemas that it names (K614)', () => {
   const ROOT = path.join(import.meta.dirname, '../..');
   const manifest = readFixture<NpmManifest>(ROOT, 'package.json');
   const copies = manifest.kit?.copies;
   assert.ok(copies, 'package.json declares no kit.copies');
-  const bootstrap = readdirSync(path.join(ROOT, 'scripts/kit/bootstrap')).sort().map(name => `scripts/kit/bootstrap/${name}`);
-  assert.ok(bootstrap.length > 0, 'scripts/kit/bootstrap holds no file');
-  for (const file of ['scripts/kit/kit-bootstrap.mk', ...bootstrap]) assert.equal(copies[file], file, `${file} is not a copy of itself`);
-  assert.equal(copies['.github/workflows/release.yml'], 'workflows/release.yml');
-  for (const file of ['PRINCIPLES.md', 'PRINCIPLES.ko.md']) assert.equal(copies[file], file);
+  const copied = ['config/cargo.schema.json', 'config/composer.schema.json', 'config/layout.kit.yml', 'config/pyproject.schema.json'];
+  assert.deepEqual(Object.keys(copies).sort(), copied);
+  for (const file of copied) assert.equal(copies[file], file, `${file} is not a copy of itself`);
   assert.deepEqual(Object.values(copies).filter(from => !existsSync(path.join(ROOT, from))), [], 'these copies have no file in kit');
   const { files } = manifest;
   assert.ok(files, 'package.json declares no files');
@@ -216,8 +217,12 @@ test('a consumer after kit-sync passes owner-validate with the rules that kit sh
   sync(root);
   // make hooks writes the hooks of kit (K495, K522), which a rule that kit ships owns.
   for (const hook of HOOKS) write(root, hook, '#!/bin/sh\n');
+  // K614: a consumer holds its workflows and its commit identity as files of its own and links PRINCIPLES.md, its twin,
+  // .editorconfig and .claude/settings.json to the kit checkout, which rules that kit ships own too.
+  const held = ['.github/workflows/release.yml', '.github/workflows/gates.yml', '.claude/settings.json', '.editorconfig', 'PRINCIPLES.md', 'PRINCIPLES.ko.md', 'config/commit-identity.json'];
+  for (const file of held) write(root, file, `${file}\n`);
   write(root, 'config/owner-checks.json', '{}\n');
-  const tracked = [...Object.keys(copies), ...HOOKS, 'config/owner-checks.json', 'package.json', 'package-lock.json'];
+  const tracked = [...Object.keys(copies), ...HOOKS, ...held, 'config/owner-checks.json', 'package.json', 'package-lock.json'];
   const own: OwnerDeclaration = { owners: [{ paths: ['package.json', 'package-lock.json', 'config/owner-checks.json'], targets: ['owner-validate'] }] };
   const targets = new Set((kit.kit?.owners ?? []).flatMap(rule => rule.targets ?? []).concat(['owner-validate']));
   const project = { make: { targets: new Map([...targets].map(name => [name, { prerequisites: [], recipe: '' }])), variables: new Map<string, string>() }, scripts: {}, workspaces: [], prefixes: [] };

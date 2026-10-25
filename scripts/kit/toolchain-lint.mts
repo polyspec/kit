@@ -5,11 +5,11 @@
 //   phpcs, phpstan config/php-lint/composer.lock: the releases of squizlabs/php_codesniffer and phpstan/phpstan that it locks
 // The PHP lint is declared when the checkout declares PHP and its lock is present. A lock without a release of a tool throws an error with the file and
 // the value.
-import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileDigest } from './bootstrap/digest.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import type { Declared } from './bootstrap/toolchain-declared.mts';
+import { kitFile } from './kit-files.mts';
 import { readComposerLock } from './manifests.mts';
 
 /** The declared PHP lint of a checkout; an undeclared one is absent. */
@@ -22,11 +22,12 @@ export type DeclaredLintTools = {
 /** The declared PHP lint of the checkout at `root`. */
 export function declaredLintTools(root: string): DeclaredLintTools {
   const declared: DeclaredLintTools = {};
-  const lock = 'config/php-lint/composer.lock';
-  // kit.copies writes config/php-lint into every repository, so the PHP lint is a tool of a repository that declares PHP
-  // (config/toolchain.json php or .php-version), not of every repository that holds the copy.
-  if (declaredToolchain(root).php && existsSync(path.join(root, lock))) {
-    declared.phpLint = { lock: fileDigest(path.join(root, lock)), manifest: 'config/php-lint/composer.json', source: lock };
+  // The PHP lint is the Composer project config/php-lint of the kit that runs, read through the link (K614), and a tool of a
+  // repository that declares PHP (config/toolchain.json php or .php-version), not of every repository.
+  const project = path.relative(root, kitFile('config/php-lint'));
+  const lock = path.join(project, 'composer.lock');
+  if (declaredToolchain(root).php) {
+    declared.phpLint = { lock: fileDigest(path.join(root, lock)), manifest: path.join(project, 'composer.json'), source: lock };
     const packages = readComposerLock(root, lock).packages ?? [];
     for (const [tool, name] of [['phpcs', 'squizlabs/php_codesniffer'], ['phpstan', 'phpstan/phpstan']] as const) {
       const locked = packages.find(entry => entry.name === name)?.version;
