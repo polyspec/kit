@@ -37,7 +37,7 @@ The link is the kit tool `scripts/kit/link.mts` with `scripts/kit/link-folders.m
 
 ## Verification
 
-`make link-state-check` (K305-1, P30) is a gate of every repository. It fails on a provided package folder that is a copy or links elsewhere than to its provider, on a tracked lock that records a polyspec package that a sibling provides as a path or a link instead of its release record (K507; a `file:` entry that names the release tarball is the release record, and the repository's own packages are paths by right), and on a wrong workspace link, `go.work`, Claude Code hook, mise trust or merged worktree. It judges no version and no requirement. `make link-check` lists each provided folder that is a copy or links elsewhere.
+`make link-state-check` (K305-1, P30) is a gate of every repository. It fails on a provided package folder that is a copy or links elsewhere than to its provider, on a tracked lock that records a polyspec package that a sibling provides as a path or a link instead of its release record (K507; a `file:` entry that names the release tarball is the release record, and the repository's own packages are paths by right), and on a wrong workspace link, `go.work` or Claude Code hook. It judges no version and no requirement. `make link-check` lists each provided folder that is a copy or links elsewhere.
 
 ## Worktrees
 

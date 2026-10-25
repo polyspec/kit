@@ -5,7 +5,7 @@
 // rebase moved it onto a newer main (K381-1). For each merged branch, the worktree that has it checked out is removed when it
 // has no uncommitted change (an ignored install does not count), then the branch is deleted with `git branch -d`. A dirty worktree, an unmerged, a fresh or a reflog-less
 // branch is listed with its reason and left, so a second run leaves the same state. It is a module of its own beside land.mts, which
-// removes one branch and its worktree after a merge; link-state-check reads its branchStates to find a merged branch that is left.
+// removes one branch and its worktree after a merge.
 // Before a worktree is removed, the stop targets of WORKTREE_STOP run in it (K441), and the processes that name a dead worktree
 // folder of the repository are listed by pid and path, and never killed.
 //

@@ -13,8 +13,6 @@
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { isKitHookEntry, kitHookCheckout, kitNodeRunnable, trackedWorkspaceFolders, workspaceHookEntry, workspaceSettings } from './link.mts';
-import { buildState } from './link-build.mts';
-import { git } from './git.mts';
 import { providers, siblingCheckouts, type Tool, trackedManifests, workspaceOf } from './link-providers.mts';
 import { composerVendorDir, folderFindings, providedFolders } from './link-folders.mts';
 import { isTable, readToml } from './toml.mts';
@@ -22,29 +20,8 @@ import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { ignoredPaths, trackedFiles } from './tracked-files.mts';
 import { isJsonObject, isStringList, readJsonObject } from './bootstrap/files.mts';
-import { foreignTrusts } from './bootstrap/install-mise.mts';
-import { toolsRoot } from './bootstrap/tool-wrappers.mts';
-import { branchStates } from './worktree-prune.mts';
 
 const isLink = (file: string) => lstatSync(file, { throwIfNoEntry: false })?.isSymbolicLink() === true;
-
-/** A polyspec package found installed: its ecosystem, name, folder and version. */
-type Installed = { ecosystem: 'npm' | 'composer'; name: string; folder: string; version: string | undefined; dist?: string | undefined };
-
-/** The polyspec packages of node_modules below every package.json of `root`. */
-function npmInstalled(root: string): Installed[] {
-  const found: Installed[] = [];
-  for (const manifest of trackedFiles(root).filter(file => path.posix.basename(file) === 'package.json')) {
-    const scope = path.join(root, path.posix.dirname(manifest), 'node_modules/@polyspec');
-    for (const item of existsSync(scope) ? readdirSync(scope) : []) {
-      const folder = path.join(scope, item);
-      const version = existsSync(path.join(folder, 'package.json')) ? readJsonObject(path.join(folder, 'package.json')).version : undefined;
-      found.push({ ecosystem: 'npm', name: `@polyspec/${item}`, folder, version: typeof version === 'string' ? version : undefined });
-    }
-  }
-  return found;
-}
-
 
 /**
  * The findings of the go.work files of `root`: each `use` folder holds a go.mod. A go.work that link wrote (untracked and git-ignored)
@@ -137,25 +114,6 @@ function workspaceLinkFindings(root: string, folders: readonly string[]): string
   return found;
 }
 
-/** The findings of the trusted-configs of `root` that trust something other than its own mise.toml (K397). */
-function trustFindings(root: string): string[] {
-  return foreignTrusts(root).map(({ name, target }) => `mise trusted-configs ${name}: trusts ${target}, not the mise.toml of the checkout; run make install-tools`);
-}
-
-/**
- * The findings of the merged branches of `root` that are left, with their worktree: `make worktree-prune` removes them (K381). A linked
- * worktree judges only its own branch, so the branch of another worktree fails no setup of this one; the main checkout judges every
- * branch (K532).
- */
-function mergedFindings(root: string): string[] {
-  const checkout = realpathSync(root);
-  const linked = realpathSync(toolsRoot(root)) !== checkout;
-  return branchStates(root)
-    .filter(state => state.merged && (!linked || (state.folder !== undefined && realpathSync(state.folder) === checkout)))
-    .map(state => `branch ${state.branch}${state.folder === undefined ? '' : ` in worktree ${path.relative(root, state.folder) || '.'}`} is merged into main and left. Fix: make worktree-prune`);
-}
-
-
 /**
  * K440, K440-2: the findings of the workspace folder of `root` whose kit checkout has claude-hook. Three classes, one message each: the
  * node that runs the hook is missing or not executable (kitNodeRunnable); the settings lack the hook (no PreToolUse entry runs the
@@ -173,24 +131,6 @@ function workspaceHookFindings(root: string): string[] {
   const present = pre.filter(isKitHookEntry);
   if (present.length === 0) found.push(`${file}: no Bash PreToolUse hook runs the claude-hook of the kit checkout (K440); fix: make link`);
   else if (JSON.stringify(present) !== JSON.stringify([workspaceHookEntry(kit)])) found.push(`${file}: the Bash PreToolUse hook of the claude-hook of the kit checkout differs from the entry the link writes (K440-2); fix: make link`);
-  return found;
-}
-
-/**
- * K453: the findings of the linked npm providers whose build is stale, read by buildState (link-build.mts). A consumer judges the build it
- * uses, since land builds nothing: a build after a fast-forward cannot be undone when it fails, and main also moves by direct commits.
- */
-function buildFindings(installed: readonly Installed[]): string[] {
-  const found: string[] = [];
-  for (const item of installed) {
-    // The provider folder is the real folder of the package.json, which the directory link leads to (K591).
-    const manifest = path.join(item.folder, 'package.json');
-    if (item.ecosystem !== 'npm' || !(isLink(item.folder) || isLink(manifest)) || !existsSync(manifest)) continue;
-    const folder = path.dirname(realpathSync(manifest));
-    const repository = git(folder, 'rev-parse', '--show-toplevel').trim();
-    const state = buildState(repository, folder);
-    if (state.startsWith('stale')) found.push(`npm ${item.name}: the build of ${repository} is ${state}; fix: run link.mjs rebuild ${repository}`);
-  }
   return found;
 }
 
@@ -270,11 +210,11 @@ function folderLinkFindings(root: string, folders: readonly string[]): string[] 
 
 /**
  * The findings of the links of `root`, sorted: K507's release record of the tracked locks, the folder of each provided package (a link to
- * its provider, never a copy), the workspace links, go.work, and the hook, trust, merged-worktree and build checks of the checkout.
+ * its provider, never a copy), the workspace links, go.work and the hook of the checkout.
  */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const folders = manifestFolders(root);
-  return [...trackedLockFindings(root), ...folderLinkFindings(root, folders), ...workspaceHookFindings(root), ...workspaceLinkFindings(root, folders), ...goFindings(root, env), ...trustFindings(root), ...mergedFindings(root), ...buildFindings(npmInstalled(root))].sort();
+  return [...trackedLockFindings(root), ...folderLinkFindings(root, folders), ...workspaceHookFindings(root), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
 }
 
 if (isMain(import.meta.url)) {

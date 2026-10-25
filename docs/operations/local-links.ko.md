@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 7b37cbd5032fb3495f4bc7de02cb370dc2b09599b8984fbd9f12d924ee56a864 -->
+<!-- source-sha256: e080655439eeee06712abf54b9565072e03da24198896c63c726daf1dae7413b -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -38,7 +38,7 @@ link는 kit 도구 `scripts/kit/link.mts`와 `scripts/kit/link-folders.mts`입�
 
 ## 검증
 
-`make link-state-check`(K305-1, P30)는 모든 저장소의 gate입니다. 제공되는 패키지 폴더가 복사본이거나 provider가 아닌 곳을 가리키면 실패합니다. sibling이 제공하는 polyspec 패키지를 release 기록 대신 path나 link로 적은 tracked lock(K507. release tarball을 가리키는 `file:` 항목은 release 기록이며, 저장소 자신의 패키지는 당연히 path입니다), 잘못된 workspace link, `go.work`, Claude Code hook, mise trust, merge된 worktree에서도 실패합니다. 버전과 요구사항은 판단하지 않습니다. `make link-check`는 복사본이거나 다른 곳을 가리키는 제공 폴더를 나열합니다.
+`make link-state-check`(K305-1, P30)는 모든 저장소의 gate입니다. 제공되는 패키지 폴더가 복사본이거나 provider가 아닌 곳을 가리키면 실패합니다. sibling이 제공하는 polyspec 패키지를 release 기록 대신 path나 link로 적은 tracked lock(K507. release tarball을 가리키는 `file:` 항목은 release 기록이며, 저장소 자신의 패키지는 당연히 path입니다), 잘못된 workspace link, `go.work`, Claude Code hook에서도 실패합니다. 버전과 요구사항은 판단하지 않습니다. `make link-check`는 복사본이거나 다른 곳을 가리키는 제공 폴더를 나열합니다.
 
 ## Worktree
 

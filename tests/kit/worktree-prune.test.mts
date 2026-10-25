@@ -1,6 +1,5 @@
-// Tests of scripts/kit/worktree-prune.mts and of the merged-branch finding of link-state-check (K381): a branch with commits of its
-// own that are all in main is merged; make worktree-prune removes it with its clean worktree and keeps a fresh, unmerged or dirty
-// one with the reason, and a second run leaves the same state; link-state-check fails while a merged branch or its worktree is left.
+// Tests of scripts/kit/worktree-prune.mts (K381): a branch with commits of its own that are all in main is merged; make worktree-prune
+// removes it with its clean worktree and keeps a fresh, unmerged or dirty one with the reason, and a second run leaves the same state.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
@@ -9,7 +8,6 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { foreignTrusts } from '../../scripts/kit/bootstrap/install-mise.mts';
-import { linkFindings } from '../../scripts/kit/link-state-check.mts';
 import { branchStates, prune } from '../../scripts/kit/worktree-prune.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
@@ -79,18 +77,6 @@ test('worktree-prune removes merged branches and their clean worktrees, and keep
   const before = [git(main, 'worktree', 'list', '--porcelain'), git(main, 'for-each-ref', 'refs/heads')].join('\n');
   prune(main, { print: () => {} });
   assert.equal([git(main, 'worktree', 'list', '--porcelain'), git(main, 'for-each-ref', 'refs/heads')].join('\n'), before, 'a second run leaves the same state');
-});
-
-test('link-state-check fails while a merged branch is left (K381)', (t) => {
-  const { main, merged } = fixture(t);
-  const findings = linkFindings(main, process.env);
-  const left = findings.filter(finding => /fix\/merged-K1/.test(finding));
-  assert.equal(left.length, 1, findings.join('\n'));
-  assert.match(left[0] ?? '', /repo-merged/, 'the finding names the worktree');
-  assert.match(left[0] ?? '', /make worktree-prune/, 'the finding names the fix');
-  assert.equal(existsSync(merged), true);
-  // K532: the merged branch whose worktree has uncommitted changes is in use, not left.
-  assert.equal(findings.some(finding => /fix\/dirty-K2|fix\/fresh-K3|fix\/open-K4|fix\/noreflog-K5/.test(finding)), false, 'the other branches are no finding');
 });
 
 // K381-1: a fresh branch that a rebase moved onto a newer main holds commits of main after its creation point, none of its own; a
@@ -167,9 +153,8 @@ test('worktree-prune keeps a merged worktree that a process runs in, and removes
 });
 
 // K532: a linked worktree runs the tools and the trust store of its main checkout (K519), so the trust of the main checkout is its own;
-// a branch reset onto main is fresh, whatever its reflog held before the reset; and link-state-check in a linked worktree judges only
-// the branch of that worktree, while the main checkout names every merged branch (K381).
-test('link-state-check of a linked worktree accepts the trust of its main checkout, a branch reset onto main is fresh, and another worktree is no finding (K532)', (t) => {
+// and a branch reset onto main is fresh, whatever its reflog held before the reset.
+test('a linked worktree has the trust of its main checkout, and a branch reset onto main is fresh (K532)', (t) => {
   const { main } = fixture(t);
   const trusts = path.join(main, 'var/tools/mise/state/trusted-configs');
   mkdirSync(trusts, { recursive: true });
@@ -198,7 +183,4 @@ test('link-state-check of a linked worktree accepts the trust of its main checko
   assert.equal(reset?.merged, false, 'a branch that a reset moved onto main starts anew');
   assert.match(reset?.reason ?? '', /^fresh/);
 
-  const findings = linkFindings(own, process.env);
-  assert.equal(findings.some(finding => /fix\/merged-K1|fix\/own-K8|trusted-configs/.test(finding)), false, findings.join('\n'));
-  assert.equal(linkFindings(main, process.env).filter(finding => /fix\/merged-K1/.test(finding)).length, 1, 'the main checkout names the left branch');
 });

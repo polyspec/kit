@@ -3,11 +3,10 @@
 // a plain copy among links is a finding. Composer runs as a stub that answers `vendor` to `config vendor-dir`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
-import { rebuild } from '../../scripts/kit/link-build.mts';
 import { linkFindings, lockSourceFindings } from '../../scripts/kit/link-state-check.mts';
 import { put, tree } from './tree.mts';
 
@@ -77,17 +76,25 @@ test('the Composer projects that kit writes are no consumer project, so a reposi
 });
 
 
-test('a trusted-configs entry other than the checkout own mise.toml is a finding (K397)', (t) => {
-  const root = tree(t, { 'mise.toml': '[tools]\nnode = "26.11.1"\n' });
-  const trusted = path.join(root, 'var/tools/mise/state/trusted-configs');
+// K594: link-state-check judges only that each install location is the right symbolic link (and the release record of the tracked
+// locks, go.work and the Claude Code hook): the trust of mise, a merged branch that is left and the build of a provider are no link,
+// so a foreign trust and a provider that was never built are no finding. K583 builds a stale provider at its commit.
+test('a foreign mise trust and a linked provider that was never built are no finding of link-state-check (K594)', (t) => {
+  const provider = tree(t, {
+    'package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1', main: './dist/x.mjs' }),
+    'Makefile': 'build:\n\tmkdir -p dist\n\tcp src/x.mjs dist/x.mjs\n',
+    '.gitignore': 'dist/\nvar/\n',
+    'src/x.mjs': 'export const v = 1;\n',
+  });
+  commitAll(provider, 'provider');
+  const consumer = tree(t, { 'package.json': '{"name": "cons"}', 'mise.toml': '[tools]\nnode = "26.11.1"\n' });
+  mkdirSync(path.join(consumer, 'node_modules/@polyspec'), { recursive: true });
+  symlinkSync(provider, path.join(consumer, 'node_modules/@polyspec/x'));
+  const trusted = path.join(consumer, 'var/tools/mise/state/trusted-configs');
   mkdirSync(trusted, { recursive: true });
-  // The trust of the checkout own mise.toml is a link to the folder of the checkout, and it is no finding.
-  symlinkSync(root, path.join(trusted, 'own'));
-  assert.deepEqual(linkFindings(root, process.env), []);
-  // A link to a folder outside the checkout trusts the mise.toml under it, here the home directory of mise.
-  const home = tree(t);
-  symlinkSync(home, path.join(trusted, 'Users-maxkwon-dd34fea3d53e4d0'));
-  assert.deepEqual(linkFindings(root, process.env), [`mise trusted-configs Users-maxkwon-dd34fea3d53e4d0: trusts ${home}, not the mise.toml of the checkout; run make install-tools`]);
+  symlinkSync(tree(t), path.join(trusted, 'Users-maxkwon-dd34fea3d53e4d0'));
+  commitAll(consumer, 'consumer');
+  assert.deepEqual(linkFindings(consumer, process.env), []);
 });
 
 // K448: an installed package folder that a sibling checkout provides is a link to that checkout, never a copy: a copy in the vendor of a
@@ -120,37 +127,6 @@ test('a provided package folder that is a copy is a finding, and its link to the
   assert.deepEqual(linkFindings(consumer).filter(line => line.includes('polyspec/z')), [], 'the link to the provider passes');
 });
 
-test('a linked npm provider whose build is stale is a finding that names the rebuild, and a rebuilt provider passes (K453)', (t) => {
-  const provider = tree(t, {
-    'package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1', main: './dist/x.mjs' }),
-    'Makefile': 'build:\n\tmkdir -p dist\n\tcp src/x.mjs dist/x.mjs\n',
-    '.gitignore': 'dist/\nvar/\n',
-    'src/x.mjs': 'export const v = 1;\n',
-  });
-  commitAll(provider, 'provider');
-  const consumer = tree(t, { 'package.json': '{"name": "cons"}' });
-  mkdirSync(path.join(consumer, 'node_modules/@polyspec'), { recursive: true });
-  symlinkSync(provider, path.join(consumer, 'node_modules/@polyspec/x'));
-  commitAll(consumer, 'consumer');
-  const finding = (state: RegExp) => linkFindings(consumer, process.env).filter(text => state.test(text));
-
-  // The provider has never been built: its output dist/x.mjs is missing.
-  assert.deepEqual(finding(/^npm @polyspec\/x: the build of .* is stale \(missing dist\/x\.mjs\); fix: run link\.mjs rebuild /), [
-    `npm @polyspec/x: the build of ${realpathSync(provider)} is stale (missing dist/x.mjs); fix: run link.mjs rebuild ${realpathSync(provider)}`,
-  ]);
-  rebuild(provider, () => {});
-  assert.deepEqual(linkFindings(consumer, process.env), [], 'a rebuilt provider passes');
-
-  // A source that is newer than the output and differs from the recorded build makes the build stale, until it is rebuilt.
-  const source = path.join(provider, 'src/x.mjs');
-  writeFileSync(source, 'export const v = 2;\n');
-  const future = new Date(Date.now() + 60_000);
-  utimesSync(source, future, future);
-  assert.deepEqual(finding(/is stale \(src\/x\.mjs is newer than dist\/x\.mjs\)/).length, 1, 'a changed source leaves the build stale');
-  rebuild(provider, () => {});
-  assert.deepEqual(linkFindings(consumer, process.env), [], 'the rebuilt provider passes again');
-});
-
 // K448 (K507): a tracked lock keeps the release record of each polyspec package that a sibling checkout provides; a file: entry that
 // names the release tarball is that record, and the repository's own packages (its workspace members, its in-repo path
 // repositories) are never findings, whatever their version.
@@ -164,23 +140,3 @@ test('a release tarball entry and the repository own packages are no lock-source
   assert.deepEqual(lockSourceFindings('composer.lock', composerLock, own), [], 'an own in-repo path repository is no finding');
 });
 
-test('a linked npm provider whose package folder is a tree of per-file links is judged by its build state (K558)', (t) => {
-  const provider = tree(t, {
-    'package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1', main: './dist/x.mjs' }),
-    'Makefile': 'build:\n\tmkdir -p dist\n\tcp src/x.mjs dist/x.mjs\n',
-    '.gitignore': 'dist/\nvar/\n',
-    'src/x.mjs': 'export const v = 1;\n',
-  });
-  commitAll(provider, 'provider');
-  const consumer = tree(t, { 'package.json': '{"name": "cons"}' });
-  const folder = path.join(consumer, 'node_modules/@polyspec/x');
-  mkdirSync(folder, { recursive: true });
-  for (const file of ['package.json', 'src/x.mjs']) {
-    mkdirSync(path.dirname(path.join(folder, file)), { recursive: true });
-    symlinkSync(path.join(provider, file), path.join(folder, file));
-  }
-  commitAll(consumer, 'consumer');
-  assert.deepEqual(linkFindings(consumer, process.env).filter(text => /is stale/.test(text)), [
-    `npm @polyspec/x: the build of ${realpathSync(provider)} is stale (missing dist/x.mjs); fix: run link.mjs rebuild ${realpathSync(provider)}`,
-  ]);
-});
