@@ -1149,3 +1149,10 @@ test('a commit on main of the kit package builds it when it changes a build inpu
   commitItem(root, { id: 'T1', type: 'docs', scope: 'parser', subject: 'Note the tool', bodyFile: body }, identity);
   assert.equal(existsSync(built), false, 'a commit of no build input builds nothing');
 });
+
+// K608: item-red runs the Verification on the tree of the row before its fix and takes no BEFORE=: a red of an old commit is taken by
+// hand with git, the user's ruling of 2026-10-25.
+test('make item-red takes no BEFORE= (K608)', () => {
+  const help = readFileSync(fileURLToPath(new URL('../../scripts/kit/kit.mk', import.meta.url)), 'utf8').split('\n').find(line => line.startsWith('item-red:')) ?? '';
+  assert.doesNotMatch(help, /BEFORE=/);
+});
