@@ -29,7 +29,7 @@ test('a tracked link of a shared root file of kit to the matching file of ../kit
   const root = path.join(parent, 'repo');
   mkdirSync(path.join(root, '.claude'), { recursive: true });
   initRepository(root);
-  for (const [file, target] of [['PRINCIPLES.md', '../kit/PRINCIPLES.md'], ['PRINCIPLES.ko.md', '../kit/PRINCIPLES.ko.md'], ['.editorconfig', '../kit/.editorconfig'], ['.claude/settings.json', '../../kit/claude/settings.json']]) symlinkSync(target, path.join(root, file));
+  for (const [file, target] of Object.entries({ 'PRINCIPLES.md': '../kit/PRINCIPLES.md', 'PRINCIPLES.ko.md': '../kit/PRINCIPLES.ko.md', '.editorconfig': '../kit/.editorconfig', '.claude/settings.json': '../../kit/claude/settings.json' })) symlinkSync(target, path.join(root, file));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   assert.deepEqual(symlinkFindings(root), []);
   const finding = (file: string) => `${file}: a tracked symbolic link; the repository creates no link but the links of the shared root files of kit to ../kit (K621). Fix: git rm --cached ${file} and track the file it names`;

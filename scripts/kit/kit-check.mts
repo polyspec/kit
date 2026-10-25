@@ -196,7 +196,7 @@ export function symlinkFindings(root: string): string[] {
     const shared = SHARED_LINKS[file];
     if (shared !== undefined) {
       const kit = path.join(root, '..', 'kit', shared);
-      if (git(root, 'cat-file', 'blob', entry.split(' ')[1]) === path.relative(path.dirname(path.join(root, file)), kit) && existsSync(kit)) return [];
+      if (git(root, 'cat-file', 'blob', `:${file}`) === path.relative(path.dirname(path.join(root, file)), kit) && existsSync(kit)) return [];
     }
     return [`${file}: a tracked symbolic link; the repository creates no link but the links of the shared root files of kit to ../kit (K621). Fix: git rm --cached ${file} and track the file it names`];
   });
