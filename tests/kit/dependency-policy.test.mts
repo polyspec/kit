@@ -351,3 +351,13 @@ test('the gate scoped to one package fails on that package only and drops the fi
   assert.match(scoped.stderr, /packages\/fixture-php\/extra\/composer\.json/);
   assert.doesNotMatch(scoped.stderr, /tools\/other\/composer\.json/);
 });
+
+// K602: the installs of the polyspec packages are links, so a Composer lock records a release that the development manifest has left;
+// by the user's ruling of 2026-10-25 the gate judges no lock against its manifest.
+test('the gate judges no Composer lock against its manifest (K602)', (t) => {
+  const root = fixture(t);
+  const file = readConfig<{ composerPlatforms: { manifest: string }[] }>(root, POLICY, 'dependency-policy.schema.json').composerPlatforms[0]?.manifest ?? '';
+  const manifest: unknown = JSON.parse(readFileSync(path.join(root, file), 'utf8'));
+  writeFileSync(path.join(root, file), JSON.stringify({ ...(manifest as object), version: '9.9.9' }));
+  assert.doesNotMatch(gate(root).stderr, /composer validate --strict/);
+});
