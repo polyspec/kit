@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fdd64ba205ff51dfd3df2c50351d1e0d484144a3130e1bf532e4d6a6d99704c7 -->
+<!-- source-sha256: 6bee5841f608d7c30a52d98b933268b36db9db80d0c5ee38e1e7bfb52273b7da -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make commits-check`는 commit Subject 안의 id가 마지막 id와 다를 때만 거부합니다. 같은 id를 두 번 쓴 것은 여전히 한 행을 가리키므로, id를 반복한 push된 commit을 다시 쓸 필요가 없습니다(K648).
 - `make commits-check`는 삭제 test를 대체하는 `Replaced-By`를 계속 허용하고, 항목이 명시적으로 보류되며 도달 가능한 보관 commit에 삭제 파일 내용이 모두 같을 때만 `Archived-To: <sha>`를 허용합니다(K647).
 - divergence-check는 function_exists 대상과 구현 루트의 PHP 함수 선언을 대조합니다. namespace와 무관하게 선언된 함수는 공존 finding으로 남고, pg_connect와 pcntl_signal_dispatch 같은 미선언 런타임 기능은 허용합니다(K644).
 - divergence-check는 전역 또는 네임스페이스 함수 확인을 PHP 구현 루트의 선언과 대조하고, 구현에 선언되지 않은 외부 네임스페이스 기능을 ORM 구현으로 오인하지 않습니다(K645).
