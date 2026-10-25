@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a59cc8bac901cb044a949d429dd9150a61218f7f075b24753c8f66d42af8c6ee -->
+<!-- source-sha256: 8b54ec752a1f93459dc26f3f3a5931f8076813a1d61dfab90563e9cee37b8bcc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- linked sources의 test는 package.json을 readFixture로 읽으므로 make lint-ts가 unsafe assertion을 보고하지 않는다(K633).
 - PHP 확장 테스트는 PATH의 첫 PHP 대신 .php-version의 PHP, 곧 kit 자신의 var/tools/bin wrapper로 build합니다. PATH의 PHP는 kit이 고정한 것과 다른 PHP-Parser를 요구할 수 있습니다. 이제 세션의 PATH에 따라 통과하거나 실패하지 않습니다(K630).
 - 저장소는 옆의 kit checkout의 source를 실행한다. kit-bootstrap.mk는 KIT를 그 scripts/kit로, KIT_EXT를 mts로 두고, package.json의 exports와 Claude hook은 source를 가리키며, source의 변경은 build 없이 소비자에 닿는다. npm pack은 dist exports, bootstrap, hook을 묶인 package에 쓰고(prepack) 그 뒤 되돌린다(postpack)(K613).
 - make worktree-prune을 삭제했습니다. make land가 process가 없는 merge된 branch의 worktree를 모두 지우고(K626), prune을 import하는 consumer도 더 없습니다(orm T238)(K612).

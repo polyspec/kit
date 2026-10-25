@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The test of the linked sources reads package.json through readFixture, so make lint-ts reports no unsafe assertion (K633).
 - The PHP extension tests build with the PHP of .php-version, kit's own var/tools/bin wrappers, instead of the PHP first on PATH, whose gen_stub.php may need another PHP-Parser than kit pins; they no longer pass or fail by the PATH of the session (K630).
 - A repository runs the sources of the kit checkout beside it: kit-bootstrap.mk sets KIT to its scripts/kit and KIT_EXT to mts, the exports of package.json and the Claude hook name the sources, and a change of a source reaches a consumer with no build; npm pack writes the dist exports, bootstrap and hook into the packed package (prepack) and restores them after (postpack) (K613).
 - make worktree-prune is deleted: make land removes the worktree of every merged branch in which no process runs (K626), and no consumer imports prune any longer (orm T238) (K612).

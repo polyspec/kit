@@ -10,6 +10,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readFixture } from './json-fixture.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const NODE = process.execPath;
@@ -29,7 +30,7 @@ const run = (cwd: string, source: string) => spawnSync(NODE, ['--input-type=modu
 test('every export of the package resolves through the link to its source in scripts/kit', (t) => {
   const root = consumer(t);
   symlinkSync(ROOT, path.join(root, 'node_modules/@polyspec/kit'), 'dir');
-  const manifest = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8')) as { exports: Record<string, unknown> };
+  const manifest = readFixture<{ exports: Record<string, string> }>(ROOT, 'package.json');
   const subpaths = Object.keys(manifest.exports).filter(subpath => subpath !== './package.json');
   assert.ok(subpaths.length > 0, 'the package exports its modules');
   for (const subpath of subpaths) {
