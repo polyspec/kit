@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make worktree-link-state` prepares a worktree's linked installs and runs `link-state-check` without rebuilding product packages; `worktree-setup` keeps rebuilding first (K619).
 - catch-check-rust no longer reports a narrow Err arm: an arm with a guard, such as `Err(error) if error.kind() == NotFound => {}`, or one whose inner pattern names an error variant handles one named error and leaves every other to a later arm; an empty arm of every error, `Err(_)` or a binding, is still a finding (K620).
 - kit-check accepts the tracked links of PRINCIPLES.md, its twin, .editorconfig and .claude/settings.json to the matching files of ../kit, the second exception of the rule that a repository creates no link, and still reports every other tracked link (K621).
 - kit-check reads the fixed tasks of kit-bootstrap.mk from the kit that runs, since a repository holds no copy of it after K614 (K617).

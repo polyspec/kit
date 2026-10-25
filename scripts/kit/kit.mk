@@ -384,6 +384,10 @@ link-check: ## List each installed package folder that a checkout of CHECKOUTS, 
 worktree-setup: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default) from main; links the installs of the main checkout, each npm project, Python environment and Composer vendor folder with the repository's own packages from the worktree, builds the worktree's own packages and checks it with link-state-check; installs nothing (K519, K521, K530, K533); a second run converges (K348); ONLINE
 	$(ONLINE) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix)
 
+.PHONY: worktree-link-state
+worktree-link-state: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default), link the main checkout's installs and worktree packages, and run link-state-check without rebuilding product packages; offline
+	$(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix) --link-state-only
+
 # WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of
 # orm). land and worktree-prune run it, with make in the worktree, before they remove the worktree; a failing stop keeps the worktree.
 .PHONY: land

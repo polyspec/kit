@@ -13,6 +13,8 @@ import { put, tree } from './tree.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const KIT_MK = path.join(ROOT, 'scripts/kit/kit.mk');
+const COMMON_DIR = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
+const MAIN = path.dirname(path.resolve(ROOT, COMMON_DIR));
 const recipes = readFileSync(KIT_MK, 'utf8').split('\n').filter(line => line.startsWith('\t'));
 
 test('every recipe of kit.mk runs its tool through KIT and KIT_EXT, and none names scripts/kit', () => {
@@ -34,6 +36,12 @@ test('link-check names the sibling checkouts when CHECKOUTS is empty, as link do
   assert.match(dryRun('link'), /--siblings$/);
   assert.match(dryRun('link-check', 'CHECKOUTS=a b'), / a b$/);
   assert.match(dryRun('link', 'CHECKOUTS=a b'), / a b$/);
+});
+
+test('worktree-link-state invokes the explicit link-only worktree path (K619)', () => {
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'worktree-link-state', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', 'NAME=links', 'ID=K619'], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.equal(dry.stdout.trim(), `${path.join(MAIN, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/worktree-setup.mjs links K619 fix --link-state-only`);
 });
 
 test('kit.mk stops while KIT or KIT_EXT is unset', () => {

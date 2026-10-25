@@ -71,6 +71,26 @@ test('worktree-setup rebuilds the packages of the worktree before its link-state
   assert.ok(lines.some(line => line.includes('link rebuild in')), lines.join('\n'));
 });
 
+// K619: a worktree can link its environments and run link-state-check without rebuilding product packages.
+test('worktree-link-state links and checks the worktree without rebuilding product packages (K619)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'process.exit(37);\n',
+    'Makefile': 'link-state-check:\n\t@echo checked > link-state-checked\n',
+    '.gitignore': 'node_modules/\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const lines: string[] = [];
+  const folder = setupWorktree(main, { name: 'links', id: 'K619', type: 'fix' }, { print: text => lines.push(text), linkStateOnly: true });
+  assert.equal(readFileSync(path.join(folder, 'link-state-checked'), 'utf8'), 'checked\n', 'the required link-state-check ran');
+  assert.ok(lines.some(line => line.includes('link-state-check in')), lines.join('\n'));
+  assert.ok(!lines.some(line => line.includes('link rebuild in')), lines.join('\n'));
+});
+
 // K519: a worktree whose node_modules is a folder of its own is refused, since a worktree installs nothing.
 test('worktree-setup refuses a package installed in the node_modules of a worktree (K519, K530)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));

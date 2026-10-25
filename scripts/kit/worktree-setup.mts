@@ -311,9 +311,9 @@ function writeInstalled(source: string, target: string): void {
 }
 
 /**
- * Creates or reuses the worktree of the row in the repository of `root`, links its folders (linkFolders), rebuilds its packages and runs
- * `make link-state-check` in it; returns its folder. Throws, creating nothing, when the folder exists as anything but the worktree of
- * the branch.
+ * Creates or reuses the worktree of the row in the repository of `root`, links its folders (linkFolders), then runs `make link-state-check`
+ * in it. Unless `linkStateOnly` is true, it rebuilds its packages before the check; returns its folder. Throws, creating nothing, when
+ * the folder exists as anything but the worktree of the branch.
  */
 /**
  * The link tool that rebuilds the packages of a worktree (K482). A consumer runs the link of its installed kit, and kit itself runs its
@@ -338,7 +338,7 @@ function goWorkFiles(main: string, folder: string): string[] {
   return gitResult(main, 'check-ignore', '--no-index', ...candidates).stdout.split('\n').filter(Boolean).filter(file => gitResult(main, 'ls-files', '--error-unmatch', '--', file).status !== 0);
 }
 
-export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer }: { print?: (text: string) => void; composer?: string } = {}): string {
+export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer, linkStateOnly = false }: { print?: (text: string) => void; composer?: string; linkStateOnly?: boolean } = {}): string {
   const main = path.dirname(path.resolve(root, git(root, 'rev-parse', '--git-common-dir').trim()));
   const { folder, branch } = worktreeOf(main, row);
   const listed = git(main, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
@@ -359,7 +359,7 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     copyFileSync(path.join(main, file), path.join(folder, file));
     print(`[worktree-setup] wrote ${file} of the main checkout`);
   }
-  for (const target of ['rebuild', 'link-state-check']) {
+  for (const target of linkStateOnly ? ['link-state-check'] : ['rebuild', 'link-state-check']) {
     // The rebuild (K482) builds the packages of the worktree's own repository before the check reads their builds: a new worktree has none yet.
     const [command, args] = target === 'rebuild'
       ? [process.execPath, [linkTool(folder), 'rebuild', '.']]
@@ -373,9 +373,13 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
 }
 
 if (isMain(import.meta.url)) {
-  const [name = '', id = '', type = 'fix'] = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const linkStateOnly = args.includes('--link-state-only');
+  const positional = args.filter(argument => argument !== '--link-state-only');
+  const [name = '', id = '', type = 'fix', ...extra] = positional;
   try {
-    console.log(`[worktree-setup] ready: ${setupWorktree(repositoryRoot(), { name, id, type })}`);
+    if (extra.length > 0) throw new Error(`unexpected argument ${JSON.stringify(extra[0])}`);
+    console.log(`[worktree-setup] ready: ${setupWorktree(repositoryRoot(), { name, id, type }, { linkStateOnly })}`);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[worktree-setup] ${error.message}`);
