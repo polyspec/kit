@@ -5,24 +5,16 @@
 
 ## Unreleased
 
+- catch-check refuses a catch clause without a binding, which cannot inspect what it caught, unless the line before it states the reason with `// catch-any -- <reason>` (K561).
+- The catches of kit that read any failure as missing, absent, not running or a note narrow to the class or errno that means their outcome and rethrow the rest (K559).
 - Divergence-check evaluates a multiline PHP assertion as one assertion, while still reporting environment probes used in branches (K543-1).
-
 - land excludes ANSI-colored jscpd aggregate Total summary rows from duplication finding comparisons when scan totals change, while preserving clone findings (K570).
-
 - PHP extension stub parsing ignores namespace text inside comments when identifying explicitly internal classes (K569-1).
-
 - PHP extension declaration checks honor explicitly internal stub classes and compare PHP `self` types by their declaring class; undeclared public classes still fail (K569).
-
 - land recognizes ANSI-colored jscpd per-language summary rows when comparing duplication-check findings, while preserving clone details as findings (K394-5).
-
-
 - land compares duplication-check findings without recognized per-language jscpd statistics rows, while newly added clone blocks still refuse integration (K394-4).
-
-
 - The Claude hook follows a runner command forwarded after `--` by a Node wrapper, so exact Cargo native cases are recognized through Make targets. An `--exact` run needs a selected test name; no-selection and workspace runs remain refused locally (K568).
-
 - Parity R12 distinguishes feature bindings by implementation and native case id, so one implementation can bind separate database cases from the same test file. It still rejects a repeated case id and duplicate suite or API entries; feature runs execute every declared id twice (K567).
-
 - Parity owner scopes derive applicability from declared coverage parts and release artifacts, preserving shared requirements across clients; Cargo feature bindings run only their exact native test id (K566).
 - The gates workflow builds a freshly cloned sibling Kit before consumer installation, so the consumer bootstrap can load its dist (K565).
 - dependency-policy-check accepts a remote package tarball when the exact name and URL are supplied by root overrides for a direct root or workspace dependency; unrelated package names, URLs and transitive-only overrides still fail (K564).

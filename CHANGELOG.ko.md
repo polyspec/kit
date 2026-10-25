@@ -1,29 +1,21 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bf22c30ce228ad68f0d155d6a320b84ee14aeff226a3006babeace520dba6e87 -->
+<!-- source-sha256: 1046ba3e9482eda360e6b799f4272e15f386bd2f311b9a5b4402ec2a6358e99a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- catch-check은 잡은 것을 살필 수 없는, binding 없는 catch 절을 거부한다. 앞 줄이 `// catch-any -- <이유>`로 이유를 밝히면 통과한다 (K561).
+- 어떤 실패든 없음, 부재, 실행 안 함 또는 note로 읽던 kit의 catch는 자기 결과를 뜻하는 class나 errno로 좁히고 나머지를 다시 던진다 (K559).
 - divergence-check는 multiline PHP assertion을 하나의 assertion으로 평가하고, branch에서 쓰인 environment probe는 계속 보고한다(K543-1).
-
 - land는 scan total이 달라질 때 duplication finding 비교에서 ANSI 색상 jscpd aggregate Total summary 행을 제외하고 clone finding은 유지한다(K570).
-
 - PHP extension stub parser는 internal class를 찾을 때 comment 안의 namespace 텍스트를 무시한다(K569-1).
-
 - PHP extension declaration check는 stub에 명시된 internal class를 반영하고 PHP `self` type을 선언 class와 비교하며, 선언되지 않은 public class는 계속 거부한다(K569).
-
 - land는 duplication-check finding을 비교할 때 ANSI 색상이 적용된 jscpd 언어별 요약 행을 인식하며 clone 세부 내용은 finding으로 유지한다(K394-5).
-
-
 - land는 duplication-check 결과 비교에서 형식이 확인된 jscpd 언어별 통계 행만 제외하고, 새 clone 블록은 계속 통합을 거부한다(K394-4).
-
-
 - Claude hook은 Node wrapper가 `--` 뒤에 전달하는 runner command를 따라가므로 Make target을 통한 exact Cargo native case를 인식한다. `--exact` 실행에는 선택된 test name이 필요하며 selection 없는 실행과 workspace 실행은 local에서 계속 거부한다(K568).
-
 - Parity R12는 feature binding을 implementation과 native case id로 구분하여 한 implementation이 같은 test file의 database case를 각각 binding할 수 있다. 같은 case id 반복과 suite/API 중복 항목은 계속 거부하며, feature run은 선언된 모든 id를 각각 두 번 실행한다(K567).
-
 - Parity owner scope는 선언된 coverage part와 release artifact에서 적용 범위를 도출해 공유 requirement를 모든 client에 보존한다. Cargo feature binding은 exact native test id만 실행한다(K566).
 - gates workflow는 consumer를 설치하기 전에 fresh sibling Kit을 build하므로 consumer bootstrap이 Kit의 dist를 읽는다(K565).
 - dependency-policy-check는 root override의 정확한 package 이름과 URL이 root 또는 workspace의 직접 dependency와 일치할 때 remote package tarball을 허용한다. 다른 이름, URL과 transitive-only override는 계속 실패한다(K564).
