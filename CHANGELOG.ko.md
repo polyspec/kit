@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2de6e4e32b04e82acc80c8fd09702804abaf8c2058d11a7774597ff73e17d0eb -->
+<!-- source-sha256: d21770091ab46d5e9770c811efc1d43ce3baf970f85919faa2753b333a1168aa -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- install-tools는 선언한 PHP의 gen_stub.php가 이름 붙인 PHP-Parser release를 release마다 둔 kit의 잠긴 Composer 프로젝트에서 놓습니다: PHP 8.4는 scripts/kit/php-arginfo/5.0.0, PHP 8.5는 5.6.1. 이제 PHP 8.5를 선언한 저장소가 설치됩니다(K637).
 - parity feature unit은 한 feature의 여러 coverage part에 requirement를 명시적으로 scope합니다. 각 implementation에는 자체 test binding이 필요하고, 모든 owner는 이름으로 지칭되거나 이름이 나온 implementation과 test를 명시적으로 공유해야 합니다(K635).
 - divergence-check는 Go GOOS/GOARCH 값을 fmt.Fprintf의 machine 필드에서만 소비할 때 진단 metadata로 취급합니다. 실제 platform 분기는 계속 finding입니다(K636).
 - make land는 한국어 쌍의 source-sha256 줄만 충돌한 rebase를 스스로 풉니다. 한 줄을 남기고 make documents-stamp로 다시 찍은 뒤 rebase를 이어갑니다. 다른 줄의 충돌은 여전히 거부합니다(K634).
