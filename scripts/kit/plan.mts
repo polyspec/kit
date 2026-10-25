@@ -53,9 +53,8 @@ import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
 import { privatePaths, stagedTwinFindings } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { isSource } from './kit-check.mts';
-import { buildState, rebuild } from './link-build.mts';
 import { withLandLock } from './land.mts';
+import { refreshLinked } from './linked-build.mts';
 import { present } from './present.mts';
 
 const SLUG = /^[a-z][a-z0-9-]*$/;
@@ -501,17 +500,6 @@ export function itemRed(root: string, id: string, print: (text: string) => void 
   return record;
 }
 
-/**
- * The files of `files` that are build inputs of an npm package of the repository `root` with a built output, each with the folder of
- * its package (K525, K583): a file of the package outside docs/, in a package whose build state is no `source`.
- */
-function buildInputs(root: string, files: readonly string[]): { file: string; folder: string }[] {
-  const packages = git(root, 'ls-files', '-z', '--', 'package.json', '*/package.json').split('\0').filter(Boolean).map(file => path.dirname(file));
-  const built = packages.filter(folder => buildState(root, path.join(root, folder)) !== 'source');
-  const inside = (folder: string, file: string) => folder === '.' || file.startsWith(`${folder}/`);
-  return files.filter(file => !file.startsWith('docs/')).flatMap(file => built.filter(folder => inside(folder, file)).map(folder => ({ file, folder })));
-}
-
 /** The cells of the row of the item `id` in the checklist text `text`, or undefined. */
 function rowCells(text: string, id: string): string[] | undefined {
   const line = text.split('\n').find(row => row.startsWith(`| ${id} |`));
@@ -605,39 +593,9 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
     // K551: the files of the commit, read before it, since every consumer links the dist of kit main live.
     const files = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
     const message = commitStaged(root, commit, env, { registration });
-    if (isSource(root)) {
-      if (files.some(file => BUILD_INPUT.test(file))) buildKit(root);
-    } else rebuildStale(root, files);
+    refreshLinked(root, files, text => console.log(`[plan] ${text}`));
     return message;
   });
-}
-
-// The inputs of the build of the kit package (K551): the sources of its tools and the files that configure their build.
-const BUILD_INPUT = /^(?:scripts\/kit\/.*\.mts$|tsconfig\.build\.json$|package\.json$)/;
-
-/** Builds the kit package `root` with make kit-build after a commit on main (K551); a failed build throws, naming it. */
-function buildKit(root: string): void {
-  const result = spawnSync('make', ['--no-print-directory', 'kit-build'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
-  if (result.error) throw new Error(`make kit-build could not start in ${root}: ${result.error.message}`);
-  if (result.status !== 0) throw new Error(`the commit is made, but make kit-build failed in ${root} with exit status ${result.status}, so dist is older than its sources; fix the build and run make kit-build:\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-20).join('\n')}`);
-}
-
-/**
- * Rebuilds the repository `root` after a commit on main whose `files` change a build input of one of its npm packages that has a
- * built output, as packages/compiler/dist, when that output is stale (K583, follows K551): other checkouts link the main checkout live,
- * and their link-state-check fails while its build is older than its sources. The build is the one of `link.mjs rebuild`, which
- * records the inputs it built; a failed build throws, naming it. A commit of no build input, or one whose outputs are fresh, builds
- * nothing.
- */
-function rebuildStale(root: string, files: readonly string[]): void {
-  const stale = [...new Set(buildInputs(root, files).map(input => input.folder))].filter(folder => buildState(root, path.join(root, folder)).startsWith('stale'));
-  if (stale.length === 0) return;
-  try {
-    rebuild(root, text => console.log(`[plan] ${text.trim()} (${stale.join(', ')} stale after the commit)`));
-  } catch (error) {
-    // The commit is made; the failure of the build names it and its fix, keeping its cause.
-    throw new Error(`the commit is made, but the build of ${stale.join(', ')} failed, so the linked outputs are older than their sources; fix the build and run node <kit>/dist/link.mjs rebuild .`, { cause: error });
-  }
 }
 
 /** The body of commitItem: checks the staged change and its message, and commits it (K249-4). */

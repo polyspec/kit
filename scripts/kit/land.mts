@@ -28,6 +28,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { expandMake } from './recipe-tools.mts';
 import { clashMessage, rowClashes } from './row-ids.mts';
 import { trackedFiles } from './tracked-files.mts';
+import { refreshLinked } from './linked-build.mts';
 
 // The gates that land whatever the changed paths: the documents and the commit messages of the branch.
 const ALWAYS_GATES = ['docs-check', 'commits-check'];
@@ -395,6 +396,9 @@ function landBranch(root: string, branch: string, print: (text: string) => void,
       print(`main moved while the gates of ${branch} ran:\n${moves}\n${branch} rebases on main and runs the gates again`);
     }
     print(`merged ${branch} into main`);
+    // K609: every consumer links main live, so the land refreshes what they read, as a commit on main does (K551, K583).
+    const merged = passed === undefined ? [] : git(root, 'diff', '--name-only', `${passed.gated}..main`).split('\n').filter(file => file !== '');
+    refreshLinked(root, merged, print);
   }
   removeLanded(root, branch, folder, stop, print);
 }
