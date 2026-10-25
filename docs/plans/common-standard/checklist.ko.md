@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 9acd6638b2e5efe3d30888961381012d50363575602c1bebf93a8c05116d9de6 -->
+<!-- source-sha256: b659d02d10e06f56dfff36366d7284cf37af5154a0617eb115205e18548100c2 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -525,3 +525,4 @@
 | K617 | kit-check는 kit-bootstrap.mk의 고정 task를 실행하는 kit에서 읽는다(K614 후속). 원인: kitTargets가 저장소의 scripts/kit/kit-bootstrap.mk를 읽었는데 K614 이후 저장소에는 그 복사본이 없어서, install의 prerequisite로 자기 step을 더하는 저장소의 Makefile이 kit.mk의 고정 task를 반복한다고 보고되었다. 수정: kitTargets는 kitFile로 그 파일을 읽고 test를 위해 export된다 | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern='K617' tests/kit/kit-check.test.mts` | [o] |
 | K618 | scripts/kit/php-arginfo/composer.lock은 nikic/php-parser 5.0.0을 고정하지만 설치된 PHP의 gen_stub.php는 5.6.1을 요구합니다. 그래서 모든 PHP 확장의 build와 arginfo 단계가 멈추고, kit main에서 tests/kit/php-ext.test.mts의 테스트 8개가 실패합니다. | scripts/kit/php-arginfo/composer.json and composer.lock pinning the nikic/php-parser that the installed gen_stub.php requires. | `node --test tests/kit/php-ext.test.mts` | [-] 원인: 고정은 맞습니다. 설치된 PHP 8.4의 gen_stub.php는 composer.lock이 고정한 nikic/php-parser 5.0.0을 요구하고, tests/kit/php-ext.test.mts는 깨끗한 tree에서 20개 모두 통과합니다. K616 worktree에서 본 실패 8개는 그때 공유 var/tools/php-arginfo에 놓인 더 새 PHP의 gen_stub.php에서 왔고, 그 뒤 다시 놓였습니다. |
 | K621 | 저장소는 kit 공유 root 파일을 ../kit의 같은 파일로 가는 link로 추적하고, kit-check는 그 link만 받아들인다(K614, K254 후속). 원인: K614는 PRINCIPLES.md, 그 짝, .editorconfig, .claude/settings.json을 ../kit로 가는 link로 만드는데 symlinkFindings가 모든 추적된 link를 보고해서 어떤 저장소도 K614를 받을 수 없다. 수정: symlinkFindings는 네 path 중 하나의 link가 존재하는 ../kit의 같은 파일을 가리키면 받아들이고, AGENTS는 이를 규칙의 두 번째 예외로 적는다 | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts, AGENTS.md | `node scripts/kit/run-tests.mts node -- --test-name-pattern='K621' tests/kit/kit-check.test.mts` | [o] |
+| K620 | catch-check-rust(K537)는 guard와 안쪽 pattern을 보지 않고 body가 빈 모든 Err arm을 보고합니다. `Err(error) if error.kind() == NotFound => {}`처럼 좁은 arm이나 error variant를 이름 붙인 Err arm은 이름 붙인 오류 하나만 다루고 나머지는 다음 arm에 넘기므로 아무것도 삼키지 않습니다. ssr에 그런 finding이 일곱 개 있습니다. | scripts/kit/catch-check-rust/src/main.rs, which reports an empty Err arm only when it has no guard and its inner patterns are bindings or wildcards, and its cases in the test of catch-check-rust. | `make catch-check-rust-test` | [ ] |
