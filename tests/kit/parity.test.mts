@@ -1679,6 +1679,81 @@ test('K566 rejects component scope for a shared SQL requirement and an unowned c
   assert.ok(unlistedTest.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not declare each bound test in its feature tests')));
 });
 
+function coveragePartChange(part: string, testPath: string, extraRustRoot = false): Change {
+  const files: Record<string, string | null> = {
+    'go/codec_test.go': null,
+    'go/width_test.go': null,
+    'go/size_test.go': null,
+    'go/engine/codec_test.go': FILES['go/codec_test.go'],
+    'go/engine/width_test.go': FILES['go/width_test.go'],
+    'go/engine/size_test.go': FILES['go/size_test.go'],
+    'go/engine/roundtrip_test.go': null,
+    'go/orm/roundtrip_test.go': null,
+    'go/engine/codec.go': FILES['go/codec.go'],
+    'go/engine/go.mod': 'module example.com/engine\n',
+    'go/codec.go': null,
+    'go/engine/codes.go': FILES['go/codes.go'],
+    'go/codes.go': null,
+    'go/engine/symbols.txt': 'go/engine/codec.go::Encode\n',
+    'go/symbols.txt': null,
+    'go/orm/orm.go': 'package orm\n',
+    'go/orm/go.mod': 'module example.com/orm\n',
+    'go/other/Cargo.toml': extraRustRoot ? '[package]\nname = "other"\n' : null,
+    'go/other/other.go': extraRustRoot ? 'package other\n' : null,
+    'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-1** Go exposes this behavior through its native owner.\n',
+    [testPath]: 'PASS TestRoundtrip/bytes\n// RX-1\n',
+    'contracts/features.json': JSON.stringify({ features: [{
+      id: 'roundtrip',
+      parity: ['go-native-roundtrip'],
+      tests: [testPath],
+      coverage: { owners: { go: { part, tests: [testPath] } } },
+    }] }),
+  };
+  return {
+    files,
+    edit: config => {
+      config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+      const go = itemWhere(config.implementations, implementation => implementation.name === 'go');
+      go.roots = ['go/engine', 'go/orm'];
+      go.symbols = { extractor: 'go', entry: 'go/engine' };
+      go.errors = { file: 'go/engine/codes.go', pattern: '^\\tCode\\w+ = "(\\w+)"$' };
+      const rust = itemWhere(config.implementations, implementation => implementation.name === 'rust');
+      if (extraRustRoot) rust.roots = ['rust', 'go/other'];
+      for (const unit of config.units) {
+        for (const binding of unit.bindings ?? []) {
+          if (binding.implementation !== 'go') continue;
+          if (binding.test === 'go/codec_test.go') binding.test = 'go/engine/codec_test.go';
+          if (binding.test === 'go/width_test.go') binding.test = 'go/engine/width_test.go';
+          if (binding.test === 'go/size_test.go') binding.test = 'go/engine/size_test.go';
+        }
+        for (const symbol of unit.symbols ?? []) {
+          if (symbol.implementation === 'go' && symbol.symbol === 'go/codec.go::Encode') symbol.symbol = 'go/engine/codec.go::Encode';
+        }
+      }
+      config.units.push({
+        id: 'go-native-roundtrip',
+        kind: 'feature',
+        requirements: ['RX-1'],
+        owner: { kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' },
+        bindings: [{ implementation: 'go', test: testPath, id: 'TestRoundtrip/bytes' }],
+      });
+      return config;
+    },
+  };
+}
+
+test('K650: a coverage part may contain one implementation’s multiple roots', TIMEOUT, (t) => {
+  const result = check(t, coveragePartChange('go', 'go/orm/roundtrip_test.go'), { execute: false });
+  assert.deepEqual(result.findings, []);
+});
+
+test('K650: a coverage part spanning implementations or excluding its bound test is rejected', TIMEOUT, (t) => {
+  const ambiguous = check(t, coveragePartChange('go', 'go/orm/roundtrip_test.go', true), { execute: false });
+  assert.ok(ambiguous.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('resolves to 2 implementation roots')));
+  const outside = check(t, coveragePartChange('go/orm', 'go/engine/roundtrip_test.go'), { execute: false });
+  assert.ok(outside.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not contain every bound test')));
+});
+
 test('K635 resolves an explicit multi-owner feature without narrowing it to every implementation', TIMEOUT, (t) => {
   const phpExt = { name: 'php-extension', prose: ['PHP extension'], runner: 'php', roots: ['php-ext'], tests: ['php-ext/tests/*.php'], symbols: { extractor: 'php', entry: 'php-ext' }, errors: { file: 'php-ext/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" }, shares: 'php' };
   const files = {

@@ -750,7 +750,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
       return undefined;
     }
     const part = declared.part;
-    const owners = config.implementations.filter(entry => entry.roots.some(rootPath => rootPath === part || within(rootPath, part)));
+    const owners = config.implementations.filter(entry => entry.roots.some(rootPath => rootPath === part || within(rootPath, part) || within(part, rootPath)));
     if (owners.length !== 1) {
       fail(`unit owner ${scope.feature}/${scope.part} resolves to ${owners.length} implementation roots; a coverage part has one owner`);
       return undefined;

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6ef0647971970c31494f49f06fcf1a7fc83235e733eed4874cadeeb05e2b8e07 -->
+<!-- source-sha256: 7a1f1d495f56b2d23545e7f70dc3abc4ae551e449d154f47a9ead8dd0d8075c9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- parity declaration은 feature coverage part에 포함된 root를 해석해 정확히 하나의 implementation에 연결하며, part 밖의 test는 계속 거부합니다(K650).
 
 - kit에 commit하거나 land해도 dist를 빌드하지 않습니다. consumer는 kit의 소스를 실행하고(K613) dist는 release 때 npm의 prepack이 빌드하므로, linked-build.mts의 kit 빌드(K551, K609의 kit 부분)를 지웠습니다(K646).
 - `make commits-check`는 commit Subject 안의 id가 마지막 id와 다를 때만 거부합니다. 같은 id를 두 번 쓴 것은 여전히 한 행을 가리키므로, id를 반복한 push된 commit을 다시 쓸 필요가 없습니다(K648).
