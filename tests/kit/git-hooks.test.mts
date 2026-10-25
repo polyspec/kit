@@ -382,10 +382,9 @@ test('the prepare-commit-msg hook prints nothing on a plain commit (K380-3)', (t
   assert.equal(prepared.stdout, '', 'the hook prints nothing');
 });
 
-// K404-1: the pre-commit hook runs the gates of land on the staged tree while HEAD is main. A commit that adds a finding of a gate is
-// refused and names it; a finding that is only in the working tree, unstaged, does not count, and a staged finding counts even when the
-// working tree is fixed. A clean commit on main passes.
-test('the pre-commit hook on main refuses a commit that adds a finding of a gate, judged on the index (K404-1)', (t) => {
+// K603: a commit runs no gate, the user's ruling of 2026-10-25: the gates run once, at land. A commit on main that adds a finding of
+// a gate passes the pre-commit hook.
+test('the pre-commit hook on main runs no gate, so a commit that adds a finding of a gate passes (K603)', (t) => {
   const { work } = prepared(t, { files: { 'config/owner-checks.json': OWNERS } });
   assert.equal(hooks(work).status, 0);
   const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
@@ -400,19 +399,9 @@ test('the pre-commit hook on main refuses a commit that adds a finding of a gate
 
   writeFileSync(path.join(work, 'scripts/b.mts'), "export const flag = '--no-verify';\n");
   git(work, 'add', 'scripts/b.mts');
-  const refused = commit('feat(hooks): Add a flag (#T1-1)');
-  assert.equal(refused.status, 1, 'a commit that adds a finding is refused');
-  assert.match(refused.stderr, /bypass-check/, 'the refusal names the gate');
-  assert.match(refused.stderr, /scripts\/b\.mts:1: --no-verify skips a Git hook/, 'the refusal names the finding');
-  assert.doesNotMatch(refused.stderr, /unstaged/, 'a finding that is not staged is not in the commit');
-  assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused commit changes no commit');
-
-  writeFileSync(path.join(work, 'scripts/b.mts'), 'export const flag = 1;\n');
-  const stillStaged = commit('feat(hooks): Add a flag (#T1-1)');
-  assert.equal(stillStaged.status, 1, 'the staged finding still refuses while the working tree is fixed');
-  git(work, 'add', 'scripts/b.mts');
-  const fixed = commit('feat(hooks): Add a flag (#T1-1)');
-  assert.equal(fixed.status, 0, `the staged fix passes: ${fixed.stderr}`);
+  const gated = commit('feat(hooks): Add a flag (#T1-1)');
+  assert.equal(gated.status, 0, `a commit with a finding of a gate passes: ${gated.stderr}`);
+  assert.notEqual(git(work, 'rev-parse', 'HEAD'), head, 'the commit is made');
 });
 
 // K404-1-1: the commit gate on main reads the kit checklists beside the checkout, as make land does, so a row that names a kit item the
