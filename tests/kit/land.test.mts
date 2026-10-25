@@ -69,6 +69,36 @@ test('make land merges a rebased branch only after the gates it touches pass, an
   assert.equal(git(main, 'rev-parse', 'main^'), mainBefore, 'on top of main');
 });
 
+// K603: land runs its selected gates, then fast-forwards and removes the branch and worktree; it does not run the full build before or after the merge.
+test('make land fast-forwards and cleans up without invoking either build (K603)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  const buildCalls = path.join(parent, 'build-calls');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'Makefile': `kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttest ! -f src/bad.txt\nbuild:\n\techo "$$(pwd)" >> '${buildCalls}'; exit 7\n`,
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = path.join(parent, 'repo-k603');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat/k603', 'main');
+  put(folder, { 'src/landed.txt': 'landed\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'landed');
+  const branch = git(main, 'rev-parse', 'feat/k603');
+
+  land(main, 'feat/k603', { print: () => {} });
+
+  assert.equal(git(main, 'rev-parse', 'main'), branch, 'main fast-forwards to the branch');
+  assert.equal(existsSync(folder), false, 'the worktree is removed');
+  assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat/k603'], { cwd: main }).status, 1, 'the branch is deleted');
+  assert.equal(existsSync(buildCalls), false, 'land does not invoke make build in the branch or main checkout');
+});
+
 test('K453: land runs make build in the main checkout after the fast-forward, so dist holds the merged sources (K453)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
