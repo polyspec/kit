@@ -33,27 +33,34 @@ function goBuildCache(root: string): string | undefined {
   return cache === '' || cache === 'off' ? undefined : cache;
 }
 
-// The age after which an entry of the Go build cache counts as unused (K538): Go refreshes the time of an entry it uses about hourly.
-const GO_CACHE_UNUSED_MS = 2 * 3600 * 1000;
+// The age under which an entry of the Go build cache is spared (K538-1): a build that runs now may still read it.
+const GO_CACHE_SPARED_MS = 10 * 60 * 1000;
 
-/** Removes each file of the Go build cache `cache` unused for GO_CACHE_UNUSED_MS, and returns their count and bytes (K538). */
-function trimGoCache(cache: string): { entries: number; bytes: number } {
-  const oldest = Date.now() - GO_CACHE_UNUSED_MS;
-  let entries = 0;
-  let bytes = 0;
+/**
+ * Removes the files of the Go build cache `cache` oldest first, by their time, until `needed` bytes are freed or no file older than
+ * GO_CACHE_SPARED_MS remains, and returns their count and bytes (K538, K538-1): parallel builds keep the whole cache young.
+ */
+function trimGoCache(cache: string, needed: number): { entries: number; bytes: number } {
+  const spared = Date.now() - GO_CACHE_SPARED_MS;
+  const files: { file: string; time: number; size: number }[] = [];
   const visit = (folder: string) => {
     for (const entry of readdirSync(folder, { withFileTypes: true })) {
       const file = path.join(folder, entry.name);
       if (entry.isDirectory()) visit(file);
       if (!entry.isFile() || folder === cache) continue;
       const stat = statSync(file);
-      if (stat.mtimeMs >= oldest) continue;
-      unlinkSync(file);
-      entries += 1;
-      bytes += stat.size;
+      if (stat.mtimeMs < spared) files.push({ file, time: stat.mtimeMs, size: stat.size });
     }
   };
   if (existsSync(cache)) visit(cache);
+  let entries = 0;
+  let bytes = 0;
+  for (const { file, size } of files.sort((left, right) => left.time - right.time)) {
+    if (bytes >= needed) break;
+    unlinkSync(file);
+    entries += 1;
+    bytes += size;
+  }
   return { entries, bytes };
 }
 
@@ -369,12 +376,12 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   if (!existing) {
     if (existsSync(folder)) throw new Error(`${folder} exists and is no worktree of ${branch}; remove it or choose another name`);
     let available = free(path.dirname(main));
-    // K538: under the floor the Go build cache, which Go rebuilds on demand, is trimmed by age first; nothing else is removed.
+    // K538: under the floor the Go build cache, which Go rebuilds on demand, is trimmed first, oldest first (K538-1); nothing else is removed.
     const cache = available < WORKTREE_DISK_FLOOR ? goCache(main) : undefined;
     let trimmed = '';
     if (cache !== undefined) {
-      const { entries, bytes } = trimGoCache(cache);
-      print(`[worktree-setup] trimmed ${entries} entries of the Go build cache ${cache}, unused for 2 hours: ${bytes} bytes freed`);
+      const { entries, bytes } = trimGoCache(cache, WORKTREE_DISK_FLOOR - available);
+      print(`[worktree-setup] trimmed ${entries} entries of the Go build cache ${cache}, oldest first, sparing the last 10 minutes: ${bytes} bytes freed`);
       trimmed = `after the trim of the Go build cache freed ${bytes} bytes, `;
       available = free(path.dirname(main));
     }

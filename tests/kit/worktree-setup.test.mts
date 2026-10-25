@@ -300,7 +300,7 @@ test('worktree-setup trims the Go build cache by age under the disk floor, and r
   assert.ok(existsSync(folder), 'the worktree is made once the trim freed enough');
   assert.equal(existsSync(path.join(cache, 'ab/old-a')), false, 'an entry unused for two hours goes');
   assert.ok(existsSync(path.join(cache, 'cd/new-a')), 'a recent entry stays');
-  assert.match(lines.join('\n'), /trimmed 1 entries of the Go build cache .*go-build, unused for 2 hours: 1000 bytes freed/);
+  assert.match(lines.join('\n'), /trimmed 1 entries of the Go build cache .*go-build, oldest first, sparing the last 10 minutes: 1000 bytes freed/);
   utimesSync(path.join(cache, 'cd/new-a'), hours(3), hours(3));
   assert.throws(() => setupWorktree(main, { name: 'still', id: 'T8', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR - 1, print: () => {}, goCache: () => cache }), /after the trim of the Go build cache freed 10 bytes, the free disk is .* under the floor/);
 });
