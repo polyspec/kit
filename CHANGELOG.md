@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The check-rules test names a phrase that P10 and P38 state, where it named phrases those rules no longer hold, and the help of worktree-setup no longer states the disk floor that K596 removed (K611).
 - Concurrent PHP extension library tests prepare separate Composer fixtures and remove them after PHPUnit exits, so overlapping runs cannot replace each other's vendor symlinks or autoloaders (K610).
 - land refreshes what the linked consumers read after its merge, as a commit on main does: in kit a build input builds dist, elsewhere a stale linked package is rebuilt; make commit and land share linked-build.mts (K609).
 - The refusal of a done without a recorded red no longer advises item-red BEFORE=, which K608 removed (K608-1).

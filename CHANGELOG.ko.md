@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: be89ee5cc31c11b9cef161137be46c9ee094b55d3d7a82006d1e8ec10cac70d9 -->
+<!-- source-sha256: c473a88a0336851c2c7055856a93492952f1e293fd7992b4bc21a9b9da74b12e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- check-rules 테스트는 P10과 P38이 지금 말하는 구절을 이름 붙이고(규칙에 더 없는 구절을 이름 붙였습니다), worktree-setup 도움말은 K596에서 없앤 디스크 하한을 더 말하지 않습니다(K611).
 - 동시에 실행하는 PHP extension library test는 각 Composer fixture를 따로 준비하고 PHPUnit 종료 뒤 정리해, 서로의 vendor symlink나 autoloader를 바꾸지 않습니다 (K610).
 - land는 병합 뒤 main commit처럼 link된 consumer가 읽는 것을 갱신한다. kit에서는 build 입력이 dist를 build하고, 다른 곳에서는 낡은 link된 package를 다시 build한다. make commit과 land는 linked-build.mts를 함께 쓴다 (K609).
 - 기록된 red 없이 done을 거부하는 메시지는 K608이 지운 item-red BEFORE=를 더는 권하지 않는다 (K608-1).
