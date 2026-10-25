@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 647e066c8c29d0ac78356d981533e5b14db742b2e2d4f44f4f09c49e0b441dba -->
+<!-- source-sha256: be49663b63da6ee0d448f5f62da8a7309462e2ea7066afc6a75a1dede7217631 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit-check는 PRINCIPLES.md, 그 짝, .editorconfig, .claude/settings.json이 ../kit의 같은 파일로 가는 추적된 link를 받아들이며, 이는 저장소가 link를 만들지 않는다는 규칙의 두 번째 예외이고, 그 밖의 추적된 link는 여전히 보고한다(K621).
 - kit-check는 K614 이후 저장소에 그 복사본이 없으므로 kit-bootstrap.mk의 고정 task를 실행하는 kit에서 읽는다(K617).
 - PHP library가 없는 저장소(fsm의 test bed처럼 packages/php가 application인 저장소)의 확장은 자기 composer.json의 polyspec/<repository>-php-ext로 이름을 얻고 library 선언과 비교하지 않습니다. 이름, stub, arginfo header는 전처럼 검사하므로 lint-php-ext가 더 거부하지 않습니다(K616).
 - worktree-setup은 link가 main checkout의 각 go.mod 옆에 쓴 git-ignored go.work와 go.work.sum을 worktree에 줍니다. 이제 worktree의 Go build는 module cache의 형제 module release 대신 형제 checkout을 읽습니다(K615).

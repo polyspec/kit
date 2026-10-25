@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit-check accepts the tracked links of PRINCIPLES.md, its twin, .editorconfig and .claude/settings.json to the matching files of ../kit, the second exception of the rule that a repository creates no link, and still reports every other tracked link (K621).
 - kit-check reads the fixed tasks of kit-bootstrap.mk from the kit that runs, since a repository holds no copy of it after K614 (K617).
 - An extension of a repository without a PHP library, whose packages/php is an application such as fsm's test bed, is named by its own composer.json polyspec/<repository>-php-ext and matches no library declaration; its names, stub and arginfo header are checked as before, so lint-php-ext no longer refuses it (K616).
 - worktree-setup gives a worktree the git-ignored go.work and go.work.sum that link wrote beside each go.mod of the main checkout, so its Go build reads the sibling checkouts instead of a release of a sibling module in the module cache (K615).
