@@ -466,7 +466,7 @@ release-proof: ## Prove the released TAG from outside the checkout: release asse
 # --- dependencies: the gate reads the manifests, the locks and the review record; the review asks the registries.
 .PHONY: dependency-policy-check dependency-policy-mutation-check dependency-review composer-provider-entries
 dependency-policy-check: ## Check the manifests and locks against config/dependency-policy.json and the review record; PACKAGES=<name>[,<name>...] reports and fails only on the findings of those packages (K493); offline
-	$(NODE) $(KIT)/check-dependency-policy.$(KIT_EXT) $(if $(PACKAGES),--packages $(PACKAGES))
+	$(NODE) $(KIT)/check-dependency-policy.$(KIT_EXT) $(if $(filter command line,$(origin PACKAGES)),--packages $(PACKAGES))
 
 dependency-policy-mutation-check: ## Check that the dependency gate rejects each known mutation of the checkout; offline
 	$(NODE) $(KIT)/check-dependency-policy-mutation.$(KIT_EXT)
