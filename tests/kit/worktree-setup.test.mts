@@ -1,14 +1,13 @@
 // Tests of scripts/kit/worktree-setup.mts (K348): the worktree of a row is made from main beside the main checkout, its node_modules
-// linked entry by entry to the main checkout's with nothing installed (K519, K530) and checked, a second run converges, and no worktree is made under the floor of
-// free disk.
+// linked entry by entry to the main checkout's with nothing installed (K519, K530) and checked, and a second run converges.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { setupWorktree, WORKTREE_DISK_FLOOR } from '../../scripts/kit/worktree-setup.mts';
+import { setupWorktree } from '../../scripts/kit/worktree-setup.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -32,7 +31,7 @@ test('worktree-setup makes the worktree of a row from main, links its node_modul
   });
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const quiet = { free: () => WORKTREE_DISK_FLOOR, print: () => {} };
+  const quiet = { print: () => {} };
   const folder = setupWorktree(main, { name: 'parser', id: 'T1', type: 'fix' }, quiet);
   assert.equal(folder, path.join(parent, 'repo-parser-T1'));
   assert.equal(git(folder, 'rev-parse', '--abbrev-ref', 'HEAD'), 'fix/parser-T1');
@@ -44,8 +43,6 @@ test('worktree-setup makes the worktree of a row from main, links its node_modul
   const listed = git(main, 'worktree', 'list', '--porcelain');
   assert.equal(setupWorktree(folder, { name: 'parser', id: 'T1', type: 'fix' }, quiet), folder, 'a second run, also from the worktree, finds the same worktree');
   assert.equal(git(main, 'worktree', 'list', '--porcelain'), listed, 'and leaves the same worktrees');
-  assert.throws(() => setupWorktree(main, { name: 'lexer', id: 'T2', type: 'fix' }, { ...quiet, free: () => WORKTREE_DISK_FLOOR - 1 }), /under the floor of 30 GB for a new worktree/);
-  assert.equal(git(main, 'worktree', 'list', '--porcelain'), listed, 'no worktree is made under the floor');
   assert.throws(() => setupWorktree(main, { name: 'Lexer', id: 'T2', type: 'fix' }, quiet), /is no slug/);
   assert.throws(() => setupWorktree(main, { name: 'lexer', id: 'T2', type: 'merge' }, quiet), /is none of feat, fix/);
 });
@@ -68,7 +65,7 @@ test('worktree-setup rebuilds the packages of the worktree before its link-state
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
   const lines: string[] = [];
-  const quiet = { free: () => WORKTREE_DISK_FLOOR, print: (text: string) => lines.push(text) };
+  const quiet = { print: (text: string) => lines.push(text) };
   const folder = setupWorktree(main, { name: 'builder', id: 'K482', type: 'fix' }, quiet);
   assert.equal(readFileSync(path.join(folder, 'dist/index.d.ts'), 'utf8'), 'built\n');
   assert.ok(lines.some(line => line.includes('link rebuild in')), lines.join('\n'));
@@ -88,7 +85,7 @@ test('worktree-setup refuses a package installed in the node_modules of a worktr
   // A package installed in the worktree, which the main checkout's node_modules lacks, is refused (K530: the folder itself is the
   // worktree's own, of links).
   mkdirSync(path.join(folder, 'node_modules/left-pad'), { recursive: true });
-  const quiet = { free: () => WORKTREE_DISK_FLOOR, print: () => {} };
+  const quiet = { print: () => {} };
   assert.throws(() => setupWorktree(main, { name: 'own', id: 'K519', type: 'fix' }, quiet), /node_modules\/left-pad is no entry of .*; remove it, since a worktree installs nothing \(K519\)/);
 });
 
@@ -123,7 +120,7 @@ test('worktree-setup gives a Composer project a vendor folder of links and its o
   const log = path.join(parent, 'composer.log');
   const composer = path.join(parent, 'composer');
   writeFileSync(composer, `#!/bin/sh\necho "$* [$(pwd)] network=$COMPOSER_DISABLE_NETWORK" >> "${log}"\necho "<?php // the autoload of $(pwd)" > vendor-php/autoload.php\necho "<?php // the autoload of $(pwd)" > vendor-php/composer/autoload_psr4.php\n`, { mode: 0o755 });
-  const folder = setupWorktree(main, { name: 'php', id: 'T5', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer });
+  const folder = setupWorktree(main, { name: 'php', id: 'T5', type: 'fix' }, { print: () => {}, composer });
   const vendor = path.join(folder, 'vendor-php');
   assert.equal(lstatSync(vendor).isSymbolicLink(), false, 'the vendor folder is a real folder');
   assert.equal(realpathSync(path.join(vendor, 'acme/lib')), realpathSync(path.join(main, 'vendor-php/acme/lib')), 'a package links to the main checkout');
@@ -161,7 +158,7 @@ test('worktree-setup links the node_modules of a worktree entry by entry, its ow
   symlinkSync('../left-pad/bin.js', path.join(main, 'node_modules/.bin/lp'));
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const quiet = { free: () => WORKTREE_DISK_FLOOR, print: () => {} };
+  const quiet = { print: () => {} };
   const check = (folder: string) => {
     const modules = path.join(folder, 'node_modules');
     assert.ok(lstatSync(modules).isDirectory(), 'the node_modules of the worktree is a folder of its own');
@@ -214,7 +211,7 @@ test('worktree-setup gives each npm project and each Python environment of the m
   symlinkSync('python3.14', path.join(main, venv, 'bin/python'));
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const quiet = { free: () => WORKTREE_DISK_FLOOR, print: () => {} };
+  const quiet = { print: () => {} };
   const check = (folder: string) => {
     assert.ok(lstatSync(path.join(folder, 'tools/ts/node_modules')).isDirectory(), 'a nested npm project has a node_modules of its own');
     assert.equal(realpathSync(path.join(folder, 'tools/ts/node_modules/typescript')), realpathSync(path.join(main, 'tools/ts/node_modules/typescript')));
@@ -265,44 +262,14 @@ test('worktree-setup writes the Composer bin proxies into the worktree, so a ven
   git(main, 'commit', '--quiet', '-m', 'base');
   const composer = path.join(parent, 'composer');
   writeFileSync(composer, '#!/bin/sh\necho "<?php // the autoload of $(pwd)" > vendor-php/autoload.php\n', { mode: 0o755 });
-  const folder = setupWorktree(main, { name: 'bin', id: 'T6', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer });
+  const folder = setupWorktree(main, { name: 'bin', id: 'T6', type: 'fix' }, { print: () => {}, composer });
   const bin = path.join(folder, 'vendor-php/bin');
   assert.equal(lstatSync(bin).isSymbolicLink(), false, 'the bin of the worktree is a folder of its own');
   assert.ok(lstatSync(path.join(bin, 'tool')).isFile(), 'a proxy is a file of the worktree, whose __DIR__ is the worktree');
   assert.equal(readFileSync(path.join(bin, 'tool'), 'utf8'), proxy);
   assert.ok((lstatSync(path.join(bin, 'tool')).mode & 0o111) !== 0, 'and it runs');
   assert.equal(readlinkSync(path.join(bin, 'shell')), '../acme/lib/bin/shell', 'a link of the bin keeps its relative target');
-  assert.equal(setupWorktree(main, { name: 'bin', id: 'T6', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer }), folder, 'a second run converges');
-});
-
-// K538: the free disk under the floor is mostly the Go build cache of parallel worktree builds, which Go rebuilds on demand; the user
-// allowed on 2026-10-23 that worktree-setup trims it, the entries of GOCACHE unused for two hours, reports the bytes it freed, and refuses
-// only when the disk is still under the floor. Nothing else outside the repository is touched.
-test('worktree-setup trims the Go build cache by age under the disk floor, and refuses only when still under it (K538)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
-    'Makefile': 'link-state-check:\n\ttrue\n',
-    '.gitignore': 'node_modules/\n',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const cache = path.join(parent, 'go-build');
-  put(cache, { 'ab/old-a': 'x'.repeat(1000), 'cd/new-a': 'y'.repeat(10), 'README': 'the cache\n' });
-  const hours = (count: number) => new Date(Date.now() - count * 3600 * 1000);
-  utimesSync(path.join(cache, 'ab/old-a'), hours(3), hours(3));
-  const lines: string[] = [];
-  const free = () => (existsSync(path.join(cache, 'ab/old-a')) ? WORKTREE_DISK_FLOOR - 1 : WORKTREE_DISK_FLOOR);
-  const folder = setupWorktree(main, { name: 'trim', id: 'T7', type: 'fix' }, { free, print: text => lines.push(text), goCache: () => cache });
-  assert.ok(existsSync(folder), 'the worktree is made once the trim freed enough');
-  assert.equal(existsSync(path.join(cache, 'ab/old-a')), false, 'an entry unused for two hours goes');
-  assert.ok(existsSync(path.join(cache, 'cd/new-a')), 'a recent entry stays');
-  assert.match(lines.join('\n'), /trimmed 1 entries of the Go build cache .*go-build, oldest first, sparing the last 10 minutes: 1000 bytes freed/);
-  utimesSync(path.join(cache, 'cd/new-a'), hours(3), hours(3));
-  assert.throws(() => setupWorktree(main, { name: 'still', id: 'T8', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR - 1, print: () => {}, goCache: () => cache }), /after the trim of the Go build cache freed 10 bytes, the free disk is .* under the floor/);
+  assert.equal(setupWorktree(main, { name: 'bin', id: 'T6', type: 'fix' }, { print: () => {}, composer }), folder, 'a second run converges');
 });
 
 // K555: a repository keeps its Python environment where its Makefile makes it, as crudui's var/python, the UV_PROJECT_ENVIRONMENT of its
@@ -327,7 +294,7 @@ test('worktree-setup gives a worktree a Python environment of the main checkout 
   });
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const folder = setupWorktree(main, { name: 'venv', id: 'T9', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {} });
+  const folder = setupWorktree(main, { name: 'venv', id: 'T9', type: 'fix' }, { print: () => {} });
   assert.ok(lstatSync(path.join(folder, 'var/python')).isDirectory(), 'the environment at var/python is a folder of the worktree');
   assert.equal(readFileSync(path.join(folder, site, '__editable__.validator.pth'), 'utf8'), `${folder}/packages/validator/src\n`, 'its editable install names the sources of the worktree');
   assert.equal(existsSync(path.join(folder, 'var/tools')), false, 'the tools of the main checkout are no environment of the worktree');
@@ -358,7 +325,7 @@ test('worktree-setup writes the files of vendor/composer that dump-autoload does
   git(main, 'commit', '--quiet', '-m', 'base');
   const composer = path.join(parent, 'composer');
   writeFileSync(composer, '#!/bin/sh\necho "<?php // the worktree" > vendor/autoload.php\necho "<?php // the worktree" > vendor/composer/autoload_psr4.php\n', { mode: 0o755 });
-  const folder = setupWorktree(main, { name: 'files', id: 'T10', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer });
+  const folder = setupWorktree(main, { name: 'files', id: 'T10', type: 'fix' }, { print: () => {}, composer });
   const own = path.join(folder, 'vendor/composer');
   for (const name of ['installed.json', 'installed.php', 'InstalledVersions.php', 'LICENSE']) {
     assert.ok(lstatSync(path.join(own, name)).isFile(), `${name} is a file of the worktree, whose __DIR__ is the worktree`);
@@ -366,40 +333,7 @@ test('worktree-setup writes the files of vendor/composer that dump-autoload does
   }
   assert.equal(readFileSync(path.join(own, 'autoload_psr4.php'), 'utf8'), '<?php // the worktree\n', 'the autoload is the one that dump-autoload wrote');
   assert.deepEqual(readdirSync(own).sort(), readdirSync(path.join(main, 'vendor/composer')).sort(), 'the worktree holds the set of the main checkout');
-  assert.equal(setupWorktree(main, { name: 'files', id: 'T10', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer }), folder, 'a second run converges');
-});
-
-// K538-1: parallel builds keep the Go build cache young, so an age of two hours freed nothing while it held 5.1 GB (crudui,
-// 2026-10-25); under the floor the cache is trimmed oldest first until the floor is met, sparing what was used in the last 10 minutes.
-test('worktree-setup trims a young Go build cache oldest first until the disk floor is met, sparing the last 10 minutes (K538-1)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
-    'Makefile': 'link-state-check:\n\ttrue\n',
-    '.gitignore': 'node_modules/\n',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const cache = path.join(parent, 'go-build');
-  put(cache, { 'ab/older': 'x'.repeat(600), 'cd/old': 'y'.repeat(600), 'ef/now': 'z'.repeat(600) });
-  const minutes = (count: number) => new Date(Date.now() - count * 60 * 1000);
-  utimesSync(path.join(cache, 'ab/older'), minutes(50), minutes(50));
-  utimesSync(path.join(cache, 'cd/old'), minutes(30), minutes(30));
-  utimesSync(path.join(cache, 'ef/now'), minutes(1), minutes(1));
-  // 500 bytes are missing: the oldest entry frees them, and the next one stays.
-  const free = () => WORKTREE_DISK_FLOOR - (existsSync(path.join(cache, 'ab/older')) ? 500 : 0);
-  const lines: string[] = [];
-  const folder = setupWorktree(main, { name: 'young', id: 'T9', type: 'fix' }, { free, print: text => lines.push(text), goCache: () => cache });
-  assert.ok(existsSync(folder), 'the worktree is made once the trim met the floor');
-  assert.equal(existsSync(path.join(cache, 'ab/older')), false, 'the oldest entry goes first');
-  assert.ok(existsSync(path.join(cache, 'cd/old')), 'the trim stops once the floor is met');
-  assert.match(lines.join('\n'), /trimmed 1 entries of the Go build cache .*go-build, oldest first, sparing the last 10 minutes: 600 bytes freed/);
-  // Still under the floor after every entry older than 10 minutes went: the entry of the last minute stays, and setup refuses.
-  assert.throws(() => setupWorktree(main, { name: 'short', id: 'T11', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR - 10_000, print: () => {}, goCache: () => cache }), /after the trim of the Go build cache freed 600 bytes, the free disk is .* under the floor/);
-  assert.ok(existsSync(path.join(cache, 'ef/now')), 'an entry used in the last 10 minutes stays');
+  assert.equal(setupWorktree(main, { name: 'files', id: 'T10', type: 'fix' }, { print: () => {}, composer }), folder, 'a second run converges');
 });
 
 // K596: the user removed the disk floor on 2026-10-25: worktree-setup refuses no worktree for the free disk and trims no cache.

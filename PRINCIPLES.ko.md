@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 8fee9c8238c2c2b0f53ccc7469cd3e4ddf5e8453bfa37c5b10510c760c20c46e -->
+<!-- source-sha256: e8302e2c0148a090f65fba0aa1c0da0893a7932df6be93a054fbc8cb21b1d3a4 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -43,7 +43,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   Enforced by: none, 올바름과 빠름의 순서는 판단입니다.
 - P10 main에 작업이 들어가는 길은 둘입니다. main에서 직접 하는 작업은 P38의 gate를 거친 commit으로 들어갑니다. 병렬이나 격리된
   작업은 자기 worktree와 branch를 가지며, `{type}/{shortname}-{체크리스트 id}`와 `{프로젝트}-{shortname}-{체크리스트 id}`로
-  이름 짓고 `make worktree-setup`으로 만듭니다. 자유 디스크가 30 GB 미만이면 거부합니다. 이 작업은 `make land`의
+  이름 짓고 `make worktree-setup`으로 만듭니다. 이 작업은 `make land`의
   fast-forward로만 main에 들어가며, worktree와 그 branch는 merge된 직후 `make land`가 지웁니다. merge될 수 없는 test나
   실험 code는 남길 가치가 있으면 cherry-pick하고 아니면 폐기하며, 항상 commit 전에 합니다; 바로 지울 수 없으면 checklist
   하위 항목에 제거 조건을 적습니다.

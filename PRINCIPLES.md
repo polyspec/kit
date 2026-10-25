@@ -43,7 +43,7 @@ in kit, with its grounding.
   Enforced by: none, the order of correctness and speed is a judgement.
 - P10 Work reaches main in one of two ways. Direct work on main is committed through the gated commits of P38. Parallel or
   isolated work has its own worktree and branch, named `{type}/{shortname}-{checklist id}` and `{project}-{shortname}-{checklist id}`,
-  made by `make worktree-setup`, which refuses under 30 GB of free disk; it reaches main only by the fast-forward of `make land`,
+  made by `make worktree-setup`; it reaches main only by the fast-forward of `make land`,
   and its worktree and branch are removed right after the merge, by `make land`. Test or experiment code that cannot merge is
   cherry-picked when it is worth keeping and otherwise discarded, always before the commit; when it cannot be removed at once, a
   checklist sub-item states the condition of its removal.
