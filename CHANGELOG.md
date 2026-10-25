@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The package exports ./link-folders with providedFolders, linkFolders and folderFindings, so a consumer's test builds the per-file link tree of K558 with kit's code (K576).
 - An npm package that the consumer declares itself as a file: or link: dependency stays the one link to the declared path that npm writes, not a tree of per-file links, and link turns such a tree back into that link (K578).
 - make item-red judges a failing summary in which no test ran only when it names a build or a load that failed, so a check finding after a step that runs no test is a red, while a compile or load failure is still refused by its own error line (K540-2).
 - link makes the folder of an npm package of another repository a folder of per-file links without the provider's node_modules, so a node run with --preserve-symlinks resolves the package's dependencies from the consumer's node_modules (K558).
