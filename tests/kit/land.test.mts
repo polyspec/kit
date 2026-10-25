@@ -1040,3 +1040,24 @@ test('runGate returns at the exit of make while a process it started holds the o
   assert.equal(run.result.stdout, 'checked\n');
   assert.throws(() => runGate(folder, 'slow', [], 1000), /make slow ran past its deadline of 1 s in .* and was stopped/);
 });
+
+// K571: the gates and the build of the worktree run without the land lock, so the lands of independent branches overlap; the lock
+// covers only the check that main is still the commit that the gates ran on and the fast-forward. A gate here fails in the worktree
+// while the lock exists, and passes on main, so no comparison with main passes it.
+test('the gates and the worktree build of a land run without the land lock, which covers only the merge (K571)', (t) => {
+  const { main, branch, lock } = lockFixture(t, () => 'if [ "$$(git rev-parse --abbrev-ref HEAD)" != main ]; then test ! -e $$(git rev-parse --git-common-dir)/kit-land.lock; fi');
+  land(main, 'feat/x', { print: () => {} });
+  assert.equal(git(main, 'rev-parse', 'main'), branch, 'the branch lands');
+  assert.equal(existsSync(lock), false, 'the lock is released after the merge');
+});
+
+// K571: a land whose main moved while its gates ran rebases and runs them again, up to LAND_ATTEMPTS times, instead of refusing.
+test('a land whose main moved while its gates ran rebases and lands on the new main (K571)', (t) => {
+  const marker = (main: string) => path.join(path.dirname(main), 'moved');
+  const { main } = lockFixture(t, root => `test -e ${marker(root)} || { touch ${marker(root)} && git -C ${root} -c user.name=t -c user.email=t@t commit --quiet --allow-empty -m moved-once; }`);
+  const printed: string[] = [];
+  land(main, 'feat/x', { print: text => printed.push(text) });
+  assert.equal(git(main, 'log', '-1', '--format=%s', 'main'), 'x', 'the branch lands on the new main');
+  assert.equal(git(main, 'log', '-1', '--format=%s', 'main^'), 'moved-once', 'on top of the commit that moved main');
+  assert.ok(printed.some(text => text.includes('moved-once') && text.includes('runs the gates again')), printed.join('\n'));
+});
