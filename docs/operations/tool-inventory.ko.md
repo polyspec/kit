@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c704d31b83c0940c738eb34a32c042625fbd30f239c94e2abf1c8ecf0592f185 -->
+<!-- source-sha256: c681fe44fd786bcca21a2fa836b0217044607e0d716b3f088d74fd83727f84ff -->
 
 # 도구 목록
 
@@ -1478,7 +1478,7 @@ directory입니다. 한 directory를 공유하는 unit은 각각 비교하는 �
 | `implementations` | `name`, `runner`(`go`, `cargo`, `node`, `vitest`, `php`, `python`), `prose`(문서가 그것을 적는 이름으로, R10이 읽음), `roots`(그 directory; repository 전체는 안 됨), `tests`(test 파일의 glob 하나 이상), `support`(test 보조 파일의 glob), `internal`(implementation의 내부 test의 glob, 각각 `{ glob, reason }`: 맞는 test는 parity unit이 아니고, R5가 binding을 요구하지 않으며, binding이 이를 부를 수 없고, requirement를 부르지 않고(R16), test를 고르지 않는 glob은 declaration finding이다; K313), `command`, `args`, `env`(`name`, `value`), `symbols`(`go`, `php`, `python`, `rust`, `ts` 중 하나인 `extractor`와 그것이 읽는 path인 `entry`; Symbol extractors), `errors`(`file`, `pattern`: 생성된 code), `shares`(자기 runtime에서 test 파일을 실행하는, 같은 runner의 다른 implementation. 예를 들어 대체하는 library의 test를 실행하는 native extension. R6은 그 binding test를 공유한 implementation의 root 안에서도 받아들이고, R5는 자기 root와 test만 판정한다. 자기 자신, 없는 implementation, 다른 runner를 이름 붙이면 declaration finding이다. root `packages/php-ext`의 extension은 S10 layout에 따라 kit이 PHP library인 `packages/php`와 `packages/<component>/php`의 implementation을 공유시키므로 `shares`가 필요 없다) |
 | `suites` | 공유 vector 파일의 glob |
 | `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
-| `tools` | contract를 구현하지 않는 단일 언어 tooling test의 각 directory의 `root`와 `reason`으로, 매 실행이 출력합니다. R6은 그곳의 test를 받아들이고 R3과 R5는 판정하지 않습니다. implementation root와 겹치거나 binding의 test를 담은 root는 declaration finding입니다 |
+| `tools` | 공유 implementation 집합 밖에 있는 tooling directory의 `root`와 `reason`으로, 매 실행이 출력합니다. R6은 그곳의 test를 받아들이고 R3과 R5는 판정하지 않습니다. 선택적 `units`는 implementation binding을 추가하지 않고 tool 소유 requirement와 정확한 native selector를 선언합니다. 각 test는 root 아래에 존재하고 selector와 인용된 모든 requirement를 포함해야 합니다. Parity는 trace를 검사하지만 test를 실행하지 않으며 기존 tool package owner check가 test를 실행합니다 |
 | `testPatterns` | 각 `runner`에 대해 repository 전체의 test 파일 `globs` |
 | `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `requirements`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. 맞은 파일은 declaration finding이고, 각 case directory는 `case.json`을 가집니다. Requirement of a case 참고. go binding은 그런 이름을 중첩 subtest로 보고합니다), directory suite의 선택적 `caseFile`, `bindings`(`implementation`, `test`, `symbol`과, runner의 명령을 대신하는 선택적 argv `command`; Feature unit 참고)를 가집니다. API unit은 `symbols`(`implementation`, `symbol`)를 가집니다. |
 | `errors` | `catalog`(`file`, `pattern`) |
