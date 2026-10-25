@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The worktrees that make land removes after its merge are those of branches with commits of their own, all in main: a fresh branch made from main for a row about to start is kept, though main contains it (K628).
 - The PHP extension builder publishes to a caller-selected absolute module path and accepts declared source-copy and configure arguments, so per-run builds use the shared staging logic (K247-3).
 - PHP extension builds stage declared tracked shared C sources into their temporary package, and Composer archives include the same source from the tagged tree (K247-2).
 - make commit keeps a Red or No-Red line of the body as a line of its own wherever it stands, so a statement that follows a sentence is no longer joined into it and refused (K627).

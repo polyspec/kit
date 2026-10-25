@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ea26790938746a9c809b8d1cfe48390ef02fd52e24fc0248deb422de46427df2 -->
+<!-- source-sha256: 3a9b1a3a2b5c87085dc47c8224991012cfe02df64e58a399d2c7d87441684919 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make land가 merge 뒤에 지우는 worktree는 자기 commit이 있고 그것이 모두 main에 있는 branch의 것입니다. 곧 시작할 행을 위해 main에서 만든 새 branch는 main이 포함하더라도 남깁니다(K628).
 - PHP extension builder는 호출자가 지정한 절대 module 경로로 게시하고 선언된 source-copy 및 configure 인자를 받아 run별 빌드도 공유 스테이징 로직을 사용합니다 (K247-3).
 - PHP extension 빌드는 선언된 추적 공유 C 소스를 임시 패키지에 스테이징하고 Composer archive는 태그된 트리의 같은 소스를 포함합니다 (K247-2).
 - make commit은 body의 Red나 No-Red 줄을 어디에 있든 따로 한 줄로 둡니다. 이제 문장 바로 뒤의 진술이 그 문장에 합쳐져 거부되지 않습니다(K627).
