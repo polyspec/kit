@@ -22,7 +22,10 @@ export interface ProvidedFolder {
   name: string;
   folder: string;
   target: string;
-  /** An npm package of the consumer's own repository, which stays the whole-folder link of its npm workspace (K530, K558). */
+  /**
+   * An npm package of the consumer's own repository, which stays the whole-folder link of its npm workspace (K530, K558), or one that
+   * the consumer's package.json declares as a file: or link: dependency, which stays the link to the declared path that npm writes (K578).
+   */
   own?: boolean;
 }
 
@@ -114,6 +117,26 @@ export function checkoutProviders(checkouts: readonly string[], ecosystem: keyof
     }
   }
   return [...found.values()];
+}
+
+// The specifiers of an npm dependency that names a folder of the consumer: npm writes its package folder as a link to that path (K578).
+const LOCAL_SPECIFIER = /^(?:file|link):(.+)$/;
+
+/**
+ * The path that the package.json of the npm project `project` declares for the package `name` as a file: or link: dependency, or
+ * undefined when it declares none or has no package.json (K578): npm writes that package folder as a link to the path, which the
+ * consumer may require.
+ */
+function declaredPath(project: string, name: string): string | undefined {
+  if (!existsSync(path.join(project, 'package.json'))) return undefined;
+  const manifest = readJsonObject(project, 'package.json');
+  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
+    const entries = manifest[field];
+    const specifier = isJsonObject(entries) ? entries[name] : undefined;
+    const local = typeof specifier === 'string' ? LOCAL_SPECIFIER.exec(specifier)?.[1] : undefined;
+    if (local !== undefined) return path.resolve(project, local);
+  }
+  return undefined;
 }
 
 /** Whether the folder `folder` is `root` or lies below it, by their real paths when they exist (K558). */
@@ -256,7 +279,8 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
   for (const provider of provided) {
     if (provider.ecosystem === 'npm') {
       const folder = path.join(project, 'node_modules', provider.name);
-      if (present(folder)) found.push({ ecosystem: 'npm', name: provider.name, folder, target: provider.folder, own: within(project, provider.checkout) });
+      const declared = declaredPath(project, provider.name);
+      if (present(folder)) found.push({ ecosystem: 'npm', name: provider.name, folder, target: declared ?? provider.folder, own: declared !== undefined || within(project, provider.checkout) });
     } else if (provider.ecosystem === 'composer') {
       const folder = path.join(vendorDirectory(project, vendorDir), provider.name);
       if (present(folder)) found.push({ ecosystem: 'composer', name: provider.name, folder, target: provider.folder });
