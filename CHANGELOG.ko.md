@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 86661e9118af12fc5274767f4a7048e750c08548d51732353b28602f8e062f3f -->
+<!-- source-sha256: 7ed2aa92bf6b423b1ba1889c22c7778fa83979163423d95255be6e7725fe4bce -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make land는 한국어 쌍의 source-sha256 줄만 충돌한 rebase를 스스로 풉니다. 한 줄을 남기고 make documents-stamp로 다시 찍은 뒤 rebase를 이어갑니다. 다른 줄의 충돌은 여전히 거부합니다(K634).
 - PHP 확장 build는 checkout의 php-config를 configure에 넘깁니다. 그러지 않으면 configure가 PATH의 첫 php-config를 씁니다. 이제 PHP 8.5용으로 build한 module이 .php-version의 PHP 8.4에 load되지 못하는 일이 없습니다(K632).
 - make land는 main에서도 실패하는 gate를 그 행이 고친다는 메모와 함께 통과시키고, main이 통과하는 gate만 거부합니다. branch와 main의 출력 줄 비교와, progress 줄·임시 폴더·jscpd 요약을 위한 특수 처리는 삭제했습니다(K631).
 - linked sources의 test는 package.json을 readFixture로 읽으므로 make lint-ts가 unsafe assertion을 보고하지 않는다(K633).
