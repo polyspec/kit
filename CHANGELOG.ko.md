@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e56c73b7231d45be3797ce8912b408cfcc9aeb40dac9da5e5c786636d44e5efa -->
+<!-- source-sha256: 8a0a43a762e74c03dbf63872f14efbc9a411de79311802b7c49103d1e0cd8d41 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- land lock은 main이 아직 gate가 돈 commit인지 확인하는 단계와 fast-forward만 덮는다. 서로 무관한 land의 gate와 build가 겹치고, main의 commit은 merge만 기다리며, gate 중 main이 움직인 land는 rebase하고 gate를 다시 돌린다(최대 세 번) (K571).
 - 어떤 실패든 없음이나 부재로 읽던 kit의 binding 없는 catch(dependency policy, 문서 검사, divergence 검사, 폴더 링크, parity 선언, 테스트 선택)는 자기 결과를 뜻하는 class나 errno로 좁히고 나머지를 다시 던진다 (K559).
 - land는 ESRCH만 더는 실행되지 않는 land로 읽고, 문서 검사는 kit checkout의 checklist를 읽을 수 없으면 note 대신 실패한다 (K559).
 - catch-check은 잡은 것을 살필 수 없는, binding 없는 catch 절을 거부한다. 앞 줄이 `// catch-any -- <이유>`로 이유를 밝히면 통과한다 (K561).
