@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A suite, a group of its targets, the owners of the changed paths and a test run without a selection run outside CI when the caller states the final full run with `KIT_FULL_RUN=final`: the final run of a repository is local and once; every other run outside CI is still refused (K649).
 - A commit or a land into kit builds no dist: consumers run the sources of kit (K613), and npm's prepack builds dist at release, so the kit build of linked-build.mts (K551, the kit part of K609) is removed (K646).
 - `make commits-check` refuses an id in a commit Subject only when it differs from the final id: the same id written twice names its one row, so a pushed commit that repeats its id needs no rewrite (K648).
 - `make commits-check` accepts `Archived-To: <sha>` for a deleted test only when the commit's item is held and that reachable archive contains every deleted test with identical content; `Replaced-By` still works (K647).
