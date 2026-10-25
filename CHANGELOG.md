@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- worktree-setup gives a worktree the git-ignored go.work and go.work.sum that link wrote beside each go.mod of the main checkout, so its Go build reads the sibling checkouts instead of a release of a sibling module in the module cache (K615).
 - kit copies only config/layout.kit.yml and the three schemas that it names, which alint must read inside a repository; a repository includes the kit-bootstrap.mk of ../kit, the PHP lint is read from kit, and PRINCIPLES.md, its twin, .editorconfig and .claude/settings.json become links to ../kit (K614).
 - The check-rules test names a phrase that P10 and P38 state, where it named phrases those rules no longer hold, and the help of worktree-setup no longer states the disk floor that K596 removed (K611).
 - Concurrent PHP extension library tests prepare separate Composer fixtures and remove them after PHPUnit exits, so overlapping runs cannot replace each other's vendor symlinks or autoloaders (K610).

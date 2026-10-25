@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 79ec27b287d08ae3a3695b0f2fe3c46dc19f2eae73e2c5ce26ebf7e738c27f81 -->
+<!-- source-sha256: 6de25819b292c3c526196f9bb285b846a8487f3d2567131c0ca8b6055774dc91 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- worktree-setup은 link가 main checkout의 각 go.mod 옆에 쓴 git-ignored go.work와 go.work.sum을 worktree에 줍니다. 이제 worktree의 Go build는 module cache의 형제 module release 대신 형제 checkout을 읽습니다(K615).
 - kit은 alint가 저장소 안에서 읽어야 하는 config/layout.kit.yml과 그것이 이름 붙인 schema 세 개만 복사한다. 저장소는 ../kit의 kit-bootstrap.mk를 include하고, PHP lint는 kit에서 읽으며, PRINCIPLES.md, 그 짝, .editorconfig, .claude/settings.json은 ../kit로 가는 link가 된다(K614).
 - check-rules 테스트는 P10과 P38이 지금 말하는 구절을 이름 붙이고(규칙에 더 없는 구절을 이름 붙였습니다), worktree-setup 도움말은 K596에서 없앤 디스크 하한을 더 말하지 않습니다(K611).
 - 동시에 실행하는 PHP extension library test는 각 Composer fixture를 따로 준비하고 PHPUnit 종료 뒤 정리해, 서로의 vendor symlink나 autoloader를 바꾸지 않습니다 (K610).
