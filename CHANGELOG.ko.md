@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b75ee3fe24153c02cadc918268aebefafd535b8e0ce03e47fad77294accbf14f -->
+<!-- source-sha256: 86661e9118af12fc5274767f4a7048e750c08548d51732353b28602f8e062f3f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PHP 확장 build는 checkout의 php-config를 configure에 넘깁니다. 그러지 않으면 configure가 PATH의 첫 php-config를 씁니다. 이제 PHP 8.5용으로 build한 module이 .php-version의 PHP 8.4에 load되지 못하는 일이 없습니다(K632).
 - make land는 main에서도 실패하는 gate를 그 행이 고친다는 메모와 함께 통과시키고, main이 통과하는 gate만 거부합니다. branch와 main의 출력 줄 비교와, progress 줄·임시 폴더·jscpd 요약을 위한 특수 처리는 삭제했습니다(K631).
 - linked sources의 test는 package.json을 readFixture로 읽으므로 make lint-ts가 unsafe assertion을 보고하지 않는다(K633).
 - PHP 확장 테스트는 PATH의 첫 PHP 대신 .php-version의 PHP, 곧 kit 자신의 var/tools/bin wrapper로 build합니다. PATH의 PHP는 kit이 고정한 것과 다른 PHP-Parser를 요구할 수 있습니다. 이제 세션의 PATH에 따라 통과하거나 실패하지 않습니다(K630).

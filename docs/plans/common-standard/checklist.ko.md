@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 2c0f7d7769b362c00352ba72ecf801ebfa962dfba3ee91b33086ad4f1c738d1a -->
+<!-- source-sha256: 821b75d6f27c51071ef1f4528bc8483cf15556afbe687787fd9dd98b208c62a1 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -538,4 +538,4 @@
 | K630 | PHP 확장 테스트는 PATH의 첫 php, php-config, phpize를 감쌉니다. 이 Mac에서는 Homebrew PHP 8.5이고 그 gen_stub.php는 PHP-Parser 5.6.1을 요구하지만, kit은 .php-version의 PHP 8.4를 위해 5.0.0을 고정합니다. 테스트가 세션의 PATH에 따라 통과하거나 실패합니다. 대신 kit 자신의 var/tools/bin을 감쌉니다. | phpWrappers of tests/kit/php-ext.test.mts on kit's var/tools/bin. | `node --test --test-name-pattern=K560 tests/kit/php-ext.test.mts` | [o] |
 | K631 | make land는 main에서도 실패하는 gate를 그 행이 고친다는 메모와 함께 통과시키고 main이 통과하는 gate만 거부합니다. 지금은 두 실행의 출력 줄을 비교해 progress, hash, 시간이 main에 없는 finding으로 셉니다. 비교를 삭제합니다: newFindings, linesOf, findingLines, newLines, isCloneLine, environmentFailure와 progress·임시 폴더·jscpd 특수 처리. | gateBranch of scripts/kit/land.mts without the comparison, its K631 case in tests/kit/land.test.mts, and the tests of the comparison removed. | `node --test --test-name-pattern=K631 tests/kit/land.test.mts` | [o] |
 | K633 | linked sources의 test는 package.json을 readFixture로 읽는다(K613 후속). 원인: tests/kit/linked-sources.test.mts가 JSON.parse의 any를 manifest 형으로 cast해서 make lint-ts가 any로부터의 unsafe assertion으로 보고한다. 수정: test는 kit의 schema로 검증하는 tests/kit/json-fixture.mts의 readFixture로 manifest를 읽는다 | tests/kit/linked-sources.test.mts | `make lint-ts` | [o] |
-| K632 | PHP 확장 build는 checkout의 php-config를 configure에 넘깁니다. 지금은 configure가 PATH의 첫 php-config(이 Mac에서는 Homebrew PHP 8.5)를 써서 module이 API 20250925로 build되고 .php-version의 PHP 8.4에 load되지 못하며, tests/kit/php-ext.test.mts의 테스트 세 개가 실패합니다. | build in scripts/kit/php-extension.mts with --with-php-config of the checkout. | `node --test tests/kit/php-ext.test.mts` | [~] |
+| K632 | PHP 확장 build는 checkout의 php-config를 configure에 넘깁니다. 지금은 configure가 PATH의 첫 php-config(이 Mac에서는 Homebrew PHP 8.5)를 써서 module이 API 20250925로 build되고 .php-version의 PHP 8.4에 load되지 못하며, tests/kit/php-ext.test.mts의 테스트 세 개가 실패합니다. | build in scripts/kit/php-extension.mts with --with-php-config of the checkout. | `node --test tests/kit/php-ext.test.mts` | [o] |

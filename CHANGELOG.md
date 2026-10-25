@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The PHP extension build passes the php-config of the checkout to configure, which otherwise takes the php-config first on PATH; a module built for PHP 8.5 no longer fails to load into the PHP 8.4 of .php-version (K632).
 - make land passes a gate that fails on main too, with a note that its own row fixes it, and refuses only a gate that main passes; the comparison of output lines between the branch and main, with its special cases for progress lines, temporary folders and jscpd summaries, is deleted (K631).
 - The test of the linked sources reads package.json through readFixture, so make lint-ts reports no unsafe assertion (K633).
 - The PHP extension tests build with the PHP of .php-version, kit's own var/tools/bin wrappers, instead of the PHP first on PATH, whose gen_stub.php may need another PHP-Parser than kit pins; they no longer pass or fail by the PATH of the session (K630).
