@@ -644,3 +644,39 @@ test('a land into kit that changes a build input builds dist after the merge (K6
   land(main, 'feat/k609', { print: () => {} });
   assert.ok(existsSync(marker), 'make kit-build ran after the merge');
 });
+
+// K634: the source-sha256 line of a Korean twin is the hash of its English file, so two rows that change the English file conflict on it in
+// every rebase. land keeps one line, stamps it again with make documents-stamp and continues; a conflict in any other line still refuses.
+test('land resolves a rebase conflict that is only the source-sha256 line of a Korean twin (K634)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  // documents-stamp writes the sha256 of README.md into the marker of README.ko.md, as the stamp of kit does.
+  const stamp = 'documents-stamp:\n\t@sum=$$(shasum -a 256 README.md | cut -d" " -f1); sed -i.bak "s/source-sha256: [0-9a-f]*/source-sha256: $$sum/" README.ko.md && rm -f README.ko.md.bak';
+  put(main, {
+    'Makefile': ['kit-gates: docs-check commits-check', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', stamp, ''].join('\n'),
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['README.md', 'README.ko.md', 'Makefile'], targets: ['docs-check'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'README.md': 'one\n\ntwo\n\nthree\n',
+    'README.ko.md': '<!-- source-sha256: 0 -->\n하나\n\n둘\n\n셋\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const stamped = (folder: string) => spawnSync('make', ['--no-print-directory', 'documents-stamp'], { cwd: folder, encoding: 'utf8' }).status;
+  const folder = path.join(parent, 'repo-x');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-x', 'main');
+  put(folder, { 'README.md': 'one\n\ntwo\n\nthree, changed by the branch\n' });
+  assert.equal(stamped(folder), 0);
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'x');
+  put(main, { 'README.md': 'one, changed by main\n\ntwo\n\nthree\n' });
+  assert.equal(stamped(main), 0);
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'main moves');
+  land(main, 'feat-x', { print: () => {} });
+  const readme = readFileSync(path.join(main, 'README.md'), 'utf8');
+  assert.equal(readme, 'one, changed by main\n\ntwo\n\nthree, changed by the branch\n', 'both changes of the English file land');
+  const sum = spawnSync('shasum', ['-a', '256', 'README.md'], { cwd: main, encoding: 'utf8' }).stdout.split(' ')[0];
+  assert.equal(readFileSync(path.join(main, 'README.ko.md'), 'utf8').split('\n')[0], `<!-- source-sha256: ${sum} -->`, 'the marker is stamped for the merged English file');
+});

@@ -255,14 +255,39 @@ export function withLandLock<T>(root: string, holder: string, outcome: string, w
  */
 function rebaseOnMain(folder: string, branch: string, print: (text: string) => void): void {
   if (git(folder, 'status', '--porcelain').trim() !== '') throw new Error(`${branch} is not rebased on main and its worktree ${folder} has uncommitted changes; commit them, then land again`);
-  const rebased = gitResult(folder, 'rebase', '--quiet', 'main');
+  let rebased = gitResult(folder, 'rebase', '--quiet', 'main');
+  // K634: a conflict that is only the source-sha256 line of Korean twins keeps one line, is stamped again and the rebase continues.
+  for (let conflicts = conflictsOf(folder); rebased.status !== 0 && conflicts.length > 0 && conflicts.every(file => onlyRevisionConflict(path.join(folder, file))); conflicts = conflictsOf(folder)) {
+    for (const file of conflicts) writeFileSync(path.join(folder, file), keepOneRevision(readFileSync(path.join(folder, file), 'utf8')));
+    const stamp = runMake(folder, ['--no-print-directory', 'documents-stamp']);
+    if (stamp.status !== 0) break;
+    git(folder, 'add', '-u');
+    print(`resolved the source-sha256 line of ${conflicts.join(', ')} and stamped it again`);
+    rebased = gitResult(folder, '-c', 'core.editor=true', 'rebase', '--continue');
+  }
   if (rebased.status !== 0) {
-    const conflicts = git(folder, 'diff', '--name-only', '--diff-filter=U').split('\n').filter(line => line !== '');
+    const conflicts = conflictsOf(folder);
     gitResult(folder, 'rebase', '--abort');
     throw new Error(`${branch} does not rebase on main without a conflict (${conflicts.length > 0 ? conflicts.join(', ') : rebased.stderr.trim()}); rebase it by hand and land it again; nothing is merged`);
   }
   print(`rebased ${branch} on main (${git(folder, 'rev-parse', '--short', 'main').trim()})`);
 }
+
+/** The files of `folder` with a conflict of the rebase in progress. */
+const conflictsOf = (folder: string): string[] => git(folder, 'diff', '--name-only', '--diff-filter=U').split('\n').filter(line => line !== '');
+
+// The revision marker of a Korean twin: the sha256 of its English file (check-documents).
+const REVISION_LINE = /^<!-- source-sha256: [0-9a-f]* -->$/;
+
+/** Whether every conflict of the file `file` is a Korean twin's revision marker on both sides (K634). */
+function onlyRevisionConflict(file: string): boolean {
+  if (!file.endsWith('.ko.md')) return false;
+  const hunks = [...readFileSync(file, 'utf8').matchAll(/^<<<<<<< [^\n]*\n([\s\S]*?)^=======\n([\s\S]*?)^>>>>>>> [^\n]*\n/gm)];
+  return hunks.length > 0 && hunks.every(([, ours = '', theirs = '']) => [ours, theirs].every(side => side.split('\n').filter(line => line !== '').every(line => REVISION_LINE.test(line))));
+}
+
+/** `text` with each conflict of revision markers replaced by its first side, which documents-stamp then writes again (K634). */
+const keepOneRevision = (text: string): string => text.replace(/^<<<<<<< [^\n]*\n([\s\S]*?)^=======\n[\s\S]*?^>>>>>>> [^\n]*\n/gm, '$1');
 
 /** The commits that moved main from `from`, newest first, as `<short sha> <subject>` lines. */
 function movesOf(root: string, from: string): string {
