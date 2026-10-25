@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The catches of kit without a binding that read any failure as missing or absent (the dependency policy, the document check, the divergence check, the folder links, the parity declaration and the test selection) narrow to the class or errno that means their outcome and rethrow the rest (K559).
+- land reads only ESRCH as a land that no longer runs, and the document check fails when the checklists of the kit checkout cannot be read, instead of a note (K559).
 - catch-check refuses a catch clause without a binding, which cannot inspect what it caught, unless the line before it states the reason with `// catch-any -- <reason>` (K561).
 - The catches of kit that read any failure as missing, absent, not running or a note narrow to the class or errno that means their outcome and rethrow the rest (K559).
 - Divergence-check evaluates a multiline PHP assertion as one assertion, while still reporting environment probes used in branches (K543-1).

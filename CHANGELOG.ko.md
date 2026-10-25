@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1046ba3e9482eda360e6b799f4272e15f386bd2f311b9a5b4402ec2a6358e99a -->
+<!-- source-sha256: e56c73b7231d45be3797ce8912b408cfcc9aeb40dac9da5e5c786636d44e5efa -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 어떤 실패든 없음이나 부재로 읽던 kit의 binding 없는 catch(dependency policy, 문서 검사, divergence 검사, 폴더 링크, parity 선언, 테스트 선택)는 자기 결과를 뜻하는 class나 errno로 좁히고 나머지를 다시 던진다 (K559).
+- land는 ESRCH만 더는 실행되지 않는 land로 읽고, 문서 검사는 kit checkout의 checklist를 읽을 수 없으면 note 대신 실패한다 (K559).
 - catch-check은 잡은 것을 살필 수 없는, binding 없는 catch 절을 거부한다. 앞 줄이 `// catch-any -- <이유>`로 이유를 밝히면 통과한다 (K561).
 - 어떤 실패든 없음, 부재, 실행 안 함 또는 note로 읽던 kit의 catch는 자기 결과를 뜻하는 class나 errno로 좁히고 나머지를 다시 던진다 (K559).
 - divergence-check는 multiline PHP assertion을 하나의 assertion으로 평가하고, branch에서 쓰인 environment probe는 계속 보고한다(K543-1).
