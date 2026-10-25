@@ -113,6 +113,43 @@ test('only a unit with tests traces a requirement: one that only an api unit cit
   ]);
 });
 
+test('a tool-owned unit traces its requirement without adding an implementation binding (K604)', () => {
+  const all = {
+    ...SPEC,
+    'docs/spec/api.md': '# API\n\n- **AB-2** The editor adapter exposes its extensions.\n',
+    'tools/editor/adapter.test.mjs': "test('AB-2 adapter extensions', () => {});\n",
+  };
+  const config = {
+    requirements: { pattern: 'AB-[0-9]+' },
+    units: [],
+    tools: [{
+      root: 'tools/editor',
+      reason: 'The editor adapter has a native contract outside the shared runtimes.',
+      units: [{
+        id: 'editor-adapter',
+        requirements: ['AB-2'],
+        bindings: [{ test: 'tools/editor/adapter.test.mjs', id: 'AB-2 adapter extensions' }],
+      }],
+    }],
+  };
+  assert.deepEqual(requirementFindings(config, Object.keys(all), read(all), new Map()).map(f => `${f.rule} ${f.unit ?? '-'}: ${f.message}`), []);
+  const unknown = requirementFindings({
+    ...config,
+    tools: [{
+      root: 'tools/editor',
+      reason: 'The editor adapter has a native contract outside the shared runtimes.',
+      units: [{
+        id: 'unknown-editor-requirement',
+        requirements: ['AB-8'],
+        bindings: [{ test: 'tools/editor/adapter.test.mjs', id: 'AB-2 adapter extensions' }],
+      }],
+    }],
+  }, Object.keys(all), read(all), new Map());
+  assert.deepEqual(unknown.filter(f => f.rule === 'R14').map(f => `${f.unit}: ${f.message}`), [
+    'unknown-editor-requirement: cites AB-8, which no file of docs/spec defines as a requirement (a list item **AB-8** or a heading AB-8)',
+  ]);
+});
+
 // K520: a requirement defined twice names the file and line of both definitions, also within one file, and the finding lies on
 // config/parity.json, so every filter of units, rules and ids keeps it.
 test('a requirement defined twice names the file and line of both definitions and lies on config/parity.json (K520)', () => {

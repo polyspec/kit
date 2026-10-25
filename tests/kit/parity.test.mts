@@ -25,11 +25,15 @@ const TIMEOUT = { timeout: 120_000 };
 // the fields that the cases read, and every value that a case replaces is unknown.
 type Entry = { [field: string]: unknown };
 type BindingJson = Entry & { implementation: string };
+type ToolBindingJson = Entry & { test: string; id: string };
+type ToolUnitJson = Entry & { id: string; requirements: string[]; bindings: ToolBindingJson[] };
+type ToolJson = Entry & { root: string; reason: string; units?: ToolUnitJson[] };
 // A unit of the kind api declares symbols, every other kind bindings.
 type UnitJson = Entry & { id: string; bindings?: BindingJson[]; symbols?: BindingJson[] };
 type ImplementationJson = Entry & { name: string; runner: string; env?: Entry[] };
 type Declaration = Entry & {
   implementations: ImplementationJson[];
+  tools?: ToolJson[];
   units: UnitJson[];
   requirements: { pattern: string };
   suites: string[];
@@ -2123,11 +2127,56 @@ test('a tools root holds single-language tooling tests that R6 accepts and every
   assert.deepEqual(messages({ edit: (config) => { config.tools = [{ root: 'ts/tools', reason: 'x' }, { root: 'go/../go', reason: 'y' }]; return config; } }).length, 1, 'the schema refuses a path with ..');
   assert.deepEqual(messages({ edit: (config) => { config.tools = [{ root: 'ts/tools', reason: 'x' }, { root: 'tools', reason: ' ' }]; return config; } }), [
     'declaration: tools: the root ts/tools overlaps ts, a root of the implementation ts',
-    'declaration: tools: the root tools gives no reason; write why its tests belong to no implementation',
+    'declaration: tools: the root tools gives no reason; write why its tests belong outside the shared implementation set',
   ]);
   assert.deepEqual(messages({ files: { 'tools/tests/codec.mjs': NODE_CODEC }, edit: (config) => { tools(config); binding(config, 'codec', 'ts').test = 'tools/tests/codec.mjs'; return config; } }), [
     'declaration: tools: the root tools holds tools/tests/codec.mjs, the test of the suite codec in ts',
   ]);
+});
+
+test('a tool-owned requirement uses its exact native case without becoming an implementation binding (K604)', TIMEOUT, (t) => {
+  const files = {
+    'docs/spec/editor.md': '# Editor\n\n- **CX-2** The editor tool handles its native behavior.\n',
+    'tools/editor/adapter.test.mjs': "test('native adapter case', () => {}); // CX-2\n",
+  };
+  const edit = (config: Declaration) => {
+    config.tools = [{
+      root: 'tools/editor',
+      reason: 'The editor package has a native contract outside the shared runtimes.',
+      units: [{ id: 'editor-adapter', requirements: ['CX-2'], bindings: [{ test: 'tools/editor/adapter.test.mjs', id: 'native adapter case' }] }],
+    }];
+    return config;
+  };
+  const root = repository(t, { files, edit });
+  assert.deepEqual(checkParity(root, { execute: false, env: ENV, ids: ['CX-2'], say: () => {} }).findings, []);
+
+  const findings = (change: Change) => check(t, { files, edit: change.edit ?? edit, ...(change.files === undefined ? {} : { files: { ...files, ...change.files } }) }, { execute: false }).findings;
+  const fakeCase = findings({ edit: config => {
+    edit(config);
+    const tool = itemWhere(config.tools ?? [], entry => entry.root === 'tools/editor');
+    itemAt(itemAt(tool.units ?? [], 0).bindings, 0).id = 'CX-2 missing case';
+    return config;
+  } });
+  assert.ok(fakeCase.some(item => item.rule === 'declaration' && item.message.includes('CX-2 missing case')), keys(fakeCase).join('\n'));
+
+  const missingTest = findings({ edit: config => {
+    edit(config);
+    const tool = itemWhere(config.tools ?? [], entry => entry.root === 'tools/editor');
+    itemAt(itemAt(tool.units ?? [], 0).bindings, 0).test = 'tools/editor/missing.test.mjs';
+    return config;
+  } });
+  assert.ok(missingTest.some(item => item.rule === 'declaration' && item.message.includes('missing.test.mjs')), keys(missingTest).join('\n'));
+
+  const misplaced = findings({ files: { 'tools/other.test.mjs': "test('native adapter case', () => {}); // CX-2\n" }, edit: config => {
+    edit(config);
+    const tool = itemWhere(config.tools ?? [], entry => entry.root === 'tools/editor');
+    itemAt(itemAt(tool.units ?? [], 0).bindings, 0).test = 'tools/other.test.mjs';
+    return config;
+  } });
+  assert.ok(misplaced.some(item => item.rule === 'declaration' && item.message.includes('outside its tools root')), keys(misplaced).join('\n'));
+
+  const uncited = findings({ files: { 'tools/editor/adapter.test.mjs': "test('native adapter case', () => {});\n" } });
+  assert.ok(uncited.some(item => item.rule === 'R15' && item.requirements?.includes('CX-2')), keys(uncited).join('\n'));
 });
 
 test('a repository with one implementation needs no parity declaration; one with two fails without it (K248-2)', TIMEOUT, (t) => {
