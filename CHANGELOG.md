@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- make commit keeps a Red or No-Red line of the body as a line of its own wherever it stands, so a statement that follows a sentence is no longer joined into it and refused (K627).
 - make land merges a branch while a process runs in its worktree, since it reads the branch: it keeps that worktree and its branch with the list of the processes, and the next land removes every clean worktree of a branch that main contains in which no process runs (K626).
 - The red of a row is stated, not recorded: the commit that moves a row to done names its red in its body, `Red: <command> exit <n> at <sha>`, or states `No-Red: <reason>` for a change that no test can show, and commits-check checks only that one of the two lines is there; a fix that states No-Red needs no test file. The recorder is deleted: var/plan/<ID>.json, make item-red, the gate runs of item-state, the refusal of done without a record and the hash of the test files that a rebase invalidated (K624).
 - worktree-setup links the main checkout's var/composer-artifacts, the artifact repository that a composer.json names, as one directory symlink, so Composer runs in a worktree; docs/operations/local-links states what a symlink cannot do for a worktree (K622).

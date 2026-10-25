@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7af9942ca02cc0a3f28186cc34daa4f7938a8834ecbb55eca304eb8ed5b422cf -->
+<!-- source-sha256: 2571ee4a2aaf3f1b4cd1f600fe5e32044701547ec66fb273807aaffbb1fd2c10 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make commit은 body의 Red나 No-Red 줄을 어디에 있든 따로 한 줄로 둡니다. 이제 문장 바로 뒤의 진술이 그 문장에 합쳐져 거부되지 않습니다(K627).
 - make land는 worktree에서 process가 실행 중이어도 branch를 merge합니다. land는 branch를 읽기 때문입니다. 그 worktree와 branch는 process 목록과 함께 남기고, 다음 land가 main이 포함한 branch의 깨끗한 worktree 중 process가 없는 것을 모두 지웁니다(K626).
 - 행의 red는 기록하지 않고 적습니다. 행을 done으로 옮기는 commit은 body에 red를 `Red: <command> exit <n> at <sha>`로 이름 붙이거나, 테스트가 보일 수 없는 변경이면 `No-Red: <reason>`를 적고, commits-check는 둘 중 한 줄이 있는지만 봅니다. No-Red를 적은 fix는 테스트 파일이 필요 없습니다. 기록기는 삭제했습니다: var/plan/<ID>.json, make item-red, item-state의 gate 실행, 기록 없는 done의 거부, rebase가 무효화하던 테스트 파일 hash(K624).
 - worktree-setup은 main checkout의 var/composer-artifacts, 곧 composer.json이 이름 붙인 artifact repository를 하나의 directory symlink로 link하므로 worktree에서 Composer가 실행됩니다. docs/operations/local-links는 symlink가 worktree에 할 수 없는 일을 적습니다(K622).
