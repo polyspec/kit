@@ -32,11 +32,58 @@ const KIT_OWN = /^(?:scripts\/kit\/|tests\/kit\/|tests\/source\/)/;
 // K543: a statement that asserts, with the assertion call of its language, and holds no branch: a test that declares its environment and
 // asserts it fails loudly where the environment differs, so its probe changes nothing that the test asserts.
 const ASSERTION = /^\s*(?:\$this->assert\w*\(|(?:self|static)::assert\w*\(|self\.assert\w*\(|assert[\s(.]|assert(?:_eq|_ne)?!\(|expect\()/;
+const PHP_ASSERTION_START = /^\s*(?:\$this->assert\w*\(|(?:self|static)::assert\w*\()/;
 const BRANCH = /\?[^?:]*:|\bif\b|&&|\|\||\bmatch\b|\bswitch\b|\bskip/i;
 /** Whether the line of code `code` asserts its environment without branching on it (K543). */
 const assertsEnvironment = (code: string): boolean => ASSERTION.test(code) && !BRANCH.test(code) && !/#\[cfg/.test(code);
 
 const lines = (text: string) => text.split('\n').map((line, index) => ({ number: index + 1, code: line.replace(/^\s*(?:\/\/|#(?!\[)|\*|\/\*).*$/, '') }));
+
+/** Maps each line of a multiline PHP assertion call to the full call, so its arguments are judged together (K543-1). */
+function phpAssertionLines(sourceLines: readonly { number: number; code: string }[]): Map<number, string> {
+  const assertions = new Map<number, string>();
+  for (let start = 0; start < sourceLines.length; start++) {
+    const firstLine = sourceLines[start];
+    if (firstLine === undefined || !PHP_ASSERTION_START.test(firstLine.code)) continue;
+    let depth = 0;
+    let quote: string | undefined;
+    let escaped = false;
+    let complete = false;
+    const call: string[] = [];
+    for (let index = start; index < sourceLines.length && !complete; index++) {
+      const sourceLine = sourceLines[index];
+      if (sourceLine === undefined) continue;
+      const code = sourceLine.code;
+      call.push(code);
+      for (let offset = 0; offset < code.length; offset++) {
+        const character = code[offset];
+        if (quote !== undefined) {
+          if (escaped) escaped = false;
+          else if (character === '\\') escaped = true;
+          else if (character === quote) quote = undefined;
+          continue;
+        }
+        if (character === "'" || character === '"' || character === '`') quote = character;
+        else if (character === '(') depth++;
+        else if (character === ')') {
+          depth--;
+          if (depth === 0) {
+            complete = true;
+            break;
+          }
+        }
+      }
+      if (complete) {
+        const fullCall = call.join('\n');
+        for (let line = start; line <= index; line++) {
+          const assertionLine = sourceLines[line];
+          if (assertionLine !== undefined) assertions.set(assertionLine.number, fullCall);
+        }
+      }
+    }
+  }
+  return assertions;
+}
 
 /** The implementation roots of the repository: those that config/parity.json declares, else the package folders of each runtime. */
 export function implementationRoots(files: readonly string[], read: (file: string) => string | undefined): string[] {
@@ -67,8 +114,11 @@ export function divergenceFindings(files: readonly string[], read: (file: string
     if (text === undefined) continue;
     const inRoot = roots.some(root => within(root, file));
     if (inRoot && SOURCE.test(file)) {
-      for (const { number, code } of lines(text)) {
-        if (isTestFile(file) && ENVIRONMENT.test(code) && !assertsEnvironment(code)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
+      const sourceLines = lines(text);
+      const assertionLines = file.endsWith('.php') && isTestFile(file) ? phpAssertionLines(sourceLines) : new Map<number, string>();
+      for (const { number, code } of sourceLines) {
+        const assertion = assertionLines.get(number) ?? code;
+        if (isTestFile(file) && ENVIRONMENT.test(code) && !assertsEnvironment(assertion)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
         else if (!isTestFile(file) && /\b(?:extension_loaded|function_exists)\(/.test(code)) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\(/.exec(code)?.[1]}), so the library and its extension coexist through a guard of the run time`);
       }
     }

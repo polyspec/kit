@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Divergence-check evaluates a multiline PHP assertion as one assertion, while still reporting environment probes used in branches (K543-1).
+
 - land excludes ANSI-colored jscpd aggregate Total summary rows from duplication finding comparisons when scan totals change, while preserving clone findings (K570).
 
 - PHP extension stub parsing ignores namespace text inside comments when identifying explicitly internal classes (K569-1).

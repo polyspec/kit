@@ -89,3 +89,15 @@ test('an assertion of the environment of a test passes, and a probe in a branch 
     'rs/tests/env.rs:2',
   ]);
 });
+
+test('a multiline environment assertion passes while real branches remain findings (K543-1)', () => {
+  assert.deepEqual(run({
+    'config/parity.json': JSON.stringify({ implementations: [{ name: 'php', roots: ['packages/php'] }] }),
+    'packages/php/tests/LoadedTest.php': "<?php\n    self::assertTrue(\n        extension_loaded('polyspec_orm'),\n        'the extension is loaded'\n    );\n",
+    'packages/php/tests/BranchTest.php': "<?php\n    if (extension_loaded('polyspec_orm')) { self::assertTrue(true); }\n    self::assertSame(\n        extension_loaded('polyspec_orm') ? 'loaded' : 'missing',\n        $state\n    );\n    if (!extension_loaded('polyspec_orm')) {\n        self::markTestSkipped('extension required');\n    }\n",
+  }), [
+    'packages/php/tests/BranchTest.php:2: a test branches on the implementation, the runtime or the platform (extension_loaded), so it asserts something else in another implementation',
+    'packages/php/tests/BranchTest.php:4: a test branches on the implementation, the runtime or the platform (extension_loaded), so it asserts something else in another implementation',
+    'packages/php/tests/BranchTest.php:7: a test branches on the implementation, the runtime or the platform (extension_loaded), so it asserts something else in another implementation',
+  ]);
+});

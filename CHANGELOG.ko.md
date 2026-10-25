@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6b54aa034df2dd668fbfd7d593a45256d5eb75a9857360e392ebf67221eabfdb -->
+<!-- source-sha256: bf22c30ce228ad68f0d155d6a320b84ee14aeff226a3006babeace520dba6e87 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- divergence-check는 multiline PHP assertion을 하나의 assertion으로 평가하고, branch에서 쓰인 environment probe는 계속 보고한다(K543-1).
 
 - land는 scan total이 달라질 때 duplication finding 비교에서 ANSI 색상 jscpd aggregate Total summary 행을 제외하고 clone finding은 유지한다(K570).
 
