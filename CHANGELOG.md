@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A land whose main moved while its gates ran reruns only the gates that the paths of the moved commits select, commits-check and the build; a gate whose inputs no moved commit touched keeps its result, so parallel lands no longer chase main (K580).
 - A commit on main whose files change a build input of an npm package with a built output rebuilds the repository when that output is stale, so the checkouts that link the main checkout live find its build fresh (K583).
 - An npm package that the consumer declares by a file: dependency on a tarball, which npm unpacks into a real folder, becomes the per-file link tree of its provider, not a link to the tarball; only a dependency on a folder stays the link of K578 (K579).
 - A checkout whose mise.toml declares sccache compiles Rust through one cache under the var/tools of the main checkout, which every worktree shares, capped at 5G; cargo runs half the cores unless the caller sets CARGO_BUILD_JOBS (K581).

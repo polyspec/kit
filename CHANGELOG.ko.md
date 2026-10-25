@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a69e44058d0b47fa40e812b7a51917b5fc1007c0a6be18b31848b269bcb7339e -->
+<!-- source-sha256: a781433c73d34248c6bd60241f43a84a1cf23825d79e81d29b2128913eea6ee6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- gate가 도는 동안 main이 움직인 land는 움직인 commit의 path가 고르는 gate, commits-check, build만 다시 돌린다. 입력을 건드린 commit이 없는 gate는 결과를 유지하므로 병렬 land가 더는 main을 쫓지 않는다 (K580).
 - main의 commit이 build된 출력을 가진 npm package의 build 입력을 바꾸고 그 출력이 stale이면 저장소를 다시 build하므로, main checkout을 live로 link한 checkout이 그 build를 fresh로 본다(K583).
 - consumer가 tarball로의 file: 의존성으로 선언한 npm package는 npm이 진짜 폴더로 풀므로 tarball로의 link가 아니라 provider로의 per-file link tree가 된다. 폴더로의 의존성만 K578의 link로 남는다 (K579).
 - mise.toml이 sccache를 선언한 checkout은 모든 worktree가 공유하는 main checkout의 var/tools 아래 cache 하나(5G 제한)로 Rust를 컴파일하고, cargo는 호출자가 CARGO_BUILD_JOBS를 정하지 않으면 core의 절반을 쓴다 (K581).
