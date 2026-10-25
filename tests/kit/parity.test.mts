@@ -2017,7 +2017,7 @@ test('parity-declarations-check RULES reports the findings of the named rules on
 // K414-1: a row that moves the citation of one requirement verifies it with IDS alone, while the findings of the other ids remain.
 test('parity-declarations-check IDS reports only the findings that name the requested requirements (K414-1)', TIMEOUT, (t) => {
   const spec = '# Codec\n\n- **CX-1** The codec encodes every vector.\n- **CX-2** The codec passes the conformance suite.\n- **CX-3** Every implementation holds the width tables.\n';
-  // Before: the width unit cites CX-2 and CX-3 and its test names neither, so each id is one R15 finding.
+  // Before: the width unit cites CX-2 and CX-3 but binds only Go, so CX-2 selects both its R2 and R15 findings.
   const before = repository(t, {
     files: { 'docs/spec/codec.md': spec },
     edit: config => {
@@ -2034,19 +2034,29 @@ test('parity-declarations-check IDS reports only the findings that name the requ
       'docs/spec/codec.md': spec,
       'tests/vectors/conformance.json': JSON.stringify(['case']),
       'go/conformance_test.go': 'PASS TestConformance/case\n// CX-2\n',
+      'rust/tests/conformance.rs': 'PASS conformance::case\n// CX-2\n',
+      'ts/tests/conformance.test.mjs': "import { test } from 'node:test';\ntest('case', () => {});\n// CX-2\n",
+      'php/tests/ConformanceTest.php': 'PASS test_conformance\n// CX-2\n',
+      'python/tests/test_conformance.py': 'PASS test_conformance\n# CX-2\n',
     },
     edit: config => {
       const width = itemWhere(config.units, (entry: { id: string }) => entry.id === 'width');
       const go = binding(config, 'width', 'go');
       width.requirements = ['CX-3'];
       width.bindings = [go];
-      config.units.push({ id: 'conformance', kind: 'suite', requirements: ['CX-2'], file: 'tests/vectors/conformance.json', cases: '$[*]', bindings: [{ implementation: 'go', test: 'go/conformance_test.go', symbol: 'TestConformance' }] });
+      config.units.push({ id: 'conformance', kind: 'suite', requirements: ['CX-2'], file: 'tests/vectors/conformance.json', cases: '$[*]', bindings: [
+        { implementation: 'go', test: 'go/conformance_test.go', symbol: 'TestConformance' },
+        { implementation: 'rust', test: 'rust/tests/conformance.rs', symbol: 'conformance' },
+        { implementation: 'ts', test: 'ts/tests/conformance.test.mjs' },
+        { implementation: 'php', test: 'php/tests/ConformanceTest.php' },
+        { implementation: 'python', test: 'python/tests/test_conformance.py' },
+      ] });
       return config;
     },
   });
   const run = (root: string, ids?: string[], rules?: string[]) => checkParity(root, { execute: false, env: ENV, say: () => {}, ids, rules }).findings;
   assert.deepEqual(run(before).filter(item => item.rule === 'R15').map(item => item.requirements), [['CX-2'], ['CX-3']], 'one R15 finding per id');
-  assert.deepEqual(keys(run(before, ['CX-2'])), ['R15 width go'], 'only the R15 finding of the first id counts');
+  assert.deepEqual(keys(run(before, ['CX-2'])), ['R2 width rust', 'R2 width ts', 'R2 width php', 'R2 width python', 'R15 width go'], 'R2 missing bindings also name the unit requirements');
   assert.deepEqual(keys(run(before, ['CX-2'], ['R15'])), ['R15 width go'], 'with RULES R15 the same');
   assert.deepEqual(keys(run(after, ['CX-2'])), [], 'the citation of CX-2 moved to a unit whose test names it: no finding');
   assert.deepEqual(keys(run(after)).filter(line => line.startsWith('R15 ')), ['R15 width go'], 'unscoped, the R15 finding of CX-3 remains');
@@ -2059,6 +2069,31 @@ test('parity-declarations-check IDS reports only the findings that name the requ
   assert.match(failing.stderr, /\[parity\] R15 unnamed-requirement width go: cites CX-2, which its test go\/width_test\.go does not name/);
   const fixed = make(after, 'CX-2');
   assert.equal(fixed.status, 0, fixed.stdout + fixed.stderr);
+});
+
+test('K638 requirement and rule filters retain R2 bindings of the cited unit', TIMEOUT, (t) => {
+  const root = repository(t, {
+    files: {
+      'docs/spec/codec.md': '# Codec\n\n- **CX-1** The codec encodes every vector.\n- **CX-2** The codec passes the conformance suite.\n- **CX-3** Every implementation holds the width tables.\n',
+    },
+    edit: config => {
+      const width = itemWhere(config.units, (entry: { id: string }) => entry.id === 'width');
+      width.requirements = ['CX-2'];
+      width.bindings = [binding(config, 'width', 'go')];
+      return config;
+    },
+  });
+  const selected = checkParity(root, { execute: false, env: ENV, say: () => {}, ids: ['CX-2'], rules: ['R2'] });
+  assert.deepEqual(selected.findings.filter(item => item.rule === 'R2').map(item => `${item.unit} ${item.implementation} ${item.requirements?.join(',')}`), [
+    'width rust CX-2', 'width ts CX-2', 'width php CX-2', 'width python CX-2',
+  ]);
+  assert.deepEqual(keys(checkParity(root, { execute: false, env: ENV, say: () => {}, ids: ['CX-1'], rules: ['R2'] }).findings), []);
+  assert.deepEqual(keys(checkParity(root, { execute: false, env: ENV, say: () => {}, units: ['width'], rules: ['R2'] }).findings), [
+    'R2 width rust', 'R2 width ts', 'R2 width php', 'R2 width python',
+  ]);
+  const cli = spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', 'IDS=CX-2', 'RULES=R2'], { cwd: root, env: ENV, encoding: 'utf8' });
+  assert.notEqual(cli.status, 0, cli.stdout + cli.stderr);
+  assert.match(cli.stderr, /\[parity\] R2 missing-binding width rust/);
 });
 
 // K337: a document of docs/spec that defines no requirement is a finding that names it; the fixture's own spec document defines CX-1.

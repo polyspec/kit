@@ -1442,6 +1442,7 @@ An id that no unit of `config/parity.json` holds fails the run and names it; no 
 `make parity-declarations-check UNITS="<id> <id>"` (K400) reports only the findings that name the units and those of `config/parity.json` itself,
 so a row that fixes the declarations of its units passes while other units still have findings; without UNITS it reports every finding.
 `make parity-declarations-check RULES="<rule> <rule>"` (K414) reports only the findings of the named rules, by id or by name, and those of `config/parity.json` itself, so a row whose fact is a rule of the documents verifies it while other rules still have findings.
+`make parity-declarations-check IDS="<requirement> <requirement>"` (K414-1) reports findings that identify those requirement ids, including R2 missing bindings of units that cite them; each R2 finding carries its unit's requirement ids. With `RULES` or `UNITS`, the filters intersect. Findings of `config/parity.json` itself remain visible in every filtered run.
 
 | Module | Concern |
 |---|---|

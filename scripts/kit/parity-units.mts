@@ -37,7 +37,12 @@ export function missingBindings(model: ParityModel) {
   return [...pairs(model, 'suite'), ...pairs(model, 'feature')]
     // readDeclaration reports a suite or feature unit without bindings, and the rules do not run on a declaration with findings.
     .filter(({ unit, implementation }) => !present(unit.bindings, 'unit.bindings').some(entry => entry.implementation === implementation.name))
-    .map(({ unit, implementation }) => finding('R2', `${unit.file ?? `the feature ${unit.id}`} has no binding of ${implementation.name}`, { unit: unit.id, implementation: implementation.name, place: unit.file }));
+    .map(({ unit, implementation }) => finding('R2', `${unit.file ?? `the feature ${unit.id}`} has no binding of ${implementation.name}`, {
+      unit: unit.id,
+      implementation: implementation.name,
+      place: unit.file,
+      requirements: unit.requirements,
+    }));
 }
 
 /** R4: each file of the suite globs is the file of a suite unit or lies in the case directory of one. */

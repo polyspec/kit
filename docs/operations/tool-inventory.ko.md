@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c681fe44fd786bcca21a2fa836b0217044607e0d716b3f088d74fd83727f84ff -->
+<!-- source-sha256: aa99f343c4224d45bcd30d112d348abba8aee36ab8553943066b6f6d5975d3e4 -->
 
 # 도구 목록
 
@@ -1310,6 +1310,7 @@ R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습�
 `make parity-check UNITS="<id> <id>"`(K221)는 이름 붙은 unit의 binding(R3)만 실행합니다. 전체 실행과 같은 runner, cwd, reader를 쓰고 결과를 같은 ledger 줄로 보고합니다. unit 전체가 필요한 cross-unit rule(R1, R2, R4~R11)은 실행하지 않으며, 그 실행은 이를 알리는 줄을 한 줄 출력합니다. `config/parity.json`의 어떤 unit도 갖지 않은 id는 실행을 시작하지 않고 그 id를 적어 실패합니다.
 `make parity-declarations-check UNITS="<id> <id>"`(K400)는 그 unit을 가리키는 finding과 `config/parity.json` 자체의 finding만 보고합니다. 그래서 자기 unit의 선언을 고친 행은 다른 unit에 finding이 남아 있어도 통과합니다. UNITS가 없으면 모든 finding을 보고합니다.
 `make parity-declarations-check RULES="<rule> <rule>"`(K414)는 이름 붙은 rule(id 또는 이름)의 finding과 `config/parity.json` 자체의 finding만 보고합니다. 그래서 문서의 사실을 고정하는 행은 다른 rule에 finding이 남아 있어도 자기 rule을 검증합니다.
+`make parity-declarations-check IDS="<requirement> <requirement>"`(K414-1)는 지정한 requirement id를 나타내는 finding을 보고하며, 해당 id를 인용하는 unit의 R2 missing binding도 포함합니다. 각 R2 finding은 unit의 requirement id를 함께 가집니다. `RULES` 또는 `UNITS`와 함께 쓰면 필터가 교차 적용됩니다. `config/parity.json` 자체의 finding은 모든 필터 실행에 남습니다.
 
 | Module | 담당 |
 |---|---|

@@ -14,8 +14,9 @@
 //                     and a schema finding of config/parity.json counts only at a named unit's index (K400-1)
 //     --rule <x>      with --declarations, only the findings of the named rules count, by id (R10) or by name (docs-count), and
 //                     those of config/parity.json itself (K414); a name that is neither fails the run
-//     --id <requirement>  with --declarations, only the findings that name one of the requirement ids count (R13 to R16, R18),
-//                     and those of config/parity.json itself; with --unit and --rule the scope is their intersection;
+//     --id <requirement>  with --declarations, only findings that name one of the requirement ids count, including R2 missing
+//                     bindings of units that cite it; also keeps findings of config/parity.json itself. With --unit and --rule,
+//                     the scope is their intersection;
 //                     an id that no shared or tool unit cites fails the run (K414-1)
 //
 // The rules, each a finding that fails the check:
