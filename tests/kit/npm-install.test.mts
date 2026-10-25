@@ -73,7 +73,7 @@ test('npm install runs npm ci of the tracked lock, then links each provided pack
   assert.equal(npmInstall({ directory: project, checkouts: [sibling], npm, print: text => lines.push(text), env: process.env }), 'linked', lines.join('\n'));
   assert.equal(readFileSync(log, 'utf8'), 'ci\n', 'npm ci of the tracked lock is the only npm run');
   const link = path.join(project, 'node_modules/@polyspec/ordered-json');
-  assert.equal(lstatSync(path.join(link, 'package.json')).isSymbolicLink(), true, 'the provided package is a folder of per-file links, its installed copy removed (K558)');
+  assert.equal(lstatSync(link).isSymbolicLink(), true, 'the provided package is one symlink, its installed copy removed (K591)');
   assert.equal(npmTarget(link), realpathSync(sibling));
   assert.equal(lstatSync(path.join(project, 'node_modules/left-pad')).isDirectory(), true, 'a package that no checkout provides stays as installed');
   assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), manifest, 'the tracked manifest is unchanged');

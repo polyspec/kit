@@ -879,9 +879,8 @@ test('a stale absolute npm link that resolves to its provider is re-made relativ
   const { kit, consumer, env } = workspace(t);
   const first = linkLines([consumer], env);
   assert.equal(first.ok, true, first.text);
-  // K558: the npm package folder of another repository is a tree of per-file links, each of which link writes relative.
-  const installed = path.join(consumer, 'node_modules/@polyspec/kit/package.json');
-  const target = path.join(kit, 'package.json');
+  const installed = path.join(consumer, 'node_modules/@polyspec/kit');
+  const target = kit;
   rmSync(installed);
   symlinkSync(target, installed);
   const second = linkLines([consumer], env);
@@ -928,8 +927,7 @@ test('link replaces each installed polyspec package folder with a direct symlink
   assert.equal(lstatSync(vendor).isSymbolicLink(), true, 'vendor/polyspec/y is a link');
   assert.equal(realpathSync(vendor), realpathSync(path.join(provider, 'packages/php')));
   const npm = path.join(consumer, 'node_modules/@polyspec/x');
-  assert.equal(lstatSync(npm).isDirectory(), true, 'node_modules/@polyspec/x is a real folder (K558)');
-  assert.equal(lstatSync(path.join(npm, 'package.json')).isSymbolicLink(), true, 'its package.json is a link into the provider (K558)');
+  assert.equal(lstatSync(npm).isSymbolicLink(), true, 'node_modules/@polyspec/x is one symlink (K591)');
   assert.equal(npmTarget(npm), realpathSync(path.join(provider, 'packages/ts')));
   assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no Composer link manifest is written');
   assert.doesNotMatch(log(), /^(composer|npm) /m, 'no package manager runs');

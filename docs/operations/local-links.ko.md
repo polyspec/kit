@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: d7862b03d94a583186a03110e6eec3727a29cd9a308f3d2dc9e2f4f65c24d286 -->
+<!-- source-sha256: 89c5928c0e2ddcfa12d9d1c1c2acac852df7efdd2b8ece4b0c863f635d47f0b7 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -25,9 +25,9 @@ link는 kit 도구 `scripts/kit/link.mts`와 `scripts/kit/link-folders.mts`입�
 
 | 생태계 | link가 되는 설치 폴더 |
 |---|---|
-| npm | 각 tracked npm 프로젝트의 `node_modules/<name>`. 다른 저장소의 provider이면 파일이 provider의 것으로 link된 진짜 폴더이며, provider의 `node_modules`는 빠지고, `package.json`이 `files`를 선언하면 `files`가 이름 붙인 최상위 항목 아래의 파일을 가집니다. consumer의 npm이 그 폴더에 설치한 `node_modules`는 남습니다. consumer 자신의 저장소의 패키지는 npm workspace의 폴더 link로 남습니다(K558) |
+| npm | 각 tracked npm 프로젝트의 `node_modules/<name>`. provider의 패키지 폴더로 가는 symlink 하나입니다(K591) |
 | Composer | 각 tracked Composer 프로젝트의 `<vendor-dir>/<vendor>/<package>`, `composer.json`의 `config.vendor-dir`(없으면 `vendor`) |
-| Python | 프로젝트 `.venv`의 `site-packages`에 있는 각 패키지. 한 namespace의 패키지(`polyspec/orm`, `polyspec/ordered_json`)는 따로 link됩니다. 패키지 폴더는 파일이 provider의 것으로 link된 진짜 폴더입니다. uv는 디렉터리 link를 통해 provider의 파일을 지우고 쓰기 때문입니다(K541) |
+| Python | 프로젝트 `.venv`의 `site-packages`에 있는 각 패키지. provider의 패키지 폴더로 가는 symlink 하나입니다. 한 namespace의 패키지(`polyspec/orm`, `polyspec/ordered_json`)는 따로 link됩니다. kit의 모든 uv 설치는 uv가 쓰기 전에 link를 뗍니다(K539, K591) |
 | Go | 각 Go module에 git이 무시하는 `go.work`. module과 provider module의 `use` 줄을 가집니다 |
 | Rust | `link.mjs cargo <dir> <cargo args>`가 `--config` `[patch]` 항목과 `var/link/cargo` 아래 lock 사본으로 cargo 명령 하나를 실행합니다 |
 
@@ -50,7 +50,7 @@ link는 kit 도구 `scripts/kit/link.mts`와 `scripts/kit/link-folders.mts`입�
 ## 알려진 영향
 
 - package manager는 여전히 release 버전을 기록합니다(lock 파일, Composer의 `installed.json`). 이것은 위의 release 기록이며 결함이 아닙니다.
-- Node는 module 파일의 import를 그 실제 경로에서 resolve하므로, link된 npm 패키지는 자신의 의존성을 provider checkout의 `node_modules`에서 찾습니다. 단 node를 `--preserve-symlinks`(`NODE_OPTIONS=--preserve-symlinks`)로 실행하면 파일별 link를 통해 consumer의 `node_modules`에서 찾습니다(K558). link를 스스로 resolve하는 bundler나 resolver는 esbuild의 `preserveSymlinks`처럼 자기 option이 필요합니다. 그때 그 의존성은 consumer의 lock이 가집니다. lock은 자신이 lock한 release의 의존성을 기록하므로, provider가 더한 의존성은 그것을 기록한 lock이 필요합니다. provider build가 더한 파일은 consumer에서 `make link`가 실행될 때까지 link가 없습니다. Composer는 consumer의 vendor에서 의존성을 찾습니다. 그래서 provider의 새 Composer 요구사항은 consumer에도 설치해야 합니다.
+- Node는 module 파일의 import를 그 실제 경로에서 resolve하므로, link된 npm 패키지는 자신의 의존성을 provider checkout의 `node_modules`에서 찾습니다.
 - PHP C extension은 link되지 않습니다. build된 공유 library가 필요합니다.
 
 ## 소유

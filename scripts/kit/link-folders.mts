@@ -2,14 +2,15 @@
 // provides it. No package manager resolves anything and no version is read: the tracked lock is installed once, as it is, and the
 // link replaces each provided package folder, removing a copy. link-state-check reads the same folders.
 //
-//   npm       node_modules/<name>                  -> the folder of the provider's package.json; for a provider of another repository a
-//             real folder of per-file links without the provider's node_modules, so a node run with --preserve-symlinks resolves the
-//             package's dependencies from the consumer's node_modules (K558)
+//   npm       node_modules/<name>                  -> the folder of the provider's package.json
 //   Composer  <vendor-dir>/<vendor>/<package>      -> the folder of the provider's composer.json
 //   Python    <site-packages>/<package path>       -> the same package path under the provider's source root (src/ when it has one),
 //             one link per package, so the packages of one namespace (polyspec/orm, polyspec/ordered_json) link apart; a source root
 //             whose pyproject maps its directories in the hatchling wheel sources links each directory to its mapped package path (K529)
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
+//
+// Each installed package is exactly one directory symlink, the user's rule (K591); no kit uv run writes through it, since every uv
+// install of kit removes the links first (K539).
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
@@ -22,11 +23,6 @@ export interface ProvidedFolder {
   name: string;
   folder: string;
   target: string;
-  /**
-   * An npm package of the consumer's own repository, which stays the whole-folder link of its npm workspace (K530, K558), or one that
-   * the consumer's package.json declares as a file: or link: dependency on a folder, which stays the link to the declared path that npm writes (K578).
-   */
-  own?: boolean;
 }
 
 /** The manifest of each ecosystem that names the package of a folder. */
@@ -118,36 +114,6 @@ export function checkoutProviders(checkouts: readonly string[], ecosystem: keyof
   }
   return [...found.values()];
 }
-
-// The specifiers of an npm dependency that names a folder of the consumer: npm writes its package folder as a link to that path (K578).
-const LOCAL_SPECIFIER = /^(?:file|link):(.+)$/;
-
-/**
- * The folder that the package.json of the npm project `project` declares for the package `name` as a file: or link: dependency, or
- * undefined when it declares none or has no package.json (K578): npm writes that package folder as a link to the folder, which the
- * consumer may require. A path that is no folder, as a tarball, is none (K579): npm unpacks a tarball into a real folder.
- */
-function declaredPath(project: string, name: string): string | undefined {
-  if (!existsSync(path.join(project, 'package.json'))) return undefined;
-  const manifest = readJsonObject(project, 'package.json');
-  for (const field of ['dependencies', 'devDependencies', 'optionalDependencies']) {
-    const entries = manifest[field];
-    const specifier = isJsonObject(entries) ? entries[name] : undefined;
-    const local = typeof specifier === 'string' ? LOCAL_SPECIFIER.exec(specifier)?.[1] : undefined;
-    if (local === undefined) continue;
-    const declared = path.resolve(project, local);
-    return statSync(declared, { throwIfNoEntry: false })?.isDirectory() === true ? declared : undefined;
-  }
-  return undefined;
-}
-
-/** Whether the folder `folder` is `root` or lies below it, by their real paths when they exist (K558). */
-const within = (folder: string, root: string): boolean => {
-  const real = (item: string) => (existsSync(item) ? realpathSync(item) : path.resolve(item));
-  const inner = real(folder);
-  const outer = real(root);
-  return inner === outer || inner.startsWith(`${outer}${path.sep}`);
-};
 
 /** Whether `file` exists as an entry, a dangling link included. */
 const present = (file: string): boolean => {
@@ -281,8 +247,7 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
   for (const provider of provided) {
     if (provider.ecosystem === 'npm') {
       const folder = path.join(project, 'node_modules', provider.name);
-      const declared = declaredPath(project, provider.name);
-      if (present(folder)) found.push({ ecosystem: 'npm', name: provider.name, folder, target: declared ?? provider.folder, own: declared !== undefined || within(project, provider.checkout) });
+      if (present(folder)) found.push({ ecosystem: 'npm', name: provider.name, folder, target: provider.folder });
     } else if (provider.ecosystem === 'composer') {
       const folder = path.join(vendorDirectory(project, vendorDir), provider.name);
       if (present(folder)) found.push({ ecosystem: 'composer', name: provider.name, folder, target: provider.folder });
@@ -305,43 +270,7 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
       }
     }
   }
-  return [...found, ...dependencyFolders(project, found)];
-}
-
-/**
- * The runtime dependencies that the npm packages of another repository among `folders` declare and that the project `project` cannot
- * resolve, and theirs in turn, each as a folder of the project that must link to the folder that the provider checkout installed
- * (K574): since K558 a linked package resolves its imports from the consumer, whose lock records the dependencies of the release, not
- * those that the checkout added. A dependency that the provider has not installed either is left to the provider's install.
- */
-function dependencyFolders(project: string, folders: readonly ProvidedFolder[]): ProvidedFolder[] {
-  const added = new Map<string, ProvidedFolder>();
-  const queue = folders.filter(item => item.ecosystem === 'npm' && item.own !== true).map(item => item.target);
-  for (let from = queue.shift(); from !== undefined; from = queue.shift()) {
-    if (!existsSync(path.join(from, 'package.json'))) continue;
-    const dependencies = readJsonObject(from, 'package.json').dependencies;
-    if (!isJsonObject(dependencies)) continue;
-    for (const name of Object.keys(dependencies)) {
-      if (added.has(name) || resolvedFolder(project, name) !== undefined) continue;
-      const installed = resolvedFolder(from, name);
-      if (installed === undefined) continue;
-      added.set(name, { ecosystem: 'npm', name, folder: path.join(project, 'node_modules', name), target: installed, own: true });
-      queue.push(installed);
-    }
-  }
-  return [...added.values()];
-}
-
-/**
- * The folder of the npm package `name` as node resolves it from the folder `from`: node_modules/<name> of `from` or of a folder above
- * it, up to the checkout that holds `from`, the first folder with a .git entry (K574).
- */
-function resolvedFolder(from: string, name: string): string | undefined {
-  for (let folder = path.resolve(from); ; folder = path.dirname(folder)) {
-    const candidate = path.join(folder, 'node_modules', name);
-    if (present(candidate)) return candidate;
-    if (present(path.join(folder, '.git')) || path.dirname(folder) === folder) return undefined;
-  }
+  return found;
 }
 
 /**
@@ -358,133 +287,15 @@ export function hasPythonPackages(provider: Provider): boolean {
 const linksTo = (folder: string, target: string): boolean => lstatSync(folder).isSymbolicLink() && existsSync(folder) && realpathSync(folder) === realpathSync(target);
 
 /**
- * The folders that a tree of per-file links leaves out, at any depth, by ecosystem: the caches of Python (K541); the node_modules of the
- * provider, which node would resolve before the consumer's, and Git's folder, which npm never publishes (K558). In the consumer's folder
- * the same names are no entries of the tree, so the node_modules that the consumer's npm installs in a package folder stays.
- */
-const LEFT_OUT = { python: new Set(['__pycache__']), npm: new Set(['node_modules', '.git']) } as const;
-
-/** Why a directory link of a package folder is a finding, by ecosystem (K541, K558). */
-const DIRECTORY_LINK = {
-  python: 'through which uv deletes its files',
-  npm: 'through which node resolves the provider\'s node_modules',
-} as const;
-
-/** The ecosystems whose package folder is a tree of per-file links. */
-type TreeEcosystem = keyof typeof LEFT_OUT;
-
-/**
- * The top-level entries of the npm provider `target` below which its tree holds files (K558): those that a positive entry of the files
- * of its package.json names by its first segment, or undefined, every entry, when it declares no files or a positive entry starts with a
- * pattern. The top-level files are always in the tree, as package.json, which npm always publishes, so the tree holds at least every file
- * that npm publishes.
- */
-function npmPublishedRoots(target: string): Set<string> | undefined {
-  const files = readJsonObject(path.join(target, MANIFEST.npm)).files;
-  if (files === undefined) return undefined;
-  if (!Array.isArray(files)) throw new Error(`files of ${path.join(target, MANIFEST.npm)} is no list`);
-  const roots = new Set<string>();
-  for (const entry of files) {
-    if (typeof entry !== 'string') throw new Error(`files of ${path.join(target, MANIFEST.npm)} holds ${JSON.stringify(entry)}, which is no path`);
-    if (entry.startsWith('!')) continue;
-    const first = entry.replace(/^\.?\//, '').split('/')[0] ?? '';
-    if (/[*?[{]/.test(first)) return undefined;
-    roots.add(first);
-  }
-  return roots;
-}
-
-/** The files of the provider folder of `item`, relative to it, at any depth, without the folders of LEFT_OUT and, for npm, below the roots that it publishes. */
-function providerFiles(item: ProvidedFolder & { ecosystem: TreeEcosystem }): string[] {
-  const left = LEFT_OUT[item.ecosystem];
-  const roots = item.ecosystem === 'npm' ? npmPublishedRoots(item.target) : undefined;
-  const visit = (relative: string): string[] => readdirSync(path.join(item.target, relative), { withFileTypes: true }).flatMap((entry) => {
-    const name = path.join(relative, entry.name);
-    if (!entry.isDirectory()) return [name];
-    if (left.has(entry.name) || (relative === '' && roots !== undefined && !roots.has(entry.name))) return [];
-    return visit(name);
-  });
-  return visit('').sort();
-}
-
-/** The entries of the folder `folder`, relative to it, at any depth, without the folders of `left`: files, links and empty folders. */
-function treeEntries(folder: string, left: ReadonlySet<string>, relative = ''): string[] {
-  return readdirSync(path.join(folder, relative), { withFileTypes: true }).flatMap((entry) => {
-    const name = path.join(relative, entry.name);
-    if (entry.isDirectory()) return left.has(entry.name) ? [] : treeEntries(folder, left, name);
-    return [name];
-  }).sort();
-}
-
-/** Whether the package folder of `item` is a tree of per-file links: a Python package (K541), an npm package of another repository (K558). */
-const isTree = (item: ProvidedFolder): item is ProvidedFolder & { ecosystem: TreeEcosystem } => item.ecosystem === 'python' || (item.ecosystem === 'npm' && item.own !== true);
-
-/**
- * The findings of the package folder of `item`, a tree (K541, K558): it is a real folder whose entries are exactly the files of the
- * provider, each a link to its file. uv deletes and writes through a directory link and never through the link of a file; node resolves
- * the imports of a file from its real path, and with --preserve-symlinks from the folder of its link, where a directory link holds the
- * provider's node_modules.
- */
-function treeFindings(root: string, item: ProvidedFolder & { ecosystem: TreeEcosystem }): string[] {
-  const shown = path.relative(root, item.folder);
-  const head = `${item.ecosystem} ${item.name}`;
-  const stat = lstatSync(item.folder, { throwIfNoEntry: false });
-  if (stat === undefined) return [`${head}: ${shown} is missing; fix: make link`];
-  if (stat.isSymbolicLink()) return [`${head}: ${shown} is a directory link into the provider, ${DIRECTORY_LINK[item.ecosystem]}; fix: make link`];
-  const files = providerFiles(item);
-  const found = files.flatMap((file) => {
-    const entry = path.join(item.folder, file);
-    const stat = lstatSync(entry, { throwIfNoEntry: false });
-    if (stat === undefined) return [`${head}: ${file} of the provider has no link; fix: make link`];
-    if (!stat.isSymbolicLink()) return [`${head}: ${path.join(shown, file)} is a copy, not a link to ${path.join(item.target, file)}; fix: make link`];
-    // A link is written relative to its folder (K326-3), so an absolute link that an earlier run wrote is a finding.
-    if (path.isAbsolute(readlinkSync(entry))) return [`${head}: ${path.join(shown, file)} links to the absolute path ${readlinkSync(entry)}; fix: make link`];
-    return linksTo(entry, path.join(item.target, file)) ? [] : [`${head}: ${path.join(shown, file)} links elsewhere than ${path.join(item.target, file)}; fix: make link`];
-  });
-  const extra = treeEntries(item.folder, LEFT_OUT[item.ecosystem]).filter(entry => !files.includes(entry));
-  return [...found, ...extra.map(entry => `${head}: ${path.join(shown, entry)} is no file of the provider; fix: make link`)];
-}
-
-/**
- * Makes the package folder of `item` a real folder of relative per-file links into the provider (K541, K558), replacing a directory link,
- * a copy or an outdated tree; a removal takes the links and the copies of the folder, never the files of the provider, and keeps the
- * folders of LEFT_OUT, as the node_modules that the consumer's npm installed in it. Returns what the folder was, or undefined when it was
- * already the tree.
- */
-function linkTree(root: string, item: ProvidedFolder & { ecosystem: TreeEcosystem }): string | undefined {
-  const findings = treeFindings(root, item);
-  if (findings.length === 0) return undefined;
-  if (!existsSync(item.target)) throw new Error(`${item.name}: the checkout lacks ${item.target}, the package folder to link`);
-  const stat = lstatSync(item.folder, { throwIfNoEntry: false });
-  const was = stat === undefined ? 'missing' : stat.isSymbolicLink() ? 'a directory link' : 'a folder that differs from the provider';
-  if (stat?.isDirectory() === true) {
-    for (const name of readdirSync(item.folder)) if (!LEFT_OUT[item.ecosystem].has(name)) rmSync(path.join(item.folder, name), { recursive: true, force: true });
-  } else {
-    rmSync(item.folder, { recursive: true, force: true });
-  }
-  for (const file of providerFiles(item)) {
-    const entry = path.join(item.folder, file);
-    mkdirSync(path.dirname(entry), { recursive: true });
-    symlinkSync(path.relative(path.dirname(entry), path.join(item.target, file)), entry);
-  }
-  return was;
-}
-
-/**
- * Replaces each provided folder that is not a link to its target with that link, and makes the folder of a Python package (K541) and of
- * an npm package of another repository (K558) a folder of per-file links; returns a line for each folder it changed.
+ * Replaces each provided folder that is not a link to its target with that one directory link (K591); returns a line for each folder it
+ * changed.
  */
 export function linkFolders(folders: readonly ProvidedFolder[]): string[] {
   const lines: string[] = [];
   for (const item of folders) {
-    if (isTree(item)) {
-      const was = linkTree(path.dirname(item.folder), item);
-      if (was !== undefined) lines.push(`${item.ecosystem} ${item.name}: ${item.folder} was ${was}; linked file by file to ${item.target}`);
-      continue;
-    }
     // A link to the right folder stays, unless it is absolute, which is made relative (K326-3).
     if (present(item.folder) && linksTo(item.folder, item.target) && !path.isAbsolute(readlinkSync(item.folder))) continue;
-    // A dependency of a linked package that the consumer lacks has no folder yet (K574).
+    // A held Python package that the environment lacks has no folder yet (K554).
     const was = !present(item.folder) ? 'missing' : lstatSync(item.folder).isSymbolicLink() ? 'a link elsewhere' : 'a copy';
     mkdirSync(path.dirname(item.folder), { recursive: true });
     rmSync(item.folder, { recursive: true, force: true });
@@ -495,12 +306,11 @@ export function linkFolders(folders: readonly ProvidedFolder[]): string[] {
   return lines;
 }
 
-/** The findings of the provided folders: a copy, or a link to another folder than its provider's, and for a tree those of K541 and K558. */
+/** The findings of the provided folders: a missing folder, a copy, or a link to another folder than its provider's (K591). */
 export function folderFindings(root: string, folders: readonly ProvidedFolder[]): string[] {
   return folders.flatMap((item) => {
-    if (isTree(item)) return treeFindings(root, item);
     const shown = path.relative(root, item.folder);
-    if (!present(item.folder)) return [`${item.ecosystem} ${item.name}: ${shown} is missing, a dependency of a linked package (K574); fix: make link`];
+    if (!present(item.folder)) return [`${item.ecosystem} ${item.name}: ${shown} is missing; fix: make link`];
     if (!lstatSync(item.folder).isSymbolicLink()) return [`${item.ecosystem} ${item.name}: ${shown} is a copy, not a link to ${item.target}; fix: make link`];
     if (!linksTo(item.folder, item.target)) return [`${item.ecosystem} ${item.name}: ${shown} links to ${existsSync(item.folder) ? realpathSync(item.folder) : 'nothing'}, not to ${item.target}; fix: make link`];
     return [];

@@ -30,7 +30,7 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
     // K548: the project that uv-install installs is no provided package, though a checkout that holds it names it.
     const others = providers.filter(provider => path.resolve(provider.folder) !== project);
     // K545, K554: the provided packages that the environment holds by their dist-info records, whose folders link builds from their
-    // checkouts, also when a folder is missing: a development install ends with per-file links, so nothing is reinstalled.
+    // checkouts, also when a folder is missing: a development install ends with links, so nothing is reinstalled.
     const held = installedDistributions(project, environment);
     // K539: uv writes through a package link of the environment into its provider checkout, so the links go first.
     for (const link of releaseEnvironmentLinks(project, environment)) write(`uv-install ${project}: unlinked ${link}, so uv writes no provider checkout\n`);

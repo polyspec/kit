@@ -183,7 +183,7 @@ function workspaceHookFindings(root: string): string[] {
 function buildFindings(installed: readonly Installed[]): string[] {
   const found: string[] = [];
   for (const item of installed) {
-    // The provider folder is the real folder of the package.json: a directory link or a tree of per-file links (K558) leads there.
+    // The provider folder is the real folder of the package.json, which the directory link leads to (K591).
     const manifest = path.join(item.folder, 'package.json');
     if (item.ecosystem !== 'npm' || !(isLink(item.folder) || isLink(manifest)) || !existsSync(manifest)) continue;
     const folder = path.dirname(realpathSync(manifest));

@@ -24,9 +24,9 @@ The link is the kit tool `scripts/kit/link.mts` with `scripts/kit/link-folders.m
 
 | Ecosystem | Installed folder that becomes the link |
 |---|---|
-| npm | `node_modules/<name>` of each tracked npm project; for a provider of another repository a real folder whose files link to the provider's, without the provider's `node_modules` and, when its `package.json` declares `files`, below the top-level entries that `files` names; the `node_modules` that the consumer's npm installs in the folder stays; a package of the consumer's own repository stays the folder link of its npm workspace (K558) |
+| npm | `node_modules/<name>` of each tracked npm project, one symlink to the provider's package folder (K591) |
 | Composer | `<vendor-dir>/<vendor>/<package>` of each tracked Composer project, the `config.vendor-dir` of its `composer.json` (else `vendor`) |
-| Python | each package of the `site-packages` of a project's `.venv`; the packages of one namespace (`polyspec/orm`, `polyspec/ordered_json`) link apart; a package folder is a real folder whose files link to the provider's, since uv deletes and writes the files of a provider through a directory link (K541) |
+| Python | each package of the `site-packages` of a project's `.venv`, one symlink to the provider's package folder; the packages of one namespace (`polyspec/orm`, `polyspec/ordered_json`) link apart; every uv install of kit removes the links before uv writes (K539, K591) |
 | Go | a git-ignored `go.work` at each Go module, with `use` lines for the module and the provider modules |
 | Rust | `link.mjs cargo <dir> <cargo args>` runs one cargo command with `--config` `[patch]` entries and a copy of the lock under `var/link/cargo` |
 
@@ -49,7 +49,7 @@ The link is the kit tool `scripts/kit/link.mts` with `scripts/kit/link-folders.m
 ## Known effects
 
 - The package manager still records the released version (lock files, Composer's `installed.json`), which is the release record above, not a fault.
-- Node resolves the imports of a module file from its real path, so a linked npm package resolves its own dependencies from the provider checkout's `node_modules`, unless node runs with `--preserve-symlinks` (`NODE_OPTIONS=--preserve-symlinks`), which resolves them from the consumer's `node_modules` through the per-file links (K558); a bundler or resolver that resolves links itself needs its own option, as `preserveSymlinks` of esbuild. The consumer's lock then holds those dependencies: it records the dependencies of the release that it locked, so a dependency that the provider adds needs a lock that records it. A provider build that adds a file leaves it without a link until `make link` runs in the consumer. Composer resolves the dependencies from the consumer's vendor, so a provider's new Composer requirement must also be installed in the consumer.
+- Node resolves the imports of a module file from its real path, so a linked npm package resolves its own dependencies from the provider checkout's `node_modules`.
 - A PHP C extension is not linked; it needs a built shared library.
 
 ## Ownership
