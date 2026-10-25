@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c473a88a0336851c2c7055856a93492952f1e293fd7992b4bc21a9b9da74b12e -->
+<!-- source-sha256: 79ec27b287d08ae3a3695b0f2fe3c46dc19f2eae73e2c5ce26ebf7e738c27f81 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit은 alint가 저장소 안에서 읽어야 하는 config/layout.kit.yml과 그것이 이름 붙인 schema 세 개만 복사한다. 저장소는 ../kit의 kit-bootstrap.mk를 include하고, PHP lint는 kit에서 읽으며, PRINCIPLES.md, 그 짝, .editorconfig, .claude/settings.json은 ../kit로 가는 link가 된다(K614).
 - check-rules 테스트는 P10과 P38이 지금 말하는 구절을 이름 붙이고(규칙에 더 없는 구절을 이름 붙였습니다), worktree-setup 도움말은 K596에서 없앤 디스크 하한을 더 말하지 않습니다(K611).
 - 동시에 실행하는 PHP extension library test는 각 Composer fixture를 따로 준비하고 PHPUnit 종료 뒤 정리해, 서로의 vendor symlink나 autoloader를 바꾸지 않습니다 (K610).
 - land는 병합 뒤 main commit처럼 link된 consumer가 읽는 것을 갱신한다. kit에서는 build 입력이 dist를 build하고, 다른 곳에서는 낡은 link된 package를 다시 build한다. make commit과 land는 linked-build.mts를 함께 쓴다 (K609).
