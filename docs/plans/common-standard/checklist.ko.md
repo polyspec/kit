@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 0fe62daed6fc6dc49d5665dfcdf99384d38d4f20bbaf656e6ed13fed33344304 -->
+<!-- source-sha256: 9acea11f2f71aeac6e8ee835d5552f0a3855b35d949ad0158c869afbc1b79dc2 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -543,3 +543,4 @@
 | K636 | divergence-check는 fmt.Sprintf가 machine 값을 만들고 fmt.Fprintf가 이를 machine=%s 진단 필드에만 쓸 때 Go runtime.GOOS와 runtime.GOARCH를 진단 metadata로 인식하며, 실제 platform 분기는 계속 finding으로 보고한다(K315 후속). | scripts/kit/divergence-check.mts, tests/kit/divergence-check.test.mts | `node --test --test-name-pattern=K636 tests/kit/divergence-check.test.mts` | [o] |
 | K637 | install-tools는 선언한 PHP의 gen_stub.php가 이름 붙인 PHP-Parser release를, release마다 둔 kit의 잠긴 Composer 프로젝트(PHP 8.4는 scripts/kit/php-arginfo/5.0.0, PHP 8.5는 5.6.1)에서 놓습니다. 지금은 kit이 5.0.0만 잠가, flowmark처럼 PHP 8.5를 선언한 저장소에서 install-tools가 멈춥니다. | scripts/kit/install-php-arginfo.mts choosing the project by the release, scripts/kit/php-arginfo/5.0.0 and 5.6.1, their entries in config/dependency-policy.json and config/release.json, and the K637 case in tests/kit/php-ext.test.mts. | `node --test --test-name-pattern="K560\|K637" tests/kit/php-ext.test.mts` | [o] |
 | K639 | kit의 PHP-Parser Composer 프로젝트는 각자 이름을 가집니다: polyspec/kit-php-arginfo-5.0.0, polyspec/kit-php-arginfo-5.6.1. K637이 둘 다 polyspec/kit-php-arginfo로 이름 붙여, link가 공급자 둘을 가진 패키지를 거부하고 모든 consumer에서 make install-link가 멈춥니다. | scripts/kit/php-arginfo/5.0.0 and 5.6.1 composer.json and composer.lock with their own names, and the K639 case in tests/kit/php-ext.test.mts. | `node --test --test-name-pattern=K639 tests/kit/php-ext.test.mts` | [o] |
+| K640 | make duplication-check는 config/generated.json이 생성 파일로 선언한 파일, 곧 그 paths와 exceptions를 읽지 않습니다. flowmark는 orm-gen이 쓴 파일을 추적하고 거기에 선언하는데, duplication-check는 그것을 서로의 복제로 읽습니다. | scripts/kit/duplication-check.mts reads config/generated.json, and the K640 case in tests/kit/duplication-check.test.mts. | `node --test --test-name-pattern=K640 tests/kit/duplication-check.test.mts` | [ ] |
