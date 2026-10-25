@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 88c01f5357af459a424b2d97dc0822147766245b87693a9d2e5351baf4b074e5 -->
+<!-- source-sha256: 0e467ef9e8134bc3459a427999168330036866d70a627d9bf9c65c7b0b018c36 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -536,3 +536,4 @@
 | K628 | make land의 정리(K626)는 main에서 만들고 자기 commit이 없는 새 branch의 worktree를, main이 그것을 포함한다는 이유로 지웁니다. kit-linked-sources-K613을 지웠습니다. branch는 그 reflog가 생성이나 마지막 reset 이후 자기 commit을 기록하고 main이 그 commit을 모두 포함할 때 merge된 것입니다. | removeMerged in scripts/kit/land.mts with the merged test of the reflog, and its K628 assertions in the K626 case of tests/kit/land.test.mts. | `node --test --test-name-pattern=K626 tests/kit/land.test.mts` | [o] |
 | K629 | kit main이 자기 lint-ts에서 K247-2와 K247-3 land가 가져온 finding 다섯 개로 실패합니다: tests/kit/release.test.mts:101의 쓸모없는 escape 네 개와 tests/kit/php-ext.test.mts:208의 any에서의 assertion. | tests/kit/release.test.mts and tests/kit/php-ext.test.mts without the findings. | `make lint-ts` | [o] |
 | K630 | PHP 확장 테스트는 PATH의 첫 php, php-config, phpize를 감쌉니다. 이 Mac에서는 Homebrew PHP 8.5이고 그 gen_stub.php는 PHP-Parser 5.6.1을 요구하지만, kit은 .php-version의 PHP 8.4를 위해 5.0.0을 고정합니다. 테스트가 세션의 PATH에 따라 통과하거나 실패합니다. 대신 kit 자신의 var/tools/bin을 감쌉니다. | phpWrappers of tests/kit/php-ext.test.mts on kit's var/tools/bin. | `node --test --test-name-pattern=K560 tests/kit/php-ext.test.mts` | [o] |
+| K631 | make land는 main에서도 실패하는 gate를 그 행이 고친다는 메모와 함께 통과시키고 main이 통과하는 gate만 거부합니다. 지금은 두 실행의 출력 줄을 비교해 progress, hash, 시간이 main에 없는 finding으로 셉니다. 비교를 삭제합니다: newFindings, linesOf, findingLines, newLines, isCloneLine, environmentFailure와 progress·임시 폴더·jscpd 특수 처리. | gateBranch of scripts/kit/land.mts without the comparison, its K631 case in tests/kit/land.test.mts, and the tests of the comparison removed. | `node --test --test-name-pattern=K631 tests/kit/land.test.mts` | [ ] |
