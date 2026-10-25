@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 81748a6b2e712834673c558c8f31750e048b17d0313d1f8f8b84c6cc73c61c6c -->
+<!-- source-sha256: d045eab95561c0367113028c4fe137cc1f0d628061541c91805f3e0fe5198f3e -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -547,3 +547,4 @@
 | K641 | scripts/kit/pack-manifest.mts에 test가 생기고, 그것과 scripts/kit/linked-build.mts가 분류를 가진다(K613, K609 후속). 원인: K613이 pack-manifest.mts를 그것을 import하는 test 없이 더해서 make owner-validate가 실패하고, 그것도 K609의 linked-build.mts도 config/rebuild.json에 분류가 없어서 make rebuild-check가 실패한다. 수정: tests/kit/pack-manifest.test.mts가 묶인 파일과 source를 가리키지 않는 파일의 실패를 test하고, config/rebuild.json이 둘을 이유와 함께 policy로 분류한다 | tests/kit/pack-manifest.test.mts, config/rebuild.json | `make owner-validate`, `make rebuild-check`, `node scripts/kit/run-tests.mts node -- tests/kit/pack-manifest.test.mts` | [o] |
 | K642 | make commits-check는 한국어 twin의 source-sha256 stamp를 범위의 tip에서만 판단합니다. land는 tip을 병합하고 docs-check가 그 tree의 stamp를 판단하므로, rebase가 stamp를 낡게 남긴 중간 commit은 같은 branch의 뒤 commit이 다시 stamp하면 finding이 아니며 branch를 거부하지 않습니다. | scripts/kit/check-commits.mts reads the twins on the tip only, and the K642 case in tests/kit/commits.test.mts. | `node --test --test-name-pattern=K642 tests/kit/commits.test.mts` | [o] |
 | K643 | link과 link-state-check는 옆의 checkout에서 editable로 설치된 Python package를 link된 것으로 본다(K591, K529 후속). 원인: uv는 path 의존성을 editable로 설치해서 site-packages에 package 폴더 없이 dist-info의 direct_url.json(PEP 610)만 두는데, link은 그것을 설치 폴더가 없다고 보고했다(fsm의 packages/python과 polyspec-orm). 수정: editableFolder가 그 기록을 읽어 provider 폴더의 editable 설치는 link된 것으로, 다른 폴더의 것은 finding으로 본다. bootstrap의 K348-1 test는 K613을 따른다 | scripts/kit/link-folders.mts, scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern='K643\|K348-1' tests/kit/link.test.mts` | [o] |
+| K644 | divergence-check는 전역 PHP 생태계 기능 확인을 구현 공존 가드로 보고합니다. 네임스페이스 구현 가드는 계속 탐지합니다 | scripts/kit/divergence-check.mts and the exact K644 case in tests/kit/divergence-check.test.mts | `node --test --test-name-pattern=K644 tests/kit/divergence-check.test.mts` | [ ] |
