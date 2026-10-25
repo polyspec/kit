@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 79b299f04e768e0af193c9c086fc3e0edb6630b11ce2116d2feb7ccebb32e825 -->
+<!-- source-sha256: c4e1150f655c4b206436700942d9db9cf02b5ceccf5e8c8ff143908ecdcc202e -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -550,3 +550,4 @@
 | K644 | divergence-check는 구현 루트에 선언된 PHP 함수의 function_exists 확인을 구현 공존 가드로 보고하고, 선언되지 않은 런타임 기능 확인은 허용합니다 | scripts/kit/divergence-check.mts and the exact K644 case in tests/kit/divergence-check.test.mts | `node --test --test-name-pattern=K644 tests/kit/divergence-check.test.mts` | [o] |
 | K645 | divergence-check는 PHP 구현 루트의 선언을 대조해 function_exists를 판정합니다. 전역 프로젝트 함수는 찾고 미선언 외부 함수는 허용합니다 | scripts/kit/divergence-check.mts and the K645 source-declaration case in tests/kit/divergence-check.test.mts | `node --test --test-name-pattern=K645 tests/kit/divergence-check.test.mts` | [o] |
 | K646 | kit에 commit하거나 land해도 dist를 빌드하지 않습니다. consumer는 kit의 소스를 실행하고(K613) dist는 release 때 npm의 prepack이 빌드하므로, 어떤 consumer도 kit의 dist를 읽지 않게 되면 linked-build.mts의 kit 빌드(K551, K609의 kit 부분)를 지웁니다. | scripts/kit/linked-build.mts without the kit build, and the K646 cases in tests/kit/land.test.mts and tests/kit/plan.test.mts. | `node --test --test-name-pattern=K646 tests/kit/land.test.mts tests/kit/plan.test.mts` | [ ] |
+| K647 | Archived-To는 보류된 체크리스트 항목이 있고 삭제 파일이 도달 가능한 보관 커밋에 바이트 단위로 보존될 때만 시험 삭제를 허용합니다 | scripts/kit/check-commits.mts and the K647 cases in tests/kit/plan.test.mts | `node --test --test-name-pattern=K647 tests/kit/plan.test.mts` | [ ] |
