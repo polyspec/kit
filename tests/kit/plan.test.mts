@@ -741,7 +741,6 @@ test('the red of a row survives the rebase of its branch on a newer main, and it
   const cli = (env: NodeJS.ProcessEnv) => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-red'], { cwd: root, env: { ...process.env, ...env }, encoding: 'utf8' });
   commitAll('base');
   run('branch', '-M', 'main');
-  const base = run('rev-parse', 'HEAD');
   run('switch', '--quiet', '-c', 'fix/parser-T1');
   put(root, { 'notes.md': 'a commit of the branch\n' });
   commitAll('docs(plan): Register T1 (#T1)');

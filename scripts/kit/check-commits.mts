@@ -44,7 +44,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
-import { gitIsAncestor, provesRed } from './gate-red.mts';
+import { provesRed } from './gate-red.mts';
 import { clashMessage, rowClashes } from './row-ids.mts';
 import { blobContent, CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
 import type { GeneratedConfig } from './generated-files.mts';
@@ -253,7 +253,7 @@ export function changesATest(file: string, after: (file: string) => string, chan
  * change, `changed` holds the paths that the change touches, and `message`, when given, is the message of the commit, whose
  * type fix needs a changed test file (K257).
  */
-export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, parent, changedLines = () => [], deleted = [], tracked = () => false }: Change) {
+export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, changedLines = () => [], deleted = [], tracked = () => false }: Change) {
   const changes = [];
   for (const tracker of trackersOf(loadConfig(root), new Set(plans))) {
     const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
@@ -280,7 +280,7 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
     const id = /\(#([A-Za-z0-9][A-Za-z0-9.-]*)\)$/.exec(message.split('\n')[0] ?? '')?.[1];
     const done = changes.find(change => change.id === id && change.to === DONE);
     const commands = () => (done ? itemCommands(after(done.tracker.path), done.tracker, done.id) : []);
-    const proven = parent !== undefined && provesRed(message, commands, parent, gitIsAncestor(root));
+    const proven = provesRed(message, commands);
     if (done !== undefined && !proven) {
       found.push({ rule: 'commit-fix-test', message: `the fix commit moves ${done.id} to done without a Red-Gate or Red-Test line of a command of its Verification on the parent; the red is the failing run of the Verification before the fix: make item-red ID=${done.id} records it after the test is written, and make commit writes it` });
     } else if (done === undefined && !changed.some(file => changesATest(file, after, changedLines))) {

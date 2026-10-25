@@ -161,9 +161,7 @@ export function fixProvesRed(root: string, id: string, commands: readonly string
   for (const entry of log.stdout.split('\x1e')) {
     const [sha = '', message = ''] = entry.trim().split('\x1f');
     if (sha === '' || !(message.split('\n')[0] ?? '').endsWith(`(#${id})`)) continue;
-    const parent = spawnSync('git', ['rev-parse', '--verify', '--quiet', `${sha}^`], { cwd: root, encoding: 'utf8' });
-    if (parent.status !== 0) continue;
-    if (provesRed(message, () => commands, parent.stdout.trim(), gitIsAncestor(root))) return true;
+    if (provesRed(message, () => commands)) return true;
   }
   return false;
 }
@@ -172,27 +170,19 @@ export function fixProvesRed(root: string, id: string, commands: readonly string
 export function redLines(root: string, id: string): string[] {
   const failed = failedRuns(root, id);
   if (!failed) return [];
-  // The line names the merge-base of HEAD and main: a row branch is rebased on main before it lands, which rewrites the commits
-  // of the branch and keeps that commit as an ancestor of the fix (K389-2). On main, or without a main, it is HEAD itself.
-  const base = spawnSync('git', ['merge-base', failed.head, 'main'], { cwd: root, encoding: 'utf8' });
-  const at = base.status === 0 && base.stdout.trim() !== '' ? base.stdout.trim() : failed.head;
-  const line = (kind: string, run: Run) => `${kind}: ${run.command} exit ${run.status} at ${at.slice(0, 12)}`;
+  // The line names the head where the red ran, which item-red recorded (K562): another commit, as a merge-base, may pass.
+  const line = (kind: string, run: Run) => `${kind}: ${run.command} exit ${run.status} at ${failed.head.slice(0, 12)}`;
   return [...failed.gates.map(run => line('Red-Gate', run)), ...failed.tests.map(run => line('Red-Test', run))];
 }
 
 /**
- * Whether `message` holds a Red-Gate or Red-Test line that names a command of `commandsOfRow`, the commands of the row, and a prefix of
- * the commit `parent`; the commands are read only for a message with such a line.
+ * Whether `message` holds a Red-Gate or Red-Test line that names a command of `commandsOfRow`, the commands of the row; the commands are
+ * read only for a message with such a line. The line records the head where item-red ran the command (K562), which a rebase rewrites,
+ * so no ancestry of it is asked.
  */
-export function provesRed(message: string, commandsOfRow: () => readonly string[], parent: string, isAncestor: (sha: string, of: string) => boolean = () => false): boolean {
+export function provesRed(message: string, commandsOfRow: () => readonly string[]): boolean {
   const lines = [...message.matchAll(RED_LINE)];
   if (lines.length === 0) return false;
   const commands = commandsOfRow();
-  // The red holds on the parent, or on an ancestor of it when the branch was rebased after the red was taken.
-  return lines.some(match => commands.includes(match[1] ?? '') && (parent.startsWith(match[3] ?? '-') || isAncestor(match[3] ?? '-', parent)));
-}
-
-/** The ancestry test of a repository: whether the commit `sha` is an ancestor of `of`, which provesRed takes for a rebased branch. */
-export function gitIsAncestor(root: string): (sha: string, of: string) => boolean {
-  return (sha, of) => spawnSync('git', ['merge-base', '--is-ancestor', sha, of], { cwd: root }).status === 0;
+  return lines.some(match => commands.includes(match[1] ?? ''));
 }
