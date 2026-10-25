@@ -11,9 +11,18 @@ struct Finder<'a> {
     found: Vec<String>,
 }
 
-/// Whether `pattern` is `Err(..)`, the arm or branch of every error.
+/// Whether `pattern` is `Err(..)` of every error: its inner pattern is a binding, `_` or `..`, so it matches each error. An inner
+/// pattern that names an error variant matches only that error and leaves every other to a later arm (K620).
 fn is_err_pattern(pattern: &syn::Pat) -> bool {
-    matches!(pattern, syn::Pat::TupleStruct(tuple) if tuple.path.segments.last().is_some_and(|segment| segment.ident == "Err"))
+    let syn::Pat::TupleStruct(tuple) = pattern else { return false };
+    if !tuple.path.segments.last().is_some_and(|segment| segment.ident == "Err") {
+        return false;
+    }
+    tuple.elems.iter().all(|inner| match inner {
+        syn::Pat::Wild(_) | syn::Pat::Rest(_) => true,
+        syn::Pat::Ident(binding) => binding.subpat.is_none(),
+        _ => false,
+    })
 }
 
 /// Whether `expr` holds no statement: an empty block or the unit value.
@@ -36,7 +45,8 @@ impl Finder<'_> {
 
 impl<'ast> Visit<'ast> for Finder<'_> {
     fn visit_arm(&mut self, arm: &'ast syn::Arm) {
-        if is_err_pattern(&arm.pat) && is_empty(&arm.body) {
+        // A guarded arm handles the errors that its guard names and leaves every other to a later arm (K620).
+        if arm.guard.is_none() && is_err_pattern(&arm.pat) && is_empty(&arm.body) {
             self.report(arm.pat.span().start().line);
         }
         syn::visit::visit_arm(self, arm);
