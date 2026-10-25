@@ -9,7 +9,7 @@
 //   Python    <site-packages>/<package path>       -> the same package path under the provider's source root (src/ when it has one),
 //             one link per package, so the packages of one namespace (polyspec/orm, polyspec/ordered_json) link apart; a source root
 //             whose pyproject maps its directories in the hatchling wheel sources links each directory to its mapped package path (K529)
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
@@ -24,7 +24,7 @@ export interface ProvidedFolder {
   target: string;
   /**
    * An npm package of the consumer's own repository, which stays the whole-folder link of its npm workspace (K530, K558), or one that
-   * the consumer's package.json declares as a file: or link: dependency, which stays the link to the declared path that npm writes (K578).
+   * the consumer's package.json declares as a file: or link: dependency on a folder, which stays the link to the declared path that npm writes (K578).
    */
   own?: boolean;
 }
@@ -123,9 +123,9 @@ export function checkoutProviders(checkouts: readonly string[], ecosystem: keyof
 const LOCAL_SPECIFIER = /^(?:file|link):(.+)$/;
 
 /**
- * The path that the package.json of the npm project `project` declares for the package `name` as a file: or link: dependency, or
- * undefined when it declares none or has no package.json (K578): npm writes that package folder as a link to the path, which the
- * consumer may require.
+ * The folder that the package.json of the npm project `project` declares for the package `name` as a file: or link: dependency, or
+ * undefined when it declares none or has no package.json (K578): npm writes that package folder as a link to the folder, which the
+ * consumer may require. A path that is no folder, as a tarball, is none (K579): npm unpacks a tarball into a real folder.
  */
 function declaredPath(project: string, name: string): string | undefined {
   if (!existsSync(path.join(project, 'package.json'))) return undefined;
@@ -134,7 +134,9 @@ function declaredPath(project: string, name: string): string | undefined {
     const entries = manifest[field];
     const specifier = isJsonObject(entries) ? entries[name] : undefined;
     const local = typeof specifier === 'string' ? LOCAL_SPECIFIER.exec(specifier)?.[1] : undefined;
-    if (local !== undefined) return path.resolve(project, local);
+    if (local === undefined) continue;
+    const declared = path.resolve(project, local);
+    return statSync(declared, { throwIfNoEntry: false })?.isDirectory() === true ? declared : undefined;
   }
   return undefined;
 }

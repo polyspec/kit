@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5168b4e17690eb3fad7084f02ee9597021278a53b09191494ed651ac1c95356a -->
+<!-- source-sha256: 5579fa32f37bf1becfb253767535fe4fbe93f56dc99442f15da307ef28d52c08 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- consumer가 tarball로의 file: 의존성으로 선언한 npm package는 npm이 진짜 폴더로 풀므로 tarball로의 link가 아니라 provider로의 per-file link tree가 된다. 폴더로의 의존성만 K578의 link로 남는다 (K579).
 - mise.toml이 sccache를 선언한 checkout은 모든 worktree가 공유하는 main checkout의 var/tools 아래 cache 하나(5G 제한)로 Rust를 컴파일하고, cargo는 호출자가 CARGO_BUILD_JOBS를 정하지 않으면 core의 절반을 쓴다 (K581).
 - 디스크가 floor 아래이면 worktree-setup은 Go build cache를 오래된 것부터 floor를 채울 때까지 정리하되 최근 10분의 파일은 남긴다. 병렬 build가 cache 전체를 두 시간보다 젊게 유지하기 때문이다 (K538-1).
 - merge 뒤 main의 build와, land가 비교하는 main의 gate 실행은 land lock이 풀린 뒤 자기 main build lock 아래에서 돈다. 그래서 다음 land는 main이 build하는 동안 merge한다 (K572).

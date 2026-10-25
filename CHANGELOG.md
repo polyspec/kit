@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- An npm package that the consumer declares by a file: dependency on a tarball, which npm unpacks into a real folder, becomes the per-file link tree of its provider, not a link to the tarball; only a dependency on a folder stays the link of K578 (K579).
 - A checkout whose mise.toml declares sccache compiles Rust through one cache under the var/tools of the main checkout, which every worktree shares, capped at 5G; cargo runs half the cores unless the caller sets CARGO_BUILD_JOBS (K581).
 - Under the disk floor worktree-setup trims the Go build cache oldest first until the floor is met, sparing the files of the last 10 minutes, since parallel builds keep the whole cache younger than two hours (K538-1).
 - The build of main after a merge, and the run of a gate on main that a land compares with, run under their own main build lock after the land lock is released, so the next land merges while main builds (K572).
