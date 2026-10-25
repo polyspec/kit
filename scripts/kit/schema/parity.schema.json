@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/parity.json",
-  "description": "The language-parity declaration, read by scripts/kit/parity.mts: the implementations of the repository (the one source of the language set) and the shared units that every applicable implementation must hold. Unscoped units apply to every implementation; a feature owner resolves only through a declared coverage part or release package. The facts come from the tree: the checker runs the bindings and the symbol extractors and reads the error-code artifacts. Every path lies inside the repository (S3): none is absolute, starts with ~ or holds a .. segment, in a path field or in a word (between =, : and whitespace) of a runner argument, env value or binding command, and no env sets PYTHONPATH; a package is tested as installed.",
+  "description": "The language-parity declaration, read by scripts/kit/parity.mts: the implementations of the repository (the one source of the language set), their shared units and requirement units owned by tools outside that set. Unscoped units apply to every implementation; a feature owner resolves only through a declared coverage part or release package. The facts come from the tree: the checker runs implementation bindings and symbol extractors and reads error-code artifacts. Every path lies inside the repository (S3): none is absolute, starts with ~ or holds a .. segment, in a path field or in a word (between =, : and whitespace) of a runner argument, env value or binding command, and no env sets PYTHONPATH; a package is tested as installed.",
   "type": "object",
   "required": ["schema", "implementations", "requirements", "units"],
   "additionalProperties": false,
@@ -74,7 +74,7 @@
     },
     "suites": { "description": "Globs of the shared vector files; each one must be the file of a suite unit.", "type": "array", "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
     "tools": {
-      "description": "The directories of single-language tooling tests that implement no contract, such as the tests of an editor tool; every run prints each with its reason. R6 accepts a test there, and R3 and R5 do not judge it. A root overlaps no implementation root and holds no test of a binding.",
+      "description": "The directories of single-language tooling that are outside the shared implementation set, such as editor packages; every run prints each with its reason. R6 accepts tests there, and R3 and R5 do not judge them. A root overlaps no implementation root and holds no implementation binding. A tool may declare units for its own requirements; these do not become implementation bindings.",
       "type": "array",
       "items": {
         "type": "object",
@@ -82,7 +82,34 @@
         "additionalProperties": false,
         "properties": {
           "root": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
-          "reason": { "description": "Why the tests of the root belong to no implementation.", "type": "string" }
+          "reason": { "description": "Why the tests of the root belong outside the shared implementation set.", "type": "string" },
+          "units": {
+            "description": "The requirements owned by this tool and its exact native test selectors. These units are traced by R13-R15 but never run as implementation bindings; the tool package's existing owner check runs their tests.",
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "requirements", "bindings"],
+              "additionalProperties": false,
+              "properties": {
+                "id": { "description": "A unit id unique across implementations and tools.", "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+                "requirements": { "description": "The spec requirements this tool unit tests.", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string" } },
+                "bindings": {
+                  "description": "The native test cases of the tool unit. Each exact selector must appear in its test source, and each cited requirement must appear there too.",
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "required": ["test", "id"],
+                    "additionalProperties": false,
+                    "properties": {
+                      "test": { "description": "The existing native test file inside this tools root.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
+                      "id": { "description": "The exact native test selector in the test file.", "type": "string", "minLength": 1 }
+                    }
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -102,7 +129,7 @@
       }
     },
     "requirements": {
-      "description": "The requirement ids of the spec (K273): docs/spec/**/*.md, not the Korean twins, defines each as a list item **<id>** or a heading <id> whose id matches pattern.",
+      "description": "The requirement ids of the spec (K273): docs/spec/**/*.md, not the Korean twins, defines each as a list item **<id>** or a heading <id> whose id matches pattern. Every id is cited by a shared unit or a tool-owned unit.",
       "type": "object",
       "required": ["pattern"],
       "additionalProperties": false,

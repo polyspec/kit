@@ -87,6 +87,26 @@ export type ParityOwner =
   | { kind: 'coverage-part'; feature: string; part: string }
   | { kind: 'release-package'; artifact: 'archive' | 'go-module' | 'git-tag'; package: string };
 
+/** A native test of a requirement owned by one tooling package, outside the shared implementations. */
+export interface ToolParityBinding {
+  test: string;
+  id: string;
+}
+
+/** A requirement unit of one tooling package; it never binds an implementation. */
+export interface ToolParityUnit {
+  id: string;
+  requirements: string[];
+  bindings: ToolParityBinding[];
+}
+
+/** A package of single-runtime tooling tests that is outside the shared implementation set. */
+export interface ParityTool {
+  root: string;
+  reason: string;
+  units?: ToolParityUnit[];
+}
+
 /** config/parity.json as parity.schema.json describes it. */
 export interface ParityConfig {
   schema: 1;
@@ -94,7 +114,7 @@ export interface ParityConfig {
   implementations: ParityImplementation[];
   suites?: string[];
   comparators?: string[];
-  tools?: { root: string; reason: string }[];
+  tools?: ParityTool[];
   testPatterns?: { runner: Runner; globs: string[] }[];
   /** The pattern of the requirement ids that docs/spec defines (K273). */
   requirements: { pattern: string };
@@ -585,13 +605,23 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     for (const root of entry.roots.filter(wholeRepository)) fail(`implementation ${entry.name}: the root ${root} is the whole repository; name the directories of the implementation`);
   }
   for (const root of (config.comparators ?? []).filter(wholeRepository)) fail(`comparators: the root ${root} is the whole repository; name the directories of the comparators`);
-  // A tools root holds tests that implement no contract, so it shares no directory with an implementation and holds no bound test.
+  // A tools root holds tests outside the shared implementation set, so it shares no directory with an implementation and holds no implementation binding.
   const overlap = (left: string, right: string) => [[left, right], [right, left]].some(([outer, inner]) => `${present(inner, 'inner').replace(/\/+$/, '')}/`.startsWith(`${present(outer, 'outer').replace(/\/+$/, '')}/`));
+  const unitIds = new Set(config.units.map(unit => unit.id));
   for (const tool of config.tools ?? []) {
     for (const entry of config.implementations) {
       for (const directory of entry.roots.filter(directory => overlap(tool.root, directory))) fail(`tools: the root ${tool.root} overlaps ${directory}, a root of the implementation ${entry.name}`);
     }
-    if (!tool.reason.trim()) fail(`tools: the root ${tool.root} gives no reason; write why its tests belong to no implementation`);
+    if (!tool.reason.trim()) fail(`tools: the root ${tool.root} gives no reason; write why its tests belong outside the shared implementation set`);
+    for (const unit of tool.units ?? []) {
+      if (unitIds.has(unit.id)) fail(`tools: the unit ${unit.id} is declared twice; unit ids are unique across implementations and tools`);
+      unitIds.add(unit.id);
+      for (const binding of unit.bindings) {
+        if (!files.has(binding.test)) fail(`tools: the test ${binding.test} of ${unit.id} does not exist`);
+        else if (!within(tool.root, binding.test)) fail(`tools: the test ${binding.test} of ${unit.id} lies outside its tools root ${tool.root}`);
+        else if (!readFileSync(path.join(root, binding.test), 'utf8').includes(binding.id)) fail(`tools: the native selector ${binding.id} of ${unit.id} does not appear in ${binding.test}`);
+      }
+    }
     for (const unit of config.units) {
       for (const entry of (unit.bindings ?? []).filter(entry => within(tool.root, entry.test))) fail(`tools: the root ${tool.root} holds ${entry.test}, the test of the ${unit.kind} ${unit.id} in ${entry.implementation}`);
     }

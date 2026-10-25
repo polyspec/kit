@@ -1,6 +1,6 @@
 // The requirement trace of the parity check (S6, K273): docs/spec defines each requirement once, as a list item (bulleted or numbered) **<id>** or a
-// heading <id>, its id matching requirements.pattern of config/parity.json; every unit cites the requirements it tests, so
-// the bindings of every applicable implementation test each requirement of the spec. The Korean twins (*.ko.md) define
+// heading <id>, its id matching requirements.pattern of config/parity.json; each shared unit cites the requirements it tests, so
+// every applicable implementation tests each one, and each tool unit cites requirements tested by its native tool cases. The Korean twins (*.ko.md) define
 // nothing: they translate the English definitions.
 //   R13 untraced-requirement  a requirement of the spec that no unit cites
 //   R14 unknown-requirement   a unit cites an id that the spec does not define
@@ -74,15 +74,20 @@ export function requirementFindings(config: { requirements: { pattern: string };
     return new Set(names.flatMap(name => caseJson(`${unit.file}/${name}/case.json`) ?? []));
   };
   const named = (id: string, source: string) => new RegExp(`(?<![A-Za-z0-9-])${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![0-9])`).test(source);
-  for (const unit of config.units) {
-    const tested = unit.kind !== 'api';
-    const directory = listedBy(unit);
+  const requirementUnits = [
+    ...config.units,
+    ...(config.tools ?? []).flatMap(tool => tool.units ?? []),
+  ];
+  for (const unit of requirementUnits) {
+    const kind = 'kind' in unit ? unit.kind : 'tool';
+    const tested = kind !== 'api';
+    const directory = listedBy({ id: unit.id, kind, ...('file' in unit && unit.file !== undefined ? { file: unit.file } : {}) });
     for (const id of unit.requirements) {
       if (tested) cited.add(id);
       if (tested && defined.has(id)) {
-        const vectors = directory?.has(id) ?? (unit.kind === 'suite' && unit.file !== undefined && named(id, text(unit.file)));
+        const vectors = directory?.has(id) ?? (kind === 'suite' && 'file' in unit && unit.file !== undefined && named(id, text(unit.file)));
         for (const binding of unit.bindings ?? []) {
-          if (!vectors && !named(id, text(binding.test))) findings.push(finding('R15', `cites ${id}, which its test ${binding.test} does not name; a test names the requirement it tests`, { unit: unit.id, implementation: binding.implementation, requirements: [id] }));
+          if (!vectors && !named(id, text(binding.test))) findings.push(finding('R15', `cites ${id}, which its test ${binding.test} does not name; a test names the requirement it tests`, { unit: unit.id, ...('implementation' in binding ? { implementation: binding.implementation } : {}), requirements: [id] }));
         }
       }
       if (!defined.has(id)) findings.push(finding('R14', `cites ${id}, which no file of docs/spec defines as a requirement (a list item **${id}** or a heading ${id})`, { unit: unit.id, requirements: [id] }));

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // The language-parity check (`make parity-check`, `make parity-declarations-check`). config/parity.json declares the
-// implementations of the repository, the one source of its language set, and the shared units that every implementation holds:
-// vector suites, features, API symbols and the error-code catalog. The facts come from the tree, never from a flag in the declaration: the checker runs the binding of each suite
+// implementations of the repository, the one source of its language set, the shared units that every implementation holds,
+// and requirement units owned by tooling outside that set: vector suites, features, API symbols and the error-code catalog.
+// The facts come from the tree, never from a flag in the declaration: the checker runs the binding of each suite
 // and feature itself and keeps the ledger of the cases and test ids that ran, runs the symbol extractor of each
 // implementation (parity-symbols.mts) and reads the error codes from its generated artifact.
 //
@@ -15,7 +16,7 @@
 //                     those of config/parity.json itself (K414); a name that is neither fails the run
 //     --id <requirement>  with --declarations, only the findings that name one of the requirement ids count (R13 to R16, R18),
 //                     and those of config/parity.json itself; with --unit and --rule the scope is their intersection;
-//                     an id that no unit cites fails the run (K414-1)
+//                     an id that no shared or tool unit cites fails the run (K414-1)
 //
 // The rules, each a finding that fails the check:
 //   R1 missing-implementation  an API unit has no public symbol in an implementation, or the extractor of
@@ -106,9 +107,12 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     if (unknownRules.length) return { findings: unknownRules.map(rule => finding('declaration', `--rule ${rule} names no rule of the parity check`, { place: DECLARATION })), ledger };
     say(`--rule ${rules.join(', ')}: only the findings of these rules and of ${DECLARATION} itself count`);
   }
-  // With --id, a requirement is named by its id; an id that no unit of the declaration cites fails the run before any check (K414-1).
+  // With --id, a requirement is named by its id; an id that no shared or tool unit of the declaration cites fails the run before any check (K414-1).
   if (ids !== undefined) {
-    const cited = new Set(model.config.units.flatMap(unit => unit.requirements));
+    const cited = new Set([
+      ...model.config.units.flatMap(unit => unit.requirements),
+      ...(model.config.tools ?? []).flatMap(tool => (tool.units ?? []).flatMap(unit => unit.requirements)),
+    ]);
     const unknownIds = ids.filter(id => !cited.has(id));
     if (unknownIds.length) return { findings: unknownIds.map(id => finding('declaration', `--id ${id} names no requirement that a unit of ${DECLARATION} cites`, { place: DECLARATION })), ledger };
     say(`--id ${ids.join(', ')}: only the findings that name these requirements, and of ${DECLARATION} itself, count`);
