@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { commitItem, editItem, newItem, newPlan, setState, splitPlan, stagedNewRowIds, testItem, verifyDone } from '../../scripts/kit/plan.mts';
+import { wrapBody, commitItem, editItem, newItem, newPlan, setState, splitPlan, stagedNewRowIds, testItem, verifyDone } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
@@ -620,4 +620,11 @@ test('a commit on main of the kit package builds it when it changes a build inpu
   stage(root, 'docs/note.md');
   commitItem(root, { id: 'T1', type: 'docs', scope: 'parser', subject: 'Note the tool', bodyFile: body }, identity);
   assert.equal(existsSync(built), false, 'a commit of no build input builds nothing');
+});
+
+// K627: a Red or No-Red line that follows a sentence in the same paragraph stays a line of its own, so the commit-red rule finds it.
+test('wrapBody keeps a Red or No-Red line as a line of its own wherever it stands (K627)', () => {
+  assert.equal(wrapBody('The row deletes a script that nothing calls.\nNo-Red: a deletion has no behaviour a test shows', 72), 'The row deletes a script that nothing calls.\nNo-Red: a deletion has no behaviour a test shows');
+  assert.equal(wrapBody('Fixes the parser.\nRed: node --test --test-name-pattern=K1 tests/kit/a-very-long-file-name.test.mts exit 1 at 0123abcd\nMore text after it.', 40), 'Fixes the parser.\nRed: node --test --test-name-pattern=K1 tests/kit/a-very-long-file-name.test.mts exit 1 at 0123abcd\nMore text after it.');
+  assert.equal(wrapBody('one two three four five', 9), 'one two\nthree\nfour five', 'prose still wraps');
 });

@@ -468,19 +468,43 @@ export function wrapBody(body: string, width: number): string {
   return body.trim().split(/\n\s*\n/).map(paragraph => {
     const lines = paragraph.split('\n');
     if (lines.every(line => TRAILER.test(line))) return lines.join('\n');
-    const wrapped: string[] = [];
-    let line = '';
-    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
-      if (line && line.length + 1 + word.length > width) {
-        wrapped.push(line);
-        line = word;
+    // A Red or No-Red line stays a line of its own wherever it stands; the prose around it wraps (K624, K627).
+    const out: string[] = [];
+    let prose: string[] = [];
+    const flush = () => {
+      if (prose.length) out.push(wrapText(prose.join(' '), width));
+      prose = [];
+    };
+    for (const line of lines) {
+      if (RED_STATEMENT.test(line.trim())) {
+        flush();
+        out.push(line.trim());
       } else {
-        line = line ? `${line} ${word}` : word;
+        prose.push(line);
       }
     }
-    if (line) wrapped.push(line);
-    return wrapped.join('\n');
+    flush();
+    return out.join('\n');
   }).join('\n\n');
+}
+
+/** A line that states the red of a row, or why it has none (K624). */
+const RED_STATEMENT = /^(?:No-Red|Red(?:-Gate|-Test)?): /;
+
+/** `text` wrapped by words at `width`. */
+function wrapText(text: string, width: number): string {
+  const wrapped: string[] = [];
+  let line = '';
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    if (line && line.length + 1 + word.length > width) {
+      wrapped.push(line);
+      line = word;
+    } else {
+      line = line ? `${line} ${word}` : word;
+    }
+  }
+  if (line) wrapped.push(line);
+  return wrapped.join('\n');
 }
 
 /** The commit of an item: its ID, the type and scope of the subject, the subject and the file of the body. */
