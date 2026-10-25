@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- link links each runtime dependency that a linked npm package of another repository declares and the consumer cannot resolve, and theirs in turn, to the folder that the provider checkout installed, and link-state-check names a missing one; no lock is rewritten (K574).
 - The type packages of the modules that the shipped sources import, @types/picomatch and @types/semver, are dependencies of the package, so a consumer that type-checks those sources through the per-file links finds them (K582).
 - A land whose main moved while its gates ran reruns only the gates that the paths of the moved commits select, commits-check and the build; a gate whose inputs no moved commit touched keeps its result, so parallel lands no longer chase main (K580).
 - A commit on main whose files change a build input of an npm package with a built output rebuilds the repository when that output is stale, so the checkouts that link the main checkout live find its build fresh (K583).
