@@ -176,6 +176,9 @@ case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv
   return { root, provider, kit, consumer, env, log: () => readFileSync(log, 'utf8') };
 }
 
+/** The provider folder of the npm package folder `folder`: the real folder of its package.json, through a directory link or a tree of per-file links (K558). */
+const npmTarget = (folder: string): string => path.dirname(realpathSync(path.join(folder, 'package.json')));
+
 /** The lines that link prints, and its result. */
 function linkLines(directories: string[], env: NodeJS.ProcessEnv, check = false) {
   const lines: string[] = [];
@@ -188,7 +191,7 @@ test('K205: link links the checkouts that it is given with no environment variab
   const lines: string[] = [];
   const ok = link({ checkouts: [provider, kit, consumer], directories: [consumer], check: false, print: text => lines.push(text), env });
   assert.equal(ok, true, lines.join('\n'));
-  assert.equal(realpathSync(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+  assert.equal(npmTarget(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
   const bootstrap = readFileSync(path.join(KIT, 'scripts/kit/kit-bootstrap.mk'), 'utf8').split('\n');
   // The recipe lines of a rule: the lines after its head that start with a tab.
   const recipeOf = (target: string): string[] => {
@@ -324,7 +327,7 @@ test('a second link run ends linked with the state of the first, in npm, Compose
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'sub');
   const state = () => ({
-    npm: realpathSync(path.join(consumer, 'node_modules/@polyspec/x')),
+    npm: npmTarget(path.join(consumer, 'node_modules/@polyspec/x')),
     composer: realpathSync(path.join(consumer, 'var/contracts/vendor/polyspec/y')),
     go: readFileSync(path.join(consumer, 'sub/go.work'), 'utf8'),
   });
@@ -413,7 +416,7 @@ test('a worktree links a package of its own repository to its own folder, never 
   assert.equal(ok, true, text);
   // K448: a package of its own repository links to the folder of the worktree itself, never to the main checkout of that repository.
   assert.equal(realpathSync(path.join(tree, 'node_modules/@polyspec/own')), realpathSync(path.join(tree, 'packages/own')), 'the own package is the worktree folder');
-  assert.equal(realpathSync(path.join(tree, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'), 'the main checkout provides, not prov-wt');
+  assert.equal(npmTarget(path.join(tree, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'), 'the main checkout provides, not prov-wt');
 });
 
 test('a Git hook exports the variables of its repository; the link tool still finds the providers of the other repositories (K201-4)', (t) => {
@@ -431,7 +434,7 @@ test('a Git hook exports the variables of its repository; the link tool still fi
   const { ok, text } = linkLines([consumer], env);
   assert.equal(ok, true, text);
   assert.doesNotMatch(text, /NOT linked/);
-  assert.equal(realpathSync(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+  assert.equal(npmTarget(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
 });
 
 test('a project with only package.json links with no Composer: each tool resolves only for a project whose manifest needs it (K201-4)', (t) => {
@@ -447,7 +450,7 @@ test('a project with only package.json links with no Composer: each tool resolve
   const lines: string[] = [];
   const ok = link({ checkouts: current, directories: [app], check: false, print: text => lines.push(text), env: withoutComposer, project: true });
   assert.equal(ok, true, lines.join('\n'));
-  assert.equal(realpathSync(path.join(app, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+  assert.equal(npmTarget(path.join(app, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
 });
 
 test('a failing git ls-files throws with its cause, in the manifests and in the build inputs', (t) => {
@@ -623,7 +626,7 @@ test('K212: an explicit --project folder under a git-ignored tree is read from i
   const text = lines.join('\n');
   assert.equal(ok, true, text);
   assert.match(text, /linked .*@polyspec\/x -> /);
-  assert.equal(realpathSync(path.join(installation, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+  assert.equal(npmTarget(path.join(installation, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
 });
 
 test('K212: an explicit --project folder that holds no manifest throws an error that names it, never a silent pass', (t) => {
@@ -876,13 +879,15 @@ test('a stale absolute npm link that resolves to its provider is re-made relativ
   const { kit, consumer, env } = workspace(t);
   const first = linkLines([consumer], env);
   assert.equal(first.ok, true, first.text);
-  const installed = path.join(consumer, 'node_modules/@polyspec/kit');
+  // K558: the npm package folder of another repository is a tree of per-file links, each of which link writes relative.
+  const installed = path.join(consumer, 'node_modules/@polyspec/kit/package.json');
+  const target = path.join(kit, 'package.json');
   rmSync(installed);
-  symlinkSync(kit, installed);
+  symlinkSync(target, installed);
   const second = linkLines([consumer], env);
   assert.equal(second.ok, true, second.text);
-  assert.equal(readlinkSync(installed), path.relative(path.dirname(installed), kit), 'the target is relative to the link folder');
-  assert.equal(realpathSync(installed), realpathSync(kit), 'the link still resolves to the provider');
+  assert.equal(readlinkSync(installed), path.relative(path.dirname(installed), target), 'the target is relative to the link folder');
+  assert.equal(realpathSync(installed), realpathSync(target), 'the link still resolves to the provider');
 });
 
 // K501: composer-install takes the checkouts that provide its polyspec packages as arguments after DIR, as npm-install does (K448-9).
@@ -923,8 +928,9 @@ test('link replaces each installed polyspec package folder with a direct symlink
   assert.equal(lstatSync(vendor).isSymbolicLink(), true, 'vendor/polyspec/y is a link');
   assert.equal(realpathSync(vendor), realpathSync(path.join(provider, 'packages/php')));
   const npm = path.join(consumer, 'node_modules/@polyspec/x');
-  assert.equal(lstatSync(npm).isSymbolicLink(), true, 'node_modules/@polyspec/x is a link');
-  assert.equal(realpathSync(npm), realpathSync(path.join(provider, 'packages/ts')));
+  assert.equal(lstatSync(npm).isDirectory(), true, 'node_modules/@polyspec/x is a real folder (K558)');
+  assert.equal(lstatSync(path.join(npm, 'package.json')).isSymbolicLink(), true, 'its package.json is a link into the provider (K558)');
+  assert.equal(npmTarget(npm), realpathSync(path.join(provider, 'packages/ts')));
   assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no Composer link manifest is written');
   assert.doesNotMatch(log(), /^(composer|npm) /m, 'no package manager runs');
 });

@@ -183,8 +183,10 @@ function workspaceHookFindings(root: string): string[] {
 function buildFindings(installed: readonly Installed[]): string[] {
   const found: string[] = [];
   for (const item of installed) {
-    if (item.ecosystem !== 'npm' || !isLink(item.folder) || !existsSync(path.join(item.folder, 'package.json'))) continue;
-    const folder = realpathSync(item.folder);
+    // The provider folder is the real folder of the package.json: a directory link or a tree of per-file links (K558) leads there.
+    const manifest = path.join(item.folder, 'package.json');
+    if (item.ecosystem !== 'npm' || !(isLink(item.folder) || isLink(manifest)) || !existsSync(manifest)) continue;
+    const folder = path.dirname(realpathSync(manifest));
     const repository = git(folder, 'rev-parse', '--show-toplevel').trim();
     const state = buildState(repository, folder);
     if (state.startsWith('stale')) found.push(`npm ${item.name}: the build of ${repository} is ${state}; fix: run link.mjs rebuild ${repository}`);

@@ -1,5 +1,5 @@
 // Installs the npm packages of a consumer (`make npm-install DIR=<project>`, K448): npm ci of the tracked lock as it is, then each
-// installed package that a checkout provides becomes a direct symlink to the checkout's package folder (link-folders.mts). No file:
+// installed package that a checkout provides becomes a folder of per-file links into the checkout's package folder (link-folders.mts, K558). No file:
 // spec, no temporary manifest and no npm resolution touch a provided package, so no version is read. The tracked package.json and
 // package-lock.json are never written.
 import { spawnSync } from 'node:child_process';

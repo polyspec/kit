@@ -1,5 +1,5 @@
 // K448: `make npm-install` installs the tracked lock with npm ci as it is, then replaces each installed package that a checkout provides with a
-// direct symlink to the checkout's package folder; the tracked package.json and package-lock.json stay byte for byte, and no npm resolution
+// folder of per-file links into the checkout's package folder (K558); the tracked package.json and package-lock.json stay byte for byte, and no npm resolution
 // touches a provided package. The npm of these tests is a stub: its ci installs each package of the lock as a copy, as a release would be.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -56,6 +56,9 @@ function fixture(t: { after: (fn: () => void) => void }, prefix: string, declare
   return { root, project, manifest, lock: LOCK(locked), ...stubNpm(root) };
 }
 
+/** The provider folder of the npm package folder `folder`: the real folder of its package.json, through a tree of per-file links (K558). */
+const npmTarget = (folder: string): string => path.dirname(realpathSync(path.join(folder, 'package.json')));
+
 const provider = (folder: string, name: string) => {
   mkdirSync(folder, { recursive: true });
   writeFileSync(path.join(folder, 'package.json'), JSON.stringify({ name, version: '0.0.9', main: 'index.js' }));
@@ -70,8 +73,8 @@ test('npm install runs npm ci of the tracked lock, then links each provided pack
   assert.equal(npmInstall({ directory: project, checkouts: [sibling], npm, print: text => lines.push(text), env: process.env }), 'linked', lines.join('\n'));
   assert.equal(readFileSync(log, 'utf8'), 'ci\n', 'npm ci of the tracked lock is the only npm run');
   const link = path.join(project, 'node_modules/@polyspec/ordered-json');
-  assert.equal(lstatSync(link).isSymbolicLink(), true, 'the provided package is a link, its installed copy removed');
-  assert.equal(realpathSync(link), realpathSync(sibling));
+  assert.equal(lstatSync(path.join(link, 'package.json')).isSymbolicLink(), true, 'the provided package is a folder of per-file links, its installed copy removed (K558)');
+  assert.equal(npmTarget(link), realpathSync(sibling));
   assert.equal(lstatSync(path.join(project, 'node_modules/left-pad')).isDirectory(), true, 'a package that no checkout provides stays as installed');
   assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), manifest, 'the tracked manifest is unchanged');
   assert.equal(readFileSync(path.join(project, 'package-lock.json'), 'utf8'), lock, 'the tracked lock is unchanged');
@@ -96,9 +99,9 @@ test('npm install takes repository roots in CHECKOUTS, finds their package folde
   mkdirSync(phpOnly, { recursive: true });
   writeFileSync(path.join(phpOnly, 'composer.json'), '{"name":"opis/json-schema"}');
   npmInstall({ directory: project, checkouts: [path.join(root, 'template'), path.join(root, 'hyper'), path.join(root, 'ordered-json'), phpOnly], npm, explicit: true, print: () => undefined, env: process.env });
-  assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/template')), realpathSync(template));
-  assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/hyper-server')), realpathSync(server), 'a package two folders down is found');
-  assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/ordered-json')), realpathSync(js), 'the package folder, not the root that shares its name');
+  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/template')), realpathSync(template));
+  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/hyper-server')), realpathSync(server), 'a package two folders down is found');
+  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/ordered-json')), realpathSync(js), 'the package folder, not the root that shares its name');
   assert.throws(() => npmInstall({ directory: project, checkouts: [path.join(root, 'absent')], npm, explicit: true, print: () => undefined, env: process.env }), /absent is no existing directory/);
 });
 
@@ -106,7 +109,7 @@ test('npm install with ADD links a checkout whose package the project does not d
   const { root, project, manifest, lock, npm } = fixture(t, 'kit-npm-add-', {}, []);
   const core = provider(path.join(root, 'limepie/packages/core'), '@limepie/core');
   npmInstall({ directory: project, checkouts: [], added: [path.join(root, 'limepie')], npm, print: () => undefined, env: process.env });
-  assert.equal(realpathSync(path.join(project, 'node_modules/@limepie/core')), realpathSync(core));
+  assert.equal(npmTarget(path.join(project, 'node_modules/@limepie/core')), realpathSync(core));
   assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), manifest);
   assert.equal(readFileSync(path.join(project, 'package-lock.json'), 'utf8'), lock);
 });
@@ -118,7 +121,7 @@ test('make npm-install forwards CHECKOUTS to the tool, which installs the lock a
   const made = spawnSync('make', ['--no-print-directory', '-C', kit, 'npm-install', `DIR=${project}`, `CHECKOUTS=${folder}`, `NPM=${npm}`, `NODE=${process.execPath}`], { encoding: 'utf8' });
   assert.equal(made.status, 0, made.stderr);
   assert.equal(readFileSync(log, 'utf8'), 'ci\n');
-  assert.equal(realpathSync(path.join(project, 'node_modules/@polyspec/template')), realpathSync(folder));
+  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/template')), realpathSync(folder));
   assert.equal(existsSync(path.join(project, 'node_modules/@polyspec/template/index.js')), true);
 });
 

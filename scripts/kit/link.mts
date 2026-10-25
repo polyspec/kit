@@ -1,6 +1,7 @@
 // The local links of 0.0.x development (docs/operations/local-links.md, K201, K205, K448). The checkouts that the arguments name are the
 // providers (link-providers.mts): each installed package folder of a consumer that a provider gives is replaced by a direct relative
-// symlink to the provider's package folder, a copy removed (link-folders.mts). No package manager runs and no version is read; link only
+// symlink to the provider's package folder, a copy removed, and a Python package or an npm package of another repository a folder of per-file
+// links into it (link-folders.mts, K541, K558). No package manager runs and no version is read; link only
 // links, it never builds (link-build.mts rebuilds):
 //   npm       node_modules/<name> of each tracked project;
 //   Composer  <vendor-dir>/<vendor>/<package> of each tracked project, the vendor-dir of its composer.json;
