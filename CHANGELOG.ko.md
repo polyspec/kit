@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: eaf4a694a67ea5e0b8fa0971a85a307375ba564e48a89a37583504d75fc4e65e -->
+<!-- source-sha256: 71bdbd57ff7dabcf0b892e203714f280b0406b1bcd27564a68968dfbd5e858d8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 설치된 각 polyspec package는 checkout의 package 폴더로 가는 directory symlink 하나다. 이것이 사용자의 규칙이다. Python(K541)과 npm(K558)의 per-file tree, K574의 의존성 link, K578과 K579의 선언된 file: link는 제거했다 (K591).
 - link는 자기 lock이 없는 workspace member(npm workspace member 또는 root path repository의 Composer package)의 설치된 폴더를 member 자신에게 요구하지 않고 그것을 설치하는 lock의 project에서 가져온다(K590).
 - link는 다른 repository의 link된 npm package가 선언했지만 consumer가 resolve하지 못하는 runtime 의존성과 그 의존성을 provider checkout이 설치한 폴더에 link하고, link-state-check는 빠진 것을 이름 붙인다. lock은 다시 쓰지 않는다 (K574).
 - 배포 소스가 import하는 모듈의 type package인 @types/picomatch와 @types/semver는 패키지의 dependency다. 그래서 per-file link로 그 소스를 type-check하는 consumer가 그것을 찾는다 (K582).

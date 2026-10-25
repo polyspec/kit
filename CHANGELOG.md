@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Each installed polyspec package is one directory symlink to the package folder of its checkout, the user's rule; the per-file trees of Python (K541) and npm (K558), the dependency links of K574 and the declared file: links of K578 and K579 are removed (K591).
 - link takes the installed folders of a workspace member with no lock of its own, an npm workspace member or a Composer package of a root path repository, from the project whose lock installs it, instead of asking the member for its own (K590).
 - link links each runtime dependency that a linked npm package of another repository declares and the consumer cannot resolve, and theirs in turn, to the folder that the provider checkout installed, and link-state-check names a missing one; no lock is rewritten (K574).
 - The type packages of the modules that the shipped sources import, @types/picomatch and @types/semver, are dependencies of the package, so a consumer that type-checks those sources through the per-file links finds them (K582).
