@@ -1101,3 +1101,14 @@ test('a land whose main moved reruns only the gates that the moved commits selec
   assert.equal(readFileSync(count(main), 'utf8'), 'run\n', 'lint-x ran once: the moved commit touches nothing that it checks');
   assert.ok(printed.some(text => text.includes('lint-x keeps its result')), printed.join('\n'));
 });
+
+// K600: jscpd ends its report with the time of its run, which differs on every run, so an identical clone set is no new finding.
+test('land counts no jscpd timing line as a finding (K600)', () => {
+  const clone = '\u001b[1mClone found (go)\u001b[22m\n - packages/go/a.go [10:1 - 16:2] (7 lines, 40 tokens)\n   packages/go/b.go [20:1 - 26:2]';
+  const asDuplication = (output: string): GateRun => ({
+    folder: process.cwd(),
+    gate: 'duplication-check',
+    result: { pid: 0, output: [null, output, ''], stdout: output, stderr: '', status: 1, signal: null },
+  });
+  assert.equal(newFindings(process.cwd(), asDuplication(`${clone}\n\u001b[90mtime: 748.289ms\u001b[39m`), asDuplication(`${clone}\ntime: 512.03ms`)), undefined);
+});
