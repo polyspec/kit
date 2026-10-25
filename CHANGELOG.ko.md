@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a0b93c1ddba77cb89e8e2ac7d63a9bfb7872aa4ee46f24b6c197cec00e346038 -->
+<!-- source-sha256: 5168b4e17690eb3fad7084f02ee9597021278a53b09191494ed651ac1c95356a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- mise.toml이 sccache를 선언한 checkout은 모든 worktree가 공유하는 main checkout의 var/tools 아래 cache 하나(5G 제한)로 Rust를 컴파일하고, cargo는 호출자가 CARGO_BUILD_JOBS를 정하지 않으면 core의 절반을 쓴다 (K581).
 - 디스크가 floor 아래이면 worktree-setup은 Go build cache를 오래된 것부터 floor를 채울 때까지 정리하되 최근 10분의 파일은 남긴다. 병렬 build가 cache 전체를 두 시간보다 젊게 유지하기 때문이다 (K538-1).
 - merge 뒤 main의 build와, land가 비교하는 main의 gate 실행은 land lock이 풀린 뒤 자기 main build lock 아래에서 돈다. 그래서 다음 land는 main이 build하는 동안 merge한다 (K572).
 - 패키지는 providedFolders, linkFolders, folderFindings를 담은 ./link-folders를 export한다. 그래서 consumer의 테스트는 K558의 per-file link tree를 kit의 코드로 만든다 (K576).
