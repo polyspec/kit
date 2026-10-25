@@ -1061,3 +1061,27 @@ test('a land whose main moved while its gates ran rebases and lands on the new m
   assert.equal(git(main, 'log', '-1', '--format=%s', 'main^'), 'moved-once', 'on top of the commit that moved main');
   assert.ok(printed.some(text => text.includes('moved-once') && text.includes('runs the gates again')), printed.join('\n'));
 });
+
+// K572: the build of main after the fast-forward runs after the land lock is released, under the main build lock, so the next land
+// merges while it runs; the recipe here fails unless the main build lock is held and the land lock is not.
+test('the build of main after the merge runs under the main build lock, after the land lock is released (K572)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  const common = '$$(git rev-parse --git-common-dir)';
+  put(main, {
+    'Makefile': `kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nbuild:\n\ttest ! -e ${common}/kit-land.lock\n\tif [ "$$(git rev-parse --abbrev-ref HEAD)" = main ]; then test -e ${common}/kit-main-build.lock; fi\n`,
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = path.join(parent, 'repo-x');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat/x', 'main');
+  put(folder, { 'src/x.txt': 'x\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'x');
+  land(main, 'feat/x', { print: () => {} });
+  assert.equal(git(main, 'log', '-1', '--format=%s', 'main'), 'x');
+  assert.equal(existsSync(path.join(main, '.git/kit-main-build.lock')), false, 'the main build lock is released');
+});
