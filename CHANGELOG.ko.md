@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 122ffe1062bd59db5033c701a4aebc76830e2d8b6246b755d0b03c557da409b5 -->
+<!-- source-sha256: 8dc744fdc3aeb394a8e97706d035351c77ee3e7d5b0e6199eff7cf3be1cd2c33 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make item-red는 test가 하나도 돌지 않은 실패 요약을 그 요약이 실패한 build나 load를 가리킬 때만 판정하므로, test를 돌리지 않는 step 뒤의 check finding은 red이고, compile이나 load 실패는 여전히 자기 오류 줄로 거부된다(K540-2).
 - link는 다른 저장소의 npm 패키지 폴더를 provider의 node_modules 없는 파일별 link의 폴더로 만들어, --preserve-symlinks로 실행한 node가 패키지의 의존성을 consumer의 node_modules에서 resolve한다(K558).
 - land lock은 main이 아직 gate가 돈 commit인지 확인하는 단계와 fast-forward만 덮는다. 서로 무관한 land의 gate와 build가 겹치고, main의 commit은 merge만 기다리며, gate 중 main이 움직인 land는 rebase하고 gate를 다시 돌린다(최대 세 번) (K571).
 - 어떤 실패든 없음이나 부재로 읽던 kit의 binding 없는 catch(dependency policy, 문서 검사, divergence 검사, 폴더 링크, parity 선언, 테스트 선택)는 자기 결과를 뜻하는 class나 errno로 좁히고 나머지를 다시 던진다 (K559).
