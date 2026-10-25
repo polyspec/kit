@@ -324,6 +324,14 @@ function linkTool(folder: string): string {
   return existsSync(own) ? own : path.join(folder, 'node_modules/@polyspec/kit/dist/link.mjs');
 }
 
+/** The artifact repository of Composer that a composer.json of a repository names (K622). */
+const COMPOSER_ARTIFACTS = 'var/composer-artifacts';
+
+/** Whether `file` exists as an entry, a dangling link included. */
+function lstatExists(file: string): boolean {
+  return lstatSync(file, { throwIfNoEntry: false }) !== undefined;
+}
+
 /**
  * The go.work and go.work.sum files that link wrote in the main checkout `main` beside a go.mod of the worktree `folder` (K615),
  * relative to both: git-ignored files of the main checkout, whose relative uses reach the same sibling checkouts from the worktree,
@@ -355,6 +363,14 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   for (const modules of npmProjects(main, folder, print)) linkNodeModules(main, folder, modules, print);
   for (const venv of pythonEnvironments(main)) linkVenv(main, folder, venv, print);
   for (const project of composerProjects(main, folder)) linkVendor(main, folder, project, composer ?? composerCommand(folder, 'make worktree-setup'), print);
+  // K622: the artifact repository that a composer.json names, release zips that Composer reads and never writes: one directory symlink.
+  const artifacts = path.join(main, COMPOSER_ARTIFACTS);
+  const artifactsLink = path.join(folder, COMPOSER_ARTIFACTS);
+  if (existsSync(artifacts) && !lstatExists(artifactsLink)) {
+    mkdirSync(path.dirname(artifactsLink), { recursive: true });
+    symlinkSync(path.relative(path.dirname(artifactsLink), artifacts), artifactsLink, 'dir');
+    print(`[worktree-setup] linked ${COMPOSER_ARTIFACTS} to the main checkout's`);
+  }
   for (const file of goWorkFiles(main, folder)) {
     copyFileSync(path.join(main, file), path.join(folder, file));
     print(`[worktree-setup] wrote ${file} of the main checkout`);

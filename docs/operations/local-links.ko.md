@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 4ad315a38bdfd7d5667829e69ec028b7e4ae0e3a83a9807dfc38def2c7d7b7ad -->
+<!-- source-sha256: 4e65c270dae92e95e545780306378725d06a129689eb3bad0f0341fd0a9ca939 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -45,6 +45,7 @@ link는 kit 도구 `scripts/kit/link.mts`와 `scripts/kit/link-folders.mts`입�
 - 사용자는 2026-10-22에 worktree는 아무것도 설치하지 않는다고 판정했습니다. worktree는 도구와 의존 폴더(`var/tools`, `node_modules`)를 main checkout의 것으로 link합니다. worktree branch는 `main`에서 만든 `<type>/<name>-<id>`이고(P10) `make land`로 `main`에 들어갑니다. worktree의 Composer vendor 폴더는 패키지, `bin`, installed 기록을 main checkout의 것으로 link한 진짜 폴더이며, `composer dump-autoload`가 오프라인으로 쓰는 자기 autoload를 가집니다. autoload는 그것을 쓴 checkout의 소스를 가리키기 때문입니다(K521).
 - `make worktree-setup`은 worktree를 만들고, main checkout의 패키지로 link하되 저장소 자기 workspace 패키지는 worktree 안으로 link한 `node_modules`를 주며(K530), main checkout이 설치한 다른 각 npm 프로젝트와 main checkout의 각 Python `.venv`에도 같게 하되 그 script, activate 파일, editable `.pth` 파일은 worktree의 경로로 쓰고(K533), 각 Composer 프로젝트에 link로 된 vendor 폴더와 자기 autoload를 주고(K521), 아무것도 설치하지 않습니다(K519). 도구에는 link가 필요 없습니다. worktree에서 kit.mk와 kit의 도구는 main checkout의 `var/tools`(mise의 data dir, install, shim과 `var/tools/bin`)를 worktree 자신의 `mise.toml`과 함께 씁니다. worktree에서 `make install`과 `make install-tools`는 거부됩니다.
 - `make worktree-link-state`는 같은 link 준비를 하고 product package를 rebuild하지 않은 채 `link-state-check`를 실행합니다. worktree의 목적이 link state 검사일 때 사용하며 검사를 건너뛰지는 않습니다. `make worktree-setup`은 검사 전 rebuild를 계속 수행합니다.
+- worktree-setup은 main checkout의 `var/composer-artifacts`, 곧 `composer.json`이 이름 붙인 artifact repository를 하나의 directory symlink로 link합니다. Composer는 그것을 읽기만 하기 때문입니다(K622). symlink가 worktree에 할 수 없는 일이 둘 있습니다. Python `.venv`는 main checkout의 것으로 가는 하나의 directory symlink일 수 없습니다. 그러면 저장소 자기 패키지의 editable install이 main checkout의 소스를 실행하므로, 그 항목들을 link합니다(K533). make의 timestamp stamp는 새 checkout을 건너 이어질 수 없습니다. worktree에 checkout된 파일은 main checkout의 모든 stamp보다 새로우므로 시간을 비교하는 target은 worktree에서 다시 실행되며, 거기서 유지되어야 하는 stamp는 내용으로 판단합니다.
 - `main`은 `make land`와 pre-commit hook을 통과한 commit만 씁니다(K495). 두 번째 land는 첫 번째의 lock을 기다리고, `main`보다 뒤처진 branch는 그 worktree에서 rebase되며, `main`의 수동 merge, reset, update-ref는 reference-transaction hook이 거부합니다.
 - worktree와 branch는 branch가 `main`에 merge되면 바로 지웁니다. `make land`는 land한 branch를 지우고, `make worktree-prune`은 merge된 모든 branch를 지웁니다. merge된 branch가 남아 있으면 `make link-state-check`가 실패합니다(K381).
 

@@ -417,3 +417,27 @@ test('worktree-setup gives the worktree the git-ignored go.work and go.work.sum 
   assert.equal(readFileSync(path.join(folder, 'tools/go.work'), 'utf8'), 'go 1.27\n\nuse .\n', 'a tracked go.work stays the committed one');
   assert.equal(git(folder, 'status', '--porcelain'), '', 'the ignored go.work leaves the worktree with no change');
 });
+
+// K622: the artifact repository that a composer.json names (var/composer-artifacts, release zips that the repository fetches) is
+// read, never written, by Composer; a worktree gets the main checkout's as one directory symlink, so Composer runs in a worktree.
+test('worktree-setup links the var/composer-artifacts of the main checkout as one directory symlink (K622)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'Makefile': 'link-state-check:\n\ttrue\n',
+    '.gitignore': 'node_modules/\n/var/\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  put(main, { 'var/composer-artifacts/polyspec-orm-0.0.1.zip': 'zip\n' });
+  const folder = setupWorktree(main, { name: 'artifacts', id: 'K622', type: 'fix' }, { print: () => {} });
+  const link = path.join(folder, 'var/composer-artifacts');
+  assert.ok(lstatSync(link).isSymbolicLink(), 'one directory symlink');
+  assert.equal(realpathSync(link), realpathSync(path.join(main, 'var/composer-artifacts')));
+  assert.equal(readFileSync(path.join(link, 'polyspec-orm-0.0.1.zip'), 'utf8'), 'zip\n');
+  assert.equal(setupWorktree(main, { name: 'artifacts', id: 'K622', type: 'fix' }, { print: () => {} }), folder, 'a second run converges');
+  assert.ok(lstatSync(link).isSymbolicLink());
+});
