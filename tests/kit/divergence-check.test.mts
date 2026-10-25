@@ -60,28 +60,32 @@ test('the tools and tests of kit itself are left out (K315)', () => {
 });
 
 test('a guard of the library that defines a function only when the extension does not is a finding, also in a generated source that Git ignores (K329)', (t) => {
-  assert.deepEqual(run({ 'config/parity.json': PARITY, 'packages/php/src/Machine.php': "<?php\nif (!function_exists('Acme\\initial')) {\n    function initial() {}\n}\n" }), [
-    'packages/php/src/Machine.php:2: the code of an implementation branches on the presence of another implementation (function_exists), so the library and its extension coexist through a guard of the run time',
+  assert.deepEqual(run({ 'config/parity.json': PARITY, 'packages/php/src/Machine.php': "<?php\nnamespace Acme;\nif (!function_exists('Acme\\initial')) {\n    function initial() {}\n}\n" }), [
+    'packages/php/src/Machine.php:3: the code of an implementation branches on the presence of another implementation (function_exists), so the library and its extension coexist through a guard of the run time',
   ]);
   const root = tree(t, { 'config/parity.json': PARITY, '.gitignore': 'packages/php/src/generated/\n' });
   mkdirSync(path.join(root, 'packages/php/src/generated'), { recursive: true });
-  writeFileSync(path.join(root, 'packages/php/src/generated/Gen.php'), "<?php\nif (!function_exists('Acme\\x')) {}\n");
+  writeFileSync(path.join(root, 'packages/php/src/generated/Gen.php'), "<?php\nnamespace Acme;\nif (!function_exists('Acme\\x')) {\n    function x() {}\n}\n");
   const read = (file: string) => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined);
   const files = checkedSources(root, ['config/parity.json'], read);
   assert.deepEqual(files, ['config/parity.json', 'packages/php/src/generated/Gen.php']);
   assert.equal(divergenceFindings(files, read).length, 1);
 });
 
-test('K644: checks for global PHP capabilities are not ORM coexistence guards', () => {
+test('K644: global and external PHP capability probes are allowed', () => {
   assert.deepEqual(run({
     'config/parity.json': PARITY,
     'packages/php/src/Orm.php': "<?php\nif (!function_exists('pg_connect')) { throw new RuntimeException(); }\n",
-    'packages/php/src/Internal/Adapter.php': "<?php\nif (function_exists('pcntl_signal_dispatch')) { pcntl_signal_dispatch(); }\n",
+    'packages/php/src/Internal/Adapter.php': "<?php\nif (function_exists('pcntl_signal_dispatch')) { pcntl_signal_dispatch(); }\nif (function_exists('Vendor\\optional_capability')) { Vendor\\optional_capability(); }\n",
   }), []);
+});
+
+test('K645: function_exists finds a global function declared by an implementation', () => {
   assert.equal(run({
     'config/parity.json': PARITY,
-    'packages/php/src/Machine.php': "<?php\nif (!function_exists('Acme\\initial')) { function initial() {} }\n",
-  }).length, 1, 'a namespaced function probe can still guard a coexisting implementation');
+    'packages/php/src/Orm.php': "<?php\nif (!function_exists('orm_connect')) { throw new RuntimeException(); }\n",
+    'packages/php/src/orm_connect.php': "<?php\nfunction orm_connect() {}\n",
+  }).length, 1, 'a global function probe naming a declared implementation function remains a coexistence guard');
 });
 
 // K543: a test declares its environment and asserts it, so a probe in an assertion that holds no branch is no finding; the same probe in

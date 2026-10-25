@@ -6,10 +6,10 @@
 //      asserts (extension_loaded, function_exists, PHP_VERSION, PHP_OS, sys.version_info, sys.platform, process.versions,
 //      process.platform, runtime.GOOS, runtime.GOARCH, cfg!, #[cfg(...)], os.name); a statement that only asserts its environment,
 //      with no branch, declares it and is none (K543);
-//   2. the code of an implementation branches on extension_loaded, or on a namespaced function_exists probe that guards another
-//      implementation (the PHP library reading whether its extension is loaded, or defining a namespaced function only when the
-//      extension does not), also in the sources that a build generates before the gate and Git ignores (K329). Global function
-//      probes are ecosystem capabilities and do not by themselves identify another implementation;
+//   2. the code of an implementation branches on extension_loaded, or on function_exists for a function declared by an
+//      implementation (the PHP library reading whether its extension is loaded, or defining a function only when the extension
+//      does not), also in the sources that a build generates before the gate and Git ignores (K329). Undeclared functions are
+//      ecosystem capabilities, whether their names are global or namespaced;
 //   3. a run of an implementation is narrowed by a flag (--exclude-group);
 //   4. contracts/features.json declares an implementation partial or unsupported;
 //   5. a configuration exception carries a reason that names no kind that kit defines (REASON_KINDS), in config/duplication.json,
@@ -30,9 +30,7 @@ export const REASON_KINDS = ['generated', 'fixture', 'test', 'harness', 'ecosyst
 const SOURCE = /\.(?:php|py|[cm]?[jt]sx?|go|rs)$/;
 // The environment that a test branches on: a call or a name, on a line of code.
 const ENVIRONMENT = /\b(?:extension_loaded|function_exists|PHP_VERSION(?:_ID)?|PHP_OS(?:_FAMILY)?|sys\.version_info|sys\.platform|process\.versions|process\.platform|runtime\.GOOS|runtime\.GOARCH|cfg!|os\.name)\b|#\[cfg\(/;
-// Global PHP functions such as pg_connect and pcntl_signal_dispatch are ecosystem capabilities. A namespaced
-// function_exists probe is the library/extension coexistence guard K329 forbids.
-const PHP_NAMESPACED_FUNCTION_PROBE = /\bfunction_exists\s*\(\s*(['"])(?:\\?\w+\\)+\w+\1/;
+const PHP_FUNCTION_PROBE = /\bfunction_exists\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
 const KIT_OWN = /^(?:scripts\/kit\/|tests\/kit\/|tests\/source\/)/;
 // K543: a statement that asserts, with the assertion call of its language, and holds no branch: a test that declares its environment and
 // asserts it fails loudly where the environment differs, so its probe changes nothing that the test asserts.
@@ -124,6 +122,7 @@ export const reasonKind = (reason: string): boolean => REASON_KINDS.some(kind =>
 /** The findings of the checked `files` of a repository; `read` gives the text of a file. */
 export function divergenceFindings(files: readonly string[], read: (file: string) => string | undefined): string[] {
   const roots = implementationRoots(files, read);
+  const phpFunctions = phpFunctionDeclarations(files, roots, read);
   const found: string[] = [];
   for (const file of files) {
     if (KIT_OWN.test(file)) continue;
@@ -137,7 +136,7 @@ export function divergenceFindings(files: readonly string[], read: (file: string
       for (const { number, code } of sourceLines) {
         const assertion = assertionLines.get(number) ?? code;
         if (isTestFile(file) && ENVIRONMENT.test(code) && !assertsEnvironment(assertion) && !machineMetadataLines.has(number)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
-        else if (!isTestFile(file) && (/\bextension_loaded\s*\(/.test(code) || PHP_NAMESPACED_FUNCTION_PROBE.test(code))) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\s*\(/.exec(code)?.[1]?.replace(/\s+/g, '')}), so the library and its extension coexist through a guard of the run time`);
+        else if (!isTestFile(file) && (/\bextension_loaded\s*\(/.test(code) || functionProbeFindings(code, phpFunctions))) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\s*\(/.exec(code)?.[1]?.replace(/\s+/g, '')}), so the library and its extension coexist through a guard of the run time`);
       }
     }
     if (/(?:\.mk|\/Makefile|^Makefile|\.mts|\.mjs|\.sh|\.ya?ml)$/.test(file) || file.startsWith('.githooks/')) {
@@ -156,6 +155,34 @@ export function divergenceFindings(files: readonly string[], read: (file: string
     }
   }
   return found.sort();
+}
+
+/** Function declarations across PHP implementation roots, keyed without PHP's case-sensitive spelling distinction. */
+function phpFunctionDeclarations(files: readonly string[], roots: readonly string[], read: (file: string) => string | undefined): Set<string> {
+  const declarations = new Set<string>();
+  for (const file of files) {
+    if (!file.endsWith('.php') || !roots.some(root => within(root, file))) continue;
+    const text = read(file);
+    if (text === undefined) continue;
+    let namespace = '';
+    for (const { code } of lines(text)) {
+      const namespaceMatch = /^\s*namespace\s+([\\\w]+)\s*[;{]/.exec(code);
+      if (namespaceMatch?.[1] !== undefined) namespace = namespaceMatch[1].replace(/^\\/, '').replace(/\\$/, '');
+      const functionMatch = /^\s*function\s*&?\s*([A-Za-z_]\w*)\s*\(/.exec(code);
+      if (functionMatch?.[1] !== undefined) declarations.add(`${namespace ? `${namespace}\\` : ''}${functionMatch[1]}`.toLowerCase());
+    }
+  }
+  return declarations;
+}
+
+/** Whether a literal function_exists probe names a function provided by an implementation; dynamic probes remain suspect. */
+function functionProbeFindings(code: string, declarations: ReadonlySet<string>): boolean {
+  const probes = [...code.matchAll(PHP_FUNCTION_PROBE)];
+  if (probes.length === 0) return /\bfunction_exists\s*\(/.test(code);
+  return probes.some(probe => {
+    const name = probe[2];
+    return name === undefined || declarations.has(name.replace(/^\\/, '').toLowerCase());
+  });
 }
 
 /** The JSON object of a configuration file, or an empty one for any other JSON. */

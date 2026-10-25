@@ -5,7 +5,8 @@
 
 ## Unreleased
 
-- divergence-check identifies namespaced PHP function probes as implementation-coexistence guards while allowing global PHP ecosystem capability checks such as pg_connect and pcntl_signal_dispatch (K644).
+- divergence-check matches PHP function_exists probes against function declarations in implementation roots: declared functions remain coexistence findings regardless of namespace, while undeclared runtime capabilities such as pg_connect and pcntl_signal_dispatch are allowed (K644).
+- divergence-check matches global and namespaced function_exists probes to declarations across PHP implementation roots, while an undeclared external namespaced capability is not mistaken for an ORM implementation (K645).
 - link and link-state-check take a Python package that is installed editable from its sibling checkout as linked, by the direct_url.json of its dist-info, and report one installed editable from another folder (K643).
 - `make commits-check` judges the source-sha256 stamps of the Korean twins on the tip of its range only, the tree that land merges and docs-check reads: a middle commit whose stamp a rebase left stale, and a later commit of the branch stamps again, is no finding (K642).
 - pack-manifest.mts has its test, and it and linked-build.mts have their classes in config/rebuild.json, so make owner-validate and make rebuild-check pass (K641).
