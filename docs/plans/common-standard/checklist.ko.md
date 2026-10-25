@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 839c9f1cd8a1ebb5e60d00f588131bfaa64ba27eff05bd1e7878ae83af8a3244 -->
+<!-- source-sha256: 739613c327c8d818817b8cc5ea5d8226bad409af93b51a9c5549df682b3cc8e1 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -534,3 +534,4 @@
 | K626 | make land는 worktree에서 process가 실행 중이어도 branch를 merge합니다. land는 worktree가 아니라 branch를 읽기 때문입니다. 그 worktree와 branch는 process 목록과 함께 남기고, 다음 land가 main에 merge된 branch의 깨끗한 worktree 중 process가 없는 것을 모두 지웁니다. 지금은 merge를 거부합니다(K429). | scripts/kit/land.mts without the refusal of K429, with the removal of the merged worktrees that no process uses, and its case in tests/kit/land.test.mts. | `node --test --test-name-pattern=K626 tests/kit/land.test.mts` | [o] |
 | K627 | make commit은 body의 Red나 No-Red 줄을 어디에 있든 따로 한 줄로 둡니다. scripts/kit/plan.mts의 wrapBody는 trailer만 있지 않은 문단을 하나로 합치므로, 문장 뒤의 줄이 그 문장에 합쳐지고 commits-check가 commit을 거부합니다. | wrapBody in scripts/kit/plan.mts and its K627 case in tests/kit/plan.test.mts. | `node --test --test-name-pattern=K627 tests/kit/plan.test.mts` | [o] |
 | K628 | make land의 정리(K626)는 main에서 만들고 자기 commit이 없는 새 branch의 worktree를, main이 그것을 포함한다는 이유로 지웁니다. kit-linked-sources-K613을 지웠습니다. branch는 그 reflog가 생성이나 마지막 reset 이후 자기 commit을 기록하고 main이 그 commit을 모두 포함할 때 merge된 것입니다. | removeMerged in scripts/kit/land.mts with the merged test of the reflog, and its K628 assertions in the K626 case of tests/kit/land.test.mts. | `node --test --test-name-pattern=K626 tests/kit/land.test.mts` | [o] |
+| K629 | kit main이 자기 lint-ts에서 K247-2와 K247-3 land가 가져온 finding 다섯 개로 실패합니다: tests/kit/release.test.mts:101의 쓸모없는 escape 네 개와 tests/kit/php-ext.test.mts:208의 any에서의 assertion. | tests/kit/release.test.mts and tests/kit/php-ext.test.mts without the findings. | `make lint-ts` | [ ] |
