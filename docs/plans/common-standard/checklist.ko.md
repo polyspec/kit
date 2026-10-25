@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 438d4ab590243e64efa2ec209ee86a485053a115909d4386e5e9e383e8de0a22 -->
+<!-- source-sha256: 88c01f5357af459a424b2d97dc0822147766245b87693a9d2e5351baf4b074e5 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -535,4 +535,4 @@
 | K627 | make commit은 body의 Red나 No-Red 줄을 어디에 있든 따로 한 줄로 둡니다. scripts/kit/plan.mts의 wrapBody는 trailer만 있지 않은 문단을 하나로 합치므로, 문장 뒤의 줄이 그 문장에 합쳐지고 commits-check가 commit을 거부합니다. | wrapBody in scripts/kit/plan.mts and its K627 case in tests/kit/plan.test.mts. | `node --test --test-name-pattern=K627 tests/kit/plan.test.mts` | [o] |
 | K628 | make land의 정리(K626)는 main에서 만들고 자기 commit이 없는 새 branch의 worktree를, main이 그것을 포함한다는 이유로 지웁니다. kit-linked-sources-K613을 지웠습니다. branch는 그 reflog가 생성이나 마지막 reset 이후 자기 commit을 기록하고 main이 그 commit을 모두 포함할 때 merge된 것입니다. | removeMerged in scripts/kit/land.mts with the merged test of the reflog, and its K628 assertions in the K626 case of tests/kit/land.test.mts. | `node --test --test-name-pattern=K626 tests/kit/land.test.mts` | [o] |
 | K629 | kit main이 자기 lint-ts에서 K247-2와 K247-3 land가 가져온 finding 다섯 개로 실패합니다: tests/kit/release.test.mts:101의 쓸모없는 escape 네 개와 tests/kit/php-ext.test.mts:208의 any에서의 assertion. | tests/kit/release.test.mts and tests/kit/php-ext.test.mts without the findings. | `make lint-ts` | [o] |
-| K630 | PHP 확장 테스트는 PATH의 첫 php, php-config, phpize를 감쌉니다. 이 Mac에서는 Homebrew PHP 8.5이고 그 gen_stub.php는 PHP-Parser 5.6.1을 요구하지만, kit은 .php-version의 PHP 8.4를 위해 5.0.0을 고정합니다. 테스트가 세션의 PATH에 따라 통과하거나 실패합니다. 대신 kit 자신의 var/tools/bin을 감쌉니다. | phpWrappers of tests/kit/php-ext.test.mts on kit's var/tools/bin. | `node --test --test-name-pattern=K560 tests/kit/php-ext.test.mts` | [~] |
+| K630 | PHP 확장 테스트는 PATH의 첫 php, php-config, phpize를 감쌉니다. 이 Mac에서는 Homebrew PHP 8.5이고 그 gen_stub.php는 PHP-Parser 5.6.1을 요구하지만, kit은 .php-version의 PHP 8.4를 위해 5.0.0을 고정합니다. 테스트가 세션의 PATH에 따라 통과하거나 실패합니다. 대신 kit 자신의 var/tools/bin을 감쌉니다. | phpWrappers of tests/kit/php-ext.test.mts on kit's var/tools/bin. | `node --test --test-name-pattern=K560 tests/kit/php-ext.test.mts` | [o] |
