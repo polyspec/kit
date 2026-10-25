@@ -175,12 +175,30 @@ export function retiredFindings(root: string): string[] {
   return RETIRED.filter(file => existsSync(path.join(root, file))).map(file => `${file}: kit no longer reads it; the commit rules are COMMIT_RULES of check-commits.mts (K243). Fix: git rm ${file}`);
 }
 
-/** A finding for each symbolic link in the index of `root`: the repository creates no link (AGENTS.md, K254). */
+// The shared root files of kit that a repository tracks as links to the kit checkout beside it, no copies (K614, K621): each
+// path of a repository and the file of kit that its link names.
+const SHARED_LINKS: Record<string, string> = {
+  'PRINCIPLES.md': 'PRINCIPLES.md',
+  'PRINCIPLES.ko.md': 'PRINCIPLES.ko.md',
+  '.editorconfig': '.editorconfig',
+  '.claude/settings.json': 'claude/settings.json',
+};
+
+/**
+ * A finding for each symbolic link in the index of `root`: the repository creates no link (AGENTS.md, K254), except a shared root
+ * file of kit whose link names the matching file of the kit checkout beside the repository, and that file exists (K621).
+ */
 export function symlinkFindings(root: string): string[] {
   return git(root, 'ls-files', '--stage', '-z').split('\0').filter(Boolean).flatMap(entry => {
+    if (!entry.startsWith(`${LINK_MODE} `)) return [];
     const tab = entry.indexOf('\t');
     const file = entry.slice(tab + 1);
-    return entry.startsWith(`${LINK_MODE} `) ? [`${file}: a tracked symbolic link; the repository creates no link. Fix: git rm --cached ${file} and track the file it names`] : [];
+    const shared = SHARED_LINKS[file];
+    if (shared !== undefined) {
+      const kit = path.join(root, '..', 'kit', shared);
+      if (git(root, 'cat-file', 'blob', entry.split(' ')[1]) === path.relative(path.dirname(path.join(root, file)), kit) && existsSync(kit)) return [];
+    }
+    return [`${file}: a tracked symbolic link; the repository creates no link but the links of the shared root files of kit to ../kit (K621). Fix: git rm --cached ${file} and track the file it names`];
   });
 }
 

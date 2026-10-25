@@ -2,11 +2,13 @@
 // that it creates (K254), and the targets of the Makefile (K246).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { symlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { check, gateFindings, retiredFindings, ruleTargets, runtimeTargetFindings, symlinkFindings, taskNameFindings } from '../../scripts/kit/kit-check.mts';
-import { tree } from './tree.mts';
+import { initRepository } from './sandbox-repository.mts';
+import { put, tree } from './tree.mts';
 
 test('a tracked symbolic link fails with its path, and a tree without one passes (K254)', (t) => {
   const root = tree(t, { 'a.txt': 'a\n', 'docs/b.md': '# B\n' });
@@ -15,7 +17,28 @@ test('a tracked symbolic link fails with its path, and a tree without one passes
   symlinkSync('../a.txt', path.join(root, 'docs/link.txt'));
   assert.deepEqual(symlinkFindings(root), [], 'an untracked link is no tracked file');
   assert.equal(spawnSync('git', ['add', 'docs/link.txt'], { cwd: root }).status, 0);
-  assert.deepEqual(symlinkFindings(root), ['docs/link.txt: a tracked symbolic link; the repository creates no link. Fix: git rm --cached docs/link.txt and track the file it names']);
+  assert.deepEqual(symlinkFindings(root), ['docs/link.txt: a tracked symbolic link; the repository creates no link but the links of the shared root files of kit to ../kit (K621). Fix: git rm --cached docs/link.txt and track the file it names']);
+});
+
+// K621: a repository tracks the shared root files of kit as links to the matching files of the kit checkout beside it (K614);
+// such a link to another file, or to a file that the kit checkout does not hold, is a finding as any other tracked link.
+test('a tracked link of a shared root file of kit to the matching file of ../kit passes, and any other link fails (K621)', (t) => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-links-'));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  put(path.join(parent, 'kit'), { 'PRINCIPLES.md': '# P\n', 'PRINCIPLES.ko.md': '# P\n', '.editorconfig': 'root = true\n', 'claude/settings.json': '{}\n' });
+  const root = path.join(parent, 'repo');
+  mkdirSync(path.join(root, '.claude'), { recursive: true });
+  initRepository(root);
+  for (const [file, target] of [['PRINCIPLES.md', '../kit/PRINCIPLES.md'], ['PRINCIPLES.ko.md', '../kit/PRINCIPLES.ko.md'], ['.editorconfig', '../kit/.editorconfig'], ['.claude/settings.json', '../../kit/claude/settings.json']]) symlinkSync(target, path.join(root, file));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  assert.deepEqual(symlinkFindings(root), []);
+  const finding = (file: string) => `${file}: a tracked symbolic link; the repository creates no link but the links of the shared root files of kit to ../kit (K621). Fix: git rm --cached ${file} and track the file it names`;
+  rmSync(path.join(root, 'PRINCIPLES.ko.md'));
+  symlinkSync('../kit/PRINCIPLES.md', path.join(root, 'PRINCIPLES.ko.md'));
+  symlinkSync('../kit/AGENTS.md', path.join(root, 'AGENTS.md'));
+  rmSync(path.join(parent, 'kit/.editorconfig'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  assert.deepEqual(symlinkFindings(root).sort(), [finding('.editorconfig'), finding('AGENTS.md'), finding('PRINCIPLES.ko.md')]);
 });
 
 test('a configuration that kit no longer reads is a finding (K243)', (t) => {
