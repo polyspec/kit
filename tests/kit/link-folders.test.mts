@@ -217,3 +217,24 @@ test('link links the dependencies that a linked npm package declares and the con
   assert.equal(lstatSync(path.join(project, 'node_modules/dep-c')).isSymbolicLink(), false, 'a dependency that the consumer has stays');
   assert.deepEqual(folderFindings(root, providedFolders(project, [provider])), []);
 });
+
+// K591: an installed polyspec package is one symlink from its install location to the package folder of its checkout, the user's rule;
+// a directory link to the provider is the linked state, for Python and for npm, and a copy becomes that one link.
+test('every provided package folder is one directory symlink to its checkout\'s package folder (K591)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-folders-one-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  put(root, { 'prov/src/pkg/__init__.py': 'X = 1\n', 'prov/packages/x/package.json': JSON.stringify({ name: '@polyspec/x' }), 'cons/node_modules/@polyspec/y/package.json': '{}' });
+  const site = path.join(root, 'cons/.venv/lib/python3.14/site-packages');
+  mkdirSync(site, { recursive: true });
+  symlinkSync('../../../../../prov/src/pkg', path.join(site, 'pkg'));
+  symlinkSync('../../../prov/packages/x', path.join(root, 'cons/node_modules/@polyspec/x'));
+  const folders = [
+    { ecosystem: 'python' as const, name: 'pkg', folder: path.join(site, 'pkg'), target: path.join(root, 'prov/src/pkg') },
+    { ecosystem: 'npm' as const, name: '@polyspec/x', folder: path.join(root, 'cons/node_modules/@polyspec/x'), target: path.join(root, 'prov/packages/x') },
+    { ecosystem: 'npm' as const, name: '@polyspec/y', folder: path.join(root, 'cons/node_modules/@polyspec/y'), target: path.join(root, 'prov/packages/x') },
+  ];
+  assert.deepEqual(folderFindings(root, folders.slice(0, 2)), [], 'a directory link is the linked state');
+  assert.equal(linkFolders(folders).length, 1, 'only the copy changes');
+  for (const item of folders) assert.ok(lstatSync(item.folder).isSymbolicLink(), `${item.name} is one symlink`);
+  assert.deepEqual(folderFindings(root, folders), []);
+});
