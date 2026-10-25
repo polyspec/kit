@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c72ff0983322c1d2191b686d1f6c30c84f13fdb09fe334a5600bbda240867824 -->
+<!-- source-sha256: 29032d0a8b70b381a266131677ecc5d8f69d61a62a191e5782e1eb6ff50cedfe -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 저장소는 옆의 kit checkout의 source를 실행한다. kit-bootstrap.mk는 KIT를 그 scripts/kit로, KIT_EXT를 mts로 두고, package.json의 exports와 Claude hook은 source를 가리키며, source의 변경은 build 없이 소비자에 닿는다. npm pack은 dist exports, bootstrap, hook을 묶인 package에 쓰고(prepack) 그 뒤 되돌린다(postpack)(K613).
 - make worktree-prune을 삭제했습니다. make land가 process가 없는 merge된 branch의 worktree를 모두 지우고(K626), prune을 import하는 consumer도 더 없습니다(orm T238)(K612).
 - release와 PHP 확장의 테스트가 다시 lint-ts를 통과합니다. 문자열에 쓸모없는 escape가 없고, fixture 설정은 any에서의 assertion 대신 type guard로 좁힙니다(K629).
 - make land가 merge 뒤에 지우는 worktree는 자기 commit이 있고 그것이 모두 main에 있는 branch의 것입니다. 곧 시작할 행을 위해 main에서 만든 새 branch는 main이 포함하더라도 남깁니다(K628).
