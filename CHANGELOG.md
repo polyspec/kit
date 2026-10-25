@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `parity-declarations-check --id` retains R2 missing bindings for units that cite the selected requirement, so intersecting `--id` with `--rule` cannot hide a finding (K638).
 - install-tools stages the PHP-Parser release that the gen_stub.php of the declared PHP names, from a locked Composer project of kit for each release: scripts/kit/php-arginfo/5.0.0 for PHP 8.4 and 5.6.1 for PHP 8.5, so a repository that declares PHP 8.5 installs (K637).
 - Parity feature units can explicitly scope a requirement to multiple coverage parts of one feature; each implementation needs its own test binding, and every owner must be named or explicitly share tests with a named implementation (K635).
 - divergence-check treats Go GOOS/GOARCH as diagnostic metadata only when the machine value is consumed solely by a machine field in fmt.Fprintf; an actual platform branch remains a finding (K636).
