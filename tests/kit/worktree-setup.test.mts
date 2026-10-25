@@ -370,3 +370,30 @@ test('worktree-setup links a provided package of another checkout to that checko
   assert.equal(path.resolve(path.dirname(entry), readlinkSync(entry)), path.join(parent, 'prov'), 'the link names the provider\'s folder itself');
   assert.equal(setupWorktree(main, { name: 'x', id: 'T13', type: 'fix' }, options), folder, 'a second run converges');
 });
+
+// K615: link writes a git-ignored go.work beside each go.mod of the main checkout, whose relative uses reach the sibling checkouts;
+// a worktree is a sibling of the main checkout, so the same file at the same place reaches the same checkouts. Without it the
+// worktree's Go build reads a release of the sibling module from the module cache. A tracked go.work is the worktree's own.
+test('worktree-setup gives the worktree the git-ignored go.work and go.work.sum of the main checkout (K615)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'Makefile': 'link-state-check:\n\ttrue\n',
+    '.gitignore': 'node_modules/\ngo.work\ngo.work.sum\n!/tools/go.work\n',
+    'packages/go/go.mod': 'module example.com/repo\n\ngo 1.27\n',
+    'tools/go.mod': 'module example.com/tools\n\ngo 1.27\n',
+    'tools/go.work': 'go 1.27\n\nuse .\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const work = 'go 1.27\n\nuse (\n\t.\n\t../../../dep/packages/go\n)\n';
+  put(main, { 'packages/go/go.work': work, 'packages/go/go.work.sum': 'sum\n', 'tools/go.work': 'go 1.27\n\nuse (\n\t.\n\t../changed\n)\n' });
+  const folder = setupWorktree(main, { name: 'gowork', id: 'K615', type: 'fix' }, { print: () => {} });
+  assert.equal(readFileSync(path.join(folder, 'packages/go/go.work'), 'utf8'), work, 'the go.work that link wrote reaches the same siblings');
+  assert.equal(readFileSync(path.join(folder, 'packages/go/go.work.sum'), 'utf8'), 'sum\n');
+  assert.equal(readFileSync(path.join(folder, 'tools/go.work'), 'utf8'), 'go 1.27\n\nuse .\n', 'a tracked go.work stays the committed one');
+  assert.equal(git(folder, 'status', '--porcelain'), '', 'the ignored go.work leaves the worktree with no change');
+});

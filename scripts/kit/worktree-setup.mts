@@ -6,7 +6,7 @@
 // links and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { COMMIT_RULES } from './check-commits.mts';
@@ -324,6 +324,20 @@ function linkTool(folder: string): string {
   return existsSync(own) ? own : path.join(folder, 'node_modules/@polyspec/kit/dist/link.mjs');
 }
 
+/**
+ * The go.work and go.work.sum files that link wrote in the main checkout `main` beside a go.mod of the worktree `folder` (K615),
+ * relative to both: git-ignored files of the main checkout, whose relative uses reach the same sibling checkouts from the worktree,
+ * which is a sibling of the main checkout. A tracked go.work is the worktree's own and is not among them.
+ */
+function goWorkFiles(main: string, folder: string): string[] {
+  const modules = git(folder, 'ls-files', '--', 'go.mod', '*/go.mod').split('\n').filter(Boolean);
+  const candidates = modules.flatMap(module => ['go.work', 'go.work.sum'].map(name => path.join(path.dirname(module), name)))
+    .filter(file => existsSync(path.join(main, file)));
+  if (!candidates.length) return [];
+  // check-ignore exits 1 when it ignores none of them.
+  return gitResult(main, 'check-ignore', '--no-index', ...candidates).stdout.split('\n').filter(Boolean).filter(file => gitResult(main, 'ls-files', '--error-unmatch', '--', file).status !== 0);
+}
+
 export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer }: { print?: (text: string) => void; composer?: string } = {}): string {
   const main = path.dirname(path.resolve(root, git(root, 'rev-parse', '--git-common-dir').trim()));
   const { folder, branch } = worktreeOf(main, row);
@@ -341,6 +355,10 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   for (const modules of npmProjects(main, folder, print)) linkNodeModules(main, folder, modules, print);
   for (const venv of pythonEnvironments(main)) linkVenv(main, folder, venv, print);
   for (const project of composerProjects(main, folder)) linkVendor(main, folder, project, composer ?? composerCommand(folder, 'make worktree-setup'), print);
+  for (const file of goWorkFiles(main, folder)) {
+    copyFileSync(path.join(main, file), path.join(folder, file));
+    print(`[worktree-setup] wrote ${file} of the main checkout`);
+  }
   for (const target of ['rebuild', 'link-state-check']) {
     // The rebuild (K482) builds the packages of the worktree's own repository before the check reads their builds: a new worktree has none yet.
     const [command, args] = target === 'rebuild'
