@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3f0409ddc2b4c8d3838756ecb7a8d1527bdd235377f96ac6948a95bed9e235ec -->
+<!-- source-sha256: d250b54223bc0f76cc2aafc5b9be6d9be5763558333271e942812c15b033b8e7 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -517,3 +517,4 @@
 | K609 | land는 fast-forward 뒤, main commit이 하듯 link된 consumer가 읽는 것을 갱신한다. kit에서는 build 입력이 바뀌면 dist를 build하고(K551), 다른 repository에서는 변경으로 build가 낡은 link된 npm package를 다시 build한다(K583). 갱신은 make commit과 land가 함께 쓰는 linked-build.mts 한 모듈이다(K603 후속). 원인: 모든 consumer가 main을 그대로 link하는데 K603 이후 land는 아무것도 build하지 않아, kit으로의 land가 dist를 낡게 남겼고 누군가 손으로 build할 때까지 consumer가 옛 코드를 돌렸다. 인수 조건: build 입력을 바꾸는 kit으로의 land가 병합 뒤 make kit-build를 돌린다. red fixture: 지금은 아무것도 build하지 않는다. | `scripts/kit/linked-build.mts`, `scripts/kit/land.mts`, `scripts/kit/plan.mts`, `tests/kit/land.test.mts` | `node --test --test-name-pattern=K609 tests/kit/land.test.mts` | [o] |
 | K610 | PHP 확장 라이브러리 테스트를 동시에 실행해도 각 Composer fixture를 분리하고 PHPUnit 종료 뒤 각 fixture를 정리한다. | scripts/kit/php-library-autoload.mts, scripts/kit/run-tests.mts, tests/kit/run-tests.test.mts | `node --test --test-name-pattern=K610 tests/kit/run-tests.test.mts` | [o] |
 | K611 | check-rules 테스트와 worktree-setup 도움말이 K596에서 없앤 디스크 하한을 아직 말합니다. tests/kit/check-rules.test.mts는 P10이 "30 GB"를 말하기를 기대해 실패하고, scripts/kit/kit.mk의 worktree-setup 도움말은 여유 디스크 30 GB 미만이면 거부한다고 말합니다. | tests/kit/check-rules.test.mts with a P10 phrase that PRINCIPLES.md states, and the help of worktree-setup in scripts/kit/kit.mk without the disk floor. | `node --test tests/kit/check-rules.test.mts`; `make docs-check` | [ ] |
+| K612 | worktree-prune를 삭제합니다: scripts/kit/worktree-prune.mts, scripts/kit/kit.mk의 target, tests/kit/worktree-prune.test.mts, config/rebuild.json의 항목, docs/operations/local-links.md와 한국어 쌍의 해당 줄. orm scripts/repo/worktree-stop.test.mts의 prune import를 없애는 orm T238을 기다립니다. | The removal of scripts/kit/worktree-prune.mts, its kit.mk target, tests/kit/worktree-prune.test.mts, its config/rebuild.json entry and its docs/operations/local-links lines, with no file of any polyspec repository naming worktree-prune or importing it. | `make docs-check`; `make lint-ts`; `git grep worktree-prune` in each polyspec repository finds only changelogs and plans | [ ] |
