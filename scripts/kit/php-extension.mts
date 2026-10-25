@@ -16,7 +16,7 @@
 // src/polyspec_<repository>.stub.php. phpize, php-config and php are the wrappers of var/tools/bin of the checkout, the PHP of
 // .php-version, never the ones on PATH (K393-1).
 import { createHash } from 'node:crypto';
-import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, statSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, statSync, lstatSync } from 'node:fs';
 import path from 'node:path';
 import { packageVendorFile } from './composer-vendor.mts';
 import { installedGenStub } from './install-php-arginfo.mts';
@@ -27,10 +27,13 @@ import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { run, Stop } from './process.mts';
 import { toolCommand } from './mise-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
+import { git } from './git.mts';
+import { loadConfig, type ReleaseGeneratedArtifact } from './release.mts';
 
 export const LIBRARY = 'packages/php';
 export const EXTENSION = 'packages/php-ext';
 const OUTPUT = 'var/php-ext';
+const RELEASE_CONFIG = 'config/release.json';
 
 /** The names of the extension of the repository `repository`: its Composer package, its extension and its stub. */
 export function extensionNames(repository: string): { composer: string; extension: string; stub: string; arginfo: string } {
@@ -294,7 +297,44 @@ function generateArginfo(root: string, source: string, stub: string): string {
   return path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h'));
 }
 
-function phpized(root: string, label: string, stub: string): { work: string; source: string } {
+type SourceCopy = Extract<ReleaseGeneratedArtifact, { kind: 'source-copy' }>;
+
+/** The declared sources of the PHP extension that the Composer archive also carries. */
+function extensionSourceCopies(root: string): SourceCopy[] {
+  if (!existsSync(path.join(root, RELEASE_CONFIG))) return [];
+  const extension = loadConfig(root).packages.find(item => item.directory === EXTENSION);
+  return (extension?.generated ?? []).filter((item): item is SourceCopy => item.kind === 'source-copy');
+}
+
+/** Copy a tracked repository source to the declared `src/` path of the temporary phpize package. */
+function stageSourceCopies(root: string, source: string, copies: readonly SourceCopy[]): void {
+  const tracked = new Set(git(root, 'ls-files', '--cached', '-z').split('\0').filter(Boolean));
+  for (const item of copies) {
+    if (!tracked.has(item.source)) throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} is not a tracked source file`);
+    if (!item.output.startsWith('src/')) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} must be below src/ for the PHP extension build`);
+    const input = path.join(root, item.source);
+    let stat;
+    try { stat = lstatSync(input); }
+    catch { throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} is missing from the working tree`); }
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} must be a regular tracked file, not a link or directory`);
+    const relative = item.output.slice('src/'.length);
+    if (relative.startsWith('~') || path.win32.parse(relative).root !== '' || relative.includes('\\')) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} must be a package-relative path below src/`);
+    const destination = path.resolve(source, relative);
+    if (!destination.startsWith(`${path.resolve(source)}${path.sep}`)) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} escapes the temporary PHP extension source`);
+    let directory = path.resolve(source);
+    for (const part of path.posix.dirname(relative).split('/').filter(Boolean)) {
+      directory = path.join(directory, part);
+      if (existsSync(directory)) {
+        const parent = lstatSync(directory);
+        if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} crosses a non-directory or symbolic link`);
+      } else mkdirSync(directory);
+    }
+    if (existsSync(destination)) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} collides with a file already in ${EXTENSION}/src`);
+    copyFileSync(input, destination);
+  }
+}
+
+function phpized(root: string, label: string, stub: string, sourceCopies: readonly SourceCopy[] = []): { work: string; source: string } {
   const work = path.join(root, OUTPUT, `${label}.${process.pid}`);
   const source = path.join(work, 'src');
   rmSync(work, { recursive: true, force: true });
@@ -302,6 +342,7 @@ function phpized(root: string, label: string, stub: string): { work: string; sou
   try {
     cpSync(path.join(root, EXTENSION, 'composer.json'), path.join(work, 'composer.json'));
     cpSync(path.join(root, EXTENSION, 'src'), source, { recursive: true, filter: isSource });
+    stageSourceCopies(root, source, sourceCopies);
     rmSync(path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h')), { force: true });
     generateArginfo(root, source, stub);
     // The tools of the PHP of the checkout are its wrappers, never the ones on PATH.
@@ -317,7 +358,7 @@ function phpized(root: string, label: string, stub: string): { work: string; sou
 /** Builds the extension of `root` into var/php-ext/<extension>.so; returns its path. */
 export function build(root: string): string {
   const names = checked(root);
-  const { work, source } = phpized(root, 'build', names.stub);
+  const { work, source } = phpized(root, 'build', names.stub, extensionSourceCopies(root));
   try {
     // P8 for C (K334): the flags of php-config do not fail a call whose result must be checked; the compiler's check does.
     const env = { ...process.env, CFLAGS: `${process.env.CFLAGS ?? ''} -Werror=unused-result`.trim() };

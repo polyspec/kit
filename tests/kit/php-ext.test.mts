@@ -202,6 +202,54 @@ test('the build generates arginfo from the stub in its temporary source when no 
   assert.equal(spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout, before, 'build output stays ignored');
 });
 
+test('the extension build stages a declared tracked C source into its temporary source tree', (t) => {
+  const files = good();
+  const config = readFileSync(path.join(ROOT, 'tests/kit/fixture/config/release.json'), 'utf8');
+  const release = JSON.parse(config) as Record<string, unknown>;
+  release.packages = [
+    {
+      kind: 'composer',
+      directory: 'packages/php-ext',
+      name: 'polyspec/demo-php-ext',
+      generated: [{
+        kind: 'source-copy',
+        source: 'packages/php/src/native/shared.c',
+        output: 'src/native/shared.c',
+      }],
+    },
+  ];
+  release.manifests = { 'packages/php-ext/composer.json': 'archive' };
+  release.notReleased = {};
+  release.goModules = {};
+  delete release.proof;
+  release.consumers = {
+    composer: {
+      directory: 'tests/consumer',
+      smoke: { 'polyspec/demo-php-ext': ['php', '-v'] },
+    },
+  };
+  files['config/release.json'] = JSON.stringify(release);
+  const originalConfig = readFileSync(path.join(FIXTURE, 'config.m4'), 'utf8');
+  files['packages/php-ext/src/config.m4'] = originalConfig.replace(
+    '[polyspec_demo.c]',
+    '[polyspec_demo.c native/shared.c]',
+  );
+  const source = readFileSync(path.join(FIXTURE, 'polyspec_demo.c'), 'utf8').replace(
+    'static zend_class_entry *counter_entry;',
+    'int shared_offset(void);\n\nstatic zend_class_entry *counter_entry;',
+  ).replace('RETURN_LONG(a + b);', 'RETURN_LONG(a + b + shared_offset());');
+  files['packages/php-ext/src/polyspec_demo.c'] = source;
+  files['packages/php/src/native/shared.c'] = 'int shared_offset(void) { return 40; }\n';
+  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
+  const output = spawnSync(path.join(root, 'var/tools/bin/php'), ['-d', `extension=${path.join(root, 'var/php-ext/polyspec_demo.so')}`, '-r', 'echo Polyspec\\Demo\\add(1);'], { cwd: root, encoding: 'utf8' });
+  assert.equal(output.status, 0, output.stderr);
+  assert.equal(output.stdout, '42', 'the compiled extension called the staged shared source');
+});
+
 test('a missing arginfo parser fails before gen_stub can invoke a network downloader (K560)', (t) => {
   const files = good();
   delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];

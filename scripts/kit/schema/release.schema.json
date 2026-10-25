@@ -78,14 +78,28 @@
             "description": "Artifacts that are generated from the package files of the tagged commit and included in its archive; never written into the checkout.",
             "type": "array",
             "items": {
-              "type": "object",
-              "required": ["kind", "stub", "output"],
-              "additionalProperties": false,
-              "properties": {
-                "kind": { "type": "string", "const": "php-arginfo" },
-                "stub": { "type": "string", "pattern": "^[^/\\\\][^\\\\]*\\.stub\\.php$" },
-                "output": { "type": "string", "pattern": "^[^/\\\\][^\\\\]*_arginfo\\.h$" }
-              }
+              "oneOf": [
+                {
+                  "type": "object",
+                  "required": ["kind", "stub", "output"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": { "type": "string", "const": "php-arginfo" },
+                    "stub": { "type": "string", "pattern": "^[^/\\\\][^\\\\]*\\.stub\\.php$" },
+                    "output": { "type": "string", "pattern": "^[^/\\\\][^\\\\]*_arginfo\\.h$" }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "source", "output"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": { "type": "string", "const": "source-copy" },
+                    "source": { "type": "string", "minLength": 1 },
+                    "output": { "type": "string", "minLength": 1 }
+                  }
+                }
+              ]
             }
           }
         }

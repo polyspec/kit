@@ -88,11 +88,15 @@ export interface ReleasePackage {
 }
 
 /** A build artifact materialized from the committed package snapshot only while its Composer archive is made. */
-export interface ReleaseGeneratedArtifact {
+export type ReleaseGeneratedArtifact = {
   kind: 'php-arginfo';
   stub: string;
   output: string;
-}
+} | {
+  kind: 'source-copy';
+  source: string;
+  output: string;
+};
 
 /** The consumer project of the npm or the Composer archives: its directory and the smoke command of each package. */
 export interface ConsumerProject {
@@ -211,12 +215,17 @@ export function loadConfig(root: string): ReleaseConfig {
     if (config.manifests[manifest] !== 'archive') problems.push(`${CONFIG}: the package ${name} needs manifests.${manifest} = "archive", found ${JSON.stringify(config.manifests[manifest] ?? null)}`);
     for (const generated of config.packages.find(item => item.directory === directory)?.generated ?? []) {
       if (kind !== 'composer') problems.push(`${CONFIG}: generated artifacts of ${directory} require a Composer package`);
+      const valid = (file: string) => file !== '' && !file.startsWith('~') && !file.startsWith('/') && path.win32.parse(file).root === '' && !file.includes('\\') && file.split('/').every(part => part !== '' && part !== '.' && part !== '..');
       if (generated.kind === 'php-arginfo') {
-        const valid = (file: string) => file !== '' && !file.startsWith('/') && !file.includes('\\') && file.split('/').every(part => part !== '' && part !== '.' && part !== '..');
         if (!valid(generated.stub) || !generated.stub.endsWith('.stub.php')) problems.push(`${CONFIG}: generated php-arginfo stub ${JSON.stringify(generated.stub)} is not a package-relative .stub.php path`);
         if (!valid(generated.output) || generated.output !== generated.stub.replace(/\.stub\.php$/, '_arginfo.h')) problems.push(`${CONFIG}: generated php-arginfo output ${JSON.stringify(generated.output)} must be the matching _arginfo.h beside its stub`);
+      } else if (generated.kind === 'source-copy') {
+        if (!valid(generated.source)) problems.push(`${CONFIG}: source-copy source ${JSON.stringify(generated.source)} is not a repository-relative path without empty, dot or parent segments`);
+        if (!valid(generated.output)) problems.push(`${CONFIG}: source-copy output ${JSON.stringify(generated.output)} is not a package-relative path without empty, dot or parent segments`);
       }
     }
+    const outputs = (config.packages.find(item => item.directory === directory)?.generated ?? []).map(item => item.output);
+    for (const output of new Set(outputs)) if (outputs.filter(item => item === output).length > 1) problems.push(`${CONFIG}: generated output ${directory}/${output} is declared more than once`);
   }
   const backend = backendFinding(root, config);
   if (backend) problems.push(backend);
@@ -523,25 +532,42 @@ export function packedManifest(ctx: Context, file: string): string {
 function generatedArchiveFiles(ctx: Context, commit: string, folder: string, generated: ReleaseGeneratedArtifact[] | undefined): { directory: string; files: { output: string; file: string }[] } | null {
   if (!generated?.length) return null;
   const phpArginfo = generated.filter(item => item.kind === 'php-arginfo');
-  if (phpArginfo.length !== generated.length) throw new Stop(`${CONFIG}: an unknown generated artifact kind is declared for ${folder}`);
-  const generator = installedGenStub(ctx.root);
-  const php = toolCommand(ctx.root, 'php');
+  const sourceCopies = generated.filter((item): item is Extract<ReleaseGeneratedArtifact, { kind: 'source-copy' }> => item.kind === 'source-copy');
   const temporary = mkdtempSync(path.join(tmpdir(), 'kit-release-arginfo-'));
   try {
-    const files = phpArginfo.map(item => {
-      const stub = path.join(temporary, path.basename(item.stub));
-      const source = run('git', ['show', `${commit}:${path.posix.join(folder, item.stub)}`], at(ctx));
-      writeFileSync(stub, source);
-      const result = execute(php, [generator.file, '--force-regeneration', stub], { cwd: temporary, env: ctx.env });
-      if (result.error) throw new Stop(`${php} could not start while generating ${path.posix.join(folder, item.output)}: ${result.error.message}`);
-      if (result.status !== 0) throw new Stop(`${php} ${path.basename(generator.file)} failed for ${path.posix.join(folder, item.stub)} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
-      const output = path.join(temporary, path.basename(item.output));
-      if (!existsSync(output)) throw new Stop(`${generator.file} did not write ${path.posix.join(folder, item.output)}`);
-      const staged = path.join(temporary, item.output);
+    const files: { output: string; file: string }[] = [];
+    if (phpArginfo.length) {
+      const generator = installedGenStub(ctx.root);
+      const php = toolCommand(ctx.root, 'php');
+      for (const item of phpArginfo) {
+        const stub = path.join(temporary, path.basename(item.stub));
+        const source = run('git', ['show', `${commit}:${path.posix.join(folder, item.stub)}`], at(ctx));
+        writeFileSync(stub, source);
+        const result = execute(php, [generator.file, '--force-regeneration', stub], { cwd: temporary, env: ctx.env });
+        if (result.error) throw new Stop(`${php} could not start while generating ${path.posix.join(folder, item.output)}: ${result.error.message}`);
+        if (result.status !== 0) throw new Stop(`${php} ${path.basename(generator.file)} failed for ${path.posix.join(folder, item.stub)} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
+        const output = path.join(temporary, path.basename(item.output));
+        if (!existsSync(output)) throw new Stop(`${generator.file} did not write ${path.posix.join(folder, item.output)}`);
+        const staged = path.join(temporary, item.output);
+        mkdirSync(path.dirname(staged), { recursive: true });
+        copyFileSync(output, staged);
+        files.push({ output: item.output, file: staged });
+      }
+    }
+    const packagePrefix = folder === '.' ? '' : `${folder}/`;
+    const packageFiles = run('git', ['ls-tree', '-r', '--name-only', commit, folder], at(ctx)).split('\n').filter(Boolean).map(file => (packagePrefix ? file.slice(packagePrefix.length) : file));
+    for (const item of sourceCopies) {
+      const staged = path.resolve(temporary, item.output);
+      if (packageFiles.some(file => file === item.output || file.startsWith(`${item.output}/`) || item.output.startsWith(`${file}/`))) {
+        throw new Stop(`${CONFIG}: source-copy output ${folder}/${item.output} overlaps a file or directory of the tagged package`);
+      }
+      const sourceFiles = run('git', ['ls-tree', '-r', '--name-only', commit, '--', item.source], at(ctx)).split('\n').filter(Boolean);
+      if (!sourceFiles.includes(item.source)) throw new Stop(`${CONFIG}: source-copy source ${item.source} is not a tracked file at tagged commit ${commit}`);
+      const contents = run('git', ['show', `${commit}:${item.source}`], at(ctx));
       mkdirSync(path.dirname(staged), { recursive: true });
-      copyFileSync(output, staged);
-      return { output: item.output, file: staged };
-    });
+      writeFileSync(staged, contents);
+      files.push({ output: item.output, file: staged });
+    }
     return { directory: temporary, files };
   } catch (error) {
     rmSync(temporary, { recursive: true, force: true });

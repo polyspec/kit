@@ -96,6 +96,9 @@ test('the configuration is checked for the rules that the schema cannot express'
   stop(load(() => ({ ...original, packages: original.packages.map(p => (p.name === 'fixture-lib' ? { ...p, name: 'polyspec/fixture-app' } : p)) })), /is not a `name` or `@scope\/name`/);
   stop(load(() => ({ ...original, goModules: { 'packages/fixture-go': '' } })), /goModules\.packages\/fixture-go needs the module path/);
   stop(load(() => ({ ...original, schema: 3 })), /\/schema must be equal to constant \{"allowedValue":1\}, value 3/);
+  writeJson(box.root, 'config/release.json', original);
+  stop(load(() => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, generated: [{ kind: 'source-copy', source: '../outside.c', output: 'src/native/shared.c' }] } : p)) })), /source-copy source "\.\.\/outside\.c" is not a repository-relative path/);
+  stop(load(() => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, generated: [{ kind: 'source-copy', source: 'packages\/fixture-lib\/shared.c', output: 'src\/..\/shared.c' }] } : p)) })), /source-copy output "src\/\.\.\/shared\.c" is not a package-relative path/);
   git(box.root, 'rm', '-q', '-f', 'config/release.json');
   stop(() => release.loadConfig(box.root), /config\/release\.json: the file is missing/);
 });
@@ -331,6 +334,25 @@ test('a Composer archive carries the tracked native helper and its explicit buil
   const metadata = spawnSync('unzip', ['-Z', '-v', archive], { encoding: 'utf8' });
   assert.equal(metadata.status, 0, metadata.stderr);
   assert.match(metadata.stdout, /bin\/build-sqlite-cancel\.php[\s\S]*?Unix file attributes \(100755 octal\):\s+-rwxr-xr-x/);
+});
+
+test('a Composer archive stages a declared tracked source from another package', (t) => {
+  const source = '#include <sqlite3ext.h>\nSQLITE_EXTENSION_INIT1\n';
+  const box = releaseSandbox(t, { mutate(root) {
+    writeFileSync(path.join(root, 'packages/fixture-lib/shared.c'), source);
+    edit<ConfigJson>(root, 'config/release.json', config => ({
+      ...config,
+      packages: config.packages.map(item => item.directory === 'packages/fixture-php'
+        ? { ...item, generated: [{ kind: 'source-copy', source: 'packages/fixture-lib/shared.c', output: 'src/native/shared.c' }] }
+        : item),
+    }));
+  } });
+  const names = release.assets(context(box), box.tag('v0.0.1'));
+  const archive = path.join(box.root, 'var/release/assets', known(names[2], 'Composer archive name'));
+  const entries = spawnSync('unzip', ['-Z1', archive], { encoding: 'utf8' });
+  assert.equal(entries.status, 0, entries.stderr);
+  assert.ok(entries.stdout.split('\n').includes('src/native/shared.c'));
+  assert.equal(spawnSync('unzip', ['-p', archive, 'src/native/shared.c'], { encoding: 'utf8' }).stdout, source);
 });
 
 test('K560 Composer archives generate arginfo from the tagged stub without changing the checkout', (t) => {
