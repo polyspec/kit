@@ -25,7 +25,7 @@ import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { rebuild } from './link-build.mts';
-import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
+import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -429,6 +429,10 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
     const missing = declaredWithoutFolder(work, consumer, project, [...folders, ...ownerFolders(work, consumer, project)]);
     for (const name of missing) line(work, 'NOT linked', name.ecosystem, `${name.name}: no installed folder in ${path.relative(consumer.top, project) || '.'}; install the project first`);
     if (missing.length > 0) work.failed = true;
+    // K643: a Python package installed editable is linked natively when its record names the folder of its provider.
+    const elsewhere = editableElsewhere(work, consumer, project);
+    for (const finding of elsewhere) line(work, 'NOT linked', 'python', finding);
+    if (elsewhere.length > 0) work.failed = true;
     if (work.check) {
       const findings = folderFindings(consumer.top, folders);
       for (const finding of findings) line(work, 'NOT linked', finding.split(' ')[0] ?? '', finding.slice(finding.indexOf(' ') + 1));
@@ -487,7 +491,25 @@ function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, f
     // no package path installs no folder (K529).
     if (provider === undefined || provider.repository === repositoryOf(consumer.top)) return false;
     if (ecosystem === 'python' && !hasPythonPackages(provider)) return false;
+    // K643: an editable install of a python package has no folder; editableElsewhere judges where it points.
+    if (ecosystem === 'python' && editableFolder(project, name) !== undefined) return false;
     return !folders.some(folder => folder.ecosystem === ecosystem && (folder.name === name || folder.name.startsWith(`${name} `)));
+  });
+}
+
+/**
+ * The findings of the provided Python packages that `project` declares and that its environment holds installed editable from
+ * another folder than their provider's (K643); an editable install of the provider's folder is linked.
+ */
+function editableElsewhere(work: Run, consumer: Consumer, project: string): string[] {
+  const file = path.join(project, MANIFESTS.python);
+  if (!existsSync(file)) return [];
+  return declaredPython(file).flatMap((name) => {
+    const provider = work.found.get(providerKey('python', name));
+    if (provider === undefined || provider.repository === repositoryOf(consumer.top)) return [];
+    const editable = editableFolder(project, name);
+    if (editable === undefined || (existsSync(editable) && realpathSync(editable) === realpathSync(provider.folder))) return [];
+    return [`${name}: installed editable from ${editable}, not from ${provider.folder}; install it from the sibling checkout`];
   });
 }
 

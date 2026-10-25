@@ -8,7 +8,7 @@ import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdt
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
@@ -213,25 +213,15 @@ test('K205: link links the checkouts that it is given with no environment variab
   assert.doesNotMatch(recipeOf('install-link').join('\n'), /\$\(MAKE\)[^\n]*build|npm run build/);
 });
 
-// K348-1: beside a kit checkout, KIT is its dist from the first make on; without it, as in CI, the installed package.
-test('the bootstrap takes the dist of the kit checkout beside the repository as KIT, fails when it is not built, and takes the installed package without it (K348-1)', (t) => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k348-1-')));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const cwd = path.join(root, 'ws/cons');
-  const kit = path.join(root, 'ws/kit');
-  mkdirSync(cwd, { recursive: true });
-  mkdirSync(path.join(kit, '.git'), { recursive: true });
-  mkdirSync(path.join(kit, 'dist'), { recursive: true });
-  writeFileSync(path.join(kit, 'dist/kit.mk'), '# the kit.mk of the kit checkout\n');
-  const makefile = path.join(KIT, 'scripts/kit/kit-bootstrap.mk');
-  const dry = () => spawnSync('make', ['-n', '-f', makefile, 'install-link', 'KIT_EXT=mjs', 'NODE=node'], { cwd, encoding: 'utf8' });
-  assert.match(dry().stdout, /node \.\.\/kit\/dist\/link\.mjs link --siblings/);
-  rmSync(path.join(kit, 'dist/kit.mk'));
-  const unbuilt = dry();
-  assert.notEqual(unbuilt.status, 0);
-  assert.match(unbuilt.stderr, /\.\.\/kit\/dist\/kit\.mk is missing: the kit checkout beside the repository is not built; run make build in \.\.\/kit/);
-  rmSync(kit, { recursive: true, force: true });
-  assert.match(dry().stdout, /node node_modules\/@polyspec\/kit\/dist\/link\.mjs link --siblings/);
+// K348-1, K613: a repository includes the kit-bootstrap.mk of the kit checkout beside it, which runs the sources of that checkout: KIT
+// is the folder of the bootstrap, whatever the repository, and no dist is read.
+test('the bootstrap runs the link source of the kit checkout that holds it, with no dist (K348-1, K613)', (t) => {
+  const cwd = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k348-1-')));
+  t.after(() => rmSync(cwd, { recursive: true, force: true }));
+  const sources = path.join(KIT, 'scripts/kit');
+  const dry = spawnSync('make', ['-n', '-f', path.join(sources, 'kit-bootstrap.mk'), 'install-link', 'NODE=node'], { cwd, encoding: 'utf8' });
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.ok(dry.stdout.includes(`node ${sources}/link.mts link --siblings`), dry.stdout);
 });
 
 // K360-2: a step of the repository, which installs an environment that the link reads, runs before the link.
@@ -1004,6 +994,30 @@ test('K529: a declared polyspec package with no installed folder fails link and 
   assert.match(checked.text, /NOT linked\s+composer\s+polyspec\/y/);
 });
 
+
+// K643: uv installs a path dependency editable: site-packages then holds no folder of the package, only its dist-info whose
+// direct_url.json (PEP 610) names the source folder. Such an install of the provider's folder is linked natively; one of another
+// folder is a finding in link and in check.
+test('K643: a python package installed editable from its provider is linked, and one installed editable from elsewhere is a finding (K643)', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  const first = linkLines([consumer], env);
+  assert.equal(first.ok, true, first.text);
+  const site = path.join(consumer, 'python/.venv/lib/python3.14/site-packages');
+  rmSync(path.join(site, 'polyspec_z'), { recursive: true, force: true });
+  const record = (folder: string) => put(site, { 'polyspec_z-0.0.1.dist-info/direct_url.json': JSON.stringify({ url: pathToFileURL(folder).href, dir_info: { editable: true } }) });
+  record(path.join(provider, 'packages/python'));
+  const linked = linkLines([consumer], env, true);
+  assert.equal(linked.ok, true, linked.text);
+  assert.doesNotMatch(linked.text, /polyspec_z.*no installed folder/i);
+  const elsewhere = mkdtempSync(path.join(tmpdir(), 'kit-editable-'));
+  t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
+  record(elsewhere);
+  for (const check of [true, false]) {
+    const found = linkLines([consumer], env, check);
+    assert.equal(found.ok, false, found.text);
+    assert.match(found.text, /NOT linked\s+python\s+polyspec[-_]z: installed editable from .*kit-editable-.*, not from .*packages\/python/i);
+  }
+});
 
 // K590: a workspace member has no lock of its own: npm installs an npm workspace member's packages into the node_modules of the root
 // whose package-lock.json installs it, and the root composer.json installs a Composer package through its path repository into the
