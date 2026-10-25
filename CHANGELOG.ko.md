@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d7e709073c13d267a2b43dde92ae060e3df2cf40fa839b1fa3b03c225163b780 -->
+<!-- source-sha256: 660e7b6230f3e5d2d9f823010e31e2faa657c7ea72588869da1239022031f02f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- link-state-check는 각 설치 위치가 올바른 symbolic link인지와 tracked lock의 release 기록, go.work, Claude Code hook만 판정한다. mise trust, merge된 branch, provider의 build는 그 finding이 아니다(K594).
 - kit.mk은 컴파일러를 감싸지 않고 cargo jobs를 정하지 않는다. 아무 repository도 쓰지 않던 K581의 sccache wrapper는 제거했다 (K593).
 - uv-install은 package link를 유지한다. uv sync는 폴더가 symlink인 각 package에 --inexact와 --no-install-package를 넘겨 uv가 link를 통해 쓰지 않게 하고, K539, K545, K554의 uv 전 link 해제와 held package는 제거했다 (K592).
 - 설치된 각 polyspec package는 checkout의 package 폴더로 가는 directory symlink 하나다. 이것이 사용자의 규칙이다. Python(K541)과 npm(K558)의 per-file tree, K574의 의존성 link, K578과 K579의 선언된 file: link는 제거했다 (K591).
