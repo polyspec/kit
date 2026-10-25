@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- link makes the folder of an npm package of another repository a folder of per-file links without the provider's node_modules, so a node run with --preserve-symlinks resolves the package's dependencies from the consumer's node_modules (K558).
 - The land lock covers only the check that main is still the commit that the gates ran on and the fast-forward: the gates and builds of independent lands overlap, a commit on main waits only for a merge, and a land whose main moved rebases and runs its gates again, up to three times (K571).
 - The catches of kit without a binding that read any failure as missing or absent (the dependency policy, the document check, the divergence check, the folder links, the parity declaration and the test selection) narrow to the class or errno that means their outcome and rethrow the rest (K559).
 - land reads only ESRCH as a land that no longer runs, and the document check fails when the checklists of the kit checkout cannot be read, instead of a note (K559).
