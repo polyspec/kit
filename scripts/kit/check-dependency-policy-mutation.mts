@@ -8,14 +8,11 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from 
 import { tmpdir } from 'node:os';
 import { dirname, join, posix } from 'node:path';
 import { check } from './check-dependency-policy.mts';
-import { POLICY, RECORD, readPolicy } from './dependency-state.mts';
-import { writeJson } from './bootstrap/files.mts';
+import { POLICY, RECORD } from './dependency-state.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
-import { readComposerManifest } from './manifests.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { readGoWork } from './toolchain-files.mts';
-import { present } from './present.mts';
 
 
 /** A finding of check-dependency-policy.mts, with the fields that a mutation expects. */
@@ -72,27 +69,11 @@ function copy(directory: string) {
 }
 
 
-const hasComposer = (root: string) => readPolicy(root).composerPlatforms.length > 0;
-// The first Composer manifest of the policy, which applies (hasComposer) holds.
-const firstComposerManifest = (root: string) => present(readPolicy(root).composerPlatforms[0], 'composerPlatforms[0]').manifest;
 
 // A mutation applies when the repository has what it changes: `applies` is absent for the ones every repository has.
 // K448: the gate judges no version, review or advisory (S4), so no mutation of the review record or the PHP platform is rejected.
-const MUTATIONS: Mutation[] = [
-  {
-    // Composer's content-hash of the lock covers the version of the manifest, so a version bump re-locks the manifest with
-    // composer update --lock (K180); composer validate --strict fails the lock that it outdated.
-    name: 'a Composer manifest whose version changed without composer update --lock',
-    applies: hasComposer,
-    apply: (root) => {
-      const file = firstComposerManifest(root);
-      const manifest = readComposerManifest(root, file);
-      manifest.version = (manifest.version ?? '0.0.0').replace(/(\d+)$/, number => String(Number(number) + 1));
-      writeJson(join(root, file), manifest);
-    },
-    expect: finding => finding.rule === 'composerLock' && finding.subject === firstComposerManifest(repositoryRoot()),
-  },
-];
+// K602: the gate judges no Composer lock against its manifest, so no mutation of it is rejected; the list is empty.
+const MUTATIONS: Mutation[] = [];
 
 /** Applies each mutation that the repository root has to a copy of its dependency files; the exit status of the command. */
 function run() {
