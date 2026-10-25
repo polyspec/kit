@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 865bfb3e6faf813bd59daa3805ef0973d8a53c03ce8464d54637fb464dc58081 -->
+<!-- source-sha256: a29e44d31e8d55a635ec360b421858dd4b0da868a1f558f1485c0ac805b6c77d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit은 자기 lint-ts, layout-check, owner-validate, rebuild-check를 통과한다. 쓰지 않는 import를 지우고, catch-check-rust는 S9 예외, workspace lint, owner를 갖고, 모든 도구는 분류를 갖는다 (K606).
 - dependency-policy-check은 command line의 PACKAGES일 때만 --packages를 넘겨, 자기 PACKAGES를 정의한 repository도 모든 package에 gate를 돌린다 (K605).
 - `make land`는 선택된 static gate를 한 번 실행한 뒤 merge 전후 build 없이 fast-forward하고 branch와 worktree를 안전하게 정리한다(K603).
 - Parity declaration은 tool 소유 requirement를 정확한 native test로 추적하면서도 tool을 공통 runtime implementation으로 등록하지 않습니다(K604).

@@ -8,7 +8,7 @@ import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, s
 import path from 'node:path';
 import test from 'node:test';
 import { HOOKS_PATH, PRE_COMMIT, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
-import { CHECKLIST, TRANSLATION, checkout, git, prepared, run } from './gates-checkout.mts';
+import { checkout, git, prepared, run } from './gates-checkout.mts';
 import { KIT_MAKEFILE, tool } from './kit-tools.mts';
 import { korean, put, tree } from './tree.mts';
 

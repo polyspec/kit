@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit passes its own lint-ts, layout-check, owner-validate and rebuild-check: unused imports go, catch-check-rust has its S9 exception, workspace lints and owner, and every tool has its class (K606).
 - dependency-policy-check passes --packages only for PACKAGES of the command line, so a repository whose Makefile names its own PACKAGES runs the gate on every package (K605).
 - `make land` runs selected static gates once, then fast-forwards and safely removes the branch and worktree without running a build before or after the merge (K603).
 - Parity declarations trace requirements owned by a tool's exact native tests without registering the tool as a shared runtime implementation (K604).

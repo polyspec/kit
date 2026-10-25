@@ -55,6 +55,8 @@
     { "paths": ["workflows/release.yml"], "tests": ["tests/source/consumer-layout.test.mts"] },
     { "paths": [".claude/**", "claude/**"], "tests": ["tests/kit/ci-only.test.mts"] },
     { "paths": [".gitignore"], "tests": ["tests/source/tracked-var.test.mts"] },
-    { "paths": ["LICENSE", ".editorconfig"] }
+    { "paths": ["LICENSE", ".editorconfig"] },
+    { "paths": ["scripts/kit/catch-check-rust/**"], "targets": ["lint-rust"], "tests": ["tests/kit/catch-check.test.mts"] },
+    { "paths": ["scripts/kit/deadcode-union.mts"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/lint-go.mts"] }
   ]
 }

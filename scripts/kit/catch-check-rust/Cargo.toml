@@ -7,6 +7,15 @@ version = "0.0.0"
 edition = "2024"
 publish = false
 
+[lints]
+workspace = true
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+allow_attributes_without_reason = "deny"
+
 [[bin]]
 name = "catch-check"
 path = "src/main.rs"

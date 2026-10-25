@@ -92,3 +92,5 @@ rules:
       - "!scripts/kit/php-library/**"
       # The runner of the python tests runs unittest inside the Python of the tests, which only a program of that language can do (K371).
       - "!scripts/kit/runners/**"
+      # The Rust half of catch-check reads Rust with syn, which only a Rust program can call (K537).
+      - "!scripts/kit/catch-check-rust/**"

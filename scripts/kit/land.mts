@@ -18,14 +18,11 @@
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
 import type { SpawnSyncReturns } from 'node:child_process';
-import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { miseEnvironment } from './bootstrap/install-mise.mts';
-import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { kitGates } from './gate-red.mts';
 import { git, gitResult } from './git.mts';
-import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { DECLARATION, importGraph, makeDatabase, ownerDeclaration, select } from './owner-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { expandMake } from './recipe-tools.mts';
