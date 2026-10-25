@@ -391,8 +391,10 @@ function landBranch(root: string, branch: string, print: (text: string) => void,
     print(`${branch} is contained in main already: no gate runs and nothing is merged`);
   } else {
     if (folder === undefined) throw new Error(`${branch} has no worktree; the gates run on its own tree and install, so make worktree-setup first`);
+    let passed: GatesRun | undefined;
     for (let attempt = 1; ; attempt += 1) {
-      const gated = gateBranch(root, folder, branch, print, sleep);
+      passed = gateBranch(root, folder, branch, print, sleep, passed);
+      const { gated } = passed;
       const release = takeLandLock(root, branch, print, sleep);
       let merged = false;
       try {
@@ -435,11 +437,19 @@ function buildMain(root: string, merged: string, print: (text: string) => void, 
   }
 }
 
+/** The gates that passed for a branch and the main commit that they ran on (K571, K580). */
+interface GatesRun {
+  gated: string;
+  gates: string[];
+}
+
 /**
  * Rebases `branch` on main in its worktree `folder` when main has left it behind, runs its gates and its build there, and returns the
- * main commit that they ran on (K571); throws, merging nothing, on a refusal.
+ * main commit that they ran on and the gates that passed (K571); throws, merging nothing, on a refusal. After `previous`, the run of a
+ * main that moved since, only the gates that the paths of the moved commits select run again, and commits-check, since the rebased
+ * commits are new; a gate that passed before and whose inputs no moved commit touched keeps its result (K580).
  */
-function gateBranch(root: string, folder: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void): string {
+function gateBranch(root: string, folder: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void, previous?: GatesRun): GatesRun {
   // K495-1: a branch that main has left behind, as the land this one waited for leaves it, is rebased here; the gates below run on
   // the rebased commits, so nothing is merged that they did not see.
   if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) rebaseOnMain(folder, branch, print);
@@ -452,7 +462,13 @@ function gateBranch(root: string, folder: string, branch: string, print: (text: 
   for (const reason of reasons) print(reason);
   for (const gate of excluded) print(`${gate} runs tests, which the Verification of the rows runs; land does not run it`);
   print(`gates of ${branch} in ${folder}: ${gates.join(', ')}`);
+  const moved = previous === undefined ? undefined : git(root, 'diff', '--name-only', `${previous.gated}..${gated}`).split('\n').filter(line => line !== '');
+  const touched = moved === undefined ? undefined : new Set([...gatesOf(folder, moved).gates, 'commits-check']);
   for (const gate of gates) {
+    if (touched !== undefined && previous?.gates.includes(gate) === true && !touched.has(gate)) {
+      print(`${gate} keeps its result: no commit that moved main touches what it checks (K580)`);
+      continue;
+    }
     print(`${gate} in ${folder}`);
     const args = gate === 'commits-check' ? [`RANGE=main..${branch}`] : [];
     const candidate = runGate(folder, gate, args);
@@ -475,7 +491,7 @@ function gateBranch(root: string, folder: string, branch: string, print: (text: 
   }
   // K513: the build runs on the merge result, the tree of the rebased branch, before main moves, as the gates do.
   build(folder, `${branch} is refused: its build fails; nothing is merged`, print);
-  return gated;
+  return { gated, gates };
 }
 
 /** The run of `gate` with `args` in the main checkout `root`, under the main build lock (K572). */

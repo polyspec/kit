@@ -769,8 +769,9 @@ function lockFixture(t: { after: (fn: () => void) => void }, lint: (main: string
 }
 
 test('land refuses when main moves while its gates run and names the commit that moved it (K495)', (t) => {
-  // The gate of the branch commits on main, as another writer would while the gates run.
-  const { main, lock } = lockFixture(t, root => `git -C ${root} -c user.name=t -c user.email=t@t commit --quiet --allow-empty -m moved-while-the-gates-ran`);
+  // The gate of the branch commits on main, as another writer would while the gates run; the commit adds a file under src, the input
+  // of the gate, so each rerun of the gate (K580) moves main again.
+  const { main, lock } = lockFixture(t, root => `echo x > ${root}/src/moved-$$$$ && git -C ${root} add src && git -C ${root} -c user.name=t -c user.email=t@t commit --quiet -m moved-while-the-gates-ran`);
   assert.throws(() => land(main, 'feat/x', { print: () => {} }), (error: Error) => {
     assert.match(error.message, /moved-while-the-gates-ran/, 'the refusal names the commit that moved main');
     assert.match(error.message, /nothing is merged/);
