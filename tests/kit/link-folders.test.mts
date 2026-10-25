@@ -167,6 +167,25 @@ test('an npm package that the consumer declares as a file: dependency stays the 
   assert.equal(readlinkSync(folder), '../../var/platforms/app', 'by the link to the declared path');
 });
 
+// K579: a file: dependency on a tarball is no declared folder: npm unpacks the tarball into a real folder, so the package is one of another
+// repository and link makes it the tree of K558, never a link to the tarball file.
+test('an npm package that the consumer declares by a tarball file: dependency becomes the per-file tree of its provider (K579)', (t) => {
+  const { root, target, consumer, folder } = npmFixture(t);
+  put(consumer, {
+    'package.json': JSON.stringify({ name: 'cons', dependencies: { '@polyspec/x': 'file:var/assets/polyspec-x-npm-0.0.1.tgz' } }),
+    'var/assets/polyspec-x-npm-0.0.1.tgz': 'tarball',
+  });
+  rmSync(folder);
+  put(folder, { 'package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1' }), 'dist/index.js': 'export default "copy";\n' });
+  const provider = { ecosystem: 'npm' as const, name: '@polyspec/x', folder: target, repository: path.join(root, 'prov'), checkout: path.join(root, 'prov') };
+  const folders = () => providedFolders(consumer, [provider]);
+  assert.match(folderFindings(root, folders()).join('\n'), /cons\/node_modules\/@polyspec\/x\/package\.json is a copy, not a link to /, 'the unpacked copy is a finding of the tree');
+  linkFolders(folders());
+  assert.equal(lstatSync(folder).isSymbolicLink(), false, 'the package folder is a real folder, no link to the tarball');
+  assert.equal(realpathSync(path.join(folder, 'dist/index.js')), realpathSync(path.join(target, 'dist/index.js')), 'its files link into the provider');
+  assert.deepEqual(folderFindings(root, folders()), [], 'the tree is judged linked');
+});
+
 // K576: a consumer's test builds the per-file link tree of K558 with kit's own linkFolders, through the export of the package.
 test('the package exports ./link-folders with linkFolders, providedFolders and folderFindings (K576)', () => {
   const run = spawnSync(process.execPath, ['--input-type=module', '-e', "const m = await import('@polyspec/kit/link-folders'); console.log([m.linkFolders, m.providedFolders, m.folderFindings].map(f => typeof f).join(' '));"], { cwd: path.resolve(import.meta.dirname, '../..'), encoding: 'utf8' });
