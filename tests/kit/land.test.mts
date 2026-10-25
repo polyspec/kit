@@ -296,9 +296,10 @@ test('land leaves its own ancestors out of the processes of the worktree (K429-1
   assert.deepEqual(worktreeProcesses('/work/kit/repo-x', { ps, lsof }, 302).map(live => live.pid), [303]);
 });
 
-// K429: make land refuses while a process runs in the worktree of the branch: a working directory inside it, an open file or an
-// executable there (K441-1). The unit case feeds fixed ps and lsof outputs; the real case starts a process in the worktree.
-test('land lists the processes of the worktree and refuses while one runs (K429)', (t) => {
+// K626: land reads the branch, not its worktree, so a process that runs in the worktree (a working directory inside it, an open file or
+// an executable there, K441-1) blocks no merge; the worktree and its branch are kept, and the next land removes them once no process
+// runs there. The unit case feeds fixed ps and lsof outputs; the real case starts a process in the worktree.
+test('land merges while a process runs in the worktree, keeps it, and the next land removes it (K626)', async (t) => {
   const folder = '/work/kit/repo-x';
   const ps = [
     '  101     1 node server.mjs --datadir=/work/kit/repo-x/.runtime/db',
@@ -332,10 +333,22 @@ test('land lists the processes of the worktree and refuses while one runs (K429)
   const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)', `${folderX}/marker`], { cwd: folderX, detached: false });
   t.after(() => child.kill());
   assert.equal(typeof child.pid, 'number', 'the child process starts');
-  assert.throws(() => land(main, 'feat-x', { print: () => {} }), (error: Error) => error.message.includes(`${child.pid} `) && error.message.includes(`${folderX}/marker`));
-  assert.equal(git(main, 'rev-parse', 'main'), mainBefore, 'main is unchanged while a process runs in the worktree');
-  assert.equal(existsSync(folderX), true, 'the worktree is kept');
+  const lines: string[] = [];
+  land(main, 'feat-x', { print: line => lines.push(line) });
+  assert.notEqual(git(main, 'rev-parse', 'main'), mainBefore, 'the branch is merged while a process runs in its worktree');
+  assert.ok(lines.some(line => line.includes(`${child.pid} `) && line.includes('kept the worktree')), lines.join('\n'));
+  assert.equal(existsSync(folderX), true, 'the worktree is kept while its process runs');
   assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-x'], { cwd: main }).status, 0, 'the branch is kept');
+  child.kill();
+  await new Promise(resolve => child.once('exit', resolve));
+  const folderY = path.join(parent, 'repo-y');
+  git(main, 'worktree', 'add', '--quiet', folderY, '-b', 'feat-y', 'main');
+  put(folderY, { 'src/y.txt': 'y\n' });
+  git(folderY, 'add', '-A');
+  git(folderY, 'commit', '--quiet', '-m', 'y');
+  land(main, 'feat-y', { print: () => {} });
+  assert.equal(existsSync(folderX), false, 'the next land removes the kept worktree once no process runs in it');
+  assert.notEqual(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-x'], { cwd: main }).status, 0, 'and deletes its branch');
 });
 
 // K441-1: a process uses a worktree when its working directory, one of its open files or its executable lies in it (lsof). A path that

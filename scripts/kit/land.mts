@@ -108,14 +108,6 @@ export function stopServers(folder: string, targets: string[], print: (text: str
   print(`${names} passed`);
 }
 
-/** Refuses with the processes that run in the worktree `folder` (K429), when there are some; `consequence` says what is kept. */
-function refuseWhileRunning(folder: string, branch: string, consequence: string): void {
-  const listing = machineListing();
-  const live = worktreeProcesses(folder, listing);
-  if (live.length) {
-    throw new Error(`${branch} is refused: ${live.length} processes run in the worktree ${folder}; ${consequence}. Stop them first, then run make land again:\n${live.map(({ pid, command }) => `${pid} ${command}`).join('\n')}`);
-  }
-}
 
 // A gate that runs tests: parity-check and the test- targets. The Verification of the rows runs the tests, so land never does.
 export const isTestGate = (gate: string) => gate === 'parity-check' || gate.startsWith('test-');
@@ -366,8 +358,6 @@ function landBranch(root: string, branch: string, print: (text: string) => void,
   // The worktree of a repository whose Makefile declares WORKTREE_STOP has its servers stopped after the merge, before its removal,
   // so its running servers are no refusal here; the check before the removal still refuses a server that the stop left alive.
   const stop = folder === undefined ? undefined : stopTargetOf(folder);
-  // K429: no gate runs, nothing is merged and nothing is removed while a process of the worktree runs.
-  if (folder !== undefined && stop === undefined) refuseWhileRunning(folder, branch, 'nothing is merged, removed or deleted');
   if (gitResult(root, 'merge-base', '--is-ancestor', branch, 'main').status === 0) {
     print(`${branch} is contained in main already: no gate runs and nothing is merged`);
   } else {
@@ -401,6 +391,23 @@ function landBranch(root: string, branch: string, print: (text: string) => void,
     refreshLinked(root, merged, print);
   }
   removeLanded(root, branch, folder, stop, print);
+  removeMerged(root, branch, print);
+}
+
+/**
+ * Removes the worktree and deletes the branch of each other branch that main contains, whose worktree is clean and in which no process
+ * runs: a worktree that an earlier land kept while a process ran in it (K626).
+ */
+function removeMerged(root: string, landed: string, print: (text: string) => void): void {
+  const entries = git(root, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
+  for (const { folder, branch } of entries) {
+    if (folder === undefined || branch === undefined || branch === 'main' || branch === landed || path.resolve(folder) === path.resolve(root)) continue;
+    if (gitResult(root, 'merge-base', '--is-ancestor', branch, 'main').status !== 0) continue;
+    if (git(folder, 'status', '--porcelain').trim() !== '' || worktreeProcesses(folder, machineListing()).length > 0) continue;
+    git(root, 'worktree', 'remove', folder);
+    git(root, 'branch', '-d', branch);
+    print(`removed the worktree ${folder} of ${branch}, which main contains and in which no process runs any longer`);
+  }
 }
 
 /** The gates that passed for a branch and the main commit that they ran on (K571, K580). */
@@ -474,9 +481,15 @@ function removeLanded(root: string, branch: string, folder: string | undefined, 
   if (folder !== undefined) {
     if (git(folder, 'status', '--porcelain').trim() === '') {
       if (stop !== undefined) stopServers(folder, stop, print);
-      refuseWhileRunning(folder, branch, 'the worktree and the branch are kept');
-      git(root, 'worktree', 'remove', folder);
-      print(`removed the worktree ${folder}`);
+      // K626: a process that still runs in the worktree keeps it and its branch; the next land removes them once it ends.
+      const live = worktreeProcesses(folder, machineListing());
+      if (live.length > 0) {
+        kept = true;
+        print(`kept the worktree ${folder} and ${branch}: ${live.length} processes run in it, and the next land removes them once they end:\n${live.map(({ pid, command }) => `${pid} ${command}`).join('\n')}`);
+      } else {
+        git(root, 'worktree', 'remove', folder);
+        print(`removed the worktree ${folder}`);
+      }
     } else {
       kept = true;
       print(`kept the worktree ${folder}: it has uncommitted changes, so ${branch} stays checked out there`);
