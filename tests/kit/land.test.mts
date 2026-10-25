@@ -1086,3 +1086,17 @@ test('the build of main after the merge runs under the main build lock, after th
   assert.equal(git(main, 'log', '-1', '--format=%s', 'main'), 'x');
   assert.equal(existsSync(path.join(main, '.git/kit-main-build.lock')), false, 'the main build lock is released');
 });
+
+// K580: when main moves during the gates of a land, the land reruns only the gates that the paths of the moved commits select, and
+// commits-check, since the rebased commits are new; a gate whose inputs no moved commit touched keeps its result. Here lint-x runs
+// for src/**, and main moves once by a commit that touches no path of src.
+test('a land whose main moved reruns only the gates that the moved commits select (K580)', (t) => {
+  const count = (main: string) => path.join(path.dirname(main), 'lint-runs');
+  const marker = (main: string) => path.join(path.dirname(main), 'moved');
+  const { main } = lockFixture(t, root => `echo run >> ${count(root)}; test -e ${marker(root)} || { touch ${marker(root)} && git -C ${root} -c user.name=t -c user.email=t@t commit --quiet --allow-empty -m moved-once; }`);
+  const printed: string[] = [];
+  land(main, 'feat/x', { print: text => printed.push(text) });
+  assert.equal(git(main, 'log', '-1', '--format=%s', 'main^'), 'moved-once', 'the branch lands on the moved main');
+  assert.equal(readFileSync(count(main), 'utf8'), 'run\n', 'lint-x ran once: the moved commit touches nothing that it checks');
+  assert.ok(printed.some(text => text.includes('lint-x keeps its result')), printed.join('\n'));
+});
