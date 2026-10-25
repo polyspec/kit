@@ -194,3 +194,21 @@ test('uv install links a held package from its checkout when its folder is missi
   assert.equal(lost.status, 1, lost.output);
   assert.match(lost.output, /polyspec-orm is held in the environment, but its checkout .* holds no package/);
 });
+
+// K592: one symlink per package (K591), and uv never writes through it: the sync of a second run passes --inexact and
+// --no-install-package for each package whose folder is a symlink, since --no-install-package alone makes uv uninstall the package
+// through the link, and the link and the checkout stay as they were.
+test('uv install keeps the package links: its sync skips each linked package with --inexact (K592)', (t) => {
+  const { root, project, log, env } = fixture(t, ['polyspec/orm']);
+  const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
+  assert.equal(run([project, orm], env).status, 0);
+  const folder = path.join(project, SITE, 'polyspec/orm');
+  assert.equal(lstatSync(folder).isSymbolicLink(), true, 'the first run links the installed package');
+  writeFileSync(log, '');
+  const again = run([project, orm], env);
+  assert.equal(again.status, 0, again.output);
+  assert.deepEqual(readFileSync(log, 'utf8').split('\n').filter(Boolean), ['sync --frozen --inexact --no-install-package polyspec-orm']);
+  assert.equal(lstatSync(folder).isSymbolicLink(), true, 'the link stays');
+  assert.equal(readFileSync(path.join(orm, 'src/polyspec/orm/__init__.py'), 'utf8'), '# source\n', 'the checkout stays');
+  assert.doesNotMatch(again.output, /unlinked/);
+});
