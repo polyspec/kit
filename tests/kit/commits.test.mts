@@ -533,3 +533,30 @@ test('row-id: a row that only main changed after the branch forked is no clash (
   git('add', '-A');
   assert.equal(indexItemFindings(root, CONFIG, 'docs(plan): Register T7 (#T7)').filter(found => found.rule === 'row-id').length, 1, 'a T5 that the branch changes clashes');
 });
+
+// K642: land merges the tip of a branch, and docs-check judges the stamps of its tree; a rebase that leaves a middle commit with a
+// stale stamp of a Korean twin, which a later commit stamps again, is no finding, while a stale stamp at the tip still is.
+test('commits-check judges the stamp of a Korean twin on the tip of its range only (K642)', (t) => {
+  const root = tree(t, {});
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+  const commit = (message: string, files: Record<string, string>, ...flags: string[]) => {
+    put(root, files);
+    git('add', '-A');
+    const result = git('commit', '-q', ...flags, '-m', message);
+    assert.equal(result.status, 0, result.stderr);
+    return git('rev-parse', '--short', 'HEAD').stdout.trim();
+  };
+  commit('feat(docs): Start (#K1)', {
+    'config/checklist.json': JSON.stringify(CHECKLIST),
+    [PLAN]: plan([['K1', '[ ]'], ['K2', '[ ]'], ['K3', '[ ]']]),
+    'config/documents.json': JSON.stringify({ schema: 1, include: ['docs/**/*.md'] }),
+    ...pair('docs/a.md', 'a', 'Body of a.\n'),
+  });
+  commit('docs(docs): Change the first document (#K2)', { 'docs/a.md': english('a', 'Changed body of a.\n') }, '--no-verify');
+  commit('docs(docs): Stamp the first document again (#K3)', pair('docs/a.md', 'a', 'Changed body of a.\n'));
+  assert.deepEqual(rangeFindings(root, 'HEAD~2..HEAD', CONFIG), []);
+  const tip = commit('docs(docs): Change the first document once more (#K3)', { 'docs/a.md': english('a', 'Body of a, third.\n') }, '--no-verify');
+  const findings = rangeFindings(root, 'HEAD~3..HEAD', CONFIG);
+  assert.equal(findings.length, 1, findings.join('\n'));
+  assert.match(findings[0] ?? '', new RegExp(`^${tip}: commit-twin: docs/a\\.ko\\.md: revision: `));
+});

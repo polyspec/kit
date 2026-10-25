@@ -24,7 +24,8 @@
 //   commit-generated the paths that a commit adds, copies, modifies or renames have no generated segment that the
 //                    config/generated.json of its tree does not declare: the staged check of generated-files.mts, read per commit
 //   commit-twin      a Korean twin that a commit changes or leaves stale holds the source-sha256 of its English file in the
-//                    tree of the commit: the staged check of check-documents.mts (K382), read per commit
+//                    tree of the commit: the staged check of check-documents.mts (K382), read on the tip of the range only, the
+//                    tree that land merges; a middle commit's stale stamp that a later commit stamps again is no finding (K642)
 //
 //   node scripts/kit/check-commits.mts [--range <base>..<head>]   the messages of the commits of the range (default: HEAD)
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
@@ -460,9 +461,9 @@ export function rangeMessages(root: string, range: string) {
 /**
  * The findings of the commit `id` that the staged checks of the pre-commit hook make of the index (K351): the paths that the commit
  * adds, copies, modifies or renames, read against config/generated.json and config/documents.json of its tree; a tree without one of
- * the two configs has no check of it.
+ * the two configs has no check of it. The twins are read only when `tip`, the last commit of the range (K642).
  */
-const commitStateFindings = (root: string, id: string): CommitFinding[] => {
+const commitStateFindings = (root: string, id: string, tip: boolean): CommitFinding[] => {
   const changed = git(root, 'diff-tree', '--no-commit-id', '--name-only', '--diff-filter=ACMR', '-r', '-z', '--root', id).split('\0').filter(Boolean);
   const tracked = new Set(git(root, 'ls-tree', '-r', '--name-only', id).split('\n'));
   const found: CommitFinding[] = [];
@@ -470,7 +471,7 @@ const commitStateFindings = (root: string, id: string): CommitFinding[] => {
     const config = parseJson<GeneratedConfig>(fileAt(root, id, GENERATED_CONFIG), 'generated.schema.json', `${GENERATED_CONFIG} at ${id}`);
     found.push(...generatedFindings(changed, config, 'remove it from the commit', file => blobContent(root, id, file)).map(message => ({ rule: 'commit-generated', message })));
   }
-  if (tracked.has(DOCUMENTS_CONFIG)) {
+  if (tip && tracked.has(DOCUMENTS_CONFIG)) {
     const config = parseJson<DocumentsConfig>(fileAt(root, id, DOCUMENTS_CONFIG), 'documents.schema.json', `${DOCUMENTS_CONFIG} at ${id}`);
     found.push(...twinFindings(config, changed, file => fileAt(root, id, file), file => tracked.has(file)).map(message => ({ rule: 'commit-twin', message })));
   }
@@ -487,11 +488,12 @@ const messageAndIdentity = ({ message, author, committer }: CommitMessage, confi
 /** The findings of the commits `commits` (from `logMessages`) as lines `<commit>: <rule>: <message>`. */
 export function findingLines(root: string, commits: CommitMessage[], config: CommitRules) {
   const declared = declaredIdentity(root);
-  return commits.flatMap(commit => [
+  // git log lists the commits newest first, so the first is the tip of the range.
+  return commits.flatMap((commit, index) => [
     ...messageAndIdentity(commit, config, declared),
     ...commitItemFindings(root, config, commit.id, commit.message),
     ...commitRowFindings(root, commit.id, commit.message),
-    ...commitStateFindings(root, commit.id),
+    ...commitStateFindings(root, commit.id, index === 0),
   ].map(found => `${commit.id}: ${found.rule}: ${found.message}`));
 }
 
