@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 433007c7b9f9faa5e3a41c97dcc42ba52d66ff022d170d89cde82e5c2d4ec54b -->
+<!-- source-sha256: ea26790938746a9c809b8d1cfe48390ef02fd52e24fc0248deb422de46427df2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PHP extension builder는 호출자가 지정한 절대 module 경로로 게시하고 선언된 source-copy 및 configure 인자를 받아 run별 빌드도 공유 스테이징 로직을 사용합니다 (K247-3).
 - PHP extension 빌드는 선언된 추적 공유 C 소스를 임시 패키지에 스테이징하고 Composer archive는 태그된 트리의 같은 소스를 포함합니다 (K247-2).
 - make commit은 body의 Red나 No-Red 줄을 어디에 있든 따로 한 줄로 둡니다. 이제 문장 바로 뒤의 진술이 그 문장에 합쳐져 거부되지 않습니다(K627).
 - make land는 worktree에서 process가 실행 중이어도 branch를 merge합니다. land는 branch를 읽기 때문입니다. 그 worktree와 branch는 process 목록과 함께 남기고, 다음 land가 main이 포함한 branch의 깨끗한 worktree 중 process가 없는 것을 모두 지웁니다(K626).
