@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 89c5928c0e2ddcfa12d9d1c1c2acac852df7efdd2b8ece4b0c863f635d47f0b7 -->
+<!-- source-sha256: 7b37cbd5032fb3495f4bc7de02cb370dc2b09599b8984fbd9f12d924ee56a864 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -27,7 +27,7 @@ link는 kit 도구 `scripts/kit/link.mts`와 `scripts/kit/link-folders.mts`입�
 |---|---|
 | npm | 각 tracked npm 프로젝트의 `node_modules/<name>`. provider의 패키지 폴더로 가는 symlink 하나입니다(K591) |
 | Composer | 각 tracked Composer 프로젝트의 `<vendor-dir>/<vendor>/<package>`, `composer.json`의 `config.vendor-dir`(없으면 `vendor`) |
-| Python | 프로젝트 `.venv`의 `site-packages`에 있는 각 패키지. provider의 패키지 폴더로 가는 symlink 하나입니다. 한 namespace의 패키지(`polyspec/orm`, `polyspec/ordered_json`)는 따로 link됩니다. kit의 모든 uv 설치는 uv가 쓰기 전에 link를 뗍니다(K539, K591) |
+| Python | 프로젝트 `.venv`의 `site-packages`에 있는 각 패키지. provider의 패키지 폴더로 가는 symlink 하나입니다. 한 namespace의 패키지(`polyspec/orm`, `polyspec/ordered_json`)는 따로 link됩니다. uv-install의 uv sync는 link된 각 패키지를 `--inexact --no-install-package <이름>`으로 건너뛰어 uv가 link를 통해 쓰지 않게 합니다. `--no-install-package`만 쓰면 uv가 link를 통해 패키지를 제거합니다(K592) |
 | Go | 각 Go module에 git이 무시하는 `go.work`. module과 provider module의 `use` 줄을 가집니다 |
 | Rust | `link.mjs cargo <dir> <cargo args>`가 `--config` `[patch]` 항목과 `var/link/cargo` 아래 lock 사본으로 cargo 명령 하나를 실행합니다 |
 

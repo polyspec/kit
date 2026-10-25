@@ -3,7 +3,8 @@
 // (link-folders.mts). Without CHECKOUTS, the sibling checkouts of the repository are used. No editable wheel is written and no version is
 // read; the tracked pyproject.toml and uv.lock are never written.
 import path from 'node:path';
-import { checkoutProviders, installedDistributions, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
+import { lstatSync } from 'node:fs';
+import { checkoutProviders, linkFolders, providedFolders } from './link-folders.mts';
 import { siblingCheckouts } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
@@ -29,13 +30,12 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
     const environment = env.UV_PROJECT_ENVIRONMENT;
     // K548: the project that uv-install installs is no provided package, though a checkout that holds it names it.
     const others = providers.filter(provider => path.resolve(provider.folder) !== project);
-    // K545, K554: the provided packages that the environment holds by their dist-info records, whose folders link builds from their
-    // checkouts, also when a folder is missing: a development install ends with links, so nothing is reinstalled.
-    const held = installedDistributions(project, environment);
-    // K539: uv writes through a package link of the environment into its provider checkout, so the links go first.
-    for (const link of releaseEnvironmentLinks(project, environment)) write(`uv-install ${project}: unlinked ${link}, so uv writes no provider checkout\n`);
-    run(env.UV ?? 'uv', ['sync', '--frozen', ...sync], { cwd: project, env });
-    const folders = providedFolders(project, others, { environment, held });
+    // K592: uv never writes through a package link: each provided package whose folder is a symlink is skipped, and --inexact keeps uv
+    // from uninstalling it, which --no-install-package alone does through the link; a package not linked yet installs, then links.
+    const linked = [...new Set(providedFolders(project, others, { environment }).filter(item => lstatSync(item.folder).isSymbolicLink()).map(item => item.name.split(' ')[0] ?? ''))].sort();
+    const skip = linked.length ? ['--inexact', ...linked.flatMap(name => ['--no-install-package', name])] : [];
+    run(env.UV ?? 'uv', ['sync', '--frozen', ...sync, ...skip], { cwd: project, env });
+    const folders = providedFolders(project, others, { environment });
     linkFolders(folders);
     write(`uv-install ${project}: uv sync of the tracked lock${folders.length ? `, then linked ${folders.map(item => item.name).join(', ')} to their checkouts` : ''}\n`);
     return 0;

@@ -10,7 +10,7 @@
 //
 // Each installed package is exactly one directory symlink, the user's rule (K591); no kit uv run writes through it, since every uv
 // install of kit removes the links first (K539).
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
@@ -158,24 +158,6 @@ export function releaseEnvironmentLinks(project: string, environment: string | u
   return removed;
 }
 
-/** The name of a distribution as a wheel writes it in its dist-info folder: lower case, with each run of -, _ and . as _ (K545). */
-export const distributionKey = (name: string): string => name.toLowerCase().replace(/[-_.]+/g, '_');
-
-/**
- * The distributions that the environment of `project` holds by their dist-info records (K545), as distributionKey: uv counts a package
- * as installed by its record, whether its folder is there or not.
- */
-export function installedDistributions(project: string, environment: string | undefined): Set<string> {
-  const held = new Set<string>();
-  for (const site of sitePackages(project, environment)) {
-    for (const name of readdirSync(site)) {
-      const record = /^(.+?)-[^-]+\.dist-info$/.exec(name);
-      if (record?.[1] !== undefined) held.add(distributionKey(record[1]));
-    }
-  }
-  return held;
-}
-
 function sitePackages(project: string, environment: string | undefined): string[] {
   const lib = path.join(path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment), 'lib');
   if (!existsSync(lib)) return [];
@@ -238,12 +220,9 @@ function hatchSources(folder: string): { from: string; to: string }[] {
  * package that is not installed is left out: the install of the tracked lock installs what the project needs, and the link only
  * replaces it.
  */
-export function providedFolders(project: string, provided: Iterable<Provider>, { vendorDir, environment = process.env.UV_PROJECT_ENVIRONMENT, held }: { vendorDir?: string | undefined; environment?: string | undefined; held?: ReadonlySet<string> | undefined } = {}): ProvidedFolder[] {
+export function providedFolders(project: string, provided: Iterable<Provider>, { vendorDir, environment = process.env.UV_PROJECT_ENVIRONMENT }: { vendorDir?: string | undefined; environment?: string | undefined } = {}): ProvidedFolder[] {
   const found: ProvidedFolder[] = [];
   const sites = sitePackages(project, environment);
-  // K554: a provided Python package that the environment holds by its dist-info gets its folder in the first site-packages, also when
-  // the folder is missing, so link builds it from the checkout; its checkout must hold a package.
-  const wanted = (provider: Provider, site: string, folder: string) => present(folder) || (held?.has(distributionKey(provider.name)) === true && site === sites[0]);
   for (const provider of provided) {
     if (provider.ecosystem === 'npm') {
       const folder = path.join(project, 'node_modules', provider.name);
@@ -255,17 +234,16 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
       for (const site of sites) {
         for (const { from, to } of hatchSources(provider.folder)) {
           const folder = path.join(site, to);
-          if (wanted(provider, site, folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
+          if (present(folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
         }
       }
     } else if (provider.ecosystem === 'python') {
       const source = existsSync(path.join(provider.folder, 'src')) ? path.join(provider.folder, 'src') : provider.folder;
       const packages = pythonPackages(source);
-      if (packages.length === 0 && held?.has(distributionKey(provider.name)) === true) throw new Error(`${provider.name} is held in the environment, but its checkout ${source} holds no package to link (K554)`);
       for (const site of sites) {
         for (const relative of packages) {
           const folder = path.join(site, relative);
-          if (wanted(provider, site, folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${relative}`, folder, target: path.join(source, relative) });
+          if (present(folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${relative}`, folder, target: path.join(source, relative) });
         }
       }
     }
@@ -295,9 +273,7 @@ export function linkFolders(folders: readonly ProvidedFolder[]): string[] {
   for (const item of folders) {
     // A link to the right folder stays, unless it is absolute, which is made relative (K326-3).
     if (present(item.folder) && linksTo(item.folder, item.target) && !path.isAbsolute(readlinkSync(item.folder))) continue;
-    // A held Python package that the environment lacks has no folder yet (K554).
-    const was = !present(item.folder) ? 'missing' : lstatSync(item.folder).isSymbolicLink() ? 'a link elsewhere' : 'a copy';
-    mkdirSync(path.dirname(item.folder), { recursive: true });
+    const was = lstatSync(item.folder).isSymbolicLink() ? 'a link elsewhere' : 'a copy';
     rmSync(item.folder, { recursive: true, force: true });
     // A relative link (K326-3): the checkout and its siblings move together, so the link survives a moved workspace.
     symlinkSync(path.relative(path.dirname(item.folder), item.target), item.folder);

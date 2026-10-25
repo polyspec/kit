@@ -26,7 +26,7 @@ The link is the kit tool `scripts/kit/link.mts` with `scripts/kit/link-folders.m
 |---|---|
 | npm | `node_modules/<name>` of each tracked npm project, one symlink to the provider's package folder (K591) |
 | Composer | `<vendor-dir>/<vendor>/<package>` of each tracked Composer project, the `config.vendor-dir` of its `composer.json` (else `vendor`) |
-| Python | each package of the `site-packages` of a project's `.venv`, one symlink to the provider's package folder; the packages of one namespace (`polyspec/orm`, `polyspec/ordered_json`) link apart; every uv install of kit removes the links before uv writes (K539, K591) |
+| Python | each package of the `site-packages` of a project's `.venv`, one symlink to the provider's package folder; the packages of one namespace (`polyspec/orm`, `polyspec/ordered_json`) link apart; the uv sync of uv-install skips each linked package with `--inexact --no-install-package <name>`, so uv never writes through a link; `--no-install-package` alone makes uv uninstall the package through the link (K592) |
 | Go | a git-ignored `go.work` at each Go module, with `use` lines for the module and the provider modules |
 | Rust | `link.mjs cargo <dir> <cargo args>` runs one cargo command with `--config` `[patch]` entries and a copy of the lock under `var/link/cargo` |
 
