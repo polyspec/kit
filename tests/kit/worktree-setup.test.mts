@@ -401,3 +401,10 @@ test('worktree-setup trims a young Go build cache oldest first until the disk fl
   assert.throws(() => setupWorktree(main, { name: 'short', id: 'T11', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR - 10_000, print: () => {}, goCache: () => cache }), /after the trim of the Go build cache freed 600 bytes, the free disk is .* under the floor/);
   assert.ok(existsSync(path.join(cache, 'ef/now')), 'an entry used in the last 10 minutes stays');
 });
+
+// K596: the user removed the disk floor on 2026-10-25: worktree-setup refuses no worktree for the free disk and trims no cache.
+test('worktree-setup has no disk floor (K596)', async () => {
+  const setup: Record<string, unknown> = await import('../../scripts/kit/worktree-setup.mts');
+  assert.equal(setup.WORKTREE_DISK_FLOOR, undefined);
+  assert.equal(setup.freeBytes, undefined);
+});
