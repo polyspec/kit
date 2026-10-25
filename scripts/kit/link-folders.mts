@@ -305,7 +305,43 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
       }
     }
   }
-  return found;
+  return [...found, ...dependencyFolders(project, found)];
+}
+
+/**
+ * The runtime dependencies that the npm packages of another repository among `folders` declare and that the project `project` cannot
+ * resolve, and theirs in turn, each as a folder of the project that must link to the folder that the provider checkout installed
+ * (K574): since K558 a linked package resolves its imports from the consumer, whose lock records the dependencies of the release, not
+ * those that the checkout added. A dependency that the provider has not installed either is left to the provider's install.
+ */
+function dependencyFolders(project: string, folders: readonly ProvidedFolder[]): ProvidedFolder[] {
+  const added = new Map<string, ProvidedFolder>();
+  const queue = folders.filter(item => item.ecosystem === 'npm' && item.own !== true).map(item => item.target);
+  for (let from = queue.shift(); from !== undefined; from = queue.shift()) {
+    if (!existsSync(path.join(from, 'package.json'))) continue;
+    const dependencies = readJsonObject(from, 'package.json').dependencies;
+    if (!isJsonObject(dependencies)) continue;
+    for (const name of Object.keys(dependencies)) {
+      if (added.has(name) || resolvedFolder(project, name) !== undefined) continue;
+      const installed = resolvedFolder(from, name);
+      if (installed === undefined) continue;
+      added.set(name, { ecosystem: 'npm', name, folder: path.join(project, 'node_modules', name), target: installed, own: true });
+      queue.push(installed);
+    }
+  }
+  return [...added.values()];
+}
+
+/**
+ * The folder of the npm package `name` as node resolves it from the folder `from`: node_modules/<name> of `from` or of a folder above
+ * it, up to the checkout that holds `from`, the first folder with a .git entry (K574).
+ */
+function resolvedFolder(from: string, name: string): string | undefined {
+  for (let folder = path.resolve(from); ; folder = path.dirname(folder)) {
+    const candidate = path.join(folder, 'node_modules', name);
+    if (present(candidate)) return candidate;
+    if (present(path.join(folder, '.git')) || path.dirname(folder) === folder) return undefined;
+  }
 }
 
 /**
@@ -447,8 +483,10 @@ export function linkFolders(folders: readonly ProvidedFolder[]): string[] {
       continue;
     }
     // A link to the right folder stays, unless it is absolute, which is made relative (K326-3).
-    if (linksTo(item.folder, item.target) && !path.isAbsolute(readlinkSync(item.folder))) continue;
-    const was = lstatSync(item.folder).isSymbolicLink() ? 'a link elsewhere' : 'a copy';
+    if (present(item.folder) && linksTo(item.folder, item.target) && !path.isAbsolute(readlinkSync(item.folder))) continue;
+    // A dependency of a linked package that the consumer lacks has no folder yet (K574).
+    const was = !present(item.folder) ? 'missing' : lstatSync(item.folder).isSymbolicLink() ? 'a link elsewhere' : 'a copy';
+    mkdirSync(path.dirname(item.folder), { recursive: true });
     rmSync(item.folder, { recursive: true, force: true });
     // A relative link (K326-3): the checkout and its siblings move together, so the link survives a moved workspace.
     symlinkSync(path.relative(path.dirname(item.folder), item.target), item.folder);
@@ -462,6 +500,7 @@ export function folderFindings(root: string, folders: readonly ProvidedFolder[])
   return folders.flatMap((item) => {
     if (isTree(item)) return treeFindings(root, item);
     const shown = path.relative(root, item.folder);
+    if (!present(item.folder)) return [`${item.ecosystem} ${item.name}: ${shown} is missing, a dependency of a linked package (K574); fix: make link`];
     if (!lstatSync(item.folder).isSymbolicLink()) return [`${item.ecosystem} ${item.name}: ${shown} is a copy, not a link to ${item.target}; fix: make link`];
     if (!linksTo(item.folder, item.target)) return [`${item.ecosystem} ${item.name}: ${shown} links to ${existsSync(item.folder) ? realpathSync(item.folder) : 'nothing'}, not to ${item.target}; fix: make link`];
     return [];
