@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f97df3efdceaf1dee10124c457b728771ae79a935cadd5a1c1ee45d993f7e284 -->
+<!-- source-sha256: 622097ad1c97333be325bdc899a2d66d464ec0a8d8b48f260d7f45d704dabba5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make commits-check`는 한국어 twin의 source-sha256 stamp를 범위의 tip에서만 판단합니다. tip은 land가 병합하고 docs-check가 읽는 tree입니다. rebase가 stamp를 낡게 남긴 중간 commit은, 같은 branch의 뒤 commit이 다시 stamp하면 finding이 아닙니다(K642).
 - pack-manifest.mts에 test가 생기고, 그것과 linked-build.mts가 config/rebuild.json에 분류를 가지므로 make owner-validate와 make rebuild-check가 통과한다(K641).
 - `make duplication-check`는 `config/generated.json`이 생성 파일로 선언한 파일, 곧 그 `paths`와 `exceptions`를 읽지 않습니다. orm-gen 같은 생성기가 쓴 파일은 입력마다 같은 틀을 반복하므로, 같은 파일을 `config/duplication.json`에 다시 적을 필요가 없습니다(K640).
 - kit의 PHP-Parser Composer 프로젝트는 각자 이름(polyspec/kit-php-arginfo-5.0.0, polyspec/kit-php-arginfo-5.6.1)을 가지므로, link의 형제 검색이 패키지마다 공급자 하나를 찾고 모든 consumer에서 make install-link가 다시 실행됩니다(K639).

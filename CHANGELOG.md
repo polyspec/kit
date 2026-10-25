@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make commits-check` judges the source-sha256 stamps of the Korean twins on the tip of its range only, the tree that land merges and docs-check reads: a middle commit whose stamp a rebase left stale, and a later commit of the branch stamps again, is no finding (K642).
 - pack-manifest.mts has its test, and it and linked-build.mts have their classes in config/rebuild.json, so make owner-validate and make rebuild-check pass (K641).
 - `make duplication-check` leaves out the files that `config/generated.json` declares generated, its `paths` and `exceptions`: a file that orm-gen or another generator writes repeats its template for each input, and a second list of the same files in `config/duplication.json` is not needed (K640).
 - Each PHP-Parser Composer project of kit has its own name, polyspec/kit-php-arginfo-5.0.0 and polyspec/kit-php-arginfo-5.6.1, so link's sibling scan finds one provider per package and make install-link runs in every consumer again (K639).

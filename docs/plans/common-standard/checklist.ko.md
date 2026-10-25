@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 51e9211161fc6cc8a0eeb8b219f37ed48927148ee81f7a58932e34a66f28dedb -->
+<!-- source-sha256: ff0e68fb014db209fdda8403092cab5f52bc509f93b3fde5a7df193c86bfae6b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -545,4 +545,4 @@
 | K639 | kit의 PHP-Parser Composer 프로젝트는 각자 이름을 가집니다: polyspec/kit-php-arginfo-5.0.0, polyspec/kit-php-arginfo-5.6.1. K637이 둘 다 polyspec/kit-php-arginfo로 이름 붙여, link가 공급자 둘을 가진 패키지를 거부하고 모든 consumer에서 make install-link가 멈춥니다. | scripts/kit/php-arginfo/5.0.0 and 5.6.1 composer.json and composer.lock with their own names, and the K639 case in tests/kit/php-ext.test.mts. | `node --test --test-name-pattern=K639 tests/kit/php-ext.test.mts` | [o] |
 | K640 | make duplication-check는 config/generated.json이 생성 파일로 선언한 파일, 곧 그 paths와 exceptions를 읽지 않습니다. flowmark는 orm-gen이 쓴 파일을 추적하고 거기에 선언하는데, duplication-check는 그것을 서로의 복제로 읽습니다. | scripts/kit/duplication-check.mts reads config/generated.json, and the K640 case in tests/kit/duplication-check.test.mts. | `node --test --test-name-pattern=K640 tests/kit/duplication-check.test.mts` | [o] |
 | K641 | scripts/kit/pack-manifest.mts에 test가 생기고, 그것과 scripts/kit/linked-build.mts가 분류를 가진다(K613, K609 후속). 원인: K613이 pack-manifest.mts를 그것을 import하는 test 없이 더해서 make owner-validate가 실패하고, 그것도 K609의 linked-build.mts도 config/rebuild.json에 분류가 없어서 make rebuild-check가 실패한다. 수정: tests/kit/pack-manifest.test.mts가 묶인 파일과 source를 가리키지 않는 파일의 실패를 test하고, config/rebuild.json이 둘을 이유와 함께 policy로 분류한다 | tests/kit/pack-manifest.test.mts, config/rebuild.json | `make owner-validate`, `make rebuild-check`, `node scripts/kit/run-tests.mts node -- tests/kit/pack-manifest.test.mts` | [o] |
-| K642 | make commits-check는 한국어 twin의 source-sha256 stamp를 범위의 tip에서만 판단합니다. land는 tip을 병합하고 docs-check가 그 tree의 stamp를 판단하므로, rebase가 stamp를 낡게 남긴 중간 commit은 같은 branch의 뒤 commit이 다시 stamp하면 finding이 아니며 branch를 거부하지 않습니다. | scripts/kit/check-commits.mts reads the twins on the tip only, and the K642 case in tests/kit/commits.test.mts. | `node --test --test-name-pattern=K642 tests/kit/commits.test.mts` | [~] |
+| K642 | make commits-check는 한국어 twin의 source-sha256 stamp를 범위의 tip에서만 판단합니다. land는 tip을 병합하고 docs-check가 그 tree의 stamp를 판단하므로, rebase가 stamp를 낡게 남긴 중간 commit은 같은 branch의 뒤 commit이 다시 stamp하면 finding이 아니며 branch를 거부하지 않습니다. | scripts/kit/check-commits.mts reads the twins on the tip only, and the K642 case in tests/kit/commits.test.mts. | `node --test --test-name-pattern=K642 tests/kit/commits.test.mts` | [o] |
