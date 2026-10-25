@@ -672,9 +672,9 @@ test('a commit on main that makes a linked build stale rebuilds it (K583)', (t) 
   assert.equal(existsSync(built), false, 'a commit of no build input builds nothing');
 });
 
-// K551: every consumer links the dist of kit main live, so a commit on main of the kit package that changes an input of its build runs
-// make kit-build after it commits; a commit that changes no build input builds nothing.
-test('a commit on main of the kit package builds it when it changes a build input (K551)', (t) => {
+// K646: consumers run the sources of kit (K613) and npm's prepack builds dist at release, so a commit on main of the kit package builds
+// nothing, whatever it changes.
+test('a commit on main of the kit package builds no dist (K646)', (t) => {
   const root = committed(t, 'T1');
   const built = path.join(root, 'dist/built.txt');
   put(root, {
@@ -690,12 +690,7 @@ test('a commit on main of the kit package builds it when it changes a build inpu
   put(root, { 'scripts/kit/a.mts': 'export const a = 1;\n' });
   stage(root, 'scripts/kit/a.mts');
   commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Change the tool', bodyFile: body }, identity);
-  assert.equal(readFileSync(built, 'utf8'), 'built\n', 'the commit of a build input builds the package');
-  rmSync(path.join(root, 'dist'), { recursive: true });
-  put(root, { 'docs/note.md': '# Note\n' });
-  stage(root, 'docs/note.md');
-  commitItem(root, { id: 'T1', type: 'docs', scope: 'parser', subject: 'Note the tool', bodyFile: body }, identity);
-  assert.equal(existsSync(built), false, 'a commit of no build input builds nothing');
+  assert.equal(existsSync(built), false, 'a commit of a source of kit builds nothing');
 });
 
 // K627: a Red or No-Red line that follows a sentence in the same paragraph stays a line of its own, so the commit-red rule finds it.

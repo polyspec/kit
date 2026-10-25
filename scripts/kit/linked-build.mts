@@ -1,21 +1,9 @@
-// The refresh of what the consumers read after main moves (K551, K583, K609): every consumer links main live, so a commit on main and
-// a land rebuild the outputs that the change makes stale. In kit, a change of a build input builds dist; elsewhere, an npm package with
-// a built output whose build is stale is rebuilt with link-build's rebuild. A failed build throws, naming it.
-import { spawnSync } from 'node:child_process';
+// The refresh of what the consumers read after main moves (K583, K609): every consumer links main live, so a commit on main and a land
+// rebuild an npm package of the repository with a built output whose build the change made stale, with link-build's rebuild. kit itself
+// builds nothing: its consumers run its sources (K613), and npm's prepack builds dist at release (K646). A failed build throws, naming it.
 import path from 'node:path';
 import { git } from './git.mts';
-import { isSource } from './kit-check.mts';
 import { buildState, rebuild } from './link-build.mts';
-
-// The inputs of the build of the kit package (K551): the sources of its tools and the files that configure their build.
-const BUILD_INPUT = /^(?:scripts\/kit\/.*\.mts$|tsconfig\.build\.json$|package\.json$)/;
-
-/** Builds the kit package `root` with make kit-build (K551); a failed build throws, naming it. */
-function buildKit(root: string): void {
-  const result = spawnSync('make', ['--no-print-directory', 'kit-build'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
-  if (result.error) throw new Error(`make kit-build could not start in ${root}: ${result.error.message}`);
-  if (result.status !== 0) throw new Error(`main moved, but make kit-build failed in ${root} with exit status ${result.status}, so dist is older than its sources; fix the build and run make kit-build:\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-20).join('\n')}`);
-}
 
 /**
  * The files of `files` that are build inputs of an npm package of the repository `root` with a built output, each with the folder of
@@ -30,10 +18,6 @@ function buildInputs(root: string, files: readonly string[]): { file: string; fo
 
 /** Rebuilds what the consumers of `root` read after main moved by the change of `files`, printing to `print`. */
 export function refreshLinked(root: string, files: readonly string[], print: (text: string) => void): void {
-  if (isSource(root)) {
-    if (files.some(file => BUILD_INPUT.test(file))) buildKit(root);
-    return;
-  }
   const stale = [...new Set(buildInputs(root, files).map(input => input.folder))].filter(folder => buildState(root, path.join(root, folder)).startsWith('stale'));
   if (stale.length === 0) return;
   try {

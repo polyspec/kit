@@ -544,7 +544,7 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   const head = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
   if (head !== 'main') return commitStaged(root, commit, env, { registration });
   return withLandLock(root, `the commit of ${commit.id} on main`, 'nothing is committed', () => {
-    // K551: the files of the commit, read before it, since every consumer links the dist of kit main live.
+    // K583: the files of the commit, read before it, since every consumer links main live.
     const files = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
     const message = commitStaged(root, commit, env, { registration });
     refreshLinked(root, files, text => console.log(`[plan] ${text}`));

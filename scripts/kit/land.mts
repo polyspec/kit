@@ -364,7 +364,7 @@ function landBranch(root: string, branch: string, print: (text: string) => void,
       print(`main moved while the gates of ${branch} ran:\n${moves}\n${branch} rebases on main and runs the gates again`);
     }
     print(`merged ${branch} into main`);
-    // K609: every consumer links main live, so the land refreshes what they read, as a commit on main does (K551, K583).
+    // K609: every consumer links main live, so the land refreshes what they read, as a commit on main does (K583).
     const merged = passed === undefined ? [] : git(root, 'diff', '--name-only', `${passed.gated}..main`).split('\n').filter(file => file !== '');
     refreshLinked(root, merged, print);
   }
