@@ -18,7 +18,7 @@
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
 import type { SpawnSyncReturns } from 'node:child_process';
-import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { kitGates } from './kit-gates.mts';
@@ -111,53 +111,6 @@ export function stopServers(folder: string, targets: string[], print: (text: str
 
 // A gate that runs tests: parity-check and the test- targets. The Verification of the rows runs the tests, so land never does.
 export const isTestGate = (gate: string) => gate === 'parity-check' || gate.startsWith('test-');
-
-// A path inside the temporary folder of the system, which a gate may make afresh on each run, as duplication-check makes the
-// folder of its jscpd configuration (K394-2).
-const TEMPORARY = new RegExp(`(?:${[...new Set([tmpdir(), realpathSync(tmpdir())])].map(folder => folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})/[^\\s'"]*`, 'g');
-
-/**
- * The lines of `output`, a gate's stdout and stderr run in `folder`, each with its key: every occurrence of the folder of the
- * worktree replaced by `root`, every path inside the temporary folder of the system by <tmp>, every run of digits by #; blank
- * lines are dropped.
- */
-export function linesOf(output: string, folder: string, root: string): { line: string; key: string }[] {
-  // The checkout of the branch, of main and of a temporary worktree, under their own paths and under their real paths (/var and
-  // /private/var alike), all read as <repo>, so that one finding has one key whichever checkout printed it (K446-1).
-  const prefixes = [...new Set([folder, root, realpathSync(folder), realpathSync(root)])].sort((a, b) => b.length - a.length);
-  const repo = new RegExp(prefixes.map(prefix => prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'g');
-  return output
-    .split('\n')
-    .map(line => ({ line, key: line.replace(repo, '<repo>').replace(TEMPORARY, '<tmp>').replace(/\d+/g, '#') }))
-    .filter(({ key }) => key.trim() !== '');
-}
-
-// A line that a kit tool prints on stdout as its progress, which starts with the name of the tool in brackets ([parity] tools root
-// ...); a kit tool prints its findings on stderr, and another tool, such as a linter, prints its findings on stdout without it (K394-3).
-const PROGRESS = /^\[[a-z0-9-]+\] /;
-
-// The findings of jscpd are its clone blocks: a Clone found line and the location lines under it, each with a [line:column - line:column]
-// span. Every other line of its output, its summary rows, clone count and detection time, describes the run, not a duplicate (K599).
-const ANSI_SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
-const isCloneLine = (line: string): boolean => /^Clone found \(|\[\d+:\d+ - \d+:\d+\]/.test(line.replace(ANSI_SGR, '').trim());
-
-/** The lines of the stdout and the stderr of a gate that land compares: every line of stderr, and the lines of stdout but progress. */
-const findingLines = ({ stdout, stderr }: { stdout: string; stderr: string }, folder: string, root: string, gate?: string) =>
-  [...linesOf(stdout, folder, root).filter(({ line }) => !PROGRESS.test(line) && (gate !== 'duplication-check' || isCloneLine(line))),
-    ...linesOf(stderr, folder, root)];
-
-/** The lines of `branch` that occur more times in `branch` than in `main`, counting repeats, in their order. */
-function newLines(branch: { line: string; key: string }[], main: { key: string }[]): string[] {
-  const left = new Map<string, number>();
-  for (const { key } of main) left.set(key, (left.get(key) ?? 0) + 1);
-  return branch
-    .filter(({ key }) => {
-      const count = left.get(key) ?? 0;
-      if (count > 0) left.set(key, count - 1);
-      return count === 0;
-    })
-    .map(({ line }) => line);
-}
 
 /**
  * The gates of kit-gates that the owners of `changed` select in the worktree `folder`, in the order of kit-gates, with the
@@ -461,16 +414,11 @@ function gateBranch(root: string, folder: string, branch: string, print: (text: 
     print(`${gate} in ${folder}`);
     const args = gate === 'commits-check' ? [`RANGE=main..${branch}`] : [];
     const candidate = runGate(folder, gate, args);
-    if (candidate.result.status !== 0 && gate !== 'commits-check') {
-      const added = newFindings(root, candidate, mainRun(root, gate, args, print, sleep));
-      if (added === undefined) {
-        print(`${gate} fails on main too, with no finding that main does not have`);
-        continue;
-      }
-      if (added.length > 0) {
-        print(`${gate} has findings that main does not have:\n${added.join('\n')}`);
-        throw new Error(`${branch} is refused: the gate ${gate} has ${added.length} findings that main does not have; nothing is merged`);
-      }
+    // K631: a gate that fails on main too is the red of the row that fixes it, not of this branch, so it passes with a note; a branch
+    // owes only not to break a gate that main passes. No line of the output is compared.
+    if (candidate.result.status !== 0 && gate !== 'commits-check' && mainRun(root, gate, args, print, sleep).result.status !== 0) {
+      print(`${gate} fails on main too; its own row fixes it, and ${branch} passes it`);
+      continue;
     }
     if (candidate.result.status !== 0) {
       print(`${gate} failed in ${folder}:\n${candidate.result.stdout}${candidate.result.stderr}`);
@@ -532,33 +480,6 @@ export interface GateRun {
 export function runGate(folder: string, gate: string, args: string[] = [], deadline: number = MAKE_DEADLINE_MS): GateRun {
   // make -s: the recipes that make echoes differ between checkouts and are not findings of the gate (K446-3).
   return { folder, gate, result: runMake(folder, ['--no-print-directory', '-s', gate, ...args], deadline) };
-}
-
-/**
- * The verdict of a failed run `candidate` of a gate against its run `baseline` of the same gate on the tree without the change (main
- * for land, HEAD for a commit), read as <repo> through `root` (K394-1, K446-2). Undefined when the gate fails on the baseline too with
- * no finding line that the baseline lacks, so it passes. Otherwise the new finding lines of the candidate; empty when the baseline
- * passes, since no finding of it covers the failure, so the caller refuses with the exit status of the candidate.
- */
-export function newFindings(root: string, candidate: GateRun, baseline: GateRun): string[] | undefined {
-  if (baseline.result.status === 0) return [];
-  // A failure of the environment is no finding of either run, so it is refused with its own output (K474).
-  if (environmentFailure(candidate)) throw new Error(`the gate fails in ${candidate.folder} for an environment reason, which is no finding, ${endOf(candidate)}:\n${outputOf(candidate)}`);
-  if (environmentFailure(baseline)) throw new Error(`the gate fails on the baseline ${baseline.folder} for an environment reason, so it cannot be compared with the candidate, ${endOf(baseline)}:\n${outputOf(baseline)}`);
-  const added = newLines(findingLines(candidate.result, candidate.folder, root, candidate.gate), findingLines(baseline.result, baseline.folder, root, baseline.gate));
-  return added.length === 0 ? undefined : added;
-}
-
-/** The stdout and the stderr of a gate run, as the text that a refusal names. */
-const outputOf = (run: GateRun) => `${run.result.stdout}${run.result.stderr}`;
-
-/**
- * Whether a failed gate run failed for an environment reason rather than for a finding (K474): the signal that ended it, a command
- * that the shell could not find or run (make reports the shell status as `Error 126` or `Error 127`), or a failure with no finding
- * line. Such a run is never compared with a baseline, since a baseline that fails the same way would pass it as failing on HEAD too.
- */
-function environmentFailure(run: GateRun): boolean {
-  return run.result.status === null || /Error 12[67]\b/.test(outputOf(run)) || findingLines(run.result, run.folder, run.folder, run.gate).length === 0;
 }
 
 /** The text of how a gate run ended: its exit status, or the signal that ended it. */

@@ -3,12 +3,11 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { land, linesOf, machineListing, newFindings, runGate, worktreeProcesses } from '../../scripts/kit/land.mts';
-import type { GateRun } from '../../scripts/kit/land.mts';
+import { land, machineListing, runGate, worktreeProcesses } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -99,7 +98,8 @@ test('make land fast-forwards and cleans up without invoking either build (K603)
   assert.equal(existsSync(buildCalls), false, 'land does not invoke make build in the branch or main checkout');
 });
 
-test('land refuses a gate that fails only on a finding that main does not have (K394-1)', (t) => {
+// K631: a branch owes only not to break a green gate; a gate red on main is the row's that fixes it, so land passes it with a note.
+test('land passes a gate that fails on main too and refuses one that main passes (K631)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
@@ -130,14 +130,13 @@ test('land refuses a gate that fails only on a finding that main does not have (
   const branchA = git(main, 'rev-parse', 'feat-a');
   land(main, 'feat-a', { print });
   assert.equal(git(main, 'rev-parse', 'main'), branchA, 'main fast-forwards to the branch');
-  assert.ok(printed.includes('findings-x fails on main too, with no finding that main does not have'));
+  assert.ok(printed.includes('findings-x fails on main too; its own row fixes it, and feat-a passes it'), printed.join('\n'));
 
-  // A branch that adds the finding src/c.txt: it is a finding that main does not have, so the branch is refused and names it.
+  // A branch that adds the finding src/c.txt while main is red: no line of the output is compared, so it lands too (K631).
   branch('feat-b', { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
-  const mainB = git(main, 'rev-parse', 'main');
-  assert.throws(() => land(main, 'feat-b', { print }), /feat-b is refused: the gate findings-x has 1 findings that main does not have; nothing is merged/);
-  assert.ok(printed.some(text => text.includes('finding: src/c.txt')), 'the output names the new finding');
-  assert.equal(git(main, 'rev-parse', 'main'), mainB, 'main is unchanged after the refusal');
+  const branchB = git(main, 'rev-parse', 'feat-b');
+  land(main, 'feat-b', { print });
+  assert.equal(git(main, 'rev-parse', 'main'), branchB, 'a gate red on main is no refusal');
 
   // main turns green; a branch that makes findings-x red is refused as before, since main passes the gate.
   put(main, { 'findings.txt': '' });
@@ -147,74 +146,6 @@ test('land refuses a gate that fails only on a finding that main does not have (
   const mainC = git(main, 'rev-parse', 'main');
   assert.throws(() => land(main, 'feat-c', { print }), /feat-c is refused: the gate findings-x exited 2; nothing is merged/);
   assert.equal(git(main, 'rev-parse', 'main'), mainC, 'main is unchanged after the refusal of a gate green on main');
-});
-
-// K394-2: duplication-check prints the jscpd configuration that it writes into a fresh temporary folder, so a gate whose findings
-// agree on the branch and on main still prints a line that differs on each run.
-test('land compares the output of a gate without the temporary folders that it makes on each run (K394-2)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  // fresh-x prints a path in a new temporary folder on each run, as duplication-check does, and fails with the finding of main.
-  put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check fresh-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'fresh-x:', '\t@folder=$$(mktemp -d); echo "Using config from $$folder/jscpd.json"; rmdir "$$folder"; echo "finding: src/a.txt"; exit 1', 'build:', '\ttrue'].join('\n') + '\n',
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['fresh-x'] }] }, null, 2) + '\n',
-    '.gitignore': 'var/\n',
-    'src/.keep': '',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const folder = path.join(parent, 'repo-feat-a');
-  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-a', 'main');
-  put(folder, { 'src/b.txt': 'b\n' });
-  git(folder, 'add', '-A');
-  git(folder, 'commit', '--quiet', '-m', 'feat-a');
-  const head = git(main, 'rev-parse', 'feat-a');
-  const printed: string[] = [];
-  land(main, 'feat-a', { print: text => printed.push(text) });
-  assert.equal(git(main, 'rev-parse', 'main'), head, 'main fast-forwards to the branch');
-  assert.ok(printed.includes('fresh-x fails on main too, with no finding that main does not have'), printed.join('\n'));
-});
-
-// K394-3: a kit tool prints its progress on stdout as a line that starts with its [name], and its findings on stderr; a new
-// progress line, such as the tools root that parity-declarations-check declares, is no finding, while a new stderr line and a new
-// stdout line of another tool, such as a linter, are.
-test('land counts no progress line of a kit tool as a finding of a gate that fails on main too (K394-3)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  // info-x prints a progress line for each line of info.txt, a stderr finding for each line of findings.txt, and the lines of
-  // lint.txt on stdout as a linter does; it fails while findings.txt is not empty.
-  put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check info-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'info-x:', '\t@sed "s/^/[info-x] tools root /" info.txt; cat lint.txt; sed "s/^/[info-x] finding: /" findings.txt >&2; test ! -s findings.txt', 'build:', '\ttrue'].join('\n') + '\n',
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'info.txt', 'findings.txt', 'lint.txt'], targets: ['info-x'] }] }, null, 2) + '\n',
-    '.gitignore': 'var/\n',
-    'src/.keep': '',
-    'info.txt': 'tools\n',
-    'findings.txt': 'src/a.txt\n',
-    'lint.txt': 'src/a.txt:1:1: error E1\n',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const printed: string[] = [];
-  const print = (text: string) => printed.push(text);
-  const branch = (name: string, files: Record<string, string>) => {
-    const folder = path.join(parent, `repo-${name}`);
-    git(main, 'worktree', 'add', '--quiet', folder, '-b', name, 'main');
-    put(folder, files);
-    git(folder, 'add', '-A');
-    git(folder, 'commit', '--quiet', '-m', name);
-  };
-  branch('feat-a', { 'info.txt': 'tools\nbenchmarks\n' });
-  const branchA = git(main, 'rev-parse', 'feat-a');
-  land(main, 'feat-a', { print });
-  assert.equal(git(main, 'rev-parse', 'main'), branchA, 'a new progress line of the kit tool is no finding');
-  branch('feat-b', { 'findings.txt': 'src/a.txt\nsrc/b.txt\n' });
-  assert.throws(() => land(main, 'feat-b', { print }), /feat-b is refused: the gate info-x has 1 findings that main does not have/);
-  branch('feat-c', { 'lint.txt': 'src/a.txt:1:1: error E1\nsrc/c.txt:2:1: error E2\n' });
-  assert.throws(() => land(main, 'feat-c', { print }), /feat-c is refused: the gate info-x has 1 findings that main does not have/);
 });
 
 test('land selects no gate that runs tests (K394-1)', (t) => {
@@ -380,19 +311,6 @@ test('a process uses a worktree by its cwd, an open file or its executable, not 
   assert.equal(worktreeProcesses(path.join(parent, 'repo-named'), machineListing()).some(live => live.pid === named.pid), false, 'a process named by its arguments only is no use of the worktree');
 });
 
-// K446-2: a finding that a checkout prints under its real path (/private/var) and under its logical path (/var) is one finding, so a
-// gate that fails the same way on main and on the branch is not refused for the path it names (K446-2).
-test('the findings of a gate read one key under the real and the logical path of one checkout (K446-2)', (t) => {
-  // A folder outside the temporary folder, reached through a symbolic link: the temporary folder is read as <tmp> in any case.
-  const target = realpathSync(mkdtempSync(path.join(process.cwd(), 'var', 'k446-2-')));
-  const logicalFolder = `${target}-link`;
-  symlinkSync(target, logicalFolder);
-  t.after(() => { rmSync(logicalFolder, { force: true }); rmSync(target, { recursive: true, force: true }); });
-  const logical = linesOf(`finding: ${logicalFolder}/src/a.txt`, logicalFolder, logicalFolder);
-  const real = linesOf(`finding: ${target}/src/a.txt`, logicalFolder, logicalFolder);
-  assert.equal(real[0]?.key, logical[0]?.key, 'the real and the logical path of one file give one key');
-});
-
 // K441: a repository declares WORKTREE_STOP, the make target that stops the servers of its worktree. make land runs it in the
 // worktree after the merge and before the removal, so the server that the test started is gone when the worktree is removed.
 test('make land stops the servers of the worktree before it removes the worktree (K441)', { timeout: 60000 }, async (t) => {
@@ -481,118 +399,6 @@ test('the land command refuses a gate that exits 2 with its exit status, not an 
   assert.match(run.stderr, /feat-c is refused: the gate findings-x exited 2; nothing is merged/, run.stderr);
   assert.doesNotMatch(run.stderr, /before initialization/, 'the refusal is not an error of the module');
   assert.equal(git(main, 'rev-parse', 'main'), before, 'main is unchanged after the refusal');
-});
-
-// K474: a gate whose run fails for an environment reason is refused with that error; it never passes as failing on the baseline too.
-const gateRun = (status: number, output: string): GateRun => ({
-  folder: process.cwd(),
-  result: { pid: 0, output: [null, output, output], stdout: output, stderr: output, status, signal: null },
-});
-
-test('land compares jscpd clone findings without its changing summary rows (K394-4)', () => {
-  const clone = [
-    '\u001b[1mClone found (go)\u001b[22m',
-    ' - packages/go/a.go [10:1 - 16:2] (7 lines, 40 tokens)',
-    '   packages/go/b.go [20:1 - 26:2]',
-  ].join('\n');
-  const beforeStats = '│ go       │ 32  │ 7000  │ 52000  │ 2 │ 18 (0.04%) │ 163 (0.03%) │';
-  const changedStats = '│ go          │ 326            │ 73986       │ 534691       │ 6            │ 56 (0.08%)       │ 348 (0.07%)       │';
-  const asDuplication = (output: string): GateRun => ({
-    folder: process.cwd(),
-    gate: 'duplication-check',
-    result: { pid: 0, output: [null, output, ''], stdout: output, stderr: '', status: 1, signal: null },
-  });
-
-  assert.equal(newFindings(process.cwd(), asDuplication(`${clone}\n${changedStats}`), asDuplication(`${clone}\n${beforeStats}`)), undefined,
-    'only changed jscpd summary counts and padding do not add a finding');
-
-  const addedClone = `${clone}\n\u001b[1mClone found (php)\u001b[22m\n - packages/php/a.php [1:1 - 7:2] (7 lines, 40 tokens)\n   packages/php/b.php [1:1 - 7:2]`;
-  const added = newFindings(process.cwd(), asDuplication(`${clone}\n${changedStats}\n${addedClone}`), asDuplication(`${clone}\n${beforeStats}`));
-  assert.ok(added?.some(line => line.includes('Clone found (php)')), 'a real added clone remains a finding');
-});
-
-test('land ignores changed ANSI-colored jscpd Total summary padding but keeps clone findings (K570)', () => {
-  const clone = [
-    '\u001b[1mClone found (go)\u001b[22m',
-    ' - packages/go/a.go [10:1 - 16:2] (7 lines, 40 tokens)',
-    '   packages/go/b.go [20:1 - 26:2]',
-  ].join('\n');
-  const beforeTotal = '\u001b[90m│\u001b[39m \u001b[1mTotal:\u001b[22m \u001b[90m│\u001b[39m 999            \u001b[90m│\u001b[39m 99999       \u001b[90m│\u001b[39m 999999       \u001b[90m│\u001b[39m 9            \u001b[90m│\u001b[39m 99 (0.01%)       \u001b[90m│\u001b[39m 999 (0.01%)       \u001b[90m│\u001b[39m';
-  const changedTotal = '\u001b[90m│\u001b[39m \u001b[1mTotal:\u001b[22m \u001b[90m│\u001b[39m 1000           \u001b[90m│\u001b[39m 100000      \u001b[90m│\u001b[39m 1000000      \u001b[90m│\u001b[39m 10           \u001b[90m│\u001b[39m 100 (0.01%)      \u001b[90m│\u001b[39m 1000 (0.01%)      \u001b[90m│\u001b[39m';
-  const asDuplication = (output: string): GateRun => ({
-    folder: process.cwd(),
-    gate: 'duplication-check',
-    result: { pid: 0, output: [null, output, ''], stdout: output, stderr: '', status: 1, signal: null },
-  });
-
-  assert.equal(newFindings(process.cwd(), asDuplication(`${clone}\n${changedTotal}`), asDuplication(`${clone}\n${beforeTotal}`)), undefined,
-    'changed aggregate statistics and column padding do not add a finding');
-
-  const addedClone = '\u001b[1mClone found (php)\u001b[22m\n - packages/php/a.php [1:1 - 7:2] (7 lines, 40 tokens)\n   packages/php/b.php [1:1 - 7:2]';
-  const added = newFindings(process.cwd(), asDuplication(`${clone}\n${changedTotal}\n${addedClone}`), asDuplication(`${clone}\n${beforeTotal}`));
-  assert.ok(added?.some(line => line.includes('Clone found (php)')), 'a real added clone remains a finding');
-});
-
-test('land counts only the clone blocks of duplication-check as its findings (K599)', () => {
-  const clone = [
-    '\u001b[1mClone found (php)\u001b[22m',
-    ' - packages/php/src/Dbspec/Dbspec.php [781:5 - 787:6] (7 lines, 52 tokens)',
-    '   packages/php/src/Dbspec/Dbspec.php [802:5 - 808:6]',
-  ].join('\n');
-  const asDuplication = (output: string): GateRun => ({
-    folder: process.cwd(),
-    gate: 'duplication-check',
-    result: { pid: 0, output: [null, output, ''], stdout: output, stderr: '', status: 1, signal: null },
-  });
-  const main = asDuplication(`${clone}\nFound 6 clones.\n\u001b[90mDetection time:\u001b[39m: 951.207ms`);
-  const branch = asDuplication(`${clone}\nFound 6 clones.\n\u001b[90mDetection time:\u001b[39m: 1.024s\nsome other summary`);
-
-  assert.equal(newFindings(process.cwd(), branch, main), undefined, 'lines outside the clone blocks are no finding');
-
-  const addedClone = '\u001b[1mClone found (php)\u001b[22m\n - packages/php/a.php [1:1 - 7:2] (7 lines, 40 tokens)\n   packages/php/b.php [1:1 - 7:2]';
-  const added = newFindings(process.cwd(), asDuplication(`${clone}\n${addedClone}\nDetection time:: 1.024s`), main);
-  assert.ok(added?.some(line => line.includes('Clone found (php)')), 'an added clone remains a finding');
-});
-
-test('land recognizes the ANSI-colored jscpd summary rows captured by duplication-check (K394-5)', () => {
-  const clone = [
-    '\u001b[1mClone found (php)\u001b[22m',
-    ' - packages/php-ext/tests/Example.php [10:1 - 16:2] (7 lines, 40 tokens)',
-    '   packages/php-ext/tests/Other.php [20:1 - 26:2]',
-  ].join('\n');
-  const beforeStats = [
-    '\u001b[90m│\u001b[39m c          \u001b[90m│\u001b[39m 45             \u001b[90m│\u001b[39m 50670       \u001b[90m│\u001b[39m 546618       \u001b[90m│\u001b[39m 63           \u001b[90m│\u001b[39m 679 (1.34%)      \u001b[90m│\u001b[39m 4841 (0.89%)      \u001b[90m│\u001b[39m',
-    '\u001b[90m│\u001b[39m go         \u001b[90m│\u001b[39m 319            \u001b[90m│\u001b[39m 72557       \u001b[90m│\u001b[39m 523572       \u001b[90m│\u001b[39m 4            \u001b[90m│\u001b[39m 37 (0.05%)       \u001b[90m│\u001b[39m 222 (0.04%)       \u001b[90m│\u001b[39m',
-  ].join('\n');
-  const changedStats = [
-    '\u001b[90m│\u001b[39m c          \u001b[90m│\u001b[39m 45             \u001b[90m│\u001b[39m 51063       \u001b[90m│\u001b[39m 550320       \u001b[90m│\u001b[39m 2            \u001b[90m│\u001b[39m 18 (0.04%)       \u001b[90m│\u001b[39m 163 (0.03%)       \u001b[90m│\u001b[39m',
-    '\u001b[90m│\u001b[39m go         \u001b[90m│\u001b[39m 326            \u001b[90m│\u001b[39m 73986       \u001b[90m│\u001b[39m 534691       \u001b[90m│\u001b[39m 6            \u001b[90m│\u001b[39m 56 (0.08%)       \u001b[90m│\u001b[39m 348 (0.07%)       \u001b[90m│\u001b[39m',
-  ].join('\n');
-  const asDuplication = (output: string): GateRun => ({
-    folder: process.cwd(),
-    gate: 'duplication-check',
-    result: { pid: 0, output: [null, output, ''], stdout: output, stderr: '', status: 1, signal: null },
-  });
-
-  assert.equal(newFindings(process.cwd(), asDuplication(`${clone}\n${changedStats}`), asDuplication(`${clone}\n${beforeStats}`)), undefined,
-    'the captured ANSI formatting and changed counts do not create findings');
-
-  const added = newFindings(process.cwd(), asDuplication(`${clone}\n${changedStats}\n${clone.replace('Clone found (php)', 'Clone found (go)')}`), asDuplication(`${clone}\n${beforeStats}`));
-  assert.ok(added?.some(line => line.includes('Clone found (go)')), 'a new clone remains a finding');
-});
-
-test('a gate whose recipe command is missing on HEAD fails naming the error, not as failing on HEAD too (K474)', () => {
-  const error = 'make: *** [lint-ts] Error 127\n';
-  assert.throws(() => newFindings(process.cwd(), gateRun(2, error), gateRun(2, error)), /Error 127/);
-});
-
-test('a gate that fails with no output on the candidate and on HEAD fails naming its exit status (K474)', () => {
-  assert.throws(() => newFindings(process.cwd(), gateRun(2, ''), gateRun(2, '')), /exited 2/);
-});
-
-test('a gate that fails with the same findings on HEAD still passes as failing on HEAD too (K474)', () => {
-  const finding = 'src/a.ts:1: bad\n';
-  assert.equal(newFindings(process.cwd(), gateRun(1, finding), gateRun(1, finding)), undefined);
 });
 
 // K495: land is the only writer of main besides a commit that passed its pre-commit hook. It holds a lock in the common git folder
@@ -812,17 +618,6 @@ test('a land whose main moved reruns only the gates that the moved commits selec
   assert.equal(git(main, 'log', '-1', '--format=%s', 'main^'), 'moved-once', 'the branch lands on the moved main');
   assert.equal(readFileSync(count(main), 'utf8'), 'run\n', 'lint-x ran once: the moved commit touches nothing that it checks');
   assert.ok(printed.some(text => text.includes('lint-x keeps its result')), printed.join('\n'));
-});
-
-// K600: jscpd ends its report with the time of its run, which differs on every run, so an identical clone set is no new finding.
-test('land counts no jscpd timing line as a finding (K600)', () => {
-  const clone = '\u001b[1mClone found (go)\u001b[22m\n - packages/go/a.go [10:1 - 16:2] (7 lines, 40 tokens)\n   packages/go/b.go [20:1 - 26:2]';
-  const asDuplication = (output: string): GateRun => ({
-    folder: process.cwd(),
-    gate: 'duplication-check',
-    result: { pid: 0, output: [null, output, ''], stdout: output, stderr: '', status: 1, signal: null },
-  });
-  assert.equal(newFindings(process.cwd(), asDuplication(`${clone}\n\u001b[90mtime: 748.289ms\u001b[39m`), asDuplication(`${clone}\ntime: 512.03ms`)), undefined);
 });
 
 // K609: every consumer links main live, so a land refreshes what they read after its merge, as a commit on main does (K551, K583): in
