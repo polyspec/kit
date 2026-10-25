@@ -39,6 +39,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { sha256 } from './bootstrap/digest.mts';
 import { readConfig } from './schema-validate.mts';
 import { present } from './present.mts';
+import { errorCode } from './process.mts';
 
 export const CONFIG = 'config/documents.json';
 const DOC_ID = /<!-- doc-id: ([^>]*?) -->/g;
@@ -106,7 +107,13 @@ function linkFindings(root: string, config: DocumentsConfig, file: string, link:
   if (location.includes('?')) return [at(`the link ${target} has a query; a link to a file has none`)];
   let absolute = path.resolve(root, path.dirname(file));
   if (location) {
-    try { absolute = path.resolve(absolute, decodeURIComponent(location)); } catch { return [at(`the link ${target} is not a valid path (bad % escape)`)]; }
+    try {
+      absolute = path.resolve(absolute, decodeURIComponent(location));
+    } catch (error) {
+      // decodeURIComponent throws a URIError for a bad % escape, and nothing else.
+      if (!(error instanceof URIError)) throw error;
+      return [at(`the link ${target} is not a valid path (bad % escape)`)];
+    }
   } else absolute = path.resolve(root, file);
   const relative = path.relative(root, absolute);
   if (relative.startsWith('..') || path.isAbsolute(relative)) return [at(`the link ${target} leaves the repository`)];
@@ -200,14 +207,23 @@ function pairFindings(root: string, config: DocumentsConfig, english: string, id
 const KIT_ID = /(?<![A-Za-z0-9_])K[0-9]+(?:[.-][0-9]+)*(?![A-Za-z0-9_])/g;
 const KIT_PACKAGE = '@polyspec/kit';
 
-/** The name of the package.json of `root`, or undefined when it has none or cannot be read. */
+/** The name of the package.json of `root`, or undefined when it has none; a package.json that cannot be read is an error (K559). */
 const packageName = (root: string): unknown => {
+  let text: string;
   try {
-    const parsed: unknown = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
-    return typeof parsed === 'object' && parsed !== null && 'name' in parsed ? parsed.name : undefined;
-  } catch {
-    return undefined;
+    text = readFileSync(path.join(root, 'package.json'), 'utf8');
+  } catch (error) {
+    if (errorCode(error) === 'ENOENT') return undefined;
+    throw error;
   }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    if (!(error instanceof SyntaxError)) throw error;
+    throw new Error(`${path.join(root, 'package.json')} holds no valid JSON: ${error.message}`, { cause: error });
+  }
+  return typeof parsed === 'object' && parsed !== null && 'name' in parsed ? parsed.name : undefined;
 };
 
 /**
@@ -322,15 +338,11 @@ export function check(root: string, config: DocumentsConfig, kitRoot: string | u
   if (checklists.length > 0) {
     if (kitRoot === undefined) notes.push(`no checkout of the kit at ${path.resolve(root, '..', 'kit')}: the rows that name kit items are not checked`);
     else {
-      try {
-        // A repository other than kit whose ids are K-ids names kit as kit K<n>; a sibling repository names its own items (K374-1).
-        const ownKitIds = path.resolve(kitRoot) !== path.resolve(root) && checklists.some(tracker => new RegExp(`^(?:${tracker.idPattern})$`).test('K1'));
-        const reader = { siblings: siblingRepositories(root), ownKitIds };
-        for (const [file, entry] of kitRowFindings(checklists, available, kitItemIds(kitRoot), reader)) add(file, entry);
-      } catch (error) {
-        if (!(error instanceof Error)) throw error;
-        notes.push(`the checklists of the kit at ${kitRoot} cannot be read (${error.message}): the rows that name kit items are not checked`);
-      }
+      // K559: a kit checkout whose checklists cannot be read fails the check, never a note.
+      // A repository other than kit whose ids are K-ids names kit as kit K<n>; a sibling repository names its own items (K374-1).
+      const ownKitIds = path.resolve(kitRoot) !== path.resolve(root) && checklists.some(tracker => new RegExp(`^(?:${tracker.idPattern})$`).test('K1'));
+      const reader = { siblings: siblingRepositories(root), ownKitIds };
+      for (const [file, entry] of kitRowFindings(checklists, available, kitItemIds(kitRoot), reader)) add(file, entry);
     }
   }
   // A document under docs/ that holds checklist items but is no checklist of a plan folder is read by no gate (K235).

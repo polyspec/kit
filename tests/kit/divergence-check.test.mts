@@ -2,7 +2,7 @@
 // says so is a finding, and the same code outside an implementation root, in a comment or in kit itself is not.
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { checkedSources, divergenceFindings, reasonKind } from '../../scripts/kit/divergence-check.mts';
 
@@ -66,7 +66,7 @@ test('a guard of the library that defines a function only when the extension doe
   const root = tree(t, { 'config/parity.json': PARITY, '.gitignore': 'packages/php/src/generated/\n' });
   mkdirSync(path.join(root, 'packages/php/src/generated'), { recursive: true });
   writeFileSync(path.join(root, 'packages/php/src/generated/Gen.php'), "<?php\nif (!function_exists('x')) {}\n");
-  const read = (file: string) => { try { return readFileSync(path.join(root, file), 'utf8'); } catch { return undefined; } };
+  const read = (file: string) => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined);
   const files = checkedSources(root, ['config/parity.json'], read);
   assert.deepEqual(files, ['config/parity.json', 'packages/php/src/generated/Gen.php']);
   assert.equal(divergenceFindings(files, read).length, 1);

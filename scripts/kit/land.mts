@@ -254,7 +254,10 @@ function running(pid: number): boolean {
     process.kill(pid, 0);
     return true;
   } catch (error) {
-    return codeOf(error) === 'EPERM';
+    // ESRCH: no such process; EPERM: it runs as another user. Any other failure says nothing of the process (K559).
+    if (codeOf(error) === 'ESRCH') return false;
+    if (codeOf(error) === 'EPERM') return true;
+    throw error;
   }
 }
 

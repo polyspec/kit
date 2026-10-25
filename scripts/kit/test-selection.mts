@@ -2,13 +2,16 @@
 // runs a whole runtime, which is a suite and runs only in CI (ci-only.mts); run-tests.mts and claude-hook.mts both decide
 // with this function, so a command that the hook allows is one that the runner runs.
 import { statSync } from 'node:fs';
+import { errorCode } from './process.mts';
 
 /** Whether `file` names a regular file; a directory or a missing path selects no test. */
 export function isFile(file: string): boolean {
   try {
     return statSync(file).isFile();
-  } catch {
-    return false;
+  } catch (error) {
+    // No entry, a file as a parent, or a text too long to be a path names no file; any other failure is no answer (K559).
+    if (['ENOENT', 'ENOTDIR', 'ENAMETOOLONG'].includes(errorCode(error) ?? '')) return false;
+    throw error;
   }
 }
 

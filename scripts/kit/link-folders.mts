@@ -11,6 +11,7 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSy
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
+import { errorCode } from './process.mts';
 import type { Provider } from './link-providers.mts';
 
 /** One installed folder that a provider provides, and the folder it must link to. */
@@ -116,8 +117,10 @@ const present = (file: string): boolean => {
   try {
     lstatSync(file);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    // ENOENT: no entry; ENOTDIR: a parent is a file. Any other failure, as EACCES, is no answer (K559).
+    if (errorCode(error) === 'ENOENT' || errorCode(error) === 'ENOTDIR') return false;
+    throw error;
   }
 };
 

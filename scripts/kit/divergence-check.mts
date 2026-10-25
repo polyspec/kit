@@ -21,6 +21,7 @@ import { implementationFolders } from './parity-declaration.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
 import { trackedFiles } from './tracked-files.mts';
+import { errorCode } from './process.mts';
 
 /** The kinds of reason that kit defines for an exception of a configuration: the reason begins with the kind and a colon. */
 export const REASON_KINDS = ['generated', 'fixture', 'test', 'harness', 'ecosystem', 'external'] as const;
@@ -182,7 +183,15 @@ export function checkedSources(root: string, tracked: readonly string[], read: (
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
   const tracked = trackedFiles(root);
-  const read = (file: string): string | undefined => { try { return readFileSync(path.join(root, file), 'utf8'); } catch { return undefined; } };
+  // A tracked file that the tree no longer holds is no source; any other failure of the read is the check's own (K559).
+  const read = (file: string): string | undefined => {
+    try {
+      return readFileSync(path.join(root, file), 'utf8');
+    } catch (error) {
+      if (errorCode(error) === 'ENOENT') return undefined;
+      throw error;
+    }
+  };
   const found = divergenceFindings(checkedSources(root, tracked, read), read);
   for (const finding of found) console.error(`[divergence-check] ${finding}`);
   if (found.length) {

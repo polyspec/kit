@@ -7,6 +7,7 @@ import { matchesAny } from './glob.mts';
 import { ConfigError, parseJson, readConfigFindings, SchemaError } from './schema-validate.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import { present } from './present.mts';
+import { errorCode } from './process.mts';
 
 export const DECLARATION = 'config/parity.json';
 
@@ -471,7 +472,9 @@ function scopeSchemaLines(root: string, lines: string[], units: readonly string[
   let raw: unknown;
   try {
     raw = JSON.parse(readFileSync(path.join(root, DECLARATION), 'utf8'));
-  } catch {
+  } catch (error) {
+    // A missing declaration or one that is no JSON is a finding of the declaration check, so every line counts here (K559).
+    if (errorCode(error) !== 'ENOENT' && !(error instanceof SyntaxError)) throw error;
     return { kept: lines, dropped: 0 };
   }
   if (!isJsonObject(raw) || !isJsonList(raw.units)) return { kept: lines, dropped: 0 };

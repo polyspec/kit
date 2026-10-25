@@ -73,7 +73,9 @@ const isRemoteTarball = (resolved: string) => {
   let url: URL;
   try {
     url = new URL(resolved);
-  } catch {
+  } catch (error) {
+    // new URL throws a TypeError for a text that is no URL, such as a file path; no other failure means that.
+    if (!(error instanceof TypeError)) throw error;
     return false;
   }
   return (url.protocol === 'https:' || url.protocol === 'http:') && url.hostname !== 'registry.npmjs.org' && url.pathname.endsWith('.tgz');
