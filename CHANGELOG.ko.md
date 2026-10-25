@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a781433c73d34248c6bd60241f43a84a1cf23825d79e81d29b2128913eea6ee6 -->
+<!-- source-sha256: 615ce5594b5d830345a8f1533db3567c457cc9b5f28376933277909233b35ff4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 배포 소스가 import하는 모듈의 type package인 @types/picomatch와 @types/semver는 패키지의 dependency다. 그래서 per-file link로 그 소스를 type-check하는 consumer가 그것을 찾는다 (K582).
 - gate가 도는 동안 main이 움직인 land는 움직인 commit의 path가 고르는 gate, commits-check, build만 다시 돌린다. 입력을 건드린 commit이 없는 gate는 결과를 유지하므로 병렬 land가 더는 main을 쫓지 않는다 (K580).
 - main의 commit이 build된 출력을 가진 npm package의 build 입력을 바꾸고 그 출력이 stale이면 저장소를 다시 build하므로, main checkout을 live로 link한 checkout이 그 build를 fresh로 본다(K583).
 - consumer가 tarball로의 file: 의존성으로 선언한 npm package는 npm이 진짜 폴더로 풀므로 tarball로의 link가 아니라 provider로의 per-file link tree가 된다. 폴더로의 의존성만 K578의 link로 남는다 (K579).
