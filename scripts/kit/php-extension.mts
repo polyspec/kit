@@ -388,7 +388,8 @@ export function build(root: string, options: BuildOptions = {}): string {
     // P8 for C (K334): the flags of php-config do not fail a call whose result must be checked; the compiler's check does.
     const env = { ...process.env, CFLAGS: `${process.env.CFLAGS ?? ''} -Werror=unused-result`.trim() };
     console.log('[php-extension] configure');
-    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`, ...(options.configureArgs ?? [])], { cwd: source, env });
+    // configure finds a php-config on PATH by itself; the PHP of the checkout builds the module that its php loads (K632).
+    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`, `--with-php-config=${toolCommand(root, 'php-config')}`, ...(options.configureArgs ?? [])], { cwd: source, env });
     console.log('[php-extension] make');
     const made = run('make', [], { cwd: source, env });
     const warnings = made.split('\n').filter(line => /\.[ch]:\d+:\d+: warning:/.test(line));

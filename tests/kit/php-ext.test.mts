@@ -174,10 +174,10 @@ test('the build publishes the extension, which reports the version of its compos
   assert.equal(built.status, 0, built.stderr);
   const extension = path.join(root, 'var/php-ext/polyspec_demo.so');
   assert.ok(existsSync(extension), 'the library is published');
-  assert.equal(execute('php', ['-d', `extension=${extension}`, '-r', 'echo phpversion("polyspec_demo");'], { cwd: root }).stdout, '1.2.3', 'the version of composer.json');
+  assert.equal(execute(toolsPath(ROOT, 'bin', 'php'), ['-d', `extension=${extension}`, '-r', 'echo phpversion("polyspec_demo");'], { cwd: root }).stdout, '1.2.3', 'the version of composer.json');
   const script = path.join(ROOT, 'scripts/kit/symbols/php/reflection.php');
   const read = (args: string[]) => {
-    const result = execute('php', args, { cwd: root });
+    const result = execute(toolsPath(ROOT, 'bin', 'php'), args, { cwd: root });
     assert.equal(result.status, 0, result.stderr);
     return declarationsOf(result.stdout);
   };
