@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 178c76db7ee7b4719841761ee9f092944d5992752d3c37e301f450d790e24e1a -->
+<!-- source-sha256: eaf4a694a67ea5e0b8fa0971a85a307375ba564e48a89a37583504d75fc4e65e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- link는 자기 lock이 없는 workspace member(npm workspace member 또는 root path repository의 Composer package)의 설치된 폴더를 member 자신에게 요구하지 않고 그것을 설치하는 lock의 project에서 가져온다(K590).
 - link는 다른 repository의 link된 npm package가 선언했지만 consumer가 resolve하지 못하는 runtime 의존성과 그 의존성을 provider checkout이 설치한 폴더에 link하고, link-state-check는 빠진 것을 이름 붙인다. lock은 다시 쓰지 않는다 (K574).
 - 배포 소스가 import하는 모듈의 type package인 @types/picomatch와 @types/semver는 패키지의 dependency다. 그래서 per-file link로 그 소스를 type-check하는 consumer가 그것을 찾는다 (K582).
 - gate가 도는 동안 main이 움직인 land는 움직인 commit의 path가 고르는 gate, commits-check, build만 다시 돌린다. 입력을 건드린 commit이 없는 gate는 결과를 유지하므로 병렬 land가 더는 main을 쫓지 않는다 (K580).
