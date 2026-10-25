@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: e8302e2c0148a090f65fba0aa1c0da0893a7932df6be93a054fbc8cb21b1d3a4 -->
+<!-- source-sha256: e78bfe081b0c0a43ea3d09e23c815708d89ae54af9d9a1ca9f9af988e6fa93da -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -191,7 +191,7 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   가집니다(K245). `make layout-check`가 alint로 `config/layout.yml`(kit 공통 rule 위에 레포의 map을 더한 설정)에 맞춰 검사하며,
   그 안의 예외는 모두 이유를 가집니다.
   Enforced by: `make layout-check`
-- S6 언어 parity: repository의 모든 구현은 공유 feature unit, vector, API를 같은 수준으로 test하고, docs/spec이 정의하는 각 requirement(list item, 곧 글머리 기호나 번호 목록의 `**<id>**` 또는 heading `<id>`)는 unit이 인용합니다. scope가 없는 unit은 모든 구현에 binding합니다. component나 artifact에만 해당하는 requirement는 `contracts/features.json`의 coverage part 또는 `config/release.json`의 package에서 도출한 owner에만 feature unit을 scope할 수 있습니다. requirement는 owner를 이름으로 말하고 native test는 requirement를 인용합니다. 임의 profile, implementation 허용 목록, exclusion, native-only symbol은 scope가 아닙니다. directory suite의 case는 자신이 test하는 requirement를 `case.json`에 나열합니다.
+- S6 언어 parity: repository의 모든 구현은 공유 feature unit, vector, API를 같은 수준으로 test하고, docs/spec이 정의하는 각 requirement(list item, 곧 글머리 기호나 번호 목록의 `**<id>**` 또는 heading `<id>`)는 unit이 인용합니다. scope가 없는 unit은 모든 구현에 binding합니다. component나 artifact에만 해당하는 requirement는 `contracts/features.json`의 coverage part 또는 `config/release.json`의 package에서 도출한 owner 하나, 또는 한 feature의 명시적이고 비어 있지 않은 coverage-part owner 집합에만 feature unit을 scope할 수 있습니다. 해석된 각 implementation에는 자체 native binding이 있어야 하고, requirement는 각 owner 또는 그 owner가 test를 명시적으로 공유하는 implementation을 이름으로 말하며, 각 native test는 requirement를 인용합니다. 임의 profile, implementation 허용 목록, exclusion, native-only symbol은 scope가 아닙니다. directory suite의 case는 자신이 test하는 requirement를 `case.json`에 나열합니다.
   Enforced by: `make parity-declarations-check`, `make parity-check`
 - S7 test 위치: 기본 기능의 test는 그 기능을 소유한 package와 repository에 둡니다. 소비자는 소비자 관점의 test만 둡니다.
   Enforced by: `make layout-check`, `make parity-declarations-check`

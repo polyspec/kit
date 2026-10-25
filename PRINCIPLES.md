@@ -205,9 +205,11 @@ tool lands, a standard binds the work as written here.
   Enforced by: `make layout-check`
 - S6 Language parity: every implementation of a repository tests the same shared feature units, vectors and API at the same
   level, and each requirement that docs/spec defines (a list item, bulleted or numbered, `**<id>**` or a heading `<id>`) is cited by a unit.
-  An unscoped unit binds every implementation. A component- or artifact-specific requirement may scope a feature unit only to an owner
-  derived from a coverage part in `contracts/features.json` or a package in `config/release.json`; the requirement names that owner and
-  its native test names the requirement. A free-form profile, implementation allow-list, exclusion or native-only symbol is not scope.
+  An unscoped unit binds every implementation. A component- or artifact-specific requirement may scope a feature unit only to one owner
+  derived from a coverage part in `contracts/features.json` or a package in `config/release.json`, or to an explicit nonempty set of
+  coverage-part owners of one feature; every resolved implementation has its own native binding, the requirement names each owner or an
+  implementation whose tests it explicitly shares, and each native test names the requirement. A free-form profile, implementation
+  allow-list, exclusion or native-only symbol is not scope.
   A case of a directory suite lists the requirements it tests in its `case.json`.
   Enforced by: `make parity-declarations-check`, `make parity-check`
 - S7 Test placement: a test of a basic feature lives in the package and repository that own the feature; a consumer keeps

@@ -82,9 +82,10 @@ export interface ParityUnit {
   symbols?: ParitySymbol[];
 }
 
-/** A feature's native surface, traced to an existing part owner instead of an implementation allow-list. */
+/** A feature's native surface, traced to one existing owner or an explicit set of coverage parts. */
 export type ParityOwner =
   | { kind: 'coverage-part'; feature: string; part: string }
+  | { kind: 'coverage-parts'; feature: string; parts: string[] }
   | { kind: 'release-package'; artifact: 'archive' | 'go-module' | 'git-tag'; package: string };
 
 /** A native test of a requirement owned by one tooling package, outside the shared implementations. */
@@ -690,7 +691,11 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     }
     return undefined;
   };
-  const scopeOwner = (scope: ParityOwner, unit: ParityUnit): { implementation: ParityImplementation; markers: string[] } | undefined => {
+  const scopeOwner = (scope: ParityOwner, unit: ParityUnit, checkBindingPaths = true): { implementation: ParityImplementation; markers: string[]; root: string } | undefined => {
+    if (scope.kind === 'coverage-parts') {
+      fail(`unit owner ${scope.feature} has a coverage-parts group where one coverage part was expected`);
+      return undefined;
+    }
     if (scope.kind === 'release-package') {
       if (releaseOwners === undefined) releaseOwners = readOwnerRegistry('config/release.json', 'release package owner');
       if (!isJsonObject(releaseOwners)) return undefined;
@@ -724,9 +729,9 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
         fail(`unit owner release package ${scope.package} resolves to ${owners.length} implementation roots; a native package has one owner`);
         return undefined;
       }
-      if ((unit.bindings ?? []).some(binding => binding.test !== part && !within(part, binding.test))) fail(`unit owner release package ${scope.package} does not contain every bound test`);
+      if (checkBindingPaths && (unit.bindings ?? []).some(binding => binding.test !== part && !within(part, binding.test))) fail(`unit owner release package ${scope.package} does not contain every bound test`);
       const owner = present(owners[0], 'owners[0]');
-      return { implementation: owner, markers: [scope.package] };
+      return { implementation: owner, markers: [scope.package], root: part };
     }
     if (featureOwners === undefined) featureOwners = readOwnerRegistry('contracts/features.json', 'feature coverage owner');
     if (!isJsonObject(featureOwners) || !isJsonList(featureOwners.features)) return undefined;
@@ -757,15 +762,37 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     const featureTests = feature.tests;
     if (!(unit.bindings ?? []).every(binding => featureTests.includes(binding.test))) fail(`unit owner ${scope.feature}/${scope.part} does not declare each bound test in its feature tests`);
     const owner = present(owners[0], 'owners[0]');
-    if ((unit.bindings ?? []).some(binding => binding.test !== part && !within(part, binding.test))) fail(`unit owner ${scope.feature}/${scope.part} does not contain every bound test`);
-    return { implementation: owner, markers: [owner.name, ...(owner.prose ?? [])] };
+    if (checkBindingPaths && (unit.bindings ?? []).some(binding => binding.test !== part && !within(part, binding.test))) fail(`unit owner ${scope.feature}/${scope.part} does not contain every bound test`);
+    return { implementation: owner, markers: [owner.name, ...(owner.prose ?? [])], root: part };
   };
-  const requirementStartsWithOwner = (id: string, marker: string) => {
+  const requirementStartsWithOwner = (id: string, marker: string, allowConjunction = false) => {
     const text = requirementText(id);
     if (text === undefined || /\b(?:every|each|all)\s+(?:client|implementation)s?\b/i.test(text)) return false;
     const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const subject = new RegExp(`^\\s*(?:[-*+]\\s+)?\\*\\*${config.requirements.pattern}\\*\\*\\s+(?:The\\s+)?(?:\\x60${escaped}\\x60|${escaped})(.*)$`, 'i').exec(text);
-    return subject !== null && !/^\\s+(?:and|or|,)/i.test(subject[1] ?? '');
+    return subject !== null && (allowConjunction || !/^\\s+(?:and|or|,)/i.test(subject[1] ?? ''));
+  };
+  const requirementNamesOwner = (id: string, marker: string) => {
+    const text = requirementText(id);
+    if (text === undefined || /\b(?:every|each|all)\s+(?:client|implementation)s?\b/i.test(text)) return false;
+    const escaped = marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const subject = new RegExp(`^\\s*(?:[-*+]\\s+)?\\*\\*${config.requirements.pattern}\\*\\*\\s+(.*)$`, 'i').exec(text);
+    if (!subject) return false;
+    const body = subject[1] ?? '';
+    return new RegExp(`^(?:The\\s+)?(?:\\x60${escaped}\\x60|${escaped})(?:\\b|$)`, 'i').test(body)
+      || new RegExp(`\\b(?:and|or)\\s+(?:the\\s+)?(?:\\x60${escaped}\\x60|${escaped})(?:\\b|$)`, 'i').test(body);
+  };
+  const sharesOwner = (implementation: ParityImplementation, ownerName: string): boolean => {
+    const visited = new Set<string>();
+    let current = implementation;
+    while (current.shares !== undefined && !visited.has(current.name)) {
+      if (current.shares === ownerName) return true;
+      visited.add(current.name);
+      const shared = implementations.get(current.shares);
+      if (shared === undefined) return false;
+      current = shared;
+    }
+    return false;
   };
   for (const unit of config.units) {
     if (units.has(unit.id)) fail(`the unit ${unit.id} is declared twice`);
@@ -773,14 +800,39 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     const where = `unit ${unit.id}`;
     if (unit.owner !== undefined) {
       if (unit.kind !== 'feature') fail(`${where}: only a feature unit can have an owner; suites and API units apply to every implementation`);
-      const resolved = scopeOwner(unit.owner, unit);
-      if (resolved !== undefined) {
-        unitImplementations.set(unit.id, [resolved.implementation]);
-        for (const id of unit.requirements) {
-          const ownerNamed = resolved.markers.some(marker => requirementStartsWithOwner(id, marker));
-          if (!ownerNamed) fail(`${where}: requirement ${id} does not name its owner ${resolved.implementation.name}`);
+      const ownerScope = unit.owner;
+      const multiOwner = ownerScope.kind === 'coverage-parts';
+      let scopes: ParityOwner[];
+      if (ownerScope.kind === 'coverage-parts') scopes = ownerScope.parts.map(part => ({ kind: 'coverage-part', feature: ownerScope.feature, part }));
+      else scopes = [ownerScope];
+      const partNames = scopes.flatMap(scope => scope.kind === 'coverage-part' ? [scope.part] : []);
+      if (new Set(partNames).size !== partNames.length) fail(`${where}: multi-owner scope repeats a coverage owner`);
+      const resolved = scopes.map(scope => scopeOwner(scope, unit, !multiOwner)).filter((owner): owner is NonNullable<typeof owner> => owner !== undefined);
+      if (resolved.length === scopes.length && resolved.length > 0) {
+        const ownerNames = resolved.map(owner => owner.implementation.name);
+        if (new Set(ownerNames).size !== ownerNames.length) fail(`${where}: multi-owner scope resolves more than once to an implementation`);
+        if (multiOwner) {
+          for (const owner of resolved) {
+            const bindings = (unit.bindings ?? []).filter(binding => binding.implementation === owner.implementation.name);
+            if (bindings.length === 0) fail(`${where}: multi-owner scope has no native binding for ${owner.implementation.name}`);
+            if (bindings.some(binding => binding.test !== owner.root && !within(owner.root, binding.test))) fail(`${where}: owner ${owner.implementation.name} does not contain each of its bound tests`);
+          }
+          if ((unit.bindings ?? []).some(binding => !ownerNames.includes(binding.implementation))) fail(`${where}: a multi-owner feature binds an implementation outside its declared owners`);
         }
-        if ((unit.bindings ?? []).some(binding => binding.implementation !== resolved.implementation.name)) fail(`${where}: an owner-scoped feature binds an implementation other than ${resolved.implementation.name}`);
+        unitImplementations.set(unit.id, resolved.map(owner => owner.implementation));
+        for (const id of unit.requirements) {
+          const namedOwners = resolved.filter(owner => owner.markers.some(marker => multiOwner
+            ? requirementNamesOwner(id, marker)
+            : requirementStartsWithOwner(id, marker)));
+          const ownerNamed = multiOwner
+            ? resolved.every(owner => namedOwners.some(named => named.implementation.name === owner.implementation.name || sharesOwner(owner.implementation, named.implementation.name)))
+            : namedOwners.length > 0;
+          if (!ownerNamed) {
+            const ownerName = resolved.find(owner => !namedOwners.some(named => named.implementation.name === owner.implementation.name || sharesOwner(owner.implementation, named.implementation.name)))?.implementation.name;
+            fail(multiOwner ? `${where}: requirement ${id} does not name or share owner ${ownerName}` : `${where}: requirement ${id} does not name its owner ${ownerName}`);
+          }
+        }
+        if (!multiOwner && (unit.bindings ?? []).some(binding => binding.implementation !== resolved[0]?.implementation.name)) fail(`${where}: an owner-scoped feature binds an implementation other than ${resolved[0]?.implementation.name}`);
       }
     }
     const owned = unit.kind === 'api' ? unit.symbols ?? [] : unit.bindings ?? [];

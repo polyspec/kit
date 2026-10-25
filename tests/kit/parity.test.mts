@@ -1679,6 +1679,113 @@ test('K566 rejects component scope for a shared SQL requirement and an unowned c
   assert.ok(unlistedTest.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not declare each bound test in its feature tests')));
 });
 
+test('K635 resolves an explicit multi-owner feature without narrowing it to every implementation', TIMEOUT, (t) => {
+  const phpExt = { name: 'php-extension', prose: ['PHP extension'], runner: 'php', roots: ['php-ext'], tests: ['php-ext/tests/*.php'], symbols: { extractor: 'php', entry: 'php-ext' }, errors: { file: 'php-ext/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" }, shares: 'php' };
+  const files = {
+    'php/composer.json': '{}\n',
+    'php-ext/composer.json': '{}\n',
+    'php-ext/symbols.txt': 'php-ext/src/Codec.php::Codec::encode\n',
+    'php-ext/src/Code.php': "<?php\n    const CONFIG = 'CONFIG';\n    const CODEC_DECODE = 'CODEC_DECODE';\n",
+    'python/pyproject.toml': '[project]\nname = "example"\n',
+    'php/tests/SessionTest.php': 'PASS test_session\n// RX-6\n',
+    'php-ext/tests/SessionNativeTest.php': 'PASS test_session_native\n// RX-6\n',
+    'python/tests/test_session.py': 'PASS test_session\n# RX-6\n',
+    'docs/index.md': '# Codec\n\nSix implementations share the codec: Go, Rust, TS, PHP, PHP extension and Python.\n',
+    'docs/index.ko.md': '# Codec\n\n여섯 구현이 codec을 공유한다: Go, Rust, TS, PHP, PHP extension과 Python.\n',
+    'tools/languages.mjs': "export const LANGUAGES = ['go', 'rust', 'ts', 'php', 'python', 'php-extension'];\n",
+    'docs/spec/owner-scope.md': '# Session setup\n\n- **RX-6** The PHP and Python clients apply their declared session initialization before the first query.\n',
+    'contracts/features.json': JSON.stringify({ features: [{
+      id: 'session-initialization',
+      parity: ['session-initialization'],
+      tests: ['php/tests/SessionTest.php', 'php-ext/tests/SessionNativeTest.php', 'python/tests/test_session.py'],
+      coverage: { owners: {
+        php: { part: 'php', tests: ['php/tests/SessionTest.php'] },
+        'php-extension': { part: 'php-ext', tests: ['php-ext/tests/SessionNativeTest.php'] },
+        python: { part: 'python', tests: ['python/tests/test_session.py'] },
+      } },
+    }] }),
+  };
+  const change: Change = {
+    files,
+    edit: config => {
+      config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+      config.implementations.push(phpExt);
+      for (const unit of config.units.filter(item => item.kind === 'suite')) {
+        const phpBinding = unit.bindings?.find(binding => binding.implementation === 'php');
+        if (phpBinding) unit.bindings?.push({ ...phpBinding, implementation: 'php-extension' });
+      }
+      const encode = config.units.find(unit => unit.kind === 'api' && unit.id === 'encode');
+      assert.ok(encode?.symbols);
+      encode.symbols.push({ implementation: 'php-extension', symbol: 'php-ext/src/Codec.php::Codec::encode' });
+      config.units.push({
+        id: 'session-initialization',
+        kind: 'feature',
+        requirements: ['RX-6'],
+        owner: { kind: 'coverage-parts', feature: 'session-initialization', parts: ['owner/php', 'owner/php-extension', 'owner/python'] },
+        bindings: [
+          { implementation: 'php', test: 'php/tests/SessionTest.php', id: 'test_session' },
+          { implementation: 'php-extension', test: 'php-ext/tests/SessionNativeTest.php', id: 'test_session_native' },
+          { implementation: 'python', test: 'python/tests/test_session.py', id: 'test_session' },
+        ],
+      });
+      return config;
+    },
+  };
+  const { findings } = check(t, change, { execute: false });
+  assert.deepEqual(findings, []);
+  const sharedRequirement = check(t, { ...change, files: {
+    ...files,
+    'docs/spec/owner-scope.md': '# Session setup\n\n- **RX-6** Every client applies declared session initialization before the first query.\n',
+  } }, { execute: false }).findings;
+  assert.ok(sharedRequirement.some(finding => finding.message.includes('requirement RX-6 does not name or share owner')));
+});
+
+test('K635 rejects empty, duplicate, unknown and unbound members of a multi-owner scope', TIMEOUT, (t) => {
+  const base: Change = {
+    files: {
+      'contracts/features.json': JSON.stringify({ features: [{ id: 'roundtrip', parity: ['roundtrip'], tests: ['go/roundtrip_test.go', 'python-extra/tests/test_roundtrip.py'], coverage: { owners: {
+        go: { part: 'go', tests: ['go/roundtrip_test.go'] },
+        'python-extra': { part: 'python-extra', tests: ['python-extra/tests/test_roundtrip.py'] },
+      } } }] }),
+      'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-7** Go exposes its rollback fault through its test-only entry point.\n',
+      'python-extra/pyproject.toml': '[project]\nname = "extra"\n',
+      'python-extra/tests/test_roundtrip.py': 'PASS test_roundtrip\n# RX-7\n',
+    },
+    edit: config => {
+      config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+      config.units.push({ id: 'roundtrip', kind: 'feature', requirements: ['RX-7'], owner: { kind: 'coverage-parts', feature: 'roundtrip', parts: ['owner/go'] }, bindings: [{ implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip/bytes' }] });
+      return config;
+    },
+  };
+  const findings = (parts: string[]) => check(t, { ...base, edit: config => {
+    base.edit?.(config);
+    const unit = config.units.at(-1);
+    assert.ok(unit);
+    unit.owner = { kind: 'coverage-parts', feature: 'roundtrip', parts };
+    return config;
+  } }, { execute: false }).findings;
+  assert.ok(findings([]).some(finding => finding.rule === 'declaration'));
+  assert.ok(findings(['owner/go', 'owner/missing']).some(finding => finding.message.includes('does not name a coverage owner')));
+  assert.ok(findings(['owner/go', 'owner/go']).some(finding => finding.rule === 'declaration'));
+  const missingBinding = check(t, { ...base, edit: config => {
+    config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+    config.implementations.push({ name: 'python-extra', runner: 'python', roots: ['python-extra'], tests: ['python-extra/tests/*.py'] });
+    config.units.push({ id: 'roundtrip', kind: 'feature', requirements: ['RX-7'], owner: { kind: 'coverage-parts', feature: 'roundtrip', parts: ['owner/go', 'owner/python-extra'] }, bindings: [{ implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip/bytes' }] });
+    return config;
+  } }, { execute: false }).findings;
+  assert.ok(missingBinding.some(finding => finding.message.includes('has no native binding')));
+  const unrelatedOwner = check(t, { ...base, edit: config => {
+    config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+    config.implementations.push({ name: 'python-extra', runner: 'python', roots: ['python-extra'], tests: ['python-extra/tests/*.py'] });
+    config.units.push({ id: 'roundtrip', kind: 'feature', requirements: ['RX-7'], owner: { kind: 'coverage-parts', feature: 'roundtrip', parts: ['owner/go', 'owner/python-extra'] }, bindings: [
+      { implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip/bytes' },
+      { implementation: 'python-extra', test: 'python-extra/tests/test_roundtrip.py', id: 'test_roundtrip' },
+    ] });
+    return config;
+  } }, { execute: false }).findings;
+  assert.ok(unrelatedOwner.some(finding => finding.message.includes('does not name or share owner python-extra')));
+});
+
 test('K566: a release-package owner resolves its implementation from config/release.json', TIMEOUT, (t) => {
   const files = {
     'docs/spec/owner-scope.md': '# Native package\n\n- **RX-3** The codec-ts package exports its client declarations at its package root.\n',
