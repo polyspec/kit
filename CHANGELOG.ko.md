@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 57c0a2d3f9c0524cf80b5d408883022241b684a1db90d647aa39b599ae2771ae -->
+<!-- source-sha256: a4cd74ae36921f6d774299db14e8f1c6b17efb98f66c9ce4c3bb0b53dedb9279 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- dependency-policy-check은 Composer lock을 manifest와 대조하지 않고, composer.json이 Composer platform에 포함되는지도 보지 않는다(K180, K181). polyspec 패키지의 설치는 link이므로 lock은 개발 manifest가 떠난 release를 기록한다 (K602).
 - land는 duplication-check의 결과로 clone 블록만 세서, detection time처럼 실행을 설명하는 jscpd 줄이 land를 거부하지 않는다 (K599).
 - land는 jscpd 보고서를 끝맺는 시간 줄을 duplication-check의 finding으로 세지 않아, 같은 clone 집합이 새것으로 거부되지 않는다 (K600).
 - worktree-setup은 다른 checkout의 provided package를 main checkout이 가진 것처럼 그 checkout 폴더로의 symlink 하나로 link하고, main checkout 항목으로의 이전 link를 대체한다 (K598).
