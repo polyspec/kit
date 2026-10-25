@@ -73,7 +73,8 @@ test('a repository that installs the tarball imports the tool APIs of @polyspec/
   const copy = builtCopy(t);
   const packs = mkdtempSync(path.join(tmpdir(), 'kit-pack-'));
   t.after(() => rmSync(packs, { recursive: true, force: true }));
-  const packed = packedKit(run(NPM, ['pack', '--json', '--ignore-scripts', '--pack-destination', packs], copy));
+  // npm pack runs prepack and postpack as the release does, in the background, so its standard output is the JSON alone (K613).
+  const packed = packedKit(run(NPM, ['pack', '--json', '--foreground-scripts=false', '--pack-destination', packs], copy));
   // The consumer installs the tarball and the packages that kit depends on at run time with npm ci, offline, from a cache
   // primed with the tarball and with those packages, as a repository installs them (consumer-layout.test runs the bootstrap).
   const cache = path.join(packs, 'npm-cache');

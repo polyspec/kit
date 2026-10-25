@@ -1,48 +1,18 @@
 # The bootstrap of kit in a repository: `include ../kit/scripts/kit/kit-bootstrap.mk` in its Makefile, the file of the kit
-# checkout beside it, never a copy (K614); it includes the kit.mk of KIT, which runs the built tools of its dist. The package is
-# installed in two steps, both online: `make install-tools TOOLS=npm` installs the npm of packageManager into var/tools with the
-# installer of scripts/kit/bootstrap beside this file, then `make install-packages` installs package-lock.json with it,
-# @polyspec/kit included. Until then only those two steps run.
+# checkout beside it (K614); it includes the kit.mk beside it, which runs the sources of that checkout, so a change of
+# a source reaches the repository with no build (K613). The packages are installed in two steps, both online: `make install-tools
+# TOOLS=npm` installs the npm of packageManager into var/tools with the installer of scripts/kit/bootstrap beside this file, then
+# `make install-packages` installs package-lock.json with it.
 
-# The folder of this file, the scripts/kit of the kit checkout, which holds the installer of the bootstrap (K614).
+# The folder of this file, the scripts/kit of the kit checkout, which holds the sources that the repository runs (K614, K613).
 KIT_BOOTSTRAP := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
-#
-# KIT is the kit of the repository (K348-1). In a development checkout beside the kit checkout ../kit it is the dist of that
-# checkout from the first make on, the provider that the link installs (P30), so a fresh worktree reads kit.mk before npm ci and
-# installs with the tools of the kit it develops against; a kit checkout that is not built fails. Without it, as in CI, KIT is the
-# installed package.
-ifneq ($(wildcard ../kit/.git),)
-ifeq ($(wildcard ../kit/dist/kit.mk),)
-$(error ../kit/dist/kit.mk is missing: the kit checkout beside the repository is not built; run make build in ../kit)
-endif
-KIT := ../kit/dist
-else
-KIT := node_modules/@polyspec/kit/dist
-endif
-KIT_EXT := mjs
+# KIT is the scripts/kit of the kit checkout beside the repository, whose .mts sources node runs with their types stripped: they lie
+# outside node_modules, where node strips no types, and a release packs dist instead (prepack, K613). KIT_EXT is their extension.
+KIT := $(KIT_BOOTSTRAP)
+KIT_EXT := mts
 ONLINE ?=
 
-ifneq ($(wildcard $(KIT)/kit.mk),)
 include $(KIT)/kit.mk
-else
-# The tools of the two steps, as kit.mk names them: the node of the machine starts the bootstrap, and the npm that it installs
-# runs npm ci, by its absolute path (K171). The bootstrap also installs the node of the checkout, which a recipe of the
-# repository that install-packages needs starts as $(NODE), as under kit.mk (K185); the other tools come with install-tools.
-BOOTSTRAP_NODE := node
-NODE := $(CURDIR)/var/tools/bin/node
-NPM := $(CURDIR)/var/tools/bin/npm
-ifneq ($(filter-out install install-kit install-tools install-packages install-link,$(or $(MAKECMDGOALS),the default goal)),)
-$(error $(KIT)/kit.mk is missing; run make install, which runs install-tools TOOLS=npm, install-packages, install-tools and install-link)
-endif
-
-.PHONY: install-tools
-install-tools: ## Install the npm of packageManager into var/tools, before the package is installed; only TOOLS=npm; ONLINE
-ifeq ($(TOOLS),npm)
-	$(ONLINE) $(BOOTSTRAP_NODE) $(KIT_BOOTSTRAP)/bootstrap/bootstrap.mts
-else
-	@echo "install-tools: only TOOLS=npm runs before the package is installed; run make install, which runs install-tools TOOLS=npm, install-packages, install-tools and install-link" >&2; exit 2
-endif
-endif
 
 .PHONY: install-packages
 # install-packages runs npm ci of the lock as it is, the release record, since npm-install is a target of the kit.mk that it

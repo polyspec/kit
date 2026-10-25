@@ -316,12 +316,12 @@ function writeInstalled(source: string, target: string): void {
  * the folder exists as anything but the worktree of the branch.
  */
 /**
- * The link tool that rebuilds the packages of a worktree (K482). A consumer runs the link of its installed kit, and kit itself runs its
- * own scripts/kit/link.mts, which the worktree has as a source; the tool is chosen by which of the two the worktree holds.
+ * The link tool that rebuilds the packages of a worktree (K482). A consumer runs the link source of its linked kit (K613), and kit
+ * itself runs its own scripts/kit/link.mts, which the worktree has as a source; the tool is chosen by which of the two the worktree holds.
  */
 function linkTool(folder: string): string {
   const own = path.join(folder, 'scripts/kit/link.mts');
-  return existsSync(own) ? own : path.join(folder, 'node_modules/@polyspec/kit/dist/link.mjs');
+  return existsSync(own) ? own : path.join(folder, 'node_modules/@polyspec/kit/scripts/kit/link.mts');
 }
 
 /** The artifact repository of Composer that a composer.json of a repository names (K622). */

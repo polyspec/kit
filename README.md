@@ -38,7 +38,7 @@ make kit-sync                  # write the copies of the installed package, the 
 make kit-check                 # compare the package with package-lock.json, the copies with the package and the configuration with the schemas (offline)
 ```
 
-On the first adoption `scripts/kit/kit-bootstrap.mk`, itself a copy, does not exist yet, so `make` cannot run: after `npm install`
-adds the pinned `@polyspec/kit`, run `node node_modules/@polyspec/kit/dist/kit-sync.mjs` once, and `make kit-sync` from then on.
+A repository adopts kit with the kit checkout beside it: its Makefile includes `../kit/scripts/kit/kit-bootstrap.mk`, which runs
+the sources of that checkout (K614, K613), and `make kit-sync` writes the copies.
 
 `kit-sync` at the same tag changes nothing. A vendored file is changed in kit and copied again, never edited in a repository.

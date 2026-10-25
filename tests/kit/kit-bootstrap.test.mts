@@ -1,9 +1,8 @@
-// scripts/kit/kit-bootstrap.mk, the copy that a repository includes: it includes the kit.mk of the installed package with
-// KIT := node_modules/@polyspec/kit/dist and KIT_EXT := mjs. While the package is absent it offers only the two bootstrap
-// steps, install-tools TOOLS=npm and install-packages, and stops every other goal with the commands that install it.
+// scripts/kit/kit-bootstrap.mk, which a repository includes from the kit checkout beside it (K614): it includes the kit.mk beside
+// it with KIT, the scripts/kit of that checkout, and KIT_EXT := mts, so the repository runs the sources of kit with no build (K613).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -11,15 +10,19 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
-const MISSING = 'node_modules/@polyspec/kit/dist/kit.mk is missing; run make install, which runs install-tools TOOLS=npm, install-packages, install-tools and install-link';
 
-/** A repository whose Makefile includes the copy of kit-bootstrap.mk, removed with `t.after`. */
-function repository(t: TestContext) {
-  const root = mkdtempSync(path.join(tmpdir(), 'kit-bootstrap-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  mkdirSync(path.join(root, 'scripts/kit'), { recursive: true });
-  cpSync(path.join(KIT, 'kit-bootstrap.mk'), path.join(root, 'scripts/kit/kit-bootstrap.mk'));
-  writeFileSync(path.join(root, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\n');
+/**
+ * A repository beside a kit checkout that holds the bootstrap and the kit.mk of this kit, whose Makefile includes the bootstrap and
+ * then `makefile`; removed with `t.after`.
+ */
+function repository(t: TestContext, makefile = '') {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-bootstrap-'));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  mkdirSync(path.join(parent, 'kit/scripts/kit'), { recursive: true });
+  for (const file of ['kit-bootstrap.mk', 'kit.mk']) cpSync(path.join(KIT, file), path.join(parent, 'kit/scripts/kit', file));
+  const root = path.join(parent, 'repo');
+  mkdirSync(root);
+  writeFileSync(path.join(root, 'Makefile'), `include ../kit/scripts/kit/kit-bootstrap.mk\n${makefile}`);
   return root;
 }
 
@@ -28,50 +31,31 @@ const make = (root: string, ...args: string[]) => spawnSync('make', ['--no-print
 // The absolute path of the tool `file` of var/tools of `root` as make names it, by the real path of the directory (K171).
 const tool = (root: string, file: string) => path.join(realpathSync(root), 'var/tools/bin', file);
 
-test('without the package, a goal other than the bootstrap steps stops with the commands that install it', (t) => {
+test('the bootstrap includes the kit.mk beside it, which runs the sources of the kit checkout beside the repository (K613)', (t) => {
   const root = repository(t);
-  for (const goals of [['docs-check'], [], ['install-packages', 'kit-check']]) {
-    const run = make(root, ...goals);
-    assert.equal(run.status, 2, `${goals.join(' ')}: ${run.stdout}`);
-    assert.match(run.stderr, new RegExp(MISSING.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), goals.join(' '));
-  }
+  const dry = make(root, '-n', 'docs-check');
+  assert.equal(dry.status, 0, dry.stderr);
+  assert.equal(dry.stdout.trim(), `${tool(root, 'node')} ../kit/scripts/kit/check-documents.mts`);
+  assert.equal(make(root, '-n', 'install-tools', 'TOOLS=go').stdout.trim(), `${tool(root, 'node')} ../kit/scripts/kit/install-tools.mts go`);
 });
 
-test('without the package, install-tools runs the bootstrap installer of npm and refuses another tool', (t) => {
+test('install-tools TOOLS=npm runs the bootstrap installer of the kit checkout with the node of the machine', (t) => {
   const root = repository(t);
   const dry = make(root, '-n', 'install-tools', 'TOOLS=npm', 'ONLINE=online-wrapper');
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/bootstrap/bootstrap.mts');
-  const other = make(root, 'install-tools', 'TOOLS=go');
-  assert.equal(other.status, 2, other.stdout);
-  assert.match(other.stdout + other.stderr, /install-tools: only TOOLS=npm runs before the package is installed; run make install, which runs install-tools TOOLS=npm, install-packages, install-tools and install-link/);
+  assert.equal(dry.stdout.trim(), 'online-wrapper node ../kit/scripts/kit/bootstrap/bootstrap.mts');
 });
 
-test('install-packages runs npm ci with the pinned npm of var/tools, with or without the package', (t) => {
+test('install-packages runs npm ci with the pinned npm of var/tools', (t) => {
   const root = repository(t);
   const dry = make(root, '-n', 'install-packages', 'ONLINE=online-wrapper');
   assert.equal(dry.status, 0, dry.stderr);
   assert.equal(dry.stdout.trim(), `online-wrapper ${tool(root, 'npm')} ci`);
-  mkdirSync(path.join(root, 'node_modules/@polyspec/kit/dist'), { recursive: true });
-  cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
-  assert.equal(make(root, '-n', 'install-packages').stdout.trim(), `${tool(root, 'npm')} ci`);
 });
 
-test('with the package, the kit.mk of its dist runs the built tools', (t) => {
-  const root = repository(t);
-  mkdirSync(path.join(root, 'node_modules/@polyspec/kit/dist'), { recursive: true });
-  cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
-  const dry = make(root, '-n', 'docs-check');
-  assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), `${tool(root, 'node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
-  assert.equal(make(root, '-n', 'install-tools', 'TOOLS=go').stdout.trim(), `${tool(root, 'node')} node_modules/@polyspec/kit/dist/install-tools.mjs go`, 'install-tools is the target of the package');
-});
-
-test('without the package, a recipe of the repository that runs before install-packages starts the node of the checkout as $(NODE) (K185)', (t) => {
-  // A repository step that install-packages needs, such as one that orders a JSON file before npm ci, runs before kit.mk
-  // exists; an empty $(NODE) made it hard-code var/tools/bin/node.
-  const root = repository(t);
-  writeFileSync(path.join(root, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\ninstall-packages: ordered\n.PHONY: ordered\nordered:\n\t$(NODE) ordered.mjs\n');
+test('a recipe of the repository that runs before install-packages starts the node of the checkout as $(NODE) (K185)', (t) => {
+  // A repository step that install-packages needs, such as one that orders a JSON file before npm ci, starts the node of the checkout.
+  const root = repository(t, 'install-packages: ordered\n.PHONY: ordered\nordered:\n\t$(NODE) ordered.mjs\n');
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
   for (const file of ['node', 'npm']) writeFileSync(path.join(root, 'var/tools/bin', file), `#!/bin/sh\necho "${file} of the checkout: $*"\n`, { mode: 0o755 });
   const run = make(root, 'install-packages');
@@ -82,19 +66,16 @@ test('without the package, a recipe of the repository that runs before install-p
 test('npm of install-packages and of dependency-review gets allow-remote=root from one setting, so a lock that pins a URL installs and updates (K189)', (t) => {
   // dependency-review UPDATE=1 ran npm audit fix without allow-remote, and npm refused the URL-pinned @polyspec/kit (EALLOWREMOTE).
   const root = repository(t);
-  mkdirSync(path.join(root, 'node_modules/@polyspec/kit/dist'), { recursive: true });
-  cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
   for (const file of ['node', 'npm']) writeFileSync(path.join(root, 'var/tools/bin', file), `#!/bin/sh\necho "${file} allow-remote=$npm_config_allow_remote: $*"\n`, { mode: 0o755 });
   const lines = (...goal: string[]) => make(root, '-s', ...goal).stdout.split('\n').filter(line => line.includes(' allow-remote='));
   assert.deepEqual(lines('install-packages'), ['npm allow-remote=root: ci']);
-  assert.deepEqual(lines('dependency-review', 'UPDATE=1'), ['node allow-remote=root: node_modules/@polyspec/kit/dist/dependency-review.mjs --update']);
-  assert.deepEqual(lines('docs-check'), ['node allow-remote=: node_modules/@polyspec/kit/dist/check-documents.mjs'], 'another recipe does not get it');
+  assert.deepEqual(lines('dependency-review', 'UPDATE=1'), ['node allow-remote=root: ../kit/scripts/kit/dependency-review.mts --update']);
+  assert.deepEqual(lines('docs-check'), ['node allow-remote=: ../kit/scripts/kit/check-documents.mts'], 'another recipe does not get it');
 });
 
 test('make install runs the bootstrap of kit first, then the install steps that the repository adds to install (K246-2)', (t) => {
-  const root = repository(t);
-  writeFileSync(path.join(root, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\ninstall: demo-install\n.PHONY: demo-install\ndemo-install: install-kit\n\t@echo demo-install\n');
+  const root = repository(t, 'install: demo-install\n.PHONY: demo-install\ndemo-install: install-kit\n\t@echo demo-install\n');
   const lines = make(root, '-n', 'install').stdout.split('\n').filter(Boolean);
   const kit = lines.findIndex(line => line.includes('install-tools TOOLS=npm'));
   assert.ok(kit !== -1, `make install runs the bootstrap of kit:\n${lines.join('\n')}`);
@@ -103,11 +84,7 @@ test('make install runs the bootstrap of kit first, then the install steps that 
 
 test('install-packages runs the targets that INSTALL_PACKAGES_EXTRA names after its npm ci, in order, with the npm of var/tools and the allow-remote setting (K428)', (t) => {
   // A tools project outside the workspaces of the repository installs its own lock in a target of the repository.
-  const root = repository(t);
-  writeFileSync(path.join(root, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\nINSTALL_PACKAGES_EXTRA := first-extra second-extra\n.PHONY: first-extra second-extra\nfirst-extra:\n\t$(NPM) extra-one\nsecond-extra:\n\t$(NPM) extra-two\n');
-  // After npm ci the package is installed: its kit.mk is there for the targets that the sub-makes read, as the stub npm assumes.
-  mkdirSync(path.join(root, 'node_modules/@polyspec/kit/dist'), { recursive: true });
-  cpSync(path.join(KIT, 'kit.mk'), path.join(root, 'node_modules/@polyspec/kit/dist/kit.mk'));
+  const root = repository(t, 'INSTALL_PACKAGES_EXTRA := first-extra second-extra\n.PHONY: first-extra second-extra\nfirst-extra:\n\t$(NPM) extra-one\nsecond-extra:\n\t$(NPM) extra-two\n');
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
   writeFileSync(path.join(root, 'var/tools/bin/npm'), '#!/bin/sh\necho "npm allow-remote=$npm_config_allow_remote: $*"\n', { mode: 0o755 });
   const run = make(root, '-s', 'install-packages');
@@ -115,51 +92,15 @@ test('install-packages runs the targets that INSTALL_PACKAGES_EXTRA names after 
   assert.equal(run.stdout, 'npm allow-remote=root: ci\nnpm allow-remote=root: extra-one\nnpm allow-remote=root: extra-two\n');
 });
 
-test('K565 builds a fresh sibling Kit checkout before the consumer bootstrap selects dist', (t) => {
+test('the gates workflow installs the packages of a fresh sibling kit before make install and builds nothing, since the consumer runs its sources (K565, K613)', () => {
   const workflow = readFileSync(path.resolve(KIT, '../../workflows/gates.yml'), 'utf8');
   const clone = workflow.indexOf('- name: sibling checkouts');
-  const build = workflow.indexOf('- name: build sibling kit');
-  const install = workflow.indexOf('- name: install\n', build);
-  const buildStep = workflow.slice(build, install);
-
-  const workspace = mkdtempSync(path.join(tmpdir(), 'kit-bootstrap-workspace-'));
-  t.after(() => rmSync(workspace, { recursive: true, force: true }));
-  const consumer = path.join(workspace, 'consumer');
-  const sibling = path.join(workspace, 'kit');
-  mkdirSync(path.join(consumer, 'scripts/kit'), { recursive: true });
-  mkdirSync(path.join(sibling, '.git'), { recursive: true });
-  cpSync(path.join(KIT, 'kit-bootstrap.mk'), path.join(consumer, 'scripts/kit/kit-bootstrap.mk'));
-  writeFileSync(path.join(consumer, 'Makefile'), 'include scripts/kit/kit-bootstrap.mk\n.PHONY: selected-kit\nselected-kit:\n\t@echo $(KIT)\n');
-  writeFileSync(path.join(sibling, 'Makefile'), [
-    '.PHONY: install-tools install-packages kit-build',
-    'install-tools:',
-    '\t@test "$(TOOLS)" = npm',
-    'install-packages:',
-    '\t@test -d .',
-    'kit-build:',
-    '\t@mkdir -p dist',
-    '\t@printf ".PHONY: from-sibling\\nfrom-sibling:\\n\\t@echo sibling-kit\\n" > dist/kit.mk',
-    '',
-  ].join('\n'));
-  assert.equal(existsSync(path.join(sibling, 'dist/kit.mk')), false, 'the cloned sibling starts without a build');
-  const beforeBuild = make(consumer, 'selected-kit');
-  assert.equal(beforeBuild.status, 2, beforeBuild.stdout + beforeBuild.stderr);
-  assert.match(beforeBuild.stderr, /\.\.\/kit\/dist\/kit\.mk is missing/);
-
-  assert.ok(clone !== -1 && build > clone && install > build, 'the sibling Kit build must follow checkout and precede consumer install');
-  assert.match(buildStep, /if \[ -d \.\.\/kit\/\.git \]; then/);
-  assert.match(buildStep, /make -C \.\.\/kit install-tools TOOLS=npm/);
-  assert.match(buildStep, /make -C \.\.\/kit install-packages/);
-  assert.match(buildStep, /make -C \.\.\/kit kit-build/);
-
-  for (const args of [
-    ['-C', '../kit', 'install-tools', 'TOOLS=npm'],
-    ['-C', '../kit', 'install-packages'],
-    ['-C', '../kit', 'kit-build'],
-  ]) {
-    const result = make(consumer, ...args);
-    assert.equal(result.status, 0, `${args.join(' ')}: ${result.stdout}${result.stderr}`);
-  }
-  assert.equal(make(consumer, 'selected-kit').stdout.trim(), '../kit/dist');
-  assert.equal(make(consumer, 'from-sibling').stdout.trim(), 'sibling-kit');
+  const sibling = workflow.indexOf('- name: install sibling kit');
+  const install = workflow.indexOf('- name: install\n', sibling);
+  assert.ok(clone !== -1 && sibling > clone && install > sibling, 'the packages of the sibling kit are installed after the checkout and before the consumer install');
+  const step = workflow.slice(sibling, install);
+  assert.match(step, /if \[ -d \.\.\/kit\/\.git \]; then/);
+  assert.match(step, /make -C \.\.\/kit install-tools TOOLS=npm/);
+  assert.match(step, /make -C \.\.\/kit install-packages/);
+  assert.doesNotMatch(step, /kit-build/);
 });

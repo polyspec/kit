@@ -1,5 +1,5 @@
 <!-- doc-id: readme -->
-<!-- source-sha256: 78066645733512b58c7156892b5694b497913dd64adf3dedb173f3e6353589c6 -->
+<!-- source-sha256: 4733a093b6dcf302a796967844e0241ecb5056c325d4550f3bd0a718e6b031b0 -->
 # polyspec/kit
 
 모든 polyspec 저장소가 공유하는 도구입니다. 저장소는 이를 package `@polyspec/kit`으로 설치하고, 그 `package.json`의 `kit.copies`가 나열하는
@@ -37,7 +37,7 @@ make kit-sync                  # write the copies of the installed package, the 
 make kit-check                 # compare the package with package-lock.json, the copies with the package and the configuration with the schemas (offline)
 ```
 
-처음 도입할 때는 사본인 `scripts/kit/kit-bootstrap.mk`가 아직 없어 `make`를 실행할 수 없습니다. `npm install`이 pin한 `@polyspec/kit`를
-추가한 뒤 `node node_modules/@polyspec/kit/dist/kit-sync.mjs`를 한 번 실행하고, 그 뒤로는 `make kit-sync`를 씁니다.
+저장소는 옆의 kit checkout과 함께 kit을 도입합니다: 그 Makefile은 그 checkout의 source를 실행하는 `../kit/scripts/kit/kit-bootstrap.mk`를
+include하고(K614, K613), `make kit-sync`가 사본을 씁니다.
 
 같은 tag로 `kit-sync`를 다시 실행하면 바뀌는 것이 없습니다. vendored 파일은 kit에서 고쳐 다시 복사하며, 저장소에서 직접 고치지 않습니다.

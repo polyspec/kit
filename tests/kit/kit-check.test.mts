@@ -17,7 +17,7 @@ test('a tracked symbolic link fails with its path, and a tree without one passes
   symlinkSync('../a.txt', path.join(root, 'docs/link.txt'));
   assert.deepEqual(symlinkFindings(root), [], 'an untracked link is no tracked file');
   assert.equal(spawnSync('git', ['add', 'docs/link.txt'], { cwd: root }).status, 0);
-  assert.deepEqual(symlinkFindings(root), ['docs/link.txt: a tracked symbolic link; the repository creates no link but the links of the shared root files of kit to ../kit (K621). Fix: git rm --cached docs/link.txt and track the file it names']);
+  assert.deepEqual(symlinkFindings(root), ['docs/link.txt: a tracked symbolic link; a repository tracks the links of the shared root files of kit to ../kit and its other files as files (K621). Fix: git rm --cached docs/link.txt and track the file it names']);
 });
 
 // K621: a repository tracks the shared root files of kit as links to the matching files of the kit checkout beside it (K614);
@@ -32,7 +32,7 @@ test('a tracked link of a shared root file of kit to the matching file of ../kit
   for (const [file, target] of Object.entries({ 'PRINCIPLES.md': '../kit/PRINCIPLES.md', 'PRINCIPLES.ko.md': '../kit/PRINCIPLES.ko.md', '.editorconfig': '../kit/.editorconfig', '.claude/settings.json': '../../kit/claude/settings.json' })) symlinkSync(target, path.join(root, file));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   assert.deepEqual(symlinkFindings(root), []);
-  const finding = (file: string) => `${file}: a tracked symbolic link; the repository creates no link but the links of the shared root files of kit to ../kit (K621). Fix: git rm --cached ${file} and track the file it names`;
+  const finding = (file: string) => `${file}: a tracked symbolic link; a repository tracks the links of the shared root files of kit to ../kit and its other files as files (K621). Fix: git rm --cached ${file} and track the file it names`;
   rmSync(path.join(root, 'PRINCIPLES.ko.md'));
   symlinkSync('../kit/PRINCIPLES.md', path.join(root, 'PRINCIPLES.ko.md'));
   symlinkSync('../kit/AGENTS.md', path.join(root, 'AGENTS.md'));

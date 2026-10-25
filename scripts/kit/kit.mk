@@ -1,6 +1,6 @@
-# The targets of kit that every repository includes. A repository includes it through scripts/kit/kit-bootstrap.mk, which
-# sets KIT := node_modules/@polyspec/kit/dist and KIT_EXT := mjs; the Makefile of kit sets KIT := scripts/kit and
-# KIT_EXT := mts and runs the sources. Every tool runs as node $(KIT)/<tool>.$(KIT_EXT).
+# The targets of kit that every repository includes. A repository includes it through the kit-bootstrap.mk of the kit checkout
+# beside it, which sets KIT to the scripts/kit of that checkout and KIT_EXT := mts (K613); the Makefile of kit sets KIT :=
+# scripts/kit and KIT_EXT := mts; both run the sources. Every tool runs as node $(KIT)/<tool>.$(KIT_EXT).
 ifeq ($(and $(KIT),$(KIT_EXT)),)
 $(error kit.mk needs KIT and KIT_EXT; include it through kit-bootstrap.mk, or set both as the Makefile of kit does)
 endif

@@ -5,42 +5,15 @@
   "license": "MIT",
   "type": "module",
   "exports": {
-    "./tracked-files": {
-      "types": "./dist/tracked-files.d.mts",
-      "default": "./dist/tracked-files.mjs"
-    },
-    "./test-hooks": {
-      "types": "./dist/test-hooks.d.mts",
-      "default": "./dist/test-hooks.mjs"
-    },
-    "./test-progress": {
-      "types": "./dist/test-progress.d.mts",
-      "default": "./dist/test-progress.mjs"
-    },
-    "./test-output": {
-      "types": "./dist/test-output.d.mts",
-      "default": "./dist/test-output.mjs"
-    },
-    "./run-tests": {
-      "types": "./dist/run-tests.d.mts",
-      "default": "./dist/run-tests.mjs"
-    },
-    "./holder-lock": {
-      "types": "./dist/holder-lock.d.mts",
-      "default": "./dist/holder-lock.mjs"
-    },
-    "./run-command": {
-      "types": "./dist/run-command.d.mts",
-      "default": "./dist/run-command.mjs"
-    },
-    "./install-vscode": {
-      "types": "./dist/install-vscode.d.mts",
-      "default": "./dist/install-vscode.mjs"
-    },
-    "./link-folders": {
-      "types": "./dist/link-folders.d.mts",
-      "default": "./dist/link-folders.mjs"
-    },
+    "./tracked-files": "./scripts/kit/tracked-files.mts",
+    "./test-hooks": "./scripts/kit/test-hooks.mts",
+    "./test-progress": "./scripts/kit/test-progress.mts",
+    "./test-output": "./scripts/kit/test-output.mts",
+    "./run-tests": "./scripts/kit/run-tests.mts",
+    "./holder-lock": "./scripts/kit/holder-lock.mts",
+    "./run-command": "./scripts/kit/run-command.mts",
+    "./install-vscode": "./scripts/kit/install-vscode.mts",
+    "./link-folders": "./scripts/kit/link-folders.mts",
     "./package.json": "./package.json"
   },
   "files": [
@@ -81,7 +54,8 @@
   },
   "scripts": {
     "build": "make kit-build",
-    "prepack": "make kit-build"
+    "prepack": "make kit-build && node scripts/kit/pack-manifest.mts",
+    "postpack": "git checkout -- package.json scripts/kit/kit-bootstrap.mk claude/settings.json"
   },
   "packageManager": "npm@12.2.0+sha512.66c2632a94e796649738b2d7894d710c2cc2e1696893823066687f6b0d8a52e5f2b54eeaeaa32ffdc513ecca1e49ff794a5c2ec3f9515d879f1b3182b291cf35",
   "devDependencies": {

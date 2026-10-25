@@ -126,7 +126,9 @@ export const run = (command: string, args: string[], cwd: string, env: NodeJS.Pr
   return result.stdout;
 };
 
-// A copy of the tracked and new files of the kit checkout with its installed node_modules, built with make kit-build.
+// A copy of the tracked and new files of the kit checkout with its installed node_modules, built with make kit-build and committed,
+// so npm pack runs its prepack and postpack in it as the release does: the packed files name dist, and the copy names the sources
+// again after the pack (K613).
 export function builtCopy(t: { after: (fn: () => void) => void }) {
   const copy = mkdtempSync(path.join(tmpdir(), 'kit-package-'));
   t.after(() => rmSync(copy, { recursive: true, force: true }));
@@ -136,6 +138,7 @@ export function builtCopy(t: { after: (fn: () => void) => void }) {
   // from the primed cache.
   run(NPM, ['ci', '--offline', '--cache', primedCache(), '--ignore-scripts', '--no-audit', '--no-fund'], copy);
   run('make', ['--no-print-directory', 'kit-build'], copy);
+  commitSandbox(copy);
   return copy;
 }
 

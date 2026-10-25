@@ -12,8 +12,7 @@ let root: string | undefined;
  * The root of the repository: the top level of the Git work tree that holds the working directory, as `git rev-parse
  * --show-toplevel` names it, the directory to which the pre-push hook of git-hooks.mts changes as well. A tool may start below
  * the root, as `npm -w` starts it in a package directory, and still reads and writes the paths of the repository. The root
- * is not derived from the location of the module, since the tools also run from node_modules/@polyspec/kit/dist of a
- * repository. It is read on the first call, so a module that a project outside a repository imports reads no root; outside
+ * is not derived from the location of the module, since the tools also run from the kit checkout beside a repository (K613). It is read on the first call, so a module that a project outside a repository imports reads no root; outside
  * a Git work tree the call throws with the cause.
  */
 export function repositoryRoot(): string {

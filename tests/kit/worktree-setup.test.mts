@@ -17,6 +17,13 @@ const git = (cwd: string, ...args: string[]) => {
   return result.stdout.trim();
 };
 
+// The kit of a consumer is a link to the kit checkout beside it (K591), ../kit of the fixture, whose link source node runs with its
+// types stripped, since it lies outside node_modules (K613).
+const linkKit = (main: string) => {
+  mkdirSync(path.join(main, 'node_modules/@polyspec'), { recursive: true });
+  symlinkSync('../../../kit', path.join(main, 'node_modules/@polyspec/kit'));
+};
+
 test('worktree-setup makes the worktree of a row from main, links its node_modules, installs nothing and checks it, and a second run converges (K348, K519)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -25,10 +32,11 @@ test('worktree-setup makes the worktree of a row from main, links its node_modul
   // An install of the fixture would write installs.txt; the check reads the node_modules that the worktree links.
   // The link rebuild of K482 runs the link tool of the consumer from the linked node_modules, so the fixture has a no-op one.
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
-    'Makefile': 'install:\n\techo installed >> installs.txt\nlink-state-check:\n\ttest -f node_modules/@polyspec/kit/dist/link.mjs\n',
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'Makefile': 'install:\n\techo installed >> installs.txt\nlink-state-check:\n\ttest -f node_modules/@polyspec/kit/scripts/kit/link.mts\n',
     '.gitignore': 'installs.txt\nnode_modules/\n',
   });
+  linkKit(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
   const quiet = { print: () => {} };
@@ -57,11 +65,12 @@ test('worktree-setup rebuilds the packages of the worktree before its link-state
   // The install writes no build; the rebuild writes the build that the check reads, so the check fails unless the rebuild ran first.
   // A consumer runs the link of its installed kit: the fixture installs a link tool that writes the build the check reads.
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': "import { mkdirSync, writeFileSync } from 'node:fs';\nconst [, , command, target] = process.argv;\nif (command !== 'rebuild' || target !== '.') process.exit(2);\nmkdirSync('dist', { recursive: true });\nwriteFileSync('dist/index.d.ts', 'built\\n');\n",
+    '../kit/scripts/kit/link.mts': "import { mkdirSync, writeFileSync } from 'node:fs';\nconst [, , command, target] = process.argv;\nif (command !== 'rebuild' || target !== '.') process.exit(2);\nmkdirSync('dist', { recursive: true });\nwriteFileSync('dist/index.d.ts', 'built\\n');\n",
     'Makefile': 'install:\n\ttrue\nlink-state-check:\n\ttest -f dist/index.d.ts\n',
-    // The build is ignored at the root only: an unrooted dist/ would also ignore the link tool under node_modules/@polyspec/kit/dist.
+    // The build is ignored at the root only, as a repository ignores its own dist/.
     '.gitignore': '/dist/\nnode_modules/\n',
   });
+  linkKit(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
   const lines: string[] = [];
@@ -78,10 +87,11 @@ test('worktree-link-state links and checks the worktree without rebuilding produ
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'process.exit(37);\n',
+    '../kit/scripts/kit/link.mts': 'process.exit(37);\n',
     'Makefile': 'link-state-check:\n\t@echo checked > link-state-checked\n',
     '.gitignore': 'node_modules/\n',
   });
+  linkKit(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
   const lines: string[] = [];
@@ -119,7 +129,7 @@ test('worktree-setup gives a Composer project a vendor folder of links and its o
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
     'Makefile': 'link-state-check:\n\ttrue\n',
     '.gitignore': 'node_modules/\nvendor-php/\n',
     'composer.json': JSON.stringify({ name: 'demo/app', config: { 'vendor-dir': 'vendor-php' }, autoload: { 'psr-4': { 'App\\': 'src/' } } }),
@@ -132,6 +142,7 @@ test('worktree-setup gives a Composer project a vendor folder of links and its o
     'vendor-php/composer/autoload_psr4.php': `<?php // ${main}/src\n`,
     'vendor-php/autoload.php': `<?php // the autoload of ${main}\n`,
   });
+  linkKit(main);
   mkdirSync(path.join(main, 'vendor-php/demo'), { recursive: true });
   symlinkSync('../../packages/self', path.join(main, 'vendor-php/demo/self'));
   git(main, 'add', '-A');
@@ -162,17 +173,18 @@ test('worktree-setup links the node_modules of a worktree entry by entry, its ow
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
-    'node_modules/@polyspec/kit/package.json': '{"name":"@polyspec/kit"}\n',
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    '../kit/package.json': '{"name":"@polyspec/kit"}\n',
     'node_modules/left-pad/package.json': '{"name":"left-pad","main":"index.js"}\n',
     'node_modules/left-pad/index.js': 'module.exports = 1;\n',
     'node_modules/left-pad/bin.js': '#!/usr/bin/env node\n',
     'node_modules/.package-lock.json': '{}\n',
     'packages/own/package.json': '{"name":"@polyspec/own","main":"index.js"}\n',
     'packages/own/index.js': 'module.exports = 2;\n',
-    'Makefile': 'link-state-check:\n\ttest -f node_modules/@polyspec/kit/dist/link.mjs\n',
+    'Makefile': 'link-state-check:\n\ttest -f node_modules/@polyspec/kit/scripts/kit/link.mts\n',
     '.gitignore': 'node_modules/\n',
   });
+  linkKit(main);
   symlinkSync('../../packages/own', path.join(main, 'node_modules/@polyspec/own'));
   mkdirSync(path.join(main, 'node_modules/.bin'));
   symlinkSync('../left-pad/bin.js', path.join(main, 'node_modules/.bin/lp'));
@@ -210,7 +222,7 @@ test('worktree-setup gives each npm project and each Python environment of the m
   const venv = 'py/.venv';
   const site = `${venv}/lib/python3.14/site-packages`;
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
     'package-lock.json': '{}\n',
     'tools/ts/package-lock.json': '{}\n',
     'tools/ts/node_modules/typescript/index.js': 'module.exports = 3;\n',
@@ -223,9 +235,10 @@ test('worktree-setup gives each npm project and each Python environment of the m
     [`${site}/dep/__init__.py`]: '',
     [`${site}/__editable__.own.pth`]: `${main}/py/src\n`,
     [`${site}/__editable__.sibling.pth`]: `${parent}/sibling/src\n`,
-    'Makefile': 'link-state-check:\n\ttest -f node_modules/@polyspec/kit/dist/link.mjs\n',
+    'Makefile': 'link-state-check:\n\ttest -f node_modules/@polyspec/kit/scripts/kit/link.mts\n',
     '.gitignore': 'node_modules/\n.venv/\n',
   });
+  linkKit(main);
   chmodSync(path.join(main, venv, 'bin/tool'), 0o755);
   symlinkSync(process.execPath, path.join(main, venv, 'bin/python3.14'));
   symlinkSync('python3.14', path.join(main, venv, 'bin/python'));
@@ -265,7 +278,7 @@ test('worktree-setup writes the Composer bin proxies into the worktree, so a ven
   initRepository(main, '--initial-branch=main');
   const proxy = "#!/usr/bin/env php\n<?php\n/**\n * Proxy PHP file generated by Composer\n */\n$GLOBALS['_composer_autoload_path'] = __DIR__ . '/..'.'/autoload.php';\ninclude __DIR__ . '/..'.'/acme/lib/bin/tool';\n";
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
     'composer.json': JSON.stringify({ name: 'acme/app', config: { 'vendor-dir': 'vendor-php' } }),
     'vendor-php/acme/lib/bin/tool': '<?php echo "tool";\n',
     'vendor-php/acme/lib/bin/shell': '#!/bin/sh\n',
@@ -276,6 +289,7 @@ test('worktree-setup writes the Composer bin proxies into the worktree, so a ven
     'Makefile': 'link-state-check:\n\ttrue\n',
     '.gitignore': 'node_modules/\nvendor-php/\n',
   });
+  linkKit(main);
   chmodSync(path.join(main, 'vendor-php/bin/tool'), 0o755);
   symlinkSync('../acme/lib/bin/shell', path.join(main, 'vendor-php/bin/shell'));
   git(main, 'add', '-A');
@@ -302,7 +316,7 @@ test('worktree-setup gives a worktree a Python environment of the main checkout 
   initRepository(main, '--initial-branch=main');
   const site = 'var/python/lib/python3.14/site-packages';
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
     'pyproject.toml': '[tool.uv.workspace]\nmembers = ["packages/validator"]\n',
     'packages/validator/pyproject.toml': '[project]\nname = "validator"\n',
     'packages/validator/src/validator/__init__.py': '',
@@ -312,6 +326,7 @@ test('worktree-setup gives a worktree a Python environment of the main checkout 
     'Makefile': 'link-state-check:\n\ttrue\n',
     '.gitignore': 'node_modules/\nvar/\n',
   });
+  linkKit(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
   const folder = setupWorktree(main, { name: 'venv', id: 'T9', type: 'fix' }, { print: () => {} });
@@ -330,7 +345,7 @@ test('worktree-setup writes the files of vendor/composer that dump-autoload does
   initRepository(main, '--initial-branch=main');
   const versions = "<?php\nclass InstalledVersions { public static function all() { return require __DIR__ . '/installed.php'; } }\n";
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
     'composer.json': JSON.stringify({ name: 'acme/app' }),
     'vendor/composer/installed.json': '{"packages":[]}',
     'vendor/composer/installed.php': "<?php return ['root' => ['install_path' => __DIR__ . '/../../']];\n",
@@ -341,6 +356,7 @@ test('worktree-setup writes the files of vendor/composer that dump-autoload does
     'Makefile': 'link-state-check:\n\ttrue\n',
     '.gitignore': 'node_modules/\nvendor/\n',
   });
+  linkKit(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
   const composer = path.join(parent, 'composer');
@@ -373,10 +389,11 @@ test('worktree-setup links a provided package of another checkout to that checko
   initRepository(main, '--initial-branch=main');
   put(path.join(parent, 'prov'), { 'package.json': JSON.stringify({ name: '@polyspec/x' }) });
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
     'Makefile': 'link-state-check:\n\ttrue\n',
     '.gitignore': 'node_modules/\n',
   });
+  linkKit(main);
   symlinkSync('../../../prov', path.join(main, 'node_modules/@polyspec/x'));
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
@@ -400,13 +417,14 @@ test('worktree-setup gives the worktree the git-ignored go.work and go.work.sum 
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
     'Makefile': 'link-state-check:\n\ttrue\n',
     '.gitignore': 'node_modules/\ngo.work\ngo.work.sum\n!/tools/go.work\n',
     'packages/go/go.mod': 'module example.com/repo\n\ngo 1.27\n',
     'tools/go.mod': 'module example.com/tools\n\ngo 1.27\n',
     'tools/go.work': 'go 1.27\n\nuse .\n',
   });
+  linkKit(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
   const work = 'go 1.27\n\nuse (\n\t.\n\t../../../dep/packages/go\n)\n';
@@ -426,10 +444,11 @@ test('worktree-setup links the var/composer-artifacts of the main checkout as on
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
   put(main, {
-    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
     'Makefile': 'link-state-check:\n\ttrue\n',
     '.gitignore': 'node_modules/\n/var/\n',
   });
+  linkKit(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
   put(main, { 'var/composer-artifacts/polyspec-orm-0.0.1.zip': 'zip\n' });

@@ -50,7 +50,7 @@ export function copiesOf(manifest: Pick<KitPackage, 'kit'>): { file: string; fro
 
 /**
  * The package.json of the @polyspec/kit that runs this module, found by Node's self-reference of the package by its name:
- * kit's own in its checkout, and the installed package's in a repository, which runs it from node_modules/@polyspec/kit/dist.
+ * kit's own in its checkout, and the linked package's in a repository, which runs it from the scripts/kit of the kit checkout (K613).
  */
 export function runningKit(): KitPackage {
   const manifest = fileURLToPath(import.meta.resolve(`${PACKAGE}/package.json`));
@@ -185,8 +185,8 @@ const SHARED_LINKS: Record<string, string> = {
 };
 
 /**
- * A finding for each symbolic link in the index of `root`: the repository creates no link (AGENTS.md, K254), except a shared root
- * file of kit whose link names the matching file of the kit checkout beside the repository, and that file exists (K621).
+ * A finding for each symbolic link in the index of `root` other than a shared root file of kit whose link names the matching file
+ * of the kit checkout beside the repository, which exists: a repository holds its files as files (AGENTS.md, K254, K621).
  */
 export function symlinkFindings(root: string): string[] {
   return git(root, 'ls-files', '--stage', '-z').split('\0').filter(Boolean).flatMap(entry => {
@@ -198,7 +198,7 @@ export function symlinkFindings(root: string): string[] {
       const kit = path.join(root, '..', 'kit', shared);
       if (git(root, 'cat-file', 'blob', `:${file}`) === path.relative(path.dirname(path.join(root, file)), kit) && existsSync(kit)) return [];
     }
-    return [`${file}: a tracked symbolic link; the repository creates no link but the links of the shared root files of kit to ../kit (K621). Fix: git rm --cached ${file} and track the file it names`];
+    return [`${file}: a tracked symbolic link; a repository tracks the links of the shared root files of kit to ../kit and its other files as files (K621). Fix: git rm --cached ${file} and track the file it names`];
   });
 }
 
