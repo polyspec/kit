@@ -29,7 +29,6 @@ test('commit-subject: the type, the scope and the id are required', () => {
 });
 
 test('a Subject that already holds the id of its item is a finding, since make commit adds it (K380-1)', () => {
-  assert.deepEqual(rules('fix(core): Fix it (#T1) (#T1)'), ['commit-subject-id']);
   assert.deepEqual(rules('fix(core): Fix it (#T2) (#T1)'), ['commit-subject-id']);
   assert.deepEqual(rules('fix(core): Fix it (#T1)'), []);
   assert.deepEqual(rules('fix(core): Fix the parser (with tests) (#T1)'), []);
@@ -559,4 +558,12 @@ test('commits-check judges the stamp of a Korean twin on the tip of its range on
   const findings = rangeFindings(root, 'HEAD~3..HEAD', CONFIG);
   assert.equal(findings.length, 1, findings.join('\n'));
   assert.match(findings[0] ?? '', new RegExp(`^${tip}: commit-twin: docs/a\\.ko\\.md: revision: `));
+});
+
+// K648: the rule exists so that a Subject names its one row; the same id written twice still names one row, so it is no finding, and
+// pushed commits that repeat their id need no rewrite. Another id before the final one names two rows and stays a finding.
+test('a Subject that repeats the id of its item names one row and is no finding (K648)', () => {
+  assert.deepEqual(rules('docs(plan): Register the twin stamp row (#H25.65) (#H25.65)'), []);
+  assert.deepEqual(rules('fix(core): Fix it (#T2) (#T1)'), ['commit-subject-id']);
+  assert.deepEqual(rules('fix(core): Fix it (#T1) and (#T2) (#T1)'), ['commit-subject-id']);
 });
