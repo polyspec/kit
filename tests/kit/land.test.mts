@@ -806,3 +806,28 @@ test('land counts no jscpd timing line as a finding (K600)', () => {
   });
   assert.equal(newFindings(process.cwd(), asDuplication(`${clone}\n\u001b[90mtime: 748.289ms\u001b[39m`), asDuplication(`${clone}\ntime: 512.03ms`)), undefined);
 });
+
+// K609: every consumer links main live, so a land refreshes what they read after its merge, as a commit on main does (K551, K583): in
+// kit, a land of a build input builds dist. The Makefile here marks each kit-build.
+test('a land into kit that changes a build input builds dist after the merge (K609)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  const marker = path.join(parent, 'built');
+  put(main, {
+    'package.json': JSON.stringify({ name: '@polyspec/kit', version: '0.0.0' }),
+    'Makefile': `kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nkit-build:\n\ttouch ${marker}\n`,
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['scripts/**'], targets: ['docs-check'] }] }) + '\n',
+    'scripts/kit/a.mts': 'export const a = 1;\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = path.join(parent, 'repo-k609');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat/k609', 'main');
+  put(folder, { 'scripts/kit/a.mts': 'export const a = 2;\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'a');
+  land(main, 'feat/k609', { print: () => {} });
+  assert.ok(existsSync(marker), 'make kit-build ran after the merge');
+});
