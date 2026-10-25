@@ -368,3 +368,36 @@ test('worktree-setup writes the files of vendor/composer that dump-autoload does
   assert.deepEqual(readdirSync(own).sort(), readdirSync(path.join(main, 'vendor/composer')).sort(), 'the worktree holds the set of the main checkout');
   assert.equal(setupWorktree(main, { name: 'files', id: 'T10', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR, print: () => {}, composer }), folder, 'a second run converges');
 });
+
+// K538-1: parallel builds keep the Go build cache young, so an age of two hours freed nothing while it held 5.1 GB (crudui,
+// 2026-10-25); under the floor the cache is trimmed oldest first until the floor is met, sparing what was used in the last 10 minutes.
+test('worktree-setup trims a young Go build cache oldest first until the disk floor is met, sparing the last 10 minutes (K538-1)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    'node_modules/@polyspec/kit/dist/link.mjs': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'Makefile': 'link-state-check:\n\ttrue\n',
+    '.gitignore': 'node_modules/\n',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const cache = path.join(parent, 'go-build');
+  put(cache, { 'ab/older': 'x'.repeat(600), 'cd/old': 'y'.repeat(600), 'ef/now': 'z'.repeat(600) });
+  const minutes = (count: number) => new Date(Date.now() - count * 60 * 1000);
+  utimesSync(path.join(cache, 'ab/older'), minutes(50), minutes(50));
+  utimesSync(path.join(cache, 'cd/old'), minutes(30), minutes(30));
+  utimesSync(path.join(cache, 'ef/now'), minutes(1), minutes(1));
+  // 500 bytes are missing: the oldest entry frees them, and the next one stays.
+  const free = () => WORKTREE_DISK_FLOOR - (existsSync(path.join(cache, 'ab/older')) ? 500 : 0);
+  const lines: string[] = [];
+  const folder = setupWorktree(main, { name: 'young', id: 'T9', type: 'fix' }, { free, print: text => lines.push(text), goCache: () => cache });
+  assert.ok(existsSync(folder), 'the worktree is made once the trim met the floor');
+  assert.equal(existsSync(path.join(cache, 'ab/older')), false, 'the oldest entry goes first');
+  assert.ok(existsSync(path.join(cache, 'cd/old')), 'the trim stops once the floor is met');
+  assert.match(lines.join('\n'), /trimmed 1 entries of the Go build cache .*go-build, oldest first, sparing the last 10 minutes: 600 bytes freed/);
+  // Still under the floor after every entry older than 10 minutes went: the entry of the last minute stays, and setup refuses.
+  assert.throws(() => setupWorktree(main, { name: 'short', id: 'T11', type: 'fix' }, { free: () => WORKTREE_DISK_FLOOR - 10_000, print: () => {}, goCache: () => cache }), /after the trim of the Go build cache freed 600 bytes, the free disk is .* under the floor/);
+  assert.ok(existsSync(path.join(cache, 'ef/now')), 'an entry used in the last 10 minutes stays');
+});
