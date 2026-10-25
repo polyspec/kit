@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- worktree-setup links the main checkout's var/composer-artifacts, the artifact repository that a composer.json names, as one directory symlink, so Composer runs in a worktree; docs/operations/local-links states what a symlink cannot do for a worktree (K622).
 - `make worktree-link-state` prepares a worktree's linked installs and runs `link-state-check` without rebuilding product packages; `worktree-setup` keeps rebuilding first (K619).
 - catch-check-rust no longer reports a narrow Err arm: an arm with a guard, such as `Err(error) if error.kind() == NotFound => {}`, or one whose inner pattern names an error variant handles one named error and leaves every other to a later arm; an empty arm of every error, `Err(_)` or a binding, is still a finding (K620).
 - kit-check accepts the tracked links of PRINCIPLES.md, its twin, .editorconfig and .claude/settings.json to the matching files of ../kit, the second exception of the rule that a repository creates no link, and still reports every other tracked link (K621).

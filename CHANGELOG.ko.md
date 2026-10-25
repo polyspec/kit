@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 838931ab88208bdec78d245ce6e23c7ba87c9f1b200e494bb2ba789857511c9e -->
+<!-- source-sha256: 3cc359d55c4bd06942a9e9f4d56602b25a53a0f91d3420049a730b0bde0b9c80 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- worktree-setup은 main checkout의 var/composer-artifacts, 곧 composer.json이 이름 붙인 artifact repository를 하나의 directory symlink로 link하므로 worktree에서 Composer가 실행됩니다. docs/operations/local-links는 symlink가 worktree에 할 수 없는 일을 적습니다(K622).
 - `make worktree-link-state`는 worktree의 설치 link를 준비하고 product package를 rebuild하지 않은 채 `link-state-check`를 실행합니다. 일반 `worktree-setup`은 계속 먼저 rebuild합니다(K619).
 - catch-check-rust는 좁은 Err arm을 더 보고하지 않습니다. `Err(error) if error.kind() == NotFound => {}`처럼 guard가 있거나 안쪽 pattern이 error variant를 이름 붙인 arm은 이름 붙인 오류 하나만 다루고 나머지는 뒤의 arm에 넘깁니다. 모든 오류를 받는 빈 arm, 곧 `Err(_)`나 binding은 여전히 finding입니다(K620).
 - kit-check는 PRINCIPLES.md, 그 짝, .editorconfig, .claude/settings.json이 ../kit의 같은 파일로 가는 추적된 link를 받아들이며, 이는 저장소가 link를 만들지 않는다는 규칙의 두 번째 예외이고, 그 밖의 추적된 link는 여전히 보고한다(K621).
