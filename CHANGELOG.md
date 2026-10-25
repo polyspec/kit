@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A commit or a land into kit builds no dist: consumers run the sources of kit (K613), and npm's prepack builds dist at release, so the kit build of linked-build.mts (K551, the kit part of K609) is removed (K646).
 - `make commits-check` refuses an id in a commit Subject only when it differs from the final id: the same id written twice names its one row, so a pushed commit that repeats its id needs no rewrite (K648).
 - `make commits-check` accepts `Archived-To: <sha>` for a deleted test only when the commit's item is held and that reachable archive contains every deleted test with identical content; `Replaced-By` still works (K647).
 - divergence-check matches PHP function_exists probes against function declarations in implementation roots: declared functions remain coexistence findings regardless of namespace, while undeclared runtime capabilities such as pg_connect and pcntl_signal_dispatch are allowed (K644).

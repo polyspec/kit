@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6bee5841f608d7c30a52d98b933268b36db9db80d0c5ee38e1e7bfb52273b7da -->
+<!-- source-sha256: 6ef0647971970c31494f49f06fcf1a7fc83235e733eed4874cadeeb05e2b8e07 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit에 commit하거나 land해도 dist를 빌드하지 않습니다. consumer는 kit의 소스를 실행하고(K613) dist는 release 때 npm의 prepack이 빌드하므로, linked-build.mts의 kit 빌드(K551, K609의 kit 부분)를 지웠습니다(K646).
 - `make commits-check`는 commit Subject 안의 id가 마지막 id와 다를 때만 거부합니다. 같은 id를 두 번 쓴 것은 여전히 한 행을 가리키므로, id를 반복한 push된 commit을 다시 쓸 필요가 없습니다(K648).
 - `make commits-check`는 삭제 test를 대체하는 `Replaced-By`를 계속 허용하고, 항목이 명시적으로 보류되며 도달 가능한 보관 commit에 삭제 파일 내용이 모두 같을 때만 `Archived-To: <sha>`를 허용합니다(K647).
 - divergence-check는 function_exists 대상과 구현 루트의 PHP 함수 선언을 대조합니다. namespace와 무관하게 선언된 함수는 공존 finding으로 남고, pg_connect와 pcntl_signal_dispatch 같은 미선언 런타임 기능은 허용합니다(K644).

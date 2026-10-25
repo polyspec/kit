@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 9be7e32671f4229bec51eb1dc561654573b9dc89e7084aa05f1be6c448323c3b -->
+<!-- source-sha256: d3025d4aeb4bce12802ba00fff02cf608f10d11cacee0081c386384f4b8fb942 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -549,6 +549,6 @@
 | K643 | link과 link-state-check는 옆의 checkout에서 editable로 설치된 Python package를 link된 것으로 본다(K591, K529 후속). 원인: uv는 path 의존성을 editable로 설치해서 site-packages에 package 폴더 없이 dist-info의 direct_url.json(PEP 610)만 두는데, link은 그것을 설치 폴더가 없다고 보고했다(fsm의 packages/python과 polyspec-orm). 수정: editableFolder가 그 기록을 읽어 provider 폴더의 editable 설치는 link된 것으로, 다른 폴더의 것은 finding으로 본다. bootstrap의 K348-1 test는 K613을 따른다 | scripts/kit/link-folders.mts, scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern='K643\|K348-1' tests/kit/link.test.mts` | [o] |
 | K644 | divergence-check는 구현 루트에 선언된 PHP 함수의 function_exists 확인을 구현 공존 가드로 보고하고, 선언되지 않은 런타임 기능 확인은 허용합니다 | scripts/kit/divergence-check.mts and the exact K644 case in tests/kit/divergence-check.test.mts | `node --test --test-name-pattern=K644 tests/kit/divergence-check.test.mts` | [o] |
 | K645 | divergence-check는 PHP 구현 루트의 선언을 대조해 function_exists를 판정합니다. 전역 프로젝트 함수는 찾고 미선언 외부 함수는 허용합니다 | scripts/kit/divergence-check.mts and the K645 source-declaration case in tests/kit/divergence-check.test.mts | `node --test --test-name-pattern=K645 tests/kit/divergence-check.test.mts` | [o] |
-| K646 | kit에 commit하거나 land해도 dist를 빌드하지 않습니다. consumer는 kit의 소스를 실행하고(K613) dist는 release 때 npm의 prepack이 빌드하므로, 어떤 consumer도 kit의 dist를 읽지 않게 되면 linked-build.mts의 kit 빌드(K551, K609의 kit 부분)를 지웁니다. | scripts/kit/linked-build.mts without the kit build, and the K646 cases in tests/kit/land.test.mts and tests/kit/plan.test.mts. | `node --test --test-name-pattern=K646 tests/kit/land.test.mts tests/kit/plan.test.mts` | [~] |
+| K646 | kit에 commit하거나 land해도 dist를 빌드하지 않습니다. consumer는 kit의 소스를 실행하고(K613) dist는 release 때 npm의 prepack이 빌드하므로, 어떤 consumer도 kit의 dist를 읽지 않게 되면 linked-build.mts의 kit 빌드(K551, K609의 kit 부분)를 지웁니다. | scripts/kit/linked-build.mts without the kit build, and the K646 cases in tests/kit/land.test.mts and tests/kit/plan.test.mts. | `node --test --test-name-pattern=K646 tests/kit/land.test.mts tests/kit/plan.test.mts` | [o] |
 | K647 | Archived-To는 보류된 체크리스트 항목이 있고 삭제 파일이 도달 가능한 보관 커밋에 바이트 단위로 보존될 때만 시험 삭제를 허용합니다 | scripts/kit/check-commits.mts and the K647 cases in tests/kit/plan.test.mts | `node --test --test-name-pattern=K647 tests/kit/plan.test.mts` | [o] |
 | K648 | commit-subject-id는 Subject 안의 id가 마지막 id와 다를 때만 거부합니다. 이 규칙은 Subject가 한 행을 가리키게 하려는 것이고, 같은 id를 두 번 써도 그 행 하나를 가리키므로, id를 반복한 push된 commit(hyper c20a207)은 다시 쓸 필요도, 허용 sha 목록도 필요 없습니다. | scripts/kit/check-commits.mts and the K648 case in tests/kit/commits.test.mts. | `node --test --test-name-pattern=K648 tests/kit/commits.test.mts` | [o] |
