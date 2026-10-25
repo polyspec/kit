@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: be49663b63da6ee0d448f5f62da8a7309462e2ea7066afc6a75a1dede7217631 -->
+<!-- source-sha256: a8e43768721cbe0771e1eab993243f9d5f1d5a0f1e50e0ed2d7f764530b07557 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- catch-check-rust는 좁은 Err arm을 더 보고하지 않습니다. `Err(error) if error.kind() == NotFound => {}`처럼 guard가 있거나 안쪽 pattern이 error variant를 이름 붙인 arm은 이름 붙인 오류 하나만 다루고 나머지는 뒤의 arm에 넘깁니다. 모든 오류를 받는 빈 arm, 곧 `Err(_)`나 binding은 여전히 finding입니다(K620).
 - kit-check는 PRINCIPLES.md, 그 짝, .editorconfig, .claude/settings.json이 ../kit의 같은 파일로 가는 추적된 link를 받아들이며, 이는 저장소가 link를 만들지 않는다는 규칙의 두 번째 예외이고, 그 밖의 추적된 link는 여전히 보고한다(K621).
 - kit-check는 K614 이후 저장소에 그 복사본이 없으므로 kit-bootstrap.mk의 고정 task를 실행하는 kit에서 읽는다(K617).
 - PHP library가 없는 저장소(fsm의 test bed처럼 packages/php가 application인 저장소)의 확장은 자기 composer.json의 polyspec/<repository>-php-ext로 이름을 얻고 library 선언과 비교하지 않습니다. 이름, stub, arginfo header는 전처럼 검사하므로 lint-php-ext가 더 거부하지 않습니다(K616).
