@@ -144,3 +144,25 @@ test('docs-check runs the checks of DOCS_CHECKS after check-documents, each of t
   assert.match(failed.stderr, /\[docs-check\] failed:.* first-check/);
   assert.doesNotMatch(failed.stderr, /failed:.*second-check/);
 });
+
+// K581: every worktree compiled the same Rust dependency crates from scratch (orm: about 40 rustc processes, load 164 on 11 cores),
+// so a checkout whose mise.toml declares sccache compiles through it, with one cache under the var/tools of the main checkout, which
+// every worktree shares, capped in size; a missing sccache fails the build. cargo runs half the cores unless the caller sets its jobs.
+test('a checkout that declares sccache compiles Rust through one shared cache, and cargo runs half the cores (K581)', (t) => {
+  const makefile = `KIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\nshow:\n\t@env\n`;
+  const envOf = (root: string, extra: NodeJS.ProcessEnv = {}) => {
+    const shown = spawnSync('make', ['--no-print-directory', 'show'], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: '/usr/bin:/bin', CARGO_BUILD_JOBS: '', ...extra } });
+    assert.equal(shown.status, 0, shown.stderr);
+    return Object.fromEntries(shown.stdout.trim().split('\n').map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
+  };
+  const declared = realpathSync(tree(t, { 'Makefile': makefile, 'mise.toml': '[tools]\nsccache = "0.10.0"\n' }));
+  const env = envOf(declared);
+  assert.equal(env.RUSTC_WRAPPER, path.join(declared, 'var/tools/mise/shims/sccache'));
+  assert.equal(env.SCCACHE_DIR, path.join(declared, 'var/tools/sccache'));
+  assert.equal(env.SCCACHE_CACHE_SIZE, '5G');
+  const cores = Number(spawnSync('getconf', ['_NPROCESSORS_ONLN'], { encoding: 'utf8' }).stdout.trim());
+  assert.equal(env.CARGO_BUILD_JOBS, String(Math.max(2, Math.floor(cores / 2))));
+  assert.equal(envOf(declared, { CARGO_BUILD_JOBS: '3' }).CARGO_BUILD_JOBS, '3', 'the jobs of the caller stay');
+  const plain = realpathSync(tree(t, { 'Makefile': makefile, 'mise.toml': '[tools]\nnode = "26.12.0"\n' }));
+  assert.equal(envOf(plain).RUSTC_WRAPPER, undefined, 'a checkout without sccache compiles without a wrapper');
+});
