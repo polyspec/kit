@@ -386,14 +386,11 @@ worktree-link-state: ## Make the worktree ../<repository>-NAME-ID of a row on th
 	$(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix) --link-state-only
 
 # WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of
-# orm). land and worktree-prune run it, with make in the worktree, before they remove the worktree; a failing stop keeps the worktree.
+# orm). land runs it, with make in the worktree, before it removes the worktree; a failing stop keeps the worktree.
 .PHONY: land
 land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout is on main and clean and the branch is rebased on main and has a worktree; runs the static gates of kit-gates that its changed paths select, with docs-check and commits-check, in its worktree (no test: parity-check and test- targets are printed as not run, K394-1); a gate that fails there is refused only on a finding that main does not have, compared with the same gate run on main; merges fast-forward, then runs the WORKTREE_STOP targets of the worktree and removes it, refused while a process runs in it (K429), and removes the branch; offline
 	$(NODE) $(KIT)/land.$(KIT_EXT) $(BRANCH)
 
-.PHONY: worktree-prune
-worktree-prune: ## Remove the worktree and delete the branch of every branch merged into main (its own commits all in main, after its reflog creation point), running the WORKTREE_STOP targets of the worktree first, and list the others with the reason: a dirty worktree, an unmerged, fresh or reflog-less branch (K381); also list the processes that name a path of a removed worktree folder, by pid and path, and kill none; offline
-	$(NODE) $(KIT)/worktree-prune.$(KIT_EXT)
 
 # composer-install installs a consumer's Composer project: composer install of the tracked lock, then the link of the folders (K448).
 .PHONY: composer-install

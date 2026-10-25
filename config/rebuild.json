@@ -586,10 +586,6 @@
       "kind": "policy",
       "reason": "the union merge of a Korean twin with its revision marker (K354), run through git's merge driver interface; the union and the marker are polyspec's rule"
     },
-    "scripts/kit/worktree-prune.mts": {
-      "kind": "policy",
-      "reason": "the rule of P10 and K381 that merged branches and their worktrees are removed; git branch -d decides the merge, the selection is polyspec's rule"
-    },
     "scripts/kit/dependency-files.mts": {
       "kind": "policy",
       "reason": "the rule of K459 that a change to a dependency manifest or lock of any ecosystem selects the dependency gate; the list of manifests and locks is polyspec's rule"

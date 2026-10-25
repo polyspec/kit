@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 4e65c270dae92e95e545780306378725d06a129689eb3bad0f0341fd0a9ca939 -->
+<!-- source-sha256: f8aa81271dc6c795e6d19922ebddf4a49963c6d3c6121787e3974faf47c8af93 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -47,7 +47,7 @@ link는 kit 도구 `scripts/kit/link.mts`와 `scripts/kit/link-folders.mts`입�
 - `make worktree-link-state`는 같은 link 준비를 하고 product package를 rebuild하지 않은 채 `link-state-check`를 실행합니다. worktree의 목적이 link state 검사일 때 사용하며 검사를 건너뛰지는 않습니다. `make worktree-setup`은 검사 전 rebuild를 계속 수행합니다.
 - worktree-setup은 main checkout의 `var/composer-artifacts`, 곧 `composer.json`이 이름 붙인 artifact repository를 하나의 directory symlink로 link합니다. Composer는 그것을 읽기만 하기 때문입니다(K622). symlink가 worktree에 할 수 없는 일이 둘 있습니다. Python `.venv`는 main checkout의 것으로 가는 하나의 directory symlink일 수 없습니다. 그러면 저장소 자기 패키지의 editable install이 main checkout의 소스를 실행하므로, 그 항목들을 link합니다(K533). make의 timestamp stamp는 새 checkout을 건너 이어질 수 없습니다. worktree에 checkout된 파일은 main checkout의 모든 stamp보다 새로우므로 시간을 비교하는 target은 worktree에서 다시 실행되며, 거기서 유지되어야 하는 stamp는 내용으로 판단합니다.
 - `main`은 `make land`와 pre-commit hook을 통과한 commit만 씁니다(K495). 두 번째 land는 첫 번째의 lock을 기다리고, `main`보다 뒤처진 branch는 그 worktree에서 rebase되며, `main`의 수동 merge, reset, update-ref는 reference-transaction hook이 거부합니다.
-- worktree와 branch는 branch가 `main`에 merge되면 바로 지웁니다. `make land`는 land한 branch를 지우고, `make worktree-prune`은 merge된 모든 branch를 지웁니다. merge된 branch가 남아 있으면 `make link-state-check`가 실패합니다(K381).
+- worktree와 branch는 branch가 `main`에 merge되면 바로 지웁니다. `make land`는 land한 branch를 지우고, `main`이 포함한 branch의 다른 깨끗한 worktree 중 process가 없는 것도 모두 지웁니다. process가 아직 실행 중인 worktree는 다음 land까지 남습니다(K626).
 
 ## 알려진 영향
 
