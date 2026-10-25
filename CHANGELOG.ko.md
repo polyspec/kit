@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a29e44d31e8d55a635ec360b421858dd4b0da868a1f558f1485c0ac805b6c77d -->
+<!-- source-sha256: c20052e9f2c38874dbe8a98eff74e72e68fa5b36de77325b09c35872e6c0228f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- commit의 Red-Gate와 Red-Test 줄은 item-red가 Verification을 돌린 head를 적고, red의 증명은 그 기록이다. Verification이 통과할 수도 있는 merge-base와 조상 검사는 없앴다 (K562).
 - kit은 자기 lint-ts, layout-check, owner-validate, rebuild-check를 통과한다. 쓰지 않는 import를 지우고, catch-check-rust는 S9 예외, workspace lint, owner를 갖고, 모든 도구는 분류를 갖는다 (K606).
 - dependency-policy-check은 command line의 PACKAGES일 때만 --packages를 넘겨, 자기 PACKAGES를 정의한 repository도 모든 package에 gate를 돌린다 (K605).
 - `make land`는 선택된 static gate를 한 번 실행한 뒤 merge 전후 build 없이 fast-forward하고 branch와 worktree를 안전하게 정리한다(K603).

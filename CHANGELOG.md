@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The Red-Gate and Red-Test lines of a commit name the head where item-red ran the Verification, and the proof of a red is that record; the merge-base, where the Verification may pass, and the ancestry check are gone (K562).
 - kit passes its own lint-ts, layout-check, owner-validate and rebuild-check: unused imports go, catch-check-rust has its S9 exception, workspace lints and owner, and every tool has its class (K606).
 - dependency-policy-check passes --packages only for PACKAGES of the command line, so a repository whose Makefile names its own PACKAGES runs the gate on every package (K605).
 - `make land` runs selected static gates once, then fast-forwards and safely removes the branch and worktree without running a build before or after the merge (K603).
