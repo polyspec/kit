@@ -305,6 +305,34 @@ test('each archive carries the manifest of its package unchanged', (t) => {
   assert.deepEqual(zip, ['composer.json', 'composer.lock', 'src/', 'src/Engine.php']);
 });
 
+test('a Composer archive carries the tracked native helper and its explicit build command', (t) => {
+  const source = '#include <sqlite3ext.h>\nSQLITE_EXTENSION_INIT1\n';
+  const builder = "<?php\n// Explicit consumer-side helper build command.\n";
+  const box = releaseSandbox(t, { mutate(root) {
+    edit(root, 'packages/fixture-php/composer.json', manifest => ({ ...manifest, bin: ['bin/build-sqlite-cancel.php'] }));
+    mkdirSync(path.join(root, 'packages/fixture-php/src/native'), { recursive: true });
+    mkdirSync(path.join(root, 'packages/fixture-php/bin'), { recursive: true });
+    writeFileSync(path.join(root, 'packages/fixture-php/src/native/sqlite_cancel.c'), source);
+    const command = path.join(root, 'packages/fixture-php/bin/build-sqlite-cancel.php');
+    writeFileSync(command, builder);
+    chmodSync(command, 0o755);
+  } });
+  const names = release.assets(context(box), box.tag('v0.0.1'));
+  const archive = path.join(box.root, 'var/release/assets', known(names[2], 'names[2]'));
+  const manifest = JSON.parse(release.packedManifest(context(box), archive)) as { bin?: string[] };
+  assert.deepEqual(manifest.bin, ['bin/build-sqlite-cancel.php']);
+  const entries = spawnSync('unzip', ['-Z1', archive], { encoding: 'utf8' });
+  assert.equal(entries.status, 0, entries.stderr);
+  assert.ok(entries.stdout.split('\n').includes('src/native/sqlite_cancel.c'));
+  assert.ok(entries.stdout.split('\n').includes('bin/build-sqlite-cancel.php'));
+  assert.equal(spawnSync('unzip', ['-p', archive, 'src/native/sqlite_cancel.c'], { encoding: 'utf8' }).stdout, source);
+  assert.equal(spawnSync('unzip', ['-p', archive, 'bin/build-sqlite-cancel.php'], { encoding: 'utf8' }).stdout, builder);
+  assert.equal(entries.stdout.includes('src/native/bin/'), false, 'a consumer build output is not archived as tracked source');
+  const metadata = spawnSync('unzip', ['-Z', '-v', archive], { encoding: 'utf8' });
+  assert.equal(metadata.status, 0, metadata.stderr);
+  assert.match(metadata.stdout, /bin\/build-sqlite-cancel\.php[\s\S]*?Unix file attributes \(100755 octal\):\s+-rwxr-xr-x/);
+});
+
 test('K560 Composer archives generate arginfo from the tagged stub without changing the checkout', (t) => {
   const committedStub = "<?php\n// committed extension stub\n";
   const box = releaseSandbox(t, { mutate(root) {
