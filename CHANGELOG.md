@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The refusal of a done without a recorded red no longer advises item-red BEFORE=, which K608 removed (K608-1).
 - item-red runs the Verification on the tree of the row and takes no BEFORE=: the swap to an old commit, its build and its checks (K389-1, K389-3, K525, K553, K556) are removed, and the red of an old fix is taken by hand with git (K608).
 - The Red-Gate and Red-Test lines of a commit name the head where item-red ran the Verification, and the proof of a red is that record; the merge-base, where the Verification may pass, and the ancestry check are gone (K562).
 - kit passes its own lint-ts, layout-check, owner-validate and rebuild-check: unused imports go, catch-check-rust has its S9 exception, workspace lints and owner, and every tool has its class (K606).

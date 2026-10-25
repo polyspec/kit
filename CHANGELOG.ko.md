@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: aec5b70829b0fb72cb150ab2b48255caec3696222a3a1357b1cf7e41cf06e116 -->
+<!-- source-sha256: c509dd4ea7f6e851109b173d7c8f7990467c5020d2bb6fbef99a54e275e29028 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 기록된 red 없이 done을 거부하는 메시지는 K608이 지운 item-red BEFORE=를 더는 권하지 않는다 (K608-1).
 - item-red은 행의 tree에서 Verification을 돌리고 BEFORE=를 받지 않는다. 옛 commit으로 바꿔 끼우는 일, 그 build, 그 검사(K389-1, K389-3, K525, K553, K556)는 지웠고, 옛 수정의 red는 git으로 직접 기록한다 (K608).
 - commit의 Red-Gate와 Red-Test 줄은 item-red가 Verification을 돌린 head를 적고, red의 증명은 그 기록이다. Verification이 통과할 수도 있는 merge-base와 조상 검사는 없앴다 (K562).
 - kit은 자기 lint-ts, layout-check, owner-validate, rebuild-check를 통과한다. 쓰지 않는 import를 지우고, catch-check-rust는 S9 예외, workspace lint, owner를 갖고, 모든 도구는 분류를 갖는다 (K606).
