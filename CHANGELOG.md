@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- `make commits-check` accepts `Archived-To: <sha>` for a deleted test only when the commit's item is held and that reachable archive contains every deleted test with identical content; `Replaced-By` still works (K647).
 - divergence-check matches PHP function_exists probes against function declarations in implementation roots: declared functions remain coexistence findings regardless of namespace, while undeclared runtime capabilities such as pg_connect and pcntl_signal_dispatch are allowed (K644).
 - divergence-check matches global and namespaced function_exists probes to declarations across PHP implementation roots, while an undeclared external namespaced capability is not mistaken for an ORM implementation (K645).
 - link and link-state-check take a Python package that is installed editable from its sibling checkout as linked, by the direct_url.json of its dist-info, and report one installed editable from another folder (K643).

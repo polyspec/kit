@@ -405,6 +405,82 @@ test('blocked and dropped refuse an excuse that cites no kit row, and a deleted 
   assert.match(rangeFindings(repo, 'HEAD~2..HEAD~1', COMMIT_RULES).join('\n'), /: commit-deleted-test: /, 'a range refuses a deletion without Replaced-By');
 });
 
+test('K647: Archived-To requires a held row and an ancestor with identical deleted test files', (t) => {
+  const deletion = (state: '[!]' | '[-]' | '[~]', archiveContent = 'archived test\n', deletedContent = archiveContent, archiveBeforeFile = false) => {
+    const root = committed(t, 'T1', 'T2');
+    const runGit = (...args: string[]) => {
+      const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: root, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    let archive: string;
+    if (archiveBeforeFile) {
+      archive = runGit('rev-parse', 'HEAD');
+      put(root, { 'tests/archived.test.mts': deletedContent });
+      runGit('add', '-A');
+      runGit('commit', '--quiet', '--no-verify', '-m', 'Add the test');
+    } else {
+      put(root, { 'tests/archived.test.mts': archiveContent });
+      runGit('add', '-A');
+      runGit('commit', '--quiet', '--no-verify', '-m', 'Archive the test');
+      archive = runGit('rev-parse', 'HEAD');
+      if (deletedContent !== archiveContent) {
+        put(root, { 'tests/archived.test.mts': deletedContent ?? '' });
+        runGit('add', '-A');
+        runGit('commit', '--quiet', '--no-verify', '-m', 'Change the test');
+      }
+    }
+    setState(root, { id: 'T1', state: '[~]' });
+    if (state === '[!]') setState(root, { id: 'T1', state, cause: 'waits for the next release of K392-1', retry: 'K392-1 done', causeKo: '원인', retryKo: '완료 후 재시도' });
+    if (state === '[-]') setState(root, { id: 'T1', state, cause: 'unrelated to K392-2', causeKo: '원인' });
+    rmSync(path.join(root, 'tests/archived.test.mts'));
+    stage(root, '-A');
+    return { root, archive };
+  };
+  const message = (archive: string) => `refactor(archive): Remove the test fixture (#T1)\n\nPreserve the source for the held task.\nArchived-To: ${archive}\n`;
+
+  const held = deletion('[!]');
+  assert.deepEqual(indexItemFindings(held.root, COMMIT_RULES, message(held.archive)), [], 'a held item can archive an identical test from an ancestor commit');
+
+  const impossible = deletion('[-]');
+  assert.deepEqual(indexItemFindings(impossible.root, COMMIT_RULES, message(impossible.archive)), [], 'an explicitly impossible item can archive the identical test');
+
+  const active = deletion('[~]');
+  assert.deepEqual(indexItemFindings(active.root, COMMIT_RULES, message(active.archive)).map(found => found.rule), ['commit-deleted-test'], 'an active item cannot authorize archive deletion');
+
+  const missing = deletion('[!]', 'archived test\n', 'archived test\n', true);
+  assert.deepEqual(indexItemFindings(missing.root, COMMIT_RULES, message(missing.archive)).map(found => found.rule), ['commit-deleted-test'], 'an archive without the deleted file is rejected');
+
+  const mismatch = deletion('[!]', 'old test\n', 'new test\n');
+  assert.deepEqual(indexItemFindings(mismatch.root, COMMIT_RULES, message(mismatch.archive)).map(found => found.rule), ['commit-deleted-test'], 'different archived contents are rejected');
+
+  const detached = committed(t, 'T1', 'T2');
+  const runGit = (...args: string[]) => {
+    const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: detached, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  const branch = runGit('branch', '--show-current');
+  runGit('branch', 'archive-side');
+  put(detached, { 'tests/archived.test.mts': 'archived test\n' });
+  runGit('add', '-A');
+  runGit('commit', '--quiet', '--no-verify', '-m', 'Add current test');
+  runGit('checkout', 'archive-side');
+  put(detached, { 'tests/archived.test.mts': 'archived test\n' });
+  runGit('add', '-A');
+  runGit('commit', '--quiet', '--no-verify', '-m', 'Add detached archive');
+  const detachedArchive = runGit('rev-parse', 'HEAD');
+  runGit('checkout', branch);
+  setState(detached, { id: 'T1', state: '[~]' });
+  setState(detached, { id: 'T1', state: '[!]', cause: 'waits for the next release of K392-1', retry: 'K392-1 done', causeKo: '원인', retryKo: '완료 후 재시도' });
+  rmSync(path.join(detached, 'tests/archived.test.mts'));
+  stage(detached, '-A');
+  assert.deepEqual(indexItemFindings(detached, COMMIT_RULES, message(detachedArchive)).map(found => found.rule), ['commit-deleted-test'], 'an existing archive that is not reachable from the deletion parent is rejected');
+
+  const absent = deletion('[!]', undefined);
+  assert.deepEqual(indexItemFindings(absent.root, COMMIT_RULES, message('0'.repeat(40))).map(found => found.rule), ['commit-deleted-test'], 'a nonexistent archive commit is rejected');
+});
+
 // K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.
 test('item-new refuses a private path, and item-edit replaces the Task cells of a row in any state (K373)', (t) => {
   const root = committed(t, 'T1');

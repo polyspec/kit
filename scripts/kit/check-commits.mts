@@ -13,8 +13,8 @@
 //                    that the commit adds is not a change, so a commit may add items and sub-items
 //   commit-changelog a commit that moves an item to the done state [o] also changes the changelog of the rules,
 //                    CHANGELOG.md and its Korean twin
-//   commit-deleted-test a commit that deletes a test file has a line `Replaced-By: <path>` that names a tracked test file
-//                    of its tree, the test that covers the same requirement (K339)
+//   commit-deleted-test a commit that deletes a test file names a tracked replacement, or archives the same file contents at a
+//                    reachable commit with `Archived-To: <sha>` while its checklist item is explicitly held (K339, K647)
 //   commit-row       the id of the subject is an item of a checklist of docs/plans in the tree of the commit (the index for the hook);
 //                    the first commit of a repository passes
 //   row-id           on a branch, no row of the index holds an ID that main holds with another task, unless the ID is the row
@@ -42,7 +42,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
-import { DONE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
+import { BYPASSED, DONE, IMPOSSIBLE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
 import { clashMessage, rowClashes } from './row-ids.mts';
@@ -260,9 +260,10 @@ export function changesATest(file: string, after: (file: string) => string, chan
  * change, `changed` holds the paths that the change touches, and `message`, when given, is the message of the commit, whose
  * type fix needs a changed test file (K257).
  */
-export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, changedLines = () => [], deleted = [], tracked = () => false }: Change) {
+export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, parent, changedLines = () => [], deleted = [], tracked = () => false }: Change) {
   const changes = [];
-  for (const tracker of trackersOf(loadConfig(root), new Set(plans))) {
+  const trackers = trackersOf(loadConfig(root), new Set(plans));
+  for (const tracker of trackers) {
     const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
     const old = states(before(tracker.path));
     for (const [id, state] of states(after(tracker.path))) {
@@ -290,11 +291,36 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
   if (message !== undefined && message.startsWith('fix(') && stated !== 'no-red' && !changes.some(change => change.to === DONE) && !changed.some(file => changesATest(file, after, changedLines))) {
     found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or states No-Red: <reason> when no test can show it` });
   }
-  // A commit that deletes a test file names the test that replaces it, one that covers the same requirement (K339).
-  if (message !== undefined && deleted.length > 0 && ![...message.matchAll(/^Replaced-By: (\S+)$/gm)].some(([, file = '']) => isTestFile(file) && tracked(file))) {
-    found.push({ rule: 'commit-deleted-test', message: `the commit deletes the test file ${deleted.join(', ')} and its body names no replacement; add a line Replaced-By: <path of a tracked test file that covers the same requirement> (${TEST_FILES})` });
+  // A deletion either names its replacement (K339), or archives the identical files at a reachable commit while its item is held.
+  const archived = message !== undefined && parent !== undefined && deleted.length > 0
+    && archivedTestDeletionAllowed(root, parent, before, after, trackers, message, deleted);
+  if (message !== undefined && deleted.length > 0 && !archived && ![...message.matchAll(/^Replaced-By: (\S+)$/gm)].some(([, file = '']) => isTestFile(file) && tracked(file))) {
+    found.push({ rule: 'commit-deleted-test', message: `the commit deletes the test file ${deleted.join(', ')} and its body names no replacement or verified archive; add Replaced-By: <tracked test path>, or Archived-To: <commit sha> for an identical archive of a held item (${TEST_FILES})` });
   }
   return found;
+}
+
+/** Whether `Archived-To` preserves every deleted test byte-for-byte at a reachable commit for a held checklist item. */
+function archivedTestDeletionAllowed(
+  root: string,
+  parent: string,
+  before: (file: string) => string,
+  after: (file: string) => string,
+  trackers: ReturnType<typeof trackersOf>,
+  message: string,
+  deleted: readonly string[],
+): boolean {
+  const archive = /^Archived-To: ([0-9a-f]{40})$/gm;
+  const revisions = [...message.matchAll(archive)].map(([, sha]) => sha).filter((sha): sha is string => sha !== undefined);
+  if (revisions.length === 0) return false;
+  const item = /\(#([A-Za-z0-9][A-Za-z0-9.-]*)\)$/.exec(message.split('\n')[0] ?? '')?.[1];
+  if (item === undefined || !trackers.some(tracker => readChecklist(after(tracker.path), tracker).items.some(row => row.id === item && (row.state === BYPASSED || row.state === IMPOSSIBLE)))) return false;
+
+  return revisions.some(revision => {
+    if (gitResult(root, 'cat-file', '-e', `${revision}^{commit}`).status !== 0) return false;
+    if (gitResult(root, 'merge-base', '--is-ancestor', revision, parent).status !== 0) return false;
+    return deleted.every(file => git(root, 'ls-tree', '-r', '--name-only', revision, '--', file).split('\n').includes(file) && fileAt(root, revision, file) === before(file));
+  });
 }
 
 // Whether `file` is a tracked file of the revision `rev` (`''` is the index): the exact path, not a pattern that the path names.
