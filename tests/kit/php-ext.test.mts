@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { execute } from '../../scripts/kit/process.mts';
 import * as phpExtension from '../../scripts/kit/php-extension.mts';
 import { declarationFindings, declarations, declarationsOf, extensionFindings, extensionNames, stubHash, type Declarations } from '../../scripts/kit/php-extension.mts';
-import { installPhpArginfo } from '../../scripts/kit/install-php-arginfo.mts';
+import { installedGenStub, installPhpArginfo } from '../../scripts/kit/install-php-arginfo.mts';
 import { put, tree } from './tree.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
@@ -23,12 +23,12 @@ const HEADER = readFileSync(path.join(FIXTURE, 'polyspec_demo_arginfo.h'), 'utf8
 // The build tests start the PHP of the checkout, its wrappers in var/tools/bin (K393-1). The fixture checkout gets wrappers that
 // run the PHP of kit's own var/tools/bin, the PHP of .php-version, whose gen_stub.php needs the PHP-Parser that kit pins; the PHP
 // first on PATH may be another release (K630).
-function phpWrappers(root: string) {
+function phpWrappers(root: string, from?: string) {
   const bin = path.join(root, 'var/tools/bin');
   mkdirSync(bin, { recursive: true });
   const programs: Record<string, string> = {};
   for (const name of ['php', 'php-config', 'phpize']) {
-    const real = toolsPath(ROOT, 'bin', name);
+    const real = from === undefined ? toolsPath(ROOT, 'bin', name) : path.join(from, name);
     programs[name] = real;
     writeFileSync(path.join(bin, name), `#!/bin/sh\nexec '${real}' "$@"\n`);
     chmodSync(path.join(bin, name), 0o755);
@@ -441,3 +441,23 @@ test('the compare of test-php-ext fails on a class, function or constant that th
   const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);
   assert.deepEqual(declarations(root), ['class Polyspec\\Native\\Extra: the extension registers it, and the PHP library declares none', 'constant Polyspec\\Native\\EXTRA: the extension registers it, and the PHP library declares none']);});
+
+// K637: the gen_stub.php of each PHP names the PHP-Parser release it runs with (PHP 8.4: 5.0.0, PHP 8.5: 5.6.1); install-tools stages that
+// release from the locked Composer project of kit for it, so a repository that declares PHP 8.5 installs as one that declares 8.4.
+test('install-tools stages the PHP-Parser that the gen_stub.php of the declared PHP names (K637)', (t) => {
+  const php85 = ['/opt/homebrew/opt/php@8.5/bin', '/opt/homebrew/opt/php/bin'].find(dir => existsSync(path.join(dir, 'php-config'))
+    && execFileSync(path.join(dir, 'php-config'), ['--version'], { encoding: 'utf8' }).startsWith('8.5.'));
+  assert.ok(php85, 'PHP 8.5 is installed: brew install php@8.5');
+  const root = tree(t, { '.php-version': '8.5\n', 'mise.toml': '' });
+  phpWrappers(root, php85);
+  rmSync(path.join(root, 'var/tools/php-arginfo'), { recursive: true, force: true });
+  const composer = path.join(root, 'var/tools/mise/shims/composer');
+  mkdirSync(path.dirname(composer), { recursive: true });
+  // The fake Composer installs the parser of the lock it finds, so the staged release is the one that the chosen lock pins.
+  writeFileSync(composer, `#!/bin/sh\ntest "$1" = install || exit 98\nversion=$(sed -n 's/.*"version": "v\\([0-9.]*\\)".*/\\1/p' composer.lock | head -1)\nmkdir -p vendor/nikic/php-parser/lib/PhpParser\nprintf '<?php // %s\\n' "$version" > vendor/nikic/php-parser/lib/PhpParser/ParserFactory.php\n`);
+  chmodSync(composer, 0o755);
+  installPhpArginfo({ root });
+  const staged = path.join(root, 'var/tools/php-arginfo/PHP-Parser-5.6.1/lib/PhpParser/ParserFactory.php');
+  assert.equal(readFileSync(staged, 'utf8'), '<?php // 5.6.1\n', 'the lock of PHP-Parser 5.6.1 is installed for PHP 8.5');
+  assert.equal(installedGenStub(root).parser, '5.6.1');
+});

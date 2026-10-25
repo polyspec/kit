@@ -13,7 +13,15 @@ import { execute } from './process.mts';
 import { errorCode } from './process.mts';
 import { isJsonList, isJsonObject, readJson } from './bootstrap/files.mts';
 
-const PROJECT = path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-arginfo');
+// One locked Composer project per PHP-Parser release that a gen_stub.php of PHP names: php-arginfo/<release> (K637).
+const PROJECTS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-arginfo');
+
+/** The locked Composer project of the PHP-Parser release `parser`; throws naming the folder to add for a release kit has none of. */
+function projectOf(parser: string): string {
+  const project = path.join(PROJECTS, parser);
+  if (!existsSync(path.join(project, 'composer.lock'))) throw new Error(`kit has no locked PHP-Parser ${parser}, which the gen_stub.php of the installed PHP names; add the Composer project ${path.relative(path.dirname(PROJECTS), project)} with its lock`);
+  return project;
+}
 const PREFIX = 'php-arginfo';
 const parserVersion = (source: string): string => {
   const match = /\$version\s*=\s*"(\d+\.\d+\.\d+)"/.exec(source);
@@ -30,7 +38,7 @@ export function installedGenStub(root: string): { file: string; parser: string }
   const parser = parserVersion(installedSource);
   const current = genStub(root);
   if (installedSource !== current.source) throw new Error(`${path.relative(root, file)} is stale for the installed PHP; run make install-tools`);
-  const project = path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-arginfo');
+  const project = projectOf(parser);
   const lock = readJson(project, 'composer.lock');
   const packages = isJsonObject(lock) && isJsonList(lock.packages) ? lock.packages : [];
   const parserPackage = packages.find(item => isJsonObject(item) && item.name === 'nikic/php-parser');
@@ -62,7 +70,7 @@ function release(source: string, lock: Buffer): string {
 /** Installs gen_stub.php and its exact parser under var/tools/php-arginfo atomically. */
 export function installPhpArginfo({ root = repositoryRoot(), print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
   const generator = genStub(root);
-  const project = PROJECT;
+  const project = projectOf(generator.parser);
   const lock = readFileSync(path.join(project, 'composer.lock'));
   const packageLock = readJson(project, 'composer.lock');
   const packages = isJsonObject(packageLock) && isJsonList(packageLock.packages) ? packageLock.packages : [];
