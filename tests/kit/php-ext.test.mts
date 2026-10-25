@@ -56,6 +56,9 @@ const good = (): Record<string, string> => ({
 
 const findings = (files: Record<string, string>) => extensionFindings(Object.keys(files), file => files[file]);
 
+/** Whether `value` is a JSON object. */
+const isObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
+
 test('the names of an extension follow from the repository, a hyphen an underscore (S10)', () => {
   assert.deepEqual(extensionNames('demo-codec'), {
     composer: 'polyspec/demo-codec-php-ext',
@@ -205,7 +208,9 @@ test('the build generates arginfo from the stub in its temporary source when no 
 test('the extension build stages declared sources and accepts an explicit output and configure argument', (t) => {
   const files = good();
   const config = readFileSync(path.join(ROOT, 'tests/kit/fixture/config/release.json'), 'utf8');
-  const release = JSON.parse(config) as Record<string, unknown>;
+  const parsed: unknown = JSON.parse(config);
+  if (!isObject(parsed)) throw new Error('tests/kit/fixture/config/release.json holds no object');
+  const release = parsed;
   release.packages = [
     {
       kind: 'composer',

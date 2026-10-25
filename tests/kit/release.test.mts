@@ -98,7 +98,7 @@ test('the configuration is checked for the rules that the schema cannot express'
   stop(load(() => ({ ...original, schema: 3 })), /\/schema must be equal to constant \{"allowedValue":1\}, value 3/);
   writeJson(box.root, 'config/release.json', original);
   stop(load(() => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, generated: [{ kind: 'source-copy', source: '../outside.c', output: 'src/native/shared.c' }] } : p)) })), /source-copy source "\.\.\/outside\.c" is not a repository-relative path/);
-  stop(load(() => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, generated: [{ kind: 'source-copy', source: 'packages\/fixture-lib\/shared.c', output: 'src\/..\/shared.c' }] } : p)) })), /source-copy output "src\/\.\.\/shared\.c" is not a package-relative path/);
+  stop(load(() => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, generated: [{ kind: 'source-copy', source: 'packages/fixture-lib/shared.c', output: 'src/../shared.c' }] } : p)) })), /source-copy output "src\/\.\.\/shared\.c" is not a package-relative path/);
   git(box.root, 'rm', '-q', '-f', 'config/release.json');
   stop(() => release.loadConfig(box.root), /config\/release\.json: the file is missing/);
 });
@@ -322,7 +322,8 @@ test('a Composer archive carries the tracked native helper and its explicit buil
   } });
   const names = release.assets(context(box), box.tag('v0.0.1'));
   const archive = path.join(box.root, 'var/release/assets', known(names[2], 'names[2]'));
-  const manifest = JSON.parse(release.packedManifest(context(box), archive)) as { bin?: string[] };
+  const manifest: unknown = JSON.parse(release.packedManifest(context(box), archive));
+  assert.ok(typeof manifest === 'object' && manifest !== null && 'bin' in manifest, 'the packed manifest names its bin');
   assert.deepEqual(manifest.bin, ['bin/build-sqlite-cancel.php']);
   const entries = spawnSync('unzip', ['-Z1', archive], { encoding: 'utf8' });
   assert.equal(entries.status, 0, entries.stderr);

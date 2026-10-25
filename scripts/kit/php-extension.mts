@@ -326,9 +326,8 @@ function stageSourceCopies(root: string, source: string, copies: readonly Source
     if (!tracked.has(item.source)) throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} is not a tracked source file`);
     if (!item.output.startsWith('src/')) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} must be below src/ for the PHP extension build`);
     const input = path.join(root, item.source);
-    let stat;
-    try { stat = lstatSync(input); }
-    catch { throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} is missing from the working tree`); }
+    const stat = lstatSync(input, { throwIfNoEntry: false });
+    if (stat === undefined) throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} is missing from the working tree`);
     if (!stat.isFile() || stat.isSymbolicLink()) throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} must be a regular tracked file, not a link or directory`);
     const relative = item.output.slice('src/'.length);
     if (relative.startsWith('~') || path.win32.parse(relative).root !== '' || relative.includes('\\')) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} must be a package-relative path below src/`);
