@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8dc744fdc3aeb394a8e97706d035351c77ee3e7d5b0e6199eff7cf3be1cd2c33 -->
+<!-- source-sha256: b73b538c383d5480b25a31497e946f255ca57a380554e6d6a9ef7263c70fadbb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- consumer가 직접 file: 또는 link: 의존성으로 선언한 npm package는 per-file link tree가 아니라 npm이 쓰는 선언 경로로의 link 하나로 남고, link는 그런 tree를 다시 그 link로 바꾼다 (K578).
 - make item-red는 test가 하나도 돌지 않은 실패 요약을 그 요약이 실패한 build나 load를 가리킬 때만 판정하므로, test를 돌리지 않는 step 뒤의 check finding은 red이고, compile이나 load 실패는 여전히 자기 오류 줄로 거부된다(K540-2).
 - link는 다른 저장소의 npm 패키지 폴더를 provider의 node_modules 없는 파일별 link의 폴더로 만들어, --preserve-symlinks로 실행한 node가 패키지의 의존성을 consumer의 node_modules에서 resolve한다(K558).
 - land lock은 main이 아직 gate가 돈 commit인지 확인하는 단계와 fast-forward만 덮는다. 서로 무관한 land의 gate와 build가 겹치고, main의 commit은 merge만 기다리며, gate 중 main이 움직인 land는 rebase하고 gate를 다시 돌린다(최대 세 번) (K571).
