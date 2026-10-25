@@ -394,15 +394,31 @@ function landBranch(root: string, branch: string, print: (text: string) => void,
   removeMerged(root, branch, print);
 }
 
+// A reflog entry of a commit made on a branch: a rebase or a fast-forward moves it onto commits of main and makes none of its own.
+const OWN_COMMIT = /^(?:commit|cherry-pick|revert)\b/;
+// A reflog entry that starts a branch anew: its creation, or a reset that moves it, as onto main for the next row.
+const NEW_START = /^(?:branch: (?:Created|Reset)|reset: moving to)\b/;
+
+/**
+ * Whether `branch` is merged (K628): its reflog records commits of its own since its creation or its latest reset, and main contains
+ * every commit of it. A fresh branch, a row about to start, has none, though main contains it.
+ */
+function ownCommitsMerged(root: string, branch: string): boolean {
+  const entries = git(root, 'reflog', 'show', '--format=%gs', `refs/heads/${branch}`).split('\n').filter(line => line !== '');
+  const start = entries.findIndex(entry => NEW_START.test(entry));
+  if (!entries.slice(0, start === -1 ? entries.length : start).some(entry => OWN_COMMIT.test(entry))) return false;
+  return git(root, 'rev-list', branch, '^main').trim() === '';
+}
+
 /**
  * Removes the worktree and deletes the branch of each other branch that main contains, whose worktree is clean and in which no process
- * runs: a worktree that an earlier land kept while a process ran in it (K626).
+ * runs: a worktree that an earlier land kept while a process ran in it (K626); a fresh branch is no merged one (K628).
  */
 function removeMerged(root: string, landed: string, print: (text: string) => void): void {
   const entries = git(root, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
   for (const { folder, branch } of entries) {
     if (folder === undefined || branch === undefined || branch === 'main' || branch === landed || path.resolve(folder) === path.resolve(root)) continue;
-    if (gitResult(root, 'merge-base', '--is-ancestor', branch, 'main').status !== 0) continue;
+    if (!ownCommitsMerged(root, branch)) continue;
     if (git(folder, 'status', '--porcelain').trim() !== '' || worktreeProcesses(folder, machineListing()).length > 0) continue;
     git(root, 'worktree', 'remove', folder);
     git(root, 'branch', '-d', branch);

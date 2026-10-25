@@ -346,7 +346,12 @@ test('land merges while a process runs in the worktree, keeps it, and the next l
   put(folderY, { 'src/y.txt': 'y\n' });
   git(folderY, 'add', '-A');
   git(folderY, 'commit', '--quiet', '-m', 'y');
+  // K628: a fresh branch, made from main with no commit of its own, is a row about to start; main contains it, but it is not merged.
+  const folderZ = path.join(parent, 'repo-z');
+  git(main, 'worktree', 'add', '--quiet', folderZ, '-b', 'feat-z', 'main');
   land(main, 'feat-y', { print: () => {} });
+  assert.equal(existsSync(folderZ), true, 'a fresh worktree is kept (K628)');
+  assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-z'], { cwd: main }).status, 0, 'and its branch (K628)');
   assert.equal(existsSync(folderX), false, 'the next land removes the kept worktree once no process runs in it');
   assert.notEqual(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-x'], { cwd: main }).status, 0, 'and deletes its branch');
 });
