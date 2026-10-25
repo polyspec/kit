@@ -2,7 +2,7 @@
 // that the review found. The checkout is the fixture copy of tests/kit/checkout.mts; the registries are stubs.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -10,7 +10,7 @@ import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { composerCommand, composerEnvironment as toolingEnvironment } from '../../scripts/kit/install-composer-project.mts';
 import { toolCommand } from '../../scripts/kit/mise-tools.mts';
 import { repositoryRoot } from '../../scripts/kit/paths.mts';
-import { composerEntries, composerEnvironment, highestStableRelease, isReleaseConsumerDirectory, providerEntries, runUpdateSteps, targetRelease, TARGET_RELEASE_ECOSYSTEMS, updatePlan } from '../../scripts/kit/dependency-review.mts';
+import { composerEntries, highestStableRelease, isReleaseConsumerDirectory, providerEntries, runUpdateSteps, targetRelease, TARGET_RELEASE_ECOSYSTEMS, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { TOOLCHAIN } from '../../scripts/kit/dependency-state.mts';
 import type { Dependency } from '../../scripts/kit/dependency-state.mts';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
@@ -86,9 +86,9 @@ test('a requirement of a published package of a Composer monorepo is reviewed fr
   ]);
 });
 
-// K340: while a Composer project is linked, the review reads the link lock, so a linked package is not compared with its registry and
-// every Composer command runs on composer.link.json, never on the tracked project.
-test('while a Composer project is linked the review asks Composer for the link files and does not compare a linked package (K340)', (t) => {
+// K340: a linked package is judged by its link, so the review does not compare it with its registry; since K591 a Composer package is
+// linked when its folder of the vendor is a symbolic link.
+test('the review does not compare a Composer package whose vendor folder is a symbolic link (K340, K591)', (t) => {
   const root = fixture(t);
   editFixture<{ composerPlatforms: { manifest: string; php: string }[] }>(root, 'config/dependency-policy.json', (policy) => { policy.composerPlatforms = [{ manifest: 'composer.json', php: '8.2.0' }]; });
   writeFileSync(path.join(root, 'composer.json'), JSON.stringify({ name: 'polyspec/kit-fixture-development', type: 'project', license: 'proprietary', repositories: [{ type: 'path', url: 'packages/fixture-php' }], require: { 'polyspec/kit-fixture': '0.0.0', 'psr/log': '^3.0' }, config: { platform: { php: '8.2.0' } } }));
@@ -100,11 +100,11 @@ test('while a Composer project is linked the review asks Composer for the link f
   const at = path.basename(root);
   stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'psr/log': '3.0.3', 'example/framework': '1.0.0', 'example/helper': '1.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
   assert.match(review(root, [], stub.env).stdout, /psr\/log 3\.0\.2 < 3\.0\.3: a newer stable release exists/, 'without a link the package is compared');
-  assert.equal(composerEnvironment(root, '.'), undefined, 'a project that is not linked runs Composer on its own files');
-  const linked = { ...MONOREPO_LOCK, packages: MONOREPO_LOCK.packages.map(item => (item.name === 'psr/log' ? { ...item, dist: { type: 'path', url: '../psr-log' } } : item)) };
-  writeFileSync(path.join(root, 'composer.link.json'), readFileSync(path.join(root, 'composer.json'), 'utf8'));
-  writeFileSync(path.join(root, 'composer.link.lock'), JSON.stringify(linked));
-  assert.equal(composerEnvironment(root, '.')?.COMPOSER, 'composer.link.json');
+  // The installed folder of psr/log becomes a link to a checkout of it, as link makes it (K591).
+  const checkout = path.join(root, 'var/psr-log');
+  mkdirSync(checkout, { recursive: true });
+  mkdirSync(path.join(root, 'vendor/psr'), { recursive: true });
+  symlinkSync(checkout, path.join(root, 'vendor/psr/log'));
   const result = review(root, [], stub.env);
   assert.doesNotMatch(result.stdout, /psr\/log 3\.0\.2 < 3\.0\.3/, 'a linked package is judged by its link');
   assert.doesNotMatch(result.stderr, /reported no release/);
@@ -163,56 +163,6 @@ test('the review never proposes a release older than the locked version of a Com
   assert.deepEqual(calls.filter(call => call.includes('polyspec/template:')), [], calls.join('\n'));
   assert.match(result.stdout, /example\/framework 1\.0\.0 < 1\.1\.0: a newer stable release exists/);
   assert.ok(calls.includes('composer require --update-with-dependencies --no-interaction example/framework:^1.1.0'), calls.join('\n'));
-});
-
-// K392-1: while a Composer project is linked, UPDATE moves the new range in composer.link.json only; the tracked composer.json declares
-// it too, and the tracked composer.lock waits for the release check (K326).
-test('while linked UPDATE also declares the new range in the tracked composer.json, and leaves the tracked lock (K392-1)', (t) => {
-  const root = fixture(t);
-  editFixture<{ composerPlatforms: { manifest: string; php: string }[] }>(root, 'config/dependency-policy.json', (policy) => { policy.composerPlatforms = [{ manifest: 'composer.json', php: '8.2.0' }]; });
-  const manifest = JSON.stringify({ name: 'polyspec/kit-fixture-development', type: 'project', license: 'proprietary', repositories: [{ type: 'path', url: 'packages/fixture-php' }], require: { 'polyspec/kit-fixture': '0.0.0', 'example/framework': '^1.0' }, config: { platform: { php: '8.2.0' } } });
-  writeFileSync(path.join(root, 'composer.json'), manifest);
-  writeFileSync(path.join(root, 'composer.lock'), JSON.stringify(MONOREPO_LOCK));
-  rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
-  writeFileSync(path.join(root, 'composer.link.json'), manifest);
-  writeFileSync(path.join(root, 'composer.link.lock'), JSON.stringify(MONOREPO_LOCK));
-  installCargoAuditStub(root);
-  installGovulncheckStub(root);
-  const stub = stubRegistries(t, root);
-  const at = path.basename(root);
-  stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'example/framework': '1.1.0', 'psr/log': '3.0.2', 'example/helper': '1.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
-  const lockBefore = readFileSync(path.join(root, 'composer.lock'), 'utf8');
-  review(root, ['--update'], stub.env);
-  const calls = stub.calls();
-  assert.ok(calls.includes('composer require --update-with-dependencies --no-interaction example/framework:^1.1.0 [COMPOSER=composer.link.json]'), calls.join('\n'));
-  assert.ok(calls.includes('composer require --no-update --no-interaction example/framework:^1.1.0'), calls.join('\n'));
-  assert.equal(readFileSync(path.join(root, 'composer.lock'), 'utf8'), lockBefore, 'the tracked lock is untouched');
-});
-
-// K392-2: while linked, UPDATE also updates the tracked composer.lock of a package that is no polyspec package, lock only (no install);
-// a polyspec package keeps its tracked lock for the release check (K326).
-test('while linked UPDATE also updates the tracked lock of a package that is no polyspec package, lock only (K392-2)', (t) => {
-  const root = fixture(t);
-  editFixture<{ composerPlatforms: { manifest: string; php: string }[] }>(root, 'config/dependency-policy.json', (policy) => { policy.composerPlatforms = [{ manifest: 'composer.json', php: '8.2.0' }]; });
-  const manifest = JSON.stringify({ name: 'polyspec/kit-fixture-development', type: 'project', license: 'proprietary', repositories: [{ type: 'path', url: 'packages/fixture-php' }], require: { 'polyspec/kit-fixture': '0.0.0', 'polyspec/template': '^0.0.11', 'example/framework': '^1.0' }, config: { platform: { php: '8.2.0' } } });
-  const lock = JSON.stringify({ ...MONOREPO_LOCK, packages: [...MONOREPO_LOCK.packages, { name: 'polyspec/template', version: '0.0.11', dist: { type: 'zip', url: 'https://example.com/template.zip' } }] });
-  writeFileSync(path.join(root, 'composer.json'), manifest);
-  writeFileSync(path.join(root, 'composer.lock'), lock);
-  rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
-  writeFileSync(path.join(root, 'composer.link.json'), manifest);
-  writeFileSync(path.join(root, 'composer.link.lock'), lock);
-  installCargoAuditStub(root);
-  installGovulncheckStub(root);
-  const stub = stubRegistries(t, root);
-  const at = path.basename(root);
-  stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'example/framework': '1.1.0', 'polyspec/template': '0.0.12', 'psr/log': '3.0.2', 'example/helper': '1.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
-  review(root, ['--update'], stub.env);
-  const calls = stub.calls();
-  const declared = calls.indexOf('composer require --no-update --no-interaction example/framework:^1.1.0');
-  assert.ok(declared >= 0, calls.join('\n'));
-  assert.ok(calls.indexOf('composer update --with-dependencies --no-install --no-interaction example/framework') > declared, calls.join('\n'));
-  assert.ok(calls.includes('composer require --no-update --no-interaction polyspec/template:^0.0.12'), calls.join('\n'));
-  assert.deepEqual(calls.filter(call => call.includes('--no-install') && call.includes('polyspec/')), [], calls.join('\n'));
 });
 
 test('a Go module under the tracked go.work of the repository is scanned with that workspace (K418)', (t) => {
@@ -587,7 +537,7 @@ test('a tracked update passes a stale polyspec entry, whose provider entry is wr
   writeFileSync(path.join(consumer, 'composer.json'), JSON.stringify({ name: 'kit/consumer', type: 'project', license: 'proprietary', repositories, require: { php: '>=8.4', 'polyspec/orm': '0.0.18' }, config: { platform: { php: '8.4.1' } } }));
   writeFileSync(path.join(consumer, 'composer.lock'), JSON.stringify({ packages: [{ name: 'polyspec/orm', version: '0.0.18', dist: { type: 'zip', url: 'https://example.invalid/polyspec-orm-0.0.18.zip' }, type: 'library', require: { php: '>=8.5' } }], 'packages-dev': [], platform: { php: '>=8.4' }, 'platform-overrides': { php: '8.4.1' } }));
   const found = new Map([['polyspec/orm', { manifest: ormManifest, folder: orm }]]);
-  const plan = [{ command: 'composer', args: ['update', '--with-dependencies', '--no-install', '--no-audit', '--no-interaction', 'example/lib'], cwd: path.relative(checkout, consumer), tracked: true }];
+  const plan = [{ command: 'composer', args: ['update', '--with-dependencies', '--no-install', '--no-audit', '--no-interaction', 'example/lib'], cwd: path.relative(checkout, consumer) }];
   assert.equal(runUpdateSteps(checkout, plan, found), 0, 'the tracked update passes');
   const lock: unknown = JSON.parse(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'));
   const entries: unknown[] = isJsonObject(lock) && Array.isArray(lock.packages) ? lock.packages : [];

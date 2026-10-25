@@ -40,7 +40,6 @@ import { isJsonObject, writeJson } from './bootstrap/files.mts';
 import { linkGit, providers, siblingCheckouts } from './link-providers.mts';
 import { isPrerelease, isVersionText, older, stableDescending } from './version.mts';
 import { isLinked } from './linked-package.mts';
-import { LINK_MANIFEST, judgedComposerFiles } from './composer-project.mts';
 import { present } from './present.mts';
 import { checkedFiles } from './tracked-files.mts';
 
@@ -158,15 +157,6 @@ function query<T>(schema: string, command: string, args: string[], cwd: string, 
     if (!(error instanceof ConfigError)) throw error;
     return { error: error.message };
   }
-}
-
-/**
- * The environment of a Composer command in `directory` of `root` (K340): while the project is linked (composer.link.lock exists),
- * Composer reads composer.link.json and its lock, as the policy judges them (K326), so the review never resolves a linked polyspec
- * package from its zip, never changes the tracked composer.json and composer.lock, and never reinstalls the vendor from them.
- */
-export function composerEnvironment(root: string, directory: string): NodeJS.ProcessEnv | undefined {
-  return judgedComposerFiles(root, directory).linked ? { ...process.env, COMPOSER: LINK_MANIFEST } : undefined;
 }
 
 /** The latest dist-tag and the versions of an npm package, from npm view: { value } or { error }. */
@@ -343,7 +333,7 @@ function latestReleases(root: string, state: ReviewState, targets: Targets | und
     // composer outdated reports the latest stable release of every locked package, once for each root, and the review keeps
     // the first-party requirements: those of the root and of the packages of its path repositories (K168), which --direct,
     // the requirements of the root alone, would miss. composer audit reports an abandoned package.
-    if (!composer.has(directory)) composer.set(directory, query<ComposerOutdated>('composer-outdated.schema.json', toolCommand(root, 'composer'), ['outdated', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory), undefined, undefined, composerEnvironment(root, directory)));
+    if (!composer.has(directory)) composer.set(directory, query<ComposerOutdated>('composer-outdated.schema.json', toolCommand(root, 'composer'), ['outdated', '--locked', '--all', '--format=json', '--no-interaction'], path.join(root, directory)));
     // The line above sets the directory.
     const answer = present(composer.get(directory), 'composer.get(directory)');
     if (answer.error !== undefined) {
@@ -506,7 +496,7 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
     const versions = new Map([...(lockData.packages ?? []), ...(lockData['packages-dev'] ?? [])].map(item => [item.name, item.version]));
     // composer audit sets bit 1 for an advisory and bit 2 for an abandoned package. For a lock without packages it prints
     // "No packages - skipping audit." to stderr and nothing to stdout (measured with Composer 2.10), which is no advisory.
-    const answer = query<ComposerAudit>('composer-audit.schema.json', toolCommand(root, 'composer'), ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3], {}, composerEnvironment(root, directory));
+    const answer = query<ComposerAudit>('composer-audit.schema.json', toolCommand(root, 'composer'), ['audit', '--locked', '--format=json', '--no-interaction'], path.join(root, directory), [0, 1, 2, 3], {});
     const value = answered(lock, answer);
     if (value === undefined) continue;
     const list: Advisory[] = [];
@@ -622,8 +612,8 @@ export const fixOf = (dependency: Newer): string => {
 const operator = (spec: string) => (/^[\^~]/.test(spec) ? spec[0] : '');
 
 /** The commands that raise the newer dependencies and update the packages with an advisory, in order. */
-export function updatePlan({ newer, advisories: all, linked = () => false, targeted = false }: { newer: PlannedDependency[]; advisories: PlannedAdvisory[]; linked?: (directory: string) => boolean; targeted?: boolean }): { command: string; args: string[]; cwd: string; tracked?: boolean }[] {
-  const plan: { command: string; args: string[]; cwd: string; tracked?: boolean }[] = [];
+export function updatePlan({ newer, advisories: all, targeted = false }: { newer: PlannedDependency[]; advisories: PlannedAdvisory[]; targeted?: boolean }): { command: string; args: string[]; cwd: string }[] {
+  const plan: { command: string; args: string[]; cwd: string }[] = [];
   // With --targets the plan moves only the named dependencies: an advisory fix, or the npm dedupe, would move the others too.
   const found = targeted ? [] : all;
   for (const dependency of newer) {
@@ -650,13 +640,6 @@ export function updatePlan({ newer, advisories: all, linked = () => false, targe
       const dev = dependency.kind === 'require-dev' ? ['--dev'] : [];
       if (directory === base) {
         plan.push({ command: 'composer', args: ['require', ...dev, '--update-with-dependencies', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: directory });
-        // While the project is linked, that step writes composer.link.json alone (K392-1): the tracked manifest declares the range too.
-        // The next step moves the tracked lock of a package that is no polyspec package, lock only (K392-2); the tracked lock of a
-        // polyspec package waits for the release check (K326).
-        if (linked(directory)) {
-          plan.push({ command: 'composer', args: ['require', ...dev, '--no-update', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: directory, tracked: true });
-          if (!dependency.package.startsWith('polyspec/')) plan.push({ command: 'composer', args: ['update', '--with-dependencies', '--no-install', '--no-interaction', dependency.package], cwd: directory, tracked: true });
-        }
       } else {
         // A published package of a path repository has no lock: its manifest is changed alone, and its root updates the lock.
         plan.push({ command: 'composer', args: ['require', ...dev, '--no-update', '--no-interaction', `${dependency.package}:${range}${version}`], cwd: directory });
@@ -681,9 +664,6 @@ export function updatePlan({ newer, advisories: all, linked = () => false, targe
     else if (lockEcosystem(lock) === 'pypi') continue;
     else {
       plan.push({ command: 'composer', args: ['update', '--with-dependencies', '--no-interaction', ...packages], cwd: directory });
-      // A linked project also moves the tracked lock of each package that is no polyspec package, lock only, and the others wait.
-      const nonPolyspec = [...packages].filter(name => !name.startsWith('polyspec/'));
-      if (linked(directory) && nonPolyspec.length) plan.push({ command: 'composer', args: ['update', '--with-dependencies', '--no-install', '--no-interaction', ...nonPolyspec], cwd: directory, tracked: true });
     }
   }
   for (const directory of new Set(plan.filter(step => step.command === 'go').map(step => step.cwd))) plan.push({ command: 'go', args: ['mod', 'tidy'], cwd: directory });
@@ -943,7 +923,7 @@ function rewriteProviderEntries(root: string, directories: readonly string[], fo
  * Runs the commands of an update plan in order and returns how many failed (K439-4-1 seam: the provider entries of the composer directories of
  * the plan are rewritten after its commands; `found` names the providers, by default the sibling checkouts).
  */
-export function runUpdateSteps(root: string, plan: readonly { command: string; args: string[]; cwd: string; tracked?: boolean }[], found?: Map<string, { manifest: Record<string, unknown>; folder: string }>): number {
+export function runUpdateSteps(root: string, plan: readonly { command: string; args: string[]; cwd: string }[], found?: Map<string, { manifest: Record<string, unknown>; folder: string }>): number {
   // K439-4-1: the provider entries of the tracked locks are written before the commands run on them, so a stale polyspec entry (php >=8.5 of an
   // older release) does not fail Composer's platform check of the update; they are written again after, for the locks the commands changed.
   const directories = plan.filter(step => step.command === 'composer').map(step => step.cwd);
@@ -951,7 +931,7 @@ export function runUpdateSteps(root: string, plan: readonly { command: string; a
   let failed = 0;
   for (const step of plan) {
     say(`run ${step.command} ${step.args.join(' ')} in ${step.cwd}`);
-    const outcome = spawnSync(CHECKOUT_TOOLS.has(step.command) ? toolCommand(root, step.command) : step.command, step.args, { cwd: path.join(root, step.cwd), stdio: 'inherit', ...(step.command === 'composer' && !step.tracked ? { env: composerEnvironment(root, step.cwd) ?? process.env } : {}) });
+    const outcome = spawnSync(CHECKOUT_TOOLS.has(step.command) ? toolCommand(root, step.command) : step.command, step.args, { cwd: path.join(root, step.cwd), stdio: 'inherit' });
     if (outcome.error || outcome.status !== 0) {
       failed += 1;
       say(`${step.command} ${step.args.join(' ')} in ${step.cwd} ended with ${outcome.error?.message ?? `exit status ${outcome.status}`}`);
@@ -1011,7 +991,7 @@ function main(): void {
       return;
     }
     // A linked package is moved by its link, not by the update (K340).
-    const plan = updatePlan({ newer: result.newer.filter(item => !isLinked(root, item.ecosystem, item.lock, item.package) && (targets === undefined || named(item))), advisories: result.advisories.filter(item => item.lock === undefined || item.package === undefined || lockEcosystem(item.lock) === undefined || !isLinked(root, present(lockEcosystem(item.lock), 'lockEcosystem'), item.lock, item.package)), linked: directory => composerEnvironment(root, directory) !== undefined, targeted: targets !== undefined });
+    const plan = updatePlan({ newer: result.newer.filter(item => !isLinked(root, item.ecosystem, item.lock, item.package) && (targets === undefined || named(item))), advisories: result.advisories.filter(item => item.lock === undefined || item.package === undefined || lockEcosystem(item.lock) === undefined || !isLinked(root, present(lockEcosystem(item.lock), 'lockEcosystem'), item.lock, item.package)), targeted: targets !== undefined });
     const failed = runUpdateSteps(root, plan);
     say(`${plan.length - failed} of ${plan.length} update commands passed; reviewing again`);
     result = review(root, targets);

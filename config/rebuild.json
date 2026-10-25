@@ -516,11 +516,7 @@
     },
     "scripts/kit/composer-install.mts": {
       "kind": "ecosystem",
-      "tool": "composer install and composer update with COMPOSER=composer.link.json, the Composer of install-composer-project.mts (K432)"
-    },
-    "scripts/kit/composer-project.mts": {
-      "kind": "policy",
-      "reason": "which Composer files a project's rules judge, the link manifest and link lock while linked (K326-2); the choice is a rule of polyspec, the files are Composer's"
+      "tool": "composer install of the tracked lock, the Composer of install-composer-project.mts (K432)"
     },
     "scripts/kit/divergence-check.mts": {
       "kind": "policy",

@@ -198,26 +198,6 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
 }
 
 
-/** The lines of the Git exclude file of the work tree `top` that keep the Composer link files out of Git without a tracked change. */
-const COMPOSER_LINK_FILES = ['composer.link.json', 'composer.link.lock'] as const;
-
-
-
-
-
-/**
- * The composer.json of the link run of `project` (K304-1): the tracked one with a path repository for each linked folder in front
- * of its repositories, so the folder, not a released archive, provides the package. `symlink` makes the installed folder a
- * symbolic link, and `versions` gives the package the version that the lock recorded, so the link counts as the installed
- * released version.
- */
-
-
-
-
-
-
-
 // --- Python: the environment of each pyproject, uv's project environment of its workspace root. Each provider is installed into it
 // from an editable wheel that link writes (K398): its metadata and a .pth naming its import root, no source, so the folder is only
 // read and no build backend runs. uv installs the wheel with its dependencies and checks Requires-Python at that install. The
@@ -538,7 +518,6 @@ export function unlink({ directories, print, env = process.env, project = false 
         const folder = path.join(vendor, 'polyspec');
         for (const item of existsSync(folder) ? readdirSync(folder) : []) if (lstatSync(path.join(folder, item)).isSymbolicLink()) rmSync(path.join(folder, item));
         if (!existsSync(path.join(project, 'composer.lock'))) { skip(`composer ${project}: no composer.lock`); continue; }
-        for (const name of COMPOSER_LINK_FILES) rmSync(path.join(project, name), { force: true });
         run(composer.command, ['install', '--no-interaction'], { cwd: project, env: composer.env });
         print(`  restored   composer ${project}`);
       }

@@ -14,7 +14,6 @@ import { execute } from './process.mts';
 import { ConfigError, readConfigFindings } from './schema-validate.mts';
 import { readComposerManifest, readComposerManifestFile, readNpmManifest } from './manifests.mts';
 import type { DependencyPolicy } from './dependency-state.mts';
-import { LINK_MANIFEST, judgedComposerFiles } from './composer-project.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { SYMBOLS } from './install-symbols.mts';
@@ -102,8 +101,8 @@ function providerRepositoryFindings(root: string, directory: string, manifestPat
 }
 
 /** The output of `composer validate <args>` in `cwd` as one line when it fails, or null; COMPOSER_DISABLE_NETWORK keeps it off the network. */
-function composerValidation(composer: string, args: string[], cwd: string, manifest?: string) {
-  const validate = execute(composer, ['validate', ...args], { cwd, env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1', ...(manifest === undefined ? {} : { COMPOSER: manifest }) } });
+function composerValidation(composer: string, args: string[], cwd: string) {
+  const validate = execute(composer, ['validate', ...args], { cwd, env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1' } });
   if (!validate.error && validate.status === 0) return null;
   return `${validate.error?.message ?? ''}\n${validate.stdout ?? ''}\n${validate.stderr ?? ''}`.split('\n').map(line => line.trim()).filter(Boolean).join(' ');
 }
@@ -127,16 +126,16 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       continue;
     }
     const directory = path.posix.dirname(manifestPath);
-    // Every rule of the Composer project judges the files that judgedComposerFiles selects: the link files while it is linked (K326-2),
-    // the tracked ones otherwise.
-    const judged = judgedComposerFiles(root, directory);
-    const composerManifest = readComposerManifest(root, judged.manifest);
-    providerRepositoryFindings(root, directory, judged.manifest, composerManifest, add);
+    // Every rule of the Composer project judges its tracked composer.json and composer.lock: a linked package is a symbolic link of
+    // the vendor and changes neither (K591).
+    const manifest = path.posix.join(directory, 'composer.json');
+    const composerManifest = readComposerManifest(root, manifest);
+    providerRepositoryFindings(root, directory, manifest, composerManifest, add);
     // composer validate reads the manifest and the lock; COMPOSER_DISABLE_NETWORK keeps it off the network. A published
     // composer.json declares its version, which the artifact repository of its release zip reads, so the warning on a
     // version field is not reported.
-    const failure = composerValidation(composer, ['--strict', '--no-interaction', '--no-check-publish', '--no-check-version'], path.join(root, directory), judged.linked ? LINK_MANIFEST : undefined);
-    if (failure) add('composerLock', judged.manifest, `composer validate --strict failed: ${failure}`, `run composer update --lock in ${directory}`);
+    const failure = composerValidation(composer, ['--strict', '--no-interaction', '--no-check-publish', '--no-check-version'], path.join(root, directory));
+    if (failure) add('composerLock', manifest, `composer validate --strict failed: ${failure}`, `run composer update --lock in ${directory}`);
   }
 
   // The published Composer manifests have no lock: the development root composer.json resolves them.
