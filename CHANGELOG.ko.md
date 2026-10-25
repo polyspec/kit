@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4d1c3d35c5de1a055eddc51171b1055f15173e39927022e5a02396f93ae74d33 -->
+<!-- source-sha256: f218d923214cb70da007c5e3a9ec0b009e97f260d7540b7dd808b8464ccc4518 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit의 PHP-Parser Composer 프로젝트는 각자 이름(polyspec/kit-php-arginfo-5.0.0, polyspec/kit-php-arginfo-5.6.1)을 가지므로, link의 형제 검색이 패키지마다 공급자 하나를 찾고 모든 consumer에서 make install-link가 다시 실행됩니다(K639).
 - `parity-declarations-check --id`는 선택한 requirement를 인용하는 unit의 R2 missing binding을 유지합니다. 따라서 `--id`와 `--rule`을 함께 써도 finding이 사라지지 않습니다(K638).
 - install-tools는 선언한 PHP의 gen_stub.php가 이름 붙인 PHP-Parser release를 release마다 둔 kit의 잠긴 Composer 프로젝트에서 놓습니다: PHP 8.4는 scripts/kit/php-arginfo/5.0.0, PHP 8.5는 5.6.1. 이제 PHP 8.5를 선언한 저장소가 설치됩니다(K637).
 - parity feature unit은 한 feature의 여러 coverage part에 requirement를 명시적으로 scope합니다. 각 implementation에는 자체 test binding이 필요하고, 모든 owner는 이름으로 지칭되거나 이름이 나온 implementation과 test를 명시적으로 공유해야 합니다(K635).

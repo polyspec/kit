@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1fc93263818d9e6c4d34fff197a1f5eda38bab60e67f94bc10a87127903ee111 -->
+<!-- source-sha256: 0fe62daed6fc6dc49d5665dfcdf99384d38d4f20bbaf656e6ed13fed33344304 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -542,4 +542,4 @@
 | K634 | make land는 모든 hunk가 한국어 쌍의 source-sha256 줄인 rebase 충돌을 스스로 풉니다. 한 줄을 남기고 make documents-stamp로 다시 찍은 뒤 rebase를 이어갑니다. 다른 줄이나 파일의 충돌은 지금처럼 거부합니다. | rebaseOnMain of scripts/kit/land.mts and its K634 case in tests/kit/land.test.mts. | `node --test --test-name-pattern=K634 tests/kit/land.test.mts` | [o] |
 | K636 | divergence-check는 fmt.Sprintf가 machine 값을 만들고 fmt.Fprintf가 이를 machine=%s 진단 필드에만 쓸 때 Go runtime.GOOS와 runtime.GOARCH를 진단 metadata로 인식하며, 실제 platform 분기는 계속 finding으로 보고한다(K315 후속). | scripts/kit/divergence-check.mts, tests/kit/divergence-check.test.mts | `node --test --test-name-pattern=K636 tests/kit/divergence-check.test.mts` | [o] |
 | K637 | install-tools는 선언한 PHP의 gen_stub.php가 이름 붙인 PHP-Parser release를, release마다 둔 kit의 잠긴 Composer 프로젝트(PHP 8.4는 scripts/kit/php-arginfo/5.0.0, PHP 8.5는 5.6.1)에서 놓습니다. 지금은 kit이 5.0.0만 잠가, flowmark처럼 PHP 8.5를 선언한 저장소에서 install-tools가 멈춥니다. | scripts/kit/install-php-arginfo.mts choosing the project by the release, scripts/kit/php-arginfo/5.0.0 and 5.6.1, their entries in config/dependency-policy.json and config/release.json, and the K637 case in tests/kit/php-ext.test.mts. | `node --test --test-name-pattern="K560\|K637" tests/kit/php-ext.test.mts` | [o] |
-| K639 | kit의 PHP-Parser Composer 프로젝트는 각자 이름을 가집니다: polyspec/kit-php-arginfo-5.0.0, polyspec/kit-php-arginfo-5.6.1. K637이 둘 다 polyspec/kit-php-arginfo로 이름 붙여, link가 공급자 둘을 가진 패키지를 거부하고 모든 consumer에서 make install-link가 멈춥니다. | scripts/kit/php-arginfo/5.0.0 and 5.6.1 composer.json and composer.lock with their own names, and the K639 case in tests/kit/php-ext.test.mts. | `node --test --test-name-pattern=K639 tests/kit/php-ext.test.mts` | [~] |
+| K639 | kit의 PHP-Parser Composer 프로젝트는 각자 이름을 가집니다: polyspec/kit-php-arginfo-5.0.0, polyspec/kit-php-arginfo-5.6.1. K637이 둘 다 polyspec/kit-php-arginfo로 이름 붙여, link가 공급자 둘을 가진 패키지를 거부하고 모든 consumer에서 make install-link가 멈춥니다. | scripts/kit/php-arginfo/5.0.0 and 5.6.1 composer.json and composer.lock with their own names, and the K639 case in tests/kit/php-ext.test.mts. | `node --test --test-name-pattern=K639 tests/kit/php-ext.test.mts` | [o] |
