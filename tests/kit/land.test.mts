@@ -98,15 +98,15 @@ test('make land fast-forwards and cleans up without invoking either build (K603)
   assert.equal(existsSync(buildCalls), false, 'land does not invoke make build in the branch or main checkout');
 });
 
-// K631: a branch owes only not to break a green gate; a gate red on main is the row's that fixes it, so land passes it with a note.
-test('land passes a gate that fails on main too and refuses one that main passes (K631)', (t) => {
+// K631-1 keeps K631's continuation policy while reporting both failures and the candidate's diagnostics honestly.
+test('land reports candidate diagnostics when both runs fail and refuses only a green main gate (K631-1)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
   // findings-x prints one finding line per line of findings.txt and fails while that file is not empty; main is red with src/a.txt.
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/stdout: /" findings.txt; sed "s/^/stderr: /" findings.txt >&2; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
@@ -125,12 +125,15 @@ test('land passes a gate that fails on main too and refuses one that main passes
     git(folder, 'commit', '--quiet', '-m', name);
   };
 
-  // A branch that adds nothing to the findings: findings-x fails on main too with the same finding, so the branch lands.
-  branch('feat-a', { 'src/b.txt': 'b\n' });
+  // A branch with a different finding still lands while findings-x is red on main.
+  branch('feat-a', { 'src/b.txt': 'b\n', 'findings.txt': 'src/b.txt\n' });
   const branchA = git(main, 'rev-parse', 'feat-a');
   land(main, 'feat-a', { print });
   assert.equal(git(main, 'rev-parse', 'main'), branchA, 'main fast-forwards to the branch');
-  assert.ok(printed.includes('findings-x fails on main too; its own row fixes it, and feat-a passes it'), printed.join('\n'));
+  assert.ok(printed.includes('findings-x fails on candidate and main; continuing under K631'), printed.join('\n'));
+  assert.ok(printed.includes('findings-x candidate stdout:\nstdout: src/b.txt\n'), printed.join('\n'));
+  assert.ok(printed.some(line => line.startsWith('findings-x candidate stderr:\n') && line.includes('stderr: src/b.txt')), printed.join('\n'));
+  assert.ok(!printed.some(line => line.includes('feat-a passes it')), printed.join('\n'));
 
   // A branch that adds the finding src/c.txt while main is red: no line of the output is compared, so it lands too (K631).
   branch('feat-b', { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
