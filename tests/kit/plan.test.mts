@@ -1007,13 +1007,15 @@ test('make item-red BEFORE= builds the repository at BEFORE when the swap change
 // K540: a red is a test or a gate that runs and fails; a command that was not found, a run whose tests ran out of time, and a run
 // that failed before any test ran prove nothing about the behaviour, so item-red records none of them and names why. K540-1: only a
 // failing run of the test runner (its ✖ summary) is judged by its tests; a check that reports a finding after test runs that passed
-// is a red, such as a docs-check whose schema check fails after its tests passed.
-test('make item-red refuses a red of exit 127, a timeout or a run in which no test failed, and records a check finding (K540, K540-1)', (t) => {
+// is a red, such as a docs-check whose schema check fails after its tests passed. K540-2: a failing summary in which no test ran is a
+// step that runs no test, such as a build before a check, unless it names a build or a load that failed.
+test('make item-red refuses a red of exit 127, a timeout or a run in which no test failed, and records a check finding (K540, K540-1, K540-2)', (t) => {
   const root = plans(t, 'parser');
   const verifications: Record<string, string> = {
     T1: "sh -c 'exit 127'",
     T2: "node -e \"console.log('✖ node --test: 0 passed, 0 failed, 1 timed out, 0 skipped'); process.exit(1)\"",
-    T3: "node -e \"console.log('✖ cargo .: 0 passed, 0 failed, 0 timed out, 0 skipped, no test ran'); process.exit(1)\"",
+    T3: "node -e \"console.log('✖ cargo .: 0 passed, 0 failed, 0 timed out, 0 skipped, no test ran, the tool exited with 101: error[E0425]: cannot find value x'); process.exit(1)\"",
+    T6: "node -e \"console.log('✖ build: 0 passed, 0 failed, 0 timed out, 0 skipped, no test ran'); console.log('validate:reference-row-ids: must be boolean'); process.exit(2)\"",
     T4: "node -e \"console.log('✖ node --test: 0 passed, 1 failed, 0 timed out, 0 skipped'); process.exit(1)\"",
     T5: "node -e \"console.log('✔ node --test: 3 passed, 0 failed, 0 timed out, 0 skipped'); console.log('spec-validity:ok-multiple-keys: the schema rejects multiple.keys'); process.exit(2)\"",
   };
@@ -1036,7 +1038,7 @@ test('make item-red refuses a red of exit 127, a timeout or a run in which no te
     assert.match(run.stderr, reason);
     assert.equal(readRecord(root, id), undefined, `${id} wrote a record`);
   }
-  const reds: [string, string][] = [['T4', 'a failing test is a red'], ['T5', 'a check that reports a finding after passing tests is a red']];
+  const reds: [string, string][] = [['T4', 'a failing test is a red'], ['T5', 'a check that reports a finding after passing tests is a red'], ['T6', 'a check that reports a finding after a step that runs no test is a red']];
   for (const [id, why] of reds) {
     const fails = itemRed(id);
     assert.equal(fails.status, 0, `${id}: ${fails.stderr}`);

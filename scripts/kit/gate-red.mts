@@ -29,7 +29,12 @@ const RED_LINE = /^Red-(?:Gate|Test): (.+) exit ([1-9]\d*) at ([0-9a-f]{7,40})$/
 
 // The summary that the test runner of kit prints at the end of a run that fails, marked ✖: the counts of the tests that passed,
 // failed and ran out of time. A run that passes marks its summary ✔ (test-progress.mts).
-const FAILED_RUN = /✖ [^\n]*?(\d+) passed, (\d+) failed, (\d+) timed out/g;
+const FAILED_RUN = /✖ [^\n]*?(\d+) passed, (\d+) failed, (\d+) timed out([^\n]*)/g;
+
+// The cause that a failing summary in which no test ran names after its counts (test-progress.mts): the compiler errors of a build
+// (`; build errors:`), a file that failed outside its tests, as one that does not load (`group failed`), or an error line of the tool
+// that a compile or a load writes (K540-2).
+const BUILD_OR_LOAD = /; build errors: |group failed|error\[E\d+\]|error TS\d+|could not compile|ERR_MODULE_NOT_FOUND|Cannot find module|SyntaxError/;
 
 /**
  * Why the failing run of a command proves no red (K540), or undefined when it does, judged by the cause of the failure (K540-1): a
@@ -37,11 +42,14 @@ const FAILED_RUN = /✖ [^\n]*?(\d+) passed, (\d+) failed, (\d+) timed out/g;
  * test runner of kit that failed proves a red only when a test failed: one whose tests ran out of time, or that failed before any
  * test ran (a build, a compile or a load that failed), proves nothing about the behaviour that the test checks. A command whose
  * test runs passed, or that runs none, failed in a check that reported its finding, such as a gate or a document check, and is
- * judged by its exit status: a passing run of the test runner before it is no cause of its failure.
+ * judged by its exit status: a passing run of the test runner before it is no cause of its failure. A failing summary in which no test
+ * ran is judged only when it names a build or a load that failed (K540-2).
  */
 export function invalidRed(status: number, output: string): string | undefined {
   if (status === 127) return 'exit 127: the command was not found, so nothing ran';
-  const failed = [...output.matchAll(FAILED_RUN)];
+  // A failing summary in which no test ran is a step that runs no test, such as a build that the Verification runs before its
+  // check, unless it names a build or a load that failed: only then did a test fail to start (K540-2).
+  const failed = [...output.matchAll(FAILED_RUN)].filter(run => !/no test ran/.test(run[4] ?? '') || BUILD_OR_LOAD.test(run[4] ?? ''));
   if (failed.length === 0 || failed.some(run => Number(run[2]) > 0)) return undefined;
   if (failed.some(run => Number(run[3]) > 0)) return 'a test ran out of time and none failed; build what the test compiles first, then record the red';
   return 'it failed before any test failed, in a build, a compile or a load, so no test checked the behaviour';
