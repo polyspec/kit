@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 69c1524ddde71c5a2d420beaa3d5bb12b2b07dc68c15e5befb8757d62aeb8d44 -->
+<!-- source-sha256: be89ee5cc31c11b9cef161137be46c9ee094b55d3d7a82006d1e8ec10cac70d9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 동시에 실행하는 PHP extension library test는 각 Composer fixture를 따로 준비하고 PHPUnit 종료 뒤 정리해, 서로의 vendor symlink나 autoloader를 바꾸지 않습니다 (K610).
 - land는 병합 뒤 main commit처럼 link된 consumer가 읽는 것을 갱신한다. kit에서는 build 입력이 dist를 build하고, 다른 곳에서는 낡은 link된 package를 다시 build한다. make commit과 land는 linked-build.mts를 함께 쓴다 (K609).
 - 기록된 red 없이 done을 거부하는 메시지는 K608이 지운 item-red BEFORE=를 더는 권하지 않는다 (K608-1).
 - item-red은 행의 tree에서 Verification을 돌리고 BEFORE=를 받지 않는다. 옛 commit으로 바꿔 끼우는 일, 그 build, 그 검사(K389-1, K389-3, K525, K553, K556)는 지웠고, 옛 수정의 red는 git으로 직접 기록한다 (K608).

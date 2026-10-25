@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 761f4fa5bd8647965dbf009870b61d78c5ba937fa787bad073815f9498e42b8b -->
+<!-- source-sha256: 0269e878436d994d9685de62080d7fbf30d539f24a434d13218753d20791bc4e -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -515,4 +515,4 @@
 | K608 | item-red은 수정 전 행의 tree에서 Verification을 돌리고 BEFORE=를 받지 않는다. tree의 파일을 옛 commit으로 바꿔 끼우는 일, 그 build, 그 검사(K389의 BEFORE, K389-1, K389-3, K525, K553, K556)를 사용자의 2026-10-25 승인에 따라 그 테스트와 함께 지운다. 옛 수정의 red는 git으로 직접 기록하고, K389 테스트는 Red 줄이 조상을 가리키길 더는 요구하지 않는다(K562). 원인: BEFORE=는 실행 중 checkout의 tree를 다시 쓰고 복원하는 별도의 장치였고, 바꿔 끼운 상태가 남으면 어떤 commit에도 없는 tree가 됐다. 인수 조건: item-red의 help는 BEFORE=를 이름 붙이지 않고, item-red은 BEFORE를 읽지 않는다. red fixture: 지금은 help가 BEFORE=를 이름 붙인다. | `scripts/kit/plan.mts`, `scripts/kit/kit.mk`, `tests/kit/plan.test.mts` | `node --test --test-name-pattern=K608 tests/kit/plan.test.mts` | [o] |
 | K608-1 | 기록된 red 없이 item-state done을 거부하는 메시지는 K608이 지운 item-red BEFORE=를 이름 붙이지 않는다. 테스트 뒤의 item-red와 fix commit의 Red-Test 줄만 이름 붙인다(K608 후속). 원인: K608이 이 안내를 남겨, 더는 없는 옵션을 권했다. 인수 조건: plan.mts는 BEFORE=를 이름 붙이지 않는다. red fixture: 지금은 거부 메시지가 BEFORE=<rev>를 이름 붙인다. | `scripts/kit/plan.mts`, `tests/kit/plan.test.mts` | `node --test --test-name-pattern=K608 tests/kit/plan.test.mts` | [o] |
 | K609 | land는 fast-forward 뒤, main commit이 하듯 link된 consumer가 읽는 것을 갱신한다. kit에서는 build 입력이 바뀌면 dist를 build하고(K551), 다른 repository에서는 변경으로 build가 낡은 link된 npm package를 다시 build한다(K583). 갱신은 make commit과 land가 함께 쓰는 linked-build.mts 한 모듈이다(K603 후속). 원인: 모든 consumer가 main을 그대로 link하는데 K603 이후 land는 아무것도 build하지 않아, kit으로의 land가 dist를 낡게 남겼고 누군가 손으로 build할 때까지 consumer가 옛 코드를 돌렸다. 인수 조건: build 입력을 바꾸는 kit으로의 land가 병합 뒤 make kit-build를 돌린다. red fixture: 지금은 아무것도 build하지 않는다. | `scripts/kit/linked-build.mts`, `scripts/kit/land.mts`, `scripts/kit/plan.mts`, `tests/kit/land.test.mts` | `node --test --test-name-pattern=K609 tests/kit/land.test.mts` | [o] |
-| K610 | PHP 확장 라이브러리 테스트를 동시에 실행해도 각 Composer fixture를 분리하고 PHPUnit 종료 뒤 각 fixture를 정리한다. | scripts/kit/php-library-autoload.mts, scripts/kit/run-tests.mts, tests/kit/run-tests.test.mts | `node --test --test-name-pattern=K610 tests/kit/run-tests.test.mts` | [ ] |
+| K610 | PHP 확장 라이브러리 테스트를 동시에 실행해도 각 Composer fixture를 분리하고 PHPUnit 종료 뒤 각 fixture를 정리한다. | scripts/kit/php-library-autoload.mts, scripts/kit/run-tests.mts, tests/kit/run-tests.test.mts | `node --test --test-name-pattern=K610 tests/kit/run-tests.test.mts` | [o] |
