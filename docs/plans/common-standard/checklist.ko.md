@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 8b2c95c274ec09378eb9696a6b4a5d3981bbbf19e3a02b9ca32dcf331a6f6662 -->
+<!-- source-sha256: cbb301ab6d9b5ddb31dfffdd4b42d55eeafc2757eccb702a8dd5817b07de8484 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -551,3 +551,4 @@
 | K645 | divergence-check는 PHP 구현 루트의 선언을 대조해 function_exists를 판정합니다. 전역 프로젝트 함수는 찾고 미선언 외부 함수는 허용합니다 | scripts/kit/divergence-check.mts and the K645 source-declaration case in tests/kit/divergence-check.test.mts | `node --test --test-name-pattern=K645 tests/kit/divergence-check.test.mts` | [o] |
 | K646 | kit에 commit하거나 land해도 dist를 빌드하지 않습니다. consumer는 kit의 소스를 실행하고(K613) dist는 release 때 npm의 prepack이 빌드하므로, 어떤 consumer도 kit의 dist를 읽지 않게 되면 linked-build.mts의 kit 빌드(K551, K609의 kit 부분)를 지웁니다. | scripts/kit/linked-build.mts without the kit build, and the K646 cases in tests/kit/land.test.mts and tests/kit/plan.test.mts. | `node --test --test-name-pattern=K646 tests/kit/land.test.mts tests/kit/plan.test.mts` | [ ] |
 | K647 | Archived-To는 보류된 체크리스트 항목이 있고 삭제 파일이 도달 가능한 보관 커밋에 바이트 단위로 보존될 때만 시험 삭제를 허용합니다 | scripts/kit/check-commits.mts and the K647 cases in tests/kit/plan.test.mts | `node --test --test-name-pattern=K647 tests/kit/plan.test.mts` | [o] |
+| K648 | commit-subject-id는 Subject 안의 id가 마지막 id와 다를 때만 거부합니다. 이 규칙은 Subject가 한 행을 가리키게 하려는 것이고, 같은 id를 두 번 써도 그 행 하나를 가리키므로, id를 반복한 push된 commit(hyper c20a207)은 다시 쓸 필요도, 허용 sha 목록도 필요 없습니다. | scripts/kit/check-commits.mts and the K648 case in tests/kit/commits.test.mts. | `node --test --test-name-pattern=K648 tests/kit/commits.test.mts` | [ ] |
