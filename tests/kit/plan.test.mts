@@ -1074,6 +1074,33 @@ test('make item-red BEFORE= runs a gate Verification on the test files of BEFORE
   assert.equal(readFileSync(path.join(root, 'tests/check.test.mts'), 'utf8'), '// fixed\n', 'the test file of the fix is restored');
 });
 
+// K583: a commit on main of another repository that changes a build input of an npm package with a built output rebuilds it when the
+// output is stale, since other checkouts link that main live; a commit that changes no build input builds nothing.
+test('a commit on main that makes a linked build stale rebuilds it (K583)', (t) => {
+  const root = committed(t, 'T1');
+  const built = path.join(root, 'packages/p/dist/index.js');
+  put(root, {
+    'packages/p/package.json': '{"name":"p","version":"0.0.0","main":"dist/index.js"}\n',
+    'packages/p/src/index.ts': 'export const a = 0;\n',
+    'Makefile': 'build:\n\t@mkdir -p packages/p/dist && cp packages/p/src/index.ts packages/p/dist/index.js\n',
+    '.gitignore': '/var/\ndist/\n',
+  });
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'package']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  const body = path.join(root, 'var/body.txt');
+  mkdirSync(path.dirname(body), { recursive: true });
+  writeFileSync(body, 'Why.\n');
+  put(root, { 'packages/p/src/index.ts': 'export const a = 1;\n' });
+  stage(root, 'packages/p/src/index.ts');
+  commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Change the package', bodyFile: body }, identity);
+  assert.ok(existsSync(built), 'the commit of a build input rebuilds the stale output');
+  assert.equal(readFileSync(built, 'utf8'), 'export const a = 1;\n');
+  rmSync(path.join(root, 'packages/p/dist'), { recursive: true });
+  put(root, { 'docs/note.md': '# Note\n' });
+  stage(root, 'docs/note.md');
+  commitItem(root, { id: 'T1', type: 'docs', scope: 'parser', subject: 'Note the package', bodyFile: body }, identity);
+  assert.equal(existsSync(built), false, 'a commit of no build input builds nothing');
+});
+
 // K551: every consumer links the dist of kit main live, so a commit on main of the kit package that changes an input of its build runs
 // make kit-build after it commits; a commit that changes no build input builds nothing.
 test('a commit on main of the kit package builds it when it changes a build input (K551)', (t) => {

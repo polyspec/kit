@@ -55,7 +55,7 @@ import { stamped } from './documents-stamp.mts';
 import { privatePaths, stagedTwinFindings } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { isSource } from './kit-check.mts';
-import { buildState, buildTargets } from './link-build.mts';
+import { buildState, buildTargets, rebuild } from './link-build.mts';
 import { isTestGate, withLandLock } from './land.mts';
 import { present } from './present.mts';
 
@@ -591,14 +591,23 @@ function runBefore(root: string, id: string, before: string, commands: readonly 
  * package with such an output in a repository without a build target throws, since its red could not be judged.
  */
 function buildBefore(root: string, id: string, changed: readonly string[], print: (text: string) => void): string[] {
-  const packages = git(root, 'ls-files', '-z', '--', 'package.json', '*/package.json').split('\0').filter(Boolean).map(file => path.dirname(file));
-  const inside = (folder: string, file: string) => folder === '.' || file.startsWith(`${folder}/`);
-  const input = changed.find(file => !file.startsWith('docs/') && packages.some(folder => inside(folder, file) && buildState(root, path.join(root, folder)) !== 'source'));
+  const input = buildInputs(root, changed)[0]?.file;
   if (input === undefined) return [];
   const targets = buildTargets(root);
   if (targets.length === 0) throw new Error(`${id}: ${input} is a build input of a package whose build a test may import, and ${root} has no build target to build it at BEFORE; declare build in its Makefile`);
   runBuild(root, id, targets, `at BEFORE, since ${input} is a build input`, print);
   return targets;
+}
+
+/**
+ * The files of `files` that are build inputs of an npm package of the repository `root` with a built output, each with the folder of
+ * its package (K525, K583): a file of the package outside docs/, in a package whose build state is no `source`.
+ */
+function buildInputs(root: string, files: readonly string[]): { file: string; folder: string }[] {
+  const packages = git(root, 'ls-files', '-z', '--', 'package.json', '*/package.json').split('\0').filter(Boolean).map(file => path.dirname(file));
+  const built = packages.filter(folder => buildState(root, path.join(root, folder)) !== 'source');
+  const inside = (folder: string, file: string) => folder === '.' || file.startsWith(`${folder}/`);
+  return files.filter(file => !file.startsWith('docs/')).flatMap(file => built.filter(folder => inside(folder, file)).map(folder => ({ file, folder })));
 }
 
 /** Runs the build `targets` of `root` for item-red (K525), printing `when`; a failure throws with the end of its output. */
@@ -702,7 +711,9 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
     // K551: the files of the commit, read before it, since every consumer links the dist of kit main live.
     const files = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
     const message = commitStaged(root, commit, env, { registration });
-    if (isSource(root) && files.some(file => BUILD_INPUT.test(file))) buildKit(root);
+    if (isSource(root)) {
+      if (files.some(file => BUILD_INPUT.test(file))) buildKit(root);
+    } else rebuildStale(root, files);
     return message;
   });
 }
@@ -715,6 +726,24 @@ function buildKit(root: string): void {
   const result = spawnSync('make', ['--no-print-directory', 'kit-build'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
   if (result.error) throw new Error(`make kit-build could not start in ${root}: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`the commit is made, but make kit-build failed in ${root} with exit status ${result.status}, so dist is older than its sources; fix the build and run make kit-build:\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-20).join('\n')}`);
+}
+
+/**
+ * Rebuilds the repository `root` after a commit on main whose `files` change a build input of one of its npm packages that has a
+ * built output, as packages/compiler/dist, when that output is stale (K583, follows K551): other checkouts link the main checkout live,
+ * and their link-state-check fails while its build is older than its sources. The build is the one of `link.mjs rebuild`, which
+ * records the inputs it built; a failed build throws, naming it. A commit of no build input, or one whose outputs are fresh, builds
+ * nothing.
+ */
+function rebuildStale(root: string, files: readonly string[]): void {
+  const stale = [...new Set(buildInputs(root, files).map(input => input.folder))].filter(folder => buildState(root, path.join(root, folder)).startsWith('stale'));
+  if (stale.length === 0) return;
+  try {
+    rebuild(root, text => console.log(`[plan] ${text.trim()} (${stale.join(', ')} stale after the commit)`));
+  } catch (error) {
+    // The commit is made; the failure of the build names it and its fix, keeping its cause.
+    throw new Error(`the commit is made, but the build of ${stale.join(', ')} failed, so the linked outputs are older than their sources; fix the build and run node <kit>/dist/link.mjs rebuild .`, { cause: error });
+  }
 }
 
 /** The body of commitItem: checks the staged change and its message, and commits it (K249-4). */
