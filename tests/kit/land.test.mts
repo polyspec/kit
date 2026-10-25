@@ -684,6 +684,27 @@ test('land ignores changed ANSI-colored jscpd Total summary padding but keeps cl
   assert.ok(added?.some(line => line.includes('Clone found (php)')), 'a real added clone remains a finding');
 });
 
+test('land counts only the clone blocks of duplication-check as its findings (K599)', () => {
+  const clone = [
+    '\u001b[1mClone found (php)\u001b[22m',
+    ' - packages/php/src/Dbspec/Dbspec.php [781:5 - 787:6] (7 lines, 52 tokens)',
+    '   packages/php/src/Dbspec/Dbspec.php [802:5 - 808:6]',
+  ].join('\n');
+  const asDuplication = (output: string): GateRun => ({
+    folder: process.cwd(),
+    gate: 'duplication-check',
+    result: { pid: 0, output: [null, output, ''], stdout: output, stderr: '', status: 1, signal: null },
+  });
+  const main = asDuplication(`${clone}\nFound 6 clones.\n\u001b[90mDetection time:\u001b[39m: 951.207ms`);
+  const branch = asDuplication(`${clone}\nFound 6 clones.\n\u001b[90mDetection time:\u001b[39m: 1.024s\nsome other summary`);
+
+  assert.equal(newFindings(process.cwd(), branch, main), undefined, 'lines outside the clone blocks are no finding');
+
+  const addedClone = '\u001b[1mClone found (php)\u001b[22m\n - packages/php/a.php [1:1 - 7:2] (7 lines, 40 tokens)\n   packages/php/b.php [1:1 - 7:2]';
+  const added = newFindings(process.cwd(), asDuplication(`${clone}\n${addedClone}\nDetection time:: 1.024s`), main);
+  assert.ok(added?.some(line => line.includes('Clone found (php)')), 'an added clone remains a finding');
+});
+
 test('land recognizes the ANSI-colored jscpd summary rows captured by duplication-check (K394-5)', () => {
   const clone = [
     '\u001b[1mClone found (php)\u001b[22m',

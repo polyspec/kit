@@ -146,16 +146,14 @@ export function linesOf(output: string, folder: string, root: string): { line: s
 // ...); a kit tool prints its findings on stderr, and another tool, such as a linter, prints its findings on stdout without it (K394-3).
 const PROGRESS = /^\[[a-z0-9-]+\] /;
 
-// The per-language rows and aggregate Total row in jscpd's seven-column summary describe the scanned tree, not duplicate blocks.
-const JSCPD_STATISTICS = /^\s*│\s*(?:c|go|php|python|rust|typescript|javascript|Total:)\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*│\s*[\d,]+\s*│\s*\d[\d,]*\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*[\d,]+\s*\([\d.]+%\)\s*│\s*$/;
-// The line with which jscpd ends its report, the time of its run, which differs on every run (K600).
-const JSCPD_TIME = /^\s*time:\s*[\d.]+\s*m?s\s*$/;
+// The findings of jscpd are its clone blocks: a Clone found line and the location lines under it, each with a [line:column - line:column]
+// span. Every other line of its output, its summary rows, clone count and detection time, describes the run, not a duplicate (K599).
 const ANSI_SGR = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g');
-const isJscpdStatistics = (line: string): boolean => [JSCPD_STATISTICS, JSCPD_TIME].some(pattern => pattern.test(line.replace(ANSI_SGR, '')));
+const isCloneLine = (line: string): boolean => /^Clone found \(|\[\d+:\d+ - \d+:\d+\]/.test(line.replace(ANSI_SGR, '').trim());
 
 /** The lines of the stdout and the stderr of a gate that land compares: every line of stderr, and the lines of stdout but progress. */
 const findingLines = ({ stdout, stderr }: { stdout: string; stderr: string }, folder: string, root: string, gate?: string) =>
-  [...linesOf(stdout, folder, root).filter(({ line }) => !PROGRESS.test(line) && !(gate === 'duplication-check' && isJscpdStatistics(line))),
+  [...linesOf(stdout, folder, root).filter(({ line }) => !PROGRESS.test(line) && (gate !== 'duplication-check' || isCloneLine(line))),
     ...linesOf(stderr, folder, root)];
 
 /** The lines of `branch` that occur more times in `branch` than in `main`, counting repeats, in their order. */
