@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 203b1cb45b0f89ee0d20ebd226ede91eda6a0ed962cc84ea1e9654b9110e7cac -->
+<!-- source-sha256: f65c06d5df69c9527ce0ed32ed4bb7797a16a4e8fbd89068152cb2150e94be2d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make land`는 선택된 static gate를 한 번 실행한 뒤 merge 전후 build 없이 fast-forward하고 branch와 worktree를 안전하게 정리한다(K603).
 - Parity declaration은 tool 소유 requirement를 정확한 native test로 추적하면서도 tool을 공통 runtime implementation으로 등록하지 않습니다(K604).
 - dependency-policy-check은 Composer lock을 manifest와 대조하지 않고, composer.json이 Composer platform에 포함되는지도 보지 않는다(K180, K181). polyspec 패키지의 설치는 link이므로 lock은 개발 manifest가 떠난 release를 기록한다 (K602).
 - land는 duplication-check의 결과로 clone 블록만 세서, detection time처럼 실행을 설명하는 jscpd 줄이 land를 거부하지 않는다 (K599).
