@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit.mk wraps no compiler and sets no cargo jobs: the sccache wrapper of K581, which no repository used, is removed (K593).
 - uv-install keeps the package links: its uv sync passes --inexact and --no-install-package for each package whose folder is a symlink, so uv never writes through a link; the release of the links before uv and the held packages of K539, K545 and K554 are removed (K592).
 - Each installed polyspec package is one directory symlink to the package folder of its checkout, the user's rule; the per-file trees of Python (K541) and npm (K558), the dependency links of K574 and the declared file: links of K578 and K579 are removed (K591).
 - link takes the installed folders of a workspace member with no lock of its own, an npm workspace member or a Composer package of a root path repository, from the project whose lock installs it, instead of asking the member for its own (K590).
