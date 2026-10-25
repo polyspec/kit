@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Parity feature units can explicitly scope a requirement to multiple coverage parts of one feature; each implementation needs its own test binding, and every owner must be named or explicitly share tests with a named implementation (K635).
 - divergence-check treats Go GOOS/GOARCH as diagnostic metadata only when the machine value is consumed solely by a machine field in fmt.Fprintf; an actual platform branch remains a finding (K636).
 - make land resolves a rebase conflict that is only the source-sha256 line of Korean twins: it keeps one line, stamps it again with make documents-stamp and continues the rebase; a conflict in any other line still refuses (K634).
 - The PHP extension build passes the php-config of the checkout to configure, which otherwise takes the php-config first on PATH; a module built for PHP 8.5 no longer fails to load into the PHP 8.4 of .php-version (K632).

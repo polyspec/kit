@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 99ecb1b2ffd4209474c5838c45c06aef94e19ac0ddc9323dda9674364777d418 -->
+<!-- source-sha256: 2de6e4e32b04e82acc80c8fd09702804abaf8c2058d11a7774597ff73e17d0eb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- parity feature unit은 한 feature의 여러 coverage part에 requirement를 명시적으로 scope합니다. 각 implementation에는 자체 test binding이 필요하고, 모든 owner는 이름으로 지칭되거나 이름이 나온 implementation과 test를 명시적으로 공유해야 합니다(K635).
 - divergence-check는 Go GOOS/GOARCH 값을 fmt.Fprintf의 machine 필드에서만 소비할 때 진단 metadata로 취급합니다. 실제 platform 분기는 계속 finding입니다(K636).
 - make land는 한국어 쌍의 source-sha256 줄만 충돌한 rebase를 스스로 풉니다. 한 줄을 남기고 make documents-stamp로 다시 찍은 뒤 rebase를 이어갑니다. 다른 줄의 충돌은 여전히 거부합니다(K634).
 - PHP 확장 build는 checkout의 php-config를 configure에 넘깁니다. 그러지 않으면 configure가 PATH의 첫 php-config를 씁니다. 이제 PHP 8.5용으로 build한 module이 .php-version의 PHP 8.4에 load되지 못하는 일이 없습니다(K632).
