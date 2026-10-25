@@ -951,3 +951,8 @@ test('make item-red takes no BEFORE= (K608)', () => {
   const help = readFileSync(fileURLToPath(new URL('../../scripts/kit/kit.mk', import.meta.url)), 'utf8').split('\n').find(line => line.startsWith('item-red:')) ?? '';
   assert.doesNotMatch(help, /BEFORE=/);
 });
+
+// K608-1: no message of the plan tool advises item-red BEFORE=, which K608 removed.
+test('the plan tool advises no item-red BEFORE= (K608-1)', () => {
+  assert.doesNotMatch(readFileSync(fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'utf8'), /BEFORE=/);
+});
