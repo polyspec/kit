@@ -29,6 +29,16 @@ test('the rules of a makefile name their targets, and no recipe line, variable o
   assert.deepEqual(ruleTargets(text), ['build', 'test', 'build', 'kit-build', 'install-packages', 'dependency-review']);
 });
 
+// K617: a repository holds no copy of kit-bootstrap.mk since K614, so the fixed tasks that it defines, such as install, are read
+// from the kit-bootstrap.mk of the kit that runs; a Makefile that adds its steps as prerequisites of install passes.
+test('the fixed tasks of kit include those of the kit-bootstrap.mk of the kit that runs, without a copy in the repository (K617)', async () => {
+  const { kitTargets } = await import('../../scripts/kit/kit-check.mts');
+  assert.equal(typeof kitTargets, 'function', 'kit-check exports kitTargets');
+  const kit = kitTargets();
+  for (const target of ['install', 'install-kit', 'install-packages', 'install-link']) assert.ok(kit.has(target), `${target} is a fixed task of kit`);
+  assert.deepEqual(taskNameFindings('install: repo-install\nrepo-install:\n\t@true\n', kit), []);
+});
+
 test('a target that repeats a fixed task under another name fails, and a prerequisite of a fixed task passes (K246)', () => {
   const kit = new Set(['build', 'test', 'lint', 'install', 'test-ts']);
   const makefile = 'build: kit-build\nkit-build:\ntest-unit:\ncheck:\ninstall-python:\ntest-ts: extra\nlinter:\ntypecheck:\n';

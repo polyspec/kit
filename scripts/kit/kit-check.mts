@@ -27,6 +27,7 @@ import { implementationFolders } from './parity-declaration.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { bareToolFindings, testRunnerFindings } from './recipe-tools.mts';
 import { git } from './git.mts';
+import { kitFile } from './kit-files.mts';
 
 export const PACKAGE = '@polyspec/kit';
 export const INSTALLED = `node_modules/${PACKAGE}`;
@@ -271,16 +272,19 @@ export function lintSelectionFindings(files: readonly string[], make: MakeDataba
   });
 }
 
-/** The targets that kit defines: those of the kit.mk beside this module and of the kit-bootstrap.mk of `root`. */
-function kitTargets(root: string): Set<string> {
-  const files = [path.join(path.dirname(fileURLToPath(import.meta.url)), 'kit.mk'), path.join(root, 'scripts/kit/kit-bootstrap.mk')];
+/**
+ * The targets that kit defines: those of the kit.mk beside this module and of the kit-bootstrap.mk of the kit that runs, which a
+ * repository includes from the kit checkout beside it and holds no copy of (K614, K617).
+ */
+export function kitTargets(): Set<string> {
+  const files = [path.join(path.dirname(fileURLToPath(import.meta.url)), 'kit.mk'), kitFile('scripts/kit/kit-bootstrap.mk')];
   return new Set(files.filter(file => existsSync(file)).flatMap(file => ruleTargets(readFileSync(file, 'utf8'))));
 }
 
 /** The findings of the targets of `root`: the names of its Makefile and the targets of its runtimes (K246). */
 function targetFindings(root: string, make: MakeDatabase): string[] {
   const makefile = path.join(root, 'Makefile');
-  const names = existsSync(makefile) ? taskNameFindings(readFileSync(makefile, 'utf8'), kitTargets(root)) : [];
+  const names = existsSync(makefile) ? taskNameFindings(readFileSync(makefile, 'utf8'), kitTargets()) : [];
   const files = trackedFiles(root);
   // K534: the owner rules as land reads them select the lint of each language for its sources.
   const owners = existsSync(path.join(root, DECLARATION)) ? lintSelectionFindings(files, make, ownerDeclaration(root)) : [];
