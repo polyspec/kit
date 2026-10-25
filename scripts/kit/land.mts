@@ -10,9 +10,10 @@
 // fast-forward, removes the worktree when it
 // has no uncommitted change (an ignored install does not count) and deletes the branch. A branch that main already contains
 // skips the gates and the merge, and only what is left is removed. Before a worktree is removed, the make targets that WORKTREE_STOP
-// names in its Makefile stop its servers (K441); a stop that fails keeps the worktree. The whole run holds a lock in the common git
-// folder, so a second land waits for the first, and the merge is refused when main moved while the gates ran; land merges with
-// KIT_MAIN_WRITER set, which the reference-transaction hook of make hooks requires of a move of main (K495).
+// names in its Makefile stop its servers (K441); a stop that fails keeps the worktree. A lock in the common git folder covers the
+// check that main is still the commit that the gates ran on and the merge (K495, K571); the gates of independent branches run at the
+// same time, and a land whose main moved rebases and runs them again; land merges with KIT_MAIN_WRITER set, which the
+// reference-transaction hook of make hooks requires of a move of main (K495).
 //
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
@@ -341,19 +342,16 @@ function movesOf(root: string, from: string): string {
 
 /**
  * Lands `branch` on main in the repository of `root` (the main checkout); throws, merging nothing, when a refusal applies or a gate
- * fails. A branch that main contains skips the gates and the merge. The whole run holds the land lock (K495).
+ * fails. A branch that main contains skips the gates and the merge. The land lock covers only the merge (K571).
  */
 export function land(root: string, branch: string, { print = (text: string) => console.log(`[land] ${text}`), sleep = sleepFor }: { print?: (text: string) => void; sleep?: (ms: number) => void } = {}): void {
   if (branch === '') throw new Error('no branch: make land BRANCH=<branch>');
   // K516: land lands into the checkout that has main checked out, wherever it is called from.
-  const main = mainCheckout(root);
-  const release = takeLandLock(main, branch, print, sleep);
-  try {
-    landLocked(main, branch, print);
-  } finally {
-    release();
-  }
+  landBranch(mainCheckout(root), branch, print, sleep);
 }
+
+/** How often a land rebases and runs its gates again when main moved while they ran (K571). */
+export const LAND_ATTEMPTS = 3;
 
 /** The checkout of the repository of `root` whose branch is main, from git worktree list; throws when no checkout has main checked out. */
 function mainCheckout(root: string): string {
@@ -364,12 +362,21 @@ function mainCheckout(root: string): string {
   return folder;
 }
 
-/** The run of land under its lock. */
-function landLocked(root: string, branch: string, print: (text: string) => void): void {
+/** Throws unless the main checkout `root` is on main and clean, as a land and its merge need it. */
+function requireCleanMain(root: string): void {
   const head = git(root, 'rev-parse', '--abbrev-ref', 'HEAD').trim();
   if (head !== 'main') throw new Error(`the main checkout ${root} is on ${head}, not on main`);
   const dirty = git(root, 'status', '--porcelain').trim();
   if (dirty !== '') throw new Error(`the main checkout ${root} has uncommitted changes:\n${dirty}`);
+}
+
+/**
+ * The run of a land (K571): the gates and the build of the worktree run without the land lock, on the main commit that they record; the
+ * lock covers the check that main is still that commit and the fast-forward. A main that moved meanwhile is rebased on and the gates
+ * run again, up to LAND_ATTEMPTS times, so nothing merges that its gates did not see on the exact main.
+ */
+function landBranch(root: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void): void {
+  requireCleanMain(root);
   if (gitResult(root, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).status !== 0) throw new Error(`the branch ${branch} does not exist`);
   const folder = worktreeOf(root, branch);
   // The worktree of a repository whose Makefile declares WORKTREE_STOP has its servers stopped after the merge, before its removal,
@@ -381,51 +388,78 @@ function landLocked(root: string, branch: string, print: (text: string) => void)
     print(`${branch} is contained in main already: no gate runs and nothing is merged`);
   } else {
     if (folder === undefined) throw new Error(`${branch} has no worktree; the gates run on its own tree and install, so make worktree-setup first`);
-    // K495-1: a branch that main has left behind, as the land this one waited for leaves it, is rebased here; the gates below run on
-    // the rebased commits, so nothing is merged that they did not see.
-    if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) rebaseOnMain(folder, branch, print);
-    // K497: a row of the rebased branch whose ID main holds with another task is refused before any gate runs.
-    const clashes = rowClashes(root, branch, branch);
-    if (clashes.length > 0) throw new Error(`${branch} is refused; nothing is merged:\n${clashes.map(clashMessage).join('\n')}`);
-    const gated = git(root, 'rev-parse', 'main').trim();
-    const changed = git(root, 'diff', '--name-only', `main...${branch}`).split('\n').filter(line => line !== '');
-    const { gates, excluded, reasons } = gatesOf(folder, changed);
-    for (const reason of reasons) print(reason);
-    for (const gate of excluded) print(`${gate} runs tests, which the Verification of the rows runs; land does not run it`);
-    print(`gates of ${branch} in ${folder}: ${gates.join(', ')}`);
-    for (const gate of gates) {
-      print(`${gate} in ${folder}`);
-      const args = gate === 'commits-check' ? [`RANGE=main..${branch}`] : [];
-      const candidate = runGate(folder, gate, args);
-      if (candidate.result.status !== 0 && gate !== 'commits-check') {
-        const added = newFindings(root, candidate, runGate(root, gate, args));
-        if (added === undefined) {
-          print(`${gate} fails on main too, with no finding that main does not have`);
-          continue;
+    for (let attempt = 1; ; attempt += 1) {
+      const gated = gateBranch(root, folder, branch, print);
+      const release = takeLandLock(root, branch, print, sleep);
+      let merged = false;
+      try {
+        requireCleanMain(root);
+        // K495: main must still be the commit the gates ran on.
+        if (git(root, 'rev-parse', 'main').trim() === gated) {
+          const result = spawnSync('git', ['merge', '--ff-only', branch], { cwd: root, encoding: 'utf8', env: { ...process.env, [MAIN_WRITER]: 'land' } });
+          if (result.error) throw new Error(`git merge --ff-only ${branch} could not start in ${root}: ${result.error.message}`);
+          if (result.status !== 0) throw new Error(`git merge --ff-only ${branch} exited with ${result.status}: ${result.stderr.trim()}; nothing is merged`);
+          merged = true;
         }
-        if (added.length > 0) {
-          print(`${gate} has findings that main does not have:\n${added.join('\n')}`);
-          throw new Error(`${branch} is refused: the gate ${gate} has ${added.length} findings that main does not have; nothing is merged`);
-        }
+      } finally {
+        release();
       }
-      if (candidate.result.status !== 0) {
-        print(`${gate} failed in ${folder}:\n${candidate.result.stdout}${candidate.result.stderr}`);
-        throw new Error(`${branch} is refused: the gate ${gate} ${endOf(candidate)}; nothing is merged`);
-      }
-      print(`${gate} passed`);
+      if (merged) break;
+      const moves = movesOf(root, gated);
+      if (attempt === LAND_ATTEMPTS) throw new Error(`main moved while the gates of ${branch} ran, ${LAND_ATTEMPTS} times; the last moves:\n${moves}\nland it again; nothing is merged`);
+      print(`main moved while the gates of ${branch} ran:\n${moves}\n${branch} rebases on main and runs the gates again`);
     }
-    // K513: the build runs on the merge result, the tree of the rebased branch, before main moves, as the gates do.
-    build(folder, `${branch} is refused: its build fails; nothing is merged`, print);
-    // K495: main must still be the commit the gates ran on; a writer that moved it meanwhile is named, and nothing is merged.
-    if (git(root, 'rev-parse', 'main').trim() !== gated) {
-      throw new Error(`main moved while the gates of ${branch} ran:\n${movesOf(root, gated)}\nrebase ${branch} on main and land it again; nothing is merged`);
-    }
-    const merged = spawnSync('git', ['merge', '--ff-only', branch], { cwd: root, encoding: 'utf8', env: { ...process.env, [MAIN_WRITER]: 'land' } });
-    if (merged.error) throw new Error(`git merge --ff-only ${branch} could not start in ${root}: ${merged.error.message}`);
-    if (merged.status !== 0) throw new Error(`git merge --ff-only ${branch} exited with ${merged.status}: ${merged.stderr.trim()}; nothing is merged`);
     print(`merged ${branch} into main`);
     build(root, 'main already holds the merge', print);
   }
+  removeLanded(root, branch, folder, stop, print);
+}
+
+/**
+ * Rebases `branch` on main in its worktree `folder` when main has left it behind, runs its gates and its build there, and returns the
+ * main commit that they ran on (K571); throws, merging nothing, on a refusal.
+ */
+function gateBranch(root: string, folder: string, branch: string, print: (text: string) => void): string {
+  // K495-1: a branch that main has left behind, as the land this one waited for leaves it, is rebased here; the gates below run on
+  // the rebased commits, so nothing is merged that they did not see.
+  if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) rebaseOnMain(folder, branch, print);
+  // K497: a row of the rebased branch whose ID main holds with another task is refused before any gate runs.
+  const clashes = rowClashes(root, branch, branch);
+  if (clashes.length > 0) throw new Error(`${branch} is refused; nothing is merged:\n${clashes.map(clashMessage).join('\n')}`);
+  const gated = git(root, 'rev-parse', 'main').trim();
+  const changed = git(root, 'diff', '--name-only', `main...${branch}`).split('\n').filter(line => line !== '');
+  const { gates, excluded, reasons } = gatesOf(folder, changed);
+  for (const reason of reasons) print(reason);
+  for (const gate of excluded) print(`${gate} runs tests, which the Verification of the rows runs; land does not run it`);
+  print(`gates of ${branch} in ${folder}: ${gates.join(', ')}`);
+  for (const gate of gates) {
+    print(`${gate} in ${folder}`);
+    const args = gate === 'commits-check' ? [`RANGE=main..${branch}`] : [];
+    const candidate = runGate(folder, gate, args);
+    if (candidate.result.status !== 0 && gate !== 'commits-check') {
+      const added = newFindings(root, candidate, runGate(root, gate, args));
+      if (added === undefined) {
+        print(`${gate} fails on main too, with no finding that main does not have`);
+        continue;
+      }
+      if (added.length > 0) {
+        print(`${gate} has findings that main does not have:\n${added.join('\n')}`);
+        throw new Error(`${branch} is refused: the gate ${gate} has ${added.length} findings that main does not have; nothing is merged`);
+      }
+    }
+    if (candidate.result.status !== 0) {
+      print(`${gate} failed in ${folder}:\n${candidate.result.stdout}${candidate.result.stderr}`);
+      throw new Error(`${branch} is refused: the gate ${gate} ${endOf(candidate)}; nothing is merged`);
+    }
+    print(`${gate} passed`);
+  }
+  // K513: the build runs on the merge result, the tree of the rebased branch, before main moves, as the gates do.
+  build(folder, `${branch} is refused: its build fails; nothing is merged`, print);
+  return gated;
+}
+
+/** Removes the worktree `folder` of the landed `branch`, after stopping its servers with `stop`, and deletes the branch. */
+function removeLanded(root: string, branch: string, folder: string | undefined, stop: string[] | undefined, print: (text: string) => void): void {
   let kept = false;
   if (folder !== undefined) {
     if (git(folder, 'status', '--porcelain').trim() === '') {
