@@ -84,6 +84,17 @@ test('a wrong name, a second stub, a stale header and a library of another name 
   assert.deepEqual(findings({ ...good(), 'packages/php/composer.json': '{"name": "other/demo"}' }), ['packages/php/composer.json: the PHP library, whose classes the extension registers, is named polyspec/<repository>, not other/demo']);
 });
 
+// K616: a repository whose packages/php is an application (a consumer test bed, as in fsm) declares no PHP library, so its extension
+// implements none and is named after the repository by its own composer.json; the names, the stub and the header are checked as before.
+test('an extension of a repository without a PHP library is named by its own composer.json, with no library to match (K616)', () => {
+  const { 'packages/php/composer.json': _, ...extension } = good();
+  const bed = { ...extension, 'packages/php/composer.json': '{"name": "polyspec/demo", "type": "project"}' };
+  assert.deepEqual(findings(bed), []);
+  assert.deepEqual(findings(extension), []);
+  assert.deepEqual(findings({ ...bed, 'packages/php-ext/composer.json': '{"name": "polyspec/demo-extension"}' }), ['packages/php-ext/composer.json: the extension of a repository without a PHP library is named polyspec/<repository>-php-ext, not polyspec/demo-extension']);
+  assert.deepEqual(findings({ ...bed, 'packages/php-ext/src/config.m4': 'PHP_NEW_EXTENSION([demo], [demo.c])\n' }), ['packages/php-ext/src/config.m4: PHP_NEW_EXTENSION names the extension polyspec_demo, not demo']);
+});
+
 // A repository with two PHP libraries, packages/<component>/php, and one extension (S10, K293).
 const components = (): Record<string, string> => {
   const { 'packages/php/composer.json': _, ...rest } = good();

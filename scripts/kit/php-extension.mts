@@ -70,7 +70,14 @@ export function libraryFolders(files: readonly string[], read: (file: string) =>
  */
 export function repositoryOf(files: readonly string[], read: (file: string) => string | undefined): { repository: string; libraries: string[] } | { finding: string } {
   const libraries = libraryFolders(files, read);
-  if (libraries.length === 0) return { finding: `${LIBRARY}/composer.json: the extension implements the PHP libraries of the repository, packages/php or packages/<component>/php, and the repository has none` };
+  if (libraries.length === 0) {
+    // K616: a repository without a PHP library (its packages/php an application, as fsm's test bed) has an extension that implements
+    // none; its own composer.json names the repository, and no library declaration is matched.
+    const name = composerName(read(`${EXTENSION}/composer.json`));
+    const repository = name === undefined ? undefined : /^polyspec\/([a-z0-9][a-z0-9-]*)-php-ext$/.exec(name)?.[1];
+    if (!repository) return { finding: `${EXTENSION}/composer.json: the extension of a repository without a PHP library is named polyspec/<repository>-php-ext, not ${name ?? 'nothing'}` };
+    return { repository, libraries };
+  }
   const repositories = new Map<string, string>();
   for (const folder of libraries) {
     const component = folder === LIBRARY ? undefined : folder.split('/')[1];
@@ -360,6 +367,8 @@ export function arginfo(root: string): void {
  */
 export function declarations(root: string): string[] {
   const names = checked(root);
+  // A repository without a PHP library has no library declaration to match (K616).
+  if (!names.libraries.length) return [];
   const library = path.join(root, OUTPUT, `${names.extension}.so`);
   if (!existsSync(library)) throw new Stop(`${path.relative(root, library)} is missing. Fix: make build-php-ext`);
   const script = path.join(SYMBOLS, 'php', 'reflection.php');
