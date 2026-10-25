@@ -187,27 +187,10 @@ export function gatesOf(folder: string, changed: string[], installed: string = f
   return { gates: selected.filter(gate => !isTestGate(gate)), excluded: selected.filter(isTestGate), reasons: selection.reasons };
 }
 
-/**
- * Runs `make build` in `folder`; a failing build throws with `failed`, the end of the message. Land builds the worktree of the branch,
- * whose tree is the merge result, before main moves (K513), and the main checkout after the fast-forward (K453), so its build output,
- * which is ignored and read by linked consumers, holds the merged sources.
- */
-function build(folder: string, failed: string, print: (text: string) => void): void {
-  const started = Date.now();
-  print(`make build in ${folder}`);
-  const result = runMake(folder, ['--no-print-directory', 'build']);
-  const elapsed = ((Date.now() - started) / 1000).toFixed(1);
-  if (result.status !== 0) {
-    throw new Error(`make build failed in ${folder} (${result.status ?? result.signal}, ${elapsed}s):\n${`${result.stdout}${result.stderr}`.trim().split('\n').slice(-40).join('\n')}\n${failed}`);
-  }
-  print(`make build in ${folder} passed (${elapsed}s)`);
-}
-
 // K495: the lock of a land, in the common git folder, which every worktree of the repository shares; the variable that lets the
 // reference-transaction hook of make hooks pass the merge of land; how often a waiting land looks at the lock, and for how long.
 export const LAND_LOCK = 'kit-land.lock';
-// K572: the lock of the runs of make in the main checkout, its build after a merge and the run of a gate on main that a land compares
-// with, so neither reads a tree that the other half wrote.
+// Serializes gates that land compares on main, so they read one stable main tree.
 export const MAIN_BUILD_LOCK = 'kit-main-build.lock';
 export const MAIN_WRITER = 'KIT_MAIN_WRITER';
 const LOCK_POLL_MS = 2000;
@@ -374,8 +357,8 @@ function requireCleanMain(root: string): void {
 }
 
 /**
- * The run of a land (K571): the gates and the build of the worktree run without the land lock, on the main commit that they record; the
- * lock covers the check that main is still that commit and the fast-forward. A main that moved meanwhile is rebased on and the gates
+ * The run of a land (K571): the gates run without the land lock, on the main commit that they record; the lock covers the check that
+ * main is still that commit and the fast-forward. A main that moved meanwhile is rebased on and the gates
  * run again, up to LAND_ATTEMPTS times, so nothing merges that its gates did not see on the exact main.
  */
 function landBranch(root: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void): void {
@@ -415,26 +398,8 @@ function landBranch(root: string, branch: string, print: (text: string) => void,
       print(`main moved while the gates of ${branch} ran:\n${moves}\n${branch} rebases on main and runs the gates again`);
     }
     print(`merged ${branch} into main`);
-    buildMain(root, git(root, 'rev-parse', 'main').trim(), print, sleep);
   }
   removeLanded(root, branch, folder, stop, print);
-}
-
-/**
- * Runs the build of the main checkout `root` after the merge of `merged` (K453), under the main build lock and after the land lock
- * is released (K572): the next land merges while it runs. A build that fails after another land moved main past `merged` leaves the
- * build to that land, whose build follows under the same lock.
- */
-function buildMain(root: string, merged: string, print: (text: string) => void, sleep: (ms: number) => void): void {
-  const release = takeLandLock(root, 'main', print, sleep, { name: `the main build after ${merged.slice(0, 8)}`, outcome: 'main holds the merge, but its build did not run' }, MAIN_BUILD_LOCK);
-  try {
-    build(root, 'main already holds the merge', print);
-  } catch (error) {
-    if (!(error instanceof Error) || git(root, 'rev-parse', 'main').trim() === merged) throw error;
-    print(`the build of main failed after a later land moved main past ${merged.slice(0, 8)}; the build of that land follows:\n${error.message}`);
-  } finally {
-    release();
-  }
 }
 
 /** The gates that passed for a branch and the main commit that they ran on (K571, K580). */
@@ -444,8 +409,8 @@ interface GatesRun {
 }
 
 /**
- * Rebases `branch` on main in its worktree `folder` when main has left it behind, runs its gates and its build there, and returns the
- * main commit that they ran on and the gates that passed (K571); throws, merging nothing, on a refusal. After `previous`, the run of a
+ * Rebases `branch` on main in its worktree `folder` when main has left it behind, runs its gates there, and returns the main commit
+ * that they ran on and the gates that passed (K571); throws, merging nothing, on a refusal. After `previous`, the run of a
  * main that moved since, only the gates that the paths of the moved commits select run again, and commits-check, since the rebased
  * commits are new; a gate that passed before and whose inputs no moved commit touched keeps its result (K580).
  */
@@ -489,12 +454,10 @@ function gateBranch(root: string, folder: string, branch: string, print: (text: 
     }
     print(`${gate} passed`);
   }
-  // K513: the build runs on the merge result, the tree of the rebased branch, before main moves, as the gates do.
-  build(folder, `${branch} is refused: its build fails; nothing is merged`, print);
   return { gated, gates };
 }
 
-/** The run of `gate` with `args` in the main checkout `root`, under the main build lock (K572). */
+/** The run of `gate` with `args` in the main checkout `root`, under the main gate lock. */
 function mainRun(root: string, gate: string, args: string[], print: (text: string) => void, sleep: (ms: number) => void): GateRun {
   const release = takeLandLock(root, 'main', print, sleep, { name: `the run of ${gate} on main`, outcome: 'nothing is merged' }, MAIN_BUILD_LOCK);
   try {

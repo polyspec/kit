@@ -99,80 +99,6 @@ test('make land fast-forwards and cleans up without invoking either build (K603)
   assert.equal(existsSync(buildCalls), false, 'land does not invoke make build in the branch or main checkout');
 });
 
-test('K453: land runs make build in the main checkout after the fast-forward, so dist holds the merged sources (K453)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  // build copies src/x.txt to dist/x.txt, as a provider's build copies its sources to its output (dist/ is ignored).
-  put(main, {
-    'Makefile': 'kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttrue\nbuild:\n\tmkdir -p dist && cp src/x.txt dist/x.txt\n',
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
-    '.gitignore': 'dist/\nvar/\n',
-    'src/x.txt': 'v1\n',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  git(main, 'worktree', 'add', '--quiet', path.join(parent, 'repo-k453'), '-b', 'feat/k453', 'main');
-  const folder = path.join(parent, 'repo-k453');
-  put(folder, { 'src/x.txt': 'v2\n' });
-  git(folder, 'add', '-A');
-  git(folder, 'commit', '--quiet', '-m', 'x');
-  const branch = git(main, 'rev-parse', 'feat/k453');
-  const printed: string[] = [];
-  land(main, 'feat/k453', { print: text => printed.push(text) });
-  assert.equal(git(main, 'rev-parse', 'main'), branch, 'main fast-forwards to the branch');
-  assert.equal(readFileSync(path.join(main, 'dist/x.txt'), 'utf8'), 'v2\n', 'dist holds the merged sources after land');
-  assert.ok(printed.some(text => /make build in .* (passed|finished)/.test(text)), 'land prints the build with its elapsed time');
-});
-
-test('K453: a build that fails after the fast-forward fails land and names the build (K453)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  put(main, {
-    'Makefile': 'kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nbuild:\n\techo "compile error in x" >&2; exit 3\n',
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] }, null, 2) + '\n',
-    'src/x.txt': 'v1\n',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  git(main, 'worktree', 'add', '--quiet', path.join(parent, 'repo-k453'), '-b', 'feat/k453', 'main');
-  const folder = path.join(parent, 'repo-k453');
-  put(folder, { 'src/x.txt': 'v2\n' });
-  git(folder, 'add', '-A');
-  git(folder, 'commit', '--quiet', '-m', 'x');
-  const before = git(main, 'rev-parse', 'main');
-  assert.throws(() => land(main, 'feat/k453', { print: () => {} }), /make build.*compile error in x/s);
-  // K513: the build of the worktree fails first, so main does not move.
-  assert.equal(git(main, 'rev-parse', 'main'), before);
-});
-
-// K513: the build runs on the merge result in the worktree before main moves, as the gates do, so a branch whose build fails leaves main
-// as it was (orm's main went red when its build failed only after the merge).
-test('K513: land refuses a branch whose build fails, before main moves (K513)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  put(main, {
-    'Makefile': 'kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nbuild:\n\t@if [ -f src/broken.txt ]; then echo "stub hash differs" >&2; exit 3; fi\n',
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] }, null, 2) + '\n',
-    'src/x.txt': 'v1\n',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const before = git(main, 'rev-parse', 'main');
-  const folder = path.join(parent, 'repo-k513');
-  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat/k513', 'main');
-  put(folder, { 'src/broken.txt': 'x\n' });
-  git(folder, 'add', '-A');
-  git(folder, 'commit', '--quiet', '-m', 'broken');
-  assert.throws(() => land(main, 'feat/k513', { print: () => {} }), /make build.*stub hash differs.*nothing is merged/s);
-  assert.equal(git(main, 'rev-parse', 'main'), before, 'main stays where it was');
-});
-
 test('land refuses a gate that fails only on a finding that main does not have (K394-1)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -836,10 +762,9 @@ test('runGate returns at the exit of make while a process it started holds the o
   assert.throws(() => runGate(folder, 'slow', [], 1000), /make slow ran past its deadline of 1 s in .* and was stopped/);
 });
 
-// K571: the gates and the build of the worktree run without the land lock, so the lands of independent branches overlap; the lock
-// covers only the check that main is still the commit that the gates ran on and the fast-forward. A gate here fails in the worktree
-// while the lock exists, and passes on main, so no comparison with main passes it.
-test('the gates and the worktree build of a land run without the land lock, which covers only the merge (K571)', (t) => {
+// K571: the gates run without the land lock; the lock covers only checking that main is still the commit they ran on and fast-forwarding.
+// A gate here fails in the worktree while the lock exists, and passes on main, so no comparison with main passes it.
+test('the gates of a land run without the land lock, which covers only the merge (K571)', (t) => {
   const { main, branch, lock } = lockFixture(t, () => 'if [ "$$(git rev-parse --abbrev-ref HEAD)" != main ]; then test ! -e $$(git rev-parse --git-common-dir)/kit-land.lock; fi');
   land(main, 'feat/x', { print: () => {} });
   assert.equal(git(main, 'rev-parse', 'main'), branch, 'the branch lands');
@@ -855,31 +780,6 @@ test('a land whose main moved while its gates ran rebases and lands on the new m
   assert.equal(git(main, 'log', '-1', '--format=%s', 'main'), 'x', 'the branch lands on the new main');
   assert.equal(git(main, 'log', '-1', '--format=%s', 'main^'), 'moved-once', 'on top of the commit that moved main');
   assert.ok(printed.some(text => text.includes('moved-once') && text.includes('runs the gates again')), printed.join('\n'));
-});
-
-// K572: the build of main after the fast-forward runs after the land lock is released, under the main build lock, so the next land
-// merges while it runs; the recipe here fails unless the main build lock is held and the land lock is not.
-test('the build of main after the merge runs under the main build lock, after the land lock is released (K572)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  const common = '$$(git rev-parse --git-common-dir)';
-  put(main, {
-    'Makefile': `kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nbuild:\n\ttest ! -e ${common}/kit-land.lock\n\tif [ "$$(git rev-parse --abbrev-ref HEAD)" = main ]; then test -e ${common}/kit-main-build.lock; fi\n`,
-    'config/owner-checks.json': `${JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] })}\n`,
-    'src/.keep': '',
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const folder = path.join(parent, 'repo-x');
-  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat/x', 'main');
-  put(folder, { 'src/x.txt': 'x\n' });
-  git(folder, 'add', '-A');
-  git(folder, 'commit', '--quiet', '-m', 'x');
-  land(main, 'feat/x', { print: () => {} });
-  assert.equal(git(main, 'log', '-1', '--format=%s', 'main'), 'x');
-  assert.equal(existsSync(path.join(main, '.git/kit-main-build.lock')), false, 'the main build lock is released');
 });
 
 // K580: when main moves during the gates of a land, the land reruns only the gates that the paths of the moved commits select, and
