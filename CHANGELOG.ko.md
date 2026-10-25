@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a9aa9fb4893f4ef3c988d1720920ca57696bfb0ace3f7524f2d2c81aa8ea3d25 -->
+<!-- source-sha256: ae7a7665dc02a0e174f791d532a23c273f46a06e94ab177847269a0454c25133 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- worktree-setup은 다른 checkout의 provided package를 main checkout이 가진 것처럼 그 checkout 폴더로의 symlink 하나로 link하고, main checkout 항목으로의 이전 link를 대체한다 (K598).
 - worktree-setup은 자유 디스크 때문에 worktree를 거부하지 않고 Go build cache를 정리하지 않는다. 사용자의 결정에 따라 30 GB floor와 K538, K538-1의 정리를 제거했다 (K596).
 - Composer package는 vendor의 폴더가 symbolic link일 때 link된 것이므로 dependency review가 그것을 registry와 비교하지 않는다. link가 더는 쓰지 않는 composer.link.json과 composer.link.lock의 code를 지운다(K595).
 - link-state-check는 각 설치 위치가 올바른 symbolic link인지와 tracked lock의 release 기록, go.work, Claude Code hook만 판정한다. mise trust, merge된 branch, provider의 build는 그 finding이 아니다(K594).

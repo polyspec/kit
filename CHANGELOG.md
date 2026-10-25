@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- worktree-setup links a provided package of another checkout as the one symlink to that checkout's folder, as the main checkout holds it, never to the main checkout's entry, and replaces such an earlier link (K598).
 - worktree-setup refuses no worktree for the free disk and trims no Go build cache: the floor of 30 GB and the trims of K538 and K538-1 are removed, by the user's ruling (K596).
 - A Composer package is linked when its folder of the vendor is a symbolic link, so the dependency review does not compare it with its registry; the code of composer.link.json and composer.link.lock, which link no longer writes, is removed (K595).
 - link-state-check judges only that each install location is the right symbolic link, with the release record of the tracked locks, go.work and the Claude Code hook; the mise trust, merged branches and the build of a provider are no findings of it (K594).
