@@ -4,7 +4,7 @@
 // Polyspec\Demo\Counter; it is built with the phpize, php-config and php on PATH.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -460,4 +460,16 @@ test('install-tools stages the PHP-Parser that the gen_stub.php of the declared 
   const staged = path.join(root, 'var/tools/php-arginfo/PHP-Parser-5.6.1/lib/PhpParser/ParserFactory.php');
   assert.equal(readFileSync(staged, 'utf8'), '<?php // 5.6.1\n', 'the lock of PHP-Parser 5.6.1 is installed for PHP 8.5');
   assert.equal(installedGenStub(root).parser, '5.6.1');
+});
+
+// K639: link's sibling scan takes each Composer package name as one provider, so each locked PHP-Parser project of kit (K637) has its own
+// name; two projects of one name stop make install-link in every consumer.
+test('each PHP-Parser project of kit has its own Composer name (K639)', () => {
+  const projects = path.join(ROOT, 'scripts/kit/php-arginfo');
+  const names = readdirSync(projects).map(release => {
+    const manifest: unknown = JSON.parse(readFileSync(path.join(projects, release, 'composer.json'), 'utf8'));
+    return typeof manifest === 'object' && manifest !== null && 'name' in manifest ? String(manifest.name) : '';
+  });
+  assert.ok(names.length >= 2, names.join(', '));
+  assert.equal(new Set(names).size, names.length, `one name per project: ${names.join(', ')}`);
 });

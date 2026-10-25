@@ -1,5 +1,5 @@
 {
-    "name": "polyspec/kit-php-arginfo",
+    "name": "polyspec/kit-php-arginfo-5.0.0",
     "description": "The PHP-Parser expected by the pinned PHP gen_stub.php; installed for offline PHP extension arginfo generation.",
     "type": "project",
     "license": "proprietary",
