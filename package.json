@@ -37,6 +37,10 @@
       "types": "./dist/install-vscode.d.mts",
       "default": "./dist/install-vscode.mjs"
     },
+    "./link-folders": {
+      "types": "./dist/link-folders.d.mts",
+      "default": "./dist/link-folders.mjs"
+    },
     "./package.json": "./package.json"
   },
   "files": [
