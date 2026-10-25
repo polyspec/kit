@@ -1,12 +1,11 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0f0bfe9473503e6560ed46f0cab31f6ed6397b550e7b6f0e8d9954cf1146d573 -->
+<!-- source-sha256: 6ef0647971970c31494f49f06fcf1a7fc83235e733eed4874cadeeb05e2b8e07 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- suite, 그 target 묶음, 바뀐 경로의 owner, 선택 없는 test 실행은 호출자가 `KIT_FULL_RUN=final`로 최종 전체 실행임을 밝히면 CI 밖에서도 실행됩니다. 저장소의 최종 실행은 로컬에서 한 번이며, CI 밖의 다른 실행은 여전히 거부됩니다(K649).
 - kit에 commit하거나 land해도 dist를 빌드하지 않습니다. consumer는 kit의 소스를 실행하고(K613) dist는 release 때 npm의 prepack이 빌드하므로, linked-build.mts의 kit 빌드(K551, K609의 kit 부분)를 지웠습니다(K646).
 - `make commits-check`는 commit Subject 안의 id가 마지막 id와 다를 때만 거부합니다. 같은 id를 두 번 쓴 것은 여전히 한 행을 가리키므로, id를 반복한 push된 commit을 다시 쓸 필요가 없습니다(K648).
 - `make commits-check`는 삭제 test를 대체하는 `Replaced-By`를 계속 허용하고, 항목이 명시적으로 보류되며 도달 가능한 보관 commit에 삭제 파일 내용이 모두 같을 때만 `Archived-To: <sha>`를 허용합니다(K647).
