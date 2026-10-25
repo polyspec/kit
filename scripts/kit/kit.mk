@@ -30,19 +30,6 @@ export UV_NO_CONFIG := 1
 export UV_CACHE_DIR := $(KIT_TOOLS)/mise/cache/uv
 MISE_ENVIRONMENT := MISE_DATA_DIR MISE_CACHE_DIR MISE_STATE_DIR MISE_CONFIG_DIR MISE_GLOBAL_CONFIG_FILE MISE_GLOBAL_CONFIG_ROOT MISE_LOCKED MISE_AUTO_INSTALL UV_PYTHON_DOWNLOADS UV_NO_CONFIG UV_CACHE_DIR
 export PATH := $(KIT_TOOLS)/bin:$(KIT_TOOLS)/mise/shims:$(PATH)
-# K581: a checkout whose mise.toml declares sccache compiles Rust through it, with one cache under the var/tools of the main checkout,
-# which every worktree shares, so a new worktree reads the dependency crates that another compiled; the cache is capped, since it
-# counts against the disk floor of worktree-setup. A missing sccache fails the build. cargo runs half the cores unless the caller
-# sets CARGO_BUILD_JOBS, since the lands of K571 build in parallel.
-KIT_SCCACHE := $(shell grep -Eqs '^"?(aqua:mozilla/)?sccache"?[[:space:]]*=' $(CURDIR)/mise.toml && echo 1)
-ifneq ($(KIT_SCCACHE),)
-export RUSTC_WRAPPER := $(KIT_TOOLS)/mise/shims/sccache
-export SCCACHE_DIR := $(KIT_TOOLS)/sccache
-export SCCACHE_CACHE_SIZE := 5G
-endif
-ifeq ($(CARGO_BUILD_JOBS),)
-export CARGO_BUILD_JOBS := $(shell n=$$(getconf _NPROCESSORS_ONLN); echo $$(( n / 2 > 2 ? n / 2 : 2 )))
-endif
 
 # A recipe starts a tool of the checkout by its absolute path, never by its bare name: make 3.81 looks up a recipe line
 # without shell syntax on the PATH that make started with, not on the PATH above, so `node` there was the node of the
