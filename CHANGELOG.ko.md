@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 86df5c724acfae5792cb20d3f636ae181c462b8353b99b4eba8ed3aa6ad39748 -->
+<!-- source-sha256: a0b93c1ddba77cb89e8e2ac7d63a9bfb7872aa4ee46f24b6c197cec00e346038 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 디스크가 floor 아래이면 worktree-setup은 Go build cache를 오래된 것부터 floor를 채울 때까지 정리하되 최근 10분의 파일은 남긴다. 병렬 build가 cache 전체를 두 시간보다 젊게 유지하기 때문이다 (K538-1).
 - merge 뒤 main의 build와, land가 비교하는 main의 gate 실행은 land lock이 풀린 뒤 자기 main build lock 아래에서 돈다. 그래서 다음 land는 main이 build하는 동안 merge한다 (K572).
 - 패키지는 providedFolders, linkFolders, folderFindings를 담은 ./link-folders를 export한다. 그래서 consumer의 테스트는 K558의 per-file link tree를 kit의 코드로 만든다 (K576).
 - consumer가 직접 file: 또는 link: 의존성으로 선언한 npm package는 per-file link tree가 아니라 npm이 쓰는 선언 경로로의 link 하나로 남고, link는 그런 tree를 다시 그 link로 바꾼다 (K578).
