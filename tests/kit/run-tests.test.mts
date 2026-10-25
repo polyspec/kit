@@ -9,7 +9,6 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { parseArguments, probeExtensions, PYTHON_START, run, toolCommand } from '../../scripts/kit/run-tests.mts';
-import { libraryTestRun } from '../../scripts/kit/php-library-autoload.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from '../../scripts/kit/test-output.mts';
 import { inputsDigest } from '../../scripts/kit/tracked-files.mts';
 import { createProgress } from '../../scripts/kit/test-progress.mts';
@@ -489,12 +488,12 @@ test('phpunit with --cwd of a package of a Composer monorepo runs the PHPUnit of
 function composerStub(root: string) {
   const file = path.join(root, 'var/tools/mise/shims/composer');
   mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, "#!/usr/bin/env node\nconst fs = require('node:fs');\nif (process.argv.includes('vendor-dir')) console.log(JSON.parse(fs.readFileSync('composer.json', 'utf8')).config?.['vendor-dir'] ?? 'vendor');\n");
+  writeFileSync(file, "#!/usr/bin/env node\nconst fs = require('node:fs');\nconst path = require('node:path');\nif (process.argv.includes('vendor-dir')) console.log(JSON.parse(fs.readFileSync('composer.json', 'utf8')).config?.['vendor-dir'] ?? 'vendor');\nif (process.argv.includes('dump-autoload')) { const work = process.argv[process.argv.indexOf('--working-dir') + 1]; const config = JSON.parse(fs.readFileSync(path.join(work, 'composer.json'), 'utf8')); const vendor = config.config['vendor-dir']; fs.mkdirSync(vendor, { recursive: true }); fs.writeFileSync(path.join(vendor, 'autoload.php'), '<?php // generated autoloader\\n'); }\n");
   chmodSync(file, 0o755);
 }
 
 // The library of a Composer monorepo has no vendor directory; its root project installs one at its vendor-dir (K367).
-test('the library run of test-php-ext takes PHPUnit from the vendor-dir of the root project that installs the library (K367)', (t) => {
+test('concurrent library PHPUnit preparations use independent workspaces (K610, K367)', async (t) => {
   const root = tree(t, {
     'composer.json': '{"repositories":[{"type":"path","url":"packages/php"}],"config":{"vendor-dir":"vendor-php"}}\n',
     'packages/php/composer.json': '{}\n',
@@ -502,8 +501,23 @@ test('the library run of test-php-ext takes PHPUnit from the vendor-dir of the r
     'vendor-php/composer/installed.json': '{"packages":[]}\n',
   });
   composerStub(root);
-  const library = libraryTestRun(root, 'packages/php');
-  assert.equal(library.phpunit, path.join(root, 'vendor-php/phpunit/phpunit/phpunit'));
+  const source = `const { libraryTestRun } = await import(${JSON.stringify(import.meta.resolve('../../scripts/kit/php-library-autoload.mts'))}); const result = libraryTestRun(process.cwd(), 'packages/php'); console.log(result.env.KIT_PHP_AUTOLOAD);`;
+  const start = () => new Promise<{ status: number | null; output: string }>((resolve, reject) => {
+    const child = spawn(process.execPath, ['--input-type=module', '-e', source], { cwd: root, stdio: ['ignore', 'pipe', 'pipe'] });
+    let output = '';
+    child.stdout.setEncoding('utf8').on('data', text => { output += text; });
+    child.stderr.setEncoding('utf8').on('data', text => { output += text; });
+    child.once('error', reject);
+    child.once('close', status => resolve({ status, output }));
+  });
+  const [first, second] = await Promise.all([start(), start()]);
+  assert.equal(first.status, 0, first.output);
+  assert.equal(second.status, 0, second.output);
+  const firstAutoload = first.output.trim();
+  const secondAutoload = second.output.trim();
+  assert.notEqual(firstAutoload, secondAutoload, 'each simultaneous run prepares a private autoloader');
+  assert.ok(existsSync(firstAutoload), 'the second preparation does not remove the first run');
+  assert.ok(existsSync(secondAutoload), 'both prepared autoloaders are complete');
 });
 
 test('a tool that cannot start fails with its command and the fix', async (t) => {

@@ -2,7 +2,7 @@
 // and none of the library's sources. Composer dumps it from a root package with the autoload-dev of the library alone, over the
 // vendor directory of the library, which is linked in, so it holds the dependencies and the tests and not the autoload (psr-4,
 // classmap and files) of the library itself. The vendor directory of the library is left as it is.
-import { cpSync, mkdirSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
@@ -12,7 +12,7 @@ import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { run } from './process.mts';
 
 /** What a run needs: the PHPUnit script, the file to prepend and the environment that tells it the autoloader and the library sources. */
-export type LibraryRun = { phpunit: string; prepend: string; env: Record<string, string> };
+export type LibraryRun = { phpunit: string; prepend: string; env: Record<string, string>; cleanup: () => void };
 
 type Autoload = Record<string, unknown>;
 
@@ -57,23 +57,30 @@ export function libraryTestRun(root: string, folder: string, env: NodeJS.Process
   if (found === undefined) throw new Error(`${path.relative(root, path.join(composerVendor(library, tools), 'phpunit/phpunit/phpunit'))} does not exist; run composer install in ${folder}, or in the project that requires it`);
   const script = path.join(root, found);
   const vendor = path.resolve(script, '../../..');
-  const work = path.join(root, 'var/php-ext/library-tests', folder.replaceAll('/', '_'));
-  rmSync(work, { recursive: true, force: true });
-  const linked = path.join(work, 'vendor');
-  mkdirSync(path.join(linked, 'composer'), { recursive: true });
-  for (const entry of readdirSync(vendor)) {
-    if (!['composer', 'autoload.php', 'bin'].includes(entry)) symlinkSync(realpathSync(path.join(vendor, entry)), path.join(linked, entry));
+  const base = path.join(root, 'var/php-ext/library-tests');
+  mkdirSync(base, { recursive: true });
+  const work = mkdtempSync(path.join(base, `${folder.replaceAll('/', '_')}-`));
+  try {
+    const linked = path.join(work, 'vendor');
+    mkdirSync(path.join(linked, 'composer'), { recursive: true });
+    for (const entry of readdirSync(vendor)) {
+      if (!['composer', 'autoload.php', 'bin'].includes(entry)) symlinkSync(realpathSync(path.join(vendor, entry)), path.join(linked, entry));
+    }
+    cpSync(path.join(vendor, 'composer/installed.json'), path.join(linked, 'composer/installed.json'));
+    const config = typeof manifest.config === 'object' && manifest.config !== null ? manifest.config : {};
+    writeFileSync(path.join(work, 'composer.json'), `${JSON.stringify({ name: 'polyspec/kit-library-tests', config: { ...config, 'vendor-dir': linked }, 'autoload-dev': absolute(manifest['autoload-dev'], library) }, null, 4)}\n`);
+    const dumpEnv = { ...tools.env };
+    delete dumpEnv.COMPOSER_VENDOR_DIR;
+    run(tools.command, ['dump-autoload', '--dev', '--no-scripts', '--no-interaction', '--working-dir', work], { env: dumpEnv });
+    const sources = pathsOf(absolute(manifest.autoload, library));
+    return {
+      phpunit: script,
+      prepend: path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-library/prepend.php'),
+      env: { KIT_PHP_AUTOLOAD: path.join(linked, 'autoload.php'), KIT_PHP_LIBRARY_SOURCES: JSON.stringify(sources) },
+      cleanup: () => rmSync(work, { recursive: true, force: true }),
+    };
+  } catch (error) {
+    rmSync(work, { recursive: true, force: true });
+    throw error;
   }
-  cpSync(path.join(vendor, 'composer/installed.json'), path.join(linked, 'composer/installed.json'));
-  const config = typeof manifest.config === 'object' && manifest.config !== null ? manifest.config : {};
-  writeFileSync(path.join(work, 'composer.json'), `${JSON.stringify({ name: 'polyspec/kit-library-tests', config: { ...config, 'vendor-dir': linked }, 'autoload-dev': absolute(manifest['autoload-dev'], library) }, null, 4)}\n`);
-  const dumpEnv = { ...tools.env };
-  delete dumpEnv.COMPOSER_VENDOR_DIR;
-  run(tools.command, ['dump-autoload', '--dev', '--no-scripts', '--no-interaction', '--working-dir', work], { env: dumpEnv });
-  const sources = pathsOf(absolute(manifest.autoload, library));
-  return {
-    phpunit: script,
-    prepend: path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-library/prepend.php'),
-    env: { KIT_PHP_AUTOLOAD: path.join(linked, 'autoload.php'), KIT_PHP_LIBRARY_SOURCES: JSON.stringify(sources) },
-  };
 }

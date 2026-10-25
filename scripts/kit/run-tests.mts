@@ -226,12 +226,16 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
 export function listedTests(argv: string[], root = repositoryRoot(), callerEnv: NodeJS.ProcessEnv = process.env): string[] {
   const options = parseArguments(argv, root);
   const library = options.withoutLibrary === undefined ? undefined : libraryTestRun(root, options.withoutLibrary, callerEnv);
-  const { command, args } = toolCommand({ ...options, args: [...options.args, '--list-tests'], ...(library === undefined ? {} : { library }) }, root);
-  // The tool of the checkout starts with the mise of the checkout, as a run in make does (K411).
-  const result = spawnSync(command, args, { cwd: options.cwd, env: { ...toolsEnvironment(root, callerEnv), ...library?.env }, encoding: 'utf8' });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`phpunit --list-tests in ${path.relative(root, options.cwd) || '.'} ended with ${result.status}: ${result.stderr.trim()}`);
-  return result.stdout.split('\n').flatMap(line => /^\s*-\s+(\S.*)$/.exec(line)?.[1] ?? []);
+  try {
+    const { command, args } = toolCommand({ ...options, args: [...options.args, '--list-tests'], ...(library === undefined ? {} : { library }) }, root);
+    // The tool of the checkout starts with the mise of the checkout, as a run in make does (K411).
+    const result = spawnSync(command, args, { cwd: options.cwd, env: { ...toolsEnvironment(root, callerEnv), ...library?.env }, encoding: 'utf8' });
+    if (result.error) throw result.error;
+    if (result.status !== 0) throw new Error(`phpunit --list-tests in ${path.relative(root, options.cwd) || '.'} ended with ${result.status}: ${result.stderr.trim()}`);
+    return result.stdout.split('\n').flatMap(line => /^\s*-\s+(\S.*)$/.exec(line)?.[1] ?? []);
+  } finally {
+    library?.cleanup();
+  }
 }
 
 /** Runs the tool of `argv`; resolves the exit status of the run (0 passed, 1 failed). */
@@ -269,21 +273,25 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // A run that selects no test runs a whole runtime, which is a suite and runs only in CI (ci-only.mts).
   const unselected = !selects(options.tool, options.args, file => isFile(path.resolve(options.cwd, file))) && ciRefusal(`a ${options.tool} run without a selection`, callerEnv);
   if (unselected) {
+    library?.cleanup();
     write(`✖ ${label}: ${unselected}\n`);
     return 1;
   }
   const unbuilt = options.phpExtensions.find(extension => !existsSync(extension));
   if (unbuilt) {
+    library?.cleanup();
     write(`✖ ${label}: the PHP extension ${path.relative(root, unbuilt)} is not built; build it before the run\n`);
     return 1;
   }
   const unloaded = options.phpExtensions.length ? probeExtensions(options.phpExtensions, checkoutFile(toolsPath(root, 'bin', 'php'))) : undefined;
   if (unloaded) {
+    library?.cleanup();
     write(`✖ ${label}: ${unloaded}\n`);
     return 1;
   }
   const venvRefusal = options.venv && venvProblem(options.venv, root);
   if (venvRefusal) {
+    library?.cleanup();
     write(`✖ ${label}: ${venvRefusal}\n`);
     return 1;
   }
@@ -512,6 +520,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     clearInterval(parentWatch);
     if (onInterrupt) for (const signal of INTERRUPTS) process.off(signal, onInterrupt);
     rmSync(results, { recursive: true, force: true });
+    library?.cleanup();
     // With its handler removed, the signal ends the runner as it would have without one, unless the host handles it.
     if (interrupted) process.kill(process.pid, interrupted);
   }
