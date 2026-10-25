@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- pack-manifest.mts has its test, and it and linked-build.mts have their classes in config/rebuild.json, so make owner-validate and make rebuild-check pass (K641).
 - `make duplication-check` leaves out the files that `config/generated.json` declares generated, its `paths` and `exceptions`: a file that orm-gen or another generator writes repeats its template for each input, and a second list of the same files in `config/duplication.json` is not needed (K640).
 - Each PHP-Parser Composer project of kit has its own name, polyspec/kit-php-arginfo-5.0.0 and polyspec/kit-php-arginfo-5.6.1, so link's sibling scan finds one provider per package and make install-link runs in every consumer again (K639).
 - `parity-declarations-check --id` retains R2 missing bindings for units that cite the selected requirement, so intersecting `--id` with `--rule` cannot hide a finding (K638).

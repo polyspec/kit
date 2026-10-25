@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7982a84408441d4a7745282b5d5c2d87183705a484a1321ff5cefdd8b9ee74c3 -->
+<!-- source-sha256: f97df3efdceaf1dee10124c457b728771ae79a935cadd5a1c1ee45d993f7e284 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- pack-manifest.mts에 test가 생기고, 그것과 linked-build.mts가 config/rebuild.json에 분류를 가지므로 make owner-validate와 make rebuild-check가 통과한다(K641).
 - `make duplication-check`는 `config/generated.json`이 생성 파일로 선언한 파일, 곧 그 `paths`와 `exceptions`를 읽지 않습니다. orm-gen 같은 생성기가 쓴 파일은 입력마다 같은 틀을 반복하므로, 같은 파일을 `config/duplication.json`에 다시 적을 필요가 없습니다(K640).
 - kit의 PHP-Parser Composer 프로젝트는 각자 이름(polyspec/kit-php-arginfo-5.0.0, polyspec/kit-php-arginfo-5.6.1)을 가지므로, link의 형제 검색이 패키지마다 공급자 하나를 찾고 모든 consumer에서 make install-link가 다시 실행됩니다(K639).
 - `parity-declarations-check --id`는 선택한 requirement를 인용하는 unit의 R2 missing binding을 유지합니다. 따라서 `--id`와 `--rule`을 함께 써도 finding이 사라지지 않습니다(K638).

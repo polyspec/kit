@@ -621,6 +621,14 @@
     "scripts/kit/uv-install.mts": {
       "kind": "policy",
       "reason": "the uv sync that keeps the links of the polyspec packages (K592), which uv has no option for alone"
+    },
+    "scripts/kit/pack-manifest.mts": {
+      "kind": "policy",
+      "reason": "writes the packed form of the files that name the sources of kit (the exports of package.json, the KIT of kit-bootstrap.mk and the Claude hook) in the prepack step of npm pack (K613); npm runs the step, and no npm tool rewrites what a package names from its sources to its built files"
+    },
+    "scripts/kit/linked-build.mts": {
+      "kind": "policy",
+      "reason": "rebuilds after main moves what the consumers that link main live read (K551, K609): the dist of kit when a build input changed, and a stale npm build output through link-build; no ecosystem tool knows which outputs a move of main makes stale for linked consumers"
     }
   }
 }
