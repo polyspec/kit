@@ -101,3 +101,23 @@ test('a multiline environment assertion passes while real branches remain findin
     'packages/php/tests/BranchTest.php:7: a test branches on the implementation, the runtime or the platform (extension_loaded), so it asserts something else in another implementation',
   ]);
 });
+
+test('Go machine metadata is not a platform-dependent test branch, but a real branch remains a finding (K636)', () => {
+  const parity = JSON.stringify({ implementations: [{ name: 'go', roots: ['packages/go'] }] });
+  const report = [
+    'machine := fmt.Sprintf("%s %s", runtime.GOOS, runtime.GOARCH)',
+    'fmt.Fprintf(os.Stderr, "PERF hot_path_gate go %s %s: native p50=%.1fµs client p50=%.1fµs ratio=%.2f samples=%d cpu=%.1fms wall=%.1fms machine=%s reference=not-recorded\\n", driver, workload.name, float64(na.Microseconds()), float64(cl.Microseconds()), ratio, gatePairs, cpu*1000, float64(wall.Microseconds())/1000, machine)',
+  ].join('\n');
+  assert.deepEqual(run({
+    'config/parity.json': parity,
+    'packages/go/bench/performance_test.go': report,
+  }), [], 'runtime values used only for a machine diagnostic field do not change test behavior');
+
+  const branch = `${report}\nif runtime.GOOS == "windows" { t.Log("windows") }`;
+  assert.deepEqual(run({
+    'config/parity.json': parity,
+    'packages/go/bench/performance_test.go': branch,
+  }), [
+    'packages/go/bench/performance_test.go:3: a test branches on the implementation, the runtime or the platform (runtime.GOOS), so it asserts something else in another implementation',
+  ], 'platform selection still fails even when the same test reports its machine');
+});

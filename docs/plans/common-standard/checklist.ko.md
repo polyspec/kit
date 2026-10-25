@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 286e2a69de4afb9b1d7b5d8092ccbaf0b7684ad791b0c98922192701b4399caf -->
+<!-- source-sha256: 78d3ad4e557c9ea791864e1b0c83061a505591d822e5126c7f5e7f9a3190c5ca -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -540,4 +540,4 @@
 | K633 | linked sources의 test는 package.json을 readFixture로 읽는다(K613 후속). 원인: tests/kit/linked-sources.test.mts가 JSON.parse의 any를 manifest 형으로 cast해서 make lint-ts가 any로부터의 unsafe assertion으로 보고한다. 수정: test는 kit의 schema로 검증하는 tests/kit/json-fixture.mts의 readFixture로 manifest를 읽는다 | tests/kit/linked-sources.test.mts | `make lint-ts` | [o] |
 | K632 | PHP 확장 build는 checkout의 php-config를 configure에 넘깁니다. 지금은 configure가 PATH의 첫 php-config(이 Mac에서는 Homebrew PHP 8.5)를 써서 module이 API 20250925로 build되고 .php-version의 PHP 8.4에 load되지 못하며, tests/kit/php-ext.test.mts의 테스트 세 개가 실패합니다. | build in scripts/kit/php-extension.mts with --with-php-config of the checkout. | `node --test tests/kit/php-ext.test.mts` | [o] |
 | K634 | make land는 모든 hunk가 한국어 쌍의 source-sha256 줄인 rebase 충돌을 스스로 풉니다. 한 줄을 남기고 make documents-stamp로 다시 찍은 뒤 rebase를 이어갑니다. 다른 줄이나 파일의 충돌은 지금처럼 거부합니다. | rebaseOnMain of scripts/kit/land.mts and its K634 case in tests/kit/land.test.mts. | `node --test --test-name-pattern=K634 tests/kit/land.test.mts` | [o] |
-| K636 | divergence-check는 fmt.Sprintf가 machine 값을 만들고 fmt.Fprintf가 이를 machine=%s 진단 필드에만 쓸 때 Go runtime.GOOS와 runtime.GOARCH를 진단 metadata로 인식하며, 실제 platform 분기는 계속 finding으로 보고한다(K315 후속). | scripts/kit/divergence-check.mts, tests/kit/divergence-check.test.mts | `node --test --test-name-pattern=K315-2 tests/kit/divergence-check.test.mts` | [ ] |
+| K636 | divergence-check는 fmt.Sprintf가 machine 값을 만들고 fmt.Fprintf가 이를 machine=%s 진단 필드에만 쓸 때 Go runtime.GOOS와 runtime.GOARCH를 진단 metadata로 인식하며, 실제 platform 분기는 계속 finding으로 보고한다(K315 후속). | scripts/kit/divergence-check.mts, tests/kit/divergence-check.test.mts | `node --test --test-name-pattern=K636 tests/kit/divergence-check.test.mts` | [o] |

@@ -86,6 +86,18 @@ function phpAssertionLines(sourceLines: readonly { number: number; code: string 
   return assertions;
 }
 
+/** Lines that report the machine as diagnostic metadata do not select test behavior. */
+function goMachineMetadataLines(sourceLines: readonly { number: number; code: string }[]): Set<number> {
+  const assignments = sourceLines.filter(({ code }) => /^\s*machine\s*:=\s*fmt\.Sprintf\("%s %s",\s*runtime\.GOOS,\s*runtime\.GOARCH\)\s*$/.test(code));
+  if (assignments.length !== 1) return new Set();
+  const source = sourceLines.map(({ code }) => code).join('\n');
+  // Require the value to be used only by the machine= field of a formatted diagnostic.
+  // The three occurrences are the local name, the field label, and its format argument.
+  if ([...source.matchAll(/\bmachine\b/g)].length !== 3) return new Set();
+  if (!/fmt\.Fprintf\([^\n]*"[^"\n]*\bmachine=%s\b[^"\n]*"[^\n]*,\s*machine\s*\)/.test(source)) return new Set();
+  return new Set(assignments.map(({ number }) => number));
+}
+
 /** The implementation roots of the repository: those that config/parity.json declares, else the package folders of each runtime. */
 export function implementationRoots(files: readonly string[], read: (file: string) => string | undefined): string[] {
   const declaration = read('config/parity.json');
@@ -117,9 +129,10 @@ export function divergenceFindings(files: readonly string[], read: (file: string
     if (inRoot && SOURCE.test(file)) {
       const sourceLines = lines(text);
       const assertionLines = file.endsWith('.php') && isTestFile(file) ? phpAssertionLines(sourceLines) : new Map<number, string>();
+      const machineMetadataLines = file.endsWith('_test.go') ? goMachineMetadataLines(sourceLines) : new Set<number>();
       for (const { number, code } of sourceLines) {
         const assertion = assertionLines.get(number) ?? code;
-        if (isTestFile(file) && ENVIRONMENT.test(code) && !assertsEnvironment(assertion)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
+        if (isTestFile(file) && ENVIRONMENT.test(code) && !assertsEnvironment(assertion) && !machineMetadataLines.has(number)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
         else if (!isTestFile(file) && /\b(?:extension_loaded|function_exists)\(/.test(code)) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\(/.exec(code)?.[1]}), so the library and its extension coexist through a guard of the run time`);
       }
     }

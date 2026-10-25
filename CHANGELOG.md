@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- divergence-check treats Go GOOS/GOARCH as diagnostic metadata only when the machine value is consumed solely by a machine field in fmt.Fprintf; an actual platform branch remains a finding (K636).
 - make land resolves a rebase conflict that is only the source-sha256 line of Korean twins: it keeps one line, stamps it again with make documents-stamp and continues the rebase; a conflict in any other line still refuses (K634).
 - The PHP extension build passes the php-config of the checkout to configure, which otherwise takes the php-config first on PATH; a module built for PHP 8.5 no longer fails to load into the PHP 8.4 of .php-version (K632).
 - make land passes a gate that fails on main too, with a note that its own row fixes it, and refuses only a gate that main passes; the comparison of output lines between the branch and main, with its special cases for progress lines, temporary folders and jscpd summaries, is deleted (K631).
