@@ -65,11 +65,23 @@ test('a guard of the library that defines a function only when the extension doe
   ]);
   const root = tree(t, { 'config/parity.json': PARITY, '.gitignore': 'packages/php/src/generated/\n' });
   mkdirSync(path.join(root, 'packages/php/src/generated'), { recursive: true });
-  writeFileSync(path.join(root, 'packages/php/src/generated/Gen.php'), "<?php\nif (!function_exists('x')) {}\n");
+  writeFileSync(path.join(root, 'packages/php/src/generated/Gen.php'), "<?php\nif (!function_exists('Acme\\x')) {}\n");
   const read = (file: string) => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined);
   const files = checkedSources(root, ['config/parity.json'], read);
   assert.deepEqual(files, ['config/parity.json', 'packages/php/src/generated/Gen.php']);
   assert.equal(divergenceFindings(files, read).length, 1);
+});
+
+test('K644: checks for global PHP capabilities are not ORM coexistence guards', () => {
+  assert.deepEqual(run({
+    'config/parity.json': PARITY,
+    'packages/php/src/Orm.php': "<?php\nif (!function_exists('pg_connect')) { throw new RuntimeException(); }\n",
+    'packages/php/src/Internal/Adapter.php': "<?php\nif (function_exists('pcntl_signal_dispatch')) { pcntl_signal_dispatch(); }\n",
+  }), []);
+  assert.equal(run({
+    'config/parity.json': PARITY,
+    'packages/php/src/Machine.php': "<?php\nif (!function_exists('Acme\\initial')) { function initial() {} }\n",
+  }).length, 1, 'a namespaced function probe can still guard a coexisting implementation');
 });
 
 // K543: a test declares its environment and asserts it, so a probe in an assertion that holds no branch is no finding; the same probe in

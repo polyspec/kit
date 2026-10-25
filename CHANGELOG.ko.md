@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bd4fca6f20dabbc3f4b61b99f5d6bd88a68a74d820b06190957b11f8b70cc11d -->
+<!-- source-sha256: c827711de3dc9f41f0bf14706bd5307cd841801e504bbd86d3d7f66dd0816eda -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- divergence-check는 네임스페이스가 있는 PHP 함수 확인을 구현 공존 가드로 탐지하고 pg_connect, pcntl_signal_dispatch 같은 전역 PHP 기능 확인은 허용합니다(K644).
 - link과 link-state-check는 옆의 checkout에서 editable로 설치된 Python package를 dist-info의 direct_url.json으로 link된 것으로 보고, 다른 폴더에서 editable로 설치된 것은 보고한다(K643).
 - `make commits-check`는 한국어 twin의 source-sha256 stamp를 범위의 tip에서만 판단합니다. tip은 land가 병합하고 docs-check가 읽는 tree입니다. rebase가 stamp를 낡게 남긴 중간 commit은, 같은 branch의 뒤 commit이 다시 stamp하면 finding이 아닙니다(K642).
 - pack-manifest.mts에 test가 생기고, 그것과 linked-build.mts가 config/rebuild.json에 분류를 가지므로 make owner-validate와 make rebuild-check가 통과한다(K641).

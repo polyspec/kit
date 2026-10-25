@@ -6,9 +6,10 @@
 //      asserts (extension_loaded, function_exists, PHP_VERSION, PHP_OS, sys.version_info, sys.platform, process.versions,
 //      process.platform, runtime.GOOS, runtime.GOARCH, cfg!, #[cfg(...)], os.name); a statement that only asserts its environment,
 //      with no branch, declares it and is none (K543);
-//   2. the code of an implementation branches on the presence of another implementation (extension_loaded and function_exists: the
-//      PHP library reading whether its extension is loaded, or defining a function only when the extension does not), also in
-//      the sources that a build generates before the gate and Git ignores (K329);
+//   2. the code of an implementation branches on extension_loaded, or on a namespaced function_exists probe that guards another
+//      implementation (the PHP library reading whether its extension is loaded, or defining a namespaced function only when the
+//      extension does not), also in the sources that a build generates before the gate and Git ignores (K329). Global function
+//      probes are ecosystem capabilities and do not by themselves identify another implementation;
 //   3. a run of an implementation is narrowed by a flag (--exclude-group);
 //   4. contracts/features.json declares an implementation partial or unsupported;
 //   5. a configuration exception carries a reason that names no kind that kit defines (REASON_KINDS), in config/duplication.json,
@@ -29,6 +30,9 @@ export const REASON_KINDS = ['generated', 'fixture', 'test', 'harness', 'ecosyst
 const SOURCE = /\.(?:php|py|[cm]?[jt]sx?|go|rs)$/;
 // The environment that a test branches on: a call or a name, on a line of code.
 const ENVIRONMENT = /\b(?:extension_loaded|function_exists|PHP_VERSION(?:_ID)?|PHP_OS(?:_FAMILY)?|sys\.version_info|sys\.platform|process\.versions|process\.platform|runtime\.GOOS|runtime\.GOARCH|cfg!|os\.name)\b|#\[cfg\(/;
+// Global PHP functions such as pg_connect and pcntl_signal_dispatch are ecosystem capabilities. A namespaced
+// function_exists probe is the library/extension coexistence guard K329 forbids.
+const PHP_NAMESPACED_FUNCTION_PROBE = /\bfunction_exists\s*\(\s*(['"])(?:\\?\w+\\)+\w+\1/;
 const KIT_OWN = /^(?:scripts\/kit\/|tests\/kit\/|tests\/source\/)/;
 // K543: a statement that asserts, with the assertion call of its language, and holds no branch: a test that declares its environment and
 // asserts it fails loudly where the environment differs, so its probe changes nothing that the test asserts.
@@ -133,7 +137,7 @@ export function divergenceFindings(files: readonly string[], read: (file: string
       for (const { number, code } of sourceLines) {
         const assertion = assertionLines.get(number) ?? code;
         if (isTestFile(file) && ENVIRONMENT.test(code) && !assertsEnvironment(assertion) && !machineMetadataLines.has(number)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
-        else if (!isTestFile(file) && /\b(?:extension_loaded|function_exists)\(/.test(code)) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\(/.exec(code)?.[1]}), so the library and its extension coexist through a guard of the run time`);
+        else if (!isTestFile(file) && (/\bextension_loaded\s*\(/.test(code) || PHP_NAMESPACED_FUNCTION_PROBE.test(code))) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\s*\(/.exec(code)?.[1]?.replace(/\s+/g, '')}), so the library and its extension coexist through a guard of the run time`);
       }
     }
     if (/(?:\.mk|\/Makefile|^Makefile|\.mts|\.mjs|\.sh|\.ya?ml)$/.test(file) || file.startsWith('.githooks/')) {
