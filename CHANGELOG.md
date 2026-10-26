@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Repeating local npm linking is a no-op when every selected installed provider resolves to its source; a wrong or missing source still runs native npm linking. The offline source-graph case with a release URL override and the wrong-target repair case pass (K673).
+
 ## 0.0.55
 
 - Transitive npm graph fixtures use generic editor, language, storage and codec identities in package names, paths and release URLs. Dependency edges, workspace layout, release overrides and exact source assertions remain intact. Red: isolation fails on product-specific identities at 377c06b1; green: isolation and the focused K672 selector/native graph checks pass, with changed-file type-aware lint (K672-1).

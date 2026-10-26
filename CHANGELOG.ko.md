@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: edba45390b657b57670ef069e6a9e85b48bf13944f5c4ae0d02b1ce458bea65c -->
+<!-- source-sha256: 6d26adb5477e4cdc4a0b39a9994fd3e713b503ff863489df64985dce9975084b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 선택한 설치 provider가 모두 source로 resolve되면 반복 local npm link는 아무 변경도 하지 않으며, 잘못되거나 누락된 source는 native npm link로 복구한다. Release URL override가 있는 offline source graph와 잘못된 target 복구 case가 통과한다(K673).
 
 ## 0.0.55
 

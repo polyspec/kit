@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 039850c2899ec2fd484f2fd479475b6a13f3d31d6ebe02a98be8dc8f85b0e137 -->
+<!-- source-sha256: 464329213f31c6d93f031ace242bf1ebd8c8ded437ab75cf47f6c406779018e1 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -604,4 +604,4 @@
 | K671-8 | Fallback 거부 fixture에서 native Cargo offline update preflight와 요청한 command를 구분한다 | tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K664-3 tests/kit/link.test.mts` | [o] |
 | K672 | 로컬 npm source의 전체 transitive dependency graph를 연결한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts, tests/source/npm-source-link-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/kit/npm-install.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/source/npm-source-link-real.test.mts` | [o] |
 | K672-1 | Native source 선택 graph와 release override assertion을 유지하며 transitive npm graph fixture 이름을 일반화한다 | tests/kit/npm-install.test.mts, tests/source/npm-source-link-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/kit/npm-install.test.mts tests/source/npm-source-link-real.test.mts`; isolation owner case | [o] |
-| K673 | 선택한 모든 source link가 이미 일치하면 native npm 재해석을 생략한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts, tests/source/npm-source-link-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K673 tests/kit/npm-install.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K673 tests/source/npm-source-link-real.test.mts` | [~] |
+| K673 | 선택한 모든 source link가 이미 일치하면 native npm 재해석을 생략한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K673 tests/kit/npm-install.test.mts` | [o] |
