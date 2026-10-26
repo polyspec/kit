@@ -1,6 +1,6 @@
-// K448: `make npm-install` installs the tracked lock with npm ci as it is, then replaces each installed package that a checkout provides with a
-// folder of per-file links into the checkout's package folder (K558); the tracked package.json and package-lock.json stay byte for byte, and no npm resolution
-// touches a provided package. The npm of these tests is a stub: its ci installs each package of the lock as a copy, as a release would be.
+// npm-install runs npm ci of the release lock, then npm link connects selected source packages.
+// npm owns resolution, installed links and metadata; the release manifest and lock stay unchanged.
+// Most cases use a stub; the native case checks source edits, while tests/source/npm-source-link-real.test.mts owns the release-to-source transition.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
