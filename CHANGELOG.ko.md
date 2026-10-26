@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1a86cd2a250acd147a1b19a85a5943ebf48d4bfd89e4aa8c8b6ca47fd8a8a63c -->
+<!-- source-sha256: e3a764b5617c0ec06caf858383f7b90baff5af5f3c412a955ce0a2c652df67b5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.55
+
+- npm source-link fixture는 일반 provider 식별자를 사용하며 transitive graph 선택, 모든 dependency 선언 section, override, source link 멱등성과 상위 workspace 해석을 유지한다. 제품 코드와 저장소 격리 규칙은 변경하지 않는다. Red: 90c812ec에서 isolation naming case가 실패한다. Green: 해당 case와 선택 npm case 3개, 변경 파일 type-aware lint 및 docs-check가 통과한다 (K686-5).
 
 - Native link fixture는 기존 환경의 source-only 계약에 따라 locked sync 없이 선택 provider를 한 editable transaction으로 전달하고 명시적 extra와 정확한 source 경로를 검증하며 --no-deps를 사용하지 않는다. uv fixture는 모든 editable argv를 읽고 dependency를 해석하지 않고 extra와 경로만 분리한다. 공유 소유 파일 실행에서 worktree Python 환경 누락과 상대 link 표현을 강제하는 낡은 기대를 확인해 환경을 준비하고 npm 심볼릭 link, 정확한 provider, read-only 진단 성공과 선언 불변을 검증하도록 맞췄다. 로컬 Red: 0c100506의 K657-3은 이전 stub가 [extra]를 directory 일부로 취급해 실패한다. Green: K657-3이 통과했으며 소유 파일 1회는 72개 통과와 2개 실패를 수집했고 두 실패 case는 fixture 수정 후 선택 재검증에서 통과한다. 변경 파일 type-aware lint와 docs-check가 통과하며 이 로컬 증거로 미수집 CI 실패 원인을 단정하지 않는다 (K686-4).
 
