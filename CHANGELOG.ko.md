@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a3eac60ab40dc6309e2ebb3d6d0e50e6378033831a70aca4f922024853bcc6e5 -->
+<!-- source-sha256: df4ce7b37951e17b76faf29d65d5a2fc9a6760d156621df7498037a7ca61046a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.58
+
+- Composer 개발용 path lock과 정확한 다중 심벌 API binding, native consumer lock 및 보안 권고 검토를 포함한 kit 0.0.58을 준비했습니다. (K677-4)
 
 - API binding은 기존 단일 symbol 또는 비어 있지 않은 고유 공개 symbols 목록을 받습니다. R1은 모든 항목을 검사하고 R11은 선언된 전체 표면을 대조하며 중복 implementation binding은 계속 거부합니다. (K697)
 

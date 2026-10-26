@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.58
+
+- Prepared kit 0.0.58 with Composer development path locks and exact multi-symbol API bindings, native consumer locks and advisory review. (K677-4)
+
 - API bindings accept either the existing scalar symbol or a nonempty unique list of exact public symbols. R1 checks every member and R11 covers the complete declared surface; duplicate implementation bindings remain invalid. (K697)
 
 
