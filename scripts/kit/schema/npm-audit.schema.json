@@ -3,6 +3,8 @@
   "title": "npm audit --json",
   "description": "The output of `npm audit --json --package-lock-only` in the fields that the review reads (scripts/kit/dependency-review.mts, K158).",
   "type": "object",
+  "required": ["vulnerabilities"],
+  "not": { "required": ["error"], "properties": { "error": {} } },
   "properties": {
     "vulnerabilities": {
       "type": "object",

@@ -171,7 +171,7 @@ test('an npm audit that prints nothing is an error of its lock, not a lock witho
   stub.registry({ ...FIXTURE_REGISTRY, npmAuditText: '' });
   const result = review(root, ['--record'], stub.env);
   assert.equal(result.status, 1, result.stdout + result.stderr);
-  assert.match(result.stdout + result.stderr, /npm audit --json --package-lock-only printed no JSON: the output is empty/);
+  assert.match(result.stdout + result.stderr, /npm audit --json --package-lock-only --offline=false printed no JSON: the output is empty/);
 });
 
 test('the review refuses a policy that breaks its schema instead of reviewing nothing for a missing key', (t) => {
@@ -391,4 +391,50 @@ test('K680 an unknown native node keeps its path and range without borrowing a s
   const checked = gate(root, stub.env);
   assert.equal(checked.status, 1, checked.stderr);
   assert.ok(checked.stderr.includes(`nested in range <1.2.0 at ${nodePath}`), checked.stderr);
+});
+
+
+test('K684 the online npm review explicitly overrides inherited offline mode', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t, root);
+  stub.registry(FIXTURE_REGISTRY);
+  const result = review(root, [], { ...stub.env, npm_config_offline: 'true' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.ok(stub.calls().some(call => call === 'npm audit --json --package-lock-only --offline=false'), stub.calls().join('\n'));
+});
+
+test('K684 a native audit transport error cannot replace the successful review record', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const before = readFileSync(path.join(root, RECORD), 'utf8');
+  const stub = stubRegistries(t, root);
+  for (const fields of [{}, { vulnerabilities: {} }]) {
+    stub.registry({ ...FIXTURE_REGISTRY, npmAuditText: JSON.stringify({ ...fields, message: 'request to audit endpoint failed: ECONNREFUSED', error: { summary: '', detail: '' } }) });
+    const result = review(root, ['--record'], stub.env);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout, /advisory query failed/);
+    assert.equal(readFileSync(path.join(root, RECORD), 'utf8'), before);
+  }
+});
+
+
+test('K684 a native vulnerability exit remains a complete review and an offline gate failure', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t, root);
+  stub.registry({ ...FIXTURE_REGISTRY, npmAudit: { vulnerabilities: { semver: { range: '<8', nodes: ['node_modules/semver'], via: [{ source: 684, url: 'https://example.invalid/advisory', severity: 'high', title: 'native finding' }] } } } });
+  const result = review(root, ['--record'], stub.env);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.doesNotMatch(result.stdout, /advisory query failed/);
+  const record = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
+  assert.ok(record.locks.find(lock => lock.lock === 'package-lock.json')?.advisories?.some(advisory => advisory.id === '684'));
+  const calls = stub.calls().filter(call => call.startsWith('npm audit ')).length;
+  const checked = gate(root, stub.env);
+  assert.equal(checked.status, 1, checked.stderr);
+  assert.match(checked.stderr, /the review record found advisory 684/);
+  assert.equal(stub.calls().filter(call => call.startsWith('npm audit ')).length, calls, 'the offline gate queries no advisory endpoint');
 });

@@ -1,5 +1,6 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 35cf8a1242b0704731ed6e97e2538c0dd9f6191a280fcd3943786e32b5cca084 -->
+<!-- source-sha256: 48081f269b0d213cd1bb50957f7d76618e9160c2cb4bb3a0cb414ef41c487728 -->
+
 
 # 도구 목록
 
@@ -949,6 +950,8 @@ Dependency version은 package manager가 선택합니다. 새 release가 있다�
   없는 항목은 gate를 실패시키고 아무것도 받아들이지 않습니다.
 
 npm advisory의 `nodePath`는 native `npm audit`가 보고한 영향받는 설치 path이며 version은 lock의 정확히 그 entry에서 읽는다. Audit가 path를 주지 않거나 해당 path의 locked version이 없으면 top-level version을 추측하지 않고 advisory range를 유지한다. Review와 offline gate finding은 path를 포함한다. Advisory exception의 범위는 lock, package와 advisory identifier이며 허용된 identifier는 일치하는 모든 copy에 적용된다. Path별 exception은 지원하지 않는다.
+
+Online npm review는 native `--offline=false`를 명시한다. 상속된 npm offline mode는 advisory endpoint에 도달하지 않고 성공한 zero-vulnerability report를 반환할 수 있기 때문이다. 빈 `vulnerabilities` object와 섞인 경우를 포함한 native error payload는 불완전한 query이며 committed review를 덮지 않는다. 실제 취약점 응답의 exit 1은 완전한 review로 기록되며 기록된 advisory는 offline gate에서 실패한다.
 
 - `make dependency-review UPDATE=1`은 받아들인 advisory 때문에 package를 갱신하지 않습니다.
 - kit은 자기 `package-lock.json`을 review합니다(`config/dependency-policy.json`, `config/dependency-review.json`). 제거된 advisory의 exception은 영구히 남지 않으며 현재 review가 허용한 advisory를 계속 이름 붙여야 합니다.

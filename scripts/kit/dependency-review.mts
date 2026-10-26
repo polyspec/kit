@@ -407,7 +407,7 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
   for (const lock of state.locks.filter(item => lockEcosystem(item) === 'npm')) {
     // readState holds the lock of each npm lock.
     const npmVersions = present(state.npmLocks.get(lock), 'state.npmLocks.get(lock)').packages ?? {};
-    const npm = query<NpmAudit>('npm-audit.schema.json', toolCommand(root, 'npm'), ['audit', '--json', '--package-lock-only'], path.join(root, path.posix.dirname(lock)), [0, 1]);
+    const npm = query<NpmAudit>('npm-audit.schema.json', toolCommand(root, 'npm'), ['audit', '--json', '--package-lock-only', '--offline=false'], path.join(root, path.posix.dirname(lock)), [0, 1]);
     if (npm.error !== undefined) result.set(lock, { error: npm.error });
     else {
       const list: Advisory[] = [];

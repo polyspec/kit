@@ -1041,6 +1041,8 @@ Package managers select dependency versions. A newer release alone does not fail
 
 For npm advisories, `nodePath` records the affected installed path reported by native `npm audit`; its version comes from that exact entry of the lock. If audit gives no path, or that path has no locked version, the review retains the advisory range without guessing a top-level version. Review and offline gate findings include the path. Advisory exceptions remain scoped to lock, package and advisory identifier: an accepted identifier covers all matching copies; path-specific exceptions are not supported.
 
+The online npm review passes native `--offline=false` explicitly: inherited npm offline mode otherwise returns a successful zero-vulnerability report without reaching the advisory endpoint. A native error payload, including one mixed with an empty `vulnerabilities` object, is an incomplete query and never replaces the committed review. A genuine vulnerability response may exit 1 and is still a complete review whose recorded advisories fail the offline gate.
+
 - `make dependency-review UPDATE=1` updates no package for an accepted advisory.
 - kit reviews its own `package-lock.json` (`config/dependency-policy.json`, `config/dependency-review.json`). A removed advisory leaves no permanent exception: the current review must still name each accepted advisory.
 
