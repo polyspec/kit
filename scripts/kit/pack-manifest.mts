@@ -3,10 +3,10 @@
 //
 //   node scripts/kit/pack-manifest.mts
 //
-// A repository runs the sources of the kit checkout beside it through its link, but an installed package lies under node_modules,
+// A repository consumes its installed kit package, which may be a native npm link to sources. A packed install lies under node_modules,
 // where node strips no types, so the package that npm packs runs dist: each export of package.json names its dist module and
-// declarations, the kit-bootstrap.mk sets KIT to the dist beside its scripts/kit and KIT_EXT to mjs, and the Claude hook runs
-// dist/claude-hook.mjs. postpack restores the three files from Git.
+// declarations, the kit-bootstrap.mk sets KIT to dist and KIT_EXT to mjs, and npm creates the hook bin from its dist target.
+// Claude settings always call the native npm bin, so their bytes need no packed-path rewrite. postpack restores the files from Git.
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { kitPackageRoot } from './kit-files.mts';
@@ -23,10 +23,11 @@ export function packedFiles(root: string): Record<string, string> {
     if (result === text) throw new Error(`pack-manifest: ${file} names no source to pack (${String(from)})`);
     return result;
   };
-  const manifest = swap('package.json', read('package.json'), SOURCE_EXPORT, '"./$1": { "types": "./dist/$1.d.mts", "default": "./dist/$1.mjs" }');
+  const exports = swap('package.json', read('package.json'), SOURCE_EXPORT, '"./$1": { "types": "./dist/$1.d.mts", "default": "./dist/$1.mjs" }');
+  const manifest = swap('package.json', exports, /("polyspec-kit-hook":\s*)"\.\/scripts\/kit\/claude-hook\.mts"/, '$1"./dist/claude-hook.mjs"');
   const kitLine = swap('scripts/kit/kit-bootstrap.mk', read('scripts/kit/kit-bootstrap.mk'), /^KIT := \$\(KIT_BOOTSTRAP\)$/m, 'KIT := $(KIT_BOOTSTRAP:%/scripts/kit=%/dist)');
   const bootstrap = swap('scripts/kit/kit-bootstrap.mk', kitLine, /^KIT_EXT := mts$/m, 'KIT_EXT := mjs');
-  const settings = swap('claude/settings.json', read('claude/settings.json'), /scripts\/kit\/claude-hook\.mts/g, 'dist/claude-hook.mjs');
+  const settings = read('claude/settings.json');
   return { 'package.json': manifest, 'scripts/kit/kit-bootstrap.mk': bootstrap, 'claude/settings.json': settings };
 }
 

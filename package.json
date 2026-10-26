@@ -17,6 +17,9 @@
     "./link-folders": "./scripts/kit/link-folders.mts",
     "./package.json": "./package.json"
   },
+  "bin": {
+    "polyspec-kit-hook": "./scripts/kit/claude-hook.mts"
+  },
   "files": [
     "dist/",
     "scripts/kit/kit-bootstrap.mk",

@@ -5,16 +5,16 @@ import test from 'node:test';
 import { packedFiles } from '../../scripts/kit/pack-manifest.mts';
 import { tree } from './tree.mts';
 
-const MANIFEST = '{\n  "exports": {\n    "./run-tests": "./scripts/kit/run-tests.mts",\n    "./package.json": "./package.json"\n  }\n}\n';
+const MANIFEST = '{\n  "bin": { "polyspec-kit-hook": "./scripts/kit/claude-hook.mts" },\n  "exports": {\n    "./run-tests": "./scripts/kit/run-tests.mts",\n    "./package.json": "./package.json"\n  }\n}\n';
 const BOOTSTRAP = 'KIT_BOOTSTRAP := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))\nKIT := $(KIT_BOOTSTRAP)\nKIT_EXT := mts\n';
-const SETTINGS = '{ "command": "node node_modules/@polyspec/kit/scripts/kit/claude-hook.mts" }\n';
+const SETTINGS = '{ "command": "node node_modules/.bin/polyspec-kit-hook" }\n';
 
-test('the packed files name dist: the exports, the KIT of the bootstrap and the Claude hook (K613)', (t) => {
+test('the packed exports, bootstrap and native npm hook bin name dist while settings retain identical bytes (K613, K671-1)', (t) => {
   const root = tree(t, { 'package.json': MANIFEST, 'scripts/kit/kit-bootstrap.mk': BOOTSTRAP, 'claude/settings.json': SETTINGS });
   const packed = packedFiles(root);
-  assert.equal(packed['package.json'], '{\n  "exports": {\n    "./run-tests": { "types": "./dist/run-tests.d.mts", "default": "./dist/run-tests.mjs" },\n    "./package.json": "./package.json"\n  }\n}\n');
+  assert.equal(packed['package.json'], '{\n  "bin": { "polyspec-kit-hook": "./dist/claude-hook.mjs" },\n  "exports": {\n    "./run-tests": { "types": "./dist/run-tests.d.mts", "default": "./dist/run-tests.mjs" },\n    "./package.json": "./package.json"\n  }\n}\n');
   assert.equal(packed['scripts/kit/kit-bootstrap.mk'], 'KIT_BOOTSTRAP := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))\nKIT := $(KIT_BOOTSTRAP:%/scripts/kit=%/dist)\nKIT_EXT := mjs\n');
-  assert.equal(packed['claude/settings.json'], '{ "command": "node node_modules/@polyspec/kit/dist/claude-hook.mjs" }\n');
+  assert.equal(packed['claude/settings.json'], SETTINGS);
 });
 
 test('a file that names no source of kit fails naming the file, so a pack never ships the sources unchanged (K613)', (t) => {

@@ -1,13 +1,11 @@
-# The bootstrap of kit in a repository: `include ../kit/scripts/kit/kit-bootstrap.mk` in its Makefile, the file of the kit
-# checkout beside it (K614); it includes the kit.mk beside it, which runs the sources of that checkout, so a change of
-# a source reaches the repository with no build (K613). The packages are installed in two steps, both online: `make install-tools
-# TOOLS=npm` installs the npm of packageManager into var/tools with the installer of scripts/kit/bootstrap beside this file, then
-# `make install-packages` installs package-lock.json with it.
+# A consumer includes node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk from its installed package.
+# A native npm link may connect that package to a local checkout; no sibling checkout path is required.
+# Source installs use scripts/kit/*.mts, while prepack selects dist/*.mjs for packed installs.
+# make install-tools TOOLS=npm installs the declared npm into var/tools, then make install-packages installs the lock.
 
-# The folder of this file, the scripts/kit of the kit checkout, which holds the sources that the repository runs (K614, K613).
+# The folder of this installed bootstrap, whether npm resolves it to a linked source or a packed package.
 KIT_BOOTSTRAP := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
-# KIT is the scripts/kit of the kit checkout beside the repository, whose .mts sources node runs with their types stripped: they lie
-# outside node_modules, where node strips no types, and a release packs dist instead (prepack, K613). KIT_EXT is their extension.
+# Native npm source links resolve outside node_modules, where Node strips types; packed installs select dist in prepack.
 KIT := $(KIT_BOOTSTRAP)
 KIT_EXT := mts
 ONLINE ?=
@@ -30,8 +28,8 @@ install-packages: ## Install the packages of package-lock.json, @polyspec/kit in
 	$(foreach target,$(INSTALL_PACKAGES_EXTRA),$(MAKE) --no-print-directory $(target) || exit $$?;)
 
 # The link of install-link (K360, K360-1, K360-2): it needs the Go of var/tools, which the full install-tools installs, and the
-# environments that the steps of the repository install, so make install runs it after all of them. KIT is the kit checkout beside
-# the repository when there is one (K348-1), so the link is that of the kit the repository develops against.
+# environments that the steps of the repository install, so make install runs it after all of them. KIT always comes from
+# the installed package, including when native npm links it to development sources.
 .PHONY: install-link
 install-link: ## Link the packages to the polyspec checkouts beside the repository, with the node of var/tools, after every install of make install
 	$(NODE) $(KIT)/link.$(KIT_EXT) link --siblings

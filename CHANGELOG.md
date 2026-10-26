@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The installed kit bootstrap supports native npm source links and packed installs without a mandatory sibling checkout. npm owns the polyspec-kit-hook command link; prepack changes its source target to dist while Claude settings retain identical consumer-local command bytes. Two pack-owner units and one native source/packed consumer case pass, including allowed commands and hook refusal. Changed-file type-aware lint and typecheck pass (K671-1).
 - Shared principles, editor settings, Claude settings and release/gates workflows are regular copies from the installed kit package. Synchronization atomically replaces managed symlinks even when their bytes match, leaves their providers unchanged and writes nothing on repeat. Tracked shared links no longer require or receive a sibling-checkout exception, and synchronization refuses the kit source checkout before consumer cleanup. Red: four focused copy-policy cases fail on the old behavior; green: those four owning cases and type-aware lint pass (K671-2).
 - Arginfo generation retains the declared PHP configuration. Disabling it with -n removed tokenizer on PHP installations that load it as a shared module. Red: the K670-1 unit fails when -n drops tokenizer; green: it generates the fixture header (K670-1).
 - A consumer release prepares the sibling kit checkout and npm dependencies at the release tag of its lock before make reads the bootstrap. kit itself keeps its own sources. Red: the K670 workflow regression fails without preparation; green: all 9 release workflow units pass (K670).

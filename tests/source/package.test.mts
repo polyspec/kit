@@ -52,14 +52,15 @@ test('@polyspec/kit/test-output resolves and exposes the five readers (K217)', (
 
 test('npm pack packs exactly the files of package.json files and the files npm always packs', (t) => {
   const copy = builtCopy(t);
-  const { files } = readFixture<NpmManifest>(copy, 'package.json');
+  const { files, bin } = readFixture<NpmManifest>(copy, 'package.json');
   assert.ok(files, 'package.json declares files');
   const declared = files.flatMap(entry => {
     const target = path.join(copy, entry);
     return readdirSync(path.dirname(target)).includes(path.basename(target)) && !entry.endsWith('/') ? [entry] : walk(target).map(file => path.posix.join(entry, file));
   });
-  // npm adds the manifest and every README* and LICENSE* file of the package root whatever files says.
-  const expected = [...new Set([...declared, 'package.json', 'README.md', 'README.ko.md', 'LICENSE'])].sort();
+  // npm also includes declared command targets, package.json and root README/LICENSE files.
+  const commands = typeof bin === 'string' ? [bin] : Object.values(bin ?? {});
+  const expected = [...new Set([...declared, ...commands.map(file => file.replace(/^\.\//, '')), 'package.json', 'README.md', 'README.ko.md', 'LICENSE'])].sort();
   const packed = packedKit(run(NPM, ['pack', '--dry-run', '--json', '--ignore-scripts'], copy));
   assert.deepEqual(packed.files.map(file => file.path).sort(), expected);
 });
