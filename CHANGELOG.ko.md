@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ca2f8da08680fd0afafc2acb9c404890c0961fe1ea189def39248c12db52ab11 -->
+<!-- source-sha256: d26a38a3da2ad7e45f94077a13c56f2c3c15a81e396c11d574ee8278428e858d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Cargo fallback fixture는 native offline update preflight를 허용하고 source 거부 시 요청한 command가 실행되지 않으며 holder가 해제됨을 구분해 검증한다. Red: cdb95b63에서 소유 fallback case 실패; Green: 선택한 Cargo source case 4개 모두 통과 (K671-8).
 
 ## 0.0.55
 

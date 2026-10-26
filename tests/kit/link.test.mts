@@ -1278,8 +1278,9 @@ test('K664-3 refuses a release selected instead of the sibling development sourc
   const { consumer, env } = workspace(t);
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n', 'release/Cargo.toml': '[package]\nname="polyspec-prov"\nversion="0.0.1"\n' });
   const metadata = JSON.stringify({ packages: [{ id: 'opaque-release', name: 'polyspec-prov', manifest_path: path.join(consumer, 'release/Cargo.toml') }], resolve: { nodes: [{ id: 'opaque-release' }] } });
-  stub(path.dirname(env.CARGO), path.join(consumer, 'cargo-source.log'), 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${metadata}'; exit 0; fi; done; echo executed >> ${JSON.stringify(path.join(consumer, 'executed'))}`);
+  stub(path.dirname(env.CARGO), path.join(consumer, 'cargo-source.log'), 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = update ]; then exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${metadata}'; exit 0; fi; done; echo executed >> ${JSON.stringify(path.join(consumer, 'executed'))}`);
   assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /Cargo selected .*instead of development source/);
+  assert.match(readFileSync(path.join(consumer, 'cargo-source.log'), 'utf8'), / update --offline /, 'the native offline preflight is allowed before source validation');
   assert.equal(existsSync(path.join(consumer, 'executed')), false);
   assert.equal(existsSync(path.join(consumer, 'var/link/cargo/root/execution.lock')), false);
   put(consumer, { 'Cargo.lock': 'version = 4\n' });

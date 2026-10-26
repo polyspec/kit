@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: bb26f7f565efa3183d7298ee17265c1b6b0989cfab51672010573d612908f40a -->
+<!-- source-sha256: 2f3dd17f4a198e2a9e454efa8324d4def6dc1c06a4053860506e802113b5d2c4 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -601,3 +601,4 @@
 | K670-4 | Python source link는 polyspec dependency를 선언하지 않은 project를 건너뛴다 | scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K670-4 tests/kit/link.test.mts` | [o] |
 | K671-6 | Native source 연결에서 npm lock 읽기를 유지하고 peer 규칙 억제나 기존 source 링크 생략을 추가하지 않는다 | scripts/kit/npm-install.mts, tests/source/npm-locked-link-real.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/npm-locked-link-real.test.mts`; selected native release-to-source case; changed-file type-aware lint | [o] |
 | K671-5 | Native dependency helper를 정확히 분류하고 isolation 및 의미 검사를 유지하며 제품별 fixture 이름을 일반화한다 | config/rebuild.json, tests/kit/dependency-policy.test.mts, tests/kit/dependency-review.test.mts, tests/kit/documents.test.mts, tests/kit/generated-files.test.mts, tests/kit/link-state-check.test.mts, tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K455 tests/kit/rebuild-check.test.mts`; isolation and changed fixture owning cases | [o] |
+| K671-8 | Fallback 거부 fixture에서 native Cargo offline update preflight와 요청한 command를 구분한다 | tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K664-3 tests/kit/link.test.mts` | [o] |

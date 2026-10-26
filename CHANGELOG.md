@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The Cargo fallback fixture allows the native offline update preflight and separately verifies that source refusal prevents the requested command and releases its holder. Red: the owning fallback case fails at cdb95b63; green: all four selected Cargo source cases pass (K671-8).
+
 ## 0.0.55
 
 - The rebuild inventory classifies the native Cargo metadata source helper and describes current npm and uv installation commands. Dependency, document, generated-file, link-state and npm tests use generic package, path and URL fixtures; isolation and all original semantic assertions remain intact. Red: the classification and isolation owner cases fail at 89ee79f8; green: 26 selected owning cases pass (K671-5).
