@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4bedbfe59ab71a71127c90456fdf84e10e4902ca951f1850b6f4544e34c10026 -->
+<!-- source-sha256: 37bd7dad8a03d8d845408c976ff5cee35931de48d389700f953f0a247d41ab57 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- uv는 잠긴 sync 후 로컬 Python distribution을 native editable로 설치한다. source 변경은 바로 반영되고 uv가 distribution metadata를 관리한다. 기존 package-folder link는 uv command가 source를 수정하기 전에 거부한다. Red: d190e3f5에서 uv-install owner test는 editable command를 기대했지만 sync만 관찰했다. Green: owner test 6개와 실제 uv editable source test가 통과한다(K657-3). 공통 link도 Python 설치를 uv에 위임하며 읽기 전용 legacy-link finding을 포함한 Python 통합 검사 3개가 통과한다.
 - uv는 잠긴 sync 후 로컬 Python distribution을 native editable로 설치한다. source 변경은 바로 반영되고 uv가 distribution metadata를 관리한다. 기존 package-folder link는 uv command가 source를 수정하기 전에 거부한다. Red: d190e3f5에서 uv-install owner test는 editable command를 기대했지만 sync만 관찰했다. Green: owner test 6개와 실제 uv editable source test가 통과한다(K657-3).
 - 실제 tool source fixture에 ecosystem manifest, case requirement id, generated-file 선언과 native PHP wrapper를 포함한다. Worktree tool은 공유 path API로 찾고, PHP extractor의 설치된 Composer autoloader를 사용하며, 과거 선언된 copy의 lint 검증을 명시적으로 유지하고 폐기된 Composer shadow manifest를 거부한다. Red: 65582113에서 소유 fixture가 실패한다. Green: 실제 tool 소유 case 15개가 통과한다(K661-3).
 - Go module decoding은 array뿐 아니라 null Require와 Replace directive 집합도 허용합니다. PHP arginfo는 extension 개발에서만 준비하고 kit의 extension fixture는 명시적 설치 target으로 준비합니다. fixture discovery는 설치된 generator와 parser를 사용하며 parser 선택 test 입력은 platform에 의존하지 않습니다. Red: 2d18f681의 null Go 출력과 PHP library-only 설치 unit이 실패했습니다. Green: 소유 단위 test 58개와 typecheck가 통과합니다(K661-1).

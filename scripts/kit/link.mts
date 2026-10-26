@@ -27,8 +27,9 @@ import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { composerLink } from './composer-install.mts';
 import { npmLink } from './npm-install.mts';
+import { legacyPythonLinks, uvEditable } from './uv-install.mts';
 import { rebuild } from './link-build.mts';
-import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
+import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, type ProvidedFolder, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -437,6 +438,9 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
     for (const finding of elsewhere) line(work, 'NOT linked', 'python', finding);
     if (elsewhere.length > 0) work.failed = true;
     if (work.check) {
+      const legacy = legacyPythonLinks(project, work.found.values(), work.env);
+      for (const folder of legacy) line(work, 'NOT linked', 'python', `${path.relative(consumer.top, folder)}: legacy package link requires a fresh native editable environment`);
+      if (legacy.length > 0) work.failed = true;
       const findings = folderFindings(consumer.top, folders);
       for (const finding of findings) line(work, 'NOT linked', finding.split(' ')[0] ?? '', finding.slice(finding.indexOf(' ') + 1));
       if (findings.length > 0) work.failed = true;
@@ -444,9 +448,12 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
     }
     const npm = folders.some(folder => folder.ecosystem === 'npm') ? consumerTool(consumer.top, 'npm', work.env) : undefined;
     if (npm !== undefined) npmLink(project, folders, npm.command, npm.env, work.print);
-    linkFolders(folders.filter(folder => folder.ecosystem === 'python'));
+    if (existsSync(path.join(project, 'pyproject.toml'))) {
+      const uv = consumerTool(consumer.top, 'uv', work.env);
+      uvEditable({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
+    }
     if (folders.some(folder => folder.ecosystem === 'composer')) composerLink(project, folders, consumerTool(consumer.top, 'composer', work.env), work.print);
-    for (const item of folders) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
+    for (const item of folders.filter(folder => folder.ecosystem !== 'python')) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
   }
 }
 

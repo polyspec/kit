@@ -11,12 +11,17 @@ import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 
 const SYNC_FLAGS = new Set(['--no-install-project', '--all-groups']);
 
+/** Reads legacy package-folder links without changing the environment or invoking uv. */
+export function legacyPythonLinks(project: string, providers: Iterable<Provider>, env: NodeJS.ProcessEnv): string[] {
+  return providedFolders(project, [...providers].filter(provider => provider.ecosystem === 'python'), { environment: env.UV_PROJECT_ENVIRONMENT }).filter(folder =>
+    lstatSync(folder.folder).isSymbolicLink() && editableFolder(project, folder.name.split(' ')[0] ?? folder.name, env.UV_PROJECT_ENVIRONMENT) === undefined).map(folder => folder.folder);
+}
+
 /** Refuses legacy package-folder links before uv can write through them into a provider checkout. */
 function refuseLegacyLinks(project: string, providers: readonly Provider[], env: NodeJS.ProcessEnv): void {
-  const legacy = providedFolders(project, providers, { environment: env.UV_PROJECT_ENVIRONMENT }).filter(folder =>
-    lstatSync(folder.folder).isSymbolicLink() && editableFolder(project, folder.name.split(' ')[0] ?? folder.name, env.UV_PROJECT_ENVIRONMENT) === undefined);
+  const legacy = legacyPythonLinks(project, providers, env);
   if (legacy.length > 0) {
-    throw new Error(`legacy Python package links require migration to native editable installation before uv runs: ${legacy.map(folder => folder.folder).join(', ')}; create a fresh environment with uv and install the declared local sources with uv pip install --editable`);
+    throw new Error(`legacy Python package links require migration to native editable installation before uv runs: ${legacy.join(', ')}; create a fresh environment with uv and install the declared local sources with uv pip install --editable`);
   }
 }
 
