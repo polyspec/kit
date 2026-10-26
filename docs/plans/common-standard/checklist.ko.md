@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: babafa3d9d23f1f85dfb34d475e81b9b3c357234033cdf19f41a4089fd6ed434 -->
+<!-- source-sha256: 026489f14ed041ccb39bc4ad38a5f51ce24bb262f3b64cce3a8f5000a0526500 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -646,4 +646,4 @@
 | K693 | 기존 회귀 테스트의 유효한 Red 증거가 있는 source-only fix를 허용하고 Red 또는 No-Red 누락은 계속 거부한다 | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K693 tests/kit/commits.test.mts`; `make docs-check` | [o] |
 | K694 | Cargo manifest의 명시 경로에서 Rust parity target을 선택 | scripts/kit/parity-runners.mts; tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K148\|K694" tests/kit/parity.test.mts` (2 passed); `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-runners.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K695 | 네임스페이스가 있는 클래스와 짧은 PHPUnit 클래스 id를 매칭하고 bare method, FQCN, data provider의 정확한 필터를 유지한다. | scripts/kit/parity-runners.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K695 tests/kit/parity.test.mts`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-runners.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
-| K698 | Linked 및 packed 설치에서 native provider lint 실행 파일과 backend를 해석한다 | scripts/kit/lint-ts.mts, tests/kit/lint-ts.test.mts, tests/kit/catch-check-steps.test.mts | `node --test tests/kit/lint-ts.test.mts tests/kit/catch-check-steps.test.mts` and `make docs-check` | [~] |
+| K698 | Linked 및 packed 설치에서 native provider lint 실행 파일과 backend를 해석한다 | scripts/kit/lint-ts.mts, tests/kit/lint-ts.test.mts, tests/kit/catch-check-steps.test.mts | `node --test tests/kit/lint-ts.test.mts tests/kit/catch-check-steps.test.mts` and `make docs-check` | [o] |

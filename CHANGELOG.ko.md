@@ -1,12 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: eddfc5fdc2dfa5239ffe20a5754a25fc2ce3e2514c5fece78a1b7b6007f1bc71 -->
+<!-- source-sha256: fa865dc2f7f6908e363ed27a1f8df84f72511c095cb1ad36c76dd99d90fdc7b9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- TypeScript lint가 설치된 provider에서 선언된 tool 실행 파일을 해석하고 native type-aware backend bin directory를 제공한다. Linked, nested, hoisted 설치에서 consumer가 bin link를 만들지 않으며 catch-step fixture도 같은 native dependency를 선언한다.
+- TypeScript lint가 설치된 provider에서 선언된 tool 실행 파일을 해석하고 native type-aware backend bin directory를 제공한다. Linked, nested, hoisted 설치에서 consumer가 bin link를 만들지 않으며 catch-step fixture도 같은 native dependency를 선언한다. (K698)
 
 
 

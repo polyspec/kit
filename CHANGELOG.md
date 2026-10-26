@@ -5,7 +5,7 @@
 
 ## Unreleased
 
-- TypeScript lint resolves its declared tool executables from the installed provider and exposes the native type-aware backend bin directory. Linked, nested and hoisted installations run without consumer-created bin links; the catch-step fixture declares the same native dependencies.
+- TypeScript lint resolves its declared tool executables from the installed provider and exposes the native type-aware backend bin directory. Linked, nested and hoisted installations run without consumer-created bin links; the catch-step fixture declares the same native dependencies. (K698)
 
 
 
