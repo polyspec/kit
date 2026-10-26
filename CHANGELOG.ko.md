@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7a1f1d495f56b2d23545e7f70dc3abc4ae551e449d154f47a9ead8dd0d8075c9 -->
+<!-- source-sha256: 3d3c017d2198cc70858164229e2c67a0bfb021b030d00838e0fbc184c7653776 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `make land`는 candidate와 main gate가 모두 실패했다고 알리고 candidate gate의 stdout과 stderr를 출력하면서 K631의 계속 진행 정책을 유지합니다(K631-1).
 - parity declaration은 feature coverage part에 포함된 root를 해석해 정확히 하나의 implementation에 연결하며, part 밖의 test는 계속 거부합니다(K650).
 
 - kit에 commit하거나 land해도 dist를 빌드하지 않습니다. consumer는 kit의 소스를 실행하고(K613) dist는 release 때 npm의 prepack이 빌드하므로, linked-build.mts의 kit 빌드(K551, K609의 kit 부분)를 지웠습니다(K646).
