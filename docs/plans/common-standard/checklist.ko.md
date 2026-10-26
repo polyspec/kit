@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 42f9718fe30506132e66bc865de321cfbaef8ac4b816416baa94c2ad7fb1a3c1 -->
+<!-- source-sha256: 161bf54bc6a518cee546063461a4c67a413999ade0bc95be67e3790aeccf1314 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -611,6 +611,7 @@
 | K677 | 0.0.55 공개 뒤 해당 tag 밖에 승인 변경이 남으면 별도 CI와 consumer proof를 통과한 0.0.56을 release한다 | release manifest, native lock, dependency review, changelog, release workflow | `make release-verify TAG=v0.0.56` | [o] |
 | K677-1 | Native release-consumer npm lock을 advisory review와 offline 승인 범위에 포함한다 | config/dependency-policy.json, native six-lock review record and consumer lock acceptance | `make dependency-policy-check` | [o] |
 | K677-2 | PHP extension parity binding을 기존 격리 library-test Composer autoloader로 실행하고 실패를 포함하여 두 실행 후 정리한다. | scripts/kit/parity-runners.mts, scripts/kit/parity-ledger.mts, tests/kit/parity.test.mts, docs/operations/tool-inventory.md(.ko), CHANGELOG.md(.ko) | `node --test --test-name-pattern=K677-2 tests/kit/parity.test.mts` | [o] |
+| K677-3 | 격리 PHP parity 실행기 수정을 포함한 kit 0.0.57을 릴리즈하고 설치 archive를 검증한다. | package.json, package-lock.json, tests/release-consumer/npm, config/dependency-review.json, CHANGELOG.md(.ko) | `node --test --test-name-pattern=K677-2 tests/kit/parity.test.mts` | [ ] |
 | K678 | 실제 locked install과 package 소비 검증을 유지하며 반복 준비 비용과 오래된 link 설명을 검토한다 | Reviewed six isolated builtCopy consumers across three source test files; retained native locked-install and packed-consumption coverage and per-process shared download cache; clarified dependency-root ownership and source-versus-packed export comments | `make docs-check` | [o] |
 | K679 | 기존 미완료 checklist 전체를 native package 소유권, 현재 runner 규칙, release 증거와 대조한 뒤 기존 지시의 재개 여부를 정한다 | common-standard plan 결정 대응표와 기존 checklist 판정, 한국어 짝 | `make docs-check` | [o] |
 | K680 | Native npm advisory node path를 보존하고 취약한 nested copy를 실제 locked version에 귀속한다 | scripts/kit/dependency-review.mts, advisory schema and policy tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-policy.test.mts` | [o] |
