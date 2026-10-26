@@ -25,6 +25,8 @@
 - PHP extension parity uses the existing isolated Composer library-test autoloader, preserves extension arguments and removes temporary installs after both attempts or a support-file failure. Pure library runs and bindings with explicit commands keep their existing execution. (K677-2)
 
 - The parity regression verifies cleanup after both successful and failed attempts and leaves the library vendor directory unchanged. (K677-2)
+- The Rust parity runner selects the Cargo target named by an explicit manifest path and maps sibling modules to the existing `tests/<name>/main.rs` target. Conventional `tests/<name>.rs` and library fallbacks remain. Red: K694 selected `--lib` for an explicit integration binary and for its test modules. Green: K148 and K694 pass (2 tests), with typecheck, changed-file type-aware oxlint and docs-check (K694).
+
 - PHP feature bindings run only the exact methods grouped for their file. Bare and qualified method ids, FQCNs and provider data sets use escaped PHPUnit filters; the parity ledger still requires every selected id and ignores unselected test failures. Red: the K692 regression failed because an unselected failing method ran from the shared file. Green: the exact K692 unit passes (1 test); changed-file oxlint and docs-check pass (K692).
 
 - A fix commit may cite a valid Red result from an existing regression test without changing that test file in the fix; a fix with missing or malformed Red or No-Red remains rejected. The focused commit unit checks both the valid Red path and the existing No-Red path. Red: K693's source-only fix regression failed at a6a485e8; Green: the K693 unit passes (1 test), with changed-file oxlint and docs-check (K693).
