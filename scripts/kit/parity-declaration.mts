@@ -101,9 +101,10 @@ export interface ToolParityUnit {
   bindings: ToolParityBinding[];
 }
 
-/** A package of single-runtime tooling tests that is outside the shared implementation set. */
+/** A single-runtime tool, declared by a disjoint root or by exact tracked native test files. */
 export interface ParityTool {
-  root: string;
+  root?: string;
+  files?: string[];
   reason: string;
   units?: ToolParityUnit[];
 }
@@ -606,25 +607,45 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     for (const root of entry.roots.filter(wholeRepository)) fail(`implementation ${entry.name}: the root ${root} is the whole repository; name the directories of the implementation`);
   }
   for (const root of (config.comparators ?? []).filter(wholeRepository)) fail(`comparators: the root ${root} is the whole repository; name the directories of the comparators`);
-  // A tools root holds tests outside the shared implementation set, so it shares no directory with an implementation and holds no implementation binding.
+  // A tools root is disjoint from implementation roots; exact tool files can be embedded without transferring their siblings.
   const overlap = (left: string, right: string) => [[left, right], [right, left]].some(([outer, inner]) => `${present(inner, 'inner').replace(/\/+$/, '')}/`.startsWith(`${present(outer, 'outer').replace(/\/+$/, '')}/`));
   const unitIds = new Set(config.units.map(unit => unit.id));
+  const exactToolFiles = new Set<string>();
   for (const tool of config.tools ?? []) {
+    if (tool.root === undefined && !(tool.files?.length)) fail('tools: declare a disjoint root or one or more exact test files');
     for (const entry of config.implementations) {
-      for (const directory of entry.roots.filter(directory => overlap(tool.root, directory))) fail(`tools: the root ${tool.root} overlaps ${directory}, a root of the implementation ${entry.name}`);
+      if (tool.root !== undefined) for (const directory of entry.roots.filter(directory => overlap(tool.root ?? '', directory))) fail(`tools: the root ${tool.root} overlaps ${directory}, a root of the implementation ${entry.name}`);
     }
-    if (!tool.reason.trim()) fail(`tools: the root ${tool.root} gives no reason; write why its tests belong outside the shared implementation set`);
+    if (!tool.reason.trim()) fail(tool.root === undefined
+      ? 'tools: the exact test files give no reason; explain why their tests are outside the shared implementation set'
+      : `tools: the root ${tool.root} gives no reason; write why its tests belong outside the shared implementation set`);
+    for (const file of tool.files ?? []) {
+      if (!files.has(file)) fail(`tools: the exact test file ${file} does not exist`);
+      if (exactToolFiles.has(file)) fail(`tools: the exact test file ${file} has more than one tool owner`);
+      exactToolFiles.add(file);
+      const implementationsAtPath = config.implementations.filter(entry => entry.roots.some(directory => within(directory, file)));
+      if (implementationsAtPath.length > 1) fail(`tools: the exact test file ${file} lies in roots of multiple implementations`);
+      for (const entry of implementationsAtPath) {
+        if (config.units.some(unit => (unit.bindings ?? []).some(binding => binding.test === file))) fail(`tools: the exact test file ${file} is also bound to an implementation unit`);
+        if (matchesAny(entry.support ?? [], file)) fail(`tools: the exact test file ${file} is also implementation support`);
+        if (matchesAny((entry.internal ?? []).map(item => item.glob), file)) fail(`tools: the exact test file ${file} is also declared internal to ${entry.name}`);
+      }
+    }
     for (const unit of tool.units ?? []) {
       if (unitIds.has(unit.id)) fail(`tools: the unit ${unit.id} is declared twice; unit ids are unique across implementations and tools`);
       unitIds.add(unit.id);
       for (const binding of unit.bindings) {
         if (!files.has(binding.test)) fail(`tools: the test ${binding.test} of ${unit.id} does not exist`);
-        else if (!within(tool.root, binding.test)) fail(`tools: the test ${binding.test} of ${unit.id} lies outside its tools root ${tool.root}`);
+        else if (tool.root !== undefined && !within(tool.root, binding.test) && !tool.files?.includes(binding.test)) fail(`tools: the test ${binding.test} of ${unit.id} lies outside its tools root ${tool.root} and is not an exact tool file`);
+        else if (tool.root === undefined && !tool.files?.includes(binding.test)) fail(`tools: the test ${binding.test} of ${unit.id} is not one of its exact tool files`);
         else if (!readFileSync(path.join(root, binding.test), 'utf8').includes(binding.id)) fail(`tools: the native selector ${binding.id} of ${unit.id} does not appear in ${binding.test}`);
       }
     }
+    for (const file of tool.files ?? []) {
+      if (!(tool.units ?? []).some(unit => unit.bindings.some(binding => binding.test === file))) fail(`tools: the exact test file ${file} is not bound by a tool unit`);
+    }
     for (const unit of config.units) {
-      for (const entry of (unit.bindings ?? []).filter(entry => within(tool.root, entry.test))) fail(`tools: the root ${tool.root} holds ${entry.test}, the test of the ${unit.kind} ${unit.id} in ${entry.implementation}`);
+      if (tool.root !== undefined) for (const entry of (unit.bindings ?? []).filter(entry => within(tool.root ?? '', entry.test))) fail(`tools: the root ${tool.root} holds ${entry.test}, the test of the ${unit.kind} ${unit.id} in ${entry.implementation}`);
     }
   }
   for (const entry of config.implementations) {
@@ -639,6 +660,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
       || (runner === 'cargo' && file.endsWith('.rs') && rustCode(readFileSync(path.join(root, file), 'utf8')).search(CARGO_TEST) !== -1));
     if (runners.length) testRunners.set(file, runners);
   }
+  for (const file of exactToolFiles) if (!testRunners.has(file)) fail(`tools: the exact source ${file} is not a native test file selected by a runner`);
   const tests = new Map(config.implementations.map(entry => [entry.name, [...files].filter(file => matchesAny(entry.tests ?? [], file) || (entry.roots.some(directory => within(directory, file)) && Boolean(testRunners.get(file)?.includes(entry.runner))))]));
   // A support glob names files in the roots of its implementation that a test glob selects or that are named like a test, and
   // that hold no test; one that selects none is stale. A Go or Rust support file holds no function that its native runner would run.

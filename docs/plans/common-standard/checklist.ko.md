@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: a5ab307371c04943ca200636df54e7ff2a06577878260e58d7ea29c9212d05a6 -->
+<!-- source-sha256: 35bde4835b6f4b473d4d31ae54f29f8336d33ca936f41e603ff3481af0f2e37a -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -555,3 +555,4 @@
 | K648 | commit-subject-id는 Subject 안의 id가 마지막 id와 다를 때만 거부합니다. 이 규칙은 Subject가 한 행을 가리키게 하려는 것이고, 같은 id를 두 번 써도 그 행 하나를 가리키므로, id를 반복한 push된 commit(hyper c20a207)은 다시 쓸 필요도, 허용 sha 목록도 필요 없습니다. | scripts/kit/check-commits.mts and the K648 case in tests/kit/commits.test.mts. | `node --test --test-name-pattern=K648 tests/kit/commits.test.mts` | [o] |
 | K649 | suite, 그 target 묶음, 바뀐 경로의 owner, 선택 없는 test 실행은 호출자가 KIT_FULL_RUN=final로 최종 전체 실행임을 밝히면 CI 밖에서도 실행됩니다. 사용자는 각 저장소의 최종 전체 실행을 maintainer의 Mac에서 로컬로 한 번 하도록 정했는데, ciRefusal은 GitHub Actions 밖의 그런 실행을 모두 거부합니다. CI 밖의 다른 실행은 여전히 거부됩니다. | scripts/kit/ci-only.mts and the case in tests/kit/ci-only.test.mts. | `node --test --test-name-pattern=K649 tests/kit/ci-only.test.mts` | [-] 원인: 사용자 2026-10-26: "하지 말 것". 전체 suite는 CI에서만 실행하고(K240), 최종 전체 실행은 제대로 된 CI 계획이 생길 때까지 미루므로 로컬 허용을 두지 않는다 |
 | K650 | coverage owner part는 한 구현 root들의 상위 경로일 수 있다 | Resolve a coverage part that contains roots of exactly one implementation; reject a part spanning multiple implementations and a bound test outside the part. Add K650 regression cases and preserve owner/feature checks. | `node --test --test-name-pattern=K650 tests/kit/parity.test.mts`; `make docs-check` | [o] |
+| K651 | Parity는 구현 형제 테스트를 tool 테스트로 바꾸지 않고 정확한 external-oracle 테스트 파일을 선언합니다. 구현 root 안에 있는 추적 테스트 파일 하나를 명시적인 oracle unit에 바인딩할 수 있습니다. 디렉터리, glob, 구현 바인딩과 공유하는 파일은 oracle로 선언할 수 없습니다. 목록에 없는 형제 테스트는 기존 구현 owner 검사 대상입니다. | scripts/kit/schema/parity.schema.json, scripts/kit/parity-declaration.mts, scripts/kit/parity-units.mts, tests/kit/parity.test.mts, docs/plans/common-standard/checklist.md(.ko.md) | `node --test --test-name-pattern=K651 tests/kit/parity.test.mts`; `make typecheck`; `make docs-check` | [~] |

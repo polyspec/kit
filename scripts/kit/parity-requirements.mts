@@ -19,7 +19,7 @@ import { DECLARATION, finding, type Finding } from './parity-declaration.mts';
 const SPEC = /^docs\/spec\/(?:.+\/)?[^/]+(?<!\.ko)\.md$/;
 
 /** The findings of the trace of `config` against the spec among the checked `files`, read with `read`. */
-export function requirementFindings(config: { requirements: { pattern: string }; implementations?: { name: string; internal?: { glob: string }[] }[]; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[]; tools?: { root: string; reason: string; units?: { id: string; requirements: string[]; bindings: { test: string; id: string }[] }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>): Finding[] {
+export function requirementFindings(config: { requirements: { pattern: string }; implementations?: { name: string; internal?: { glob: string }[] }[]; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[]; tools?: { root?: string; files?: string[]; reason: string; units?: { id: string; requirements: string[]; bindings: { test: string; id: string }[] }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>): Finding[] {
   const { pattern } = config.requirements;
   const definition = new RegExp(`^\\s*(?:(?:[-*+]|\\d+[.)])\\s+\\*\\*(${pattern})\\*\\*|#{1,6}\\s+(${pattern})\\b)`);
   const listed = new Set(files);

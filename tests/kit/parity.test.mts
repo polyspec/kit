@@ -27,7 +27,7 @@ type Entry = { [field: string]: unknown };
 type BindingJson = Entry & { implementation: string };
 type ToolBindingJson = Entry & { test: string; id: string };
 type ToolUnitJson = Entry & { id: string; requirements: string[]; bindings: ToolBindingJson[] };
-type ToolJson = Entry & { root: string; reason: string; units?: ToolUnitJson[] };
+type ToolJson = Entry & { root?: string; files?: string[]; reason: string; units?: ToolUnitJson[] };
 // A unit of the kind api declares symbols, every other kind bindings.
 type UnitJson = Entry & { id: string; bindings?: BindingJson[]; symbols?: BindingJson[] };
 type ImplementationJson = Entry & { name: string; runner: string; env?: Entry[] };
@@ -2394,6 +2394,64 @@ test('a tool-owned requirement uses its exact native case without becoming an im
 
   const uncited = findings({ files: { 'tools/editor/adapter.test.mjs': "test('native adapter case', () => {});\n" } });
   assert.ok(uncited.some(item => item.rule === 'R15' && item.requirements?.includes('CX-2')), keys(uncited).join('\n'));
+});
+
+test('an exact oracle test file inside an implementation root is tool-owned without hiding its sibling tests (K651)', TIMEOUT, (t) => {
+  const oracle = 'go/oracle/facts_test.go';
+  const sibling = 'go/oracle/client_contract_test.go';
+  const files = {
+    'docs/spec/oracle.md': '# Vendor facts\n\n- **CX-2** A vendor oracle records the declared database fact.\n',
+    [oracle]: 'package oracle\n\nimport "testing"\n\nfunc TestVendorFacts(t *testing.T) {} // CX-2\n',
+    [sibling]: 'package oracle\n\nimport "testing"\n\nfunc TestClientContract(t *testing.T) {}\n',
+  };
+  const edit = (config: Declaration) => {
+    config.tools = [{
+      files: [oracle],
+      reason: 'The exact Go test records external database facts and is not an ORM implementation test.',
+      units: [{ id: 'vendor-facts', requirements: ['CX-2'], bindings: [{ test: oracle, id: 'TestVendorFacts' }] }],
+    }];
+    return config;
+  };
+  const { findings } = check(t, { files, edit }, { execute: false });
+  assert.deepEqual(findings.map(item => `${item.rule} ${item.place}`), [`R5 ${sibling}`]);
+
+  const changed = (change: (config: Declaration) => Declaration) => check(t, { files, edit: change }, { execute: false }).findings;
+  const directory = changed(config => {
+    edit(config);
+    itemWhere(config.tools ?? [], tool => tool.files?.[0] === oracle).files = ['go/oracle'];
+    return config;
+  });
+  assert.ok(directory.some(item => item.rule === 'declaration' && item.message.includes('go/oracle')), keys(directory).join('\n'));
+  const glob = changed(config => {
+    edit(config);
+    itemWhere(config.tools ?? [], tool => tool.files?.[0] === oracle).files = ['go/oracle/*.go'];
+    return config;
+  });
+  assert.ok(glob.some(item => item.rule === 'declaration' && item.message.includes('go/oracle/*.go')), keys(glob).join('\n'));
+  const unbound = changed(config => {
+    edit(config);
+    itemWhere(config.tools ?? [], tool => tool.files?.[0] === oracle).units = [];
+    return config;
+  });
+  assert.ok(unbound.some(item => item.rule === 'declaration' && item.message.includes('is not bound by a tool unit')), keys(unbound).join('\n'));
+  const dual = changed(config => {
+    edit(config);
+    config.units.push({
+      id: 'vendor-facts-as-client', kind: 'feature', requirements: ['CX-2'],
+      bindings: [{ implementation: 'go', test: oracle, id: 'TestVendorFacts' }],
+    });
+    return config;
+  });
+  assert.ok(dual.some(item => item.rule === 'declaration' && item.message.includes('also bound to an implementation unit')), keys(dual).join('\n'));
+  const duplicate = changed(config => {
+    edit(config);
+    config.tools?.push({
+      files: [oracle], reason: 'A second tool cannot own the same test file.',
+      units: [{ id: 'vendor-facts-second-owner', requirements: ['CX-2'], bindings: [{ test: oracle, id: 'TestVendorFacts' }] }],
+    });
+    return config;
+  });
+  assert.ok(duplicate.some(item => item.rule === 'declaration' && item.message.includes('has more than one tool owner')), keys(duplicate).join('\n'));
 });
 
 test('a repository with one implementation needs no parity declaration; one with two fails without it (K248-2)', TIMEOUT, (t) => {

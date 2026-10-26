@@ -74,15 +74,23 @@
     },
     "suites": { "description": "Globs of the shared vector files; each one must be the file of a suite unit.", "type": "array", "items": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" } },
     "tools": {
-      "description": "The directories of single-language tooling that are outside the shared implementation set, such as editor packages; every run prints each with its reason. R6 accepts tests there, and R3 and R5 do not judge them. A root overlaps no implementation root and holds no implementation binding. A tool may declare units for its own requirements; these do not become implementation bindings.",
+      "description": "The directories of single-language tooling that are outside the shared implementation set, such as editor packages, or exact test files of an external oracle embedded in an implementation root; every declaration prints its reason. R6 accepts tests in a tool root, and R3 and R5 do not judge tool-owned tests. A root overlaps no implementation root and holds no implementation binding. An exact file is tracked, is one native test file, has one tool owner and no implementation binding, and exempts only that file from implementation test placement. A tool may declare units for its own requirements; these do not become implementation bindings.",
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["root", "reason"],
+        "required": ["reason"],
+        "anyOf": [{ "required": ["root"], "properties": { "root": {} } }, { "required": ["files"], "properties": { "files": {} } }],
         "additionalProperties": false,
         "properties": {
           "root": { "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
-          "reason": { "description": "Why the tests of the root belong outside the shared implementation set.", "type": "string" },
+          "files": {
+            "description": "Exact tracked native test files of an external oracle embedded in an implementation root. A file cannot be shared with an implementation binding or another tool; directories and globs are not accepted.",
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^(?!.*[?*{}\\[\\]])(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" }
+          },
+          "reason": { "description": "Why the tests of this tool belong outside the shared implementation set, whether selected by its root or exact files.", "type": "string" },
           "units": {
             "description": "The requirements owned by this tool and its exact native test selectors. These units are traced by R13-R15 but never run as implementation bindings; the tool package's existing owner check runs their tests.",
             "type": "array",

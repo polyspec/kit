@@ -62,15 +62,16 @@ const supportFile = (model: ParityModel, runner: Runner, file: string) => model.
  */
 export function undeclaredTests(model: ParityModel, files: Iterable<string>) {
   const tests = new Set([...model.tests.values()].flat());
+  const toolFiles = new Set((model.config.tools ?? []).flatMap(tool => tool.files ?? []));
   const support = (file: string) => model.config.implementations.some(implementation => matchesAny(implementation.support ?? [], file));
   return model.config.implementations.flatMap((implementation) => {
     const bound = new Set(model.config.units.flatMap(unit => unit.bindings ?? []).filter(entry => entry.implementation === implementation.name).map(entry => entry.test));
     // readDeclaration gives each implementation its test files.
     // A file below the directory of a bound tests/<name>/main.rs is a module of that cargo test target (K148).
     const targetDirectories = implementation.runner === 'cargo' ? [...bound].filter(test => test.endsWith('/main.rs') && path.posix.basename(path.posix.dirname(path.posix.dirname(test))) === 'tests').map(test => path.posix.dirname(test)) : [];
-    const unbound = present(model.tests.get(implementation.name), 'model.tests.get(implementation.name)').filter(file => !bound.has(file) && !targetDirectories.some(directory => within(directory, file)) && !matchesAny(implementation.support ?? [], file) && !matchesAny((implementation.internal ?? []).map(item => item.glob), file))
+    const unbound = present(model.tests.get(implementation.name), 'model.tests.get(implementation.name)').filter(file => !toolFiles.has(file) && !bound.has(file) && !targetDirectories.some(directory => within(directory, file)) && !matchesAny(implementation.support ?? [], file) && !matchesAny((implementation.internal ?? []).map(item => item.glob), file))
       .map(file => finding('R5', `the test file of ${implementation.name} is the test of no binding, so no check runs it`, { implementation: implementation.name, place: file }));
-    const named = [...files].filter(file => implementation.roots.some(root => within(root, file)) && testNamed(file) && !tests.has(file) && !model.testRunners.has(file) && !bound.has(file) && !support(file))
+    const named = [...files].filter(file => !toolFiles.has(file) && implementation.roots.some(root => within(root, file)) && testNamed(file) && !tests.has(file) && !model.testRunners.has(file) && !bound.has(file) && !support(file))
       .map(file => finding('R5', `the file is named like a test, and the ${implementation.runner} convention of ${implementation.name} is ${CONVENTIONS[implementation.runner].join(', ')}; name it so, bind it, or declare it a support file`, { implementation: implementation.name, place: file }));
     return [...unbound, ...named].sort((left, right) => (left.place ?? '').localeCompare(right.place ?? ''));
   });
@@ -87,7 +88,8 @@ const KIT_DIRECTORIES = ['scripts/kit', 'tests/kit'];
  */
 export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   const comparators = model.config.comparators ?? [];
-  const tools = (model.config.tools ?? []).map(tool => tool.root);
+  const tools = (model.config.tools ?? []).flatMap(tool => tool.root === undefined ? [] : [tool.root]);
+  const toolFiles = new Set((model.config.tools ?? []).flatMap(tool => tool.files ?? []));
   const inComparator = (file: string) => comparators.some(root => within(root, file));
   const internalGlobs = model.config.implementations.flatMap(entry => (entry.internal ?? []).map(item => item.glob));
   const bound = model.config.units.flatMap(unit => (unit.bindings ?? []).map(entry => ({ unit, entry })));
@@ -98,7 +100,7 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
     return roots.some(root => within(root, entry.test)) || inComparator(entry.test) ? [] : [finding('R6', `the test lies outside ${roots.join(', ')}, the roots of ${entry.implementation}`, { unit: unit.id, implementation: entry.implementation, place: entry.test })];
   });
   const tests = new Set(bound.map(({ entry }) => entry.test));
-  const patterns = [...files].filter(file => !tests.has(file) && !inComparator(file) && !matchesAny(internalGlobs, file) && ![...KIT_DIRECTORIES, ...tools].some(root => within(root, file))).flatMap((file) => {
+  const patterns = [...files].filter(file => !tests.has(file) && !toolFiles.has(file) && !inComparator(file) && !matchesAny(internalGlobs, file) && ![...KIT_DIRECTORIES, ...tools].some(root => within(root, file))).flatMap((file) => {
     // Conventions overlap (a *.test.ts file is a node and a vitest test), so a file lies in a root of one of its runners.
     const runners = (model.testRunners.get(file) ?? []).filter(runner => !supportFile(model, runner, file));
     if (!runners.length) return [];

@@ -120,7 +120,9 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   }
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
-  for (const tool of model.config.tools ?? []) say(`tools root ${tool.root}: ${tool.reason}`);
+  for (const tool of model.config.tools ?? []) say(tool.root === undefined
+    ? `tools exact files ${(tool.files ?? []).join(', ')}: ${tool.reason}`
+    : `tools root ${tool.root}: ${tool.reason}`);
   const executed = execute ? runBindings(model, root, { env, files, say, units: selected }) : { ledger, findings: [] };
   if (selected !== undefined && execute) return { findings: executed.findings, ledger: executed.ledger };
   const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), findings: [] };
