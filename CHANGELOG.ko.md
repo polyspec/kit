@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: aa6d98b4087920757e4d8f3b1e0c88fb29b8928324fee1a6b586042899b981cd -->
+<!-- source-sha256: dcf409b33e285f16eda334116b4981c8d8412fd6fa03df99e75931c6adbb6af6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Worktree 준비는 main project의 실제 cache와 선언된 root URL 정책을 사용하는 native offline npm ci에 dependency tree 생성을 맡기고 기존 native npm helper로 source를 다시 연결한다. Composer는 공유 native 환경/cache와 선택된 manifest/vendor 설정을 사용하여 package, record, bin, autoload를 직접 만들며 legacy projection은 main link를 따라가지 않고 제거하고 고정 archive 입력은 설치 전에 filesystem copy/clone으로 준비한다. 도구 재사용과 uv 동작은 유지하며 저장공간 비용을 명시한다. Red: d3d16d3a에서 native 준비 unit 2개가 실패한다. Green: 고유 소유 unit 18개와 작은 실제 npm/Composer worktree case가 통과하며 main byte/lock 불변, cache-only 반복 동작, type-aware lint, typecheck, docs-check를 검증했다(K690).
 - Package test 준비는 격리된 여섯 native install/build 소비자와 기존 process별 primed download cache를 유지한다. Dependency root test는 실제 소유 계약을 명시하고 source export 주석은 checkout import와 packed dist import를 구분한다. 검증: helper와 세 caller 파일을 검토했으며 동작과 단언은 바뀌지 않아 문구 수정에 비싼 package test를 재실행하지 않는다 (K678). make docs-check도 통과하여 검토를 완료했다.
 - Python source 연결은 기존 native 환경을 전제로 release lock을 재조정하지 않고 선택 editable을 연결한다. 명시적인 uv installer는 공통 native source backend 전에 locked sync를 유지하므로 새 로컬 dependency를 개발 lock 수정이나 합성 없이 연결할 수 있다. Red: 47436bb6에서 source 연결이 먼저 오래된 release graph를 해석해 K689-3이 실패한다. Green에서는 선택 unit과 기존 환경 실제 검사가 통과하고 locked installer는 오래된 lock을 계속 거부하며 변경 파일 type-aware lint도 통과한다 (K689-3).
 - Python source 설치는 알려진 로컬 runtime dependency 이름을 따라가 명시적 root requirement extra와 함께 선택 editable을 하나의 native uv transaction으로 전달한다. uv가 일괄 --no-deps 없이 호환되는 외부 dependency를 해석하며 native dependency, source 경로와 선택 provider 완전성 검증은 유지한다. Red: 7f1c091d에서 개발 beta가 요구하는 미발행 로컬 child와 cache의 setuptools가 설치되지 않아 K689-2가 실패한다. Green에서는 선택 unit과 실제 native 검사가 release URL/hash lock 불변 및 child source 수정의 즉시 반영을 포함해 통과하고 변경 파일 type-aware lint도 통과한다 (K689-2).

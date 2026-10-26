@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 274f767458de9354b9a8bb6d2dae8484308889fb38acee3a42575fbd1ef1fecd -->
+<!-- source-sha256: 19f73e4da53b4f02982233f872e00edeabfc2f0431057ca856fd4c0c98e0b691 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -62,17 +62,19 @@ Source 개발 계약은 배포된 dependency와 같은 version의 source 수정,
 
 ## Worktree
 
-- worktree branch는 `main`에서 만든 `<type>/<name>-<id>`이고(P10) `make land`로 `main`에 들어갑니다. 도구는 main checkout에서 재사용합니다. npm dependency는 공유하며 저장소 자신의 workspace package는 worktree source에 연결합니다(K530). 각 Composer 프로젝트는 main 설치로의 link가 있는 실제 vendor 폴더와 오프라인 `composer dump-autoload`로 만든 자체 출력을 가집니다(K521).
+- worktree branch는 `main`에서 만든 `<type>/<name>-<id>`이고(P10) `make land`로 `main`에 들어갑니다. 도구는 main checkout에서 재사용합니다. Native offline npm ci와 Composer install이 각 worktree의 dependency tree, workspace link, 설치 record, autoload와 command proxy를 만듭니다. npm은 main project에 설정된 download cache를, Composer는 main tool 환경과 cache를 사용합니다. kit은 package link를 만들거나 설치 record를 복사하지 않습니다(K690).
 - Python environment는 `uv venv`로 만들고 main checkout의 cache 입력에서 `uv pip install --offline`으로 채웁니다(K657-4). native `uv pip freeze`의 requirement를 `var/worktree-python` 아래에 두며 main checkout 내부 editable 경로는 uv 설치 전에 대응하는 worktree source로 바꿉니다. script, editable metadata, 설치 record는 uv가 만듭니다. cache 입력이 없으면 main checkout에서 준비하라는 안내와 함께 실패하며 setup은 다운로드하지 않습니다. 기존 legacy environment는 수정하지 않고 보존한 채 거부합니다.
-- `make worktree-setup`은 이 dependency를 준비하고 worktree를 검사합니다. kit.mk와 kit 도구는 worktree 자신의 `mise.toml`과 main checkout의 `var/tools`를 사용합니다. 일반 `make install`과 `make install-tools`는 worktree에서 계속 거부하며 native offline Python 준비는 worktree setup의 일부입니다.
+- `make worktree-setup`은 이 dependency를 준비하고 worktree를 검사합니다. kit.mk와 kit 도구는 worktree 자신의 `mise.toml`과 main checkout의 `var/tools`를 사용합니다. 일반 `make install`과 `make install-tools`는 worktree에서 계속 거부하며 native offline dependency 준비는 worktree setup의 일부입니다. Cache 입력이 없으면 정상 실패하며 재시도 전에 main checkout에서 선언된 입력을 준비합니다.
 - `make worktree-link-state`는 같은 link 준비를 하고 product package를 rebuild하지 않은 채 `link-state-check`를 실행합니다. worktree의 목적이 link state 검사일 때 사용하며 검사를 건너뛰지는 않습니다. `make worktree-setup`은 검사 전 rebuild를 계속 수행합니다.
-- worktree-setup은 main checkout의 읽기 전용 `var/composer-artifacts` repository를 공유합니다(K622). Python environment는 자체 editable package가 worktree source를 실행해야 하므로 main environment로 가는 단일 directory link일 수 없습니다. make timestamp stamp는 새 checkout을 건너 이어질 수 없으며 거기서 유효해야 하는 stamp는 내용으로 판단합니다.
+- worktree-setup은 Composer 실행 전에 main checkout의 immutable `var/composer-artifacts` archive 입력을 복사하고 지원되는 filesystem에서는 cloning을 사용합니다. 설치된 vendor tree를 link하거나 metadata를 합성하지 않습니다(K690). Python environment는 자체 editable package가 worktree source를 실행해야 하므로 main environment로 가는 단일 directory link일 수 없습니다. make timestamp stamp는 새 checkout을 건너 이어질 수 없으며 거기서 유효해야 하는 stamp는 내용으로 판단합니다.
 - `main`은 `make land`와 pre-commit hook을 통과한 commit만 씁니다(K495). 두 번째 land는 첫 번째의 lock을 기다리고, `main`보다 뒤처진 branch는 그 worktree에서 rebase되며, `main`의 수동 merge, reset, update-ref는 reference-transaction hook이 거부합니다.
 - worktree와 branch는 branch가 `main`에 merge되면 바로 지웁니다. `make land`는 land한 branch를 지우고, `main`이 포함한 branch의 다른 깨끗한 worktree 중 process가 없는 것도 모두 지웁니다. process가 아직 실행 중인 worktree는 다음 land까지 남습니다(K626).
 
-## Legacy worktree 준비의 경계 (K690)
+## Worktree 저장 공간과 전환 (K690)
 
-위의 worktree 공유는 현재 npm/Composer entry link를 수동 구성하고 native autoload 생성 전에 Composer 설치 record의 byte를 복사합니다. 이 호환 경로는 native package manager 설치와 같지 않으며 완료된 source link 전환 범위에도 포함되지 않습니다. 일반 설치 패턴으로 재사용하지 않습니다. K690이 전환을 추적합니다. 정석 기준은 checkout별 native 설치와 공유 cache이며 실제 폴더 공유에는 manager 지원 또는 명시적인 저장 공간·설계 결정이 필요합니다. Manager 전환, metadata 조작, main 설치 변경을 암묵적으로 허용하지 않습니다.
+설치 directory는 worktree마다 독립적입니다. 공유 download cache가 설치 tree 공유를 제공하지는 않습니다. 실측 kit npm·Composer 설치 합계는 worktree당 약 291 MiB, 열 개면 약 2.85 GiB이며 product와 build 출력은 별도입니다. 설치된 tool을 재사용하고 merge된 worktree를 지우며 병렬 설치 비용이 없다고 가정하지 않습니다. Package manager 교체는 필요하지 않습니다.
+
+Native npm ci는 package link를 따라 main 설치로 들어가지 않고 legacy generated node_modules 상태를 교체합니다. Composer 준비는 main vendor로 향하는 legacy projection을 감지하면 native 설치 전에 제거하므로 복사된 record가 lock과 같다는 이유로 기존 projection이 남지 않습니다. Native path repository는 worktree 자신의 source 또는 명시한 외부 provider를 계속 가리킵니다. Main 설치와 provider source는 수정하지 않습니다. 일반 install과 install-tools는 worktree에서 계속 거부하고 worktree-setup이 offline 준비 진입점입니다.
 
 ## 알려진 영향
 

@@ -1,5 +1,5 @@
 <!-- doc-id: plan-common-standard -->
-<!-- source-sha256: 6655ed57fd1fe614d3b36a47bbbc34d773633254820d27c628d08a45b1ec8e79 -->
+<!-- source-sha256: fc46074ba609c0639be8cf3f6d5242199826091916e91935c0639dbfdbadf0cf -->
 # 공통 표준
 
 [English](plan.md)
@@ -23,7 +23,7 @@ K670-1은 PHP tokenizer 설정을 유지하고 K670-3은 release chore에서 구
 - K655, version 0.0.55: 준비와 소유 검사는 CHANGELOG.md에 기록되어 있고 공개는 대기 중입니다. [CI run 40313948359](https://github.com/polyspec/kit/actions/runs/40313948359)는 K672-1까지 검사해 kit test 1398개 통과, 4개 실패로 완료되었고 source test 174개와 나머지 gate는 모두 통과했습니다. K686-1/K686-2가 실패 owner 네 건을 수정합니다. 수정된 candidate는 자기 CI를 통과해야 하며 이전 source 결과는 후속 수정 code의 승인 증거가 아닙니다.
 - K673과 K674는 해당 CI에 포함되지 않은 후속 로컬 main commit입니다. K677은 공개된 0.0.55 tag 밖의 승인 변경을 포함할 후속 0.0.56 release를 추적합니다. 0.0.55가 공개되기 전에는 수정이 해당 candidate에 남을 수 있으므로 로컬 commit이 이미 공개된 version에 속한다고 가정하지 말고 최종 candidate를 확인합니다. 각 release는 자기 code의 CI와 consumer proof를 통과해야 하며 0.0.55 결과는 0.0.56의 검증 증거가 아닙니다.
 - CI가 실패하면 해당 release는 진행하지 않습니다. 실패 소유 범위를 수정하고 선택 검사 후 수정된 release candidate를 push합니다. 개발 중 전체 로컬 suite를 반복하지 않습니다. Candidate의 CI 통과 뒤 [release 절차](../../operations/release.ko.md)를 따르며 tag, draft, version bump만으로 공개 release라 하지 않습니다.
-- K676은 native 실행 환경으로 상속된 Cargo target을 격리하고 별도 main/worktree metadata 증거로 확인합니다. K678은 반복되는 package test 준비 비용을 검토합니다. Native 격리 설치와 package 소비 검증은 계속 필요하며 준비 비용만으로 해당 검사가 부당해지는 것은 아닙니다.
+- K676은 native 실행 환경으로 상속된 Cargo target을 격리하고 별도 main/worktree metadata 증거로 확인합니다. K678은 준비 비용 검토를 완료했습니다. 여섯 격리 소비자의 native locked install 및 package 소비 검증과 기존 process별 primed download cache를 유지하고 부정확한 test 문구만 수정했습니다.
 
 K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 증거의 완료이며 K655와 K677은 release 공개까지 미완료로 유지합니다. 배포 상태를 갱신하기 전에 Git, CI 실행, release를 확인합니다. Checklist는 task만, CHANGELOG.md는 실제 변경과 검사 증거를 담고 이 절은 관계와 남은 작업을 설명합니다.
 
@@ -75,9 +75,11 @@ K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 �
 
 K683은 새 resolver 없이 native source/release 검증 경계를 정합니다. K687은 기본 root report 입력을 수정합니다. 통합 dependency owner의 assertion 44개는 통과했지만 report 작성 결함으로 명령 종료는 실패했고 별도 CLI report 회귀 검사가 그 수정을 검증합니다. 앞선 명령이 정상 종료했다고 주장하지 않습니다.
 
-K678은 준비 비용 검토로 남습니다. 실제 격리 설치 검사는 정당합니다. K685는 land의 기존 30분 runMake deadline과 buffering된 진행 출력을 포함해 미완료입니다. K690은 legacy worktree npm/Composer 투영을 추적합니다. 해당 경로에서는 kit이 설치 entry를 수동 link하고 Composer 설치 record를 복사합니다. 이는 native package manager 설치가 아니며 source link와 review 수정으로 전환된 부분이 아닙니다. 정석 대안은 저장 공간 계획을 명시한 checkout별 native 설치와 공유 cache입니다. 폴더 공유를 유지하려고 manager를 몰래 바꾸거나 manifest를 합성하지 않습니다.
+K678은 정당한 격리 package 소비 검사를 유지합니다. K685는 land의 Make 전체 deadline을 제거하고 command 진행을 실시간 출력하며 취소, 부모 종료 정리 및 merge lock을 유지합니다. Document 검사는 각 단계와 결과를 출력합니다. K690은 legacy worktree npm/Composer 투영을 native offline 설치와 공유 download cache로 교체합니다. 각 worktree가 dependency tree, 설치 record, autoload와 workspace 연결을 소유하고 tool은 계속 공유합니다. Archive는 설치된 package를 투영하는 대신 입력 파일로 복사합니다. 실측 kit 설치 크기에서 독립 npm·Composer dependency tree는 worktree당 약 291 MiB, 열 개면 약 2.85 GiB입니다. Cache 공유는 설치 directory 공유가 아닙니다. Package manager 교체, metadata 합성이나 main 설치 수정은 필요하지 않습니다.
 
-P30/P35는 native 소유권 계약입니다. 남은 호환 경로는 명시적인 미완료 항목이며 조용히 완료로 간주하는 예외가 아닙니다. 과거 통합 release gate K438은 폐기되었고 candidate 승인은 무관한 향후 개선 전체가 끝나기를 기다리는 대신 실제 dependency, CI, proof를 따릅니다.
+K689-1은 선택한 Python distribution이 예상 source에 실제로 있는지 검증합니다. K689-2는 선택한 local runtime provider와 명시적 extra를 하나의 native uv transaction으로 전달합니다. K689-3은 기존 환경의 source 연결을 명시적 locked installer와 분리하므로 새 local dependency 연결 때문에 release lock을 재조정하지 않습니다. Native dependency 실패는 그대로 실패합니다.
+
+P30/P35는 native 소유권 계약입니다. Candidate 자체의 전체 CI와 공개 consumer proof가 통과해야 하며 소유 검사 증거로 배포 승인을 대신하지 않습니다. 과거 통합 release gate K438은 폐기되었고 candidate 승인은 무관한 향후 개선 전체가 끝나기를 기다리는 대신 실제 dependency, CI, proof를 따릅니다.
 
 ## 원인
 

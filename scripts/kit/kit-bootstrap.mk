@@ -39,9 +39,9 @@ install-link: ## Link the packages to the polyspec checkouts beside the reposito
 # that depend on install-kit, such as install: <repo>-install and <repo>-install: install-kit (K246-2).
 install: install-kit ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools, then the steps of the repository, then the links (K360-2); ONLINE
 	$(MAKE) --no-print-directory install-link
-install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order; a worktree installs nothing (K519); ONLINE
+install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order; worktrees reuse tools and prepare native dependencies through worktree-setup (K690); ONLINE
 ifneq ($(KIT_WORKTREE),)
-	@echo "[install-kit] $(CURDIR) is a worktree, which installs nothing: it runs the tools of the main checkout $(KIT_MAIN_CHECKOUT), and make worktree-setup links its node_modules to the main checkout's (K519)" >&2
+	@echo "[install-kit] $(CURDIR) is a worktree: it reuses tools from $(KIT_MAIN_CHECKOUT); use make worktree-setup for native offline dependency installation (K690)" >&2
 	@exit 1
 else
 	$(MAKE) --no-print-directory install-tools TOOLS=npm

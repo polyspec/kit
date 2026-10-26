@@ -1,25 +1,29 @@
 #!/usr/bin/env node
 // The worktree of a row (K348, docs/operations/local-links.md, Worktrees): `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]`
-// creates the worktree `../<repository>-<name>-<id>` of the main checkout on the branch `<type>/<name>-<id>` from main, links its
-// node_modules to the main checkout's, shares its installed tools (K519), and restores Python environments with native uv
+// creates the worktree `../<repository>-<name>-<id>` of the main checkout on the branch `<type>/<name>-<id>` from main, installs its
+// dependencies through native offline package managers and shares its installed tools (K519), and restores Python environments with native uv
 // installation from the shared offline cache (K657-4). It rebuilds its own packages and checks it with `make link-state-check`. A second run on an existing worktree of that branch
 // links and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { constants, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { usedFolders, worktreeGoFolders, writeGoWorkspace } from './link.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
-import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { toolsPath, run as install } from './bootstrap/tool-wrappers.mts';
 import { run } from './process.mts';
 import { COMMIT_RULES } from './check-commits.mts';
 import { git, gitResult } from './git.mts';
 import { kitPackageRoot } from './kit-files.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
-import { composerCommand } from './install-composer-project.mts';
+import { checkoutProviders } from './link-folders.mts';
+import { siblingCheckouts } from './link-providers.mts';
+import { npmLink, npmSourceFolders } from './npm-install.mts';
+import { composerVendor } from './composer-vendor.mts';
+import { composerCommand, composerEnvironment } from './install-composer-project.mts';
 
 // A name of a worktree: a slug of lower case letters, digits and hyphens; an id: the letters, digits, dots and hyphens of a row.
 const NAME = /^[a-z][a-z0-9-]*$/;
@@ -33,56 +37,32 @@ export function worktreeOf(main: string, { name, id, type }: { name: string; id:
   return { folder: path.join(path.dirname(main), `${path.basename(main)}-${name}-${id}`), branch: `${type}/${name}-${id}` };
 }
 
-/** The folders of the main checkout that a worktree links instead of installing them (K519). */
-// The folder of the npm packages that a worktree links entry by entry to the main checkout's (K519, K530).
+/** The native npm installation directory of each worktree project (K690). */
 const NODE_MODULES = 'node_modules';
 
-/**
- * The node_modules of the worktree `folder` (K530): a real folder whose entries link to those of the main checkout `main` (linkEntry),
- * each scope folder and .bin entry by entry, so a package of the repository's own workspace, which the main checkout links to its own
- * packages, links into the worktree, and the worktree resolves its own code. A link of the whole folder, which K519 made, is replaced;
- * the repository ignores the real folder as it ignores the main checkout's. Nothing is installed.
- */
-function linkNodeModules(main: string, folder: string, modules: string, print: (text: string) => void): void {
-  const source = path.join(main, modules);
-  const target = path.join(folder, modules);
-  const entry = lstatSync(target, { throwIfNoEntry: false });
-  if (entry?.isSymbolicLink()) {
-    if (path.resolve(folder, readlinkSync(target)) !== source) throw new Error(`${target} is a link to ${readlinkSync(target)}, not to ${source}; remove it, since a worktree installs nothing (K519)`);
-    unlinkSync(target);
-    print(`[worktree-setup] replaced the link of ${target} to the main checkout's folder (K519) with a folder of links (K530)`);
-  } else if (entry !== undefined && !entry.isDirectory()) {
-    throw new Error(`${target} exists and is no folder; remove it, since a worktree installs nothing (K519)`);
-  }
-  mkdirSync(target, { recursive: true });
-  // An entry that the main checkout's folder lacks was installed in the worktree, which installs nothing.
-  for (const name of readdirSync(target)) {
-    const nested = name.startsWith('@') || name === '.bin' ? readdirSync(path.join(target, name)).map(inner => path.join(name, inner)) : [];
-    for (const relative of [name, ...nested]) {
-      if (lstatSync(path.join(source, relative), { throwIfNoEntry: false }) === undefined) {
-        throw new Error(`${path.join(target, relative)} is no entry of ${source}; remove it, since a worktree installs nothing (K519)`);
-      }
-    }
-  }
-  for (const item of readdirSync(source, { withFileTypes: true })) {
-    const from = path.join(source, item.name);
-    if (!item.isDirectory() || !(item.name.startsWith('@') || item.name === '.bin')) {
-      linkEntry(main, folder, modules, from, path.join(target, item.name));
-      continue;
-    }
-    mkdirSync(path.join(target, item.name), { recursive: true });
-    for (const name of readdirSync(from)) linkEntry(main, folder, modules, path.join(from, name), path.join(target, item.name, name));
-  }
-  print(`[worktree-setup] linked the packages of ${modules} to ${source}, the repository's own into the worktree`);
+/** Native npm owns the worktree dependency tree; the configured cache of the main project is reused offline. */
+export function prepareWorktreeNpm({ main, folder, project = '.', npm = toolCommand(main, 'npm'), env = toolsEnvironment(main), print }: {
+  main: string; folder: string; project?: string; npm?: string; env?: NodeJS.ProcessEnv; print: (text: string) => void;
+}): void {
+  const source = path.join(main, project);
+  const target = path.join(folder, project);
+  const cache = run(npm, ['config', 'get', 'cache'], { cwd: source, env }).trim();
+  if (!cache) throw new Error(`npm config get cache returned no cache for ${source}`);
+  // Remove the local generated root without following legacy package links into the main installation.
+  rmSync(path.join(target, NODE_MODULES), { recursive: true, force: true });
+  const environment = { ...env, npm_config_offline: 'true', npm_config_cache: cache, npm_config_allow_remote: 'root' };
+  install(npm, ['ci', '--offline', '--cache', cache, '--prefix', target, '--no-audit', '--no-fund'], { cwd: target, env: environment }, print);
+  const checkouts = siblingCheckouts(folder).checkouts.filter(checkout => realpathSync(checkout) !== realpathSync(main));
+  npmLink(target, npmSourceFolders(target, checkoutProviders(checkouts, 'npm')), npm, environment, print);
 }
 
 /**
- * The node_modules of each tracked npm lock project of the worktree `folder` that the main checkout `main` installed (K533), relative to
+ * The native npm install directories of tracked lock projects already prepared in main (K533, K690), relative to
  * the worktree: the root's, which the tools of kit run from and which the main checkout must hold, and those of the other lock projects,
  * such as a tools project with its own package-lock.json; a project that the main checkout did not install is named and skipped.
  */
 function npmProjects(main: string, folder: string, print: (text: string) => void): string[] {
-  if (!existsSync(path.join(main, NODE_MODULES))) throw new Error(`${path.join(main, NODE_MODULES)} is missing; run make install in the main checkout, whose ${NODE_MODULES} a worktree links`);
+  if (!existsSync(path.join(main, NODE_MODULES))) throw new Error(`${path.join(main, NODE_MODULES)} is missing; run make install in the main checkout, whose dependency cache a worktree reuses`);
   const nested = git(folder, 'ls-files', '-z', '--', '*/package-lock.json').split('\0').filter(Boolean).flatMap((lock) => {
     const modules = path.join(path.dirname(lock), NODE_MODULES);
     if (existsSync(path.join(main, modules))) return [modules];
@@ -164,146 +144,58 @@ export function prepareWorktreePython({ main, folder, venv, uv, env = process.en
 }
 
 /** Makes `target` a link with the same target as the link `source`, such as an interpreter of an environment; an other entry throws. */
-function keepLink(source: string, target: string): void {
-  const link = readlinkSync(source);
-  const entry = lstatSync(target, { throwIfNoEntry: false });
-  if (entry === undefined) {
-    symlinkSync(link, target);
-    return;
-  }
-  if (!entry.isSymbolicLink() || readlinkSync(target) !== link) throw new Error(`${target} exists and is not the link to ${link}; remove it, since a worktree installs nothing (K519)`);
-}
-
-/** A Composer project of the worktree: its folder relative to the worktree and its vendor folder, from config.vendor-dir. */
-type ComposerProject = { project: string; vendor: string };
-
-/** The tracked Composer projects of the worktree `folder` whose vendor folder the main checkout `main` holds (K521). */
-function composerProjects(main: string, folder: string): ComposerProject[] {
-  return git(folder, 'ls-files', '-z', '--', 'composer.json', '*/composer.json').split('\0').filter(Boolean).flatMap((file) => {
-    const manifest: unknown = JSON.parse(readFileSync(path.join(folder, file), 'utf8'));
-    const config = typeof manifest === 'object' && manifest !== null && 'config' in manifest ? manifest.config : undefined;
-    const vendorDir = typeof config === 'object' && config !== null && 'vendor-dir' in config && typeof config['vendor-dir'] === 'string' ? config['vendor-dir'] : 'vendor';
-    const project = path.dirname(file);
-    return existsSync(path.join(main, project, vendorDir)) ? [{ project, vendor: path.join(project, vendorDir) }] : [];
+/** The locked Composer projects prepared in main; path members without their own lock remain owned by their parent. */
+function composerProjects(main: string, folder: string, composer: string, env: NodeJS.ProcessEnv): string[] {
+  return [...new Set(git(folder, 'ls-files', '-z', '--', 'composer.json', '*/composer.json').split('\0').filter(Boolean).map(file => path.dirname(file)))].filter(project => {
+    const manifest = path.resolve(folder, project, env.COMPOSER || 'composer.json');
+    if (!existsSync(manifest.replace(/\.json$/, '') + '.lock')) return false;
+    return existsSync(composerVendor(path.join(main, project), { command: composer, env }));
   });
 }
 
-/**
- * Links `target` to `source`: a source that resolves inside the main checkout `main` but outside its vendor folder `vendor`, as a
- * path repository does, links to the same path of the worktree `folder`; any other links to the source. An existing link to the same place is kept; anything else throws.
- */
-function linkEntry(main: string, folder: string, vendor: string, source: string, target: string): void {
-  const resolved = realpathSync(source);
-  const within = (root: string) => resolved.startsWith(`${realpathSync(root)}${path.sep}`);
-  const inside = within(main) && !within(path.join(main, vendor));
-  // K598: an entry that the main checkout holds as a link out of it, a provided package of another checkout, is the same one link to
-  // that folder (K591), never a link to the main checkout's entry, which link-state-check refuses.
-  const provided = !within(main) && lstatSync(source).isSymbolicLink();
-  const destination = inside ? path.join(folder, path.relative(realpathSync(main), resolved)) : provided ? resolved : source;
-  const link = path.relative(path.dirname(target), destination);
-  if (existsSync(target) || lstatSync(path.dirname(target)).isDirectory() && readdirSync(path.dirname(target)).includes(path.basename(target))) {
-    const entry = lstatSync(target);
-    if (entry.isSymbolicLink() && path.resolve(path.dirname(target), readlinkSync(target)) === path.resolve(path.dirname(target), link)) return;
-    // K598: the link of an earlier run to the main checkout's entry of a provided package resolves to the same folder; it is replaced.
-    if (provided && entry.isSymbolicLink() && existsSync(target) && realpathSync(target) === resolved) {
-      unlinkSync(target);
-      symlinkSync(link, target);
-      return;
+/** Whether a native output stays in this checkout, never the main checkout or another external directory. */
+function ownOutput(folder: string, output: string): boolean {
+  const relative = path.relative(folder, output);
+  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+/** Native Composer writes its own vendor, autoload, binaries and records using the main checkout's Composer cache. */
+export function prepareWorktreeComposer({ main, folder, project = '.', composer = composerCommand(main, 'worktree dependencies'), env = composerEnvironment(main), print }: {
+  main: string; folder: string; project?: string; composer?: string; env?: NodeJS.ProcessEnv; print: (text: string) => void;
+}): void {
+  const target = path.join(folder, project);
+  const environment: NodeJS.ProcessEnv = { ...env, COMPOSER_DISABLE_NETWORK: '1' };
+  const manifest = path.resolve(target, environment.COMPOSER || 'composer.json');
+  if (!ownOutput(folder, manifest)) throw new Error(`Composer manifest ${manifest} is outside the worktree; declare a worktree-owned manifest before installation`);
+  const vendor = composerVendor(target, { command: composer, env: environment });
+  if (!ownOutput(folder, vendor)) throw new Error(`Composer vendor ${vendor} is outside the worktree; declare a worktree-owned vendor directory before installation`);
+  const mainVendor = composerVendor(path.join(main, project), { command: composer, env: environment });
+  const sourceVendor = existsSync(mainVendor) ? realpathSync(mainVendor) : mainVendor;
+  const projected = (directory: string, depth: number): boolean => {
+    const entry = lstatSync(directory, { throwIfNoEntry: false });
+    if (entry?.isSymbolicLink()) {
+      const resolved = realpathSync(directory);
+      return resolved === sourceVendor || resolved.startsWith(`${sourceVendor}${path.sep}`);
     }
-    throw new Error(`${target} exists and is not the link to ${destination}; remove it, since a worktree installs nothing (K521)`);
-  }
-  symlinkSync(link, target);
+    return entry?.isDirectory() === true && depth > 0 && readdirSync(directory).some(name => projected(path.join(directory, name), depth - 1));
+  };
+  // A legacy projection is not a native installation even when its copied records happen to match the lock.
+  if (projected(vendor, 2)) rmSync(vendor, { recursive: true, force: true });
+  install(composer, ['install', '--no-interaction', '--no-progress', '--prefer-dist'], { cwd: target, env: environment }, print);
+}
+
+// Immutable archive inputs are copied with native filesystem cloning when supported; installed package records are never copied.
+const COMPOSER_ARTIFACTS = 'var/composer-artifacts';
+function prepareArtifacts(main: string, folder: string): void {
+  const source = path.join(main, COMPOSER_ARTIFACTS);
+  if (!existsSync(source)) return;
+  const target = path.join(folder, COMPOSER_ARTIFACTS);
+  if (lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink()) rmSync(target);
+  cpSync(source, target, { recursive: true, mode: constants.COPYFILE_FICLONE });
 }
 
 /**
- * The bin folder `target` of a vendor of the worktree `folder`, from that of the main checkout `source` (K550): a Composer proxy
- * computes the autoload from its own folder, which PHP resolves through links, so each proxy, a PHP file that Composer generated,
- * is written into the worktree with its mode, and each link keeps its relative target, which resolves into the packages of the
- * worktree's vendor; any other entry links (linkEntry). An entry of another kind than the main checkout's throws.
- */
-function vendorBin(main: string, folder: string, vendor: string, source: string, target: string): void {
-  if (lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink()) unlinkSync(target);
-  mkdirSync(target, { recursive: true });
-  for (const entry of readdirSync(source, { withFileTypes: true })) {
-    const from = path.join(source, entry.name);
-    const to = path.join(target, entry.name);
-    if (entry.isSymbolicLink()) {
-      keepLink(from, to);
-    } else if (entry.isFile() && readFileSync(from, 'utf8').includes('generated by Composer')) {
-      const existing = lstatSync(to, { throwIfNoEntry: false });
-      if (existing !== undefined && !existing.isFile()) throw new Error(`${to} exists and is no proxy file that worktree-setup writes; remove it, since a worktree installs nothing (K519)`);
-      writeFileSync(to, readFileSync(from), { mode: statSync(from).mode & 0o777 });
-    } else {
-      linkEntry(main, folder, vendor, from, to);
-    }
-  }
-}
-
-/**
- * The vendor folder of the Composer project `project` in the worktree `folder` (K521): a real folder whose packages and bin link to the
- * main checkout's (linkEntry), whose composer/installed.json and installed.php link to the main checkout's, and whose autoload is the
- * worktree's own, written by `composer dump-autoload` offline in the project, so the repository's own classes load from the worktree.
- * The autoload files of the main checkout, which name its sources, are not linked. Nothing is installed.
- */
-function linkVendor(main: string, folder: string, { project, vendor }: ComposerProject, composer: string, print: (text: string) => void): void {
-  const source = path.join(main, vendor);
-  const target = path.join(folder, vendor);
-  if (existsSync(target) && lstatSync(target).isSymbolicLink()) throw new Error(`${target} is a link to a whole vendor folder, whose autoload names the sources of another checkout; remove it and run worktree-setup again (K521)`);
-  mkdirSync(path.join(target, 'composer'), { recursive: true });
-  // K557: the installed records, which dump-autoload reads, are files of the worktree: installed.php names its paths by __DIR__.
-  for (const name of ['installed.json', 'installed.php']) {
-    if (!existsSync(path.join(source, 'composer', name))) throw new Error(`${path.join(source, 'composer', name)} is missing; run make install in the main checkout, whose vendor a worktree links`);
-    writeInstalled(path.join(source, 'composer', name), path.join(target, 'composer', name));
-  }
-  for (const entry of readdirSync(source, { withFileTypes: true })) {
-    const from = path.join(source, entry.name);
-    if (entry.name === 'composer' || entry.name === 'autoload.php') continue;
-    if (entry.isSymbolicLink() && realpathSync(from) === realpathSync(source)) {
-      print(`[worktree-setup] ${vendor}/${entry.name} of the main checkout links to its own vendor folder; it is not linked`);
-      continue;
-    }
-    if (entry.name === 'bin' && entry.isDirectory()) {
-      vendorBin(main, folder, vendor, from, path.join(target, entry.name));
-      continue;
-    }
-    if (!lstatSync(from).isDirectory() || entry.isSymbolicLink()) {
-      linkEntry(main, folder, vendor, from, path.join(target, entry.name));
-      continue;
-    }
-    mkdirSync(path.join(target, entry.name), { recursive: true });
-    for (const name of readdirSync(from)) linkEntry(main, folder, vendor, path.join(from, name), path.join(target, entry.name, name));
-  }
-  print(`[worktree-setup] linked the packages of ${vendor}; composer dump-autoload in ${path.join(folder, project)}`);
-  const result = spawnSync(composer, ['dump-autoload', '--no-interaction'], { cwd: path.join(folder, project), env: { ...process.env, COMPOSER_DISABLE_NETWORK: '1' }, encoding: 'utf8' });
-  if (result.error) throw new Error(`composer dump-autoload could not start in ${path.join(folder, project)}: ${result.error.message}`);
-  if (result.status !== 0) throw new Error(`composer dump-autoload ended with exit status ${result.status} in ${path.join(folder, project)}: ${`${result.stdout}${result.stderr}`.trim()}`);
-  // K557: the files of vendor/composer that composer install wrote and dump-autoload does not, as InstalledVersions.php, are written
-  // as files of the worktree, and the worktree holds the set of the main checkout.
-  const own = path.join(target, 'composer');
-  for (const name of readdirSync(path.join(source, 'composer'))) {
-    if (DUMPED.test(name)) continue;
-    if (lstatSync(path.join(own, name), { throwIfNoEntry: false }) === undefined) writeInstalled(path.join(source, 'composer', name), path.join(own, name));
-  }
-  const missing = readdirSync(path.join(source, 'composer')).filter(name => !readdirSync(own).includes(name));
-  if (missing.length > 0) throw new Error(`${own} lacks ${missing.join(', ')} of the main checkout's vendor/composer after dump-autoload`);
-}
-
-// The files of vendor/composer that composer dump-autoload writes, which come from it and never from the main checkout (K557).
-const DUMPED = /^(?:autoload_[a-z0-9_]+\.php|ClassLoader\.php|platform_check\.php)$/;
-
-/**
- * Writes the file `source` of the vendor/composer of the main checkout at `target` of the worktree (K557), with its mode: a file that
- * composer install wrote, whose paths PHP resolves from its own folder through links; a link that an earlier run made is replaced.
- */
-function writeInstalled(source: string, target: string): void {
-  const entry = lstatSync(target, { throwIfNoEntry: false });
-  if (entry?.isSymbolicLink()) unlinkSync(target);
-  else if (entry !== undefined && !entry.isFile()) throw new Error(`${target} exists and is no file that worktree-setup writes; remove it, since a worktree installs nothing (K519)`);
-  writeFileSync(target, readFileSync(source), { mode: statSync(source).mode & 0o777 });
-}
-
-/**
- * Creates or reuses the worktree of the row in the repository of `root`, links its folders (linkFolders), then runs `make link-state-check`
+ * Creates or reuses the worktree of the row, prepares native offline dependencies and runs `make link-state-check`
  * in it. Unless `linkStateOnly` is true, it rebuilds its packages before the check; returns its folder. Throws, creating nothing, when
  * the folder exists as anything but the worktree of the branch.
  */
@@ -316,13 +208,6 @@ export function worktreeLinkTool(folder: string): string {
   return existsSync(own) ? own : createRequire(path.join(folder, 'package.json')).resolve('@polyspec/kit/link');
 }
 
-/** The artifact repository of Composer that a composer.json of a repository names (K622). */
-const COMPOSER_ARTIFACTS = 'var/composer-artifacts';
-
-/** Whether `file` exists as an entry, a dangling link included. */
-function lstatExists(file: string): boolean {
-  return lstatSync(file, { throwIfNoEntry: false }) !== undefined;
-}
 
 /**
  * The go.work and go.work.sum files that link wrote in the main checkout `main` beside a go.mod of the worktree `folder` (K615),
@@ -355,7 +240,7 @@ export function prepareWorktreeGo({ main, folder, go, env, print }: {
   }
 }
 
-export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer, uv, go, linkStateOnly = false }: { print?: (text: string) => void; composer?: string; uv?: string; go?: string; linkStateOnly?: boolean } = {}): string {
+export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer, npm, uv, go, linkStateOnly = false }: { print?: (text: string) => void; composer?: string; npm?: string; uv?: string; go?: string; linkStateOnly?: boolean } = {}): string {
   const main = path.dirname(path.resolve(root, git(root, 'rev-parse', '--git-common-dir').trim()));
   const { folder, branch } = worktreeOf(main, row);
   const listed = git(main, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
@@ -369,16 +254,14 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   } else {
     print(`[worktree-setup] ${folder} is the worktree of ${branch}; linking and checking it again`);
   }
-  for (const modules of npmProjects(main, folder, print)) linkNodeModules(main, folder, modules, print);
+  for (const modules of npmProjects(main, folder, print)) prepareWorktreeNpm({ main, folder, project: path.dirname(modules), ...(npm === undefined ? {} : { npm }), print });
   for (const venv of pythonEnvironments(main)) prepareWorktreePython({ main, folder, venv, uv: uv ?? toolCommand(main, 'uv'), env: uv === undefined ? toolsEnvironment(main) : process.env, print });
-  for (const project of composerProjects(main, folder)) linkVendor(main, folder, project, composer ?? composerCommand(folder, 'make worktree-setup'), print);
-  // K622: the artifact repository that a composer.json names, release zips that Composer reads and never writes: one directory symlink.
-  const artifacts = path.join(main, COMPOSER_ARTIFACTS);
-  const artifactsLink = path.join(folder, COMPOSER_ARTIFACTS);
-  if (existsSync(artifacts) && !lstatExists(artifactsLink)) {
-    mkdirSync(path.dirname(artifactsLink), { recursive: true });
-    symlinkSync(path.relative(path.dirname(artifactsLink), artifacts), artifactsLink, 'dir');
-    print(`[worktree-setup] linked ${COMPOSER_ARTIFACTS} to the main checkout's`);
+  prepareArtifacts(main, folder);
+  const composerProjectsPresent = git(folder, 'ls-files', '--', 'composer.json', '*/composer.json').trim() !== '';
+  if (composerProjectsPresent) {
+    const command = composer ?? composerCommand(main, 'worktree dependencies');
+    const environment = { ...composerEnvironment(main), COMPOSER_DISABLE_NETWORK: '1' };
+    for (const project of composerProjects(main, folder, command, environment)) prepareWorktreeComposer({ main, folder, project, composer: command, env: environment, print });
   }
   prepareWorktreeGo({ main, folder, ...(go === undefined ? {} : { go }), print });
   for (const target of linkStateOnly ? ['link-state-check'] : ['rebuild', 'link-state-check']) {

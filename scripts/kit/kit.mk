@@ -381,11 +381,11 @@ link-check: ## List each installed package folder that a checkout of CHECKOUTS, 
 	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
 .PHONY: worktree-setup
-worktree-setup: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default) from main; links the installs of the main checkout, each npm project, Python environment and Composer vendor folder with the repository's own packages from the worktree, builds its own packages and checks link-state-check; shares dependency files and prepares native cached Python environments (K664); a second run converges (K348); ONLINE
+worktree-setup: ## Create or reuse the row worktree from main, prepare native npm/Composer/uv dependencies offline with shared caches and reused tools, then rebuild its packages and check link-state-check (K690); offline
 	$(ONLINE) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix)
 
 .PHONY: worktree-link-state
-worktree-link-state: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default), link the main checkout's installs and worktree packages, and run link-state-check without rebuilding product packages; offline
+worktree-link-state: ## Prepare native offline worktree dependencies with shared caches and reused tools, then run link-state-check without rebuilding product packages (K690); offline
 	$(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix) --link-state-only
 
 # WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of

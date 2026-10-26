@@ -1,14 +1,14 @@
 // Tests of scripts/kit/worktree-setup.mts (K348): the worktree of a row is made from main beside the main checkout, its node_modules
-// linked entry by entry to the main checkout's with nothing installed (K519, K530) and checked, and a second run converges.
+// installed by native package managers from shared offline caches and checked; a second run converges.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { type TestContext } from 'node:test';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
-import { prepareWorktreePython, setupWorktree, worktreeLinkTool } from '../../scripts/kit/worktree-setup.mts';
+import { prepareWorktreePython, setupWorktree as setupNativeWorktree, worktreeLinkTool } from '../../scripts/kit/worktree-setup.mts';
 import { packedFiles } from '../../scripts/kit/pack-manifest.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
@@ -22,9 +22,32 @@ const git = (cwd: string, ...args: string[]) => {
 // The kit of a consumer is a link to the kit checkout beside it (K591), ../kit of the fixture, whose link source node runs with its
 // types stripped, since it lies outside node_modules (K613).
 const linkKit = (main: string) => {
-  put(main, { '../kit/package.json': JSON.stringify({ name: '@polyspec/kit', type: 'module', exports: { './link': './scripts/kit/link.mts' } }) });
+  put(main, { 'package.json': '{"name":"fixture","private":true}', 'package-lock.json': '{}', '../kit/package.json': JSON.stringify({ name: '@polyspec/kit', type: 'module', exports: { './link': './scripts/kit/link.mts' } }) });
   mkdirSync(path.join(main, 'node_modules/@polyspec'), { recursive: true });
   symlinkSync('../../../kit', path.join(main, 'node_modules/@polyspec/kit'));
+};
+
+// This small npm double models only fixture packages; native installation itself has source-test coverage.
+const setupWorktree: typeof setupNativeWorktree = (root, row, options) => {
+  const main = path.dirname(path.resolve(root, git(root, 'rev-parse', '--git-common-dir')));
+  const npm = path.join(path.dirname(main), 'fixture-npm');
+  if (!existsSync(npm)) writeFileSync(npm, `#!${process.execPath}
+const fs=require('node:fs'),path=require('node:path');
+const args=process.argv.slice(2),cwd=process.cwd();
+if(args[0]==='config'){process.stdout.write(${JSON.stringify(path.join(path.dirname(main), 'npm-cache'))});process.exit(0);}
+if(args[0]!=='ci')process.exit(92);
+const put=(file,value)=>{fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,value);};
+const link=(file,target)=>{fs.mkdirSync(path.dirname(file),{recursive:true});fs.symlinkSync(target,file);};
+if(fs.existsSync('packages/own/package.json'))link('node_modules/@polyspec/own','../../packages/own');
+if(fs.existsSync('Makefile')){
+link('node_modules/@polyspec/kit',path.join(path.dirname(cwd),'kit'));
+put('node_modules/left-pad/package.json','{"name":"left-pad","main":"index.js"}');
+put('node_modules/left-pad/index.js','module.exports = 1;\\n');
+put('node_modules/left-pad/bin.js','#!/usr/bin/env node\\n');
+link('node_modules/.bin/lp','../left-pad/bin.js');
+}else put('node_modules/typescript/index.js','native nested npm package\\n');
+`, { mode: 0o755 });
+  return setupNativeWorktree(root, row, { npm, ...options });
 };
 
 /** A uv fixture that owns environment creation and records its native install inputs, without running Python. */
@@ -77,7 +100,7 @@ test('python worktree installation reports an offline cache miss without modifyi
   assert.equal(lstatSync(path.join(folder, '.venv/pyvenv.cfg')).isSymbolicLink(), false, 'the failed install retains its independent native environment');
 });
 
-test('worktree-setup makes the worktree of a row from main, links its node_modules, installs nothing and checks it, and a second run converges (K348, K519)', (t) => {
+test('worktree-setup makes the worktree of a row from main, installs native dependencies and checks them, and a second run converges (K348, K519)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
@@ -97,7 +120,7 @@ test('worktree-setup makes the worktree of a row from main, links its node_modul
   assert.equal(folder, path.join(parent, 'repo-parser-T1'));
   assert.equal(git(folder, 'rev-parse', '--abbrev-ref', 'HEAD'), 'fix/parser-T1');
   assert.equal(git(folder, 'rev-parse', 'HEAD'), git(main, 'rev-parse', 'main'), 'the branch starts at main');
-  assert.equal(existsSync(path.join(folder, 'installs.txt')), false, 'the worktree installs nothing');
+  assert.equal(existsSync(path.join(folder, 'installs.txt')), false, 'setup does not run the broad Make install target');
   assert.ok(lstatSync(path.join(folder, 'node_modules')).isDirectory(), 'the node_modules of the worktree is a folder of its own (K530)');
   assert.equal(realpathSync(path.join(folder, 'node_modules/@polyspec/kit')), realpathSync(path.join(main, 'node_modules/@polyspec/kit')));
   assert.equal(git(folder, 'status', '--porcelain'), '', 'the ignored node_modules leaves the worktree with no change');
@@ -154,73 +177,19 @@ test('worktree-link-state links and checks the worktree without rebuilding produ
   assert.ok(!lines.some(line => line.includes('link rebuild in')), lines.join('\n'));
 });
 
-// K519: a worktree whose node_modules is a folder of its own is refused, since a worktree installs nothing.
-test('worktree-setup refuses a package installed in the node_modules of a worktree (K519, K530)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  put(main, { 'node_modules/.keep': '', 'Makefile': 'link-state-check:\n\ttrue\n', '.gitignore': 'node_modules/\n' });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const folder = path.join(parent, 'repo-own-K519');
-  git(main, 'worktree', 'add', '--quiet', '-b', 'fix/own-K519', folder, 'main');
-  // A package installed in the worktree, which the main checkout's node_modules lacks, is refused (K530: the folder itself is the
-  // worktree's own, of links).
-  mkdirSync(path.join(folder, 'node_modules/left-pad'), { recursive: true });
-  const quiet = { print: () => {} };
-  assert.throws(() => setupWorktree(main, { name: 'own', id: 'K519', type: 'fix' }, quiet), /node_modules\/left-pad is no entry of .*; remove it, since a worktree installs nothing \(K519\)/);
+test('K519/K521: native installation replaces worktree dependency state and owns Composer autoload', t => {
+  const { main, npm, composer } = nativeManagers(t);
+  const options = { npm, composer, linkStateOnly: true, print: () => {} };
+  const folder = setupWorktree(main, { name: 'own', id: 'K519', type: 'fix' }, options);
+  put(folder, { 'node_modules/stale/value': 'old projection' });
+  assert.equal(setupWorktree(main, { name: 'own', id: 'K519', type: 'fix' }, options), folder);
+  assert.equal(existsSync(path.join(folder, 'node_modules/stale')), false, 'npm ci replaces stale generated state');
+  assert.equal(readFileSync(path.join(folder, 'vendor/autoload.php'), 'utf8'), folder);
+  assert.equal(readFileSync(path.join(main, 'vendor/fixture/lib/value'), 'utf8'), 'main Composer installation');
 });
 
-// K521: each Composer project gets a real vendor folder of links in the worktree and an autoload of its own, so the repository's own
-// classes load from the worktree: a package and bin link to the main checkout's, a path repository that resolves inside the main
-// checkout links to the same path of the worktree, the installed records link to the main checkout's, and composer dump-autoload runs
-// offline in the project; nothing is installed.
-test('worktree-setup gives a Composer project a vendor folder of links and its own autoload (K521)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  put(main, {
-    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
-    'Makefile': 'link-state-check:\n\ttrue\n',
-    '.gitignore': 'node_modules/\nvendor-php/\n',
-    'composer.json': JSON.stringify({ name: 'demo/app', config: { 'vendor-dir': 'vendor-php' }, autoload: { 'psr-4': { 'App\\': 'src/' } } }),
-    'src/Own.php': '<?php\n',
-    'packages/self/composer.json': JSON.stringify({ name: 'demo/self' }),
-    'vendor-php/acme/lib/Lib.php': '<?php\n',
-    'vendor-php/bin/tool': '#!/bin/sh\n',
-    'vendor-php/composer/installed.json': '{"packages":[]}\n',
-    'vendor-php/composer/installed.php': '<?php return [];\n',
-    'vendor-php/composer/autoload_psr4.php': `<?php // ${main}/src\n`,
-    'vendor-php/autoload.php': `<?php // the autoload of ${main}\n`,
-  });
-  linkKit(main);
-  mkdirSync(path.join(main, 'vendor-php/demo'), { recursive: true });
-  symlinkSync('../../packages/self', path.join(main, 'vendor-php/demo/self'));
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  // The composer of the test writes the autoload of the folder it runs in and logs its arguments and network setting.
-  const log = path.join(parent, 'composer.log');
-  const composer = path.join(parent, 'composer');
-  writeFileSync(composer, `#!/bin/sh\necho "$* [$(pwd)] network=$COMPOSER_DISABLE_NETWORK" >> "${log}"\necho "<?php // the autoload of $(pwd)" > vendor-php/autoload.php\necho "<?php // the autoload of $(pwd)" > vendor-php/composer/autoload_psr4.php\n`, { mode: 0o755 });
-  const folder = setupWorktree(main, { name: 'php', id: 'T5', type: 'fix' }, { print: () => {}, composer });
-  const vendor = path.join(folder, 'vendor-php');
-  assert.equal(lstatSync(vendor).isSymbolicLink(), false, 'the vendor folder is a real folder');
-  assert.equal(realpathSync(path.join(vendor, 'acme/lib')), realpathSync(path.join(main, 'vendor-php/acme/lib')), 'a package links to the main checkout');
-  assert.equal(realpathSync(path.join(vendor, 'bin/tool')), realpathSync(path.join(main, 'vendor-php/bin/tool')), 'a bin entry that is no proxy links (K550)');
-  assert.equal(realpathSync(path.join(vendor, 'demo/self')), realpathSync(path.join(folder, 'packages/self')), 'a path repository resolves inside the worktree');
-  for (const name of ['installed.json', 'installed.php']) assert.ok(lstatSync(path.join(vendor, 'composer', name)).isFile(), `${name} is a file of the worktree (K557)`);
-  assert.equal(readFileSync(path.join(vendor, 'composer/autoload_psr4.php'), 'utf8'), `<?php // the autoload of ${folder}\n`, 'the autoload of vendor/composer is the one that dump-autoload wrote, never the main checkout\'s (K557)');
-  assert.equal(readFileSync(log, 'utf8'), `dump-autoload --no-interaction [${folder}] network=1\n`);
-  assert.equal(readFileSync(path.join(vendor, 'autoload.php'), 'utf8'), `<?php // the autoload of ${folder}\n`, 'the autoload is that of the worktree');
-  assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
-});
-
-// K530: the node_modules of a worktree is a folder of its own: each third-party package and each .bin entry links to the main
-// checkout's, and a package of the repository's own workspace, which the main checkout links to its own packages, links into the
-// worktree, so the worktree resolves its own code. A link of the whole folder, which K519 made, is replaced.
-test('worktree-setup links the node_modules of a worktree entry by entry, its own workspace packages into the worktree (K530)', (t) => {
+// K530: native npm owns independent dependencies and bin entries, and resolves workspace sources inside this worktree.
+test('worktree-setup installs independent npm dependencies and resolves its own workspace packages (K530)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
@@ -249,8 +218,8 @@ test('worktree-setup links the node_modules of a worktree entry by entry, its ow
     assert.ok(lstatSync(modules).isDirectory(), 'the node_modules of the worktree is a folder of its own');
     const resolve = createRequire(path.join(folder, 'index.js')).resolve;
     assert.equal(resolve('@polyspec/own'), realpathSync(path.join(folder, 'packages/own/index.js')), 'an own workspace package resolves under the worktree');
-    assert.equal(resolve('left-pad'), realpathSync(path.join(main, 'node_modules/left-pad/index.js')), 'a third-party package resolves to the main checkout');
-    assert.equal(realpathSync(path.join(modules, '.bin/lp')), realpathSync(path.join(main, 'node_modules/left-pad/bin.js')));
+    assert.equal(resolve('left-pad'), realpathSync(path.join(folder, 'node_modules/left-pad/index.js')), 'a third-party package is installed inside the worktree');
+    assert.equal(realpathSync(path.join(modules, '.bin/lp')), realpathSync(path.join(folder, 'node_modules/left-pad/bin.js')));
     assert.equal(realpathSync(path.join(modules, '@polyspec/kit')), realpathSync(path.join(main, 'node_modules/@polyspec/kit')));
     assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
   };
@@ -264,7 +233,7 @@ test('worktree-setup links the node_modules of a worktree entry by entry, its ow
   check(folder);
 });
 
-// K657-4: npm tools remain shared, while uv restores each Python environment from explicit native requirements.
+// K533/K657-4: npm installs each project independently, while uv restores explicit native requirements.
 test('worktree-setup gives each npm project and each Python environment of the main checkout its environment in the worktree (K533)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -276,6 +245,7 @@ test('worktree-setup gives each npm project and each Python environment of the m
     '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
     'package-lock.json': '{}\n',
     'tools/ts/package-lock.json': '{}\n',
+    'tools/ts/package.json': '{"name":"fixture-tools"}',
     'tools/ts/node_modules/typescript/index.js': 'module.exports = 3;\n',
     'tests/other/package-lock.json': '{}\n',
     'py/pyproject.toml': '[project]\nname = "own"\n',
@@ -300,7 +270,7 @@ test('worktree-setup gives each npm project and each Python environment of the m
   const check = (folder: string) => {
     assert.ok(existsSync(path.join(folder, 'var/worktree-python/py/.venv/requirements.txt')), 'Python worktree inputs are explicit native requirements (K657-4)');
     assert.ok(lstatSync(path.join(folder, 'tools/ts/node_modules')).isDirectory(), 'a nested npm project has a node_modules of its own');
-    assert.equal(realpathSync(path.join(folder, 'tools/ts/node_modules/typescript')), realpathSync(path.join(main, 'tools/ts/node_modules/typescript')));
+    assert.equal(readFileSync(path.join(folder, 'tools/ts/node_modules/typescript/index.js'), 'utf8'), 'native nested npm package\n');
     assert.equal(existsSync(path.join(folder, 'tests/other/node_modules')), false, 'a project that the main checkout did not install gets none');
     const real = (file: string) => lstatSync(path.join(folder, file));
     assert.ok(real(venv).isDirectory() && !real(venv).isSymbolicLink(), 'the .venv is a folder of its own');
@@ -320,42 +290,16 @@ test('worktree-setup gives each npm project and each Python environment of the m
   check(folder);
 });
 
-// K550: a Composer bin proxy computes the autoload from its own folder, which PHP resolves through links, so a vendor bin that links to
-// the main checkout's would load the main checkout's autoload and sources; the bin of a worktree is a folder of its own, each proxy
-// written there as the main checkout's generated it, and each link of it keeps its relative target into the packages.
-test('worktree-setup writes the Composer bin proxies into the worktree, so a vendor binary autoloads the worktree (K550)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  const proxy = "#!/usr/bin/env php\n<?php\n/**\n * Proxy PHP file generated by Composer\n */\n$GLOBALS['_composer_autoload_path'] = __DIR__ . '/..'.'/autoload.php';\ninclude __DIR__ . '/..'.'/acme/lib/bin/tool';\n";
-  put(main, {
-    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
-    'composer.json': JSON.stringify({ name: 'acme/app', config: { 'vendor-dir': 'vendor-php' } }),
-    'vendor-php/acme/lib/bin/tool': '<?php echo "tool";\n',
-    'vendor-php/acme/lib/bin/shell': '#!/bin/sh\n',
-    'vendor-php/bin/tool': proxy,
-    'vendor-php/composer/installed.json': '{"packages":[]}',
-    'vendor-php/composer/installed.php': '<?php return [];\n',
-    'vendor-php/autoload.php': '<?php // the autoload of the main checkout\n',
-    'Makefile': 'link-state-check:\n\ttrue\n',
-    '.gitignore': 'node_modules/\nvendor-php/\n',
-  });
-  linkKit(main);
-  chmodSync(path.join(main, 'vendor-php/bin/tool'), 0o755);
-  symlinkSync('../acme/lib/bin/shell', path.join(main, 'vendor-php/bin/shell'));
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const composer = path.join(parent, 'composer');
-  writeFileSync(composer, '#!/bin/sh\necho "<?php // the autoload of $(pwd)" > vendor-php/autoload.php\n', { mode: 0o755 });
-  const folder = setupWorktree(main, { name: 'bin', id: 'T6', type: 'fix' }, { print: () => {}, composer });
-  const bin = path.join(folder, 'vendor-php/bin');
-  assert.equal(lstatSync(bin).isSymbolicLink(), false, 'the bin of the worktree is a folder of its own');
-  assert.ok(lstatSync(path.join(bin, 'tool')).isFile(), 'a proxy is a file of the worktree, whose __DIR__ is the worktree');
-  assert.equal(readFileSync(path.join(bin, 'tool'), 'utf8'), proxy);
-  assert.ok((lstatSync(path.join(bin, 'tool')).mode & 0o111) !== 0, 'and it runs');
-  assert.equal(readlinkSync(path.join(bin, 'shell')), '../acme/lib/bin/shell', 'a link of the bin keeps its relative target');
-  assert.equal(setupWorktree(main, { name: 'bin', id: 'T6', type: 'fix' }, { print: () => {}, composer }), folder, 'a second run converges');
+test('K550: native Composer creates executable worktree bin proxies and converges', t => {
+  const { main, npm, composer } = nativeManagers(t);
+  const options = { npm, composer, linkStateOnly: true, print: () => {} };
+  const folder = setupWorktree(main, { name: 'bin', id: 'K550', type: 'fix' }, options);
+  const bin = path.join(folder, 'vendor/bin/tool');
+  assert.ok(lstatSync(bin).isFile());
+  assert.ok((lstatSync(bin).mode & 0o111) !== 0);
+  assert.equal(readFileSync(bin, 'utf8'), '#!/bin/sh\n# native Composer proxy\n');
+  assert.equal(setupWorktree(main, { name: 'bin', id: 'K550', type: 'fix' }, options), folder);
+  assert.equal(readFileSync(path.join(folder, 'vendor/autoload.php'), 'utf8'), folder);
 });
 
 // K555: a repository keeps its Python environment where its Makefile makes it, as crudui's var/python, the UV_PROJECT_ENVIRONMENT of its
@@ -391,41 +335,16 @@ test('worktree-setup gives a worktree a Python environment of the main checkout 
   assert.equal(existsSync(path.join(folder, 'var/tools')), false, 'the tools of the main checkout are no environment of the worktree');
 });
 
-// K557: composer dump-autoload writes the autoload of vendor/composer, not the files that composer install wrote there, such as
-// InstalledVersions.php, which require installed.php through __DIR__, which PHP resolves through links; so each file of the main
-// checkout's vendor/composer that the worktree lacks after dump-autoload is written as a file of the worktree, and the two sets match.
-test('worktree-setup writes the files of vendor/composer that dump-autoload does not, so the worktree holds the main checkout\'s set (K557)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  const versions = "<?php\nclass InstalledVersions { public static function all() { return require __DIR__ . '/installed.php'; } }\n";
-  put(main, {
-    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
-    'composer.json': JSON.stringify({ name: 'acme/app' }),
-    'vendor/composer/installed.json': '{"packages":[]}',
-    'vendor/composer/installed.php': "<?php return ['root' => ['install_path' => __DIR__ . '/../../']];\n",
-    'vendor/composer/InstalledVersions.php': versions,
-    'vendor/composer/LICENSE': 'MIT\n',
-    'vendor/composer/autoload_psr4.php': '<?php // the main checkout\n',
-    'vendor/autoload.php': '<?php // the main checkout\n',
-    'Makefile': 'link-state-check:\n\ttrue\n',
-    '.gitignore': 'node_modules/\nvendor/\n',
-  });
-  linkKit(main);
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const composer = path.join(parent, 'composer');
-  writeFileSync(composer, '#!/bin/sh\necho "<?php // the worktree" > vendor/autoload.php\necho "<?php // the worktree" > vendor/composer/autoload_psr4.php\n', { mode: 0o755 });
-  const folder = setupWorktree(main, { name: 'files', id: 'T10', type: 'fix' }, { print: () => {}, composer });
-  const own = path.join(folder, 'vendor/composer');
-  for (const name of ['installed.json', 'installed.php', 'InstalledVersions.php', 'LICENSE']) {
-    assert.ok(lstatSync(path.join(own, name)).isFile(), `${name} is a file of the worktree, whose __DIR__ is the worktree`);
-    assert.equal(readFileSync(path.join(own, name), 'utf8'), readFileSync(path.join(main, 'vendor/composer', name), 'utf8'));
-  }
-  assert.equal(readFileSync(path.join(own, 'autoload_psr4.php'), 'utf8'), '<?php // the worktree\n', 'the autoload is the one that dump-autoload wrote');
-  assert.deepEqual(readdirSync(own).sort(), readdirSync(path.join(main, 'vendor/composer')).sort(), 'the worktree holds the set of the main checkout');
-  assert.equal(setupWorktree(main, { name: 'files', id: 'T10', type: 'fix' }, { print: () => {}, composer }), folder, 'a second run converges');
+test('K557: native Composer owns installed records independently of main', t => {
+  const { main, npm, composer } = nativeManagers(t);
+  const options = { npm, composer, linkStateOnly: true, print: () => {} };
+  const folder = setupWorktree(main, { name: 'records', id: 'K557', type: 'fix' }, options);
+  const record = path.join(folder, 'vendor/composer/installed.json');
+  assert.ok(lstatSync(record).isFile());
+  assert.deepEqual(JSON.parse(readFileSync(record, 'utf8')), { origin: folder });
+  assert.equal(readFileSync(path.join(main, 'vendor/composer/installed.json'), 'utf8'), '{"origin":"main"}');
+  assert.equal(setupWorktree(main, { name: 'records', id: 'K557', type: 'fix' }, options), folder);
+  assert.deepEqual(JSON.parse(readFileSync(record, 'utf8')), { origin: folder });
 });
 
 // K596: the user removed the disk floor on 2026-10-25: worktree-setup refuses no worktree for the free disk and trims no cache.
@@ -435,33 +354,22 @@ test('worktree-setup has no disk floor (K596)', async () => {
   assert.equal(setup.freeBytes, undefined);
 });
 
-// K598: a provided package of another checkout is one symlink to its folder (K591), in a worktree as in the main checkout; a link to
-// the main checkout's entry is a link elsewhere, which link-state-check refuses, so worktree-setup writes the provider's link and replaces
-// such a link of an earlier run.
-test('worktree-setup links a provided package of another checkout to that checkout, not to the main checkout\'s entry (K598)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  put(path.join(parent, 'prov'), { 'package.json': JSON.stringify({ name: '@polyspec/x' }) });
-  put(main, {
-    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
-    'Makefile': 'link-state-check:\n\ttrue\n',
-    '.gitignore': 'node_modules/\n',
-  });
-  linkKit(main);
-  symlinkSync('../../../prov', path.join(main, 'node_modules/@polyspec/x'));
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const folder = path.join(parent, 'repo-x-T13');
-  git(main, 'worktree', 'add', '--quiet', '-b', 'fix/x-T13', folder, 'main');
-  const entry = path.join(folder, 'node_modules/@polyspec/x');
-  mkdirSync(path.dirname(entry), { recursive: true });
-  symlinkSync(path.join(main, 'node_modules/@polyspec/x'), entry);
-  const options = { print: () => {} };
-  assert.equal(setupWorktree(main, { name: 'x', id: 'T13', type: 'fix' }, options), folder);
-  assert.equal(path.resolve(path.dirname(entry), readlinkSync(entry)), path.join(parent, 'prov'), 'the link names the provider\'s folder itself');
-  assert.equal(setupWorktree(main, { name: 'x', id: 'T13', type: 'fix' }, options), folder, 'a second run converges');
+test('K598: source providers are delegated to native npm link after offline ci', t => {
+  const { main, npm, composer, log } = nativeManagers(t);
+  initRepository(path.join(path.dirname(main), 'prov'), '--initial-branch=main');
+  put(path.join(path.dirname(main), 'prov'), { 'package.json': '{"name":"@polyspec/x"}' });
+  git(path.join(path.dirname(main), 'prov'), 'remote', 'add', 'origin', 'https://github.com/polyspec/prov.git');
+  git(path.join(path.dirname(main), 'prov'), 'add', 'package.json');
+  git(path.join(path.dirname(main), 'prov'), 'commit', '--quiet', '-m', 'provider');
+  put(main, { 'package.json': '{"name":"fixture","dependencies":{"@polyspec/x":"1.0.0"}}' });
+  git(main, 'add', 'package.json');
+  git(main, 'commit', '--quiet', '-m', 'declare provider');
+  const options = { npm, composer, linkStateOnly: true, print: () => {} };
+  const folder = setupWorktree(main, { name: 'provider', id: 'K598', type: 'fix' }, options);
+  const calls = readFileSync(log, 'utf8').split('\n').filter(Boolean).map((line): unknown => JSON.parse(line));
+  assert.ok(calls.some(call => isJsonObject(call) && call.tool === 'npm' && call.cwd === path.join(path.dirname(main), 'prov') && Array.isArray(call.args) && call.args[0] === 'link'));
+  assert.ok(calls.some(call => isJsonObject(call) && call.tool === 'npm' && call.cwd === folder && Array.isArray(call.args) && call.args.includes('@polyspec/x')));
+  assert.equal(readFileSync(path.join(main, 'package.json'), 'utf8'), '{"name":"fixture","dependencies":{"@polyspec/x":"1.0.0"}}');
 });
 
 // K615: link writes a git-ignored go.work beside each go.mod of the main checkout, whose relative uses reach the sibling checkouts;
@@ -497,9 +405,8 @@ test('worktree-setup gives the worktree the git-ignored go.work and go.work.sum 
   assert.equal(git(folder, 'status', '--porcelain'), '', 'the ignored go.work leaves the worktree with no change');
 });
 
-// K622: the artifact repository that a composer.json names (var/composer-artifacts, release zips that the repository fetches) is
-// read, never written, by Composer; a worktree gets the main checkout's as one directory symlink, so Composer runs in a worktree.
-test('worktree-setup links the var/composer-artifacts of the main checkout as one directory symlink (K622)', (t) => {
+// K622: Composer archive inputs are copied independently; installed dependency state stays native-manager-owned.
+test('worktree-setup links the var/composer-artifacts of the main checkout as independent immutable archive inputs (K622)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
@@ -515,11 +422,11 @@ test('worktree-setup links the var/composer-artifacts of the main checkout as on
   put(main, { 'var/composer-artifacts/polyspec-orm-0.0.1.zip': 'zip\n' });
   const folder = setupWorktree(main, { name: 'artifacts', id: 'K622', type: 'fix' }, { print: () => {} });
   const link = path.join(folder, 'var/composer-artifacts');
-  assert.ok(lstatSync(link).isSymbolicLink(), 'one directory symlink');
-  assert.equal(realpathSync(link), realpathSync(path.join(main, 'var/composer-artifacts')));
+  assert.ok(lstatSync(link).isDirectory() && !lstatSync(link).isSymbolicLink(), 'archive inputs are copied without a directory link');
+  assert.notEqual(realpathSync(link), realpathSync(path.join(main, 'var/composer-artifacts')));
   assert.equal(readFileSync(path.join(link, 'polyspec-orm-0.0.1.zip'), 'utf8'), 'zip\n');
   assert.equal(setupWorktree(main, { name: 'artifacts', id: 'K622', type: 'fix' }, { print: () => {} }), folder, 'a second run converges');
-  assert.ok(lstatSync(link).isSymbolicLink());
+  assert.ok(!lstatSync(link).isSymbolicLink());
 });
 
 
@@ -534,4 +441,58 @@ test('K661-9: worktree tools resolve the installed public export for source and 
     });
     assert.equal(worktreeLinkTool(folder), path.join(folder, 'node_modules/@polyspec/kit', file));
   }
+});
+
+/** Tiny native-manager doubles own their output; main installed files serve only as unchanged legacy-state sentinels. */
+function nativeManagers(t: TestContext) {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-native-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, {
+    '../kit/scripts/kit/link.mts': '',
+    'package.json': '{"name":"fixture-workspace","private":true}',
+    'package-lock.json': '{"lockfileVersion":3,"packages":{}}',
+    'composer.json': '{"name":"fixture/project"}',
+    'composer.lock': '{"packages":[]}',
+    '.gitignore': 'node_modules/\nvendor/\nvar/\n',
+    'Makefile': 'link-state-check:\n\ttrue\n',
+    'node_modules/fixture-lib/value': 'main npm installation',
+    'vendor/fixture/lib/value': 'main Composer installation',
+    'vendor/composer/installed.json': '{"origin":"main"}',
+    'vendor/composer/installed.php': '<?php return [];',
+  });
+  linkKit(main);
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const npm = path.join(parent, 'npm');
+  const composer = path.join(parent, 'composer');
+  const log = path.join(parent, 'calls.jsonl');
+  writeFileSync(npm, `#!${process.execPath}\nconst fs=require('node:fs');const path=require('node:path');const args=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(log)},JSON.stringify({tool:'npm',args,cwd:process.cwd(),allowRemote:process.env.npm_config_allow_remote})+'\\n');if(args[0]==='config')process.stdout.write(${JSON.stringify(path.join(parent, 'npm-cache'))});else if(args[0]==='ci'){if(fs.existsSync(${JSON.stringify(path.join(parent, 'cache-missing'))})){console.error('required package absent from offline cache');process.exit(41);}fs.mkdirSync('node_modules/fixture-lib',{recursive:true});fs.writeFileSync('node_modules/fixture-lib/value','native npm installation');}\n`, { mode: 0o755 });
+  writeFileSync(composer, `#!${process.execPath}\nconst fs=require('node:fs');const args=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(log)},JSON.stringify({tool:'composer',args,cwd:process.cwd(),offline:process.env.COMPOSER_DISABLE_NETWORK,cache:process.env.COMPOSER_CACHE_DIR})+'\\n');if(args[0]==='config')process.stdout.write(process.env.COMPOSER_VENDOR_DIR||'vendor');else{fs.mkdirSync('vendor/composer',{recursive:true});fs.mkdirSync('vendor/fixture/lib',{recursive:true});fs.writeFileSync('vendor/fixture/lib/value','native Composer installation');fs.writeFileSync('vendor/composer/installed.json',JSON.stringify({origin:process.cwd()}));fs.writeFileSync('vendor/autoload.php',process.cwd());fs.mkdirSync('vendor/bin',{recursive:true});fs.writeFileSync('vendor/bin/tool','#!/bin/sh\\n# native Composer proxy\\n',{mode:0o755});}\n`, { mode: 0o755 });
+  return { parent, main, npm, composer, log };
+}
+
+test('K690 native managers replace dependency projections using shared caches and leave main unchanged', t => {
+  const { parent, main, npm, composer, log } = nativeManagers(t);
+  const before = ['package.json', 'package-lock.json', 'composer.json', 'composer.lock', 'node_modules/fixture-lib/value', 'vendor/fixture/lib/value'].map(file => readFileSync(path.join(main, file), 'utf8'));
+  const folder = setupWorktree(main, { name: 'native', id: 'K690', type: 'fix' }, { npm, composer, linkStateOnly: true, print: () => {} });
+  assert.equal(readFileSync(path.join(folder, 'node_modules/fixture-lib/value'), 'utf8'), 'native npm installation');
+  assert.equal(readFileSync(path.join(folder, 'vendor/fixture/lib/value'), 'utf8'), 'native Composer installation');
+  const record: unknown = JSON.parse(readFileSync(path.join(folder, 'vendor/composer/installed.json'), 'utf8'));
+  assert.ok(isJsonObject(record));
+  assert.equal(record.origin, folder);
+  const calls = readFileSync(log, 'utf8');
+  assert.ok(calls.includes('"ci","--offline","--cache",'+JSON.stringify(path.join(parent, 'npm-cache'))), calls);
+  assert.ok(calls.includes('"install","--no-interaction","--no-progress","--prefer-dist"'), calls);
+  assert.ok(calls.includes('"offline":"1"'), calls);
+  assert.ok(calls.includes('"allowRemote":"root"'), 'offline ci retains npm root-only remote policy');
+  assert.deepEqual(['package.json', 'package-lock.json', 'composer.json', 'composer.lock', 'node_modules/fixture-lib/value', 'vendor/fixture/lib/value'].map(file => readFileSync(path.join(main, file), 'utf8')), before);
+});
+
+test('K690 a missing offline npm cache fails normally without changing main dependencies', t => {
+  const { parent, main, npm, composer } = nativeManagers(t);
+  writeFileSync(path.join(parent, 'cache-missing'), '');
+  assert.throws(() => setupWorktree(main, { name: 'missing', id: 'K690', type: 'fix' }, { npm, composer, linkStateOnly: true, print: () => {} }), /exit status 41/);
+  assert.equal(readFileSync(path.join(main, 'node_modules/fixture-lib/value'), 'utf8'), 'main npm installation');
 });
