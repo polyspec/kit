@@ -7,6 +7,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { prepareWorktreePython, setupWorktree } from '../../scripts/kit/worktree-setup.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
@@ -303,7 +304,8 @@ test('worktree-setup gives each npm project and each Python environment of the m
     assert.ok(real(venv).isDirectory() && !real(venv).isSymbolicLink(), 'the .venv is a folder of its own');
     assert.equal(readFileSync(path.join(folder, venv, 'pyvenv.cfg'), 'utf8'), 'native uv environment\n', 'uv creates its own environment configuration');
     assert.ok(real(`${venv}/bin/python`).isFile(), 'the fixture uv creates the native interpreter entry');
-    const installed = JSON.parse(readFileSync(path.join(folder, venv, 'native-install.json'), 'utf8'));
+    const installed: unknown = JSON.parse(readFileSync(path.join(folder, venv, 'native-install.json'), 'utf8'));
+    assert.ok(isJsonObject(installed), 'uv fixture records a native installation object');
     assert.equal(installed.requirements, `dep==1.0.0\n-e ${folder}/py\n-e ${parent}/sibling\n`);
     assert.equal(installed.offline, '1');
     assert.equal(installed.cache, process.env.UV_CACHE_DIR || path.join(main, 'var/tools/mise/cache/uv'), 'uv uses the shared cache selected by the caller or main checkout');
@@ -380,7 +382,8 @@ test('worktree-setup gives a worktree a Python environment of the main checkout 
   const uv = stubUv(parent, `-e ${main}/packages/validator\n`);
   const folder = setupWorktree(main, { name: 'venv', id: 'T9', type: 'fix' }, { print: () => {}, uv });
   assert.ok(lstatSync(path.join(folder, 'var/python')).isDirectory(), 'the environment at var/python is a folder of the worktree');
-  const installed = JSON.parse(readFileSync(path.join(folder, 'var/python/native-install.json'), 'utf8'));
+  const installed: unknown = JSON.parse(readFileSync(path.join(folder, 'var/python/native-install.json'), 'utf8'));
+  assert.ok(isJsonObject(installed), 'uv fixture records a native installation object');
   assert.equal(installed.requirements, `-e ${folder}/packages/validator\n`, 'native install inputs name worktree project roots');
   assert.equal(existsSync(path.join(folder, site, '__editable__.validator.pth')), false, 'kit does not rewrite .pth files');
   assert.equal(existsSync(path.join(folder, 'var/tools')), false, 'the tools of the main checkout are no environment of the worktree');
