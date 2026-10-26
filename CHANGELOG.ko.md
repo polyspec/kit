@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 591b99f2e8e40878ebfb3c1bd9a2aa70a8468c9399ad58099779574b7c47f5b4 -->
+<!-- source-sha256: 35797fdc1efdd1c4cc448fa2328dca92b65dbcba922fb94e2e3e565ee30a9ec6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.55
 
 - Native tool fixture와 CI 입력 선언은 지원하는 Go, PHP, Git, dependency review, module 경로와 workspace hook 계약을 다룬다. 각 소유 검사는 통과했고 전체 CI 검증은 release gate로 남는다 (K661).
 

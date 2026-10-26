@@ -1,6 +1,6 @@
 {
   "name": "@polyspec/kit",
-  "version": "0.0.54",
+  "version": "0.0.55",
   "description": "The shared tools of the polyspec repositories",
   "license": "MIT",
   "type": "module",
@@ -73,12 +73,66 @@
     },
     "comment": "K410-1: the owner rules that kit ships with its copies and with the hooks that make hooks writes; a consumer merges them into its owner checks (owner-check reads them from the installed package), and the test of tests/kit/kit-sync.test.mts fails a copy that no rule owns.",
     "owners": [
-      { "paths": [".github/workflows/release.yml", ".github/workflows/gates.yml", ".claude/settings.json", ".editorconfig"], "targets": ["layout-check"] },
-      { "paths": ["PRINCIPLES.md"], "targets": ["rules-check"] },
-      { "paths": ["PRINCIPLES.ko.md"], "targets": ["docs-check"] },
-      { "paths": ["config/layout.kit.yml", "config/pyproject.schema.json", "config/composer.schema.json", "config/cargo.schema.json"], "targets": ["layout-check", "kit-check"] },
-      { "paths": ["config/commit-identity.json"], "targets": ["commits-check"] },
-      { "paths": [".githooks/pre-commit", ".githooks/pre-merge-commit", ".githooks/pre-push", ".githooks/commit-msg", ".githooks/prepare-commit-msg", ".githooks/reference-transaction"], "targets": ["hooks-check"] }
+      {
+        "paths": [
+          ".github/workflows/release.yml",
+          ".github/workflows/gates.yml",
+          ".claude/settings.json",
+          ".editorconfig"
+        ],
+        "targets": [
+          "layout-check"
+        ]
+      },
+      {
+        "paths": [
+          "PRINCIPLES.md"
+        ],
+        "targets": [
+          "rules-check"
+        ]
+      },
+      {
+        "paths": [
+          "PRINCIPLES.ko.md"
+        ],
+        "targets": [
+          "docs-check"
+        ]
+      },
+      {
+        "paths": [
+          "config/layout.kit.yml",
+          "config/pyproject.schema.json",
+          "config/composer.schema.json",
+          "config/cargo.schema.json"
+        ],
+        "targets": [
+          "layout-check",
+          "kit-check"
+        ]
+      },
+      {
+        "paths": [
+          "config/commit-identity.json"
+        ],
+        "targets": [
+          "commits-check"
+        ]
+      },
+      {
+        "paths": [
+          ".githooks/pre-commit",
+          ".githooks/pre-merge-commit",
+          ".githooks/pre-push",
+          ".githooks/commit-msg",
+          ".githooks/prepare-commit-msg",
+          ".githooks/reference-transaction"
+        ],
+        "targets": [
+          "hooks-check"
+        ]
+      }
     ]
   },
   "dependencies": {

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.55
+
 - Native tool fixtures and CI input declarations cover supported Go, PHP, Git, dependency-review, module-path and workspace-hook contracts. Their owning checks pass; complete CI verification remains the release gate (K661).
 
 - npmSourceFolders selects known providers declared by dependencies, devDependencies, optionalDependencies or peerDependencies even before an install exists, and retains installed transitive providers. It only selects inputs for native npmLink; it writes no install records or synthetic locks. The selector unit and a real unpublished-source install pass; type-aware lint and typecheck pass (K664-5).
