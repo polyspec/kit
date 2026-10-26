@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The parity ledger records malformed reporter output as an R3 failure of its binding and continues with remaining suite and feature bindings; the node reporter parser stays strict. Red: the selected K691 unit aborted on `exit 0`; Green: the K691 regression passes (1 test), and docs-check passes (K691).
+
 ## 0.0.55
 
 - npm source-link fixtures use generic provider identities while preserving transitive graph selection, all declared dependency sections, overrides, linked-source idempotence and ancestor-workspace resolution. Production code and the repository isolation rule are unchanged. Red: the isolation naming case fails at 90c812ec. Green: that case and three selected npm cases pass; changed-file type-aware lint and docs-check pass (K686-5).
