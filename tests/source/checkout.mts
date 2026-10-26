@@ -1,4 +1,4 @@
-// A copy of the tracked files of the kit in a sandbox, for the source tests that run the vendored tests in another layout.
+// A copy of the tracked files of kit in a sandbox, for installation and package-consumption source tests.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { signalGroup } from '../../scripts/kit/process-group.mts';
@@ -142,17 +142,7 @@ export function builtCopy(t: { after: (fn: () => void) => void }) {
   return copy;
 }
 
-/**
- * The timeout of a test that runs make kit-test in a sandbox. The whole vendored suite runs there: it took 998 s and 1226 s
- * under the load of a full source-test (K81), far beyond the 30 s default of the runner, which fires now that runKitTest
- * is asynchronous (K104). Half again the slowest measurement.
- */
-export const KIT_TEST_TIMEOUT_MS = 30 * 60_000;
-
-/**
- * Makes `sandbox` a Git repository with all its files committed, as a checkout is: make kit-test compares git status and the
- * diff against HEAD before and after its run, and the checks list the files of a checkout through Git.
- */
+/** Makes `sandbox` a Git repository with its files committed, so the package APIs read a real checkout through Git. */
 export function commitSandbox(sandbox: string) {
   initRepository(sandbox);
   for (const args of [['add', '-A'], ['-c', 'user.name=kit-test', '-c', 'user.email=kit-test@example.com', 'commit', '--quiet', '-m', 'sandbox']]) {
@@ -182,21 +172,30 @@ export function installedTool(file: string) {
   return inside('var/tools') && !inside('var/tools/mise/cache');
 }
 
+/** A bounded package-consumption command; the default imports and uses the built public tracked-files API. */
+export interface CheckoutSmokeCommand { command: string; args: string[] }
+
+const CHECKOUT_SMOKE_SOURCE = `
+import assert from 'node:assert/strict';
+const { trackedFiles } = await import('./dist/tracked-files.mjs');
+const files = trackedFiles(process.cwd());
+assert.ok(files.includes('package.json'), 'the installed package API reads package.json');
+assert.ok(files.includes('Makefile'), 'the installed package API reads Makefile');
+process.stdout.write('checkout package API smoke passed\\n');
+`;
+
 /**
- * Runs make kit-test in `cwd` and returns its exit status, its output and the summary counts. The nested run is the leader
- * of its own process group, which ends with the case: when the run closes (a process it left behind included), when
- * `signal` aborts (node:test aborts it when the test times out or is cancelled), and when this process receives SIGTERM or
- * SIGINT, which is passed on to the group and then to this process as before. A SIGKILL of this process reaches no handler.
+ * Runs one package API smoke in its own process group. Its child processes end on completion, test cancellation or a signal,
+ * and the returned exit status and output preserve a failed API consumption. It never runs kit-test or source-test.
  */
-export async function runKitTest(cwd: string, signal: AbortSignal) {
-  // The handlers come before the spawn: make runs as soon as it is forked, so a signal that arrives once the run has begun
-  // finds them, and it ends the group even before spawn returns to this process.
+export async function runCheckoutSmoke(cwd: string, signal: AbortSignal, smoke: CheckoutSmokeCommand = {
+  command: process.execPath, args: ['--input-type=module', '-e', CHECKOUT_SMOKE_SOURCE],
+}) {
   let pgid: number | undefined;
   const end = () => (pgid === undefined ? 'ended' : signalGroup(pgid, 'SIGTERM'));
   const forward = (received: NodeJS.Signals) => {
     end();
     stop();
-    // Without another listener the signal ends this process as it did before; another listener has already received it.
     if (process.listenerCount(received) === 0) process.kill(process.pid, received);
   };
   const stop = () => {
@@ -207,10 +206,10 @@ export async function runKitTest(cwd: string, signal: AbortSignal) {
   signal.addEventListener('abort', end);
   process.once('SIGTERM', forward);
   process.once('SIGINT', forward);
-  const child = spawn('make', ['--no-print-directory', 'kit-test'], { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(smoke.command, smoke.args, { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   pgid = child.pid;
   if (pgid === undefined) stop();
-  assert.ok(pgid !== undefined, `make kit-test did not start in ${cwd}`);
+  assert.ok(pgid !== undefined, `checkout smoke did not start in ${cwd}`);
   const stdout: string[] = [];
   const stderr: string[] = [];
   child.stdout.setEncoding('utf8').on('data', (text: string) => stdout.push(text));
@@ -220,10 +219,7 @@ export async function runKitTest(cwd: string, signal: AbortSignal) {
       child.once('error', reject);
       child.once('close', resolve);
     });
-    const output = stdout.join('') + stderr.join('');
-    const summary = /node --test: (\d+) passed, (\d+) failed/.exec(output);
-    assert.ok(summary, `make kit-test printed no summary:\n${output}`);
-    return { status, output, passed: Number(summary[1]), failed: Number(summary[2]) };
+    return { status, output: stdout.join('') + stderr.join('') };
   } finally {
     stop();
     end();

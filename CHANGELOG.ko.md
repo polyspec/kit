@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: de2eb746ae2545838d094c89ac305c55c015c8de810918aeb7f30834b30ad36f -->
+<!-- source-sha256: ff14cf34a85b7295271aabc254ddebfded73ee0bf2048cc167d0f71d26ed7e25 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- fresh-checkout 검증은 setup에서 설치와 build를 수행한 뒤 공개 tracked-files API를 소비하며 kit-test나 source-test를 재귀 실행하지 않는다. smoke helper는 process group 정리, 실패한 command와 양쪽 output stream을 유지한다. Red: K659 회귀 검사는 kit-test trap을 실행하여 exit 43으로 실패했다. Green: 선택한 smoke·진단 case 8개와 typecheck가 통과한다. 실제 fresh 설치 smoke는 runner의 30초 setup-gap 거부에 걸리므로 runner 통합 검증은 남아 있다(K659).
 - Python worktree 환경은 명시적인 offline freeze requirements로 uv가 만들고 설치한다. main checkout 내부의 editable project 경로만 worktree로 대응시킨다. uv가 configuration, script, 설치 metadata를 관리하며 main 환경과 공유 tool cache는 유지한다. 기존 legacy 환경은 변경 전에 거부하고 설치 실패는 uv 진단을 유지한다. Red: 부모 commit에서 K533 owner test는 native requirements 기록이 없어 실패했다. Green: 선택한 Python owner test 4개와 실제 uv source test 1개가 통과한다(K657-4).
 - uv는 잠긴 sync 후 로컬 Python distribution을 native editable로 설치한다. source 변경은 바로 반영되고 uv가 distribution metadata를 관리한다. 기존 package-folder link는 uv command가 source를 수정하기 전에 거부한다. Red: d190e3f5에서 uv-install owner test는 editable command를 기대했지만 sync만 관찰했다. Green: owner test 6개와 실제 uv editable source test가 통과한다(K657-3). 공통 link도 Python 설치를 uv에 위임하며 읽기 전용 legacy-link finding을 포함한 Python 통합 검사 3개가 통과한다.
 - uv는 잠긴 sync 후 로컬 Python distribution을 native editable로 설치한다. source 변경은 바로 반영되고 uv가 distribution metadata를 관리한다. 기존 package-folder link는 uv command가 source를 수정하기 전에 거부한다. Red: d190e3f5에서 uv-install owner test는 editable command를 기대했지만 sync만 관찰했다. Green: owner test 6개와 실제 uv editable source test가 통과한다(K657-3).

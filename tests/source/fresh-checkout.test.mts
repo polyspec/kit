@@ -1,22 +1,18 @@
-// The vendored tests in a fresh checkout (K90, K81, K127). A vendored test runs in every consumer and needs only node and the
-// stubs of the tools that it reads. The fresh checkout runs the documented install, as a consumer and CI do: make
-// install-tools TOOLS=npm (npm and mise), make install-packages, make install-tools (the tools of mise.lock), then make
-// kit-test. The installs download, so this test runs ONLINE, as CI does: the wrapper of mise keeps its downloads in the
-// var/tools/mise of each checkout, and the sandbox has no clean way to read the cache of this one. A test that wrote under
-// var/ without creating it failed with a bare ENOENT (python-lock-check.test.mts made its temporary directories in var/), and
-// a real unittest case in tests/kit/parity.test.mts failed in flowmark, which cannot install the Python it asked for.
+// A fresh checkout runs its documented installation, builds the package and consumes a public API.
+// The tool and source test suites already run in CI; this installation smoke never runs either suite recursively.
 import assert from 'node:assert/strict';
 import { lstatSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import test from 'node:test';
+import test, { describe } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { commitSandbox, copyTracked, KIT_TEST_TIMEOUT_MS, run, runKitTest } from './checkout.mts';
+import { setup, teardown } from '../../scripts/kit/test-hooks.mts';
+import { commitSandbox, copyTracked, run, runCheckoutSmoke } from './checkout.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
 /**
- * The failed cases of a kit-test output, each with the indented lines of its error, and each test file that failed as a
+ * The failed cases of captured test output, each with the indented lines of its error, and each test file that failed as a
  * whole, without a failed case of its own (an error outside the cases), with its error.
  */
 export function failedCases(output: string) {
@@ -41,15 +37,15 @@ export function failedCases(output: string) {
 }
 
 /**
- * Fails unless the kit-test run `run` passed: the message names every failed case and file with its whole error, read from
+ * Validates captured per-case test diagnostics without executing a test run: the message names every failed case and file with its whole error, read from
  * the whole output; a failure that names no case gives the whole output.
  */
-export function assertKitTestPassed(run: { output: string; passed: number; failed: number }) {
+export function assertReportedCasesPassed(run: { output: string; passed: number; failed: number }) {
   assert.ok(run.passed > 0, 'the vendored tests ran');
   const failures = failedCases(run.output);
   if (run.failed === 0 && failures.length === 0) return;
   const report = failures.map(failed => `${failed.name}\n${failed.error.replace(/^/gm, '  ').trimEnd()}`).join('\n');
-  assert.fail(`make kit-test: ${run.failed} failed\n${report || run.output}`);
+  assert.fail(`reported tests: ${run.failed} failed\n${report || run.output}`);
 }
 
 test('a failed run names every failed case and file with its whole error, however long the output after it (K129)', () => {
@@ -64,7 +60,7 @@ test('a failed run names every failed case and file with its whole error, howeve
     '           Error: the file failed as a whole',
     '[  3.0s] ✖ node --test: 200 passed, 2 failed, 0 timed out, 0 skipped (3.0s)',
   ].join('\n');
-  assert.throws(() => assertKitTestPassed({ output, passed: 200, failed: 2 }), (error: Error) => {
+  assert.throws(() => assertReportedCasesPassed({ output, passed: 200, failed: 2 }), (error: Error) => {
     for (const part of ['tests/kit/early.test.mts › breaks first', 'the first line', 'the second line of the error', 'tests/kit/release.test.mts', 'the file failed as a whole']) {
       assert.ok(error.message.includes(part), `the message lacks ${part}:\n${error.message}`);
     }
@@ -86,13 +82,26 @@ test('failedCases reads each failed case with its error, and no passed case', ()
   ]);
 });
 
-test('in a fresh checkout after the documented install, every vendored test passes', { timeout: KIT_TEST_TIMEOUT_MS }, async (t) => {
-  const sandbox = mkdtempSync(path.join(tmpdir(), 'kit-fresh-checkout-'));
-  t.after(() => rmSync(sandbox, { recursive: true, force: true }));
-  copyTracked(ROOT, sandbox);
-  commitSandbox(sandbox);
-  for (const args of [['install-tools', 'TOOLS=npm'], ['install-packages'], ['install-tools']]) run('make', ['--no-print-directory', ...args], sandbox);
-  // The fresh checkout installs its packages; it links none (AGENTS: this repository creates no symbolic link).
-  assert.ok(!lstatSync(path.join(sandbox, 'node_modules')).isSymbolicLink(), 'node_modules of the fresh checkout is a link');
-  assertKitTestPassed(await runKitTest(sandbox, t.signal));
+describe('fresh checkout package consumption (K659)', () => {
+  let sandbox: string | undefined;
+  setup('the documented fresh-checkout installation and package build', () => {
+    sandbox = mkdtempSync(path.join(tmpdir(), 'kit-fresh-checkout-'));
+    copyTracked(ROOT, sandbox);
+    commitSandbox(sandbox);
+    for (const args of [['install-tools', 'TOOLS=npm'], ['install-packages'], ['install-tools'], ['kit-build']]) {
+      process.stdout.write(`[checkout-smoke] make ${args.join(' ')}\n`);
+      run('make', ['--no-print-directory', ...args], sandbox);
+    }
+  });
+  teardown('the fresh-checkout installation', () => {
+    if (sandbox !== undefined) rmSync(sandbox, { recursive: true, force: true });
+  });
+  test('consumes the installed package API without a nested test suite', async (t) => {
+    assert.ok(sandbox, 'the installation setup created its checkout');
+    // npm owns the installation; the fresh checkout does not share node_modules with its provider.
+    assert.ok(!lstatSync(path.join(sandbox, 'node_modules')).isSymbolicLink(), 'node_modules of the fresh checkout is a link');
+    const smoke = await runCheckoutSmoke(sandbox, t.signal);
+    assert.equal(smoke.status, 0, smoke.output);
+    assert.match(smoke.output, /checkout package API smoke passed/);
+  });
 });

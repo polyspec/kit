@@ -3,13 +3,13 @@
 // copy of all of var/ met a file that such a run removed (ENOENT under var/python-lock-real-<pid>/tmp/pip-build-env-*).
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, lstatSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { builtCopy, installedTool, NPM, runKitTest } from './checkout.mts';
+import { builtCopy, installedTool, NPM, runCheckoutSmoke } from './checkout.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { initRepository } from '../kit/sandbox-repository.mts';
@@ -25,14 +25,38 @@ test('a sandbox takes the installed tools of var/tools and neither the caches of
   assert.equal(installedTool('var/kit-test.log'), false);
 });
 
-// The nested make kit-test of runKitTest runs in its own process group, which ends with the case: when the run closes,
+// The bounded command of runCheckoutSmoke runs in its own process group, which ends with the case: when the run closes,
 // when the test is cancelled or times out, and when the test process receives SIGTERM or SIGINT (K104). A stub Makefile
-// stands in for the kit: its kit-test target starts a sleep in the background and records its pid.
+// stands in for an API smoke: its checkout-smoke target starts a sleep in the background and records its pid.
 const CHECKOUT = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), 'checkout.mts')).href;
 const RUNNER = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/run-tests.mts');
 
 test('K560 source package sandboxes use npm from the main checkout of a linked worktree', () => {
   assert.equal(NPM, toolsPath(repositoryRoot(), 'bin', 'npm'));
+});
+
+test('the checkout smoke consumes its package API without recursively running kit-test (K659)', async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'kit-checkout-smoke-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  initRepository(directory);
+  writeFileSync(path.join(directory, 'Makefile'), 'kit-test:\n\t@echo recursive > recursive-suite\n\t@exit 43\n');
+  mkdirSync(path.join(directory, 'dist'));
+  writeFileSync(path.join(directory, 'dist/tracked-files.mjs'), "export const trackedFiles = () => ['package.json', 'Makefile'];\n");
+  const result = await runCheckoutSmoke(directory, t.signal);
+  assert.equal(result.status, 0, result.output);
+  assert.equal(existsSync(path.join(directory, 'recursive-suite')), false, 'a smoke must not start the full suite');
+});
+
+test('the checkout smoke preserves a failed command and both output streams (K659)', async (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'kit-checkout-smoke-failure-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const result = await runCheckoutSmoke(directory, t.signal, {
+    command: process.execPath,
+    args: ['-e', "process.stdout.write('smoke stdout'); process.stderr.write('smoke stderr'); process.exit(7)"],
+  });
+  assert.equal(result.status, 7);
+  assert.ok(result.output.includes('smoke stdout'));
+  assert.ok(result.output.includes('smoke stderr'));
 });
 
 /** Whether the process `pid` exists. */
@@ -60,17 +84,17 @@ async function until(ready: () => boolean) {
 const CASE = { timeout: 120_000 };
 
 /**
- * A stub checkout whose make kit-test starts `sleep 600` in the background and records its pid in sleep.pid. With `wait` the
+ * A stub checkout whose make checkout-smoke starts `sleep 600` in the background and records its pid in sleep.pid. With `wait` the
  * target waits for the sleep; without it the target prints a summary and exits while the sleep runs on. The sleep is
  * killed with `t.after` when it is still alive.
  */
 function stubCheckout(t: TestContext, wait: boolean) {
-  const directory = mkdtempSync(path.join(tmpdir(), 'kit-run-kit-test-'));
+  const directory = mkdtempSync(path.join(tmpdir(), 'kit-run-checkout-smoke-'));
   // The tools of kit run in a checkout and resolve its root through Git (K144), so the stub is a repository.
   initRepository(directory);
   const pidFile = path.join(directory, 'sleep.pid');
-  writeFileSync(path.join(directory, 'Makefile'), `kit-test:\n\t@sleep 600 > /dev/null 2>&1 & echo $$! > sleep.pid; ${wait ? 'wait' : "echo 'node --test: 3 passed, 0 failed'"}\n`);
-  writeFileSync(path.join(directory, 'stub.test.mts'), `import test from 'node:test';\nimport { runKitTest } from ${JSON.stringify(CHECKOUT)};\ntest('the nested run', async (t) => { await runKitTest(${JSON.stringify(directory)}, t.signal); });\n`);
+  writeFileSync(path.join(directory, 'Makefile'), `checkout-smoke:\n\t@sleep 600 > /dev/null 2>&1 & echo $$! > sleep.pid; ${wait ? 'wait' : "echo 'package API consumed'"}\n`);
+  writeFileSync(path.join(directory, 'stub.test.mts'), `import test from 'node:test';\nimport { runCheckoutSmoke } from ${JSON.stringify(CHECKOUT)};\ntest('the nested run', async (t) => { await runCheckoutSmoke(${JSON.stringify(directory)}, t.signal, { command: 'make', args: ['--no-print-directory', 'checkout-smoke'] }); });\n`);
   // The shell creates sleep.pid before it writes the pid and its newline, so only a whole line is the pid.
   const sleepPid = () => {
     const text = existsSync(pidFile) ? readFileSync(pidFile, 'utf8') : '';
@@ -84,13 +108,14 @@ function stubCheckout(t: TestContext, wait: boolean) {
   return { directory, sleepPid };
 }
 
-test('runKitTest returns the summary of the nested run and ends what the run left in its process group', CASE, async (t) => {
+test('runCheckoutSmoke returns its output and ends what the smoke left in its process group', CASE, async (t) => {
   const { directory, sleepPid } = stubCheckout(t, false);
-  const run = await runKitTest(directory, t.signal);
-  assert.deepEqual([run.status, run.passed, run.failed], [0, 3, 0]);
+  const run = await runCheckoutSmoke(directory, t.signal, { command: 'make', args: ['--no-print-directory', 'checkout-smoke'] });
+  assert.equal(run.status, 0, run.output);
+  assert.match(run.output, /package API consumed/);
   const pid = sleepPid();
   assert.ok(pid, 'the stub recorded no sleep');
-  // runKitTest has signaled the group when it returns; the sleep ends with that signal.
+  // runCheckoutSmoke has signaled the group when it returns; the sleep ends with that signal.
   await until(() => !alive(pid));
 });
 
@@ -118,7 +143,7 @@ test('a test that run-tests times out ends the process group of its nested run',
   const pid = sleepPid();
   assert.ok(pid);
   const exited = new Promise(resolve => child.once('exit', code => resolve(code)));
-  // run-tests ends the test at its 1 s timeout; node:test aborts it and runKitTest signals the group.
+  // run-tests ends the test at its 1 s timeout; node:test aborts it and runCheckoutSmoke signals the group.
   assert.equal(await exited, 1, 'the run of a timed-out test fails');
   await until(() => !alive(pid));
 });
