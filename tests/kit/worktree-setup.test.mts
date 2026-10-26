@@ -7,7 +7,7 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { setupWorktree } from '../../scripts/kit/worktree-setup.mts';
+import { prepareWorktreePython, setupWorktree } from '../../scripts/kit/worktree-setup.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -23,6 +23,56 @@ const linkKit = (main: string) => {
   mkdirSync(path.join(main, 'node_modules/@polyspec'), { recursive: true });
   symlinkSync('../../../kit', path.join(main, 'node_modules/@polyspec/kit'));
 };
+
+/** A uv fixture that owns environment creation and records its native install inputs, without running Python. */
+function stubUv(parent: string, frozen: string): string {
+  const script = path.join(parent, 'uv.mjs');
+  writeFileSync(script, `import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+const args = process.argv.slice(2);
+if (args[0] === 'pip' && args[1] === 'freeze') process.stdout.write(${JSON.stringify(frozen)});
+else if (args[0] === 'venv') {
+  const directory = args.at(-1);
+  mkdirSync(path.join(directory, 'bin'), { recursive: true });
+  writeFileSync(path.join(directory, 'pyvenv.cfg'), 'native uv environment\\n');
+  writeFileSync(path.join(directory, 'bin/python'), '# native interpreter\\n', { mode: 0o755 });
+} else if (args[0] === 'pip' && args[1] === 'install') {
+  if (process.env.UV_FIXTURE_FAIL === 'install') { process.stderr.write('required cached wheel missing'); process.exit(44); }
+  const directory = path.dirname(path.dirname(args[args.indexOf('--python') + 1]));
+  writeFileSync(path.join(directory, 'native-install.json'), JSON.stringify({ requirements: readFileSync(args[args.indexOf('--requirement') + 1], 'utf8'), offline: process.env.UV_OFFLINE, cache: process.env.UV_CACHE_DIR }));
+} else process.exit(91);
+`);
+  const uv = path.join(parent, 'uv');
+  writeFileSync(uv, `#!/bin/sh\nexec '${process.execPath}' '${script}' "$@"\n`, { mode: 0o755 });
+  return uv;
+}
+
+test('python worktree setup retains an existing legacy environment before running uv (K657-4)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-python-worktree-legacy-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'main');
+  const folder = path.join(parent, 'worktree');
+  put(main, { '.venv/pyvenv.cfg': 'main environment\n' });
+  put(folder, { '.venv/pyvenv.cfg': 'legacy environment\n' });
+  const printed: string[] = [];
+  assert.throws(() => prepareWorktreePython({ main, folder, venv: '.venv', uv: stubUv(parent, ''), print: text => printed.push(text) }), /not an environment created by native worktree setup/);
+  assert.deepEqual(printed, [], 'uv does not run before the legacy environment is refused');
+  assert.equal(readFileSync(path.join(folder, '.venv/pyvenv.cfg'), 'utf8'), 'legacy environment\n');
+  assert.equal(readFileSync(path.join(main, '.venv/pyvenv.cfg'), 'utf8'), 'main environment\n');
+});
+
+test('python worktree installation reports an offline cache miss without modifying the main environment (K657-4)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-python-worktree-cache-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'main');
+  const folder = path.join(parent, 'worktree');
+  put(main, { '.venv/pyvenv.cfg': 'main environment\n' });
+  mkdirSync(folder);
+  assert.throws(() => prepareWorktreePython({ main, folder, venv: '.venv', uv: stubUv(parent, 'cached-package==1.0.0\n'), env: { ...process.env, UV_FIXTURE_FAIL: 'install' }, print: () => {} }), /failed without network access.*required cached wheel missing/);
+  assert.equal(readFileSync(path.join(main, '.venv/pyvenv.cfg'), 'utf8'), 'main environment\n');
+  assert.equal(readFileSync(path.join(folder, 'var/worktree-python/.venv/requirements.txt'), 'utf8'), 'cached-package==1.0.0\n');
+  assert.equal(lstatSync(path.join(folder, '.venv/pyvenv.cfg')).isSymbolicLink(), false, 'the failed install retains its independent native environment');
+});
 
 test('worktree-setup makes the worktree of a row from main, links its node_modules, installs nothing and checks it, and a second run converges (K348, K519)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
@@ -211,9 +261,7 @@ test('worktree-setup links the node_modules of a worktree entry by entry, its ow
   check(folder);
 });
 
-// K533: every tracked npm lock project and Python project whose environment the main checkout holds gets it in the worktree under the
-// rule of K530: links to the main checkout's entries, while the files that the installer wrote with paths of the main checkout (the
-// bin scripts, the activate scripts, an editable .pth that names a source of the main checkout) are written with the worktree's paths.
+// K657-4: npm tools remain shared, while uv restores each Python environment from explicit native requirements.
 test('worktree-setup gives each npm project and each Python environment of the main checkout its environment in the worktree (K533)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -236,7 +284,7 @@ test('worktree-setup gives each npm project and each Python environment of the m
     [`${site}/__editable__.own.pth`]: `${main}/py/src\n`,
     [`${site}/__editable__.sibling.pth`]: `${parent}/sibling/src\n`,
     'Makefile': 'link-state-check:\n\ttest -f node_modules/@polyspec/kit/scripts/kit/link.mts\n',
-    '.gitignore': 'node_modules/\n.venv/\n',
+    '.gitignore': 'node_modules/\n.venv/\nvar/\n',
   });
   linkKit(main);
   chmodSync(path.join(main, venv, 'bin/tool'), 0o755);
@@ -244,22 +292,22 @@ test('worktree-setup gives each npm project and each Python environment of the m
   symlinkSync('python3.14', path.join(main, venv, 'bin/python'));
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const quiet = { print: () => {} };
+  const uv = stubUv(parent, `dep==1.0.0\n-e ${main}/py\n-e ${parent}/sibling\n`);
+  const quiet = { print: () => {}, uv };
   const check = (folder: string) => {
+    assert.ok(existsSync(path.join(folder, 'var/worktree-python/py/.venv/requirements.txt')), 'Python worktree inputs are explicit native requirements (K657-4)');
     assert.ok(lstatSync(path.join(folder, 'tools/ts/node_modules')).isDirectory(), 'a nested npm project has a node_modules of its own');
     assert.equal(realpathSync(path.join(folder, 'tools/ts/node_modules/typescript')), realpathSync(path.join(main, 'tools/ts/node_modules/typescript')));
     assert.equal(existsSync(path.join(folder, 'tests/other/node_modules')), false, 'a project that the main checkout did not install gets none');
     const real = (file: string) => lstatSync(path.join(folder, file));
     assert.ok(real(venv).isDirectory() && !real(venv).isSymbolicLink(), 'the .venv is a folder of its own');
-    assert.equal(realpathSync(path.join(folder, venv, 'pyvenv.cfg')), realpathSync(path.join(main, venv, 'pyvenv.cfg')));
-    assert.equal(readlinkSync(path.join(folder, venv, 'bin/python3.14')), process.execPath, 'an interpreter link keeps its target');
-    assert.equal(readlinkSync(path.join(folder, venv, 'bin/python')), 'python3.14');
-    assert.equal(readFileSync(path.join(folder, venv, 'bin/tool'), 'utf8'), `#!${folder}/${venv}/bin/python\nimport own\n`, 'a script runs the worktree environment');
-    assert.ok(real(`${venv}/bin/tool`).isFile() && (real(`${venv}/bin/tool`).mode & 0o111) !== 0, 'the script is a file that runs');
-    assert.equal(readFileSync(path.join(folder, venv, 'bin/activate'), 'utf8'), `VIRTUAL_ENV='${folder}/${venv}'\n`);
-    assert.equal(realpathSync(path.join(folder, site, 'dep')), realpathSync(path.join(main, site, 'dep')), 'a dependency links to the main checkout');
-    assert.equal(readFileSync(path.join(folder, site, '__editable__.own.pth'), 'utf8'), `${folder}/py/src\n`, 'the own source is the worktree');
-    assert.ok(real(`${site}/__editable__.sibling.pth`).isSymbolicLink(), 'a .pth that names no path of the main checkout links to it');
+    assert.equal(readFileSync(path.join(folder, venv, 'pyvenv.cfg'), 'utf8'), 'native uv environment\n', 'uv creates its own environment configuration');
+    assert.ok(real(`${venv}/bin/python`).isFile(), 'the fixture uv creates the native interpreter entry');
+    const installed = JSON.parse(readFileSync(path.join(folder, venv, 'native-install.json'), 'utf8'));
+    assert.equal(installed.requirements, `dep==1.0.0\n-e ${folder}/py\n-e ${parent}/sibling\n`);
+    assert.equal(installed.offline, '1');
+    assert.equal(installed.cache, process.env.UV_CACHE_DIR || path.join(main, 'var/tools/mise/cache/uv'), 'uv uses the shared cache selected by the caller or main checkout');
+    assert.equal(existsSync(path.join(folder, site, '__editable__.own.pth')), false, 'kit does not copy or rewrite editable metadata');
     assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
   };
   const folder = setupWorktree(main, { name: 'parser', id: 'T1', type: 'fix' }, quiet);
@@ -329,9 +377,12 @@ test('worktree-setup gives a worktree a Python environment of the main checkout 
   linkKit(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const folder = setupWorktree(main, { name: 'venv', id: 'T9', type: 'fix' }, { print: () => {} });
+  const uv = stubUv(parent, `-e ${main}/packages/validator\n`);
+  const folder = setupWorktree(main, { name: 'venv', id: 'T9', type: 'fix' }, { print: () => {}, uv });
   assert.ok(lstatSync(path.join(folder, 'var/python')).isDirectory(), 'the environment at var/python is a folder of the worktree');
-  assert.equal(readFileSync(path.join(folder, site, '__editable__.validator.pth'), 'utf8'), `${folder}/packages/validator/src\n`, 'its editable install names the sources of the worktree');
+  const installed = JSON.parse(readFileSync(path.join(folder, 'var/python/native-install.json'), 'utf8'));
+  assert.equal(installed.requirements, `-e ${folder}/packages/validator\n`, 'native install inputs name worktree project roots');
+  assert.equal(existsSync(path.join(folder, site, '__editable__.validator.pth')), false, 'kit does not rewrite .pth files');
   assert.equal(existsSync(path.join(folder, 'var/tools')), false, 'the tools of the main checkout are no environment of the worktree');
 });
 

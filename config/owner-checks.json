@@ -30,6 +30,7 @@
     { "paths": ["package-lock.json"], "targets": ["typecheck", "kit-check", "dependency-policy-check", "lint-ts"] },
     { "paths": ["tsconfig.json"], "targets": ["typecheck", "lint-ts"] },
     { "paths": ["scripts/kit/uv-install.mts"], "tests": ["tests/source/uv-editable-real.test.mts"] },
+    { "paths": ["scripts/kit/worktree-setup.mts"], "tests": ["tests/source/worktree-python-real.test.mts"] },
     { "paths": ["tests/source/*.test.mts"], "targets": ["lint-ts", "duplication-check"], "tests": ["$path"] },
     { "paths": ["tests/source/real-tools.mts"], "targets": ["lint-ts", "duplication-check"], "tests": ["tests/source/layout-real.test.mts", "tests/source/lint-go-real.test.mts", "tests/source/lint-php-real.test.mts", "tests/source/lint-python-real.test.mts", "tests/source/parity-real.test.mts", "tests/source/govulncheck-packages-real.test.mts"] },
     { "paths": ["tests/source/checkout.mts"], "targets": ["lint-ts", "duplication-check"], "tests": ["tests/source/checkout.test.mts", "tests/source/consumer-layout.test.mts", "tests/source/fresh-checkout.test.mts"] },

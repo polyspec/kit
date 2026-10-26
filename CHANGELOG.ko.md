@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 37bd7dad8a03d8d845408c976ff5cee35931de48d389700f953f0a247d41ab57 -->
+<!-- source-sha256: de2eb746ae2545838d094c89ac305c55c015c8de810918aeb7f30834b30ad36f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Python worktree 환경은 명시적인 offline freeze requirements로 uv가 만들고 설치한다. main checkout 내부의 editable project 경로만 worktree로 대응시킨다. uv가 configuration, script, 설치 metadata를 관리하며 main 환경과 공유 tool cache는 유지한다. 기존 legacy 환경은 변경 전에 거부하고 설치 실패는 uv 진단을 유지한다. Red: 부모 commit에서 K533 owner test는 native requirements 기록이 없어 실패했다. Green: 선택한 Python owner test 4개와 실제 uv source test 1개가 통과한다(K657-4).
 - uv는 잠긴 sync 후 로컬 Python distribution을 native editable로 설치한다. source 변경은 바로 반영되고 uv가 distribution metadata를 관리한다. 기존 package-folder link는 uv command가 source를 수정하기 전에 거부한다. Red: d190e3f5에서 uv-install owner test는 editable command를 기대했지만 sync만 관찰했다. Green: owner test 6개와 실제 uv editable source test가 통과한다(K657-3). 공통 link도 Python 설치를 uv에 위임하며 읽기 전용 legacy-link finding을 포함한 Python 통합 검사 3개가 통과한다.
 - uv는 잠긴 sync 후 로컬 Python distribution을 native editable로 설치한다. source 변경은 바로 반영되고 uv가 distribution metadata를 관리한다. 기존 package-folder link는 uv command가 source를 수정하기 전에 거부한다. Red: d190e3f5에서 uv-install owner test는 editable command를 기대했지만 sync만 관찰했다. Green: owner test 6개와 실제 uv editable source test가 통과한다(K657-3).
 - 실제 tool source fixture에 ecosystem manifest, case requirement id, generated-file 선언과 native PHP wrapper를 포함한다. Worktree tool은 공유 path API로 찾고, PHP extractor의 설치된 Composer autoloader를 사용하며, 과거 선언된 copy의 lint 검증을 명시적으로 유지하고 폐기된 Composer shadow manifest를 거부한다. Red: 65582113에서 소유 fixture가 실패한다. Green: 실제 tool 소유 case 15개가 통과한다(K661-3).

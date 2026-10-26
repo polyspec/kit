@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 // The worktree of a row (K348, docs/operations/local-links.md, Worktrees): `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]`
 // creates the worktree `../<repository>-<name>-<id>` of the main checkout on the branch `<type>/<name>-<id>` from main, links its
-// node_modules to the main checkout's and installs nothing (K519: the tools of var/tools are the main checkout's through kit.mk and
-// toolsPath), rebuilds its own packages and checks it with `make link-state-check`. A second run on an existing worktree of that branch
+// node_modules to the main checkout's, shares its installed tools (K519), and restores Python environments with native uv
+// installation from the shared offline cache (K657-4). It rebuilds its own packages and checks it with `make link-state-check`. A second run on an existing worktree of that branch
 // links and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { toolCommand, toolsEnvironment } from './mise-tools.mts';
+import { toolsPath } from './bootstrap/tool-wrappers.mts';
+import { run } from './process.mts';
 import { COMMIT_RULES } from './check-commits.mts';
 import { git, gitResult } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -113,62 +117,47 @@ function pythonEnvironments(main: string): string[] {
   return found.sort();
 }
 
-/**
- * Places the file `source` of an environment of the main checkout `main` at `target` of the worktree `folder` (K533): a file that the
- * installer wrote with a path of the main checkout, a script, an activate script or an editable .pth, is written with that path of the
- * worktree and its mode, since the environment of the worktree runs its own sources; any other file links (linkEntry, `venv` the
- * environment). A target that is no file of the worktree throws.
- */
-function placeFile(main: string, folder: string, venv: string, source: string, target: string): void {
-  const root = realpathSync(main);
-  const text = readFileSync(source, 'utf8');
-  const named = new RegExp(`${root.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w.-])`, 'g');
-  if (!named.test(text)) {
-    linkEntry(main, folder, venv, source, target);
-    return;
-  }
-  const entry = lstatSync(target, { throwIfNoEntry: false });
-  if (entry !== undefined && !entry.isFile()) throw new Error(`${target} exists and is no file that worktree-setup writes; remove it, since a worktree installs nothing (K519)`);
-  writeFileSync(target, text.replace(named, folder), { mode: statSync(source).mode & 0o777 });
-}
-
-/**
- * The Python environment `venv` of the worktree `folder` (K533): a real folder whose entries link to those of the main checkout `main`,
- * bin and each site-packages entry by entry; an interpreter link of bin keeps its target, and a file that names a path of the main
- * checkout is written with the worktree's (placeFile), so the worktree imports and runs its own sources. Nothing is installed.
- */
-function linkVenv(main: string, folder: string, venv: string, print: (text: string) => void): void {
+/** Restores a Python worktree environment through uv from explicit native freeze requirements. */
+export function prepareWorktreePython({ main, folder, venv, uv, env = process.env, print }: {
+  main: string; folder: string; venv: string; uv: string; env?: NodeJS.ProcessEnv; print: (text: string) => void;
+}): void {
   const source = path.join(main, venv);
   const target = path.join(folder, venv);
-  if (lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink()) throw new Error(`${target} is a link to a whole environment, which runs the sources of another checkout; remove it and run worktree-setup again (K533)`);
-  mkdirSync(target, { recursive: true });
-  for (const item of readdirSync(source, { withFileTypes: true })) {
-    const from = path.join(source, item.name);
-    const to = path.join(target, item.name);
-    if (item.name === 'bin' && item.isDirectory()) {
-      mkdirSync(to, { recursive: true });
-      for (const name of readdirSync(from, { withFileTypes: true })) {
-        if (name.isSymbolicLink()) keepLink(path.join(from, name.name), path.join(to, name.name));
-        else if (name.isFile()) placeFile(main, folder, venv, path.join(from, name.name), path.join(to, name.name));
-        else linkEntry(main, folder, venv, path.join(from, name.name), path.join(to, name.name));
-      }
-    } else if (item.name === 'lib' && item.isDirectory()) {
-      for (const python of readdirSync(from)) {
-        const sites = path.join(from, python, 'site-packages');
-        mkdirSync(path.join(to, python, 'site-packages'), { recursive: true });
-        for (const name of readdirSync(path.join(from, python))) {
-          if (name !== 'site-packages') linkEntry(main, folder, venv, path.join(from, python, name), path.join(to, python, name));
-        }
-        for (const name of readdirSync(sites, { withFileTypes: true })) {
-          const place = name.isFile() && name.name.endsWith('.pth') ? placeFile : linkEntry;
-          place(main, folder, venv, path.join(sites, name.name), path.join(to, python, 'site-packages', name.name));
-        }
-      }
-    } else {
-      linkEntry(main, folder, venv, from, to);
-    }
+  const requirements = path.join(folder, 'var/worktree-python', venv, 'requirements.txt');
+  const entry = lstatSync(target, { throwIfNoEntry: false });
+  if (entry !== undefined && (!entry.isDirectory() || !existsSync(requirements) || lstatSync(path.join(target, 'pyvenv.cfg'), { throwIfNoEntry: false })?.isSymbolicLink())) {
+    throw new Error(`${target} is not an environment created by native worktree setup; retain it and create a fresh worktree environment instead of rewriting Python installed metadata`);
   }
-  print(`[worktree-setup] linked the environment ${venv} to ${source}, its own sources from the worktree`);
+  const environment = { ...env, UV_OFFLINE: '1', UV_PYTHON_DOWNLOADS: 'never', UV_CACHE_DIR: env.UV_CACHE_DIR || toolsPath(main, 'mise', 'cache', 'uv') };
+  print(`[worktree-setup] uv pip freeze: ${source}`);
+  const frozen = run(uv, ['pip', 'freeze', '--python', path.join(source, 'bin/python')], { cwd: main, env: environment });
+  const root = realpathSync(main);
+  const mapped = frozen.split('\n').map(line => {
+    const editable = /^(?:-e|--editable) (.+)$/.exec(line);
+    if (!editable?.[1]) return line;
+    const reference = editable[1];
+    if (/^[a-z][a-z0-9+.-]*:/i.test(reference) && !reference.startsWith('file:')) return line;
+    const directory = reference.startsWith('file:') ? fileURLToPath(reference) : path.resolve(main, reference);
+    const relative = path.relative(root, directory);
+    if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) return line;
+    const destination = path.join(folder, relative);
+    return `-e ${reference.startsWith('file:') ? pathToFileURL(destination).href : destination}`;
+  }).join('\n');
+  mkdirSync(path.dirname(requirements), { recursive: true });
+  writeFileSync(requirements, mapped);
+  print(`[worktree-setup] native Python install inputs: ${requirements}`);
+  if (entry === undefined) {
+    print(`[worktree-setup] uv venv: ${target}`);
+    run(uv, ['venv', '--python', path.join(source, 'bin/python'), target], { cwd: main, env: environment });
+  }
+  print(`[worktree-setup] uv pip install --offline: ${target}`);
+  try {
+    run(uv, ['pip', 'install', '--offline', '--python', path.join(target, 'bin/python'), '--requirement', requirements], { cwd: folder, env: environment });
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    throw new Error(`native worktree Python installation failed without network access; inspect uv's error and prepare the required inputs in the main checkout before retrying: ${error.message}`, { cause: error });
+  }
+  print(`[worktree-setup] native Python environment ready: ${target}`);
 }
 
 /** Makes `target` a link with the same target as the link `source`, such as an interpreter of an environment; an other entry throws. */
@@ -346,7 +335,7 @@ function goWorkFiles(main: string, folder: string): string[] {
   return gitResult(main, 'check-ignore', '--no-index', ...candidates).stdout.split('\n').filter(Boolean).filter(file => gitResult(main, 'ls-files', '--error-unmatch', '--', file).status !== 0);
 }
 
-export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer, linkStateOnly = false }: { print?: (text: string) => void; composer?: string; linkStateOnly?: boolean } = {}): string {
+export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer, uv, linkStateOnly = false }: { print?: (text: string) => void; composer?: string; uv?: string; linkStateOnly?: boolean } = {}): string {
   const main = path.dirname(path.resolve(root, git(root, 'rev-parse', '--git-common-dir').trim()));
   const { folder, branch } = worktreeOf(main, row);
   const listed = git(main, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
@@ -361,7 +350,7 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     print(`[worktree-setup] ${folder} is the worktree of ${branch}; linking and checking it again`);
   }
   for (const modules of npmProjects(main, folder, print)) linkNodeModules(main, folder, modules, print);
-  for (const venv of pythonEnvironments(main)) linkVenv(main, folder, venv, print);
+  for (const venv of pythonEnvironments(main)) prepareWorktreePython({ main, folder, venv, uv: uv ?? toolCommand(main, 'uv'), env: uv === undefined ? toolsEnvironment(main) : process.env, print });
   for (const project of composerProjects(main, folder)) linkVendor(main, folder, project, composer ?? composerCommand(folder, 'make worktree-setup'), print);
   // K622: the artifact repository that a composer.json names, release zips that Composer reads and never writes: one directory symlink.
   const artifacts = path.join(main, COMPOSER_ARTIFACTS);

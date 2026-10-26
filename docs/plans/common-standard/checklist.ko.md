@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3173b500b706835a9d8eda1d108a99ab842b32896a02dad89074136a72012a25 -->
+<!-- source-sha256: a221132b527fe729a61aedeed176bef12f2810cf6d9cf56ed5e40df053f25b67 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -566,7 +566,7 @@
 | K657-3 | uv는 로컬 dependency를 editable로 설치하고 kit는 Python package directory를 교체하거나 설치 metadata를 직접 작성하지 않는다 | scripts/kit/uv-install.mts, scripts/kit/link.mts, tests/kit/link.test.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts, config/owner-checks.json | `node scripts/kit/run-tests.mts node -- tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; shared-link Python cases K643, K539 and K657-3 | [o] |
 | K656 | parity 요구 추적은 보류 항목에 실제 명시된 요구만 보류한다 | config/parity.json deferredRequirements declaration, checklist-state validation and R13 reporting with mutation tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=defer tests/kit/parity-requirements.test.mts`; `make typecheck`; `make docs-check` | [o] |
 | K658 | 명시적 FINAL_RUN은 대기 중인 체크리스트 항목이 있어도 깨끗한 커밋 트리에서 허용하되 진행 중인 작업은 거부합니다 | scripts/kit/ci-only.mts, scripts/kit/ci-targets.mts, scripts/kit/claude-hook.mts, scripts/kit/kit.mk, tests/kit/ci-only.test.mts, docs/operations/tool-inventory.md and its Korean twin | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K658 tests/kit/ci-only.test.mts` | [o] |
-| K657-4 | native Python 도구가 worktree 환경과 editable 설치를 만들고 kit는 Python 설치 metadata를 재작성하지 않고 tool cache를 공유한다 | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=python tests/kit/worktree-setup.test.mts` | [ ] |
+| K657-4 | native Python 도구가 worktree 환경과 editable 설치를 만들고 kit는 Python 설치 metadata를 재작성하지 않고 tool cache를 공유한다 | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts, tests/source/worktree-python-real.test.mts, config/owner-checks.json | `node scripts/kit/run-tests.mts node -- --test-name-pattern='[Pp]ython' tests/kit/worktree-setup.test.mts tests/source/worktree-python-real.test.mts` | [o] |
 | K659 | fresh-checkout smoke는 전체 kit suite를 재귀 실행하지 않고 설치와 package 소비를 검증한다 | tests/source/checkout.mts, tests/source/fresh-checkout.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/fresh-checkout.test.mts` | [ ] |
 | K660 | release dependency 검사는 최신 release 강제 없이 version 선택과 별도로 알려진 취약점을 거부한다 | scripts/kit/check-dependency-policy.mts, scripts/kit/dependency-review.mts, tests/kit/dependency-advisory.test.mts, mise.toml and mise.lock | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-advisory.test.mts` | [o] |
 | K661 | CI fixture와 tool 입력은 지원 platform에서 native tool 계약과 선언된 capability를 따른다 | scripts/kit, tests/kit, tests/source, config/release.json | `make docs-check` | [ ] |
