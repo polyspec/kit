@@ -1470,7 +1470,7 @@ test('the schema rejects PYTHONPATH and every path that leaves the repository; a
   assert.ok(findingAt(outside, 0).message.includes(path.dirname(root)) === false, 'the value of a reference is never printed');
 });
 
-test('URI-valued environment references are not split into runner paths, while an external runner path still fails (K699)', () => {
+test('URI-valued environment references are not split into runner paths, while an external runner path still fails (K699)', TIMEOUT, () => {
   const implementation: ParityImplementation = {
     name: 'php', runner: 'php', roots: ['php'], env: [{ name: 'ORM_FEATURE_DSN', value: '${ORM_FEATURE_DSN}' }],
   };
