@@ -149,18 +149,18 @@ test('the none-matched answer of composer outdated is no release, and is never r
 test('the review never proposes a release older than the locked version of a Composer package (K369)', (t) => {
   const root = fixture(t);
   editFixture<{ composerPlatforms: { manifest: string; php: string }[] }>(root, 'config/dependency-policy.json', (policy) => { policy.composerPlatforms = [{ manifest: 'composer.json', php: '8.2.0' }]; });
-  writeFileSync(path.join(root, 'composer.json'), JSON.stringify({ name: 'polyspec/kit-fixture-development', type: 'project', license: 'proprietary', repositories: [{ type: 'path', url: 'packages/fixture-php' }], require: { 'polyspec/kit-fixture': '0.0.0', 'polyspec/template': '^0.0.11', 'psr/log': '^3.0', 'example/framework': '^1.0' }, config: { platform: { php: '8.2.0' } } }));
-  writeFileSync(path.join(root, 'composer.lock'), JSON.stringify({ ...MONOREPO_LOCK, packages: [...MONOREPO_LOCK.packages, { name: 'polyspec/template', version: '0.0.11', dist: { type: 'zip', url: 'https://example.com/template.zip' } }] }));
+  writeFileSync(path.join(root, 'composer.json'), JSON.stringify({ name: 'polyspec/kit-fixture-development', type: 'project', license: 'proprietary', repositories: [{ type: 'path', url: 'packages/fixture-php' }], require: { 'polyspec/kit-fixture': '0.0.0', 'polyspec/fixture-package': '^0.0.11', 'psr/log': '^3.0', 'example/framework': '^1.0' }, config: { platform: { php: '8.2.0' } } }));
+  writeFileSync(path.join(root, 'composer.lock'), JSON.stringify({ ...MONOREPO_LOCK, packages: [...MONOREPO_LOCK.packages, { name: 'polyspec/fixture-package', version: '0.0.11', dist: { type: 'zip', url: 'https://example.com/fixture-package.zip' } }] }));
   rmSync(path.join(root, 'packages/fixture-php/composer.lock'));
   installCargoAuditStub(root);
   installGovulncheckStub(root);
   const stub = stubRegistries(t, root);
   const at = path.basename(root);
-  stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'polyspec/template': '0.0.6', 'psr/log': '3.0.2', 'example/framework': '1.1.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
+  stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'polyspec/fixture-package': '0.0.6', 'psr/log': '3.0.2', 'example/framework': '1.1.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
   const result = review(root, ['--update'], stub.env);
   const calls = stub.calls();
-  assert.doesNotMatch(result.stdout, /polyspec\/template 0\.0\.11 < 0\.0\.6/, result.stdout);
-  assert.deepEqual(calls.filter(call => call.includes('polyspec/template:')), [], calls.join('\n'));
+  assert.doesNotMatch(result.stdout, /polyspec\/fixture-package 0\.0\.11 < 0\.0\.6/, result.stdout);
+  assert.deepEqual(calls.filter(call => call.includes('polyspec/fixture-package:')), [], calls.join('\n'));
   assert.match(result.stdout, /example\/framework 1\.0\.0 < 1\.1\.0: a newer stable release exists/);
   assert.ok(calls.includes('composer require --update-with-dependencies --no-interaction example/framework:^1.1.0'), calls.join('\n'));
 });
@@ -195,26 +195,26 @@ test('a Go module under the tracked go.work of the repository is scanned with th
 // and the other fields Composer copies into an entry, while the name, the version, the dist, the source and the content-hash stay.
 // A package that no checkout provides is left as it is.
 test('a lock entry of a provided polyspec package takes the manifest of the provider and keeps its version and dist (K439)', () => {
-  const dist = { type: 'zip', url: '../../var/composer-artifacts/polyspec-orm-php-0.0.18.zip', shasum: '7aff6a97d7ca201839d362c051acdc86779677de' };
-  const lock = `${JSON.stringify({ 'content-hash': '931a126f8dbe3bfc612effd5fcda35b2', packages: [{ name: 'polyspec/orm', version: '0.0.18', dist, require: { php: '>=8.5', 'ext-json': '*' } }], 'packages-dev': [] }, null, 4)}\n`;
-  const providers = new Map([['polyspec/orm', { name: 'polyspec/orm', type: 'library', require: { php: '>=8.4', 'ext-json': '*' }, autoload: { 'psr-4': { 'Polyspec\\Orm\\': 'src/' } } }]]);
+  const dist = { type: 'zip', url: '../../var/composer-artifacts/polyspec-fixture-provider-php-0.0.18.zip', shasum: '7aff6a97d7ca201839d362c051acdc86779677de' };
+  const lock = `${JSON.stringify({ 'content-hash': '931a126f8dbe3bfc612effd5fcda35b2', packages: [{ name: 'polyspec/fixture-provider', version: '0.0.18', dist, require: { php: '>=8.5', 'ext-json': '*' } }], 'packages-dev': [] }, null, 4)}\n`;
+  const providers = new Map([['polyspec/fixture-provider', { name: 'polyspec/fixture-provider', type: 'library', require: { php: '>=8.4', 'ext-json': '*' }, autoload: { 'psr-4': { 'Polyspec\\FixtureProvider\\': 'src/' } } }]]);
   const result = providerEntries(lock, providers);
   const parsed: unknown = JSON.parse(result.text);
   assert.ok(isJsonObject(parsed) && Array.isArray(parsed.packages), result.text);
-  assert.deepEqual(result.rewritten, ['polyspec/orm']);
+  assert.deepEqual(result.rewritten, ['polyspec/fixture-provider']);
   assert.equal(parsed['content-hash'], '931a126f8dbe3bfc612effd5fcda35b2');
-  assert.deepEqual(parsed.packages[0], { name: 'polyspec/orm', version: '0.0.18', dist, require: { php: '>=8.4', 'ext-json': '*' }, type: 'library', autoload: { 'psr-4': { 'Polyspec\\Orm\\': 'src/' } } });
+  assert.deepEqual(parsed.packages[0], { name: 'polyspec/fixture-provider', version: '0.0.18', dist, require: { php: '>=8.4', 'ext-json': '*' }, type: 'library', autoload: { 'psr-4': { 'Polyspec\\FixtureProvider\\': 'src/' } } });
   assert.equal(result.text, `${JSON.stringify(parsed, null, 4)}\n`, 'kit writes the lock with 4-space indentation and a final newline');
 });
 
 test('a package that no checkout provides is unchanged byte for byte (K439)', () => {
   const psr = { name: 'psr/log', version: '3.0.2', dist: { type: 'zip', url: 'https://example.com/psr-log.zip' }, require: { php: '>=8.5' } };
-  const orm = { name: 'polyspec/orm', version: '0.0.18', dist: { type: 'zip', url: '../orm.zip' }, require: { php: '>=8.5' } };
-  const lock = `${JSON.stringify({ 'content-hash': 'abc', packages: [orm, psr], 'packages-dev': [] }, null, 4)}\n`;
-  const result = providerEntries(lock, new Map([['polyspec/orm', { name: 'polyspec/orm', require: { php: '>=8.4' } }]]));
+  const provider = { name: 'polyspec/fixture-provider', version: '0.0.18', dist: { type: 'zip', url: '../provider.zip' }, require: { php: '>=8.5' } };
+  const lock = `${JSON.stringify({ 'content-hash': 'abc', packages: [provider, psr], 'packages-dev': [] }, null, 4)}\n`;
+  const result = providerEntries(lock, new Map([['polyspec/fixture-provider', { name: 'polyspec/fixture-provider', require: { php: '>=8.4' } }]]));
   const expected = JSON.stringify(psr, null, 4).split('\n').map((line, index) => (index === 0 ? line : `        ${line}`)).join('\n');
   assert.ok(result.text.includes(`        ${expected}`), result.text);
-  assert.deepEqual(result.rewritten, ['polyspec/orm']);
+  assert.deepEqual(result.rewritten, ['polyspec/fixture-provider']);
   assert.equal(providerEntries(lock, new Map()).text, lock, 'without a provider nothing is rewritten');
   assert.deepEqual(providerEntries(lock, new Map()).rewritten, []);
 });
@@ -223,7 +223,7 @@ test('a package that no checkout provides is unchanged byte for byte (K439)', ()
 // and a release-consumer lock is never rewritten: it is written by make release-consumer-lock only.
 test('the platform and platform-overrides of a lock are recomputed from its own composer.json (K439-1)', () => {
   const lock = `${JSON.stringify({ 'content-hash': 'abc', packages: [], 'packages-dev': [], platform: { php: '>=8.5' }, 'platform-overrides': { php: '8.5.0' } }, null, 4)}\n`;
-  const manifest = { require: { php: '>=8.4', 'ext-json': '*', 'polyspec/orm': '0.0.18' }, config: { platform: { php: '8.4.1' } } };
+  const manifest = { require: { php: '>=8.4', 'ext-json': '*', 'polyspec/fixture-provider': '0.0.18' }, config: { platform: { php: '8.4.1' } } };
   const result = providerEntries(lock, new Map(), manifest);
   const parsed: unknown = JSON.parse(result.text);
   assert.ok(isJsonObject(parsed), result.text);
@@ -256,10 +256,10 @@ function composerOfCheckout(checkout: string, user: string): string {
 
 // K439-2: an entry that Composer wrote keeps its form: a provider manifest that says the same thing changes nothing on a rerun.
 test('a rerun on a lock in Composer form changes nothing (K439-2)', () => {
-  const dist = { type: 'zip', url: '../../var/composer-artifacts/polyspec-orm-php-0.0.18.zip', shasum: '7aff6a97d7ca201839d362c051acdc86779677de' };
-  const composed = { name: 'polyspec/orm', version: '0.0.18', dist, require: { php: '>=8.4' }, type: 'library', license: ['MIT'] };
+  const dist = { type: 'zip', url: '../../var/composer-artifacts/polyspec-fixture-provider-php-0.0.18.zip', shasum: '7aff6a97d7ca201839d362c051acdc86779677de' };
+  const composed = { name: 'polyspec/fixture-provider', version: '0.0.18', dist, require: { php: '>=8.4' }, type: 'library', license: ['MIT'] };
   const lock = `${JSON.stringify({ 'content-hash': 'abc', packages: [composed], 'packages-dev': [] }, null, 4)}\n`;
-  const providers = new Map([['polyspec/orm', { name: 'polyspec/orm', type: 'library', license: 'MIT', require: { php: '>=8.4' } }]]);
+  const providers = new Map([['polyspec/fixture-provider', { name: 'polyspec/fixture-provider', type: 'library', license: 'MIT', require: { php: '>=8.4' } }]]);
   const first = providerEntries(lock, providers);
   assert.deepEqual(first.rewritten, [], 'the manifest license string is the lock array of Composer, so nothing is rewritten');
   assert.equal(first.text, lock);
@@ -277,24 +277,24 @@ test('the provider entries are Composer\'s own, and a rerun on its lock changes 
   const platform = { php: '8.4.1' };
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-entries-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const folder = path.join(root, 'orm');
+  const folder = path.join(root, 'provider');
   mkdirSync(folder);
-  const writeManifest = (php: string) => writeFileSync(path.join(folder, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', license: 'MIT', require: { php }, autoload: { 'psr-4': { 'Orm\\': 'src/' } } }));
+  const writeManifest = (php: string) => writeFileSync(path.join(folder, 'composer.json'), JSON.stringify({ name: 'polyspec/fixture-provider', type: 'library', license: 'MIT', require: { php }, autoload: { 'psr-4': { 'FixtureProvider\\': 'src/' } } }));
   writeManifest('>=8.4');
-  const dist = { type: 'zip', url: '../../var/composer-artifacts/polyspec-orm-php-0.0.18.zip', shasum: '7aff6a97d7ca201839d362c051acdc86779677de' };
-  const tracked = `${JSON.stringify({ 'content-hash': 'abc', packages: [{ name: 'polyspec/orm', version: '0.0.18', dist, require: { php: '>=8.5' } }], 'packages-dev': [] }, null, 4)}\n`;
+  const dist = { type: 'zip', url: '../../var/composer-artifacts/polyspec-fixture-provider-php-0.0.18.zip', shasum: '7aff6a97d7ca201839d362c051acdc86779677de' };
+  const tracked = `${JSON.stringify({ 'content-hash': 'abc', packages: [{ name: 'polyspec/fixture-provider', version: '0.0.18', dist, require: { php: '>=8.5' } }], 'packages-dev': [] }, null, 4)}\n`;
   const manifests = (): Map<string, Record<string, unknown>> => {
     const manifest: unknown = JSON.parse(readFileSync(path.join(folder, 'composer.json'), 'utf8'));
-    return new Map([['polyspec/orm', isJsonObject(manifest) ? manifest : {}]]);
+    return new Map([['polyspec/fixture-provider', isJsonObject(manifest) ? manifest : {}]]);
   };
   const packagesOf = (text: string): Record<string, unknown>[] => {
     const parsed: unknown = JSON.parse(text);
     const list: unknown = isJsonObject(parsed) ? parsed.packages : undefined;
     return Array.isArray(list) ? list.filter(isJsonObject) : [];
   };
-  const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder }];
+  const packages = [{ name: 'polyspec/fixture-provider', version: '0.0.18', folder }];
   const first = providerEntries(tracked, manifests(), undefined, composerEntries(packages, composer, toolEnv, platform));
-  assert.deepEqual(first.rewritten, ['polyspec/orm']);
+  assert.deepEqual(first.rewritten, ['polyspec/fixture-provider']);
   const once = { packages: packagesOf(first.text) };
   assert.deepEqual(once.packages[0]?.dist, dist, 'the release dist stays');
   assert.equal(once.packages[0]?.version, '0.0.18', 'the version stays');
@@ -322,22 +322,22 @@ test('Composer provider entries use a sibling exact requirement for a path packa
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-provider-exact-version-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const yaml = path.join(root, 'yaml');
-  const orm = path.join(root, 'orm');
+  const provider = path.join(root, 'provider');
   mkdirSync(yaml);
-  mkdirSync(orm);
+  mkdirSync(provider);
   writeFileSync(path.join(yaml, 'composer.json'), JSON.stringify({ name: 'purrphp/yaml', type: 'library', require: { php: '^8.3' } }));
-  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { 'purrphp/yaml': '1.0.0-p1' } }));
+  writeFileSync(path.join(provider, 'composer.json'), JSON.stringify({ name: 'polyspec/fixture-provider', type: 'library', require: { 'purrphp/yaml': '1.0.0-p1' } }));
   const tracked = JSON.stringify({ packages: [
     { name: 'purrphp/yaml', version: '1.0.0', dist: { type: 'zip', url: 'https://example.invalid/yaml.zip' } },
-    { name: 'polyspec/orm', version: '0.0.18', dist: { type: 'zip', url: 'https://example.invalid/orm.zip' } },
+    { name: 'polyspec/fixture-provider', version: '0.0.18', dist: { type: 'zip', url: 'https://example.invalid/provider.zip' } },
   ], 'packages-dev': [] }, null, 4) + '\n';
-  const packages = [{ name: 'purrphp/yaml', version: '1.0.0', folder: yaml }, { name: 'polyspec/orm', version: '0.0.18', folder: orm }];
-  const manifest = { name: 'probe/consumer', require: { 'polyspec/orm': '0.0.18' }, config: { platform: { php: '8.4.1' } } };
+  const packages = [{ name: 'purrphp/yaml', version: '1.0.0', folder: yaml }, { name: 'polyspec/fixture-provider', version: '0.0.18', folder: provider }];
+  const manifest = { name: 'probe/consumer', require: { 'polyspec/fixture-provider': '0.0.18' }, config: { platform: { php: '8.4.1' } } };
   const written = composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock: tracked, folder: root });
   assert.equal(written.get('purrphp/yaml')?.version, '1.0.0-p1', 'Composer resolves the path provider at the exact sibling requirement');
   const providerManifests = new Map([
     ['purrphp/yaml', { name: 'purrphp/yaml', type: 'library', require: { php: '^8.3' } }],
-    ['polyspec/orm', { name: 'polyspec/orm', type: 'library', require: { 'purrphp/yaml': '1.0.0-p1' } }],
+    ['polyspec/fixture-provider', { name: 'polyspec/fixture-provider', type: 'library', require: { 'purrphp/yaml': '1.0.0-p1' } }],
   ]);
   const result = providerEntries(tracked, providerManifests, manifest, written);
   const parsed: unknown = JSON.parse(result.text);
@@ -345,14 +345,14 @@ test('Composer provider entries use a sibling exact requirement for a path packa
   const resolvedEntries: unknown[] = Array.isArray(parsed.packages) ? parsed.packages.map((item: unknown) => item) : [];
   const yamlEntry = resolvedEntries.find((item: unknown) => isJsonObject(item) && item.name === 'purrphp/yaml');
   assert.ok(isJsonObject(yamlEntry));
-  // K439-6 ruling: the tracked 1.0.0 breaks orm's locked requirement 1.0.0-p1, so the writer's version is the entry's version.
+  // K439-6 ruling: the tracked 1.0.0 breaks provider's locked requirement 1.0.0-p1, so the writer's version is the entry's version.
   assert.equal(yamlEntry.version, '1.0.0-p1', 'the tracked version breaks a locked requirement, so the writer resolved version is recorded');
   assert.ok(result.rewritten.includes('purrphp/yaml'), 'provider metadata is rewritten from Composer output');
   // K468-2: a tracked version that satisfies every locked requirement stays unchanged.
-  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { 'purrphp/yaml': '^1.0' } }));
+  writeFileSync(path.join(provider, 'composer.json'), JSON.stringify({ name: 'polyspec/fixture-provider', type: 'library', require: { 'purrphp/yaml': '^1.0' } }));
   const satisfied = new Map([
     ['purrphp/yaml', { name: 'purrphp/yaml', type: 'library', require: { php: '^8.3' } }],
-    ['polyspec/orm', { name: 'polyspec/orm', type: 'library', require: { 'purrphp/yaml': '^1.0' } }],
+    ['polyspec/fixture-provider', { name: 'polyspec/fixture-provider', type: 'library', require: { 'purrphp/yaml': '^1.0' } }],
   ]);
   const kept = providerEntries(tracked, satisfied, manifest, new Map([['purrphp/yaml', { name: 'purrphp/yaml', version: '1.0.0', dist: { type: 'path', url: '../yaml' }, require: { php: '^8.3' }, type: 'library' }]]));
   const keptParsed: unknown = JSON.parse(kept.text);
@@ -463,17 +463,17 @@ test('the provider entries resolve the transitive requirements from the tracked 
   const toolEnv = toolingEnvironment(checkout);
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-transitive-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const folder = path.join(root, 'orm');
+  const folder = path.join(root, 'provider');
   mkdirSync(folder);
-  writeFileSync(path.join(folder, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { php: '>=8.4', 'nikic/php-parser': '^5.9.0' }, autoload: { 'psr-4': { 'Orm\\': 'src/' } } }));
+  writeFileSync(path.join(folder, 'composer.json'), JSON.stringify({ name: 'polyspec/fixture-provider', type: 'library', require: { php: '>=8.4', 'nikic/php-parser': '^5.9.0' }, autoload: { 'psr-4': { 'FixtureProvider\\': 'src/' } } }));
   const parser = { name: 'nikic/php-parser', version: '5.9.0', dist: { type: 'zip', url: 'https://example.invalid/php-parser.zip' }, require: { php: '>=8.1' } };
   const lock = JSON.stringify({ packages: [parser], 'packages-dev': [] });
-  const consumer = { require: { 'polyspec/orm': '0.0.18', 'nikic/php-parser': '^5.9.0' }, config: { platform: { php: '8.4.1' } } };
-  const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder }];
+  const consumer = { require: { 'polyspec/fixture-provider': '0.0.18', 'nikic/php-parser': '^5.9.0' }, config: { platform: { php: '8.4.1' } } };
+  const packages = [{ name: 'polyspec/fixture-provider', version: '0.0.18', folder }];
   assert.throws(() => composerEntries(packages, composer, toolEnv, { php: '8.4.1' }), /nikic\/php-parser/, 'without the base the transitive requirement is not found');
   const written = composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest: consumer, lock, folder: root });
-  assert.ok(written.has('polyspec/orm'), 'the provider is written');
-  assert.equal(written.get('polyspec/orm')?.version, '0.0.18');
+  assert.ok(written.has('polyspec/fixture-provider'), 'the provider is written');
+  assert.equal(written.get('polyspec/fixture-provider')?.version, '0.0.18');
 });
 
 // K439-4: the scratch resolves the root as the consumer does: a path repository of the consumer, relative to the consumer folder, is one of its
@@ -484,18 +484,18 @@ test('a root requirement that only the consumer own path repository provides res
   const toolEnv = toolingEnvironment(checkout);
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-own-repository-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const orm = path.join(root, 'orm');
-  mkdirSync(orm);
-  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Orm\\': 'src/' } } }));
+  const provider = path.join(root, 'provider');
+  mkdirSync(provider);
+  writeFileSync(path.join(provider, 'composer.json'), JSON.stringify({ name: 'polyspec/fixture-provider', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'FixtureProvider\\': 'src/' } } }));
   const consumer = path.join(root, 'consumer');
   const own = path.join(consumer, 'own');
   mkdirSync(own, { recursive: true });
   writeFileSync(path.join(own, 'composer.json'), JSON.stringify({ name: 'polyspec/own', type: 'library', version: '1.0.0', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Own\\': 'src/' } } }));
-  const manifest = { require: { php: '>=8.4', 'polyspec/orm': '0.0.18', 'polyspec/own': '1.0.0' }, repositories: [{ type: 'path', url: './own' }], config: { platform: { php: '8.4.1' } } };
+  const manifest = { require: { php: '>=8.4', 'polyspec/fixture-provider': '0.0.18', 'polyspec/own': '1.0.0' }, repositories: [{ type: 'path', url: './own' }], config: { platform: { php: '8.4.1' } } };
   const lock = JSON.stringify({ packages: [], 'packages-dev': [] });
-  const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder: orm }];
+  const packages = [{ name: 'polyspec/fixture-provider', version: '0.0.18', folder: provider }];
   const written = composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock, folder: consumer });
-  assert.equal(written.get('polyspec/orm')?.version, '0.0.18');
+  assert.equal(written.get('polyspec/fixture-provider')?.version, '0.0.18');
 });
 
 // K439-4: a repository of the consumer that is not a readable folder fails naming it; no other repository stands in for it.
@@ -505,44 +505,44 @@ test('an unreadable path repository of the consumer fails naming it (K439-4)', (
   const toolEnv = toolingEnvironment(checkout);
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-missing-repository-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const orm = path.join(root, 'orm');
-  mkdirSync(orm);
-  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { php: '>=8.4' } }));
+  const provider = path.join(root, 'provider');
+  mkdirSync(provider);
+  writeFileSync(path.join(provider, 'composer.json'), JSON.stringify({ name: 'polyspec/fixture-provider', type: 'library', require: { php: '>=8.4' } }));
   const consumer = path.join(root, 'consumer');
   mkdirSync(consumer);
-  const manifest = { require: { php: '>=8.4', 'polyspec/orm': '0.0.18' }, repositories: [{ type: 'path', url: './missing' }], config: { platform: { php: '8.4.1' } } };
+  const manifest = { require: { php: '>=8.4', 'polyspec/fixture-provider': '0.0.18' }, repositories: [{ type: 'path', url: './missing' }], config: { platform: { php: '8.4.1' } } };
   const lock = JSON.stringify({ packages: [], 'packages-dev': [] });
-  const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder: orm }];
+  const packages = [{ name: 'polyspec/fixture-provider', version: '0.0.18', folder: provider }];
   assert.throws(() => composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock, folder: consumer }), /\.\/missing/);
 });
 
 // K439-4-1: the provider entries of a tracked lock are written before the commands of an update run on it. The tracked lock holds an old
-// polyspec/orm 0.0.18 entry that requires php >=8.5; Composer's platform check of a tracked update of example/lib fails on it, unless the
+// polyspec/fixture-provider 0.0.18 entry that requires php >=8.5; Composer's platform check of a tracked update of example/lib fails on it, unless the
 // entry takes the provider manifest first.
 test('a tracked update passes a stale polyspec entry, whose provider entry is written before it (K439-4-1)', (t) => {
   const checkout = repositoryRoot();
   composerOfCheckout(checkout, 'the test of K439-4-1');
   const scratch = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-update-steps-')));
   t.after(() => rmSync(scratch, { recursive: true, force: true }));
-  const orm = path.join(scratch, 'orm');
+  const provider = path.join(scratch, 'provider');
   const consumer = path.join(scratch, 'consumer');
   const lib = path.join(consumer, 'lib');
-  mkdirSync(orm);
+  mkdirSync(provider);
   mkdirSync(lib, { recursive: true });
-  const ormManifest = { name: 'polyspec/orm', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Orm\\': 'src/' } } };
-  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify(ormManifest));
+  const providerManifest = { name: 'polyspec/fixture-provider', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'FixtureProvider\\': 'src/' } } };
+  writeFileSync(path.join(provider, 'composer.json'), JSON.stringify(providerManifest));
   writeFileSync(path.join(lib, 'composer.json'), JSON.stringify({ name: 'example/lib', version: '1.0.0', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Lib\\': 'src/' } } }));
-  // The consumer has no repository of polyspec/orm: its locked entry is the only metadata that Composer reads for it (as crudui's tracked lock).
+  // The consumer has no repository of polyspec/fixture-provider: its locked entry is the only metadata that Composer reads for it (as crudui's tracked lock).
   const repositories = [{ packagist: false }, { type: 'path', url: './lib', options: { symlink: false } }];
-  writeFileSync(path.join(consumer, 'composer.json'), JSON.stringify({ name: 'kit/consumer', type: 'project', license: 'proprietary', repositories, require: { php: '>=8.4', 'polyspec/orm': '0.0.18' }, config: { platform: { php: '8.4.1' } } }));
-  writeFileSync(path.join(consumer, 'composer.lock'), JSON.stringify({ packages: [{ name: 'polyspec/orm', version: '0.0.18', dist: { type: 'zip', url: 'https://example.invalid/polyspec-orm-0.0.18.zip' }, type: 'library', require: { php: '>=8.5' } }], 'packages-dev': [], platform: { php: '>=8.4' }, 'platform-overrides': { php: '8.4.1' } }));
-  const found = new Map([['polyspec/orm', { manifest: ormManifest, folder: orm }]]);
+  writeFileSync(path.join(consumer, 'composer.json'), JSON.stringify({ name: 'kit/consumer', type: 'project', license: 'proprietary', repositories, require: { php: '>=8.4', 'polyspec/fixture-provider': '0.0.18' }, config: { platform: { php: '8.4.1' } } }));
+  writeFileSync(path.join(consumer, 'composer.lock'), JSON.stringify({ packages: [{ name: 'polyspec/fixture-provider', version: '0.0.18', dist: { type: 'zip', url: 'https://example.invalid/polyspec-fixture-provider-0.0.18.zip' }, type: 'library', require: { php: '>=8.5' } }], 'packages-dev': [], platform: { php: '>=8.4' }, 'platform-overrides': { php: '8.4.1' } }));
+  const found = new Map([['polyspec/fixture-provider', { manifest: providerManifest, folder: provider }]]);
   const plan = [{ command: 'composer', args: ['update', '--with-dependencies', '--no-install', '--no-audit', '--no-interaction', 'example/lib'], cwd: path.relative(checkout, consumer) }];
   assert.equal(runUpdateSteps(checkout, plan, found), 0, 'the tracked update passes');
   const lock: unknown = JSON.parse(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'));
   const entries: unknown[] = isJsonObject(lock) && Array.isArray(lock.packages) ? lock.packages : [];
-  const ormEntry = entries.find((entry: unknown) => isJsonObject(entry) && entry.name === 'polyspec/orm');
-  assert.equal(isJsonObject(ormEntry) && isJsonObject(ormEntry.require) ? ormEntry.require.php : undefined, '>=8.4', 'the entry takes the provider manifest');
+  const providerEntry = entries.find((entry: unknown) => isJsonObject(entry) && entry.name === 'polyspec/fixture-provider');
+  assert.equal(isJsonObject(providerEntry) && isJsonObject(providerEntry.require) ? providerEntry.require.php : undefined, '>=8.4', 'the entry takes the provider manifest');
 });
 
 // K475: a consumer vcs repository whose origin a sibling checkout names resolves through that sibling, offline (the scratch has no network);
@@ -553,9 +553,9 @@ test('a consumer vcs repository resolves through the sibling checkout that names
   const toolEnv = toolingEnvironment(checkout);
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-vcs-sibling-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const orm = path.join(root, 'orm');
-  mkdirSync(orm);
-  writeFileSync(path.join(orm, 'composer.json'), JSON.stringify({ name: 'polyspec/orm', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Orm\\': 'src/' } } }));
+  const provider = path.join(root, 'provider');
+  mkdirSync(provider);
+  writeFileSync(path.join(provider, 'composer.json'), JSON.stringify({ name: 'polyspec/fixture-provider', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'FixtureProvider\\': 'src/' } } }));
   const yaml = path.join(root, 'yaml');
   mkdirSync(yaml);
   writeFileSync(path.join(yaml, 'composer.json'), JSON.stringify({ name: 'purrphp/yaml', version: '1.0.0', type: 'library', require: { php: '>=8.4' }, autoload: { 'psr-4': { 'Purr\\Yaml\\': 'src/' } } }));
@@ -563,12 +563,12 @@ test('a consumer vcs repository resolves through the sibling checkout that names
   mkdirSync(consumer);
   // The consumer names the repository without its .git suffix; the sibling's origin names it with one: both are the same repository.
   const url = 'https://github.com/min-0-max/yaml';
-  const manifest = { require: { php: '>=8.4', 'polyspec/orm': '0.0.18', 'purrphp/yaml': '^1.0' }, repositories: [{ type: 'vcs', url, 'no-api': true }], config: { platform: { php: '8.4.1' } } };
+  const manifest = { require: { php: '>=8.4', 'polyspec/fixture-provider': '0.0.18', 'purrphp/yaml': '^1.0' }, repositories: [{ type: 'vcs', url, 'no-api': true }], config: { platform: { php: '8.4.1' } } };
   const lock = JSON.stringify({ packages: [], 'packages-dev': [] });
-  const packages = [{ name: 'polyspec/orm', version: '0.0.18', folder: orm }];
+  const packages = [{ name: 'polyspec/fixture-provider', version: '0.0.18', folder: provider }];
   const siblings = new Map([['https://github.com/min-0-max/yaml.git', yaml]]);
   const written = composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock, folder: consumer, siblings });
-  assert.equal(written.get('polyspec/orm')?.version, '0.0.18');
+  assert.equal(written.get('polyspec/fixture-provider')?.version, '0.0.18');
   assert.throws(
     () => composerEntries(packages, composer, toolEnv, { php: '8.4.1' }, { manifest, lock, folder: consumer, siblings: new Map() }),
     /https:\/\/github\.com\/min-0-max\/yaml/,

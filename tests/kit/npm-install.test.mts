@@ -97,12 +97,12 @@ test('native npm links expose source edits and retain release files on repeated 
 });
 
 test('npm install runs npm ci of the tracked lock, then links each provided package to its checkout and changes no tracked file (K448)', (t) => {
-  const { root, project, manifest, lock, npm, log } = fixture(t, 'kit-npm-', { '@polyspec/ordered-json': '0.0.9', 'left-pad': '1.3.0' }, ['@polyspec/ordered-json', 'left-pad']);
-  const sibling = provider(path.join(root, 'ordered-json'), '@polyspec/ordered-json');
+  const { root, project, manifest, lock, npm, log } = fixture(t, 'kit-npm-', { '@polyspec/fixture-codec': '0.0.9', 'left-pad': '1.3.0' }, ['@polyspec/fixture-codec', 'left-pad']);
+  const sibling = provider(path.join(root, 'fixture-codec'), '@polyspec/fixture-codec');
   const lines: string[] = [];
   assert.equal(npmInstall({ directory: project, checkouts: [sibling], npm, print: text => lines.push(text), env: process.env }), 'linked', lines.join('\n'));
   assert.equal(readFileSync(log, 'utf8'), 'ci\nlink\nlink\n', 'npm owns both the locked install and the local link (K657-1)');
-  const link = path.join(project, 'node_modules/@polyspec/ordered-json');
+  const link = path.join(project, 'node_modules/@polyspec/fixture-codec');
   assert.equal(lstatSync(link).isSymbolicLink(), true, 'the provided package is one symlink, its installed copy removed (K591)');
   assert.equal(npmTarget(link), realpathSync(sibling));
   assert.equal(lstatSync(path.join(project, 'node_modules/left-pad')).isDirectory(), true, 'a package that no checkout provides stays as installed');
@@ -111,8 +111,8 @@ test('npm install runs npm ci of the tracked lock, then links each provided pack
 });
 
 test('npm install keeps the node_modules directory itself, so a mount point stays (K448)', (t) => {
-  const { root, project, npm } = fixture(t, 'kit-npm-mount-', { '@polyspec/ordered-json': '0.0.9' }, ['@polyspec/ordered-json']);
-  const sibling = provider(path.join(root, 'ordered-json'), '@polyspec/ordered-json');
+  const { root, project, npm } = fixture(t, 'kit-npm-mount-', { '@polyspec/fixture-codec': '0.0.9' }, ['@polyspec/fixture-codec']);
+  const sibling = provider(path.join(root, 'fixture-codec'), '@polyspec/fixture-codec');
   mkdirSync(path.join(project, 'node_modules'), { recursive: true });
   const kept = statSync(path.join(project, 'node_modules')).ino;
   npmInstall({ directory: project, checkouts: [sibling], npm, print: () => undefined, env: process.env });
@@ -120,18 +120,18 @@ test('npm install keeps the node_modules directory itself, so a mount point stay
 });
 
 test('npm install takes repository roots in CHECKOUTS, finds their package folders under packages/, and a root that shares its package name (K448)', (t) => {
-  const { root, project, npm } = fixture(t, 'kit-npm-roots-', { '@polyspec/template': '0.0.11', '@polyspec/hyper-server': '0.0.18', '@polyspec/ordered-json': '0.0.9' }, ['@polyspec/template', '@polyspec/hyper-server', '@polyspec/ordered-json']);
-  const template = provider(path.join(root, 'template/packages/ts'), '@polyspec/template');
-  const server = provider(path.join(root, 'hyper/packages/server/ts'), '@polyspec/hyper-server');
-  provider(path.join(root, 'ordered-json'), '@polyspec/ordered-json');
-  const js = provider(path.join(root, 'ordered-json/packages/js'), '@polyspec/ordered-json');
+  const { root, project, npm } = fixture(t, 'kit-npm-roots-', { '@polyspec/fixture-client': '0.0.11', '@polyspec/fixture-server': '0.0.18', '@polyspec/fixture-codec': '0.0.9' }, ['@polyspec/fixture-client', '@polyspec/fixture-server', '@polyspec/fixture-codec']);
+  const template = provider(path.join(root, 'client-fixture/packages/ts'), '@polyspec/fixture-client');
+  const server = provider(path.join(root, 'server-fixture/packages/server/ts'), '@polyspec/fixture-server');
+  provider(path.join(root, 'fixture-codec'), '@polyspec/fixture-codec');
+  const js = provider(path.join(root, 'fixture-codec/packages/js'), '@polyspec/fixture-codec');
   const phpOnly = path.join(root, 'json-schema');
   mkdirSync(phpOnly, { recursive: true });
   writeFileSync(path.join(phpOnly, 'composer.json'), '{"name":"opis/json-schema"}');
-  npmInstall({ directory: project, checkouts: [path.join(root, 'template'), path.join(root, 'hyper'), path.join(root, 'ordered-json'), phpOnly], npm, explicit: true, print: () => undefined, env: process.env });
-  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/template')), realpathSync(template));
-  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/hyper-server')), realpathSync(server), 'a package two folders down is found');
-  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/ordered-json')), realpathSync(js), 'the package folder, not the root that shares its name');
+  npmInstall({ directory: project, checkouts: [path.join(root, 'client-fixture'), path.join(root, 'server-fixture'), path.join(root, 'fixture-codec'), phpOnly], npm, explicit: true, print: () => undefined, env: process.env });
+  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/fixture-client')), realpathSync(template));
+  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/fixture-server')), realpathSync(server), 'a package two folders down is found');
+  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/fixture-codec')), realpathSync(js), 'the package folder, not the root that shares its name');
   assert.throws(() => npmInstall({ directory: project, checkouts: [path.join(root, 'absent')], npm, explicit: true, print: () => undefined, env: process.env }), /absent is no existing directory/);
 });
 
@@ -145,26 +145,26 @@ test('npm install with ADD links a checkout whose package the project does not d
 });
 
 test('make npm-install forwards CHECKOUTS to the tool, which installs the lock and links the package folder (K448)', (t) => {
-  const { root, project, npm, log } = fixture(t, 'kit-npm-make-', { '@polyspec/template': '0.0.11' }, ['@polyspec/template']);
-  const folder = provider(path.join(root, 'template/packages/ts'), '@polyspec/template');
+  const { root, project, npm, log } = fixture(t, 'kit-npm-make-', { '@polyspec/fixture-client': '0.0.11' }, ['@polyspec/fixture-client']);
+  const folder = provider(path.join(root, 'client-fixture/packages/ts'), '@polyspec/fixture-client');
   const kit = fileURLToPath(new URL('../..', import.meta.url));
   const made = spawnSync('make', ['--no-print-directory', '-C', kit, 'npm-install', `DIR=${project}`, `CHECKOUTS=${folder}`, `NPM=${npm}`, `NODE=${process.execPath}`], { encoding: 'utf8' });
   assert.equal(made.status, 0, made.stderr);
   assert.equal(readFileSync(log, 'utf8'), 'ci\nlink\nlink\n');
-  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/template')), realpathSync(folder));
-  assert.equal(existsSync(path.join(project, 'node_modules/@polyspec/template/index.js')), true);
+  assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/fixture-client')), realpathSync(folder));
+  assert.equal(existsSync(path.join(project, 'node_modules/@polyspec/fixture-client/index.js')), true);
 });
 
 // K483-1: a declared polyspec package with no checkout fails in every mode, naming the package, and no npm ci or npm install runs.
 test('npm install refuses a declared polyspec package with no checkout in every mode, naming it, and runs no npm (K483-1)', (t) => {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-k483-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const sibling = path.join(root, 'ordered-json');
+  const sibling = path.join(root, 'fixture-codec');
   const project = path.join(root, 'app');
   mkdirSync(sibling, { recursive: true });
   mkdirSync(project, { recursive: true });
-  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/ordered-json', version: '0.0.9' }));
-  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/ordered-json': 'https://example.invalid/ordered-json-0.0.9.tgz', '@polyspec/missing': 'https://example.invalid/missing-0.0.1.tgz' } }, null, 2) + '\n');
+  writeFileSync(path.join(sibling, 'package.json'), JSON.stringify({ name: '@polyspec/fixture-codec', version: '0.0.9' }));
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', version: '1.0.0', private: true, dependencies: { '@polyspec/fixture-codec': 'https://example.invalid/fixture-codec-0.0.9.tgz', '@polyspec/missing': 'https://example.invalid/missing-0.0.1.tgz' } }, null, 2) + '\n');
   // The stub npm records each subcommand it is run with; it runs no real npm.
   const log = path.join(root, 'npm.log');
   const stub = path.join(root, 'npm');

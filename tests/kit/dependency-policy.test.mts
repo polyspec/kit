@@ -231,7 +231,7 @@ test('a PHP library of S10 that requires an application framework in require fai
 // for a package reached only through another package fails the gate, and the root that names its URL passes.
 test('a remote tarball that a lock resolves for a package the root does not name fails, and a root that names its URL passes (K427)', (t) => {
   const root = fixture(t);
-  const url = 'https://github.com/polyspec/ordered-json/releases/download/v0.0.9/polyspec-ordered-json-0.0.9.tgz';
+  const url = 'https://github.com/polyspec/fixture-package/releases/download/v0.0.9/polyspec-fixture-package-0.0.9.tgz';
   const lockFile = path.join(root, 'package-lock.json');
   // Changes the packages of the lock of the fixture, which keeps the other fields of the lock.
   const editLock = (change: (packages: Record<string, NpmLockEntry>) => void) => {
@@ -240,12 +240,12 @@ test('a remote tarball that a lock resolves for a package the root does not name
     change(packages);
     writeFileSync(lockFile, `${JSON.stringify({ ...lock, packages }, null, 2)}\n`);
   };
-  // @polyspec/consumer is a registry package that requires @polyspec/ordered-json by its URL; the root package.json names neither.
+  // @polyspec/consumer is a registry package that requires @polyspec/fixture-package by its URL; the root package.json names neither.
   editLock((packages) => {
-    packages['node_modules/@polyspec/ordered-json'] = { version: '0.0.9', resolved: url };
-    packages['node_modules/@polyspec/consumer'] = { version: '1.0.0', resolved: 'https://registry.npmjs.org/@polyspec/consumer/-/consumer-1.0.0.tgz', dependencies: { '@polyspec/ordered-json': url } };
+    packages['node_modules/@polyspec/fixture-package'] = { version: '0.0.9', resolved: url };
+    packages['node_modules/@polyspec/consumer'] = { version: '1.0.0', resolved: 'https://registry.npmjs.org/@polyspec/consumer/-/consumer-1.0.0.tgz', dependencies: { '@polyspec/fixture-package': url } };
   });
-  const remote = (result: { stderr: string }) => findings(result).filter(line => line.includes('resolves @polyspec/ordered-json from'));
+  const remote = (result: { stderr: string }) => findings(result).filter(line => line.includes('resolves @polyspec/fixture-package from'));
   const reached = gate(root);
   assert.equal(remote(reached).length, 1, reached.stderr);
   assert.match(remote(reached)[0] ?? '', /which no direct dependency of this name declares and no matching root override authorizes\. Rule: each remote tarball that an npm lock resolves has a matching dependency name and URL/);
@@ -253,10 +253,10 @@ test('a remote tarball that a lock resolves for a package the root does not name
 
   // The root names the package by its URL, in dependencies of its package.json and of the lock root.
   const manifest = readNpmManifest(root, 'package.json');
-  manifest.dependencies = { '@polyspec/ordered-json': url };
+  manifest.dependencies = { '@polyspec/fixture-package': url };
   writeFileSync(path.join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   editLock((packages) => {
-    packages[''] = { ...packages[''], dependencies: { '@polyspec/ordered-json': url } };
+    packages[''] = { ...packages[''], dependencies: { '@polyspec/fixture-package': url } };
   });
   assert.deepEqual(remote(gate(root)), [], 'a remote tarball that the root names by its URL is no finding');
 });
@@ -264,16 +264,16 @@ test('a remote tarball that a lock resolves for a package the root does not name
 // K564: npm 12.2.0 applies a root override to a direct workspace edge; allow-remote=root accepts that edge because its source is a workspace.
 test('a root URL override is allowed only for the matching package with a direct workspace dependency (K564)', (t) => {
   const root = fixture(t);
-  const url = 'https://github.com/polyspec/ordered-json/releases/download/v0.0.9/polyspec-ordered-json-npm-0.0.9.tgz';
-  const otherUrl = 'https://example.invalid/other-ordered-json.tgz';
+  const url = 'https://github.com/polyspec/fixture-package/releases/download/v0.0.9/polyspec-fixture-package-npm-0.0.9.tgz';
+  const otherUrl = 'https://example.invalid/other-fixture-package.tgz';
   const manifestFile = path.join(root, 'package.json');
   const rootManifest = readNpmManifest(root, 'package.json');
-  rootManifest.overrides = { '@polyspec/ordered-json': url };
+  rootManifest.overrides = { '@polyspec/fixture-package': url };
   writeFileSync(manifestFile, `${JSON.stringify(rootManifest, null, 2)}\n`);
 
   const workspaceFile = path.join(root, 'packages/fixture-lib/package.json');
   const workspace = readNpmManifest(root, 'packages/fixture-lib/package.json');
-  workspace.dependencies = { ...workspace.dependencies, '@polyspec/ordered-json': '0.0.9' };
+  workspace.dependencies = { ...workspace.dependencies, '@polyspec/fixture-package': '0.0.9' };
   writeFileSync(workspaceFile, `${JSON.stringify(workspace, null, 2)}\n`);
 
   const lockFile = path.join(root, 'package-lock.json');
@@ -284,24 +284,24 @@ test('a root URL override is allowed only for the matching package with a direct
     writeFileSync(lockFile, `${JSON.stringify({ ...lock, packages }, null, 2)}\n`);
   };
   editLock((packages) => {
-    packages['node_modules/@polyspec/ordered-json'] = { version: '0.0.9', resolved: url };
-    packages['packages/fixture-lib'] = { ...packages['packages/fixture-lib'], dependencies: { ...packages['packages/fixture-lib']?.dependencies, '@polyspec/ordered-json': '0.0.9' } };
+    packages['node_modules/@polyspec/fixture-package'] = { version: '0.0.9', resolved: url };
+    packages['packages/fixture-lib'] = { ...packages['packages/fixture-lib'], dependencies: { ...packages['packages/fixture-lib']?.dependencies, '@polyspec/fixture-package': '0.0.9' } };
   });
 
-  const remote = (result: { stderr: string }) => findings(result).filter(line => line.includes('resolves @polyspec/ordered-json from'));
+  const remote = (result: { stderr: string }) => findings(result).filter(line => line.includes('resolves @polyspec/fixture-package from'));
   assert.deepEqual(remote(gate(root)), [], 'the exact root override matches a direct workspace dependency');
 
   workspace.dependencies = { semver: workspace.dependencies?.semver ?? '7.6.0' };
   writeFileSync(workspaceFile, `${JSON.stringify(workspace, null, 2)}\n`);
   assert.equal(remote(gate(root)).length, 1, 'a root override without a direct workspace dependency does not authorize the URL');
-  workspace.dependencies = { ...workspace.dependencies, '@polyspec/ordered-json': '0.0.9' };
+  workspace.dependencies = { ...workspace.dependencies, '@polyspec/fixture-package': '0.0.9' };
   writeFileSync(workspaceFile, `${JSON.stringify(workspace, null, 2)}\n`);
 
   rootManifest.overrides = { '@polyspec/other-package': url };
   writeFileSync(manifestFile, `${JSON.stringify(rootManifest, null, 2)}\n`);
   assert.equal(remote(gate(root)).length, 1, 'the same URL under a different override name does not authorize this package');
 
-  rootManifest.overrides = { '@polyspec/ordered-json': otherUrl };
+  rootManifest.overrides = { '@polyspec/fixture-package': otherUrl };
   writeFileSync(manifestFile, `${JSON.stringify(rootManifest, null, 2)}\n`);
   assert.equal(remote(gate(root)).length, 1, 'an override for this package with another URL does not authorize this tarball');
 });

@@ -38,6 +38,10 @@
       "kind": "record",
       "record": "docs/rebuild/changelog.md"
     },
+    "scripts/kit/cargo-source.mts": {
+      "kind": "ecosystem",
+      "tool": "cargo metadata --format-version 1 with native graph-selection options; verify resolved package manifest paths against the requested development sources"
+    },
     "scripts/kit/check-cargo-downloads.mts": {
       "kind": "ecosystem",
       "tool": "cargo fetch --locked --offline"
@@ -540,7 +544,7 @@
     },
     "scripts/kit/npm-install.mts": {
       "kind": "ecosystem",
-      "tool": "npm install of a project whose temporary package.json names each sibling package as a file: dependency (K448-2)"
+      "tool": "npm ci installs the locked dependencies and npm link connects declared sibling sources; npm owns installed links and metadata while --no-save and --package-lock=false preserve release records"
     },
     "scripts/kit/php-library-autoload.mts": {
       "kind": "ecosystem",
@@ -619,8 +623,8 @@
       "reason": "the rule of K497 that a row ID is unique across main and the branches, which no tool of git checks"
     },
     "scripts/kit/uv-install.mts": {
-      "kind": "policy",
-      "reason": "the uv sync that keeps the links of the polyspec packages (K592), which uv has no option for alone"
+      "kind": "ecosystem",
+      "tool": "uv sync --locked installs declared editable path/workspace sources from uv.lock; uv pip check and uv pip list verify the installed environment and editable source locations"
     },
     "scripts/kit/pack-manifest.mts": {
       "kind": "policy",

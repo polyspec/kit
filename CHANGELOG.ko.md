@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8a171d9469be88edcf615ed5ca3df793801c5b296696d7608d9d568e86a80e58 -->
+<!-- source-sha256: 9d4072a911d3d64108d3ffba3db3a4fcb37feac787e13fbe1b640ca73d445313 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Rebuild inventory에 native Cargo metadata source helper를 분류하고 현재 npm과 uv 설치 명령을 설명한다. Dependency, document, generated-file, link-state 및 npm test의 package·경로·URL fixture를 일반화하며 isolation과 원래 의미 assertion은 유지한다. Red: 89ee79f8에서 분류와 isolation 소유 case가 실패한다. Green: 선택한 소유 case 26개가 통과한다(K671-5).
 - 설치 package bootstrap 통합을 완료했습니다. Source link는 선택 사항이고 공유 파일은 package가 제공하는 일반 사본이며 release/gates는 package 우선 설치를 사용합니다. 소유 workflow, native source/packed hook, copy, npm, rule 검사가 통과했습니다. 유지한 tokenizer 수정으로 PHP extension 소유 검사 25개도 통과했습니다. Main CI와 release 공개는 대기 중입니다(K671).
 - Worktree link fixture는 자체 Composer vendor-directory 응답과 준비된 native Python source 선언을 포함한다. Missing make target 판별은 GNU make diagnostic의 두 quote 형식을 허용하고 missing prerequisite와 다른 make 실패는 계속 오류로 처리한다. Red: 76a52fa8에서 worktree case와 GNU make 4 K583 case 실패; Green: 선택한 link case 4개, 실제 GNU make 4 K583 unit, typecheck 및 변경 파일 type-aware lint 통과 (K671-7).
 - Native npm 연결은 package-lock 읽기를 끄지 않는다. Offline으로 설치된 registry range는 기존 native tarball resolution을 사용하고 registry를 다시 조회하지 않는다. --no-save는 release manifest와 lock을 유지한다. legacy-peer-deps나 기존 링크 생략은 추가하지 않는다. Native npm link는 호환되지 않는 linked peer를 허용할 수 있으며, 소유 fixture는 npm ls가 이를 탐지함을 기록하고 별도 resolver나 설치 gate는 추가하지 않는다. Red: 89ee79f8에서 locked-range case가 ENOTCACHED로 실패했다. Green: locked-range·peer 관찰·기존 release-to-source case와 변경 파일 type-aware lint가 통과했다(K671-6).
