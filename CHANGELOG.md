@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Explicit `FINAL_RUN=1` accepts a clean committed tree with waiting checklist items, refuses active items or dirty trees, and preserves the normal CI report path (K658).
 - Parity requirement tracing defers an id only while the exact item in its declared English checklist is `[!]` and its task names that id; active gaps remain R13 findings, and invalid, active or duplicate references are rejected (K656).
 - Composer source links reconcile stale runtime requirements through a run-specific path-repository manifest and lock. Composer updates only linked packages, keeps external package records and tracked release records unchanged, retains platform checks, and leaves matching metadata untouched (K653).
 

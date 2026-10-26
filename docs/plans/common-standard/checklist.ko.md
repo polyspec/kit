@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 5cca8e5ecf2217659b46f592cb7d320943845a0c567f56a9d69db261d27e65d9 -->
+<!-- source-sha256: 3235acd59a65e5811132225520bd1f1ab75b3e8062ccf4f3a6cc3449d38d13ff -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -565,4 +565,4 @@
 | K657-2 | Composer는 선언된 path repository를 설치하고 manifest, lock, 설치 기록, autoload를 관리하며 별도 metadata 보정을 제거한다 | scripts/kit/composer-install.mts, scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K657\|K653" tests/kit/link.test.mts` | [ ] |
 | K657-3 | uv는 로컬 dependency를 editable로 설치하고 kit는 Python package directory를 교체하거나 설치 metadata를 직접 작성하지 않는다 | scripts/kit/uv-install.mts, scripts/kit/link.mts, tests/kit/uv-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/uv-install.test.mts` | [ ] |
 | K656 | parity 요구 추적은 보류 항목에 실제 명시된 요구만 보류한다 | config/parity.json deferredRequirements declaration, checklist-state validation and R13 reporting with mutation tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=defer tests/kit/parity-requirements.test.mts`; `make typecheck`; `make docs-check` | [o] |
-| K658 | 명시적 FINAL_RUN은 대기 중인 체크리스트 항목이 있어도 깨끗한 커밋 트리에서 허용하되 진행 중인 작업은 거부합니다 | scripts/kit/ci-only.mts, scripts/kit/ci-targets.mts, scripts/kit/claude-hook.mts, scripts/kit/kit.mk, tests/kit/ci-only.test.mts, docs/operations/tool-inventory.md and its Korean twin | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K658 tests/kit/ci-only.test.mts` | [ ] |
+| K658 | 명시적 FINAL_RUN은 대기 중인 체크리스트 항목이 있어도 깨끗한 커밋 트리에서 허용하되 진행 중인 작업은 거부합니다 | scripts/kit/ci-only.mts, scripts/kit/ci-targets.mts, scripts/kit/claude-hook.mts, scripts/kit/kit.mk, tests/kit/ci-only.test.mts, docs/operations/tool-inventory.md and its Korean twin | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K658 tests/kit/ci-only.test.mts` | [o] |
