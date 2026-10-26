@@ -1,12 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: aaac3117f091a09ef32cda4e4b273ebf6afcd6bf2ced5739827a5baa9525112e -->
+<!-- source-sha256: f9f74d9101188d6c525deee5af5a45d34a94d82586484a0c3237ec586de3f2a5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- 사전 빌드나 테스트 도구의 부모가 종료하면 실행기는 출력 배출을 기다리면서 기존 정리 도구로 남은 프로세스 그룹을 중단한다. 파이프를 잡는 자식이 완료를 막지 않고 종료 상태·마지막 출력·테스트 사례 수를 보존한다. Red: 종료 hook 전에는 고아 파이프 사례 두 개가 시간 초과했다. Green: 집중 사례 두 개·빌드 실패 사례·시간 초과와 중단 및 부모 종료 정리 검사 세 개, 변경 파일 타입 인식 lint·typecheck가 통과한다 (K682-1, K682-2).
+- 사전 빌드 부모가 종료하면 출력 배출을 기다리면서 기존 프로세스 그룹 정리를 실행해 파이프를 잡는 자식이 완료를 막지 못하게 한다. 집중 빌드 고아 파이프·빌드 실패 사례와 변경 파일 타입 인식 lint·typecheck가 통과한다 (K682-1).
+- 테스트 도구의 정상 종료도 사례·간격 제한시간을 기다리지 않고 같은 정리를 실행한다. 집중 고아 파이프 사례는 활성 그룹 프로세스를 남기지 않으면서 종료 0·마지막 출력·통과 사례 수를 보존한다. 시간 초과·중단·부모 종료 정리 검사도 통과한다 (K682-2).
 - Candidate 상태는 완료된 native 소유권 수정과 CI 실패 owner 네 건 수정을 아직 대기 중인 전체 candidate CI·공개와 구분합니다. Legacy worktree dependency 투영과 기존 land timeout은 K690/K685의 명시적인 잔여 작업이며 native 설치·deadline 제거 완료로 보고하지 않습니다(K679).
 - Source helper와 release 설치의 native 검증 경계를 명시했습니다. Release bootstrap에는 sibling checkout이 필요 없고 source용 npm-install은 선택한 개발 provider가 필요하며 readonly link 검사를 모든 peer/version 검증으로 간주하지 않습니다. Resolver나 새 runtime 강제는 추가하지 않았습니다(K683).
 - 실행 결과 입력 지문은 기존 Git 파일 목록을 사용해 루트 선택자 `.`을 추적 파일과 새 비무시 파일 전체로 해석한다. 무시된 출력은 제외하고 존재하지 않는 입력 경로는 계속 실패한다. --inputs 없이 --results를 지정한 선택 CLI 실행은 실제 통과 보고서를 작성한다. Red: 1a31679b에서 루트·보고서 회귀 두 개가 실패했다. Green: 소유 지문·보고서 사례 세 개와 변경 파일 타입 인식 lint가 통과한다 (K687).
