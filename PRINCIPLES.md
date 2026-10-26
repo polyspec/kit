@@ -136,10 +136,11 @@ repository.
   `test-<runtime>` and `lint-<runtime>` for each runtime of `packages/`, all defined by kit. A repository joins a task by a
   prerequisite of its own, such as `build: kit-build`, never by another target that starts with a task's name (K246).
   Enforced by: `make kit-check`
-- P30 During 0.0.x development a repository consumes the packages of the others only through links: the installed folder of a
-  polyspec package is a symbolic link to the folder of its provider, never a copy, and the link counts as the installed released
-  version; versions are checked at install only (K305-1). While a project is linked, every Composer rule of
-  the dependency policy judges its link manifest and link lock, and the tracked lock waits for the check of the batch release (K326, K326-2).
+- P30 During 0.0.x development, applications connect declared local provider sources through native package-manager
+  mechanisms. The package manager owns links, installed records, dependency resolution and generated metadata; a source
+  is not disguised as an installed released version. Applications own compatible native development declarations and
+  locks. Release declarations and locks remain records of released dependencies; kit does not synthesize link manifests,
+  version aliases or lock metadata, and no tracked lock waits for a coordinated batch.
   Enforced by: `make link-state-check`
 - P31 No gate is bypassed: a test, script or Makefile never sets the CI identity (`GITHUB_ACTIONS`, `CI`) outside a workflow, never
   names a gate of kit-gates in `make -o`, `--old-file` or `--assume-old`, and never uses `--no-verify` (K308).
@@ -156,10 +157,10 @@ repository.
 - P34 Repeated code is fixed by restructuring it into one module, never by excluding it; a tool source is classified; generated
   output is never tracked in Git.
   Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`
-- P35 A finding that looks blocked by a release is a defect of the link tooling and is reported as a kit defect with its
-  file and line. No tracked lock waits for a release: a tracked lock records the release of each polyspec package, and the link
-  replaces the installed folder with the sibling checkout (K448, K507).
-  Enforced by: none, whether a finding is a link defect or a release question is a judgement of the report.
+- P35 Local source development does not wait for a provider release. Missing native source connections are reported as
+  kit defects with their file and line; incompatible dependency requirements are corrected in the application's native
+  declarations. Release installs use the exact released graph of their locks, independently of development source state.
+  Enforced by: none, whether a finding is a link defect or an application declaration issue requires review.
 - P36 No deferral: a defect that is found is registered as a row and worked now, never left for later.
   Enforced by: none, whether a found defect is worked now is a judgement of the one who found it.
 - P37 A result is reported only after its check has run, with the output of that run. A claim that a check passes, made

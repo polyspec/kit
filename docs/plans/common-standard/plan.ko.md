@@ -1,5 +1,5 @@
 <!-- doc-id: plan-common-standard -->
-<!-- source-sha256: 7d80e7ee0b655d3dd5599a8c1cbf936fb478cd8f9b029f1595d71cbb0a0c874e -->
+<!-- source-sha256: 3c074cceccf0e106903e80da64ab10c90bb7f884f5650ac2ebba06f93a4b4a73 -->
 # 공통 표준
 
 [English](plan.md)
@@ -26,6 +26,56 @@ K670-1은 PHP tokenizer 설정을 유지하고 K670-3은 release chore에서 구
 - K676은 source 선택 검사로 입증하지 않은 Cargo target directory 상속 문제를 기록합니다. K678은 반복되는 package test 준비 비용을 검토합니다. Native 격리 설치와 package 소비 검증은 계속 필요하며 준비 비용만으로 해당 검사가 부당해지는 것은 아닙니다.
 
 K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 증거의 완료이며 K655와 K677은 release 공개까지 미완료로 유지합니다. 배포 상태를 갱신하기 전에 Git, CI 실행, release를 확인합니다. Checklist는 task만, CHANGELOG.md는 실제 변경과 검사 증거를 담고 이 절은 관계와 남은 작업을 설명합니다.
+
+## Checklist 정합성 검토 (K679, 2026-10-26)
+
+이 감사는 K675 이전 세 plan checklist에 있던 미완료·폐기 항목 31개 전체를 다룹니다. Code와 이력 검토이며 새 검사 통과 증거가 아닙니다. 기존 task 문장이 남아 있다는 이유만으로 재개하지 않습니다. 아래 현재 판정이 우선이며 과거 ID와 task 문구는 보존하고 대체 요구는 별도 등록 ID로 관리합니다.
+
+등록 이력도 구분합니다. K655, K657, K664는 구현 전 plan commit으로 등록되었습니다. K671은 최초 sync 구현과 같은 commit에서 처음 등장했으므로 선등록 절차를 지키지 않았습니다. 현재 ID가 있다는 사실을 사전 계획의 증거로 사용하지 않습니다. K675는 최초 인계를, K679는 더 넓은 기존 항목 정합성 검토를 별도로 기록합니다.
+
+| 기존 항목 | 현재 판정 | 확인한 code 또는 증거 |
+|---|---|---|
+| K395 | 과거 제외 유지. Native 재연결은 유지하며 provider 재작성으로 재개하지 않는다. | `npm-install.mts npmInstall/npmLink; K673/K674` |
+| K399-2 | 기존 Go workspace 진단으로 대체됨. 중복 구현하지 않는다. | `link-state-check.mts goFindings; link-state-check.test.mts` |
+| K410-1 | 현재 배포되는 owner 선언으로 대체됨. | `package.json kit.owners; owner-check.mts ownerDeclaration; kit-sync.test.mts K410-1` |
+| K437 | 후속 검사가 정체 case와 parent 종료를 다루지만 원래 process 원인 증거는 미확인이다. | `run-tests.test.mts K437/K437-1; test-exit-deadline.mts` |
+| K438 | 통합 선행 조건을 폐기하고 K655/K677의 독립 candidate 승인을 따른다. | `P35; local-links Decision; release procedure` |
+| K443 | K631 진단 정책으로 대체됨. 새 land 차단기로 복구하지 않는다. | `land.mts mainRun; land.test.mts K631-1` |
+| K444 | K452-1 load 사전 검사로 대체됨. 문자 그대로 extension_loaded 검증을 했다고 주장하지 않는다. | `run-tests.mts probeExtensions; run-tests.test.mts K452-1` |
+| K445 | 과거 범위 제외 유지. 이번 작업이 generated file filtering을 입증하지는 않는다. | `lint-python.mts lintSteps still selects tracked Python sources` |
+| K456 | 부분 구현됨. 남은 명령·결과·경과시간 출력은 K685가 추적한다. | `check-documents.mts; land.mts runGate; test-hooks.mts` |
+| K461 | 과거 build deadline 요구를 대체한다. 남은 전체 build timeout은 K682가 추적한다. | `AGENTS operation rule; run-tests.mts BUILD_MS/buildWatch; test-build-first.test.mts` |
+| K466 | 감사 제거라는 과거 사유는 낡았다. 실제 nested copy 귀속 결함은 K680이 추적한다. | `dependency-review.mts npm advisory collection ignores audit nodes` |
+| K467 | 옛 recipe를 복구하지 않는다. Online review의 offline 환경 처리는 K684에서 검증한다. | `dependency-review.mts query/advisories; offline gate reads committed review` |
+| K470 | 대체됨. Stale sprintf-js 예외가 제거되었으므로 복구하지 않는다. | `K660; dependency-policy.json advisoryExceptions; current review` |
+| K471 | 대체됨. Native npm이 override를 소유하며 copy별 advisory 범위는 K680이다. | `dependency policy advisoryExceptions and native npm overrides` |
+| K472 | 제외 유지. Kit이 최신 version이나 sibling version 일치를 강제하지 않는다. | `K660 newer-only test; dependency-review CLI result policy` |
+| K475 | Lock 합성으로 재개하지 않는다. 현재 남은 legacy review/update metadata 보정은 K681이 추적한다. | `dependency-review.mts providerEntries/composerEntries/runUpdateSteps` |
+| K479-1 | 대체됨. Kit이 만드는 composer.link manifest 모델은 폐기되었다. | `composer-install.mts selected COMPOSER; native Composer K664-2` |
+| K480-1 | K683에서 native dependency 검증 범위를 재정의한다. 언어 공통 resolver를 만들지 않는다. | `composer-install.mts native update; uv-install.mts pip check; npm peer limits` |
+| K483 | 의도를 분리한다. NO_DEV는 구현되어 있으며 checkout 없는 release 설치 거부는 복구하지 않는다. | `composer-install.mts native fallback; link.test.mts NO_DEV; K683` |
+| K573 | Cache 제외는 유지한다. Main 비교가 사라졌다는 옛 사유는 낡았다. | `land.mts mainRun; K603/K631/K580` |
+| K589 | 제외 유지. 합성 link metadata 복사로 앱의 stale lock을 가리지 않는다. | `worktree-setup.mts native vendor/autoload; selected manifests remain app-owned` |
+| K597 | 제외 유지. K561을 유지하며 bindingless catch 진단을 제거하지 않는다. | `catch-check.mts bindinglessCatches; catch-check.test.mts K561` |
+| K618 | 과거 오진 제외 유지. 각 PHP generator가 선언하는 parser를 선택한다. | `install-php-arginfo.mts; PHP tests K637/K652/K670-1` |
+| K649 | K654/K658의 guarded FINAL_RUN=1 API로 대체됨. API 존재가 금지된 로컬 suite를 허가하지는 않는다. | `ci-only.mts; ci-only.test.mts K654/K658; repository check rules` |
+| K655 | 미완료 유지. 실패한 CI는 release 승인이 아니며 K686이 실패 수집과 수정을 추적한다. | `CI 40313948359; release-verify; public consumer proof` |
+| K76-1 | 제외 유지. 필수 PR이나 CODEOWNERS 승인 gate를 도입하지 않는다. | `P10/P38; S8; remote protection settings were not inspected` |
+| K111 | Dependency-cruiser 수단은 제외 유지. Native import graph 기반 owner 선택은 이미 있다. | `owner-check.mts importGraph; owner-check.test.mts K191` |
+| K119 | 원래 오진은 제외 유지. 정상 cleanup은 존재하며 예외 경로의 cleanup은 미확인이다. | `release-sandbox.mts cleanup after tar; no finally proof in this audit` |
+| K55 | 현재 package exports와 K71-2/K671로 대체됨. Kit.json과 과거 API path를 복구하지 않는다. | `release.json; package.test.mts; installed-hook-real.test.mts` |
+| K56 | 제외 유지. Native uv가 Python environment를 소유하며 별도 installer prefix/home API를 만들지 않는다. | `python-venv.mts makeVenv` |
+| K57 | 제외 유지. Native local wheel proof가 있으며 consumer 전용 archive mapping API를 추가하지 않는다. | `release-consumer.mts installWheelFiles; wheel-dependencies.mts lockRequirements` |
+
+### 남은 구현과 실행 순서
+
+우선 K686으로 현재 CI를 끝까지 수집하고 모든 실패 owner를 확인해 release candidate를 수정합니다. K655는 해당 candidate의 CI 통과와 consumer proof를 거친 공개까지 미완료입니다. 후속 version 작업은 K677이며 공개 전 실패한 candidate는 현재 version에서 수정할 수 있습니다.
+
+K681은 실제 남은 소유권 결함입니다. Native 설치 경로를 전환했지만 dependency-review에는 providerEntries, scratch Composer manifest, version override가 남아 있습니다. 모든 Composer metadata 합성 경로를 제거했다고 주장하지 않습니다. K680도 실제 advisory 귀속 결함을 추적합니다. Native npm audit를 사용하지만 취약한 nested copy에 top-level version을 붙일 수 있습니다. 이것이 해당 advisory를 gate가 허용한다는 증거는 아닙니다.
+
+K682는 남은 전체 build timeout을 다룹니다. K683은 npm source 전용 명령의 checkout 누락 거부와 peer 검증 한계를 포함해 native source/release 검증 범위를 정합니다. K684는 offline 환경 review 위험부터 재현하며 아직 false-green이 입증된 것은 아닙니다. K685는 부분적인 operation 진행 출력의 나머지를 다룹니다. 이 항목들은 등록된 요구이며 완료된 수정이나 폐기된 메커니즘을 복원할 근거가 아닙니다.
+
+P30과 P35를 native source 설치, 앱 소유 제약, 독립 release lock과 정합되게 맞춥니다. Source를 설치된 release version으로 위장하지 않으며 kit은 개발 metadata를 합성하지 않습니다. 현재 이 경계를 위반하는 code는 K681이 추적합니다. 승인된 후속 규칙은 과거 완료·폐기 ID의 뜻을 조용히 바꾸는 대신 오래된 지시를 명시적으로 대체합니다.
 
 ## 원인
 

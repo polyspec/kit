@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Reconciled all 31 pre-existing non-complete checklist items against current code and decisions. Historical IDs remain intact, obsolete coupled publication is retired, native ownership rules replace synthetic-link wording, and actual gaps receive K680–K686. The audit records code/test inspection separately from executed verification and identifies K671 as implementation-time registration (K679).
 - Release handoff distinguishes native source-link ownership, superseded sibling bootstrap, implementation evidence and public release acceptance. The release checklist stays open on failed CI; changes outside the published 0.0.55 tag require a subsequent version and its own verification. Local-link documentation retains npm lock reading. Cargo target inheritance and package-test setup costs remain explicit follow-ups (K675).
 - npm idempotence checks Node's actual resolution paths, so a workspace package reuses an already-correct source link from an ancestor `node_modules`. Missing or shadowed source paths still go through native npm linking (K674).
 - Repeating local npm linking is a no-op when every selected installed provider resolves to its source; a wrong or missing source still runs native npm linking. The offline source-graph case with a release URL override and the wrong-target repair case pass (K673).

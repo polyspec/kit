@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ba1458f15bc14184f57e19eef65fd455df6256aec50b5029c317501afd29c28d -->
+<!-- source-sha256: ff42335d6a8cf7751a8478da18ec37e32a015ca37f3869611d7aedb4bdd07a83 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 기존 미완료·폐기 checklist 31개 전체를 현재 code와 결정에 대조했습니다. 과거 ID를 보존하고 통합 공개 선행 조건을 폐기했으며 합성 link 문구를 native 소유권 규칙으로 대체하고 실제 결함은 K680–K686에 등록했습니다. Code와 test 읽기 검토는 실행 검증과 구분하며 K671의 구현 시점 등록도 명시합니다(K679).
 - Release 인계는 native source link 소유권, 대체된 sibling bootstrap, 구현 증거와 공개 release 승인을 구분합니다. CI 실패 시 release checklist는 미완료로 유지하고 공개된 0.0.55 tag 밖의 변경은 후속 version과 별도 검증을 거칩니다. Local link 문서는 npm lock 읽기를 유지합니다. Cargo target 상속과 package test 준비 비용은 명시적인 후속 작업으로 남깁니다(K675).
 - npm idempotence는 Node가 실제로 검색하는 경로를 확인하므로 workspace package는 상위 `node_modules`의 올바른 source link를 재사용한다. source path가 없거나 다른 link에 가려지면 native npm linking을 계속 실행한다(K674).
 - 선택한 설치 provider가 모두 source로 resolve되면 반복 local npm link는 아무 변경도 하지 않으며, 잘못되거나 누락된 source는 native npm link로 복구한다. Release URL override가 있는 offline source graph와 잘못된 target 복구 case가 통과한다(K673).

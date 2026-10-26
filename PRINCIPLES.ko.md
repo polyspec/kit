@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 066936c5415d8e2c8d27516c68e9285e4fe72c192e29841f444e56cf0aa2461e -->
+<!-- source-sha256: 3d3d2a44c9ba71a9c2d29898f38d6d4218c3c6b656284f817d2dbd9ed70a675d -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -129,9 +129,10 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   `build-<runtime>`, `test-<runtime>`, `lint-<runtime>`이며, 모두 kit이 정의한다. 저장소는 `build: kit-build`처럼 자기
   prerequisite로 작업에 합류하고, 작업 이름으로 시작하는 다른 target으로 합류하지 않는다 (K246).
   Enforced by: `make kit-check`
-- P30 0.0.x 개발 중 저장소는 다른 저장소의 package를 link로만 쓴다. 설치된 polyspec package 폴더는 제공자 폴더를 가리키는
-  심볼릭 링크이며 사본이 아니고, link는 설치된 릴리스 버전으로 간주한다. 버전은 설치할 때만 검사한다 (K305-1). project가 link된 동안 dependency policy의 모든 Composer
-  규칙은 그 project의 link manifest와 link lock을 판단하고, 추적되는 lock은 일괄 release의 검사를 기다린다 (K326, K326-2).
+- P30 0.0.x 개발 중 앱은 선언된 로컬 provider source를 native package manager의 방식으로 연결한다.
+  Package manager가 link, 설치 record, dependency 해석, 생성 metadata를 소유하며 source를 설치된 release version으로 위장하지 않는다.
+  앱이 호환되는 native 개발 선언과 lock을 소유한다. Release 선언과 lock은 배포된 dependency의 기록으로 유지하고,
+  kit은 link manifest, version alias, lock metadata를 합성하지 않으며 추적 lock을 통합 배치까지 기다리게 하지 않는다.
   Enforced by: `make link-state-check`
 - P31 gate는 우회하지 않는다. test, script, Makefile은 workflow 밖에서 CI identity(`GITHUB_ACTIONS`, `CI`)를 설정하지 않고,
   `make -o`, `--old-file`, `--assume-old`에 kit-gates의 gate를 적지 않으며, `--no-verify`를 쓰지 않는다 (K308).
@@ -146,9 +147,10 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   Enforced by: `make parity-declarations-check`
 - P34 반복된 code는 제외가 아니라 하나의 module로 재구성해서 고친다. tool source는 분류하고, 생성물은 Git에 추적하지 않는다.
   Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`
-- P35 release 때문에 막힌 것처럼 보이는 finding은 link tooling의 결함이며 파일과 줄을 적어 kit 결함으로 보고한다. 추적되는 lock은
-  어떤 release도 기다리지 않는다: 추적되는 lock은 각 polyspec 패키지의 release를 기록하고, link는 설치된 폴더를 sibling checkout으로 바꾼다 (K448, K507).
-  Enforced by: none, finding이 link 결함인지 release 문제인지는 보고의 판단이다.
+- P35 로컬 source 개발은 provider release를 기다리지 않는다. Native source 연결 누락은 파일과 행을 밝혀
+  kit 결함으로 보고하며 호환되지 않는 dependency requirement는 앱의 native 선언에서 수정한다.
+  Release 설치는 개발 source 상태와 독립적으로 lock의 정확한 배포 graph를 사용한다.
+  Enforced by: none, 연결 결함인지 앱 선언 문제인지 검토가 필요하다.
 - P36 미루지 않는다: 발견한 결함은 행으로 등록하고 지금 처리하며, 나중으로 남기지 않는다.
   Enforced by: none, 발견한 결함을 지금 처리하는지는 발견한 사람의 판단이다.
 - P37 결과는 그 check가 실행된 뒤, 그 실행의 출력과 함께만 보고한다. 출력 없이 check가 통과한다고 주장하는 것은 결과가
