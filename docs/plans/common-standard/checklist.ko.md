@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 0be1f4567aa72ba5d7d97e4547ff2d912f28f2af755151129f2e2fdc31b2b988 -->
+<!-- source-sha256: 1295f438de8e3774358a1d8e79d6423978364e98a5ba74574dbe46357338b1dc -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -621,3 +621,4 @@
 | K686-1 | Native npm provider 선택 fixture에 source graph 탐색 전 package manifest 입력을 완성한다 | tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="includes all declared provider sections" tests/kit/npm-install.test.mts` | [o] |
 | K686-2 | 오래된 hook 소스 직접 경로와 형제 bootstrap 기대를 네이티브 npm bin·설치 패키지 workflow 계약으로 바꾼다 | tests/kit/ci-only.test.mts, linked-sources.test.mts, kit-bootstrap.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K686-2 tests/kit/ci-only.test.mts tests/kit/linked-sources.test.mts tests/kit/kit-bootstrap.test.mts` | [o] |
 | K688 | 플랫폼 값이 테스트 흐름을 제어하지 않으면 진단 메타데이터로 처리 | scripts/kit/divergence-check.mts, tests/kit/divergence-check.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K688 tests/kit/divergence-check.test.mts` | [ ] |
+| K689 | 체크아웃 경로를 추적하지 않고 선언된 로컬 Python provider를 uv editable로 설치한다 | scripts/kit/uv-install.mts, scripts/kit/link.mts, tests/kit/uv-install.test.mts, tests/kit/link.test.mts, tests/source/uv-editable-real.test.mts, docs/plans/common-standard/checklist.md(.ko.md) | `node scripts/kit/run-tests.mts node -- tests/kit/uv-install.test.mts tests/kit/link.test.mts`; native uv editable source test; `make docs-check` | [ ] |
