@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: ca727208161145927eac88e3ec579b154e606e819d9a87c51696b9965d7e17f9 -->
+<!-- source-sha256: df9cf0a4c8bcdc15f395e3feec0cd083c6f55b815ceabbf6462a42561a2ab9d9 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -609,3 +609,4 @@
 | K675 | Source link와 package bootstrap 인계, 대체된 결정, 검증 범위와 별도 release 상태를 문서화한다 | docs/plans/common-standard/plan.md, docs/operations/local-links.md, docs/operations/release.md와 한국어 짝 | `make docs-check` | [ ] |
 | K676 | 상속된 Cargo target directory의 checkout별 격리를 검증하고 보장한다. Source 선택 검증은 target 격리의 증거가 아니다 | scripts/kit/link.mts, scripts/kit/kit.mk, Cargo source 소유 검사 | `node scripts/kit/run-tests.mts node -- tests/kit/link.test.mts` | [ ] |
 | K677 | 0.0.55 공개 뒤 후속 npm 멱등성과 Node resolution 수정을 포함해 별도 CI와 consumer proof를 통과한 0.0.56을 release한다 | release manifest, native lock, dependency review, changelog, release workflow | `make release-verify TAG=v0.0.56` | [ ] |
+| K678 | 실제 locked install과 package 소비 검증을 유지하며 반복 설치·build 준비를 줄이고 오래된 일괄 link 금지 설명을 제거한다 | tests/source/checkout.mts, tests/source/checkout.test.mts, tests/source/package.test.mts, tests/source/consumer-layout.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/checkout.test.mts` | [ ] |
