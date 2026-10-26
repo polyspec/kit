@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: c861e39e9acd3169075a4029bb3c4e9837a2e6d6c63567775ea4932aad6bf91f -->
+<!-- source-sha256: 4347544c2a10771f1008878badefadc9259a0c56f5dec0661822a3bf8cc918c2 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -621,6 +621,7 @@
 | K686-1 | Native npm provider 선택 fixture에 source graph 탐색 전 package manifest 입력을 완성한다 | tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="includes all declared provider sections" tests/kit/npm-install.test.mts` | [o] |
 | K686-2 | 오래된 hook 소스 직접 경로와 형제 bootstrap 기대를 네이티브 npm bin·설치 패키지 workflow 계약으로 바꾼다 | tests/kit/ci-only.test.mts, linked-sources.test.mts, kit-bootstrap.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K686-2 tests/kit/ci-only.test.mts tests/kit/linked-sources.test.mts tests/kit/kit-bootstrap.test.mts` | [o] |
 | K688 | 플랫폼 값이 테스트 흐름을 제어하지 않으면 진단 메타데이터로 처리 | scripts/kit/divergence-check.mts, tests/kit/divergence-check.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K688 tests/kit/divergence-check.test.mts` | [o] |
+| K688-1 | JavaScript machine metadata 예외를 결과가 무시되는 진단 호출로 제한하고 조건·대입·반환 값 사용을 거부합니다 | scripts/kit/divergence-check.mts, tests/kit/divergence-check.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K688 tests/kit/divergence-check.test.mts` | [~] |
 | K689 | 체크아웃 경로를 추적하지 않고 선언된 로컬 Python provider를 uv editable로 설치한다 | scripts/kit/uv-install.mts, scripts/kit/pyproject-dependencies.mts, scripts/kit/link.mts, tests/kit/uv-install.test.mts, tests/kit/link.test.mts, tests/source/uv-editable-real.test.mts, docs/operations/local-links.md(.ko.md), docs/plans/common-standard/checklist.md(.ko.md) | `node scripts/kit/run-tests.mts node -- tests/kit/uv-install.test.mts` (3 passed); `node scripts/kit/run-tests.mts node -- --test-name-pattern=K657-3 tests/kit/link.test.mts` (1 passed); `node scripts/kit/run-tests.mts node -- tests/source/uv-editable-real.test.mts` (3 passed, offline release URL/hash); `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/link.mts scripts/kit/pyproject-dependencies.mts scripts/kit/uv-install.mts tests/kit/link.test.mts tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; `make docs-check` | [o] |
 | K687 | run-tests --results의 기본 root 입력을 지원해 성공한 선택 검사가 report를 쓰게 하고 존재하지 않는 입력은 계속 거부한다 | scripts/kit/tracked-files.mts, tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="inputsDigest\|K687" tests/kit/run-tests.test.mts` | [o] |
 | K690 | 기존 수동 worktree dependency 투영을 디스크 사용까지 고려한 native package manager 준비 계획으로 대체하고 manager를 몰래 바꾸거나 main 설치를 변경하지 않는다 | worktree-setup.mts, worktree 절차, native manager 기능과 저장 공간 결정 | `node scripts/kit/run-tests.mts node -- tests/kit/worktree-setup.test.mts` | [ ] |
