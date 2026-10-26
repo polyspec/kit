@@ -1,24 +1,26 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dcf409b33e285f16eda334116b4981c8d8412fd6fa03df99e75931c6adbb6af6 -->
+<!-- source-sha256: 98dafff411228cfaa9c19ccc1ca21e84d599c48efaf6b91492843c0db5879985 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.55
+
+- 최종 candidate 자체를 새 native offline worktree 경로로 준비했다. 공유 cache에서 npm과 두 Composer project를 설치하고 link-state-check가 통과했으며 두 working tree의 tracked 변경은 없었다. 이 준비는 product rebuild나 전체 test suite를 실행하지 않았고 candidate 전체 CI와 공개는 별도 승인 단계로 남는다 (K655).
+
 - Worktree 준비는 main project의 실제 cache와 선언된 root URL 정책을 사용하는 native offline npm ci에 dependency tree 생성을 맡기고 기존 native npm helper로 source를 다시 연결한다. Composer는 공유 native 환경/cache와 선택된 manifest/vendor 설정을 사용하여 package, record, bin, autoload를 직접 만들며 legacy projection은 main link를 따라가지 않고 제거하고 고정 archive 입력은 설치 전에 filesystem copy/clone으로 준비한다. 도구 재사용과 uv 동작은 유지하며 저장공간 비용을 명시한다. Red: d3d16d3a에서 native 준비 unit 2개가 실패한다. Green: 고유 소유 unit 18개와 작은 실제 npm/Composer worktree case가 통과하며 main byte/lock 불변, cache-only 반복 동작, type-aware lint, typecheck, docs-check를 검증했다(K690).
 - Package test 준비는 격리된 여섯 native install/build 소비자와 기존 process별 primed download cache를 유지한다. Dependency root test는 실제 소유 계약을 명시하고 source export 주석은 checkout import와 packed dist import를 구분한다. 검증: helper와 세 caller 파일을 검토했으며 동작과 단언은 바뀌지 않아 문구 수정에 비싼 package test를 재실행하지 않는다 (K678). make docs-check도 통과하여 검토를 완료했다.
 - Python source 연결은 기존 native 환경을 전제로 release lock을 재조정하지 않고 선택 editable을 연결한다. 명시적인 uv installer는 공통 native source backend 전에 locked sync를 유지하므로 새 로컬 dependency를 개발 lock 수정이나 합성 없이 연결할 수 있다. Red: 47436bb6에서 source 연결이 먼저 오래된 release graph를 해석해 K689-3이 실패한다. Green에서는 선택 unit과 기존 환경 실제 검사가 통과하고 locked installer는 오래된 lock을 계속 거부하며 변경 파일 type-aware lint도 통과한다 (K689-3).
 - Python source 설치는 알려진 로컬 runtime dependency 이름을 따라가 명시적 root requirement extra와 함께 선택 editable을 하나의 native uv transaction으로 전달한다. uv가 일괄 --no-deps 없이 호환되는 외부 dependency를 해석하며 native dependency, source 경로와 선택 provider 완전성 검증은 유지한다. Red: 7f1c091d에서 개발 beta가 요구하는 미발행 로컬 child와 cache의 setuptools가 설치되지 않아 K689-2가 실패한다. Green에서는 선택 unit과 실제 native 검사가 release URL/hash lock 불변 및 child source 수정의 즉시 반영을 포함해 통과하고 변경 파일 type-aware lint도 통과한다 (K689-2).
-
-## 0.0.55
 
 - Release candidate는 native Python editable overlay와 platform 진단 처리를 포함하며 선택 provider 누락과 제어 흐름 회귀를 보완합니다. Lint cleanup 실패에도 기존 진단과 후속 검사를 유지합니다. 후속 수정은 각각 선행 등록한 child와 소유 검증을 기록합니다(K655).
 
 - 수정된 0.0.55 candidate는 native 소유권·advisory·target 격리·process 정리 수정을 포함합니다. 새 online native review가 정확한 다섯 lock을 검토해 advisory가 없음을 확인했고 새 tool version 안내는 정보로 유지합니다. 소유 검사는 위에 기록하며 candidate CI 통과와 consumer proof를 거친 공개는 대기 중입니다(K655).
 - 사전 빌드 부모가 종료하면 출력 배출을 기다리면서 기존 프로세스 그룹 정리를 실행해 파이프를 잡는 자식이 완료를 막지 못하게 한다. 집중 빌드 고아 파이프·빌드 실패 사례와 변경 파일 타입 인식 lint·typecheck가 통과한다 (K682-1).
 - 테스트 도구의 정상 종료도 사례·간격 제한시간을 기다리지 않고 같은 정리를 실행한다. 집중 고아 파이프 사례는 활성 그룹 프로세스를 남기지 않으면서 종료 0·마지막 출력·통과 사례 수를 보존한다. 시간 초과·중단·부모 종료 정리 검사도 통과한다 (K682-2).
-- Candidate 상태는 완료된 native 소유권 수정과 CI 실패 owner 네 건 수정을 아직 대기 중인 전체 candidate CI·공개와 구분합니다. Legacy worktree dependency 투영과 기존 land timeout은 K690/K685의 명시적인 잔여 작업이며 native 설치·deadline 제거 완료로 보고하지 않습니다(K679).
+- Candidate 상태는 완료된 native 소유권 수정 및 CI 실패 owner 네 건의 수정과 아직 필요한 candidate 전체 CI·공개를 구분한다. 조정 당시 legacy worktree dependency projection과 기존 land timeout은 완료로 주장하지 않고 K690/K685에 배정했으며 이후 구현과 소유 검사 증거는 별도로 기록한다 (K679).
 - Source helper와 release 설치의 native 검증 경계를 명시했습니다. Release bootstrap에는 sibling checkout이 필요 없고 source용 npm-install은 선택한 개발 provider가 필요하며 readonly link 검사를 모든 peer/version 검증으로 간주하지 않습니다. Resolver나 새 runtime 강제는 추가하지 않았습니다(K683).
 - 실행 결과 입력 지문은 기존 Git 파일 목록을 사용해 루트 선택자 `.`을 추적 파일과 새 비무시 파일 전체로 해석한다. 무시된 출력은 제외하고 존재하지 않는 입력 경로는 계속 실패한다. --inputs 없이 --results를 지정한 선택 CLI 실행은 실제 통과 보고서를 작성한다. Red: 1a31679b에서 루트·보고서 회귀 두 개가 실패했다. Green: 소유 지문·보고서 사례 세 개와 변경 파일 타입 인식 lint가 통과한다 (K687).
 - Cargo source 명령, Make recipe와 standalone test runner는 상속된 CARGO_TARGET_DIR를 제외하고 명시적 native target 인자와 나머지 환경은 유지한다. Native metadata로 crate 컴파일이나 Cargo.lock 변경 없이 main과 Git worktree가 서로 다른 기본 target을 선택함을 확인한다. Red: d83b6c61에서 target 격리 소유 case 4개가 실패한다. Green: 해당 4개와 source/holder/locked-graph 회귀 5개가 통과하며 변경 파일의 type-aware lint와 typecheck도 통과한다(K676).
