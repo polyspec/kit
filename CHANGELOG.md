@@ -7,6 +7,7 @@
 
 ## 0.0.55
 
+- Release preparation packs the current 0.0.55 source with native npm and regenerates the consumer lock from that archive. The packed dependency declarations match its native consumer lock entry; the current dependency review covers five exact lock contents with no advisory. dependency-policy-check and release-versions pass. Publishing and main CI acceptance remain pending (K655).
 - Native tool fixtures and CI input declarations cover supported Go, PHP, Git, dependency-review, module-path and workspace-hook contracts. Their owning checks pass; complete CI verification remains the release gate (K661).
 
 - npmSourceFolders selects known providers declared by dependencies, devDependencies, optionalDependencies or peerDependencies even before an install exists, and retains installed transitive providers. It only selects inputs for native npmLink; it writes no install records or synthetic locks. The selector unit and a real unpublished-source install pass; type-aware lint and typecheck pass (K664-5).

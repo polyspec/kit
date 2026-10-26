@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 35797fdc1efdd1c4cc448fa2328dca92b65dbcba922fb94e2e3e565ee30a9ec6 -->
+<!-- source-sha256: 45263e5ee678401bf7c6f75124e17026cd41f55a264aa19da10e0aa678df0ef1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,6 +8,7 @@
 
 ## 0.0.55
 
+- 릴리스 준비는 현재 0.0.55 소스를 네이티브 npm으로 패킹하고 그 아카이브에서 소비자 잠금을 다시 생성한다. 패키지 의존성 선언은 네이티브 소비자 잠금 항목과 같고 현재 의존성 검토는 정확한 잠금 내용 다섯 개를 취약점 없이 검토한다. dependency-policy-check와 release-versions가 통과한다. 게시와 main CI 승인은 아직 대기 중이다 (K655).
 - Native tool fixture와 CI 입력 선언은 지원하는 Go, PHP, Git, dependency review, module 경로와 workspace hook 계약을 다룬다. 각 소유 검사는 통과했고 전체 CI 검증은 release gate로 남는다 (K661).
 
 - npmSourceFolders는 설치가 없어도 dependencies·devDependencies·optionalDependencies·peerDependencies에 선언된 제공자를 선택하고 이미 설치된 전이 제공자도 보존한다. 네이티브 npmLink의 입력만 선택하며 설치 기록이나 합성 잠금을 쓰지 않는다. 선택기 단위 검사와 실제 미출시 소스 설치가 통과하고 타입 인식 lint·typecheck도 통과한다 (K664-5).
