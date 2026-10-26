@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: c71b77670cec6b35aa33b0452cf90b6b0730c2cb690eef0e3328797695edf1cb -->
+<!-- source-sha256: 9cc1dba2ea9cce71cfecb7e83976a03ec0622d9af839e9e064f9ebfd6cec4c64 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -553,3 +553,4 @@
 | K647 | Archived-To는 보류된 체크리스트 항목이 있고 삭제 파일이 도달 가능한 보관 커밋에 바이트 단위로 보존될 때만 시험 삭제를 허용합니다 | scripts/kit/check-commits.mts and the K647 cases in tests/kit/plan.test.mts | `node --test --test-name-pattern=K647 tests/kit/plan.test.mts` | [o] |
 | K648 | commit-subject-id는 Subject 안의 id가 마지막 id와 다를 때만 거부합니다. 이 규칙은 Subject가 한 행을 가리키게 하려는 것이고, 같은 id를 두 번 써도 그 행 하나를 가리키므로, id를 반복한 push된 commit(hyper c20a207)은 다시 쓸 필요도, 허용 sha 목록도 필요 없습니다. | scripts/kit/check-commits.mts and the K648 case in tests/kit/commits.test.mts. | `node --test --test-name-pattern=K648 tests/kit/commits.test.mts` | [o] |
 | K649 | suite, 그 target 묶음, 바뀐 경로의 owner, 선택 없는 test 실행은 호출자가 KIT_FULL_RUN=final로 최종 전체 실행임을 밝히면 CI 밖에서도 실행됩니다. 사용자는 각 저장소의 최종 전체 실행을 maintainer의 Mac에서 로컬로 한 번 하도록 정했는데, ciRefusal은 GitHub Actions 밖의 그런 실행을 모두 거부합니다. CI 밖의 다른 실행은 여전히 거부됩니다. | scripts/kit/ci-only.mts and the case in tests/kit/ci-only.test.mts. | `node --test --test-name-pattern=K649 tests/kit/ci-only.test.mts` | [-] 원인: 사용자 2026-10-26: "하지 말 것". 전체 suite는 CI에서만 실행하고(K240), 최종 전체 실행은 제대로 된 CI 계획이 생길 때까지 미루므로 로컬 허용을 두지 않는다 |
+| K652 | PHP arginfo installation discovers gen_stub.php in the PHP API build directory declared by php-config --extension-dir, as well as the prefix build directory | scripts/kit/install-php-arginfo.mts, tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K652 tests/kit/php-ext.test.mts` | [o] |

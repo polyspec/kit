@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6ef0647971970c31494f49f06fcf1a7fc83235e733eed4874cadeeb05e2b8e07 -->
+<!-- source-sha256: c72d60aca92a7b84286921755b2acd182978e8de99c906f4903db3af46f7d2ae -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- PHP arginfo 설치는 prefix build directory에 generator가 없으면 PHP API extension directory 아래에서 gen_stub.php를 찾는다. Red: K652 API-directory fixture는 prefix만 찾는 코드에서 실패한다. Green: 수정 후 통과한다(K652).
 
 - kit에 commit하거나 land해도 dist를 빌드하지 않습니다. consumer는 kit의 소스를 실행하고(K613) dist는 release 때 npm의 prepack이 빌드하므로, linked-build.mts의 kit 빌드(K551, K609의 kit 부분)를 지웠습니다(K646).
 - `make commits-check`는 commit Subject 안의 id가 마지막 id와 다를 때만 거부합니다. 같은 id를 두 번 쓴 것은 여전히 한 행을 가리키므로, id를 반복한 push된 commit을 다시 쓸 필요가 없습니다(K648).
