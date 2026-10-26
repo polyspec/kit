@@ -439,10 +439,12 @@ function gateBranch(root: string, folder: string, branch: string, print: (text: 
     print(`${gate} in ${folder}`);
     const args = gate === 'commits-check' ? [`RANGE=main..${branch}`] : [];
     const candidate = runGate(folder, gate, args);
-    // K631: a gate that fails on main too is the red of the row that fixes it, not of this branch, so it passes with a note; a branch
-    // owes only not to break a gate that main passes. No line of the output is compared.
+    // K631: a gate red on main does not block a branch when it is red there too; a branch owes only not to break a green gate.
+    // K631-1: report both failures truthfully and keep the candidate's diagnostics visible; no output line is compared.
     if (candidate.result.status !== 0 && gate !== 'commits-check' && mainRun(root, gate, args, print, sleep).result.status !== 0) {
-      print(`${gate} fails on main too; its own row fixes it, and ${branch} passes it`);
+      print(`${gate} fails on candidate and main; continuing under K631`);
+      print(`${gate} candidate stdout:\n${candidate.result.stdout}`);
+      print(`${gate} candidate stderr:\n${candidate.result.stderr}`);
       continue;
     }
     if (candidate.result.status !== 0) {

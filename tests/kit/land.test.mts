@@ -133,6 +133,8 @@ test('land reports candidate diagnostics when both runs fail and refuses only a 
   assert.ok(printed.includes('findings-x fails on candidate and main; continuing under K631'), printed.join('\n'));
   assert.ok(printed.includes('findings-x candidate stdout:\nstdout: src/b.txt\n'), printed.join('\n'));
   assert.ok(printed.some(line => line.startsWith('findings-x candidate stderr:\n') && line.includes('stderr: src/b.txt')), printed.join('\n'));
+  assert.equal(printed.filter(line => line.startsWith('findings-x candidate stdout:\n')).length, 1);
+  assert.equal(printed.filter(line => line.startsWith('findings-x candidate stderr:\n')).length, 1);
   assert.ok(!printed.some(line => line.includes('feat-a passes it')), printed.join('\n'));
 
   // A branch that adds the finding src/c.txt while main is red: no line of the output is compared, so it lands too (K631).
