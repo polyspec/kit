@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fc59dd04db946979ce729c56325bfa1b891de2f73789b694db350070402bbf77 -->
+<!-- source-sha256: 1a86cd2a250acd147a1b19a85a5943ebf48d4bfd89e4aa8c8b6ca47fd8a8a63c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.55
+
+- Native link fixture는 기존 환경의 source-only 계약에 따라 locked sync 없이 선택 provider를 한 editable transaction으로 전달하고 명시적 extra와 정확한 source 경로를 검증하며 --no-deps를 사용하지 않는다. uv fixture는 모든 editable argv를 읽고 dependency를 해석하지 않고 extra와 경로만 분리한다. 공유 소유 파일 실행에서 worktree Python 환경 누락과 상대 link 표현을 강제하는 낡은 기대를 확인해 환경을 준비하고 npm 심볼릭 link, 정확한 provider, read-only 진단 성공과 선언 불변을 검증하도록 맞췄다. 로컬 Red: 0c100506의 K657-3은 이전 stub가 [extra]를 directory 일부로 취급해 실패한다. Green: K657-3이 통과했으며 소유 파일 1회는 72개 통과와 2개 실패를 수집했고 두 실패 case는 fixture 수정 후 선택 재검증에서 통과한다. 변경 파일 type-aware lint와 docs-check가 통과하며 이 로컬 증거로 미수집 CI 실패 원인을 단정하지 않는다 (K686-4).
 
 - Go 워크트리 실제 검사는 로컬 kit 의존성을 선언한 소비자를 네이티브 오프라인 npm 설치로 준비하고 두 setup 호출에 고정 npm 명령을 전달한다. 수동 설치 패키지 링크를 제거하면서 기존 Go 워크스페이스, 미릴리스 모듈, 반복 연결 및 main 격리 단언을 모두 유지한다. K690에서 이 fixture 전환을 놓쳤으며 소유 실제 검사는 수정 전 실패하고 수정 후 통과한다 (K690-1).
 

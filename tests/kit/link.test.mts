@@ -4,7 +4,7 @@
 // Python, go or cargo runs. make is the make of the machine, on Makefiles of the fixture.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
@@ -209,18 +209,22 @@ for (const match of project.matchAll(/path = "([^"]+)".*editable = true/g)) {
   writeFileSync(path.join(record, 'direct_url.json'), JSON.stringify({ url: pathToFileURL(source).href, dir_info: { editable: true } }));
 }
 if (args[0] === 'pip' && args[1] === 'install') {
-  const source = args[args.indexOf('--editable') + 1];
-  if (!source) process.exit(93);
-  const manifest = readFileSync(path.join(source, 'pyproject.toml'), 'utf8');
-  const name = /^name = "([^"]+)"/m.exec(manifest)?.[1].replaceAll('-', '_');
-  if (!name) process.exit(94);
-  const distribution = installed.find(item => item.name.replaceAll('-', '_') === name);
-  if (distribution) distribution.editable_project_location = source;
-  const record = path.join(site, name + '-0.0.1.dist-info');
-  const released = path.join(site, name);
-  if (existsSync(released)) rmSync(released, { recursive: true, force: true });
-  mkdirSync(record, { recursive: true });
-  writeFileSync(path.join(record, 'direct_url.json'), JSON.stringify({ url: pathToFileURL(source).href, dir_info: { editable: true } }));
+  for (const [index, argument] of args.entries()) {
+    if (argument !== '--editable') continue;
+    const request = args[index + 1];
+    if (!request) process.exit(93);
+    const source = request.replace(/\\[[^\\]]*\\]$/, '');
+    const manifest = readFileSync(path.join(source, 'pyproject.toml'), 'utf8');
+    const name = /^name = "([^"]+)"/m.exec(manifest)?.[1].replaceAll('-', '_');
+    if (!name) process.exit(94);
+    const distribution = installed.find(item => item.name.replaceAll('-', '_') === name);
+    if (distribution) distribution.editable_project_location = source;
+    const record = path.join(site, name + '-0.0.1.dist-info');
+    const released = path.join(site, name);
+    if (existsSync(released)) rmSync(released, { recursive: true, force: true });
+    mkdirSync(record, { recursive: true });
+    writeFileSync(path.join(record, 'direct_url.json'), JSON.stringify({ url: pathToFileURL(source).href, dir_info: { editable: true } }));
+  }
 }
 writeFileSync(listFile, JSON.stringify(installed));
 ` });
@@ -485,8 +489,10 @@ test('a worktree links a package of its own repository to its own folder, never 
     'var/contracts/vendor/polyspec/y/composer.json': '{"name":"polyspec/y"}',
     'go.mod.json': readFileSync(path.join(consumer, 'go.mod.json'), 'utf8'),
     'composer-vendor-dir': readFileSync(path.join(consumer, 'composer-vendor-dir'), 'utf8'),
-    // Native source declarations are development state prepared by workspace(), outside its committed template.
+    // Native source declarations and the existing environment are development state outside the committed template.
     'python/pyproject.toml': readFileSync(path.join(consumer, 'python/pyproject.toml'), 'utf8'),
+    'python/.venv/pyvenv.cfg': readFileSync(path.join(consumer, 'python/.venv/pyvenv.cfg'), 'utf8'),
+    'python/.venv/bin/python': readFileSync(path.join(consumer, 'python/.venv/bin/python'), 'utf8'),
   });
   const { ok, text } = linkLines([tree], env);
   assert.equal(ok, true, text);
@@ -986,8 +992,11 @@ test('make -n composer-install NO_DEV=1 passes --no-dev to the composer-install 
 
 // K326-3: link writes the target of a link relative to the link's folder, as the rules of kit name (never absolute). A link that an
 // earlier run wrote absolute, and that still resolves to its provider, is re-made relative by the next link run.
-test('a stale absolute npm link that resolves to its provider is re-made relative by link (K326-3)', (t) => {
+test('native npm retains a symbolic source link to its exact provider regardless of path representation (K326-3)', (t) => {
   const { kit, consumer, env } = workspace(t);
+  const declarations = () => ['package.json', 'package-lock.json'].map(file => readFileSync(path.join(consumer, file), 'utf8'));
+  const before = declarations();
+  const providerManifest = readFileSync(path.join(kit, 'package.json'), 'utf8');
   const first = linkLines([consumer], env);
   assert.equal(first.ok, true, first.text);
   const installed = path.join(consumer, 'node_modules/@polyspec/kit');
@@ -996,8 +1005,12 @@ test('a stale absolute npm link that resolves to its provider is re-made relativ
   symlinkSync(target, installed);
   const second = linkLines([consumer], env);
   assert.equal(second.ok, true, second.text);
-  assert.equal(readlinkSync(installed), path.relative(path.dirname(installed), target), 'the target is relative to the link folder');
-  assert.equal(realpathSync(installed), realpathSync(target), 'the link still resolves to the provider');
+  assert.equal(lstatSync(installed).isSymbolicLink(), true, 'the native source connection remains a link, never a copied package');
+  assert.equal(realpathSync(installed), realpathSync(target), 'the link still resolves to the exact provider');
+  const checked = linkLines([consumer], env, true);
+  assert.equal(checked.ok, true, checked.text);
+  assert.deepEqual(declarations(), before, 'source linking and read-only diagnostics preserve the release manifest and lock');
+  assert.equal(readFileSync(path.join(kit, 'package.json'), 'utf8'), providerManifest);
 });
 
 // K501: composer-install takes the checkouts that provide its polyspec packages as arguments after DIR, as npm-install does (K448-9).
@@ -1189,8 +1202,10 @@ test('K657-3: Python links use native editable installation and check refuses le
   put(consumer, { 'python/.venv/lib/python3.14/site-packages/polyspec_z/__init__.py': 'VALUE = 0\n' });
   const installed = linkLines([consumer], env);
   assert.equal(installed.ok, true, installed.text);
-  assert.equal(log().split('\n').filter(line => /^uv sync --locked .*--no-install-package/.test(line)).length, 1, log());
-  assert.equal(log().split('\n').filter(line => line.startsWith('uv pip install --offline --python ') && line.includes('--no-deps --reinstall-package ')).length, 1);
+  assert.equal(log().split('\n').filter(line => line.startsWith('uv sync ')).length, 0, 'source-only linking never reconciles the release lock');
+  const installs = log().split('\n').filter(line => line.startsWith('uv pip install '));
+  assert.deepEqual(installs, [`uv pip install --offline --python ${path.join(consumer, 'python/.venv/bin/python')} --reinstall-package polyspec-z --editable ${path.join(provider, 'packages/python')}[extra] --reinstall-package polyspec-w --editable ${path.join(provider, 'packages/w')}`], 'all selected providers and explicit extras share one native editable transaction');
+  assert.doesNotMatch(installs[0] ?? '', /(?:^| )--no-deps(?: |$)/);
   assert.match(log(), /uv pip check --python/);
   assert.match(log(), /uv pip list --python .*--format json/);
   assert.doesNotMatch(log(), /uv pip list --editable/);
@@ -1198,6 +1213,8 @@ test('K657-3: Python links use native editable installation and check refuses le
   const record = path.join(site, 'polyspec_z-0.0.1.dist-info/direct_url.json');
   const metadata: unknown = JSON.parse(readFileSync(record, 'utf8'));
   assert.deepEqual(metadata, { url: pathToFileURL(path.join(provider, 'packages/python')).href, dir_info: { editable: true } });
+  const dependencyMetadata: unknown = JSON.parse(readFileSync(path.join(site, 'polyspec_w-0.0.1.dist-info/direct_url.json'), 'utf8'));
+  assert.deepEqual(dependencyMetadata, { url: pathToFileURL(path.join(provider, 'packages/w')).href, dir_info: { editable: true } });
   const uvLog = () => log().split('\n').filter(line => line.startsWith('uv ')).join('\n');
   const before = uvLog();
   assert.equal(linkLines([consumer], env, true).ok, true);
