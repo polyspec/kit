@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: cab428edd185cc75c4366eff879cab397a1561497ae7c689995d7787e62d13ef -->
+<!-- source-sha256: b06c214e433088e6fa345a52e03182ddd7004f69e71520fe259a3c5ad5ac670b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -568,6 +568,6 @@
 | K658 | 명시적 FINAL_RUN은 대기 중인 체크리스트 항목이 있어도 깨끗한 커밋 트리에서 허용하되 진행 중인 작업은 거부합니다 | scripts/kit/ci-only.mts, scripts/kit/ci-targets.mts, scripts/kit/claude-hook.mts, scripts/kit/kit.mk, tests/kit/ci-only.test.mts, docs/operations/tool-inventory.md and its Korean twin | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K658 tests/kit/ci-only.test.mts` | [o] |
 | K657-4 | native Python 도구가 worktree 환경과 editable 설치를 만들고 kit는 Python 설치 metadata를 재작성하지 않고 tool cache를 공유한다 | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=python tests/kit/worktree-setup.test.mts` | [ ] |
 | K659 | fresh-checkout smoke는 전체 kit suite를 재귀 실행하지 않고 설치와 package 소비를 검증한다 | tests/source/checkout.mts, tests/source/fresh-checkout.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/fresh-checkout.test.mts` | [ ] |
-| K660 | release dependency 검사는 최신 release 강제 없이 version 선택과 별도로 알려진 취약점을 거부한다 | scripts/kit/check-dependency-policy.mts, scripts/kit/dependency-review.mts, tests/kit/dependency-advisory.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-advisory.test.mts` | [ ] |
+| K660 | release dependency 검사는 최신 release 강제 없이 version 선택과 별도로 알려진 취약점을 거부한다 | scripts/kit/check-dependency-policy.mts, scripts/kit/dependency-review.mts, tests/kit/dependency-advisory.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-advisory.test.mts` | [o] |
 | K661 | CI fixture와 tool 입력은 지원 platform에서 native tool 계약과 선언된 capability를 따른다 | scripts/kit, tests/kit, tests/source, config/release.json | `make docs-check` | [ ] |
 | K662 | 개별 test watchdog은 실행 중인 test case에 적용하며 case 시작 전의 긴 설치와 setup 작업에 적용하지 않는다 | scripts/kit/test-hooks.mts, test-gap.mts, test-exit-deadline.mts, node-reporter.mts and their owning unit tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K662 tests/kit/run-tests.test.mts tests/kit/test-exit-deadline.test.mts` | [o] |

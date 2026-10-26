@@ -3,12 +3,12 @@
 // asks the registries for the latest stable release of every registry dependency (scripts/kit/dependency-state.mts
 // defines them) that its publisher has not deprecated, and for the advisories of every lock, and reports each newer
 // stable release without an exception, each stale exception and each advisory with its fix, one line each, for the developer
-// to read; it never fails over them, since kit enforces no version (S4, K448).
+// to read. Newer versions are informational; unresolved advisories, stale advisory exceptions and failed queries fail the review.
 //
 //   node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update] [--targets <file>]
 //
 // --record writes what it reviewed to config/dependency-review.json: the time, the sha256 and the advisories of every
-// lock, and the locked and latest stable version of every registry dependency, for the developer; no gate reads it (K448).
+// lock, and the locked and latest stable version of every registry dependency. The offline gate reads only the reviewed locks and advisories.
 // --update first raises every newer dependency without an exception to its latest stable release, keeping the range
 // operator of its manifest, and updates the packages with an advisory; `npm dedupe` then installs one version of each
 // npm package that one version satisfies, since an install for one workspace keeps the release of the root; then it
@@ -560,6 +560,7 @@ export function review(root: string, targets?: Targets) {
   // An accepted advisory is printed as a note with its reason; an exception that the review of its lock does not find is stale.
   const accepted = advisoryExceptions(policy);
   const used = new Set<string>();
+  const staleAdvisories: string[] = [];
   for (const lock of state.locks) {
     // advisories answers every lock of the state.
     const answer = present(audits.get(lock), 'audits.get(lock)');
@@ -583,7 +584,10 @@ export function review(root: string, targets?: Targets) {
     }
   }
   for (const [key, exception] of accepted) {
-    if (!used.has(key)) lines.push(`${exception.lock} ${exception.package}: the advisory exception ${exception.advisory} of ${POLICY} is stale, the review found no such advisory. Fix: remove the exception from ${POLICY}`);
+    if (!used.has(key)) {
+      staleAdvisories.push(key);
+      lines.push(`${exception.lock} ${exception.package}: the advisory exception ${exception.advisory} of ${POLICY} is stale, the review found no such advisory. Fix: remove the exception from ${POLICY}`);
+    }
   }
   const record = {
     schema: 1,
@@ -597,7 +601,7 @@ export function review(root: string, targets?: Targets) {
   };
   // advisories answers every lock of the state.
   const complete = state.locks.every(lock => !present(audits.get(lock), 'audits.get(lock)').error) && [...latest.values()].every(answer => !answer.error);
-  return { lines, notes, newer, advisories: found, record, complete, failed };
+  return { lines, notes, newer, advisories: found, staleAdvisories, record, complete, failed };
 }
 
 // The fix of a newer release: the ruff of mise.toml is set by hand, and make toolchain-lock pins the digests of its archives;
@@ -1005,9 +1009,8 @@ function main(): void {
     writeJson(path.join(root, RECORD), result.record);
     say(`wrote ${RECORD}: ${result.record.dependencies.length} registry dependencies and ${result.record.locks.length} locks reviewed at ${result.record.reviewed}`);
   }
-  // K448: a newer release and an advisory are reported, never a failure: kit enforces no version (S4), and each package manager and its
-  // lock decide.
-  process.exitCode = 0;
+  // Package managers select versions. Security findings and incomplete reviews remain failures.
+  process.exitCode = !result.complete || result.advisories.length > 0 || result.staleAdvisories.length > 0 ? 1 : 0;
 }
 
 if (isMain(import.meta.url)) {

@@ -8,7 +8,8 @@
 //   node scripts/kit/check-dependency-policy.mts [--root <checkout>]
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { POLICY, lockFix, readState } from './dependency-state.mts';
+import { POLICY, RECORD, UPDATE, acceptedText, advisoryExceptions, advisoryKey, completeAdvisoryException, lockEcosystem, lockFix, readState, advisoryRelease } from './dependency-state.mts';
+import { fileDigest } from './bootstrap/digest.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { ConfigError, readConfigFindings } from './schema-validate.mts';
@@ -18,6 +19,9 @@ import { checkedFiles } from './tracked-files.mts';
 import { libraryFolders } from './php-extension.mts';
 
 export const RULES = {
+  record: 'every audited lock has a review record of its current contents',
+  advisory: 'a lock had no known advisory at its review (npm: moderate, high or critical; Composer: every advisory and abandoned package), unless advisoryExceptions of the policy accepts it with its reason and removal condition',
+  staleAdvisory: 'an advisory exception names an advisory that the review of its lock found',
   policy: `${POLICY} names its Composer platforms and Python manifests and declares each exception for a registry dependency with a reason, a removal condition and verification commands`,
   platform: 'each entry of composerPlatforms names a manifest, and a root manifest declares each repository that a polyspec package it requires declares, since Composer reads repositories only from the root',
   composerPackage: 'each published Composer manifest of packages/ is valid, as composer validate reads it without a lock and without a network',
@@ -112,6 +116,15 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
     return findings;
   }
   const state = readState(root, policy);
+  const accepted = advisoryExceptions(policy);
+  const seen = new Set<string>();
+  for (const exception of policy.advisoryExceptions ?? []) {
+    const key = advisoryKey(String(exception.lock), String(exception.package), String(exception.advisory));
+    if (!completeAdvisoryException(exception)) add('policy', POLICY, `the advisory exception ${String(exception.advisory)} of ${String(exception.lock)} ${String(exception.package)} lacks a lock, package, advisory, reason or removal condition`, `complete the exception in ${POLICY}`);
+    if (seen.has(key)) add('policy', key, 'the advisory exception is declared twice', `remove the duplicate from ${POLICY}`);
+    seen.add(key);
+  }
+
 
   for (const platform of policy.composerPlatforms) {
     const manifestPath = platform.manifest;
@@ -213,7 +226,64 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
       }
     }
   }
+  if (!existsSync(path.join(root, RECORD))) {
+    add('record', RECORD, 'the review record does not exist', REVIEW);
+    return findings;
+  }
+  const { value: record, errors: recordErrors } = readConfigFindings<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
+  if (recordErrors) {
+    add('record', RECORD, `the record breaks dependency-review.schema.json: ${recordErrors.join('; ')}`, REVIEW);
+    return findings;
+  }
+
+  // The Python lock `lock` of the state: a lock of the record whose ecosystem is pypi is one of the pythonLocks of the policy.
+  const pythonLock = (lock: string) => {
+    const found = state.pythonLocks.find(item => item.lock === lock);
+    if (found === undefined) throw new Error(`${lock}: the lock is a pypi lock of ${RECORD} and no entry of pythonLocks in ${POLICY}`);
+    return found;
+  };
+  const recordedLocks = new Map(record.locks.map(entry => [entry.lock, entry]));
+  if (recordedLocks.size !== record.locks.length) add('record', RECORD, 'the review record names a lock more than once', REVIEW);
+  for (const lock of state.locks) {
+    const entry = recordedLocks.get(lock);
+    if (!entry) {
+      add('record', lock, 'the lock has no entry in the review record', REVIEW);
+      continue;
+    }
+    const actual = fileDigest(path.join(root, lock));
+    if (entry.sha256 !== actual) add('record', lock, `the lock changed after its review: its sha256 is ${actual}, the review recorded ${entry.sha256}`, REVIEW);
+    for (const advisory of entry.advisories ?? []) {
+      if (accepted.has(advisoryKey(lock, advisory.package, advisory.id))) continue;
+      const fix = lockEcosystem(lock) === 'pypi'
+        ? lockFix(lock, pythonLock(lock).createdBy, advisory.package)
+        : `${UPDATE}, which updates the affected package and records the review`;
+      add('advisory', `${lock} ${advisory.package} ${advisoryRelease(advisory)}`, `the review record found advisory ${advisory.id} (${advisory.severity}) ${advisory.title}${advisory.url ? ` ${advisory.url}` : ''}`, fix);
+    }
+  }
+  for (const lock of recordedLocks.keys()) if (!state.locks.includes(lock)) add('record', lock, 'the review record names a lock that the checkout does not review', REVIEW);
+  // An advisory exception names an advisory that the review recorded for its lock; otherwise it is stale.
+  for (const exception of accepted.values()) {
+    const advisories = recordedLocks.get(exception.lock)?.advisories ?? [];
+    if (!advisories.some(advisory => advisory.package === exception.package && advisory.id === exception.advisory)) {
+      add('staleAdvisory', `${exception.lock} ${exception.package}`, `the review record found no advisory ${exception.advisory}, and ${POLICY} holds an exception for it`, `remove the exception from ${POLICY}`);
+    }
+  }
+
   return findings;
+}
+
+/** The accepted advisories of the validated record, with their reasons and removal conditions. */
+export function acceptedAdvisories(root: string): string[] {
+  if (!existsSync(path.join(root, RECORD))) return [];
+  // A policy or a record that breaks its schema is a finding of check, which names its errors; it accepts no advisory.
+  const { value: policy } = readConfigFindings<DependencyPolicy>(root, POLICY, 'dependency-policy.schema.json');
+  const { value: record } = readConfigFindings<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
+  if (!policy || !record) return [];
+  const accepted = advisoryExceptions(policy);
+  return (record.locks ?? []).flatMap(entry => (entry.advisories ?? []).flatMap((advisory) => {
+    const exception = accepted.get(advisoryKey(entry.lock, advisory.package, advisory.id));
+    return exception ? [`[dependency-policy] ${entry.lock} ${advisory.package} ${advisoryRelease(advisory)}: advisory ${advisory.id} (${advisory.severity}) ${advisory.title} ${acceptedText(exception)}`] : [];
+  }));
 }
 
 /** The line of a finding. */
@@ -246,12 +316,15 @@ function main(): void {
   });
   // K448: no lock of this repository is compared with another repository's; each lock is the record of its own install.
   const findings = scope(check(root));
+  const accepted = acceptedAdvisories(root);
+  for (const note of accepted) process.stdout.write(`${note}\n`);
   if (findings.length) {
     for (const finding of findings) console.error(findingLine(finding));
     console.error(`[dependency-policy] ${findings.length} finding${findings.length === 1 ? '' : 's'}; the check reads only the files of the checkout and queries no registry`);
     process.exit(1);
   }
-  // K448: no version, pin, review or advisory is judged; each package manager and its lock decide (S4).
+  // Package managers select versions; the gate separately rejects reviewed vulnerabilities.
+  if (accepted.length) process.stdout.write(`[dependency-policy] ${accepted.length} accepted ${accepted.length === 1 ? 'advisory' : 'advisories'}\n`);
   process.stdout.write(`[dependency-policy] the manifests and locks of ${root} pass\n`);
 }
 

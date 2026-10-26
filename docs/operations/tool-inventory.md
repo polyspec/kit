@@ -1032,9 +1032,11 @@ An advisory that no release fixes failed every dependency gate, and the only way
 `advisoryExceptions` of `config/dependency-policy.json` accepts one advisory of one package of one lock, with its `reason` and
 its `removalCondition`; `advisory` is the identifier that the review records (npm audit names an advisory by its number).
 
+Package managers select dependency versions. A newer release alone does not fail the review or gate. The review fails on unresolved advisories, stale advisory exceptions or incomplete queries; an incomplete query never replaces its record. The offline gate checks that every audited lock matches its reviewed contents and rejects unaccepted recorded advisories. It queries no registry.
+
 - `make dependency-review` and `make dependency-policy-check` no longer fail on an accepted advisory; each prints it as accepted,
   with its reason and removal condition, and the review record keeps it. An advisory without an entry fails both as before.
-- An entry whose advisory the review of its lock did not find is stale and fails both, as a stale version exception does.
+- An entry whose advisory the review of its lock did not find is stale and fails both.
   An entry without its reason or removal condition fails the gate and accepts nothing.
 - `make dependency-review UPDATE=1` updates no package for an accepted advisory.
 - kit reviews its own `package-lock.json` (`config/dependency-policy.json`, `config/dependency-review.json`). Its one entry

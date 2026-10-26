@@ -3,7 +3,8 @@
 // as accepted with its reason; an advisory without an entry still fails both, and an entry that matches no advisory of the
 // review is stale and fails both. cargo-audit is a stub that reports one advisory of the Cargo lock of the fixture.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, rmSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
@@ -68,6 +69,48 @@ test('an advisory exception without its reason or removal condition fails the ga
   const gated = gate(root);
   assert.equal(gated.status, 1);
   assert.match(gated.stderr, /^\[dependency-policy\] config\/dependency-policy\.json: the advisory exception RUSTSEC-2099-0001 of packages\/fixture-rust\/Cargo\.lock itoa lacks a lock, package, advisory, reason or removal condition\./m);
+});
+
+test('the security gate rejects changed and unreviewed locks without querying a registry (K660)', (t) => {
+  const root = fixture(t);
+  const stub = stubRegistries(t, root);
+  appendFileSync(path.join(root, 'package-lock.json'), '\n');
+  const changed = gate(root, stub.env);
+  assert.equal(changed.status, 1, changed.stdout + changed.stderr);
+  assert.match(changed.stderr, /package-lock\.json: the lock changed after its review/);
+  rmSync(path.join(root, 'config/dependency-review.json'));
+  const missing = gate(root, stub.env);
+  assert.equal(missing.status, 1, missing.stdout + missing.stderr);
+  assert.match(missing.stderr, /the review record does not exist/);
+  assert.equal(stub.calls().filter(call => !call.startsWith('composer validate ')).length, 0);
+});
+
+test('a newer release alone does not fail the security review or gate (K660)', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t, root);
+  stub.registry({ ...FIXTURE_REGISTRY, npm: { ...FIXTURE_REGISTRY.npm, 'is-number': ['7.0.0', '7.1.0'] } });
+  const result = review(root, ['--record'], stub.env);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /is-number 7\.0\.0 < 7\.1\.0/);
+  const gated = gate(root, stub.env);
+  assert.equal(gated.status, 0, gated.stdout + gated.stderr);
+});
+
+test('the security gate rejects duplicate and missing lock reviews (K660)', (t) => {
+  const root = fixture(t);
+  const record = readFixture<ReviewRecord>(root, 'config/dependency-review.json');
+  const first = record.locks[0];
+  assert.ok(first);
+  editFixture<ReviewRecord>(root, 'config/dependency-review.json', value => { value.locks.push({ ...first, advisories: [] }); });
+  const duplicate = gate(root);
+  assert.equal(duplicate.status, 1, duplicate.stdout + duplicate.stderr);
+  assert.match(duplicate.stderr, /the review record names a lock more than once/);
+  editFixture<ReviewRecord>(root, 'config/dependency-review.json', value => { value.locks = record.locks.filter(item => item.lock !== first.lock); });
+  const missing = gate(root);
+  assert.equal(missing.status, 1, missing.stdout + missing.stderr);
+  assert.match(missing.stderr, /the lock has no entry in the review record/);
 });
 
 // K470: the sprintf-js advisory of the api-extractor chain stays an accepted exception, and its record carries the evidence

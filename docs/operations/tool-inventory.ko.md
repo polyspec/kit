@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0ee9d45846b7701836e7415418959775d1a825c7161c8da29e759d72555640ed -->
+<!-- source-sha256: 77c2fc22f602604712043d7165f17c00a967ef673b369eefb0c0372f8ffeb089 -->
 
 # 도구 목록
 
@@ -392,7 +392,7 @@ DOCS_CHECKS의 모든 target을 다른 것의 상태와 상관없이 실행하�
 | 문서 선택 | template, crudui: 고정 목록과 directory; hyper: tracked `*.md`; ordered-json: 모든 문서를 등록하는 manifest | `include`와 `exclude` glob이 고르는 tracked 및 ignore되지 않은 새 Markdown 파일; `.ko.md`는 영어 파일에 대응 |
 | 쌍 | 모두: 영어에는 한국어 필요; hyper, ordered-json: 한국어에는 영어 필요 | 양방향 (`pair-missing`) |
 | `doc-id` | ordered-json만 | 두 파일이 같은 `<!-- doc-id: id -->`를 한 번씩 가지고, id는 문서 하나를 가리킴 |
-| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: 6ce18012a914049cbe7eb714144197291b3c620607cf0dfa9c305e593672251c -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
+| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: 77c2fc22f602604712043d7165f17c00a967ef673b369eefb0c0372f8ffeb089 -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
 | section identifier | ordered-json (`<a id>` anchor) | anchor가 두 파일에서 같고 한 번씩만 나옴 |
 | fenced block | template, crudui, hyper: 내용만; ordered-json: info string과 내용, `~~~`, 닫히지 않은 fence | ordered-json 동작: info string과 내용 비교, 두 fence 문자 지원, 닫히지 않은 fence는 실패 |
 | link | 모두: inline link; ordered-json: reference link, autolink, `href`, query, 저장소 밖으로 나가는 link, explicit anchor; template: `.md`, `.ko.md`, `index.md` 후보와 `/` 건너뜀; crudui: `/` 거부 | 모든 link 형식; code는 읽지 않음; anchor는 explicit anchor 또는 heading anchor; static site의 `/`와 확장자 없는 link 동작은 `siteLinks` |
@@ -941,9 +941,11 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
 `config/dependency-policy.json`의 `advisoryExceptions` 항목은 한 lock의 한 package의 advisory 하나를 `reason`과
 `removalCondition`과 함께 받아들입니다. `advisory`는 review가 기록하는 식별자입니다(npm audit는 advisory를 번호로 부릅니다).
 
+Dependency version은 package manager가 선택합니다. 새 release가 있다는 이유만으로 review나 gate가 실패하지 않습니다. Review는 해결되지 않은 advisory, stale advisory exception, 불완전한 조회에서 실패하며, 조회가 불완전하면 record를 교체하지 않습니다. Offline gate는 audit 대상 lock의 내용이 review 당시와 같은지 확인하고 허용되지 않은 기록된 advisory를 거부합니다. Registry에 조회하지 않습니다.
+
 - `make dependency-review`와 `make dependency-policy-check`는 받아들인 advisory에서 실패하지 않고, 각각 그 advisory를 이유와
   제거 조건과 함께 받아들였다고 출력하며, review 기록은 그 advisory를 유지합니다. 항목이 없는 advisory는 전처럼 둘 다 실패시킵니다.
-- lock의 review가 찾지 못한 advisory를 적은 항목은 stale이며, stale version exception처럼 둘 다 실패시킵니다. 이유나 제거 조건이
+- lock의 review가 찾지 못한 advisory를 적은 항목은 stale이며 둘 다 실패시킵니다. 이유나 제거 조건이
   없는 항목은 gate를 실패시키고 아무것도 받아들이지 않습니다.
 - `make dependency-review UPDATE=1`은 받아들인 advisory 때문에 package를 갱신하지 않습니다.
 - kit은 자기 `package-lock.json`을 review합니다(`config/dependency-policy.json`, `config/dependency-review.json`). 유일한 항목은
