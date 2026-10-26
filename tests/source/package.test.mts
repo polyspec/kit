@@ -3,8 +3,9 @@
 // the exported module and runs a tool from dist with the result of the source. The checks run on a copy of the checkout,
 // so neither the build nor the pack writes into this checkout.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -14,6 +15,8 @@ import type { JSONSchemaType } from 'ajv/dist/2020.js';
 import { readFixture } from '../kit/json-fixture.mts';
 import { parseStub, TEXTS } from '../kit/stub-json.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
+import { assets, ASSETS, context } from '../../scripts/kit/release.mts';
+import { foreignEnvironment } from '../../scripts/kit/link-providers.mts';
 
 /** The URL that a module resolves to and the names that it exports. */
 const EXPORTS: JSONSchemaType<{ resolved: string; names: string[] }> = { type: 'object', required: ['resolved', 'names'], properties: { resolved: { type: 'string' }, names: TEXTS } };
@@ -76,12 +79,25 @@ test('a repository that installs the tarball imports the tool APIs of @polyspec/
   const copy = builtCopy(t);
   const packs = mkdtempSync(path.join(tmpdir(), 'kit-pack-'));
   t.after(() => rmSync(packs, { recursive: true, force: true }));
-  // npm pack runs prepack and postpack as the release does, in the background, so its standard output is the JSON alone (K613).
-  const packed = packedKit(run(NPM, ['pack', '--json', '--foreground-scripts=false', '--pack-destination', packs], copy));
+  const version = readFixture<NpmManifest>(copy, 'package.json').version;
+  assert.ok(version, 'the isolated built checkout declares its release version');
+  const tag = `v${version}`;
+  const isolatedGit = foreignEnvironment();
+  run('git', ['-c', 'tag.gpgSign=false', 'tag', '-a', tag, '-m', `isolated release ${version}`], copy, isolatedGit);
+  // The release API resolves the checkout's pinned native npm; this fixture reuses its prepared wrapper without another install.
+  mkdirSync(path.join(copy, 'var/tools/bin'), { recursive: true });
+  copyFileSync(NPM, path.join(copy, 'var/tools/bin/npm'));
+  // One release-assets call performs the same single lifecycle-enabled native pack this consumer previously used.
+  const names = assets(context(copy, { env: isolatedGit }), tag);
+  assert.equal(names.length, 1, 'kit produces exactly its npm release asset');
+  const filename = names[0];
+  assert.ok(filename);
+  const archive = path.join(copy, ASSETS, filename);
+  const packed = { version, filename, integrity: `sha512-${createHash('sha512').update(readFileSync(archive)).digest('base64')}` };
   // The consumer installs the tarball and the packages that kit depends on at run time with npm ci, offline, from a cache
   // primed with the tarball and with those packages, as a repository installs them (consumer-layout.test runs the bootstrap).
   const cache = path.join(packs, 'npm-cache');
-  run(NPM, ['cache', 'add', path.join(packs, packed.filename), '--cache', cache], packs);
+  run(NPM, ['cache', 'add', archive, '--cache', cache], packs);
   primeCache(cache, packs, installedLockEntries(runtimePackage));
   const consumer = path.join(packs, 'consumer');
   mkdirSync(consumer);
