@@ -1,4 +1,4 @@
-// Tests of K240: the full suite runs only in CI. ci-only.mts decides whether a command that runs a suite may run,
+// Tests of K240 and K654: suites run in CI or an explicit completed-checklist final verification. ci-only.mts decides whether a suite may run,
 // test-selection.mts whether a test run selects its tests, and claude-hook.mts refuses the Bash commands of an agent
 // that run a suite, a whole runtime without a selection, or set the variable that marks a CI run.
 import assert from 'node:assert/strict';
@@ -9,7 +9,7 @@ import { ciRefusal } from '../../scripts/kit/ci-only.mts';
 import { selects } from '../../scripts/kit/test-selection.mts';
 import { refusal } from '../../scripts/kit/claude-hook.mts';
 import { ciTargets } from '../../scripts/kit/ci-targets.mts';
-import { tree } from './tree.mts';
+import { tree, put } from './tree.mts';
 import { KIT } from './kit-tools.mts';
 import { readFixture } from './json-fixture.mts';
 
@@ -120,4 +120,52 @@ test('the vendored Claude Code settings run the hook of the installed package be
   const [hook] = entry.hooks;
   assert.ok(hook, 'the entry runs a hook');
   assert.match(hook.command, /node_modules\/@polyspec\/kit\/scripts\/kit\/claude-hook\.mts/);
+});
+
+function finalTree(t: Parameters<typeof tree>[0], state: string) {
+  const checklist = `| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K1 | Finish | file | command | ${state} |\n`;
+  return tree(t, {
+    'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: 'K[0-9]+' }),
+    'docs/plans/final/checklist.md': checklist,
+    'docs/plans/final/checklist.ko.md': checklist,
+  });
+}
+
+test('K654 explicit local final verification requires terminal checklist items', t => {
+  for (const state of ['[o]', '[-] cause: impossible', '[!] cause: external; retry: available']) {
+    const root = finalTree(t, state);
+    assert.equal(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, root), null, state);
+    assert.ok(ciRefusal('make ci-targets', { FINAL_RUN: 'true' }, root), 'only 1 opts in');
+  }
+  for (const state of ['[ ]', '[~]']) {
+    const root = finalTree(t, state);
+    const result = ciRefusal('make ci-targets', { FINAL_RUN: '1' }, root);
+    assert.ok(result);
+    assert.match(result, /K1/);
+    assert.ok(result.includes(state));
+  }
+  const missing = tree(t);
+  assert.match(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, missing) ?? '', /config\/checklist.json/);
+  const empty = finalTree(t, '[o]');
+  put(empty, { 'docs/plans/final/checklist.md': null, 'docs/plans/final/checklist.ko.md': null });
+  assert.match(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, empty) ?? '', /no checklist/);
+  const malformed = finalTree(t, '[o]');
+  put(malformed, { 'docs/plans/final/checklist.ko.md': null });
+  assert.match(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, malformed) ?? '', /checklist.ko.md/);
+});
+
+test('K654 the hook permits only the explicit guarded ci-targets final command', () => {
+  assert.equal(refusal('make ci-targets FINAL_RUN=1 TARGETS="test"'), null);
+  assert.ok(refusal('make ci-targets FINAL_RUN=true TARGETS="test"'));
+  assert.ok(refusal('FINAL_RUN=1 node --test tests/kit'));
+});
+
+test('K654 ci-targets uses the explicit final checkout and writes its normal report', async t => {
+  const root = finalTree(t, '[o]');
+  put(root, { Makefile: 'good:\n\t@true\n' });
+  const status = await ciTargets({ root, directory: 'var/report/final', targets: ['good'],
+    environment: { node: 'v-test' }, env: { PATH: process.env.PATH, FINAL_RUN: '1' },
+    print: () => {}, output: () => {} });
+  assert.equal(status, 0);
+  assert.ok(existsSync(path.join(root, 'var/report/final/record.json')));
 });

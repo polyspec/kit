@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: e78bfe081b0c0a43ea3d09e23c815708d89ae54af9d9a1ca9f9af988e6fa93da -->
+<!-- source-sha256: 066936c5415d8e2c8d27516c68e9285e4fe72c192e29841f444e56cf0aa2461e -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -115,8 +115,8 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   `[-] cause: <cause>` impossible이며, `make item-state`의 전이로만 움직인다. done item에 대한 새 발견은 그 자신의
   sub-item이 되고, done item은 state를 유지한다.
   Enforced by: `make docs-check`, `make commits-check`
-- P26 열린 item은 Verification cell에 자기 unit test의 command를 명시한다. 어떤 item도 CI에서만 도는 suite로 검증하지 않는다.
-  `make item-test`가 그 command를 실행한다.
+- P26 열린 item은 Verification cell에 자기 unit test의 command를 명시한다. 어떤 item도 suite로 검증하지 않는다. Suite는 CI에서
+  실행하거나 모든 checklist item이 종결된 뒤 명시적인 final verification으로 한 번 실행한다. `make item-test`가 그 command를 실행한다.
   Enforced by: `make docs-check`, `.claude/settings.json`
 - P27 commit은 최대 한 item을 완료한다. state를 최대 하나 바꾸고, item을 done으로 옮기는 commit은 그것을 CHANGELOG.md와 그
   한국어 짝에 기록한다. commit되지 않은 작업은 최대 한 item이다.

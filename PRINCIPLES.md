@@ -121,8 +121,8 @@ repository.
   `[-] cause: <cause>` impossible, and moves only along the transitions of `make item-state`. A new finding on a done item
   is a sub-item of its own; the done item keeps its state.
   Enforced by: `make docs-check`, `make commits-check`
-- P26 An open item names, in its Verification cell, the commands of its own unit tests; no item is verified by a suite, which
-  runs only in CI. `make item-test` runs the commands.
+- P26 An open item names, in its Verification cell, the commands of its own unit tests; no item is verified by a suite. A suite runs in CI, or once as an explicit final verification after all checklist
+  items are terminal. `make item-test` runs the commands.
   Enforced by: `make docs-check`, `.claude/settings.json`
 - P27 A commit completes at most one item: it moves at most one state, and the commit that moves an item to done records it in
   CHANGELOG.md and its Korean twin. The uncommitted work is at most one item.

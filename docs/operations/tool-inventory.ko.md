@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: aa99f343c4224d45bcd30d112d348abba8aee36ab8553943066b6f6d5975d3e4 -->
+<!-- source-sha256: 6ce18012a914049cbe7eb714144197291b3c620607cf0dfa9c305e593672251c -->
 
 # 도구 목록
 
@@ -288,8 +288,11 @@ alint는 0.x이고 release가 잦습니다. 0.17과 0.18은 설정 key를 바꿨
 
 ## Gate: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
-K240은 `full-run.mts`, 그 record `var/full-run.json`, target `rerun-failed`를 제거했습니다. full suite는 CI에서만 실행되고
-(`ci-only.mts`), 아래 표는 K6.1의 병합을 기록합니다.
+K240은 `full-run.mts`, 그 record `var/full-run.json`과 target `rerun-failed`를 제거했습니다. Suite command는 CI에서 실행합니다.
+Local final verification은 모든 checklist 항목이 종결된 뒤 `make ci-targets FINAL_RUN=1 TARGETS="<target>..."`를 사용합니다.
+종결 상태는 완료, 원인과 재시도 조건이 있는 bypass, 원인이 있는 impossible입니다. Guard는 양언어 checklist를 읽고 waiting과
+active 항목, 읽을 수 없거나 누락된 checklist를 거부하며 file, item과 실제 state를 밝힙니다. 기존 CI report는 final run을
+기록합니다. 활성 작업을 완료한 뒤 한 번 실행하며, 일반 개발 중에는 소유 unit test만 계속 실행합니다. 아래 표는 K6.1의 merge를 기록합니다.
 
 파일: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
 `schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, 그리고 `kit.mk` 끝의 make target `hooks`, `hooks-check`,
@@ -388,7 +391,7 @@ DOCS_CHECKS의 모든 target을 다른 것의 상태와 상관없이 실행하�
 | 문서 선택 | template, crudui: 고정 목록과 directory; hyper: tracked `*.md`; ordered-json: 모든 문서를 등록하는 manifest | `include`와 `exclude` glob이 고르는 tracked 및 ignore되지 않은 새 Markdown 파일; `.ko.md`는 영어 파일에 대응 |
 | 쌍 | 모두: 영어에는 한국어 필요; hyper, ordered-json: 한국어에는 영어 필요 | 양방향 (`pair-missing`) |
 | `doc-id` | ordered-json만 | 두 파일이 같은 `<!-- doc-id: id -->`를 한 번씩 가지고, id는 문서 하나를 가리킴 |
-| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: 70ae06b839e12fb23b0e5931ac7afebb354ff1144ad16c2cb988578f3dfaf49e... -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
+| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: 6ce18012a914049cbe7eb714144197291b3c620607cf0dfa9c305e593672251c -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
 | section identifier | ordered-json (`<a id>` anchor) | anchor가 두 파일에서 같고 한 번씩만 나옴 |
 | fenced block | template, crudui, hyper: 내용만; ordered-json: info string과 내용, `~~~`, 닫히지 않은 fence | ordered-json 동작: info string과 내용 비교, 두 fence 문자 지원, 닫히지 않은 fence는 실패 |
 | link | 모두: inline link; ordered-json: reference link, autolink, `href`, query, 저장소 밖으로 나가는 link, explicit anchor; template: `.md`, `.ko.md`, `index.md` 후보와 `/` 건너뜀; crudui: `/` 거부 | 모든 link 형식; code는 읽지 않음; anchor는 explicit anchor 또는 heading anchor; static site의 `/`와 확장자 없는 link 동작은 `siteLinks` |

@@ -271,7 +271,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   const label = `${options.tool} ${path.relative(root, options.cwd) || '.'}${options.args.length ? ` ${options.args.join(' ')}` : ''}`;
   write(`▶ ${label} (each test ${options.timeoutSeconds}s)\n`);
   // A run that selects no test runs a whole runtime, which is a suite and runs only in CI (ci-only.mts).
-  const unselected = !selects(options.tool, options.args, file => isFile(path.resolve(options.cwd, file))) && ciRefusal(`a ${options.tool} run without a selection`, callerEnv);
+  const unselected = !selects(options.tool, options.args, file => isFile(path.resolve(options.cwd, file))) && ciRefusal(`a ${options.tool} run without a selection`, callerEnv, root);
   if (unselected) {
     library?.cleanup();
     write(`✖ ${label}: ${unselected}\n`);

@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b06af26ebf5ccd45dc84f80bcba326cf1c81194968c4944f920659f3e6df9d7c -->
+<!-- source-sha256: de78c3cd9b1b6cfd54d436d63ed10f04181dec880e51bb309e56a5b2db148bf4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,10 @@
 ## Unreleased
 
 - Composer source link는 실행별 path-repository manifest와 lock으로 오래된 runtime requirement를 일치시킵니다. Composer는 link된 package만 update하고 외부 package record와 추적 release record를 유지하며 platform 검사를 보존하고 일치하는 metadata는 변경하지 않습니다(K653).
+
+### 2026-10-26 — 종결된 checklist가 명시적인 local final run을 허용한다 (K654)
+
+- 기존 suite guard는 모든 checklist item이 종결되고 양언어 checklist를 읽을 수 있으며 서로 일치하면 FINAL_RUN=1을 허용한다. Waiting 또는 active item, 누락된 checklist와 잘못된 기록은 경로와 상태를 밝히며 실행을 거부한다. ci-targets는 기존 report를 유지하고 정식 final mode를 test runner에 전달하며 일반 local suite는 계속 거부한다.
 - PHP arginfo 설치는 prefix build directory에 generator가 없으면 PHP API extension directory 아래에서 gen_stub.php를 찾는다. Red: K652 API-directory fixture는 prefix만 찾는 코드에서 실패한다. Green: 수정 후 통과한다(K652).
 - `make land`는 candidate와 main gate가 모두 실패했다고 알리고 candidate gate의 stdout과 stderr를 출력하면서 K631의 계속 진행 정책을 유지합니다(K631-1).
 - parity declaration은 feature coverage part에 포함된 root를 해석해 정확히 하나의 implementation에 연결하며, part 밖의 test는 계속 거부합니다(K650).
