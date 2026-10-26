@@ -26,7 +26,7 @@ import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { composerLink, composerSourceFolders } from './composer-install.mts';
-import { npmLink } from './npm-install.mts';
+import { npmLink, npmSourceFolders } from './npm-install.mts';
 import { legacyPythonLinks, uvEditable } from './uv-install.mts';
 import { rebuild } from './link-build.mts';
 import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, type ProvidedFolder, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
@@ -460,6 +460,10 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
   // reads them; a test, a fixture or the release consumer keeps the install that it tests.
   const projects = new Set([consumer.scope, ...(['npm', 'composer', 'python'] as const).flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))]);
   for (const project of [...projects].sort()) {
+    if (!work.check && existsSync(path.join(project, MANIFESTS.npm))) {
+      const npm = consumerTool(consumer.top, 'npm', work.env);
+      npmLink(project, npmSourceFolders(project, work.found.values()), npm.command, npm.env, work.print);
+    }
     if (!work.check && existsSync(path.join(project, 'pyproject.toml'))) {
       const uv = consumerTool(consumer.top, 'uv', work.env);
       uvEditable({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
@@ -486,8 +490,6 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
       if (findings.length > 0) work.failed = true;
       continue;
     }
-    const npm = folders.some(folder => folder.ecosystem === 'npm') ? consumerTool(consumer.top, 'npm', work.env) : undefined;
-    if (npm !== undefined) npmLink(project, folders, npm.command, npm.env, work.print);
     for (const item of folders.filter(folder => folder.ecosystem !== 'python')) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
   }
 }

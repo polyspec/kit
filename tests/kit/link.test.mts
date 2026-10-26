@@ -190,11 +190,15 @@ const args = process.argv.slice(2);
 const python = path.join(process.cwd(), '.venv/bin/python');
 const site = path.join(path.dirname(path.dirname(python)), 'lib/python3.14/site-packages');
 const project = readFileSync(path.join(process.cwd(), 'pyproject.toml'), 'utf8');
+const listFile = ${JSON.stringify(path.join(consumer, 'pip-list.json'))};
+const installed = JSON.parse(readFileSync(listFile, 'utf8'));
 for (const match of project.matchAll(/path = "([^"]+)".*editable = true/g)) {
   const source = path.resolve(process.cwd(), match[1]);
   const manifest = readFileSync(path.join(source, 'pyproject.toml'), 'utf8');
   const name = /^name = "([^"]+)"/m.exec(manifest)?.[1].replaceAll('-', '_');
   if (!name) process.exit(92);
+  const distribution = installed.find(item => item.name.replaceAll('-', '_') === name);
+  if (distribution) distribution.editable_project_location = source;
   const record = path.join(site, name + '-0.0.1.dist-info');
   // Native sync consumes the application's editable source declaration.
   const released = path.join(site, name);
@@ -202,6 +206,7 @@ for (const match of project.matchAll(/path = "([^"]+)".*editable = true/g)) {
   mkdirSync(record, { recursive: true });
   writeFileSync(path.join(record, 'direct_url.json'), JSON.stringify({ url: pathToFileURL(source).href, dir_info: { editable: true } }));
 }
+writeFileSync(listFile, JSON.stringify(installed));
 ` });
   stub(bin, log, 'uv', `if [ "$1" = sync ]; then ${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(bin, 'uv-editable.mjs'))} "$@" || exit $?; fi\ncase "$1" in sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; if [ -f ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))} ]; then while read n u; do case " $* " in *" --no-install-package $n "*) ;; *) grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ $u" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n no" >> ${JSON.stringify(path.join(consumer, 'editable.txt'))};; esac; done < ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))}; fi; ag=no; case " $* " in *" --all-groups "*) ag=yes;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ] && [ "$ag" = yes ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
 export) cat ${JSON.stringify(path.join(consumer, 'export.txt'))} 2>/dev/null;;
@@ -213,7 +218,7 @@ case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv
   const cargoGraph = JSON.stringify({ packages: [{ id: 'provider', name: 'polyspec-prov', manifest_path: path.join(provider, 'rust/Cargo.toml') }], resolve: { nodes: [{ id: 'provider' }] } });
   stub(bin, log, 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${cargoGraph}'; exit 0; fi; done`);
   const pythonProject = path.join(consumer, 'python/pyproject.toml');
-  writeFileSync(pythonProject, readFileSync(pythonProject, 'utf8') + '\n[tool.uv.sources]\npolyspec-z = { path = "../../prov/packages/python", editable = true }\n');
+  writeFileSync(pythonProject, readFileSync(pythonProject, 'utf8') + '\n[tool.uv.sources]\npolyspec-z = { path = "../../prov/packages/python", editable = true }\npolyspec-w = { path = "../../prov/packages/w", editable = true }\n');
   const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
   current = [provider, kit, consumer];
   return { root, provider, kit, consumer, env, log: () => readFileSync(log, 'utf8') };
@@ -1133,7 +1138,8 @@ test('K657-3: Python links use native editable installation and check refuses le
   assert.equal(installed.ok, true, installed.text);
   assert.equal(log().split('\n').filter(line => line === 'uv sync --locked').length, 1);
   assert.match(log(), /uv pip check --python/);
-  assert.match(log(), /uv pip list --editable --python/);
+  assert.match(log(), /uv pip list --python .*--format json/);
+  assert.doesNotMatch(log(), /uv pip list --editable/);
   assert.doesNotMatch(log(), /uv pip install/);
   assert.equal(existsSync(path.join(site, 'polyspec_z')), false);
   const record = path.join(site, 'polyspec_z-0.0.1.dist-info/direct_url.json');
@@ -1176,13 +1182,16 @@ test('unlink removes legacy package links before native sync and keeps declared 
   assert.match(lines.join('\n'), /polyspec_z/, 'the removed link is named');
 });
 
-test('K664: shared link installs a declared Composer source into a fresh vendor', (t) => {
+test('K664: shared link installs declared npm and Composer sources before inspecting missing folders', (t) => {
   const { consumer, provider, env, log } = workspace(t);
   const vendor = path.join(consumer, 'var/contracts/vendor');
   rmSync(vendor, { recursive: true, force: true });
+  const npmFolder = path.join(consumer, 'node_modules/@polyspec/x');
+  rmSync(npmFolder, { recursive: true, force: true });
   const installed = linkLines([consumer], env);
   assert.equal(installed.ok, true, installed.text);
   assert.doesNotMatch(installed.text, /no installed folder/);
+  assert.equal(realpathSync(npmFolder), path.join(provider, 'packages/ts'));
   assert.equal(realpathSync(path.join(vendor, 'polyspec/y')), path.join(provider, 'packages/php'));
   const record = readJsonObject(vendor, 'composer/installed.json');
   assert.ok(Array.isArray(record.packages));
