@@ -602,7 +602,7 @@ test('K692: a php feature filters a shared file to its declared methods', TIMEOU
   if (run.error) throw new Error(run.error);
   assert.deepEqual(run.args.slice(-3, -1), [
     '--filter',
-    '/^(?:(?:[^:]+::)?test_bytes(?: with data set |$)|CodecTest::test_ascii(?: with data set |$)|Example\\\\Tests\\\\CodecTest::test_regex\\+method(?: with data set |$))/',
+    '/^(?:(?:[^:]+::)?test_bytes(?: with data set |$)|(?:[^:]*\\\\)?CodecTest::test_ascii(?: with data set |$)|Example\\\\Tests\\\\CodecTest::test_regex\\+method(?: with data set |$))/',
   ]);
   assert.equal(run.caseOf({ id: 'CodecTest::test_bytes', name: 'test_bytes' }), 'test_bytes');
   assert.equal(run.caseOf({ id: 'CodecTest::test_ascii with data set "sample"', name: 'test_ascii with data set "sample"' }), 'CodecTest::test_ascii');

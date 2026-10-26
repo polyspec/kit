@@ -161,7 +161,12 @@ const methodFilter = (symbol: string): string => `/^${symbol.replaceAll('\\', '\
 /** The PHPUnit filter of the exact feature methods named by a grouped file binding, including their data sets. */
 const phpFeatureFilter = (ids: readonly string[]): string => {
   const literal = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replaceAll('/', '\\/');
-  const methods = ids.map(id => `${id.includes('::') ? literal(id) : `(?:[^:]+::)?${literal(id)}`}(?: with data set |$)`);
+  const methods = ids.map(id => {
+    if (!id.includes('::')) return `(?:[^:]+::)?${literal(id)}(?: with data set |$)`;
+    const className = id.slice(0, id.indexOf('::'));
+    const classFilter = className.includes('\\') ? literal(id) : `(?:[^:]*\\\\)?${literal(id)}`;
+    return `${classFilter}(?: with data set |$)`;
+  });
   return `/^(?:${methods.join('|')})/`;
 };
 
