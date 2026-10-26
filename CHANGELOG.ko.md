@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 15dfe2eedc4754fd866a152a2c8f60c42a031f61607347bd94ae3f76ee5b098a -->
+<!-- source-sha256: 9859962ef93d724cfa3df06c55a82aa08b4c6932ea5c0116c1cd2f2b92a75bfb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Python 개발 설치는 앱의 source/workspace 선언으로 native uv sync --locked를 한 번 실행한 뒤 uv pip check로 설치된 distribution을 검사한다. 기존에 설치되지 않은 선언 library도 포함하며 설치 목록 필터나 kit 생성 manifest, version, distribution metadata를 사용하지 않는다. virtual project를 포함한 source 해석은 native uv가 결정하며 pip check는 virtual root가 아닌 설치된 distribution을 검증한다. unit 3개와 실제 uv 검사 1개가 release에서 개발 source 선택, 새 library 설치, 반복 상태, source 수정의 즉시 반영, 설치된 consumer의 exact-version 실패를 확인했고 변경 파일 type-aware lint도 통과한다 (K664-1).
 
 - Composer source 선택은 설치 폴더가 아직 없는 새 로컬 dependency를 포함하고 앱이 선택한 개발 manifest를 따릅니다. Composer가 native 해석으로 최초 lock을 만들고 이후 update는 로컬 package와 그 dependency로 제한합니다. 실제 native link로 배포된 0.0.1 dependency에서 호환되는 0.0.2 개발 source와 미배포 package로 전환합니다. source 수정에는 release가 필요 없으며 반복 manifest/lock/metadata/autoload 상태가 같고 호환되지 않는 exact requirement는 native 오류를 유지합니다. Red: 새 package unit은 linked 대신 locked를 반환했습니다. Green: 소유 단위/통합 case 5개와 type-aware lint가 통과합니다(K664-2).
 - worktree 재빌드는 설치된 source 또는 packed kit의 공개 link export를 해석하고 workspace hook 경로는 실행 module을 따른다. source 경로 소유 검사 7개, 두 tool export fixture와 재빌드 순서 검사, 변경 파일 type-aware lint가 통과한다 (K661-9).
