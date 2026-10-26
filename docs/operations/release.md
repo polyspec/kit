@@ -9,6 +9,8 @@ kit is released by tag `vX.Y.Z` on a commit of `main` whose CI run concluded `ci
 tree. A repository adopts a release by updating `@polyspec/kit` in its package-lock and running `make install-packages` and
 `make kit-sync`.
 
+Consumers include `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`. On a clean checkout, the shared workflow first runs native `npm ci --ignore-scripts` through the exact npm version declared in `packageManager`, then runs the existing tool installation and package installation targets. It never clones a sibling kit checkout. A local `npm link ../kit` uses the same installed package path with the source bootstrap; kit itself uses its own source Makefile.
+
 A release is cut in three steps. (1) A commit `chore(release): Release X.Y.Z` sets the version in `package.json` and
 `package-lock.json` and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`. The release commit also carries
 the consumer locks: `make release-assets TAG=vX.Y.Z`, then `make release-consumer-lock TAG=vX.Y.Z` (ONLINE), and the manifests

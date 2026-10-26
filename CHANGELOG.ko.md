@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b81ce4900382559933fd6b252d971bda151be469fb2654a9b33f05652789722c -->
+<!-- source-sha256: d5a3c133f4e15c81c865c69d1f8d2fd62e2fe77667126031e0f10bc09e8b8c59 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Bootstrap 문서와 규칙은 설치된 package path와 일반 공유 사본을 사용하고 선택적인 native npm source link를 유지합니다. Native npm lock은 hook command를 기록합니다. Workflow unit 16개, rule unit 13개, 문서 및 rule 검사가 통과합니다(K671).
 - Python link는 polyspec dependency를 선언하지 않은 project에서 주변 uv workspace를 sync하지 않습니다. 소유 unit은 14c67f38에서 실패하고 guard 추가 후 통과합니다(K670-4).
 - Release version commit은 manifest와 lock metadata를 허용하되 chore(release)에 구현 변경을 허용하지 않습니다. 소유 unit은 14c67f38에서 실패하고 수정 후 통과합니다(K670-3).
 - install-packages 단위 fixture는 bootstrap과 kit.mk를 node_modules/@polyspec/kit 아래에 준비하고 그 설치 패키지 경로를 include한다. dry run은 소스 연결 없이 릴리스 잠금의 npm ci 호출을 계속 검증한다. Red: 89ee79f8에서 단독 bootstrap fixture는 kit.mk가 없어 실패했다. Green: K511 사례 한 개와 변경 파일 타입 인식 lint가 통과한다 (K671-4).

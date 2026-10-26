@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Bootstrap documentation and rules require the installed package path and regular shared copies, retaining optional native npm source links. The native npm lock records the hook command. Workflow units (16), rule units (13), document and rule checks pass (K671).
 - Python linking skips projects without declared polyspec dependencies instead of syncing an ambient uv workspace. The owning unit fails at 14c67f38 and passes with the guard (K670-4).
 - Release version commits allow manifest and lock metadata without allowing implementation changes under chore(release). The owning unit fails at 14c67f38 and passes with the fix (K670-3).
 - The install-packages unit fixture holds bootstrap and kit.mk under node_modules/@polyspec/kit and includes that installed-package path. Its dry run still verifies npm ci of the release lock without invoking source linking. Red: the standalone bootstrap fixture fails at 89ee79f8 because kit.mk is absent; green: the single K511 case and changed-file type-aware lint pass (K671-4).

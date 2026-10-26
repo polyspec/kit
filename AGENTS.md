@@ -38,13 +38,13 @@ and states only its own rules. The rules below are kit's own.
   creates, is accepted; our rules govern what we create. kit delegates dependency resolution, links, installed records
   and generated metadata to the native package manager; it does not replace dependency folders or synthesize installed metadata itself.
   Enforced by: `make rebuild-check`
-- Own: This repository holds its tracked files, configuration, scripts and generated output as files, with two links. The first
-  is the local link of 0.0.x development (`docs/operations/local-links.md`): when a polyspec root is declared, a
-  native npm links, Composer path repositories and uv editable installations connect a development checkout to provider source;
-  such a link is untracked and stays out of released output. The second is the shared root files of kit in a repository
-  that uses kit: `PRINCIPLES.md`, `PRINCIPLES.ko.md`, `.editorconfig` and `.claude/settings.json` are tracked links to the matching
-  files of the kit checkout beside it (`../kit`), which they reach outside the repository (K614, K621); `make kit-check` reports any
-  other tracked link, so it is looked at. A path
+- Own: Tracked shared root files and workflows are regular copies of the installed kit package, managed by `make kit-sync`.
+  `make kit-check` rejects tracked symbolic links. Consumers include
+  `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`; they install the locked npm dependencies before the first Make invocation.
+  Local development uses native npm links, Composer path repositories and uv editable installations to connect installed
+  packages to provider source (`docs/operations/local-links.md`). Such links are untracked and stay out of released output.
+  A sibling kit checkout is optional: `npm link ../kit` connects the installed package path to that checkout.
+  kit itself runs its own sources and does not install a published copy of itself. A path
   that this repository writes is relative to a stated anchor (the repository root, or the anchor its format defines, such
   as PEP 751's lock directory), stays inside the repository, and never depends on the working directory; it is never
   absolute. The repository root is the top level of the Git work tree that holds the working directory (`git rev-parse

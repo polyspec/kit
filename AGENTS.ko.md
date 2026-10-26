@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 9e18db9ee0e9de2f9946610a1523294d3af952f6f044b576478e5832fe7bbd44 -->
+<!-- source-sha256: b8a1f624e95658225eb0a24f0e38caf77a35617713501e9d60d19e73c5369903 -->
 # 개발
 
 [English](AGENTS.md)
@@ -29,15 +29,17 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   사본이 아닌 그 안의 파일에도 실패하며, `make kit-sync`가 그 파일을 지웁니다.
   Enforced by: `make kit-check`, `.claude/settings.json`
 - Own: 일반적인 package manager 설치, dependency lock, version release를 따른다. 이를 벗어나는 요청은 명시적인 사용자 요청이라도 구현 전에 이탈 지점과 영향을 보고하고 정석적인 대안을 제시한다. 로컬 source link는 개발 수단으로 유지한다.
-  Enforced by: 없음. 선택과 설명은 검토가 필요하다.
+  Enforced by: none, 선택과 설명은 검토가 필요하다.
 - Refines P14: [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 `scripts/kit/`의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를
   쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다. kit은 dependency 해석, link, 설치 record, 생성 metadata를 native package manager에 위임하며 직접 dependency 폴더를 교체하거나 설치 metadata를 합성하지 않습니다.
   Enforced by: `make rebuild-check`
-- Own: 이 저장소는 추적 파일, configuration, script, generated output을 파일로 두며, link는 두 가지입니다. 첫 번째는
-  0.0.x 개발의 local link(`docs/operations/local-links.md`)입니다: polyspec root가 선언되면, native npm link, Composer path repository, uv editable 설치로 개발 checkout을 provider source에 연결합니다. 이 link는 추적되지 않고 release output에 들어가지 않습니다. 두 번째는
-  kit을 쓰는 저장소의 kit 공유 root 파일입니다: `PRINCIPLES.md`, `PRINCIPLES.ko.md`, `.editorconfig`, `.claude/settings.json`은
-  옆의 kit checkout(`../kit`)의 같은 파일로 가는 추적된 link이며, 저장소 밖의 그 파일에 닿습니다(K614, K621). `make kit-check`는
-  그 밖의 추적된 link를 보고해서 살펴보게 합니다. 이 저장소가
+- Own: 추적되는 공유 root 파일과 workflow는 설치된 kit package의 일반 파일 사본이며 `make kit-sync`가 관리합니다.
+  `make kit-check`는 추적된 symbolic link를 거부합니다. 소비자는
+  `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include하며 첫 Make 실행 전에 lock에 고정된 npm dependency를 설치합니다.
+  로컬 개발은 native npm link, Composer path repository, uv editable 설치로 설치된 package를 provider source에 연결합니다
+  (`docs/operations/local-links.md`). 이 link는 추적되지 않고 release output에 들어가지 않습니다.
+  옆의 kit checkout은 선택 사항입니다. `npm link ../kit`은 설치된 package path를 그 checkout으로 연결합니다.
+  kit 자체는 자기 source를 실행하며 자기의 공개 package를 설치하지 않습니다. 이 저장소가
   쓰는 path는 명시된 기준(repository root, 또는 PEP 751의 lock directory처럼 그 형식이 정하는 기준)에 상대적이고, repository 안에
   머물며, working directory에 의존하지 않습니다. 절대 path는 쓰지 않습니다. repository root는 working directory가 속한 Git work tree의
   top level(`git rev-parse --show-toplevel`, `scripts/kit/paths.mts`의 `repositoryRoot`)이므로, `npm -w`가 package directory에서
