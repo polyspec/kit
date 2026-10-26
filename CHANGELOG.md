@@ -7,6 +7,7 @@
 
 - `make land` states when the candidate and main gates both fail and prints the candidate gate's stdout and stderr, while preserving K631's continuation policy (K631-1).
 - Parity declarations resolve a feature coverage part against roots it contains, require exactly one implementation owner, and still reject tests outside that part (K650).
+- Parity can bind an exact tracked native test file embedded in an implementation root to one external-oracle unit, while sibling tests remain implementation-owned (K651).
 
 - A commit or a land into kit builds no dist: consumers run the sources of kit (K613), and npm's prepack builds dist at release, so the kit build of linked-build.mts (K551, the kit part of K609) is removed (K646).
 - `make commits-check` refuses an id in a commit Subject only when it differs from the final id: the same id written twice names its one row, so a pushed commit that repeats its id needs no rewrite (K648).

@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3d3c017d2198cc70858164229e2c67a0bfb021b030d00838e0fbc184c7653776 -->
+<!-- source-sha256: d9b807d53bdbea718a2598af20cb7807e29ca7fe3b62cc2e3d07fcff76359ee1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,6 +8,7 @@
 
 - `make land`는 candidate와 main gate가 모두 실패했다고 알리고 candidate gate의 stdout과 stderr를 출력하면서 K631의 계속 진행 정책을 유지합니다(K631-1).
 - parity declaration은 feature coverage part에 포함된 root를 해석해 정확히 하나의 implementation에 연결하며, part 밖의 test는 계속 거부합니다(K650).
+- parity는 구현 root 안의 추적된 native test 파일 하나를 external-oracle unit에 정확히 연결하며, 형제 test는 계속 구현 owner가 관리합니다(K651).
 
 - kit에 commit하거나 land해도 dist를 빌드하지 않습니다. consumer는 kit의 소스를 실행하고(K613) dist는 release 때 npm의 prepack이 빌드하므로, linked-build.mts의 kit 빌드(K551, K609의 kit 부분)를 지웠습니다(K646).
 - `make commits-check`는 commit Subject 안의 id가 마지막 id와 다를 때만 거부합니다. 같은 id를 두 번 쓴 것은 여전히 한 행을 가리키므로, id를 반복한 push된 commit을 다시 쓸 필요가 없습니다(K648).
