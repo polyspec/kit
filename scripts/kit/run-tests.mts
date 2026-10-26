@@ -348,6 +348,8 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       let buildStopping: Promise<void> | undefined;
       // A build that could not start has no pid and no group to stop.
       stopRunning = () => { if (builder.pid !== undefined) buildStopping ??= stopGroup(builder.pid, built, graceMs); };
+      // The leader may exit before descendants close its inherited output pipes.
+      builder.once('exit', stopRunning);
       const ended = await built;
       await buildStopping;
       const buildEnd = finished(ended, 'the build of the tests');
@@ -372,6 +374,8 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     // A tool that could not start has no pid and no group to stop.
     const stop = () => { if (child.pid !== undefined) stopping ??= stopGroup(child.pid, closed, graceMs); };
     stopRunning = stop;
+    // Drain output after stopping descendants of a leader that has already exited.
+    child.once('exit', stop);
     // The gap watch (K371-1): an interval without a test event outlives the timeout, so the tool is stopped and the run fails.
     let gapExpired = false;
     const gap = createGap({

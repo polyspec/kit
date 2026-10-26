@@ -1,7 +1,9 @@
 // Go and Cargo pre-test builds are operations without deadlines. Their output streams while they run;
 // actual tests retain their own timeout, and build failures stop the run before any test starts.
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, watch, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { signalGroup } from '../../scripts/kit/process-group.mts';
+import { chmodSync, existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { run } from '../../scripts/kit/run-tests.mts';
@@ -110,4 +112,57 @@ test('a build that fails stops the run with its output and its exit code (K549-1
   assert.equal(status, 1, text);
   assert.match(text, /p\/bad\.go:3:9: syntax error/);
   assert.match(text, /✖ go \. \.\/\.\.\.: the build of the tests `[^`]*go test -exec=true \.\/\.\.\.` ended with exit code 1/);
+});
+
+
+/** A leader exits after its child has inherited both output pipes and announced readiness through IPC. */
+function orphanCheckout(t: TestContext, stage: 'build' | 'tool') {
+  let pids: string | undefined;
+  t.after(() => {
+    if (pids && existsSync(pids)) {
+      const [group] = readFileSync(pids, 'utf8').split(',').map(Number);
+      if (group) signalGroup(group, 'SIGKILL');
+    }
+  });
+  const line = stage === 'build' ? 'descendant final output\n' : `${JSON.stringify({ Action: 'output', Package: 'p', Output: 'descendant final output\n' })}\n`;
+  const descendant = `process.stdout.write(${JSON.stringify(line)}); process.send('ready'); setInterval(() => {}, 1000);`;
+  const script = `
+    const { spawn } = process.getBuiltinModule('node:child_process');
+    const { writeFileSync } = process.getBuiltinModule('node:fs');
+    const child = spawn(process.execPath, ['-e', ${JSON.stringify(descendant)}], { stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    child.once('message', () => {
+      writeFileSync('operation-pids', process.pid + ',' + child.pid);
+      for (const event of ${JSON.stringify(stage === 'tool' ? GO_EVENTS : [])}) console.log(JSON.stringify(event));
+      process.exit(0);
+    });
+  `;
+  const root = goCheckout(t, { cold: false, ...(stage === 'build' ? { build: script } : { script }) });
+  pids = path.join(root, 'operation-pids');
+  return { root, pids };
+}
+
+function assertOrphanRun(result: { status: number; text: string }, pids: string) {
+  assert.equal(result.status, 0, result.text);
+  assert.match(result.text, /1 passed, 0 failed, 0 timed out/);
+  const recorded = readFileSync(pids, 'utf8').split(',').map(Number);
+  assert.equal(recorded.length, 2);
+  for (const pid of recorded) {
+    const process = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' });
+    assert.ok(process.status !== 0 || process.stdout.trim().startsWith('Z'), `operation process ${pid} remains active`);
+  }
+}
+
+test('an exited builder cannot leave a descendant holding its output pipes (K682-1)', { timeout: 5000 }, async (t) => {
+  const { root, pids } = orphanCheckout(t, 'build');
+  const result = await runTool(root, ['go', '--timeout', '2', './...']);
+  assertOrphanRun(result, pids);
+  assert.match(result.text, /descendant final output/);
+  assert.match(result.text, /\[build\] [^\n]+: ended with exit code 0/);
+});
+
+test('an exited test tool drains output and keeps passing counts without leaving pipe-holding descendants (K682-2)', { timeout: 5000 }, async (t) => {
+  const { root, pids } = orphanCheckout(t, 'tool');
+  const stdout = t.mock.method(process.stdout, 'write');
+  assertOrphanRun(await runTool(root, ['go', '--timeout', '2', './...']), pids);
+  assert.match(stdout.mock.calls.map(call => String(call.arguments[0])).join(''), /descendant final output/);
 });
