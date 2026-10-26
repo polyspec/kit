@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 4633485b486e1a56a16f2a6d4f0d96d7e9875ceeacc27dc468c08ff57fc08bbd -->
+<!-- source-sha256: c0af0eeb076f7c7ede7381b4e4c07c4cd1b207201e192af46c034e25039d7a3a -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -562,5 +562,5 @@
 | K655 | main CI 통과 후 현재 tool 수정과 잠긴 consumer 설치를 포함하여 kit 0.0.55를 release한다 | package.json, package-lock.json, CHANGELOG.md and its Korean twin, tests/release-consumer/npm, config/dependency-review.json | `make docs-check` | [ ] |
 | K657 | 로컬 source 연결 개발을 유지하면서 dependency link와 설치 metadata를 각 package manager에 맡기고 CI는 versioned release dependency를 설치한다 | scripts/kit/link.mts, npm-install.mts, composer-install.mts, uv-install.mts, docs/operations/local-links.md and its Korean twin | `make docs-check` | [ ] |
 | K657-1 | npm link가 로컬 package link를 소유하며 kit는 npm package folder를 직접 교체하지 않는다 | scripts/kit/npm-install.mts, scripts/kit/link.mts, tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/npm-install.test.mts` | [ ] |
-| K657-2 | Composer는 선언된 path repository를 설치하고 manifest, lock, 설치 기록, autoload를 관리하며 별도 metadata 보정을 제거한다 | scripts/kit/composer-install.mts, scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K657|K653" tests/kit/link.test.mts` | [ ] |
+| K657-2 | Composer는 선언된 path repository를 설치하고 manifest, lock, 설치 기록, autoload를 관리하며 별도 metadata 보정을 제거한다 | scripts/kit/composer-install.mts, scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K657\|K653" tests/kit/link.test.mts` | [ ] |
 | K657-3 | uv는 로컬 dependency를 editable로 설치하고 kit는 Python package directory를 교체하거나 설치 metadata를 직접 작성하지 않는다 | scripts/kit/uv-install.mts, scripts/kit/link.mts, tests/kit/uv-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/uv-install.test.mts` | [ ] |
