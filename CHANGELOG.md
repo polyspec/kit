@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Parity declaration path checks preserve non-file URI values and inspect file URL runner paths for checkout escapes. (K699)
+
 ## 0.0.58
 
 - Refreshed kit 0.0.58 consumer locks and advisory review after the provider lint and descendant cleanup fixes (K677-5).

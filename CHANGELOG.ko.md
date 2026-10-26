@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5702aaf509a2f3c9cc89157c4e49b8262b475e5bc987ff344918deee55226fa4 -->
+<!-- source-sha256: 02a4ecd479bb95229397d684d79dc2fb28ca2de7a178bbe6ecdce14ff0b9978d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Parity declaration path 검사에서 non-file URI 값은 보존하고 file URL runner 경로는 checkout 탈출 여부를 확인한다. (K699)
 
 ## 0.0.58
 

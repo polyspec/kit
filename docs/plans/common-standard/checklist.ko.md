@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1cbdb10221a3b465d92dc615237aaffde1b5990a0e6356508f354fd74673af6a -->
+<!-- source-sha256: f7d8dee8a62da11fdd856a9b842c75463814195f40e02db53cc0ac3c6ea2ecea -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -649,4 +649,4 @@
 | K694 | Cargo manifest의 명시 경로에서 Rust parity target을 선택 | scripts/kit/parity-runners.mts; tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K148\|K694" tests/kit/parity.test.mts` (2 passed); `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-runners.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K695 | 네임스페이스가 있는 클래스와 짧은 PHPUnit 클래스 id를 매칭하고 bare method, FQCN, data provider의 정확한 필터를 유지한다. | scripts/kit/parity-runners.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K695 tests/kit/parity.test.mts`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-runners.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K698 | Linked 및 packed 설치에서 native provider lint 실행 파일과 backend를 해석한다 | scripts/kit/lint-ts.mts, tests/kit/lint-ts.test.mts, tests/kit/catch-check-steps.test.mts | `node --test tests/kit/lint-ts.test.mts tests/kit/catch-check-steps.test.mts` and `make docs-check` | [o] |
-| K699 | 비 file URI 환경 값은 데이터로 처리하고 file URI runner 경로는 계속 검사한다 | scripts/kit/parity-declaration.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K699 tests/kit/parity.test.mts`; `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-declaration.mts tests/kit/parity.test.mts`; `make docs-check` | [~] |
+| K699 | 비 file URI 환경 값은 데이터로 처리하고 file URI runner 경로는 계속 검사한다 | scripts/kit/parity-declaration.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K699 tests/kit/parity.test.mts`; `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-declaration.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
