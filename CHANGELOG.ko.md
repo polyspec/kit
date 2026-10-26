@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7cfd12e9276a167364d074cfc953d5c6fb697e5cf8e67dedfc00d56075a10a3d -->
+<!-- source-sha256: 77bd413e8cf9d66b3afe6e64f84721e1796ac42c0f9ae51217b48b9680d9f306 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Python 개발 설치는 앱의 source/workspace 선언으로 native uv sync --locked를 한 번 실행한 뒤 uv pip check로 설치된 distribution을 검사한다. 기존에 설치되지 않은 선언 library도 포함하며 설치 목록 필터나 kit 생성 manifest, version, distribution metadata를 사용하지 않는다. virtual project를 포함한 source 해석은 native uv가 결정하며 pip check는 virtual root가 아닌 설치된 distribution을 검증한다. unit 3개와 실제 uv 검사 1개가 release에서 개발 source 선택, 새 library 설치, 반복 상태, source 수정의 즉시 반영, 설치된 consumer의 exact-version 실패를 확인했고 변경 파일 type-aware lint도 통과한다 (K664-1).
 
 - worktree 재빌드는 설치된 source 또는 packed kit의 공개 link export를 해석하고 workspace hook 경로는 실행 module을 따른다. source 경로 소유 검사 7개, 두 tool export fixture와 재빌드 순서 검사, 변경 파일 type-aware lint가 통과한다 (K661-9).
 - Dependency isolation은 runtime import, command, peer와 별도로 native TypeScript compiler가 kit 도구에서 실제 읽은 type declaration package를 사용으로 인정합니다. 미사용 type package는 계속 거부하며 test-only import는 도구 사용으로 세지 않습니다. Red: dependency-use case가 필요한 @types/picomatch를 거부합니다. Green: 소유 isolation 3개 case와 type-aware lint가 통과합니다(K661-10).
