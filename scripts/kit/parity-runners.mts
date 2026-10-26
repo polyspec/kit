@@ -123,7 +123,11 @@ const featureCase = (ids: readonly string[] = []) => (test: TestRef): string => 
   // The data set of a method is the method's case: `<method> with data set "<set>"` names the method `<method>`.
   const method = (name: string) => name.replace(/ with data set [\s\S]*$/, '');
   const candidates = [test.id, method(test.id), test.name, method(test.name)];
-  return candidates.find(candidate => ids.includes(candidate)) ?? test.id;
+  const shortClass = (id: string): string => {
+    const [className, ...methodName] = id.split('::');
+    return methodName.length ? `${present(className, 'className').split('\\').pop()}::${methodName.join('::')}` : id;
+  };
+  return ids.find(id => candidates.includes(id) || candidates.includes(shortClass(id))) ?? test.id;
 };
 
 /**
@@ -131,6 +135,13 @@ const featureCase = (ids: readonly string[] = []) => (test: TestRef): string => 
  * `<class>::<method> with data set …`, so it selects the method and each of its data sets, and no method that only starts so.
  */
 const methodFilter = (symbol: string): string => `/^${symbol.replaceAll('\\', '\\\\')}(?: with data set |$)/`;
+
+/** The PHPUnit filter of the exact feature methods named by a grouped file binding, including their data sets. */
+const phpFeatureFilter = (ids: readonly string[]): string => {
+  const literal = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replaceAll('/', '\\/');
+  const methods = ids.map(id => `${id.includes('::') ? literal(id) : `(?:[^:]+::)?${literal(id)}`}(?: with data set |$)`);
+  return `/^(?:${methods.join('|')})/`;
+};
 
 /**
  * The case of a PHPUnit test of the method of `symbol`: the data set `<method> with data set "<case>"` names `<case>`, and an
@@ -269,8 +280,10 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       const configuration = ['phpunit.xml', 'phpunit.xml.dist'].map(file => path.posix.join(composer, file)).find(file => existsSync(path.join(root, file)));
       const flags = configuration === undefined ? ['--no-configuration'] : ['--configuration', configuration];
       const method = kind === 'suite' ? binding.symbol : undefined;
+      const featureFilter = kind === 'feature' && binding.ids?.length ? phpFeatureFilter(binding.ids) : undefined;
+      const filter = method === undefined ? featureFilter : methodFilter(method);
       return {
-        args: test => [...test, phpunit, '--teamcity', ...flags, ...(method === undefined ? [] : ['--filter', methodFilter(method)]), binding.test],
+        args: test => [...test, phpunit, '--teamcity', ...flags, ...(filter === undefined ? [] : ['--filter', filter]), binding.test],
         cwd: '.',
         caseOf: kind === 'feature' ? featureCase(binding.ids) : method === undefined ? test => methodCase(test.name) : dataSetCase(method),
         merge: kind === 'feature',
