@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: b63cabf82ef1e16b4663ebe73ce34dbb167024694d5a32f8722e6a5ea46de04b -->
+<!-- source-sha256: 45dce6d05ed1d12ef4ebe24d16c8e1000e38e7aba83fc381fb7eaf29d27c1f3d -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -569,7 +569,7 @@
 | K657-4 | native Python 도구가 worktree 환경과 editable 설치를 만들고 kit는 Python 설치 metadata를 재작성하지 않고 tool cache를 공유한다 | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts, tests/source/worktree-python-real.test.mts, config/owner-checks.json | `node scripts/kit/run-tests.mts node -- --test-name-pattern='[Pp]ython' tests/kit/worktree-setup.test.mts tests/source/worktree-python-real.test.mts` | [o] |
 | K659 | fresh-checkout smoke는 전체 kit suite를 재귀 실행하지 않고 설치와 package 소비를 검증한다 | tests/source/checkout.mts, tests/source/fresh-checkout.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/fresh-checkout.test.mts` | [o] |
 | K660 | release dependency 검사는 최신 release 강제 없이 version 선택과 별도로 알려진 취약점을 거부한다 | scripts/kit/check-dependency-policy.mts, scripts/kit/dependency-review.mts, tests/kit/dependency-advisory.test.mts, mise.toml and mise.lock | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-advisory.test.mts` | [o] |
-| K661 | CI fixture와 tool 입력은 지원 platform에서 native tool 계약과 선언된 capability를 따른다 | scripts/kit, tests/kit, tests/source, config/release.json | `make docs-check` | [ ] |
+| K661 | CI fixture와 tool 입력은 지원 platform에서 native tool 계약과 선언된 capability를 따른다 | scripts/kit, tests/kit, tests/source, config/release.json | `make docs-check` | [o] |
 | K661-5 | Review 소유 fixture에서 새 dependency release는 정보로 유지하고 불완전 query와 알려진 advisory는 계속 실패한다 | tests/kit/dependency-go.test.mts, tests/kit/dependency-review.test.mts, tests/kit/python-lock.test.mts | 선택한 review unit case 5개: fc0fccc2에서 Red 5개 실패; Green 5개 통과 | [o] |
 | K661-6 | Workspace hook writer와 checker는 명시된 GitHub Actions checkout을 job 입력으로 판단하며 local hook과 모든 dependency-link 검사를 유지한다 | scripts/kit/link.mts, scripts/kit/link-state-check.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K661-6 tests/kit/link.test.mts`; existing K440 owning cases | [o] |
 | K661-7 | 의존성 계약 테스트는 패키지 해석을 네이티브 관리자에 맡기고 취약점 범위 검사와 잠금 지문 보안을 유지한다 | tests/kit/dependency-state.test.mts, dependency-policy.test.mts, python-lock.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K661-7 tests/kit/dependency-state.test.mts tests/kit/dependency-policy.test.mts tests/kit/python-lock.test.mts` | [o] |

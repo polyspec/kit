@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: aca544131ee0de88104a0f23fe9b84bf9541f179d158fcdbe1d235877a3c0848 -->
+<!-- source-sha256: 591b99f2e8e40878ebfb3c1bd9a2aa70a8468c9399ad58099779574b7c47f5b4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Native tool fixture와 CI 입력 선언은 지원하는 Go, PHP, Git, dependency review, module 경로와 workspace hook 계약을 다룬다. 각 소유 검사는 통과했고 전체 CI 검증은 release gate로 남는다 (K661).
 
 - npmSourceFolders는 설치가 없어도 dependencies·devDependencies·optionalDependencies·peerDependencies에 선언된 제공자를 선택하고 이미 설치된 전이 제공자도 보존한다. 네이티브 npmLink의 입력만 선택하며 설치 기록이나 합성 잠금을 쓰지 않는다. 선택기 단위 검사와 실제 미출시 소스 설치가 통과하고 타입 인식 lint·typecheck도 통과한다 (K664-5).
 - 네이티브 npm 소스 테스트는 main과 워크트리에 로컬 0.0.1 릴리스를 설치한 뒤 npmLink로 워크트리만 0.0.2 소스를 사용하게 한다. 두 번 연결한 설치 관찰 상태가 같고 이후 소스 수정은 재연결 없이 반영되며 양쪽 릴리스 manifest·잠금, 제공자 manifest와 main은 바뀌지 않는다. 실제 npm 소유 사례 1개와 타입 인식 lint가 통과한다. npm 래퍼 동작은 변경하지 않는다 (K664-5).
