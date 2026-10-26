@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f9f74d9101188d6c525deee5af5a45d34a94d82586484a0c3237ec586de3f2a5 -->
+<!-- source-sha256: 049d6b771b1557514ff2801063772647a99fc2170bc53ac8b784568da4090add -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.55
+
+- 수정된 0.0.55 candidate는 native 소유권·advisory·target 격리·process 정리 수정을 포함합니다. 새 online native review가 정확한 다섯 lock을 검토해 advisory가 없음을 확인했고 새 tool version 안내는 정보로 유지합니다. 소유 검사는 위에 기록하며 candidate CI 통과와 consumer proof를 거친 공개는 대기 중입니다(K655).
 - 사전 빌드 부모가 종료하면 출력 배출을 기다리면서 기존 프로세스 그룹 정리를 실행해 파이프를 잡는 자식이 완료를 막지 못하게 한다. 집중 빌드 고아 파이프·빌드 실패 사례와 변경 파일 타입 인식 lint·typecheck가 통과한다 (K682-1).
 - 테스트 도구의 정상 종료도 사례·간격 제한시간을 기다리지 않고 같은 정리를 실행한다. 집중 고아 파이프 사례는 활성 그룹 프로세스를 남기지 않으면서 종료 0·마지막 출력·통과 사례 수를 보존한다. 시간 초과·중단·부모 종료 정리 검사도 통과한다 (K682-2).
 - Candidate 상태는 완료된 native 소유권 수정과 CI 실패 owner 네 건 수정을 아직 대기 중인 전체 candidate CI·공개와 구분합니다. Legacy worktree dependency 투영과 기존 land timeout은 K690/K685의 명시적인 잔여 작업이며 native 설치·deadline 제거 완료로 보고하지 않습니다(K679).
@@ -25,15 +28,13 @@
 - npm idempotence는 Node가 실제로 검색하는 경로를 확인하므로 workspace package는 상위 `node_modules`의 올바른 source link를 재사용한다. source path가 없거나 다른 link에 가려지면 native npm linking을 계속 실행한다(K674).
 - 선택한 설치 provider가 모두 source로 resolve되면 반복 local npm link는 아무 변경도 하지 않으며, 잘못되거나 누락된 source는 native npm link로 복구한다. Release URL override가 있는 offline source graph와 잘못된 target 복구 case가 통과한다(K673).
 
-## 0.0.55
-
 - Transitive npm graph fixture의 package 이름·경로·release URL을 일반 editor, language, storage, codec 이름으로 바꾼다. Dependency edge, workspace 배치, release override와 정확한 source assertion은 유지한다. Red: 377c06b1에서 제품별 이름으로 isolation이 실패한다. Green: isolation과 선택한 K672 selector/native graph 검사가 통과하며 변경 파일의 type-aware lint도 통과한다(K672-1).
 - Cargo fallback fixture는 native offline update preflight를 허용하고 source 거부 시 요청한 command가 실행되지 않으며 holder가 해제됨을 구분해 검증한다. Red: cdb95b63에서 소유 fallback case 실패; Green: 선택한 Cargo source case 4개 모두 통과 (K671-8).
 
 - Rebuild inventory에 native Cargo metadata source helper를 분류하고 현재 npm과 uv 설치 명령을 설명한다. Dependency, document, generated-file, link-state 및 npm test의 package·경로·URL fixture를 일반화하며 isolation과 원래 의미 assertion은 유지한다. Red: 89ee79f8에서 분류와 isolation 소유 case가 실패한다. Green: 선택한 소유 case 26개가 통과한다(K671-5).
 - 설치 package bootstrap 통합을 완료했습니다. Source link는 선택 사항이고 공유 파일은 package가 제공하는 일반 사본이며 release/gates는 package 우선 설치를 사용합니다. 소유 workflow, native source/packed hook, copy, npm, rule 검사가 통과했습니다. 유지한 tokenizer 수정으로 PHP extension 소유 검사 25개도 통과했습니다. Main CI와 release 공개는 대기 중입니다(K671).
 - Worktree link fixture는 자체 Composer vendor-directory 응답과 준비된 native Python source 선언을 포함한다. Missing make target 판별은 GNU make diagnostic의 두 quote 형식을 허용하고 missing prerequisite와 다른 make 실패는 계속 오류로 처리한다. Red: 76a52fa8에서 worktree case와 GNU make 4 K583 case 실패; Green: 선택한 link case 4개, 실제 GNU make 4 K583 unit, typecheck 및 변경 파일 type-aware lint 통과 (K671-7).
-- Native npm 연결은 package-lock 읽기를 끄지 않는다. Offline으로 설치된 registry range는 기존 native tarball resolution을 사용하고 registry를 다시 조회하지 않는다. --no-save는 release manifest와 lock을 유지한다. legacy-peer-deps나 기존 링크 생략은 추가하지 않는다. Native npm link는 호환되지 않는 linked peer를 허용할 수 있으며, 소유 fixture는 npm ls가 이를 탐지함을 기록하고 별도 resolver나 설치 gate는 추가하지 않는다. Red: 89ee79f8에서 locked-range case가 ENOTCACHED로 실패했다. Green: locked-range·peer 관찰·기존 release-to-source case와 변경 파일 type-aware lint가 통과했다(K671-6).
+- Native npm 연결은 package-lock 읽기를 끄지 않는다. Offline으로 설치된 registry range는 기존 native tarball resolution을 사용하고 registry를 다시 조회하지 않는다. --no-save는 release manifest와 lock을 유지한다. legacy-peer-deps 우회는 추가하지 않으며 올바른 source의 멱등 재사용은 K673/K674가 정의한다. Native npm link는 호환되지 않는 linked peer를 허용할 수 있으며, 소유 fixture는 npm ls가 이를 탐지함을 기록하고 별도 resolver나 설치 gate는 추가하지 않는다. Red: 89ee79f8에서 locked-range case가 ENOTCACHED로 실패했다. Green: locked-range·peer 관찰·기존 release-to-source case와 변경 파일 type-aware lint가 통과했다(K671-6).
 - Bootstrap 문서와 규칙은 설치된 package path와 일반 공유 사본을 사용하고 선택적인 native npm source link를 유지합니다. Native npm lock은 hook command를 기록합니다. Workflow unit 16개, rule unit 13개, 문서 및 rule 검사가 통과합니다(K671).
 - Python link는 polyspec dependency를 선언하지 않은 project에서 주변 uv workspace를 sync하지 않습니다. 소유 unit은 14c67f38에서 실패하고 guard 추가 후 통과합니다(K670-4).
 - Release version commit은 manifest와 lock metadata를 허용하되 chore(release)에 구현 변경을 허용하지 않습니다. 소유 unit은 14c67f38에서 실패하고 수정 후 통과합니다(K670-3).
