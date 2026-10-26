@@ -2487,7 +2487,7 @@ test('parity-declarations-check UNITS runs the rules on the named units while an
 });
 
 test('R13 reports active gaps separately from a valid held requirement (K656)', TIMEOUT, (t) => {
-  const checklist = (state: string) => `# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held work | source | \`node test.mts\` | ${state} |\n`;
+  const checklist = (state: string) => `# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | \`node test.mts\` | ${state} |\n`;
   const files = {
     'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
     'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A requirement remains defined while its checklist item is held.\n- **CX-3** An active requirement remains untraced until a unit tests it.\n',
@@ -2510,7 +2510,7 @@ test('deferred requirement entries reject unrecognized fields (K656)', TIMEOUT, 
   const files = {
     'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
     'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A requirement remains defined while its checklist item is held.\n',
-    'docs/plans/held/checklist.md': '# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held work | source | `node test.mts` | [!] cause: user held it; retry: user reopens the work |\n',
+    'docs/plans/held/checklist.md': '# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | `node test.mts` | [!] cause: user held it; retry: user reopens the work |\n',
   };
   const messages = check(t, {
     files,

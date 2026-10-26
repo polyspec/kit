@@ -1,12 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7fa98cb3664242a7a205db712e291c19c4b06a282903243946dac98a3c33d3d5 -->
+<!-- source-sha256: 852d239d1eb926abe8e76c1ae1dc4b80ead7d0532b0e50cc70801b26298a5201 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- parity 요구 추적은 명시된 영어 checklist의 정확한 항목이 `[!]`일 때만 해당 id를 보류합니다. 진행 중인 누락은 R13 finding으로 남고, 잘못되거나 활성 상태인 참조 및 중복 참조는 거부합니다(K656).
+- parity 요구 추적은 명시된 영어 checklist의 정확한 항목이 `[!]`이고 그 task가 해당 id를 명시할 때만 요구를 보류합니다. 진행 중인 누락은 R13 finding으로 남고, 잘못되거나 활성 상태인 참조 및 중복 참조는 거부합니다(K656).
 - Composer source link는 실행별 path-repository manifest와 lock으로 오래된 runtime requirement를 일치시킵니다. Composer는 link된 package만 update하고 외부 package record와 추적 release record를 유지하며 platform 검사를 보존하고 일치하는 metadata는 변경하지 않습니다(K653).
 
 ### 2026-10-26 — 종결된 checklist가 명시적인 local final run을 허용한다 (K654)

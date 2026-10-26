@@ -141,6 +141,11 @@ export function requirementFindings(config: { requirements: { pattern: string };
       findings.push(finding('declaration', `${entry.id} is deferred by ${entry.item}, whose state in ${entry.checklist} is ${item.state}, not ${BYPASSED}`, { place: DECLARATION, requirements: [entry.id] }));
       continue;
     }
+    const escapedId = entry.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (!new RegExp(`(?<![A-Za-z0-9_.-])${escapedId}(?![A-Za-z0-9_.-])`).test(item.title)) {
+      findings.push(finding('declaration', `${entry.id} is deferred by ${entry.item}, whose task in ${entry.checklist} does not name ${entry.id}`, { place: DECLARATION, requirements: [entry.id] }));
+      continue;
+    }
     deferredIds.add(entry.id);
     onDeferred?.(entry);
   }

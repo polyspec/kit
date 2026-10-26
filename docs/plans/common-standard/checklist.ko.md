@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 0dd3a15aa677f883551902604d71208cc04eebaaf86a15c8abbf6059a3eb7ee4 -->
+<!-- source-sha256: cd51d5fd607cd63e7d6e9be32f1b35247233483a981dd4910892f2ffdaf7d4fd -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -564,4 +564,4 @@
 | K657-1 | npm link가 로컬 package link를 소유하며 kit는 npm package folder를 직접 교체하지 않는다 | scripts/kit/npm-install.mts, scripts/kit/link.mts, tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/npm-install.test.mts` | [ ] |
 | K657-2 | Composer는 선언된 path repository를 설치하고 manifest, lock, 설치 기록, autoload를 관리하며 별도 metadata 보정을 제거한다 | scripts/kit/composer-install.mts, scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K657\|K653" tests/kit/link.test.mts` | [ ] |
 | K657-3 | uv는 로컬 dependency를 editable로 설치하고 kit는 Python package directory를 교체하거나 설치 metadata를 직접 작성하지 않는다 | scripts/kit/uv-install.mts, scripts/kit/link.mts, tests/kit/uv-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/uv-install.test.mts` | [ ] |
-| K656 | parity 요구 추적은 보류된 체크리스트 항목에 연결된 요구만 보류할 수 있다 | config/parity.json deferredRequirements declaration, checklist-state validation and R13 reporting with mutation tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=defer tests/kit/parity-requirements.test.mts`; `make typecheck`; `make docs-check` | [o] |
+| K656 | parity 요구 추적은 보류 항목에 실제 명시된 요구만 보류한다 | config/parity.json deferredRequirements declaration, checklist-state validation and R13 reporting with mutation tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=defer tests/kit/parity-requirements.test.mts`; `make typecheck`; `make docs-check` | [o] |

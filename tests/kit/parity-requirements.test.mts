@@ -113,7 +113,7 @@ test('only a unit with tests traces a requirement: one that only an api unit cit
   ]);
 });
 
-const heldChecklist = (state: string, item = 'K656') => `# Deferred work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| ${item} | Held work | source | \`node test.mts\` | ${state} |\n`;
+const heldChecklist = (state: string, item = 'K656', task = 'Held work for AB-2') => `# Deferred work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| ${item} | ${task} | source | \`node test.mts\` | ${state} |\n`;
 const deferredConfig = (deferredRequirements: { id: string; checklist: string; item: string }[], units: Input[] = [
   { id: 'codec-remaining', requirements: ['AB-1', 'AB-3'] },
 ]) => ({ requirements: { pattern: 'AB-[0-9]+' }, units: units.map(bound), deferredRequirements });
@@ -151,6 +151,13 @@ test('a missing checklist or item cannot defer R13 (K656)', () => {
   const missingItem = requirementFindings(deferredConfig([{ id: 'AB-2', checklist: 'docs/plans/work/checklist.md', item: 'K656' }]), Object.keys(all), read(all), new Map(), 'K[0-9]+');
   assert.ok(missingItem.some(item => item.rule === 'declaration' && item.message.includes('K656 is not an item')));
   assert.ok(missingItem.some(item => item.rule === 'R13' && item.requirements?.includes('AB-2')));
+});
+
+test('an unrelated held item cannot defer a requirement it does not name (K656)', () => {
+  const all = deferredFiles(heldChecklist('[!] cause: unrelated work; retry: resume it', 'K656', 'Hold AB-20 only'));
+  const found = requirementFindings(deferredConfig([{ id: 'AB-2', checklist: 'docs/plans/work/checklist.md', item: 'K656' }]), Object.keys(all), read(all), new Map(), 'K[0-9]+');
+  assert.ok(found.some(item => item.rule === 'declaration' && item.message.includes('task in docs/plans/work/checklist.md does not name AB-2')));
+  assert.ok(found.some(item => item.rule === 'R13' && item.requirements?.includes('AB-2')));
 });
 
 test('unknown and duplicate deferred requirements fail without hiding R13 (K656)', () => {
