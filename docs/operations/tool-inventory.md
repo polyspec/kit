@@ -902,6 +902,8 @@ and its shim is mise), and phpcs and PHPStan at the releases that `config/php-li
 declares PHP (`php` of config/toolchain.json or `.php-version`): every repository holds the copy, and a tool that a repository
 does not declare is neither installed nor checked.
 
+TypeScript lint resolves its declared dependency packages with Node's native package lookup from the installed kit provider. It runs each package's declared executable and exposes the native backend bin directory to oxlint. Linked source installations and packed installations use the same lookup; consumer root transitive bin links are not required.
+
 ### Decisions
 
 - **Composer policy and nested configurations by alint.** The plan named ajv for the composer.json policy schema. alint, which

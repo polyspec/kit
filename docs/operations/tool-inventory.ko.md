@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5560e2dfbbd3cee1ad5d821f9434c74b518b7b66728252207ddd75fe3e0ab4db -->
+<!-- source-sha256: 3243674a97a4534bf3e47b56d2ec590613492b21eb0b269927200b6af4da5860 -->
 
 # 도구 목록
 
@@ -813,6 +813,8 @@ fixture이며, 각 fixture는 자기 위반에서 실패합니다. 모든 도구
 | Go | golangci-lint 2.14.0, golang.org/x/tools 0.52.0의 deadcode (`mise.toml`) | `.golangci.yml`: error string은 spec의 대소문자를 유지하는 cross-port message이므로 ST1005 없는 staticcheck, 모든 finding 보고(`max-same-issues`와 `max-issues-per-linter` 0; K164) | `lint-go.mts`: 각 module에서 golangci-lint와 `deadcode -test ./...` |
 | TypeScript | oxlint 1.88.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (kit의 dependencies, kit과 함께 설치) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
 | 전체 | — | `.editorconfig` | 없음: 각 언어의 formatter가 같은 규칙을 강제합니다 |
+
+TypeScript lint는 설치된 kit provider에서 Node의 native package lookup으로 선언된 dependency package를 해석해요. 각 package가 선언한 실행 파일을 실행하고 native backend bin directory를 oxlint에 제공해요. Linked source 설치와 packed 설치는 같은 lookup을 사용하며 consumer root의 transitive bin link를 요구하지 않아요.
 
 make target과 사본(`kit.copies`)은 kit package 위에서 연결합니다. bootstrap 이후에 `toolchain-mise.mts`가 `mise.toml`의 lint 도구를,
 `toolchain-lint.mts`가 PHP lint를 읽고, `make toolchain-check`는 설치된 각 release를 확인합니다: vulture, golangci-lint,

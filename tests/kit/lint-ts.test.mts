@@ -6,7 +6,7 @@
 // knip.json that knip needs: the ignores that the first run of knip, with the reporter knip-ignore-hints, does not name as
 // matching no issue (K176, K188). The tools are stubs; the knip stub prints knip-hints.json of the checkout for that reporter.
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, renameSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -46,6 +46,13 @@ function checkout(t: TestContext, { installed = ['oxlint', 'knip', 'api-extracto
     writeFileSync(path.join(root, 'node_modules/.bin', tool), `#!/bin/sh\necho "${tool} $* [$(basename "$PWD")]" >> "${log}"\n${hints}${tool === failing ? 'exit 1' : ''}\n`);
     chmodSync(path.join(root, 'node_modules/.bin', tool), 0o755);
   }
+  for (const [name, binary] of Object.entries({ oxlint: 'oxlint', knip: 'knip', '@microsoft/api-extractor': 'api-extractor', 'oxlint-tsgolint': 'tsgolint' })) {
+    const directory = path.join(root, 'node_modules', name);
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(path.join(directory, 'package.json'), JSON.stringify({ name, bin: { [binary]: path.relative(directory, path.join(root, 'node_modules/.bin', binary)) } }));
+  }
+  writeFileSync(path.join(root, 'node_modules/.bin/tsgolint'), '#!/bin/sh\nexit 0\n');
+  chmodSync(path.join(root, 'node_modules/.bin/tsgolint'), 0o755);
   initRepository(root);
   return { root, calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean).map(line => line.replace(/ \[kit-lint-ts-[^\]]*\]$/, ' [root]')) };
 }
@@ -224,4 +231,28 @@ test('oxlint and knip read the configurations of the kit package, and a checkout
   const merged: unknown = JSON.parse(readFileSync(path.join(root, 'var/lint-ts/knip.json'), 'utf8'));
   assert.ok(typeof kit === 'object' && kit !== null && typeof merged === 'object' && merged !== null);
   assert.deepEqual(Object.keys(merged).sort(), Object.keys(kit).sort(), 'the knip configuration is that of the kit package');
+});
+
+
+for (const linked of [false, true]) test(`K698 resolves ${linked ? 'linked' : 'nested'} provider tools and backend without consumer root bins`, (t) => {
+  const { root, calls } = checkout(t);
+  const provider = path.join(root, 'node_modules/@polyspec/kit/node_modules');
+  mkdirSync(provider, { recursive: true });
+  for (const entry of ['.bin', 'oxlint', 'knip', '@microsoft', 'oxlint-tsgolint']) {
+    renameSync(path.join(root, 'node_modules', entry), path.join(provider, entry));
+  }
+  let resolvedProvider = provider;
+  if (linked) {
+    const installed = path.dirname(provider);
+    const source = path.join(root, 'provider-source');
+    renameSync(installed, source);
+    symlinkSync(source, installed, 'dir');
+    resolvedProvider = path.join(source, 'node_modules');
+  }
+  resolvedProvider = realpathSync(resolvedProvider);
+  const steps = lintSteps(root);
+  assert.equal(steps[0]?.command, path.join(resolvedProvider, '.bin/oxlint'));
+  assert.ok(steps[0]?.env?.PATH?.split(path.delimiter).includes(path.join(resolvedProvider, '.bin')));
+  assert.deepEqual(lint(root, () => {}), []);
+  assert.deepEqual(calls(), [HINTS, ...ALL]);
 });
