@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { execute } from '../../scripts/kit/process.mts';
 import * as phpExtension from '../../scripts/kit/php-extension.mts';
 import { declarationFindings, declarations, declarationsOf, extensionFindings, extensionNames, stubHash, type Declarations } from '../../scripts/kit/php-extension.mts';
-import { installedGenStub, installPhpArginfo } from '../../scripts/kit/install-php-arginfo.mts';
+import { genStub, installedGenStub, installPhpArginfo } from '../../scripts/kit/install-php-arginfo.mts';
 import { put, tree } from './tree.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
@@ -294,6 +294,20 @@ test('a missing arginfo parser fails before gen_stub can invoke a network downlo
   assert.match(built.stderr, /PHP-Parser-.* is missing; run make install-tools/);
   assert.equal(existsSync(marker), false, 'the generator and downloader were not started');
   assert.equal(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')), false, 'no partial module was published');
+});
+
+test('genStub discovers the generator in the PHP API build directory (K652)', (t) => {
+  const root = tree(t, { 'mise.toml': '' });
+  const prefix = path.join(root, 'php');
+  const extensions = path.join(prefix, 'lib/php/20240924');
+  const generator = path.join(extensions, 'build/gen_stub.php');
+  put(root, { 'php/lib/php/20240924/build/gen_stub.php': '<?php $version = "5.0.0";\n' });
+  const config = path.join(root, 'var/tools/bin/php-config');
+  mkdirSync(path.dirname(config), { recursive: true });
+  writeFileSync(config, `#!/bin/sh\ncase "$1" in\n--prefix) printf '%s\\n' '${prefix}';;\n--extension-dir) printf '%s\\n' '${extensions}';;\n*) exit 97;;\nesac\n`);
+  chmodSync(config, 0o755);
+  assert.equal(genStub(root).file, generator);
+  assert.equal(genStub(root).parser, '5.0.0');
 });
 
 test('install-tools stages the pinned PHP generator and parser atomically from locked Composer files (K560)', (t) => {
