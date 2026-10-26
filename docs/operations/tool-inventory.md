@@ -1026,6 +1026,12 @@ does not declare is neither installed nor checked.
   @rushstack/ts-command-line and argparse 1.0.10, covers every release of sprintf-js. kit's own dependency policy accepts it
   (Accepted advisories, K77).
 
+## Native Composer update ownership (K681)
+
+`make dependency-review UPDATE=1` executes its planned native commands without changing Composer lock entries before or after them. Composer owns dependency resolution, platform requirements, package versions and the selected manifest's lock. The command inherits `COMPOSER` when the application explicitly selects a development manifest. The application owns its compatible requirements and path/VCS repository declarations; kit does not convert VCS repositories to guessed sibling paths, generate a scratch manifest or invent provider versions. A failed native resolution remains a failure rather than being repaired by rewriting lock metadata.
+
+`make composer-provider-entries` and `dependency-review --provider-entries` are retired entry points that fail before mutation with migration guidance. Declare local sources in the application and use `COMPOSER=<application-owned manifest> make composer-install DIR=<project>` for native development installation, or run Composer's native update for the intended packages. Released installation continues to use the released manifest and lock. Advisory review and the offline gate retain their existing lock fingerprints and security checks; retirement does not waive any advisory.
+
 ## Accepted advisories (K77)
 
 An advisory that no release fixes failed every dependency gate, and the only way past it was to hide it. An entry of

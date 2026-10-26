@@ -1,6 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 48081f269b0d213cd1bb50957f7d76618e9160c2cb4bb3a0cb414ef41c487728 -->
-
+<!-- source-sha256: 77c283c105e5f94fda102d1574174b1e7fda92d70359ce49f63886fc4145d66e -->
 
 # 도구 목록
 
@@ -393,7 +392,7 @@ DOCS_CHECKS의 모든 target을 다른 것의 상태와 상관없이 실행하�
 | 문서 선택 | template, crudui: 고정 목록과 directory; hyper: tracked `*.md`; ordered-json: 모든 문서를 등록하는 manifest | `include`와 `exclude` glob이 고르는 tracked 및 ignore되지 않은 새 Markdown 파일; `.ko.md`는 영어 파일에 대응 |
 | 쌍 | 모두: 영어에는 한국어 필요; hyper, ordered-json: 한국어에는 영어 필요 | 양방향 (`pair-missing`) |
 | `doc-id` | ordered-json만 | 두 파일이 같은 `<!-- doc-id: id -->`를 한 번씩 가지고, id는 문서 하나를 가리킴 |
-| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: ef29b91dbf4c38052cf83f478c6e29fa5fe2eebddec3b42793847f9445439a0b -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
+| revision | ordered-json만 | 한국어 파일은 ``를 한 번 가지고 영어 파일의 sha256과 같음 |
 | section identifier | ordered-json (`<a id>` anchor) | anchor가 두 파일에서 같고 한 번씩만 나옴 |
 | fenced block | template, crudui, hyper: 내용만; ordered-json: info string과 내용, `~~~`, 닫히지 않은 fence | ordered-json 동작: info string과 내용 비교, 두 fence 문자 지원, 닫히지 않은 fence는 실패 |
 | link | 모두: inline link; ordered-json: reference link, autolink, `href`, query, 저장소 밖으로 나가는 link, explicit anchor; template: `.md`, `.ko.md`, `index.md` 후보와 `/` 건너뜀; crudui: `/` 거부 | 모든 link 형식; code는 읽지 않음; anchor는 explicit anchor 또는 heading anchor; static site의 `/`와 확장자 없는 link 동작은 `siteLinks` |
@@ -935,6 +934,12 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
 - API Extractor가 @rushstack/ts-command-line과 argparse 1.0.10을 거쳐 가져오는 sprintf-js 1.0.3의 moderate advisory
   GHSA-hp3w-g68c-fv3c(npm advisory 1241202)는 sprintf-js의 모든 release에 해당합니다. kit의 dependency policy가 이를
   받아들입니다(받아들인 advisory, K77).
+
+## Native Composer update 소유권 (K681)
+
+`make dependency-review UPDATE=1`은 계획한 native 명령을 실행하며 그 전후에 Composer lock entry를 바꾸지 않습니다. Dependency 해석, platform requirement, package version과 선택한 manifest의 lock은 Composer가 관리합니다. 앱이 개발 manifest를 명시적으로 선택하면 명령은 `COMPOSER`를 상속합니다. 호환 requirement와 path/VCS repository 선언은 앱 소유이며 kit은 VCS repository를 추정한 sibling path로 바꾸거나 scratch manifest를 생성하거나 provider version을 만들지 않습니다. Native 해석 실패는 lock metadata 보정으로 통과시키지 않고 실패로 유지합니다.
+
+`make composer-provider-entries`와 `dependency-review --provider-entries`는 폐기된 진입점이며 변경 전에 전환 안내와 함께 실패합니다. 앱에 로컬 source를 선언하고 native 개발 설치에는 `COMPOSER=<application-owned manifest> make composer-install DIR=<project>`를 사용하거나 원하는 package에 Composer의 native update를 실행합니다. 배포 설치는 계속 배포 manifest와 lock을 사용합니다. Advisory review와 offline gate는 기존 lock fingerprint와 보안 검사를 유지하며 진입점 폐기는 advisory를 면제하지 않습니다.
 
 ## 받아들인 advisory (K77)
 

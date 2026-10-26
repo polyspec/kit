@@ -474,7 +474,7 @@ dependency-review: ## Ask the registries for newer stable releases and advisorie
 	$(ONLINE) $(NODE) $(KIT)/dependency-review.$(KIT_EXT) $(if $(RECORD),--record) $(if $(UPDATE),--update) $(if $(TARGETS),--targets $(TARGETS))
 
 # K439: the metadata of a provided polyspec package in each tracked composer.lock, without the review or the updates.
-composer-provider-entries: ## Rewrite the metadata of each polyspec package that a sibling checkout provides in every tracked composer.lock of the Composer projects, from its composer.json, keeping the versions; offline
+composer-provider-entries: ## Removed metadata rewriting; fails with migration guidance to application-owned native Composer installation
 	$(NODE) $(KIT)/dependency-review.$(KIT_EXT) --provider-entries
 
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.

@@ -21,6 +21,8 @@ The link tool orchestrates the native package-manager commands. For npm, it foll
 
 Composer local development uses the path repositories and compatible requirements declared by the application. Composer reads `composer.json`, or an explicitly selected `COMPOSER=composer.local.json`, and owns that manifest's lock, installed records, links and autoload. kit creates no temporary manifest, version alias or separate runtime metadata. `composer update <local packages> --with-dependencies` may change the selected development lock and transitive dependencies; the command reports that before it runs. Release manifests and locks remain inputs to release installation, not records that disguise local source metadata.
 
+Dependency review updates also leave Composer metadata to native commands. The retired `composer-provider-entries` command fails with migration guidance; it does not repair a stale release lock using development source metadata. Prepare the application-owned development declarations and run native Composer instead.
+
 | Ecosystem | Native source connection |
 |---|---|
 | npm | `npm link` connects `node_modules/<name>` through the project-local npm prefix to its provider; npm owns the links and installed records |

@@ -21,14 +21,12 @@
 // which the registry must hold as a stable release, and `--update` moves it to exactly that version; the others are reviewed as before,
 // and `--update` moves none of them. With --record the review moment is the snapshot moment.
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { explain, rcompare as pep440Descending, valid as pep440Valid } from '@renovatebot/pep440';
 import semver from 'semver';
 import { POLICY, RECORD, TOOLCHAIN, UPDATE, acceptedText, advisoryExceptions, advisoryKey, dependencyKey, goPackagePatterns, lockEcosystem, lockFix, readPolicy, readState, advisoryRelease } from './dependency-state.mts';
 import type { Dependency, DependencyPolicy } from './dependency-state.mts';
-import { composerCommand, composerEnvironment as toolEnvironment } from './install-composer-project.mts';
 import { toolCommand } from './mise-tools.mts';
 import { MISE_TOOLS } from './toolchain-mise.mts';
 import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
@@ -36,8 +34,7 @@ import { readComposerLock } from './manifests.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { Stop, run as runCommand } from './process.mts';
 import { fileDigest } from './bootstrap/digest.mts';
-import { isJsonObject, writeJson } from './bootstrap/files.mts';
-import { linkGit, providers, siblingCheckouts } from './link-providers.mts';
+import { writeJson } from './bootstrap/files.mts';
 import { isPrerelease, isVersionText, older, stableDescending } from './version.mts';
 import { isLinked } from './linked-package.mts';
 import { present } from './present.mts';
@@ -679,274 +676,17 @@ export function updatePlan({ newer, advisories: all, targeted = false }: { newer
   return plan;
 }
 
-/** The manifest fields that Composer copies into a lock entry, in the order that Composer writes them. */
-const LOCK_METADATA = ['require', 'require-dev', 'conflict', 'provide', 'replace', 'suggest', 'type', 'extra', 'autoload', 'autoload-dev', 'bin', 'include-path', 'notification-url', 'license', 'authors', 'description', 'homepage', 'keywords', 'support', 'funding', 'abandoned', 'archive'];
-
-/** K439-2: the value that Composer writes into a lock for a manifest value; its license is a list of identifiers. */
-function lockValue(key: string, value: unknown): unknown {
-  return key === 'license' && typeof value === 'string' ? [value] : value;
-}
-
-/** The entry `entry` with the metadata fields of `manifest`: a field keeps its place, a missing one is dropped, and the name, the version, the dist, the source and the time stay. */
-function lockEntry(entry: Record<string, unknown>, manifest: Record<string, unknown>): Record<string, unknown> {
-  const next: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(entry)) {
-    if (!LOCK_METADATA.includes(key)) next[key] = value;
-    else if (key in manifest) next[key] = lockValue(key, manifest[key]);
-  }
-  for (const key of LOCK_METADATA) if (!(key in next) && key in manifest) next[key] = lockValue(key, manifest[key]);
-  return next;
-}
-
-/**
- * K439: the tracked composer.lock `lockText` with the metadata of each package that `providers` provides (name to its composer.json),
- * in packages and packages-dev. The version, the dist, the source and the content-hash stay, so the entry is what Composer locked; the
- * lock is written as kit writes its locks (4-space indentation, a final newline). `rewritten` names the packages that changed; with
- * none the text is returned as it was read.
- */
-export function providerEntries(
-  lockText: string,
-  providers: ReadonlyMap<string, Record<string, unknown>>,
-  manifest?: Record<string, unknown>,
-  written: ReadonlyMap<string, Record<string, unknown>> = new Map(),
-): { text: string; rewritten: string[] } {
-  const lock: unknown = JSON.parse(lockText);
-  if (!isJsonObject(lock)) throw new Error('composer.lock holds no object');
-  const rewritten = new Set<string>();
-  if (manifest !== undefined) {
-    // K439-1: the root platform sections are what Composer computes from the require and config.platform of the manifest.
-    const require = isJsonObject(manifest.require) ? manifest.require : {};
-    const platform = Object.fromEntries(Object.entries(require).filter(([name]) => name === 'php' || name.startsWith('ext-') || name.startsWith('lib-')));
-    const config = isJsonObject(manifest.config) ? manifest.config : {};
-    const overrides = isJsonObject(config.platform) ? config.platform : {};
-    if ('platform' in lock && JSON.stringify(lock.platform) !== JSON.stringify(platform)) { lock.platform = platform; rewritten.add('platform'); }
-    if ('platform-overrides' in lock && JSON.stringify(lock['platform-overrides']) !== JSON.stringify(overrides)) { lock['platform-overrides'] = overrides; rewritten.add('platform-overrides'); }
-  }
-  for (const section of ['packages', 'packages-dev']) {
-    const list = lock[section];
-    if (!Array.isArray(list)) continue;
-    lock[section] = list.map((entry: unknown) => {
-      if (!isJsonObject(entry) || typeof entry.name !== 'string') return entry;
-      const manifest = providers.get(entry.name);
-      if (manifest === undefined) return entry;
-      const next = written.has(entry.name) ? composerForm(entry, written.get(entry.name) ?? {}) : lockEntry(entry, manifest);
-      if (JSON.stringify(next) !== JSON.stringify(entry)) rewritten.add(entry.name);
-      return next;
-    });
-  }
-  return { text: rewritten.size ? `${JSON.stringify(lock, null, 4)}\n` : lockText, rewritten: [...rewritten] };
-}
-
-/**
- * K439-2: the entry of Composer's own lock writer, with the fields that are the lock's own kept: the name, the version, the dist and the
- * source of the tracked entry. Composer's key order and forms (a license list, the type) are the written ones.
- */
-function composerForm(entry: Record<string, unknown>, written: Record<string, unknown>): Record<string, unknown> {
-  // K439-5: the release facts of the tracked entry (its source and notification-url) are kept when the writer does not write them for a path
-  // repository; the writer's own keys keep their Composer form.
-  // K439-6: the version is the one Composer's writer resolved (a pinned fork is the pin, not the version the lock recorded before).
-  const kept = ['name', 'dist', 'source', 'notification-url'];
-  const next: Record<string, unknown> = {};
-  const keys = [...new Set([...Object.keys(written), ...kept.filter(key => key in entry)])];
-  for (const key of keys) {
-    if (key === 'transport-options' || key === 'time') continue;
-    if (kept.includes(key) && key in entry) next[key] = entry[key];
-    else if (key in written) next[key] = written[key];
-    else if (key === 'version' && key in entry) next[key] = entry[key];
-  }
-  return next;
-}
-
-/** The exact Composer version requirement for `name`, when it is a strict version literal. */
-const STRICT_COMPOSER_VERSION = /^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?$/;
-
-/** The Composer version that represents one sibling provider in an offline path repository. */
-function providerResolutionVersion(item: { name: string; version: string; folder: string }, packages: readonly { name: string; version: string; folder: string }[], base?: { manifest: Record<string, unknown> }): string {
-  const own: unknown = JSON.parse(readFileSync(path.join(item.folder, 'composer.json'), 'utf8'));
-  if (isJsonObject(own) && typeof own.version === 'string') return own.version;
-  const pins = new Set<string>();
-  const readPins = (manifest: unknown) => {
-    if (!isJsonObject(manifest)) return;
-    for (const section of ['require', 'require-dev']) {
-      const requirements = isJsonObject(manifest[section]) ? manifest[section] : {};
-      const pin = requirements[item.name];
-      if (typeof pin === 'string' && STRICT_COMPOSER_VERSION.test(pin)) pins.add(pin);
-    }
-  };
-  readPins(base?.manifest);
-  for (const provider of packages) readPins(JSON.parse(readFileSync(path.join(provider.folder, 'composer.json'), 'utf8')));
-  if (pins.size > 1) throw new Error(`${item.name} has conflicting exact Composer requirements from its sibling packages: ${[...pins].join(', ')}`);
-  return [...pins][0] ?? item.version;
-}
-
-/**
- * K439-2: the entries that Composer writes for the packages `packages` (name, version, folder of the provider): Composer locks a scratch
- * project whose path repositories are the provider folders, offline, with its own writer (composer update --no-install).
- */
-export function composerEntries(
-  packages: readonly { name: string; version: string; folder: string }[],
-  composer: string,
-  env: NodeJS.ProcessEnv = process.env,
-  platform: Record<string, string> = {},
-  base?: { manifest: Record<string, unknown>; lock: string; folder: string; siblings?: ReadonlyMap<string, string> },
-): Map<string, Record<string, unknown>> {
-  const found = new Map<string, Record<string, unknown>>();
-  if (packages.length === 0) return found;
-  const scratch = mkdtempSync(path.join(tmpdir(), 'kit-composer-entries-'));
-  try {
-    const resolvedPackages = packages.map(item => ({ ...item, version: providerResolutionVersion(item, packages, base) }));
-    const providerRepositories = resolvedPackages.map(item => ({ type: 'path', url: item.folder, options: { symlink: false, versions: { [item.name]: item.version } } }));
-    const project = {
-      name: 'kit/entries',
-      version: '1.0.0',
-      // The platform that the consumer declares (its config.platform), so the entries resolve as they would for that consumer.
-      config: { platform },
-      require: Object.fromEntries(resolvedPackages.map(item => [item.name, item.version])),
-      repositories: [{ packagist: false }, ...providerRepositories],
-    };
-    // K439-3: with the consumer's manifest and tracked lock as the base, the transitive requirements come from the lock: Composer updates
-    // only the provided packages, offline.
-    // K439-4: the consumer's own repositories follow the provided packages, so a provider wins and a root requirement that only a consumer
-    // path repository provides resolves as it does for the consumer; packagist stays disabled, the first entry.
-    const scratchProject = base === undefined ? project : {
-      ...base.manifest,
-      config: { ...(isJsonObject(base.manifest.config) ? base.manifest.config : {}), platform },
-      require: { ...(isJsonObject(base.manifest.require) ? base.manifest.require : {}), ...project.require },
-      repositories: [{ packagist: false }, ...providerRepositories, ...consumerRepositories(base.manifest, base.folder, base.siblings ?? new Map())],
-    };
-    writeFileSync(path.join(scratch, 'composer.json'), `${JSON.stringify(scratchProject, null, 4)}\n`);
-    if (base !== undefined) writeFileSync(path.join(scratch, 'composer.lock'), base.lock);
-    // Its own home and cache, so that no global repository of the machine (packagist) is read: the entries come from the providers only.
-    const isolated = { ...env, COMPOSER_HOME: path.join(scratch, 'home'), COMPOSER_CACHE_DIR: path.join(scratch, 'cache'), COMPOSER_DISABLE_NETWORK: '1' };
-    const names = packages.map(item => item.name);
-    const ran = spawnSync(composer, ['update', ...(base === undefined ? [] : names), '--no-install', '--no-scripts', '--no-plugins', '--no-audit', '--no-interaction'], { cwd: scratch, env: isolated, encoding: 'utf8' });
-    if (ran.status !== 0) throw new Error(`composer update of the provider entries failed (${ran.status}): ${ran.stdout}${ran.stderr}`);
-    const lock: unknown = JSON.parse(readFileSync(path.join(scratch, 'composer.lock'), 'utf8'));
-    const list = isJsonObject(lock) && Array.isArray(lock.packages) ? lock.packages : [];
-    for (const entry of list) if (isJsonObject(entry) && typeof entry.name === 'string') found.set(entry.name, entry);
-  } finally {
-    rmSync(scratch, { recursive: true, force: true });
-  }
-  return found;
-}
-
-/**
- * The key of a repository url that names the same repository whatever its form: https or ssh, with or without the .git suffix or a final slash.
- * A url of another form is its own key.
- */
-export function repositoryKey(url: string): string {
-  const match = /^(?:https:\/\/|ssh:\/\/git@|git@)([^/:]+)[:/](.+?)(?:\.git)?\/?$/i.exec(url.trim());
-  return match?.[1] === undefined || match[2] === undefined ? url.trim() : `${match[1].toLowerCase()}/${match[2]}`;
-}
-
-/**
- * K439-4, K475: the repositories of a consumer manifest as Composer reads them in the folder of the consumer. A path url is relative to that folder
- * and must name a folder that exists, or the call fails naming it; no other repository stands in for it. A vcs url is read from the sibling
- * checkout whose origin names the same repository (`siblings`, origin url to folder), as a path repository of that folder, so the scratch needs
- * no network; a vcs url that no sibling checkout names fails naming it. A packagist entry is dropped, since the scratch keeps packagist disabled.
- */
-function consumerRepositories(manifest: Record<string, unknown>, folder: string, siblings: ReadonlyMap<string, string>): Record<string, unknown>[] {
-  const declared = manifest.repositories;
-  const list: unknown[] = Array.isArray(declared) ? declared : isJsonObject(declared) ? Object.values(declared) : [];
-  const byKey = new Map([...siblings].map(([url, sibling]) => [repositoryKey(url), sibling]));
-  return list.flatMap((repository: unknown) => {
-    if (repository === false || (isJsonObject(repository) && 'packagist' in repository)) return [];
-    if (!isJsonObject(repository)) throw new Error(`a repository of the consumer is not an object: ${JSON.stringify(repository)}`);
-    if (repository.type === 'vcs') {
-      if (typeof repository.url !== 'string') throw new Error(`a vcs repository of the consumer has no url: ${JSON.stringify(repository)}`);
-      const sibling = byKey.get(repositoryKey(repository.url));
-      if (sibling === undefined) throw new Error(`the vcs repository ${repository.url} of the consumer is provided by no sibling checkout (no checkout's origin names it): the provider entries are not written`);
-      return [{ type: 'path', url: sibling, options: { symlink: false } }];
-    }
-    if (repository.type !== 'path') return [repository];
-    if (typeof repository.url !== 'string') throw new Error(`a path repository of the consumer has no url: ${JSON.stringify(repository)}`);
-    const url = path.resolve(folder, repository.url);
-    if (!existsSync(url) || !statSync(url).isDirectory()) throw new Error(`the path repository ${repository.url} of the consumer is not a readable folder (${url}): the provider entries are not written`);
-    return [{ ...repository, url }];
-  });
-}
-
-/** K439-1: a directory of a release consumer (its locks are written by make release-consumer-lock only). */
-export function isReleaseConsumerDirectory(directory: string): boolean {
-  return directory.split('/').includes('release-consumer');
-}
-
-/** The composer.json and the folder of each Composer package that a sibling checkout of the repository at `root` provides, by package name. */
-function siblingComposerProviders(root: string): Map<string, { manifest: Record<string, unknown>; folder: string }> {
-  const found = new Map<string, { manifest: Record<string, unknown>; folder: string }>();
-  for (const provider of providers(siblingCheckouts(root).checkouts, undefined, root).values()) {
-    if (provider.ecosystem !== 'composer') continue;
-    const manifest: unknown = JSON.parse(readFileSync(path.join(provider.folder, 'composer.json'), 'utf8'));
-    if (isJsonObject(manifest)) found.set(provider.name, { manifest, folder: provider.folder });
-  }
-  return found;
-}
-
-/** The origin url of each main checkout beside the repository of `root` (and the forks), to its folder: the vcs repositories of a consumer resolve through them (K475). */
-function siblingOrigins(root: string): Map<string, string> {
-  const found = new Map<string, string>();
-  for (const folder of siblingCheckouts(root).checkouts) {
-    // git config exits 1 for a key that is not set; a checkout without an origin names no repository.
-    const origin = linkGit(folder, 'config', '--get', 'remote.origin.url');
-    if (origin.error || (origin.status !== 0 && origin.status !== 1)) throw new Error(`git config --get remote.origin.url failed in ${folder}: ${origin.error?.message ?? origin.stderr.trim()}`);
-    if (origin.status === 0) found.set(origin.stdout.trim(), folder);
-  }
-  return found;
-}
-
-/** Applies providerEntries to the tracked composer.lock of each directory in `directories`, and says which packages it rewrote (K439-2). */
-function rewriteProviderEntries(root: string, directories: readonly string[], found: Map<string, { manifest: Record<string, unknown>; folder: string }> = siblingComposerProviders(root)): void {
-  const manifests = new Map([...found].map(([name, provider]) => [name, provider.manifest]));
-  const siblings = siblingOrigins(root);
-  // K439-2: the toolchain Composer of the checkout, as K432 runs it (COMPOSER_BIN names another one).
-  const composer = process.env.COMPOSER_BIN ?? composerCommand(root, 'make composer-provider-entries');
-  for (const directory of new Set(directories)) {
-    if (isReleaseConsumerDirectory(directory)) continue;
-    const lock = path.join(root, directory, 'composer.lock');
-    if (!existsSync(lock)) continue;
-    const own = path.join(root, directory, 'composer.json');
-    const manifest: unknown = existsSync(own) ? JSON.parse(readFileSync(own, 'utf8')) : undefined;
-    const lockText = readFileSync(lock, 'utf8');
-    const parsed: unknown = JSON.parse(lockText);
-    const listed: unknown[] = isJsonObject(parsed) ? ['packages', 'packages-dev'].flatMap((section): unknown[] => {
-      const list: unknown = parsed[section];
-      return Array.isArray(list) ? list : [];
-    }) : [];
-    const provided = listed.flatMap(entry => {
-      if (!isJsonObject(entry) || typeof entry.name !== 'string' || typeof entry.version !== 'string') return [];
-      const provider = found.get(entry.name);
-      return provider === undefined ? [] : [{ name: entry.name, version: entry.version, folder: provider.folder }];
-    });
-    const declared = isJsonObject(manifest) && isJsonObject(manifest.config) && isJsonObject(manifest.config.platform) ? manifest.config.platform : {};
-    const platform = Object.fromEntries(Object.entries(declared).filter((item): item is [string, string] => typeof item[1] === 'string'));
-    const base = isJsonObject(manifest) ? { manifest, lock: lockText, folder: path.join(root, directory), siblings } : undefined;
-    const written = composerEntries(provided, composer, toolEnvironment(root), platform, base);
-    const { text, rewritten } = providerEntries(lockText, manifests, isJsonObject(manifest) ? manifest : undefined, written);
-    if (rewritten.length === 0) continue;
-    writeFileSync(lock, text);
-    say(`${path.posix.join(directory, 'composer.lock')}: rewrote the metadata of ${rewritten.join(', ')}`);
-  }
-}
-
-/**
- * Runs the commands of an update plan in order and returns how many failed (K439-4-1 seam: the provider entries of the composer directories of
- * the plan are rewritten after its commands; `found` names the providers, by default the sibling checkouts).
- */
-export function runUpdateSteps(root: string, plan: readonly { command: string; args: string[]; cwd: string }[], found?: Map<string, { manifest: Record<string, unknown>; folder: string }>): number {
-  // K439-4-1: the provider entries of the tracked locks are written before the commands run on them, so a stale polyspec entry (php >=8.5 of an
-  // older release) does not fail Composer's platform check of the update; they are written again after, for the locks the commands changed.
-  const directories = plan.filter(step => step.command === 'composer').map(step => step.cwd);
-  rewriteProviderEntries(root, directories, found);
+/** Executes the planned native commands; each selected application's manifest and lock remain package-manager owned. */
+export function runUpdateSteps(root: string, plan: readonly { command: string; args: string[]; cwd: string }[], env: NodeJS.ProcessEnv = process.env): number {
   let failed = 0;
   for (const step of plan) {
     say(`run ${step.command} ${step.args.join(' ')} in ${step.cwd}`);
-    const outcome = spawnSync(CHECKOUT_TOOLS.has(step.command) ? toolCommand(root, step.command) : step.command, step.args, { cwd: path.join(root, step.cwd), stdio: 'inherit' });
+    const outcome = spawnSync(CHECKOUT_TOOLS.has(step.command) ? toolCommand(root, step.command) : step.command, step.args, { cwd: path.join(root, step.cwd), stdio: 'inherit', env });
     if (outcome.error || outcome.status !== 0) {
       failed += 1;
       say(`${step.command} ${step.args.join(' ')} in ${step.cwd} ended with ${outcome.error?.message ?? `exit status ${outcome.status}`}`);
     }
   }
-  rewriteProviderEntries(root, directories, found);
   return failed;
 }
 
@@ -969,23 +709,21 @@ function main(): void {
   let root = repositoryRoot();
   let record = false;
   let update = false;
-  let providerOnly = false;
   let targetsFile: string | undefined;
   for (let index = 0; index < args.length; index += 1) {
     // The condition checks that the argument after --root is present.
     if (args[index] === '--root' && args[index + 1]) root = path.resolve(present(args[++index], 'args[++index]'));
     else if (args[index] === '--record') record = true;
     else if (args[index] === '--update') update = true;
-    else if (args[index] === '--provider-entries') providerOnly = true;
-    else if (args[index] === '--targets' && args[index + 1]) targetsFile = present(args[++index], 'args[++index]');
-    else {
-      console.error('Usage: node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update] [--provider-entries] [--targets <file>]');
+    else if (args[index] === '--provider-entries') {
+      console.error('[dependency-review] --provider-entries was removed: Composer owns package metadata and lock resolution. Declare compatible path repositories in the application manifest, select it with COMPOSER when needed, and run make composer-install DIR=<project>; then make dependency-review RECORD=1. No metadata was rewritten.');
       process.exit(2);
     }
-  }
-  if (providerOnly) {
-    rewriteProviderEntries(root, checkedFiles(root).filter(file => path.posix.basename(file) === 'composer.lock').map(file => path.posix.dirname(file)));
-    return;
+    else if (args[index] === '--targets' && args[index + 1]) targetsFile = present(args[++index], 'args[++index]');
+    else {
+      console.error('Usage: node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update] [--targets <file>]');
+      process.exit(2);
+    }
   }
   const targets = targetsFile === undefined ? undefined : readTargets(targetsFile);
   // A dependency that the targets name, and so the only one that a targeted update moves
