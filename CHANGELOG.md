@@ -27,6 +27,8 @@
 - The parity regression verifies cleanup after both successful and failed attempts and leaves the library vendor directory unchanged. (K677-2)
 - PHP feature bindings run only the exact methods grouped for their file. Bare and qualified method ids, FQCNs and provider data sets use escaped PHPUnit filters; the parity ledger still requires every selected id and ignores unselected test failures. Red: the K692 regression failed because an unselected failing method ran from the shared file. Green: the exact K692 unit passes (1 test); changed-file oxlint and docs-check pass (K692).
 
+- A fix commit may cite a valid Red result from an existing regression test without changing that test file in the fix; a fix with missing or malformed Red or No-Red remains rejected. The focused commit unit checks both the valid Red path and the existing No-Red path. Red: K693's source-only fix regression failed at a6a485e8; Green: the K693 unit passes (1 test), with changed-file oxlint and docs-check (K693).
+
 - CI acceptance retains the complete earlier failure reports and the final successful run 40366841110: all 44 steps, 1425 kit tests and 182 source tests pass with zero failures, timeouts or skips. Release verification independently accepts the public annotated v0.0.56 tag; the entire local suite was not repeated for each fix (K686).
 
 - Kit 0.0.56 is public after its own CI passed all 44 steps (1425 kit and 182 source tests, no failures, timeouts or skips) and release run 40371683313 passed archive generation, external consumer proof and publication. The annotated tag and asset are available on the GitHub Release; the failed 0.0.55 tag remains unchanged (K677).

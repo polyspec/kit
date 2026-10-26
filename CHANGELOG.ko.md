@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2cc608d5c2f1e24a138c2d1460ab7874bb1839aeb18c02fa40914193e3666782 -->
+<!-- source-sha256: ac67aa8f436d9589fb1521457b266e47619f83389b898bb89342c266261fe805 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -27,6 +27,8 @@
 
 - parity 회귀 테스트는 성공과 실패 실행 모두에서 정리를 검증하며 library vendor directory를 그대로 유지합니다. (K677-2)
 - PHP feature 바인딩은 파일에 함께 묶인 정확한 method만 실행한다. Bare 및 qualified method id, FQCN과 provider data set에 escaped PHPUnit filter를 적용하며 parity ledger는 선택한 모든 id의 실행을 계속 요구하고 선택하지 않은 test failure는 무시한다. Red: K692 regression은 공유 파일의 선택하지 않은 실패 method 때문에 실패했다. Green: 정확한 K692 unit 1개, 변경 파일 oxlint와 docs-check가 통과한다 (K692).
+
+- 기존 regression test에서 얻은 유효한 Red 결과를 인용하면 fix commit 자체가 test 파일을 변경하지 않아도 된다. Red 또는 No-Red가 없거나 잘못되면 계속 거부하며, 집중 commit unit은 유효한 Red와 기존 No-Red 경로를 모두 확인한다. Red: K693 source-only fix regression이 a6a485e8에서 실패했다. Green: K693 unit 1개, 변경 파일 oxlint와 docs-check가 통과한다 (K693).
 
 - CI 승인은 앞선 전체 실패 보고서와 최종 성공 실행 40366841110을 보존한다. 전체 44단계, kit 1425개와 source 182개가 실패·timeout·skip 없이 통과했다. Release 검증은 공개된 annotated v0.0.56 tag를 별도로 승인하며 수정마다 로컬 전체 suite를 반복하지 않았다 (K686).
 
