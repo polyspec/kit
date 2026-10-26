@@ -1,8 +1,7 @@
-// run-tests builds the tests of go and cargo before it runs them, under a build bound of its own, so the gap watch of the run
-// measures no compiling: a build longer than the test timeout runs its tests; a build that outlives its bound or fails stops the
-// run with its own message and output (K549-1, follows K549).
+// Go and Cargo pre-test builds are operations without deadlines. Their output streams while they run;
+// actual tests retain their own timeout, and build failures stop the run before any test starts.
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, watch, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { run } from '../../scripts/kit/run-tests.mts';
@@ -32,19 +31,19 @@ function stub(file: string, script: string) {
 const GO_EVENTS = [{ Action: 'start', Package: 'p' }, { Action: 'run', Package: 'p', Test: 'TestA' }, { Action: 'pass', Package: 'p', Test: 'TestA', Elapsed: 0 }, { Action: 'pass', Package: 'p', Elapsed: 0 }];
 
 /** A checkout whose go shim runs `build` when it is called to build (-exec=true) and `script` otherwise. */
-function goCheckout(t: TestContext, { build = '', script = `for (const e of ${JSON.stringify(GO_EVENTS)}) console.log(JSON.stringify(e));` }: { build?: string; script?: string }) {
+function goCheckout(t: TestContext, { build = '', script = `for (const e of ${JSON.stringify(GO_EVENTS)}) console.log(JSON.stringify(e));`, cold = true }: { build?: string; script?: string; cold?: boolean }) {
   const root = tree(t);
   const file = path.join(root, 'var/tools/mise/shims/go');
-  stub(file, `${compiling(file)}\nif (process.argv.includes('-exec=true')) { ${build} } else { ${script} }`);
+  stub(file, `${cold ? compiling(file) : ''}\nif (process.argv.includes('-exec=true')) { ${build} } else { ${script} }`);
   return root;
 }
 
-async function runTool(root: string, args: string[], options: { buildMs?: number; path?: string } = {}) {
+async function runTool(root: string, args: string[], options: { path?: string } = {}) {
   const lines: string[] = [];
   const previous = process.env.PATH;
   if (options.path !== undefined) process.env.PATH = options.path;
   try {
-    const status = await run(args, { root, write: (text: string) => lines.push(text), callerEnv: CI, ...(options.buildMs === undefined ? {} : { buildMs: options.buildMs }) });
+    const status = await run(args, { root, write: (text: string) => lines.push(text), callerEnv: CI });
     return { status, text: lines.join('') };
   } finally {
     process.env.PATH = previous;
@@ -67,11 +66,42 @@ test('cargo tests whose build takes longer than the timeout run, since the build
   assert.match(text, /1 passed, 0 failed, 0 timed out/);
 });
 
-test('a build that outlives the build bound stops the run and names the bound (K549-1)', { timeout: 60_000 }, async (t) => {
-  const root = goCheckout(t, { build: 'setInterval(() => {}, 1000);' });
-  const { status, text } = await runTool(root, ['go', '--timeout', '2', './...'], { buildMs: 5000 });
-  assert.equal(status, 1, text);
-  assert.match(text, /⏱ go \. \.\/\.\.\.: the build of the tests did not end within 5 s; stopped `[^`]*go test -exec=true \.\/\.\.\.`/);
+test('pre-test builds survive arbitrary clock advances and stream progress before completion (K682)', async (t) => {
+  let release = () => {};
+  t.after(() => release());
+  const root = goCheckout(t, { cold: false, build: `
+    const { existsSync, watch, writeFileSync } = process.getBuiltinModule('node:fs');
+    const observed = 'build-output-observed';
+    const advanced = 'build-clock-advanced';
+    const watcher = watch('.', () => {
+      if (existsSync(observed) && existsSync(advanced)) watcher.close();
+    });
+    process.stdout.write('compiling workspace step\\n');
+    writeFileSync('build-ready', '');
+  ` });
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const lines: string[] = [];
+  const ready = new Promise<void>(resolve => {
+    const observer = watch(root, () => {
+      if (existsSync(path.join(root, 'build-ready'))) { observer.close(); resolve(); }
+    });
+    t.after(() => observer.close());
+  });
+  release = () => {
+    for (const file of ['build-clock-advanced', 'build-output-observed']) writeFileSync(path.join(root, file), '');
+  };
+  const running = run(['go', '--timeout', '2', './...'], { root, callerEnv: CI, write: text => {
+    lines.push(text);
+    if (text.includes('compiling workspace step')) writeFileSync(path.join(root, 'build-output-observed'), '');
+  } });
+  await ready;
+  t.mock.timers.tick(24 * 60 * 60 * 1000);
+  writeFileSync(path.join(root, 'build-clock-advanced'), '');
+  const status = await running;
+  assert.equal(status, 0, lines.join(''));
+  assert.match(lines.join(''), /\[build\] [^\n]+: started/);
+  assert.match(lines.join(''), /\[build\] [^\n]+: ended with exit code 0 \([^)]+\)/);
+  assert.match(lines.join(''), /1 passed, 0 failed, 0 timed out/);
 });
 
 test('a build that fails stops the run with its output and its exit code (K549-1)', { timeout: 60_000 }, async (t) => {

@@ -247,12 +247,6 @@ export function terminateGroup(pgid: number, kill?: Parameters<typeof signalGrou
   return signalGroup(pgid, 'SIGTERM', kill);
 }
 
-/**
- * The bound of the build that go and cargo run before their tests (K549-1): compiling is no test time and on a loaded machine
- * takes minutes, so it has its own bound, and the gap watch of the run starts when the tests are built.
- */
-export const BUILD_MS = 1_200_000;
-
 /** How long a stopped tool has to close after SIGTERM before its group receives SIGKILL. */
 const STOP_GRACE_MS = 5000;
 
@@ -262,7 +256,7 @@ const INTERRUPTS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 /** How often the runner checks that its parent is still the process that started it. */
 const PARENT_POLL_MS = 200;
 
-export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env, startUpMs = START_UP_MS, buildMs = BUILD_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv; startUpMs?: number; buildMs?: number } = {}): Promise<number> {
+export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env, startUpMs = START_UP_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv; startUpMs?: number } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
   // The tests of the PHP library run against the extension with none of the library's sources (K329).
@@ -336,13 +330,15 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       clearInterval(parentWatch);
       onInterrupt?.('SIGHUP');
     }, PARENT_POLL_MS);
-    // go and cargo build the tests of the run first, under the build bound, so the gap watch of the run measures no compiling
-    // (K549-1). A build that fails, outlives its bound or cannot start fails the run with its output.
+    // Go and Cargo compile before test watches start. A build is an operation without a deadline; its exit status decides it.
+    // Parent loss and explicit interruption still stop its process group, and output is forwarded while it runs.
     if (build !== undefined) {
+      const text = `${command} ${build.join(' ')}`;
+      const buildBegan = Date.now();
+      write(`[build] ${text}: started\n`);
       const builder = spawn(command, build, { cwd: options.cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
-      const output: string[] = [];
-      present(builder.stdout, 'builder.stdout').setEncoding('utf8').on('data', (text: string) => output.push(text)); // The stream is piped.
-      present(builder.stderr, 'builder.stderr').setEncoding('utf8').on('data', (text: string) => output.push(text)); // The stream is piped.
+      present(builder.stdout, 'builder.stdout').setEncoding('utf8').on('data', (text: string) => write(text)); // The stream is piped.
+      present(builder.stderr, 'builder.stderr').setEncoding('utf8').on('data', (text: string) => write(text)); // The stream is piped.
       const built = new Promise<Ended>((resolve) => {
         builder.once('error', error => resolve({ error }));
         builder.once('close', (status, signal) => resolve({ status, signal }));
@@ -350,24 +346,16 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       let buildStopping: Promise<void> | undefined;
       // A build that could not start has no pid and no group to stop.
       stopRunning = () => { if (builder.pid !== undefined) buildStopping ??= stopGroup(builder.pid, built, graceMs); };
-      let buildExpired = false;
-      const buildWatch = setTimeout(() => { buildExpired = true; stopRunning(); }, buildMs);
       const ended = await built;
-      clearTimeout(buildWatch);
       await buildStopping;
-      const text = `${command} ${build.join(' ')}`;
       const buildEnd = finished(ended, 'the build of the tests');
+      const outcome = typeof buildEnd === 'string' ? buildEnd : buildEnd.signal ? `ended on ${buildEnd.signal}` : `ended with exit code ${buildEnd.status}`;
+      write(`[build] ${text}: ${outcome} (${compactSeconds(Date.now() - buildBegan)})\n`);
       if (typeof buildEnd === 'string') {
         write(`✖ ${label}: ${buildEnd}\n`);
         return 1;
       }
-      if (buildExpired) {
-        write(output.join(''));
-        write(`⏱ ${label}: the build of the tests did not end within ${buildMs / 1000} s; stopped \`${text}\`\n`);
-        return 1;
-      }
       if (buildEnd.status !== 0) {
-        write(output.join(''));
         write(`✖ ${label}: the build of the tests \`${text}\` ended ${buildEnd.signal ? `on ${buildEnd.signal}` : `with exit code ${buildEnd.status}`}\n`);
         return 1;
       }
