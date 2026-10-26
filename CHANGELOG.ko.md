@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 81b6d67d9bce4baad1764f0a7c65b78c861f7848eed9dc571942bc5696fb98d3 -->
+<!-- source-sha256: 50ab4dcd614da996cca3ae22ad95424719887108c2f271e4795245d24107e91d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- npmSourceFolders는 설치가 없어도 dependencies·devDependencies·optionalDependencies·peerDependencies에 선언된 제공자를 선택하고 이미 설치된 전이 제공자도 보존한다. 네이티브 npmLink의 입력만 선택하며 설치 기록이나 합성 잠금을 쓰지 않는다. 선택기 단위 검사와 실제 미출시 소스 설치가 통과하고 타입 인식 lint·typecheck도 통과한다 (K664-5).
 - 네이티브 npm 소스 테스트는 main과 워크트리에 로컬 0.0.1 릴리스를 설치한 뒤 npmLink로 워크트리만 0.0.2 소스를 사용하게 한다. 두 번 연결한 설치 관찰 상태가 같고 이후 소스 수정은 재연결 없이 반영되며 양쪽 릴리스 manifest·잠금, 제공자 manifest와 main은 바뀌지 않는다. 실제 npm 소유 사례 1개와 타입 인식 lint가 통과한다. npm 래퍼 동작은 변경하지 않는다 (K664-5).
 - Cargo 개발 command는 요청한 command를 실행하기 전에 native metadata가 선택한 workspace source를 확인하고 형제 release로 fallback하면 native path 또는 호환 requirement 안내와 함께 실패한다. Holder lock은 lock 복사부터 metadata와 command 종료까지 유지되어 동시 writer를 거부하고 실행 argument는 보존한다. Metadata의 일반 graph option은 feature, manifest, config, offline mode와 target filtering을 전달하며 package 실행 범위는 별도 native 동작이다. Target-directory 상속은 변경하지 않아 별도 isolation 후속이 필요하다. Red: 8684ef0a에서 fallback과 동시 writer case 실패; Green: 소유 unit 10개와 source 및 lock 반복 확인을 포함한 native 미출시 path case 1개 통과 (K664-3).
 - Go source 연결은 workspace와 checksum 상태를 삭제하는 대신 go work edit로 native go.work use 지시문을 정합화한다. Worktree 준비는 local 상태를 최초에만 복사하며, 상위 tracked workspace에서 상속한 경로를 포함해 main checkout의 module 경로를 자기 source로 해석한다. 실제 Go fixture는 provider 편집, 새 미출시 module, 반복 link/setup 상태와 main source/manifest/sum 불변을 검증한다. Red: 86fa740f에서 복사된 절대경로 workspace에 worktree module이 없어 프로그램이 실패한다. Green: native case와 소유 Go unit case가 통과한다(K664-4).

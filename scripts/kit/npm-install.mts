@@ -7,8 +7,27 @@ import { readJsonObject } from './bootstrap/files.mts';
 import { isMain } from './paths.mts';
 import { checkoutProviders, providedFolders, type ProvidedFolder } from './link-folders.mts';
 import { run } from './process.mts';
+import type { Provider } from './link-providers.mts';
 
 const SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
+
+/** Selects installed provider packages and declared provider dependencies, including sources not installed yet. */
+export function npmSourceFolders(project: string, providers: Iterable<Provider>): ProvidedFolder[] {
+  const npm = [...providers].filter(provider => provider.ecosystem === 'npm');
+  const folders = providedFolders(project, npm);
+  const manifest = readJsonObject(project, 'package.json');
+  const declared = new Set(SECTIONS.flatMap(section => {
+    const dependencies = manifest[section];
+    return typeof dependencies === 'object' && dependencies !== null && !Array.isArray(dependencies) ? Object.keys(dependencies) : [];
+  }));
+  const selected = new Set(folders.map(folder => folder.name));
+  for (const provider of npm) {
+    if (!declared.has(provider.name) || selected.has(provider.name)) continue;
+    folders.push({ ecosystem: 'npm', name: provider.name, folder: path.join(project, 'node_modules', provider.name), target: provider.folder });
+    selected.add(provider.name);
+  }
+  return folders;
+}
 
 /** Links local npm packages with npm, retaining the release manifest and lock and a project-local global prefix. */
 export function npmLink(project: string, folders: readonly ProvidedFolder[], npm: string, env: NodeJS.ProcessEnv, print: (text: string) => void): void {

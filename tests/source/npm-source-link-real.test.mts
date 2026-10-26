@@ -1,11 +1,11 @@
 // Native npm replaces a locked release with a selected source only in its consumer; repeated linking converges.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
-import { npmLink } from '../../scripts/kit/npm-install.mts';
+import { npmLink, npmSourceFolders } from '../../scripts/kit/npm-install.mts';
 import { setup, teardown } from '../../scripts/kit/test-hooks.mts';
 import { initRepository } from '../kit/sandbox-repository.mts';
 import { NPM } from './checkout.mts';
@@ -91,5 +91,37 @@ describe('native npm release-to-source linking (K664-5)', () => {
     assert.deepEqual(snapshot(main), declarations);
     assert.equal(readFileSync(path.join(provider, 'package.json'), 'utf8'), sourceManifest);
     assert.equal(run('git', ['status', '--porcelain'], main), '');
+  });
+});
+
+
+describe('native npm undeployed source selection (K664-5)', () => {
+  let directory: string;
+  let project: string;
+  let source: string;
+  let manifest: string;
+  setup('linking a declared unpublished provider into an empty install with native npm', () => {
+    directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-unreleased-')));
+    project = path.join(directory, 'app');
+    source = path.join(directory, 'provider');
+    mkdirSync(project);
+    mkdirSync(source);
+    manifest = JSON.stringify({ name: 'app', private: true, dependencies: { 'unreleased-proof': '0.0.1' } });
+    writeFileSync(path.join(project, 'package.json'), manifest);
+    writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'unreleased-proof', version: '0.0.2', main: 'index.cjs' }));
+    writeFileSync(path.join(source, 'index.cjs'), 'module.exports = 2;\n');
+    const folders = npmSourceFolders(project, [{ ecosystem: 'npm', name: 'unreleased-proof', folder: source, repository: source, checkout: source }]);
+    assert.equal(folders.length, 1);
+    assert.equal(existsSync(path.join(project, 'node_modules')), false);
+    npmLink(project, folders, NPM, { ...process.env, npm_config_offline: 'true' }, text => process.stdout.write(`[npm-unreleased] ${text}\n`));
+  });
+  teardown('the unpublished npm source fixture', () => { if (directory) rmSync(directory, { recursive: true, force: true }); });
+  test('a declared unreleased npm source installs natively without a published release or an existing installed folder', () => {
+    const result = spawnSync(process.execPath, ['-p', "JSON.stringify([require('unreleased-proof'), require('unreleased-proof/package.json').version])"], { cwd: project, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), '[2,"0.0.2"]');
+    assert.equal(realpathSync(path.join(project, 'node_modules/unreleased-proof')), source);
+    assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), manifest);
+    assert.equal(existsSync(path.join(project, 'package-lock.json')), false, 'npm link creates no synthetic release lock');
   });
 });

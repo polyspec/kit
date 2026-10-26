@@ -8,8 +8,9 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import test from 'node:test';
-import { npmInstall, npmLink } from '../../scripts/kit/npm-install.mts';
+import { npmInstall, npmLink, npmSourceFolders } from '../../scripts/kit/npm-install.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
+import type { Provider } from '../../scripts/kit/link-providers.mts';
 
 const LOCK = (names: string[]) => {
   const packages: Record<string, { version?: string }> = { '': {} };
@@ -197,4 +198,23 @@ test('npm install runs npm ci with allow-remote=root, so a lock that names the r
   const { npm_config_allow_remote: _unset, ...env } = process.env;
   npmInstall({ directory: project, checkouts: [], npm, print: () => {}, env });
   assert.equal(readFileSync(path.join(root, 'npm-ci.env'), 'utf8'), 'allow-remote=root\n');
+});
+
+
+test('npmSourceFolders includes all declared provider sections and installed transitives without selecting unrelated sources (K664-5)', (t) => {
+  const { root, project } = fixture(t, 'kit-npm-source-candidates-', {}, []);
+  const manifest = { dependencies: { direct: '0.0.1', unknown: '0.0.1' }, devDependencies: { dev: '0.0.1' }, optionalDependencies: { optional: '0.0.1' }, peerDependencies: { peer: '0.0.1' } };
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify(manifest));
+  mkdirSync(path.join(project, 'node_modules/transitive'), { recursive: true });
+  const providers: Provider[] = ['direct', 'dev', 'optional', 'peer', 'transitive', 'unrelated'].map(name => ({ ecosystem: 'npm', name, folder: path.join(root, name), repository: root, checkout: root }));
+  providers.push({ ecosystem: 'composer', name: 'other', folder: path.join(root, 'other'), repository: root, checkout: root });
+  const selected = npmSourceFolders(project, providers);
+  assert.deepEqual(selected.map(folder => folder.name).sort(), ['dev', 'direct', 'optional', 'peer', 'transitive']);
+  for (const folder of selected) {
+    assert.equal(folder.ecosystem, 'npm');
+    assert.equal(folder.folder, path.join(project, 'node_modules', folder.name));
+    assert.equal(folder.target, path.join(root, folder.name));
+  }
+  assert.equal(existsSync(path.join(project, 'node_modules/direct')), false, 'candidate selection installs nothing');
+  assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), JSON.stringify(manifest));
 });
