@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 76b8250a4188c777730ff773becce7f9a72860ac54ff46195159c7f7b5a5498a -->
+<!-- source-sha256: 42d7e53ede9503a41775059f399f38ecbc5e55190dd23ed0ad8ad8433f3566aa -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -558,3 +558,4 @@
 | K651 | Parity는 구현 형제 테스트를 tool 테스트로 바꾸지 않고 정확한 external-oracle 테스트 파일을 선언합니다. 구현 root 안에 있는 추적 테스트 파일 하나를 명시적인 oracle unit에 바인딩할 수 있습니다. 디렉터리, glob, 구현 바인딩과 공유하는 파일은 oracle로 선언할 수 없습니다. 목록에 없는 형제 테스트는 기존 구현 owner 검사 대상입니다. | scripts/kit/schema/parity.schema.json, scripts/kit/parity-declaration.mts, scripts/kit/parity-units.mts, tests/kit/parity.test.mts, docs/plans/common-standard/checklist.md(.ko.md) | `node --test --test-name-pattern=K651 tests/kit/parity.test.mts`; `make typecheck`; `make docs-check` | [o] |
 | K652 | PHP arginfo installation discovers gen_stub.php in the PHP API build directory declared by php-config --extension-dir, as well as the prefix build directory | scripts/kit/install-php-arginfo.mts, tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K652 tests/kit/php-ext.test.mts` | [o] |
 | K653 | Composer source link의 manifest requirement가 설치된 release record와 다르면 Composer로 runtime metadata를 일치시키고 추적 manifest와 lock을 보존한다. | scripts/kit/link.mts, scripts/kit/composer-install.mts, tests/kit/link.test.mts, docs/operations/local-links.md and its Korean twin | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K653 tests/kit/link.test.mts` | [ ] |
+| K654 | 모든 checklist 항목이 종결된 뒤 명시적인 local final run을 허용하며 일반적인 무선택 local suite는 계속 거부한다. | scripts/kit/ci-only.mts, scripts/kit/ci-targets.mts, scripts/kit/run-tests.mts, scripts/kit/claude-hook.mts, tests/kit/ci-only.test.mts, docs/operations/tool-inventory.md and its Korean twin | `node scripts/kit/run-tests.mts node -- tests/kit/ci-only.test.mts` | [ ] |
