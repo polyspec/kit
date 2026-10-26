@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9dcf6c32bb25f9251f7106198925035846ae41dbee6465b0a86f2eae194c4231 -->
+<!-- source-sha256: 2d257bb10c5536d495fd4b93ca43c19afadaf5085ae85a2d998dd4039191d189 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Cargo 개발 command는 요청한 command를 실행하기 전에 native metadata가 선택한 workspace source를 확인하고 형제 release로 fallback하면 native path 또는 호환 requirement 안내와 함께 실패한다. Holder lock은 lock 복사부터 metadata와 command 종료까지 유지되어 동시 writer를 거부하고 실행 argument는 보존한다. Metadata의 일반 graph option은 feature, manifest, config, offline mode와 target filtering을 전달하며 package 실행 범위는 별도 native 동작이다. Target-directory 상속은 변경하지 않아 별도 isolation 후속이 필요하다. Red: 8684ef0a에서 fallback과 동시 writer case 실패; Green: 소유 unit 10개와 source 및 lock 반복 확인을 포함한 native 미출시 path case 1개 통과 (K664-3).
 
 - Go source 연결은 workspace와 checksum 상태를 삭제하는 대신 go work edit로 native go.work use 지시문을 정합화한다. Worktree 준비는 local 상태를 최초에만 복사하며, 상위 tracked workspace에서 상속한 경로를 포함해 main checkout의 module 경로를 자기 source로 해석한다. 실제 Go fixture는 provider 편집, 새 미출시 module, 반복 link/setup 상태와 main source/manifest/sum 불변을 검증한다. Red: 86fa740f에서 복사된 절대경로 workspace에 worktree module이 없어 프로그램이 실패한다. Green: native case와 소유 Go unit case가 통과한다(K664-4).
 

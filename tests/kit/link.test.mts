@@ -14,6 +14,8 @@ import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
 import { composerInstall, composerLink } from '../../scripts/kit/composer-install.mts';
 import { linkFindings } from '../../scripts/kit/link-state-check.mts';
+import { acquireHolderLock } from '../../scripts/kit/holder-lock.mts';
+import { cargoMetadataArguments } from '../../scripts/kit/cargo-source.mts';
 import { cargo, link, unlink, writeWorkspaceHook } from '../../scripts/kit/link.mts';
 import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -208,7 +210,8 @@ case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv
   // The work init writes the Use of the go.work that it writes, as a go.work.json beside it, which work edit -json reads.
   // The list -m of a module that the module of the folder a does not require fails as real go does.
   stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work edit") cat "$4.json";; "work init") : > "$GOWORK"; shift 2; { printf '{"Use":['; s=""; for d in "$@"; do printf '%s{"DiskPath":"%s"}' "$s" "$d"; s=","; done; printf ']}'; } > "$GOWORK.json";; "list -m") if [ "$5" = b ] && [ "$(basename "$PWD")" = a ]; then echo "go: module $5: not a known dependency" >&2; exit 1; fi; echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
-  stub(bin, log, 'cargo', 'if [ "$1" = "locate-project" ]; then echo "$PWD/Cargo.toml"; fi');
+  const cargoGraph = JSON.stringify({ packages: [{ id: 'provider', name: 'polyspec-prov', manifest_path: path.join(provider, 'rust/Cargo.toml') }], resolve: { nodes: [{ id: 'provider' }] } });
+  stub(bin, log, 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${cargoGraph}'; exit 0; fi; done`);
   const pythonProject = path.join(consumer, 'python/pyproject.toml');
   writeFileSync(pythonProject, readFileSync(pythonProject, 'utf8') + '\n[tool.uv.sources]\npolyspec-z = { path = "../../prov/packages/python", editable = true }\n');
   const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
@@ -861,7 +864,7 @@ test('link cargo --siblings runs cargo with the sibling crates patched and the a
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.match(log(), /cargo --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=.* fetch$/m);
+  assert.match(log(), /cargo --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=.* fetch --locked$/m);
 });
 
 // K489: cargo --siblings patches the crates of a sibling checkout that the consumer's lock names from git, and needs nothing from a checkout
@@ -887,15 +890,15 @@ test('link cargo --siblings patches no crate that the consumer lock does not nam
 });
 
 // K448-5-2: cargo --siblings resolves and fetches the patched graph in the link state (var/link), not against the tracked Cargo.lock:
-// the locked flag would refuse the change that a sibling ahead of its release needs, while the tracked lock stays byte-identical.
-test('link cargo --siblings fetches in the link lock without --locked and leaves the tracked Cargo.lock unchanged (K448-5-2)', (t) => {
+// metadata first resolves the copied lock, then the original native flags apply while the tracked lock stays byte-identical.
+test('link cargo --siblings fetches in the link lock with its native arguments and leaves the tracked Cargo.lock unchanged (K448-5-2)', (t) => {
   const { consumer, env, log } = workspace(t);
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
   const before = readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8');
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.doesNotMatch(log(), /fetch --locked/, 'the link lock is resolved, so --locked would refuse the patched graph');
-  assert.match(log(), /resolver\.lockfile-path=.*var\/link\/cargo\/root\/Cargo\.lock.* fetch$/m);
+  assert.match(log(), /fetch --locked/, 'the requested native arguments are preserved after metadata resolves the link graph');
+  assert.match(log(), /resolver\.lockfile-path=.*var\/link\/cargo\/root\/Cargo\.lock.* fetch --locked$/m);
   assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), before, 'the tracked Cargo.lock is unchanged');
 });
 
@@ -1222,4 +1225,32 @@ test('K653: a Composer platform resolution failure propagates and releases its l
   const tool = { command, env };
   assert.throws(() => composerLink(consumer, folders, tool, () => {}), /exited with 31/);
   assert.equal(existsSync(path.join(consumer, 'var/link/composer/metadata.lock')), false);
+});
+
+
+test('K664-3 refuses a release selected instead of the sibling development source and releases its holder', (t) => {
+  const { consumer, env } = workspace(t);
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n', 'release/Cargo.toml': '[package]\nname="polyspec-prov"\nversion="0.0.1"\n' });
+  const metadata = JSON.stringify({ packages: [{ id: 'opaque-release', name: 'polyspec-prov', manifest_path: path.join(consumer, 'release/Cargo.toml') }], resolve: { nodes: [{ id: 'opaque-release' }] } });
+  stub(path.dirname(env.CARGO), path.join(consumer, 'cargo-source.log'), 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${metadata}'; exit 0; fi; done; echo executed >> ${JSON.stringify(path.join(consumer, 'executed'))}`);
+  assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /Cargo selected .*instead of development source/);
+  assert.equal(existsSync(path.join(consumer, 'executed')), false);
+  assert.equal(existsSync(path.join(consumer, 'var/link/cargo/root/execution.lock')), false);
+  put(consumer, { 'Cargo.lock': 'version = 4\n' });
+  assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /Cargo selected .*instead of development source/, 'a new dependency missing from the tracked lock cannot silently select its release');
+});
+
+test('K664-3 refuses a concurrent holder before replacing the link lock', (t) => {
+  const { consumer, env } = workspace(t);
+  const folder = path.join(consumer, 'var/link/cargo/root');
+  put(consumer, { 'Cargo.lock': 'version = 4\n', 'var/link/cargo/root/Cargo.lock': 'preserved\n' });
+  const held = acquireHolderLock(path.join(folder, 'execution.lock'));
+  try {
+    assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /lock/);
+    assert.equal(readFileSync(path.join(folder, 'Cargo.lock'), 'utf8'), 'preserved\n');
+  } finally { held.release(); }
+});
+
+test('K664-3 workspace metadata forwards native graph flags and leaves execution flags to Cargo', () => {
+  assert.deepEqual(cargoMetadataArguments(['+1.99.0', 'test', '-p', 'app', '--features', 'one', '-Ftwo', '--features=three', '--manifest-path', 'app/Cargo.toml', '--offline', '--config', 'net.retry=2', '--target=x86_64-unknown-linux-gnu', '--no-default-features', '--all-features', '--', '--features=not-a-cargo-flag']), ['--features', 'one', '-Ftwo', '--features=three', '--manifest-path', 'app/Cargo.toml', '--offline', '--config', 'net.retry=2', '--filter-platform=x86_64-unknown-linux-gnu', '--no-default-features', '--all-features']);
 });
