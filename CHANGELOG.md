@@ -5,11 +5,11 @@
 
 ## Unreleased
 
-- TypeScript lint resolves its declared tool executables from the installed provider and exposes the native type-aware backend bin directory. Linked, nested and hoisted installations run without consumer-created bin links; the catch-step fixture declares the same native dependencies. (K698)
-
-
-
 ## 0.0.58
+
+- Refreshed kit 0.0.58 consumer locks and advisory review after the provider lint and descendant cleanup fixes (K677-5).
+
+- TypeScript lint resolves its declared tool executables from the installed provider and exposes the native type-aware backend bin directory. Linked, nested and hoisted installations run without consumer-created bin links; the catch-step fixture declares the same native dependencies. (K698)
 
 - Command results wait for descendant process group cleanup even when a descendant closes its pipes on SIGTERM. The regression rejects executing descendants while allowing terminated zombies awaiting the system reaper (K430-2).
 

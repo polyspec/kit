@@ -1,16 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 33b42417fb41c492a669764a1768dfaabe6ff8c473ef1baa9cd79e945e8c0a0a -->
+<!-- source-sha256: 5702aaf509a2f3c9cc89157c4e49b8262b475e5bc987ff344918deee55226fa4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- TypeScript lint가 설치된 provider에서 선언된 tool 실행 파일을 해석하고 native type-aware backend bin directory를 제공한다. Linked, nested, hoisted 설치에서 consumer가 bin link를 만들지 않으며 catch-step fixture도 같은 native dependency를 선언한다. (K698)
-
-
-
 ## 0.0.58
+
+- provider lint와 descendant cleanup 수정 후 kit 0.0.58 consumer lock과 advisory review를 갱신했다(K677-5).
+
+- TypeScript lint가 설치된 provider에서 선언된 tool 실행 파일을 해석하고 native type-aware backend bin directory를 제공한다. Linked, nested, hoisted 설치에서 consumer가 bin link를 만들지 않으며 catch-step fixture도 같은 native dependency를 선언한다. (K698)
 
 - descendant가 SIGTERM에서 pipe만 닫아도 process group cleanup이 끝난 뒤 command 결과를 반환한다. 회귀 검증은 system reaper를 기다리는 종료된 zombie를 허용하고 실행 중인 descendant는 거부한다(K430-2).
 
