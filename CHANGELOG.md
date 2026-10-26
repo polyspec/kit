@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Parity requirement tracing defers an id only while the exact item in its declared English checklist is `[!]`; active gaps remain R13 findings, and invalid, active or duplicate references are rejected (K656).
 - Composer source links reconcile stale runtime requirements through a run-specific path-repository manifest and lock. Composer updates only linked packages, keeps external package records and tracked release records unchanged, retains platform checks, and leaves matching metadata untouched (K653).
 
 ### 2026-10-26 — Completed checklists permit an explicit local final run (K654)
