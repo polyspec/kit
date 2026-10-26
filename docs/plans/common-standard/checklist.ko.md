@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: c16f9ebd8f109fedefd23c08e2696d50c3351e397cd0c0410814f6245ac55d52 -->
+<!-- source-sha256: 1f79f11e879f263d2f88ad54111ab38a49df28bd7f609b262f4efec67e8367e0 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -596,3 +596,4 @@
 | K671-2 | 설치된 package의 공유 copy와 workflow를 복원하고 provider를 바꾸지 않는 atomic managed symlink 전환 및 tracked shared link 거부를 적용합니다 | package.json kit.copies, scripts/kit/kit-sync.mts, scripts/kit/kit-check.mts, owning unit tests | `node scripts/kit/run-tests.mts node -- tests/kit/kit-sync.test.mts tests/kit/kit-check.test.mts`; type-aware oxlint | [o] |
 | K671-3 | release와 gates workflow는 첫 Make 실행 전에 정확한 packageManager npm으로 lock의 kit package를 설치하고 kit 자체는 package bootstrap을 건너뛰며 형제 source clone을 요구하지 않는다 | workflows/release.yml, .github/workflows/release.yml, workflows/gates.yml, tests/kit/workflow-package-bootstrap.mts, tests/kit/gates-workflow.test.mts, tests/source/release-workflow.test.mts, config/owner-checks.json | `node scripts/kit/run-tests.mts node -- tests/kit/gates-workflow.test.mts tests/source/release-workflow.test.mts`; changed-file type-aware oxlint | [o] |
 | K671-4 | install-packages fixture는 설치된 kit 패키지의 bootstrap과 kit.mk를 준비하고 네이티브 npm ci recipe를 검사한다 | tests/kit/install-packages.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K511 tests/kit/install-packages.test.mts` | [o] |
+| K670-3 | Release version commit은 manifest와 lock metadata를 허용하고 구현 code는 거부한다 | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K670-3 tests/kit/commits.test.mts` | [o] |

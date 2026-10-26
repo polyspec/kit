@@ -377,7 +377,9 @@ const commitOf = (root: string, rev: string) => {
 const CODE_PATH = /^(?:scripts|src|tests|packages)\/|\.(?:mts|ts|go|php|py|rs)$|(?:^|\/)Makefile$|\.mk$/;
 export function typeFindings(message: string, staged: readonly string[]): CommitFinding[] {
   const type = /^(docs|chore)\(/.exec(message.split('\n')[0] ?? '')?.[1];
-  const code = staged.filter(file => CODE_PATH.test(file));
+  const release = /^chore\(release\): Release \d+\.\d+\.\d+ \(#[A-Za-z0-9.-]+\)$/.test(message.split('\n')[0] ?? '');
+  const metadata = /(?:^|\/)(?:package(?:-lock)?\.json|composer\.(?:json|lock)|Cargo\.(?:toml|lock)|pyproject\.toml|pylock\.toml)$/;
+  const code = staged.filter(file => CODE_PATH.test(file) && !(release && metadata.test(file)));
   if (type === undefined || code.length === 0) return [];
   return [{ rule: 'commit-type', message: `a ${type} commit stages code, a test or a recipe (${code.join(', ')}); stage the fix alone and commit it with its own type, such as fix or feat (K449)` }];
 }

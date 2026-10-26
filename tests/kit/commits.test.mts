@@ -7,11 +7,19 @@ import { rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { fileMessage, findingLines, identityFindings, indexItemFindings, messageFindings, rangeFindings, rustTestLines } from '../../scripts/kit/check-commits.mts';
+import { fileMessage, findingLines, identityFindings, indexItemFindings, messageFindings, rangeFindings, rustTestLines, typeFindings } from '../../scripts/kit/check-commits.mts';
 import { english, pair, put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
 const CONFIG = { schema: 1, types: ['feat', 'fix', 'docs'], subjectMax: 50, bodyMax: 72 };
+
+test('K670-3: a release version commit may stage manifests and locks but no implementation', { timeout: 1000 }, () => {
+  const release = 'chore(release): Release 0.0.12 (#K670-3)';
+  const metadata = ['packages/ts/package.json', 'packages/php/composer.json', 'packages/rust/Cargo.toml', 'packages/rust/Cargo.lock', 'packages/python/pyproject.toml'];
+  assert.deepEqual(typeFindings(release, metadata), []);
+  assert.equal(typeFindings(release, [...metadata, 'packages/ts/src/index.ts']).length, 1);
+  assert.equal(typeFindings('chore(deps): Update (#K670-3)', metadata).length, 1);
+});
 const rules = (message: string) => messageFindings(message, CONFIG).map(found => found.rule);
 
 test('a message with a subject, a blank line and a wrapped body passes', () => {
