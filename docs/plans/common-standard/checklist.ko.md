@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 61d9c30d2ad00a91e2c8bdf3314267fd1ea3ff22e4aafecb947320426de5fe2e -->
+<!-- source-sha256: 1659a704d9fdae5533eb16c213c4455a8d07181f840baebc4648742df2e5b8f0 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -559,7 +559,7 @@
 | K652 | PHP arginfo installation discovers gen_stub.php in the PHP API build directory declared by php-config --extension-dir, as well as the prefix build directory | scripts/kit/install-php-arginfo.mts, tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K652 tests/kit/php-ext.test.mts` | [o] |
 | K653 | Composer source link의 manifest requirement가 설치된 release record와 다르면 Composer로 runtime metadata를 일치시키고 추적 manifest와 lock을 보존한다. | scripts/kit/link.mts, scripts/kit/composer-install.mts, tests/kit/link.test.mts, docs/operations/local-links.md and its Korean twin | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K653 tests/kit/link.test.mts` | [o] |
 | K654 | 모든 checklist 항목이 종결된 뒤 명시적인 local final run을 허용하며 일반적인 무선택 local suite는 계속 거부한다. | scripts/kit/ci-only.mts, scripts/kit/ci-targets.mts, scripts/kit/run-tests.mts, scripts/kit/claude-hook.mts, tests/kit/ci-only.test.mts, docs/operations/tool-inventory.md and its Korean twin | `node scripts/kit/run-tests.mts node -- tests/kit/ci-only.test.mts` | [o] |
-| K655 | main CI 통과 후 현재 tool 수정과 잠긴 consumer 설치를 포함하여 kit 0.0.55를 release한다 | package.json, package-lock.json, CHANGELOG.md and its Korean twin, tests/release-consumer/npm, config/dependency-review.json | `make release-verify TAG=v0.0.55` | [ ] |
+| K655 | main CI 통과 후 현재 tool 수정과 잠긴 consumer 설치를 포함하여 kit 0.0.55를 release한다 | package.json, package-lock.json, CHANGELOG.md and its Korean twin, tests/release-consumer/npm, config/dependency-review.json | `make release-verify TAG=v0.0.55` | [-] 원인: K686-6이 tag의 canonical manifest 검증 결함을 수정한다. K677이 v0.0.55를 보존하고 수정 구현을 0.0.56에 포함하며 공개된 0.0.55 package release는 없다. |
 | K657 | 로컬 source 연결 개발을 유지하면서 dependency link와 설치 metadata를 각 package manager에 맡기고 CI는 versioned release dependency를 설치한다 | scripts/kit/link.mts, npm-install.mts, composer-install.mts, uv-install.mts, docs/operations/local-links.md and its Korean twin | `make docs-check` | [o] |
 | K657-1 | npm link가 로컬 package link를 소유하며 kit는 npm package folder를 직접 교체하지 않는다 | scripts/kit/npm-install.mts, scripts/kit/link.mts, tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/npm-install.test.mts` | [o] |
 | K657-2 | Composer는 선언된 path repository를 설치하고 manifest, lock, 설치 기록, autoload를 관리하며 별도 metadata 보정을 제거한다 | scripts/kit/composer-install.mts, scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K657\|K653" tests/kit/link.test.mts` | [o] |

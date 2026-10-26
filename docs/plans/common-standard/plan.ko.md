@@ -1,5 +1,5 @@
 <!-- doc-id: plan-common-standard -->
-<!-- source-sha256: fc46074ba609c0639be8cf3f6d5242199826091916e91935c0639dbfdbadf0cf -->
+<!-- source-sha256: 26a15003c332a59dce0be41cfeb672bd9db3b607e95e1547d3d39c3c69de8985 -->
 # 공통 표준
 
 [English](plan.md)
@@ -20,12 +20,12 @@ K670-1은 PHP tokenizer 설정을 유지하고 K670-3은 release chore에서 구
 
 ### Release 상태와 다음 작업
 
-- K655, version 0.0.55: 준비와 소유 검사는 CHANGELOG.md에 기록되어 있고 공개는 대기 중입니다. [CI run 40313948359](https://github.com/polyspec/kit/actions/runs/40313948359)는 K672-1까지 검사해 kit test 1398개 통과, 4개 실패로 완료되었고 source test 174개와 나머지 gate는 모두 통과했습니다. K686-1/K686-2가 실패 owner 네 건을 수정합니다. 수정된 candidate는 자기 CI를 통과해야 하며 이전 source 결과는 후속 수정 code의 승인 증거가 아닙니다.
-- K673과 K674는 해당 CI에 포함되지 않은 후속 로컬 main commit입니다. K677은 공개된 0.0.55 tag 밖의 승인 변경을 포함할 후속 0.0.56 release를 추적합니다. 0.0.55가 공개되기 전에는 수정이 해당 candidate에 남을 수 있으므로 로컬 commit이 이미 공개된 version에 속한다고 가정하지 말고 최종 candidate를 확인합니다. 각 release는 자기 code의 CI와 consumer proof를 통과해야 하며 0.0.55 결과는 0.0.56의 검증 증거가 아닙니다.
+- K655, version 0.0.55: [CI 40351072950](https://github.com/polyspec/kit/actions/runs/40351072950)에서 44단계, kit 1423개, source 182개가 모두 통과했습니다. 이후 [release 시도 40358073544](https://github.com/polyspec/kit/actions/runs/40358073544)가 정상 prepack manifest 변환을 거부하여 공개 전에 실패했습니다. 기존 tag는 변경하지 않으며 공개된 0.0.55 package release는 없습니다. K686-6이 정확한 비교를 수정하고 기존 단일 pack 소비자 검사를 실제 asset gate에 연결합니다.
+- K677이 수정 구현을 0.0.56으로 공개합니다. Native version과 consumer lock 준비를 완료했습니다. K677-1은 별도 해석된 consumer lock을 native advisory review에 포함하며 두 npm graph와 여섯 lock의 검토 및 offline gate를 통과했습니다. 이 candidate 자체의 CI와 공개 consumer proof가 통과해야 하며 0.0.55 결과로 변경된 code를 검증했다고 하지 않습니다.
 - CI가 실패하면 해당 release는 진행하지 않습니다. 실패 소유 범위를 수정하고 선택 검사 후 수정된 release candidate를 push합니다. 개발 중 전체 로컬 suite를 반복하지 않습니다. Candidate의 CI 통과 뒤 [release 절차](../../operations/release.ko.md)를 따르며 tag, draft, version bump만으로 공개 release라 하지 않습니다.
 - K676은 native 실행 환경으로 상속된 Cargo target을 격리하고 별도 main/worktree metadata 증거로 확인합니다. K678은 준비 비용 검토를 완료했습니다. 여섯 격리 소비자의 native locked install 및 package 소비 검증과 기존 process별 primed download cache를 유지하고 부정확한 test 문구만 수정했습니다.
 
-K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 증거의 완료이며 K655와 K677은 release 공개까지 미완료로 유지합니다. 배포 상태를 갱신하기 전에 Git, CI 실행, release를 확인합니다. Checklist는 task만, CHANGELOG.md는 실제 변경과 검사 증거를 담고 이 절은 관계와 남은 작업을 설명합니다.
+K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 증거의 완료이며 확인된 asset gate 결함으로 K655는 K677로 대체하며 K677은 0.0.56 공개까지 미완료입니다. 배포 상태를 갱신하기 전에 Git, CI 실행, release를 확인합니다. Checklist는 task만, CHANGELOG.md는 실제 변경과 검사 증거를 담고 이 절은 관계와 남은 작업을 설명합니다.
 
 ## Checklist 정합성 검토 (K679, 2026-10-26)
 
@@ -43,14 +43,14 @@ K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 �
 | K443 | K631 진단 정책으로 대체됨. 새 land 차단기로 복구하지 않는다. | `land.mts mainRun; land.test.mts K631-1` |
 | K444 | K452-1 load 사전 검사로 대체됨. 문자 그대로 extension_loaded 검증을 했다고 주장하지 않는다. | `run-tests.mts probeExtensions; run-tests.test.mts K452-1` |
 | K445 | 과거 범위 제외 유지. 이번 작업이 generated file filtering을 입증하지는 않는다. | `lint-python.mts lintSteps still selects tracked Python sources` |
-| K456 | 부분 구현됨. 남은 명령·결과·경과시간 출력은 K685가 추적한다. | `check-documents.mts; land.mts runGate; test-hooks.mts` |
-| K461 | 대체됨. K682가 case 제한을 유지하면서 사전 build deadline을 제거한다. | `AGENTS operation rule; run-tests.mts BUILD_MS/buildWatch; test-build-first.test.mts` |
-| K466 | 과거 사유를 대체함. K680이 native audit node path와 locked copy version을 보존한다. | `dependency-review.mts npm advisory collection ignores audit nodes` |
+| K456 | K685가 단계 진행, native command 결과와 process 정리를 완료했다. 전체 operation deadline을 복원하지 않는다. | `check-documents.mts; land.mts runOperation; K685 owner regressions` |
+| K461 | 대체됨. K682가 case 제한을 유지하면서 사전 build deadline을 제거한다. | `AGENTS operation rule; run-tests.mts pre-test builders; test-build-first.test.mts K682` |
+| K466 | 과거 사유를 대체함. K680이 native audit node path와 locked copy version을 보존한다. | `dependency-review.mts native npm nodes; exact locked-copy versions and nodePath` |
 | K467 | K684가 online review의 offline·오류 false-green을 거부한다. 옛 recipe를 복구하지 않는다. | `dependency-review.mts query/advisories; offline gate reads committed review` |
 | K470 | 대체됨. Stale sprintf-js 예외가 제거되었으므로 복구하지 않는다. | `K660; dependency-policy.json advisoryExceptions; current review` |
 | K471 | 대체됨. Native npm이 override를 소유하며 copy별 advisory 범위는 K680이다. | `dependency policy advisoryExceptions and native npm overrides` |
 | K472 | 제외 유지. Kit이 최신 version이나 sibling version 일치를 강제하지 않는다. | `K660 newer-only test; dependency-review CLI result policy` |
-| K475 | 대체됨. K681이 legacy metadata 보정을 제거했으며 lock 합성을 복구하지 않는다. | `dependency-review.mts providerEntries/composerEntries/runUpdateSteps` |
+| K475 | 대체됨. K681이 legacy metadata 보정을 제거했으며 lock 합성을 복구하지 않는다. | `dependency-review.mts native runUpdateSteps; retired provider-entries CLI` |
 | K479-1 | 대체됨. Kit이 만드는 composer.link manifest 모델은 폐기되었다. | `composer-install.mts selected COMPOSER; native Composer K664-2` |
 | K480-1 | K683이 native source/release 검증 범위를 정하며 언어 공통 resolver는 만들지 않는다. | `composer-install.mts native update; uv-install.mts pip check; npm peer limits` |
 | K483 | 의도를 분리한다. NO_DEV는 구현되어 있으며 checkout 없는 release 설치 거부는 복구하지 않는다. | `composer-install.mts native fallback; link.test.mts NO_DEV; K683` |
@@ -59,7 +59,7 @@ K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 �
 | K597 | 제외 유지. K561을 유지하며 bindingless catch 진단을 제거하지 않는다. | `catch-check.mts bindinglessCatches; catch-check.test.mts K561` |
 | K618 | 과거 오진 제외 유지. 각 PHP generator가 선언하는 parser를 선택한다. | `install-php-arginfo.mts; PHP tests K637/K652/K670-1` |
 | K649 | K654/K658의 guarded FINAL_RUN=1 API로 대체됨. API 존재가 금지된 로컬 suite를 허가하지는 않는다. | `ci-only.mts; ci-only.test.mts K654/K658; repository check rules` |
-| K655 | 미완료 유지. 실패한 CI는 release 승인이 아니며 K686이 실패 수집과 수정을 추적한다. | `CI 40313948359; release-verify; public consumer proof` |
+| K655 | K677로 대체한다. K686-6이 tag의 asset 검증 결함을 수정하고 기존 tag는 보존한다. | `CI 40351072950; release 40358073544; K686-6 exact prepack contract` |
 | K76-1 | 제외 유지. 필수 PR이나 CODEOWNERS 승인 gate를 도입하지 않는다. | `P10/P38; S8; remote protection settings were not inspected` |
 | K111 | Dependency-cruiser 수단은 제외 유지. Native import graph 기반 owner 선택은 이미 있다. | `owner-check.mts importGraph; owner-check.test.mts K191` |
 | K119 | 원래 오진은 제외 유지. 정상 cleanup은 존재하며 예외 경로의 cleanup은 미확인이다. | `release-sandbox.mts cleanup after tar; no finally proof in this audit` |
@@ -69,13 +69,13 @@ K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 �
 
 ### 현재 구현과 실행 순서
 
-우선 K686으로 수정된 candidate의 CI를 통과시킵니다. K686-1과 K686-2가 앞선 전체 실행의 실패 owner 네 건을 수정합니다. K655는 candidate의 CI와 consumer proof 통과 및 공개까지 미완료입니다. 공개 전 실패 candidate는 0.0.55에서 수정할 수 있으며 공개 tag 밖의 변경만 K677의 후속 version 대상입니다.
+K677의 수정 0.0.56 candidate는 자체 CI와 consumer proof 통과 뒤 공개합니다. K686-1/K686-2가 첫 실패 owner 네 건을 수정했고 후속 전체 실행의 unit fixture 실패 30건과 Go source fixture 실패 한 건은 K686-4/K686-5/K690-1이 수정했습니다. 이후 tag된 0.0.55 candidate의 unit 1423개와 source 182개가 모두 통과했습니다. 실제 release에서 별도로 확인한 엄격한 manifest 비교 결함은 K686-6이 어느 manifest field도 무시하지 않고 수정합니다. 기존 tag를 옮기는 대신 보존하고 다음 version으로 공개합니다.
 
 감사 결과는 항목 등록만이 아니라 구현으로 이어졌습니다. K681이 Composer review/update 합성 경로를 제거하고 K680이 native advisory path와 실제 nested copy version을 보존합니다. K684는 native offline false-green과 취약점 0건으로 위장하는 native error JSON을 재현하고 거부합니다. K682는 사전 build deadline을 제거하고 K676은 ambient Cargo target을 격리합니다. 소유 검사는 CHANGELOG.md에 기록되어 있으며 수정 candidate의 전체 CI는 별도로 통과해야 합니다.
 
-K683은 새 resolver 없이 native source/release 검증 경계를 정합니다. K687은 기본 root report 입력을 수정합니다. 통합 dependency owner의 assertion 44개는 통과했지만 report 작성 결함으로 명령 종료는 실패했고 별도 CLI report 회귀 검사가 그 수정을 검증합니다. 앞선 명령이 정상 종료했다고 주장하지 않습니다.
+K683은 새 resolver 없이 native source/release 검증 경계를 정합니다. K686-6은 기존 canonical npm prepack 변환을 asset 검증과 공유하며 예상 밖 export, bin, dependency, script, name, version 변조는 계속 실패합니다. 기존 소비자 검사가 동일한 단일 native pack으로 그 asset gate를 사용합니다. K687은 기본 root report 입력을 수정합니다. 통합 dependency owner의 assertion 44개는 통과했지만 report 작성 결함으로 명령 종료는 실패했고 별도 CLI report 회귀 검사가 그 수정을 검증합니다. 앞선 명령이 정상 종료했다고 주장하지 않습니다.
 
-K678은 정당한 격리 package 소비 검사를 유지합니다. K685는 land의 Make 전체 deadline을 제거하고 command 진행을 실시간 출력하며 취소, 부모 종료 정리 및 merge lock을 유지합니다. Document 검사는 각 단계와 결과를 출력합니다. K690은 legacy worktree npm/Composer 투영을 native offline 설치와 공유 download cache로 교체합니다. 각 worktree가 dependency tree, 설치 record, autoload와 workspace 연결을 소유하고 tool은 계속 공유합니다. Archive는 설치된 package를 투영하는 대신 입력 파일로 복사합니다. 실측 kit 설치 크기에서 독립 npm·Composer dependency tree는 worktree당 약 291 MiB, 열 개면 약 2.85 GiB입니다. Cache 공유는 설치 directory 공유가 아닙니다. Package manager 교체, metadata 합성이나 main 설치 수정은 필요하지 않습니다.
+K678은 정당한 격리 package 소비 검사를 유지합니다. K685는 land의 Make 전체 deadline을 제거하고 command 진행을 실시간 출력하며 취소, 부모 종료 정리 및 merge lock을 유지합니다. Document 검사는 각 단계와 결과를 출력합니다. K690은 legacy worktree npm/Composer 투영을 native offline 설치와 공유 download cache로 교체합니다. 선택한 개발 package는 provider source로 향하는 native link를 유지합니다. Worktree별 설치 때문에 source를 snapshot하거나 library release를 요구하지 않습니다. 각 worktree가 dependency tree, 설치 record, autoload와 workspace 연결을 소유하고 tool은 계속 공유합니다. Archive는 설치된 package를 투영하는 대신 입력 파일로 복사합니다. 실측 kit 설치 크기에서 독립 npm·Composer dependency tree는 worktree당 약 291 MiB, 열 개면 약 2.85 GiB입니다. Cache 공유는 설치 directory 공유가 아닙니다. Package manager 교체, metadata 합성이나 main 설치 수정은 필요하지 않습니다.
 
 K689-1은 선택한 Python distribution이 예상 source에 실제로 있는지 검증합니다. K689-2는 선택한 local runtime provider와 명시적 extra를 하나의 native uv transaction으로 전달합니다. K689-3은 기존 환경의 source 연결을 명시적 locked installer와 분리하므로 새 local dependency 연결 때문에 release lock을 재조정하지 않습니다. Native dependency 실패는 그대로 실패합니다.
 

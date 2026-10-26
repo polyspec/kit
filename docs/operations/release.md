@@ -11,6 +11,8 @@ tree. A repository adopts a release by updating `@polyspec/kit` in its package-l
 
 Consumers include `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`. On a clean checkout, the shared workflow first runs native `npm ci --ignore-scripts` through the exact npm version declared in `packageManager`, then runs the existing tool installation and package installation targets. It never clones a sibling kit checkout. A local `npm link ../kit` uses the same installed package path with the source bootstrap; kit itself uses its own source Makefile.
 
+Kit's native npm prepack maps its source exports and hook bin to built dist paths. The asset gate applies the same canonical producer transformation to the tagged kit manifest and compares every resulting byte; other package manifests remain byte-exact. The existing packed-consumer test runs that gate with its single native pack and installs the resulting archive. The native consumer lock can resolve compatible transitive versions differently from the development lock, so both exact locked graphs are included in advisory review.
+
 Later changes do not invalidate an earlier release's evidence. Finish the current version from its own successful CI and consumer proof, then bump the next version and validate it separately. A local main commit is not automatically part of a remote release: check the remote candidate and its CI. Implementation completion and owning tests do not mean publication; update a release checklist item only after the proof passed and the release is public.
 
 A release is cut in three steps. (1) A commit `chore(release): Release X.Y.Z` sets the version in `package.json` and
