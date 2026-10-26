@@ -5,9 +5,11 @@
 
 ## Unreleased
 
+## 0.0.55
+
+- Release preparation rebuilds the 0.0.55 npm archive after the Composer owner correction and regenerates the native consumer lock from that new archive. The archive bytes change while the dependency graph and consumer lock remain unchanged. A fresh review covers all five current locks without advisories; dependency-policy-check, release-versions and docs-check pass. Main CI and publication remain pending (K666).
 - The PEP 751 unlink test starts from explicit native editable metadata instead of performing a source-link sync without uv.lock. It still verifies that unlink requests the pinned release and its interpreter. Native source linking requires the application uv.lock; a pylock.toml alone does not enable a new source-installation mode. Red: the prior setup unexpectedly runs uv sync --locked; green: the single K401-1 case and changed-file type-aware lint pass (K666).
 - Shared-link fixtures retain missing and wrong-source failures in check mode while expecting native first installation and repair in mutation mode. Red: the three K529, K643 and K590 cases fail at be6d847e. K529 and K643 pass after contract updates. K590 passes after preserving the Composer root owner and explicitly removing the member-local npm install to verify root fallback, missing-source diagnostics and native repair (K666).
-## 0.0.55
 
 - Release preparation packs the current 0.0.55 source with native npm and regenerates the consumer lock from that archive. The packed dependency declarations match its native consumer lock entry; the current dependency review covers five exact lock contents with no advisory. dependency-policy-check and release-versions pass. Publishing and main CI acceptance remain pending (K655).
 - Native tool fixtures and CI input declarations cover supported Go, PHP, Git, dependency-review, module-path and workspace-hook contracts. Their owning checks pass; complete CI verification remains the release gate (K661).

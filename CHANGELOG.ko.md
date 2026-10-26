@@ -1,14 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6a6c0db0d6501ab8a395b9676e8ce3e426ea221bac9a7aead56039a628c0f9ba -->
+<!-- source-sha256: 68318efd698b5b1230e44cceea9225acbd6aa6dd7ad5b7f93eb960ef8e3d0109 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.55
+
+- 릴리스 준비는 Composer 소유자 수정 이후 0.0.55 npm 아카이브를 다시 빌드하고 그 새 아카이브에서 네이티브 소비자 잠금을 다시 생성한다. 아카이브 바이트는 달라지고 의존성 그래프와 소비자 잠금은 바뀌지 않는다. 새 검토는 현재 잠금 다섯 개를 취약점 없이 검토하며 dependency-policy-check·release-versions·docs-check가 통과한다. main CI와 게시는 아직 대기 중이다 (K666).
 - PEP 751 unlink 검사는 uv.lock 없이 source-link sync를 수행하는 대신 이미 설치된 native editable metadata를 fixture로 명시한다. unlink의 고정 release와 interpreter 요청 검증은 유지한다. Native source 연결에는 앱 uv.lock이 필요하며 pylock.toml만으로 새 source 설치 모드를 제공하지 않는다. Red: 기존 setup은 uv sync --locked를 예상 밖에 실행한다. Green: K401-1 단일 case와 변경 파일 type-aware lint가 통과했다(K666).
 - 공유 링크 fixture는 check 모드에서 누락·잘못된 source 거부를 유지하고 변경 모드에서 native 최초 설치·복구를 기대한다. Red: be6d847e에서 K529·K643·K590 세 case가 실패한다. 계약 정정 후 K529·K643은 통과했다. K590은 Composer root 소유권을 유지하고 member-local npm 설치를 명시적으로 제거해 root fallback·source 누락 진단·native 복구를 검증한 후 통과했다(K666).
-## 0.0.55
 
 - 릴리스 준비는 현재 0.0.55 소스를 네이티브 npm으로 패킹하고 그 아카이브에서 소비자 잠금을 다시 생성한다. 패키지 의존성 선언은 네이티브 소비자 잠금 항목과 같고 현재 의존성 검토는 정확한 잠금 내용 다섯 개를 취약점 없이 검토한다. dependency-policy-check와 release-versions가 통과한다. 게시와 main CI 승인은 아직 대기 중이다 (K655).
 - Native tool fixture와 CI 입력 선언은 지원하는 Go, PHP, Git, dependency review, module 경로와 workspace hook 계약을 다룬다. 각 소유 검사는 통과했고 전체 CI 검증은 release gate로 남는다 (K661).
