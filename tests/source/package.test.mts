@@ -110,5 +110,6 @@ test('a repository that installs the tarball imports the tool APIs of @polyspec/
   const fromDist = spawnSync(process.execPath, [path.join(installed, 'dist/check-documents.mjs')], { cwd: ROOT, encoding: 'utf8' });
   const fromSource = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/check-documents.mts')], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(fromSource.status, 0, fromSource.stderr);
-  assert.deepEqual({ status: fromDist.status, stdout: fromDist.stdout, stderr: fromDist.stderr }, { status: fromSource.status, stdout: fromSource.stdout, stderr: fromSource.stderr });
+  const semanticOutput = (text: string) => text.split('\n').filter(line => !line.startsWith('[check-documents] step ')).join('\n');
+  assert.deepEqual({ status: fromDist.status, stdout: semanticOutput(fromDist.stdout), stderr: fromDist.stderr }, { status: fromSource.status, stdout: semanticOutput(fromSource.stdout), stderr: fromSource.stderr });
 });

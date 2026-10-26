@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c2d60025e96af6c0918f3e13965ca88aa05bde61ebb1935825275719bc777d5b -->
+<!-- source-sha256: aa6d98b4087920757e4d8f3b1e0c88fb29b8928324fee1a6b586042899b981cd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,7 +8,6 @@
 
 - Package test 준비는 격리된 여섯 native install/build 소비자와 기존 process별 primed download cache를 유지한다. Dependency root test는 실제 소유 계약을 명시하고 source export 주석은 checkout import와 packed dist import를 구분한다. 검증: helper와 세 caller 파일을 검토했으며 동작과 단언은 바뀌지 않아 문구 수정에 비싼 package test를 재실행하지 않는다 (K678). make docs-check도 통과하여 검토를 완료했다.
 - Python source 연결은 기존 native 환경을 전제로 release lock을 재조정하지 않고 선택 editable을 연결한다. 명시적인 uv installer는 공통 native source backend 전에 locked sync를 유지하므로 새 로컬 dependency를 개발 lock 수정이나 합성 없이 연결할 수 있다. Red: 47436bb6에서 source 연결이 먼저 오래된 release graph를 해석해 K689-3이 실패한다. Green에서는 선택 unit과 기존 환경 실제 검사가 통과하고 locked installer는 오래된 lock을 계속 거부하며 변경 파일 type-aware lint도 통과한다 (K689-3).
-
 - Python source 설치는 알려진 로컬 runtime dependency 이름을 따라가 명시적 root requirement extra와 함께 선택 editable을 하나의 native uv transaction으로 전달한다. uv가 일괄 --no-deps 없이 호환되는 외부 dependency를 해석하며 native dependency, source 경로와 선택 provider 완전성 검증은 유지한다. Red: 7f1c091d에서 개발 beta가 요구하는 미발행 로컬 child와 cache의 setuptools가 설치되지 않아 K689-2가 실패한다. Green에서는 선택 unit과 실제 native 검사가 release URL/hash lock 불변 및 child source 수정의 즉시 반영을 포함해 통과하고 변경 파일 type-aware lint도 통과한다 (K689-2).
 
 ## 0.0.55
@@ -30,6 +29,7 @@
 
 - Warning metadata는 warning 호출 결과가 무시될 때만 진단으로 봅니다. 조건·대입 값·반환 predicate로 소비하는 호출은 platform finding으로 유지하며 기존 진단 warning과 직접 platform/architecture 분기 검사를 보존합니다. Red: e3ff712d에서 결과 소비 회귀 검사 3개가 모두 실패했습니다. Green: 선택 divergence case 4개와 type-aware lint가 통과합니다(K688-1).
 - 소유 임시 directory cleanup이 실패해도 lint step은 원래 도구 출력과 exit 실패를 유지하고 cleanup을 step 실패로 보고하며 다음 step을 실행합니다. 권한에 민감한 fixture 대신 deterministic cleanup seam으로 도구 성공과 실패를 검증합니다. 원래 PHPStan cleanup commit 83a07531은 부모 K686을 사용했으며 K686-3은 그 후 이번 후속 구현 전에 등록했습니다. Red: 15162952에서 cleanup 소유 case 2개가 실패했습니다. Green: 선택 lint case 4개와 type-aware lint가 통과합니다(K686-3).
+- land는 기존 명령 실행기로 Make·rebase·merge·워크트리 제거를 await하며 전체 Make 시간 제한을 두지 않는다. 명령 시작·실시간 출력·결과·경과시간을 표시하고 부모 종료·프로세스 그룹 정리를 유지하며 main 비교 잠금은 게이트 await 동안 유지한다. 문서 검사는 진단과 기본 프로그래밍 출력을 유지하면서 단계 진행을 보고한다. Red: a4db4dc7에서 실시간 게이트 출력 사례가 시간 초과했다. Green: land 소유 사례 26개·문서 진행 사례·변경 파일 타입 인식 lint·typecheck가 통과한다 (K685).
 - Local Python provider는 locked sync에서 해당 release wheel 설치만 제외한 뒤 uv의 native editable 동작으로 설치한다. Release URL, hash와 lock은 유지하며 offline fixture가 환경이 선언된 source를 import하는지 확인한다(K689).
 - divergence checker는 `process.platform`과 `process.arch`가 warning metadata에 쓰일 때만 무시하고 runtime 분기 탐지는 유지한다. Red: 16ecc178에서 K688 focused case가 실패했다. Green: 수정이 commit된 tree에서 `make item-test ID=K688`가 통과한다(K688).
 - 과거 bootstrap 기대는 소비자 Node·네이티브 npm bin hook의 정확한 명령, 실행 가능한 소스와 packed dist 명령 대상 및 동일한 설정, Make 이전 설치 패키지 workflow를 검증한다. workflow 검사는 기록용 npm fixture를 재사용해 설치·빌드 없이 정확한 npm 선택과 kit 자체 소스 예외를 보존한다. Red: 380a23a5에서 이전 경로 기대 세 개가 실패했다. Green: 선택한 소유 사례 세 개와 변경 파일 타입 인식 lint가 통과한다 (K686-2).

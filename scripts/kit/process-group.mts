@@ -100,3 +100,10 @@ export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs:
   clearTimeout(timer);
   signalGroup(pgid, 'SIGKILL', kill);
 }
+
+/** Observes parent loss without putting a deadline on a command; the caller releases the observation after completion. */
+export function watchParent(onLost: () => void): () => void {
+  const parent = process.ppid;
+  const watch = setInterval(() => { if (process.ppid !== parent) { clearInterval(watch); onLost(); } }, 200);
+  return () => clearInterval(watch);
+}

@@ -394,3 +394,15 @@ test('a commit that leaves a Korean twin with a stale marker is refused by the p
   git('add', 'CHANGELOG.ko.md');
   assert.deepEqual(stagedTwinFindings(root), []);
 });
+
+
+test('document checks report step starts, results and elapsed time without changing findings (K685)', (t) => {
+  const root = tree(t, pair('a.md', 'alpha'));
+  const messages: string[] = [];
+  const actual = check(root, CONFIG, undefined, line => messages.push(line));
+  assert.deepEqual(actual, check(root, CONFIG));
+  for (const name of ['document pairs', 'checklists', 'status tables and changelogs']) {
+    assert.ok(messages.includes(`step ${name}: started`), messages.join('\n'));
+    assert.ok(messages.some(line => line.startsWith(`step ${name}: passed (`) && line.endsWith(')')), messages.join('\n'));
+  }
+});

@@ -17,9 +17,7 @@
 //
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
-import type { SpawnSyncReturns } from 'node:child_process';
-import { closeSync, existsSync, mkdtempSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { kitGates } from './kit-gates.mts';
 import { git, gitResult } from './git.mts';
@@ -28,6 +26,9 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { expandMake } from './recipe-tools.mts';
 import { clashMessage, rowClashes } from './row-ids.mts';
 import { trackedFiles } from './tracked-files.mts';
+import { runCommand, failureOf, type RunCommandResult } from './run-command.mts';
+import { watchParent } from './process-group.mts';
+import { compactSeconds } from './time.mts';
 import { refreshLinked } from './linked-build.mts';
 
 // The gates that land whatever the changed paths: the documents and the commit messages of the branch.
@@ -98,10 +99,10 @@ export function stopTargetOf(folder: string): string[] | undefined {
 }
 
 /** Runs the stop `targets` in the worktree `folder` with make; throws, naming the targets and printing their output, when one fails. */
-export function stopServers(folder: string, targets: string[], print: (text: string) => void): void {
+export async function stopServers(folder: string, targets: string[], print: (text: string) => void): Promise<void> {
   const names = targets.join(' ');
   print(`${names} in ${folder}`);
-  const result = runMake(folder, ['--no-print-directory', ...targets]);
+  const result = await runMake(folder, ['--no-print-directory', ...targets], print);
   if (result.status !== 0) {
     throw new Error(`the stop target ${names} failed in ${folder} (${result.status ?? result.signal}), so the worktree is kept; its output:\n${result.stdout}${result.stderr}`);
   }
@@ -139,30 +140,25 @@ export const MAIN_WRITER = 'KIT_MAIN_WRITER';
 const LOCK_POLL_MS = 2000;
 const LOCK_WAIT_MS = 60 * 60 * 1000;
 
-/** The deadline of one make that land runs, a gate, a build or a stop target (K531): 30 minutes. */
-export const MAKE_DEADLINE_MS = 30 * 60 * 1000;
-
-/**
- * Runs make with `args` in `folder` and returns its run when make exits (K531): its output goes to files, not to pipes, since a wait
- * on pipes ends only when every holder closes them, and a process that a recipe leaves running holds the inherited output after make
- * has exited. A run past `deadline` is stopped and throws, naming the target and the deadline; a make that cannot start throws.
- */
-function runMake(folder: string, args: string[], deadline: number = MAKE_DEADLINE_MS): SpawnSyncReturns<string> {
-  const dir = mkdtempSync(path.join(tmpdir(), 'kit-make-'));
-  const files = [path.join(dir, 'stdout'), path.join(dir, 'stderr')];
-  const [out, err] = files.map(file => openSync(file, 'w'));
+/** Runs a Make operation without a deadline, streaming progress and preserving its captured result. */
+async function runOperation(tool: string, folder: string, args: string[], print: (text: string) => void, env: NodeJS.ProcessEnv = process.env): Promise<RunCommandResult> {
+  const command = `${tool} ${args.join(' ')}`;
+  print(`${command} in ${folder}: started`);
+  const unwatch = watchParent(() => process.kill(process.pid, 'SIGTERM'));
   try {
-    const result = spawnSync('make', args, { cwd: folder, stdio: ['ignore', out, err], timeout: deadline, killSignal: 'SIGTERM' });
-    const target = args.filter(arg => !arg.startsWith('-')).join(' ');
-    if (codeOf(result.error) === 'ETIMEDOUT') throw new Error(`make ${target} ran past its deadline of ${deadline / 1000} s in ${folder} and was stopped`);
-    if (result.error) throw new Error(`make ${target} could not start in ${folder}: ${result.error.message}`);
-    const [stdout = '', stderr = ''] = files.map(file => readFileSync(file, 'utf8'));
-    return { pid: result.pid, output: [null, stdout, stderr], stdout, stderr, status: result.status, signal: result.signal };
+    const result = await runCommand({ command: tool, args, cwd: folder, env, stdout: 'pipe', stderr: 'pipe',
+      // The preceding file-backed capture imposed no output-size cap.
+      maxOutputBytes: Number.POSITIVE_INFINITY, onLine: (stream, line) => print(`${stream}: ${line}`) });
+    const failure = failureOf(result);
+    print(`${command} in ${folder}: ${failure ?? 'passed'} (${compactSeconds(result.elapsedMs)})`);
+    if (result.error) throw new Error(`${command} could not start in ${folder}: ${result.error.message}`);
+    return result;
   } finally {
-    for (const fd of [out, err]) if (fd !== undefined) closeSync(fd);
-    rmSync(dir, { recursive: true, force: true });
+    unwatch();
   }
 }
+
+const runMake = (folder: string, args: string[], print: (text: string) => void) => runOperation('make', folder, args, print);
 
 /** Blocks this process for `ms` milliseconds; a waiting land has nothing else to do. */
 function sleepFor(ms: number): void {
@@ -253,21 +249,21 @@ export function withLandLock<T>(root: string, holder: string, outcome: string, w
  * Rebases `branch` onto main in its worktree `folder` under the land lock (K495-1). A worktree with uncommitted changes is refused as
  * before; a rebase that conflicts is aborted, so the branch stays as it was, and the conflicting files are named.
  */
-function rebaseOnMain(folder: string, branch: string, print: (text: string) => void): void {
+async function rebaseOnMain(folder: string, branch: string, print: (text: string) => void): Promise<void> {
   if (git(folder, 'status', '--porcelain').trim() !== '') throw new Error(`${branch} is not rebased on main and its worktree ${folder} has uncommitted changes; commit them, then land again`);
-  let rebased = gitResult(folder, 'rebase', '--quiet', 'main');
+  let rebased = await runOperation('git', folder, ['rebase', '--quiet', 'main'], print);
   // K634: a conflict that is only the source-sha256 line of Korean twins keeps one line, is stamped again and the rebase continues.
   for (let conflicts = conflictsOf(folder); rebased.status !== 0 && conflicts.length > 0 && conflicts.every(file => onlyRevisionConflict(path.join(folder, file))); conflicts = conflictsOf(folder)) {
     for (const file of conflicts) writeFileSync(path.join(folder, file), keepOneRevision(readFileSync(path.join(folder, file), 'utf8')));
-    const stamp = runMake(folder, ['--no-print-directory', 'documents-stamp']);
+    const stamp = await runMake(folder, ['--no-print-directory', 'documents-stamp'], print);
     if (stamp.status !== 0) break;
     git(folder, 'add', '-u');
     print(`resolved the source-sha256 line of ${conflicts.join(', ')} and stamped it again`);
-    rebased = gitResult(folder, '-c', 'core.editor=true', 'rebase', '--continue');
+    rebased = await runOperation('git', folder, ['-c', 'core.editor=true', 'rebase', '--continue'], print);
   }
   if (rebased.status !== 0) {
     const conflicts = conflictsOf(folder);
-    gitResult(folder, 'rebase', '--abort');
+    await runOperation('git', folder, ['rebase', '--abort'], print);
     throw new Error(`${branch} does not rebase on main without a conflict (${conflicts.length > 0 ? conflicts.join(', ') : rebased.stderr.trim()}); rebase it by hand and land it again; nothing is merged`);
   }
   print(`rebased ${branch} on main (${git(folder, 'rev-parse', '--short', 'main').trim()})`);
@@ -298,10 +294,10 @@ function movesOf(root: string, from: string): string {
  * Lands `branch` on main in the repository of `root` (the main checkout); throws, merging nothing, when a refusal applies or a gate
  * fails. A branch that main contains skips the gates and the merge. The land lock covers only the merge (K571).
  */
-export function land(root: string, branch: string, { print = (text: string) => console.log(`[land] ${text}`), sleep = sleepFor }: { print?: (text: string) => void; sleep?: (ms: number) => void } = {}): void {
+export async function land(root: string, branch: string, { print = (text: string) => console.log(`[land] ${text}`), sleep = sleepFor }: { print?: (text: string) => void; sleep?: (ms: number) => void } = {}): Promise<void> {
   if (branch === '') throw new Error('no branch: make land BRANCH=<branch>');
   // K516: land lands into the checkout that has main checked out, wherever it is called from.
-  landBranch(mainCheckout(root), branch, print, sleep);
+  await landBranch(mainCheckout(root), branch, print, sleep);
 }
 
 /** How often a land rebases and runs its gates again when main moved while they ran (K571). */
@@ -329,7 +325,7 @@ function requireCleanMain(root: string): void {
  * main is still that commit and the fast-forward. A main that moved meanwhile is rebased on and the gates
  * run again, up to LAND_ATTEMPTS times, so nothing merges that its gates did not see on the exact main.
  */
-function landBranch(root: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void): void {
+async function landBranch(root: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void): Promise<void> {
   requireCleanMain(root);
   if (gitResult(root, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).status !== 0) throw new Error(`the branch ${branch} does not exist`);
   const folder = worktreeOf(root, branch);
@@ -342,7 +338,7 @@ function landBranch(root: string, branch: string, print: (text: string) => void,
     if (folder === undefined) throw new Error(`${branch} has no worktree; the gates run on its own tree and install, so make worktree-setup first`);
     let passed: GatesRun | undefined;
     for (let attempt = 1; ; attempt += 1) {
-      passed = gateBranch(root, folder, branch, print, sleep, passed);
+      passed = await gateBranch(root, folder, branch, print, sleep, passed);
       const { gated } = passed;
       const release = takeLandLock(root, branch, print, sleep);
       let merged = false;
@@ -350,7 +346,7 @@ function landBranch(root: string, branch: string, print: (text: string) => void,
         requireCleanMain(root);
         // K495: main must still be the commit the gates ran on.
         if (git(root, 'rev-parse', 'main').trim() === gated) {
-          const result = spawnSync('git', ['merge', '--ff-only', branch], { cwd: root, encoding: 'utf8', env: { ...process.env, [MAIN_WRITER]: 'land' } });
+          const result = await runOperation('git', root, ['merge', '--ff-only', branch], print, { ...process.env, [MAIN_WRITER]: 'land' });
           if (result.error) throw new Error(`git merge --ff-only ${branch} could not start in ${root}: ${result.error.message}`);
           if (result.status !== 0) throw new Error(`git merge --ff-only ${branch} exited with ${result.status}: ${result.stderr.trim()}; nothing is merged`);
           merged = true;
@@ -368,7 +364,7 @@ function landBranch(root: string, branch: string, print: (text: string) => void,
     const merged = passed === undefined ? [] : git(root, 'diff', '--name-only', `${passed.gated}..main`).split('\n').filter(file => file !== '');
     refreshLinked(root, merged, print);
   }
-  removeLanded(root, branch, folder, stop, print);
+  await removeLanded(root, branch, folder, stop, print);
   removeMerged(root, branch, print);
 }
 
@@ -416,10 +412,10 @@ interface GatesRun {
  * main that moved since, only the gates that the paths of the moved commits select run again, and commits-check, since the rebased
  * commits are new; a gate that passed before and whose inputs no moved commit touched keeps its result (K580).
  */
-function gateBranch(root: string, folder: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void, previous?: GatesRun): GatesRun {
+async function gateBranch(root: string, folder: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void, previous?: GatesRun): Promise<GatesRun> {
   // K495-1: a branch that main has left behind, as the land this one waited for leaves it, is rebased here; the gates below run on
   // the rebased commits, so nothing is merged that they did not see.
-  if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) rebaseOnMain(folder, branch, print);
+  if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) await rebaseOnMain(folder, branch, print);
   // K497: a row of the rebased branch whose ID main holds with another task is refused before any gate runs.
   const clashes = rowClashes(root, branch, branch);
   if (clashes.length > 0) throw new Error(`${branch} is refused; nothing is merged:\n${clashes.map(clashMessage).join('\n')}`);
@@ -438,10 +434,10 @@ function gateBranch(root: string, folder: string, branch: string, print: (text: 
     }
     print(`${gate} in ${folder}`);
     const args = gate === 'commits-check' ? [`RANGE=main..${branch}`] : [];
-    const candidate = runGate(folder, gate, args);
+    const candidate = await runGate(folder, gate, args, print);
     // K631: a gate red on main does not block a branch when it is red there too; a branch owes only not to break a green gate.
     // K631-1: report both failures truthfully and keep the candidate's diagnostics visible; no output line is compared.
-    if (candidate.result.status !== 0 && gate !== 'commits-check' && mainRun(root, gate, args, print, sleep).result.status !== 0) {
+    if (candidate.result.status !== 0 && gate !== 'commits-check' && (await mainRun(root, gate, args, print, sleep)).result.status !== 0) {
       print(`${gate} fails on candidate and main; continuing under K631`);
       print(`${gate} candidate stdout:\n${candidate.result.stdout}`);
       print(`${gate} candidate stderr:\n${candidate.result.stderr}`);
@@ -457,28 +453,29 @@ function gateBranch(root: string, folder: string, branch: string, print: (text: 
 }
 
 /** The run of `gate` with `args` in the main checkout `root`, under the main gate lock. */
-function mainRun(root: string, gate: string, args: string[], print: (text: string) => void, sleep: (ms: number) => void): GateRun {
+async function mainRun(root: string, gate: string, args: string[], print: (text: string) => void, sleep: (ms: number) => void): Promise<GateRun> {
   const release = takeLandLock(root, 'main', print, sleep, { name: `the run of ${gate} on main`, outcome: 'nothing is merged' }, MAIN_BUILD_LOCK);
   try {
-    return runGate(root, gate, args);
+    return await runGate(root, gate, args, print);
   } finally {
     release();
   }
 }
 
 /** Removes the worktree `folder` of the landed `branch`, after stopping its servers with `stop`, and deletes the branch. */
-function removeLanded(root: string, branch: string, folder: string | undefined, stop: string[] | undefined, print: (text: string) => void): void {
+async function removeLanded(root: string, branch: string, folder: string | undefined, stop: string[] | undefined, print: (text: string) => void): Promise<void> {
   let kept = false;
   if (folder !== undefined) {
     if (git(folder, 'status', '--porcelain').trim() === '') {
-      if (stop !== undefined) stopServers(folder, stop, print);
+      if (stop !== undefined) await stopServers(folder, stop, print);
       // K626: a process that still runs in the worktree keeps it and its branch; the next land removes them once it ends.
       const live = worktreeProcesses(folder, machineListing());
       if (live.length > 0) {
         kept = true;
         print(`kept the worktree ${folder} and ${branch}: ${live.length} processes run in it, and the next land removes them once they end:\n${live.map(({ pid, command }) => `${pid} ${command}`).join('\n')}`);
       } else {
-        git(root, 'worktree', 'remove', folder);
+        const removed = await runOperation('git', root, ['worktree', 'remove', folder], print);
+        if (removed.status !== 0) throw new Error(`git worktree remove ${folder} failed: ${removed.stderr}`);
         print(`removed the worktree ${folder}`);
       }
     } else {
@@ -497,16 +494,15 @@ function removeLanded(root: string, branch: string, folder: string | undefined, 
 export interface GateRun {
   folder: string;
   gate?: string;
-  result: SpawnSyncReturns<string>;
+  result: RunCommandResult;
 }
 
 /**
  * Runs `gate` in `folder` with make -s, with `args` after the gate (such as RANGE=), and returns the run at the exit of make (runMake,
- * K531). A make that cannot start, or that runs past `deadline`, throws.
+ * K531). A make that cannot start throws; no whole-operation deadline applies.
  */
-export function runGate(folder: string, gate: string, args: string[] = [], deadline: number = MAKE_DEADLINE_MS): GateRun {
-  // make -s: the recipes that make echoes differ between checkouts and are not findings of the gate (K446-3).
-  return { folder, gate, result: runMake(folder, ['--no-print-directory', '-s', gate, ...args], deadline) };
+export async function runGate(folder: string, gate: string, args: string[] = [], print: (text: string) => void = text => console.log(`[land] ${text}`)): Promise<GateRun> {
+  return { folder, gate, result: await runMake(folder, ['--no-print-directory', '-s', gate, ...args], print) };
 }
 
 /** The text of how a gate run ended: its exit status, or the signal that ended it. */
@@ -516,11 +512,9 @@ const endOf = (run: GateRun) => (run.result.status === null ? `ended with the si
 // initialized before it (K463).
 if (isMain(import.meta.url)) {
   const [branch = ''] = process.argv.slice(2);
-  try {
-    land(repositoryRoot(), branch);
-  } catch (error) {
+  land(repositoryRoot(), branch).catch((error: unknown) => {
     if (!(error instanceof Error)) throw error;
     console.error(`[land] ${error.message}`);
-    process.exit(1);
-  }
+    process.exitCode = 1;
+  });
 }

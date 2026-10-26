@@ -40,6 +40,7 @@ import { sha256 } from './bootstrap/digest.mts';
 import { readConfig } from './schema-validate.mts';
 import { present } from './present.mts';
 import { errorCode } from './process.mts';
+import { compactSeconds } from './time.mts';
 
 export const CONFIG = 'config/documents.json';
 const DOC_ID = /<!-- doc-id: ([^>]*?) -->/g;
@@ -305,7 +306,7 @@ function kitRowFindings(checklists: readonly Tracker[], available: (file: string
 }
 
 /** The findings of the checkout at `root` under `config`, as printed lines, sorted; `kitRoot` is the kit checkout the rows name. */
-export function check(root: string, config: DocumentsConfig, kitRoot: string | undefined = kitCheckoutOf(root)) {
+export function check(root: string, config: DocumentsConfig, kitRoot: string | undefined = kitCheckoutOf(root), progress?: (line: string) => void) {
   const notes: string[] = [];
   const cache = new Map<string, string>();
   const read = (file: string) => {
@@ -315,9 +316,12 @@ export function check(root: string, config: DocumentsConfig, kitRoot: string | u
   };
   const found: [string, DocumentFinding][] = [];
   const add = (file: string, entry: DocumentFinding) => found.push([file, entry]);
+  const documentsStarted = performance.now();
+  progress?.('step document pairs: started');
   const documents = documentsOf(root, config);
   const ids = new Map<string, string>();
   for (const english of documents) found.push(...pairFindings(root, config, english, ids, read));
+  progress?.(`step document pairs: ${found.length ? `${found.length} findings` : 'passed'} (${compactSeconds(performance.now() - documentsStarted)})`);
 
   const both = (files: string[], source: string, run: (name: string, text: string) => void) => {
     for (const name of files) {
@@ -325,6 +329,8 @@ export function check(root: string, config: DocumentsConfig, kitRoot: string | u
       else run(name, read(name));
     }
   };
+  const checklistStarted = performance.now(), beforeChecklists = found.length;
+  progress?.('step checklists: started');
   let checklists: Tracker[] = [];
   if (existsSync(path.join(root, CHECKLIST_CONFIG))) {
     try {
@@ -359,6 +365,9 @@ export function check(root: string, config: DocumentsConfig, kitRoot: string | u
   for (const name of undeclaredChecklists(checklists, prose.flatMap(english => [english, koreanOf(english)]).filter(file => existsSync(path.join(root, file))).map(file => ({ path: file, text: read(file) })))) {
     add(name, { rule: 'checklist-place', message: 'the document holds checklist items but is no checklist of a plan folder; move the items into docs/plans/<plan>/checklist.md' });
   }
+  progress?.(`step checklists: ${found.length === beforeChecklists ? 'passed' : `${found.length - beforeChecklists} findings`} (${compactSeconds(performance.now() - checklistStarted)})`);
+  const statusStarted = performance.now(), beforeStatus = found.length;
+  progress?.('step status tables and changelogs: started');
   for (const table of config.statusTables ?? []) {
     const results: [string, ReturnType<typeof readStatusTable>['rows']][] = [];
     both([table.path, koreanOf(table.path)], CONFIG, (name, text) => {
@@ -383,6 +392,7 @@ export function check(root: string, config: DocumentsConfig, kitRoot: string | u
     // The length check holds both texts.
     if (texts.length === 2) for (const entry of changelogPairFindings(present(texts[0], 'texts[0]'), present(texts[1], 'texts[1]'))) add(koreanOf(changelog), entry);
   }
+  progress?.(`step status tables and changelogs: ${found.length === beforeStatus ? 'passed' : `${found.length - beforeStatus} findings`} (${compactSeconds(performance.now() - statusStarted)})`);
   const lines = found.map(([file, entry]): [string, number, number, string] => [file, entry.line ?? 0, entry.column ?? 0, format(file, entry)]);
   lines.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1] || x[2] - y[2] || (x[3] < y[3] ? -1 : 1)));
   return { findings: [...new Set(lines.map(line => line[3]))], documents: documents.length, checklists: checklists.length, notes };
@@ -432,7 +442,7 @@ if (isMain(import.meta.url)) {
   }
   const config = readConfig<DocumentsConfig>(root, CONFIG, 'documents.schema.json');
   console.log(`[check-documents] reading the documents selected by ${CONFIG}`);
-  const { findings, documents, checklists, notes } = check(root, config);
+  const { findings, documents, checklists, notes } = check(root, config, undefined, line => console.log(`[check-documents] ${line}`));
   for (const note of notes) console.log(`[check-documents] note: ${note}`);
   for (const line of findings) console.error(`[check-documents] ${line}`);
   if (findings.length) {
