@@ -21,7 +21,6 @@ import { spawnSync } from 'node:child_process';
 import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
@@ -39,7 +38,7 @@ import { kitPackageRoot } from './kit-files.mts';
 import { errorCode, execute, run } from './process.mts';
 import { acquireHolderLock } from './holder-lock.mts';
 import { cargoMetadataArguments, verifyCargoSources } from './cargo-source.mts';
-import { dependencyArrays, dependencyGroups, normalizeName } from './pyproject-dependencies.mts';
+import { manifestPolyspecNames, normalizeName } from './pyproject-dependencies.mts';
 
 type Print = (text: string) => void;
 
@@ -270,33 +269,9 @@ function pylockReleases(lock: string, names: readonly string[]): { pins: { name:
 
 
 
-/** The normalized project names of the PEP 508 requirements of `list`, a URL requirement too; any other item is ignored. */
-function requirementNames(list: readonly unknown[]): string[] {
-  return list.flatMap((item) => {
-    if (typeof item !== 'string') return [];
-    const parsed = parsePipRequirementsLine(item);
-    return parsed && (parsed.type === 'ProjectName' || parsed.type === 'ProjectURL') ? [normalizeName(parsed.name)] : [];
-  });
-}
-
-/** The normalized polyspec requirements of the pyproject `file`: dependencies, extras and dependency groups (PEP 508, PEP 735). */
 /** The polyspec packages of the pyproject `file`: those that it names, whose releases its lock records (K507, K515). */
 function declaredPython(file: string): string[] {
-  return manifestPython(file);
-}
-
-/** The names that the pyproject `file` requires, of every polyspec and other package, in its dependencies and dependency groups. */
-function manifestNames(file: string): string[] {
-  const document = readTomlFile(file);
-  const requirements = [
-    ...dependencyArrays(document, file).filter(array => !array.kind.startsWith('group:')).flatMap(array => array.list),
-    ...[...dependencyGroups(document, file).values()].flat(),
-  ];
-  return [...new Set(requirementNames(requirements))];
-}
-
-function manifestPython(file: string): string[] {
-  return manifestNames(file).filter(name => name.startsWith('polyspec-'));
+  return manifestPolyspecNames(readTomlFile(file), file);
 }
 
 

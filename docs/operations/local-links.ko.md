@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: e9e867393e9b263342189f699ebf3fb7407dd9948251fb2d1c6f3e5fcd47fb8c -->
+<!-- source-sha256: 28778db387cb534a122ded8166f1c4c45be22ec0523b5cb17f8295bc48774952 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -26,13 +26,13 @@ Composer 로컬 개발은 앱이 선언한 `path` repository와 호환되는 req
 |---|---|
 | npm | `npm link`가 `node_modules/<name>`을 project-local npm prefix를 거쳐 provider에 연결하며 link와 설치 record는 npm이 관리합니다 |
 | Composer | 선언된 path repository에서 Composer가 source link를 만들며 `COMPOSER`, `COMPOSER_VENDOR_DIR`를 따르고 선택한 lock과 autoload를 관리합니다 |
-| Python | `uv sync --locked`가 앱이 선언한 path/workspace source를 설치하며 uv가 editable metadata를 관리하고 `uv pip check`가 설치된 distribution을 검사합니다 |
+| Python | `uv sync --locked`가 native lock을 맞추며 `--no-install-package`로 선언된 local provider를 제외합니다. 이어서 `uv pip install --offline --no-deps --reinstall-package <name> --editable <provider>`로 발견한 provider를 설치하고 uv가 editable metadata를 관리하며, `uv pip check`가 dependency 호환성을 검사합니다 |
 | Go | 각 Go module에 git이 무시하는 `go.work`. module과 provider module의 `use` 줄을 가집니다 |
 | Rust | `link.mjs cargo <dir> <cargo args>`가 `--config` `[patch]` 항목과 `var/link/cargo` 아래 lock 사본으로 cargo 명령 하나를 실행합니다 |
 
 - checkout의 모든 tracked 프로젝트를 link하며, hyper의 `examples/board`처럼 root 아래의 중첩 프로젝트도 포함합니다(K447). 테스트, fixture, release consumer는 시험하는 설치를 그대로 둡니다.
 - provider: 인자로 준 main checkout, 없으면 저장소 옆의 checkout(`--siblings`)에 있는 패키지의 각 tracked manifest, 그리고 workspace의 `forks/`에 있는 fork(K379)입니다. checkout 자신의 패키지는 같은 저장소의 main checkout이 아니라 자기 폴더로 link됩니다.
-- `make npm-install`은 `npm ci` 뒤 native link를 실행하며 `ADD`로 새 provider를 명시적으로 연결합니다. `make composer-install`은 설치 전에 선언된 local provider를 해석하고 선택한 개발 lock이 없으면 생성하며 있으면 선택한 provider를 갱신합니다. `make uv-install`은 앱의 native source/workspace 선언을 따르는 `uv sync --locked`에 한 번 위임합니다. Python 개발 lock이 없거나 오래됐으면 native `uv lock`으로 준비해야 합니다. legacy Python folder link에는 metadata 수정 대신 새 native environment가 필요합니다.
+- `make npm-install`은 `npm ci` 뒤 native link를 실행하며 `ADD`로 새 provider를 명시적으로 연결합니다. `make composer-install`은 설치 전에 선언된 local provider를 해석하고 선택한 개발 lock이 없으면 생성하며 있으면 선택한 provider를 갱신합니다. `make uv-install`은 `uv sync --locked`로 앱의 locked release dependency를 검증한 뒤 선택한 sibling source를 manifest나 lock 변경 없이 native editable로 설치합니다. Python 개발 lock이 없거나 오래됐으면 native `uv lock`으로 준비해야 합니다. legacy Python folder link에는 metadata 수정 대신 새 native environment가 필요합니다.
 - kit은 link 중 build target을 실행하지 않습니다. native package-manager lifecycle hook은 정상 동작을 유지합니다. 별도 provider build는 자체 target을 사용합니다.
 
 ## 검증

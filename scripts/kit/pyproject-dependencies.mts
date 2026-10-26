@@ -3,6 +3,7 @@
 // (PEP 735), whose `{ include-group = "…" }` tables are resolved as PEP 735 specifies. scripts/kit/dependency-state.mts
 // reviews the requirements, and scripts/kit/pin-python-dependency.mts pins them in place (K177).
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
+import { parsePipRequirementsLine } from 'pip-requirements-js';
 
 /** The kind of a dependency array: `dependencies` of [project], an extra or a dependency group. */
 export type DependencyArrayKind = 'dependencies' | 'build-system' | `optional:${string}` | `group:${string}`;
@@ -74,4 +75,23 @@ export function dependencyGroups(document: Record<string, unknown>, manifest: st
     });
   };
   return new Map(arrays.map(({ name }) => [name, resolve(normalizeName(name), [])]));
+}
+
+/** The normalized package names required by a pyproject's build, project, extra and group requirements. */
+export function manifestPackageNames(document: Record<string, unknown>, manifest: string): string[] {
+  const requirements = [
+    ...dependencyArrays(document, manifest).filter(item => !item.kind.startsWith('group:')).flatMap(item => item.list),
+    ...[...dependencyGroups(document, manifest).values()].flat(),
+  ];
+  const names = requirements.flatMap((item) => {
+    if (typeof item !== 'string') return [];
+    const parsed = parsePipRequirementsLine(item);
+    return parsed && (parsed.type === 'ProjectName' || parsed.type === 'ProjectURL') ? [normalizeName(parsed.name)] : [];
+  });
+  return [...new Set(names)];
+}
+
+/** The normalized polyspec distributions named by a pyproject's requirements. */
+export function manifestPolyspecNames(document: Record<string, unknown>, manifest: string): string[] {
+  return manifestPackageNames(document, manifest).filter(name => name.startsWith('polyspec-'));
 }

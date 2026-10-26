@@ -25,13 +25,13 @@ Composer local development uses the path repositories and compatible requirement
 |---|---|
 | npm | `npm link` connects `node_modules/<name>` through the project-local npm prefix to its provider; npm owns the links and installed records |
 | Composer | Composer creates source links from declared path repositories, respecting `COMPOSER` and `COMPOSER_VENDOR_DIR`, and owns the selected lock and autoload |
-| Python | `uv sync --locked` installs the application's declared path/workspace sources; uv owns editable metadata and `uv pip check` checks installed distributions |
+| Python | `uv sync --locked` reconciles the native lock while excluding declared local providers with `--no-install-package`; `uv pip install --offline --no-deps --reinstall-package <name> --editable <provider>` installs each discovered provider, uv owns its editable metadata, and `uv pip check` validates dependency consistency |
 | Go | a git-ignored `go.work` at each Go module, with `use` lines for the module and the provider modules |
 | Rust | `link.mjs cargo <dir> <cargo args>` runs one cargo command with `--config` `[patch]` entries and a copy of the lock under `var/link/cargo` |
 
 - Every tracked project of the checkout is linked, a nested one below the root such as hyper's `examples/board` included (K447); the tests, the fixtures and the release consumer keep the install that they test.
 - Providers: each tracked manifest of a package in a main checkout that the arguments name, else in the checkouts beside the repository (`--siblings`), and the forks in `forks/` of the workspace (K379). A checkout's own packages link to its own folders, never to the main checkout of the same repository.
-- `make npm-install` runs `npm ci` followed by native links; `ADD` explicitly connects a new provider. `make composer-install` resolves declared local providers before installation, creating the selected development lock when it does not exist and updating selected providers when it does. `make uv-install` delegates once to `uv sync --locked` for the application's native source/workspace declarations. A missing or stale Python development lock needs native `uv lock` preparation. Legacy Python folder links require a fresh native environment instead of metadata repair.
+- `make npm-install` runs `npm ci` followed by native links; `ADD` explicitly connects a new provider. `make composer-install` resolves declared local providers before installation, creating the selected development lock when it does not exist and updating selected providers when it does. `make uv-install` validates the application's locked release dependencies with `uv sync --locked`, then installs the selected sibling sources as native editables without changing the manifest or lock. A missing or stale Python development lock needs native `uv lock` preparation. Legacy Python folder links require a fresh native environment instead of metadata repair.
 - kit runs no build target during linking. Native package-manager lifecycle hooks retain their usual behavior. A separate provider build uses its own target.
 
 ## Verification

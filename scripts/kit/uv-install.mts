@@ -1,13 +1,14 @@
 // uv owns development installation from the application source/workspace declarations and its native lock.
 // kit neither chooses installed source versions nor rewrites manifests or distribution metadata.
 import path from 'node:path';
-import { existsSync, lstatSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
 import { checkoutProviders, editableFolder, providedFolders } from './link-folders.mts';
 import { siblingCheckouts, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
-import { normalizeName } from './pyproject-dependencies.mts';
+import { manifestPolyspecNames, normalizeName } from './pyproject-dependencies.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
+import { readToml } from './toml.mts';
 
 const SYNC_FLAGS = new Set(['--no-install-project', '--all-groups']);
 
@@ -32,17 +33,26 @@ export function uvEditable({ directory, providers = [], uv = 'uv', env = process
   const project = path.resolve(directory);
   const provided = [...providers].filter(provider => provider.ecosystem === 'python');
   refuseLegacyLinks(project, provided, env);
+  const manifest = path.join(project, 'pyproject.toml');
+  const document = readToml(readFileSync(manifest, 'utf8'), manifest);
+  const declared = new Set(manifestPolyspecNames(document, manifest));
+  const local = provided.filter(provider => declared.has(normalizeName(provider.name)));
   const workspace = run(uv, ['workspace', 'dir'], { cwd: project, env }).trim();
   if (!path.isAbsolute(workspace)) throw new Error('uv workspace dir returned no absolute project root');
   const python = path.join(path.resolve(workspace, env.UV_PROJECT_ENVIRONMENT || '.venv'), 'bin/python');
-  print('uv development: synchronizing the application source declarations with uv sync --locked');
+  print('uv development: synchronizing the native lock and excluding local providers from release installation');
   try {
-    const output = run(uv, ['sync', '--locked', ...sync], { cwd: project, env });
+    const output = run(uv, ['sync', '--locked', ...sync, ...local.flatMap(provider => ['--no-install-package', provider.name])], { cwd: project, env });
     if (output.trim()) print(output.trim());
+    for (const provider of local) {
+      print(`uv development: installing ${provider.name} from its local source with uv pip install --editable`);
+      const linked = run(uv, ['pip', 'install', '--offline', '--python', python, '--no-deps', '--reinstall-package', provider.name, '--editable', provider.folder], { cwd: project, env });
+      if (linked.trim()) print(linked.trim());
+    }
     run(uv, ['pip', 'check', '--python', python], { cwd: project, env });
   } catch (error) {
     if (!(error instanceof Error)) throw error;
-    throw new Error(`native Python development installation failed: declare compatible local paths/workspaces in the application and prepare its uv.lock with uv lock; dependency or lock conflicts are not a successful development overlay: ${error.message}`, { cause: error });
+    throw new Error(`native Python development installation failed: prepare the locked release dependency with uv lock and ensure each local provider is compatible; the editable source overlay or dependency check failed: ${error.message}`, { cause: error });
   }
   const parsed: unknown = JSON.parse(run(uv, ['pip', 'list', '--python', python, '--format', 'json'], { cwd: project, env }));
   if (!isJsonList(parsed)) throw new Error('uv pip list --format json returned no array of named distributions');
@@ -51,9 +61,9 @@ export function uvEditable({ directory, providers = [], uv = 'uv', env = process
     if (!isJsonObject(item) || typeof item.name !== 'string') throw new Error('uv pip list returned an unnamed distribution');
     const name = item.name;
     const location = item.editable_project_location;
-    const provider = provided.find(candidate => normalizeName(candidate.name) === normalizeName(name));
+    const provider = local.find(candidate => normalizeName(candidate.name) === normalizeName(name));
     if (provider !== undefined && (typeof location !== 'string' || !existsSync(location) || realpathSync(location) !== realpathSync(provider.folder))) {
-      throw new Error(`Python distribution ${item.name} is installed from ${typeof location === 'string' ? location : 'a non-editable release'}, not the expected development source ${provider.folder}; declare that source as an editable path/workspace in the application and prepare its uv.lock with uv lock`);
+      throw new Error(`Python distribution ${item.name} is installed from ${typeof location === 'string' ? location : 'a non-editable release'}, not the expected development source ${provider.folder}; run uv-install again to apply its native editable source`);
     }
     if (typeof location === 'string') names.push(item.name);
   }

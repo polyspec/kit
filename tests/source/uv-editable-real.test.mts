@@ -1,9 +1,11 @@
 // The application declares native development sources; uv owns installation, dependency checks and installed metadata.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { uvEditable } from '../../scripts/kit/uv-install.mts';
 import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
@@ -62,20 +64,20 @@ test('K664-1: native declared Python sources install new packages, remain idempo
   assert.equal(readFileSync(path.join(app, 'uv.lock'), 'utf8'), lock);
   assert.equal(readFileSync(path.join(app, 'pyproject.toml'), 'utf8'), manifest);
   writeFileSync(path.join(app, 'pyproject.toml'), manifest.replace('declared-provider>=0.0.1', 'declared-provider==0.0.1'));
-  assert.throws(install, /native Python development installation failed.*compatible local paths/s);
+  assert.throws(install, /native Python development installation failed.*local provider is compatible/s);
   assert.notEqual(command(['pip', 'check', '--python', python]).status, 0, 'native dependency checking rejects source 0.0.2 against the installed consumer exact release requirement');
 });
 
-test('K664-1: a native release copy cannot silently satisfy a known editable development source', { timeout: 120_000 }, (t) => {
+test("K664-1: uv's native local source is installed editable without changing the application lock", { timeout: 120_000 }, (t) => {
   const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-source-fallback-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const app = path.join(directory, 'app');
   const source = path.join(directory, 'source');
   mkdirSync(app);
   mkdirSync(path.join(source, 'src/fallback_provider'), { recursive: true });
-  writeFileSync(path.join(source, 'pyproject.toml'), '[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n[project]\nname = "fallback-provider"\nversion = "0.0.1"\n');
+  writeFileSync(path.join(source, 'pyproject.toml'), '[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n[project]\nname = "polyspec-fallback-provider"\nversion = "0.0.1"\n');
   writeFileSync(path.join(source, 'src/fallback_provider/__init__.py'), 'value = 1\n');
-  const manifest = '[project]\nname = "app"\nversion = "0.0.0"\ndependencies = ["fallback-provider"]\n[tool.uv]\npackage = false\n[tool.uv.sources]\nfallback-provider = { path = "../source" }\n';
+  const manifest = '[project]\nname = "app"\nversion = "0.0.0"\ndependencies = ["polyspec-fallback-provider"]\n[tool.uv]\npackage = false\n[tool.uv.sources]\npolyspec-fallback-provider = { path = "../source" }\n';
   writeFileSync(path.join(app, 'pyproject.toml'), manifest);
   const uv = toolCommand(ROOT, 'uv');
   const env = toolsEnvironment(ROOT, { ...process.env, UV_PROJECT_ENVIRONMENT: '.venv', UV_OFFLINE: '1', UV_NO_INDEX: '1', UV_FIND_LINKS: toolsPath(ROOT, 'wheels'), UV_CACHE_DIR: path.join(directory, 'cache'), PYTHONDONTWRITEBYTECODE: '1' });
@@ -83,10 +85,64 @@ test('K664-1: a native release copy cannot silently satisfy a known editable dev
     const result = spawnSync(uv, ['lock', '--python', toolCommand(ROOT, 'python3')], { cwd: app, env, encoding: 'utf8' });
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   };
-  const providers = [{ ecosystem: 'python' as const, name: 'fallback-provider', folder: source, repository: source, checkout: source }];
+  const providers = [{ ecosystem: 'python' as const, name: 'polyspec-fallback-provider', folder: source, repository: source, checkout: source }];
   lock();
-  assert.throws(() => uvEditable({ directory: app, providers, uv, env }), /installed from a non-editable release.*declare that source as an editable path/s);
-  writeFileSync(path.join(app, 'pyproject.toml'), manifest.replace('path = "../source"', 'path = "../source", editable = true'));
-  lock();
-  assert.deepEqual(uvEditable({ directory: app, providers, uv, env }), ['fallback-provider'], 'native pip list reports the declared editable_project_location');
+  const locked = readFileSync(path.join(app, 'uv.lock'), 'utf8');
+  assert.deepEqual(uvEditable({ directory: app, providers, uv, env }), ['polyspec-fallback-provider']);
+  const python = path.join(app, '.venv/bin/python');
+  const probe = spawnSync(python, ['-c', 'import fallback_provider; print(fallback_provider.value, fallback_provider.__file__)'], { cwd: app, env, encoding: 'utf8' });
+  assert.equal(probe.status, 0, probe.stderr);
+  assert.equal(probe.stdout.trim(), `1 ${path.join(source, 'src/fallback_provider/__init__.py')}`);
+  assert.equal(readFileSync(path.join(app, 'pyproject.toml'), 'utf8'), manifest);
+  assert.equal(readFileSync(path.join(app, 'uv.lock'), 'utf8'), locked);
+});
+
+test('K689: offline native uv source linking preserves the release URL lock and imports the local editable', { timeout: 120_000 }, (t) => {
+  const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-release-source-')));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const app = path.join(directory, 'app');
+  const release = path.join(directory, 'release');
+  const source = path.join(directory, 'source');
+  const wheels = path.join(directory, 'wheels');
+  for (const folder of [app, release, source, wheels]) mkdirSync(folder, { recursive: true });
+  const packageSource = (folder: string, version: string, value: string) => {
+    mkdirSync(path.join(folder, 'src', 'polyspec_provider'), { recursive: true });
+    writeFileSync(path.join(folder, 'pyproject.toml'), `[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n[project]\nname = "polyspec-provider"\nversion = "${version}"\n`);
+    writeFileSync(path.join(folder, 'src', 'polyspec_provider', '__init__.py'), `value = "${value}"\n`);
+  };
+  packageSource(release, '0.0.1', 'release');
+  packageSource(source, '0.0.2', 'source');
+  const uv = toolCommand(ROOT, 'uv');
+  const env = toolsEnvironment(ROOT, {
+    ...process.env,
+    UV_CACHE_DIR: path.join(directory, 'cache'),
+    UV_FIND_LINKS: toolsPath(ROOT, 'wheels'),
+    UV_NO_INDEX: '1',
+    UV_OFFLINE: '1',
+    UV_PROJECT_ENVIRONMENT: '.venv',
+    PYTHONDONTWRITEBYTECODE: '1',
+  });
+  const run = (args: string[], cwd: string) => {
+    const result = spawnSync(uv, args, { cwd, env, encoding: 'utf8' });
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    return result.stdout;
+  };
+  run(['build', '--wheel', '--out-dir', wheels], release);
+  const wheelName = readdirSync(wheels).find(name => name.endsWith('.whl'));
+  assert.ok(wheelName, 'the offline build produces its release wheel');
+  const wheel = path.join(wheels, wheelName);
+  const digest = createHash('sha256').update(readFileSync(wheel)).digest('hex');
+  const manifest = `[project]\nname = "consumer"\nversion = "0.0.0"\ndependencies = ["polyspec-provider @ ${pathToFileURL(wheel).href}#sha256=${digest}"]\n[tool.uv]\npackage = false\n`;
+  writeFileSync(path.join(app, 'pyproject.toml'), manifest);
+  run(['venv', '--python', toolCommand(ROOT, 'python3'), '.venv'], app);
+  run(['lock', '--no-sources'], app);
+  const lock = readFileSync(path.join(app, 'uv.lock'), 'utf8');
+  const python = path.join(app, '.venv/bin/python');
+  const provider = { ecosystem: 'python' as const, name: 'polyspec-provider', folder: source, repository: source, checkout: source };
+  assert.deepEqual(uvEditable({ directory: app, providers: [provider], uv, env }), ['polyspec-provider']);
+  const probe = spawnSync(python, ['-c', 'import polyspec_provider; from importlib.metadata import version; print(polyspec_provider.value, version("polyspec-provider"), polyspec_provider.__file__)'], { cwd: app, env, encoding: 'utf8' });
+  assert.equal(probe.status, 0, probe.stderr);
+  assert.equal(probe.stdout.trim(), `source 0.0.2 ${path.join(source, 'src/polyspec_provider/__init__.py')}`);
+  assert.equal(readFileSync(path.join(app, 'pyproject.toml'), 'utf8'), manifest);
+  assert.equal(readFileSync(path.join(app, 'uv.lock'), 'utf8'), lock);
 });
