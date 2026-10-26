@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 77c283c105e5f94fda102d1574174b1e7fda92d70359ce49f63886fc4145d66e -->
+<!-- source-sha256: 806087a94dbd4a575c9b72fbefa8c9fcdf6ee4fae5801d91dc7bde0ec926a832 -->
 
 # 도구 목록
 
@@ -1379,6 +1379,8 @@ vitest의 todo와 unittest의 `expected failure`입니다. 통과가 아니므�
 선언하지 않은 case로 R3가 잡습니다. case 이름에는 공백이 없고, go binding이 있는 unit에서는 `/`도 없습니다. Go가 subtest 이름을
 `/`에서 중첩하기 때문입니다. node:test 실행은 `NODE_TEST_CONTEXT`를 뺀 environment로 시작합니다. 검사를 시작한 test 실행에 합류하지
 않게 하기 위해서입니다.
+
+Composer php-ext package를 root로 하는 PHP 구현은 확장 package test와 같은 격리 Composer autoloader로 library test binding을 실행합니다. 의존성과 autoload-dev를 포함하고 library autoload는 제외하며 확장 인수를 유지합니다. 두 parity 실행은 이 설치를 공유하고 성공과 실패 모두에서 정리합니다. 자체 runner나 command가 있는 binding은 선언된 실행을 유지합니다.
 
 PHPUnit은 작업 directory에서 설정을 읽습니다. 검사는 모든 runner의 작업 directory를 checkout root로 두어서 `command`, `args`와 경로가
 한 기준을 공유하므로, php binding은 자신의 package의 설정을 직접 적습니다. `--configuration`에 package의 `phpunit.xml`(없고

@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- PHP extension parity uses the existing isolated Composer library-test autoloader, preserves extension arguments and removes temporary installs after both attempts or a support-file failure. Pure library runs and bindings with explicit commands keep their existing execution. (K677-2)
+
+- The parity regression verifies cleanup after both successful and failed attempts and leaves the library vendor directory unchanged. (K677-2)
+
 - CI acceptance retains the complete earlier failure reports and the final successful run 40366841110: all 44 steps, 1425 kit tests and 182 source tests pass with zero failures, timeouts or skips. Release verification independently accepts the public annotated v0.0.56 tag; the entire local suite was not repeated for each fix (K686).
 
 - Kit 0.0.56 is public after its own CI passed all 44 steps (1425 kit and 182 source tests, no failures, timeouts or skips) and release run 40371683313 passed archive generation, external consumer proof and publication. The annotated tag and asset are available on the GitHub Release; the failed 0.0.55 tag remains unchanged (K677).

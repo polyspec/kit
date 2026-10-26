@@ -7,7 +7,7 @@
 // its `EXIT <n>` line (go: `EXIT <symbol> <n>`).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -19,6 +19,7 @@ import { tree } from './tree.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { KIT, KIT_MAKE, tool } from './kit-tools.mts';
 import { known } from './known.mts';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
 const TIMEOUT = { timeout: 120_000 };
 // A declaration config/parity.json that a case edits, also into a shape that breaks the schema on purpose: each type names
@@ -2559,4 +2560,42 @@ test('parity-declarations-check UNITS fails while docs/spec defines a requiremen
   const root = repository(t, { files: { 'docs/spec/codec.md': '# Codec\n\n- **CX-1** The codec encodes every vector.\n- **CX-1** Defined again.\n' } });
   const scoped = checkParity(root, { execute: false, env: ENV, say: () => {}, units: ['codec'] }).findings;
   assert.ok(scoped.some(item => /CX-1 is defined at docs\/spec\/codec\.md:3 and docs\/spec\/codec\.md:4/.test(item.message)), keys(scoped).join('\n'));
+});
+
+
+test('PHP extension parity isolates the Composer library autoload and cleans its work directory (K677-2)', TIMEOUT, (t) => {
+  const root = repository(t, { files: {
+    'native/composer.json': JSON.stringify({ type: 'php-ext' }),
+    'php/composer.json': JSON.stringify({ autoload: { files: ['src/functions.php'] }, 'autoload-dev': { 'psr-4': { 'Example\\Tests\\': 'tests/' } } }),
+    'php/vendor/phpunit/phpunit/phpunit': '<?php',
+    'php/vendor/composer/installed.json': '{"packages":[]}',
+    'var/tools/mise/shims/composer': '#!/usr/bin/env node\nconst fs = require("node:fs"), path = require("node:path"); if (process.argv.includes("vendor-dir")) console.log("vendor"); if (process.argv.includes("dump-autoload")) { const work = process.argv[process.argv.indexOf("--working-dir") + 1]; const config = JSON.parse(fs.readFileSync(path.join(work, "composer.json"), "utf8")); fs.writeFileSync(path.join(config.config["vendor-dir"], "autoload.php"), "<?php"); }\n',
+  } });
+  chmodSync(path.join(root, 'var/tools/mise/shims/composer'), 0o755);
+  const run = runOf({ name: 'native', runner: 'php', roots: ['native'], args: ['-d', 'extension=var/native.so'] }, root, { test: 'php/tests/codec.php' }, 'suite', ENV);
+  if (run.error) throw new Error(run.error);
+  assert.ok(run.env.KIT_PHP_AUTOLOAD, 'the native run must use the isolated Composer autoloader');
+  assert.match(run.args.join(' '), /auto_prepend_file=.*php-library\/prepend\.php/);
+  assert.ok(!run.args.includes('php/vendor/bin/phpunit'));
+  const work = path.dirname(path.dirname(String(run.env.KIT_PHP_AUTOLOAD)));
+  const generated: unknown = JSON.parse(readFileSync(path.join(work, 'composer.json'), 'utf8'));
+  assert.ok(isJsonObject(generated));
+  assert.equal(generated.autoload, undefined);
+  assert.ok(run.cleanup);
+  run.cleanup();
+  assert.ok(!existsSync(work));
+  assert.ok(existsSync(path.join(root, 'php/vendor/bin/phpunit')));
+  const configFile = path.join(root, 'config/parity.json');
+  const config: Declaration = structuredClone(CONFIG);
+  const native = itemWhere(config.implementations, entry => entry.name === 'php');
+  native.roots = ['native'];
+  native.args = ['-d', 'extension=var/native.so'];
+  writeFileSync(configFile, JSON.stringify(config));
+  for (const status of [0, 1]) {
+    writeFileSync(path.join(root, 'php/tests/codec.php'), `PASS test_empty\nPASS test_ascii\nEXIT ${status}\n`);
+    const result = checkParity(root, { env: ENV, units: ['codec'], rules: ['R3'] });
+    assert.equal(result.ledger.runs.filter(entry => entry.implementation === 'php').length, 2);
+    assert.deepEqual(readdirSync(path.join(root, 'var/php-ext/library-tests')), []);
+    assert.equal(result.findings.some(entry => entry.implementation === 'php'), status !== 0);
+  }
 });

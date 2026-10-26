@@ -81,9 +81,12 @@ function resolvedRun(declared: ParityImplementation, root: string, binding: RunT
   if (failures.length) return { error: `cannot start: ${failures.join('; ')}` };
   const run = runOf(implementation, root, { ...binding, command: command?.command }, kind, env);
   if (run.error) return run;
-  const shown = runOf(declared, root, binding, kind, env);
+  const shown = runOf(declared, root, binding, kind, env, false);
   // The runner of a binding does not read the references, so the declared run starts where the resolved run does.
-  if (shown.error) throw new Error(`${declared.name}: the run as declared cannot start while the resolved run starts: ${shown.error}`);
+  if (shown.error) {
+    run.cleanup?.();
+    throw new Error(`${declared.name}: the run as declared cannot start while the resolved run starts: ${shown.error}`);
+  }
   // The program of a binding with its own runner is that runner's, as runOf gives it.
   return { ...run, shown: [binding.command?.[0] ?? (binding.runner === undefined ? declared.command : undefined) ?? shown.command, ...shown.args].join(' ') };
 }
@@ -99,10 +102,14 @@ function runSupport(model: ParityModel, root: string, files: Set<string>, { env,
     const run = resolvedRun(implementation, root, { test: file }, 'suite', env);
     if (run.error) return [finding('R3', run.error, where)];
     say(`run the support file ${file} of ${implementation.name}: ${run.shown} (in ${run.cwd})`);
-    const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
-    if (result.error) return [finding('R5', `the support file could not run: ${run.shown}: ${result.error.message}`, where)];
-    const reported = outcomesOf(run, result).map(([name]) => name);
-    return reported.length ? [finding('R5', `the support file reports cases (${reported.join(', ')}); declare it as the test of a binding`, where)] : [];
+    try {
+      const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
+      if (result.error) return [finding('R5', `the support file could not run: ${run.shown}: ${result.error.message}`, where)];
+      const reported = outcomesOf(run, result).map(([name]) => name);
+      return reported.length ? [finding('R5', `the support file reports cases (${reported.join(', ')}); declare it as the test of a binding`, where)] : [];
+    } finally {
+      run.cleanup?.();
+    }
   }));
 }
 
@@ -127,7 +134,11 @@ function twice(run: BindingCommand & { shown: string }, root: string, where: { u
     ledger.runs.push({ ...where, attempt, command: run.command, args: run.args, cwd: run.cwd, status });
     return { result, status, cases: new Map(reported), repeated: repeated(reported), ...(reportError === undefined ? {} : { reportError }) };
   };
-  return [runOnce(1), runOnce(2)];
+  try {
+    return [runOnce(1), runOnce(2)];
+  } finally {
+    run.cleanup?.();
+  }
 }
 
 /** The last 20 non-blank lines of a run's standard output and then its standard error, joined by ' | ' (K215). */

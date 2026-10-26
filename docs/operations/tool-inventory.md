@@ -1510,6 +1510,8 @@ The go, cargo, php and python runners read their tool's output with the parsers 
 theirs is parsed. A todo is a test that the tool expects to fail, a node or vitest todo or a unittest `expected failure`: it
 is no pass, so its case fails the check, while run-tests shows it as a pass line.
 
+A PHP implementation rooted in a Composer php-ext package runs library test bindings with the isolated Composer autoloader used by extension package tests. It includes dependencies and autoload-dev while excluding the library autoload, and keeps the extension arguments. Both parity attempts share this installation; it is removed after success or failure. A binding with its own runner or command keeps that declared execution.
+
 PHPUnit reads its configuration from the working directory, and the check keeps the checkout root as the working directory of
 every runner, so that the `command`, `args` and paths of each runner share one base. A php binding therefore names the
 configuration of its package: `--configuration` with the package's `phpunit.xml` (or `phpunit.xml.dist` when only that exists),

@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dc540bb9e873e292a62fbd46079721e86dfe119aa051e6a8204d71dfe7ac268a -->
+<!-- source-sha256: 71a0ae1d818c0820aace985204db3224ee7d7c1b14ab43fb421564fcc2c0c079 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- PHP extension parity는 기존 격리 Composer library-test autoloader를 사용하고 확장 인수를 유지하며 두 실행 또는 support-file 실패 뒤 임시 설치를 정리합니다. 순수 library 실행과 명시적 command binding은 기존 실행을 유지합니다. (K677-2)
+
+- parity 회귀 테스트는 성공과 실패 실행 모두에서 정리를 검증하며 library vendor directory를 그대로 유지합니다. (K677-2)
 
 - CI 승인은 앞선 전체 실패 보고서와 최종 성공 실행 40366841110을 보존한다. 전체 44단계, kit 1425개와 source 182개가 실패·timeout·skip 없이 통과했다. Release 검증은 공개된 annotated v0.0.56 tag를 별도로 승인하며 수정마다 로컬 전체 suite를 반복하지 않았다 (K686).
 
