@@ -343,12 +343,19 @@ test('providers take the packages of the work tree of the consumer as its own, a
 });
 
 test('unlink restores the locked releases of a project locked with pylock.toml (K401-1)', (t) => {
-  const { consumer, env, log } = workspace(t);
+  const { consumer, provider, env, log } = workspace(t);
   rmSync(path.join(consumer, 'python/uv.lock'));
   put(consumer, {
     'python/pylock.toml': 'lock-version = "1.0"\ncreated-by = "uv"\n\n[[packages]]\nname = "polyspec-z"\nversion = "0.0.1"\n\n[[packages]]\nname = "jsonschema"\nversion = "4.23.0"\n',
   });
-  assert.equal(linkLines([consumer], env).ok, true);
+  // This fixture begins with an existing native editable install. Source-link sync requires uv.lock;
+  // pylock.toml alone is supported here only for restoring its pinned releases.
+  const source = path.join(provider, 'packages/python');
+  const site = path.join(consumer, 'python/.venv/lib/python3.14/site-packages');
+  rmSync(path.join(site, 'polyspec_z'), { recursive: true, force: true });
+  put(site, { 'polyspec_z-0.0.1.dist-info/direct_url.json': JSON.stringify({ url: pathToFileURL(source).href, dir_info: { editable: true } }) });
+  put(consumer, { 'freeze.txt': `polyspec-z @ ${pathToFileURL(source).href}\njsonschema==4.23.0\n` });
+  assert.doesNotMatch(log(), /^uv sync --locked/m, 'the PEP 751 restore fixture starts installed, without a source-link sync');
   const lines: string[] = [];
   unlink({ directories: [consumer], print: text => lines.push(text), env });
   assert.doesNotMatch(lines.join('\n'), /skipped/, lines.join('\n'));

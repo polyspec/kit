@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 31f3bb38f1c01475b7f1955aeb2c216c828a114967d55d484e2d14714b364e79 -->
+<!-- source-sha256: 717ae887e752c23b2c017f71be3d02db3164f6c0bfe337152d0f8aa30d1db183 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PEP 751 unlink 검사는 uv.lock 없이 source-link sync를 수행하는 대신 이미 설치된 native editable metadata를 fixture로 명시한다. unlink의 고정 release와 interpreter 요청 검증은 유지한다. Native source 연결에는 앱 uv.lock이 필요하며 pylock.toml만으로 새 source 설치 모드를 제공하지 않는다. Red: 기존 setup은 uv sync --locked를 예상 밖에 실행한다. Green: K401-1 단일 case와 변경 파일 type-aware lint가 통과했다(K666).
 - 공유 링크 fixture는 check 모드에서 누락·잘못된 source 거부를 유지하고 변경 모드에서 native 최초 설치·복구를 기대한다. Red: be6d847e에서 K529·K643·K590 세 case가 실패한다. 계약 정정 후 K529·K643은 통과했다. K590은 lock 없는 Composer workspace member가 root 소유 설치 대신 독립 native 설치로 취급되어 막혀 있으며, 결함을 숨기기 위해 nested repository 선언을 추가하지 않았다(K666).
 ## 0.0.55
 
