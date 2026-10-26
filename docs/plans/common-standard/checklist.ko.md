@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 01387ccdfe0f2e2b856cc32a3bfd53837ac07968f4a7fab0a2b31b63471ca227 -->
+<!-- source-sha256: 0f3e9b1e8b3cd056a53a3e58a8953964ba42911f6d68356c33843a5abb435422 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -614,7 +614,7 @@
 | K680 | Native npm advisory node path를 보존하고 취약한 nested copy를 실제 locked version에 귀속한다 | scripts/kit/dependency-review.mts, advisory schema and policy tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-policy.test.mts` | [o] |
 | K681 | Review/update 경로의 Composer provider metadata 합성과 version override를 제거하고 native locked install과 advisory gate를 유지한다 | scripts/kit/dependency-review.mts, native Composer owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-review.test.mts` | [o] |
 | K682 | Go와 Cargo 사전 build를 전체 operation timeout 금지 규칙에 맞추고 case 제한·취소·process 정리를 유지한다 | scripts/kit/run-tests.mts, tests/kit/test-build-first.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-build-first.test.mts` | [o] |
-| K683 | Resolver를 새로 만들거나 release 설치에 sibling checkout을 요구하지 않고 native source/release mode dependency 검증 범위를 정한다 | npm-install, composer-install, uv-install and owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/npm-install.test.mts` | [ ] |
+| K683 | Resolver를 새로 만들거나 release 설치에 sibling checkout을 요구하지 않고 native source/release mode dependency 검증 범위를 정한다 | npm-install, composer-install, uv-install and owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/npm-install.test.mts` | [~] |
 | K684 | 상속된 offline 설정이 online advisory review의 성공을 위장하지 못하는지 검증하고 offline gate는 commit된 review 기록만 읽도록 유지한다 | scripts/kit/dependency-review.mts and advisory owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-policy.test.mts` | [o] |
 | K685 | 전체 operation deadline 없이 문서와 land 작업의 단계별 명령·결과·경과시간 출력을 보완한다 | check-documents, land and owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/land.test.mts` | [ ] |
 | K686 | CI run 40313948359의 전체 실패를 수집하고 소유 범위를 수정한 뒤 수정된 release candidate의 CI를 통과시켜 공개한다 | complete CI report, failure-specific source changes and owning tests | `make docs-check` | [ ] |
