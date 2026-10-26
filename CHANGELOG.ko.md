@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ec6b3f0b0a61f65f15da7e654a19c2afb08cb1106b5bef3e7b0a7d9865e56920 -->
+<!-- source-sha256: 9dcf6c32bb25f9251f7106198925035846ae41dbee6465b0a86f2eae194c4231 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Go source 연결은 workspace와 checksum 상태를 삭제하는 대신 go work edit로 native go.work use 지시문을 정합화한다. Worktree 준비는 local 상태를 최초에만 복사하며, 상위 tracked workspace에서 상속한 경로를 포함해 main checkout의 module 경로를 자기 source로 해석한다. 실제 Go fixture는 provider 편집, 새 미출시 module, 반복 link/setup 상태와 main source/manifest/sum 불변을 검증한다. Red: 86fa740f에서 복사된 절대경로 workspace에 worktree module이 없어 프로그램이 실패한다. Green: native case와 소유 Go unit case가 통과한다(K664-4).
 
 - Shared link는 누락 folder 검사 전에 선언된 Composer source를 native 설치하므로 최초 설치에서도 vendor와 record를 만들고 package 부재를 잘못 보고하지 않는다. 통합이 없으면 실패하고 통합 후 통과하는 소유 회귀로 확인했다 (K664).
 

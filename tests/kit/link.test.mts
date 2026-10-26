@@ -587,6 +587,10 @@ test('K205: each Go module gets a git-ignored go.work at its root that uses the 
   assert.ok(isIgnored(outer) && isIgnored(inner), 'both are git-ignored');
   assert.match(log(), /go work init \. \.\.\/prov\/go\n/);
   assert.match(log(), /go work init \. \.\.\/\.\.\/prov\/go\n/);
+  put(consumer, { 'go.work.sum': 'workspace checksum fixture\n' });
+  const repeat = linkLines([consumer], env);
+  assert.equal(repeat.ok, true, repeat.text);
+  assert.equal(readFileSync(path.join(consumer, 'go.work.sum'), 'utf8'), 'workspace checksum fixture\n', 'a repeated Go link preserves checksum state');
   const lines: string[] = [];
   assert.equal(unlink({ directories: [consumer], project: true, print: text => lines.push(text), env }), true, lines.join('\n'));
   assert.equal(existsSync(outer), false, 'the go.work of the named module is removed');

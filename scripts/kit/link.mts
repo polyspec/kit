@@ -32,6 +32,7 @@ import { rebuild } from './link-build.mts';
 import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, type ProvidedFolder, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
+import { toolsRoot } from './bootstrap/tool-wrappers.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, siblingTool } from './paths.mts';
 import { kitPackageRoot } from './kit-files.mts';
@@ -328,7 +329,7 @@ const goWorkOf = (directory: string): string => path.join(directory, 'go.work');
 export function trackedWorkspaceFolders(go: Tool, top: string, directory: string, tracked: ReadonlySet<string>): string[] {
   for (let folder = path.dirname(directory); `${folder}/`.startsWith(`${top}/`); folder = path.dirname(folder)) {
     const file = goWorkOf(folder);
-    if (tracked.has(file)) return usedFolders(go, file);
+    if (tracked.has(file)) return worktreeGoFolders(top, usedFolders(go, file));
   }
   return [];
 }
@@ -337,12 +338,41 @@ export function trackedWorkspaceFolders(go: Tool, top: string, directory: string
  * The module folders that the go.work `file` uses, as go work edit -json reads them: each DiskPath resolved against the folder of
  * the go.work. The check reads them from the go.work itself, not from go list -m of each module.
  */
-function usedFolders(go: Tool, file: string): string[] {
+export function usedFolders(go: Tool, file: string): string[] {
   const folder = path.dirname(file);
   const parsed = JSON.parse(run(go.command, ['work', 'edit', '-json', file], { cwd: folder, env: go.env })) as unknown;
   if (!isJsonObject(parsed)) throw new Error(`${file}: go work edit -json printed no object`);
   const uses = Array.isArray(parsed.Use) ? parsed.Use : [];
   return uses.flatMap(item => (isJsonObject(item) && typeof item.DiskPath === 'string' ? [path.resolve(folder, item.DiskPath)] : []));
+}
+
+/** Resolves main-checkout workspace modules to the corresponding source folders of `top`, retaining external providers. */
+export function worktreeGoFolders(top: string, folders: readonly string[]): string[] {
+  const main = toolsRoot(top);
+  return folders.map(folder => {
+    const relative = path.relative(main, folder);
+    return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative) ? path.join(top, relative) : folder;
+  });
+}
+
+/** Reconciles native workspace use directives without discarding Go's checksum or other workspace state. */
+export function writeGoWorkspace(go: Tool, file: string, folders: readonly string[]): void {
+  const directory = path.dirname(file);
+  const place = { cwd: directory, env: { ...go.env, GOWORK: file } };
+  const desired = new Set(folders.map(folder => path.resolve(folder)));
+  if (!existsSync(file)) {
+    run(go.command, ['work', 'init', ...[...desired].map(folder => path.relative(directory, folder) || '.')], place);
+    return;
+  }
+  const parsed: unknown = JSON.parse(run(go.command, ['work', 'edit', '-json', file], place));
+  if (!isJsonObject(parsed)) throw new Error(`${file}: go work edit -json printed no object`);
+  const uses = (Array.isArray(parsed.Use) ? parsed.Use : []).flatMap(item => isJsonObject(item) && typeof item.DiskPath === 'string' ? [item.DiskPath] : []);
+  const existing = new Set(uses.map(folder => path.resolve(directory, folder)));
+  const edits = [
+    ...uses.filter(folder => !desired.has(path.resolve(directory, folder))).map(folder => `-dropuse=${folder}`),
+    ...[...desired].filter(folder => !existing.has(folder)).map(folder => `-use=${path.relative(directory, folder) || '.'}`),
+  ];
+  if (edits.length) run(go.command, ['work', 'edit', ...edits, file], place);
 }
 
 function linkGo(work: Run, consumer: Consumer) {
@@ -382,11 +412,13 @@ function linkGo(work: Run, consumer: Consumer) {
     }
     assertIgnored(file);
     assertIgnored(`${file}.sum`);
-    rmSync(file, { force: true });
-    rmSync(`${file}.sum`, { force: true });
-    if (!requires.size) continue;
+    if (!requires.size) {
+      rmSync(file, { force: true });
+      rmSync(`${file}.sum`, { force: true });
+      continue;
+    }
     const folders = [...new Set([directory, ...workspace, ...[...requires.values()].map(provider => provider.folder)])];
-    run(go.command, ['work', 'init', ...folders.map(folder => path.relative(directory, folder) || '.')], { cwd: directory, env: { ...go.env, GOWORK: file } });
+    writeGoWorkspace(go, file, folders);
     for (const [name, provider] of requires) line(work, 'linked', 'go', `${name} -> ${provider.folder} (${file})`);
   }
 }

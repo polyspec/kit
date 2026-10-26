@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 05c14b0221eddaf1b112245feb67ca6a988160f61a1a3f08c0d4d73378077f47 -->
+<!-- source-sha256: 33470f80ae1666ea9eba6d197a4cfb213e443b31bcc50ce933a0e444ad019695 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -584,3 +584,4 @@
 | K664 | npm, uv, Composer, Go와 Cargo의 native source 개발 연결을 멱등하게 래핑하고 미배포 provider, 앞선 개발 version과 격리된 worktree source를 처리한다 | scripts/kit/link.mts, ecosystem install tools, worktree-setup.mts, owning unit and real-tool tests | Owning unit and native source-selection tests; `make docs-check` | [~] |
 | K664-2 | Composer는 명시적 호환 개발 manifest에서 선언한 새 로컬 package를 native 명령으로 연결하고 반복 설치 상태를 유지합니다 | scripts/kit/composer-install.mts, tests/kit/composer-install.test.mts, tests/source/composer-install-real.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/composer-install.test.mts tests/source/composer-install-real.test.mts`; type-aware oxlint | [o] |
 | K664-1 | Python 개발 설치는 앱의 path/workspace 선언을 native uv sync --locked에 한 번 위임하고 새로 선언한 library도 설치하며 설치된 distribution의 native dependency 검사 실패를 보고한다 | scripts/kit/uv-install.mts, scripts/kit/link.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | owner unit 3 pass; real native declared-source case 1 pass; changed-file type-aware oxlint pass | [o] |
+| K664-4 | Go workspace 준비와 반복 source 연결은 native checksum 상태를 보존하고 절대 main 경로 대신 worktree 소유 module을 사용하며 미출시 provider module을 읽는다 | scripts/kit/link.mts, scripts/kit/worktree-setup.mts, tests/kit/link.test.mts, tests/kit/worktree-setup.test.mts, tests/source/go-worktree-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K664-4 tests/source/go-worktree-real.test.mts`; K205/K399/K615 owning unit cases | [o] |
