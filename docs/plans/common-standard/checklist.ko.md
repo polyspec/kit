@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 0ec635948a02a436e196b50240fa9ee3fc14e69c72e856e3cfdd429711f278d5 -->
+<!-- source-sha256: b5765ca1b52825fb55833ced2c60a835fd3aa2e82124abb5c2e1383460a494a1 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -634,3 +634,4 @@
 | K689-1 | native 설치 후 선택한 Python provider distribution이 누락되면 실패한다 | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-1 tests/kit/uv-install.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K689-2 | 선택한 editable Python provider와 native runtime dependency를 하나의 uv transaction으로 해석한다 | scripts/kit/uv-install.mts, scripts/kit/pyproject-dependencies.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-2 tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K689-3 | 기존 환경에 새로 선언한 Python source를 연결할 때 release lock 재조정을 강제하지 않는다 | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-3 tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
+| K691 | 잘못된 parity reporter 출력은 R3 finding으로 기록하고 다음 바인딩을 계속 실행한다 | scripts/kit/parity-ledger.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K691 tests/kit/parity.test.mts`; `make docs-check` | [ ] |
