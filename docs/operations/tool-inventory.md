@@ -1039,10 +1039,7 @@ Package managers select dependency versions. A newer release alone does not fail
 - An entry whose advisory the review of its lock did not find is stale and fails both.
   An entry without its reason or removal condition fails the gate and accepts nothing.
 - `make dependency-review UPDATE=1` updates no package for an accepted advisory.
-- kit reviews its own `package-lock.json` (`config/dependency-policy.json`, `config/dependency-review.json`). Its one entry
-  accepts sprintf-js: no release fixes the advisory, and sprintf-js formats only the help and error texts of the api-extractor
-  command, which `make lint-ts` runs with fixed arguments. It is removed when a release of sprintf-js fixes the advisory or API
-  Extractor no longer depends on argparse; the review then reports the entry as stale.
+- kit reviews its own `package-lock.json` (`config/dependency-policy.json`, `config/dependency-review.json`). A removed advisory leaves no permanent exception: the current review must still name each accepted advisory.
 
 A Composer monorepo has one development composer.json at the root, which `composerPlatforms` names and which requires its
 published packages through `path` repositories, and one root lock; a published package commits no lock and no vendor/ (K168).

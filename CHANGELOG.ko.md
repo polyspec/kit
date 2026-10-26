@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 84e064bf42c2be00121d1349b12bfb752bd95f46cf5b611313592a1f8265bc62 -->
+<!-- source-sha256: b5b2dff2fbd3ef4d050b7d483115aa503d5c889ff57ca24dbe9a600834e367fd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Native npm audit fix는 기존 dependency 제약 안에서 transitive fast-uri 3.1.8을 3.1.9로, markdown-it 14.3.2를 14.3.3으로 갱신하며 manifest version은 바꾸지 않습니다. 실제 review는 다섯 lock을 모두 advisory 없이 검토하고 stale sprintf-js exception을 제거합니다. Native npm audit는 취약점 0개를 보고하며 dependency-policy-check와 policy-review advisory 일치 case가 통과합니다. 새 ruff release는 정보로 유지합니다(K660).
 - Rust lock advisory review를 위해 tool 선언에 cargo-audit 0.22.2를 포함합니다. make toolchain-lock이 지원하는 네 platform의 native mise lock entry를 생성했으며 선언과 lock 단위 test 7개가 통과합니다. 도구는 다른 checkout에서 복사하지 않고 main checkout의 make install-tools로 설치합니다(K660).
 - Dependency gate는 현재 lock review의 허용되지 않은 알려진 advisory와 stale, 불완전, 중복 review coverage를 거부합니다. Dependency review는 advisory, stale advisory exception, 불완전한 조회에서 실패하고 새 release만 있는 경우는 정보로 남깁니다. 허용한 advisory는 출력에 이유와 제거 조건을 유지합니다. Red: 2d18f681에서 dependency-advisory.test.mts exit 1. Green: advisory와 Cargo 단위 test 12개, typecheck, docs-check가 통과합니다(K660).
 - 명시적인 setup과 teardown 작업은 node reporter와 exit watchdog에 구조화한 lifecycle event를 전달합니다. gap과 exit watch는 해당 작업 동안만 멈추고 끝나면 다시 적용하며, 개별 case timeout과 test 미실행 실패 및 process 누수 정리는 유지합니다. Red: 65582113에서 K662 setup과 gap 회귀 검사가 실패했습니다. Green: K662 setup/gap/failure 회귀 검사 3개와 typecheck, docs-check가 통과했습니다(K662).

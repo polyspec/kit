@@ -1,25 +1,31 @@
 {
   "schema": 1,
   "comment": "Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.",
-  "reviewed": "2026-10-19T13:40:32.718Z",
+  "reviewed": "2026-10-26T07:40:03.188Z",
   "locks": [
     {
       "lock": "package-lock.json",
-      "sha256": "7984cc86b4ff624f8f3fbfb6cc35c2ada3466c316d7b645f346acb9e2b876345",
-      "advisories": [
-        {
-          "package": "sprintf-js",
-          "version": "1.0.3",
-          "id": "1241202",
-          "severity": "moderate",
-          "title": "sprintf-js vulnerable to denial of service through unbounded precision specifiers",
-          "url": "https://github.com/advisories/GHSA-hp3w-g68c-fv3c"
-        }
-      ]
+      "sha256": "6837f355b7bc2b53ff40f5ec13adbc6c83906292279a6eb4804e9e2c20191838",
+      "advisories": []
+    },
+    {
+      "lock": "scripts/kit/php-arginfo/5.0.0/composer.lock",
+      "sha256": "1fc0b40527c745c2bf706a0204015fa61c9e8149cfdcc3847509032465e238ad",
+      "advisories": []
+    },
+    {
+      "lock": "scripts/kit/php-arginfo/5.6.1/composer.lock",
+      "sha256": "e656e4928f3f72581979dd9abaf5196f81538f69af4436fa7c634722b5e28ad7",
+      "advisories": []
     },
     {
       "lock": "scripts/kit/symbols/go/go.sum",
       "sha256": "b2a9b8d4ce2712108876b91bb86be28c92827d4a2c5179b3afa2b3f79cba307b",
+      "advisories": []
+    },
+    {
+      "lock": "scripts/kit/catch-check-rust/Cargo.lock",
+      "sha256": "410a77a68e7505420f9738a3c234c785cc508ba43a24e9d5ecffd121e2a86f36",
       "advisories": []
     }
   ],
@@ -58,6 +64,20 @@
       "package": "@renovatebot/pep440",
       "version": "5.0.1",
       "latest": "5.0.1"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "@types/picomatch",
+      "version": "4.0.3",
+      "latest": "4.0.3"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "@types/semver",
+      "version": "7.8.0",
+      "latest": "7.8.0"
     },
     {
       "ecosystem": "npm",
@@ -230,20 +250,6 @@
     {
       "ecosystem": "npm",
       "manifest": "package.json",
-      "package": "@types/picomatch",
-      "version": "4.0.3",
-      "latest": "4.0.3"
-    },
-    {
-      "ecosystem": "npm",
-      "manifest": "package.json",
-      "package": "@types/semver",
-      "version": "7.8.0",
-      "latest": "7.8.0"
-    },
-    {
-      "ecosystem": "npm",
-      "manifest": "package.json",
       "package": "@vscode/test-electron",
       "version": "3.1.0",
       "latest": "3.1.0"
@@ -256,11 +262,25 @@
       "latest": "7.0.2"
     },
     {
+      "ecosystem": "composer",
+      "manifest": "scripts/kit/php-arginfo/5.0.0/composer.json",
+      "package": "nikic/php-parser",
+      "version": "v5.0.0",
+      "latest": "v5.9.0"
+    },
+    {
+      "ecosystem": "composer",
+      "manifest": "scripts/kit/php-arginfo/5.6.1/composer.json",
+      "package": "nikic/php-parser",
+      "version": "v5.6.1",
+      "latest": "v5.9.0"
+    },
+    {
       "ecosystem": "pypi",
       "manifest": "mise.toml",
       "package": "ruff",
       "version": "0.17.1",
-      "latest": "0.17.1"
+      "latest": "0.17.2"
     },
     {
       "ecosystem": "go",

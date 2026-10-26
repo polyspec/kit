@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 77c2fc22f602604712043d7165f17c00a967ef673b369eefb0c0372f8ffeb089 -->
+<!-- source-sha256: 435663e19def4f414225f7f4c21751b50a4a9740d77cbb510b2cd4003f46f264 -->
 
 # 도구 목록
 
@@ -392,7 +392,7 @@ DOCS_CHECKS의 모든 target을 다른 것의 상태와 상관없이 실행하�
 | 문서 선택 | template, crudui: 고정 목록과 directory; hyper: tracked `*.md`; ordered-json: 모든 문서를 등록하는 manifest | `include`와 `exclude` glob이 고르는 tracked 및 ignore되지 않은 새 Markdown 파일; `.ko.md`는 영어 파일에 대응 |
 | 쌍 | 모두: 영어에는 한국어 필요; hyper, ordered-json: 한국어에는 영어 필요 | 양방향 (`pair-missing`) |
 | `doc-id` | ordered-json만 | 두 파일이 같은 `<!-- doc-id: id -->`를 한 번씩 가지고, id는 문서 하나를 가리킴 |
-| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: 77c2fc22f602604712043d7165f17c00a967ef673b369eefb0c0372f8ffeb089 -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
+| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: 435663e19def4f414225f7f4c21751b50a4a9740d77cbb510b2cd4003f46f264 -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
 | section identifier | ordered-json (`<a id>` anchor) | anchor가 두 파일에서 같고 한 번씩만 나옴 |
 | fenced block | template, crudui, hyper: 내용만; ordered-json: info string과 내용, `~~~`, 닫히지 않은 fence | ordered-json 동작: info string과 내용 비교, 두 fence 문자 지원, 닫히지 않은 fence는 실패 |
 | link | 모두: inline link; ordered-json: reference link, autolink, `href`, query, 저장소 밖으로 나가는 link, explicit anchor; template: `.md`, `.ko.md`, `index.md` 후보와 `/` 건너뜀; crudui: `/` 거부 | 모든 link 형식; code는 읽지 않음; anchor는 explicit anchor 또는 heading anchor; static site의 `/`와 확장자 없는 link 동작은 `siteLinks` |
@@ -948,10 +948,7 @@ Dependency version은 package manager가 선택합니다. 새 release가 있다�
 - lock의 review가 찾지 못한 advisory를 적은 항목은 stale이며 둘 다 실패시킵니다. 이유나 제거 조건이
   없는 항목은 gate를 실패시키고 아무것도 받아들이지 않습니다.
 - `make dependency-review UPDATE=1`은 받아들인 advisory 때문에 package를 갱신하지 않습니다.
-- kit은 자기 `package-lock.json`을 review합니다(`config/dependency-policy.json`, `config/dependency-review.json`). 유일한 항목은
-  sprintf-js를 받아들입니다. 어떤 release도 advisory를 고치지 않고, sprintf-js는 `make lint-ts`가 고정된 인자로만 실행하는
-  api-extractor 명령의 도움말과 오류 문구만 형식화합니다. sprintf-js의 release가 advisory를 고치거나 API Extractor가 더 이상
-  argparse에 의존하지 않으면 제거하며, 그때 review가 항목을 stale로 보고합니다.
+- kit은 자기 `package-lock.json`을 review합니다(`config/dependency-policy.json`, `config/dependency-review.json`). 제거된 advisory의 exception은 영구히 남지 않으며 현재 review가 허용한 advisory를 계속 이름 붙여야 합니다.
 
 Composer monorepo는 root에 development composer.json 하나(`composerPlatforms`가 지정하며 `path` repository로 published package를
 require함)와 root lock 하나를 두고, published package는 lock도 vendor/도 commit하지 않습니다(K168). root의 first-party requirement는
