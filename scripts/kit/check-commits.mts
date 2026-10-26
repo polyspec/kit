@@ -289,7 +289,7 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
     if (message !== undefined && stated === undefined) found.push({ rule: 'commit-red', message: `the commit moves ${change.id} to done and its body states no red; add a line Red: <command> exit <n> at <sha>, the failing run of its Verification before the change, or No-Red: <reason> for a change that no test can show` });
   }
   // A fix starts with a test that reproduces the defect, unless its body states why none can (K624).
-  if (message !== undefined && message.startsWith('fix(') && stated !== 'no-red' && !changes.some(change => change.to === DONE) && !changed.some(file => changesATest(file, after, changedLines))) {
+  if (message !== undefined && message.startsWith('fix(') && stated === undefined && !changes.some(change => change.to === DONE) && !changed.some(file => changesATest(file, after, changedLines))) {
     found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or states No-Red: <reason> when no test can show it` });
   }
   // A deletion either names its replacement (K339), or archives the identical files at a reachable commit while its item is held.
