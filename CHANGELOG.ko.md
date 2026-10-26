@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ff42335d6a8cf7751a8478da18ec37e32a015ca37f3869611d7aedb4bdd07a83 -->
+<!-- source-sha256: 5cd0d180fb0d7934cf065c8546851dddd03d2cb8c7ad4d2e534dc060795da9ac -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- npm provider 선택 fixture는 전이 graph 탐색 전에 기존 provider helper로 manifest를 포함한 각 source package를 생성한다. 선택 단언은 그대로 유지하고 제품 코드는 바꾸지 않는다. Red: 77eb86c8의 소유 case는 transitive package.json 누락으로 실패했다. Green: 완성된 native package 입력으로 해당 선택 case가 통과한다(K686-1).
 - 기존 미완료·폐기 checklist 31개 전체를 현재 code와 결정에 대조했습니다. 과거 ID를 보존하고 통합 공개 선행 조건을 폐기했으며 합성 link 문구를 native 소유권 규칙으로 대체하고 실제 결함은 K680–K686에 등록했습니다. Code와 test 읽기 검토는 실행 검증과 구분하며 K671의 구현 시점 등록도 명시합니다(K679).
 - Release 인계는 native source link 소유권, 대체된 sibling bootstrap, 구현 증거와 공개 release 승인을 구분합니다. CI 실패 시 release checklist는 미완료로 유지하고 공개된 0.0.55 tag 밖의 변경은 후속 version과 별도 검증을 거칩니다. Local link 문서는 npm lock 읽기를 유지합니다. Cargo target 상속과 package test 준비 비용은 명시적인 후속 작업으로 남깁니다(K675).
 - npm idempotence는 Node가 실제로 검색하는 경로를 확인하므로 workspace package는 상위 `node_modules`의 올바른 source link를 재사용한다. source path가 없거나 다른 link에 가려지면 native npm linking을 계속 실행한다(K674).

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The npm provider-selection fixture creates each source package through its existing provider helper, including its manifest, before transitive graph traversal. Selection assertions remain unchanged, and production code is unchanged. Red: the owning case at 77eb86c8 fails with a missing transitive package.json; green: the selected case passes with the complete native package inputs (K686-1).
 - Reconciled all 31 pre-existing non-complete checklist items against current code and decisions. Historical IDs remain intact, obsolete coupled publication is retired, native ownership rules replace synthetic-link wording, and actual gaps receive K680–K686. The audit records code/test inspection separately from executed verification and identifies K671 as implementation-time registration (K679).
 - Release handoff distinguishes native source-link ownership, superseded sibling bootstrap, implementation evidence and public release acceptance. The release checklist stays open on failed CI; changes outside the published 0.0.55 tag require a subsequent version and its own verification. Local-link documentation retains npm lock reading. Cargo target inheritance and package-test setup costs remain explicit follow-ups (K675).
 - npm idempotence checks Node's actual resolution paths, so a workspace package reuses an already-correct source link from an ancestor `node_modules`. Missing or shadowed source paths still go through native npm linking (K674).

@@ -206,7 +206,7 @@ test('npmSourceFolders includes all declared provider sections and installed tra
   const manifest = { dependencies: { direct: '0.0.1', unknown: '0.0.1' }, devDependencies: { dev: '0.0.1' }, optionalDependencies: { optional: '0.0.1' }, peerDependencies: { peer: '0.0.1' } };
   writeFileSync(path.join(project, 'package.json'), JSON.stringify(manifest));
   mkdirSync(path.join(project, 'node_modules/transitive'), { recursive: true });
-  const providers: Provider[] = ['direct', 'dev', 'optional', 'peer', 'transitive', 'unrelated'].map(name => ({ ecosystem: 'npm', name, folder: path.join(root, name), repository: root, checkout: root }));
+  const providers: Provider[] = ['direct', 'dev', 'optional', 'peer', 'transitive', 'unrelated'].map(name => ({ ecosystem: 'npm', name, folder: provider(path.join(root, name), name), repository: root, checkout: root }));
   providers.push({ ecosystem: 'composer', name: 'other', folder: path.join(root, 'other'), repository: root, checkout: root });
   const selected = npmSourceFolders(project, providers);
   assert.deepEqual(selected.map(folder => folder.name).sort(), ['dev', 'direct', 'optional', 'peer', 'transitive']);
