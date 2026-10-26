@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: aff16948913b4a703b139829560ff393cabe686e73a4696a31c830dbda939295 -->
+<!-- source-sha256: 0be1f4567aa72ba5d7d97e4547ff2d912f28f2af755151129f2e2fdc31b2b988 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -620,3 +620,4 @@
 | K686 | CI run 40313948359의 전체 실패를 수집하고 소유 범위를 수정한 뒤 수정된 release candidate의 CI를 통과시켜 공개한다 | complete CI report, failure-specific source changes and owning tests | `make docs-check` | [ ] |
 | K686-1 | Native npm provider 선택 fixture에 source graph 탐색 전 package manifest 입력을 완성한다 | tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="includes all declared provider sections" tests/kit/npm-install.test.mts` | [o] |
 | K686-2 | 오래된 hook 소스 직접 경로와 형제 bootstrap 기대를 네이티브 npm bin·설치 패키지 workflow 계약으로 바꾼다 | tests/kit/ci-only.test.mts, linked-sources.test.mts, kit-bootstrap.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K686-2 tests/kit/ci-only.test.mts tests/kit/linked-sources.test.mts tests/kit/kit-bootstrap.test.mts` | [o] |
+| K688 | 플랫폼 값이 테스트 흐름을 제어하지 않으면 진단 메타데이터로 처리 | scripts/kit/divergence-check.mts, tests/kit/divergence-check.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K688 tests/kit/divergence-check.test.mts` | [ ] |
