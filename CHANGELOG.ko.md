@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8a7b1f181f24c1259d90cad69ff00b5aea42ec41761dd66438560eff61c1d7f3 -->
+<!-- source-sha256: 320d67e727c4184b185c672b206aa8805e3f2e5275bd12cf55e15870f2ba06de -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- install-packages 단위 fixture는 bootstrap과 kit.mk를 node_modules/@polyspec/kit 아래에 준비하고 그 설치 패키지 경로를 include한다. dry run은 소스 연결 없이 릴리스 잠금의 npm ci 호출을 계속 검증한다. Red: 89ee79f8에서 단독 bootstrap fixture는 kit.mk가 없어 실패했다. Green: K511 사례 한 개와 변경 파일 타입 인식 lint가 통과한다 (K671-4).
 - release와 gates는 Make 실행 전에 정확한 packageManager npm으로 consumer package lock을 bootstrap하며 이 단계에서는 lifecycle script를 실행하지 않고 이후 정식 toolchain과 package lifecycle 설치를 따른다. kit 자체는 source Makefile을 사용하고 자신의 published copy 설치를 건너뛴다. gates는 표준 root checkout을 사용하며 install, native link와 모든 gate target을 유지한다. floating 또는 tag 기반 형제 source clone은 제거했다. 기존 workflow 검사 13개가 통과했고 consumer 명령 인자, 명시적 cache, kit skip을 포함한 새 package-first 실행 및 root-layout 검사 3개와 변경 검사 파일 type-aware lint가 통과한다 (K671-3).
 - 설치된 kit bootstrap은 필수 형제 체크아웃 없이 네이티브 npm 소스 링크와 패키지 설치를 지원한다. npm이 polyspec-kit-hook 명령 링크를 소유하고 prepack은 소스 대상을 dist로 바꾸며 Claude 설정의 소비자 로컬 명령 바이트는 동일하다. pack 소유 단위 검사 두 개와 실제 소스·패키지 소비자 사례 한 개가 명령 허용과 hook 거부까지 통과한다. 변경 파일 타입 인식 lint와 typecheck도 통과한다 (K671-1).
 - 공유 principle, editor 설정, Claude 설정, release/gates workflow는 설치된 kit package의 regular copy로 관리합니다. sync는 bytes가 같아도 managed symlink를 atomic하게 교체하고 provider를 그대로 유지하며 반복 실행은 변경을 만들지 않습니다. tracked shared link의 sibling-checkout 예외를 제거하고 소비자 정리 전에 kit source checkout의 sync를 거부합니다. Red: 이전 동작에서 선택 copy-policy case 4개가 실패합니다. Green: 소유 case 4개와 type-aware lint가 통과합니다(K671-2).
