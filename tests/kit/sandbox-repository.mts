@@ -20,7 +20,7 @@ function git(args: string[]) {
 
 /** Runs the git commands that create a repository in `directory` and configure it as above. */
 function create(directory: string, options: string[]) {
-  git(['init', '--quiet', ...options, directory]);
+  git(['init', '--quiet', '--initial-branch=main', ...options, directory]);
   git(['-C', directory, 'config', 'maintenance.auto', 'false']);
   git(['-C', directory, 'config', 'gc.auto', '0']);
   git(['-C', directory, 'config', 'receive.autogc', 'false']);
@@ -40,7 +40,7 @@ function templateGit(): string {
   return template;
 }
 
-/** Runs `git init --quiet <options> <directory>`, with options such as --bare or --initial-branch=main, without automatic maintenance. */
+/** Creates a repository on main without automatic maintenance; explicit options may select another branch or --bare. */
 export function initRepository(directory: string, ...options: string[]) {
   if (options.length > 0) {
     create(directory, options);

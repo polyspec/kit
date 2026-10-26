@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { initRepository } from './sandbox-repository.mts';
 import { catchFindings, emptyCatches } from '../../scripts/kit/catch-check.mts';
 import { CATCH_CHECK_MANIFEST } from '../../scripts/kit/lint-rust.mts';
 import { kitPackageRoot } from '../../scripts/kit/kit-files.mts';
@@ -95,7 +96,7 @@ test('a narrow Err arm, guarded or naming a variant, is no finding (K620)', (t) 
 test('a catch without a binding is a finding unless its reason is stated (K561)', (t) => {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-catch-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  assert.equal(spawnSync('git', ['init', '--quiet'], { cwd: root }).status, 0);
+  initRepository(root);
   writeFileSync(path.join(root, 'a.mts'), [
     'export const missing = () => { try { return f(); } catch { return undefined; } };',
     'export const narrowed = () => { try { return f(); } catch (error) { if (!(error instanceof RangeError)) throw error; return 0; } };',

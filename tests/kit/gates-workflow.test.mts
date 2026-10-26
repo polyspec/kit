@@ -6,6 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { initRepository } from './sandbox-repository.mts';
 import { fileURLToPath } from 'node:url';
 import { readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
@@ -88,7 +89,8 @@ test('K515: the sibling checkouts step clones each github.com/polyspec repositor
     mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
     writeFileSync(path.join(root, file), text);
   }
-  for (const args of [['init', '-q'], ['add', '-A']]) assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
+  initRepository(root);
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   const listed = spawnSync('node', ['-e', script[1] ?? ''], { cwd: root, encoding: 'utf8', env: { ...process.env, SELF: 'self' } });
   assert.equal(listed.status, 0, listed.stderr);
   assert.deepEqual(listed.stdout.trim().split('\n'), ['kit', 'orm']);

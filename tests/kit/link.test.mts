@@ -926,8 +926,8 @@ test('composer-install takes the checkouts after DIR and runs the install with t
   mkdirSync(project);
   mkdirSync(checkout);
   // A checkout is the top level of a Git repository (link takes main checkouts).
-  spawnSync('git', ['init', '-q'], { cwd: checkout });
-  spawnSync('git', ['init', '-q'], { cwd: project });
+  initRepository(checkout);
+  initRepository(project);
   writeFileSync(path.join(project, 'composer.json'), JSON.stringify({ name: 'app/app', require: {} }));
   writeFileSync(path.join(project, 'composer.lock'), JSON.stringify({ packages: [], 'packages-dev': [] }));
   const log = path.join(root, 'composer.log');

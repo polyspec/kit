@@ -7,6 +7,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { initRepository } from './sandbox-repository.mts';
 import { linkFindings, lockSourceFindings } from '../../scripts/kit/link-state-check.mts';
 import { put, tree } from './tree.mts';
 
@@ -109,7 +110,7 @@ test('a provided package folder that is a copy is a finding, and its link to the
   const repository = (name: string, files: Record<string, string>) => {
     const folder = path.join(workspace, name);
     mkdirSync(folder, { recursive: true });
-    git(folder, 'init', '--quiet', '--initial-branch=main');
+    initRepository(folder);
     put(folder, files);
     git(folder, 'add', '-A');
     git(folder, 'commit', '--quiet', '-m', 'base');

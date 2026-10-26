@@ -6,6 +6,7 @@ import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { initRepository } from './sandbox-repository.mts';
 import { fileAt } from '../../scripts/kit/git.mts';
 
 test('fileAt keeps the text of a commit sha and reads a moving ref again (K510)', (t) => {
@@ -16,7 +17,7 @@ test('fileAt keeps the text of a commit sha and reads a moving ref again (K510)'
     assert.equal(result.status, 0, result.stderr);
     return result.stdout.trim();
   };
-  git('init', '--quiet', '--initial-branch=main');
+  initRepository(root);
   writeFileSync(path.join(root, 'a.txt'), 'one\n');
   git('add', '-A');
   git('commit', '--quiet', '--no-verify', '-m', 'one');

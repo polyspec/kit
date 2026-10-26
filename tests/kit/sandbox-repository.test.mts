@@ -53,6 +53,25 @@ function filled(t: TestContext, trace: string) {
   return root;
 }
 
+test('sandbox repositories use main independently of the machine default and retain an explicit branch (K661-4)', (t) => {
+  const root = sandbox(t, 'kit-sandbox-branch-');
+  const entry = new URL('./sandbox-repository.mts', import.meta.url).href;
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    import { initRepository } from ${JSON.stringify(entry)};
+    initRepository(process.argv[1]);
+    initRepository(process.argv[2], '--initial-branch=topic');
+  `, path.join(root, 'default'), path.join(root, 'explicit')], {
+    encoding: 'utf8',
+    env: { ...process.env, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'init.defaultBranch', GIT_CONFIG_VALUE_0: 'master' },
+  });
+  assert.equal(run.status, 0, run.stderr);
+  for (const [folder, branch] of [['default', 'main'], ['explicit', 'topic']]) {
+    const head = spawnSync('git', ['symbolic-ref', '--short', 'HEAD'], { cwd: path.join(root, folder ?? ''), encoding: 'utf8' });
+    assert.equal(head.status, 0, head.stderr);
+    assert.equal(head.stdout.trim(), branch);
+  }
+});
+
 test('a commit in a sandbox repository starts no git maintenance that outlives it', (t) => {
   const trace = path.join(sandbox(t, 'kit-sandbox-trace-'), 'trace.json');
   const root = filled(t, trace);

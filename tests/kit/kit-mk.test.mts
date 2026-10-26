@@ -66,7 +66,6 @@ test('every recipe runs with the environment of mise of the checkout, and with v
 test('a worktree runs the var/tools of the main checkout and installs no tool (K519)', (t) => {
   const main = realpathSync(tree(t, { 'Makefile': `KIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\nshow:\n\t@env\n`, 'mise.toml': '[tools]\n' }));
   const git = (cwd: string, ...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
-  assert.equal(git(main, 'init', '--quiet', '--initial-branch=main').status, 0);
   assert.equal(git(main, 'add', '.').status, 0);
   assert.equal(git(main, 'commit', '--quiet', '-m', 'base').status, 0);
   const worktree = `${main}-row`;
