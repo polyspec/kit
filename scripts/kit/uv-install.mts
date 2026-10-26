@@ -1,18 +1,54 @@
-// Installs the uv environment of a consumer (K448, `make uv-install DIR=<project> CHECKOUTS="<checkout>..."`): uv sync of the tracked uv.lock as
-// it is, then each installed package of site-packages that a checkout provides becomes a direct symlink to the checkout's package folder
-// (link-folders.mts). Without CHECKOUTS, the sibling checkouts of the repository are used. No editable wheel is written and no version is
-// read; the tracked pyproject.toml and uv.lock are never written.
+// Installs a locked Python environment with uv sync, then delegates local source dependencies to uv's editable installer.
+// The tracked pyproject.toml and uv.lock remain the release inputs; the editable environment is a separate development state.
 import path from 'node:path';
 import { lstatSync } from 'node:fs';
-import { checkoutProviders, linkFolders, providedFolders } from './link-folders.mts';
-import { siblingCheckouts } from './link-providers.mts';
+import { checkoutProviders, editableFolder, providedFolders } from './link-folders.mts';
+import { siblingCheckouts, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
+import { normalizeName } from './pyproject-dependencies.mts';
+import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 
-// The flags of uv sync that a consumer passes through SYNC (K487): the project itself left out, and every dependency group.
 const SYNC_FLAGS = new Set(['--no-install-project', '--all-groups']);
 
-/** Runs the install of the arguments `[directory, ...checkouts]`, printing to `write`; returns the exit code. */
+/** Refuses legacy package-folder links before uv can write through them into a provider checkout. */
+function refuseLegacyLinks(project: string, providers: readonly Provider[], env: NodeJS.ProcessEnv): void {
+  const legacy = providedFolders(project, providers, { environment: env.UV_PROJECT_ENVIRONMENT }).filter(folder =>
+    lstatSync(folder.folder).isSymbolicLink() && editableFolder(project, folder.name.split(' ')[0] ?? folder.name, env.UV_PROJECT_ENVIRONMENT) === undefined);
+  if (legacy.length > 0) {
+    throw new Error(`legacy Python package links require migration to native editable installation before uv runs: ${legacy.map(folder => folder.folder).join(', ')}; create a fresh environment with uv and install the declared local sources with uv pip install --editable`);
+  }
+}
+
+/** Installs provided distributions that the environment already contains through uv's native editable installation. */
+export function uvEditable({ directory, providers, uv = 'uv', env = process.env, print = () => {} }: {
+  directory: string; providers: Iterable<Provider>; uv?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void;
+}): string[] {
+  const project = path.resolve(directory);
+  const provided = [...providers].filter(provider => provider.ecosystem === 'python' && path.resolve(provider.folder) !== project);
+  if (provided.length === 0) return [];
+  refuseLegacyLinks(project, provided, env);
+  const python = path.join(path.resolve(project, env.UV_PROJECT_ENVIRONMENT || '.venv'), 'bin/python');
+  print('uv editable: reading installed distributions');
+  const parsed: unknown = JSON.parse(run(uv, ['pip', 'list', '--python', python, '--format', 'json'], { cwd: project, env }));
+  if (!isJsonList(parsed)) {
+    throw new Error('uv pip list --format json returned no array of named distributions');
+  }
+  const installed = new Set<string>();
+  for (const item of parsed) {
+    if (!isJsonObject(item) || typeof item.name !== 'string') throw new Error('uv pip list returned an unnamed distribution');
+    installed.add(normalizeName(item.name));
+  }
+  const selected = provided.filter(provider => installed.has(normalizeName(provider.name)));
+  if (selected.length === 0) return [];
+  print(`uv editable: ${selected.map(provider => provider.name).join(', ')}: started`);
+  const output = run(uv, ['pip', 'install', '--python', python, ...selected.flatMap(provider => ['--editable', provider.folder])], { cwd: project, env });
+  if (output.trim()) print(output.trim());
+  print('uv editable: passed');
+  return selected.map(provider => provider.name);
+}
+
+/** Runs locked installation and the native editable local-source step; returns the exit code. */
 export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv, write: (text: string) => void): number {
   const [directory, ...given] = args;
   if (directory === undefined) {
@@ -22,22 +58,15 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
   const project = path.resolve(directory);
   const checkouts = given.length ? given.map(checkout => path.resolve(checkout)) : siblingCheckouts(project).checkouts;
   try {
-    // UV_SYNC carries the sync flags of make uv-install SYNC (K487).
     const sync = (env.UV_SYNC ?? '').split(/\s+/).filter(flag => flag !== '');
     const refused = sync.filter(flag => !SYNC_FLAGS.has(flag));
     if (refused.length) throw new Error(`SYNC takes ${[...SYNC_FLAGS].join(' and ')}, not ${refused.join(' ')}`);
     const providers = checkoutProviders(checkouts, 'python');
-    const environment = env.UV_PROJECT_ENVIRONMENT;
-    // K548: the project that uv-install installs is no provided package, though a checkout that holds it names it.
-    const others = providers.filter(provider => path.resolve(provider.folder) !== project);
-    // K592: uv never writes through a package link: each provided package whose folder is a symlink is skipped, and --inexact keeps uv
-    // from uninstalling it, which --no-install-package alone does through the link; a package not linked yet installs, then links.
-    const linked = [...new Set(providedFolders(project, others, { environment }).filter(item => lstatSync(item.folder).isSymbolicLink()).map(item => item.name.split(' ')[0] ?? ''))].sort();
-    const skip = linked.length ? ['--inexact', ...linked.flatMap(name => ['--no-install-package', name])] : [];
-    run(env.UV ?? 'uv', ['sync', '--frozen', ...sync, ...skip], { cwd: project, env });
-    const folders = providedFolders(project, others, { environment });
-    linkFolders(folders);
-    write(`uv-install ${project}: uv sync of the tracked lock${folders.length ? `, then linked ${folders.map(item => item.name).join(', ')} to their checkouts` : ''}\n`);
+    refuseLegacyLinks(project, providers, env);
+    write('uv-install: installing the release lock with uv sync\n');
+    run(env.UV ?? 'uv', ['sync', '--frozen', ...sync], { cwd: project, env });
+    const linked = uvEditable({ directory: project, providers, uv: env.UV ?? 'uv', env, print: text => write(`${text}\n`) });
+    write(`uv-install ${project}: locked sync passed${linked.length ? `; editable development sources: ${linked.join(', ')}` : ''}\n`);
     return 0;
   } catch (error) {
     write(`${error instanceof Error ? error.message : String(error)}\n`);

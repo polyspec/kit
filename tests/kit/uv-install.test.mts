@@ -1,9 +1,7 @@
-// K448: `make uv-install` runs uv sync of the tracked uv.lock as it is, then replaces each installed package of site-packages that a checkout
-// provides with a direct symlink to the package folder of the checkout. The packages of one namespace link apart, and no editable wheel or
-// version is involved. The uv of these tests is a stub: its sync installs each package of SITE as a copy with its dist-info record, as a
-// release would be.
+// uv owns locked installation and editable development sources (K657-3). The stub records the native commands;
+// it never invokes a package manager, and only uv is responsible for package contents and distribution metadata.
 import assert from 'node:assert/strict';
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -20,16 +18,21 @@ function fixture(t: { after: (fn: () => void) => void }, installed: string[]) {
   writeFileSync(path.join(project, 'pyproject.toml'), '[project]\nname = "app"\nversion = "0"\n');
   writeFileSync(path.join(project, 'uv.lock'), 'version = 1\n');
   const log = path.join(root, 'uv.log');
+  writeFileSync(path.join(root, 'uv-list.json'), JSON.stringify(installed.map(name => ({ name: name.replaceAll('/', '-') }))));
   const script = path.join(root, 'uv.mjs');
-  writeFileSync(script, `import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
+  writeFileSync(script, `import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ') + '\\n');
+if (process.argv[2] === 'pip' && process.argv[3] === 'list') process.stdout.write(readFileSync(${JSON.stringify(path.join(root, 'uv-list.json'))}, 'utf8'));
+if (process.argv[2] === 'pip' && process.argv[3] === 'install') {
+  const args = process.argv.slice(4);
+  const targets = args.flatMap((arg, index) => arg === '--editable' ? [args[index + 1]] : []);
+  writeFileSync(${JSON.stringify(path.join(root, 'editable-installs.json'))}, JSON.stringify(targets));
+}
+
 // The environment is the one of UV_PROJECT_ENVIRONMENT, else .venv, as uv takes it.
 const site = path.join(process.env.UV_PROJECT_ENVIRONMENT ?? '.venv', ${JSON.stringify(SITE.replace('.venv/', ''))});
-// K592: a sync that skips packages with --no-install-package installs none of them, as uv keeps a skipped package as it is.
-const skipped = process.argv.includes('--no-install-package');
 if (process.argv[2] === 'sync') for (const item of ${JSON.stringify(installed)}) {
-  if (skipped) continue;
   mkdirSync(path.join(site, item), { recursive: true });
   writeFileSync(path.join(site, item, '__init__.py'), '# release copy\\n');
   // The dist-info record of the distribution, which uv writes with each install (K545).
@@ -58,18 +61,31 @@ const run = (args: string[], env: NodeJS.ProcessEnv) => {
   return { status, output };
 };
 
+test('uv refuses legacy package-folder links before an installer can write into the provider source (K657-3)', (t) => {
+  const { root, project, log, env } = fixture(t, ['polyspec/orm']);
+  const source = provider(path.join(root, 'orm'), 'polyspec-orm', ['polyspec/orm']);
+  const namespace = path.join(project, SITE, 'polyspec');
+  mkdirSync(namespace, { recursive: true });
+  symlinkSync(path.join(source, 'src/polyspec/orm'), path.join(namespace, 'orm'));
+  const result = run([project, source], env);
+  assert.equal(result.status, 1);
+  assert.match(result.output, /legacy Python package links require migration/);
+  assert.equal(existsSync(log), false, 'no uv command runs over a legacy linked environment');
+  assert.equal(readFileSync(path.join(source, 'src/polyspec/orm/__init__.py'), 'utf8'), '# source\n');
+});
+
 test('uv install syncs the tracked lock, then links each provided package of site-packages to its checkout, whatever its name (K448)', (t) => {
   const { root, project, log, env } = fixture(t, ['polyspec/orm', 'polyspec/ordered_json', 'limepie_contracts', 'requests']);
   const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
   const contracts = provider(path.join(root, 'contracts'), 'limepie-contracts', ['limepie_contracts']);
   const { status, output } = run([project, orm, contracts], env);
   assert.equal(status, 0, output);
-  assert.equal(readFileSync(log, 'utf8'), 'sync --frozen\n', 'uv sync of the tracked lock is the only uv run');
+  assert.match(readFileSync(log, 'utf8'), /pip install .*--editable/, 'uv owns editable source installation (K657-3)');
   const site = path.join(project, SITE);
-  assert.equal(realpathSync(path.join(site, 'polyspec/orm/__init__.py')), realpathSync(path.join(orm, 'src/polyspec/orm/__init__.py')), 'a namespace package links to the files of its own source folder (K541)');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'editable-installs.json'), 'utf8')), [orm, contracts], 'uv receives complete distribution roots, not individual namespace package paths');
   assert.equal(lstatSync(path.join(site, 'polyspec')).isSymbolicLink(), false, 'the namespace folder itself stays, so its other packages stay');
   assert.equal(lstatSync(path.join(site, 'polyspec/ordered_json')).isDirectory(), true, 'a package that no given checkout provides stays as installed');
-  assert.equal(realpathSync(path.join(site, 'limepie_contracts/__init__.py')), realpathSync(path.join(contracts, 'src/limepie_contracts/__init__.py')), 'a checkout of any name links');
+  assert.doesNotMatch(readFileSync(log, 'utf8'), /--no-deps|--no-install-package|--inexact/, 'source requirements are handled by uv');
   assert.equal(lstatSync(path.join(site, 'requests')).isDirectory(), true, 'a third-party package stays as installed');
 });
 
@@ -89,49 +105,48 @@ test('uv install passes --no-install-project and --all-groups to its sync, and r
 // K448-14: the environment of the project is the one that uv syncs, UV_PROJECT_ENVIRONMENT when it is set (limepie's python/var/venv),
 // so its packages are linked; .venv is only uv's default.
 test('uv install links the packages of the environment that UV_PROJECT_ENVIRONMENT names (K448-14)', (t) => {
-  const { root, project, env } = fixture(t, ['polyspec/orm']);
+  const { root, project, log, env } = fixture(t, ['polyspec/orm']);
   const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
   const { status, output } = run([project, orm], { ...env, UV_PROJECT_ENVIRONMENT: 'var/venv' });
   assert.equal(status, 0, output);
   const installed = path.join(project, 'var/venv/lib/python3.14/site-packages/polyspec/orm');
-  assert.equal(lstatSync(installed).isSymbolicLink(), true, output);
-  assert.equal(realpathSync(path.join(installed, '__init__.py')), realpathSync(path.join(orm, 'src/polyspec/orm/__init__.py')));
-  assert.match(output, /linked polyspec-orm polyspec\/orm/);
+  assert.equal(lstatSync(installed).isDirectory(), true, 'kit does not replace the package folder itself');
+  assert.ok(readFileSync(log, 'utf8').includes(`pip install --python ${path.join(project, 'var/venv/bin/python')} --editable ${orm}`));
+  assert.match(output, /editable development sources: polyspec-orm/);
 });
 
 // K518: a uv workspace root that a checkout names provides its members too, from [tool.uv.workspace] members of its pyproject.toml:
 // limepie's python root declares the member contracts, the package limepie-contracts, which the unit venvs install as a copy.
 test('uv install links the installed member of a uv workspace root that a checkout names (K518)', (t) => {
   const { root, project, env } = fixture(t, ['limepie/contracts', 'polyspec/orm']);
+  writeFileSync(path.join(root, 'uv-list.json'), JSON.stringify([{ name: 'limepie-contracts' }, { name: 'limepie-server' }]));
   const workspace = provider(path.join(root, 'limepie-python'), 'limepie-server', ['polyspec/orm']);
   writeFileSync(path.join(workspace, 'pyproject.toml'), '[project]\nname = "limepie-server"\nversion = "0"\n\n[tool.uv.workspace]\nmembers = ["contracts"]\n');
   const member = provider(path.join(workspace, 'contracts'), 'limepie-contracts', ['limepie/contracts']);
   const { status, output } = run([project, workspace], env);
   assert.equal(status, 0, output);
-  const site = path.join(project, SITE);
-  assert.equal(lstatSync(path.join(site, 'limepie/contracts')).isSymbolicLink(), true, output);
-  assert.equal(realpathSync(path.join(site, 'limepie/contracts/__init__.py')), realpathSync(path.join(member, 'src/limepie/contracts/__init__.py')));
-  assert.equal(realpathSync(path.join(site, 'polyspec/orm/__init__.py')), realpathSync(path.join(workspace, 'src/polyspec/orm/__init__.py')), 'the root links its own packages as before');
+  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'editable-installs.json'), 'utf8')).sort(), [workspace, member].sort(), 'uv installs each distribution of the declared workspace');
   writeFileSync(path.join(workspace, 'pyproject.toml'), '[project]\nname = "limepie-server"\nversion = "0"\n\n[tool.uv.workspace]\nmembers = ["missing"]\n');
   const broken = run([project, workspace], env);
   assert.notEqual(broken.status, 0);
   assert.match(broken.output, /member missing of the uv workspace .*limepie-python names no folder with a pyproject\.toml/);
 });
 
-// K592: one symlink per package (K591), and uv never writes through it: the sync of a second run passes --inexact and
-// --no-install-package for each package whose folder is a symlink, since --no-install-package alone makes uv uninstall the package
-// through the link, and the link and the checkout stay as they were.
-test('uv install keeps the package links: its sync skips each linked package with --inexact (K592)', (t) => {
+// K657-3: repeated installation lets uv restore the lock and then install native editables without preserving hand-made links.
+test('repeated uv install delegates release restoration and editable installation to uv without link-preservation overrides (K657-3)', (t) => {
   const { root, project, log, env } = fixture(t, ['polyspec/orm']);
   const orm = provider(path.join(root, 'orm/packages/python'), 'polyspec-orm', ['polyspec/orm']);
   assert.equal(run([project, orm], env).status, 0);
   const folder = path.join(project, SITE, 'polyspec/orm');
-  assert.equal(lstatSync(folder).isSymbolicLink(), true, 'the first run links the installed package');
+  assert.equal(lstatSync(folder).isDirectory(), true, 'kit leaves package contents to uv');
   writeFileSync(log, '');
   const again = run([project, orm], env);
   assert.equal(again.status, 0, again.output);
-  assert.deepEqual(readFileSync(log, 'utf8').split('\n').filter(Boolean), ['sync --frozen --inexact --no-install-package polyspec-orm']);
-  assert.equal(lstatSync(folder).isSymbolicLink(), true, 'the link stays');
+  const commands = readFileSync(log, 'utf8').split('\n').filter(Boolean);
+  assert.equal(commands[0], 'sync --frozen');
+  assert.ok(commands[1]?.startsWith('pip list --python '));
+  assert.ok(commands[2]?.includes(`--editable ${orm}`));
+  assert.doesNotMatch(commands.join('\n'), /--inexact|--no-install-package|--no-deps/);
   assert.equal(readFileSync(path.join(orm, 'src/polyspec/orm/__init__.py'), 'utf8'), '# source\n', 'the checkout stays');
   assert.doesNotMatch(again.output, /unlinked/);
 });

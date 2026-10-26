@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 6232d820aaa85dedb2cc260b35cb153d3c9ea55a29b0435ac5957c9fa7e0746f -->
+<!-- source-sha256: 460a38d50fae9c6be916f9bbf56b9e8170e4a2222667c156f4f7a85c7f2e1965 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -563,7 +563,7 @@
 | K657 | 로컬 source 연결 개발을 유지하면서 dependency link와 설치 metadata를 각 package manager에 맡기고 CI는 versioned release dependency를 설치한다 | scripts/kit/link.mts, npm-install.mts, composer-install.mts, uv-install.mts, docs/operations/local-links.md and its Korean twin | `make docs-check` | [ ] |
 | K657-1 | npm link가 로컬 package link를 소유하며 kit는 npm package folder를 직접 교체하지 않는다 | scripts/kit/npm-install.mts, scripts/kit/link.mts, tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/npm-install.test.mts` | [o] |
 | K657-2 | Composer는 선언된 path repository를 설치하고 manifest, lock, 설치 기록, autoload를 관리하며 별도 metadata 보정을 제거한다 | scripts/kit/composer-install.mts, scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K657\|K653" tests/kit/link.test.mts` | [o] |
-| K657-3 | uv는 로컬 dependency를 editable로 설치하고 kit는 Python package directory를 교체하거나 설치 metadata를 직접 작성하지 않는다 | scripts/kit/uv-install.mts, scripts/kit/link.mts, tests/kit/uv-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/uv-install.test.mts` | [ ] |
+| K657-3 | uv는 로컬 dependency를 editable로 설치하고 kit는 Python package directory를 교체하거나 설치 metadata를 직접 작성하지 않는다 | scripts/kit/uv-install.mts, scripts/kit/link.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts, config/owner-checks.json | `node scripts/kit/run-tests.mts node -- tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts` | [o] |
 | K656 | parity 요구 추적은 보류 항목에 실제 명시된 요구만 보류한다 | config/parity.json deferredRequirements declaration, checklist-state validation and R13 reporting with mutation tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=defer tests/kit/parity-requirements.test.mts`; `make typecheck`; `make docs-check` | [o] |
 | K658 | 명시적 FINAL_RUN은 대기 중인 체크리스트 항목이 있어도 깨끗한 커밋 트리에서 허용하되 진행 중인 작업은 거부합니다 | scripts/kit/ci-only.mts, scripts/kit/ci-targets.mts, scripts/kit/claude-hook.mts, scripts/kit/kit.mk, tests/kit/ci-only.test.mts, docs/operations/tool-inventory.md and its Korean twin | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K658 tests/kit/ci-only.test.mts` | [o] |
 | K657-4 | native Python 도구가 worktree 환경과 editable 설치를 만들고 kit는 Python 설치 metadata를 재작성하지 않고 tool cache를 공유한다 | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=python tests/kit/worktree-setup.test.mts` | [ ] |
