@@ -485,9 +485,14 @@ test('worktree-setup gives the worktree the git-ignored go.work and go.work.sum 
   git(main, 'commit', '--quiet', '-m', 'base');
   const work = 'go 1.27\n\nuse (\n\t.\n\t../../../dep/packages/go\n)\n';
   put(main, { 'packages/go/go.work': work, 'packages/go/go.work.sum': 'sum\n', 'tools/go.work': 'go 1.27\n\nuse (\n\t.\n\t../changed\n)\n' });
-  const folder = setupWorktree(main, { name: 'gowork', id: 'K615', type: 'fix' }, { print: () => {} });
+  const go = path.join(parent, 'go');
+  writeFileSync(go, `#!/bin/sh\nprintf '%s\\n' '{"Use":[{"DiskPath":"."},{"DiskPath":"../../../dep/packages/go"}]}'\n`, { mode: 0o755 });
+  const folder = setupWorktree(main, { name: 'gowork', id: 'K615', type: 'fix' }, { go, print: () => {} });
   assert.equal(readFileSync(path.join(folder, 'packages/go/go.work'), 'utf8'), work, 'the go.work that link wrote reaches the same siblings');
   assert.equal(readFileSync(path.join(folder, 'packages/go/go.work.sum'), 'utf8'), 'sum\n');
+  writeFileSync(path.join(folder, 'packages/go/go.work.sum'), 'worktree checksum state\n');
+  setupWorktree(main, { name: 'gowork', id: 'K615', type: 'fix' }, { go, print: () => {} });
+  assert.equal(readFileSync(path.join(folder, 'packages/go/go.work.sum'), 'utf8'), 'worktree checksum state\n', 'repeat setup retains worktree checksum state');
   assert.equal(readFileSync(path.join(folder, 'tools/go.work'), 'utf8'), 'go 1.27\n\nuse .\n', 'a tracked go.work stays the committed one');
   assert.equal(git(folder, 'status', '--porcelain'), '', 'the ignored go.work leaves the worktree with no change');
 });

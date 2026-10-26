@@ -11,6 +11,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { usedFolders, worktreeGoFolders, writeGoWorkspace } from './link.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { run } from './process.mts';
@@ -325,8 +326,8 @@ function lstatExists(file: string): boolean {
 
 /**
  * The go.work and go.work.sum files that link wrote in the main checkout `main` beside a go.mod of the worktree `folder` (K615),
- * relative to both: git-ignored files of the main checkout, whose relative uses reach the same sibling checkouts from the worktree,
- * which is a sibling of the main checkout. A tracked go.work is the worktree's own and is not among them.
+ * relative to both: only git-ignored workspace state is eligible for initial copying. Native Go remaps its main-checkout
+ * uses to the worktree's own source paths. A tracked go.work is the worktree's own and is not among these local files.
  */
 function goWorkFiles(main: string, folder: string): string[] {
   const modules = git(folder, 'ls-files', '--', 'go.mod', '*/go.mod').split('\n').filter(Boolean);
@@ -337,7 +338,24 @@ function goWorkFiles(main: string, folder: string): string[] {
   return gitResult(main, 'check-ignore', '--no-index', ...candidates).stdout.split('\n').filter(Boolean).filter(file => gitResult(main, 'ls-files', '--error-unmatch', '--', file).status !== 0);
 }
 
-export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer, uv, linkStateOnly = false }: { print?: (text: string) => void; composer?: string; uv?: string; linkStateOnly?: boolean } = {}): string {
+/** Copies initial local Go workspace state, then maps main-checkout modules to this worktree through native Go commands. */
+export function prepareWorktreeGo({ main, folder, go, env, print }: {
+  main: string; folder: string; go?: string; env?: NodeJS.ProcessEnv; print: (text: string) => void;
+}): void {
+  const files = goWorkFiles(main, folder);
+  for (const file of files) {
+    if (!existsSync(path.join(folder, file))) copyFileSync(path.join(main, file), path.join(folder, file));
+  }
+  for (const file of files.filter(file => file.endsWith('.work'))) {
+    const target = path.join(folder, file);
+    const tool = { command: go ?? toolCommand(folder, 'go'), env: env ?? toolsEnvironment(folder) };
+    const folders = worktreeGoFolders(folder, usedFolders(tool, target));
+    writeGoWorkspace(tool, target, folders);
+    print(`[worktree-setup] prepared ${file} for the worktree's own sources`);
+  }
+}
+
+export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer, uv, go, linkStateOnly = false }: { print?: (text: string) => void; composer?: string; uv?: string; go?: string; linkStateOnly?: boolean } = {}): string {
   const main = path.dirname(path.resolve(root, git(root, 'rev-parse', '--git-common-dir').trim()));
   const { folder, branch } = worktreeOf(main, row);
   const listed = git(main, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
@@ -362,10 +380,7 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     symlinkSync(path.relative(path.dirname(artifactsLink), artifacts), artifactsLink, 'dir');
     print(`[worktree-setup] linked ${COMPOSER_ARTIFACTS} to the main checkout's`);
   }
-  for (const file of goWorkFiles(main, folder)) {
-    copyFileSync(path.join(main, file), path.join(folder, file));
-    print(`[worktree-setup] wrote ${file} of the main checkout`);
-  }
+  prepareWorktreeGo({ main, folder, ...(go === undefined ? {} : { go }), print });
   for (const target of linkStateOnly ? ['link-state-check'] : ['rebuild', 'link-state-check']) {
     // The rebuild (K482) builds the packages of the worktree's own repository before the check reads their builds: a new worktree has none yet.
     const [command, args] = target === 'rebuild'

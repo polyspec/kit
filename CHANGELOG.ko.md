@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7cfd12e9276a167364d074cfc953d5c6fb697e5cf8e67dedfc00d56075a10a3d -->
+<!-- source-sha256: e5bf04542c35e66af1ba608a6deb9d6304200caecda5b4957385a145bb951393 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Go source 연결은 workspace와 checksum 상태를 삭제하는 대신 go work edit로 native go.work use 지시문을 정합화한다. Worktree 준비는 local 상태를 최초에만 복사하며, 상위 tracked workspace에서 상속한 경로를 포함해 main checkout의 module 경로를 자기 source로 해석한다. 실제 Go fixture는 provider 편집, 새 미출시 module, 반복 link/setup 상태와 main source/manifest/sum 불변을 검증한다. Red: 86fa740f에서 복사된 절대경로 workspace에 worktree module이 없어 프로그램이 실패한다. Green: native case와 소유 Go unit case가 통과한다(K664-4).
 - worktree 재빌드는 설치된 source 또는 packed kit의 공개 link export를 해석하고 workspace hook 경로는 실행 module을 따른다. source 경로 소유 검사 7개, 두 tool export fixture와 재빌드 순서 검사, 변경 파일 type-aware lint가 통과한다 (K661-9).
 - Dependency isolation은 runtime import, command, peer와 별도로 native TypeScript compiler가 kit 도구에서 실제 읽은 type declaration package를 사용으로 인정합니다. 미사용 type package는 계속 거부하며 test-only import는 도구 사용으로 세지 않습니다. Red: dependency-use case가 필요한 @types/picomatch를 거부합니다. Green: 소유 isolation 3개 case와 type-aware lint가 통과합니다(K661-10).
 - Parity 중복 검사는 진단 문장 전체 대신 finding 수, 공유 requirement, 충돌한 두 suite와 병합 안내를 확인한다. Python lock 검사는 uv 누락과 설치 안내를 독립적으로 확인한다. Release coverage는 앱 소유 PHP lint manifest와 kit이 쓰는 파일을 구분한다. Red: fc0fccc2에서 소유 case 3개가 실패했다. Green: 3개 모두 통과하며 변경 파일의 type-aware lint도 통과했다(K661-8).
