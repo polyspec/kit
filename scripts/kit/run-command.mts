@@ -79,6 +79,7 @@ export function runCommand(
     let bytes = 0, done = false;
     let stopped: 'output' | undefined;
     let exit: { status: number | null, signal: NodeJS.Signals | null } | undefined;
+    let cleanup: Promise<void> | undefined;
     const finish = (result: Partial<RunCommandResult>): void => {
       if (done) return;
       done = true;
@@ -115,9 +116,16 @@ export function runCommand(
     // closes every output pipe they hold, and the result follows the close of the output.
     child.once('exit', (status, signal) => {
       exit = { status, signal };
-      if (child.pid !== undefined) stopGroup(child.pid, closed, LEFT_GRACE_MS).catch((error: Error) => finish({ error }));
+      if (child.pid !== undefined) cleanup = stopGroup(child.pid, closed, LEFT_GRACE_MS).catch((error: Error) => finish({ error }));
     });
-    child.once('close', (status, signal) => finish(exit ?? { status, signal }));
+    child.once('close', (status, signal) => {
+      // A descendant may close its pipes on SIGTERM and keep running. Wait for the
+      // cleanup's SIGKILL before returning or removing the group from tracking.
+      void (cleanup ?? Promise.resolve()).then(
+        () => finish(exit ?? { status, signal }),
+        (error: Error) => finish({ error }),
+      );
+    });
   });
 }
 

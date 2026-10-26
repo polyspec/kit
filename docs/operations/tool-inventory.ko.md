@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 3243674a97a4534bf3e47b56d2ec590613492b21eb0b269927200b6af4da5860 -->
+<!-- source-sha256: e8a2989b3b43c4098b16d8e0547e85e79bd92693abfc254d6a9b747105d2d4ee -->
 
 # 도구 목록
 
@@ -24,6 +24,8 @@
 | install-tools | 189 | 없음 | 없음 | `toolchains.py` | 없음 | template |
 | 의존성 상태, 검토, 게이트 | v0.0.2부터 kit에 있음 | 317, 288, 185 | 없음 | 없음 | 없음 | crudui, kit과 병합 |
 | github-ruleset | 182 | 없음 | 164 | 없음 | 없음 | 제거(0.x에는 ruleset이 없음) |
+
+export된 `runCommand`는 output이 닫힌 뒤에도 process group cleanup 완료를 기다린다. SIGTERM에서 pipe만 닫은 descendant에도 결과 반환 전에 SIGKILL을 보낸다. 종료 검증은 회수 전 zombie를 종료 상태로 인정하고 실행 중인 descendant는 거부한다(K430-2).
 
 ## 결정
 

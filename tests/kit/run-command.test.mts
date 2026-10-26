@@ -1,10 +1,12 @@
 // Tests of scripts/kit/run-command.mts (K430): the package export, the status, output and time of a command, the stop of the
 // processes that a command leaves in its group, the stop on output beyond the limit, and a command that does not start.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { failureOf, runCommand } from '../../scripts/kit/run-command.mts';
+import { errorCode } from '../../scripts/kit/process.mts';
 import { packedFiles } from '../../scripts/kit/pack-manifest.mts';
 import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
@@ -38,7 +40,45 @@ test('a command that leaves a background child with its stdout pipe returns prom
   const [pid, done] = result.stdout.trim().split('\n');
   assert.equal(done, 'done');
   assert.ok(result.elapsedMs < 10000, `returned after ${result.elapsedMs} ms`);
-  assert.throws(() => process.kill(Number(pid), 0), (error: NodeJS.ErrnoException) => error.code === 'ESRCH');
+  assertStopped(Number(pid));
+});
+
+// An orphan can remain as a zombie until its system reaper collects it. It cannot execute,
+// but kill(pid, 0) still succeeds; ps distinguishes that state from a surviving process.
+function assertStopped(pid: number): void {
+  const listed = spawnSync('ps', ['-o', 'stat=', '-p', String(pid)], { encoding: 'utf8' });
+  assert.equal(listed.error, undefined);
+  const state = listed.stdout.trim();
+  assert.ok((listed.status === 1 && state === '') || (listed.status === 0 && state.startsWith('Z')),
+    `child ${pid} is still executing: ${state}; ps status ${listed.status}`);
+}
+
+test('K430-2: command cleanup finishes after a descendant closes its pipes but survives SIGTERM', async () => {
+  const descendant = `
+    const fs = require('node:fs');
+    process.on('SIGTERM', () => { fs.closeSync(1); fs.closeSync(2); });
+    setInterval(() => {}, 1000);
+    process.stdout.write(String(process.pid) + '\\n');
+    process.send('ready');
+  `;
+  const parent = `
+    const { spawn } = require('node:child_process');
+    const child = spawn(process.execPath, ['-e', ${JSON.stringify(descendant)}], {
+      stdio: ['ignore', 'inherit', 'inherit', 'ipc']
+    });
+    child.once('message', () => process.exit(0));
+  `;
+  const result = await runCommand({ command: process.execPath, args: ['-e', parent], stdout: 'pipe', stderr: 'pipe' });
+  assert.equal(result.status, 0, result.stderr);
+  const pid = Number(result.stdout.trim());
+  assert.ok(Number.isSafeInteger(pid) && pid > 0, result.stdout);
+  try {
+    assertStopped(pid);
+  } finally {
+    try { process.kill(pid, 'SIGKILL'); } catch (error) {
+      assert.equal(errorCode(error), 'ESRCH');
+    }
+  }
 });
 
 test('output beyond maxOutputBytes stops the command and reports stopped output (K430)', async () => {

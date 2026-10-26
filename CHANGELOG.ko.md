@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fa865dc2f7f6908e363ed27a1f8df84f72511c095cb1ad36c76dd99d90fdc7b9 -->
+<!-- source-sha256: 33b42417fb41c492a669764a1768dfaabe6ff8c473ef1baa9cd79e945e8c0a0a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -11,6 +11,8 @@
 
 
 ## 0.0.58
+
+- descendant가 SIGTERM에서 pipe만 닫아도 process group cleanup이 끝난 뒤 command 결과를 반환한다. 회귀 검증은 system reaper를 기다리는 종료된 zombie를 허용하고 실행 중인 descendant는 거부한다(K430-2).
 
 - Composer 개발용 path lock과 정확한 다중 심벌 API binding, native consumer lock 및 보안 권고 검토를 포함한 kit 0.0.58을 준비했습니다. (K677-4)
 

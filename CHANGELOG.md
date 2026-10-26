@@ -11,6 +11,8 @@
 
 ## 0.0.58
 
+- Command results wait for descendant process group cleanup even when a descendant closes its pipes on SIGTERM. The regression rejects executing descendants while allowing terminated zombies awaiting the system reaper (K430-2).
+
 - Prepared kit 0.0.58 with Composer development path locks and exact multi-symbol API bindings, native consumer locks and advisory review. (K677-4)
 
 - API bindings accept either the existing scalar symbol or a nonempty unique list of exact public symbols. R1 checks every member and R11 covers the complete declared surface; duplicate implementation bindings remain invalid. (K697)
