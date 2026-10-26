@@ -65,3 +65,28 @@ test('K664-1: native declared Python sources install new packages, remain idempo
   assert.throws(install, /native Python development installation failed.*compatible local paths/s);
   assert.notEqual(command(['pip', 'check', '--python', python]).status, 0, 'native dependency checking rejects source 0.0.2 against the installed consumer exact release requirement');
 });
+
+test('K664-1: a native release copy cannot silently satisfy a known editable development source', { timeout: 120_000 }, (t) => {
+  const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-source-fallback-')));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const app = path.join(directory, 'app');
+  const source = path.join(directory, 'source');
+  mkdirSync(app);
+  mkdirSync(path.join(source, 'src/fallback_provider'), { recursive: true });
+  writeFileSync(path.join(source, 'pyproject.toml'), '[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n[project]\nname = "fallback-provider"\nversion = "0.0.1"\n');
+  writeFileSync(path.join(source, 'src/fallback_provider/__init__.py'), 'value = 1\n');
+  const manifest = '[project]\nname = "app"\nversion = "0.0.0"\ndependencies = ["fallback-provider"]\n[tool.uv]\npackage = false\n[tool.uv.sources]\nfallback-provider = { path = "../source" }\n';
+  writeFileSync(path.join(app, 'pyproject.toml'), manifest);
+  const uv = toolCommand(ROOT, 'uv');
+  const env = toolsEnvironment(ROOT, { ...process.env, UV_PROJECT_ENVIRONMENT: '.venv', UV_OFFLINE: '1', UV_NO_INDEX: '1', UV_FIND_LINKS: toolsPath(ROOT, 'wheels'), UV_CACHE_DIR: path.join(directory, 'cache'), PYTHONDONTWRITEBYTECODE: '1' });
+  const lock = () => {
+    const result = spawnSync(uv, ['lock', '--python', toolCommand(ROOT, 'python3')], { cwd: app, env, encoding: 'utf8' });
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  };
+  const providers = [{ ecosystem: 'python' as const, name: 'fallback-provider', folder: source, repository: source, checkout: source }];
+  lock();
+  assert.throws(() => uvEditable({ directory: app, providers, uv, env }), /installed from a non-editable release.*declare that source as an editable path/s);
+  writeFileSync(path.join(app, 'pyproject.toml'), manifest.replace('path = "../source"', 'path = "../source", editable = true'));
+  lock();
+  assert.deepEqual(uvEditable({ directory: app, providers, uv, env }), ['fallback-provider'], 'native pip list reports the declared editable_project_location');
+});

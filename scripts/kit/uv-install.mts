@@ -1,11 +1,12 @@
 // uv owns development installation from the application source/workspace declarations and its native lock.
 // kit neither chooses installed source versions nor rewrites manifests or distribution metadata.
 import path from 'node:path';
-import { lstatSync } from 'node:fs';
+import { existsSync, lstatSync, realpathSync } from 'node:fs';
 import { checkoutProviders, editableFolder, providedFolders } from './link-folders.mts';
 import { siblingCheckouts, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
+import { normalizeName } from './pyproject-dependencies.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 
 const SYNC_FLAGS = new Set(['--no-install-project', '--all-groups']);
@@ -29,7 +30,8 @@ export function uvEditable({ directory, providers = [], uv = 'uv', env = process
   directory: string; providers?: Iterable<Provider>; uv?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; sync?: readonly string[];
 }): string[] {
   const project = path.resolve(directory);
-  refuseLegacyLinks(project, [...providers], env);
+  const provided = [...providers].filter(provider => provider.ecosystem === 'python');
+  refuseLegacyLinks(project, provided, env);
   const workspace = run(uv, ['workspace', 'dir'], { cwd: project, env }).trim();
   if (!path.isAbsolute(workspace)) throw new Error('uv workspace dir returned no absolute project root');
   const python = path.join(path.resolve(workspace, env.UV_PROJECT_ENVIRONMENT || '.venv'), 'bin/python');
@@ -42,12 +44,19 @@ export function uvEditable({ directory, providers = [], uv = 'uv', env = process
     if (!(error instanceof Error)) throw error;
     throw new Error(`native Python development installation failed: declare compatible local paths/workspaces in the application and prepare its uv.lock with uv lock; dependency or lock conflicts are not a successful development overlay: ${error.message}`, { cause: error });
   }
-  const parsed: unknown = JSON.parse(run(uv, ['pip', 'list', '--editable', '--python', python, '--format', 'json'], { cwd: project, env }));
+  const parsed: unknown = JSON.parse(run(uv, ['pip', 'list', '--python', python, '--format', 'json'], { cwd: project, env }));
   if (!isJsonList(parsed)) throw new Error('uv pip list --format json returned no array of named distributions');
-  const names = parsed.map(item => {
+  const names: string[] = [];
+  for (const item of parsed) {
     if (!isJsonObject(item) || typeof item.name !== 'string') throw new Error('uv pip list returned an unnamed distribution');
-    return item.name;
-  });
+    const name = item.name;
+    const location = item.editable_project_location;
+    const provider = provided.find(candidate => normalizeName(candidate.name) === normalizeName(name));
+    if (provider !== undefined && (typeof location !== 'string' || !existsSync(location) || realpathSync(location) !== realpathSync(provider.folder))) {
+      throw new Error(`Python distribution ${item.name} is installed from ${typeof location === 'string' ? location : 'a non-editable release'}, not the expected development source ${provider.folder}; declare that source as an editable path/workspace in the application and prepare its uv.lock with uv lock`);
+    }
+    if (typeof location === 'string') names.push(item.name);
+  }
   print('uv development: native installed-distribution dependency check passed');
   return names;
 }

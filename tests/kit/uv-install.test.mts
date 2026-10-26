@@ -11,7 +11,7 @@ function fixture(t: { after: (fn: () => void) => void }) {
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const log = path.join(root, 'commands');
   const uv = path.join(root, 'uv');
-  writeFileSync(uv, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nif [ "$1 $2" = "workspace dir" ]; then echo '${root}'; fi\nif [ "$1 $2" = "pip list" ]; then echo '[{"name":"new-unreleased"}]'; fi\nif [ "$1 $2" = "pip check" ] && [ "$UV_FIXTURE_CONFLICT" = yes ]; then echo 'incompatible native dependency requirement' >&2; exit 1; fi\n`);
+  writeFileSync(uv, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nif [ "$1 $2" = "workspace dir" ]; then echo '${root}'; fi\nif [ "$1 $2" = "pip list" ]; then printf '[{"name":"new-unreleased","editable_project_location":"%s"}]\\n' "\${UV_FIXTURE_LOCATION:-${root}}"; fi\nif [ "$1 $2" = "pip check" ] && [ "$UV_FIXTURE_CONFLICT" = yes ]; then echo 'incompatible native dependency requirement' >&2; exit 1; fi\n`);
   chmodSync(uv, 0o755);
   return { root, log, uv, env: { ...process.env, UV: uv } };
 }
@@ -23,8 +23,12 @@ test('K664-1: uv installs native declared sources without selecting from previou
   assert.equal(commands[0], 'workspace dir');
   assert.equal(commands[1], 'sync --locked');
   assert.match(commands[2] ?? '', /^pip check --python /);
-  assert.match(commands[3] ?? '', /^pip list --editable --python .* --format json$/);
+  assert.match(commands[3] ?? '', /^pip list --python .* --format json$/);
   assert.equal(commands.some(command => command.includes('pip install') || command.includes('--no-deps')), false);
+  const provider = { ecosystem: 'python' as const, name: 'new-unreleased', folder: root, repository: root, checkout: root };
+  assert.deepEqual(uvEditable({ directory: root, uv, env, providers: [provider, { ...provider, name: 'unused-sibling', folder: '/unused-sibling' }] }), ['new-unreleased']);
+  assert.throws(() => uvEditable({ directory: root, uv, env: { ...env, UV_FIXTURE_LOCATION: path.dirname(root) }, providers: [provider] }), /not the expected development source.*declare that source/s);
+
 });
 
 test('K664-1: incompatible native dependency checks are failures with development declaration guidance', { timeout: 30_000 }, (t) => {
