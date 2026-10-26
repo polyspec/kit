@@ -1,14 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d26a38a3da2ad7e45f94077a13c56f2c3c15a81e396c11d574ee8278428e858d -->
+<!-- source-sha256: 82db2906c5f72a73538fc608dfdf9bca0871d3ca5449bfaf24f52841fca8f347 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- Cargo fallback fixture는 native offline update preflight를 허용하고 source 거부 시 요청한 command가 실행되지 않으며 holder가 해제됨을 구분해 검증한다. Red: cdb95b63에서 소유 fallback case 실패; Green: 선택한 Cargo source case 4개 모두 통과 (K671-8).
-
 ## 0.0.55
+
+- Cargo fallback fixture는 native offline update preflight를 허용하고 source 거부 시 요청한 command가 실행되지 않으며 holder가 해제됨을 구분해 검증한다. Red: cdb95b63에서 소유 fallback case 실패; Green: 선택한 Cargo source case 4개 모두 통과 (K671-8).
 
 - Rebuild inventory에 native Cargo metadata source helper를 분류하고 현재 npm과 uv 설치 명령을 설명한다. Dependency, document, generated-file, link-state 및 npm test의 package·경로·URL fixture를 일반화하며 isolation과 원래 의미 assertion은 유지한다. Red: 89ee79f8에서 분류와 isolation 소유 case가 실패한다. Green: 선택한 소유 case 26개가 통과한다(K671-5).
 - 설치 package bootstrap 통합을 완료했습니다. Source link는 선택 사항이고 공유 파일은 package가 제공하는 일반 사본이며 release/gates는 package 우선 설치를 사용합니다. 소유 workflow, native source/packed hook, copy, npm, rule 검사가 통과했습니다. 유지한 tokenizer 수정으로 PHP extension 소유 검사 25개도 통과했습니다. Main CI와 release 공개는 대기 중입니다(K671).
