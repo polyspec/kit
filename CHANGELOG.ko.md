@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 927b7a054f88d9bd0be4523df785d2cde490c3c8e6d094354f021b3d39eba3a5 -->
+<!-- source-sha256: b81ce4900382559933fd6b252d971bda151be469fb2654a9b33f05652789722c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Python link는 polyspec dependency를 선언하지 않은 project에서 주변 uv workspace를 sync하지 않습니다. 소유 unit은 14c67f38에서 실패하고 guard 추가 후 통과합니다(K670-4).
 - Release version commit은 manifest와 lock metadata를 허용하되 chore(release)에 구현 변경을 허용하지 않습니다. 소유 unit은 14c67f38에서 실패하고 수정 후 통과합니다(K670-3).
 - install-packages 단위 fixture는 bootstrap과 kit.mk를 node_modules/@polyspec/kit 아래에 준비하고 그 설치 패키지 경로를 include한다. dry run은 소스 연결 없이 릴리스 잠금의 npm ci 호출을 계속 검증한다. Red: 89ee79f8에서 단독 bootstrap fixture는 kit.mk가 없어 실패했다. Green: K511 사례 한 개와 변경 파일 타입 인식 lint가 통과한다 (K671-4).
 - release와 gates는 Make 실행 전에 정확한 packageManager npm으로 consumer package lock을 bootstrap하며 이 단계에서는 lifecycle script를 실행하지 않고 이후 정식 toolchain과 package lifecycle 설치를 따른다. kit 자체는 source Makefile을 사용하고 자신의 published copy 설치를 건너뛴다. gates는 표준 root checkout을 사용하며 install, native link와 모든 gate target을 유지한다. floating 또는 tag 기반 형제 source clone은 제거했다. 기존 workflow 검사 13개가 통과했고 consumer 명령 인자, 명시적 cache, kit skip을 포함한 새 package-first 실행 및 root-layout 검사 3개와 변경 검사 파일 type-aware lint가 통과한다 (K671-3).

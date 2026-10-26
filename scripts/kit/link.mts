@@ -465,7 +465,8 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
       const npm = consumerTool(consumer.top, 'npm', work.env);
       npmLink(project, npmSourceFolders(project, work.found.values()), npm.command, npm.env, work.print);
     }
-    if (!work.check && existsSync(path.join(project, 'pyproject.toml'))) {
+    const pythonManifest = path.join(project, 'pyproject.toml');
+    if (!work.check && existsSync(pythonManifest) && declaredPython(pythonManifest).length > 0) {
       const uv = consumerTool(consumer.top, 'uv', work.env);
       uvEditable({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
     }

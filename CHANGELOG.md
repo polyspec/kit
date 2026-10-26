@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Python linking skips projects without declared polyspec dependencies instead of syncing an ambient uv workspace. The owning unit fails at 14c67f38 and passes with the guard (K670-4).
 - Release version commits allow manifest and lock metadata without allowing implementation changes under chore(release). The owning unit fails at 14c67f38 and passes with the fix (K670-3).
 - The install-packages unit fixture holds bootstrap and kit.mk under node_modules/@polyspec/kit and includes that installed-package path. Its dry run still verifies npm ci of the release lock without invoking source linking. Red: the standalone bootstrap fixture fails at 89ee79f8 because kit.mk is absent; green: the single K511 case and changed-file type-aware lint pass (K671-4).
 - Release and gates bootstrap consumer package locks with the exact packageManager npm before Make, without lifecycle scripts during bootstrap; the regular toolchain and package lifecycle installation follows. Kit itself uses its source Makefile and skips installing a published copy of itself. Gates use the standard root checkout and retain install, native linking and every gate target. No floating or tag-based sibling source clone remains. Thirteen unchanged workflow cases passed; three new package-first execution and root-layout cases pass, including consumer command arguments, explicit cache and kit skip; changed-test type-aware lint passes (K671-3).

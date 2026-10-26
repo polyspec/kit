@@ -234,6 +234,18 @@ function linkLines(directories: string[], env: NodeJS.ProcessEnv, check = false)
   return { ok, text: lines.join('\n') };
 }
 
+test('K670-4: a Python library with no polyspec dependency does not sync an ambient uv workspace', (t) => {
+  const { root, env } = workspace(t);
+  const library = repository(root, 'standalone', {
+    '.gitignore': '.venv/\nvar/\n',
+    'pyproject.toml': '[project]\nname = "standalone"\nversion = "0.0.1"\ndependencies = ["jsonschema==4.26.0"]\n',
+  });
+  current.push(library);
+  const result = linkLines([library], env);
+  assert.equal(result.ok, true, result.text);
+  assert.ok(!result.text.includes('uv development: synchronizing'), result.text);
+});
+
 test('K205: link links the checkouts that it is given with no environment variable, install-packages only installs, and install links last (K360-1, K360-2)', (t) => {
   const { provider, kit, consumer, env } = workspace(t);
   const lines: string[] = [];
