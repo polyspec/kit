@@ -545,12 +545,13 @@ test('coverage names each package file that no list classifies, each stale entry
 // takes them as not released, so no repository lists them by hand; a package file of the repository is still reported.
 test('coverage takes the files that kit writes as not released, and still names a package file of the repository (K167)', (t) => {
   const box = releaseSandbox(t);
-  const written = ['.mise/locks/pypi-vulture/2.16/pyproject.toml', 'config/php-lint/composer.json', 'config/phpunit/composer.json'];
-  for (const file of [...written, 'tools/composer.json']) {
+  const written = ['.mise/locks/pypi-vulture/2.16/pyproject.toml', 'config/phpunit/composer.json'];
+  const owned = ['config/php-lint/composer.json', 'tools/composer.json'];
+  for (const file of [...written, ...owned]) {
     mkdirSync(path.dirname(path.join(box.root, file)), { recursive: true });
     writeFileSync(path.join(box.root, file), '{}\n');
   }
-  assert.deepEqual(release.coverage(context(box)), ['tools/composer.json is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json']);
+  assert.deepEqual(release.coverage(context(box)), owned.map(file => `${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json`));
 });
 
 test('coverage allows a file: dependency on an archive only in the npm consumer project, and elsewhere only on a folder of the repository (K129)', (t) => {

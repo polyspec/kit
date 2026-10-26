@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 624ac11ae6c816bcd5112a58fdac64c4e437cbcc3af1153a1ec1c1d5f9ea08d6 -->
+<!-- source-sha256: d2dd18f95ab3e394f810f0d29c71d7adab09cad2bcf7901a942d7c6a70661c52 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Parity 중복 검사는 진단 문장 전체 대신 finding 수, 공유 requirement, 충돌한 두 suite와 병합 안내를 확인한다. Python lock 검사는 uv 누락과 설치 안내를 독립적으로 확인한다. Release coverage는 앱 소유 PHP lint manifest와 kit이 쓰는 파일을 구분한다. Red: fc0fccc2에서 소유 case 3개가 실패했다. Green: 3개 모두 통과하며 변경 파일의 type-aware lint도 통과했다(K661-8).
 - 의존성 계약 테스트는 버전 선택·로컬 경로·설치 형태를 네이티브 패키지 관리자에 맡긴다. 보안 게이트는 미검토 잠금 변경과 검토된 취약점을 계속 거부하며, 패키지 범위는 취약점 진단을 선택한다. Python Git pin은 review가 기록하고 전체 잠금 지문이 보호한다. fc0fccc2에서 과거 게이트 기대 7개가 실패했고 현재 계약 검사 7개와 타입 인식 lint가 통과한다. 네이티브 설치 동작의 소유 검사는 npm-install.test.mts와 composer-install.test.mts에 있다 (K661-7).
 - Workspace hook 탐색은 중첩 checkout을 포함해 명시된 GitHub Actions checkout을 대화형 개발 workspace와 구분한다. Writer와 checker는 같은 판정을 사용한다. Dependency-link 검사는 유지되고 runner checkout 밖의 workspace는 누락·변조·실행 불가 hook을 계속 거부한다. Red: fc0fccc2에서 root·nested runner case가 실패한다. Green: 소유 link case 11개와 typecheck, docs-check가 통과한다(K661-6).
 - Dependency review fixture는 새 release가 있더라도 advisory가 없는 완전한 review를 허용하고 새 release 정보와 update 안내 assertion을 유지한다. Red: fc0fccc2에서 소유 case 5개 실패; Green: 선택한 case 5개 통과 (K661-5).

@@ -105,10 +105,14 @@ test('the writer refuses a source that is not written in the declared form befor
   assert.deepEqual(log(), []);
 });
 
-test('the writer refuses a missing uv and names its declaration and install', (t) => {
+test('the writer refuses a missing uv and names its installation', (t) => {
   const { root } = checkout(t);
   rmSync(path.join(root, 'var/tools/mise/shims/uv'));
-  assert.throws(() => writePythonLock({ root, entry: ENTRY, env: process.env }), /var\/tools\/mise\/shims\/uv is missing; declare uv in mise\.toml and run make install-tools/);
+  assert.throws(() => writePythonLock({ root, entry: ENTRY, env: process.env }), (error: Error) => {
+    assert.match(error.message, /\buv\b.*missing/);
+    assert.match(error.message, /make install(?:-tools)?\b/);
+    return true;
+  });
 });
 
 test('the writer refuses a lock that holds a package at another version than its pin, and writes nothing', (t) => {

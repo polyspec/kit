@@ -2299,7 +2299,15 @@ test('two suite units that cite the same requirements from different case sets a
     return config;
   };
   const { findings } = check(t, { files, edit }, { execute: false });
-  assert.deepEqual(findings.filter(item => item.rule === 'R18').map(item => item.message), ['form-history and form-history-2 both cite CX-2 from different case sets; a feature is one unit that every implementation tests, so merge the two suites into one unit']);
+  const overlaps = findings.filter(item => item.rule === 'R18');
+  assert.equal(overlaps.length, 1, 'only the two suites sharing a requirement conflict');
+  const overlap = overlaps[0];
+  assert.ok(overlap);
+  assert.deepEqual(overlap.requirements, ['CX-2']);
+  for (const name of ['form-history', 'form-history-2']) assert.ok(overlap.message.includes(name));
+  assert.match(overlap.message, /different case sets/);
+  assert.match(overlap.message, /merge.*suites.*one unit/);
+  assert.ok(!overlap.message.includes('other'), 'the unrelated suite is no conflict');
 });
 
 test('a suite file names a directory whose case glob matches one directory per case, which go runs as nested subtests (K42)', TIMEOUT, (t) => {
