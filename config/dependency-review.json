@@ -1,11 +1,16 @@
 {
   "schema": 1,
   "comment": "Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.",
-  "reviewed": "2026-10-26T13:14:25.504Z",
+  "reviewed": "2026-10-26T16:54:19.100Z",
   "locks": [
     {
       "lock": "package-lock.json",
-      "sha256": "e4a2b4d7148d9d76307ffcf44dad375e1637a15dcc5d88d6fdd12e2c58004665",
+      "sha256": "7e7859ffc3b0183a5c7ee5ed360f990cc92ae7c5c9f7f7e4f8817794304d19cc",
+      "advisories": []
+    },
+    {
+      "lock": "tests/release-consumer/npm/package-lock.json",
+      "sha256": "c59b35b55c2e6b116de705bc0c27dc9c69abe27d02ae5c5ed1bd5c6e6914259c",
       "advisories": []
     },
     {
@@ -105,7 +110,7 @@
       "manifest": "package.json",
       "package": "amaro",
       "version": "1.2.1",
-      "latest": "1.2.1"
+      "latest": "1.2.2"
     },
     {
       "ecosystem": "npm",
@@ -126,14 +131,14 @@
       "manifest": "package.json",
       "package": "jscpd",
       "version": "5.4.1",
-      "latest": "5.4.1"
+      "latest": "5.4.2"
     },
     {
       "ecosystem": "npm",
       "manifest": "package.json",
       "package": "knip",
       "version": "6.42.0",
-      "latest": "6.42.0"
+      "latest": "6.43.0"
     },
     {
       "ecosystem": "npm",
@@ -182,21 +187,21 @@
       "manifest": "package.json",
       "package": "oxc-parser",
       "version": "0.154.0",
-      "latest": "0.154.0"
+      "latest": "0.155.0"
     },
     {
       "ecosystem": "npm",
       "manifest": "package.json",
       "package": "oxlint",
       "version": "1.88.0",
-      "latest": "1.88.0"
+      "latest": "1.89.0"
     },
     {
       "ecosystem": "npm",
       "manifest": "package.json",
       "package": "oxlint-tsgolint",
       "version": "7.0.2004",
-      "latest": "7.0.2004"
+      "latest": "7.0.2005"
     },
     {
       "ecosystem": "npm",
@@ -238,7 +243,7 @@
       "manifest": "package.json",
       "package": "unist-util-visit",
       "version": "5.1.0",
-      "latest": "5.1.0"
+      "latest": "5.2.0"
     },
     {
       "ecosystem": "npm",

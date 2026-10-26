@@ -53,7 +53,7 @@
     { "paths": ["config/commit-identity.json"], "tests": ["tests/kit/commits.test.mts"] },
     { "paths": ["config/checklist.json", ".githooks/**"], "targets": ["docs-check", "hooks-check"], "tests": ["tests/source/checklist-real.test.mts"] },
     { "paths": ["tsconfig.build.json"], "targets": ["typecheck"], "tests": ["tests/source/package.test.mts"] },
-    { "paths": ["config/release.json", "tests/release-consumer/**"], "targets": ["kit-check", "release-coverage"], "tests": ["tests/kit/release-root.test.mts", "tests/kit/release.test.mts", "tests/source/consumer-layout.test.mts"] },
+    { "paths": ["config/release.json", "tests/release-consumer/**"], "targets": ["kit-check", "release-coverage", "dependency-policy-check"], "tests": ["tests/kit/release-root.test.mts", "tests/kit/release.test.mts", "tests/source/consumer-layout.test.mts"] },
     { "paths": ["config/layout.yml", "config/layout.kit.yml", "config/pyproject.schema.json", "config/composer.schema.json", "config/cargo.schema.json"], "targets": ["layout-check"], "tests": ["tests/source/layout-real.test.mts"] },
     { "paths": ["ruff.toml"], "tests": ["tests/source/lint-python-real.test.mts"] },
     { "paths": ["phpcs.xml.dist", "phpstan.dist.neon"], "tests": ["tests/source/lint-php-real.test.mts"] },

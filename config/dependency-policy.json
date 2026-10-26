@@ -13,7 +13,8 @@
   "pythonManifests": [],
   "pythonLocks": [],
   "npmLocks": [
-    "package-lock.json"
+    "package-lock.json",
+    "tests/release-consumer/npm/package-lock.json"
   ],
   "exceptions": [
     {

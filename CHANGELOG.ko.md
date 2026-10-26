@@ -1,15 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d34a942c4681522cccbb101f1d6a81c24ac0594df2805912f307621e0c6f1f02 -->
+<!-- source-sha256: ac119884254d5c7c996abb0e4057656401b69d38df909bbce1a8271c71cb28c6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-
-
 ## 0.0.56
 
+- Native advisory review는 개발 root lock과 별도로 해석한 npm release-consumer lock을 함께 포함한다. Red: 감사 범위를 선언하면 누락된 review entry가 드러난다. Green: native review가 consumer에만 있는 전이 version 네 개를 포함해 현재 여섯 lock을 advisory 없이 기록하고 예외 추가 없이 offline dependency gate가 통과한다 (K677-1).
 - 이 version은 공개되지 않은 0.0.55 candidate의 native source/worktree package 관리, 선택적 설치 package bootstrap, runner 정리와 dependency review 변경을 포함한다. Asset gate가 정상 prepack 변환을 거부한 기존 tag는 보존하고 수정한 validator를 여기에 포함한다 (K677).
 
 - Kit release archive 검증은 source export와 native hook bin의 정식 prepack manifest 변환을 공유한다. 이름, 버전, dependency, script를 포함한 나머지 모든 byte를 tag source와 비교하며 다른 npm 및 Composer manifest는 기존 byte-exact 비교를 유지한다. Red: b343be7a에서 정상 변환된 kit manifest가 assets 검증에 실패한다. Green: 예상 밖 kit manifest 변조 6종과 기존 일반 package 변조 검사를 포함한 선택 release/prepack unit 5개, 변경 파일 type-aware lint 및 docs-check가 통과한다 (K686-6).

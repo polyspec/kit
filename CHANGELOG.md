@@ -5,10 +5,9 @@
 
 ## Unreleased
 
-
-
 ## 0.0.56
 
+- Native advisory review includes the separately resolved npm release-consumer lock as well as the development root lock. Red: adding its declared audit scope exposes the missing review entry. Green: native review records all six current locks with no advisories, including the four consumer-only transitive versions; the offline dependency gate passes without exceptions (K677-1).
 - This version carries the native source/worktree package management, optional installed-package bootstrap, runner cleanup and dependency review changes of the unpublished 0.0.55 candidate. Its existing tag is retained after the asset gate rejected the normal prepack transformation; the corrected validator is included here (K677).
 
 - Kit release archive validation shares the canonical prepack manifest transformation for source exports and the native hook bin. Every remaining byte, including names, versions, dependencies and scripts, is still compared with the tagged source; other npm and Composer manifests remain byte-exact. Red: the normal transformed kit manifest fails assets at b343be7a. Green: five selected release/prepack units pass, including six unexpected kit manifest mutations and existing generic-package mutation checks; changed-file type-aware lint and docs-check pass (K686-6).
