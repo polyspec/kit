@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5fd792968bcd4523b0a273fb129039bed470f171c817187efcf1c5b0501efcc9 -->
+<!-- source-sha256: dc540bb9e873e292a62fbd46079721e86dfe119aa051e6a8204d71dfe7ac268a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- CI 승인은 앞선 전체 실패 보고서와 최종 성공 실행 40366841110을 보존한다. 전체 44단계, kit 1425개와 source 182개가 실패·timeout·skip 없이 통과했다. Release 검증은 공개된 annotated v0.0.56 tag를 별도로 승인하며 수정마다 로컬 전체 suite를 반복하지 않았다 (K686).
 
 - Kit 0.0.56은 자체 CI 44단계(kit 1425개와 source 182개, 실패·timeout·skip 없음)와 release 실행 40371683313의 archive 생성, 외부 consumer proof 및 공개를 통과하여 공개됐다. Annotated tag와 asset은 GitHub Release에서 사용할 수 있으며 실패한 0.0.55 tag는 변경하지 않았다 (K677).
 
