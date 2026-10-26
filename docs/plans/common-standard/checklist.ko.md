@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 45dce6d05ed1d12ef4ebe24d16c8e1000e38e7aba83fc381fb7eaf29d27c1f3d -->
+<!-- source-sha256: 896edc2210b437a519efa349443b73225839eb727bcf80f23e63082b2d43a274 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -587,3 +587,4 @@
 | K664-4 | Go workspace 준비와 반복 source 연결은 native checksum 상태를 보존하고 절대 main 경로 대신 worktree 소유 module을 사용하며 미출시 provider module을 읽는다 | scripts/kit/link.mts, scripts/kit/worktree-setup.mts, tests/kit/link.test.mts, tests/kit/worktree-setup.test.mts, tests/source/go-worktree-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K664-4 tests/source/go-worktree-real.test.mts`; K205/K399/K615 owning unit cases | [o] |
 | K664-3 | Cargo 개발 source fallback을 거부하고 native link 실행 상태를 보호한다 | scripts/kit/link.mts, scripts/kit/cargo-source.mts, owning Cargo link tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K664-3 tests/kit/link.test.mts` | [o] |
 | K664-5 | 네이티브 npm 릴리스→소스 연결은 릴리스 선언과 main 체크아웃을 바꾸지 않고 멱등하게 수렴한다 | scripts/kit/npm-install.mts, tests/source/npm-source-link-real.test.mts, tests/kit/npm-install.test.mts, config/owner-checks.json | `node scripts/kit/run-tests.mts node -- --test-name-pattern=npmSourceFolders tests/kit/npm-install.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/npm-source-link-real.test.mts` | [o] |
+| K670 | Release workflow는 첫 make 전에 consumer lock이 고정한 tag의 sibling kit source와 npm dependency를 준비하며 kit 자체는 자기 source를 쓴다 | workflows/release.yml, .github/workflows/release.yml, tests/source/release-workflow.test.mts | node --test tests/source/release-workflow.test.mts | [o] |
