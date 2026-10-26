@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { composerInstall, composerLink } from '../../scripts/kit/composer-install.mts';
 import { tree, put } from './tree.mts';
+import { isJsonList, isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
 test('Composer local links require an explicit path repository before the package manager runs (K657-2)', (t) => {
   const root = tree(t, { 'composer.json': '{"require":{"example/local":"*"}}', 'source/composer.json': '{"name":"example/local","version":"1.0.0"}', 'vendor/example/local/package.txt': 'release' });
@@ -43,7 +44,11 @@ if (args[0] === 'update') {
   const release = readFileSync(path.join(root, 'composer.json'), 'utf8');
   const result = composerInstall({ directory: root, checkouts: [path.join(root, 'source')], env: { ...process.env, COMPOSER_BIN: command, COMPOSER: 'composer.local.json', COMPOSER_VENDOR_DIR: 'vendor' }, print: () => {} });
   assert.equal(result, 'linked');
-  const commands = readFileSync(path.join(root, 'commands.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line) as { args: string[]; manifest: string });
+  const commands = readFileSync(path.join(root, 'commands.jsonl'), 'utf8').trim().split('\n').map(line => {
+    const entry: unknown = JSON.parse(line);
+    assert.ok(isJsonObject(entry) && isJsonList(entry.args));
+    return { args: entry.args, manifest: entry.manifest };
+  });
   assert.ok(commands.every(entry => entry.manifest === 'composer.local.json'));
   assert.ok(commands.some(entry => entry.args[0] === 'update' && entry.args.includes('example/local') && entry.args.includes('--with-dependencies')));
   assert.equal(realpathSync(path.join(root, 'vendor/example/local')), realpathSync(path.join(root, 'source')));

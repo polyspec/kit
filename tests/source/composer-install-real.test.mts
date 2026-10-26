@@ -7,6 +7,7 @@ import test from 'node:test';
 import { composerInstall } from '../../scripts/kit/composer-install.mts';
 import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { tree } from '../kit/tree.mts';
+import { isJsonList, isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
 test('native Composer keeps path sources live and records their current requirements (K657-2)', (t) => {
   const root = tree(t, {
@@ -26,8 +27,12 @@ test('native Composer keeps path sources live and records their current requirem
   assert.equal(render().stdout, 'second');
   assert.equal(install(), 'linked');
   assert.equal(realpathSync(path.join(root, 'vendor/example/local')), realpathSync(path.join(root, 'source')));
-  const lock = JSON.parse(readFileSync(path.join(root, 'composer.local.lock'), 'utf8')) as { packages: { name: string; version: string; require: { php: string }; dist: { type: string } }[] };
-  assert.deepEqual(lock.packages.map(entry => [entry.name, entry.version, entry.require.php, entry.dist.type]), [['example/local', '2.0.0', '>=8.4', 'path']]);
+  const lock = readJsonObject(root, 'composer.local.lock');
+  assert.ok(isJsonList(lock.packages));
+  assert.deepEqual(lock.packages.map(entry => {
+    assert.ok(isJsonObject(entry) && isJsonObject(entry.require) && isJsonObject(entry.dist));
+    return [entry.name, entry.version, entry.require.php, entry.dist.type];
+  }), [['example/local', '2.0.0', '>=8.4', 'path']]);
   assert.equal(readFileSync(path.join(root, 'composer.json'), 'utf8'), release);
   assert.equal(existsSync(path.join(root, 'composer.lock')), false);
   assert.equal(existsSync(path.join(root, 'var/link/composer')), false);
