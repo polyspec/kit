@@ -25,7 +25,7 @@
       "type": "string"
     },
     "Require": {
-      "type": "array",
+      "type": ["array", "null"],
       "items": {
         "type": "object",
         "required": [
@@ -46,7 +46,7 @@
       }
     },
     "Replace": {
-      "type": "array",
+      "type": ["array", "null"],
       "items": {
         "type": "object",
         "required": [

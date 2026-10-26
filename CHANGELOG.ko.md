@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d24141e02a279438a64a8cc450c628eb5e3e7a7cb7fa65ddbe385dfdd14e8ff5 -->
+<!-- source-sha256: 0470afa9584f65967d6185ae0f2008d2a5247cabf91e2f60ca6ad6f1d8afddfc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Go module decoding은 array뿐 아니라 null Require와 Replace directive 집합도 허용합니다. PHP arginfo는 extension 개발에서만 준비하고 kit의 extension fixture는 명시적 설치 target으로 준비합니다. fixture discovery는 설치된 generator와 parser를 사용하며 parser 선택 test 입력은 platform에 의존하지 않습니다. Red: 2d18f681의 null Go 출력과 PHP library-only 설치 unit이 실패했습니다. Green: 소유 단위 test 58개와 typecheck가 통과합니다(K661-1).
 - 문서 검사는 외부 checkout 없이 명시적 외부 Markdown 항목 참조를 구분하고, bare 및 kit 항목 참조 검증을 유지한다. Release coverage는 PHP lint project를 분류하고, release workflow는 archive 사전 검사와 bootstrap 순서를 유지하며, source와 packed export를 별도로 검사하고 package build assertion은 두 PHP arginfo parser project를 가리킨다. 선택한 문서 및 workflow test와 release coverage가 통과하며 package build는 최종 suite에서 실행한다(K661-2).
 - Composer source link는 앱의 명시적 path repository와 선택한 개발 manifest를 사용하며 실제 lock, 설치 metadata, autoload는 Composer가 관리합니다. 임시 manifest, version alias, runtime record 보정은 제거했습니다. 실제 Composer/PHP 통합과 source-link 소유 case가 통과했고 release lock 설치는 별도로 유지합니다(K657-2).
 - Native npm audit fix는 기존 dependency 제약 안에서 transitive fast-uri 3.1.8을 3.1.9로, markdown-it 14.3.2를 14.3.3으로 갱신하며 manifest version은 바꾸지 않습니다. 실제 review는 다섯 lock을 모두 advisory 없이 검토하고 stale sprintf-js exception을 제거합니다. Native npm audit는 취약점 0개를 보고하며 dependency-policy-check와 policy-review advisory 일치 case가 통과합니다. 새 ruff release는 정보로 유지합니다(K660).

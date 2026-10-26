@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 435663e19def4f414225f7f4c21751b50a4a9740d77cbb510b2cd4003f46f264 -->
+<!-- source-sha256: ef29b91dbf4c38052cf83f478c6e29fa5fe2eebddec3b42793847f9445439a0b -->
 
 # 도구 목록
 
@@ -66,11 +66,11 @@ PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283). minor�
 일치하는 것이 없으면 시도한 순서, `.php-version`, 설치 명령(`brew install php@<minor>` 또는 `apt install php<minor>-cli`)과
 함께 실패합니다.
 
-PHP를 설치하는 저장소는 `make install-tools`에서 PHP `gen_stub.php`가 요구하는 고정 PHP-Parser를 설치합니다.
+`packages/php-ext`가 있는 저장소는 `make install-tools`에서 PHP `gen_stub.php`가 요구하는 고정 PHP-Parser를 설치합니다. extension이 없는 PHP library는 arginfo generator나 extension 개발 도구가 필요하지 않습니다. Kit는 자체 extension fixture 준비를 `make kit-install-php-arginfo`로 선언하며, `make install`과 CI가 이 target을 명시적으로 실행합니다.
 Kit은 설치된 parser를 generator와 함께 `var/tools/php-arginfo`에 배치합니다. Build와 `make php-ext-arginfo`는 임시 source 사본에서
 generator를 offline 실행하고, `make php-ext-arginfo` 결과는 ignored `var/php-ext/arginfo`에만 씁니다. 설치가 없거나 오래되면
 `make toolchain-check`가 `make install-tools`를 안내합니다(K303, K560). Parser Composer project와 lock은 kit distribution에 도구와
-함께 포함된 `scripts/kit/php-arginfo`입니다.
+함께 포함된 release별 `scripts/kit/php-arginfo/<version>`입니다.
 Composer release archive는 generated header를 stub/output 경로로 선언합니다. Release asset은 tag의 stub에서 header를 만들고
 staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, commit timestamp를 고정합니다. `zip`이 없으면
 `make release-assets`가 먼저 설치 안내와 함께 실패하며, Ubuntu release workflow는 asset build 전에 runner의 `zip` 제공 여부를 확인합니다.
@@ -392,7 +392,7 @@ DOCS_CHECKS의 모든 target을 다른 것의 상태와 상관없이 실행하�
 | 문서 선택 | template, crudui: 고정 목록과 directory; hyper: tracked `*.md`; ordered-json: 모든 문서를 등록하는 manifest | `include`와 `exclude` glob이 고르는 tracked 및 ignore되지 않은 새 Markdown 파일; `.ko.md`는 영어 파일에 대응 |
 | 쌍 | 모두: 영어에는 한국어 필요; hyper, ordered-json: 한국어에는 영어 필요 | 양방향 (`pair-missing`) |
 | `doc-id` | ordered-json만 | 두 파일이 같은 `<!-- doc-id: id -->`를 한 번씩 가지고, id는 문서 하나를 가리킴 |
-| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: 435663e19def4f414225f7f4c21751b50a4a9740d77cbb510b2cd4003f46f264 -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
+| revision | ordered-json만 | 한국어 파일은 `<!-- source-sha256: ef29b91dbf4c38052cf83f478c6e29fa5fe2eebddec3b42793847f9445439a0b -->`를 한 번 가지고 영어 파일의 sha256과 같음 |
 | section identifier | ordered-json (`<a id>` anchor) | anchor가 두 파일에서 같고 한 번씩만 나옴 |
 | fenced block | template, crudui, hyper: 내용만; ordered-json: info string과 내용, `~~~`, 닫히지 않은 fence | ordered-json 동작: info string과 내용 비교, 두 fence 문자 지원, 닫히지 않은 fence는 실패 |
 | link | 모두: inline link; ordered-json: reference link, autolink, `href`, query, 저장소 밖으로 나가는 link, explicit anchor; template: `.md`, `.ko.md`, `index.md` 후보와 `/` 건너뜀; crudui: `/` 거부 | 모든 link 형식; code는 읽지 않음; anchor는 explicit anchor 또는 heading anchor; static site의 `/`와 확장자 없는 link 동작은 `siteLinks` |

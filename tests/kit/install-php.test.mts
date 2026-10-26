@@ -27,6 +27,10 @@ function fake(file: string, release: string): string {
 function sandbox(t: TestContext, minor: string | undefined, files: Record<string, string> = {}) {
   const root = toolchainCheckout(t, { 'mise.toml': '[tools]\n', ...(minor === undefined ? {} : { '.php-version': `${minor}\n` }), ...files });
   miseStub(root);
+  // PHP lint is declared by PHP itself (K614). This test stubs its Composer install so that discovery remains offline.
+  const composer = path.join(root, 'var/tools/mise/shims/composer');
+  mkdirSync(path.dirname(composer), { recursive: true });
+  writeFileSync(composer, `#!${process.execPath}\nimport { mkdirSync, writeFileSync } from 'node:fs';\nif (process.argv[2] === 'install') {\n  mkdirSync('vendor/bin', { recursive: true });\n  for (const name of ['phpcs', 'phpstan']) writeFileSync('vendor/bin/' + name, '#!/bin/sh\\nexit 0\\n', { mode: 0o755 });\n}\n`, { mode: 0o755 });
   const stubs = toolchainStubs(t);
   // The tools need git to find the root of the checkout; a wrapper of the git of this machine stands in the sandbox, so the
   // directory of that git, which may hold a php, is not on the PATH.
@@ -126,7 +130,7 @@ test('missing companions fail a repository with packages/php-ext, and are left o
   const without = sandbox(t, '8.4');
   const ok = start(without.root, without.machine(dir));
   assert.equal(ok.status, 0, ok.stderr);
-  assert.deepEqual(readdirSync(without.bin).sort(), ['mise', 'php']);
+  assert.deepEqual(readdirSync(without.bin).sort(), ['mise', 'php', 'phpcs', 'phpstan']);
 });
 
 test('PHP declared only by config/toolchain.json fails and requires .php-version (K283)', (t) => {
@@ -144,7 +148,7 @@ test('the PHP wrappers are removed when PHP is no longer declared (K283)', (t) =
   const dir = path.join(directory, 'ci');
   for (const name of ['php', 'php-config', 'phpize']) fake(path.join(dir, name), '8.4.12');
   assert.equal(start(root, machine(dir)).status, 0);
-  assert.deepEqual(readdirSync(bin).sort(), ['mise', 'php', 'php-config', 'phpize']);
+  assert.deepEqual(readdirSync(bin).sort(), ['mise', 'php', 'php-config', 'phpcs', 'phpize', 'phpstan']);
   rmSync(path.join(root, '.php-version'));
   const result = start(root, machine(dir));
   assert.equal(result.status, 0, result.stderr);
@@ -162,5 +166,5 @@ test('toolchain-check refuses php-fpm and php-cgi from PATH, and install-php wra
   rmSync(fpm);
   const without = start(root, machine(path.join(prefix, 'bin')));
   assert.equal(without.status, 0, without.stderr);
-  assert.deepEqual(readdirSync(bin).sort(), ['mise', 'php'], 'no php-fpm wrapper without sbin/php-fpm, and the earlier one is removed');
+  assert.deepEqual(readdirSync(bin).sort(), ['mise', 'php', 'phpcs', 'phpstan'], 'no php-fpm wrapper without sbin/php-fpm, and the earlier one is removed');
 });

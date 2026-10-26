@@ -67,11 +67,11 @@ match; `php-config --version` must have the same minor, and a repository with `p
 (`php<minor>-dev` or `brew reinstall php@<minor>`). No match fails with the attempts in order, `.php-version` and the install
 command (`brew install php@<minor>` or `apt install php<minor>-cli`).
 
-A repository with PHP installs uses `make install-tools` to install the pinned PHP-Parser that its PHP `gen_stub.php` requires.
+A repository with `packages/php-ext` uses `make install-tools` to install the pinned PHP-Parser that its PHP `gen_stub.php` requires. A PHP library without an extension needs no arginfo generator or extension development tools. Kit declares its own extension-fixture preparation with `make kit-install-php-arginfo`; `make install` and CI run that target explicitly.
 Kit stages that installed parser beside the matching generator under `var/tools/php-arginfo`; builds and `make php-ext-arginfo`
 run the generator offline in a temporary source copy, and `make php-ext-arginfo` publishes only to ignored `var/php-ext/arginfo`.
 `make toolchain-check` names a missing or stale installation and says to run `make install-tools` (K303, K560). The Composer
-project and lock for the parser are `scripts/kit/php-arginfo`, included in the kit distribution beside the tool.
+project and lock for each parser release are under `scripts/kit/php-arginfo/<version>`, included in the kit distribution beside the tool.
 Composer release archives declare generated headers by stub and output path. Release assets generate them from the tagged stub,
 then append the staged file with Info-ZIP (`zip`) using stored entries, mode 0644 and the commit timestamp; `make release-assets`
 fails early with installation guidance when `zip` is missing. The Ubuntu release workflow checks that its runner provides `zip`

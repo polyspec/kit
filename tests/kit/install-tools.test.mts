@@ -197,11 +197,12 @@ test('a pypi: tool without the uv or the Python of mise.toml is refused before a
   assert.deepEqual(stubs.calls(), [`mise trust ${path.join(root, 'mise.toml')}`]);
 });
 
-test('the make targets install-tools and toolchain-lock run their tools online, and TOOLS=npm runs the bootstrap of KIT', () => {
-  const dry = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'ONLINE=online-wrapper', ...args], { cwd: ROOT, encoding: 'utf8' });
+test('the make targets install-tools and toolchain-lock run their tools online, and TOOLS=npm runs the bootstrap of KIT', (t) => {
+  const root = toolchainCheckout(t);
+  const dry = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(KIT, 'kit.mk'), 'KIT=scripts/kit', 'KIT_EXT=mts', 'ONLINE=online-wrapper', ...args], { cwd: root, encoding: 'utf8' });
   // The tools run with the node of the checkout by its absolute path; the bootstrap, which installs it, with the node of the
   // machine (K171), and toolchain-lock too, which writes the mise.lock that the bootstrap installs that node from (K174).
-  const node = path.join(ROOT, 'var/tools/bin/node');
+  const node = path.join(root, 'var/tools/bin/node');
   assert.equal(dry('install-tools').stdout.trim(), `online-wrapper ${node} scripts/kit/install-tools.mts`);
   assert.equal(dry('toolchain-lock').stdout.trim(), 'online-wrapper node scripts/kit/toolchain-lock.mts');
   // In kit, `make install-tools TOOLS=npm` is the first step of a checkout: install-tools.mts imports modules that import the

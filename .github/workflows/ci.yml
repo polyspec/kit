@@ -41,6 +41,8 @@ jobs:
       # var/tools; kit.mk puts their shims first on PATH in every recipe, so the tests run those tools, not the runner image's.
       - name: install tools
         run: make install-tools
+      - name: install PHP extension fixture tools
+        run: make kit-install-php-arginfo
       # cargo of the Rust pin for the tests that run cargo metadata: rustup, the one tool that the runner provides, installs the
       # channel of rust-toolchain.toml.
       - name: install rust

@@ -3,7 +3,7 @@
 // with what the PHP library declares. The extension of tests/kit/php-ext-fixture registers Polyspec\Demo\add and
 // Polyspec\Demo\Counter; it is built with the phpize, php-config and php on PATH.
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -23,28 +23,22 @@ const HEADER = readFileSync(path.join(FIXTURE, 'polyspec_demo_arginfo.h'), 'utf8
 // The build tests start the PHP of the checkout, its wrappers in var/tools/bin (K393-1). The fixture checkout gets wrappers that
 // run the PHP of kit's own var/tools/bin, the PHP of .php-version, whose gen_stub.php needs the PHP-Parser that kit pins; the PHP
 // first on PATH may be another release (K630).
-function phpWrappers(root: string, from?: string) {
+function phpWrappers(root: string) {
   const bin = path.join(root, 'var/tools/bin');
   mkdirSync(bin, { recursive: true });
-  const programs: Record<string, string> = {};
   for (const name of ['php', 'php-config', 'phpize']) {
-    const real = from === undefined ? toolsPath(ROOT, 'bin', name) : path.join(from, name);
-    programs[name] = real;
+    const real = toolsPath(ROOT, 'bin', name);
     writeFileSync(path.join(bin, name), `#!/bin/sh\nexec '${real}' "$@"\n`);
     chmodSync(path.join(bin, name), 0o755);
   }
-  const phpConfig = programs['php-config'];
-  assert.ok(phpConfig);
-  const prefix = execFileSync(phpConfig, ['--prefix'], { encoding: 'utf8' }).trim();
-  const generator = path.join(prefix, 'lib/php/build/gen_stub.php');
-  const source = readFileSync(generator, 'utf8');
-  const version = /\$version\s*=\s*"(\d+\.\d+\.\d+)"/.exec(source)?.[1];
-  assert.ok(version, `${generator} declares the PHP-Parser release`);
-  const parser = path.join(path.dirname(generator), `PHP-Parser-${version}`);
+  const generator = genStub(root);
+  const staged = installedGenStub(ROOT);
+  assert.equal(generator.parser, staged.parser);
+  const parser = path.join(path.dirname(staged.file), `PHP-Parser-${staged.parser}`);
   const target = path.join(root, 'var/tools/php-arginfo');
   mkdirSync(target, { recursive: true });
-  cpSync(generator, path.join(target, 'gen_stub.php'));
-  cpSync(path.join(parser, 'lib/PhpParser'), path.join(target, `PHP-Parser-${version}/lib/PhpParser`), { recursive: true });
+  cpSync(generator.file, path.join(target, 'gen_stub.php'));
+  cpSync(path.join(parser, 'lib/PhpParser'), path.join(target, `PHP-Parser-${staged.parser}/lib/PhpParser`), { recursive: true });
 }
 
 // The files of a repository whose extension follows S10, as { path: text }.
@@ -459,12 +453,12 @@ test('the compare of test-php-ext fails on a class, function or constant that th
 // K637: the gen_stub.php of each PHP names the PHP-Parser release it runs with (PHP 8.4: 5.0.0, PHP 8.5: 5.6.1); install-tools stages that
 // release from the locked Composer project of kit for it, so a repository that declares PHP 8.5 installs as one that declares 8.4.
 test('install-tools stages the PHP-Parser that the gen_stub.php of the declared PHP names (K637)', (t) => {
-  const php85 = ['/opt/homebrew/opt/php@8.5/bin', '/opt/homebrew/opt/php/bin'].find(dir => existsSync(path.join(dir, 'php-config'))
-    && execFileSync(path.join(dir, 'php-config'), ['--version'], { encoding: 'utf8' }).startsWith('8.5.'));
-  assert.ok(php85, 'PHP 8.5 is installed: brew install php@8.5');
   const root = tree(t, { '.php-version': '8.5\n', 'mise.toml': '' });
-  phpWrappers(root, php85);
-  rmSync(path.join(root, 'var/tools/php-arginfo'), { recursive: true, force: true });
+  const prefix = path.join(root, 'php85');
+  put(root, { 'php85/lib/php/build/gen_stub.php': '<?php $version = "5.6.1";\n' });
+  const phpConfig = path.join(root, 'var/tools/bin/php-config');
+  mkdirSync(path.dirname(phpConfig), { recursive: true });
+  writeFileSync(phpConfig, `#!/bin/sh\ntest "$1" = --prefix || exit 97\nprintf '%s\\n' '${prefix}'\n`, { mode: 0o755 });
   const composer = path.join(root, 'var/tools/mise/shims/composer');
   mkdirSync(path.dirname(composer), { recursive: true });
   // The fake Composer installs the parser of the lock it finds, so the staged release is the one that the chosen lock pins.

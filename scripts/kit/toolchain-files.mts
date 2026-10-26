@@ -33,7 +33,7 @@ export const readTomlFile = (root: string, file: string): TomlTable => readToml(
 /** A module version of `go mod edit -json`; a replacement by a directory has no version. */
 type GoModuleVersion = { Path: string; Version?: string };
 /** A go.mod as `go mod edit -json` prints it; go-mod.schema.json. */
-type GoMod = { Module: { Path: string }; Go?: string; Toolchain?: string; Require?: (GoModuleVersion & { Version: string; Indirect?: boolean })[]; Replace?: { Old: GoModuleVersion; New: GoModuleVersion }[] };
+type GoMod = { Module: { Path: string }; Go?: string; Toolchain?: string; Require?: (GoModuleVersion & { Version: string; Indirect?: boolean })[] | null; Replace?: { Old: GoModuleVersion; New: GoModuleVersion }[] | null };
 /** A package of `cargo metadata --no-deps`; cargo-metadata.schema.json. */
 type CargoPackage = { manifest_path: string; version: string; rust_version: string | null };
 

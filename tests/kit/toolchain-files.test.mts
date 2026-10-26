@@ -2,20 +2,21 @@
 // a form that a regular expression misread before (a comment after the value) reads as the tool reads it. The Go release is
 // a tool of mise.toml (toolchain-mise.test.mts).
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { declaredRust, goWorkFile, readGoMod } from '../../scripts/kit/toolchain-files.mts';
 import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
+import { miseWhere } from '../../scripts/kit/bootstrap/install-mise.mts';
+import { toolsRoot } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
 const GO_ENV = { ...process.env, GOTOOLCHAIN: 'local' };
 
 // The go of a checkout is the shim of mise in var/tools/mise/shims (K393-1). These tests read a go.mod with the real go, so the shim
-// runs the go of PATH; the test's purpose is the reading, not where its go comes from.
+// runs the Go installed by mise in the main checkout, resolved by mise itself; a PATH shim must not read the test checkout's config.
 function goShim(root: string) {
-  const real = execFileSync('/bin/sh', ['-c', 'command -v go'], { encoding: 'utf8' }).trim();
+  const real = path.join(miseWhere(toolsRoot(repositoryRoot()), 'go'), 'bin/go');
   mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
   const shim = path.join(root, 'var/tools/mise/shims/go');
   writeFileSync(shim, `#!/bin/sh\nexec '${real}' "$@"\n`);
@@ -24,7 +25,7 @@ function goShim(root: string) {
 }
 
 test('go workspace discovery uses the checkout mise environment when the caller has none (K476)', () => {
-  const root = repositoryRoot();
+  const root = toolsRoot(repositoryRoot());
   const environment = { PATH: process.env.PATH ?? '' };
   const workspace = goWorkFile(root, 'scripts/kit/symbols/go', environment);
   assert.ok(workspace === null || path.isAbsolute(workspace), `unexpected go env GOWORK output ${JSON.stringify(workspace)}`);
@@ -35,6 +36,18 @@ test('a go.mod is read by go mod edit -json, so a comment after the go line read
   const mod = readGoMod(root, 'packages/a/go.mod', GO_ENV);
   assert.equal(mod.Go, '1.27.2');
   assert.equal(mod.Toolchain, 'go1.27.2');
+  assert.deepEqual(mod.Require ?? [], [], 'the module has no require directives');
+  assert.deepEqual(mod.Replace ?? [], [], 'the module has no replace directives');
+});
+
+test('null require and replace directives from go mod edit -json are empty directive sets (K661-1)', (t) => {
+  const root = toolchainCheckout(t, { 'packages/a/go.mod': 'module example.com/a\n' });
+  const bin = path.join(root, 'var/tools/mise/shims');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(path.join(bin, 'go'), '#!/bin/sh\nprintf \'%s\\n\' \'{"Module":{"Path":"example.com/a"},"Require":null,"Replace":null}\'\n', { mode: 0o755 });
+  const mod = readGoMod(root, 'packages/a/go.mod', GO_ENV);
+  assert.equal(mod.Require, null);
+  assert.equal(mod.Replace, null);
 });
 
 test('a go.mod that go cannot read fails with the file and the cause', (t) => {

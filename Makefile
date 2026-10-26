@@ -67,6 +67,11 @@ typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.j
 install: install-kit kit-install ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools, then the steps of the repository; ONLINE
 kit-install: install-kit ## The install step of kit after its bootstrap: the packages of the PHP symbol extractor (kit-install-symbols-php); ONLINE
 	$(MAKE) --no-print-directory kit-install-symbols-php
+	$(MAKE) --no-print-directory kit-install-php-arginfo
+
+.PHONY: kit-install-php-arginfo
+kit-install-php-arginfo: ## Install the declared PHP generator and its paired parser for the PHP extension fixtures; ONLINE
+	$(ONLINE) $(NODE) scripts/kit/install-php-arginfo.mts
 install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order; a worktree installs nothing (K519); ONLINE
 ifneq ($(KIT_WORKTREE),)
 	@echo "[install-kit] $(CURDIR) is a worktree, which installs nothing: it runs the tools of the main checkout $(KIT_MAIN_CHECKOUT), and make worktree-setup links its node_modules to the main checkout's (K519)" >&2
