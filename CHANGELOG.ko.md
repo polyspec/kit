@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c7ba9307a9f1bbb5a82bd6366ecf5fe6bec2e7cf80844afc6a7d5fc5b35f2d95 -->
+<!-- source-sha256: 715ab3ff153f92e87603b8b7942daee83d24191d2f786b2e5f8df3a2efd8ae9f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- fresh-checkout 검증은 setup에서 설치와 build를 수행한 뒤 공개 tracked-files API를 소비하며 kit-test나 source-test를 재귀 실행하지 않는다. smoke helper는 process group 정리, 실패한 command와 양쪽 output stream을 유지한다. Red: K659 회귀 검사는 kit-test trap을 실행하여 exit 43으로 실패했다. Green: 선택한 smoke·진단 case 8개와 typecheck가 통과한다. setup 경계 통합과 디스크 공간 확보 후 실제 fresh-checkout 검증은 설치·build 54.4초, API case 0.1초, teardown 3.0초로 통과했다. 전체 실행 결과는 2 passed, 0 failed, 0 timed out이며 재귀 suite는 실행하지 않았다(K659).
 - fresh-checkout 검증은 setup에서 설치와 build를 수행한 뒤 공개 tracked-files API를 소비하며 kit-test나 source-test를 재귀 실행하지 않는다. smoke helper는 process group 정리, 실패한 command와 양쪽 output stream을 유지한다. Red: K659 회귀 검사는 kit-test trap을 실행하여 exit 43으로 실패했다. Green: 선택한 smoke·진단 case 8개와 typecheck가 통과한다. runner setup 경계 통합 후 실제 fresh 설치 smoke는 npm bootstrap과 package 설치를 통과하지만 로컬 디스크 공간 부족으로 tool 설치에 실패하므로 package API 통합 검증은 남아 있다(K659).
 - fresh-checkout 검증은 setup에서 설치와 build를 수행한 뒤 공개 tracked-files API를 소비하며 kit-test나 source-test를 재귀 실행하지 않는다. smoke helper는 process group 정리, 실패한 command와 양쪽 output stream을 유지한다. Red: K659 회귀 검사는 kit-test trap을 실행하여 exit 43으로 실패했다. Green: 선택한 smoke·진단 case 8개와 typecheck가 통과한다. 실제 fresh 설치 smoke는 runner의 30초 setup-gap 거부에 걸리므로 runner 통합 검증은 남아 있다(K659).
 - Python worktree 환경은 명시적인 offline freeze requirements로 uv가 만들고 설치한다. main checkout 내부의 editable project 경로만 worktree로 대응시킨다. uv가 configuration, script, 설치 metadata를 관리하며 main 환경과 공유 tool cache는 유지한다. 기존 legacy 환경은 변경 전에 거부하고 설치 실패는 uv 진단을 유지한다. Red: 부모 commit에서 K533 owner test는 native requirements 기록이 없어 실패했다. Green: 선택한 Python owner test 4개와 실제 uv source test 1개가 통과한다(K657-4).
