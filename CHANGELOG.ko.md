@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2b278bda94de80c7a4bb0246e5650144ac29550c301df4b9f5d13f5685895228 -->
+<!-- source-sha256: f1f3a8b416800f89e701dd2d20ca2033e8b9952c0d98b72c073d49a87bb2a599 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Workspace hook 탐색은 중첩 checkout을 포함해 명시된 GitHub Actions checkout을 대화형 개발 workspace와 구분한다. Writer와 checker는 같은 판정을 사용한다. Dependency-link 검사는 유지되고 runner checkout 밖의 workspace는 누락·변조·실행 불가 hook을 계속 거부한다. Red: fc0fccc2에서 root·nested runner case가 실패한다. Green: 소유 link case 11개와 typecheck, docs-check가 통과한다(K661-6).
 - Dependency review fixture는 새 release가 있더라도 advisory가 없는 완전한 review를 허용하고 새 release 정보와 update 안내 assertion을 유지한다. Red: fc0fccc2에서 소유 case 5개 실패; Green: 선택한 case 5개 통과 (K661-5).
 - Git 테스트 샌드박스는 기계 기본값과 무관하게 main으로 초기화하고 명시한 브랜치 옵션은 보존한다. fixture 여섯 파일이 공통 네이티브 초기화기를 사용해 자동 유지보수를 끄고 테스트 신원을 저장소 안에 둔다. Red: c3f0a859에서 init.defaultBranch=master일 때 K524·K583·공통 초기화기 검사가 실패했다. Green: 같은 기본값에서 소유 plan·sandbox 검사 7개가 통과한다 (K661-4).
 - Local-link 절차는 native source 개발과 CI의 정확한 배포 dependency 설치를 구분하고 dependency release를 독립적으로 진행하도록 정리합니다. native npm link, 앱이 선언한 Composer path repository와 개발 lock, uv editable 및 offline worktree environment를 설명합니다. 개발 규칙은 비표준 package 관리 요청의 이탈 지점을 보고하고 정석 대안을 제시하도록 명시합니다. 영어/한국어 문서는 docs-check를 통과합니다(K657).

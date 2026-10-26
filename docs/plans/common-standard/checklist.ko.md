@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 061f5586136eddcf6c621cdfb675b4b1e7bde68a40e8cf48c59ede52f17f167c -->
+<!-- source-sha256: 35972af128f02931e14794c4091c1113cf11bca64c547dab0ea6ccd5d4bb36ca -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -571,6 +571,7 @@
 | K660 | release dependency 검사는 최신 release 강제 없이 version 선택과 별도로 알려진 취약점을 거부한다 | scripts/kit/check-dependency-policy.mts, scripts/kit/dependency-review.mts, tests/kit/dependency-advisory.test.mts, mise.toml and mise.lock | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-advisory.test.mts` | [o] |
 | K661 | CI fixture와 tool 입력은 지원 platform에서 native tool 계약과 선언된 capability를 따른다 | scripts/kit, tests/kit, tests/source, config/release.json | `make docs-check` | [ ] |
 | K661-5 | Review 소유 fixture에서 새 dependency release는 정보로 유지하고 불완전 query와 알려진 advisory는 계속 실패한다 | tests/kit/dependency-go.test.mts, tests/kit/dependency-review.test.mts, tests/kit/python-lock.test.mts | 선택한 review unit case 5개: fc0fccc2에서 Red 5개 실패; Green 5개 통과 | [o] |
+| K661-6 | Workspace hook writer와 checker는 명시된 GitHub Actions checkout을 job 입력으로 판단하며 local hook과 모든 dependency-link 검사를 유지한다 | scripts/kit/link.mts, scripts/kit/link-state-check.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K661-6 tests/kit/link.test.mts`; existing K440 owning cases | [o] |
 | K661-3 | 실제 tool source fixture는 완전한 native package와 requirement 입력을 선언하고 설치된 tool 경로를 사용한다 | tests/source/real-tools.mts, tests/source/parity-real.test.mts, tests/source/layout-real.test.mts, tests/source/lint-ts-real.test.mts, tests/source/symbols-php-real.test.mts, tests/source/php-library-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K33 reads the output\|R3: a unittest\|a feature unit\|python extractor\|K42 reads\|passes on a repository\|root files in vars\|root composer\|retired Composer\|docblock carries\|word internal\|public signature\|tests of the library\|catch with a stated\|leaves out the copies" tests/source/parity-real.test.mts tests/source/layout-real.test.mts tests/source/lint-ts-real.test.mts tests/source/symbols-php-real.test.mts tests/source/php-library-real.test.mts` | [o] |
 | K661-4 | 테스트 샌드박스 저장소는 main 브랜치를 명시하고 모든 Git fixture는 공통 네이티브 초기화기를 사용한다 | tests/kit/sandbox-repository.mts와 소유 Git fixture 테스트 | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K524\|K583\|K661-4\|sandbox repository\|sandbox repositories\|every Git repository\|the scan" tests/kit/plan.test.mts tests/kit/sandbox-repository.test.mts` | [o] |
 | K662 | 개별 test watchdog은 실행 중인 test case에 적용하며 case 시작 전의 긴 설치와 setup 작업에 적용하지 않는다 | scripts/kit/test-hooks.mts, test-gap.mts, test-exit-deadline.mts, node-reporter.mts and their owning unit tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K662 tests/kit/run-tests.test.mts tests/kit/test-exit-deadline.test.mts` | [o] |

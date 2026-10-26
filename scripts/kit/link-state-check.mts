@@ -119,9 +119,9 @@ function workspaceLinkFindings(root: string, folders: readonly string[]): string
  * node that runs the hook is missing or not executable (kitNodeRunnable); the settings lack the hook (no PreToolUse entry runs the
  * claude-hook of the checkout); the settings hold a hook of the checkout whose entry differs from the one the writer writes.
  */
-function workspaceHookFindings(root: string): string[] {
+function workspaceHookFindings(root: string, env: NodeJS.ProcessEnv): string[] {
   const workspace = workspaceOf(root);
-  const kit = kitHookCheckout(workspace);
+  const kit = kitHookCheckout(workspace, env);
   if (kit === undefined) return [];
   const found: string[] = [];
   if (!kitNodeRunnable(kit)) found.push(`${path.join(kit, 'var/tools/bin/node')}: the node of the kit checkout is missing or not executable, so the Claude Code hook cannot run (K440-2); fix: make -C ${realpathSync(kit)} install-tools`);
@@ -214,7 +214,7 @@ function folderLinkFindings(root: string, folders: readonly string[]): string[] 
  */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const folders = manifestFolders(root);
-  return [...trackedLockFindings(root), ...folderLinkFindings(root, folders), ...workspaceHookFindings(root), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
+  return [...trackedLockFindings(root), ...folderLinkFindings(root, folders), ...workspaceHookFindings(root, env), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
 }
 
 if (isMain(import.meta.url)) {

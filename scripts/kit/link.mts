@@ -675,10 +675,19 @@ const KIT_HOOK = 'scripts/kit/claude-hook.mts';
 // The node of a kit checkout that runs the hook: installed by make install-tools (K171, K440-2).
 const KIT_NODE = 'var/tools/bin/node';
 
-/** The kit checkout of `workspace` whose claude-hook exists, or undefined when the workspace has none, as in CI. */
-export function kitHookCheckout(workspace: string): string | undefined {
+/**
+ * The kit checkout of a development workspace whose claude-hook exists. A kit inside the explicit GitHub Actions checkout
+ * is a job input, including a nested checkout, rather than an interactive workspace; only its workspace hook is inapplicable.
+ */
+export function kitHookCheckout(workspace: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
   const kit = path.join(workspace, 'kit');
-  return existsSync(path.join(kit, KIT_HOOK)) ? kit : undefined;
+  if (!existsSync(path.join(kit, KIT_HOOK))) return undefined;
+  const checkout = env.GITHUB_WORKSPACE;
+  if (env.GITHUB_ACTIONS === 'true' && checkout && path.isAbsolute(checkout) && existsSync(checkout)) {
+    const relative = path.relative(realpathSync(checkout), realpathSync(kit));
+    if (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)) return undefined;
+  }
+  return kit;
 }
 
 /**
@@ -726,8 +735,8 @@ export const workspaceSettings = (workspace: string): Record<string, unknown> =>
  * The node of the checkout is checked first: while it is missing or not executable the write is refused and the settings file is left
  * as it is (K440-2).
  */
-export function writeWorkspaceHook(workspace: string): string | undefined {
-  const kit = kitHookCheckout(workspace);
+export function writeWorkspaceHook(workspace: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const kit = kitHookCheckout(workspace, env);
   if (kit === undefined) return undefined;
   if (!kitNodeRunnable(kit)) throw new Error(`${path.join(kit, KIT_NODE)} is missing or not executable, so the Claude Code hook cannot run; run make -C ${realpathSync(kit)} install-tools`);
   const file = path.join(workspace, '.claude/settings.json');

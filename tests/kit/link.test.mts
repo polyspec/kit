@@ -14,7 +14,7 @@ import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
 import { composerInstall, composerLink } from '../../scripts/kit/composer-install.mts';
 import { linkFindings } from '../../scripts/kit/link-state-check.mts';
-import { cargo, link, unlink } from '../../scripts/kit/link.mts';
+import { cargo, link, unlink, writeWorkspaceHook } from '../../scripts/kit/link.mts';
 import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
@@ -810,6 +810,37 @@ test('link-state-check reports a node that is not executable with its own messag
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, new RegExp(`make -C ${realpathSync(kit).replaceAll('.', '\\.')} install-tools`));
   assert.equal(readFileSync(file, 'utf8'), before);
+});
+
+// A runner checkout is an explicit job input, not the folder of an interactive development session.
+for (const nested of [false, true]) {
+  test(`a ${nested ? 'nested' : 'root'} runner checkout needs no workspace hook and still checks dependency links (K661-6)`, (t) => {
+    const { root, kit, env } = workspace(t);
+    hookCheckout(kit);
+    const runner = { ...env, GITHUB_ACTIONS: 'true', GITHUB_WORKSPACE: nested ? root : kit };
+    assert.equal(writeWorkspaceHook(root, runner), undefined);
+    assert.equal(existsSync(path.join(root, '.claude/settings.json')), false);
+    assert.deepEqual(linkFindings(kit, runner), []);
+    put(kit, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
+    git(kit, 'add', 'Cargo.lock');
+    assert.ok(linkFindings(kit, runner).some(finding => finding.includes('polyspec-prov') && finding.includes('records no source')), 'the dependency release-record check remains active in a runner checkout');
+  });
+}
+
+test('a workspace outside the runner checkout retains missing, modified and non-executable hook checks (K661-6)', (t) => {
+  const { root, kit, consumer, env } = workspace(t);
+  hookCheckout(kit);
+  const runner = { ...env, GITHUB_ACTIONS: 'true', GITHUB_WORKSPACE: consumer };
+  assert.match(settingsFindings(consumer, runner).join('\n'), /no Bash PreToolUse hook/);
+  assert.equal(writeWorkspaceHook(root, runner), workspaceSettingsFile(consumer));
+  assert.deepEqual(settingsFindings(consumer, runner), []);
+  writeFileSync(workspaceSettingsFile(consumer), JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'old/scripts/kit/claude-hook.mts' }] }] } }));
+  assert.match(settingsFindings(consumer, runner).join('\n'), /differs from the entry/);
+  writeWorkspaceHook(root, runner);
+  rmSync(path.join(kit, 'var/tools/bin/node'));
+  writeFileSync(path.join(kit, 'var/tools/bin/node'), '#!/bin/sh\n', { mode: 0o644 });
+  assert.match(linkFindings(consumer, runner).join('\n'), /node of the kit checkout is missing or not executable/);
+  assert.throws(() => writeWorkspaceHook(root, runner), /missing or not executable/);
 });
 
 // K448-5: cargo links the sibling crates from the start. make cargo-fetch runs cargo fetch of the project through the link, with
