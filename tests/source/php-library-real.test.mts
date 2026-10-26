@@ -9,6 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { initRepository } from '../kit/sandbox-repository.mts';
 import { put } from '../kit/tree.mts';
 import { sandboxMise, sandboxShims } from './real-tools.mts';
@@ -30,7 +31,7 @@ function checkout(t: { after: (callback: () => void) => void }): string {
   });
   // The vendor directory that composer install gives the library: the packages of the PHPUnit of kit, linked, and an autoloader that
   // also holds the autoload of the library, which Composer dumps over them.
-  const tools = path.join(ROOT, 'var/tools/phpunit/vendor');
+  const tools = toolsPath(ROOT, 'phpunit/vendor');
   const vendor = path.join(root, 'packages/php/vendor');
   mkdirSync(path.join(vendor, 'composer'), { recursive: true });
   for (const entry of readdirSync(tools)) if (!['composer', 'autoload.php', 'bin'].includes(entry)) symlinkSync(realpathSync(path.join(tools, entry)), path.join(vendor, entry));
@@ -38,8 +39,9 @@ function checkout(t: { after: (callback: () => void) => void }): string {
   // The proxy of Composer: PHPUnit takes the autoloader of the library, which holds the autoload of the library.
   mkdirSync(path.join(vendor, 'bin'), { recursive: true });
   writeFileSync(path.join(vendor, 'bin/phpunit'), `#!/usr/bin/env php\n<?php\n$GLOBALS['_composer_autoload_path'] = __DIR__ . '/../autoload.php';\ninclude ${JSON.stringify(path.join(realpathSync(tools), 'phpunit/phpunit/phpunit'))};\n`, { mode: 0o755 });
-  sandboxShims(root, ['composer']);
+  sandboxShims(root, ['composer', 'php']);
   sandboxMise(root);
+  writeFileSync(path.join(root, 'var/tools/bin/php'), `#!/bin/sh\nexec '${path.join(root, 'var/tools/mise/shims/php')}' "$@"\n`, { mode: 0o755 });
   const dumped = spawnSync(path.join(root, 'var/tools/mise/shims/composer'), ['dump-autoload', '--dev', '--no-scripts', '--no-interaction', '--working-dir', path.join(root, 'packages/php')], { encoding: 'utf8' });
   assert.equal(dumped.status, 0, dumped.stdout + dumped.stderr);
   mkdirSync(path.join(root, 'var'), { recursive: true });

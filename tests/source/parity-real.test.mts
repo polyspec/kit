@@ -11,6 +11,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { checkParity } from '../../scripts/kit/parity.mts';
 import { installExtractor } from '../../scripts/kit/install-symbols.mts';
+import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { tree } from '../kit/tree.mts';
 import { sandboxMise, sandboxShims } from './real-tools.mts';
@@ -19,7 +20,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 /** The directory of the PHPUnit of the checkout: `make install-tools` installs it into var/tools/phpunit. */
 function phpunitVendor() {
-  const vendor = path.join(ROOT, 'var/tools/phpunit/vendor');
+  const vendor = toolsPath(ROOT, 'phpunit/vendor');
   if (!existsSync(path.join(vendor, 'bin/phpunit'))) assert.fail(`${path.relative(ROOT, vendor)}/bin/phpunit does not exist; run make install-tools`);
   return vendor;
 }
@@ -87,7 +88,9 @@ test('K33 reads the output of real node, go, cargo, unittest and PHPUnit runs th
     'rust/Cargo.toml': '[package]\nname = "codec"\nversion = "0.1.0"\nedition = "2021"\n',
     'rust/src/lib.rs': '',
     'rust/tests/codec.rs': 'mod vectors {\n    #[test]\n    fn empty() {}\n\n    #[test]\n    fn ascii() {}\n}\n',
+    'ts/package.json': '{"name":"codec","version":"0.1.0","type":"module"}\n',
     'ts/tests/codec.mjs': "import test from 'node:test';\ntest('empty', () => {});\ntest('ascii', () => {});\n",
+    'python/pyproject.toml': '[project]\nname = "codec"\nversion = "0.1.0"\n',
     'python/tests/test_codec.py': 'import unittest\n\n\nclass Codec(unittest.TestCase):\n    def test_empty(self):\n        pass\n\n    def test_ascii(self):\n        pass\n',
     'docs/spec/codec.md': SPEC,
     'config/parity.json': `${declared(REAL_CONFIG)}`,
@@ -145,6 +148,7 @@ test('R3: a unittest expected failure is a todo, which is no pass, so its case f
   const root = tree(t, {
     '.gitignore': 'var/\n',
     'tests/vectors/codec.json': JSON.stringify({ requirement: 'CX-1', vectors: [{ name: 'empty' }, { name: 'known' }] }),
+    'python/pyproject.toml': '[project]\nname = "codec"\nversion = "0.1.0"\n',
     'python/tests/test_codec.py': 'import unittest\n\n\nclass Codec(unittest.TestCase):\n    def test_empty(self):\n        pass\n\n    @unittest.expectedFailure\n    def test_known(self):\n        self.fail("not yet")\n',
     'docs/spec/codec.md': SPEC,
     'config/parity.json': `${declared(UNITTEST_CONFIG)}`,
@@ -166,7 +170,9 @@ test('a feature unit holds on the ids that real go, cargo, node and unittest run
     'rust/Cargo.toml': '[package]\nname = "codec"\nversion = "0.1.0"\nedition = "2021"\n',
     'rust/src/lib.rs': '',
     'rust/tests/roundtrip.rs': '// CX-1\nmod roundtrip {\n    #[test]\n    fn bytes() {}\n}\n',
+    'ts/package.json': '{"name":"codec","version":"0.1.0","type":"module"}\n',
     'ts/tests/roundtrip.test.mjs': "// CX-1\nimport { describe, test } from 'node:test';\ndescribe('roundtrip', () => {\n  describe('nested', () => {\n    test('bytes', () => {});\n  });\n});\n",
+    'python/pyproject.toml': '[project]\nname = "codec"\nversion = "0.1.0"\n',
     'python/tests/test_roundtrip.py': '# CX-1\nimport unittest\n\n\nclass Roundtrip(unittest.TestCase):\n    def test_bytes(self):\n        pass\n',
     'docs/spec/codec.md': SPEC,
     'config/parity.json': `${declared({
@@ -207,6 +213,7 @@ test('the python extractor reads the public symbols of a package with ast: __all
   const files = {
     '.gitignore': 'var/\n',
     'docs/spec/codec.md': SPEC,
+    'python/pyproject.toml': '[project]\nname = "codec"\nversion = "0.1.0"\n',
     'python/tests/test_trace.py': '# CX-1\nimport unittest\n\n\nclass Trace(unittest.TestCase):\n    def test_trace(self):\n        pass\n',
     'python/src/codec/__init__.py': 'from .core import Codec, encode\n\n__all__ = ["encode", "Codec"]\n',
     'python/src/codec/core.py': 'import json\n\nLIMIT = 3\n_CACHE = {}\n\n\ndef encode(value):\n    return json.dumps(value)\n\n\ndef _split(value):\n    return value\n\n\nclass Codec:\n    def decode(self, text):\n        return text\n\n    def _hidden(self):\n        pass\n\n\nclass _Private:\n    def visible(self):\n        pass\n',
@@ -355,9 +362,9 @@ test('the rust extractor reads the public API of a crate from the rustdoc JSON o
 test('K42 reads the case directories of a suite from real go as nested subtests', { timeout: 300_000 }, (t) => {
   const root = tree(t, {
     '.gitignore': 'var/\n',
-    'tests/cases/echo/html-escape-five-chars/case.json': '{}\n',
-    'tests/cases/echo/bool/case.json': '{}\n',
-    'tests/cases/if/true/case.json': '{}\n',
+    'tests/cases/echo/html-escape-five-chars/case.json': '{"requirements":["CX-1"]}\n',
+    'tests/cases/echo/bool/case.json': '{"requirements":["CX-1"]}\n',
+    'tests/cases/if/true/case.json': '{"requirements":["CX-1"]}\n',
     'go/go.mod': 'module example.com/cases\n\ngo 1.21\n',
     'go/cases_test.go': [
       '// CX-1', 'package cases', '', 'import "testing"', '',
@@ -378,6 +385,7 @@ test('K42 reads the case directories of a suite from real go as nested subtests'
       units: [{ id: 'cases', kind: 'suite', file: 'tests/cases', cases: '*/*', bindings: [{ implementation: 'go', test: 'go/cases_test.go', symbol: 'TestCases' }] }],
     })}`,
   });
+  giveTools(root);
   const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`).sort(), ['echo/bool pass', 'echo/html-escape-five-chars pass', 'if/true pass']);

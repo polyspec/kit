@@ -1,22 +1,23 @@
 // The PHP symbol extractor on real PHP sources (K307): a symbol whose docblock carries @internal, as phpstan and psalm read it, is
-// no public API. The extractor runs on the php-parser of var/tools/symbols-php, which `make install-tools` installs.
+// no public API. The extractor runs on the php-parser of scripts/kit/symbols/php/vendor, which `make kit-install-symbols-php` installs.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { installedBinary } from './real-tools.mts';
 import { tree } from '../kit/tree.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const AUTOLOAD = path.join(ROOT, 'var/tools/symbols-php/vendor/autoload.php');
+const AUTOLOAD = path.join(ROOT, 'scripts/kit/symbols/php/vendor/autoload.php');
 
 /** The public symbol ids that the extractor gives for the PHP files `files`. */
 function symbolsOf(t: Parameters<typeof tree>[0], files: Record<string, string>, extra: string[] = []): string[] {
-  if (!existsSync(AUTOLOAD)) assert.fail(`${path.relative(ROOT, AUTOLOAD)} does not exist; run make install-tools`);
+  if (!existsSync(AUTOLOAD)) assert.fail(`${path.relative(ROOT, AUTOLOAD)} does not exist; run make kit-install-symbols-php`);
   const root = tree(t, files);
-  const run = spawnSync('php', [path.join(ROOT, 'scripts/kit/symbols/php/extract.php'), AUTOLOAD, root, ...extra], { encoding: 'utf8' });
+  const run = spawnSync(installedBinary('php'), [path.join(ROOT, 'scripts/kit/symbols/php/extract.php'), AUTOLOAD, root, ...extra], { encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   return parseJson<string[]>(run.stdout, 'symbol-ids.schema.json', 'extract.php');
 }

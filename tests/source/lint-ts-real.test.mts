@@ -5,7 +5,7 @@
 // rule or the message that names it, including the undocumented export of the plan's verification. Nothing is stubbed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -90,7 +90,7 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
 // TypeScript that a consumer holds (kit.copies, which kit-sync writes): the path in the consumer and the file of kit.
 const KIT = readFixture<{ version: string; kit: { copies: Record<string, string> } }>(ROOT, 'package.json');
 const KIT_COPIES = Object.entries(KIT.kit.copies).filter(([file]) => file.endsWith('.mts'));
-const COPY = 'scripts/kit/bootstrap/digest.mts';
+const COPY = 'scripts/kit/legacy-helper.mts';
 
 /** Writes `files` below `root`. */
 function write(root: string, files: Record<string, string>) {
@@ -107,7 +107,7 @@ const run = (root: string, command: string, ...args: string[]) => spawnSync(path
  * checkout and its node_modules; the package is built and its API report written, as a repository commits it. `report`
  * false makes the api-extractor.json of the package turn the report off.
  */
-function repository(t: TestContext, files: Record<string, string> = {}, { report = true } = {}): string {
+function repository(t: TestContext, files: Record<string, string> = {}, { report = true, legacyCopy = false } = {}): string {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-ts-real-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const extractor = { extends: path.join(root, 'config/api-extractor.kit.json'), mainEntryPointFilePath: '<projectFolder>/dist/index.d.ts', ...(report ? {} : { apiReport: { enabled: false } }) };
@@ -124,7 +124,15 @@ function repository(t: TestContext, files: Record<string, string> = {}, { report
   for (const file of ['.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json']) copyFileSync(path.join(ROOT, file), path.join(root, file));
   mkdirSync(path.join(root, 'node_modules/@polyspec'), { recursive: true });
   for (const entry of readdirSync(path.join(ROOT, 'node_modules'))) symlinkSync(path.join(ROOT, 'node_modules', entry), path.join(root, 'node_modules', entry));
-  symlinkSync(ROOT, path.join(root, 'node_modules/@polyspec/kit'));
+  const installedKit = path.join(root, 'node_modules/@polyspec/kit');
+  if (legacyCopy) {
+    // Older kit releases declared TypeScript copies. Keep that supported installation contract explicit in this fixture.
+    mkdirSync(installedKit);
+    for (const entry of readdirSync(ROOT)) {
+      if (entry !== 'package.json') symlinkSync(path.join(ROOT, entry), path.join(installedKit, entry));
+    }
+    writeFileSync(path.join(installedKit, 'package.json'), JSON.stringify({ ...KIT, kit: { ...KIT.kit, copies: { ...KIT.kit.copies, [COPY]: COPY } } }));
+  } else symlinkSync(ROOT, installedKit);
   const build = run(root, 'tsc', '-p', 'tsconfig.build.json');
   assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
   // The API report that a repository commits in etc/: --local writes it, also for a planted violation, whose error still fails.
@@ -163,9 +171,9 @@ test('the TypeScript lint fails on each planted violation with the rule or the m
   }
 });
 
-// P8 (K334): a catch states its need in a comment, and a wrapped error carries its cause; both pass.
+// P8 (K334, K537, K561): a catch states why every failure means its named outcome; a wrapped error retains its cause.
 test('the TypeScript lint passes on a catch with a stated need and on an error that keeps its cause', (t) => {
-  const stated = `${DOUBLE}\n/**\n * Doubles one, or nothing.\n */\nexport function tryDouble(): void {\n  try {\n    double(1);\n  } catch {\n    // the doubling is optional here, and its failure is reported by the caller\n  }\n}\n\n/**\n * Doubles one.\n */\nexport function wrap(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw new Error('doubling failed', { cause: error });\n  }\n}\n`;
+  const stated = `${DOUBLE}\n/**\n * Doubles one, or nothing.\n */\nexport function tryDouble(): void {\n  try {\n    double(1);\n  // catch-any -- every doubling failure means that this optional attempt produces no value\n  } catch {\n    return;\n  }\n}\n\n/**\n * Doubles one.\n */\nexport function wrap(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw new Error('doubling failed', { cause: error });\n  }\n}\n`;
   const { failed, output } = lintOf(repository(t, { [INDEX]: stated, 'tests/index.test.ts': `${TESTS.replace('{ double }', '{ double, tryDouble, wrap }')}\ntest('wrap', () => {\n  tryDouble();\n  assert.equal(wrap(), 2);\n});\n` }));
   assert.deepEqual(failed, [], output);
 });
@@ -181,8 +189,7 @@ test('the TypeScript lint passes on toExponential(25), which ES2018 allows', (t)
 // The copies of kit are kit's to lint, with its tsconfig and the types of node; kit-check proves that they are its bytes. A
 // violation in a copy passes the lint of the consumer, and the same violation in a file of the consumer fails (K157).
 test('the TypeScript lint of a consumer leaves out the copies of kit and lints its own files (K157)', (t) => {
-  // kit.copies maps the copy to the same path in kit.
-  const copy = lintOf(repository(t, { [COPY]: `${readFileSync(path.join(ROOT, COPY), 'utf8')}\ndebugger;\n` }));
+  const copy = lintOf(repository(t, { [COPY]: 'export const legacy = 1;\ndebugger;\n' }, { legacyCopy: true }));
   assert.deepEqual(copy.failed, [], copy.output);
   const own = lintOf(repository(t, { 'scripts/build.mts': "console.log('build');\ndebugger;\n" }));
   assert.deepEqual(own.failed, ['oxlint'], own.output);

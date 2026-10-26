@@ -50,6 +50,7 @@ const GOOD: Record<string, string> = {
   // A repository that follows the layout ignores its install directories (K372).
   '.gitignore': 'var/\nnode_modules/\nvendor/\n.venv/\n',
   'config/layout.yml': LAYOUT,
+  'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: [] }),
   'config/parity.json': JSON.stringify({ implementations: [{ name: 'go', roots: ['packages/go'] }] }),
   // The modules of the repository resolve each other through its go.work, never a replace (.golangci.yml, gomoddirectives).
   'go.work': 'go 1.27.2\n\nuse (\n\t./packages/codec/go\n\t./packages/go\n)\n',
@@ -195,11 +196,14 @@ test('the root composer.json and composer.lock of a Composer monorepo are root f
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
 });
 
-// K423: alint finds the exclude of Git in a main checkout only, so the files that kit link writes at the root are root files of kit.
-test('the files that kit link writes at the root are root files of kit (K423)', (t) => {
+// Native Composer linking uses composer.json and composer.lock; retired shadow manifests are not repository inputs.
+test('retired Composer link manifests are rejected as undeclared root files (K661-3)', (t) => {
   const root = repository(t, { 'composer.link.json': '{}\n', 'composer.link.lock': '{}\n' });
   const result = layoutCheck(root);
-  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.notEqual(result.status, 0, result.stdout + result.stderr);
+  for (const file of ['composer.link.json', 'composer.link.lock']) {
+    assert.ok(result.stdout.includes(`${file}: error: layout-root-files:`), result.stdout + result.stderr);
+  }
 });
 
 test('make layout-check passes on this checkout', () => {

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0470afa9584f65967d6185ae0f2008d2a5247cabf91e2f60ca6ad6f1d8afddfc -->
+<!-- source-sha256: d405b703c79c167ec251a4496b3f678bde559215c8afa0fee6e140bc71254123 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 실제 tool source fixture에 ecosystem manifest, case requirement id, generated-file 선언과 native PHP wrapper를 포함한다. Worktree tool은 공유 path API로 찾고, PHP extractor의 설치된 Composer autoloader를 사용하며, 과거 선언된 copy의 lint 검증을 명시적으로 유지하고 폐기된 Composer shadow manifest를 거부한다. Red: 65582113에서 소유 fixture가 실패한다. Green: 실제 tool 소유 case 15개가 통과한다(K661-3).
 - Go module decoding은 array뿐 아니라 null Require와 Replace directive 집합도 허용합니다. PHP arginfo는 extension 개발에서만 준비하고 kit의 extension fixture는 명시적 설치 target으로 준비합니다. fixture discovery는 설치된 generator와 parser를 사용하며 parser 선택 test 입력은 platform에 의존하지 않습니다. Red: 2d18f681의 null Go 출력과 PHP library-only 설치 unit이 실패했습니다. Green: 소유 단위 test 58개와 typecheck가 통과합니다(K661-1).
 - 문서 검사는 외부 checkout 없이 명시적 외부 Markdown 항목 참조를 구분하고, bare 및 kit 항목 참조 검증을 유지한다. Release coverage는 PHP lint project를 분류하고, release workflow는 archive 사전 검사와 bootstrap 순서를 유지하며, source와 packed export를 별도로 검사하고 package build assertion은 두 PHP arginfo parser project를 가리킨다. 선택한 문서 및 workflow test와 release coverage가 통과하며 package build는 최종 suite에서 실행한다(K661-2).
 - Composer source link는 앱의 명시적 path repository와 선택한 개발 manifest를 사용하며 실제 lock, 설치 metadata, autoload는 Composer가 관리합니다. 임시 manifest, version alias, runtime record 보정은 제거했습니다. 실제 Composer/PHP 통합과 source-link 소유 case가 통과했고 release lock 설치는 별도로 유지합니다(K657-2).

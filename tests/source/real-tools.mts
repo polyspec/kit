@@ -3,15 +3,19 @@
 // gets a script for each tool, as its own shim, that runs the binary that mise installed for this checkout.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
+import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-/** The binary that mise installed for this checkout for the command `name`, which `mise which` names. */
+/** The installed wrapper of `name`, or its native binary that `mise which` resolves for this checkout. */
 export function installedBinary(name: string): string {
-  const found = spawnSync(path.join(ROOT, 'var/tools/bin/mise'), ['which', name], { cwd: ROOT, encoding: 'utf8' });
+  const wrapper = toolsPath(ROOT, 'bin', name);
+  if (existsSync(wrapper)) return wrapper;
+  const found = spawnSync(toolCommand(ROOT, 'mise'), ['which', name], { cwd: ROOT, encoding: 'utf8', env: toolsEnvironment(ROOT) });
   assert.equal(found.status, 0, `mise which ${name} failed; make install-tools installs the tools of mise.toml: ${found.stderr}`);
   return found.stdout.trim();
 }
@@ -30,5 +34,5 @@ export function sandboxShims(root: string, names: readonly string[]): void {
 export function sandboxMise(root: string): void {
   const bin = path.join(root, 'var/tools/bin');
   mkdirSync(bin, { recursive: true });
-  writeFileSync(path.join(bin, 'mise'), `#!/bin/sh\ncd '${ROOT}' && exec '${path.join(ROOT, 'var/tools/bin/mise')}' "$@"\n`, { mode: 0o755 });
+  writeFileSync(path.join(bin, 'mise'), `#!/bin/sh\ncd '${ROOT}' && exec '${toolCommand(ROOT, 'mise')}' "$@"\n`, { mode: 0o755 });
 }
