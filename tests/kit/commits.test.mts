@@ -327,6 +327,21 @@ test('commit-fix-test: a fix commit changes a test file of a runner of kit (K257
   assert.match(findings[0] ?? '', /: commit-fix-test: the fix commit changes no test file \(tests\/, \*\.test\.\*, \*_test\.go, test_\*\.py, \*Test\.php, tests\.rs, #\[cfg\(test\)\] or #\[test\] code of \*\.rs\); a fix starts with a test that reproduces the defect, or states No-Red: <reason> when no test can show it$/);
 });
 
+test('K693: a source-only fix may cite an existing valid Red result', (t) => {
+  const fixed = (body: string) => tracked(t, [
+    ['feat(core): Add behavior (#K693)', { [PLAN]: plan([['K693', '[ ]']]), 'src/a.ts': 'export const a = 1;\n', 'tests/a.test.ts': 'test existing behavior;\n' }],
+    [`fix(core): Correct behavior (#K693)\n\n${body}`, { 'src/a.ts': 'export const a = 2;\n' }],
+  ]);
+  const red = fixed('Red: make test exit 2 at f1711648');
+  assert.deepEqual(rangeFindings(red.root, 'HEAD~1..HEAD', TRACKED), []);
+
+  const missing = fixed('The existing test already covers this source-only correction.');
+  assert.match(rangeFindings(missing.root, 'HEAD~1..HEAD', TRACKED).join('\n'), /commit-fix-test:/);
+
+  const noRed = fixed('No-Red: the change only adjusts a source declaration.');
+  assert.deepEqual(rangeFindings(noRed.root, 'HEAD~1..HEAD', TRACKED), []);
+});
+
 test('commit-fix-test takes a Rust unit test: src/tests.rs and a change inside a cfg(test) module or a #[test] function (K370)', (t) => {
   const lib = (adder: string, assertion: string) => [
     `pub fn add(a: i32, b: i32) -> i32 {`,
