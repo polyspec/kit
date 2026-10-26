@@ -5,9 +5,9 @@
 
 ## Unreleased
 
-
-
 ## 0.0.55
+
+- The release candidate also retains the native Python editable overlay and platform diagnostic handling, with selected-provider completeness and control-flow regressions. Lint cleanup failures retain original diagnostics and subsequent checks. These later fixes have their own prospective child registrations and owning evidence (K655).
 
 - The corrected 0.0.55 candidate includes the native ownership, advisory, isolated-target and process-cleanup fixes. A new online native review covers all five exact locks without advisories; newer-tool notices remain informational. Owning checks are recorded above; successful candidate CI and public consumer proof remain pending (K655).
 - Pre-test builder exit triggers existing process-group cleanup while awaiting output drain, so pipe-holding descendants no longer block completion. The focused builder orphan-pipe and failed-build cases pass; changed-file type-aware lint and typecheck pass (K682-1).

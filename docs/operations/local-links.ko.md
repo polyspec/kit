@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 442ae0fc9be08b5769ca629116dccd3c3f946aa308265a4217444bfe4ec401f1 -->
+<!-- source-sha256: f3a139b830742ea4a60241a6e2772b1fde140b7074ad43924b86208f809d6642 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -23,9 +23,11 @@
 | Release 설치 | 설치 package bootstrap은 npm ci 같은 native locked 설치를 사용하며 sibling checkout이 선행 조건이 아니다. Composer는 선택한 release manifest와 lock을 설치한다. |
 | npm source helper | npm-install은 개발 source helper이며 선언된 polyspec provider는 checkout이 필요하다. Release용 install-packages와 별개이고 설치와 link는 native npm이 소유한다. |
 | Composer source helper | 앱이 manifest와 path repository를 선택하고 native Composer가 호환되는 requirement를 해석한다. 로컬 provider가 없으면 일반 locked 설치를 사용할 수 있다. |
-| Python source helper | 앱이 uv path/workspace source를 선언하고 native 개발 lock을 준비한다. uv sync --locked와 uv pip check는 설치 distribution을 검증한다. |
+| Python source helper | Native locked sync가 선택한 local provider를 제외하고 offline uv pip editable 설치가 실제 metadata를 쓴다. pip check는 설치 distribution을 검증하고 선택 provider 전부가 실제 source path에 있어야 한다. Release 선언과 lock은 유지한다(K689/K689-1). |
 
 link-check와 link-state-check는 source 연결을 설명하며 모든 version과 peer dependency를 해석하는 공통 solver가 아니다. Native 검사에서 확인했듯 npm link는 호환되지 않는 peer를 허용할 수 있으며 필요한 경우 native 진단은 npm ls --all이다. Kit 전용 resolver나 위장된 설치 version으로 불일치를 보정하지 않는다. Composer와 uv 실패도 숨기지 않는다.
+
+Editable overlay는 locked sync 뒤 native --no-deps를 사용하므로 새 필요 dependency는 native 의존성 설치로 준비해야 하며 pip check 실패는 그대로 실패이다. pip check는 virtual project의 release URL 동일성이나 비활성 extra 전체를 검증하지 않는다. 선택 기준은 선언된 provider 이름이며 marker를 해석하는 공통 resolver라고 주장하지 않는다.
 
 Provider는 변경된 dependency와 build 입력을 자신의 package manager로 설치한다. 이미 올바른 source link를 재사용해도 새 외부 provider dependency를 설치하거나 lifecycle을 다시 실행하지는 않는다. Source 수정은 새 release 없이 보이며 컴파일 산출물은 native build가 필요하다.
 

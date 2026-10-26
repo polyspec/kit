@@ -22,9 +22,11 @@ Local development uses the latest source of the required polyspec repositories t
 | Release installation | The installed-package bootstrap uses native locked installation such as npm ci; no sibling checkout is a prerequisite. Composer installs the selected release manifest and lock. |
 | npm source helper | npm-install is a development-source helper: declared polyspec providers require checkouts. It is distinct from release install-packages. Native npm owns installation and linking. |
 | Composer source helper | The application selects its manifest and declared path repositories; native Composer resolves compatible requirements. With no local provider, normal locked installation remains available. |
-| Python source helper | The application declares uv path/workspace sources and prepares its native development lock. uv sync --locked and uv pip check validate the installed distributions. |
+| Python source helper | Native locked sync excludes selected local providers, then offline uv pip editable installation writes their actual metadata. pip check validates installed distributions; every selected provider must appear at its source path. Release declarations and locks remain unchanged (K689/K689-1). |
 
 link-check and link-state-check describe source connections; they are not a universal version or peer-dependency solver. Native npm link can accept an incompatible peer, as the native test records; npm ls --all is the native diagnostic when peer validation is required. No kit-written resolver or substituted installed version repairs such a mismatch. Composer and uv failures are preserved rather than hidden.
+
+The editable overlay uses native --no-deps after locked synchronization: newly required dependencies must be prepared through native dependency installation, and pip check failures remain failures. pip check does not validate virtual-project release URL identity or all inactive extras. Selection follows declared provider names; this is not a claim of marker-aware universal resolution.
 
 Providers install their own changed dependencies and build inputs with their package manager. Reusing an already-correct source link does not install new external provider dependencies or rerun its lifecycle. Source edits remain visible without a new release; compiled outputs still need their native build.
 

@@ -1,14 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c99f92145efc09dc5cb5fb2086c33876563492676e29f6b33f2a0465d38663b2 -->
+<!-- source-sha256: 2d46711354dae963bc42fc66e06ebd98844401c336185b4e8ab9034b5409c622 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-
-
 ## 0.0.55
+
+- Release candidate는 native Python editable overlay와 platform 진단 처리를 포함하며 선택 provider 누락과 제어 흐름 회귀를 보완합니다. Lint cleanup 실패에도 기존 진단과 후속 검사를 유지합니다. 후속 수정은 각각 선행 등록한 child와 소유 검증을 기록합니다(K655).
 
 - 수정된 0.0.55 candidate는 native 소유권·advisory·target 격리·process 정리 수정을 포함합니다. 새 online native review가 정확한 다섯 lock을 검토해 advisory가 없음을 확인했고 새 tool version 안내는 정보로 유지합니다. 소유 검사는 위에 기록하며 candidate CI 통과와 consumer proof를 거친 공개는 대기 중입니다(K655).
 - 사전 빌드 부모가 종료하면 출력 배출을 기다리면서 기존 프로세스 그룹 정리를 실행해 파이프를 잡는 자식이 완료를 막지 못하게 한다. 집중 빌드 고아 파이프·빌드 실패 사례와 변경 파일 타입 인식 lint·typecheck가 통과한다 (K682-1).
