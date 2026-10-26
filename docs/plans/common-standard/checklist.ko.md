@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 53bc63a82666ac659912ca3566a64b99986edd8c3750f245be1c08ed86dc2371 -->
+<!-- source-sha256: c861e39e9acd3169075a4029bb3c4e9837a2e6d6c63567775ea4932aad6bf91f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -626,4 +626,4 @@
 | K690 | 기존 수동 worktree dependency 투영을 디스크 사용까지 고려한 native package manager 준비 계획으로 대체하고 manager를 몰래 바꾸거나 main 설치를 변경하지 않는다 | worktree-setup.mts, worktree 절차, native manager 기능과 저장 공간 결정 | `node scripts/kit/run-tests.mts node -- tests/kit/worktree-setup.test.mts` | [ ] |
 | K682-1 | 사전 테스트 빌드 부모 종료 후 프로세스 그룹을 정리해 자식이 출력 파이프와 완료를 계속 붙잡지 못하게 한다 | scripts/kit/run-tests.mts, tests/kit/test-build-first.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K682-1 tests/kit/test-build-first.test.mts` | [o] |
 | K682-2 | 테스트 도구 부모가 종료하면 출력·사례 수·종료 상태를 보존하며 프로세스 그룹의 남은 자식을 정리한다 | scripts/kit/run-tests.mts, tests/kit/test-build-first.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K682-2 tests/kit/test-build-first.test.mts` | [o] |
-| K689-1 | native 설치 후 선택한 Python provider distribution이 누락되면 실패한다 | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-1 tests/kit/uv-install.test.mts`; changed-file type-aware oxlint; `make docs-check` | [ ] |
+| K689-1 | native 설치 후 선택한 Python provider distribution이 누락되면 실패한다 | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-1 tests/kit/uv-install.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |

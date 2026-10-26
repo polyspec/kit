@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 049d6b771b1557514ff2801063772647a99fc2170bc53ac8b784568da4090add -->
+<!-- source-sha256: 70d739e582d783d68543b331510887c708e5b14512b5edd9d61c1427d75d7523 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+
 
 ## 0.0.55
 
@@ -19,6 +21,8 @@
 - Online dependency review는 native npm audit의 offline mode를 명시적으로 끈다. Audit payload는 vulnerabilities를 포함하고 native error discriminator를 포함하지 않아야 하므로 transport 실패가 성공 review를 빈 finding으로 덮지 못한다. 격리 cache와 닫힌 loopback endpoint를 사용한 pinned native npm 실험은 상속된 offline mode가 거짓 zero를 반환하고 명시적 online audit는 실패함을 확인한다. Red: c960e2fa에서 소유 경계 case 실패; Green: 선택한 경계·취약점·빈 출력·schema unit 및 native 실험 통과; typecheck와 변경 파일 lint 통과. Offline gate는 계속 committed review만 읽는다 (K684).
 - npm advisory review는 영향받는 native audit node path와 해당 locked copy의 정확한 version을 보존한다. 취약한 nested copy 대신 안전한 top-level copy를 기록하지 않으며 node version을 알 수 없으면 native range를 유지한다. Review와 offline gate finding은 영향받는 node를 표시한다. 기존 lock/package/advisory exception은 개별 path가 아니라 일치하는 모든 copy에 적용된다. Red: 80a3a877에서 nested-copy case가 안전한 top-level 8.3.4를 기록; Green: 선택한 귀속·fallback·schema case, typecheck 및 변경 파일 lint 통과 (K680).
 - Go·Cargo 사전 테스트 빌드는 전체 작업 시간 제한이 없다. 실행기는 명령 시작·실시간 출력·종료 상태·경과시간을 기록하고 실패한 빌드 이후 테스트를 실행하지 않는다. 사례별 제한시간·취소·부모 종료 감지·프로세스 그룹 정리는 별도로 유지한다. Red: e7fc0116에서 가상 시계 진행 경계 검사가 실패했다. Green: 빌드 소유 사례 네 개와 시간 초과·중단·부모 종료 정리 사례 세 개, 변경 파일 타입 인식 lint·typecheck가 통과한다 (K682).
+- Python editable source 검증은 선택한 로컬 provider가 native 설치 distribution 목록에 없으면 빈 목록과 무관한 package만 있는 목록을 포함해 실패한다. 기존 실경로 검증을 유지하고 미사용 provider와 정상 release-only 설치는 강제하지 않는다. Red: 87b23676에서 K689-1 검사가 예상 exception 누락으로 실패했으며 Green에서는 선택 소유 unit과 변경 파일 type-aware lint가 통과한다. 이 수정은 transitive, 미발행 package, marker 선택 검증 범위를 확대하지 않는다 (K689-1).
+
 - Local Python provider는 locked sync에서 해당 release wheel 설치만 제외한 뒤 uv의 native editable 동작으로 설치한다. Release URL, hash와 lock은 유지하며 offline fixture가 환경이 선언된 source를 import하는지 확인한다(K689).
 - divergence checker는 `process.platform`과 `process.arch`가 warning metadata에 쓰일 때만 무시하고 runtime 분기 탐지는 유지한다. Red: 16ecc178에서 K688 focused case가 실패했다. Green: 수정이 commit된 tree에서 `make item-test ID=K688`가 통과한다(K688).
 - 과거 bootstrap 기대는 소비자 Node·네이티브 npm bin hook의 정확한 명령, 실행 가능한 소스와 packed dist 명령 대상 및 동일한 설정, Make 이전 설치 패키지 workflow를 검증한다. workflow 검사는 기록용 npm fixture를 재사용해 설치·빌드 없이 정확한 npm 선택과 kit 자체 소스 예외를 보존한다. Red: 380a23a5에서 이전 경로 기대 세 개가 실패했다. Green: 선택한 소유 사례 세 개와 변경 파일 타입 인식 lint가 통과한다 (K686-2).

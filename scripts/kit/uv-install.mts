@@ -57,15 +57,20 @@ export function uvEditable({ directory, providers = [], uv = 'uv', env = process
   const parsed: unknown = JSON.parse(run(uv, ['pip', 'list', '--python', python, '--format', 'json'], { cwd: project, env }));
   if (!isJsonList(parsed)) throw new Error('uv pip list --format json returned no array of named distributions');
   const names: string[] = [];
+  const installed = new Set<string>();
   for (const item of parsed) {
     if (!isJsonObject(item) || typeof item.name !== 'string') throw new Error('uv pip list returned an unnamed distribution');
     const name = item.name;
+    installed.add(normalizeName(name));
     const location = item.editable_project_location;
     const provider = local.find(candidate => normalizeName(candidate.name) === normalizeName(name));
     if (provider !== undefined && (typeof location !== 'string' || !existsSync(location) || realpathSync(location) !== realpathSync(provider.folder))) {
       throw new Error(`Python distribution ${item.name} is installed from ${typeof location === 'string' ? location : 'a non-editable release'}, not the expected development source ${provider.folder}; run uv-install again to apply its native editable source`);
     }
     if (typeof location === 'string') names.push(item.name);
+  }
+  for (const provider of local) {
+    if (!installed.has(normalizeName(provider.name))) throw new Error(`selected local Python provider ${provider.name} is missing from the installed distributions; run uv-install again to apply its native editable source`);
   }
   print('uv development: native installed-distribution dependency check passed');
   return names;
