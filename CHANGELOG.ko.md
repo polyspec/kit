@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4f32d1f6ef6314e1d2e3f2bf942406479e4aad35b3137c3d4655a4af138f4fe0 -->
+<!-- source-sha256: 81e0e1e38882b03e8bf06c80f1628e819e7b3564298baaf5f139d5f936e8a7d8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Python source 연결은 기존 native 환경을 전제로 release lock을 재조정하지 않고 선택 editable을 연결한다. 명시적인 uv installer는 공통 native source backend 전에 locked sync를 유지하므로 새 로컬 dependency를 개발 lock 수정이나 합성 없이 연결할 수 있다. Red: 47436bb6에서 source 연결이 먼저 오래된 release graph를 해석해 K689-3이 실패한다. Green에서는 선택 unit과 기존 환경 실제 검사가 통과하고 locked installer는 오래된 lock을 계속 거부하며 변경 파일 type-aware lint도 통과한다 (K689-3).
 
 - Python source 설치는 알려진 로컬 runtime dependency 이름을 따라가 명시적 root requirement extra와 함께 선택 editable을 하나의 native uv transaction으로 전달한다. uv가 일괄 --no-deps 없이 호환되는 외부 dependency를 해석하며 native dependency, source 경로와 선택 provider 완전성 검증은 유지한다. Red: 7f1c091d에서 개발 beta가 요구하는 미발행 로컬 child와 cache의 setuptools가 설치되지 않아 K689-2가 실패한다. Green에서는 선택 unit과 실제 native 검사가 release URL/hash lock 불변 및 child source 수정의 즉시 반영을 포함해 통과하고 변경 파일 type-aware lint도 통과한다 (K689-2).
 

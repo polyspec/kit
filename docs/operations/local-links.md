@@ -22,11 +22,11 @@ Local development uses the latest source of the required polyspec repositories t
 | Release installation | The installed-package bootstrap uses native locked installation such as npm ci; no sibling checkout is a prerequisite. Composer installs the selected release manifest and lock. |
 | npm source helper | npm-install is a development-source helper: declared polyspec providers require checkouts. It is distinct from release install-packages. Native npm owns installation and linking. |
 | Composer source helper | The application selects its manifest and declared path repositories; native Composer resolves compatible requirements. With no local provider, normal locked installation remains available. |
-| Python source helper | Native locked sync excludes selected local providers, then offline uv pip editable installation writes their actual metadata. pip check validates installed distributions; every selected provider must appear at its source path. Release declarations and locks remain unchanged (K689/K689-1). |
+| Python source helper | Source linking uses offline native uv pip editable installation in an existing environment without reconciling the release lock. The explicit uv installer separately runs locked sync first. pip check validates installed distributions; every selected provider must appear at its source path. Release declarations and locks remain unchanged (K689/K689-1). |
 
 link-check and link-state-check describe source connections; they are not a universal version or peer-dependency solver. Native npm link can accept an incompatible peer, as the native test records; npm ls --all is the native diagnostic when peer validation is required. No kit-written resolver or substituted installed version repairs such a mismatch. Composer and uv failures are preserved rather than hidden.
 
-The editable overlay uses native --no-deps after locked synchronization: newly required dependencies must be prepared through native dependency installation, and pip check failures remain failures. pip check does not validate virtual-project release URL identity or all inactive extras. Selection follows declared provider names; this is not a claim of marker-aware universal resolution.
+The editable transaction forwards explicit root requirement extras and lets uv resolve compatible source dependencies. Native pip check failures remain failures. pip check does not validate virtual-project release URL identity or all inactive extras. Selection follows declared provider names; this is not a claim of marker-aware universal resolution.
 
 Providers install their own changed dependencies and build inputs with their package manager. Reusing an already-correct source link does not install new external provider dependencies or rerun its lifecycle. Source edits remain visible without a new release; compiled outputs still need their native build.
 
@@ -42,7 +42,7 @@ Dependency review updates also leave Composer metadata to native commands. The r
 |---|---|
 | npm | `npm link` connects `node_modules/<name>` through the project-local npm prefix to its provider; npm owns the links and installed records |
 | Composer | Composer creates source links from declared path repositories, respecting `COMPOSER` and `COMPOSER_VENDOR_DIR`, and owns the selected lock and autoload |
-| Python | `uv sync --locked` reconciles the native lock while excluding declared local providers with `--no-install-package`; `uv pip install --offline --editable <provider> ...` resolves the selected local runtime providers together, forwarding explicit requirement extras and letting uv install compatible dependencies, uv owns its editable metadata, and `uv pip check` validates dependency consistency |
+| Python | The explicit installer reconciles the lock with `uv sync --locked`, excluding selected local providers with `--no-install-package`; source-only linking requires an existing environment and uses `uv pip install --offline --editable <provider> ...` resolves the selected local runtime providers together, forwarding explicit requirement extras and letting uv install compatible dependencies, uv owns its editable metadata, and `uv pip check` validates dependency consistency |
 | Go | a git-ignored `go.work` at each Go module, with `use` lines for the module and the provider modules |
 | Rust | `link.mjs cargo <dir> <cargo args>` runs one cargo command with `--config` `[patch]` entries and a copy of the lock under `var/link/cargo` |
 

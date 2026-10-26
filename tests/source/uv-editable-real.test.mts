@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import test from 'node:test';
-import { uvEditable } from '../../scripts/kit/uv-install.mts';
+import { uvEditable, uvInstallCommand } from '../../scripts/kit/uv-install.mts';
 import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
@@ -45,7 +45,11 @@ test('K664-1: native declared Python sources install new packages, remain idempo
   writeFileSync(path.join(source, 'pyproject.toml'), readFileSync(path.join(source, 'pyproject.toml'), 'utf8').replace('0.0.1', '0.0.2'));
   success(['lock']); // The application prepares its development lock with uv, independently of kit.
   const lock = readFileSync(path.join(app, 'uv.lock'), 'utf8');
-  const install = () => uvEditable({ directory: app, uv, env });
+  const install = () => {
+    const output: string[] = [];
+    if (uvInstallCommand([app], { ...env, UV: uv }, message => output.push(message)) !== 0) throw new Error(output.join(''));
+    return uvEditable({ directory: app, uv, env });
+  };
   assert.deepEqual(install().sort(), ['app', 'declared-fresh', 'declared-provider']);
   const state = () => success(['pip', 'freeze', '--python', python]);
   const first = state();
@@ -88,6 +92,7 @@ test("K664-1: uv's native local source is installed editable without changing th
   const providers = [{ ecosystem: 'python' as const, name: 'polyspec-fallback-provider', folder: source, repository: source, checkout: source }];
   lock();
   const locked = readFileSync(path.join(app, 'uv.lock'), 'utf8');
+  assert.equal(uvInstallCommand([app, source], { ...env, UV: uv }, () => {}), 0);
   assert.deepEqual(uvEditable({ directory: app, providers, uv, env }), ['polyspec-fallback-provider']);
   const python = path.join(app, '.venv/bin/python');
   const probe = spawnSync(python, ['-c', 'import fallback_provider; print(fallback_provider.value, fallback_provider.__file__)'], { cwd: app, env, encoding: 'utf8' });
@@ -190,4 +195,41 @@ test('K689-2: one native transaction resolves an unpublished local runtime depen
   assert.equal(probe()[0], 'development edited 84.0.0');
   assert.equal(readFileSync(path.join(app, 'pyproject.toml'), 'utf8'), manifest);
   assert.equal(readFileSync(path.join(app, 'uv.lock'), 'utf8'), locked);
+});
+
+
+test('K689-3: newly declared source links into an existing environment while the release installer retains its lock contract', { timeout: 120_000 }, (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-source-only-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const app = path.join(root, 'app');
+  const source = path.join(root, 'source');
+  mkdirSync(app);
+  mkdirSync(path.join(source, 'src/polyspec_new_c'), { recursive: true });
+  writeFileSync(path.join(source, 'pyproject.toml'), '[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n[project]\nname = "polyspec-new-c"\nversion = "0.0.1"\n');
+  writeFileSync(path.join(source, 'src/polyspec_new_c/__init__.py'), 'value = "new-source"\n');
+  const initial = '[project]\nname = "app"\nversion = "0.0.0"\ndependencies = []\n[tool.uv]\npackage = false\n';
+  writeFileSync(path.join(app, 'pyproject.toml'), initial);
+  const uv = toolCommand(ROOT, 'uv');
+  const env = toolsEnvironment(ROOT, { ...process.env, UV_PROJECT_ENVIRONMENT: '.venv', UV_OFFLINE: '1', UV_NO_INDEX: '1', UV_FIND_LINKS: toolsPath(ROOT, 'wheels'), UV_CACHE_DIR: path.join(root, 'cache'), PYTHONDONTWRITEBYTECODE: '1' });
+  const success = (args: string[]) => {
+    const result = spawnSync(uv, args, { cwd: app, env, encoding: 'utf8' });
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  };
+  success(['venv', '--python', toolCommand(ROOT, 'python3'), '.venv']);
+  success(['lock']);
+  success(['sync', '--locked']);
+  const locked = readFileSync(path.join(app, 'uv.lock'), 'utf8');
+  const manifest = initial.replace('dependencies = []', 'dependencies = ["polyspec-new-c"]');
+  writeFileSync(path.join(app, 'pyproject.toml'), manifest);
+  const providers = [{ ecosystem: 'python' as const, name: 'polyspec-new-c', folder: source, repository: source, checkout: source }];
+  assert.deepEqual(uvEditable({ directory: app, providers, uv, env }), ['polyspec-new-c']);
+  const python = path.join(app, '.venv/bin/python');
+  const probe = spawnSync(python, ['-c', 'import polyspec_new_c; print(polyspec_new_c.value, polyspec_new_c.__file__)'], { cwd: app, env, encoding: 'utf8' });
+  assert.equal(probe.status, 0, probe.stderr);
+  assert.equal(probe.stdout.trim(), `new-source ${path.join(source, 'src/polyspec_new_c/__init__.py')}`);
+  const errors: string[] = [];
+  assert.equal(uvInstallCommand([app, source], { ...env, UV: uv }, message => errors.push(message)), 1, 'the installer still refuses a newly declared package absent from the release lock');
+  assert.match(errors.join(''), /native Python development installation failed/);
+  assert.equal(readFileSync(path.join(app, 'uv.lock'), 'utf8'), locked);
+  assert.equal(readFileSync(path.join(app, 'pyproject.toml'), 'utf8'), manifest);
 });

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Python source linking requires an existing native environment and connects selected editables without reconciling the release lock. The explicit uv installer retains its locked sync before the shared native source backend, so a new local dependency can be connected without rewriting or inventing a development lock. Red: K689-3 fails at 47436bb6 because source linking first resolves the stale release graph. Green: the selected unit and real existing-environment case pass, while the locked installer still rejects the stale lock; changed-file type-aware lint passes (K689-3).
+
 - Python source installation follows known local runtime dependency names and submits selected editables in one native uv transaction, including explicit root requirement extras. uv resolves compatible external dependencies without blanket --no-deps; native dependency, source-path and selected-provider completeness checks remain. Red: K689-2 fails at 7f1c091d because the development beta requires an unpublished local child and cached setuptools that are not installed. Green: the selected unit and real native case pass, including unchanged release URL/hash lock and live child-source edits; changed-file type-aware lint passes (K689-2).
 
 ## 0.0.55

@@ -9,6 +9,8 @@ import { uvEditable, uvInstallCommand } from '../../scripts/kit/uv-install.mts';
 function fixture(t: { after: (fn: () => void) => void }) {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-uv-native-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(path.join(root, '.venv'), { recursive: true });
+  writeFileSync(path.join(root, '.venv/pyvenv.cfg'), 'native fixture environment\n');
   const log = path.join(root, 'commands');
   const uv = path.join(root, 'uv');
   writeFileSync(path.join(root, 'pyproject.toml'), '[project]\nname = "consumer"\nversion = "0.0.0"\ndependencies = ["polyspec-new-unreleased"]\n');
@@ -17,22 +19,20 @@ function fixture(t: { after: (fn: () => void) => void }) {
   return { root, log, uv, env: { ...process.env, UV: uv } };
 }
 
-test('K689: uv sync excludes declared local providers and installs them as native editables', { timeout: 30_000 }, (t) => {
+test('K689: native source linking installs declared providers without syncing the release lock', { timeout: 30_000 }, (t) => {
   const { root, log, uv, env } = fixture(t);
   assert.deepEqual(uvEditable({ directory: root, uv, env }), ['polyspec-new-unreleased']);
   const commands = readFileSync(log, 'utf8').trim().split('\n');
   assert.equal(commands[0], 'workspace dir');
-  assert.equal(commands[1], 'sync --locked');
-  assert.match(commands[2] ?? '', /^pip check --python /);
-  assert.match(commands[3] ?? '', /^pip list --python .* --format json$/);
+  assert.match(commands[1] ?? '', /^pip check --python /);
+  assert.match(commands[2] ?? '', /^pip list --python .* --format json$/);
   const provider = { ecosystem: 'python' as const, name: 'polyspec-new-unreleased', folder: root, repository: root, checkout: root };
   assert.deepEqual(uvEditable({ directory: root, uv, env, providers: [provider, { ...provider, name: 'unused-sibling', folder: '/unused-sibling' }] }), ['polyspec-new-unreleased']);
-  const linked = readFileSync(log, 'utf8').trim().split('\n').slice(4);
+  const linked = readFileSync(log, 'utf8').trim().split('\n').slice(3);
   assert.equal(linked[0], 'workspace dir');
-  assert.equal(linked[1], 'sync --locked --no-install-package polyspec-new-unreleased');
-  assert.match(linked[2] ?? '', /^pip install --offline --python .* --reinstall-package polyspec-new-unreleased --editable /);
-  assert.match(linked[3] ?? '', /^pip check --python /);
-  assert.match(linked[4] ?? '', /^pip list --python .* --format json$/);
+  assert.match(linked[1] ?? '', /^pip install --offline --python .* --reinstall-package polyspec-new-unreleased --editable /);
+  assert.match(linked[2] ?? '', /^pip check --python /);
+  assert.match(linked[3] ?? '', /^pip list --python .* --format json$/);
   assert.equal(linked.some(command => command.includes('unused-sibling')), false);
   assert.throws(() => uvEditable({ directory: root, uv, env: { ...env, UV_FIXTURE_LOCATION: path.dirname(root) }, providers: [provider] }), /not the expected development source.*run uv-install again/s);
 
@@ -86,4 +86,16 @@ test('K689-2: source runtime providers share one native dependency-resolution tr
   assert.ok(installs[0]?.includes(`--editable ${beta}[fast]`));
   assert.ok(installs[0]?.includes(`--editable ${child}`));
   assert.doesNotMatch(installs[0] ?? '', /--no-deps/);
+});
+
+
+test('K689-3: source linking never reconciles a release lock, while the installer does so exactly once', { timeout: 30_000 }, (t) => {
+  const { root, uv, env, log } = fixture(t);
+  uvEditable({ directory: root, uv, env });
+  assert.doesNotMatch(readFileSync(log, 'utf8'), /^sync /m);
+  writeFileSync(log, '');
+  assert.equal(uvInstallCommand([root, root], env, () => {}), 0);
+  assert.equal(readFileSync(log, 'utf8').split('\n').filter(line => line.startsWith('sync ')).length, 1);
+  rmSync(path.join(root, '.venv'), { recursive: true });
+  assert.throws(() => uvEditable({ directory: root, uv, env }), /requires an existing native environment/);
 });

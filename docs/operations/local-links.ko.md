@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 4c4253b5cb01df9b4b0033aaf791a29a9d6018e467bd37ebd450fc78439d99a8 -->
+<!-- source-sha256: 274f767458de9354b9a8bb6d2dae8484308889fb38acee3a42575fbd1ef1fecd -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -23,11 +23,11 @@
 | Release 설치 | 설치 package bootstrap은 npm ci 같은 native locked 설치를 사용하며 sibling checkout이 선행 조건이 아니다. Composer는 선택한 release manifest와 lock을 설치한다. |
 | npm source helper | npm-install은 개발 source helper이며 선언된 polyspec provider는 checkout이 필요하다. Release용 install-packages와 별개이고 설치와 link는 native npm이 소유한다. |
 | Composer source helper | 앱이 manifest와 path repository를 선택하고 native Composer가 호환되는 requirement를 해석한다. 로컬 provider가 없으면 일반 locked 설치를 사용할 수 있다. |
-| Python source helper | Native locked sync가 선택한 local provider를 제외하고 offline uv pip editable 설치가 실제 metadata를 쓴다. pip check는 설치 distribution을 검증하고 선택 provider 전부가 실제 source path에 있어야 한다. Release 선언과 lock은 유지한다(K689/K689-1). |
+| Python source helper | Source 연결은 기존 환경에서 release lock을 재조정하지 않고 offline native uv pip editable 설치를 사용한다. 명시적인 uv installer는 별도로 locked sync를 먼저 실행한다. pip check는 설치 distribution을 검증하고 선택 provider 전부가 실제 source path에 있어야 한다. Release 선언과 lock은 유지한다(K689/K689-1). |
 
 link-check와 link-state-check는 source 연결을 설명하며 모든 version과 peer dependency를 해석하는 공통 solver가 아니다. Native 검사에서 확인했듯 npm link는 호환되지 않는 peer를 허용할 수 있으며 필요한 경우 native 진단은 npm ls --all이다. Kit 전용 resolver나 위장된 설치 version으로 불일치를 보정하지 않는다. Composer와 uv 실패도 숨기지 않는다.
 
-Editable overlay는 locked sync 뒤 native --no-deps를 사용하므로 새 필요 dependency는 native 의존성 설치로 준비해야 하며 pip check 실패는 그대로 실패이다. pip check는 virtual project의 release URL 동일성이나 비활성 extra 전체를 검증하지 않는다. 선택 기준은 선언된 provider 이름이며 marker를 해석하는 공통 resolver라고 주장하지 않는다.
+Editable transaction은 명시한 root requirement extra를 전달하고 호환 source dependency는 uv가 해석한다. Native pip check 실패는 그대로 실패이다. pip check는 virtual project의 release URL 동일성이나 비활성 extra 전체를 검증하지 않는다. 선택 기준은 선언된 provider 이름이며 marker를 해석하는 공통 resolver라고 주장하지 않는다.
 
 Provider는 변경된 dependency와 build 입력을 자신의 package manager로 설치한다. 이미 올바른 source link를 재사용해도 새 외부 provider dependency를 설치하거나 lifecycle을 다시 실행하지는 않는다. Source 수정은 새 release 없이 보이며 컴파일 산출물은 native build가 필요하다.
 
@@ -43,7 +43,7 @@ Dependency review의 update도 Composer metadata를 native 명령에 맡깁니�
 |---|---|
 | npm | `npm link`가 `node_modules/<name>`을 project-local npm prefix를 거쳐 provider에 연결하며 link와 설치 record는 npm이 관리합니다 |
 | Composer | 선언된 path repository에서 Composer가 source link를 만들며 `COMPOSER`, `COMPOSER_VENDOR_DIR`를 따르고 선택한 lock과 autoload를 관리합니다 |
-| Python | `uv sync --locked`가 native lock을 맞추며 `--no-install-package`로 선언된 local provider를 제외합니다. 이어서 `uv pip install --offline --editable <provider> ...`로 선택한 local runtime provider와 명시적 requirement extra를 하나의 transaction에 전달해 호환 dependency를 해석·설치하고 uv가 editable metadata를 관리하며, `uv pip check`가 dependency 호환성을 검사합니다 |
+| Python | 명시적 installer는 `uv sync --locked`와 `--no-install-package`로 lock을 맞추고 선택 local provider를 제외합니다. Source-only 연결은 기존 환경을 전제로 `uv pip install --offline --editable <provider> ...`로 선택한 local runtime provider와 명시적 requirement extra를 하나의 transaction에 전달해 호환 dependency를 해석·설치하고 uv가 editable metadata를 관리하며, `uv pip check`가 dependency 호환성을 검사합니다 |
 | Go | 각 Go module에 git이 무시하는 `go.work`. module과 provider module의 `use` 줄을 가집니다 |
 | Rust | `link.mjs cargo <dir> <cargo args>`가 `--config` `[patch]` 항목과 `var/link/cargo` 아래 lock 사본으로 cargo 명령 하나를 실행합니다 |
 

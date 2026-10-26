@@ -1,4 +1,4 @@
-// uv owns development installation from the application source/workspace declarations and its native lock.
+// uv owns locked installation and editable source linking into existing native environments.
 // kit neither chooses installed source versions nor rewrites manifests or distribution metadata.
 import path from 'node:path';
 import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
@@ -26,10 +26,12 @@ function refuseLegacyLinks(project: string, providers: readonly Provider[], env:
   }
 }
 
-/** Synchronizes the application's native source/workspace declarations and verifies the resulting dependencies. */
-export function uvEditable({ directory, providers = [], uv = 'uv', env = process.env, print = () => {}, sync = [] }: {
-  directory: string; providers?: Iterable<Provider>; uv?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void; sync?: readonly string[];
-}): string[] {
+type UvSourcesOptions = {
+  directory: string; providers?: Iterable<Provider>; uv?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void;
+};
+
+/** Applies native source installation and validation, optionally following the explicit locked installer step. */
+function installSources({ directory, providers = [], uv = 'uv', env = process.env, print = () => {} }: UvSourcesOptions, sync?: readonly string[]): string[] {
   const project = path.resolve(directory);
   const provided = [...providers].filter(provider => provider.ecosystem === 'python');
   refuseLegacyLinks(project, provided, env);
@@ -52,10 +54,15 @@ export function uvEditable({ directory, providers = [], uv = 'uv', env = process
   const workspace = run(uv, ['workspace', 'dir'], { cwd: project, env }).trim();
   if (!path.isAbsolute(workspace)) throw new Error('uv workspace dir returned no absolute project root');
   const python = path.join(path.resolve(workspace, env.UV_PROJECT_ENVIRONMENT || '.venv'), 'bin/python');
-  print('uv development: synchronizing the native lock and excluding local providers from release installation');
+  if (sync === undefined && !existsSync(path.join(path.dirname(path.dirname(python)), 'pyvenv.cfg'))) {
+    throw new Error(`Python source linking requires an existing native environment at ${path.dirname(path.dirname(python))}; run the application's locked installer first`);
+  }
   try {
-    const output = run(uv, ['sync', '--locked', ...sync, ...local.flatMap(provider => ['--no-install-package', provider.name])], { cwd: project, env });
-    if (output.trim()) print(output.trim());
+    if (sync !== undefined) {
+      print('uv development: synchronizing the native lock and excluding local providers from release installation');
+      const output = run(uv, ['sync', '--locked', ...sync, ...local.flatMap(provider => ['--no-install-package', provider.name])], { cwd: project, env });
+      if (output.trim()) print(output.trim());
+    }
     if (local.length > 0) {
       print(`uv development: resolving editable sources together: ${local.map(provider => provider.name).join(', ')}`);
       const linked = run(uv, ['pip', 'install', '--offline', '--python', python, ...local.flatMap(provider => {
@@ -67,7 +74,7 @@ export function uvEditable({ directory, providers = [], uv = 'uv', env = process
     run(uv, ['pip', 'check', '--python', python], { cwd: project, env });
   } catch (error) {
     if (!(error instanceof Error)) throw error;
-    throw new Error(`native Python development installation failed: prepare the locked release dependency with uv lock and ensure each local provider is compatible; the editable source overlay or dependency check failed: ${error.message}`, { cause: error });
+    throw new Error(`native Python development installation failed: ${sync !== undefined ? 'prepare the locked release dependency with uv lock and ' : ''}ensure each local provider is compatible; the editable source overlay or dependency check failed: ${error.message}`, { cause: error });
   }
   const parsed: unknown = JSON.parse(run(uv, ['pip', 'list', '--python', python, '--format', 'json'], { cwd: project, env }));
   if (!isJsonList(parsed)) throw new Error('uv pip list --format json returned no array of named distributions');
@@ -91,6 +98,11 @@ export function uvEditable({ directory, providers = [], uv = 'uv', env = process
   return names;
 }
 
+/** Links selected local sources into an existing environment without reconciling the application's release lock. */
+export function uvEditable(options: UvSourcesOptions): string[] {
+  return installSources(options);
+}
+
 /** Runs the native declared development installation once; returns its exit code. */
 export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv, write: (text: string) => void): number {
   const [directory, ...given] = args;
@@ -105,7 +117,7 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
     const refused = sync.filter(flag => !SYNC_FLAGS.has(flag));
     if (refused.length) throw new Error(`SYNC takes ${[...SYNC_FLAGS].join(' and ')}, not ${refused.join(' ')}`);
     const providers = checkoutProviders(checkouts, 'python');
-    const linked = uvEditable({ directory: project, providers, uv: env.UV ?? 'uv', env, sync, print: text => write(`${text}\n`) });
+    const linked = installSources({ directory: project, providers, uv: env.UV ?? 'uv', env, print: text => write(`${text}\n`) }, sync);
     write(`uv-install ${project}: native locked development sync passed${linked.length ? `; editable sources: ${linked.join(', ')}` : ''}\n`);
     return 0;
   } catch (error) {
