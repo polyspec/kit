@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
-import { composerInstall, reconcileComposerLinks } from '../../scripts/kit/composer-install.mts';
+import { composerInstall, composerLink } from '../../scripts/kit/composer-install.mts';
 import { linkFindings } from '../../scripts/kit/link-state-check.mts';
 import { cargo, link, unlink } from '../../scripts/kit/link.mts';
 import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
@@ -81,7 +81,7 @@ function workspaceTemplate(): string {
     'package.json': JSON.stringify({ name: 'cons', private: true, dependencies: { '@polyspec/x': '0.0.1', '@polyspec/own': '0.0.1' }, devDependencies: { '@polyspec/kit': '0.0.53' } }),
     'package-lock.json': '{}',
     'packages/own/package.json': JSON.stringify({ name: '@polyspec/own' }),
-    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }),
+    'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }),
     'composer.lock': '{}',
     'tests/release-consumer/composer/composer.json': JSON.stringify({ require: { 'polyspec/y': '0.0.1' } }),
     'python/pyproject.toml': '[project]\nname = "cons"\nversion = "0"\ndependencies = []\n[dependency-groups]\nbase = ["polyspec_Z[extra]==0.0.1; python_version>=\'3\'"]\ntest = [{ include-group = "base" }]\n',
@@ -150,11 +150,12 @@ for (const { target, folder } of links) {
   put(bin, { 'composer-update.mjs': `import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 const args = process.argv.slice(2);
-const project = args[args.indexOf('--working-dir') + 1];
-const file = path.join(project, process.env.COMPOSER);
+const project = args.includes('--working-dir') ? args[args.indexOf('--working-dir') + 1] : process.cwd();
+const selected = process.env.COMPOSER || 'composer.json';
+const file = path.resolve(project, selected);
 writeFileSync(path.join(project, 'composer-update.seen.json'), JSON.stringify({ file: process.env.COMPOSER, targets: args.filter(item => item.includes('/') && !item.startsWith('-') && item !== project), manifest: JSON.parse(readFileSync(file, 'utf8')) }));
-let vendor = 'vendor';
-try { vendor = readFileSync(path.join(project, 'composer-vendor-dir'), 'utf8').trim(); } catch {}
+const manifest = JSON.parse(readFileSync(file, 'utf8'));
+const vendor = process.env.COMPOSER_VENDOR_DIR || manifest.config?.['vendor-dir'] || 'vendor';
 const recordFile = path.join(project, vendor, 'composer/installed.json');
 // A fresh vendor has no record yet, so Composer writes one with each path package that it installs.
 const fresh = !existsSync(recordFile);
@@ -162,7 +163,8 @@ const record = fresh ? { packages: [] } : JSON.parse(readFileSync(recordFile, 'u
 for (const repository of JSON.parse(readFileSync(file, 'utf8')).repositories ?? []) {
   if (repository.type !== 'path') continue;
   const url = path.resolve(project, repository.url);
-  const name = JSON.parse(readFileSync(path.join(url, 'composer.json'), 'utf8')).name;
+  const source = JSON.parse(readFileSync(path.join(url, 'composer.json'), 'utf8'));
+  const name = source.name;
   let entry = record.packages.find(item => item.name === name);
   if (!entry && fresh) { entry = { name, version: repository.options?.versions?.[name] ?? '0.0.0', 'install-path': path.join('..', name) }; record.packages.push(entry); }
   if (!entry?.['install-path']) continue;
@@ -171,9 +173,12 @@ for (const repository of JSON.parse(readFileSync(file, 'utf8')).repositories ?? 
   rmSync(target, { recursive: true, force: true });
   symlinkSync(url, target);
   entry.dist = { type: 'path', url };
+  entry.require = source.require;
+  if (source.version) entry.version = source.version;
 }
 mkdirSync(path.dirname(recordFile), { recursive: true });
 writeFileSync(recordFile, JSON.stringify(record));
+writeFileSync(path.join(project, selected.replace(/\\.json$/, '') + '.lock'), JSON.stringify({ packages: record.packages, 'packages-dev': [] }));
 ` });
   stub(bin, log, 'composer', `if [ "$1 $4" = "config vendor-dir" ]; then cat composer-vendor-dir 2>/dev/null || echo vendor; fi\nif [ "$1" = update ]; then node ${JSON.stringify(path.join(bin, 'composer-update.mjs'))} "$@"; fi\nif [ "$1" = dump-autoload ]; then echo "COMPOSER=$COMPOSER" >> ${JSON.stringify(log)}; fi`);
   stub(bin, log, 'uv', `case "$1" in sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; if [ -f ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))} ]; then while read n u; do case " $* " in *" --no-install-package $n "*) ;; *) grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ $u" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n no" >> ${JSON.stringify(path.join(consumer, 'editable.txt'))};; esac; done < ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))}; fi; ag=no; case " $* " in *" --all-groups "*) ag=yes;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ] && [ "$ag" = yes ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
@@ -283,7 +288,7 @@ test('link --siblings links a fork checkout of forks/ beside the checkouts as th
   });
   git(fork, 'remote', 'add', 'origin', 'https://github.com/min-median-max/json-schema.git');
   put(consumer, {
-    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1', 'opis/json-schema': '2.6.0-p1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }),
+    'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }, { type: 'path', url: '../forks/json-schema', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1', 'opis/json-schema': '2.6.0-p1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }),
     'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' }, { name: 'opis/json-schema', version: '2.6.0-p1', 'install-path': '../opis/json-schema' }] }),
     'var/contracts/vendor/opis/json-schema/composer.json': '{"name":"opis/json-schema"}',
   });
@@ -664,13 +669,13 @@ function freshComposer(consumer: string) {
 test('make composer-install without a sibling that provides a polyspec package of the lock runs composer install of the tracked lock (K432)', (t) => {
   const { consumer, env, log } = workspace(t);
   freshComposer(consumer);
-  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: {} }) });
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: {} }) });
   const lines: string[] = [];
-  composerInstall({ directory: consumer, checkouts: [], env, print: text => lines.push(text) });
+  const mode = composerInstall({ directory: consumer, checkouts: [], env, print: text => lines.push(text) });
   assert.match(log(), /^composer install --no-interaction$/m, 'the tracked lock is installed');
   assert.doesNotMatch(log(), /^composer update/m, 'no update runs without a link');
   assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no link manifest is written');
-  assert.match(lines.join('\n'), /composer install of the tracked lock/, 'the path that was taken is printed');
+  assert.equal(mode, 'locked', 'the selected path installs the locked project without source updates');
 });
 
 // K440: a Claude Code session started in the workspace folder (the folder of kit and its siblings) loads no .claude/settings.json of
@@ -860,7 +865,7 @@ test('every Go module of the kit checkout gets a git-ignored go.work (K440-2)', 
 test('composer-install installs with --no-dev when noDev is given, as make composer-install NO_DEV=1 does (K483-2)', (t) => {
   const { consumer, env, log } = workspace(t);
   freshComposer(consumer);
-  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: {} }) });
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: {} }) });
   composerInstall({ directory: consumer, checkouts: [], env, noDev: true, print: () => undefined });
   assert.match(log(), /^composer install --no-interaction --no-dev$/m, 'the tracked lock is installed without dev packages');
 });
@@ -920,7 +925,7 @@ test('composer-install takes the checkouts after DIR and runs the install with t
 // version, constraint or provider version is read.
 test('link connects npm through its package manager and retains the other local source links (K657-1)', (t) => {
   const { provider, consumer, env, log } = workspace(t);
-  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }) });
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }) });
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'vendor dir');
   writeFileSync(path.join(consumer, '..', 'tools.log'), '');
@@ -941,7 +946,7 @@ test('link connects npm through its package manager and retains the other local 
 test('link replaces the polyspec package of a nested Composer project with a link to its provider (K447)', (t) => {
   const { provider, consumer, env } = workspace(t);
   put(consumer, {
-    'examples/board/composer.json': JSON.stringify({ name: 'cons/board', require: { 'polyspec/y': '0.0.1' } }),
+    'examples/board/composer.json': JSON.stringify({ name: 'cons/board', repositories: [{ type: 'path', url: '../../../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' } }),
     'examples/board/composer.lock': '{}',
     'examples/board/.gitignore': 'vendor/\n',
   });
@@ -983,7 +988,7 @@ test('K529: a uv workspace member links the package path that its hatchling sour
 // K529 (b): the Composer vendor folder is COMPOSER_VENDOR_DIR when it is set, before config.vendor-dir, as Composer reads it.
 test('K529: link reads COMPOSER_VENDOR_DIR as the vendor folder before config.vendor-dir (K529)', (t) => {
   const { provider, consumer, env } = workspace(t);
-  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' } }) });
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' } }) });
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'vendor from the environment');
   const { ok, text } = linkLines([consumer], { ...env, COMPOSER_VENDOR_DIR: 'var/contracts/vendor' });
@@ -996,7 +1001,7 @@ test('K529: link reads COMPOSER_VENDOR_DIR as the vendor folder before config.ve
 // K529 (c): a polyspec package that the composer.json of a project declares, with no installed folder, is a finding in link and in check.
 test('K529: a declared polyspec package with no installed folder fails link and check with its name (K529)', (t) => {
   const { consumer, env } = workspace(t);
-  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/not-installed' } }) });
+  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/not-installed' } }) });
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'declared but not installed');
   const linked = linkLines([consumer], env);
@@ -1041,7 +1046,7 @@ test('K590: link takes the installed folders of a workspace member with no lock 
   put(consumer, {
     'package.json': JSON.stringify({ ...manifest, workspaces: ['packages/app'] }),
     'packages/app/package.json': JSON.stringify({ name: '@cons/app', dependencies: { '@polyspec/x': '0.0.1' } }),
-    'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: 'packages/srv' }], require: { 'polyspec/y': '0.0.1', 'cons/srv': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }),
+    'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }, { type: 'path', url: 'packages/srv' }], require: { 'polyspec/y': '0.0.1', 'cons/srv': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }),
     'packages/srv/composer.json': JSON.stringify({ name: 'cons/srv', require: { 'polyspec/y': '0.0.1' } }),
   });
   git(consumer, 'add', '-A');
@@ -1081,33 +1086,26 @@ test('unlink removes the package links of the environment before uv reinstalls, 
   assert.match(lines.join('\n'), /polyspec_z/, 'the removed link is named');
 });
 
-// K653: Composer regenerates runtime records from linked source requirements without changing the release lock.
-test('K653: source requirements reconcile through Composer once and retain the release records', (t) => {
+// K653's source/runtime metadata mismatch is resolved by the native development manifest, not a synthetic release record.
+test('K653: native Composer updates source requirements and its development lock (K657-2)', (t) => {
   const { consumer, provider, env, log } = workspace(t);
   const vendor = path.join(consumer, 'var/contracts/vendor');
-  const source = { name: 'polyspec/y', require: { php: '>=8.4' } };
+  const source = { name: 'polyspec/y', version: '0.0.2', require: { php: '>=8.4' } };
   put(provider, { 'packages/php/composer.json': JSON.stringify(source) });
   const record = { packages: [{ name: source.name, version: '0.0.1', require: { php: '>=8.5' }, 'install-path': '../polyspec/y' }] };
   put(consumer, { 'var/contracts/vendor/composer/installed.json': JSON.stringify(record), 'composer.lock': JSON.stringify({ packages: record.packages, 'packages-dev': [] }) });
   const before = readFileSync(path.join(consumer, 'composer.lock'), 'utf8');
-  const next = { packages: record.packages.map(entry => ({ ...entry, require: source.require })) };
-  put(consumer, { 'var/contracts/vendor/composer/installed.next.json': JSON.stringify(next) });
-  const command = env.COMPOSER_BIN;
-  assert.ok(command);
-  writeFileSync(command, `#!/bin/sh\nprintf '%s\\n' "composer $* COMPOSER=$COMPOSER" >> ${JSON.stringify(path.join(consumer, '..', 'tools.log'))}\nif [ "$1" = install ]; then cp ${JSON.stringify(path.join(vendor, 'composer/installed.next.json'))} ${JSON.stringify(path.join(vendor, 'composer/installed.json'))}; fi\n`);
-  chmodSync(command, 0o755);
   const first = linkLines([consumer], env);
   assert.equal(first.ok, true, first.text);
-  assert.match(log(), /^composer update polyspec\/y .*--no-install.*--no-scripts/m);
-  assert.match(log(), /^composer install .*--no-scripts/m);
-  assert.doesNotMatch(log(), /--ignore-platform|platform-check/);
-  assert.equal(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'), before);
+  assert.match(log(), /^composer update polyspec\/y .*--with-dependencies/m);
+  assert.doesNotMatch(log(), /--ignore-platform|platform-check|--no-install/);
+  assert.notEqual(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'), before);
+  const installed = readJsonObject(vendor, 'composer/installed.json');
+  assert.deepEqual(installed.packages, [{ ...record.packages[0], version: source.version, require: source.require, dist: { type: 'path', url: path.join(provider, 'packages/php') } }]);
   assert.equal(realpathSync(path.join(vendor, 'polyspec/y')), path.join(provider, 'packages/php'));
-  const composerCommands = () => log().split('\n').filter(line => line.startsWith('composer '));
-  const commands = composerCommands();
   const second = linkLines([consumer], env);
   assert.equal(second.ok, true, second.text);
-  assert.deepEqual(composerCommands(), commands, 'matching source metadata runs no Composer command');
+  assert.equal(existsSync(path.join(consumer, 'var/link/composer')), false, 'no synthetic Composer state is written');
 });
 
 
@@ -1120,7 +1118,7 @@ test('K653: a Composer platform resolution failure propagates and releases its l
   writeFileSync(command, '#!/bin/sh\nexit 31\n');
   chmodSync(command, 0o755);
   const folders = providedFolders(consumer, [{ ecosystem: 'composer', name: 'polyspec/y', folder: path.join(provider, 'packages/php'), checkout: provider, repository: provider }], { vendorDir: 'var/contracts/vendor' });
-  const tool = () => ({ command, env });
-  assert.throws(() => reconcileComposerLinks(consumer, folders, tool, () => {}), /exited with 31/);
+  const tool = { command, env };
+  assert.throws(() => composerLink(consumer, folders, tool, () => {}), /exited with 31/);
   assert.equal(existsSync(path.join(consumer, 'var/link/composer/metadata.lock')), false);
 });

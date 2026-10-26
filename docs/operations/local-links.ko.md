@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 6e81b7650b37cda8f13bc64fddd6c03fe1a67e81e8ddc846393d0517b42d4abf -->
+<!-- source-sha256: 18a42b21c5b5bf3cfa139d2872cf4824ca09c42ba17fbf1c37200ab6cbd9044f -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -13,7 +13,7 @@
 개발은 각 polyspec 저장소의 최신 소스를 기준으로 완료합니다. 모든 저장소의 개발이 끝날 때까지 아무것도 release하지 않습니다. kit을 포함해 어떤 저장소에서도 tag, 버전 올림, release workflow 실행이 없습니다. push는 백업이며 아무것도 게시하지 않습니다. kit의 변경은 `make build` 뒤 link를 통해 다른 checkout에서 보입니다.
 
 - polyspec 패키지는 release로 설치된 것으로 봅니다. 각 tracked manifest와 lock은 package manager가 쓴 release 기록을 유지하며, 저장소의 lock은 그 한 번의 설치 기록입니다.
-- 로컬 source dependency는 provider checkout에 연결된 상태를 유지합니다. npm은 `npm link`로 link를 관리합니다. Composer와 Python의 직접 folder link는 package manager로 교체 중인 legacy 동작입니다(K657).
+- 로컬 source dependency는 provider checkout에 연결된 상태를 유지합니다. npm은 `npm link`로 link를 관리합니다. Composer는 선언된 path link를 관리하며 남은 Python 직접 folder link는 uv로 교체 중인 legacy 동작입니다(K657).
 - 어떤 link나 설치 단계도 버전, 제약, provider 버전을 판단하지 않습니다. kit은 버전도 pin도 강제하지 않습니다(S4). 각 package manager와 그 lock이 버전을 정합니다.
 - release는 개발이 완료된 뒤 의존 순서대로 한 번에 합니다: kit → ordered-json → orm, template → crudui → hyper → fsm, template-benchmark.
 
@@ -21,14 +21,14 @@
 
 ## 방식
 
-link 도구는 native package-manager 명령을 실행합니다. npm은 각 provider에서 `npm link`를 실행한 다음 consumer에서 `npm link <name>...`을 실행하며, `var/link/npm` 아래 project-local npm prefix를 사용합니다. `--no-save --package-lock=false`는 release manifest와 lock을 유지하고, 설치 link와 record는 npm이 관리합니다. source 수정은 즉시 반영됩니다. npm의 dependency 처리와 lifecycle 동작은 그대로 유지합니다. Composer와 Python은 K657 전환을 마칠 때까지 아래 legacy 방식을 사용합니다.
+link 도구는 native package-manager 명령을 실행합니다. npm은 각 provider에서 `npm link`를 실행한 다음 consumer에서 `npm link <name>...`을 실행하며, `var/link/npm` 아래 project-local npm prefix를 사용합니다. `--no-save --package-lock=false`는 release manifest와 lock을 유지하고, 설치 link와 record는 npm이 관리합니다. source 수정은 즉시 반영됩니다. npm의 dependency 처리와 lifecycle 동작은 그대로 유지합니다. Composer도 아래 native 방식을 사용하며 Python의 직접 folder link는 K657 전환 완료까지 legacy 상태입니다.
 
-link된 Composer package의 requirement가 설치된 release metadata와 다르면 Composer가 requirement를 일치시킵니다. `var/link/composer/` 아래 실행별 manifest와 lock은 추적 release record를 보존하고 link된 package의 path repository를 추가합니다. Composer는 network access, script와 plugin을 비활성화하고 해당 package만 update한 뒤 해석한 runtime metadata를 설치합니다. 외부 package record는 바뀌지 않아야 합니다. Composer의 platform 검사를 유지하며, metadata가 일치하는 두 번째 link는 Composer 명령을 실행하지 않습니다. 실행은 `finally`에서 임시 manifest와 lock을 제거하며 vendor metadata를 변경하는 동안 lease를 보유합니다.
+Composer 로컬 개발은 앱이 선언한 `path` repository와 호환되는 requirement를 사용합니다. 기본 `composer.json`이나 명시적으로 선택한 `COMPOSER=composer.local.json`을 Composer가 읽고, 해당 manifest의 lock, 설치 record, link, autoload를 함께 관리합니다. kit는 임시 manifest, version alias, 별도 runtime metadata를 만들지 않습니다. `composer update <로컬 package> --with-dependencies`는 선택한 개발 lock과 전이 dependency를 변경할 수 있으며 실행 전에 그 사실을 출력합니다. release manifest와 lock은 별도 release 설치의 입력이며 개발 source metadata로 위장하지 않습니다.
 
 | 생태계 | link가 되는 설치 폴더 |
 |---|---|
 | npm | `npm link`가 `node_modules/<name>`을 project-local npm prefix를 거쳐 provider에 연결하며 link와 설치 record는 npm이 관리합니다 |
-| Composer | 각 tracked Composer 프로젝트의 `<vendor-dir>/<vendor>/<package>`, `composer.json`의 `config.vendor-dir`(없으면 `vendor`) |
+| Composer | 선언된 `path` repository에서 Composer가 생성한 source link. `COMPOSER`와 `COMPOSER_VENDOR_DIR`를 따르며 개발 lock과 autoload도 Composer가 관리합니다 |
 | Python | 프로젝트 `.venv`의 `site-packages`에 있는 각 패키지. provider의 패키지 폴더로 가는 symlink 하나입니다. 한 namespace의 패키지(`polyspec/orm`, `polyspec/ordered_json`)는 따로 link됩니다. uv-install의 uv sync는 link된 각 패키지를 `--inexact --no-install-package <이름>`으로 건너뛰어 uv가 link를 통해 쓰지 않게 합니다. `--no-install-package`만 쓰면 uv가 link를 통해 패키지를 제거합니다(K592) |
 | Go | 각 Go module에 git이 무시하는 `go.work`. module과 provider module의 `use` 줄을 가집니다 |
 | Rust | `link.mjs cargo <dir> <cargo args>`가 `--config` `[patch]` 항목과 `var/link/cargo` 아래 lock 사본으로 cargo 명령 하나를 실행합니다 |

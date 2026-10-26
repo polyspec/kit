@@ -12,7 +12,7 @@ The owner decided this on 2026-10-15 and it is in effect; the user ruled its lin
 Development is completed against the latest source of each polyspec repository. Nothing is released until development of all of them is complete: no tag, no version bump and no release workflow run in any repository, kit included. A push is a backup and publishes nothing; a change to kit is seen in the other checkouts through the links after `make build`.
 
 - A polyspec package counts as installed at its release: each tracked manifest and lock keeps the release record that its package manager wrote, and a repository's lock is the record of its one install.
-- Local source dependencies remain connected to their provider checkouts. npm owns its links through `npm link`; the remaining direct Composer and Python folder links are legacy behavior being replaced by their package managers (K657).
+- Local source dependencies remain connected to their provider checkouts. npm owns its links through `npm link`; Composer owns its declared path links, and remaining direct Python folder links are legacy behavior being replaced by uv (K657).
 - No link or install step judges a version, a constraint or a provider version; kit enforces no version or pin (S4). Each package manager and its lock decide the versions.
 - Releases follow in one batch after development is complete, in dependency order: kit → ordered-json → orm, template → crudui → hyper → fsm, template-benchmark.
 
@@ -20,9 +20,9 @@ Why: development stalled because each repository waited for another repository's
 
 ## Mechanism
 
-The link tool orchestrates the native package-manager commands. For npm, it runs `npm link` in each provider and then `npm link <name>...` in the consumer, with a project-local npm prefix under `var/link/npm`. `--no-save --package-lock=false` retains the release manifest and lock while npm manages the installed links and records. Source edits are visible immediately. npm retains its normal dependency and lifecycle behavior. Composer and Python still use the legacy mechanism below until their K657 migration is complete.
+The link tool orchestrates the native package-manager commands. For npm, it runs `npm link` in each provider and then `npm link <name>...` in the consumer, with a project-local npm prefix under `var/link/npm`. `--no-save --package-lock=false` retains the release manifest and lock while npm manages the installed links and records. Source edits are visible immediately. npm retains its normal dependency and lifecycle behavior. Composer also uses the native mechanism below; Python direct folder links remain legacy until its K657 migration completes.
 
-When a linked Composer package declares requirements different from its installed release metadata, Composer reconciles those requirements. A run-specific manifest and lock under `var/link/composer/` retain the tracked release records and add path repositories for the linked packages. Composer updates only those packages, with network access, scripts and plugins disabled, and installs the resolved runtime metadata. External package records must remain unchanged. Composer keeps platform checks enabled, and a second link with matching metadata runs no Composer command. The run removes its temporary manifest and lock in `finally` and holds a lease while it changes the vendor metadata.
+Composer local development uses the path repositories and compatible requirements declared by the application. Composer reads `composer.json`, or an explicitly selected `COMPOSER=composer.local.json`, and owns that manifest's lock, installed records, links and autoload. kit creates no temporary manifest, version alias or separate runtime metadata. `composer update <local packages> --with-dependencies` may change the selected development lock and transitive dependencies; the command reports that before it runs. Release manifests and locks remain inputs to release installation, not records that disguise local source metadata.
 
 | Ecosystem | Installed folder that becomes the link |
 |---|---|
