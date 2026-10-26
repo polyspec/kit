@@ -460,6 +460,7 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
   // reads them; a test, a fixture or the release consumer keeps the install that it tests.
   const projects = new Set([consumer.scope, ...(['npm', 'composer', 'python'] as const).flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))]);
   for (const project of [...projects].sort()) {
+    const composerOwners = owners(consumer, project, 'composer');
     if (!work.check && existsSync(path.join(project, MANIFESTS.npm))) {
       const npm = consumerTool(consumer.top, 'npm', work.env);
       npmLink(project, npmSourceFolders(project, work.found.values()), npm.command, npm.env, work.print);
@@ -468,11 +469,13 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
       const uv = consumerTool(consumer.top, 'uv', work.env);
       uvEditable({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
     }
-    if (!work.check && existsSync(path.resolve(project, work.env.COMPOSER || MANIFESTS.composer))) {
+    if (!work.check && composerOwners.length === 0 && existsSync(path.resolve(project, work.env.COMPOSER || MANIFESTS.composer))) {
       const composer = consumerTool(consumer.top, 'composer', work.env);
       composerLink(project, composerSourceFolders(project, work.found.values(), composer), composer, work.print);
     }
-    const folders = providedFolders(project, work.found.values(), { vendorDir: composerVendorDir(project, work.env) });
+    // A path member uses its parent installer's vendor and selected manifest, not a separate member installation (K590).
+    const localProviders = [...work.found.values()].filter(provider => provider.ecosystem !== 'composer' || composerOwners.length === 0);
+    const folders = providedFolders(project, localProviders, { vendorDir: composerOwners.length === 0 ? composerVendorDir(project, work.env) : undefined });
     // K529: a polyspec package that the manifests of the project declare, and that a provider of the run provides, has an installed folder.
     const missing = declaredWithoutFolder(work, consumer, project, [...folders, ...ownerFolders(work, consumer, project)]);
     for (const name of missing) line(work, 'NOT linked', name.ecosystem, `${name.name}: no installed folder in ${path.relative(consumer.top, project) || '.'}; install the project first`);

@@ -1134,6 +1134,8 @@ test('K590: link takes the installed folders of a workspace member with no lock 
   const linked = linkLines([consumer], env);
   assert.equal(linked.ok, true, linked.text);
   assert.doesNotMatch(linked.text, /no installed folder/);
+  // Native mutation may install the member too; remove that local install to exercise its root owner.
+  rmSync(path.join(consumer, 'packages/app/node_modules'), { recursive: true, force: true });
   const checked = linkLines([consumer], env, true);
   assert.equal(checked.ok, true, checked.text);
   // The owner lacks the package: the member is named.
