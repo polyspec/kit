@@ -619,8 +619,9 @@ test('K695: a short PHPUnit class id selects its namespaced class exactly', TIME
   }, 'feature', ENV);
   if (run.error) throw new Error(run.error);
   const filterIndex = run.args.indexOf('--filter');
+  assert.ok(filterIndex >= 0);
   const filter = run.args[filterIndex + 1];
-  assert.equal(filterIndex >= 0, true);
+  assert.ok(filter);
   assert.ok(filter.startsWith('/') && filter.endsWith('/'));
   const selected = new RegExp(filter.slice(1, -1));
   assert.equal(selected.test('Polyspec\\Orm\\Tests\\ParentSlotExpansionTest::testBareDollarInLiteralIsPreserved'), true);
