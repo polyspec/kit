@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 5d022a70af996ea8ea415a698ff0264f7e976ab3fe74e3368844decda1c28c7c -->
+<!-- source-sha256: b1ec9499f391f1471fc672f68fdba6d14a19c897fb81f5d64844feb46a5836e8 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -608,7 +608,7 @@
 | K674 | npm 재해석 전에 workspace 상위의 source link를 인식한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts, tests/source/npm-source-link-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K674 tests/kit/npm-install.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/source/npm-source-link-real.test.mts` | [o] |
 | K675 | Source link와 package bootstrap 인계, 대체된 결정, 검증 범위와 별도 release 상태를 문서화한다 | docs/plans/common-standard/plan.md, docs/operations/local-links.md, docs/operations/release.md와 한국어 짝 | `make docs-check` | [o] |
 | K676 | 상속된 Cargo target directory의 checkout별 격리를 검증하고 보장한다. Source 선택 검증은 target 격리의 증거가 아니다 | scripts/kit/link.mts, scripts/kit/kit.mk, scripts/kit/run-tests.mts, owning Cargo unit and native metadata tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K676 tests/kit/link.test.mts tests/kit/kit-mk.test.mts tests/kit/run-tests.test.mts tests/source/link-cargo-real.test.mts` | [o] |
-| K677 | 0.0.55 공개 뒤 해당 tag 밖에 승인 변경이 남으면 별도 CI와 consumer proof를 통과한 0.0.56을 release한다 | release manifest, native lock, dependency review, changelog, release workflow | `make release-verify TAG=v0.0.56` | [~] |
+| K677 | 0.0.55 공개 뒤 해당 tag 밖에 승인 변경이 남으면 별도 CI와 consumer proof를 통과한 0.0.56을 release한다 | release manifest, native lock, dependency review, changelog, release workflow | `make release-verify TAG=v0.0.56` | [ ] |
 | K677-1 | Native release-consumer npm lock을 advisory review와 offline 승인 범위에 포함한다 | config/dependency-policy.json, native six-lock review record and consumer lock acceptance | `make dependency-policy-check` | [o] |
 | K678 | 실제 locked install과 package 소비 검증을 유지하며 반복 준비 비용과 오래된 link 설명을 검토한다 | Reviewed six isolated builtCopy consumers across three source test files; retained native locked-install and packed-consumption coverage and per-process shared download cache; clarified dependency-root ownership and source-versus-packed export comments | `make docs-check` | [o] |
 | K679 | 기존 미완료 checklist 전체를 native package 소유권, 현재 runner 규칙, release 증거와 대조한 뒤 기존 지시의 재개 여부를 정한다 | common-standard plan 결정 대응표와 기존 checklist 판정, 한국어 짝 | `make docs-check` | [o] |
@@ -618,7 +618,7 @@
 | K683 | Resolver를 새로 만들거나 release 설치에 sibling checkout을 요구하지 않고 native source/release mode dependency 검증 범위를 정한다 | npm-install, composer-install, uv-install and owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/npm-install.test.mts` | [o] |
 | K684 | 상속된 offline 설정이 online advisory review의 성공을 위장하지 못하는지 검증하고 offline gate는 commit된 review 기록만 읽도록 유지한다 | scripts/kit/dependency-review.mts and advisory owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-policy.test.mts` | [o] |
 | K685 | 전체 operation deadline 없이 문서와 land 작업의 단계별 명령·결과·경과시간 출력을 보완한다 | check-documents, land runMake timeout/progress and owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/land.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K685 tests/kit/documents.test.mts` | [o] |
-| K686 | CI run 40313948359의 전체 실패를 수집하고 소유 범위를 수정한 뒤 수정된 release candidate의 CI를 통과시켜 공개한다 | complete CI report, failure-specific source changes and owning tests | `make release-verify TAG=v0.0.55` | [ ] |
+| K686 | CI run 40313948359의 전체 실패를 수집하고 소유 범위를 수정한 뒤 수정된 release candidate의 CI를 통과시켜 공개한다 | complete CI report, failure-specific source changes and owning tests | `make release-verify TAG=v0.0.56` | [ ] |
 | K686-1 | Native npm provider 선택 fixture에 source graph 탐색 전 package manifest 입력을 완성한다 | tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="includes all declared provider sections" tests/kit/npm-install.test.mts` | [o] |
 | K686-2 | 오래된 hook 소스 직접 경로와 형제 bootstrap 기대를 네이티브 npm bin·설치 패키지 workflow 계약으로 바꾼다 | tests/kit/ci-only.test.mts, linked-sources.test.mts, kit-bootstrap.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K686-2 tests/kit/ci-only.test.mts tests/kit/linked-sources.test.mts tests/kit/kit-bootstrap.test.mts` | [o] |
 | K686-3 | 임시 directory cleanup 실패를 lint step 실패로 수집하고 도구 진단과 후속 step 실행을 유지합니다 | scripts/kit/lint-steps.mts, tests/kit/lint-php.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K686-3\|PHPStan temporary configuration\|every step runs after" tests/kit/lint-php.test.mts` | [o] |
