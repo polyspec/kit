@@ -17,12 +17,11 @@ test('a tracked symbolic link fails with its path, and a tree without one passes
   symlinkSync('../a.txt', path.join(root, 'docs/link.txt'));
   assert.deepEqual(symlinkFindings(root), [], 'an untracked link is no tracked file');
   assert.equal(spawnSync('git', ['add', 'docs/link.txt'], { cwd: root }).status, 0);
-  assert.deepEqual(symlinkFindings(root), ['docs/link.txt: a tracked symbolic link; a repository tracks the links of the shared root files of kit to ../kit and its other files as files (K621). Fix: git rm --cached docs/link.txt and track the file it names']);
+  assert.deepEqual(symlinkFindings(root), ['docs/link.txt: a tracked symbolic link; a repository tracks regular files, including the shared files copied from its installed kit package (K671-2). Fix: git rm --cached docs/link.txt and track the file it names']);
 });
 
-// K621: a repository tracks the shared root files of kit as links to the matching files of the kit checkout beside it (K614);
-// such a link to another file, or to a file that the kit checkout does not hold, is a finding as any other tracked link.
-test('a tracked link of a shared root file of kit to the matching file of ../kit passes, and any other link fails (K621)', (t) => {
+// Shared package copies have no tracked-link exception, including when the old sibling checkout exists.
+test('tracked shared files are regular copies even when a sibling kit checkout exists (K621, K671-2)', (t) => {
   const parent = mkdtempSync(path.join(tmpdir(), 'kit-links-'));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   put(path.join(parent, 'kit'), { 'PRINCIPLES.md': '# P\n', 'PRINCIPLES.ko.md': '# P\n', '.editorconfig': 'root = true\n', 'claude/settings.json': '{}\n' });
@@ -31,14 +30,14 @@ test('a tracked link of a shared root file of kit to the matching file of ../kit
   initRepository(root);
   for (const [file, target] of Object.entries({ 'PRINCIPLES.md': '../kit/PRINCIPLES.md', 'PRINCIPLES.ko.md': '../kit/PRINCIPLES.ko.md', '.editorconfig': '../kit/.editorconfig', '.claude/settings.json': '../../kit/claude/settings.json' })) symlinkSync(target, path.join(root, file));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
-  assert.deepEqual(symlinkFindings(root), []);
-  const finding = (file: string) => `${file}: a tracked symbolic link; a repository tracks the links of the shared root files of kit to ../kit and its other files as files (K621). Fix: git rm --cached ${file} and track the file it names`;
+  assert.equal(symlinkFindings(root).length, 4);
+  const finding = (file: string) => `${file}: a tracked symbolic link; a repository tracks regular files, including the shared files copied from its installed kit package (K671-2). Fix: git rm --cached ${file} and track the file it names`;
   rmSync(path.join(root, 'PRINCIPLES.ko.md'));
   symlinkSync('../kit/PRINCIPLES.md', path.join(root, 'PRINCIPLES.ko.md'));
   symlinkSync('../kit/AGENTS.md', path.join(root, 'AGENTS.md'));
   rmSync(path.join(parent, 'kit/.editorconfig'));
   assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
-  assert.deepEqual(symlinkFindings(root).sort(), [finding('.editorconfig'), finding('AGENTS.md'), finding('PRINCIPLES.ko.md')]);
+  assert.deepEqual(symlinkFindings(root).sort(), [finding('.claude/settings.json'), finding('.editorconfig'), finding('AGENTS.md'), finding('PRINCIPLES.ko.md'), finding('PRINCIPLES.md')]);
 });
 
 test('a configuration that kit no longer reads is a finding (K243)', (t) => {

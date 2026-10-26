@@ -13,7 +13,7 @@
 //
 // A change of a copy is made in kit and written with `make kit-sync`, never in the repository; the check names each copy that
 // is missing or differs, and the fix.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { lstatSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readConfig, readConfigFindings, SCHEMAS } from './schema-validate.mts';
@@ -175,30 +175,13 @@ export function retiredFindings(root: string): string[] {
   return RETIRED.filter(file => existsSync(path.join(root, file))).map(file => `${file}: kit no longer reads it; the commit rules are COMMIT_RULES of check-commits.mts (K243). Fix: git rm ${file}`);
 }
 
-// The shared root files of kit that a repository tracks as links to the kit checkout beside it, no copies (K614, K621): each
-// path of a repository and the file of kit that its link names.
-const SHARED_LINKS: Record<string, string> = {
-  'PRINCIPLES.md': 'PRINCIPLES.md',
-  'PRINCIPLES.ko.md': 'PRINCIPLES.ko.md',
-  '.editorconfig': '.editorconfig',
-  '.claude/settings.json': 'claude/settings.json',
-};
-
-/**
- * A finding for each symbolic link in the index of `root` other than a shared root file of kit whose link names the matching file
- * of the kit checkout beside the repository, which exists: a repository holds its files as files (AGENTS.md, K254, K621).
- */
+/** A finding for each tracked symbolic link: shared files are regular copies of the installed kit package. */
 export function symlinkFindings(root: string): string[] {
   return git(root, 'ls-files', '--stage', '-z').split('\0').filter(Boolean).flatMap(entry => {
     if (!entry.startsWith(`${LINK_MODE} `)) return [];
     const tab = entry.indexOf('\t');
     const file = entry.slice(tab + 1);
-    const shared = SHARED_LINKS[file];
-    if (shared !== undefined) {
-      const kit = path.join(root, '..', 'kit', shared);
-      if (git(root, 'cat-file', 'blob', `:${file}`) === path.relative(path.dirname(path.join(root, file)), kit) && existsSync(kit)) return [];
-    }
-    return [`${file}: a tracked symbolic link; a repository tracks the links of the shared root files of kit to ../kit and its other files as files (K621). Fix: git rm --cached ${file} and track the file it names`];
+    return [`${file}: a tracked symbolic link; a repository tracks regular files, including the shared files copied from its installed kit package (K671-2). Fix: git rm --cached ${file} and track the file it names`];
   });
 }
 
@@ -323,6 +306,8 @@ export function check(root: string): string[] {
   for (const { file, from } of kit.copies) {
     if (!existsSync(path.join(root, file))) {
       found.push(`${file}: the copy of ${PACKAGE} ${kit.version} is missing. Fix: make kit-sync`);
+    } else if (lstatSync(path.join(root, file)).isSymbolicLink()) {
+      found.push(`${file}: the copy of ${PACKAGE} ${kit.version} is a symbolic link, not a regular file. Fix: make kit-sync`);
     } else if (!readFileSync(path.join(root, file)).equals(readFileSync(path.join(root, INSTALLED, from)))) {
       found.push(`${file}: differs from ${INSTALLED}/${from} of ${PACKAGE} ${kit.version}. Fix: make kit-sync`);
     }

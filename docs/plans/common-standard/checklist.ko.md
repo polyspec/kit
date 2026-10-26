@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 6714ac322ca9cdf287620de10c881404fad7b0ea55eee5b82d6a6549fb94932c -->
+<!-- source-sha256: 096b7fda04b892f827c2852fa2453084a1c2ad71dec7e0785dc055dbc12a4d9c -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -591,3 +591,5 @@
 | K666 | 공유 링크 검사는 읽기 전용 진단과 native 변경 수렴을 구분하며 lock 없는 workspace member 설치의 root 소유권을 유지한다 | tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K529: check\|K643:\|K590:" tests/kit/link.test.mts` | [o] |
 | K670 | Release workflow는 첫 make 전에 consumer lock이 고정한 tag의 sibling kit source와 npm dependency를 준비하며 kit 자체는 자기 source를 쓴다 | workflows/release.yml, .github/workflows/release.yml, tests/source/release-workflow.test.mts | node --test tests/source/release-workflow.test.mts | [o] |
 | K670-1 | Arginfo 생성이 선언한 PHP configuration을 유지하여 shared extension인 tokenizer를 사용할 수 있게 한다 | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | node --test --test-name-pattern=K670-1 tests/kit/php-ext.test.mts | [o] |
+| K671 | 소비자는 필수 sibling checkout 없이 설치된 kit package에서 bootstrap, 공유 파일, workflow를 사용하며 로컬 npm link는 계속 지원합니다 | package bootstrap, sync, workflows, owner tests | `make docs-check` | [~] |
+| K671-2 | 설치된 package의 공유 copy와 workflow를 복원하고 provider를 바꾸지 않는 atomic managed symlink 전환 및 tracked shared link 거부를 적용합니다 | package.json kit.copies, scripts/kit/kit-sync.mts, scripts/kit/kit-check.mts, owning unit tests | `node scripts/kit/run-tests.mts node -- tests/kit/kit-sync.test.mts tests/kit/kit-check.test.mts`; type-aware oxlint | [o] |

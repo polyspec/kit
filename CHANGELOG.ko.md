@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 15feaf1b9b74f1f6ae568fb8e92dc45a8b181829c385d30a7390647f44e2b13c -->
+<!-- source-sha256: 3793db9cc023b057a9f713ae755c561049631de267bdff8d590f445df5c5147f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 공유 principle, editor 설정, Claude 설정, release/gates workflow는 설치된 kit package의 regular copy로 관리합니다. sync는 bytes가 같아도 managed symlink를 atomic하게 교체하고 provider를 그대로 유지하며 반복 실행은 변경을 만들지 않습니다. tracked shared link의 sibling-checkout 예외를 제거하고 소비자 정리 전에 kit source checkout의 sync를 거부합니다. Red: 이전 동작에서 선택 copy-policy case 4개가 실패합니다. Green: 소유 case 4개와 type-aware lint가 통과합니다(K671-2).
 - Arginfo 생성이 선언한 PHP configuration을 유지한다. -n으로 비활성화하면 shared module로 로드하는 PHP 설치에서 tokenizer가 사라졌다. Red: -n이 tokenizer를 제거하면 K670-1 unit이 실패하며 green: fixture header를 생성한다(K670-1).
 - Consumer release는 make가 bootstrap을 읽기 전에 lock의 release tag로 sibling kit checkout과 npm dependency를 준비한다. kit 자체는 자기 source를 유지한다. Red: 준비 단계가 없으면 K670 workflow 회귀 검증이 실패하며 green: release workflow unit 9개가 통과한다(K670).
 - Cargo source 연결은 metadata와 요청 command 전에 생성된 개발 lock에서 잠긴 sibling crate만 offline 갱신한다. Red: metadata가 호환되는 v0.0.10 sibling 대신 cache의 ordered-json v0.0.9 release를 선택했다. Green: K664-3-1 회귀와 native offline locked metadata 실행이 local source를 선택하고 tracked release lock은 유지한다(K664-3-1).

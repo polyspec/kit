@@ -4,7 +4,7 @@
 // package. The package here is a stub directory under node_modules; no test runs npm or uses the network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { renameSync, lstatSync, symlinkSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -136,22 +136,50 @@ test('the commands run in the repository of their working directory and print th
   assert.equal(refused.stderr, '[kit-sync] kit-sync takes no argument: it writes the copies of the installed package. Usage: node scripts/kit/kit-sync.mts\n');
 });
 
-// K614: a repository includes the bootstrap of the kit checkout beside it and links PRINCIPLES.md, .editorconfig and
-// .claude/settings.json, so kit copies only what alint must read inside the repository: config/layout.kit.yml and the three
-// manifest schemas that it names.
-test('the package.json of kit declares as its copies only config/layout.kit.yml and the three schemas that it names (K614)', () => {
+test('kit copies installed shared files and workflows without requiring a sibling checkout (K671-2)', (t) => {
   const ROOT = path.join(import.meta.dirname, '../..');
   const manifest = readFixture<NpmManifest>(ROOT, 'package.json');
-  const copies = manifest.kit?.copies;
-  assert.ok(copies, 'package.json declares no kit.copies');
-  const copied = ['config/cargo.schema.json', 'config/composer.schema.json', 'config/layout.kit.yml', 'config/pyproject.schema.json'];
-  assert.deepEqual(Object.keys(copies).sort(), copied);
-  for (const file of copied) assert.equal(copies[file], file, `${file} is not a copy of itself`);
-  assert.deepEqual(Object.values(copies).filter(from => !existsSync(path.join(ROOT, from))), [], 'these copies have no file in kit');
-  const { files } = manifest;
-  assert.ok(files, 'package.json declares no files');
-  assert.deepEqual(Object.values(copies).filter(from => !files.some(entry => entry === from || (entry.endsWith('/') && from.startsWith(entry)))), [], 'these copies are not in files of package.json, so the package lacks them');
-  assert.equal(existsSync(path.join(ROOT, 'kit.json')), false, 'kit.json is gone: package.json holds the version and the copies');
+  const expected = {
+    'PRINCIPLES.md': 'PRINCIPLES.md', 'PRINCIPLES.ko.md': 'PRINCIPLES.ko.md', '.editorconfig': '.editorconfig',
+    '.claude/settings.json': 'claude/settings.json', '.github/workflows/release.yml': 'workflows/release.yml',
+    '.github/workflows/gates.yml': 'workflows/gates.yml', 'config/layout.kit.yml': 'config/layout.kit.yml',
+    'config/pyproject.schema.json': 'config/pyproject.schema.json', 'config/composer.schema.json': 'config/composer.schema.json',
+    'config/cargo.schema.json': 'config/cargo.schema.json',
+  };
+  assert.deepEqual(manifest.kit?.copies, expected);
+  const files = Object.fromEntries(Object.values(expected).map(from => [from, readFileSync(path.join(ROOT, from), 'utf8')]));
+  const root = path.join(tree(t), 'consumer');
+  renameSync(repository(t, { copies: expected, files }), root);
+  assert.equal(existsSync(path.join(root, '../kit')), false);
+  assert.equal(sync(root).length, Object.keys(expected).length);
+  for (const [file, from] of Object.entries(expected)) {
+    assert.ok(lstatSync(path.join(root, file)).isFile(), file);
+    assert.equal(readFileSync(path.join(root, file), 'utf8'), files[from]);
+  }
+  assert.deepEqual(sync(root), []);
+  const shipped = manifest.files ?? [];
+  assert.deepEqual(Object.values(expected).filter(from => !shipped.some(entry => entry === from || (entry.endsWith('/') && from.startsWith(entry)))), []);
+});
+
+test('kit-sync migrates matching and stale managed links atomically without changing their provider (K671-2)', (t) => {
+  for (const content of ['installed content', 'old provider content']) {
+    const root = repository(t, { copies: { 'PRINCIPLES.md': 'PRINCIPLES.md' }, files: { 'PRINCIPLES.md': 'installed content' } });
+    write(root, 'provider/principles.md', content);
+    symlinkSync('provider/principles.md', path.join(root, 'PRINCIPLES.md'));
+    assert.deepEqual(sync(root), ['written PRINCIPLES.md']);
+    assert.ok(lstatSync(path.join(root, 'PRINCIPLES.md')).isFile());
+    assert.equal(readFileSync(path.join(root, 'PRINCIPLES.md'), 'utf8'), 'installed content');
+    assert.equal(readFileSync(path.join(root, 'provider/principles.md'), 'utf8'), content);
+    assert.equal(readFileSync(path.join(root, 'node_modules/@polyspec/kit/PRINCIPLES.md'), 'utf8'), 'installed content');
+    assert.deepEqual(sync(root), []);
+  }
+});
+
+test('kit-sync protects the kit source checkout from consumer copy cleanup (K671-2)', (t) => {
+  const root = tree(t, { 'package.json': '{"name":"@polyspec/kit"}', 'scripts/kit/tool.mts': '// source' });
+  assert.throws(() => sync(root), /source checkout/);
+  assert.equal(readFileSync(path.join(root, 'scripts/kit/tool.mts'), 'utf8'), '// source');
+  assert.deepEqual(check(root), []);
 });
 
 // K166: the build backend of the wheels has one declaration, pythonBackend of config/toolchain.json, so a release with a
@@ -217,8 +245,7 @@ test('a consumer after kit-sync passes owner-validate with the rules that kit sh
   sync(root);
   // make hooks writes the hooks of kit (K495, K522), which a rule that kit ships owns.
   for (const hook of HOOKS) write(root, hook, '#!/bin/sh\n');
-  // K614: a consumer holds its workflows and its commit identity as files of its own and links PRINCIPLES.md, its twin,
-  // .editorconfig and .claude/settings.json to the kit checkout, which rules that kit ships own too.
+  // Installed copies and the consumer commit identity are regular files owned by the shipped rules.
   const held = ['.github/workflows/release.yml', '.github/workflows/gates.yml', '.claude/settings.json', '.editorconfig', 'PRINCIPLES.md', 'PRINCIPLES.ko.md', 'config/commit-identity.json'];
   for (const file of held) write(root, file, `${file}\n`);
   write(root, 'config/owner-checks.json', '{}\n');

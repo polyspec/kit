@@ -66,6 +66,12 @@
   },
   "kit": {
     "copies": {
+      "PRINCIPLES.md": "PRINCIPLES.md",
+      "PRINCIPLES.ko.md": "PRINCIPLES.ko.md",
+      ".editorconfig": ".editorconfig",
+      ".claude/settings.json": "claude/settings.json",
+      ".github/workflows/release.yml": "workflows/release.yml",
+      ".github/workflows/gates.yml": "workflows/gates.yml",
       "config/layout.kit.yml": "config/layout.kit.yml",
       "config/pyproject.schema.json": "config/pyproject.schema.json",
       "config/composer.schema.json": "config/composer.schema.json",

@@ -9,9 +9,9 @@
 // to its path, and a copy that is already the same bytes is not written, so a second sync writes nothing. A file of scripts/kit
 // that the package does not declare is removed: that directory holds the copies of kit only. The command reads
 // no network; it prints a line for each change.
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { lstatSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { COPY_DIRECTORY, installedKit, INSTALLED, PACKAGE, RETIRED_COPIES, strayCopies } from './kit-check.mts';
+import { COPY_DIRECTORY, isSource, installedKit, INSTALLED, PACKAGE, RETIRED_COPIES, strayCopies } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 import { readNpmManifest } from './manifests.mts';
@@ -20,14 +20,16 @@ const USAGE = 'Usage: node scripts/kit/kit-sync.mts';
 
 /** Writes the copies of the installed package into `root`; returns the lines of the changes, empty when the copies match. */
 export function sync(root: string): string[] {
+  if (isSource(root)) throw new Error("kit-sync writes consumer copies, not the kit source checkout; edit the source files directly");
   const kit = installedKit(root);
   if ('finding' in kit) throw new Error(kit.finding);
   const changes: string[] = [];
   for (const { file, from } of kit.copies) {
     const target = path.join(root, file);
     const content = readFileSync(path.join(root, INSTALLED, from));
-    const existed = existsSync(target);
-    if (existed && readFileSync(target).equals(content)) continue;
+    const entry = lstatSync(target, { throwIfNoEntry: false });
+    const existed = entry !== undefined;
+    if (entry?.isFile() && readFileSync(target).equals(content)) continue;
     writeAtomic(target, content);
     changes.push(`${existed ? 'written' : 'added'} ${file}`);
   }
