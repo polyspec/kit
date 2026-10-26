@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Arginfo generation retains the declared PHP configuration. Disabling it with -n removed tokenizer on PHP installations that load it as a shared module. Red: the K670-1 unit fails when -n drops tokenizer; green: it generates the fixture header (K670-1).
+
 - A consumer release prepares the sibling kit checkout and npm dependencies at the release tag of its lock before make reads the bootstrap. kit itself keeps its own sources. Red: the K670 workflow regression fails without preparation; green: all 9 release workflow units pass (K670).
 
 ## 0.0.55

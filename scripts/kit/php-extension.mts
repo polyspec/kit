@@ -294,7 +294,7 @@ function generateArginfo(root: string, source: string, stub: string): string {
   catch (error) { throw new Stop(error instanceof Error ? error.message : String(error)); }
   const php = toolCommand(root, 'php');
   const file = path.join(source, path.basename(stub));
-  run(php, ['-n', installed.file, file], { cwd: source });
+  run(php, [installed.file, file], { cwd: source });
   return path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h'));
 }
 

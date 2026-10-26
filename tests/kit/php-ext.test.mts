@@ -52,6 +52,17 @@ const good = (): Record<string, string> => ({
 
 const findings = (files: Record<string, string>) => extensionFindings(Object.keys(files), file => files[file]);
 
+test('K670-1: arginfo keeps the PHP configuration that loads tokenizer', { timeout: 10000 }, (t) => {
+  const root = tree(t, { ...good(), '.gitignore': 'var/\n' });
+  phpWrappers(root);
+  const php = path.join(root, 'var/tools/bin/php');
+  const real = toolsPath(ROOT, 'bin', 'php');
+  writeFileSync(php, `#!/bin/sh\nif [ "$1" = -n ]; then echo 'The "tokenizer" extension is not available' >&2; exit 93; fi\nexec '${real}' "$@"\n`);
+  phpExtension.arginfo(root);
+  const header = readFileSync(path.join(root, 'var/php-ext/arginfo/polyspec_demo_arginfo.h'), 'utf8');
+  assert.equal(/Stub hash: ([0-9a-f]+)/.exec(header)?.[1], stubHash(STUB));
+});
+
 /** Whether `value` is a JSON object. */
 const isObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 

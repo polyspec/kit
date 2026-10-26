@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fb1a312aaae195329b927e258c70f6ec91dd64835dbc38fd88e54de2caf6e16f -->
+<!-- source-sha256: 8b69eb4699c8710f6186a587e85b44511b59a10f0efeea1e582065d354e3f334 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Arginfo 생성이 선언한 PHP configuration을 유지한다. -n으로 비활성화하면 shared module로 로드하는 PHP 설치에서 tokenizer가 사라졌다. Red: -n이 tokenizer를 제거하면 K670-1 unit이 실패하며 green: fixture header를 생성한다(K670-1).
 
 - Consumer release는 make가 bootstrap을 읽기 전에 lock의 release tag로 sibling kit checkout과 npm dependency를 준비한다. kit 자체는 자기 source를 유지한다. Red: 준비 단계가 없으면 K670 workflow 회귀 검증이 실패하며 green: release workflow unit 9개가 통과한다(K670).
 

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 896edc2210b437a519efa349443b73225839eb727bcf80f23e63082b2d43a274 -->
+<!-- source-sha256: cd388796726d1a4bd4d63f003980a25102ea668d1d0262cb531890085836272b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -588,3 +588,4 @@
 | K664-3 | Cargo 개발 source fallback을 거부하고 native link 실행 상태를 보호한다 | scripts/kit/link.mts, scripts/kit/cargo-source.mts, owning Cargo link tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K664-3 tests/kit/link.test.mts` | [o] |
 | K664-5 | 네이티브 npm 릴리스→소스 연결은 릴리스 선언과 main 체크아웃을 바꾸지 않고 멱등하게 수렴한다 | scripts/kit/npm-install.mts, tests/source/npm-source-link-real.test.mts, tests/kit/npm-install.test.mts, config/owner-checks.json | `node scripts/kit/run-tests.mts node -- --test-name-pattern=npmSourceFolders tests/kit/npm-install.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/npm-source-link-real.test.mts` | [o] |
 | K670 | Release workflow는 첫 make 전에 consumer lock이 고정한 tag의 sibling kit source와 npm dependency를 준비하며 kit 자체는 자기 source를 쓴다 | workflows/release.yml, .github/workflows/release.yml, tests/source/release-workflow.test.mts | node --test tests/source/release-workflow.test.mts | [o] |
+| K670-1 | Arginfo 생성이 선언한 PHP configuration을 유지하여 shared extension인 tokenizer를 사용할 수 있게 한다 | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | node --test --test-name-pattern=K670-1 tests/kit/php-ext.test.mts | [o] |
