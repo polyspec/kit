@@ -4,13 +4,15 @@
 // refuses to strip types, which is why a release packs dist (prepack) and development never reads it.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readFixture } from './json-fixture.mts';
+import { packedFiles } from '../../scripts/kit/pack-manifest.mts';
+import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const NODE = process.execPath;
@@ -70,8 +72,13 @@ test('an installed copy of a .mts module is refused, since Node strips no types 
   assert.match(refused.stderr, /ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING/);
 });
 
-test('the Claude hook of a consumer runs the claude-hook source of its linked kit', () => {
-  const settings = readFileSync(path.join(ROOT, 'claude/settings.json'), 'utf8');
-  assert.match(settings, /node_modules\/@polyspec\/kit\/scripts\/kit\/claude-hook\.mts/);
-  assert.doesNotMatch(settings, /dist\/claude-hook/);
+test('the consumer hook bin selects source and packed targets without changing its settings (K686-2)', () => {
+  const source = readFixture<{ bin: Record<string, string> }>(ROOT, 'package.json');
+  assert.equal(source.bin['polyspec-kit-hook'], './scripts/kit/claude-hook.mts');
+  assert.notEqual(statSync(path.join(ROOT, 'scripts/kit/claude-hook.mts')).mode & 0o111, 0, 'the source command is executable');
+  const packed = packedFiles(ROOT);
+  const manifest: unknown = JSON.parse(packed['package.json'] ?? 'null');
+  assert.ok(isJsonObject(manifest) && isJsonObject(manifest.bin), 'the packed manifest declares npm commands');
+  assert.equal(manifest.bin['polyspec-kit-hook'], './dist/claude-hook.mjs');
+  assert.equal(packed['claude/settings.json'], readFileSync(path.join(ROOT, 'claude/settings.json'), 'utf8'), 'source and packed consumers use identical native-bin settings');
 });

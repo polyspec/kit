@@ -8,6 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { assertWorkflowPackageBootstrap } from './workflow-package-bootstrap.mts';
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
 
@@ -92,15 +93,8 @@ test('install-packages runs the targets that INSTALL_PACKAGES_EXTRA names after 
   assert.equal(run.stdout, 'npm allow-remote=root: ci\nnpm allow-remote=root: extra-one\nnpm allow-remote=root: extra-two\n');
 });
 
-test('the gates workflow installs the packages of a fresh sibling kit before make install and builds nothing, since the consumer runs its sources (K565, K613)', () => {
+test('the gates workflow bootstraps the installed kit with pinned npm before Make and builds no sibling checkout (K686-2)', (t) => {
   const workflow = readFileSync(path.resolve(KIT, '../../workflows/gates.yml'), 'utf8');
-  const clone = workflow.indexOf('- name: sibling checkouts');
-  const sibling = workflow.indexOf('- name: install sibling kit');
-  const install = workflow.indexOf('- name: install\n', sibling);
-  assert.ok(clone !== -1 && sibling > clone && install > sibling, 'the packages of the sibling kit are installed after the checkout and before the consumer install');
-  const step = workflow.slice(sibling, install);
-  assert.match(step, /if \[ -d \.\.\/kit\/\.git \]; then/);
-  assert.match(step, /make -C \.\.\/kit install-tools TOOLS=npm/);
-  assert.match(step, /make -C \.\.\/kit install-packages/);
-  assert.doesNotMatch(step, /kit-build/);
+  assertWorkflowPackageBootstrap(workflow, t);
+  assert.doesNotMatch(workflow, /make -C \.\.\/kit|kit-build/, 'package bootstrap never builds a sibling kit');
 });

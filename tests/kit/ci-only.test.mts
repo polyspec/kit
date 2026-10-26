@@ -113,14 +113,15 @@ test('no local command runs the full suite: full-run, make check and rerun-faile
   assert.doesNotMatch(makefile, /^check:/m);
 });
 
-test('the vendored Claude Code settings run the hook of the installed package before every Bash command', () => {
+test('the vendored Claude Code settings run the consumer Node and native npm hook bin before every Bash command (K686-2)', () => {
   type Settings = { hooks: { PreToolUse: Array<{ matcher: string; hooks: Array<{ type: string; command: string }> }> } };
   const settings = readFixture<Settings>(path.join(KIT, '../..'), 'claude/settings.json');
   const entry = settings.hooks.PreToolUse.find(item => item.matcher === 'Bash');
   assert.ok(entry, 'a PreToolUse entry for Bash');
-  const [hook] = entry.hooks;
-  assert.ok(hook, 'the entry runs a hook');
-  assert.match(hook.command, /node_modules\/@polyspec\/kit\/scripts\/kit\/claude-hook\.mts/);
+  assert.deepEqual(entry.hooks, [{
+    type: 'command',
+    command: '"$CLAUDE_PROJECT_DIR"/var/tools/bin/node "$CLAUDE_PROJECT_DIR"/node_modules/.bin/polyspec-kit-hook',
+  }], 'the Bash hook uses the consumer runtime and the command link owned by npm');
 });
 
 function finalTree(t: Parameters<typeof tree>[0], state: string) {
