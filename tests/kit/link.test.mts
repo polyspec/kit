@@ -185,23 +185,23 @@ writeFileSync(path.join(project, selected.replace(/\\.json$/, '') + '.lock'), JS
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 const args = process.argv.slice(2);
-const python = args[args.indexOf('--python') + 1];
+const python = path.join(process.cwd(), '.venv/bin/python');
 const site = path.join(path.dirname(path.dirname(python)), 'lib/python3.14/site-packages');
-for (const [index, value] of args.entries()) {
-  if (value !== '--editable') continue;
-  const source = args[index + 1];
+const project = readFileSync(path.join(process.cwd(), 'pyproject.toml'), 'utf8');
+for (const match of project.matchAll(/path = "([^"]+)".*editable = true/g)) {
+  const source = path.resolve(process.cwd(), match[1]);
   const manifest = readFileSync(path.join(source, 'pyproject.toml'), 'utf8');
   const name = /^name = "([^"]+)"/m.exec(manifest)?.[1].replaceAll('-', '_');
   if (!name) process.exit(92);
   const record = path.join(site, name + '-0.0.1.dist-info');
-  // The uv fixture replaces the released package and writes uv's native editable record.
+  // Native sync consumes the application's editable source declaration.
   const released = path.join(site, name);
   if (existsSync(released)) rmSync(released, { recursive: true, force: true });
   mkdirSync(record, { recursive: true });
   writeFileSync(path.join(record, 'direct_url.json'), JSON.stringify({ url: pathToFileURL(source).href, dir_info: { editable: true } }));
 }
 ` });
-  stub(bin, log, 'uv', `if [ "$1 $2" = "pip install" ]; then case " $* " in *" --editable "*) exec ${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(bin, 'uv-editable.mjs'))} "$@";; esac; fi\ncase "$1" in sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; if [ -f ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))} ]; then while read n u; do case " $* " in *" --no-install-package $n "*) ;; *) grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ $u" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n no" >> ${JSON.stringify(path.join(consumer, 'editable.txt'))};; esac; done < ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))}; fi; ag=no; case " $* " in *" --all-groups "*) ag=yes;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ] && [ "$ag" = yes ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
+  stub(bin, log, 'uv', `if [ "$1" = sync ]; then ${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(bin, 'uv-editable.mjs'))} "$@" || exit $?; fi\ncase "$1" in sync) case " $* " in *" --inexact "*|*" --all-groups "*) ;; *) if [ -f ${JSON.stringify(path.join(consumer, 'test-only.txt'))} ]; then while read n; do grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done < ${JSON.stringify(path.join(consumer, 'test-only.txt'))}; fi;; esac; if [ -f ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))} ]; then while read n u; do case " $* " in *" --no-install-package $n "*) ;; *) grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ $u" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n no" >> ${JSON.stringify(path.join(consumer, 'editable.txt'))};; esac; done < ${JSON.stringify(path.join(consumer, 'sync-rewrites.txt'))}; fi; ag=no; case " $* " in *" --all-groups "*) ag=yes;; esac; prev=""; for a; do if [ "$prev" = "--reinstall-package" ] && [ "$ag" = yes ]; then grep -v "^$a[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))}; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; grep "^$a==" ${JSON.stringify(path.join(consumer, 'export.txt'))} >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null; fi; prev="$a"; done;;
 export) cat ${JSON.stringify(path.join(consumer, 'export.txt'))} 2>/dev/null;;
 esac
 case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv.workspace "$d/pyproject.toml" 2>/dev/null && { echo "$d"; exit 0; }; d=$(dirname "$d"); done; pwd;; "pip list") cat ${JSON.stringify(path.join(consumer, 'pip-list.json'))};; "pip check") cat ${JSON.stringify(path.join(consumer, 'pip-check.txt'))} 2>/dev/null || true;; "pip freeze") cat ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || true;; "pip install") rm -f ${JSON.stringify(path.join(consumer, 'pip-check.txt'))}; shift 2; nodeps=""; while [ $# -gt 0 ]; do case "$1" in --constraints) cp "$2" ${JSON.stringify(path.join(consumer, 'constraints.logged'))}; shift 2;; --overrides) cp "$2" ${JSON.stringify(path.join(consumer, 'overrides.logged'))}; shift 2;; --python|--reinstall-package) shift 2;; --no-deps) nodeps=1; shift;; -e) dir=$2; n=$(sed -n 's/^name = "\\(.*\\)"/\\1/p' "$dir/pyproject.toml" | head -n 1 | tr _ -); grep -v "^$n[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} > ${JSON.stringify(path.join(consumer, 'freeze.next'))} 2>/dev/null; mv ${JSON.stringify(path.join(consumer, 'freeze.next'))} ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; echo "$n @ file://$dir" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; if [ -z "$nodeps" ]; then for dep in $(sed -n 's/^dependencies = \\[\\(.*\\)\\]/\\1/p' "$dir/pyproject.toml" | tr -d "\\"' " | tr ',' '\\n' | sed 's/[=<>@].*//'); do grep -q "^$dep[=@ ]" ${JSON.stringify(path.join(consumer, 'freeze.txt'))} 2>/dev/null || echo "$dep==1.0" >> ${JSON.stringify(path.join(consumer, 'freeze.txt'))}; done; fi; shift 2;; *.whl) n=$(basename "$1" | cut -d- -f1 | tr _ -); grep -v "^$n[=@ ]" ${freezeFile} > ${freezeFile}.next 2>/dev/null; mv ${freezeFile}.next ${freezeFile}; echo "$n @ file://$1" >> ${freezeFile}; if [ -z "$nodeps" ]; then for dep in $(unzip -p "$1" '*.dist-info/METADATA' | sed -n 's/^Requires-Dist: \\([A-Za-z0-9._-]*\\).*/\\1/p'); do grep -q "^$dep[=@ ]" ${freezeFile} 2>/dev/null || echo "$dep==1.0" >> ${freezeFile}; done; fi; shift;; *) shift;; esac; done;; esac`);
@@ -209,6 +209,8 @@ case "$1 $2" in "workspace dir") d=$PWD; while [ "$d" != / ]; do grep -q tool.uv
   // The list -m of a module that the module of the folder a does not require fails as real go does.
   stub(bin, log, 'go', `case "$1 $2" in "mod edit") cat "$4.json";; "work edit") cat "$4.json";; "work init") : > "$GOWORK"; shift 2; { printf '{"Use":['; s=""; for d in "$@"; do printf '%s{"DiskPath":"%s"}' "$s" "$d"; s=","; done; printf ']}'; } > "$GOWORK.json";; "list -m") if [ "$5" = b ] && [ "$(basename "$PWD")" = a ]; then echo "go: module $5: not a known dependency" >&2; exit 1; fi; echo ${JSON.stringify(path.join(provider, 'go'))};; esac`);
   stub(bin, log, 'cargo', 'if [ "$1" = "locate-project" ]; then echo "$PWD/Cargo.toml"; fi');
+  const pythonProject = path.join(consumer, 'python/pyproject.toml');
+  writeFileSync(pythonProject, readFileSync(pythonProject, 'utf8') + '\n[tool.uv.sources]\npolyspec-z = { path = "../../prov/packages/python", editable = true }\n');
   const env = { PATH: process.env.PATH, NPM: path.join(bin, 'npm'), COMPOSER_BIN: path.join(bin, 'composer'), UV: path.join(bin, 'uv'), GO: path.join(bin, 'go'), CARGO: path.join(bin, 'cargo') };
   current = [provider, kit, consumer];
   return { root, provider, kit, consumer, env, log: () => readFileSync(log, 'utf8') };
@@ -1122,7 +1124,10 @@ test('K657-3: Python links use native editable installation and check refuses le
   put(consumer, { 'python/.venv/lib/python3.14/site-packages/polyspec_z/__init__.py': 'VALUE = 0\n' });
   const installed = linkLines([consumer], env);
   assert.equal(installed.ok, true, installed.text);
-  assert.match(log(), /uv pip install .*--editable/);
+  assert.equal(log().split('\n').filter(line => line === 'uv sync --locked').length, 1);
+  assert.match(log(), /uv pip check --python/);
+  assert.match(log(), /uv pip list --editable --python/);
+  assert.doesNotMatch(log(), /uv pip install/);
   assert.equal(existsSync(path.join(site, 'polyspec_z')), false);
   const record = path.join(site, 'polyspec_z-0.0.1.dist-info/direct_url.json');
   const metadata: unknown = JSON.parse(readFileSync(record, 'utf8'));
@@ -1141,10 +1146,9 @@ test('K657-3: Python links use native editable installation and check refuses le
   assert.equal(readFileSync(path.join(source, '__init__.py'), 'utf8'), 'VALUE = 1\n');
 });
 
-// K539: link makes the package folder of a provided Python package a link into the provider checkout, and a uv install over the
-// environment writes through such a link; every uv install of the tool first removes the links of the site-packages that resolve
-// outside the environment, so the provider checkout keeps its tracked files.
-test('unlink removes the package links of the environment before uv reinstalls, so the provider checkout is unchanged (K539)', (t) => {
+// K539: legacy package-folder links are removed before native sync can write through them.
+// The application keeps its declared editable source; restoring its lock must not change the provider checkout.
+test('unlink removes legacy package links before native sync and keeps declared editable sources safe (K539)', (t) => {
   const { provider, consumer, env } = workspace(t);
   assert.equal(linkLines([consumer], env).ok, true);
   const source = path.join(provider, 'packages/python/src/polyspec_z/__init__.py');
@@ -1159,9 +1163,24 @@ test('unlink removes the package links of the environment before uv reinstalls, 
   const lines: string[] = [];
   unlink({ directories: [consumer], print: text => lines.push(text), env: { ...env, UV: uv } });
   assert.equal(readFileSync(source, 'utf8'), 'VALUE = "checkout"\n', 'the provider checkout keeps its tracked file');
-  assert.equal(lstatSync(path.join(site, 'polyspec_z')).isSymbolicLink(), false, 'the package folder is a folder of the environment');
-  assert.equal(readFileSync(path.join(site, 'polyspec_z/__init__.py'), 'utf8'), 'VALUE = "released"\n');
+  assert.equal(existsSync(path.join(site, 'polyspec_z')), false, 'native editable sync replaces the legacy package folder');
+  const metadata: unknown = JSON.parse(readFileSync(path.join(site, 'polyspec_z-0.0.1.dist-info/direct_url.json'), 'utf8'));
+  assert.deepEqual(metadata, { url: pathToFileURL(path.join(provider, 'packages/python')).href, dir_info: { editable: true } });
   assert.match(lines.join('\n'), /polyspec_z/, 'the removed link is named');
+});
+
+test('K664: shared link installs a declared Composer source into a fresh vendor', (t) => {
+  const { consumer, provider, env, log } = workspace(t);
+  const vendor = path.join(consumer, 'var/contracts/vendor');
+  rmSync(vendor, { recursive: true, force: true });
+  const installed = linkLines([consumer], env);
+  assert.equal(installed.ok, true, installed.text);
+  assert.doesNotMatch(installed.text, /no installed folder/);
+  assert.equal(realpathSync(path.join(vendor, 'polyspec/y')), path.join(provider, 'packages/php'));
+  const record = readJsonObject(vendor, 'composer/installed.json');
+  assert.ok(Array.isArray(record.packages));
+  assert.ok(record.packages.some((entry: unknown) => typeof entry === 'object' && entry !== null && 'name' in entry && entry.name === 'polyspec/y'));
+  assert.match(log(), /^composer update polyspec\/y .*--with-dependencies/m);
 });
 
 // K653's source/runtime metadata mismatch is resolved by the native development manifest, not a synthetic release record.

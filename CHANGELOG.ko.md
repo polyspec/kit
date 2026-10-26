@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9859962ef93d724cfa3df06c55a82aa08b4c6932ea5c0116c1cd2f2b92a75bfb -->
+<!-- source-sha256: ec6b3f0b0a61f65f15da7e654a19c2afb08cb1106b5bef3e7b0a7d9865e56920 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Shared link는 누락 folder 검사 전에 선언된 Composer source를 native 설치하므로 최초 설치에서도 vendor와 record를 만들고 package 부재를 잘못 보고하지 않는다. 통합이 없으면 실패하고 통합 후 통과하는 소유 회귀로 확인했다 (K664).
 
 - Python 개발 설치는 앱의 source/workspace 선언으로 native uv sync --locked를 한 번 실행한 뒤 uv pip check로 설치된 distribution을 검사한다. 기존에 설치되지 않은 선언 library도 포함하며 설치 목록 필터나 kit 생성 manifest, version, distribution metadata를 사용하지 않는다. virtual project를 포함한 source 해석은 native uv가 결정하며 pip check는 virtual root가 아닌 설치된 distribution을 검증한다. unit 3개와 실제 uv 검사 1개가 release에서 개발 source 선택, 새 library 설치, 반복 상태, source 수정의 즉시 반영, 설치된 consumer의 exact-version 실패를 확인했고 변경 파일 type-aware lint도 통과한다 (K664-1).
 

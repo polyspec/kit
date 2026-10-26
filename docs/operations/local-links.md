@@ -25,18 +25,22 @@ Composer local development uses the path repositories and compatible requirement
 |---|---|
 | npm | `npm link` connects `node_modules/<name>` through the project-local npm prefix to its provider; npm owns the links and installed records |
 | Composer | Composer creates source links from declared path repositories, respecting `COMPOSER` and `COMPOSER_VENDOR_DIR`, and owns the selected lock and autoload |
-| Python | `uv pip install --python <environment>/bin/python --editable <provider>` installs the local source into the project environment; uv owns dependency resolution and editable metadata |
+| Python | `uv sync --locked` installs the application's declared path/workspace sources; uv owns editable metadata and `uv pip check` checks installed distributions |
 | Go | a git-ignored `go.work` at each Go module, with `use` lines for the module and the provider modules |
 | Rust | `link.mjs cargo <dir> <cargo args>` runs one cargo command with `--config` `[patch]` entries and a copy of the lock under `var/link/cargo` |
 
 - Every tracked project of the checkout is linked, a nested one below the root such as hyper's `examples/board` included (K447); the tests, the fixtures and the release consumer keep the install that they test.
 - Providers: each tracked manifest of a package in a main checkout that the arguments name, else in the checkouts beside the repository (`--siblings`), and the forks in `forks/` of the workspace (K379). A checkout's own packages link to its own folders, never to the main checkout of the same repository.
-- Release installation uses the package managers and their locks: `make npm-install` runs `npm ci`, `make composer-install` runs `composer install`, `make uv-install` runs `uv sync --frozen`, and local development then reconnects its sources through native commands. Python uses the normal frozen sync before its editable installation; no package is skipped to preserve a manually linked folder. Legacy Python folder links require a fresh native environment instead of metadata repair.
+- `make npm-install` runs `npm ci` followed by native links; `ADD` explicitly connects a new provider. `make composer-install` resolves declared local providers before installation, creating the selected development lock when it does not exist and updating selected providers when it does. `make uv-install` delegates once to `uv sync --locked` for the application's native source/workspace declarations. A missing or stale Python development lock needs native `uv lock` preparation. Legacy Python folder links require a fresh native environment instead of metadata repair.
 - kit runs no build target during linking. Native package-manager lifecycle hooks retain their usual behavior. A separate provider build uses its own target.
 
 ## Verification
 
 `make link-state-check` (K305-1, P30) checks that provided sources resolve to the expected checkout through native npm, Composer and Python installations, and validates workspace links, `go.work` and Claude Code hooks. `make link-check` lists mismatches as a development aid. Dependency compatibility belongs to each native package manager. Release CI uses the declared released dependencies rather than local provider discovery.
+
+The source-development contract covers a released dependency whose source is edited at the same version, a source checkout ahead of its release, and a new provider with no published release. Native package metadata must still be valid; lack of a release does not waive the package manager's metadata requirements. Applications declare compatible development requirements and local sources. Neither a tag nor a published archive is needed to use those sources. Cargo's exact-version requirements can prevent a patch from being selected; the wrapper checks native workspace metadata and refuses a selected release where the development source is expected. Cargo source checks cover the workspace resolution, not only the package selected by `-p`.
+
+Two runs with the same declared inputs must leave the same source selections, manifests, locks and installed records; logs and timestamps are not this state. Editing provider code needs no relink, although compiled code still needs its native build. An explicit `unlink` restores the application's selected native lock state and removes generated Go workspaces; it does not delete application-owned local source declarations, so that state can itself contain native editables. A release installation uses release declarations and locks.
 
 ## Worktrees
 

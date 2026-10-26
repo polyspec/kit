@@ -366,19 +366,19 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 
 # --- link: the local links of 0.0.x development (docs/operations/local-links.md, K201, K205). CHECKOUTS names the main checkouts
 # that provide the packages (scripts/kit/link.mts); PROJECT, when given, names the consumer whose manifests directly in it
-# are linked, else the whole tree of the checkout. link replaces each installed package folder that a provider gives with a direct
-# relative symlink to the provider's folder and never builds; no package manager runs and no version is read (K448); link-check
+# are linked, else the whole tree of the checkout. Native package managers connect declared development sources;
+# application requirements remain their inputs and link invokes no product build target (K664); link-check
 # lists each provided folder that is a copy or links elsewhere; unlink restores the locked installs. link writes a git-ignored
 # go.work at each Go module, which go reads by itself; unlink removes it.
 .PHONY: link link-check unlink
-link: ## Replace each installed package folder that a checkout of CHECKOUTS, else the checkouts beside the repository, provides with a direct relative symlink to it, a copy removed, also from a worktree (PROJECT names the consumer); no package manager runs and no version is read (K448); never builds; offline
+link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) link $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
 link-check: ## List each installed package folder that a checkout of CHECKOUTS, else the checkouts beside the repository, provides and that is a copy or links elsewhere, as NOT linked, and fail on one (K448); offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
 .PHONY: worktree-setup
-worktree-setup: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default) from main; links the installs of the main checkout, each npm project, Python environment and Composer vendor folder with the repository's own packages from the worktree, builds the worktree's own packages and checks it with link-state-check; installs nothing (K519, K521, K530, K533); a second run converges (K348); ONLINE
+worktree-setup: ## Make the worktree ../<repository>-NAME-ID of a row on the branch TYPE/NAME-ID (TYPE fix by default) from main; links the installs of the main checkout, each npm project, Python environment and Composer vendor folder with the repository's own packages from the worktree, builds its own packages and checks link-state-check; shares dependency files and prepares native cached Python environments (K664); a second run converges (K348); ONLINE
 	$(ONLINE) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix)
 
 .PHONY: worktree-link-state
@@ -392,9 +392,9 @@ land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout
 	$(NODE) $(KIT)/land.$(KIT_EXT) $(BRANCH)
 
 
-# composer-install installs a consumer's Composer project: composer install of the tracked lock, then the link of the folders (K448).
+# composer-install resolves declared local sources and installs the selected native Composer manifest and lock.
 .PHONY: composer-install
-composer-install: ## Install the Composer project DIR with composer install of its tracked lock, then link each installed package that a checkout of CHECKOUTS, else a sibling checkout, provides (K448); NO_DEV=1 installs with --no-dev (K483-2)
+composer-install: ## Resolve declared local providers and install the selected Composer manifest and lock in DIR; Composer owns links, metadata and autoload; NO_DEV=1 excludes development dependencies
 	$(ONLINE) $(NODE) $(KIT)/composer-install.$(KIT_EXT) $(DIR) $(if $(NO_DEV),--no-dev) $(CHECKOUTS)
 
 # npm-install installs a consumer's npm packages: npm ci of the tracked lock, then the link of the folders (K448).
@@ -402,9 +402,9 @@ composer-install: ## Install the Composer project DIR with composer install of i
 npm-install: ## Install the npm packages of DIR with npm ci of its tracked lock, then link each installed package that a checkout of CHECKOUTS, else a sibling checkout, provides, each a package folder or a repository root whose package folders under packages/ the kit finds itself (K448, K494); ADD=<checkout>... links each named checkout whether or not the project declares its package (K485); a declared polyspec package with no checkout is refused (K483-1)
 	NPM_BIN=$(NPM) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR) $(CHECKOUTS) $(addprefix --add ,$(ADD))
 
-# uv-install installs a consumer's uv environment: uv sync of the tracked lock, then the link of the folders (K448).
+# uv-install follows application source/workspace declarations with native locked sync and installed-distribution checks.
 .PHONY: uv-install
-uv-install: ## Install the uv environment of DIR with uv sync --frozen of its tracked uv.lock, then link each installed package of site-packages that a checkout of CHECKOUTS, else a sibling checkout, provides (K448); SYNC passes --no-install-project and --all-groups and refuses any other flag (K487)
+uv-install: ## Install declared Python sources in DIR with one native uv sync --locked and check installed distributions; SYNC accepts --no-install-project and --all-groups
 	UV_SYNC="$(SYNC)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR) $(CHECKOUTS)
 
 # cargo-fetch is the fetch of a consumer's Cargo crates in place of its cargo fetch: through the link of cargo, with the polyspec crates
@@ -413,7 +413,7 @@ uv-install: ## Install the uv environment of DIR with uv sync --frozen of its tr
 cargo-fetch: ## Fetch the Cargo crates of the project DIR in place of cargo fetch --locked: the polyspec crates that a sibling checkout provides are patched to their paths from the start, no git tag fetched (K448-5)
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) cargo --siblings $(DIR) fetch --locked
 
-unlink: ## Restore the locked installs of the consumer (PROJECT) with npm ci, composer install and uv sync, and remove its go.work files; ONLINE
+unlink: ## Restore the selected native locked installation of PROJECT and remove generated go.work files; application source declarations remain; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
 # The release, the dependency review and the dependency policy use the released versions (K343), so their Go runs without the go.work of the links.

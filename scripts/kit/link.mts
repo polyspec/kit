@@ -25,7 +25,7 @@ import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
-import { composerLink } from './composer-install.mts';
+import { composerLink, composerSourceFolders } from './composer-install.mts';
 import { npmLink } from './npm-install.mts';
 import { legacyPythonLinks, uvEditable } from './uv-install.mts';
 import { rebuild } from './link-build.mts';
@@ -203,10 +203,7 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
 }
 
 
-// --- Python: the environment of each pyproject, uv's project environment of its workspace root. Each provider is installed into it
-// from an editable wheel that link writes (K398): its metadata and a .pth naming its import root, no source, so the folder is only
-// read and no build backend runs. uv installs the wheel with its dependencies and checks Requires-Python at that install. The
-// consumer's own project is installed from its editable wheel too, with --no-deps (K224, K280).
+// --- Python: uv interprets the application source/workspace declarations and owns editable metadata.
 
 /** The environment of the pyproject `file`: uv's project environment of its workspace root, which uv sync creates when it is missing. */
 function installTarget(uv: Tool, file: string): { venv: string; workspace: string } {
@@ -227,7 +224,7 @@ function releaseLinks(target: { venv: string; workspace: string }, print: Print)
   for (const link of releaseEnvironmentLinks(target.workspace, target.venv)) print(`  unlinked   python   ${link}, so uv writes no provider checkout`);
 }
 
-/** uv sync --locked of the environment of `target`, with `flags`: the locked releases, the step before each install of the linked packages. */
+/** Restores the selected native locked environment, retaining application-owned source declarations. */
 function syncPython(uv: Tool, target: { venv: string; workspace: string }, print: Print, ...flags: string[]) {
   releaseLinks(target, print);
   run(uv.command, ['sync', '--locked', ...flags], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
@@ -421,8 +418,8 @@ const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?|release-consumer)\//;
 /**
  * K448: the link of the installed package folders of the consumer. Each folder of a project of the consumer (each folder of a tracked
  * package.json, composer.json or pyproject.toml, and the top) whose installed polyspec package a provider of the run provides becomes a
- * direct symlink to the provider's package folder, a copy removed; with `check`, each folder that is a copy or links elsewhere is
- * reported. Composer reconciles stale source requirements; a matching record runs no package manager.
+ * native source connection; with `check`, each folder that is a copy or links elsewhere is reported.
+ * Native installation runs before inspecting folders so a newly declared provider can be installed.
  */
 function linkPackageFolders(work: Run, consumer: Consumer) {
   // K447: every tracked project of the consumer, a nested one below the root such as hyper's examples/board included, as link-state-check
@@ -432,6 +429,10 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
     if (!work.check && existsSync(path.join(project, 'pyproject.toml'))) {
       const uv = consumerTool(consumer.top, 'uv', work.env);
       uvEditable({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
+    }
+    if (!work.check && existsSync(path.resolve(project, work.env.COMPOSER || MANIFESTS.composer))) {
+      const composer = consumerTool(consumer.top, 'composer', work.env);
+      composerLink(project, composerSourceFolders(project, work.found.values(), composer), composer, work.print);
     }
     const folders = providedFolders(project, work.found.values(), { vendorDir: composerVendorDir(project, work.env) });
     // K529: a polyspec package that the manifests of the project declare, and that a provider of the run provides, has an installed folder.
@@ -453,7 +454,6 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
     }
     const npm = folders.some(folder => folder.ecosystem === 'npm') ? consumerTool(consumer.top, 'npm', work.env) : undefined;
     if (npm !== undefined) npmLink(project, folders, npm.command, npm.env, work.print);
-    if (folders.some(folder => folder.ecosystem === 'composer')) composerLink(project, folders, consumerTool(consumer.top, 'composer', work.env), work.print);
     for (const item of folders.filter(folder => folder.ecosystem !== 'python')) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
   }
 }
@@ -579,7 +579,7 @@ export function unlink({ directories, print, env = process.env, project = false 
           continue;
         }
         // The restore selects every group, as the consumer's install does (K238): uv reinstalls only the packages that a sync
-        // selects, so a polyspec package of the test group is reinstalled at its locked release only with --all-groups.
+        // selects; --all-groups includes test dependencies and retains native sources declared by the application.
         // --inexact keeps every other package (K237).
         syncPython(uv, target, print, '--all-groups', '--inexact', ...declaredPython(file).flatMap(name => ['--reinstall-package', name]));
         print(`  restored   python   ${target.venv}`);

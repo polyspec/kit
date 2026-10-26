@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: c54c675b5a6ac0b973e8b6f8433ce1d0d376df0cdd57baf536a9a301b1c9c0e2 -->
+<!-- source-sha256: 206576881213374070fd2128c5fe78ce0136a1ce555a8ed1cf0ab8f216b1526c -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -26,18 +26,22 @@ Composer 로컬 개발은 앱이 선언한 `path` repository와 호환되는 req
 |---|---|
 | npm | `npm link`가 `node_modules/<name>`을 project-local npm prefix를 거쳐 provider에 연결하며 link와 설치 record는 npm이 관리합니다 |
 | Composer | 선언된 path repository에서 Composer가 source link를 만들며 `COMPOSER`, `COMPOSER_VENDOR_DIR`를 따르고 선택한 lock과 autoload를 관리합니다 |
-| Python | `uv pip install --python <environment>/bin/python --editable <provider>`로 프로젝트 environment에 로컬 source를 설치하며 uv가 dependency 해석과 editable metadata를 관리합니다 |
+| Python | `uv sync --locked`가 앱이 선언한 path/workspace source를 설치하며 uv가 editable metadata를 관리하고 `uv pip check`가 설치된 distribution을 검사합니다 |
 | Go | 각 Go module에 git이 무시하는 `go.work`. module과 provider module의 `use` 줄을 가집니다 |
 | Rust | `link.mjs cargo <dir> <cargo args>`가 `--config` `[patch]` 항목과 `var/link/cargo` 아래 lock 사본으로 cargo 명령 하나를 실행합니다 |
 
 - checkout의 모든 tracked 프로젝트를 link하며, hyper의 `examples/board`처럼 root 아래의 중첩 프로젝트도 포함합니다(K447). 테스트, fixture, release consumer는 시험하는 설치를 그대로 둡니다.
 - provider: 인자로 준 main checkout, 없으면 저장소 옆의 checkout(`--siblings`)에 있는 패키지의 각 tracked manifest, 그리고 workspace의 `forks/`에 있는 fork(K379)입니다. checkout 자신의 패키지는 같은 저장소의 main checkout이 아니라 자기 폴더로 link됩니다.
-- release 설치는 package manager와 그 lock을 사용합니다. `make npm-install`은 `npm ci`, `make composer-install`은 `composer install`, `make uv-install`은 `uv sync --frozen`을 실행하고, 로컬 개발은 그 뒤 native 명령으로 source를 다시 연결합니다. Python은 정상 frozen sync 뒤 editable 설치를 하며 수동 folder link를 보존하려고 package를 건너뛰지 않습니다. legacy Python folder link에는 metadata 수정 대신 새 native environment가 필요합니다.
+- `make npm-install`은 `npm ci` 뒤 native link를 실행하며 `ADD`로 새 provider를 명시적으로 연결합니다. `make composer-install`은 설치 전에 선언된 local provider를 해석하고 선택한 개발 lock이 없으면 생성하며 있으면 선택한 provider를 갱신합니다. `make uv-install`은 앱의 native source/workspace 선언을 따르는 `uv sync --locked`에 한 번 위임합니다. Python 개발 lock이 없거나 오래됐으면 native `uv lock`으로 준비해야 합니다. legacy Python folder link에는 metadata 수정 대신 새 native environment가 필요합니다.
 - kit은 link 중 build target을 실행하지 않습니다. native package-manager lifecycle hook은 정상 동작을 유지합니다. 별도 provider build는 자체 target을 사용합니다.
 
 ## 검증
 
 `make link-state-check`(K305-1, P30)는 native npm, Composer, Python 설치를 통해 제공된 source가 예상 checkout으로 resolve되는지 검사하고 workspace link, `go.work`, Claude Code hook을 검증합니다. `make link-check`는 개발 보조로 불일치를 나열합니다. dependency 호환성은 각 native package manager가 판단합니다. release CI는 로컬 provider 탐색 대신 선언된 배포 dependency를 사용합니다.
+
+Source 개발 계약은 배포된 dependency와 같은 version의 source 수정, release보다 앞선 source checkout, 배포 이력이 없는 새 provider를 포함합니다. Native package metadata는 유효해야 하며 release가 없다는 이유로 package manager의 metadata 요구를 생략하지 않습니다. 앱이 호환되는 개발 requirement와 local source를 선언하며 source 사용에 tag나 배포 archive는 필요하지 않습니다. Cargo의 exact-version requirement는 patch 선택을 막을 수 있으므로 wrapper는 native workspace metadata를 검사하고 필요한 개발 source 대신 release가 선택되면 거부합니다. Cargo source 검사는 `-p`로 선택한 package에만 한정되지 않고 workspace resolution을 대상으로 합니다.
+
+같은 선언 입력으로 두 번 실행하면 source 선택, manifest, lock, 설치 record가 같아야 하며 log와 timestamp는 이 상태에 포함하지 않습니다. Provider 코드 수정에 relink는 필요 없지만 compiled code에는 native build가 필요합니다. 명시적 `unlink`는 앱이 선택한 native lock 상태를 복원하고 생성한 Go workspace를 제거하며 앱이 소유한 local source 선언을 삭제하지 않으므로 복원 상태에도 native editable이 있을 수 있습니다. Release 설치는 release 선언과 lock을 사용합니다.
 
 ## Worktree
 
