@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 95e2059630e9135ded7715f6130ea49f51904b25b4e3de4d1a6effa62db7ee5a -->
+<!-- source-sha256: a6bfb1724a673d30839e663ed221309bb4ed841095c8d164ac7dc2d2868941f5 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -624,3 +624,4 @@
 | K689 | 체크아웃 경로를 추적하지 않고 선언된 로컬 Python provider를 uv editable로 설치한다 | scripts/kit/uv-install.mts, scripts/kit/pyproject-dependencies.mts, scripts/kit/link.mts, tests/kit/uv-install.test.mts, tests/kit/link.test.mts, tests/source/uv-editable-real.test.mts, docs/operations/local-links.md(.ko.md), docs/plans/common-standard/checklist.md(.ko.md) | `node scripts/kit/run-tests.mts node -- tests/kit/uv-install.test.mts` (3 passed); `node scripts/kit/run-tests.mts node -- --test-name-pattern=K657-3 tests/kit/link.test.mts` (1 passed); `node scripts/kit/run-tests.mts node -- tests/source/uv-editable-real.test.mts` (3 passed, offline release URL/hash); `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/link.mts scripts/kit/pyproject-dependencies.mts scripts/kit/uv-install.mts tests/kit/link.test.mts tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; `make docs-check` | [o] |
 | K687 | run-tests --results의 기본 root 입력을 지원해 성공한 선택 검사가 report를 쓰게 하고 존재하지 않는 입력은 계속 거부한다 | scripts/kit/tracked-files.mts, tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="inputsDigest\|K687" tests/kit/run-tests.test.mts` | [o] |
 | K690 | 기존 수동 worktree dependency 투영을 디스크 사용까지 고려한 native package manager 준비 계획으로 대체하고 manager를 몰래 바꾸거나 main 설치를 변경하지 않는다 | worktree-setup.mts, worktree 절차, native manager 기능과 저장 공간 결정 | `node scripts/kit/run-tests.mts node -- tests/kit/worktree-setup.test.mts` | [ ] |
+| K682-1 | 사전 테스트 빌드 부모 종료 후 프로세스 그룹을 정리해 자식이 출력 파이프와 완료를 계속 붙잡지 못하게 한다 | scripts/kit/run-tests.mts, tests/kit/test-build-first.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K682-1 tests/kit/test-build-first.test.mts` | [~] |
