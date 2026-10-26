@@ -1,5 +1,5 @@
 <!-- doc-id: plan-common-standard -->
-<!-- source-sha256: 26a15003c332a59dce0be41cfeb672bd9db3b607e95e1547d3d39c3c69de8985 -->
+<!-- source-sha256: 9dbd9143005daa2c16f528a53b350e38ee1b1e71f05c57f1b69d207eaba51341 -->
 # 공통 표준
 
 [English](plan.md)
@@ -21,11 +21,11 @@ K670-1은 PHP tokenizer 설정을 유지하고 K670-3은 release chore에서 구
 ### Release 상태와 다음 작업
 
 - K655, version 0.0.55: [CI 40351072950](https://github.com/polyspec/kit/actions/runs/40351072950)에서 44단계, kit 1423개, source 182개가 모두 통과했습니다. 이후 [release 시도 40358073544](https://github.com/polyspec/kit/actions/runs/40358073544)가 정상 prepack manifest 변환을 거부하여 공개 전에 실패했습니다. 기존 tag는 변경하지 않으며 공개된 0.0.55 package release는 없습니다. K686-6이 정확한 비교를 수정하고 기존 단일 pack 소비자 검사를 실제 asset gate에 연결합니다.
-- K677이 수정 구현을 0.0.56으로 공개합니다. Native version과 consumer lock 준비를 완료했습니다. K677-1은 별도 해석된 consumer lock을 native advisory review에 포함하며 두 npm graph와 여섯 lock의 검토 및 offline gate를 통과했습니다. 이 candidate 자체의 CI와 공개 consumer proof가 통과해야 하며 0.0.55 결과로 변경된 code를 검증했다고 하지 않습니다.
+- K677은 [0.0.56](https://github.com/polyspec/kit/releases/tag/v0.0.56)을 공개했습니다. 자체 [CI 40366841110](https://github.com/polyspec/kit/actions/runs/40366841110)의 44단계, kit 1425개와 source 182개가 실패·timeout·skip 없이 통과했습니다. [Release 40371683313](https://github.com/polyspec/kit/actions/runs/40371683313)은 tagged commit 검증, archive 생성, 외부 consumer proof 및 공개를 통과했습니다. K677-1은 두 npm graph와 여섯 lock을 advisory 및 예외 없이 검토했습니다. Annotated tag는 검사한 commit에 보존되며 release는 draft가 아닌 공개 상태입니다.
 - CI가 실패하면 해당 release는 진행하지 않습니다. 실패 소유 범위를 수정하고 선택 검사 후 수정된 release candidate를 push합니다. 개발 중 전체 로컬 suite를 반복하지 않습니다. Candidate의 CI 통과 뒤 [release 절차](../../operations/release.ko.md)를 따르며 tag, draft, version bump만으로 공개 release라 하지 않습니다.
 - K676은 native 실행 환경으로 상속된 Cargo target을 격리하고 별도 main/worktree metadata 증거로 확인합니다. K678은 준비 비용 검토를 완료했습니다. 여섯 격리 소비자의 native locked install 및 package 소비 검증과 기존 process별 primed download cache를 유지하고 부정확한 test 문구만 수정했습니다.
 
-K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 증거의 완료이며 확인된 asset gate 결함으로 K655는 K677로 대체하며 K677은 0.0.56 공개까지 미완료입니다. 배포 상태를 갱신하기 전에 Git, CI 실행, release를 확인합니다. Checklist는 task만, CHANGELOG.md는 실제 변경과 검사 증거를 담고 이 절은 관계와 남은 작업을 설명합니다.
+K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 증거의 완료이며 확인된 asset gate 결함으로 K655는 K677로 대체하며 K677은 0.0.56 consumer proof와 공개를 통과하여 완료했습니다. 배포 상태를 갱신하기 전에 Git, CI 실행, release를 확인합니다. Checklist는 task만, CHANGELOG.md는 실제 변경과 검사 증거를 담고 이 절은 관계와 남은 작업을 설명합니다.
 
 ## Checklist 정합성 검토 (K679, 2026-10-26)
 
@@ -69,9 +69,9 @@ K675는 이 인계를 기록합니다. Checklist의 완료는 해당 구현과 �
 
 ### 현재 구현과 실행 순서
 
-K677의 수정 0.0.56 candidate는 자체 CI와 consumer proof 통과 뒤 공개합니다. K686-1/K686-2가 첫 실패 owner 네 건을 수정했고 후속 전체 실행의 unit fixture 실패 30건과 Go source fixture 실패 한 건은 K686-4/K686-5/K690-1이 수정했습니다. 이후 tag된 0.0.55 candidate의 unit 1423개와 source 182개가 모두 통과했습니다. 실제 release에서 별도로 확인한 엄격한 manifest 비교 결함은 K686-6이 어느 manifest field도 무시하지 않고 수정합니다. 기존 tag를 옮기는 대신 보존하고 다음 version으로 공개합니다.
+K677은 수정 0.0.56의 자체 CI와 공개 consumer proof를 통과하여 release를 완료했습니다. K686-1/K686-2가 첫 실패 owner 네 건을 수정했고 K686-4/K686-5/K690-1이 후속 공통 fixture 및 source 준비 실패를 수정했습니다. K686-6은 별도로 확인된 release asset 비교 결함을 manifest field 무시 없이 수정했습니다. 실패한 0.0.55 tag는 변경하지 않았고 수정 구현은 0.0.56으로 공개됐습니다.
 
-감사 결과는 항목 등록만이 아니라 구현으로 이어졌습니다. K681이 Composer review/update 합성 경로를 제거하고 K680이 native advisory path와 실제 nested copy version을 보존합니다. K684는 native offline false-green과 취약점 0건으로 위장하는 native error JSON을 재현하고 거부합니다. K682는 사전 build deadline을 제거하고 K676은 ambient Cargo target을 격리합니다. 소유 검사는 CHANGELOG.md에 기록되어 있으며 수정 candidate의 전체 CI는 별도로 통과해야 합니다.
+감사 결과는 항목 등록만이 아니라 구현으로 이어졌습니다. K681이 Composer review/update 합성 경로를 제거하고 K680이 native advisory path와 실제 nested copy version을 보존합니다. K684는 native offline false-green과 취약점 0건으로 위장하는 native error JSON을 재현하고 거부합니다. K682는 사전 build deadline을 제거하고 K676은 ambient Cargo target을 격리합니다. 소유 검사와 통합 0.0.56 CI 통과 결과는 CHANGELOG.md에 기록되어 있습니다.
 
 K683은 새 resolver 없이 native source/release 검증 경계를 정합니다. K686-6은 기존 canonical npm prepack 변환을 asset 검증과 공유하며 예상 밖 export, bin, dependency, script, name, version 변조는 계속 실패합니다. 기존 소비자 검사가 동일한 단일 native pack으로 그 asset gate를 사용합니다. K687은 기본 root report 입력을 수정합니다. 통합 dependency owner의 assertion 44개는 통과했지만 report 작성 결함으로 명령 종료는 실패했고 별도 CLI report 회귀 검사가 그 수정을 검증합니다. 앞선 명령이 정상 종료했다고 주장하지 않습니다.
 
@@ -79,7 +79,7 @@ K678은 정당한 격리 package 소비 검사를 유지합니다. K685는 land�
 
 K689-1은 선택한 Python distribution이 예상 source에 실제로 있는지 검증합니다. K689-2는 선택한 local runtime provider와 명시적 extra를 하나의 native uv transaction으로 전달합니다. K689-3은 기존 환경의 source 연결을 명시적 locked installer와 분리하므로 새 local dependency 연결 때문에 release lock을 재조정하지 않습니다. Native dependency 실패는 그대로 실패합니다.
 
-P30/P35는 native 소유권 계약입니다. Candidate 자체의 전체 CI와 공개 consumer proof가 통과해야 하며 소유 검사 증거로 배포 승인을 대신하지 않습니다. 과거 통합 release gate K438은 폐기되었고 candidate 승인은 무관한 향후 개선 전체가 끝나기를 기다리는 대신 실제 dependency, CI, proof를 따릅니다.
+P30/P35는 native 소유권 계약입니다. 수정 0.0.56 candidate는 자체 전체 CI와 공개 consumer proof를 통과했으며 구현 증거와 공개 증거는 구분합니다. 과거 통합 release gate K438은 폐기되었고 candidate 승인은 무관한 향후 개선 전체가 끝나기를 기다리는 대신 실제 dependency, CI, proof를 따릅니다.
 
 ## 원인
 

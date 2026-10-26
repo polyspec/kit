@@ -1,17 +1,18 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ac119884254d5c7c996abb0e4057656401b69d38df909bbce1a8271c71cb28c6 -->
+<!-- source-sha256: 5fd792968bcd4523b0a273fb129039bed470f171c817187efcf1c5b0501efcc9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Kit 0.0.56은 자체 CI 44단계(kit 1425개와 source 182개, 실패·timeout·skip 없음)와 release 실행 40371683313의 archive 생성, 외부 consumer proof 및 공개를 통과하여 공개됐다. Annotated tag와 asset은 GitHub Release에서 사용할 수 있으며 실패한 0.0.55 tag는 변경하지 않았다 (K677).
+
 ## 0.0.56
 
 - Native advisory review는 개발 root lock과 별도로 해석한 npm release-consumer lock을 함께 포함한다. Red: 감사 범위를 선언하면 누락된 review entry가 드러난다. Green: native review가 consumer에만 있는 전이 version 네 개를 포함해 현재 여섯 lock을 advisory 없이 기록하고 예외 추가 없이 offline dependency gate가 통과한다 (K677-1).
 - 이 version은 공개되지 않은 0.0.55 candidate의 native source/worktree package 관리, 선택적 설치 package bootstrap, runner 정리와 dependency review 변경을 포함한다. Asset gate가 정상 prepack 변환을 거부한 기존 tag는 보존하고 수정한 validator를 여기에 포함한다 (K677).
 
-- Kit release archive 검증은 source export와 native hook bin의 정식 prepack manifest 변환을 공유한다. 이름, 버전, dependency, script를 포함한 나머지 모든 byte를 tag source와 비교하며 다른 npm 및 Composer manifest는 기존 byte-exact 비교를 유지한다. Red: b343be7a에서 정상 변환된 kit manifest가 assets 검증에 실패한다. Green: 예상 밖 kit manifest 변조 6종과 기존 일반 package 변조 검사를 포함한 선택 release/prepack unit 5개, 변경 파일 type-aware lint 및 docs-check가 통과한다 (K686-6).
 - Parity ledger는 잘못된 reporter 출력을 해당 바인딩의 R3 실패로 기록하고 나머지 suite 및 feature 바인딩을 계속 실행한다. node reporter parser의 strict 검사는 유지한다. Red: 선택한 K691 unit은 `exit 0` line에서 바인딩 반복을 중단했다. Green: K691 regression 1개와 docs-check가 통과한다 (K691).
 - Kit release archive 검증은 source export와 native hook bin의 정식 prepack manifest 변환을 공유한다. 이름, 버전, dependency, script를 포함한 나머지 모든 byte를 tag source와 비교하며 다른 npm 및 Composer manifest는 기존 byte-exact 비교를 유지한다. Red: b343be7a에서 정상 변환된 kit manifest가 assets 검증에 실패한다. Green: 예상 밖 kit manifest 변조 6종과 기존 일반 package 변조 검사를 포함한 선택 release/prepack unit 5개, 변경 파일 type-aware lint 및 docs-check가 통과한다 (K686-6). 기존 실제 packed-consumer case의 단일 native pack을 release.assets로 실행하고 같은 tarball을 설치하며 추가 build나 pack 없이 선택 source 실행이 167.6초에 통과했다.
 

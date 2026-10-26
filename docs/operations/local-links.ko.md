@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 19f73e4da53b4f02982233f872e00edeabfc2f0431057ca856fd4c0c98e0b691 -->
+<!-- source-sha256: 6f7bc92367a8e34b7fdd343a5c045037f810544c50e3ca8d16a235d7f50efa14 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -35,7 +35,7 @@ Provider는 변경된 dependency와 build 입력을 자신의 package manager로
 
 link 도구는 native package-manager 명령을 실행합니다. npm은 선택한 provider의 전이 local npm dependency를 따라가고 각 provider에서 `npm link`를 실행한 다음 workspace 처리를 끈 상태로 consumer에서 `npm link <name>...`을 실행하며, `var/link/npm` 아래 project-local npm prefix를 사용합니다. 이 방식은 workspace override 때문에 npm이 local source dependency의 release URL을 해석하는 일을 막습니다. 선택한 모든 설치 package가 이미 source로 resolve되면 consumer 재해석을 생략합니다. `--no-save`는 release manifest와 lock을 유지하며 npm은 lock을 계속 읽고 설치 link와 record를 관리합니다. Lock 읽기를 끄거나 peer dependency를 일괄 우회하지 않습니다. source 수정은 즉시 반영됩니다. npm의 dependency 처리와 lifecycle 동작은 그대로 유지합니다. Composer와 Python도 아래 native 방식을 사용합니다.
 
-Composer 로컬 개발은 앱이 선언한 `path` repository와 호환되는 requirement를 사용합니다. 기본 `composer.json`이나 명시적으로 선택한 `COMPOSER=composer.local.json`을 Composer가 읽고, 해당 manifest의 lock, 설치 record, link, autoload를 함께 관리합니다. kit는 임시 manifest, version alias, 별도 runtime metadata를 만들지 않습니다. `composer update <로컬 package> --with-dependencies`는 선택한 개발 lock과 전이 dependency를 변경할 수 있으며 실행 전에 그 사실을 출력합니다. release manifest와 lock은 별도 release 설치의 입력이며 개발 source metadata로 위장하지 않습니다.
+Composer 로컬 개발은 앱이 선언한 `path` repository와 호환되는 requirement를 사용합니다. 기본 `composer.json`이나 명시적으로 선택한 `COMPOSER=composer.local.json`을 Composer가 읽고, 해당 manifest의 lock, 설치 record, link, autoload를 함께 관리합니다. kit는 임시 manifest, version alias, 별도 runtime metadata를 만들지 않습니다. 선택한 개발 lock이 있으면 `composer update <로컬 package> --with-dependencies`로 선택한 provider와 그 dependency를 갱신합니다. 해당 lock이 없으면 native `composer update`가 선택한 앱 manifest의 모든 dependency를 해석해 최초 lock을 만듭니다. 두 작업 모두 개발 graph를 변경할 수 있으며 실행 전에 그 범위를 출력합니다. release manifest와 lock은 별도 release 설치의 입력이며 개발 source metadata로 위장하지 않습니다.
 
 Dependency review의 update도 Composer metadata를 native 명령에 맡깁니다. 폐기된 `composer-provider-entries` 명령은 전환 안내와 함께 실패하며 stale release lock을 개발 source metadata로 보정하지 않습니다. 앱 소유 개발 선언을 준비하고 native Composer를 실행합니다.
 
@@ -56,7 +56,7 @@ Dependency review의 update도 Composer metadata를 native 명령에 맡깁니�
 
 `make link-state-check`(K305-1, P30)는 native npm, Composer, Python 설치를 통해 제공된 source가 예상 checkout으로 resolve되는지 검사하고 workspace link, `go.work`, Claude Code hook을 검증합니다. `make link-check`는 개발 보조로 불일치를 나열합니다. dependency 호환성은 각 native package manager가 판단합니다. release CI는 로컬 provider 탐색 대신 선언된 배포 dependency를 사용합니다.
 
-Source 개발 계약은 배포된 dependency와 같은 version의 source 수정, release보다 앞선 source checkout, 배포 이력이 없는 새 provider를 포함합니다. Native package metadata는 유효해야 하며 release가 없다는 이유로 package manager의 metadata 요구를 생략하지 않습니다. 앱이 호환되는 개발 requirement와 local source를 선언하며 source 사용에 tag나 배포 archive는 필요하지 않습니다. Cargo의 exact-version requirement는 patch 선택을 막을 수 있으므로 wrapper는 native workspace metadata를 검사하고 필요한 개발 source 대신 release가 선택되면 거부합니다. 이 검사 전에 선언한 path patch를 사용해 복사한 lock에 이미 있는 sibling crate 이름만 대상으로 native `cargo update --offline`을 실행합니다. 이후 metadata와 요청 명령은 `var/link/cargo` 아래 생성된 lock을 사용하며 tracked manifest와 lock은 바뀌지 않고 다른 package의 전역 갱신도 요청하지 않습니다. Cargo source 검사는 `-p`로 선택한 package에만 한정되지 않고 workspace resolution을 대상으로 합니다.
+Source 개발 계약은 배포된 dependency와 같은 version의 source 수정, release보다 앞선 source checkout, 배포 이력이 없는 새 provider를 포함합니다. Native package metadata는 유효해야 하며 release가 없다는 이유로 package manager의 metadata 요구를 생략하지 않습니다. 미배포 provider도 package manager의 정식 version metadata 또는 version 추론 규칙을 따르며 kit이 version을 만들어 주지 않습니다. 앱이 호환되는 개발 requirement와 local source를 선언하며 source 사용에 tag나 배포 archive는 필요하지 않습니다. Cargo의 exact-version requirement는 patch 선택을 막을 수 있으므로 wrapper는 native workspace metadata를 검사하고 필요한 개발 source 대신 release가 선택되면 거부합니다. 이 검사 전에 선언한 path patch를 사용해 복사한 lock에 이미 있는 sibling crate 이름만 대상으로 native `cargo update --offline`을 실행합니다. 이후 metadata와 요청 명령은 `var/link/cargo` 아래 생성된 lock을 사용하며 tracked manifest와 lock은 바뀌지 않고 다른 package의 전역 갱신도 요청하지 않습니다. Cargo source 검사는 `-p`로 선택한 package에만 한정되지 않고 workspace resolution을 대상으로 합니다.
 
 같은 선언 입력으로 두 번 실행하면 source 선택, manifest, lock, 설치 record가 같아야 하며 log와 timestamp는 이 상태에 포함하지 않습니다. Provider 코드 수정에 relink는 필요 없지만 compiled code에는 native build가 필요합니다. 명시적 `unlink`는 앱이 선택한 native lock 상태를 복원하고 생성한 Go workspace를 제거하며 앱이 소유한 local source 선언을 삭제하지 않으므로 복원 상태에도 native editable이 있을 수 있습니다. Release 설치는 release 선언과 lock을 사용합니다.
 

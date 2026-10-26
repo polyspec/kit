@@ -5,12 +5,13 @@
 
 ## Unreleased
 
+- Kit 0.0.56 is public after its own CI passed all 44 steps (1425 kit and 182 source tests, no failures, timeouts or skips) and release run 40371683313 passed archive generation, external consumer proof and publication. The annotated tag and asset are available on the GitHub Release; the failed 0.0.55 tag remains unchanged (K677).
+
 ## 0.0.56
 
 - Native advisory review includes the separately resolved npm release-consumer lock as well as the development root lock. Red: adding its declared audit scope exposes the missing review entry. Green: native review records all six current locks with no advisories, including the four consumer-only transitive versions; the offline dependency gate passes without exceptions (K677-1).
 - This version carries the native source/worktree package management, optional installed-package bootstrap, runner cleanup and dependency review changes of the unpublished 0.0.55 candidate. Its existing tag is retained after the asset gate rejected the normal prepack transformation; the corrected validator is included here (K677).
 
-- Kit release archive validation shares the canonical prepack manifest transformation for source exports and the native hook bin. Every remaining byte, including names, versions, dependencies and scripts, is still compared with the tagged source; other npm and Composer manifests remain byte-exact. Red: the normal transformed kit manifest fails assets at b343be7a. Green: five selected release/prepack units pass, including six unexpected kit manifest mutations and existing generic-package mutation checks; changed-file type-aware lint and docs-check pass (K686-6).
 - The parity ledger records malformed reporter output as an R3 failure of its binding and continues with remaining suite and feature bindings; the node reporter parser stays strict. Red: the selected K691 unit aborted on `exit 0`; Green: the K691 regression passes (1 test), and docs-check passes (K691).
 - Kit release archive validation shares the canonical prepack manifest transformation for source exports and the native hook bin. Every remaining byte, including names, versions, dependencies and scripts, is still compared with the tagged source; other npm and Composer manifests remain byte-exact. Red: the normal transformed kit manifest fails assets at b343be7a. Green: five selected release/prepack units pass, including six unexpected kit manifest mutations and existing generic-package mutation checks; changed-file type-aware lint and docs-check pass (K686-6). The existing real packed-consumer case now runs its single native pack through release.assets and installs that same tarball; its selected source run passed in 167.6 seconds without another build or pack.
 
