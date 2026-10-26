@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: a6bfb1724a673d30839e663ed221309bb4ed841095c8d164ac7dc2d2868941f5 -->
+<!-- source-sha256: 1d56750585ffda705969005d2eaafb0c1512cc3be212b5743b184a42e653db20 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -625,3 +625,4 @@
 | K687 | run-tests --results의 기본 root 입력을 지원해 성공한 선택 검사가 report를 쓰게 하고 존재하지 않는 입력은 계속 거부한다 | scripts/kit/tracked-files.mts, tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="inputsDigest\|K687" tests/kit/run-tests.test.mts` | [o] |
 | K690 | 기존 수동 worktree dependency 투영을 디스크 사용까지 고려한 native package manager 준비 계획으로 대체하고 manager를 몰래 바꾸거나 main 설치를 변경하지 않는다 | worktree-setup.mts, worktree 절차, native manager 기능과 저장 공간 결정 | `node scripts/kit/run-tests.mts node -- tests/kit/worktree-setup.test.mts` | [ ] |
 | K682-1 | 사전 테스트 빌드 부모 종료 후 프로세스 그룹을 정리해 자식이 출력 파이프와 완료를 계속 붙잡지 못하게 한다 | scripts/kit/run-tests.mts, tests/kit/test-build-first.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K682-1 tests/kit/test-build-first.test.mts` | [~] |
+| K682-2 | 테스트 도구 부모가 종료하면 출력·사례 수·종료 상태를 보존하며 프로세스 그룹의 남은 자식을 정리한다 | scripts/kit/run-tests.mts, tests/kit/test-build-first.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K682-2 tests/kit/test-build-first.test.mts` | [~] |
