@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { checkParity, type ParityFinding } from '../../scripts/kit/parity.mts';
-import { readDeclaration, type ParityConfig, type ParityImplementation, type ParityModel } from '../../scripts/kit/parity-declaration.mts';
+import { readDeclaration, resolveReferences, type ParityConfig, type ParityImplementation, type ParityModel } from '../../scripts/kit/parity-declaration.mts';
 import { misplacedTests, missingImplementations, undeclaredPublic } from '../../scripts/kit/parity-units.mts';
 import { checkedFiles } from '../../scripts/kit/tracked-files.mts';
 import { type BindingCommand, type RunError, runOf } from '../../scripts/kit/parity-runners.mts';
@@ -1468,6 +1468,22 @@ test('the schema rejects PYTHONPATH and every path that leaves the repository; a
   assert.deepEqual(keys(outside), ['R3 codec python', 'R3 width python', 'R3 size python']);
   assert.match(findingAt(outside, 0).message, /cannot start: command/);
   assert.ok(findingAt(outside, 0).message.includes(path.dirname(root)) === false, 'the value of a reference is never printed');
+});
+
+test('URI-valued environment references are not split into runner paths, while an external runner path still fails (K699)', () => {
+  const implementation: ParityImplementation = {
+    name: 'php', runner: 'php', roots: ['php'], env: [{ name: 'ORM_FEATURE_DSN', value: '${ORM_FEATURE_DSN}' }],
+  };
+  const dsn = 'mysql://user:secret@127.0.0.1/orm?fallback=sqlite:///tmp/orm.db';
+  const resolved = resolveReferences(implementation, { ORM_FEATURE_DSN: dsn }, '/repo');
+  assert.deepEqual(resolved.errors, []);
+  assert.equal(resolved.implementation.env?.[0]?.value, dsn);
+
+  const escaped = resolveReferences({ ...implementation, command: '${PHP_RUNNER}' }, {
+    ORM_FEATURE_DSN: dsn, PHP_RUNNER: '/outside/php',
+  }, '/repo');
+  assert.equal(escaped.errors.length, 1);
+  assert.match(escaped.errors[0] ?? '', /path that leaves the repository/);
 });
 
 test('R7: an implementation whose error codes differ from the catalog, or that declares none, fails', TIMEOUT, (t) => {

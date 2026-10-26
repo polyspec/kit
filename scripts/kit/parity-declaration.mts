@@ -301,11 +301,13 @@ const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
  * The first path of `value` that leaves the checkout `root`: a word (the parts between =, : and whitespace) that starts with ~,
- * an absolute path outside `root`, or a path with a .. segment; or undefined. The schema rejects such a path written in the
+ * an absolute path outside `root`, or a path with a .. segment; or undefined. URI values are data, not runner paths, so their
+ * scheme and authority are kept together instead of being split at their colons. The schema rejects paths written in the
  * declaration, and this rejects one that a reference brings in.
  */
 function leavingPath(value: string, root: string): string | undefined {
-  return value.split(/[=:\s]/).find(word => word.startsWith('~') || (path.isAbsolute(word) && word !== root && !within(root, word)) || /(?:^|[^\w.-])\.\.(?:\/|$)/.test(word));
+  const runnerValues = value.replace(/\b[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s]*/g, '');
+  return runnerValues.split(/[=:\s]/).find(word => word.startsWith('~') || (path.isAbsolute(word) && word !== root && !within(root, word)) || /(?:^|[^\w.-])\.\.(?:\/|$)/.test(word));
 }
 
 /**
