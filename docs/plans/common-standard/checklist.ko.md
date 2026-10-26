@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1e4c8e9d573826c0b7aa5573ab8d3383fe249d17963c0d40065ab327e717a87f -->
+<!-- source-sha256: fb21f735aa18a2e3ce27ef97c6c5087e036e9f71392913d79fe928f38a6df523 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -640,3 +640,4 @@
 | K689-3 | 기존 환경에 새로 선언한 Python source를 연결할 때 release lock 재조정을 강제하지 않는다 | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-3 tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K691 | 잘못된 parity reporter 출력은 R3 finding으로 기록하고 다음 바인딩을 계속 실행한다 | scripts/kit/parity-ledger.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K691 tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K696 | Composer development path lock을 허용하고 release consumer archive URL 검증을 유지한다. | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts, tests/kit/release-consumer.test.mts | `node --test tests/kit/link-state-check.test.mts tests/kit/release-consumer.test.mts` | [o] |
+| K697 | 하나의 API binding에 기존 단일 symbol 또는 비어 있지 않은 고유 symbols 목록을 허용한다. 선언한 모든 심벌을 R1로 검사하고 R11에서 정확한 전체 목록을 대조하며 구현별 binding 하나 규칙을 유지한다. | scripts/kit/schema/parity.schema.json, scripts/kit/parity-declaration.mts, scripts/kit/parity-units.mts, tests/kit/parity.test.mts, docs/operations/tool-inventory.md(.ko), CHANGELOG.md(.ko) | `node --test --test-name-pattern=K697 tests/kit/parity.test.mts` | [ ] |
