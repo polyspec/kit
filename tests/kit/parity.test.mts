@@ -589,6 +589,24 @@ test('a php feature binding that names its test as Class::method, the id PHPUnit
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['CodecTest::test_bytes pass']);
 });
 
+test('K692: a php feature filters a shared file to its declared methods', TIMEOUT, (t) => {
+  const files = { 'php/tests/RoundtripTest.php': 'PASS test_bytes\nFAIL test_unselected\n' };
+  const { findings, ledger } = check(t, feature(files, unit => ({ ...unit, bindings: (unit.bindings ?? []).map(entry => (entry.implementation === 'php' ? { ...entry, id: 'CodecTest::test_bytes' } : entry)) })));
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['CodecTest::test_bytes pass']);
+
+  const run = runOf({ name: 'php', runner: 'php' }, repository(t, { files }), {
+    test: 'php/tests/RoundtripTest.php',
+    ids: ['test_bytes', 'CodecTest::test_ascii', 'Example\\Tests\\CodecTest::test_regex+method'],
+  }, 'feature', ENV);
+  if (run.error) throw new Error(run.error);
+  assert.deepEqual(run.args.slice(-3, -1), [
+    '--filter',
+    '/^(?:(?:[^:]+::)?test_bytes(?: with data set |$)|CodecTest::test_ascii(?: with data set |$)|Example\\\\Tests\\\\CodecTest::test_regex\\+method(?: with data set |$))/',
+  ]);
+  assert.equal(run.caseOf({ id: 'CodecTest::test_regex+method with data set "sample"', name: 'test_regex+method with data set "sample"' }), 'Example\\Tests\\CodecTest::test_regex+method');
+});
+
 // A PHPUnit method with data sets runs once per data set; the id of the method names all of them, which pass only when each
 // passes, and a failing data set fails the id (K229).
 // A node:test case that a coverage file runs once per database item reports `<case> [<database>]` for each item; the case passes
