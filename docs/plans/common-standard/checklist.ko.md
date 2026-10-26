@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 733cf8a9f568856d112a1cda6d8e8924f54cfeb3376316f997d32750f66705cf -->
+<!-- source-sha256: 76d382ad7ace3c845dca925872b9896f669b83e8516d5843df2aaa0279858395 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -559,3 +559,4 @@
 | K652 | PHP arginfo installation discovers gen_stub.php in the PHP API build directory declared by php-config --extension-dir, as well as the prefix build directory | scripts/kit/install-php-arginfo.mts, tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K652 tests/kit/php-ext.test.mts` | [o] |
 | K653 | Composer source link의 manifest requirement가 설치된 release record와 다르면 Composer로 runtime metadata를 일치시키고 추적 manifest와 lock을 보존한다. | scripts/kit/link.mts, scripts/kit/composer-install.mts, tests/kit/link.test.mts, docs/operations/local-links.md and its Korean twin | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K653 tests/kit/link.test.mts` | [o] |
 | K654 | 모든 checklist 항목이 종결된 뒤 명시적인 local final run을 허용하며 일반적인 무선택 local suite는 계속 거부한다. | scripts/kit/ci-only.mts, scripts/kit/ci-targets.mts, scripts/kit/run-tests.mts, scripts/kit/claude-hook.mts, tests/kit/ci-only.test.mts, docs/operations/tool-inventory.md and its Korean twin | `node scripts/kit/run-tests.mts node -- tests/kit/ci-only.test.mts` | [ ] |
+| K655 | main CI 통과 후 현재 tool 수정과 잠긴 consumer 설치를 포함하여 kit 0.0.55를 release한다 | package.json, package-lock.json, CHANGELOG.md and its Korean twin, tests/release-consumer/npm, config/dependency-review.json | `make docs-check` | [ ] |
