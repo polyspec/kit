@@ -2,6 +2,7 @@
 // package.json declares in dependencies or peerDependencies, and neither the tools nor the tests name another repository. A repository
 // differs from another only in config/*.json.
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -79,10 +80,33 @@ test('a kit tool imports only Node built-ins, files of scripts/kit and the decla
   }
 });
 
+/** DefinitelyTyped packages actually read by the compiler, including scoped package encodings. */
+function consumedTypePackages(files: readonly string[]): string[] {
+  return files.flatMap(file => {
+    if (!/\.d\.[cm]?ts$/.test(file)) return [];
+    const name = /(?:^|\/)node_modules\/(@types\/[^/]+)\//.exec(file.replaceAll('\\', '/'))?.[1];
+    return name === undefined ? [] : [name];
+  });
+}
+
+test('type consumption counts compiler-read declarations, not unused or similarly named packages (K661-10)', () => {
+  const consumed = new Set(consumedTypePackages([
+    '/checkout/node_modules/@types/picomatch/index.d.ts',
+    '/checkout/node_modules/@types/semver/classes/range.d.ts',
+    'C:\\checkout\\node_modules\\@types\\scope__name\\index.d.ts',
+    '/checkout/node_modules/picomatch/index.js',
+    '/checkout/node_modules/@types/not-read/package.json',
+  ]));
+  assert.deepEqual([...consumed], ['@types/picomatch', '@types/semver', '@types/scope__name']);
+  assert.ok(!consumed.has('@types/unused'));
+});
+
 test('every package of dependencies and peerDependencies in package.json is used by a kit tool', () => {
   // A package is used when a tool imports it, when a tool runs one of its commands (the name of a command of its bin, as a
   // quoted string of a tool, such as the knip that lint-ts.mts runs), or when it is a peer dependency of a used package,
   // such as the oxlint-tsgolint that oxlint loads for --type-aware; the manifests of node_modules say which.
+  // Type declarations are consumed through TypeScript resolution rather than runtime imports. Ask the native
+  // compiler which files it reads for tool sources only, so test-only imports cannot make a tool dependency used.
   const modules = tools.filter(name => name.endsWith('.mts')).map(file => ({ file, text: readFileSync(path.join(ROOT, file), 'utf8') }));
   const texts = modules.map(({ text }) => text);
   const manifest = (name: string) => readFixture<NpmManifest>(ROOT, `node_modules/${name}/package.json`);
@@ -90,7 +114,13 @@ test('every package of dependencies and peerDependencies in package.json is used
   const used = new Set(modules.flatMap(({ file, text }) => importsOf(file, text)).map(packageOf));
   for (const { name } of DECLARED) if (commands(name).some(command => texts.some(text => text.includes(`'${command}'`)))) used.add(name);
   for (const name of DEPENDENCIES.filter(name => used.has(name))) for (const peer of Object.keys(manifest(name).peerDependencies ?? {})) used.add(peer);
-  for (const { field, name } of DECLARED) assert.ok(used.has(name), `package.json declares ${name} in ${field}, and no module of scripts/kit imports it, runs its command or uses a package that it is a peer of; remove it`);
+  const typeFiles = execFileSync(process.execPath, [
+    path.join(ROOT, 'node_modules/typescript/bin/tsc'), '--ignoreConfig', '--listFilesOnly',
+    '--module', 'nodenext', '--types', 'node', '--allowImportingTsExtensions', '--noEmit',
+    ...modules.map(({ file }) => file),
+  ], { cwd: ROOT, encoding: 'utf8' }).trim().split(/\r?\n/);
+  for (const name of consumedTypePackages(typeFiles)) used.add(name);
+  for (const { field, name } of DECLARED) assert.ok(used.has(name), `package.json declares ${name} in ${field}, and no module of scripts/kit imports it, runs its command, consumes its type declarations or uses a package that it is a peer of; remove it`);
 });
 
 test('no tool or test of kit names another repository', () => {
