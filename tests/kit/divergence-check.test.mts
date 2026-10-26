@@ -137,3 +137,19 @@ test('Go machine metadata is not a platform-dependent test branch, but a real br
     'packages/go/bench/performance_test.go:3: a test branches on the implementation, the runtime or the platform (runtime.GOOS), so it asserts something else in another implementation',
   ], 'platform selection still fails even when the same test reports its machine');
 });
+
+test('JavaScript platform values used only in a warning are diagnostic metadata (K688)', () => {
+  const parity = JSON.stringify({ implementations: [{ name: 'ts', roots: ['packages/ts'] }] });
+  const report = "if (elapsed >= 10) warning(`wait took ${elapsed}ms on ${process.platform}/${process.arch}`);";
+  assert.deepEqual(run({
+    'config/parity.json': parity,
+    'packages/ts/tests/physical.mjs': report,
+  }), [], 'platform values in diagnostic text do not select test behavior');
+
+  assert.deepEqual(run({
+    'config/parity.json': parity,
+    'packages/ts/tests/physical.mjs': `${report}\nif (process.platform === 'win32') warning('windows');`,
+  }), [
+    'packages/ts/tests/physical.mjs:2: a test branches on the implementation, the runtime or the platform (process.platform), so it asserts something else in another implementation',
+  ], 'a real platform branch remains a finding when the test also reports machine metadata');
+});
