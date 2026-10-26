@@ -8,6 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-php.mts';
+import { runLint } from '../../scripts/kit/lint-steps.mts';
 import { kitFile } from '../../scripts/kit/kit-files.mts';
 import { present } from '../../scripts/kit/present.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -156,3 +157,31 @@ test('phpcs and PHPStan read the configurations of the kit package, and a checko
   assert.ok(steps.find(step => step.label === 'phpcs')?.args.includes(`--standard=${kitFile('phpcs.xml.dist')}`), JSON.stringify(steps));
   assert.ok(steps.filter(step => step.label.startsWith('phpstan')).every(step => step.args.includes(`--configuration=${kitFile('phpstan.dist.neon')}`)), JSON.stringify(steps));
 });
+
+for (const status of [0, 7]) {
+  test(`K686-3: cleanup failure preserves tool exit ${status} diagnostics and runs later steps`, (t) => {
+    const root = tree(t);
+    const directories: string[] = [];
+    t.after(() => { for (const directory of directories) rmSync(directory, { recursive: true, force: true }); });
+    const reports: string[] = [];
+    t.mock.method(console, 'log', (...values: unknown[]) => { reports.push(values.map(String).join(' ')); });
+    const output: string[] = [];
+    const failed = runLint('test-lint', [
+      { label: 'first', command: process.execPath, args: ['-e', `console.log('original stdout'); console.error('original stderr'); process.exit(${status});`], cwd: '.', isolatedTemporaryDirectory: true },
+      { label: 'later', command: process.execPath, args: ['-e', "require('node:fs').writeFileSync('later-ran', 'yes'); console.log('later stdout');"], cwd: '.' },
+    ], root, text => output.push(text), directory => {
+      assert.match(path.basename(directory), /^kit-lint-step-/);
+      assert.ok(existsSync(directory), 'cleanup receives only the created owned directory');
+      directories.push(directory);
+      throw new Error('simulated cleanup failure');
+    });
+    assert.deepEqual(failed, ['first']);
+    assert.equal(directories.length, 1);
+    assert.equal(readFileSync(path.join(root, 'later-ran'), 'utf8'), 'yes');
+    assert.match(output.join(''), /original stdout/);
+    assert.match(output.join(''), /original stderr/);
+    assert.match(output.join(''), /later stdout/);
+    assert.match(reports.join('\n'), /simulated cleanup failure/);
+    if (status !== 0) assert.match(reports.join('\n'), /exit status 7/);
+  });
+}

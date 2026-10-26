@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4f6819f1131d0cac5ce58b02ee423253d47b639db77cfce65c90230bb34ba73f -->
+<!-- source-sha256: c99f92145efc09dc5cb5fb2086c33876563492676e29f6b33f2a0465d38663b2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -24,6 +24,7 @@
 - Python editable source 검증은 선택한 로컬 provider가 native 설치 distribution 목록에 없으면 빈 목록과 무관한 package만 있는 목록을 포함해 실패한다. 기존 실경로 검증을 유지하고 미사용 provider와 정상 release-only 설치는 강제하지 않는다. Red: 87b23676에서 K689-1 검사가 예상 exception 누락으로 실패했으며 Green에서는 선택 소유 unit과 변경 파일 type-aware lint가 통과한다. 이 수정은 transitive, 미발행 package, marker 선택 검증 범위를 확대하지 않는다 (K689-1).
 
 - Warning metadata는 warning 호출 결과가 무시될 때만 진단으로 봅니다. 조건·대입 값·반환 predicate로 소비하는 호출은 platform finding으로 유지하며 기존 진단 warning과 직접 platform/architecture 분기 검사를 보존합니다. Red: e3ff712d에서 결과 소비 회귀 검사 3개가 모두 실패했습니다. Green: 선택 divergence case 4개와 type-aware lint가 통과합니다(K688-1).
+- 소유 임시 directory cleanup이 실패해도 lint step은 원래 도구 출력과 exit 실패를 유지하고 cleanup을 step 실패로 보고하며 다음 step을 실행합니다. 권한에 민감한 fixture 대신 deterministic cleanup seam으로 도구 성공과 실패를 검증합니다. 원래 PHPStan cleanup commit 83a07531은 부모 K686을 사용했으며 K686-3은 그 후 이번 후속 구현 전에 등록했습니다. Red: 15162952에서 cleanup 소유 case 2개가 실패했습니다. Green: 선택 lint case 4개와 type-aware lint가 통과합니다(K686-3).
 - Local Python provider는 locked sync에서 해당 release wheel 설치만 제외한 뒤 uv의 native editable 동작으로 설치한다. Release URL, hash와 lock은 유지하며 offline fixture가 환경이 선언된 source를 import하는지 확인한다(K689).
 - divergence checker는 `process.platform`과 `process.arch`가 warning metadata에 쓰일 때만 무시하고 runtime 분기 탐지는 유지한다. Red: 16ecc178에서 K688 focused case가 실패했다. Green: 수정이 commit된 tree에서 `make item-test ID=K688`가 통과한다(K688).
 - 과거 bootstrap 기대는 소비자 Node·네이티브 npm bin hook의 정확한 명령, 실행 가능한 소스와 packed dist 명령 대상 및 동일한 설정, Make 이전 설치 패키지 workflow를 검증한다. workflow 검사는 기록용 npm fixture를 재사용해 설치·빌드 없이 정확한 npm 선택과 kit 자체 소스 예외를 보존한다. Red: 380a23a5에서 이전 경로 기대 세 개가 실패했다. Green: 선택한 소유 사례 세 개와 변경 파일 타입 인식 lint가 통과한다 (K686-2).

@@ -35,8 +35,8 @@ export const foldersOf = (root: string, name: string): string[] =>
 export const packageOwner = (packages: readonly string[]) => (file: string): string | undefined =>
   packages.filter(folder => folder === '.' || file.startsWith(`${folder}/`)).sort((a, b) => b.length - a.length)[0];
 
-/** Runs `steps` in `root` and returns the labels of those that failed; the output of each step goes through `print`. */
-export function runLint(name: string, steps: readonly LintStep[], root: string, print: (text: string) => unknown): string[] {
+/** Runs every step and reports tool and owned-directory cleanup failures; cleanup is injectable for deterministic owner tests. */
+export function runLint(name: string, steps: readonly LintStep[], root: string, print: (text: string) => unknown, removeTemporaryDirectory: (directory: string) => void = directory => rmSync(directory, { recursive: true, force: true })): string[] {
   const failed: string[] = [];
   for (const step of steps) {
     // A step runs the tools of mise.toml from their shims, in the environment of mise of the checkout.
@@ -46,14 +46,22 @@ export function runLint(name: string, steps: readonly LintStep[], root: string, 
       : undefined;
     if (temporaryDirectory !== undefined) env.TMPDIR = temporaryDirectory;
     let result: Outcome;
+    let cleanupFailure: string | undefined;
     try {
       result = execute(step.command, step.args, { cwd: path.join(root, step.cwd), env });
     } finally {
-      if (temporaryDirectory !== undefined) rmSync(temporaryDirectory, { recursive: true, force: true });
+      if (temporaryDirectory !== undefined) {
+        try {
+          removeTemporaryDirectory(temporaryDirectory);
+        } catch (error) {
+          cleanupFailure = `temporary directory cleanup failed: ${error instanceof Error ? error.message : String(error)}`;
+        }
+      }
     }
     const output = `${result.stdout}${result.stderr}`;
     print(output);
-    const failure = result.error?.message ?? (result.status !== 0 ? `exit status ${result.status}` : step.quiet && output.trim() ? 'a finding' : undefined);
+    const toolFailure = result.error?.message ?? (result.status !== 0 ? `exit status ${result.status}` : step.quiet && output.trim() ? 'a finding' : undefined);
+    const failure = [toolFailure, cleanupFailure].filter(message => message !== undefined).join('; ');
     if (failure) {
       failed.push(step.label);
       console.log(`[${name}] ${step.label}: failed with ${failure}`);
