@@ -17,6 +17,8 @@
 // The skipped and narrowed tests are the markers of test-markers-check; the vendored tools and tests of kit are left out.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { parse as parseJavaScript, type MemberExpression } from 'acorn';
+import { simple } from 'acorn-walk';
 import { isTestFile } from './check-commits.mts';
 import { implementationFolders } from './parity-declaration.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -29,7 +31,7 @@ export const REASON_KINDS = ['generated', 'fixture', 'test', 'harness', 'ecosyst
 
 const SOURCE = /\.(?:php|py|[cm]?[jt]sx?|go|rs)$/;
 // The environment that a test branches on: a call or a name, on a line of code.
-const ENVIRONMENT = /\b(?:extension_loaded|function_exists|PHP_VERSION(?:_ID)?|PHP_OS(?:_FAMILY)?|sys\.version_info|sys\.platform|process\.versions|process\.platform|runtime\.GOOS|runtime\.GOARCH|cfg!|os\.name)\b|#\[cfg\(/;
+const ENVIRONMENT = /\b(?:extension_loaded|function_exists|PHP_VERSION(?:_ID)?|PHP_OS(?:_FAMILY)?|sys\.version_info|sys\.platform|process\.versions|process\.platform|process\.arch|runtime\.GOOS|runtime\.GOARCH|cfg!|os\.name)\b|#\[cfg\(/;
 const PHP_FUNCTION_PROBE = /\bfunction_exists\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
 const KIT_OWN = /^(?:scripts\/kit\/|tests\/kit\/|tests\/source\/)/;
 // K543: a statement that asserts, with the assertion call of its language, and holds no branch: a test that declares its environment and
@@ -100,6 +102,41 @@ function goMachineMetadataLines(sourceLines: readonly { number: number; code: st
   return new Set(assignments.map(({ number }) => number));
 }
 
+/** Lines that use process.platform and process.arch only in a warning template report diagnostics, not test behavior. */
+function javascriptMachineMetadataLines(sourceLines: readonly { number: number; code: string }[]): Set<number> {
+  const source = sourceLines.map(({ code }) => code).join('\n');
+  const program = parseJavaScript(source, { ecmaVersion: 'latest', sourceType: 'module' });
+  const machineFields = new Set(['platform', 'arch']);
+  const fieldOf = (node: MemberExpression): string | undefined =>
+    node.object.type === 'Identifier' && node.object.name === 'process' && !node.computed && node.property.type === 'Identifier' && machineFields.has(node.property.name)
+      ? node.property.name
+      : undefined;
+  const accepted = new Set<MemberExpression>();
+  simple(program, {
+    CallExpression(node) {
+      if (node.callee.type !== 'Identifier' || node.callee.name !== 'warning') return;
+      for (const argument of node.arguments) {
+        if (argument.type !== 'TemplateLiteral') continue;
+        const fields = argument.expressions.filter((expression): expression is MemberExpression => expression.type === 'MemberExpression' && fieldOf(expression) !== undefined);
+        if (!fields.some(field => fieldOf(field) === 'platform') || !fields.some(field => fieldOf(field) === 'arch')) continue;
+        for (const field of fields) accepted.add(field);
+      }
+    },
+  });
+
+  const countByLine = new Map<number, number>();
+  for (const field of accepted) {
+    const line = source.slice(0, field.start).split('\n').length;
+    countByLine.set(line, (countByLine.get(line) ?? 0) + 1);
+  }
+  const metadataLines = new Set<number>();
+  for (const { number, code } of sourceLines) {
+    const count = [...code.matchAll(new RegExp(ENVIRONMENT.source, 'g'))].length;
+    if (count > 0 && countByLine.get(number) === count) metadataLines.add(number);
+  }
+  return metadataLines;
+}
+
 /** The implementation roots of the repository: those that config/parity.json declares, else the package folders of each runtime. */
 export function implementationRoots(files: readonly string[], read: (file: string) => string | undefined): string[] {
   const declaration = read('config/parity.json');
@@ -133,9 +170,12 @@ export function divergenceFindings(files: readonly string[], read: (file: string
       const sourceLines = lines(text);
       const assertionLines = file.endsWith('.php') && isTestFile(file) ? phpAssertionLines(sourceLines) : new Map<number, string>();
       const machineMetadataLines = file.endsWith('_test.go') ? goMachineMetadataLines(sourceLines) : new Set<number>();
+      const javascriptMetadataLines = /\.[cm]?js$/.test(file) && isTestFile(file) && sourceLines.some(({ code }) => /\bprocess\.(?:platform|arch)\b/.test(code))
+        ? javascriptMachineMetadataLines(sourceLines)
+        : new Set<number>();
       for (const { number, code } of sourceLines) {
         const assertion = assertionLines.get(number) ?? code;
-        if (isTestFile(file) && ENVIRONMENT.test(code) && !assertsEnvironment(assertion) && !machineMetadataLines.has(number)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
+        if (isTestFile(file) && ENVIRONMENT.test(code) && !assertsEnvironment(assertion) && !machineMetadataLines.has(number) && !javascriptMetadataLines.has(number)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
         else if (!isTestFile(file) && (/\bextension_loaded\s*\(/.test(code) || functionProbeFindings(code, phpFunctions))) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\s*\(/.exec(code)?.[1]?.replace(/\s+/g, '')}), so the library and its extension coexist through a guard of the run time`);
       }
     }

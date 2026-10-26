@@ -152,4 +152,18 @@ test('JavaScript platform values used only in a warning are diagnostic metadata 
   }), [
     'packages/ts/tests/physical.mjs:2: a test branches on the implementation, the runtime or the platform (process.platform), so it asserts something else in another implementation',
   ], 'a real platform branch remains a finding when the test also reports machine metadata');
+
+  assert.deepEqual(run({
+    'config/parity.json': parity,
+    'packages/ts/tests/physical.mjs': "if (process.platform === 'win32') warning(`machine ${process.platform}/${process.arch}`);",
+  }), [
+    'packages/ts/tests/physical.mjs:1: a test branches on the implementation, the runtime or the platform (process.platform), so it asserts something else in another implementation',
+  ], 'diagnostic metadata does not exempt a branch on the same line');
+
+  assert.deepEqual(run({
+    'config/parity.json': parity,
+    'packages/ts/tests/physical.mjs': "if (process.arch === 'arm64') warning('arm64');",
+  }), [
+    'packages/ts/tests/physical.mjs:1: a test branches on the implementation, the runtime or the platform (process.arch), so it asserts something else in another implementation',
+  ], 'architecture branches are findings too');
 });
