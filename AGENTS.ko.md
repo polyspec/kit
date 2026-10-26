@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 614a8648178f0674dc4f4bfd9aadbe7f657cbd81a11b4537a1332c84845b91f1 -->
+<!-- source-sha256: 9e18db9ee0e9de2f9946610a1523294d3af952f6f044b576478e5832fe7bbd44 -->
 # 개발
 
 [English](AGENTS.md)
@@ -28,12 +28,13 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   직접 고치지 않으며, 고치면 `make kit-check`가 바뀐 파일이나 빠진 파일로 실패합니다. `scripts/kit/`은 kit의 사본만 담으므로
   사본이 아닌 그 안의 파일에도 실패하며, `make kit-sync`가 그 파일을 지웁니다.
   Enforced by: `make kit-check`, `.claude/settings.json`
+- Own: 일반적인 package manager 설치, dependency lock, version release를 따른다. 이를 벗어나는 요청은 명시적인 사용자 요청이라도 구현 전에 이탈 지점과 영향을 보고하고 정석적인 대안을 제시한다. 로컬 source link는 개발 수단으로 유지한다.
+  Enforced by: 없음. 선택과 설명은 검토가 필요하다.
 - Refines P14: [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 `scripts/kit/`의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를
-  쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다.
+  쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다. kit은 dependency 해석, link, 설치 record, 생성 metadata를 native package manager에 위임하며 직접 dependency 폴더를 교체하거나 설치 metadata를 합성하지 않습니다.
   Enforced by: `make rebuild-check`
 - Own: 이 저장소는 추적 파일, configuration, script, generated output을 파일로 두며, link는 두 가지입니다. 첫 번째는
-  0.0.x 개발의 local link(`docs/operations/local-links.md`)입니다: polyspec root가 선언되면, 개발 checkout에 설치된 0.0.x
-  polyspec package 폴더를 그 제공자 source로의 link로 바꿉니다. 이 link는 추적되지 않고 release output에 들어가지 않습니다. 두 번째는
+  0.0.x 개발의 local link(`docs/operations/local-links.md`)입니다: polyspec root가 선언되면, native npm link, Composer path repository, uv editable 설치로 개발 checkout을 provider source에 연결합니다. 이 link는 추적되지 않고 release output에 들어가지 않습니다. 두 번째는
   kit을 쓰는 저장소의 kit 공유 root 파일입니다: `PRINCIPLES.md`, `PRINCIPLES.ko.md`, `.editorconfig`, `.claude/settings.json`은
   옆의 kit checkout(`../kit`)의 같은 파일로 가는 추적된 link이며, 저장소 밖의 그 파일에 닿습니다(K614, K621). `make kit-check`는
   그 밖의 추적된 link를 보고해서 살펴보게 합니다. 이 저장소가

@@ -31,13 +31,16 @@ and states only its own rules. The rules below are kit's own.
   ci installs the version of package-lock.json by its integrity), never edited in a repository: `make kit-check` fails on a changed or missing vendored file, and
   on a file of `scripts/kit/` that is no copy, since that directory holds the copies of kit only; `make kit-sync` removes it.
   Enforced by: `make kit-check`, `.claude/settings.json`
+- Own: Use conventional package-manager installation, dependency locks and versioned releases. Before implementing a request that departs from those conventions, report the departure and its consequences and propose the conventional alternative, even when the request explicitly asks for the departure. Local source links remain a development mechanism.
+  Enforced by: none, the choice and explanation require review.
 - Refines P14: The ecosystem principle of [PRINCIPLES.md](PRINCIPLES.md) applies to the tools of `scripts/kit/`: uv for Python interpreters,
   environments and locks, Composer for PHP dependencies, and their own behavior, such as the symbolic links that uv
-  creates, is accepted; our rules govern what we create.
+  creates, is accepted; our rules govern what we create. kit delegates dependency resolution, links, installed records
+  and generated metadata to the native package manager; it does not replace dependency folders or synthesize installed metadata itself.
   Enforced by: `make rebuild-check`
 - Own: This repository holds its tracked files, configuration, scripts and generated output as files, with two links. The first
   is the local link of 0.0.x development (`docs/operations/local-links.md`): when a polyspec root is declared, a
-  development checkout's installed polyspec package folder pinned at 0.0.x is replaced by a link to its provider's source;
+  native npm links, Composer path repositories and uv editable installations connect a development checkout to provider source;
   such a link is untracked and stays out of released output. The second is the shared root files of kit in a repository
   that uses kit: `PRINCIPLES.md`, `PRINCIPLES.ko.md`, `.editorconfig` and `.claude/settings.json` are tracked links to the matching
   files of the kit checkout beside it (`../kit`), which they reach outside the repository (K614, K621); `make kit-check` reports any

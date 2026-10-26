@@ -9,57 +9,55 @@ The owner decided this on 2026-10-15 and it is in effect; the user ruled its lin
 
 ## Decision
 
-Development is completed against the latest source of each polyspec repository. Nothing is released until development of all of them is complete: no tag, no version bump and no release workflow run in any repository, kit included. A push is a backup and publishes nothing; a change to kit is seen in the other checkouts through the links after `make build`.
+Local development uses the latest source of the required polyspec repositories through their native package managers. Releases proceed independently when their dependencies and release checks are ready; kit is released first when consumers need its changes. Local source connections remain available after a release. CI installs the exact released dependency versions recorded by each application's manifests and locks.
 
-- A polyspec package counts as installed at its release: each tracked manifest and lock keeps the release record that its package manager wrote, and a repository's lock is the record of its one install.
-- Local source dependencies remain connected to their provider checkouts. npm owns its links through `npm link`; Composer owns its declared path links, and remaining direct Python folder links are legacy behavior being replaced by uv (K657).
-- No link or install step judges a version, a constraint or a provider version; kit enforces no version or pin (S4). Each package manager and its lock decide the versions.
-- Releases follow in one batch after development is complete, in dependency order: kit → ordered-json → orm, template → crudui → hyper → fsm, template-benchmark.
-
-Why: development stalled because each repository waited for another repository's release, which waited for a third, and the link through each package manager re-resolved versions inside the link and refused them. A folder link reads no version, so a change is visible at once in every consumer.
+- The application owns its dependency declarations and locks. Its package manager resolves compatible requirements and owns installed records, links and generated metadata.
+- kit orchestrates native commands and reports missing declarations or incompatible requirements. It does not bypass constraints, invent versions or reconcile installed metadata by hand.
+- Local installation state and release installation state are distinct. A selected Composer development manifest has its own native lock; it must describe the actual local dependencies.
 
 ## Mechanism
 
-The link tool orchestrates the native package-manager commands. For npm, it runs `npm link` in each provider and then `npm link <name>...` in the consumer, with a project-local npm prefix under `var/link/npm`. `--no-save --package-lock=false` retains the release manifest and lock while npm manages the installed links and records. Source edits are visible immediately. npm retains its normal dependency and lifecycle behavior. Composer also uses the native mechanism below; Python direct folder links remain legacy until its K657 migration completes.
+The link tool orchestrates the native package-manager commands. For npm, it runs `npm link` in each provider and then `npm link <name>...` in the consumer, with a project-local npm prefix under `var/link/npm`. `--no-save --package-lock=false` retains the release manifest and lock while npm manages the installed links and records. Source edits are visible immediately. npm retains its normal dependency and lifecycle behavior. Composer and Python use the native mechanisms below.
 
 Composer local development uses the path repositories and compatible requirements declared by the application. Composer reads `composer.json`, or an explicitly selected `COMPOSER=composer.local.json`, and owns that manifest's lock, installed records, links and autoload. kit creates no temporary manifest, version alias or separate runtime metadata. `composer update <local packages> --with-dependencies` may change the selected development lock and transitive dependencies; the command reports that before it runs. Release manifests and locks remain inputs to release installation, not records that disguise local source metadata.
 
-| Ecosystem | Installed folder that becomes the link |
+| Ecosystem | Native source connection |
 |---|---|
 | npm | `npm link` connects `node_modules/<name>` through the project-local npm prefix to its provider; npm owns the links and installed records |
-| Composer | `<vendor-dir>/<vendor>/<package>` of each tracked Composer project, the `config.vendor-dir` of its `composer.json` (else `vendor`) |
-| Python | each package of the `site-packages` of a project's `.venv`, one symlink to the provider's package folder; the packages of one namespace (`polyspec/orm`, `polyspec/ordered_json`) link apart; the uv sync of uv-install skips each linked package with `--inexact --no-install-package <name>`, so uv never writes through a link; `--no-install-package` alone makes uv uninstall the package through the link (K592) |
+| Composer | Composer creates source links from declared path repositories, respecting `COMPOSER` and `COMPOSER_VENDOR_DIR`, and owns the selected lock and autoload |
+| Python | `uv pip install --python <environment>/bin/python --editable <provider>` installs the local source into the project environment; uv owns dependency resolution and editable metadata |
 | Go | a git-ignored `go.work` at each Go module, with `use` lines for the module and the provider modules |
 | Rust | `link.mjs cargo <dir> <cargo args>` runs one cargo command with `--config` `[patch]` entries and a copy of the lock under `var/link/cargo` |
 
 - Every tracked project of the checkout is linked, a nested one below the root such as hyper's `examples/board` included (K447); the tests, the fixtures and the release consumer keep the install that they test.
 - Providers: each tracked manifest of a package in a main checkout that the arguments name, else in the checkouts beside the repository (`--siblings`), and the forks in `forks/` of the workspace (K379). A checkout's own packages link to its own folders, never to the main checkout of the same repository.
-- The installs are the package managers' own, on the tracked lock as it is: `make npm-install` runs `npm ci`, `make composer-install` runs `composer install`, `make uv-install` runs `uv sync --frozen`, and each then links the folders. An install restores released dependencies; local development reconnects its sources with the package manager afterwards.
+- Release installation uses the package managers and their locks: `make npm-install` runs `npm ci`, `make composer-install` runs `composer install`, `make uv-install` runs `uv sync --frozen`, and local development then reconnects its sources through native commands. Python uses the normal frozen sync before its editable installation; no package is skipped to preserve a manually linked folder. Legacy Python folder links require a fresh native environment instead of metadata repair.
 - kit runs no build target during linking. Native package-manager lifecycle hooks retain their usual behavior. A separate provider build uses its own target.
 
 ## Verification
 
-`make link-state-check` (K305-1, P30) is a gate of every repository. It fails on a provided package folder that is a copy or links elsewhere than to its provider, on a tracked lock that records a polyspec package that a sibling provides as a path or a link instead of its release record (K507; a `file:` entry that names the release tarball is the release record, and the repository's own packages are paths by right), and on a wrong workspace link, `go.work` or Claude Code hook. It judges no version and no requirement. `make link-check` lists each provided folder that is a copy or links elsewhere.
+`make link-state-check` (K305-1, P30) checks that provided sources resolve to the expected checkout through native npm, Composer and Python installations, and validates workspace links, `go.work` and Claude Code hooks. `make link-check` lists mismatches as a development aid. Dependency compatibility belongs to each native package manager. Release CI uses the declared released dependencies rather than local provider discovery.
 
 ## Worktrees
 
-- The user ruled on 2026-10-22 that a worktree installs nothing: it links its tool and dependency folders (`var/tools`, `node_modules`) to the main checkout's. A worktree branch is `<type>/<name>-<id>` from `main` (P10) and reaches `main` by `make land`. The Composer vendor folder of a worktree is a real folder whose packages, `bin` and installed records link to the main checkout's, with an autoload of its own that `composer dump-autoload` writes offline, since the autoload names the sources of the checkout it was written in (K521).
-- `make worktree-setup` makes the worktree, gives it a `node_modules` of links to the main checkout's packages with the repository's own workspace packages linked into the worktree (K530), the same to each other npm project that the main checkout installed and to each Python `.venv` of the main checkout, whose scripts, activate files and editable `.pth` files are written with the worktree's paths (K533), gives each Composer project its vendor folder of links and its own autoload (K521), and installs nothing (K519). Its tools need no link: kit.mk and the tools of kit run the `var/tools` of the main checkout in a worktree (the data dir, the installs and the shims of mise, and `var/tools/bin`), with the worktree's own `mise.toml`. `make install` and `make install-tools` refuse in a worktree.
+- A worktree branch is `<type>/<name>-<id>` from `main` (P10) and reaches `main` by `make land`. Tools are reused from the main checkout. npm dependencies are shared, with the repository's own workspace packages connected to worktree sources (K530). Each Composer project has a real vendor folder with links to the main installation and its own offline `composer dump-autoload` output (K521).
+- Python environments are created by `uv venv` and populated by `uv pip install --offline` from the main checkout's cached inputs (K657-4). Native `uv pip freeze` supplies requirements under `var/worktree-python`; editable paths inside the main checkout are mapped to the corresponding worktree sources before uv installs them. uv creates the scripts, editable metadata and installed records. Missing cached inputs fail with guidance to prepare them in the main checkout; setup does not download them. Existing legacy environments are retained and rejected rather than rewritten.
+- `make worktree-setup` prepares these dependencies and checks the worktree. kit.mk and kit tools use the main checkout's `var/tools` with the worktree's own `mise.toml`. General `make install` and `make install-tools` remain refused in a worktree; the native offline Python preparation is part of worktree setup.
 - `make worktree-link-state` performs the same linking and runs `link-state-check` without rebuilding product packages. Use it when checking link state is the purpose of the worktree; it does not skip the check. `make worktree-setup` keeps its rebuild-before-check behavior.
-- worktree-setup links the main checkout's `var/composer-artifacts`, the artifact repository that a `composer.json` names, as one directory symlink, since Composer only reads it (K622). A symlink cannot do two things for a worktree. Its Python `.venv` cannot be one directory symlink to the main checkout's, since the editable install of the repository's own package would then run the main checkout's sources, which is why its entries link (K533). A timestamp stamp of make cannot carry across a fresh checkout: the worktree's checked-out files are newer than every stamp of the main checkout, so a target that compares times runs again in a worktree, and a stamp that must hold there judges by content.
+- worktree-setup shares the main checkout's read-only `var/composer-artifacts` repository (K622). A Python environment cannot be a single directory link to the main environment, because its editable package must run worktree sources. A make timestamp stamp cannot carry across a fresh checkout; a stamp that must remain valid there judges by content.
 - `main` is written by `make land` and by commits whose pre-commit hook passed (K495): a second land waits for the first's lock, a branch behind `main` is rebased in its worktree, and a manual merge, reset or update-ref of `main` is refused by the reference-transaction hook.
 - A worktree and its branch are removed as soon as the branch is merged into `main`: `make land` removes the branch that it lands, and every other clean worktree of a branch that `main` contains in which no process runs; a worktree in which a process still runs is kept until a later land (K626).
 
 ## Known effects
 
-- The package manager still records the released version (lock files, Composer's `installed.json`), which is the release record above, not a fault.
+- Local installed records describe the dependencies actually installed by the native package manager. Composer development records and autoload must agree with the selected local source; release CI records describe released packages.
 - Node resolves the imports of a module file from its real path, so a linked npm package resolves its own dependencies from the provider checkout's `node_modules`.
 - A PHP C extension is not linked; it needs a built shared library.
 
 ## Ownership
 
-The session `link-owner` owns the links and keeps the registry `polyspec/scratch/link/REGISTRY.md`: each session, its folders and their link state. Other sessions run the link on their own folders and report `link.mjs check` to it.
+Each application owns its local dependency declarations and selected development locks. Provider checkouts supply their source and their native build inputs. kit invokes the package managers and verifies the resulting source connections.
 
 ## End
 
-After development is complete, every checkout is unlinked, every repository takes its dependencies at the new releases once, and this document is closed.
+A consumer adopts a published dependency through its normal package manager and commits the resulting manifest and lock changes. Local source development can continue independently; release adoption does not require every checkout to unlink at once.
