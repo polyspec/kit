@@ -30,7 +30,7 @@ import { verificationFindings } from './verification.mts';
 import { checklistsFindings, CHECKLIST_COLUMNS, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, planFindings, readChecklist, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
 import type { Tracker } from './checklist.mts';
 import { matchesAny } from './glob.mts';
-import { anchors, headingAnchors, lineBlocks, links, proseLines, scanFences } from './markdown.mts';
+import { anchors, headingAnchors, lineBlocks, links, linkSpans, proseLines, scanFences } from './markdown.mts';
 import { readStatusTable } from './status-table.mts';
 import type { StatusRow } from './status-table.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -273,6 +273,13 @@ function kitRowFindings(checklists: readonly Tracker[], available: (file: string
       const text = available(file);
       if (text === undefined) continue;
       const blocks = lineBlocks(text);
+      const external = linkSpans(text).filter(link => {
+        if (!URL.canParse(link.target)) return false;
+        const url = new URL(link.target);
+        return ['http:', 'https:'].includes(url.protocol) && !(url.hostname === 'github.com' && /^\/polyspec\/kit(?:\/|$)/i.test(url.pathname));
+      });
+      let offset = 0;
+      const lineOffsets = text.split('\n').map(line => { const start = offset; offset += line.length + 1; return start; });
       for (const item of readChecklist(text, tracker).items) {
         const block = blocks[item.line - 1];
         if (block?.kind !== 'tableRow') continue;
@@ -283,6 +290,8 @@ function kitRowFindings(checklists: readonly Tracker[], available: (file: string
           if (cell === undefined) continue;
           for (const match of cell.text.matchAll(KIT_ID)) {
             const before = wordBefore(cell.text, match.index);
+            const at = present(lineOffsets[item.line - 1], 'the checklist row line offset') + cell.start + match.index;
+            if (before !== 'kit' && external.some(link => at >= link.start && at < link.end)) continue;
             if (before !== undefined && before !== 'kit' && reader.siblings.has(before)) continue;
             if (reader.ownKitIds && before !== 'kit') continue;
             if (ids.has(match[0])) continue;

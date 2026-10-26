@@ -126,6 +126,21 @@ function parseProse(text: string): { line: number; text: string }[] {
 const UNDEFINED_REFERENCE = /(?<!\\)\[([^\]\n]+)\]\[([^\]\n]*)\]/g;
 const BROKEN_INLINE = /(?<!\\)\]\(/;
 
+/** Explicit Markdown links and reference links, with the source offsets of their full markup. */
+export function linkSpans(text: string): { target: string; start: number; end: number }[] {
+  const tree = parse(text);
+  const definitions = new Map<string, string>();
+  visit(tree, 'definition', node => { definitions.set(node.identifier, node.url); });
+  const found: { target: string; start: number; end: number }[] = [];
+  visit(tree, node => {
+    const target = node.type === 'link' ? node.url : node.type === 'linkReference' ? definitions.get(node.identifier) : undefined;
+    if (target === undefined) return;
+    const { start, end } = placeOf(node);
+    if ('[<'.includes(text[start] ?? '')) found.push({ target, start, end });
+  });
+  return found;
+}
+
 /**
  * The link targets of `text`: `{ target, line, column }` for links, images, reference definitions, autolinks and the
  * `href` of HTML elements, at the start of each; a bare URL (the GFM autolink literal) is no link. `problems` holds a

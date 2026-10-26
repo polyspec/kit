@@ -19,6 +19,7 @@
     "package.json": "archive"
   },
   "notReleased": {
+    "config/php-lint/composer.json": "the private Composer tool project that installs PHP lint dependencies, not a released package",
     "scripts/kit/catch-check-rust/Cargo.toml": "the private Rust source checker used by lint-rust; it is built from the tool cache and is not a released package",
     "scripts/kit/symbols/go/go.mod": "the Go module of the go symbol extractor of parity, which install-tools builds and the package @polyspec/kit ships in dist/symbols",
     "scripts/kit/symbols/php/composer.json": "the Composer project of the php symbol extractor of parity, which install-tools installs and the package @polyspec/kit ships in dist/symbols",

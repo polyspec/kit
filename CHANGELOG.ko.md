@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9e697b5185de78f6831f04de40a62702a21d29a24c309e6b348046a72b7ccb18 -->
+<!-- source-sha256: d24141e02a279438a64a8cc450c628eb5e3e7a7cb7fa65ddbe385dfdd14e8ff5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 문서 검사는 외부 checkout 없이 명시적 외부 Markdown 항목 참조를 구분하고, bare 및 kit 항목 참조 검증을 유지한다. Release coverage는 PHP lint project를 분류하고, release workflow는 archive 사전 검사와 bootstrap 순서를 유지하며, source와 packed export를 별도로 검사하고 package build assertion은 두 PHP arginfo parser project를 가리킨다. 선택한 문서 및 workflow test와 release coverage가 통과하며 package build는 최종 suite에서 실행한다(K661-2).
 - Composer source link는 앱의 명시적 path repository와 선택한 개발 manifest를 사용하며 실제 lock, 설치 metadata, autoload는 Composer가 관리합니다. 임시 manifest, version alias, runtime record 보정은 제거했습니다. 실제 Composer/PHP 통합과 source-link 소유 case가 통과했고 release lock 설치는 별도로 유지합니다(K657-2).
 - Native npm audit fix는 기존 dependency 제약 안에서 transitive fast-uri 3.1.8을 3.1.9로, markdown-it 14.3.2를 14.3.3으로 갱신하며 manifest version은 바꾸지 않습니다. 실제 review는 다섯 lock을 모두 advisory 없이 검토하고 stale sprintf-js exception을 제거합니다. Native npm audit는 취약점 0개를 보고하며 dependency-policy-check와 policy-review advisory 일치 case가 통과합니다. 새 ruff release는 정보로 유지합니다(K660).
 - Rust lock advisory review를 위해 tool 선언에 cargo-audit 0.22.2를 포함합니다. make toolchain-lock이 지원하는 네 platform의 native mise lock entry를 생성했으며 선언과 lock 단위 test 7개가 통과합니다. 도구는 다른 checkout에서 복사하지 않고 main checkout의 make install-tools로 설치합니다(K660).

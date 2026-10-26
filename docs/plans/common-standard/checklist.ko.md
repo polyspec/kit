@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f53809ae038f41cbfc6e6e7435170104af7916bd49c08a718e1a3cabf5b4fed6 -->
+<!-- source-sha256: beef7e29afe0dbaf374b1d08dac76ac4d5e96988facf32ae800acd9580ed6c19 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -571,3 +571,4 @@
 | K660 | release dependency 검사는 최신 release 강제 없이 version 선택과 별도로 알려진 취약점을 거부한다 | scripts/kit/check-dependency-policy.mts, scripts/kit/dependency-review.mts, tests/kit/dependency-advisory.test.mts, mise.toml and mise.lock | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-advisory.test.mts` | [o] |
 | K661 | CI fixture와 tool 입력은 지원 platform에서 native tool 계약과 선언된 capability를 따른다 | scripts/kit, tests/kit, tests/source, config/release.json | `make docs-check` | [ ] |
 | K662 | 개별 test watchdog은 실행 중인 test case에 적용하며 case 시작 전의 긴 설치와 setup 작업에 적용하지 않는다 | scripts/kit/test-hooks.mts, test-gap.mts, test-exit-deadline.mts, node-reporter.mts and their owning unit tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K662 tests/kit/run-tests.test.mts tests/kit/test-exit-deadline.test.mts` | [o] |
+| K661-2 | CI 문서 참조는 명시적 외부 Markdown link를 사용하고 release package 검사는 현재 source/packed 계약을 따른다 | scripts/kit/check-documents.mts, config/release.json, owning document and release tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K374 tests/kit/documents.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/release-workflow.test.mts` | [o] |

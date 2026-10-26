@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (file: string) => readFileSync(path.join(ROOT, file), 'utf8');
@@ -22,8 +23,10 @@ test('the gates workflow runs make -k kit-gates, which names every make target t
   for (const target of named) assert.ok(gates.has(target ?? ''), `kit-gates runs make ${target}`);
 });
 
-test('kit vendors the gates workflow to .github/workflows/gates.yml of every repository (K270)', () => {
-  assert.match(read('package.json'), /"\.github\/workflows\/gates\.yml": "workflows\/gates\.yml"/);
+test('kit ships the gates workflow source with its npm package (K270, K614)', () => {
+  const manifest = readJsonObject(ROOT, 'package.json');
+  assert.ok(Array.isArray(manifest.files) && manifest.files.includes('workflows/gates.yml'), 'the published package ships the gates workflow');
+  assert.match(read('workflows/gates.yml'), /^name: gates$/m);
 });
 
 test('K473: the gates workflow clones, beside the project, each sibling repository at its default branch, before install', () => {

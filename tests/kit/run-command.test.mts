@@ -1,19 +1,24 @@
 // Tests of scripts/kit/run-command.mts (K430): the package export, the status, output and time of a command, the stop of the
 // processes that a command leaves in its group, the stop on output beyond the limit, and a command that does not start.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { failureOf, runCommand } from '../../scripts/kit/run-command.mts';
+import { packedFiles } from '../../scripts/kit/pack-manifest.mts';
+import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-test('the ./run-command export of the package names its types and its module in dist (K430)', () => {
-  const pkg: unknown = JSON.parse(readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-  const exported = typeof pkg === 'object' && pkg !== null && 'exports' in pkg ? pkg.exports : undefined;
-  const entry = typeof exported === 'object' && exported !== null && './run-command' in exported ? exported['./run-command'] : undefined;
-  assert.deepEqual(entry, { types: './dist/run-command.d.mts', default: './dist/run-command.mjs' });
+test('the ./run-command export names the source locally and dist in the packed package (K430, K613)', () => {
+  const pkg = readJsonObject(ROOT, 'package.json');
+  assert.ok(isJsonObject(pkg.exports));
+  assert.equal(pkg.exports['./run-command'], './scripts/kit/run-command.mts');
+  const manifest = packedFiles(ROOT)['package.json'];
+  assert.ok(manifest !== undefined);
+  const packed: unknown = JSON.parse(manifest);
+  assert.ok(isJsonObject(packed) && isJsonObject(packed.exports));
+  assert.deepEqual(packed.exports['./run-command'], { types: './dist/run-command.d.mts', default: './dist/run-command.mjs' });
 });
 
 test('a command returns its status, its stdout and its elapsed time (K430)', async () => {

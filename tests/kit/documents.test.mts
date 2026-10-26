@@ -258,17 +258,21 @@ test('a K-id after the name of a sibling repository, or the own K-id of a reposi
     'docs/plans/kit/checklist.md': '# Kit\n\n| ID | Task | Deliverables | Verification | State |\n| --- | --- | --- | --- | --- |\n| K365 | a | `a.mts` | `node --test a.test.mts` | [o] |\n',
   });
   const header = ['| ID | Task | Deliverables | Verification | State |', '| --- | --- | --- | --- | --- |'];
-  const consumer = (rows: string[], idPattern: string) => {
-    const files = pair(CHECKLIST, 'checklist', `${[...header, ...rows].join('\n')}\n`);
-    const parent = tree(t, { 'template-benchmark/.git/HEAD': 'ref: refs/heads/main\n' });
+  const consumer = (rows: string[], idPattern: string, siblingPresent = true, definitions = '') => {
+    const files = pair(CHECKLIST, 'checklist', `${[...header, ...rows].join('\n')}\n${definitions}`);
+    const parent = tree(t, siblingPresent ? { 'template-benchmark/.git/HEAD': 'ref: refs/heads/main\n' } : {});
     const root = path.join(parent, 'repo');
     put(root, { ...files, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern }) });
     return check(root, CONFIG, kit).findings.filter(line => line.includes('checklist-kit') && line.startsWith(`${CHECKLIST}:`));
   };
   // A repository of T-ids: the item of the sibling template-benchmark is its own; a bare unregistered K-id is a kit item.
-  const sibling = consumer(['| T1 | as template-benchmark K79-3 does | `a.mts` | `node --test a.test.mts` | [ ] |', '| T2 | waits on K99999 | `b.mts` | `node --test b.test.mts` | [ ] |'], ID_PATTERN);
-  assert.equal(sibling.length, 1, sibling.join('\n'));
+  const sibling = consumer(['| T1 | as template-benchmark K79-3 does | `a.mts` | `node --test a.test.mts` | [ ] |', '| T2 | waits on K99999 | `b.mts` | `node --test b.test.mts` | [ ] |', '| T3 | [template-benchmark K79-3](https://github.com/polyspec/template-benchmark) and [orm K80](https://github.com/polyspec/orm) | `c.mts` | `node --test c.test.mts` | [ ] |', '| T4 | waits on kit K77777 | `d.mts` | `node --test d.test.mts` | [ ] |'], ID_PATTERN);
+  assert.equal(sibling.length, 2, sibling.join('\n'));
+  assert.ok(sibling.some(line => line.includes('K77777')), 'an explicitly qualified kit item is still checked');
   assert.match(sibling[0] ?? '', /K99999/);
+  const linked = consumer(['| T1 | [template-benchmark K79-3](https://github.com/polyspec/template-benchmark) | `a.mts` | `node --test a.test.mts` | [ ] |', '| T2 | [K99999](https://github.com/polyspec/kit) | `b.mts` | `node --test b.test.mts` | [ ] |', '| T3 | [template-benchmark K80][benchmark] | `c.mts` | `node --test c.test.mts` | [ ] |'], ID_PATTERN, false, '\n[benchmark]: https://github.com/polyspec/template-benchmark\n');
+  assert.equal(linked.length, 1, linked.join('\n'));
+  assert.match(linked[0] ?? '', /K99999/, 'a link to the kit repository is still checked');
   // A repository of K-ids: its own K-id is no kit item, and kit K99999 is one.
   const own = consumer(['| K1 | follows K2 and kit K365 | `a.mts` | `node --test a.test.mts` | [ ] |', '| K2 | waits on kit K99999 | `b.mts` | `node --test b.test.mts` | [ ] |'], 'K[0-9]+(?:[.-][0-9]+)*');
   assert.equal(own.length, 1, own.join('\n'));
