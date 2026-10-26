@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 45263e5ee678401bf7c6f75124e17026cd41f55a264aa19da10e0aa678df0ef1 -->
+<!-- source-sha256: 31f3bb38f1c01475b7f1955aeb2c216c828a114967d55d484e2d14714b364e79 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 공유 링크 fixture는 check 모드에서 누락·잘못된 source 거부를 유지하고 변경 모드에서 native 최초 설치·복구를 기대한다. Red: be6d847e에서 K529·K643·K590 세 case가 실패한다. 계약 정정 후 K529·K643은 통과했다. K590은 lock 없는 Composer workspace member가 root 소유 설치 대신 독립 native 설치로 취급되어 막혀 있으며, 결함을 숨기기 위해 nested repository 선언을 추가하지 않았다(K666).
 ## 0.0.55
 
 - 릴리스 준비는 현재 0.0.55 소스를 네이티브 npm으로 패킹하고 그 아카이브에서 소비자 잠금을 다시 생성한다. 패키지 의존성 선언은 네이티브 소비자 잠금 항목과 같고 현재 의존성 검토는 정확한 잠금 내용 다섯 개를 취약점 없이 검토한다. dependency-policy-check와 release-versions가 통과한다. 게시와 main CI 승인은 아직 대기 중이다 (K655).

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Shared-link fixtures retain missing and wrong-source failures in check mode while expecting native first installation and repair in mutation mode. Red: the three K529, K643 and K590 cases fail at be6d847e. K529 and K643 pass after contract updates. K590 remains blocked because a lockless Composer workspace member is treated as an independent native installation instead of using its root owner; no nested repository declaration was added to hide that defect (K666).
 ## 0.0.55
 
 - Release preparation packs the current 0.0.55 source with native npm and regenerates the consumer lock from that archive. The packed dependency declarations match its native consumer lock entry; the current dependency review covers five exact lock contents with no advisory. dependency-policy-check and release-versions pass. Publishing and main CI acceptance remain pending (K655).

@@ -1063,18 +1063,21 @@ test('K529: link reads COMPOSER_VENDOR_DIR as the vendor folder before config.ve
   assert.equal(realpathSync(vendor), realpathSync(path.join(provider, 'packages/php')));
 });
 
-// K529 (c): a polyspec package that the composer.json of a project declares, with no installed folder, is a finding in link and in check.
-test('K529: a declared polyspec package with no installed folder fails link and check with its name (K529)', (t) => {
-  const { consumer, env } = workspace(t);
+// K529 (c): check reports a missing install; mutation delegates the declared initial install to Composer.
+test('K529: check rejects a missing declared package and mutation installs its source (K529)', (t) => {
+  const { consumer, provider, env } = workspace(t);
   put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/not-installed' } }) });
+  put(consumer, { 'composer-vendor-dir': 'var/not-installed' });
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'declared but not installed');
-  const linked = linkLines([consumer], env);
-  assert.equal(linked.ok, false, linked.text);
-  assert.match(linked.text, /NOT linked\s+composer\s+polyspec\/y/);
   const checked = linkLines([consumer], env, true);
   assert.equal(checked.ok, false, checked.text);
   assert.match(checked.text, /NOT linked\s+composer\s+polyspec\/y/);
+  const linked = linkLines([consumer], env);
+  assert.equal(linked.ok, true, linked.text);
+  assert.equal(realpathSync(path.join(consumer, 'var/not-installed/polyspec/y')), path.join(provider, 'packages/php'));
+  assert.equal(linkLines([consumer], env, true).ok, true);
+
 });
 
 
@@ -1095,18 +1098,22 @@ test('K643: a python package installed editable from its provider is linked, and
   const elsewhere = mkdtempSync(path.join(tmpdir(), 'kit-editable-'));
   t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
   record(elsewhere);
-  for (const check of [true, false]) {
-    const found = linkLines([consumer], env, check);
-    assert.equal(found.ok, false, found.text);
-    assert.match(found.text, /NOT linked\s+python\s+polyspec[-_]z: installed editable from .*kit-editable-.*, not from .*packages\/python/i);
-  }
+  const found = linkLines([consumer], env, true);
+  assert.equal(found.ok, false, found.text);
+  assert.match(found.text, /NOT linked\s+python\s+polyspec[-_]z: installed editable from .*kit-editable-.*, not from .*packages\/python/i);
+  const repaired = linkLines([consumer], env);
+  assert.equal(repaired.ok, true, repaired.text);
+  const metadata: unknown = JSON.parse(readFileSync(path.join(site, 'polyspec_z-0.0.1.dist-info/direct_url.json'), 'utf8'));
+  assert.deepEqual(metadata, { url: pathToFileURL(path.join(provider, 'packages/python')).href, dir_info: { editable: true } });
+  assert.equal(linkLines([consumer], env, true).ok, true);
+
 });
 
 // K590: a workspace member has no lock of its own: npm installs an npm workspace member's packages into the node_modules of the root
 // whose package-lock.json installs it, and the root composer.json installs a Composer package through its path repository into the
 // root's vendor. link takes the member's installed folders from that owner; a package that the owner lacks stays a finding of the member.
 test('K590: link takes the installed folders of a workspace member with no lock from the project whose lock installs it (K590)', (t) => {
-  const { consumer, env } = workspace(t);
+  const { consumer, provider, env } = workspace(t);
   const manifest = readJsonObject(path.join(consumer, 'package.json'));
   put(consumer, {
     'package.json': JSON.stringify({ ...manifest, workspaces: ['packages/app'] }),
@@ -1116,6 +1123,7 @@ test('K590: link takes the installed folders of a workspace member with no lock 
   });
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'workspace members');
+  rmSync(path.join(consumer, 'var/contracts/vendor'), { recursive: true, force: true });
   const linked = linkLines([consumer], env);
   assert.equal(linked.ok, true, linked.text);
   assert.doesNotMatch(linked.text, /no installed folder/);
@@ -1123,9 +1131,14 @@ test('K590: link takes the installed folders of a workspace member with no lock 
   assert.equal(checked.ok, true, checked.text);
   // The owner lacks the package: the member is named.
   rmSync(path.join(consumer, 'node_modules/@polyspec/x'), { recursive: true, force: true });
-  const missing = linkLines([consumer], env);
+  const missing = linkLines([consumer], env, true);
   assert.equal(missing.ok, false, missing.text);
   assert.match(missing.text, /NOT linked\s+npm\s+@polyspec\/x: no installed folder in packages\/app/);
+  const repaired = linkLines([consumer], env);
+  assert.equal(repaired.ok, true, repaired.text);
+  assert.equal(realpathSync(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+  assert.equal(linkLines([consumer], env, true).ok, true);
+
 });
 
 test('K657-3: Python links use native editable installation and check refuses legacy links without invoking uv', (t) => {
