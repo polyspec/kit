@@ -43,7 +43,7 @@ test('make kit-build emits every tool of scripts/kit into dist as .mjs with .mjs
   for (const extractor of extractors) assert.equal(readFileSync(path.join(copy, 'dist/symbols', extractor), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/symbols', extractor), 'utf8'), `dist/symbols/${extractor}`);
 });
 
-// The export resolves to dist/, so it is read in a built copy (K217).
+// The checkout export resolves to source; the packed-consumer test below checks dist (K217).
 test('@polyspec/kit/test-output resolves and exposes the five readers (K217)', (t) => {
   const copy = builtCopy(t);
   const script = "import * as m from '@polyspec/kit/test-output'; console.log(['goEvents', 'cargoEvents', 'pythonEvents', 'phpunitEvents', 'nodeEvents'].map(name => typeof m[name]).join(' '));";

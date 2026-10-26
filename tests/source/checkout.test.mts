@@ -148,9 +148,9 @@ test('a test that run-tests times out ends the process group of its nested run',
   await until(() => !alive(pid));
 });
 
-test('builtCopy installs the packages of kit into the copy and links none', (t) => {
+test('builtCopy installs its own dependency tree and builds the package', (t) => {
   const copy = builtCopy(t);
-  // AGENTS: this repository creates no symbolic link; the copy installs its packages as a checkout does.
+  // npm owns workspace and executable links; the dependency root is local to this copy.
   assert.ok(!lstatSync(path.join(copy, 'node_modules')).isSymbolicLink(), 'node_modules of the copy is a link');
   assert.ok(existsSync(path.join(copy, 'node_modules/typescript/package.json')), 'the copy holds the packages of package-lock.json');
   assert.ok(existsSync(path.join(copy, 'dist/kit.mk')), 'make kit-build ran in the copy');
