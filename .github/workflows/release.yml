@@ -6,6 +6,7 @@
 # kit with TAG from the environment. The first two install the package in the bootstrap order of a repository:
 #   release-tag      on a dispatch, creates the annotated tag at origin/main and pushes it, or passes when it is there
 #                    (K269); a tag pushed with the token of the run starts no second run
+#   bootstrap package installs the locked kit with the exact packageManager npm for consumers, without scripts
 #   install-tools TOOLS=npm installs the npm of packageManager with the copied installer of scripts/kit/bootstrap
 #   install-packages installs package-lock.json with that npm, @polyspec/kit included, whose kit.mk has the targets below
 #   release-prepare  the preparation that the release of the repository declares with release-prepare:: (none by default)
@@ -62,21 +63,11 @@ jobs:
           php-version-file: .php-version
           # The proof runs with no debugger or coverage driver, as the checks do.
           coverage: none
-      # A consumer includes ../kit/scripts/kit/kit-bootstrap.mk before npm is installed. Prepare that source and its
-      # dependencies at the release tag pinned by the consumer lock; kit itself already has scripts/kit/kit.mk.
-      - name: install the locked sibling kit
+      # Consumers install their locked kit package before Make reads its bootstrap; kit runs its own sources.
+      - name: bootstrap the installed kit package
         run: |
-          if [ ! -f scripts/kit/kit.mk ]; then
-            kit_tag=$(node -e '
-              const lock = require("./package-lock.json");
-              const resolved = lock.packages?.["node_modules/@polyspec/kit"]?.resolved;
-              const match = typeof resolved === "string" && /^https:\/\/github\.com\/polyspec\/kit\/releases\/download\/(v\d+\.\d+\.\d+)\//.exec(resolved);
-              if (!match) throw new Error("package-lock.json must pin the release asset of @polyspec/kit");
-              process.stdout.write(match[1]);
-            ')
-            git clone --depth 1 --branch "$kit_tag" https://github.com/polyspec/kit.git ../kit
-            make -C ../kit install-tools TOOLS=npm
-            make -C ../kit install-packages
+          if [ "$(node -p 'require("./package.json").name')" != '@polyspec/kit' ]; then
+            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="$(node -p 'require("./package.json").packageManager.split("+")[0]')" -- npm ci --ignore-scripts --allow-remote=root
           fi
       - name: install npm
         run: make install-tools TOOLS=npm

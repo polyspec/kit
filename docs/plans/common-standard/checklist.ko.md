@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: b1780deadb81f3075dfa863c58f8c2fa9f9a6d38be376a0e084b8aa83cbf7a87 -->
+<!-- source-sha256: d348ac8e32390adebc0795778ce32358d3308d45896cc39e0f79069afb169f5a -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -594,3 +594,4 @@
 | K671 | 소비자는 필수 sibling checkout 없이 설치된 kit package에서 bootstrap, 공유 파일, workflow를 사용하며 로컬 npm link는 계속 지원합니다 | package bootstrap, sync, workflows, owner tests | `make docs-check` | [~] |
 | K671-1 | 소비자는 설치된 kit을 include하고 소스·패키지에서 동일한 설정의 네이티브 npm hook bin을 사용한다 | scripts/kit/kit-bootstrap.mk, pack-manifest.mts, claude-hook.mts, package.json bin, claude/settings.json, owning unit and consumer tests | `node scripts/kit/run-tests.mts node -- tests/kit/pack-manifest.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/installed-hook-real.test.mts` | [o] |
 | K671-2 | 설치된 package의 공유 copy와 workflow를 복원하고 provider를 바꾸지 않는 atomic managed symlink 전환 및 tracked shared link 거부를 적용합니다 | package.json kit.copies, scripts/kit/kit-sync.mts, scripts/kit/kit-check.mts, owning unit tests | `node scripts/kit/run-tests.mts node -- tests/kit/kit-sync.test.mts tests/kit/kit-check.test.mts`; type-aware oxlint | [o] |
+| K671-3 | release와 gates workflow는 첫 Make 실행 전에 정확한 packageManager npm으로 lock의 kit package를 설치하고 kit 자체는 package bootstrap을 건너뛰며 형제 source clone을 요구하지 않는다 | workflows/release.yml, .github/workflows/release.yml, workflows/gates.yml, tests/kit/workflow-package-bootstrap.mts, tests/kit/gates-workflow.test.mts, tests/source/release-workflow.test.mts, config/owner-checks.json | `node scripts/kit/run-tests.mts node -- tests/kit/gates-workflow.test.mts tests/source/release-workflow.test.mts`; changed-file type-aware oxlint | [o] |

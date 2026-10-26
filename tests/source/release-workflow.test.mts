@@ -5,6 +5,7 @@
 // repository that needs PHP (K193). kit does not vendor workflows/, so
 // only the kit runs this case.
 import assert from 'node:assert/strict';
+import { assertWorkflowPackageBootstrap } from '../kit/workflow-package-bootstrap.mts';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -24,18 +25,8 @@ const step = (command: string, pattern: RegExp) => {
   return found;
 };
 
-test('K670: a consumer prepares the locked sibling kit before the first make', { timeout: 1000 }, () => {
-  const workflow = lines.join('\n');
-  const prepare = workflow.indexOf('      - name: install the locked sibling kit\n');
-  const install = workflow.indexOf('      - name: install npm\n');
-  assert.ok(prepare >= 0 && prepare < install, 'the sibling sources and dependencies exist before the consumer bootstrap');
-  const body = workflow.slice(prepare, install);
-  assert.match(body, /if \[ ! -f scripts\/kit\/kit\.mk \]; then/);
-  assert.match(body, /package-lock\.json/);
-  assert.match(body, /node_modules\/@polyspec\/kit/);
-  assert.match(body, /git clone --depth 1 --branch "\$kit_tag"/);
-  assert.match(body, /make -C \.\.\/kit install-tools TOOLS=npm/);
-  assert.match(body, /make -C \.\.\/kit install-packages/);
+test('K671-3: release consumers bootstrap the installed package with exact npm before Make, while kit skips it', { timeout: 5000 }, (t) => {
+  assertWorkflowPackageBootstrap(lines.join('\n'), t);
 });
 
 test('the release workflow has one job, so every step runs in the job that creates the release', () => {
