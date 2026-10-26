@@ -220,18 +220,18 @@ test('npmSourceFolders includes all declared provider sections and installed tra
 });
 
 test('npmSourceFolders follows each selected local package to its transitive local providers (K672)', (t) => {
-  const { root, project } = fixture(t, 'kit-npm-source-graph-', { '@polyspec/dbspec-language': '0.0.18' }, []);
-  const language = provider(path.join(root, 'providers/language'), '@polyspec/dbspec-language');
-  const orm = provider(path.join(root, 'providers/orm'), '@polyspec/orm');
-  const orderedJson = provider(path.join(root, 'providers/ordered-json'), '@polyspec/ordered-json');
-  writeFileSync(path.join(language, 'package.json'), JSON.stringify({ name: '@polyspec/dbspec-language', dependencies: { '@polyspec/orm': '0.0.18' } }));
-  writeFileSync(path.join(orm, 'package.json'), JSON.stringify({ name: '@polyspec/orm', dependencies: { '@polyspec/ordered-json': '0.0.9' } }));
+  const { root, project } = fixture(t, 'kit-npm-source-graph-', { '@polyspec/fixture-language': '0.0.18' }, []);
+  const language = provider(path.join(root, 'providers/language'), '@polyspec/fixture-language');
+  const storage = provider(path.join(root, 'providers/storage'), '@polyspec/fixture-storage');
+  const codec = provider(path.join(root, 'providers/fixture-codec'), '@polyspec/fixture-codec');
+  writeFileSync(path.join(language, 'package.json'), JSON.stringify({ name: '@polyspec/fixture-language', dependencies: { '@polyspec/fixture-storage': '0.0.18' } }));
+  writeFileSync(path.join(storage, 'package.json'), JSON.stringify({ name: '@polyspec/fixture-storage', dependencies: { '@polyspec/fixture-codec': '0.0.9' } }));
   const unrelated = provider(path.join(root, 'providers/unrelated'), '@polyspec/unrelated');
-  const providerFolders: [string, string][] = [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm],
-    ['@polyspec/ordered-json', orderedJson], ['@polyspec/unrelated', unrelated]];
+  const providerFolders: [string, string][] = [['@polyspec/fixture-language', language], ['@polyspec/fixture-storage', storage],
+    ['@polyspec/fixture-codec', codec], ['@polyspec/unrelated', unrelated]];
   const providers: Provider[] = providerFolders.map(([name, folder]) => ({ ecosystem: 'npm', name, folder, repository: root, checkout: root }));
   const selected = npmSourceFolders(project, providers);
-  assert.deepEqual(selected.map(item => item.name).sort(), ['@polyspec/dbspec-language', '@polyspec/ordered-json', '@polyspec/orm']);
+  assert.deepEqual(selected.map(item => item.name).sort(), ['@polyspec/fixture-codec', '@polyspec/fixture-language', '@polyspec/fixture-storage']);
   for (const item of selected) assert.equal(item.folder, path.join(project, 'node_modules', item.name));
-  assert.equal(selected.find(item => item.name === '@polyspec/ordered-json')?.target, orderedJson);
+  assert.equal(selected.find(item => item.name === '@polyspec/fixture-codec')?.target, codec);
 });

@@ -1,15 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 90e98b99169efeebec34cd0dcaad017410557df027cd1cc7178e350d0f2ac9b8 -->
+<!-- source-sha256: edba45390b657b57670ef069e6a9e85b48bf13944f5c4ae0d02b1ce458bea65c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-
-
 ## 0.0.55
 
+- Transitive npm graph fixture의 package 이름·경로·release URL을 일반 editor, language, storage, codec 이름으로 바꾼다. Dependency edge, workspace 배치, release override와 정확한 source assertion은 유지한다. Red: 377c06b1에서 제품별 이름으로 isolation이 실패한다. Green: isolation과 선택한 K672 selector/native graph 검사가 통과하며 변경 파일의 type-aware lint도 통과한다(K672-1).
 - Cargo fallback fixture는 native offline update preflight를 허용하고 source 거부 시 요청한 command가 실행되지 않으며 holder가 해제됨을 구분해 검증한다. Red: cdb95b63에서 소유 fallback case 실패; Green: 선택한 Cargo source case 4개 모두 통과 (K671-8).
 
 - Rebuild inventory에 native Cargo metadata source helper를 분류하고 현재 npm과 uv 설치 명령을 설명한다. Dependency, document, generated-file, link-state 및 npm test의 package·경로·URL fixture를 일반화하며 isolation과 원래 의미 assertion은 유지한다. Red: 89ee79f8에서 분류와 isolation 소유 case가 실패한다. Green: 선택한 소유 case 26개가 통과한다(K671-5).

@@ -131,52 +131,52 @@ describe('native npm transitive local source linking (K672)', () => {
   let root: string;
   let consumer: string;
   let language: string;
-  let orm: string;
-  let orderedJson: string;
+  let storage: string;
+  let codec: string;
   let declarations: string[];
   let actual: unknown;
   setup('linking a source package and its transitive source dependencies in a workspace with a release override', () => {
     directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-transitive-')));
     root = path.join(directory, 'workspace');
-    consumer = path.join(root, 'packages/dbspec-codemirror');
-    language = path.join(root, 'packages/dbspec-language');
-    orm = path.join(root, 'packages/orm');
-    orderedJson = path.join(directory, 'ordered-json/packages/js');
-    for (const folder of [consumer, language, orm, orderedJson]) mkdirSync(folder, { recursive: true });
-    const remote = 'https://example.invalid/polyspec-ordered-json-npm-0.0.9.tgz';
+    consumer = path.join(root, 'packages/fixture-editor');
+    language = path.join(root, 'packages/fixture-language');
+    storage = path.join(root, 'packages/storage');
+    codec = path.join(directory, 'fixture-codec/packages/js');
+    for (const folder of [consumer, language, storage, codec]) mkdirSync(folder, { recursive: true });
+    const remote = 'https://example.invalid/polyspec-fixture-codec-npm-0.0.9.tgz';
     const manifest = (name: string, dependencies: Record<string, string> = {}) => ({ name, version: '0.0.18', main: 'index.cjs', dependencies });
-    writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'orm-workspace', private: true, workspaces: ['packages/*'],
-      dependencies: { '@polyspec/ordered-json': remote }, overrides: { '@polyspec/ordered-json': remote } }));
-    writeFileSync(path.join(consumer, 'package.json'), JSON.stringify(manifest('@polyspec/dbspec-codemirror', { '@polyspec/dbspec-language': '0.0.18' })));
-    writeFileSync(path.join(language, 'package.json'), JSON.stringify(manifest('@polyspec/dbspec-language', { '@polyspec/orm': '0.0.18' })));
-    writeFileSync(path.join(language, 'index.cjs'), "module.exports = require('@polyspec/orm');\n");
-    writeFileSync(path.join(orm, 'package.json'), JSON.stringify(manifest('@polyspec/orm', { '@polyspec/ordered-json': '0.0.9' })));
-    writeFileSync(path.join(orm, 'index.cjs'), "module.exports = require('@polyspec/ordered-json');\n");
-    writeFileSync(path.join(orderedJson, 'package.json'), JSON.stringify(manifest('@polyspec/ordered-json')));
-    writeFileSync(path.join(orderedJson, 'index.cjs'), "module.exports = 'local-ordered-json';\n");
-    const links: [string, string][] = [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm], ['@polyspec/ordered-json', orderedJson]];
+    writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'fixture-workspace', private: true, workspaces: ['packages/*'],
+      dependencies: { '@polyspec/fixture-codec': remote }, overrides: { '@polyspec/fixture-codec': remote } }));
+    writeFileSync(path.join(consumer, 'package.json'), JSON.stringify(manifest('@polyspec/fixture-editor', { '@polyspec/fixture-language': '0.0.18' })));
+    writeFileSync(path.join(language, 'package.json'), JSON.stringify(manifest('@polyspec/fixture-language', { '@polyspec/fixture-storage': '0.0.18' })));
+    writeFileSync(path.join(language, 'index.cjs'), "module.exports = require('@polyspec/fixture-storage');\n");
+    writeFileSync(path.join(storage, 'package.json'), JSON.stringify(manifest('@polyspec/fixture-storage', { '@polyspec/fixture-codec': '0.0.9' })));
+    writeFileSync(path.join(storage, 'index.cjs'), "module.exports = require('@polyspec/fixture-codec');\n");
+    writeFileSync(path.join(codec, 'package.json'), JSON.stringify(manifest('@polyspec/fixture-codec')));
+    writeFileSync(path.join(codec, 'index.cjs'), "module.exports = 'local-fixture-codec';\n");
+    const links: [string, string][] = [['@polyspec/fixture-language', language], ['@polyspec/fixture-storage', storage], ['@polyspec/fixture-codec', codec]];
     for (const [name, folder] of links) {
       const installed = path.join(root, 'node_modules', name);
       mkdirSync(path.dirname(installed), { recursive: true });
       symlinkSync(path.relative(path.dirname(installed), folder), installed, 'dir');
     }
     const providers = [
-      { ecosystem: 'npm' as const, name: '@polyspec/dbspec-language', folder: language, repository: root, checkout: root },
-      { ecosystem: 'npm' as const, name: '@polyspec/orm', folder: orm, repository: root, checkout: root },
-      { ecosystem: 'npm' as const, name: '@polyspec/ordered-json', folder: orderedJson, repository: directory, checkout: directory },
+      { ecosystem: 'npm' as const, name: '@polyspec/fixture-language', folder: language, repository: root, checkout: root },
+      { ecosystem: 'npm' as const, name: '@polyspec/fixture-storage', folder: storage, repository: root, checkout: root },
+      { ecosystem: 'npm' as const, name: '@polyspec/fixture-codec', folder: codec, repository: directory, checkout: directory },
     ];
     declarations = ['package.json', 'package-lock.json'].filter(file => existsSync(path.join(consumer, file))).map(file => readFileSync(path.join(consumer, file), 'utf8'));
     const folders = npmSourceFolders(consumer, providers);
     npmLink(consumer, folders, NPM, { ...process.env, npm_config_offline: 'true', npm_config_cache: path.join(directory, 'cache') }, text => process.stdout.write(`[npm-transitive] ${text}\n`));
-    const result = spawnSync(process.execPath, ['-p', "require('@polyspec/dbspec-language')"], { cwd: consumer, encoding: 'utf8' });
+    const result = spawnSync(process.execPath, ['-p', "require('@polyspec/fixture-language')"], { cwd: consumer, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     actual = result.stdout.trim();
   });
   teardown('the transitive npm source fixture', () => { if (directory) rmSync(directory, { recursive: true, force: true }); });
   test('native npm links every local package in the source dependency graph without resolving its release URL (K672)', () => {
-    assert.equal(actual, 'local-ordered-json');
+    assert.equal(actual, 'local-fixture-codec');
     assert.deepEqual(['package.json', 'package-lock.json'].filter(file => existsSync(path.join(consumer, file))).map(file => readFileSync(path.join(consumer, file), 'utf8')), declarations);
-    const linkedTargets: [string, string][] = [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm], ['@polyspec/ordered-json', orderedJson]];
+    const linkedTargets: [string, string][] = [['@polyspec/fixture-language', language], ['@polyspec/fixture-storage', storage], ['@polyspec/fixture-codec', codec]];
     for (const [name, target] of linkedTargets)
       assert.equal(realpathSync(path.join(consumer, 'node_modules', name)), target);
   });
