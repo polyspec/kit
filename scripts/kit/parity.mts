@@ -6,12 +6,14 @@
 // and feature itself and keeps the ledger of the cases and test ids that ran, runs the symbol extractor of each
 // implementation (parity-symbols.mts) and reads the error codes from its generated artifact.
 //
-//   node scripts/kit/parity.mts [--declarations] [--unit <id>]...
+//   node scripts/kit/parity.mts [--declarations] [--unit <id>]... [--implementation <name>]...
 //     --declarations  check the declarations only: every rule except R1, R3 and R11; no binding and no extractor runs
 //     --unit <id>     run only the bindings (R3) of the named units, through the same runners as a full run; the cross-unit
 //                     rules (R1, R2, R4 to R11) need every unit and do not run. An id that no unit holds is an error (K221).
 //                     With --declarations, the findings that name the units and those of config/parity.json itself count (K400),
 //                     and a schema finding of config/parity.json counts only at a named unit's index (K400-1)
+//     --implementation <name>  run only runtime bindings of the named implementations; support files run when --unit is absent.
+//                     All implementation declarations and static checks remain global. Empty and unknown names fail (K700).
 //     --rule <x>      with --declarations, only the findings of the named rules count, by id (R10) or by name (docs-count), and
 //                     those of config/parity.json itself (K414); a name that is neither fails the run
 //     --id <requirement>  with --declarations, only findings that name one of the requirement ids count, including R2 missing
@@ -60,7 +62,7 @@ import type { Ledger } from './parity-ledger.mts';
 import { extractSymbols } from './parity-symbols.mts';
 import { documentCounts, languageLists } from './parity-text.mts';
 import { requirementFindings } from './parity-requirements.mts';
-import { misplacedTests, missingBindings, missingImplementations, undeclaredPublic, undeclaredSuites, undeclaredTests } from './parity-units.mts';
+import { misplacedTests, missingBindings, missingImplementations, pairs, undeclaredPublic, undeclaredSuites, undeclaredTests } from './parity-units.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { loadConfig } from './checklist.mts';
@@ -72,7 +74,7 @@ export type ParityFinding = Finding;
  * The check of the checkout at `root`: `{ findings, ledger }`, the findings in the order of the rules. `execute` runs the
  * bindings (R3) with the environment `env`; `say` prints a line for each step.
  */
-export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules, ids }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined; ids?: string[] | undefined } = {}): { findings: ParityFinding[]; ledger: Ledger } {
+export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules, ids, implementations }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined; ids?: string[] | undefined; implementations?: string[] | undefined } = {}): { findings: ParityFinding[]; ledger: Ledger } {
   const files = new Set(checkedFiles(root));
   const ledger: Ledger = { runs: [], cases: [] };
   // Parity holds between implementations: a repository with one needs no declaration, and one with two or more fails without it.
@@ -92,6 +94,19 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   const leftOut = declaration.leftOut ?? [];
   if (leftOut.length) say(`${leftOut.join(', ')} ${leftOut.length === 1 ? 'breaks' : 'break'} the schema of ${DECLARATION} and ${leftOut.length === 1 ? 'is' : 'are'} left out; the rules run on the other units`);
   if (model === undefined) throw new Error(`${DECLARATION}: readDeclaration returned neither errors nor a model`);
+  const implementationSelection = implementations === undefined ? undefined : new Set(implementations);
+  if (implementations !== undefined) {
+    if (implementations.length === 0 || implementations.some(name => name.trim() === ''))
+      return { findings: [finding('declaration', '--implementation needs one or more nonempty implementation names', { place: DECLARATION })], ledger };
+    const duplicates = [...new Set(implementations.filter((name, index) => implementations.indexOf(name) !== index))];
+    if (duplicates.length) return { findings: [finding('declaration', `--implementation repeats ${duplicates.join(', ')}`, { place: DECLARATION })], ledger };
+    const known = new Set(model.config.implementations.map(implementation => implementation.name));
+    const unknown = implementations.filter(name => !known.has(name));
+    if (unknown.length) return { findings: unknown.map(name => finding('declaration', `--implementation ${name} names no implementation of ${DECLARATION}`, { place: DECLARATION })), ledger };
+    say(execute
+      ? `--implementation ${implementations.join(', ')}: only their runtime bindings run, and their support files run when --unit is absent; implementation declarations and static checks stay global`
+      : `--implementation ${implementations.join(', ')}: declarations and static checks still cover every implementation; no runtime bindings run`);
+  }
   // With --unit, only the named units run: an id that no unit holds fails the run before any binding starts (K221).
   const selected = units === undefined ? undefined : new Set(units);
   if (selected !== undefined) {
@@ -100,6 +115,12 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     if (unknown.length) return { findings: unknown.map(id => finding('declaration', `--unit ${id} names no unit of ${DECLARATION}`, { place: DECLARATION })), ledger };
     if (execute) say(`--unit ${[...selected].join(', ')}: only their bindings (R3) run; the cross-unit rules (R1, R2, R4 to R11) need every unit and do not run`);
     else say(`--unit ${[...selected].join(', ')}: only the findings of these units and of ${DECLARATION} itself count`);
+  }
+  if (execute && implementationSelection !== undefined) {
+    const applicable = [...pairs(model, 'suite'), ...pairs(model, 'feature')]
+      .some(({ unit, implementation }) => implementationSelection.has(implementation.name) && (selected === undefined || selected.has(unit.id))
+        && unit.bindings?.some(binding => binding.implementation === implementation.name));
+    if (!applicable) return { findings: [finding('declaration', `--implementation ${implementations?.join(', ')} selects no runtime bindings${units === undefined ? '' : ` in --unit ${units.join(', ')}`}`, { place: DECLARATION })], ledger };
   }
   // With --rule, a rule is named by its id or by its name in RULES; a name that is neither fails the run before any check.
   const ruleNames: Record<string, string> = RULES;
@@ -125,7 +146,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   for (const tool of model.config.tools ?? []) say(tool.root === undefined
     ? `tools exact files ${(tool.files ?? []).join(', ')}: ${tool.reason}`
     : `tools root ${tool.root}: ${tool.reason}`);
-  const executed = execute ? runBindings(model, root, { env, files, say, units: selected }) : { ledger, findings: [] };
+  const executed = execute ? runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection }) : { ledger, findings: [] };
   if (selected !== undefined && execute) return { findings: executed.findings, ledger: executed.ledger };
   const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), findings: [] };
   say('check the units against the tree');
@@ -162,12 +183,12 @@ export function checkParity(root: string, { execute = true, env = process.env, s
 }
 
 if (isMain(import.meta.url)) {
-  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, unit: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true }, id: { type: 'string', multiple: true } } });
+  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, unit: { type: 'string', multiple: true }, implementation: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true }, id: { type: 'string', multiple: true } } });
   const say = (text: string) => console.log(`[parity] ${text}`);
-  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id });
+  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation });
   if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
   for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
   if (findings.length) console.error(`[parity] ${findings.length} findings`);
-  else say(values.declarations ? 'every declaration holds' : 'every applicable unit holds');
+  else say(values.declarations ? 'every declaration holds' : values.implementation === undefined ? 'every applicable unit holds' : 'selected runtime bindings and applicable declarations hold');
   process.exitCode = findings.length ? 1 : 0;
 }

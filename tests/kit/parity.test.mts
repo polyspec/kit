@@ -388,8 +388,8 @@ function repository(t: TestContext, { files = {}, edit = config => config }: Cha
 }
 
 /** The findings of the check of a mini repository; `execute` false checks the declarations only. */
-function check(t: TestContext, change?: Change, { execute = true } = {}) {
-  return checkParity(repository(t, change), { execute, env: ENV, say: () => {} });
+function check(t: TestContext, change?: Change, { execute = true, units, implementations }: { execute?: boolean; units?: string[]; implementations?: string[] } = {}) {
+  return checkParity(repository(t, change), { execute, env: ENV, say: () => {}, units, implementations });
 }
 
 /** Each finding as `<rule> <unit> <implementation>`, the fields that a finding names. */
@@ -421,6 +421,79 @@ test('the declaration of five implementations passes, with every case of every s
     'width ts narrow pass', 'width ts wide pass', 'width php narrow pass', 'width php wide pass', 'width python narrow pass', 'width python wide pass',
     'size go small pass', 'size rust small pass', 'size ts small pass', 'size php small pass', 'size python small pass',
   ]);
+});
+
+test('parity selects runtime implementations without narrowing declaration checks or default execution (K700)', TIMEOUT, (t) => {
+  const selected = check(t, undefined, { implementations: ['go'] });
+  assert.deepEqual(selected.findings, []);
+  assert.deepEqual([...new Set(selected.ledger.runs.map(run => run.implementation))], ['go']);
+  assert.equal(selected.ledger.runs.length, 6, 'the three Go suite bindings each run twice');
+
+  const defaultRun = check(t);
+  assert.deepEqual(defaultRun.findings, []);
+  assert.deepEqual([...new Set(defaultRun.ledger.runs.map(run => run.implementation))], ['go', 'rust', 'ts', 'php', 'python']);
+  assert.equal(defaultRun.ledger.runs.length, 30);
+
+  for (const implementations of [[], ['']]) {
+    const empty = check(t, undefined, { implementations });
+    assert.equal(empty.ledger.runs.length, 0);
+    assert.match(empty.findings[0]?.message ?? '', /one or more nonempty implementation names/);
+  }
+  const unknown = check(t, undefined, { implementations: ['missing'] });
+  assert.equal(unknown.ledger.runs.length, 0);
+  assert.match(unknown.findings[0]?.message ?? '', /--implementation missing names no implementation/);
+
+  const noBindings = check(t, undefined, { units: ['encode'], implementations: ['go'] });
+  assert.equal(noBindings.ledger.runs.length, 0);
+  assert.match(noBindings.findings[0]?.message ?? '', /selects no runtime bindings in --unit encode/);
+
+  const malformedPython = check(t, { edit: config => {
+    binding(config, 'codec', 'python').test = 'python/tests/missing.py';
+    return config;
+  } }, { implementations: ['go'] });
+  assert.equal(malformedPython.ledger.runs.length, 0);
+  assert.equal(malformedPython.findings[0]?.rule, 'declaration', 'an unselected implementation still receives schema checks');
+
+  const missingPythonBinding = check(t, { edit: config => {
+    const codec = itemWhere(config.units, unit => unit.id === 'codec');
+    codec.bindings = (codec.bindings ?? []).filter(entry => entry.implementation !== 'python');
+    return config;
+  } }, { implementations: ['go'] });
+  assert.ok(missingPythonBinding.findings.some(finding => finding.rule === 'R2' && finding.unit === 'codec' && finding.implementation === 'python'));
+  assert.deepEqual([...new Set(missingPythonBinding.ledger.runs.map(run => run.implementation))], ['go']);
+
+  const root = repository(t);
+  const parity = tool(import.meta.resolve('../../scripts/kit/parity.mts'));
+  const run = (...args: string[]) => spawnSync(process.execPath, [parity, ...args], { cwd: root, env: ENV, encoding: 'utf8' });
+  const selectedCommand = run('--unit', 'codec', '--implementation', 'go');
+  assert.equal(selectedCommand.status, 0, selectedCommand.stdout + selectedCommand.stderr);
+  assert.match(selectedCommand.stdout, /--implementation go: only their runtime bindings run, and their support files run when --unit is absent; implementation declarations and static checks stay global/);
+  assert.doesNotMatch(selectedCommand.stdout, /run codec (rust|ts|php|python)/);
+  const unknownCommand = run('--unit', 'codec', '--implementation', 'missing');
+  assert.notEqual(unknownCommand.status, 0, unknownCommand.stdout + unknownCommand.stderr);
+  assert.match(unknownCommand.stderr, /--implementation missing names no implementation/);
+  assert.doesNotMatch(unknownCommand.stdout, /run codec /);
+  const emptyCommand = run('--unit', 'codec', '--implementation=');
+  assert.notEqual(emptyCommand.status, 0, emptyCommand.stdout + emptyCommand.stderr);
+  assert.match(emptyCommand.stderr, /one or more nonempty implementation names/);
+  assert.doesNotMatch(emptyCommand.stdout, /run codec /);
+
+  const viaMake = spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-check', 'UNITS=codec', 'IMPLEMENTATIONS=go'], { cwd: root, env: { ...ENV, GITHUB_ACTIONS: 'true' }, encoding: 'utf8' });
+  assert.equal(viaMake.status, 0, viaMake.stdout + viaMake.stderr);
+  assert.match(viaMake.stdout, /--implementation go: only their runtime bindings run/);
+  assert.doesNotMatch(viaMake.stdout, /run codec (rust|ts|php|python)/);
+
+  const supportChange: Change = {
+    files: { 'ts/tests/case.mjs': 'export const cases = [];\n' },
+    edit: config => { itemWhere(config.implementations, entry => entry.name === 'ts').support = ['ts/tests/case.mjs']; return config; },
+  };
+  for (const [implementation, shouldRunSupport] of [['go', false], ['ts', true]] as const) {
+    const lines: string[] = [];
+    const supportRun = checkParity(repository(t, supportChange), { env: ENV, implementations: [implementation], say: line => lines.push(line) });
+    assert.deepEqual(supportRun.findings, []);
+    assert.deepEqual([...new Set(supportRun.ledger.runs.map(run => run.implementation))], [implementation]);
+    assert.equal(lines.some(line => line.startsWith('run the support file ts/tests/case.mjs of ts:')), shouldRunSupport);
+  }
 });
 
 test('each runner runs the native test of its binding', TIMEOUT, (t) => {

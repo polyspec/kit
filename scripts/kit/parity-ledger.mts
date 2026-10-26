@@ -96,8 +96,8 @@ function resolvedRun(declared: ParityImplementation, root: string, binding: RunT
 const FILE_RUNNERS = new Set(['node', 'php', 'python']);
 
 /** R5 of the support files: each support file of a node, php or python implementation runs once and reports no case. */
-function runSupport(model: ParityModel, root: string, files: Set<string>, { env, say }: { env: Environment; say: (line: string) => void }): Finding[] {
-  return model.config.implementations.filter(implementation => FILE_RUNNERS.has(implementation.runner)).flatMap(implementation => supportFiles(implementation, files).flatMap((file) => {
+function runSupport(model: ParityModel, root: string, files: Set<string>, { env, say, implementations }: { env: Environment; say: (line: string) => void; implementations?: ReadonlySet<string> | undefined }): Finding[] {
+  return model.config.implementations.filter(implementation => (implementations === undefined || implementations.has(implementation.name)) && FILE_RUNNERS.has(implementation.runner)).flatMap(implementation => supportFiles(implementation, files).flatMap((file) => {
     const where = { implementation: implementation.name, place: file };
     const run = resolvedRun(implementation, root, { test: file }, 'suite', env);
     if (run.error) return [finding('R3', run.error, where)];
@@ -148,11 +148,12 @@ const lastLines = ({ stdout, stderr }: { stdout: string; stderr: string }): stri
  * R3 of the feature units: each test file runs twice for the native ids that bind it in its implementation, and each id passes
  * in both runs, once in each, with both runs exiting 0.
  */
-function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, say, units }: { env: Environment; say: (line: string) => void; units?: ReadonlySet<string> | undefined }): Finding[] {
+function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, say, units, implementations }: { env: Environment; say: (line: string) => void; units?: ReadonlySet<string> | undefined; implementations?: ReadonlySet<string> | undefined }): Finding[] {
   // The bindings of each test file of an implementation, in declaration order.
   const files = new Map<string, { implementation: ParityImplementation; test: string; command: string[] | undefined; runner: Runner | undefined; bound: { unit: string; id: string }[] }>();
   for (const { unit, implementation } of pairs(model, 'feature')) {
     if (units !== undefined && !units.has(unit.id)) continue;
+    if (implementations !== undefined && !implementations.has(implementation.name)) continue;
     // readDeclaration requires bindings and the id of each feature binding.
     for (const binding of present(unit.bindings, 'unit.bindings').filter(entry => entry.implementation === implementation.name)) {
       // Bindings of one test file share a run only when they name the same command and the same runner (K422).
@@ -205,11 +206,12 @@ function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, sa
  * The ledger `{ runs, cases }` of every bound suite pair, the R3 findings, and the R5 findings of the support files that
  * report cases; `say` prints a line for each step.
  */
-export function runBindings(model: ParityModel, root: string, { env, files, say, units }: { env: Environment; files: Set<string>; say: (line: string) => void; units?: ReadonlySet<string> | undefined }): { ledger: Ledger; findings: Finding[] } {
+export function runBindings(model: ParityModel, root: string, { env, files, say, units, implementations }: { env: Environment; files: Set<string>; say: (line: string) => void; units?: ReadonlySet<string> | undefined; implementations?: ReadonlySet<string> | undefined }): { ledger: Ledger; findings: Finding[] } {
   const ledger: Ledger = { runs: [], cases: [] };
   const findings: Finding[] = [];
   for (const { unit, implementation } of pairs(model, 'suite')) {
     if (units !== undefined && !units.has(unit.id)) continue;
+    if (implementations !== undefined && !implementations.has(implementation.name)) continue;
     if (unit.bindings === undefined) throw new Error(`config/parity.json: the suite unit ${unit.id} has no bindings; readDeclaration reports it before the bindings run`);
     const binding = unit.bindings.find(entry => entry.implementation === implementation.name);
     if (!binding) continue;
@@ -244,6 +246,6 @@ export function runBindings(model: ParityModel, root: string, { env, files, say,
     if (problems.length) findings.push(finding('R3', problems.join('; '), where));
   }
   // The support files belong to no unit, so a run of named units leaves them to the whole-set check.
-  const support = units === undefined ? runSupport(model, root, files, { env, say }) : [];
-  return { ledger, findings: [...findings, ...runFeatures(model, root, ledger, { env, say, units }), ...support] };
+  const support = units === undefined ? runSupport(model, root, files, { env, say, implementations }) : [];
+  return { ledger, findings: [...findings, ...runFeatures(model, root, ledger, { env, say, units, implementations }), ...support] };
 }
