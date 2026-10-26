@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: bbde5a03576ca5f2f5c33108e417a680c51b2a3b2266484e7355a65cc69bc6c3 -->
+<!-- source-sha256: 5d61260311dd8670a8b4b63bb0174c23d4d4e86116b7807a24592b6f47725922 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -582,3 +582,4 @@
 | K661-1 | Go의 native null directive 집합을 허용하고 PHP arginfo는 extension 개발에만 준비하며 extension fixture는 native discovery와 platform 독립 parser 선택 입력을 사용한다 | scripts/kit/schema/go-mod.schema.json, scripts/kit/toolchain-files.mts, scripts/kit/install-tools.mts, Makefile, .github/workflows/ci.yml, tests/kit | `node scripts/kit/run-tests.mts node -- tests/kit/toolchain-files.test.mts tests/kit/dependency-toolchain.test.mts tests/kit/install-php.test.mts tests/kit/install-tools.test.mts`; `node scripts/kit/run-tests.mts node -- tests/kit/php-ext.test.mts` | [o] |
 | K661-9 | worktree 재빌드는 source와 packed kit의 공개 link export를 해석하고 hook 경로는 실행 module을 기준으로 계산한다 | scripts/kit/worktree-setup.mts, scripts/kit/link.mts, scripts/kit/link-folders.mts, package.json, tests/kit/worktree-setup.test.mts | paths.test.mts 7 pass; K482 and K661-9 fixtures pass; changed files type-aware oxlint pass | [o] |
 | K664 | npm, uv, Composer, Go와 Cargo의 native source 개발 연결을 멱등하게 래핑하고 미배포 provider, 앞선 개발 version과 격리된 worktree source를 처리한다 | scripts/kit/link.mts, ecosystem install tools, worktree-setup.mts, owning unit and real-tool tests | Owning unit and native source-selection tests; make docs-check | [~] |
+| K664-3 | Cargo 개발 source fallback을 거부하고 native link 실행 상태를 보호한다 | scripts/kit/link.mts, scripts/kit/cargo-source.mts, owning Cargo link tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K664-3 tests/kit/link.test.mts` | [o] |

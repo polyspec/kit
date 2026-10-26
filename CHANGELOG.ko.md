@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7cfd12e9276a167364d074cfc953d5c6fb697e5cf8e67dedfc00d56075a10a3d -->
+<!-- source-sha256: 1738ddad2ecd883c84669f50ecc5250663a1780c169393a81d46795f7956d0bd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Cargo 개발 command는 요청한 command를 실행하기 전에 native metadata가 선택한 workspace source를 확인하고 형제 release로 fallback하면 native path 또는 호환 requirement 안내와 함께 실패한다. Holder lock은 lock 복사부터 metadata와 command 종료까지 유지되어 동시 writer를 거부하고 실행 argument는 보존한다. Metadata의 일반 graph option은 feature, manifest, config, offline mode와 target filtering을 전달하며 package 실행 범위는 별도 native 동작이다. Target-directory 상속은 변경하지 않아 별도 isolation 후속이 필요하다. Red: 8684ef0a에서 fallback과 동시 writer case 실패; Green: 소유 unit 10개와 source 및 lock 반복 확인을 포함한 native 미출시 path case 1개 통과 (K664-3).
 
 - worktree 재빌드는 설치된 source 또는 packed kit의 공개 link export를 해석하고 workspace hook 경로는 실행 module을 따른다. source 경로 소유 검사 7개, 두 tool export fixture와 재빌드 순서 검사, 변경 파일 type-aware lint가 통과한다 (K661-9).
 - Dependency isolation은 runtime import, command, peer와 별도로 native TypeScript compiler가 kit 도구에서 실제 읽은 type declaration package를 사용으로 인정합니다. 미사용 type package는 계속 거부하며 test-only import는 도구 사용으로 세지 않습니다. Red: dependency-use case가 필요한 @types/picomatch를 거부합니다. Green: 소유 isolation 3개 case와 type-aware lint가 통과합니다(K661-10).

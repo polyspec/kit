@@ -36,6 +36,8 @@ import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, siblingTool } from './paths.mts';
 import { kitPackageRoot } from './kit-files.mts';
 import { errorCode, execute, run } from './process.mts';
+import { acquireHolderLock } from './holder-lock.mts';
+import { cargoMetadataArguments, verifyCargoSources } from './cargo-source.mts';
 import { dependencyArrays, dependencyGroups, normalizeName } from './pyproject-dependencies.mts';
 
 type Print = (text: string) => void;
@@ -634,37 +636,53 @@ function declaredUrl(checkout: string): string {
 export function cargo({ directory, args, checkouts = [], env = process.env }: { directory: string; args: readonly string[]; checkouts?: readonly string[]; env?: NodeJS.ProcessEnv }): number {
   const consumer = consumerOf(directory);
   const tool = consumerTool(consumer.top, 'cargo', env);
+  const channel = args[0]?.startsWith('+') ? [args[0]] : [];
+  const commandArgs = channel.length ? args.slice(1) : args;
+  const graphArgs = cargoMetadataArguments(args);
+  const manifestArgs = graphArgs.flatMap((arg, index) => arg.startsWith('--manifest-path=') ? [arg] : arg === '--manifest-path' ? [arg, graphArgs[index + 1] ?? ''] : []);
   const config: string[] = [];
-  if (checkouts.length) {
-    const workspace = path.dirname(run(tool.command, ['locate-project', '--workspace', '--message-format', 'plain'], { cwd: consumer.scope, env: tool.env }).trim());
-    // A fresh copy of the tracked lock on every run, so the patches resolve against the lock of the tree.
-    const copy = linkFile(consumer.top, path.join('cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'Cargo.lock'));
-    mkdirSync(path.dirname(copy), { recursive: true });
-    copyFileSync(path.join(workspace, 'Cargo.lock'), copy);
-    config.push('--config', `resolver.lockfile-path=${JSON.stringify(copy)}`);
-    const packages = readTomlFile(copy).package;
-    const locked = new Set((Array.isArray(packages) ? packages : []).flatMap((item: unknown) => isJsonObject(item) && typeof item.name === 'string' ? [item.name] : []));
-    for (const checkout of mainCheckouts(checkouts).filter(item => repositoryOf(item) !== consumer.repository)) {
-      const crates = trackedManifests(checkout, ['Cargo.toml']).filter(file => !EXCLUDED.test(file)).flatMap((file) => {
-        const pkg = readTomlFile(path.join(checkout, file)).package;
-        return isJsonObject(pkg) && typeof pkg.name === 'string' ? [{ name: pkg.name, folder: path.join(checkout, path.dirname(file)) }] : [];
-      });
-      if (!crates.length) continue;
-      // K448-5-1: a crate the lock does not name is never used, so its patch would be recorded as an unused patch of the lock (K489 needs no release file for it).
-      const used = crates.filter(crate => locked.has(crate.name));
-      if (!used.length) continue;
-      const url = declaredUrl(checkout);
-      for (const crate of used) config.push('--config', `patch.${JSON.stringify(url)}.${crate.name}.path=${JSON.stringify(crate.folder)}`);
+  let held: ReturnType<typeof acquireHolderLock> | undefined;
+  const expected = new Map<string, string>();
+  try {
+    if (checkouts.length) {
+      const workspace = path.dirname(run(tool.command, [...channel, 'locate-project', '--workspace', '--message-format', 'plain', ...manifestArgs], { cwd: consumer.scope, env: tool.env }).trim());
+      held = acquireHolderLock(path.join(consumer.top, 'var/link/cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'execution.lock'), { checkout: consumer.top, command: ['cargo', ...args].join(' ') });
+      // A fresh copy of the tracked lock on every run, so the patches resolve against the lock of the tree.
+      const copy = linkFile(consumer.top, path.join('cargo', path.relative(consumer.top, workspace).replaceAll('/', '_') || 'root', 'Cargo.lock'));
+      mkdirSync(path.dirname(copy), { recursive: true });
+      copyFileSync(path.join(workspace, 'Cargo.lock'), copy);
+      config.push('--config', `resolver.lockfile-path=${JSON.stringify(copy)}`);
+      const packages = readTomlFile(copy).package;
+      const locked = new Set((Array.isArray(packages) ? packages : []).flatMap((item: unknown) => isJsonObject(item) && typeof item.name === 'string' ? [item.name] : []));
+      for (const checkout of mainCheckouts(checkouts).filter(item => repositoryOf(item) !== consumer.repository)) {
+        const crates = trackedManifests(checkout, ['Cargo.toml']).filter(file => !EXCLUDED.test(file)).flatMap((file) => {
+          const pkg = readTomlFile(path.join(checkout, file)).package;
+          return isJsonObject(pkg) && typeof pkg.name === 'string' ? [{ name: pkg.name, folder: path.join(checkout, path.dirname(file)) }] : [];
+        });
+        for (const crate of crates) expected.set(crate.name, crate.folder);
+        if (!crates.length) continue;
+        // K448-5-1: a crate the lock does not name is never used, so its patch would be recorded as an unused patch of the lock (K489 needs no release file for it).
+        const used = crates.filter(crate => locked.has(crate.name));
+        if (!used.length) continue;
+        const url = declaredUrl(checkout);
+        for (const crate of used) {
+          config.push('--config', `patch.${JSON.stringify(url)}.${crate.name}.path=${JSON.stringify(crate.folder)}`);
+        }
+      }
     }
+    // This validates the resolved workspace, including packages outside a caller's -p execution scope.
+    if (checkouts.length && expected.size) {
+      const metadata = run(tool.command, [...channel, ...config, 'metadata', '--format-version=1', ...graphArgs], { cwd: directory, env: tool.env });
+      verifyCargoSources(metadata, expected);
+    }
+    const outcome = execute(tool.command, [...channel, ...config, ...commandArgs], { cwd: directory, env: tool.env });
+    if (outcome.error) throw new Error(`${tool.command} could not start: ${outcome.error.message}`);
+    process.stdout.write(outcome.stdout);
+    process.stderr.write(outcome.stderr);
+    return outcome.status ?? 1;
+  } finally {
+    held?.release();
   }
-  // K448-5-2: with checkouts, the command resolves in the link state (the copy in var/link), so --locked is dropped: it would refuse the
-  // patched graph that a sibling ahead of its release needs, while the tracked Cargo.lock is never written.
-  const runArgs = checkouts.length ? args.filter(argument => argument !== '--locked') : args;
-  const outcome = execute(tool.command, [...config, ...runArgs], { cwd: directory, env: tool.env });
-  if (outcome.error) throw new Error(`${tool.command} could not start: ${outcome.error.message}`);
-  process.stdout.write(outcome.stdout);
-  process.stderr.write(outcome.stderr);
-  return outcome.status ?? 1;
 }
 
 /** A shell word of one single-quoted argument, as the Claude Code hook command runs it. */
