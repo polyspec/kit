@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 98dafff411228cfaa9c19ccc1ca21e84d599c48efaf6b91492843c0db5879985 -->
+<!-- source-sha256: f8093331b80423407395664e030fa542ff44bc56b0f5e622a52e37201fde4b66 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Go 워크트리 실제 검사는 로컬 kit 의존성을 선언한 소비자를 네이티브 오프라인 npm 설치로 준비하고 두 setup 호출에 고정 npm 명령을 전달한다. 수동 설치 패키지 링크를 제거하면서 기존 Go 워크스페이스, 미릴리스 모듈, 반복 연결 및 main 격리 단언을 모두 유지한다. K690에서 이 fixture 전환을 놓쳤으며 소유 실제 검사는 수정 전 실패하고 수정 후 통과한다 (K690-1).
 
 ## 0.0.55
 

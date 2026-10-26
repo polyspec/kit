@@ -1,7 +1,7 @@
 // Native Go workspace state belongs to its worktree, while sibling modules remain live source inputs.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, realpathSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { link } from '../../scripts/kit/link.mts';
@@ -11,6 +11,7 @@ import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { initRepository } from '../kit/sandbox-repository.mts';
 import { tree, put } from '../kit/tree.mts';
 import { installedBinary } from './real-tools.mts';
+import { NPM } from './checkout.mts';
 
 test('native Go keeps worktree sources, unpublished modules and workspace state across repeated linking (K664-4)', (t) => {
   const root = realpathSync(tree(t));
@@ -26,6 +27,7 @@ test('native Go keeps worktree sources, unpublished modules and workspace state 
   const source = (own: number, extra = false) => `package main\n\nimport ("fmt"; "github.com/polyspec/provider"${extra ? '; fresh "github.com/polyspec/provider/fresh"' : ''})\n\nfunc main() { fmt.Println(${own} + provider.Value()${extra ? ' + fresh.Value()' : ''}) }\n`;
   put(main, {
     '.gitignore': 'node_modules/\ngo.work\ngo.work.sum\n',
+    'package.json': JSON.stringify({ name: 'go-worktree-consumer', private: true, devDependencies: { '@polyspec/kit': 'file:../kit' } }),
     'Makefile': 'link-state-check:\n\ttrue\n',
     'packages/go/go.mod': 'module github.com/polyspec/consumer\n\ngo 1.21\n\nrequire github.com/polyspec/provider v0.0.1\n',
     'packages/go/go.sum': '',
@@ -37,13 +39,12 @@ test('native Go keeps worktree sources, unpublished modules and workspace state 
     'go.mod': 'module github.com/polyspec/provider\n\ngo 1.21\n',
     'provider.go': 'package provider\n\nfunc Value() int { return 1 }\n',
   });
+  command(NPM, ['install', '--offline', '--no-audit', '--no-fund'], main);
   for (const checkout of [main, provider]) {
     initRepository(checkout, '--initial-branch=main');
     command('git', ['add', '-A'], checkout);
     command('git', ['commit', '--quiet', '-m', 'base'], checkout);
   }
-  mkdirSync(path.join(main, 'node_modules/@polyspec'), { recursive: true });
-  symlinkSync('../../../kit', path.join(main, 'node_modules/@polyspec/kit'));
   const mainModule = path.join(main, 'packages/go');
   const mainWork = path.join(main, 'go.work');
   command(go, ['work', 'init', mainModule, provider], main, { GOWORK: mainWork });
@@ -52,7 +53,7 @@ test('native Go keeps worktree sources, unpublished modules and workspace state 
   command(go, ['work', 'init', mainModule, provider], mainModule, { GOWORK: path.join(mainModule, 'go.work') });
   const records = new Map(['packages/go/go.mod', 'packages/go/go.sum', 'packages/go/main.go', 'go.work', 'packages/go/go.work'].map(file => [file, readFileSync(path.join(main, file), 'utf8')]));
   const row = { name: 'native-go', id: 'K664-4', type: 'fix' };
-  const worktree = setupWorktree(main, row, { go, print: () => {} });
+  const worktree = setupWorktree(main, row, { go, npm: NPM, print: () => {} });
   const folder = path.join(worktree, 'packages/go');
   put(folder, { 'main.go': source(10) });
   const localEnv = { GOWORK: path.join(folder, 'go.work') };
@@ -78,7 +79,7 @@ test('native Go keeps worktree sources, unpublished modules and workspace state 
   assert.equal(run(), '15', 'a newly declared module needs no published version');
   const expanded = state();
   linkSources();
-  setupWorktree(main, row, { go, print: () => {} });
+  setupWorktree(main, row, { go, npm: NPM, print: () => {} });
   assert.deepEqual(state(), expanded, 'repeated setup retains the worktree workspace, including its new provider module');
   assert.equal(run(), '15');
   assert.equal(readFileSync(path.join(folder, 'go.mod'), 'utf8'), manifest);
