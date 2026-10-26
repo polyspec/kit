@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 9571c44216fbc0905c8067e621c9201cd25326c692926c4be90128dba1bcbd5b -->
+<!-- source-sha256: fb331f34fa074cb8342ce22592df8c00751aaeabe719aecb3bbb00b9adf3a116 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -639,3 +639,4 @@
 | K689-2 | 선택한 editable Python provider와 native runtime dependency를 하나의 uv transaction으로 해석한다 | scripts/kit/uv-install.mts, scripts/kit/pyproject-dependencies.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-2 tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K689-3 | 기존 환경에 새로 선언한 Python source를 연결할 때 release lock 재조정을 강제하지 않는다 | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-3 tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K691 | 잘못된 parity reporter 출력은 R3 finding으로 기록하고 다음 바인딩을 계속 실행한다 | scripts/kit/parity-ledger.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K691 tests/kit/parity.test.mts`; `make docs-check` | [o] |
+| K696 | Composer development path lock을 허용하고 release consumer archive URL 검증을 유지한다. | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts, tests/kit/release-consumer.test.mts | `node --test tests/kit/link-state-check.test.mts tests/kit/release-consumer.test.mts` | [ ] |
