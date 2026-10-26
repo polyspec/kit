@@ -15,6 +15,7 @@ import { editFixture, readFixture } from './json-fixture.mts';
 import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 import type { LockEntry } from '../../scripts/kit/python-lock.mts';
 import { known } from './known.mts';
+import { fileDigest } from '../../scripts/kit/bootstrap/digest.mts';
 
 const LOCK = 'packages/fixture-python/pylock.toml';
 // A lock with a git pin. python-lock-check refuses a git package (the writer resolves registry files and archives only), so the
@@ -114,14 +115,23 @@ test('the gate reads only lock-version 1.0 and fails on any other format', (t) =
   assert.match(result.stderr, /lock-version is "2\.0", PEP 751 requires "1\.0"/);
 });
 
-test('the review records the git pin of the lock, and the gate fails when the record names another commit', (t) => {
+test('the review records a git pin and the gate rejects a changed pin through the lock fingerprint (K661-7)', (t) => {
   const root = withGitLock(fixture(t));
-  editFixture(root, 'config/dependency-review.json', (record: ReviewRecord) => {
-    record.vcs = record.vcs.map(item => ({ ...item, commitId: '0'.repeat(40) }));
-  });
-  const result = gate(root);
-  assert.equal(result.status, 1);
-  assert.ok(findings(result).some(line => line.startsWith(`[dependency-policy] ${GIT_LOCK} pip-tools: the lock pins ${PIP_TOOLS_COMMIT} at 7.4.1, the review record`)), result.stderr);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t, root);
+  stub.registry(FIXTURE_REGISTRY);
+  const result = review(root, ['--record'], stub.env);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const record = readFixture<ReviewRecord>(root, 'config/dependency-review.json');
+  assert.deepEqual(record.vcs, [{ lock: GIT_LOCK, package: 'pip-tools', url: 'https://github.com/jazzband/pip-tools', requestedRevision: '7.4.1', commitId: PIP_TOOLS_COMMIT }]);
+  assert.equal(record.locks.find(item => item.lock === GIT_LOCK)?.sha256, fileDigest(path.join(root, GIT_LOCK)));
+  const reviewed = gate(root);
+  assert.equal(reviewed.status, 0, reviewed.stderr);
+  writeFileSync(path.join(root, GIT_LOCK), GIT_TEXT.replace('COMMIT', '0'.repeat(40)));
+  const changed = gate(root);
+  assert.equal(changed.status, 1, changed.stderr);
+  assert.ok(findings(changed).some(line => line.startsWith(`[dependency-policy] ${GIT_LOCK}: the lock changed after its review`)), changed.stderr);
 });
 
 test('the review names a newer PyPI release of a registry package with the uv regeneration', (t) => {

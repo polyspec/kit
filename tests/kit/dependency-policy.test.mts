@@ -18,6 +18,7 @@ import type { NpmLockEntry } from '../../scripts/kit/manifests.mts';
 import { POLICY, RECORD, readPolicy } from '../../scripts/kit/dependency-state.mts';
 import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 import { known } from './known.mts';
+import { editFixture } from './json-fixture.mts';
 
 
 const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
@@ -305,24 +306,28 @@ test('a root URL override is allowed only for the matching package with a direct
   assert.equal(remote(gate(root)).length, 1, 'an override for this package with another URL does not authorize this tarball');
 });
 
-// K493: `--packages <name>[,<name>...]` reports and fails only on the findings that name one of the packages, so a row that fixes
-// one finding can close while the other findings stay for their own rows; the unscoped gate stays the same for land, CI and the batch.
-test('the gate scoped to one package fails on that package only and drops the findings of the others (K493)', (t) => {
+// K493: package scoping selects security findings without weakening the unscoped gate.
+test('the gate scopes reviewed advisories to the selected package and keeps the unscoped failures (K493, K661-7)', (t) => {
   const root = fixture(t);
-  // Two Composer manifests that no entry of composerPlatforms covers: one in the folder of fixture-php, one elsewhere.
-  for (const folder of ['packages/fixture-php/extra', 'tools/other']) {
-    mkdirSync(path.join(root, folder), { recursive: true });
-    writeFileSync(path.join(root, folder, 'composer.json'), JSON.stringify({ name: `example/${path.basename(folder)}` }));
-  }
-  spawnSync('git', ['add', '-A'], { cwd: root });
+  editFixture<ReviewRecord>(root, RECORD, record => {
+    const lock = record.locks.find(item => item.lock === 'package-lock.json');
+    assert.ok(lock);
+    lock.advisories = ['is-number', 'semver'].map((name, index) => ({
+      package: name, version: index === 0 ? '7.0.0' : '7.6.0', id: `GHSA-fixture-${index}`, severity: 'high', title: `${name} fixture advisory`,
+    }));
+  });
   const unscoped = gate(root);
   assert.equal(unscoped.status, 1, unscoped.stdout + unscoped.stderr);
-  assert.match(unscoped.stderr, /packages\/fixture-php\/extra\/composer\.json/);
-  assert.match(unscoped.stderr, /tools\/other\/composer\.json/);
-  const scoped = gate(root, toolStubs(root), ['--packages', 'fixture-php']);
+  assert.equal(findings(unscoped).length, 2, unscoped.stderr);
+  assert.match(unscoped.stderr, /is-number 7\.0\.0: the review record found advisory GHSA-fixture-0/);
+  assert.match(unscoped.stderr, /semver 7\.6\.0: the review record found advisory GHSA-fixture-1/);
+  const scoped = gate(root, toolStubs(root), ['--packages', 'is-number']);
   assert.equal(scoped.status, 1, scoped.stdout + scoped.stderr);
-  assert.match(scoped.stderr, /packages\/fixture-php\/extra\/composer\.json/);
-  assert.doesNotMatch(scoped.stderr, /tools\/other\/composer\.json/);
+  assert.equal(findings(scoped).length, 1, scoped.stderr);
+  assert.match(scoped.stderr, /is-number 7\.0\.0: the review record found advisory GHSA-fixture-0/);
+  assert.doesNotMatch(scoped.stderr, /GHSA-fixture-1/);
+  const unrelated = gate(root, toolStubs(root), ['--packages', 'unrelated']);
+  assert.equal(unrelated.status, 0, unrelated.stdout + unrelated.stderr);
 });
 
 // K602: the installs of the polyspec packages are links, so a Composer lock records a release that the development manifest has left;
