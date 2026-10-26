@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 68318efd698b5b1230e44cceea9225acbd6aa6dd7ad5b7f93eb960ef8e3d0109 -->
+<!-- source-sha256: 0ca09b8d093204e3aad552eae2e2f43ec126603d2dd5e1e37f1b43a7fb97066f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Consumer release는 make가 bootstrap을 읽기 전에 lock의 release tag로 sibling kit checkout과 npm dependency를 준비한다. kit 자체는 자기 source를 유지한다. Red: 준비 단계가 없으면 K670 workflow 회귀 검증이 실패하며 green: release workflow unit 9개가 통과한다(K670).
 
 ## 0.0.55
 

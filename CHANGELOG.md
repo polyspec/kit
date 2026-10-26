@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A consumer release prepares the sibling kit checkout and npm dependencies at the release tag of its lock before make reads the bootstrap. kit itself keeps its own sources. Red: the K670 workflow regression fails without preparation; green: all 9 release workflow units pass (K670).
+
 ## 0.0.55
 
 - Release preparation rebuilds the 0.0.55 npm archive after the Composer owner correction and regenerates the native consumer lock from that new archive. The archive bytes change while the dependency graph and consumer lock remain unchanged. A fresh review covers all five current locks without advisories; dependency-policy-check, release-versions and docs-check pass. Main CI and publication remain pending (K666).

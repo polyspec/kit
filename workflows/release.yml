@@ -62,6 +62,22 @@ jobs:
           php-version-file: .php-version
           # The proof runs with no debugger or coverage driver, as the checks do.
           coverage: none
+      # A consumer includes ../kit/scripts/kit/kit-bootstrap.mk before npm is installed. Prepare that source and its
+      # dependencies at the release tag pinned by the consumer lock; kit itself already has scripts/kit/kit.mk.
+      - name: install the locked sibling kit
+        run: |
+          if [ ! -f scripts/kit/kit.mk ]; then
+            kit_tag=$(node -e '
+              const lock = require("./package-lock.json");
+              const resolved = lock.packages?.["node_modules/@polyspec/kit"]?.resolved;
+              const match = typeof resolved === "string" && /^https:\/\/github\.com\/polyspec\/kit\/releases\/download\/(v\d+\.\d+\.\d+)\//.exec(resolved);
+              if (!match) throw new Error("package-lock.json must pin the release asset of @polyspec/kit");
+              process.stdout.write(match[1]);
+            ')
+            git clone --depth 1 --branch "$kit_tag" https://github.com/polyspec/kit.git ../kit
+            make -C ../kit install-tools TOOLS=npm
+            make -C ../kit install-packages
+          fi
       - name: install npm
         run: make install-tools TOOLS=npm
       - name: install packages

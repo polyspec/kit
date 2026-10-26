@@ -24,6 +24,20 @@ const step = (command: string, pattern: RegExp) => {
   return found;
 };
 
+test('K670: a consumer prepares the locked sibling kit before the first make', { timeout: 1000 }, () => {
+  const workflow = lines.join('\n');
+  const prepare = workflow.indexOf('      - name: install the locked sibling kit\n');
+  const install = workflow.indexOf('      - name: install npm\n');
+  assert.ok(prepare >= 0 && prepare < install, 'the sibling sources and dependencies exist before the consumer bootstrap');
+  const body = workflow.slice(prepare, install);
+  assert.match(body, /if \[ ! -f scripts\/kit\/kit\.mk \]; then/);
+  assert.match(body, /package-lock\.json/);
+  assert.match(body, /node_modules\/@polyspec\/kit/);
+  assert.match(body, /git clone --depth 1 --branch "\$kit_tag"/);
+  assert.match(body, /make -C \.\.\/kit install-tools TOOLS=npm/);
+  assert.match(body, /make -C \.\.\/kit install-packages/);
+});
+
 test('the release workflow has one job, so every step runs in the job that creates the release', () => {
   const jobs = lines.slice(lines.findIndex(line => line.startsWith('jobs:')) + 1);
   assert.equal(jobs.filter(line => /^  [a-z-]+:$/.test(line)).length, 1, 'the workflow names one job');
