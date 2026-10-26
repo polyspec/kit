@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: c8c3b4ad2b569653ea03e316832ebd8b559794ea72e90b99364c82ee26da44f0 -->
+<!-- source-sha256: 38e0f9e8307e48c46b129fa937a136ba225878abf897b1448e009bc2f8429b50 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -623,6 +623,7 @@
 | K686-3 | 임시 directory cleanup 실패를 lint step 실패로 수집하고 도구 진단과 후속 step 실행을 유지합니다 | scripts/kit/lint-steps.mts, tests/kit/lint-php.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K686-3\|PHPStan temporary configuration\|every step runs after" tests/kit/lint-php.test.mts` | [o] |
 | K686-4 | native source link unit과 worktree 환경 fixture를 현재 package manager 계약에 맞춘다 | tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K657-3 tests/kit/link.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K686-5 | source graph 선택과 멱등성 단언을 유지하면서 npm provider fixture의 저장소 실명을 일반 식별자로 바꾼다 | tests/kit/npm-install.test.mts | Selected npm provider cases; isolation naming case; changed-file type-aware lint; `make docs-check` | [o] |
+| K686-6 | kit release manifest를 정식 prepack source-to-dist 변환과 비교하고 다른 모든 package의 정확한 비교를 유지한다 | scripts/kit/pack-manifest.mts, release.mts and owner tests | Selected release and pack-manifest units; changed-file type-aware lint; `make docs-check` | [~] |
 | K688 | 플랫폼 값이 테스트 흐름을 제어하지 않으면 진단 메타데이터로 처리 | scripts/kit/divergence-check.mts, tests/kit/divergence-check.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K688 tests/kit/divergence-check.test.mts` | [o] |
 | K688-1 | JavaScript machine metadata 예외를 결과가 무시되는 진단 호출로 제한하고 조건·대입·반환 값 사용을 거부합니다 | scripts/kit/divergence-check.mts, tests/kit/divergence-check.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K688 tests/kit/divergence-check.test.mts` | [o] |
 | K689 | 체크아웃 경로를 추적하지 않고 선언된 로컬 Python provider를 uv editable로 설치한다 | scripts/kit/uv-install.mts, scripts/kit/pyproject-dependencies.mts, scripts/kit/link.mts, tests/kit/uv-install.test.mts, tests/kit/link.test.mts, tests/source/uv-editable-real.test.mts, docs/operations/local-links.md(.ko.md), docs/plans/common-standard/checklist.md(.ko.md) | `node scripts/kit/run-tests.mts node -- tests/kit/uv-install.test.mts` (3 passed); `node scripts/kit/run-tests.mts node -- --test-name-pattern=K657-3 tests/kit/link.test.mts` (1 passed); `node scripts/kit/run-tests.mts node -- tests/source/uv-editable-real.test.mts` (3 passed, offline release URL/hash); `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/link.mts scripts/kit/pyproject-dependencies.mts scripts/kit/uv-install.mts tests/kit/link.test.mts tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; `make docs-check` | [o] |
