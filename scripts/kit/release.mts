@@ -26,8 +26,9 @@
 // `npm pack` of an npm package, whose output is renamed to that name, and a `git archive` zip of the directory of a Composer
 // package at the tagged commit, with stored entries, the time of the commit and TZ=UTC. Declared generated files are
 // appended from staged files with fixed mode and the same commit time, so a second run of the same tag writes the same
-// bytes without placing generated contents in argv. Each archive carries the manifest of its package unchanged, and
-// the manifest names every package of its scope by an exact version (see manifestProblems). `publish` creates the draft
+// bytes without placing generated contents in argv. Each archive carries its unchanged manifest, except kit uses its
+// canonical source-to-dist prepack transformation. The manifest names every package of its scope by an exact version
+// (see manifestProblems). `publish` creates the draft
 // release of the tag through the API with the archives (github-release.mts createDraft) and records its id in
 // var/release/<tag>.json; the notes are the section X.Y.Z, or one line that links the section when it is longer than
 // NOTES_LIMIT characters, the limit of a release body. `undraft`, and the release proof, read the draft by that id: the
@@ -51,11 +52,12 @@ import { backendFinding, buildBackend, buildWheel, metadataProblems, sourceProbl
 import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
 import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
-import { copiesOf, runningKit, writtenByKit } from './kit-check.mts';
+import { PACKAGE, copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
 import { toolCommand } from './mise-tools.mts';
+import { packedPackageManifest } from './pack-manifest.mts';
 import { installedGenStub } from './install-php-arginfo.mts';
 
 export const MAIN = 'origin/main';
@@ -578,7 +580,7 @@ function generatedArchiveFiles(ctx: Context, commit: string, folder: string, gen
 /**
  * Builds the archive of every package of the tag into var/release/assets and returns their names. The manifests of the
  * tagged commit must pass manifestProblems before a package is packed, and each archive must carry the manifest of its
- * package at the commit byte for byte, because no step rewrites a manifest. The directory is replaced as a whole.
+ * package at the commit byte for byte; kit alone uses its canonical prepack source-to-dist manifest. The directory is replaced as a whole.
  */
 export function assets(ctx: Context, tag: string): string[] {
   const { root, config } = ctx;
@@ -674,8 +676,10 @@ export function assets(ctx: Context, tag: string): string[] {
       const file = MANIFEST_OF[kind];
       // names holds the archive name of each package at its index.
       const packed = packedManifest(ctx, path.join(next, present(names[index], 'names[index]')));
+      const source = present(sources[index], 'sources[index]');
+      const expected = kind === 'npm' && name === PACKAGE ? packedPackageManifest(source) : source;
       return [
-        ...(packed === sources[index] ? [] : [`${names[index]}: the packed ${file} differs from ${path.posix.join(folder, file)} of the commit ${commit}`]),
+        ...(packed === expected ? [] : [`${names[index]}: the packed ${file} differs from ${path.posix.join(folder, file)} of the commit ${commit}`]),
         ...manifestProblems(config, kind, parseManifest(kind, packed, `${present(names[index], 'names[index]')}/${file}`), version).map(problem => `${names[index]}: ${problem}`),
       ];
     });

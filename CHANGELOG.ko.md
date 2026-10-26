@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7b8014db9c41ec3a02e81dcc7673a408c0b95312ade216b60da00d78f961cda6 -->
+<!-- source-sha256: 34832516c4788d73498c60a64ca8079ca5eafd020924c49dca9de1549ce6ea60 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Kit release archive 검증은 source export와 native hook bin의 정식 prepack manifest 변환을 공유한다. 이름, 버전, dependency, script를 포함한 나머지 모든 byte를 tag source와 비교하며 다른 npm 및 Composer manifest는 기존 byte-exact 비교를 유지한다. Red: b343be7a에서 정상 변환된 kit manifest가 assets 검증에 실패한다. Green: 예상 밖 kit manifest 변조 6종과 기존 일반 package 변조 검사를 포함한 선택 release/prepack unit 5개, 변경 파일 type-aware lint 및 docs-check가 통과한다 (K686-6).
 - Parity ledger는 잘못된 reporter 출력을 해당 바인딩의 R3 실패로 기록하고 나머지 suite 및 feature 바인딩을 계속 실행한다. node reporter parser의 strict 검사는 유지한다. Red: 선택한 K691 unit은 `exit 0` line에서 바인딩 반복을 중단했다. Green: K691 regression 1개와 docs-check가 통과한다 (K691).
 
 ## 0.0.55

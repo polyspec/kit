@@ -416,6 +416,30 @@ test('K560 Composer archives generate arginfo from the tagged stub without chang
   assert.deepEqual(readdirSync(path.join(box.root, 'var/release')), ['assets'], 'a failed append removes its staged asset directory');
 });
 
+test('K686-6: kit assets accept only the canonical packed manifest', (t) => {
+  const box = releaseSandbox(t);
+  const file = 'packages/fixture-lib/package.json';
+  const source = JSON.stringify({ name: '@polyspec/kit', version: '0.0.1',
+    bin: { 'polyspec-kit-hook': './scripts/kit/claude-hook.mts' },
+    exports: { './run-tests': './scripts/kit/run-tests.mts' }, dependencies: { dep: '1.0.0' },
+    scripts: { check: 'node check.mjs' } }, null, 2) + '\n';
+  writeFileSync(path.join(box.root, file), source);
+  git(box.root, 'commit', '--quiet', '-am', 'kit manifest');
+  const tag = box.tag('v0.0.1', git(box.root, 'rev-parse', 'HEAD'));
+  const config = context(box).config;
+  const ctx = context(box, { config: { ...config, packages: config.packages.map(p => p.name === 'fixture-lib' ? { ...p, name: '@polyspec/kit' } : p) } });
+  const expected = source.replace('"./scripts/kit/run-tests.mts"', '{ "types": "./dist/run-tests.d.mts", "default": "./dist/run-tests.mjs" }')
+    .replace('"./scripts/kit/claude-hook.mts"', '"./dist/claude-hook.mjs"');
+  writeFileSync(path.join(box.root, file), expected);
+  assert.ok(release.assets(ctx, tag).includes('polyspec-kit-npm-0.0.1.tgz'));
+  for (const [before, after] of [['./dist/run-tests.mjs', './dist/unexpected.mjs'], ['./dist/claude-hook.mjs', './dist/unexpected-hook.mjs'],
+    ['"1.0.0"', '"2.0.0"'], ['node check.mjs', 'node other.mjs'], ['"version": "0.0.1"', '"version": "0.0.2"'],
+    ['"name": "@polyspec/kit"', '"name": "@polyspec/unexpected"']] as const) {
+    writeFileSync(path.join(box.root, file), expected.replace(before, after));
+    stop(() => release.assets(ctx, tag), /the packed package\.json differs/);
+  }
+});
+
 test('a packed manifest that differs from the manifest of the commit fails assets', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');

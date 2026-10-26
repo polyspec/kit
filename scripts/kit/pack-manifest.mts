@@ -15,16 +15,22 @@ import { isMain } from './paths.mts';
 // An export of a source of scripts/kit, as package.json names it in the checkout.
 const SOURCE_EXPORT = /"\.\/([a-z-]+)": "\.\/scripts\/kit\/\1\.mts"/g;
 
+function swap(file: string, text: string, from: RegExp, to: string): string {
+  const result = text.replace(from, to);
+  if (result === text) throw new Error(`pack-manifest: ${file} names no source to pack (${String(from)})`);
+  return result;
+}
+
+/** Canonical byte-preserving prepack transformation of the kit package manifest. */
+export function packedPackageManifest(source: string): string {
+  const exports = swap('package.json', source, SOURCE_EXPORT, '"./$1": { "types": "./dist/$1.d.mts", "default": "./dist/$1.mjs" }');
+  return swap('package.json', exports, /("polyspec-kit-hook":\s*)"\.\/scripts\/kit\/claude-hook\.mts"/, '$1"./dist/claude-hook.mjs"');
+}
+
 /** The packed text of each file of `root` that names the sources: package.json, scripts/kit/kit-bootstrap.mk and claude/settings.json. */
 export function packedFiles(root: string): Record<string, string> {
   const read = (file: string) => readFileSync(path.join(root, file), 'utf8');
-  const swap = (file: string, text: string, from: RegExp, to: string) => {
-    const result = text.replace(from, to);
-    if (result === text) throw new Error(`pack-manifest: ${file} names no source to pack (${String(from)})`);
-    return result;
-  };
-  const exports = swap('package.json', read('package.json'), SOURCE_EXPORT, '"./$1": { "types": "./dist/$1.d.mts", "default": "./dist/$1.mjs" }');
-  const manifest = swap('package.json', exports, /("polyspec-kit-hook":\s*)"\.\/scripts\/kit\/claude-hook\.mts"/, '$1"./dist/claude-hook.mjs"');
+  const manifest = packedPackageManifest(read('package.json'));
   const kitLine = swap('scripts/kit/kit-bootstrap.mk', read('scripts/kit/kit-bootstrap.mk'), /^KIT := \$\(KIT_BOOTSTRAP\)$/m, 'KIT := $(KIT_BOOTSTRAP:%/scripts/kit=%/dist)');
   const bootstrap = swap('scripts/kit/kit-bootstrap.mk', kitLine, /^KIT_EXT := mts$/m, 'KIT_EXT := mjs');
   const settings = read('claude/settings.json');

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Kit release archive validation shares the canonical prepack manifest transformation for source exports and the native hook bin. Every remaining byte, including names, versions, dependencies and scripts, is still compared with the tagged source; other npm and Composer manifests remain byte-exact. Red: the normal transformed kit manifest fails assets at b343be7a. Green: five selected release/prepack units pass, including six unexpected kit manifest mutations and existing generic-package mutation checks; changed-file type-aware lint and docs-check pass (K686-6).
 - The parity ledger records malformed reporter output as an R3 failure of its binding and continues with remaining suite and feature bindings; the node reporter parser stays strict. Red: the selected K691 unit aborted on `exit 0`; Green: the K691 regression passes (1 test), and docs-check passes (K691).
 
 ## 0.0.55
