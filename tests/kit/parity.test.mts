@@ -741,6 +741,24 @@ test('a cargo test target of tests/<name>/main.rs runs as --test <name> and its 
   assert.deepEqual([rust.command, ...rust.args], ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', 'roundtrip::bytes', '--', '--test-threads=1', '--exact']);
 });
 
+test('a cargo source with an explicit target path selects the matching manifest target (K694)', TIMEOUT, (t) => {
+  const root = repository(t, { files: {
+    'rust/Cargo.toml': '[package]\nname = "codec"\n\n[[bin]]\nname = "integration"\npath = "src/integration.rs"\n\n[[test]]\nname = "vectors"\npath = "tests/custom.rs"\n',
+    'rust/src/integration.rs': 'fn main() {}\n',
+    'rust/tests/custom.rs': '#[test]\nfn bytes() {}\n',
+    'rust/tests/integration/main.rs': 'mod coverage;\n',
+    'rust/tests/integration/coverage.rs': '#[test]\nfn transactions() {}\n',
+  } });
+  const binary = commandOf(runOf({ name: 'rust', runner: 'cargo' }, root, { test: 'rust/src/integration.rs', ids: ['transactions'] }, 'feature', ENV), 'the explicit binary target');
+  const testTarget = commandOf(runOf({ name: 'rust', runner: 'cargo' }, root, { test: 'rust/tests/custom.rs', ids: ['bytes'] }, 'feature', ENV), 'the explicit test target');
+  const module = commandOf(runOf({ name: 'rust', runner: 'cargo' }, root, { test: 'rust/tests/integration/coverage.rs', ids: ['transactions'] }, 'feature', ENV), 'the module of an inferred test target');
+  const fallback = commandOf(runOf({ name: 'rust', runner: 'cargo' }, root, { test: 'rust/tests/roundtrip.rs', ids: ['bytes'] }, 'feature', ENV), 'the inferred test target');
+  assert.deepEqual(binary.args, ['test', '--manifest-path', 'rust/Cargo.toml', '--bin', 'integration', 'transactions', '--', '--test-threads=1', '--exact']);
+  assert.deepEqual(testTarget.args, ['test', '--manifest-path', 'rust/Cargo.toml', '--test', 'vectors', 'bytes', '--', '--test-threads=1', '--exact']);
+  assert.deepEqual(module.args, ['test', '--manifest-path', 'rust/Cargo.toml', '--test', 'integration', 'transactions', '--', '--test-threads=1', '--exact']);
+  assert.deepEqual(fallback.args, ['test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', 'bytes', '--', '--test-threads=1', '--exact']);
+});
+
 // A binding with command runs that command instead of the runner's default, in the directory of its implementation; the runner
 // still reads its output, so the ids that pass count (K216). The go stub is the program of the command, so the command runs.
 test('a binding with command runs that command in its implementation directory, and its passing ids count (K216)', TIMEOUT, (t) => {

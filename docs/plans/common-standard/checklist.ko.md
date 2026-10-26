@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 785ba9fa7f8dbb4dcd26ee0da2af1a048bbe49639086602fa62aafd51ae043ac -->
+<!-- source-sha256: 7adba29ac1f18e67ae53abfd0c1dbb1e1007927d0f73771b507630003dc3e3b9 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -644,4 +644,4 @@
 | K697 | 하나의 API binding에 기존 단일 symbol 또는 비어 있지 않은 고유 symbols 목록을 허용한다. 선언한 모든 심벌을 R1로 검사하고 R11에서 정확한 전체 목록을 대조하며 구현별 binding 하나 규칙을 유지한다. | scripts/kit/schema/parity.schema.json, scripts/kit/parity-declaration.mts, scripts/kit/parity-units.mts, tests/kit/parity.test.mts, docs/operations/tool-inventory.md(.ko), CHANGELOG.md(.ko) | `node --test --test-name-pattern=K697 tests/kit/parity.test.mts` | [o] |
 | K692 | 바인딩이 테스트 파일을 공유할 때 선택한 PHPUnit feature method만 실행한다 | scripts/kit/parity-runners.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K692 tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K693 | 기존 회귀 테스트의 유효한 Red 증거가 있는 source-only fix를 허용하고 Red 또는 No-Red 누락은 계속 거부한다 | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K693 tests/kit/commits.test.mts`; `make docs-check` | [o] |
-| K694 | Cargo manifest의 명시 경로에서 Rust parity target을 선택 | scripts/kit/parity-runners.mts; tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K694 tests/kit/parity.test.mts`; `make typecheck`; changed-file type-aware oxlint; `make docs-check` | [ ] |
+| K694 | Cargo manifest의 명시 경로에서 Rust parity target을 선택 | scripts/kit/parity-runners.mts; tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K148\|K694" tests/kit/parity.test.mts` (2 passed); `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-runners.mts tests/kit/parity.test.mts`; `make docs-check` | [~] |

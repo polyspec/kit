@@ -21,7 +21,7 @@
 //           class) runs that method alone through `--filter`, and a case is a data set `<method> with data set "<case>"` of
 //           its data provider; without a symbol, a case is a test method `test_<case>` of the file; a feature id is the test method, `<Class>::<method>` or the bare method (K229)
 //   python  `python3 <args> -m unittest -v <test>`; a case is a test method `test_<case>`, and a feature id is the test method
-import { existsSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { goEvents, cargoEvents, nodeEvents, phpunitEvents, pythonEvents, type Sink, type TestRef } from './test-output.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -32,6 +32,7 @@ import { present } from './present.mts';
 import { libraryTestRun } from './php-library-autoload.mts';
 import { readJsonObject } from './bootstrap/files.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
+import { isTable, readToml } from './toml.mts';
 
 // The node:test reporter of the node runner.
 const NODE_REPORTER = siblingTool(import.meta.url, 'parity-node-reporter');
@@ -88,6 +89,27 @@ function nearest(root: string, file: string, marker: string): string | undefined
     if (existsSync(path.join(root, directory, marker))) return directory;
     if (directory === '.') return undefined;
   }
+}
+
+/** The explicitly declared Cargo target that owns `file`, if its manifest names that path. */
+function cargoTarget(root: string, crate: string, file: string): string[] | undefined {
+  const manifestPath = path.posix.join(crate, 'Cargo.toml');
+  const manifest = readToml(readFileSync(path.join(root, manifestPath), 'utf8'), manifestPath);
+  const relative = path.posix.relative(crate, file);
+  if (isTable(manifest.lib) && manifest.lib.path === relative) return ['--lib'];
+  const targets = [
+    ['bin', '--bin'], ['test', '--test'], ['example', '--example'], ['bench', '--bench'],
+  ] as const;
+  for (const [section, option] of targets) {
+    const entries = manifest[section];
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      if (!isTable(entry) || typeof entry.path !== 'string' || path.posix.normalize(entry.path) !== relative) continue;
+      const name = typeof entry.name === 'string' ? entry.name : path.posix.basename(entry.path, '.rs');
+      return [option, name];
+    }
+  }
+  return undefined;
 }
 
 /** A sink that keeps nothing, for the parsers that are read only for what they collect. */
@@ -210,10 +232,12 @@ const RUNNERS: Record<Runner, RunnerOf> = {
       const crate = nearest(root, binding.test, 'Cargo.toml');
       if (crate === undefined) return { error: `no Cargo.toml lies above ${binding.test}` };
       const relative = path.posix.relative(crate, binding.test);
-      // Cargo builds tests/<name>.rs, and tests/<name>/main.rs with the other files of tests/<name>/ as its modules, as the
-      // test target <name> (K148); any other file is a module of the library.
-      const name = /^tests\/([^/]+)\.rs$/.exec(relative)?.[1] ?? /^tests\/([^/]+)\/main\.rs$/.exec(relative)?.[1];
-      const target = name === undefined ? ['--lib'] : ['--test', name];
+      // Explicit manifest paths own their source first. Otherwise Cargo builds tests/<name>.rs and
+      // tests/<name>/main.rs as the test target <name> (K148), including its sibling modules; any other file is a library module.
+      const directTest = /^tests\/([^/]+)\.rs$/.exec(relative)?.[1];
+      const moduleTest = /^tests\/([^/]+)\//.exec(relative)?.[1];
+      const testName = directTest ?? (moduleTest !== undefined && existsSync(path.join(root, crate, 'tests', moduleTest, 'main.rs')) ? moduleTest : undefined);
+      const target = cargoTarget(root, crate, binding.test) ?? (testName === undefined ? ['--lib'] : ['--test', testName]);
       return {
         args: test => ['test', ...test, '--manifest-path', path.posix.join(crate, 'Cargo.toml'), ...target, ...(kind === 'feature' ? [...new Set(binding.ids ?? [])] : []), '--', '--test-threads=1', ...(kind === 'suite' ? [`${binding.symbol}::`] : []), ...(kind === 'feature' ? ['--exact'] : [])],
         cwd: '.',
