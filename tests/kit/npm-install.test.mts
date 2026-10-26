@@ -227,8 +227,9 @@ test('npmSourceFolders follows each selected local package to its transitive loc
   writeFileSync(path.join(language, 'package.json'), JSON.stringify({ name: '@polyspec/dbspec-language', dependencies: { '@polyspec/orm': '0.0.18' } }));
   writeFileSync(path.join(orm, 'package.json'), JSON.stringify({ name: '@polyspec/orm', dependencies: { '@polyspec/ordered-json': '0.0.9' } }));
   const unrelated = provider(path.join(root, 'providers/unrelated'), '@polyspec/unrelated');
-  const providers: Provider[] = [language, orm, orderedJson, unrelated].map(folder => ({ ecosystem: 'npm', name: JSON.parse(readFileSync(path.join(folder, 'package.json'), 'utf8')).name,
-    folder, repository: root, checkout: root }));
+  const providerFolders: [string, string][] = [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm],
+    ['@polyspec/ordered-json', orderedJson], ['@polyspec/unrelated', unrelated]];
+  const providers: Provider[] = providerFolders.map(([name, folder]) => ({ ecosystem: 'npm', name, folder, repository: root, checkout: root }));
   const selected = npmSourceFolders(project, providers);
   assert.deepEqual(selected.map(item => item.name).sort(), ['@polyspec/dbspec-language', '@polyspec/ordered-json', '@polyspec/orm']);
   for (const item of selected) assert.equal(item.folder, path.join(project, 'node_modules', item.name));

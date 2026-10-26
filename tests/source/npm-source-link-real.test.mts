@@ -154,7 +154,8 @@ describe('native npm transitive local source linking (K672)', () => {
     writeFileSync(path.join(orm, 'index.cjs'), "module.exports = require('@polyspec/ordered-json');\n");
     writeFileSync(path.join(orderedJson, 'package.json'), JSON.stringify(manifest('@polyspec/ordered-json')));
     writeFileSync(path.join(orderedJson, 'index.cjs'), "module.exports = 'local-ordered-json';\n");
-    for (const [name, folder] of [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm], ['@polyspec/ordered-json', orderedJson]]) {
+    const links: [string, string][] = [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm], ['@polyspec/ordered-json', orderedJson]];
+    for (const [name, folder] of links) {
       const installed = path.join(root, 'node_modules', name);
       mkdirSync(path.dirname(installed), { recursive: true });
       symlinkSync(path.relative(path.dirname(installed), folder), installed, 'dir');
@@ -175,7 +176,8 @@ describe('native npm transitive local source linking (K672)', () => {
   test('native npm links every local package in the source dependency graph without resolving its release URL (K672)', () => {
     assert.equal(actual, 'local-ordered-json');
     assert.deepEqual(['package.json', 'package-lock.json'].filter(file => existsSync(path.join(consumer, file))).map(file => readFileSync(path.join(consumer, file), 'utf8')), declarations);
-    for (const [name, target] of [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm], ['@polyspec/ordered-json', orderedJson]])
+    const linkedTargets: [string, string][] = [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm], ['@polyspec/ordered-json', orderedJson]];
+    for (const [name, target] of linkedTargets)
       assert.equal(realpathSync(path.join(consumer, 'node_modules', name)), target);
   });
 });
