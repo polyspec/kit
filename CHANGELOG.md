@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.55
+
 - The rebuild inventory classifies the native Cargo metadata source helper and describes current npm and uv installation commands. Dependency, document, generated-file, link-state and npm tests use generic package, path and URL fixtures; isolation and all original semantic assertions remain intact. Red: the classification and isolation owner cases fail at 89ee79f8; green: 26 selected owning cases pass (K671-5).
 - Installed-package bootstrap integration is complete: source links remain optional, shared files are regular package-managed copies and release/gates use package-first setup. Owning workflow, native source/packed hook, copy, npm and rule tests pass. All 25 PHP extension owner tests also pass with the retained tokenizer fix. Main CI and release publication are pending (K671).
 - Worktree link fixtures carry their own Composer vendor-directory response and prepared native Python source declarations. Missing make targets accept both GNU make diagnostic quote styles while missing prerequisites and other make failures remain errors. Red: the worktree case and GNU make 4 K583 case fail at 76a52fa8; green: four selected link cases, the real GNU make 4 K583 unit, typecheck and changed-file type-aware lint pass (K671-7).
@@ -19,8 +21,6 @@
 - Arginfo generation retains the declared PHP configuration. Disabling it with -n removed tokenizer on PHP installations that load it as a shared module. Red: the K670-1 unit fails when -n drops tokenizer; green: it generates the fixture header (K670-1).
 - A consumer release prepares the sibling kit checkout and npm dependencies at the release tag of its lock before make reads the bootstrap. kit itself keeps its own sources. Red: the K670 workflow regression fails without preparation; green: all 9 release workflow units pass (K670).
 - Cargo source linking updates only locked sibling crates offline in the generated development lock before metadata and the requested command. Red: metadata selected the cached ordered-json v0.0.9 release for a compatible v0.0.10 sibling; green: the K664-3-1 regression and native offline locked metadata run select the local source, while the tracked release lock stays unchanged (K664-3-1).
-
-## 0.0.55
 
 - Release preparation rebuilds the 0.0.55 npm archive after the Composer owner correction and regenerates the native consumer lock from that new archive. The archive bytes change while the dependency graph and consumer lock remain unchanged. A fresh review covers all five current locks without advisories; dependency-policy-check, release-versions and docs-check pass. Main CI and publication remain pending (K666).
 - The PEP 751 unlink test starts from explicit native editable metadata instead of performing a source-link sync without uv.lock. It still verifies that unlink requests the pinned release and its interpreter. Native source linking requires the application uv.lock; a pylock.toml alone does not enable a new source-installation mode. Red: the prior setup unexpectedly runs uv sync --locked; green: the single K401-1 case and changed-file type-aware lint pass (K666).

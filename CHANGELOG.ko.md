@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9d4072a911d3d64108d3ffba3db3a4fcb37feac787e13fbe1b640ca73d445313 -->
+<!-- source-sha256: ca2f8da08680fd0afafc2acb9c404890c0961fe1ea189def39248c12db52ab11 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.55
 
 - Rebuild inventory에 native Cargo metadata source helper를 분류하고 현재 npm과 uv 설치 명령을 설명한다. Dependency, document, generated-file, link-state 및 npm test의 package·경로·URL fixture를 일반화하며 isolation과 원래 의미 assertion은 유지한다. Red: 89ee79f8에서 분류와 isolation 소유 case가 실패한다. Green: 선택한 소유 case 26개가 통과한다(K671-5).
 - 설치 package bootstrap 통합을 완료했습니다. Source link는 선택 사항이고 공유 파일은 package가 제공하는 일반 사본이며 release/gates는 package 우선 설치를 사용합니다. 소유 workflow, native source/packed hook, copy, npm, rule 검사가 통과했습니다. 유지한 tokenizer 수정으로 PHP extension 소유 검사 25개도 통과했습니다. Main CI와 release 공개는 대기 중입니다(K671).
@@ -20,8 +22,6 @@
 - Arginfo 생성이 선언한 PHP configuration을 유지한다. -n으로 비활성화하면 shared module로 로드하는 PHP 설치에서 tokenizer가 사라졌다. Red: -n이 tokenizer를 제거하면 K670-1 unit이 실패하며 green: fixture header를 생성한다(K670-1).
 - Consumer release는 make가 bootstrap을 읽기 전에 lock의 release tag로 sibling kit checkout과 npm dependency를 준비한다. kit 자체는 자기 source를 유지한다. Red: 준비 단계가 없으면 K670 workflow 회귀 검증이 실패하며 green: release workflow unit 9개가 통과한다(K670).
 - Cargo source 연결은 metadata와 요청 command 전에 생성된 개발 lock에서 잠긴 sibling crate만 offline 갱신한다. Red: metadata가 호환되는 v0.0.10 sibling 대신 cache의 ordered-json v0.0.9 release를 선택했다. Green: K664-3-1 회귀와 native offline locked metadata 실행이 local source를 선택하고 tracked release lock은 유지한다(K664-3-1).
-
-## 0.0.55
 
 - 릴리스 준비는 Composer 소유자 수정 이후 0.0.55 npm 아카이브를 다시 빌드하고 그 새 아카이브에서 네이티브 소비자 잠금을 다시 생성한다. 아카이브 바이트는 달라지고 의존성 그래프와 소비자 잠금은 바뀌지 않는다. 새 검토는 현재 잠금 다섯 개를 취약점 없이 검토하며 dependency-policy-check·release-versions·docs-check가 통과한다. main CI와 게시는 아직 대기 중이다 (K666).
 - PEP 751 unlink 검사는 uv.lock 없이 source-link sync를 수행하는 대신 이미 설치된 native editable metadata를 fixture로 명시한다. unlink의 고정 release와 interpreter 요청 검증은 유지한다. Native source 연결에는 앱 uv.lock이 필요하며 pylock.toml만으로 새 source 설치 모드를 제공하지 않는다. Red: 기존 setup은 uv sync --locked를 예상 밖에 실행한다. Green: K401-1 단일 case와 변경 파일 type-aware lint가 통과했다(K666).
