@@ -20,7 +20,9 @@ Why: development stalled because each repository waited for another repository's
 
 ## Mechanism
 
-The link is the kit tool `scripts/kit/link.mts` with `scripts/kit/link-folders.mts` (K448). No package manager runs in the link step, and no file of a provider is written.
+The link is the kit tool `scripts/kit/link.mts` with `scripts/kit/link-folders.mts` (K448). A matching installation runs no package manager, and no file of a provider is written.
+
+When a linked Composer package declares requirements different from its installed release metadata, Composer reconciles those requirements. A run-specific manifest and lock under `var/link/composer/` retain the tracked release records and add path repositories for the linked packages. Composer updates only those packages, with network access, scripts and plugins disabled, and installs the resolved runtime metadata. External package records must remain unchanged. Composer keeps platform checks enabled, and a second link with matching metadata runs no Composer command. The run removes its temporary manifest and lock in `finally` and holds a lease while it changes the vendor metadata.
 
 | Ecosystem | Installed folder that becomes the link |
 |---|---|

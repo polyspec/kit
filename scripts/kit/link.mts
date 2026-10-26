@@ -1,6 +1,6 @@
 // The local links of 0.0.x development (docs/operations/local-links.md, K201, K205, K448). The checkouts that the arguments name are the
 // providers (link-providers.mts): each installed package folder of a consumer that a provider gives is replaced by a direct relative
-// symlink to the provider's package folder, a copy removed (link-folders.mts, K591). No package manager runs and no version is read; link only
+// symlink to the provider's package folder, a copy removed (link-folders.mts, K591). Matching metadata runs no package manager and no version is judged; link only
 // links, it never builds (link-build.mts rebuilds):
 //   npm       node_modules/<name> of each tracked project;
 //   Composer  <vendor-dir>/<vendor>/<package> of each tracked project, the vendor-dir of its composer.json;
@@ -24,6 +24,7 @@ import { parsePipRequirementsLine } from 'pip-requirements-js';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
+import { reconcileComposerLinks } from './composer-install.mts';
 import { rebuild } from './link-build.mts';
 import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
@@ -417,7 +418,7 @@ const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?|release-consumer)\//;
  * K448: the link of the installed package folders of the consumer. Each folder of a project of the consumer (each folder of a tracked
  * package.json, composer.json or pyproject.toml, and the top) whose installed polyspec package a provider of the run provides becomes a
  * direct symlink to the provider's package folder, a copy removed; with `check`, each folder that is a copy or links elsewhere is
- * reported. No package manager runs and no version is read.
+ * reported. Composer reconciles stale source requirements; a matching record runs no package manager.
  */
 function linkPackageFolders(work: Run, consumer: Consumer) {
   // K447: every tracked project of the consumer, a nested one below the root such as hyper's examples/board included, as link-state-check
@@ -440,6 +441,7 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
       continue;
     }
     linkFolders(folders);
+    if (existsSync(path.join(project, 'composer.json'))) reconcileComposerLinks(project, folders, () => consumerTool(consumer.top, 'composer', work.env), work.print);
     for (const item of folders) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
   }
 }

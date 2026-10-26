@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: f8aa81271dc6c795e6d19922ebddf4a49963c6d3c6121787e3974faf47c8af93 -->
+<!-- source-sha256: 637b2af839df640600b9fab247bd50262be99476e220232a360d5d8e3ed5b079 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -21,7 +21,9 @@
 
 ## 방식
 
-link는 kit 도구 `scripts/kit/link.mts`와 `scripts/kit/link-folders.mts`입니다(K448). link 단계에서는 package manager가 실행되지 않고, provider의 파일은 쓰지 않습니다.
+link는 kit 도구 `scripts/kit/link.mts`와 `scripts/kit/link-folders.mts`입니다(K448). 설치 metadata가 일치하면 package manager를 실행하지 않으며 provider의 파일은 쓰지 않습니다.
+
+link된 Composer package의 requirement가 설치된 release metadata와 다르면 Composer가 requirement를 일치시킵니다. `var/link/composer/` 아래 실행별 manifest와 lock은 추적 release record를 보존하고 link된 package의 path repository를 추가합니다. Composer는 network access, script와 plugin을 비활성화하고 해당 package만 update한 뒤 해석한 runtime metadata를 설치합니다. 외부 package record는 바뀌지 않아야 합니다. Composer의 platform 검사를 유지하며, metadata가 일치하는 두 번째 link는 Composer 명령을 실행하지 않습니다. 실행은 `finally`에서 임시 manifest와 lock을 제거하며 vendor metadata를 변경하는 동안 lease를 보유합니다.
 
 | 생태계 | link가 되는 설치 폴더 |
 |---|---|

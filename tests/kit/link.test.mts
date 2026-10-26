@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
-import { composerInstall } from '../../scripts/kit/composer-install.mts';
+import { composerInstall, reconcileComposerLinks } from '../../scripts/kit/composer-install.mts';
 import { linkFindings } from '../../scripts/kit/link-state-check.mts';
 import { cargo, link, unlink } from '../../scripts/kit/link.mts';
 import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
@@ -1066,4 +1066,48 @@ test('unlink removes the package links of the environment before uv reinstalls, 
   assert.equal(lstatSync(path.join(site, 'polyspec_z')).isSymbolicLink(), false, 'the package folder is a folder of the environment');
   assert.equal(readFileSync(path.join(site, 'polyspec_z/__init__.py'), 'utf8'), 'VALUE = "released"\n');
   assert.match(lines.join('\n'), /polyspec_z/, 'the removed link is named');
+});
+
+// K653: Composer regenerates runtime records from linked source requirements without changing the release lock.
+test('K653: source requirements reconcile through Composer once and retain the release records', (t) => {
+  const { consumer, provider, env, log } = workspace(t);
+  const vendor = path.join(consumer, 'var/contracts/vendor');
+  const source = { name: 'polyspec/y', require: { php: '>=8.4' } };
+  put(provider, { 'packages/php/composer.json': JSON.stringify(source) });
+  const record = { packages: [{ name: source.name, version: '0.0.1', require: { php: '>=8.5' }, 'install-path': '../polyspec/y' }] };
+  put(consumer, { 'var/contracts/vendor/composer/installed.json': JSON.stringify(record), 'composer.lock': JSON.stringify({ packages: record.packages, 'packages-dev': [] }) });
+  const before = readFileSync(path.join(consumer, 'composer.lock'), 'utf8');
+  const next = { packages: record.packages.map(entry => ({ ...entry, require: source.require })) };
+  put(consumer, { 'var/contracts/vendor/composer/installed.next.json': JSON.stringify(next) });
+  const command = env.COMPOSER_BIN;
+  assert.ok(command);
+  writeFileSync(command, `#!/bin/sh\nprintf '%s\\n' "composer $* COMPOSER=$COMPOSER" >> ${JSON.stringify(path.join(consumer, '..', 'tools.log'))}\nif [ "$1" = install ]; then cp ${JSON.stringify(path.join(vendor, 'composer/installed.next.json'))} ${JSON.stringify(path.join(vendor, 'composer/installed.json'))}; fi\n`);
+  chmodSync(command, 0o755);
+  const first = linkLines([consumer], env);
+  assert.equal(first.ok, true, first.text);
+  assert.match(log(), /^composer update polyspec\/y .*--no-install.*--no-scripts/m);
+  assert.match(log(), /^composer install .*--no-scripts/m);
+  assert.doesNotMatch(log(), /--ignore-platform|platform-check/);
+  assert.equal(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'), before);
+  assert.equal(realpathSync(path.join(vendor, 'polyspec/y')), path.join(provider, 'packages/php'));
+  const composerCommands = () => log().split('\n').filter(line => line.startsWith('composer '));
+  const commands = composerCommands();
+  const second = linkLines([consumer], env);
+  assert.equal(second.ok, true, second.text);
+  assert.deepEqual(composerCommands(), commands, 'matching source metadata runs no Composer command');
+});
+
+
+test('K653: a Composer platform resolution failure propagates and releases its lease', (t) => {
+  const { consumer, provider, env } = workspace(t);
+  put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', require: { php: '>=8.5' } }) });
+  put(consumer, { 'composer.lock': JSON.stringify({ packages: [] }), 'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', require: { php: '>=8.4' } }] }) });
+  const command = env.COMPOSER_BIN;
+  assert.ok(command);
+  writeFileSync(command, '#!/bin/sh\nexit 31\n');
+  chmodSync(command, 0o755);
+  const folders = providedFolders(consumer, [{ ecosystem: 'composer', name: 'polyspec/y', folder: path.join(provider, 'packages/php'), checkout: provider, repository: provider }], { vendorDir: 'var/contracts/vendor' });
+  const tool = () => ({ command, env });
+  assert.throws(() => reconcileComposerLinks(consumer, folders, tool, () => {}), /exited with 31/);
+  assert.equal(existsSync(path.join(consumer, 'var/link/composer/metadata.lock')), false);
 });

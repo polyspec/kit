@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Composer source links reconcile stale runtime requirements through a run-specific path-repository manifest and lock. Composer updates only linked packages, keeps external package records and tracked release records unchanged, retains platform checks, and leaves matching metadata untouched (K653).
 - PHP arginfo installation discovers gen_stub.php under the PHP API extension directory when the prefix build directory has no generator. Red: the K652 API-directory fixture fails on the prefix-only discovery; green: it passes (K652).
 - `make land` states when the candidate and main gates both fail and prints the candidate gate's stdout and stderr, while preserving K631's continuation policy (K631-1).
 - Parity declarations resolve a feature coverage part against roots it contains, require exactly one implementation owner, and still reject tests outside that part (K650).
