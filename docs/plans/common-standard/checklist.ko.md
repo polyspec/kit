@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f43e3ee1737510747b11a926c1d30896773a2fd7d3d05f9dbc857f88be52200c -->
+<!-- source-sha256: c6813c2bf37aa95807d1e57dd4dcae08904d7dd005c8b4b081433224d87a6059 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -589,3 +589,4 @@
 | K664-5 | 네이티브 npm 릴리스→소스 연결은 릴리스 선언과 main 체크아웃을 바꾸지 않고 멱등하게 수렴한다 | scripts/kit/npm-install.mts, tests/source/npm-source-link-real.test.mts, tests/kit/npm-install.test.mts, config/owner-checks.json | `node scripts/kit/run-tests.mts node -- --test-name-pattern=npmSourceFolders tests/kit/npm-install.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/npm-source-link-real.test.mts` | [o] |
 | K666 | 공유 링크 검사는 읽기 전용 진단과 native 변경 수렴을 구분하며 lock 없는 workspace member 설치의 root 소유권을 유지한다 | tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K529: check\|K643:\|K590:" tests/kit/link.test.mts` | [o] |
 | K670 | Release workflow는 첫 make 전에 consumer lock이 고정한 tag의 sibling kit source와 npm dependency를 준비하며 kit 자체는 자기 source를 쓴다 | workflows/release.yml, .github/workflows/release.yml, tests/source/release-workflow.test.mts | node --test tests/source/release-workflow.test.mts | [o] |
+| K670-1 | Arginfo 생성이 선언한 PHP configuration을 유지하여 shared extension인 tokenizer를 사용할 수 있게 한다 | scripts/kit/php-extension.mts, tests/kit/php-ext.test.mts | node --test --test-name-pattern=K670-1 tests/kit/php-ext.test.mts | [o] |
