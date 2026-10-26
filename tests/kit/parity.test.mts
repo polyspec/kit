@@ -609,6 +609,28 @@ test('K692: a php feature filters a shared file to its declared methods', TIMEOU
   assert.equal(run.caseOf({ id: 'CodecTest::test_regex+method with data set "sample"', name: 'test_regex+method with data set "sample"' }), 'Example\\Tests\\CodecTest::test_regex+method');
 });
 
+test('K695: a short PHPUnit class id selects its namespaced class exactly', TIMEOUT, (t) => {
+  const run = runOf({ name: 'php', runner: 'php' }, repository(t), {
+    test: 'php/tests/ParentSlotExpansionTest.php',
+    ids: [
+      'ParentSlotExpansionTest::testBareDollarInLiteralIsPreserved',
+      'Example\\Tests\\OtherTest::test_data',
+    ],
+  }, 'feature', ENV);
+  if (run.error) throw new Error(run.error);
+  const filterIndex = run.args.indexOf('--filter');
+  const filter = run.args[filterIndex + 1];
+  assert.equal(filterIndex >= 0, true);
+  assert.ok(filter.startsWith('/') && filter.endsWith('/'));
+  const selected = new RegExp(filter.slice(1, -1));
+  assert.equal(selected.test('Polyspec\\Orm\\Tests\\ParentSlotExpansionTest::testBareDollarInLiteralIsPreserved'), true);
+  assert.equal(selected.test('ParentSlotExpansionTest::testBareDollarInLiteralIsPreserved with data set "dollar"'), true);
+  assert.equal(selected.test('Example\\Tests\\OtherTest::test_data with data set "value"'), true);
+  assert.equal(selected.test('Other\\ParentSlotExpansionTest::testBareDollarInLiteralIsPreserved'), true);
+  assert.equal(selected.test('Polyspec\\Orm\\Tests\\PrefixParentSlotExpansionTest::testBareDollarInLiteralIsPreserved'), false);
+  assert.equal(selected.test('Polyspec\\Orm\\Tests\\ParentSlotExpansionTest::testBareDollarInLiteralIsPreservedSuffix'), false);
+});
+
 // A PHPUnit method with data sets runs once per data set; the id of the method names all of them, which pass only when each
 // passes, and a failing data set fails the id (K229).
 // A node:test case that a coverage file runs once per database item reports `<case> [<database>]` for each item; the case passes
