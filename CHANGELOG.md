@@ -5,9 +5,9 @@
 
 ## Unreleased
 
-- The Go worktree source fixture prepares its consumer through a native offline npm install with a declared local kit dependency and passes the pinned npm command to both setup calls. This removes its manual installed-package link while retaining every Go workspace, unpublished-module, repeated-link and main-isolation assertion. The fixture migration was missed in K690; its owning real test fails before this correction and passes afterward (K690-1).
-
 ## 0.0.55
+
+- The Go worktree source fixture prepares its consumer through a native offline npm install with a declared local kit dependency and passes the pinned npm command to both setup calls. This removes its manual installed-package link while retaining every Go workspace, unpublished-module, repeated-link and main-isolation assertion. The fixture migration was missed in K690; its owning real test fails before this correction and passes afterward (K690-1).
 
 - The final candidate itself was prepared with the new native offline worktree path: npm and both Composer projects installed from the shared caches, link-state-check passed, and both working trees retained no tracked changes. This preparation ran no product rebuild or full test suite; whole-candidate CI and publication remain separate acceptance steps (K655).
 
