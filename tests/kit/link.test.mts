@@ -468,6 +468,9 @@ test('a worktree links a package of its own repository to its own folder, never 
     'node_modules/@polyspec/kit/package.json': '{}',
     'var/contracts/vendor/polyspec/y/composer.json': '{"name":"polyspec/y"}',
     'go.mod.json': readFileSync(path.join(consumer, 'go.mod.json'), 'utf8'),
+    'composer-vendor-dir': readFileSync(path.join(consumer, 'composer-vendor-dir'), 'utf8'),
+    // Native source declarations are development state prepared by workspace(), outside its committed template.
+    'python/pyproject.toml': readFileSync(path.join(consumer, 'python/pyproject.toml'), 'utf8'),
   });
   const { ok, text } = linkLines([tree], env);
   assert.equal(ok, true, text);
@@ -1312,4 +1315,25 @@ test('K664-3 refuses a concurrent holder before replacing the link lock', (t) =>
 
 test('K664-3 workspace metadata forwards native graph flags and leaves execution flags to Cargo', () => {
   assert.deepEqual(cargoMetadataArguments(['+1.99.0', 'test', '-p', 'app', '--features', 'one', '-Ftwo', '--features=three', '--manifest-path', 'app/Cargo.toml', '--offline', '--config', 'net.retry=2', '--target=x86_64-unknown-linux-gnu', '--no-default-features', '--all-features', '--', '--features=not-a-cargo-flag']), ['--features', 'one', '-Ftwo', '--features=three', '--manifest-path', 'app/Cargo.toml', '--offline', '--config', 'net.retry=2', '--filter-platform=x86_64-unknown-linux-gnu', '--no-default-features', '--all-features']);
+});
+
+
+test('K671-7 missing build targets accept GNU make quote variants while prerequisites still fail', (t) => {
+  const { root, provider } = workspace(t);
+  const previous = process.env.PATH;
+  t.after(() => { if (previous === undefined) delete process.env.PATH; else process.env.PATH = previous; });
+  const bin = path.join(root, 'make-bin');
+  const record = path.join(root, 'make-calls');
+  mkdirSync(bin);
+  for (const quote of ["`", "'"]) {
+    const diagnostic = `make: *** No rule to make target ${quote}release-assets'. Stop.`;
+    const word = `'${diagnostic.replaceAll("'", "'\\''")}'`;
+    stub(bin, record, 'make', `if [ "$4" = release-assets ]; then printf '%s\\n' ${word} >&2; exit 2; fi; printf 'build:\\n'`);
+    process.env.PATH = `${bin}${path.delimiter}${previous ?? ''}`;
+    assert.deepEqual(buildTargets(provider), ['build'], `missing release-assets with ${quote} quotes falls back to build`);
+    const missingDependency = `make: *** No rule to make target ${quote}missing-dep', needed by ${quote}release-assets'. Stop.`;
+    const dependencyWord = `'${missingDependency.replaceAll("'", "'\\''")}'`;
+    stub(bin, record, 'make', `printf '%s\\n' ${dependencyWord} >&2; exit 2`);
+    assert.throws(() => buildTargets(provider), /missing-dep.*needed by/);
+  }
 });

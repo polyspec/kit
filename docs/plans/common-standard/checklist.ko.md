@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: a8eca46b9f5a8288330727a34558147c33a8be71e27581390be650b9ccd044cc -->
+<!-- source-sha256: 2c6da322f8c67de45f4f1f222eb4c0646a78a684c14b6bde80ee8063e0fd2b56 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -596,6 +596,7 @@
 | K671-2 | 설치된 package의 공유 copy와 workflow를 복원하고 provider를 바꾸지 않는 atomic managed symlink 전환 및 tracked shared link 거부를 적용합니다 | package.json kit.copies, scripts/kit/kit-sync.mts, scripts/kit/kit-check.mts, owning unit tests | `node scripts/kit/run-tests.mts node -- tests/kit/kit-sync.test.mts tests/kit/kit-check.test.mts`; type-aware oxlint | [o] |
 | K671-3 | release와 gates workflow는 첫 Make 실행 전에 정확한 packageManager npm으로 lock의 kit package를 설치하고 kit 자체는 package bootstrap을 건너뛰며 형제 source clone을 요구하지 않는다 | workflows/release.yml, .github/workflows/release.yml, workflows/gates.yml, tests/kit/workflow-package-bootstrap.mts, tests/kit/gates-workflow.test.mts, tests/source/release-workflow.test.mts, config/owner-checks.json | `node scripts/kit/run-tests.mts node -- tests/kit/gates-workflow.test.mts tests/source/release-workflow.test.mts`; changed-file type-aware oxlint | [o] |
 | K671-4 | install-packages fixture는 설치된 kit 패키지의 bootstrap과 kit.mk를 준비하고 네이티브 npm ci recipe를 검사한다 | tests/kit/install-packages.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K511 tests/kit/install-packages.test.mts` | [o] |
+| K671-7 | Composer worktree fixture vendor 소유 경로를 맞추고 missing prerequisite 거부를 유지하며 GNU make target quote 차이를 허용한다 | scripts/kit/link-build.mts, tests/kit/link.test.mts, tests/kit/plan.test.mts K583 | `node scripts/kit/run-tests.mts node -- --test-name-pattern="a worktree links a package\|K671-7\|missing prerequisite\|make status 2" tests/kit/link.test.mts`; GNU make 4 K583 selected case | [o] |
 | K670-3 | Release version commit은 manifest와 lock metadata를 허용하고 구현 code는 거부한다 | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K670-3 tests/kit/commits.test.mts` | [o] |
 | K670-4 | Python source link는 polyspec dependency를 선언하지 않은 project를 건너뛴다 | scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K670-4 tests/kit/link.test.mts` | [o] |
 | K671-6 | Native source 연결에서 npm lock 읽기를 유지하고 peer 규칙 억제나 기존 source 링크 생략을 추가하지 않는다 | scripts/kit/npm-install.mts, tests/source/npm-locked-link-real.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/npm-locked-link-real.test.mts`; selected native release-to-source case; changed-file type-aware lint | [o] |

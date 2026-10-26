@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 32845f06b7716eff2cb1ee99b5049184adcae5f774fc04a07b4efb92ae778dc8 -->
+<!-- source-sha256: 879e078874c25d65688293bd347319375766da44cb1b9fa81dbd39b58ba64aab -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Worktree link fixture는 자체 Composer vendor-directory 응답과 준비된 native Python source 선언을 포함한다. Missing make target 판별은 GNU make diagnostic의 두 quote 형식을 허용하고 missing prerequisite와 다른 make 실패는 계속 오류로 처리한다. Red: 76a52fa8에서 worktree case와 GNU make 4 K583 case 실패; Green: 선택한 link case 4개, 실제 GNU make 4 K583 unit, typecheck 및 변경 파일 type-aware lint 통과 (K671-7).
 - Native npm 연결은 package-lock 읽기를 끄지 않는다. Offline으로 설치된 registry range는 기존 native tarball resolution을 사용하고 registry를 다시 조회하지 않는다. --no-save는 release manifest와 lock을 유지한다. legacy-peer-deps나 기존 링크 생략은 추가하지 않는다. Native npm link는 호환되지 않는 linked peer를 허용할 수 있으며, 소유 fixture는 npm ls가 이를 탐지함을 기록하고 별도 resolver나 설치 gate는 추가하지 않는다. Red: 89ee79f8에서 locked-range case가 ENOTCACHED로 실패했다. Green: locked-range·peer 관찰·기존 release-to-source case와 변경 파일 type-aware lint가 통과했다(K671-6).
 - Bootstrap 문서와 규칙은 설치된 package path와 일반 공유 사본을 사용하고 선택적인 native npm source link를 유지합니다. Native npm lock은 hook command를 기록합니다. Workflow unit 16개, rule unit 13개, 문서 및 rule 검사가 통과합니다(K671).
 - Python link는 polyspec dependency를 선언하지 않은 project에서 주변 uv workspace를 sync하지 않습니다. 소유 unit은 14c67f38에서 실패하고 guard 추가 후 통과합니다(K670-4).

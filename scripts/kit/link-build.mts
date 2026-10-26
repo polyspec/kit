@@ -17,8 +17,8 @@ function prerequisites(repository: string, target: string): string[] | undefined
   const outcome = execute('make', ['-C', repository, '-pq', target], { env: foreignEnvironment() });
   if (outcome.error) throw new Error(`make could not start in ${repository}: ${outcome.error.message}`);
   if (outcome.status === 2) {
-    // Only the target itself is missing (`x'.), not a prerequisite of it (`x', needed by `y').
-    if (new RegExp(`No rule to make target \`${RegExp.escape(target)}'\\.`).test(outcome.stderr)) return undefined;
+    // Only the target itself is missing, not a prerequisite; GNU make uses a backtick or single quote to open the name.
+    if (new RegExp(`No rule to make target ['\`]${RegExp.escape(target)}'\\.`).test(outcome.stderr)) return undefined;
     throw new Error(`make -pq ${target} failed in ${repository}: ${outcome.stderr.trim()}`);
   }
   const line = outcome.stdout.split('\n').find(text => text.startsWith(`${target}:`) && !text.startsWith(`${target}::`));
