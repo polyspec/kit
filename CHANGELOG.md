@@ -25,6 +25,8 @@
 - PHP extension parity uses the existing isolated Composer library-test autoloader, preserves extension arguments and removes temporary installs after both attempts or a support-file failure. Pure library runs and bindings with explicit commands keep their existing execution. (K677-2)
 
 - The parity regression verifies cleanup after both successful and failed attempts and leaves the library vendor directory unchanged. (K677-2)
+- Composer development locks accept external polyspec path packages in both dependency sections. Installed source links remain checked separately; release consumer locks must still name the release archive URL. The local-path release regression preserves that rejection (K696).
+
 - A short PHPUnit class id matches a namespaced test class at its exact class-name boundary; FQCNs, bare methods and provider data sets keep their exact selection. Red: the K695 regression failed because the generated filter omitted the namespace prefix accepted by PHPUnit. Green: the K695 unit passes (1 test), with changed-file type-aware oxlint and docs-check (K695).
 
 - The Rust parity runner selects the Cargo target named by an explicit manifest path and maps sibling modules to the existing `tests/<name>/main.rs` target. Conventional `tests/<name>.rs` and library fallbacks remain. Red: K694 selected `--lib` for an explicit integration binary and for its test modules. Green: K148 and K694 pass (2 tests), with typecheck, changed-file type-aware oxlint and docs-check (K694).

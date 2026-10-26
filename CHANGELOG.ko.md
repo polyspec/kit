@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a4baeef56f4c5202e70a9be9338419ed60b3d5866f37dd79f58d5ac3555d1dfe -->
+<!-- source-sha256: b9af01c2a5daf361cd837eaf3173d65d7f952b833bef7c92941b9541dac4c47f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -26,6 +26,8 @@
 - PHP extension parity는 기존 격리 Composer library-test autoloader를 사용하고 확장 인수를 유지하며 두 실행 또는 support-file 실패 뒤 임시 설치를 정리합니다. 순수 library 실행과 명시적 command binding은 기존 실행을 유지합니다. (K677-2)
 
 - parity 회귀 테스트는 성공과 실패 실행 모두에서 정리를 검증하며 library vendor directory를 그대로 유지합니다. (K677-2)
+- Composer development lock은 두 dependency section의 external polyspec path package를 허용한다. 설치된 source link는 별도로 검사하고 release consumer lock은 release archive URL을 기록해야 한다. Local path release regression은 기존 거부 동작을 검증한다 (K696).
+
 - 짧은 PHPUnit class id는 namespaced test class의 정확한 class-name 경계에서 매칭하며 FQCN, bare method와 provider data set의 선택은 정확히 유지한다. Red: K695 regression은 생성된 filter에 PHPUnit이 요구하는 namespace prefix가 없어 실패했다. Green: K695 unit 1개, 변경 파일 type-aware oxlint와 docs-check가 통과한다 (K695).
 
 - Rust parity runner는 explicit manifest path가 지정한 Cargo target을 선택하고 기존 `tests/<name>/main.rs`의 sibling module을 해당 target에 연결한다. 일반 `tests/<name>.rs`와 library fallback은 유지한다. Red: K694는 명시된 integration binary와 그 test module에 `--lib`를 선택했다. Green: K148과 K694 (test 2개), typecheck, 변경 파일 type-aware oxlint 및 docs-check가 통과했다 (K694).
