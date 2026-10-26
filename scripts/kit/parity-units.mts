@@ -4,7 +4,7 @@
 // and R11 (an exported symbol that no API unit declares).
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
-import { CONVENTIONS, finding, sharedRoots, testNamed, within } from './parity-declaration.mts';
+import { apiSymbols, CONVENTIONS, finding, sharedRoots, testNamed, within } from './parity-declaration.mts';
 import type { ParityModel, ParityUnit, Runner } from './parity-declaration.mts';
 import { present } from './present.mts';
 
@@ -17,7 +17,7 @@ export function pairs(model: ParityModel, kind: ParityUnit['kind']) {
 export type Snapshots = ReadonlyMap<string, ReadonlySet<string>>;
 
 /**
- * R1: each API unit has a public symbol in each implementation. An implementation whose extractor failed has no
+ * R1: each API unit has a binding in each implementation, and every declared symbol is public. An implementation whose extractor failed has no
  * snapshot, and that failure is already its finding.
  */
 export function missingImplementations(model: ParityModel, snapshots: Snapshots) {
@@ -27,8 +27,9 @@ export function missingImplementations(model: ParityModel, snapshots: Snapshots)
     const declared = present(unit.symbols, 'unit.symbols').find(entry => entry.implementation === implementation.name);
     if (!declared) return [finding('R1', `the API unit ${unit.id} declares no symbol of ${implementation.name}`, where)];
     const snapshot = snapshots.get(implementation.name);
-    if (snapshot === undefined || snapshot.has(declared.symbol)) return [];
-    return [finding('R1', `${declared.symbol} is no public symbol of ${implementation.name}, as its ${implementation.symbols?.extractor} extractor reads ${implementation.symbols?.entry}`, where)];
+    if (snapshot === undefined) return [];
+    return apiSymbols(declared).filter(symbol => !snapshot.has(symbol)).map(symbol =>
+      finding('R1', `${symbol} is no public symbol of ${implementation.name}, as its ${implementation.symbols?.extractor} extractor reads ${implementation.symbols?.entry}`, where));
   });
 }
 
@@ -112,12 +113,12 @@ export function misplacedTests(model: ParityModel, files: Iterable<string>) {
   return [...bindings, ...patterns];
 }
 
-/** R11: each public symbol of an implementation is the symbol of an API unit of it. */
+/** R11: each public symbol of an implementation belongs to an explicit API binding. */
 export function undeclaredPublic(model: ParityModel, snapshots: Snapshots) {
   return model.config.implementations.flatMap((implementation) => {
     const snapshot = snapshots.get(implementation.name);
     if (snapshot === undefined) return [];
-    const declared = new Set(model.config.units.flatMap(unit => unit.symbols ?? []).filter(entry => entry.implementation === implementation.name).map(entry => entry.symbol));
+    const declared = new Set(model.config.units.flatMap(unit => unit.symbols ?? []).filter(entry => entry.implementation === implementation.name).flatMap(apiSymbols));
     return [...snapshot].filter(id => !declared.has(id)).map(id => finding('R11', `${id} is public, and no API unit declares it`, { implementation: implementation.name, place: implementation.symbols?.entry }));
   });
 }

@@ -12,8 +12,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { checkParity, type ParityFinding } from '../../scripts/kit/parity.mts';
-import type { ParityConfig, ParityImplementation, ParityModel } from '../../scripts/kit/parity-declaration.mts';
-import { misplacedTests } from '../../scripts/kit/parity-units.mts';
+import { readDeclaration, type ParityConfig, type ParityImplementation, type ParityModel } from '../../scripts/kit/parity-declaration.mts';
+import { misplacedTests, missingImplementations, undeclaredPublic } from '../../scripts/kit/parity-units.mts';
+import { checkedFiles } from '../../scripts/kit/tracked-files.mts';
 import { type BindingCommand, type RunError, runOf } from '../../scripts/kit/parity-runners.mts';
 import { tree } from './tree.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -2598,4 +2599,63 @@ test('PHP extension parity isolates the Composer library autoload and cleans its
     assert.deepEqual(readdirSync(path.join(root, 'var/php-ext/library-tests')), []);
     assert.equal(result.findings.some(entry => entry.implementation === 'php'), status !== 0);
   }
+});
+
+
+/** Sets the exact public symbols of the Python encoding API without adding another implementation binding. */
+function pythonEncodingSymbols(config: Declaration, symbols: string[]): Declaration {
+  const unit = itemWhere(config.units, entry => entry.id === 'encode');
+  const binding = itemWhere(known(unit.symbols, 'the API symbols'), entry => entry.implementation === 'python');
+  delete binding.symbol;
+  binding.symbols = symbols;
+  return config;
+}
+
+/** Reads the real declaration schema and checks the inventory rules against a controlled Python extractor snapshot. */
+function pythonEncodingFindings(t: TestContext, edit: (config: Declaration) => Declaration, symbols: string[]) {
+  const root = repository(t, { edit });
+  const declaration = readDeclaration(root, new Set(checkedFiles(root)));
+  assert.deepEqual(declaration.errors, []);
+  const model = known(declaration.model, 'the validated API model');
+  const snapshots = new Map([['python', new Set(symbols)]]);
+  return [...missingImplementations(model, snapshots), ...undeclaredPublic(model, snapshots)];
+}
+
+test('an API binding accepts related exact symbols and retains the scalar form (K697)', TIMEOUT, (t) => {
+  assert.deepEqual(pythonEncodingFindings(t, config => config, ['python/codec.py::encode']), []);
+  const symbols = ['python/codec.py::encode', 'python/codec.py::Encoder'];
+  assert.deepEqual(pythonEncodingFindings(t, config => pythonEncodingSymbols(config, symbols), symbols), []);
+});
+
+test('every list member is checked by R1 and an omitted public symbol still fails R11 (K697)', TIMEOUT, (t) => {
+  const findings = pythonEncodingFindings(t,
+    config => pythonEncodingSymbols(config, ['python/codec.py::encode', 'python/codec.py::missing']),
+    ['python/codec.py::encode', 'python/codec.py::Encoder']);
+  assert.ok(findings.some(entry => entry.rule === 'R1' && entry.message.includes('python/codec.py::missing')));
+  assert.ok(findings.some(entry => entry.rule === 'R11' && entry.message.includes('python/codec.py::Encoder')));
+});
+
+test('symbol lists reject empty, duplicate, blank and ambiguous declarations (K697)', TIMEOUT, (t) => {
+  for (const symbols of [[], ['python/codec.py::encode', 'python/codec.py::encode'], ['']]) {
+    const result = check(t, { edit: config => pythonEncodingSymbols(config, symbols) }, { execute: false });
+    assert.ok(result.findings.some(entry => entry.rule === 'declaration'));
+  }
+  const ambiguous = check(t, { edit: config => {
+    pythonEncodingSymbols(config, ['python/codec.py::encode']);
+    const unit = itemWhere(config.units, entry => entry.id === 'encode');
+    itemWhere(known(unit.symbols, 'the API symbols'), entry => entry.implementation === 'python').symbol = 'python/codec.py::encode';
+    return config;
+  } }, { execute: false });
+  assert.ok(ambiguous.findings.some(entry => entry.rule === 'declaration'));
+});
+
+
+test('a list binding retains one declaration per implementation (K697)', TIMEOUT, (t) => {
+  const result = check(t, { edit: config => {
+    pythonEncodingSymbols(config, ['python/codec.py::encode']);
+    const unit = itemWhere(config.units, entry => entry.id === 'encode');
+    known(unit.symbols, 'the API symbols').push({ implementation: 'python', symbol: 'python/codec.py::encode' });
+    return config;
+  } }, { execute: false });
+  assert.ok(result.findings.some(entry => entry.rule === 'R12' && entry.implementation === 'python'));
 });

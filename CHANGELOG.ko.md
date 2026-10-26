@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3218a5cb38c46eba71937f8c7d463937d587b00ac06bdaa9547057aa5bcc00cb -->
+<!-- source-sha256: a3eac60ab40dc6309e2ebb3d6d0e50e6378033831a70aca4f922024853bcc6e5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- API binding은 기존 단일 symbol 또는 비어 있지 않은 고유 공개 symbols 목록을 받습니다. R1은 모든 항목을 검사하고 R11은 선언된 전체 표면을 대조하며 중복 implementation binding은 계속 거부합니다. (K697)
 
 
 

@@ -61,13 +61,17 @@ export interface ParityBinding {
   reason?: string | undefined;
 }
 
-/** The symbol id of an implementation in an API unit. */
-export interface ParitySymbol {
-  implementation: string;
-  symbol: string;
+/** The exact public symbols of an implementation in an API unit; the schema requires one declaration form. */
+export type ParitySymbol =
+  | { implementation: string; symbol: string; symbols?: never }
+  | { implementation: string; symbols: string[]; symbol?: never };
+
+/** Normalizes a validated scalar or list binding without changing the exact declared names. */
+export function apiSymbols(binding: ParitySymbol): readonly string[] {
+  return binding.symbols ?? [present(binding.symbol, 'the scalar API symbol')];
 }
 
-/** A unit of the declaration: a suite of shared cases, a feature of one native test per implementation, or an API symbol. */
+/** A unit of the declaration: a suite of shared cases, a feature of one native test per implementation, or an API surface. */
 export interface ParityUnit {
   id: string;
   kind: 'suite' | 'feature' | 'api';

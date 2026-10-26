@@ -224,16 +224,28 @@
             }
           },
           "symbols": {
-            "description": "api: the symbol id of each implementation, as its symbol extractor gives it.",
+            "description": "api: one binding per implementation, with either its existing symbol or a nonempty unique list of exact public symbols belonging to this API unit. Every declared symbol must exist and every public symbol must be declared.",
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["implementation", "symbol"],
-              "additionalProperties": false,
-              "properties": {
-                "implementation": { "type": "string" },
-                "symbol": { "type": "string" }
-              }
+              "oneOf": [
+                {
+                  "required": ["implementation", "symbol"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "implementation": { "type": "string" },
+                    "symbol": { "type": "string" }
+                  }
+                },
+                {
+                  "required": ["implementation", "symbols"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "implementation": { "type": "string" },
+                    "symbols": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } }
+                  }
+                }
+              ]
             }
           }
         }

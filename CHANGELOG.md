@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- API bindings accept either the existing scalar symbol or a nonempty unique list of exact public symbols. R1 checks every member and R11 covers the complete declared surface; duplicate implementation bindings remain invalid. (K697)
+
 
 
 ## 0.0.57
