@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 34832516c4788d73498c60a64ca8079ca5eafd020924c49dca9de1549ce6ea60 -->
+<!-- source-sha256: 4966a2ee6cc1a0645c02a057b4fcdd88367c140849d2e5abf4779459d50eb2f1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.56
+
+- 이 version은 공개되지 않은 0.0.55 candidate의 native source/worktree package 관리, 선택적 설치 package bootstrap, runner 정리와 dependency review 변경을 포함한다. Asset gate가 정상 prepack 변환을 거부한 기존 tag는 보존하고 수정한 validator를 여기에 포함한다 (K677).
 
 - Kit release archive 검증은 source export와 native hook bin의 정식 prepack manifest 변환을 공유한다. 이름, 버전, dependency, script를 포함한 나머지 모든 byte를 tag source와 비교하며 다른 npm 및 Composer manifest는 기존 byte-exact 비교를 유지한다. Red: b343be7a에서 정상 변환된 kit manifest가 assets 검증에 실패한다. Green: 예상 밖 kit manifest 변조 6종과 기존 일반 package 변조 검사를 포함한 선택 release/prepack unit 5개, 변경 파일 type-aware lint 및 docs-check가 통과한다 (K686-6).
 - Parity ledger는 잘못된 reporter 출력을 해당 바인딩의 R3 실패로 기록하고 나머지 suite 및 feature 바인딩을 계속 실행한다. node reporter parser의 strict 검사는 유지한다. Red: 선택한 K691 unit은 `exit 0` line에서 바인딩 반복을 중단했다. Green: K691 regression 1개와 docs-check가 통과한다 (K691).
