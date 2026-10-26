@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.57
+
+- Prepared kit 0.0.57 with the isolated PHP parity runner correction and refreshed native consumer lock and dependency review. (K677-3)
+
 - PHP extension parity uses the existing isolated Composer library-test autoloader, preserves extension arguments and removes temporary installs after both attempts or a support-file failure. Pure library runs and bindings with explicit commands keep their existing execution. (K677-2)
 
 - The parity regression verifies cleanup after both successful and failed attempts and leaves the library vendor directory unchanged. (K677-2)

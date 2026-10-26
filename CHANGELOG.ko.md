@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 71a0ae1d818c0820aace985204db3224ee7d7c1b14ab43fb421564fcc2c0c079 -->
+<!-- source-sha256: 8ec7c4996f58b6f74e958f8a6f6829676934c20c71beb4017cfad21ef82c9b46 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.57
+
+- 격리 PHP parity 실행기 수정과 갱신된 native consumer lock 및 의존성 검토를 포함한 kit 0.0.57 공개를 준비했습니다. (K677-3)
 
 - PHP extension parity는 기존 격리 Composer library-test autoloader를 사용하고 확장 인수를 유지하며 두 실행 또는 support-file 실패 뒤 임시 설치를 정리합니다. 순수 library 실행과 명시적 command binding은 기존 실행을 유지합니다. (K677-2)
 
