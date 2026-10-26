@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- npm local source links are created by npm link with a project-local prefix, with npm owning its links and installed metadata. The release manifest and lock remain unchanged; edits to a linked source are visible on repeated runs. Red: npm-install.test.mts failed before the native link call at 80e3c56e; green: the npm and shared link unit tests pass 71 of 71, including a real npm source-edit case (K657-1).
 - Explicit `FINAL_RUN=1` accepts a clean committed tree with waiting checklist items, refuses active items or dirty trees, and preserves the normal CI report path (K658).
 - Parity requirement tracing defers an id only while the exact item in its declared English checklist is `[!]` and its task names that id; active gaps remain R13 findings, and invalid, active or duplicate references are rejected (K656).
 - Composer source links reconcile stale runtime requirements through a run-specific path-repository manifest and lock. Composer updates only linked packages, keeps external package records and tracked release records unchanged, retains platform checks, and leaves matching metadata untouched (K653).

@@ -8,7 +8,8 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import test from 'node:test';
-import { npmInstall } from '../../scripts/kit/npm-install.mts';
+import { npmInstall, npmLink } from '../../scripts/kit/npm-install.mts';
+import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
 const LOCK = (names: string[]) => {
   const packages: Record<string, { version?: string }> = { '': {} };
@@ -23,9 +24,21 @@ const LOCK = (names: string[]) => {
 function stubNpm(root: string): { npm: string; log: string } {
   const log = path.join(root, 'npm.log');
   const script = path.join(root, 'npm-ci.mjs');
-  writeFileSync(script, `import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, appendFileSync } from 'node:fs';
+  writeFileSync(script, `import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync, appendFileSync, symlinkSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 appendFileSync(${JSON.stringify(log)}, process.argv[2] + '\\n');
+if (process.argv[2] === 'link') {
+  const names = process.argv.slice(3).filter(argument => !argument.startsWith('--'));
+  const global = path.join(process.env.npm_config_prefix, 'lib/node_modules');
+  const links = names.length === 0
+    ? [{ target: process.cwd(), folder: path.join(global, JSON.parse(readFileSync('package.json', 'utf8')).name) }]
+    : names.map(name => ({ target: realpathSync(path.join(global, name)), folder: path.join('node_modules', name) }));
+  for (const { target, folder } of links) {
+    rmSync(folder, { recursive: true, force: true });
+    mkdirSync(path.dirname(folder), { recursive: true });
+    symlinkSync(path.relative(path.dirname(path.resolve(folder)), target), folder);
+  }
+}
 if (process.argv[2] === 'ci') {
   writeFileSync(${JSON.stringify(path.join(root, 'npm-ci.env'))}, 'allow-remote=' + (process.env.npm_config_allow_remote ?? 'unset') + '\\n');
   mkdirSync('node_modules', { recursive: true });
@@ -66,12 +79,28 @@ const provider = (folder: string, name: string) => {
   return folder;
 };
 
+test('native npm links expose source edits and retain release files on repeated linking (K657-1)', (t) => {
+  const { root, project, manifest, lock } = fixture(t, 'kit-npm-native-', { '@example/local': 'https://example.invalid/local-0.0.1.tgz' }, ['@example/local']);
+  const source = provider(path.join(root, 'source'), '@example/local');
+  const npm = toolsPath(path.resolve(import.meta.dirname, '../..'), 'bin', 'npm');
+  const folders = [{ ecosystem: 'npm' as const, name: '@example/local', folder: path.join(project, 'node_modules/@example/local'), target: source }];
+  const env = { ...process.env, npm_config_offline: 'true' };
+  const value = () => spawnSync(process.execPath, ['-p', 'require("@example/local")'], { cwd: project, encoding: 'utf8' });
+  npmLink(project, folders, npm, env, () => {});
+  assert.equal(value().stdout.trim(), '1');
+  writeFileSync(path.join(source, 'index.js'), 'module.exports = 2;\n');
+  npmLink(project, folders, npm, env, () => {});
+  assert.equal(value().stdout.trim(), '2');
+  assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), manifest);
+  assert.equal(readFileSync(path.join(project, 'package-lock.json'), 'utf8'), lock);
+});
+
 test('npm install runs npm ci of the tracked lock, then links each provided package to its checkout and changes no tracked file (K448)', (t) => {
   const { root, project, manifest, lock, npm, log } = fixture(t, 'kit-npm-', { '@polyspec/ordered-json': '0.0.9', 'left-pad': '1.3.0' }, ['@polyspec/ordered-json', 'left-pad']);
   const sibling = provider(path.join(root, 'ordered-json'), '@polyspec/ordered-json');
   const lines: string[] = [];
   assert.equal(npmInstall({ directory: project, checkouts: [sibling], npm, print: text => lines.push(text), env: process.env }), 'linked', lines.join('\n'));
-  assert.equal(readFileSync(log, 'utf8'), 'ci\n', 'npm ci of the tracked lock is the only npm run');
+  assert.equal(readFileSync(log, 'utf8'), 'ci\nlink\nlink\n', 'npm owns both the locked install and the local link (K657-1)');
   const link = path.join(project, 'node_modules/@polyspec/ordered-json');
   assert.equal(lstatSync(link).isSymbolicLink(), true, 'the provided package is one symlink, its installed copy removed (K591)');
   assert.equal(npmTarget(link), realpathSync(sibling));
@@ -120,7 +149,7 @@ test('make npm-install forwards CHECKOUTS to the tool, which installs the lock a
   const kit = fileURLToPath(new URL('../..', import.meta.url));
   const made = spawnSync('make', ['--no-print-directory', '-C', kit, 'npm-install', `DIR=${project}`, `CHECKOUTS=${folder}`, `NPM=${npm}`, `NODE=${process.execPath}`], { encoding: 'utf8' });
   assert.equal(made.status, 0, made.stderr);
-  assert.equal(readFileSync(log, 'utf8'), 'ci\n');
+  assert.equal(readFileSync(log, 'utf8'), 'ci\nlink\nlink\n');
   assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/template')), realpathSync(folder));
   assert.equal(existsSync(path.join(project, 'node_modules/@polyspec/template/index.js')), true);
 });

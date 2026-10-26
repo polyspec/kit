@@ -12,7 +12,7 @@ The owner decided this on 2026-10-15 and it is in effect; the user ruled its lin
 Development is completed against the latest source of each polyspec repository. Nothing is released until development of all of them is complete: no tag, no version bump and no release workflow run in any repository, kit included. A push is a backup and publishes nothing; a change to kit is seen in the other checkouts through the links after `make build`.
 
 - A polyspec package counts as installed at its release: each tracked manifest and lock keeps the release record that its package manager wrote, and a repository's lock is the record of its one install.
-- The installed folder of each polyspec package that a sibling checkout provides is a direct relative symbolic link to that checkout's package folder, never a copy. Installing from the release first and then replacing the folder with the link is the normal way.
+- Local source dependencies remain connected to their provider checkouts. npm owns its links through `npm link`; the remaining direct Composer and Python folder links are legacy behavior being replaced by their package managers (K657).
 - No link or install step judges a version, a constraint or a provider version; kit enforces no version or pin (S4). Each package manager and its lock decide the versions.
 - Releases follow in one batch after development is complete, in dependency order: kit → ordered-json → orm, template → crudui → hyper → fsm, template-benchmark.
 
@@ -20,13 +20,13 @@ Why: development stalled because each repository waited for another repository's
 
 ## Mechanism
 
-The link is the kit tool `scripts/kit/link.mts` with `scripts/kit/link-folders.mts` (K448). A matching installation runs no package manager, and no file of a provider is written.
+The link tool orchestrates the native package-manager commands. For npm, it runs `npm link` in each provider and then `npm link <name>...` in the consumer, with a project-local npm prefix under `var/link/npm`. `--no-save --package-lock=false` retains the release manifest and lock while npm manages the installed links and records. Source edits are visible immediately. npm retains its normal dependency and lifecycle behavior. Composer and Python still use the legacy mechanism below until their K657 migration is complete.
 
 When a linked Composer package declares requirements different from its installed release metadata, Composer reconciles those requirements. A run-specific manifest and lock under `var/link/composer/` retain the tracked release records and add path repositories for the linked packages. Composer updates only those packages, with network access, scripts and plugins disabled, and installs the resolved runtime metadata. External package records must remain unchanged. Composer keeps platform checks enabled, and a second link with matching metadata runs no Composer command. The run removes its temporary manifest and lock in `finally` and holds a lease while it changes the vendor metadata.
 
 | Ecosystem | Installed folder that becomes the link |
 |---|---|
-| npm | `node_modules/<name>` of each tracked npm project, one symlink to the provider's package folder (K591) |
+| npm | `npm link` connects `node_modules/<name>` through the project-local npm prefix to its provider; npm owns the links and installed records |
 | Composer | `<vendor-dir>/<vendor>/<package>` of each tracked Composer project, the `config.vendor-dir` of its `composer.json` (else `vendor`) |
 | Python | each package of the `site-packages` of a project's `.venv`, one symlink to the provider's package folder; the packages of one namespace (`polyspec/orm`, `polyspec/ordered_json`) link apart; the uv sync of uv-install skips each linked package with `--inexact --no-install-package <name>`, so uv never writes through a link; `--no-install-package` alone makes uv uninstall the package through the link (K592) |
 | Go | a git-ignored `go.work` at each Go module, with `use` lines for the module and the provider modules |
@@ -34,8 +34,8 @@ When a linked Composer package declares requirements different from its installe
 
 - Every tracked project of the checkout is linked, a nested one below the root such as hyper's `examples/board` included (K447); the tests, the fixtures and the release consumer keep the install that they test.
 - Providers: each tracked manifest of a package in a main checkout that the arguments name, else in the checkouts beside the repository (`--siblings`), and the forks in `forks/` of the workspace (K379). A checkout's own packages link to its own folders, never to the main checkout of the same repository.
-- The installs are the package managers' own, on the tracked lock as it is: `make npm-install` runs `npm ci`, `make composer-install` runs `composer install`, `make uv-install` runs `uv sync --frozen`, and each then links the folders. An install replaces the links with copies, so `make link` runs again after any install.
-- No builds: `link` only links. A provider is built by `link.mjs rebuild <repository>...` or its own target.
+- The installs are the package managers' own, on the tracked lock as it is: `make npm-install` runs `npm ci`, `make composer-install` runs `composer install`, `make uv-install` runs `uv sync --frozen`, and each then links the folders. An install restores released dependencies; local development reconnects its sources with the package manager afterwards.
+- kit runs no build target during linking. Native package-manager lifecycle hooks retain their usual behavior. A separate provider build uses its own target.
 
 ## Verification
 

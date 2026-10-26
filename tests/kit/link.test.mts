@@ -131,7 +131,20 @@ function workspace(t: TestContext) {
   });
   chmodSync(path.join(consumer, 'python/.venv/bin/python'), 0o755);
   put(provider, { 'go/go.mod.json': JSON.stringify({ Module: { Path: 'github.com/polyspec/prov/go' } }) });
-  stub(bin, log, 'npm', 'cat npm-query.json');
+  put(bin, { 'npm-link.mjs': `import { mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import path from 'node:path';
+const names = process.argv.slice(3).filter(argument => !argument.startsWith('--'));
+const global = path.join(process.env.npm_config_prefix, 'lib/node_modules');
+const links = names.length === 0
+  ? [{ target: process.cwd(), folder: path.join(global, JSON.parse(readFileSync('package.json', 'utf8')).name) }]
+  : names.map(name => ({ target: realpathSync(path.join(global, name)), folder: path.join('node_modules', name) }));
+for (const { target, folder } of links) {
+  rmSync(folder, { recursive: true, force: true });
+  mkdirSync(path.dirname(folder), { recursive: true });
+  symlinkSync(path.relative(path.dirname(path.resolve(folder)), target), folder);
+}
+` });
+  stub(bin, log, 'npm', `if [ "$1" = link ]; then exec ${JSON.stringify(process.execPath)} ${JSON.stringify(path.join(bin, 'npm-link.mjs'))} "$@"; fi\ncat npm-query.json`);
   // `composer update <names> --working-dir <project>` under COMPOSER=<file>: for each path repository of that file, the installed
   // folder of the package it provides becomes a link to the url (what Composer does with `symlink`); the stub records the file it read.
   put(bin, { 'composer-update.mjs': `import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -905,7 +918,7 @@ test('composer-install takes the checkouts after DIR and runs the install with t
 // K448: the link is the folder. Each installed polyspec package folder that a sibling checkout provides becomes a direct symlink to
 // the provider's package folder, a copy is removed, and no package manager runs: no composer.link.json, no npm, no Composer, so no
 // version, constraint or provider version is read.
-test('link replaces each installed polyspec package folder with a direct symlink to its provider and runs no package manager (K448)', (t) => {
+test('link connects npm through its package manager and retains the other local source links (K657-1)', (t) => {
   const { provider, consumer, env, log } = workspace(t);
   put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }) });
   git(consumer, 'add', '-A');
@@ -920,7 +933,7 @@ test('link replaces each installed polyspec package folder with a direct symlink
   assert.equal(lstatSync(npm).isSymbolicLink(), true, 'node_modules/@polyspec/x is one symlink (K591)');
   assert.equal(npmTarget(npm), realpathSync(path.join(provider, 'packages/ts')));
   assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no Composer link manifest is written');
-  assert.doesNotMatch(log(), /^(composer|npm) /m, 'no package manager runs');
+  assert.match(log(), /^npm link /m, 'npm owns its local package link (K657-1)');
 });
 
 // K447: link covers every tracked Composer project of the checkout, not only the root: a project below the root with its own lock (hyper

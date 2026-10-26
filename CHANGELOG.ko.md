@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 29ef4534223eb25584857ec2f237fca626777b1fdedacdc938b7b43ceaa4e743 -->
+<!-- source-sha256: 3ca9d7e8a1f9d1e6549a7a2e7a7646db58130358adb60533b5789ab9a08bf594 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- npm 로컬 source link는 project-local prefix의 npm link가 생성하고 link와 설치 metadata도 npm이 관리합니다. release manifest와 lock은 유지되며 반복 실행에서도 source 수정이 바로 보입니다. Red: 80e3c56e의 native link 호출 이전 npm-install.test.mts가 실패했습니다. Green: 실제 npm source 수정 검증을 포함한 npm과 공통 link 단위 test 71개가 모두 통과합니다(K657-1).
 - 명시적 `FINAL_RUN=1`은 대기 중 checklist 항목이 있는 깨끗한 커밋 트리를 허용하고, 진행 중 항목과 변경된 트리는 거부하며 기존 CI report 경로를 유지합니다(K658).
 - parity 요구 추적은 명시된 영어 checklist의 정확한 항목이 `[!]`이고 그 task가 해당 id를 명시할 때만 요구를 보류합니다. 진행 중인 누락은 R13 finding으로 남고, 잘못되거나 활성 상태인 참조 및 중복 참조는 거부합니다(K656).
 - Composer source link는 실행별 path-repository manifest와 lock으로 오래된 runtime requirement를 일치시킵니다. Composer는 link된 package만 update하고 외부 package record와 추적 release record를 유지하며 platform 검사를 보존하고 일치하는 metadata는 변경하지 않습니다(K653).

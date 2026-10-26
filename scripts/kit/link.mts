@@ -1,6 +1,7 @@
 // The local links of 0.0.x development (docs/operations/local-links.md, K201, K205, K448). The checkouts that the arguments name are the
 // providers (link-providers.mts): each installed package folder of a consumer that a provider gives is replaced by a direct relative
-// symlink to the provider's package folder, a copy removed (link-folders.mts, K591). Matching metadata runs no package manager and no version is judged; link only
+// symlink to the provider's package folder. npm links are created by npm link; Composer and Python still use the legacy folder
+// writer until their native-install migration completes (K657). kit itself only
 // links, it never builds (link-build.mts rebuilds):
 //   npm       node_modules/<name> of each tracked project;
 //   Composer  <vendor-dir>/<vendor>/<package> of each tracked project, the vendor-dir of its composer.json;
@@ -25,6 +26,7 @@ import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { reconcileComposerLinks } from './composer-install.mts';
+import { npmLink } from './npm-install.mts';
 import { rebuild } from './link-build.mts';
 import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
@@ -440,7 +442,9 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
       if (findings.length > 0) work.failed = true;
       continue;
     }
-    linkFolders(folders);
+    const npm = folders.some(folder => folder.ecosystem === 'npm') ? consumerTool(consumer.top, 'npm', work.env) : undefined;
+    if (npm !== undefined) npmLink(project, folders, npm.command, npm.env, work.print);
+    linkFolders(folders.filter(folder => folder.ecosystem !== 'npm'));
     if (existsSync(path.join(project, 'composer.json'))) reconcileComposerLinks(project, folders, () => consumerTool(consumer.top, 'composer', work.env), work.print);
     for (const item of folders) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
   }
