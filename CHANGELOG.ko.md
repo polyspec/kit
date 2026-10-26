@@ -1,17 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 715ab3ff153f92e87603b8b7942daee83d24191d2f786b2e5f8df3a2efd8ae9f -->
+<!-- source-sha256: 3f1981f3fa8311ff574f452a2773e3227161f1b13f3cd81ad394dfe2c0a4f469 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Local-link 절차는 native source 개발과 CI의 정확한 배포 dependency 설치를 구분하고 dependency release를 독립적으로 진행하도록 정리합니다. native npm link, 앱이 선언한 Composer path repository와 개발 lock, uv editable 및 offline worktree environment를 설명합니다. 개발 규칙은 비표준 package 관리 요청의 이탈 지점을 보고하고 정석 대안을 제시하도록 명시합니다. 영어/한국어 문서는 docs-check를 통과합니다(K657).
 - fresh-checkout 검증은 setup에서 설치와 build를 수행한 뒤 공개 tracked-files API를 소비하며 kit-test나 source-test를 재귀 실행하지 않는다. smoke helper는 process group 정리, 실패한 command와 양쪽 output stream을 유지한다. Red: K659 회귀 검사는 kit-test trap을 실행하여 exit 43으로 실패했다. Green: 선택한 smoke·진단 case 8개와 typecheck가 통과한다. setup 경계 통합과 디스크 공간 확보 후 실제 fresh-checkout 검증은 설치·build 54.4초, API case 0.1초, teardown 3.0초로 통과했다. 전체 실행 결과는 2 passed, 0 failed, 0 timed out이며 재귀 suite는 실행하지 않았다(K659).
 - fresh-checkout 검증은 setup에서 설치와 build를 수행한 뒤 공개 tracked-files API를 소비하며 kit-test나 source-test를 재귀 실행하지 않는다. smoke helper는 process group 정리, 실패한 command와 양쪽 output stream을 유지한다. Red: K659 회귀 검사는 kit-test trap을 실행하여 exit 43으로 실패했다. Green: 선택한 smoke·진단 case 8개와 typecheck가 통과한다. runner setup 경계 통합 후 실제 fresh 설치 smoke는 npm bootstrap과 package 설치를 통과하지만 로컬 디스크 공간 부족으로 tool 설치에 실패하므로 package API 통합 검증은 남아 있다(K659).
 - fresh-checkout 검증은 setup에서 설치와 build를 수행한 뒤 공개 tracked-files API를 소비하며 kit-test나 source-test를 재귀 실행하지 않는다. smoke helper는 process group 정리, 실패한 command와 양쪽 output stream을 유지한다. Red: K659 회귀 검사는 kit-test trap을 실행하여 exit 43으로 실패했다. Green: 선택한 smoke·진단 case 8개와 typecheck가 통과한다. 실제 fresh 설치 smoke는 runner의 30초 setup-gap 거부에 걸리므로 runner 통합 검증은 남아 있다(K659).
 - Python worktree 환경은 명시적인 offline freeze requirements로 uv가 만들고 설치한다. main checkout 내부의 editable project 경로만 worktree로 대응시킨다. uv가 configuration, script, 설치 metadata를 관리하며 main 환경과 공유 tool cache는 유지한다. 기존 legacy 환경은 변경 전에 거부하고 설치 실패는 uv 진단을 유지한다. Red: 부모 commit에서 K533 owner test는 native requirements 기록이 없어 실패했다. Green: 선택한 Python owner test 4개와 실제 uv source test 1개가 통과한다(K657-4).
 - uv는 잠긴 sync 후 로컬 Python distribution을 native editable로 설치한다. source 변경은 바로 반영되고 uv가 distribution metadata를 관리한다. 기존 package-folder link는 uv command가 source를 수정하기 전에 거부한다. Red: d190e3f5에서 uv-install owner test는 editable command를 기대했지만 sync만 관찰했다. Green: owner test 6개와 실제 uv editable source test가 통과한다(K657-3). 공통 link도 Python 설치를 uv에 위임하며 읽기 전용 legacy-link finding을 포함한 Python 통합 검사 3개가 통과한다.
-- uv는 잠긴 sync 후 로컬 Python distribution을 native editable로 설치한다. source 변경은 바로 반영되고 uv가 distribution metadata를 관리한다. 기존 package-folder link는 uv command가 source를 수정하기 전에 거부한다. Red: d190e3f5에서 uv-install owner test는 editable command를 기대했지만 sync만 관찰했다. Green: owner test 6개와 실제 uv editable source test가 통과한다(K657-3).
 - 실제 tool source fixture에 ecosystem manifest, case requirement id, generated-file 선언과 native PHP wrapper를 포함한다. Worktree tool은 공유 path API로 찾고, PHP extractor의 설치된 Composer autoloader를 사용하며, 과거 선언된 copy의 lint 검증을 명시적으로 유지하고 폐기된 Composer shadow manifest를 거부한다. Red: 65582113에서 소유 fixture가 실패한다. Green: 실제 tool 소유 case 15개가 통과한다(K661-3).
 - Go module decoding은 array뿐 아니라 null Require와 Replace directive 집합도 허용합니다. PHP arginfo는 extension 개발에서만 준비하고 kit의 extension fixture는 명시적 설치 target으로 준비합니다. fixture discovery는 설치된 generator와 parser를 사용하며 parser 선택 test 입력은 platform에 의존하지 않습니다. Red: 2d18f681의 null Go 출력과 PHP library-only 설치 unit이 실패했습니다. Green: 소유 단위 test 58개와 typecheck가 통과합니다(K661-1).
 - 문서 검사는 외부 checkout 없이 명시적 외부 Markdown 항목 참조를 구분하고, bare 및 kit 항목 참조 검증을 유지한다. Release coverage는 PHP lint project를 분류하고, release workflow는 archive 사전 검사와 bootstrap 순서를 유지하며, source와 packed export를 별도로 검사하고 package build assertion은 두 PHP arginfo parser project를 가리킨다. 선택한 문서 및 workflow test와 release coverage가 통과하며 package build는 최종 suite에서 실행한다(K661-2).
@@ -23,7 +23,6 @@
 - npm 로컬 source link는 project-local prefix의 npm link가 생성하고 link와 설치 metadata도 npm이 관리합니다. release manifest와 lock은 유지되며 반복 실행에서도 source 수정이 바로 보입니다. Red: 80e3c56e의 native link 호출 이전 npm-install.test.mts가 실패했습니다. Green: 실제 npm source 수정 검증을 포함한 npm과 공통 link 단위 test 71개가 모두 통과합니다(K657-1).
 - 명시적 `FINAL_RUN=1`은 대기 중 checklist 항목이 있는 깨끗한 커밋 트리를 허용하고, 진행 중 항목과 변경된 트리는 거부하며 기존 CI report 경로를 유지합니다(K658).
 - parity 요구 추적은 명시된 영어 checklist의 정확한 항목이 `[!]`이고 그 task가 해당 id를 명시할 때만 요구를 보류합니다. 진행 중인 누락은 R13 finding으로 남고, 잘못되거나 활성 상태인 참조 및 중복 참조는 거부합니다(K656).
-- Composer source link는 실행별 path-repository manifest와 lock으로 오래된 runtime requirement를 일치시킵니다. Composer는 link된 package만 update하고 외부 package record와 추적 release record를 유지하며 platform 검사를 보존하고 일치하는 metadata는 변경하지 않습니다(K653).
 
 ### 2026-10-26 — 종결된 checklist가 명시적인 local final run을 허용한다 (K654)
 
