@@ -927,6 +927,32 @@ test('inputsDigest hashes the tracked and new non-ignored files under the paths 
   assert.throws(() => inputsDigest(root, ['missing']), /--inputs missing names no tracked or new file/);
 });
 
+test('inputsDigest treats the root selector as all tracked and new non-ignored files (K687)', (t) => {
+  const root = checkout(t, { '.gitignore': 'var/\n', 'tracked.txt': 'tracked\n', 'new.txt': 'new\n' });
+  const staged = spawnSync('git', ['add', 'tracked.txt'], { cwd: root, encoding: 'utf8' });
+  assert.equal(staged.status, 0, staged.stderr);
+  const first = inputsDigest(root, ['.']);
+  assert.equal(first, inputsDigest(root, ['.gitignore', 'tracked.txt', 'new.txt']));
+  assert.equal(inputsDigest(root, ['./']), first);
+  mkdirSync(path.join(root, 'var'));
+  writeFileSync(path.join(root, 'var/ignored.txt'), 'ignored output');
+  assert.equal(inputsDigest(root, ['.']), first, 'ignored outputs are excluded');
+  writeFileSync(path.join(root, 'new.txt'), 'changed new input');
+  assert.notEqual(inputsDigest(root, ['.']), first, 'new non-ignored inputs are included');
+  assert.throws(() => inputsDigest(root, ['missing']), /--inputs missing names no tracked or new file/);
+});
+
+test('selected CLI --results defaults to root inputs and writes a passing report (K687)', (t) => {
+  const root = checkout(t, { '.gitignore': 'var/\n', 'tests/selected.test.mjs': `${SPEC}test('selected', () => {});\n` });
+  const result = runner(root, ['node', '--results', 'var/report/selected.json', '--', 'tests/selected.test.mjs']);
+  assert.equal(result.status, 0, output(result));
+  const report = readStub(path.join(root, 'var/report/selected.json'), RESULTS);
+  assert.equal(report.ok, true);
+  assert.equal(report.tool, 'node');
+  assert.deepEqual(report.inputs, { paths: ['.'], digest: inputsDigest(root, ['.']) });
+  assert.deepEqual(report.cases.map(({ id, status }) => [id, status]), [['tests/selected.test.mjs › selected', 'pass']]);
+});
+
 test('--results writes the cases, the tool, the inputs and the elapsed time of a passing and of a failing run', async (t) => {
   const root = tree(t, { 'pkg/a_test.go': 'package a' });
   const events = [{ Action: 'start', Package: 'p' }, { Action: 'run', Package: 'p', Test: 'TestA' }, { Action: 'pass', Package: 'p', Test: 'TestA', Elapsed: 0.25 },

@@ -39,7 +39,7 @@ export function ignoredPaths(root: string = repositoryRoot()): string[] {
 
 /**
  * The digest of the inputs of a run: the sha256 of the path and the sha256 of each file of `trackedFiles` that is one of
- * `paths` or lies below one of them (paths relative to `root`). A record that names this digest is stale once a file under
+ * `paths` or lies below one of them (paths relative to `root`); `.` selects the entire checkout. A record is stale once a file under
  * the paths changes, appears or disappears; ignored outputs do not count. A path that names no file fails, so a mistyped
  * path never yields the digest of nothing.
  */
@@ -48,7 +48,7 @@ export function inputsDigest(root: string, paths: readonly string[]): string {
   const selected = new Set<string>();
   for (const input of paths) {
     const prefix = input.replace(/\/+$/, '');
-    const matched = files.filter(file => file === prefix || file.startsWith(`${prefix}/`));
+    const matched = prefix === '.' ? files : files.filter(file => file === prefix || file.startsWith(`${prefix}/`));
     if (matched.length === 0) throw new Error(`--inputs ${input} names no tracked or new file`);
     for (const file of matched) selected.add(file);
   }
