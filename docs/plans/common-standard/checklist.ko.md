@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: abc71af1d0e533a2fc80f4158509fc06718db3e7ab5e5f92d599e4ef9fcc6cf6 -->
+<!-- source-sha256: db2163ea19694bf3295bcd01aabc9c9707688db3c796461711910a6d65211726 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -645,4 +645,4 @@
 | K692 | 바인딩이 테스트 파일을 공유할 때 선택한 PHPUnit feature method만 실행한다 | scripts/kit/parity-runners.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K692 tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K693 | 기존 회귀 테스트의 유효한 Red 증거가 있는 source-only fix를 허용하고 Red 또는 No-Red 누락은 계속 거부한다 | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K693 tests/kit/commits.test.mts`; `make docs-check` | [o] |
 | K694 | Cargo manifest의 명시 경로에서 Rust parity target을 선택 | scripts/kit/parity-runners.mts; tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K148\|K694" tests/kit/parity.test.mts` (2 passed); `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-runners.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
-| K695 | 네임스페이스가 있는 클래스와 짧은 PHPUnit 클래스 id를 매칭하고 bare method, FQCN, data provider의 정확한 필터를 유지한다. | scripts/kit/parity-runners.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K695 tests/kit/parity.test.mts`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-runners.mts tests/kit/parity.test.mts`; `make docs-check` | [~] |
+| K695 | 네임스페이스가 있는 클래스와 짧은 PHPUnit 클래스 id를 매칭하고 bare method, FQCN, data provider의 정확한 필터를 유지한다. | scripts/kit/parity-runners.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K695 tests/kit/parity.test.mts`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-runners.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
