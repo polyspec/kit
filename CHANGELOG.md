@@ -5,7 +5,6 @@
 
 ## Unreleased
 
-- Parity execution can select implementations while static declaration checks still cover every implementation; empty, unknown and no-binding selections fail, and the default still runs all bindings. Red: the K700 test ran all five implementations after selecting Go. Green: the K700 test passes (1 test). (K700)
 
 - Parity declaration path checks preserve non-file URI values and inspect file URL runner paths for checkout escapes. (K699)
 
