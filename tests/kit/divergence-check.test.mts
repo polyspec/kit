@@ -167,3 +167,18 @@ test('JavaScript platform values used only in a warning are diagnostic metadata 
     'packages/ts/tests/physical.mjs:1: a test branches on the implementation, the runtime or the platform (process.arch), so it asserts something else in another implementation',
   ], 'architecture branches are findings too');
 });
+
+for (const [use, source] of [
+  ['condition', 'if (warning(`${process.platform}/${process.arch}`)) throw Error("platform outcome");'],
+  ['assigned result', 'const predicate = warning(`${process.platform}/${process.arch}`); if (predicate) throw Error("platform outcome");'],
+  ['returned predicate', 'function predicate() { return warning(`${process.platform}/${process.arch}`); } if (predicate()) throw Error("platform outcome");'],
+] as const) {
+  test(`K688-1: warning metadata consumed as ${use} remains a platform finding`, () => {
+    const findings = run({
+      'config/parity.json': JSON.stringify({ implementations: [{ name: 'ts', roots: ['packages/ts'] }] }),
+      'packages/ts/tests/physical.mjs': source,
+    });
+    assert.equal(findings.length, 1, `${use}: consumed warning results are not diagnostic-only`);
+    assert.match(findings[0] ?? '', /a test branches.*process.platform/);
+  });
+}

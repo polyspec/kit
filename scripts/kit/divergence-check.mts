@@ -102,7 +102,7 @@ function goMachineMetadataLines(sourceLines: readonly { number: number; code: st
   return new Set(assignments.map(({ number }) => number));
 }
 
-/** Lines that use process.platform and process.arch only in a warning template report diagnostics, not test behavior. */
+/** Ignored warning call results report diagnostics; consumed results can still control test behavior. */
 function javascriptMachineMetadataLines(sourceLines: readonly { number: number; code: string }[]): Set<number> {
   const source = sourceLines.map(({ code }) => code).join('\n');
   const program = parseJavaScript(source, { ecmaVersion: 'latest', sourceType: 'module' });
@@ -113,8 +113,9 @@ function javascriptMachineMetadataLines(sourceLines: readonly { number: number; 
       : undefined;
   const accepted = new Set<MemberExpression>();
   simple(program, {
-    CallExpression(node) {
-      if (node.callee.type !== 'Identifier' || node.callee.name !== 'warning') return;
+    ExpressionStatement(statement) {
+      const node = statement.expression;
+      if (node.type !== 'CallExpression' || node.callee.type !== 'Identifier' || node.callee.name !== 'warning') return;
       for (const argument of node.arguments) {
         if (argument.type !== 'TemplateLiteral') continue;
         const fields = argument.expressions.filter((expression): expression is MemberExpression => expression.type === 'MemberExpression' && fieldOf(expression) !== undefined);
