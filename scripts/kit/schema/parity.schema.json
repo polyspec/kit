@@ -143,6 +143,20 @@
       "additionalProperties": false,
       "properties": { "pattern": { "description": "A regular expression of one id, without anchors, such as HY-[0-9]+.", "type": "string" } }
     },
+    "deferredRequirements": {
+      "description": "Requirements temporarily held out of R13 only while their named item is [!] in its English checklist. The specification and its requirement remain unchanged.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "checklist", "item"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "description": "The exact id of a requirement defined by docs/spec.", "type": "string", "minLength": 1 },
+          "checklist": { "description": "The exact English checklist path under docs/plans.", "type": "string", "pattern": "^docs/plans/(?!.*\\.\\.)[^/]+/checklist\\.md$" },
+          "item": { "description": "The exact checklist item id whose state is [!].", "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "units": {
       "type": "array",
       "items": {

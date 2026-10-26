@@ -63,6 +63,7 @@ import { requirementFindings } from './parity-requirements.mts';
 import { misplacedTests, missingBindings, missingImplementations, undeclaredPublic, undeclaredSuites, undeclaredTests } from './parity-units.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
+import { loadConfig } from './checklist.mts';
 
 /** A finding as parity-declaration.mts finding() makes it: the rule, the unit, implementation and place it names, and the message. */
 export type ParityFinding = Finding;
@@ -113,6 +114,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     const cited = new Set([
       ...model.config.units.flatMap(unit => unit.requirements),
       ...(model.config.tools ?? []).flatMap(tool => (tool.units ?? []).flatMap(unit => unit.requirements)),
+      ...(model.config.deferredRequirements ?? []).map(item => item.id),
     ]);
     const unknownIds = ids.filter(id => !cited.has(id));
     if (unknownIds.length) return { findings: unknownIds.map(id => finding('declaration', `--id ${id} names no requirement that a unit of ${DECLARATION} cites`, { place: DECLARATION })), ledger };
@@ -127,6 +129,16 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   if (selected !== undefined && execute) return { findings: executed.findings, ledger: executed.ledger };
   const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), findings: [] };
   say('check the units against the tree');
+  const requirementTraceFindings = requirementFindings(
+    model.config,
+    files,
+    file => readFileSync(path.join(root, file), 'utf8'),
+    model.cases,
+    model.config.deferredRequirements?.length ? loadConfig(root).idPattern : undefined,
+    entry => {
+      if (ids === undefined || ids.includes(entry.id)) say(`DEFERRED ${entry.id}: held by ${entry.item} in ${entry.checklist}`);
+    },
+  );
   const findings = [
     ...extracted.findings,
     ...missingImplementations(model, extracted.snapshots),
@@ -139,7 +151,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     ...languageLists(model, root),
     ...documentCounts(model, root, files),
     ...undeclaredPublic(model, extracted.snapshots),
-    ...requirementFindings(model.config, files, file => readFileSync(path.join(root, file), 'utf8'), model.cases),
+    ...requirementTraceFindings,
   ];
   // The declarations of named units hold alone: a row that fixes its units passes while other units still have findings (K400).
   // The same holds for named rules and requirement ids (K414-1); the findings of config/parity.json itself stay with any filter.

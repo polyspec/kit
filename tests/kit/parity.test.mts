@@ -2486,6 +2486,42 @@ test('parity-declarations-check UNITS runs the rules on the named units while an
   assert.match(make.stderr, /\[parity\] R14 unknown-requirement codec: cites CX-9/);
 });
 
+test('R13 reports active gaps separately from a valid held requirement (K656)', TIMEOUT, (t) => {
+  const checklist = (state: string) => `# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held work | source | \`node test.mts\` | ${state} |\n`;
+  const files = {
+    'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
+    'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A requirement remains defined while its checklist item is held.\n- **CX-3** An active requirement remains untraced until a unit tests it.\n',
+    'docs/plans/held/checklist.md': checklist('[!] cause: user held it; retry: user reopens the work'),
+  };
+  const root = repository(t, {
+    files,
+    edit: config => {
+      (config as Entry).deferredRequirements = [{ id: 'CX-2', checklist: 'docs/plans/held/checklist.md', item: 'K656' }];
+      return config;
+    },
+  });
+  const lines: string[] = [];
+  const result = checkParity(root, { execute: false, env: ENV, say: line => lines.push(line) });
+  assert.deepEqual(result.findings.filter(item => item.rule === 'R13').map(item => item.requirements), [['CX-3']]);
+  assert.ok(lines.includes('DEFERRED CX-2: held by K656 in docs/plans/held/checklist.md'), lines.join('\n'));
+});
+
+test('deferred requirement entries reject unrecognized fields (K656)', TIMEOUT, (t) => {
+  const files = {
+    'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
+    'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A requirement remains defined while its checklist item is held.\n',
+    'docs/plans/held/checklist.md': '# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held work | source | `node test.mts` | [!] cause: user held it; retry: user reopens the work |\n',
+  };
+  const messages = check(t, {
+    files,
+    edit: config => {
+      (config as Entry).deferredRequirements = [{ id: 'CX-2', checklist: 'docs/plans/held/checklist.md', item: 'K656', extra: true }];
+      return config;
+    },
+  }, { execute: false }).findings.map(item => item.message);
+  assert.ok(messages.some(message => message.includes('additional properties') && message.includes('extra')), messages.join('\n'));
+});
+
 // K520: a run scoped to a unit fails while docs/spec defines a requirement twice: the duplicate is a finding of the spec itself.
 test('parity-declarations-check UNITS fails while docs/spec defines a requirement twice (K520)', TIMEOUT, (t) => {
   const root = repository(t, { files: { 'docs/spec/codec.md': '# Codec\n\n- **CX-1** The codec encodes every vector.\n- **CX-1** Defined again.\n' } });

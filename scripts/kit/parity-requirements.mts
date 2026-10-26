@@ -14,12 +14,19 @@
 // Only a suite or feature unit traces a requirement for R13: an api unit runs no test.
 // Each finding that names one requirement carries its id in `requirements`, and R18 carries the shared ids, so IDS selects them (K414-1).
 import { matchesAny } from './glob.mts';
+import { BYPASSED, readChecklist, trackersOf } from './checklist.mts';
 import { DECLARATION, finding, type Finding } from './parity-declaration.mts';
 
 const SPEC = /^docs\/spec\/(?:.+\/)?[^/]+(?<!\.ko)\.md$/;
 
 /** The findings of the trace of `config` against the spec among the checked `files`, read with `read`. */
-export function requirementFindings(config: { requirements: { pattern: string }; implementations?: { name: string; internal?: { glob: string }[] }[]; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[]; tools?: { root?: string; files?: string[]; reason: string; units?: { id: string; requirements: string[]; bindings: { test: string; id: string }[] }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>): Finding[] {
+interface DeferredRequirement {
+  id: string;
+  checklist: string;
+  item: string;
+}
+
+export function requirementFindings(config: { requirements: { pattern: string }; deferredRequirements?: DeferredRequirement[]; implementations?: { name: string; internal?: { glob: string }[] }[]; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[]; tools?: { root?: string; files?: string[]; reason: string; units?: { id: string; requirements: string[]; bindings: { test: string; id: string }[] }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>, checklistIdPattern?: string, onDeferred?: (entry: DeferredRequirement) => void): Finding[] {
   const { pattern } = config.requirements;
   const definition = new RegExp(`^\\s*(?:(?:[-*+]|\\d+[.)])\\s+\\*\\*(${pattern})\\*\\*|#{1,6}\\s+(${pattern})\\b)`);
   const listed = new Set(files);
@@ -93,6 +100,50 @@ export function requirementFindings(config: { requirements: { pattern: string };
       if (!defined.has(id)) findings.push(finding('R14', `cites ${id}, which no file of docs/spec defines as a requirement (a list item **${id}** or a heading ${id})`, { unit: unit.id, requirements: [id] }));
     }
   }
+  const declarations = config.deferredRequirements ?? [];
+  const deferredIds = new Set<string>();
+  const deferredCounts = new Map<string, number>();
+  for (const entry of declarations) deferredCounts.set(entry.id, (deferredCounts.get(entry.id) ?? 0) + 1);
+  const trackers = checklistIdPattern === undefined ? [] : trackersOf({ idPattern: checklistIdPattern }, listed);
+  for (const entry of declarations) {
+    if ((deferredCounts.get(entry.id) ?? 0) > 1) {
+      findings.push(finding('declaration', `deferred requirement ${entry.id} is declared more than once; each held requirement has one deferredRequirements entry`, { place: DECLARATION, requirements: [entry.id] }));
+      continue;
+    }
+    if (!defined.has(entry.id)) {
+      findings.push(finding('R14', `deferredRequirements cites ${entry.id}, which no file of docs/spec defines as a requirement`, { place: DECLARATION, requirements: [entry.id] }));
+      continue;
+    }
+    if (cited.has(entry.id)) {
+      findings.push(finding('declaration', `${entry.id} is both cited by an active unit and deferred; remove the deferred entry or the active citation`, { place: DECLARATION, requirements: [entry.id] }));
+      continue;
+    }
+    if (checklistIdPattern === undefined) {
+      findings.push(finding('declaration', `cannot verify deferred requirement ${entry.id}; config/checklist.json is unreadable`, { place: DECLARATION, requirements: [entry.id] }));
+      continue;
+    }
+    const tracker = trackers.find(candidate => candidate.path === entry.checklist);
+    if (tracker === undefined) {
+      findings.push(finding('declaration', `${entry.checklist} is not a tracked English checklist of a plan`, { place: DECLARATION, requirements: [entry.id] }));
+      continue;
+    }
+    const checklist = readChecklist(read(tracker.path), tracker, { strict: true });
+    if (checklist.findings.length > 0) {
+      findings.push(finding('declaration', `cannot verify deferred requirement ${entry.id}; ${entry.checklist} is not a readable checklist: ${checklist.findings.map(item => item.message).join('; ')}`, { place: DECLARATION, requirements: [entry.id] }));
+      continue;
+    }
+    const item = checklist.items.find(candidate => candidate.id === entry.item);
+    if (item === undefined) {
+      findings.push(finding('declaration', `${entry.item} is not an item of ${entry.checklist}`, { place: DECLARATION, requirements: [entry.id] }));
+      continue;
+    }
+    if (item.state !== BYPASSED) {
+      findings.push(finding('declaration', `${entry.id} is deferred by ${entry.item}, whose state in ${entry.checklist} is ${item.state}, not ${BYPASSED}`, { place: DECLARATION, requirements: [entry.id] }));
+      continue;
+    }
+    deferredIds.add(entry.id);
+    onDeferred?.(entry);
+  }
   // R16: an internal test names no requirement of the spec (K313): the tests of a requirement are the units that cite it, so a contract
   // test cannot hide among the internal tests of an implementation.
   const identifier = new RegExp(`\\b(?:${pattern})\\b`, 'g');
@@ -114,6 +165,6 @@ export function requirementFindings(config: { requirements: { pattern: string };
     const shared = [...new Set(first.unit.requirements)].filter(id => second.unit.requirements.includes(id));
     if (shared.length > 0 && first.files !== second.files) findings.push(finding('R18', `${first.unit.id} and ${second.unit.id} both cite ${shared.join(', ')} from different case sets; a shared suite is one unit, so merge the two suites into one unit`, { requirements: shared }));
   }
-  for (const [id, { file }] of defined) if (!cited.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add a unit that tests it`, { requirements: [id] }));
+  for (const [id, { file }] of defined) if (!cited.has(id) && !deferredIds.has(id)) findings.push(finding('R13', `${file} defines ${id}, which no unit of config/parity.json cites; add a unit that tests it`, { requirements: [id] }));
   return findings;
 }

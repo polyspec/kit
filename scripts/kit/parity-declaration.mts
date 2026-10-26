@@ -120,6 +120,8 @@ export interface ParityConfig {
   testPatterns?: { runner: Runner; globs: string[] }[];
   /** The pattern of the requirement ids that docs/spec defines (K273). */
   requirements: { pattern: string };
+  /** Requirements held by checklist items explicitly in the bypassed state. */
+  deferredRequirements?: { id: string; checklist: string; item: string }[];
   units: ParityUnit[];
   errors?: { catalog: { file: string; pattern: string } };
   languageLists?: { file: string; pattern: string }[];

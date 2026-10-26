@@ -113,6 +113,68 @@ test('only a unit with tests traces a requirement: one that only an api unit cit
   ]);
 });
 
+const heldChecklist = (state: string, item = 'K656') => `# Deferred work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| ${item} | Held work | source | \`node test.mts\` | ${state} |\n`;
+const deferredConfig = (deferredRequirements: { id: string; checklist: string; item: string }[], units: Input[] = [
+  { id: 'codec-remaining', requirements: ['AB-1', 'AB-3'] },
+]) => ({ requirements: { pattern: 'AB-[0-9]+' }, units: units.map(bound), deferredRequirements });
+const deferredFiles = (checklist: string) => ({
+  ...SPEC,
+  'docs/plans/work/checklist.md': checklist,
+  'go/a_test.go': '// AB-1 AB-3',
+  'ts/a.test.ts': "test('AB-1 AB-3')",
+});
+
+test('R13 reports a requirement as deferred only while its exact checklist item is [!] (K656)', () => {
+  const all = deferredFiles(heldChecklist('[!] cause: user held it; retry: user reopens work'));
+  const deferred: string[] = [];
+  const found = requirementFindings(
+    deferredConfig([{ id: 'AB-2', checklist: 'docs/plans/work/checklist.md', item: 'K656' }]),
+    Object.keys(all), read(all), new Map(), 'K[0-9]+', entry => deferred.push(`${entry.id}:${entry.item}`),
+  );
+  assert.deepEqual(found, []);
+  assert.deepEqual(deferred, ['AB-2:K656']);
+});
+
+test('a completed or active item cannot defer R13 (K656)', () => {
+  for (const state of ['[o]', '[~]']) {
+    const all = deferredFiles(heldChecklist(state));
+    const found = requirementFindings(deferredConfig([{ id: 'AB-2', checklist: 'docs/plans/work/checklist.md', item: 'K656' }]), Object.keys(all), read(all), new Map(), 'K[0-9]+');
+    assert.ok(found.some(item => item.rule === 'declaration' && item.message.includes(`state in docs/plans/work/checklist.md is ${state}`)));
+    assert.ok(found.some(item => item.rule === 'R13' && item.requirements?.includes('AB-2')));
+  }
+});
+
+test('a missing checklist or item cannot defer R13 (K656)', () => {
+  const all = deferredFiles(heldChecklist('[!] cause: user held it; retry: user reopens work', 'K999'));
+  const missingChecklist = requirementFindings(deferredConfig([{ id: 'AB-2', checklist: 'docs/plans/missing/checklist.md', item: 'K656' }]), Object.keys(all), read(all), new Map(), 'K[0-9]+');
+  assert.ok(missingChecklist.some(item => item.rule === 'declaration' && item.message.includes('not a tracked English checklist')));
+  const missingItem = requirementFindings(deferredConfig([{ id: 'AB-2', checklist: 'docs/plans/work/checklist.md', item: 'K656' }]), Object.keys(all), read(all), new Map(), 'K[0-9]+');
+  assert.ok(missingItem.some(item => item.rule === 'declaration' && item.message.includes('K656 is not an item')));
+  assert.ok(missingItem.some(item => item.rule === 'R13' && item.requirements?.includes('AB-2')));
+});
+
+test('unknown and duplicate deferred requirements fail without hiding R13 (K656)', () => {
+  const all = deferredFiles(heldChecklist('[!] cause: user held it; retry: user reopens work'));
+  const unknown = requirementFindings(deferredConfig([{ id: 'AB-99', checklist: 'docs/plans/work/checklist.md', item: 'K656' }]), Object.keys(all), read(all), new Map(), 'K[0-9]+');
+  assert.ok(unknown.some(item => item.rule === 'R14' && item.requirements?.includes('AB-99')));
+  const duplicate = requirementFindings(deferredConfig([
+    { id: 'AB-2', checklist: 'docs/plans/work/checklist.md', item: 'K656' },
+    { id: 'AB-2', checklist: 'docs/plans/work/checklist.md', item: 'K656' },
+  ]), Object.keys(all), read(all), new Map(), 'K[0-9]+');
+  assert.ok(duplicate.some(item => item.rule === 'declaration' && item.message.includes('declared more than once')));
+  assert.ok(duplicate.some(item => item.rule === 'R13' && item.requirements?.includes('AB-2')));
+});
+
+test('a deferred requirement cannot also have an active unit citation (K656)', () => {
+  const all = deferredFiles(heldChecklist('[!] cause: user held it; retry: user reopens work'));
+  const found = requirementFindings(deferredConfig([
+    { id: 'AB-2', checklist: 'docs/plans/work/checklist.md', item: 'K656' },
+  ], [
+    { id: 'codec-active', requirements: ['AB-1', 'AB-2', 'AB-3'] },
+  ]), Object.keys(all), read(all), new Map(), 'K[0-9]+');
+  assert.ok(found.some(item => item.rule === 'declaration' && item.message.includes('both cited by an active unit and deferred')));
+});
+
 test('a tool-owned unit traces its requirement without adding an implementation binding (K604)', () => {
   const all = {
     ...SPEC,
