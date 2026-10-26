@@ -3,6 +3,7 @@
 // implementation, or a stale entry is a finding of the rule `declaration`, and the other rules do not run on it.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { matchesAny } from './glob.mts';
 import { ConfigError, parseJson, readConfigFindings, SchemaError } from './schema-validate.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
@@ -301,12 +302,19 @@ const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
  * The first path of `value` that leaves the checkout `root`: a word (the parts between =, : and whitespace) that starts with ~,
- * an absolute path outside `root`, or a path with a .. segment; or undefined. URI values are data, not runner paths, so their
- * scheme and authority are kept together instead of being split at their colons. The schema rejects paths written in the
- * declaration, and this rejects one that a reference brings in.
+ * an absolute path outside `root`, or a path with a .. segment; or undefined. Non-file URI values are data, not runner paths;
+ * file URLs are converted to paths and checked. The schema rejects paths written in the declaration, and this rejects one that
+ * a reference brings in.
  */
 function leavingPath(value: string, root: string): string | undefined {
-  const runnerValues = value.replace(/\b[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s]*/g, '');
+  const runnerValues = value.replace(/\b[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s]*/g, uri => {
+    try {
+      const parsed = new URL(uri);
+      return parsed.protocol === 'file:' ? fileURLToPath(parsed) : '';
+    } catch {
+      return uri;
+    }
+  });
   return runnerValues.split(/[=:\s]/).find(word => word.startsWith('~') || (path.isAbsolute(word) && word !== root && !within(root, word)) || /(?:^|[^\w.-])\.\.(?:\/|$)/.test(word));
 }
 

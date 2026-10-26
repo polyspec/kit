@@ -1484,6 +1484,19 @@ test('URI-valued environment references are not split into runner paths, while a
   }, '/repo');
   assert.equal(escaped.errors.length, 1);
   assert.match(escaped.errors[0] ?? '', /path that leaves the repository/);
+
+  const insideFileUrl = resolveReferences({ ...implementation, command: 'file://${PHP_RUNNER}/runner.mjs' }, {
+    ORM_FEATURE_DSN: dsn, PHP_RUNNER: '/repo/bin',
+  }, '/repo');
+  assert.deepEqual(insideFileUrl.errors, []);
+
+  for (const command of ['file://${PHP_RUNNER}/runner.mjs', '--import=file://${PHP_RUNNER}/runner.mjs']) {
+    const escapedFileUrl = resolveReferences({ ...implementation, command }, {
+      ORM_FEATURE_DSN: dsn, PHP_RUNNER: '/outside',
+    }, '/repo');
+    assert.equal(escapedFileUrl.errors.length, 1, command);
+    assert.match(escapedFileUrl.errors[0] ?? '', /path that leaves the repository/, command);
+  }
 });
 
 test('R7: an implementation whose error codes differ from the catalog, or that declares none, fails', TIMEOUT, (t) => {
