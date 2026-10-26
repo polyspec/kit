@@ -15,12 +15,12 @@ test('Composer local links require an explicit path repository before the packag
   assert.equal(existsSync(path.join(root, 'var/link/composer')), false);
 });
 
-test('Composer receives the explicit development manifest and owns its native update (K657-2)', (t) => {
+test('Composer receives the explicit development manifest and installs a newly declared local dependency (K657-2, K664-2)', (t) => {
   const root = tree(t, {
     'composer.json': '{"require":{"example/local":"1.0.0"}}',
     'composer.local.json': '{"require":{"example/local":"*"},"repositories":[{"type":"path","url":"source","options":{"symlink":true}}]}',
     'source/composer.json': '{"name":"example/local","version":"2.0.0"}',
-    'vendor/example/local/package.txt': 'release',
+    'composer.local.lock': '{}',
   });
   const script = path.join(root, 'composer.mjs');
   writeFileSync(script, `import { appendFileSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';

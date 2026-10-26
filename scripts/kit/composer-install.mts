@@ -4,7 +4,7 @@ import path from 'node:path';
 import { existsSync, lstatSync, realpathSync } from 'node:fs';
 import { isJsonList, isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import type { ProvidedFolder } from './link-folders.mts';
-import type { Tool } from './link-providers.mts';
+import type { Provider, Tool } from './link-providers.mts';
 import { checkoutProviders, providedFolders } from './link-folders.mts';
 import { siblingCheckouts, workTreeOf } from './link-providers.mts';
 import { isMain } from './paths.mts';
@@ -29,6 +29,20 @@ function requirePathRepository(project: string, tool: Tool): string {
   return file;
 }
 
+/** Declared local dependencies are candidates even before their first native installation. */
+export function composerSourceFolders(project: string, providers: Iterable<Provider>, tool: Tool, noDev = false): ProvidedFolder[] {
+  const provided = [...providers].filter(provider => provider.ecosystem === 'composer');
+  const manifest = readJsonObject(manifestOf(project, tool.env));
+  const required = new Set(Object.keys(isJsonObject(manifest.require) ? manifest.require : {}));
+  const development = new Set(Object.keys(isJsonObject(manifest['require-dev']) ? manifest['require-dev'] : {}));
+  const vendorDir = composerVendor(project, tool);
+  const installed = providedFolders(project, provided, { vendorDir });
+  return provided.filter(provider => required.has(provider.name) || (!noDev && development.has(provider.name)) ||
+    (installed.some(folder => folder.name === provider.name) && !(noDev && development.has(provider.name)))).map(provider => ({
+      ecosystem: 'composer', name: provider.name, folder: path.join(vendorDir, provider.name), target: provider.folder,
+    }));
+}
+
 /**
  * Updates the selected manifest's declared local packages through Composer and verifies their source links. Composer may
  * update that manifest's lock and dependency graph; no synthetic manifest, version alias or runtime metadata is written.
@@ -39,7 +53,10 @@ export function composerLink(project: string, folders: readonly ProvidedFolder[]
   const file = requirePathRepository(project, tool);
   const names = [...new Set(linked.map(folder => folder.name))];
   print(`Composer local sources: updating ${names.join(', ')} with ${file}; its lock and dependent packages may change: started`);
-  const output = run(tool.command, ['update', ...names, '--with-dependencies', '--no-interaction', '--no-audit', ...(noDev ? ['--no-dev'] : [])], { cwd: project, env: tool.env });
+  const lock = file.replace(/\.json$/, '') + '.lock';
+  const partial = existsSync(lock);
+  if (!partial) print(`Composer local sources: ${lock} does not exist; Composer resolves all declared dependencies to create it`);
+  const output = run(tool.command, ['update', ...(partial ? [...names, '--with-dependencies'] : []), '--no-interaction', '--no-audit', ...(noDev ? ['--no-dev'] : [])], { cwd: project, env: tool.env });
   if (output.trim()) print(output.trim());
   for (const folder of linked) {
     if (!existsSync(folder.folder) || !lstatSync(folder.folder).isSymbolicLink() || realpathSync(folder.folder) !== realpathSync(folder.target)) {
@@ -50,22 +67,22 @@ export function composerLink(project: string, folders: readonly ProvidedFolder[]
   return true;
 }
 
-/** Installs the selected Composer manifest, then updates declared local sources through Composer when checkouts provide them. */
+/** Resolves declared local sources through Composer, then installs the selected manifest with its native lock. */
 export function composerInstall({ directory, checkouts, env = process.env, print, noDev = false }: {
   directory: string; checkouts: readonly string[]; env?: NodeJS.ProcessEnv; print: (text: string) => void; noDev?: boolean;
 }): 'linked' | 'locked' {
   const project = path.resolve(directory);
   const root = workTreeOf(project);
   const composer = { command: env.COMPOSER_BIN ?? composerCommand(root, 'make composer-install'), env: { ...composerEnvironment(root), ...env } };
+  const folders = composerSourceFolders(project, checkoutProviders(checkouts, 'composer'), composer, noDev);
+  if (folders.length > 0) composerLink(project, folders, composer, print, noDev);
   print(`composer-install ${project}: Composer install of ${manifestOf(project, composer.env)}: started`);
   const output = run(composer.command, ['install', '--no-interaction', ...(noDev ? ['--no-dev'] : [])], { cwd: project, env: composer.env });
   if (output.trim()) print(output.trim());
-  const folders = providedFolders(project, checkoutProviders(checkouts, 'composer'), { vendorDir: composerVendor(project, composer) });
   if (folders.length === 0) {
-    print(`composer-install ${project}: Composer install passed; no installed package is provided by a checkout`);
+    print(`composer-install ${project}: Composer install passed; no declared or installed package is provided by a checkout`);
     return 'locked';
   }
-  composerLink(project, folders, composer, print, noDev);
   print(`composer-install ${project}: Composer owns the links of ${folders.map(item => item.name).join(', ')}`);
   return 'linked';
 }

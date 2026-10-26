@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7cfd12e9276a167364d074cfc953d5c6fb697e5cf8e67dedfc00d56075a10a3d -->
+<!-- source-sha256: 15dfe2eedc4754fd866a152a2c8f60c42a031f61607347bd94ae3f76ee5b098a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Composer source 선택은 설치 폴더가 아직 없는 새 로컬 dependency를 포함하고 앱이 선택한 개발 manifest를 따릅니다. Composer가 native 해석으로 최초 lock을 만들고 이후 update는 로컬 package와 그 dependency로 제한합니다. 실제 native link로 배포된 0.0.1 dependency에서 호환되는 0.0.2 개발 source와 미배포 package로 전환합니다. source 수정에는 release가 필요 없으며 반복 manifest/lock/metadata/autoload 상태가 같고 호환되지 않는 exact requirement는 native 오류를 유지합니다. Red: 새 package unit은 linked 대신 locked를 반환했습니다. Green: 소유 단위/통합 case 5개와 type-aware lint가 통과합니다(K664-2).
 - worktree 재빌드는 설치된 source 또는 packed kit의 공개 link export를 해석하고 workspace hook 경로는 실행 module을 따른다. source 경로 소유 검사 7개, 두 tool export fixture와 재빌드 순서 검사, 변경 파일 type-aware lint가 통과한다 (K661-9).
 - Dependency isolation은 runtime import, command, peer와 별도로 native TypeScript compiler가 kit 도구에서 실제 읽은 type declaration package를 사용으로 인정합니다. 미사용 type package는 계속 거부하며 test-only import는 도구 사용으로 세지 않습니다. Red: dependency-use case가 필요한 @types/picomatch를 거부합니다. Green: 소유 isolation 3개 case와 type-aware lint가 통과합니다(K661-10).
 - Parity 중복 검사는 진단 문장 전체 대신 finding 수, 공유 requirement, 충돌한 두 suite와 병합 안내를 확인한다. Python lock 검사는 uv 누락과 설치 안내를 독립적으로 확인한다. Release coverage는 앱 소유 PHP lint manifest와 kit이 쓰는 파일을 구분한다. Red: fc0fccc2에서 소유 case 3개가 실패했다. Green: 3개 모두 통과하며 변경 파일의 type-aware lint도 통과했다(K661-8).
