@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 077d492e6f0cd5897e3299638e25e4a2158e3632b7aa412e442c1cafb9d110ff -->
+<!-- source-sha256: 86316a66201c339e1fc33909ecc280c86dc0dc2fe948dbb1913e5c813d8c20fe -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -607,7 +607,7 @@
 | K673 | 선택한 모든 source link가 이미 일치하면 native npm 재해석을 생략한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K673 tests/kit/npm-install.test.mts` | [o] |
 | K674 | npm 재해석 전에 workspace 상위의 source link를 인식한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts, tests/source/npm-source-link-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K674 tests/kit/npm-install.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/source/npm-source-link-real.test.mts` | [o] |
 | K675 | Source link와 package bootstrap 인계, 대체된 결정, 검증 범위와 별도 release 상태를 문서화한다 | docs/plans/common-standard/plan.md, docs/operations/local-links.md, docs/operations/release.md와 한국어 짝 | `make docs-check` | [o] |
-| K676 | 상속된 Cargo target directory의 checkout별 격리를 검증하고 보장한다. Source 선택 검증은 target 격리의 증거가 아니다 | scripts/kit/link.mts, scripts/kit/kit.mk, Cargo source 소유 검사 | `node scripts/kit/run-tests.mts node -- tests/kit/link.test.mts` | [~] |
+| K676 | 상속된 Cargo target directory의 checkout별 격리를 검증하고 보장한다. Source 선택 검증은 target 격리의 증거가 아니다 | scripts/kit/link.mts, scripts/kit/kit.mk, scripts/kit/run-tests.mts, owning Cargo unit and native metadata tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K676 tests/kit/link.test.mts tests/kit/kit-mk.test.mts tests/kit/run-tests.test.mts tests/source/link-cargo-real.test.mts` | [o] |
 | K677 | 0.0.55 공개 뒤 해당 tag 밖에 승인 변경이 남으면 별도 CI와 consumer proof를 통과한 0.0.56을 release한다 | release manifest, native lock, dependency review, changelog, release workflow | `make release-verify TAG=v0.0.56` | [ ] |
 | K678 | 실제 locked install과 package 소비 검증을 유지하며 반복 준비 비용과 오래된 link 설명을 검토한다 | tests/source/checkout.mts, tests/source/checkout.test.mts, tests/source/package.test.mts, tests/source/consumer-layout.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/checkout.test.mts` | [ ] |
 | K679 | 기존 미완료 checklist 전체를 native package 소유권, 현재 runner 규칙, release 증거와 대조한 뒤 기존 지시의 재개 여부를 정한다 | common-standard plan 결정 대응표와 기존 checklist 판정, 한국어 짝 | `make docs-check` | [o] |

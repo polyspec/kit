@@ -40,3 +40,30 @@ test('K664-3 native Cargo selects an unreleased path source repeatedly without c
   }
   assert.equal(existsSync(path.join(consumer, 'target')), false, 'metadata compiles nothing');
 });
+
+test('K676 native Cargo chooses each checkout workspace target without inheriting another checkout target', t => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-cargo-target-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const main = path.join(root, 'main');
+  const worktree = path.join(root, 'worktree');
+  mkdirSync(main);
+  initRepository(main, '--initial-branch=main');
+  put(main, { 'Cargo.toml': '[workspace]\nmembers=["crate"]\nresolver="3"\n', 'crate/Cargo.toml': '[package]\nname="target-proof"\nversion="0.0.1"\nedition="2024"\n', 'crate/src/lib.rs': 'pub fn value() -> u8 { 1 }\n' });
+  const env = { ...process.env, CARGO_NET_OFFLINE: 'true', CARGO_TARGET_DIR: path.join(root, 'other-checkout/target') };
+  assert.equal(spawnSync('cargo', ['+1.99.0', 'generate-lockfile', '--offline'], { cwd: main, env }).status, 0);
+  for (const args of [['add', '-A'], ['commit', '--quiet', '-m', 'base'], ['worktree', 'add', '--quiet', '-b', 'proof', worktree]]) {
+    const result = spawnSync('git', args, { cwd: main, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+  }
+  const lock = readFileSync(path.join(main, 'Cargo.lock'), 'utf8');
+  for (const checkout of [main, worktree]) {
+    const metadata = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/link.mts', import.meta.url)), 'cargo', path.join(checkout, 'crate'), '+1.99.0', 'metadata', '--offline', '--locked', '--no-deps', '--format-version=1'], { cwd: checkout, env, encoding: 'utf8' });
+    assert.equal(metadata.status, 0, metadata.stderr);
+    const parsed: unknown = JSON.parse(metadata.stdout);
+    assert.ok(isJsonObject(parsed));
+    assert.equal(parsed.target_directory, path.join(checkout, 'target'));
+    assert.equal(readFileSync(path.join(checkout, 'Cargo.lock'), 'utf8'), lock);
+    assert.equal(existsSync(path.join(checkout, 'target')), false, 'metadata compiles no crate');
+  }
+  assert.equal(existsSync(env.CARGO_TARGET_DIR), false);
+});

@@ -304,6 +304,8 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // The runner and its tool start with the mise of the checkout, so a run outside make, in a shell without its MISE_* variables,
   // trusts the mise.toml of the checkout and finds its tools; the variables that the run sets itself come after (K411).
   const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), ...library?.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
+  // Native Cargo resolves its workspace target unless the caller supplied an explicit CLI target argument (K676).
+  if (cargo) delete env.CARGO_TARGET_DIR;
   delete env.NODE_TEST_CONTEXT;
   // The signal that interrupted the run, which the runner ends on once the tool's group is stopped.
   let interrupted: NodeJS.Signals | undefined;

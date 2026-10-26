@@ -171,3 +171,12 @@ test('dependency-policy-check passes --packages only for PACKAGES of the command
   assert.doesNotMatch(dry(), /--packages/);
   assert.match(dry('PACKAGES=x'), /--packages x/);
 });
+
+test('K676 kit recipes do not inherit another checkout Cargo target directory', (t) => {
+  const root = realpathSync(tree(t, { Makefile: `KIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\nshow:\n\t@env\n` }));
+  const home = path.join(root, 'cargo-home');
+  const shown = spawnSync('make', ['--no-print-directory', 'show'], { cwd: root, encoding: 'utf8', env: { ...process.env, CARGO_TARGET_DIR: path.join(root, '../other/target'), CARGO_HOME: home } });
+  assert.equal(shown.status, 0, shown.stderr);
+  assert.doesNotMatch(shown.stdout, /^CARGO_TARGET_DIR=/m);
+  assert.ok(shown.stdout.split('\n').includes(`CARGO_HOME=${home}`), shown.stdout);
+});

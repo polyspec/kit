@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3b645646c9891dddc54a03f531b2848f3116a3f1313e0a39e822b981e98427df -->
+<!-- source-sha256: bbff02e6540f32aff2c286b8a898846dc2333269d1031588ca685a5919b020c2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Cargo source 명령, Make recipe와 standalone test runner는 상속된 CARGO_TARGET_DIR를 제외하고 명시적 native target 인자와 나머지 환경은 유지한다. Native metadata로 crate 컴파일이나 Cargo.lock 변경 없이 main과 Git worktree가 서로 다른 기본 target을 선택함을 확인한다. Red: d83b6c61에서 target 격리 소유 case 4개가 실패한다. Green: 해당 4개와 source/holder/locked-graph 회귀 5개가 통과하며 변경 파일의 type-aware lint와 typecheck도 통과한다(K676).
 - Dependency review update는 Composer provider entry, scratch manifest, version override와 update 전후 lock metadata 보정을 합성하지 않고 native 명령을 실행합니다. 앱이 선택한 manifest와 선언한 repository는 native 입력으로 유지하며 해석 실패는 lock을 바꾸지 않습니다. 폐기된 provider-entry 진입점은 native 전환 안내와 함께 실패합니다. 합성 전용 case 14개를 native 소유권 회귀 검사 5개로 대체해 graph 해석, 전이/path/VCS 선언, 실제 version, platform 실패, 반복 lock 안정성과 release-lock 경계를 검증합니다. Red: e6475a05에서 native validation 실패 전에 앱 lock metadata가 변경됐습니다. Green: 선택 review/update case 12개, advisory/gate case 2개, type-aware lint와 docs-check가 통과합니다(K681).
 - Online dependency review는 native npm audit의 offline mode를 명시적으로 끈다. Audit payload는 vulnerabilities를 포함하고 native error discriminator를 포함하지 않아야 하므로 transport 실패가 성공 review를 빈 finding으로 덮지 못한다. 격리 cache와 닫힌 loopback endpoint를 사용한 pinned native npm 실험은 상속된 offline mode가 거짓 zero를 반환하고 명시적 online audit는 실패함을 확인한다. Red: c960e2fa에서 소유 경계 case 실패; Green: 선택한 경계·취약점·빈 출력·schema unit 및 native 실험 통과; typecheck와 변경 파일 lint 통과. Offline gate는 계속 committed review만 읽는다 (K684).
 - npm advisory review는 영향받는 native audit node path와 해당 locked copy의 정확한 version을 보존한다. 취약한 nested copy 대신 안전한 top-level copy를 기록하지 않으며 node version을 알 수 없으면 native range를 유지한다. Review와 offline gate finding은 영향받는 node를 표시한다. 기존 lock/package/advisory exception은 개별 path가 아니라 일치하는 모든 copy에 적용된다. Red: 80a3a877에서 nested-copy case가 안전한 top-level 8.3.4를 기록; Green: 선택한 귀속·fallback·schema case, typecheck 및 변경 파일 lint 통과 (K680).

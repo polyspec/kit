@@ -6,6 +6,9 @@ $(error kit.mk needs KIT and KIT_EXT; include it through kit-bootstrap.mk, or se
 endif
 ONLINE ?=
 
+# Cargo chooses the current workspace target; ambient targets from another checkout are never shared (K676).
+unexport CARGO_TARGET_DIR
+
 # The tools of mise.toml (K127) run from the shims of mise, var/tools/mise/shims, which need the environment of mise of the
 # checkout (miseEnvironment of scripts/kit/bootstrap/install-mise.mts): every recipe runs with it, and with var/tools/bin
 # (npm, npx, mise and the wrappers of the Composer projects) and the shims first on PATH. var/tools is that of the main checkout

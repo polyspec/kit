@@ -1070,3 +1070,28 @@ test('a PHP extension built for another PHP fails the probe naming its path, its
   assert.match(problem, /8\.4\.1/);
   assert.match(problem, /20240924/);
 });
+
+test('K676 standalone Cargo build and test omit inherited targets while preserving native CLI arguments', async (t) => {
+  const root = tree(t);
+  const binary = path.join(root, 'bin/cargo');
+  const log = path.join(root, 'cargo-environments.jsonl');
+  const explicit = path.join(root, 'explicit-target');
+  put(root, { 'bin/cargo': `#!${process.execPath}\nconst fs = require('node:fs');\nconst args = process.argv.slice(2);\nfs.appendFileSync(${JSON.stringify(log)}, JSON.stringify({ args, target: process.env.CARGO_TARGET_DIR ?? null }) + '\\n');\nif (!args.includes('--no-run')) {\n  process.stderr.write('     Running unittests src/lib.rs (target/debug/deps/lib-1)\\n');\n  process.stdout.write('running 1 test\\ntest selected_case ... ok\\n\\ntest result: ok. 1 passed; 0 failed; 0 ignored\\n');\n}\n` });
+  chmodSync(binary, 0o755);
+  const inherited = process.env.CARGO_TARGET_DIR;
+  process.env.CARGO_TARGET_DIR = path.join(root, '../other/target');
+  try {
+    const result = await inProcess(t, ['cargo', '--', '--target-dir', explicit, 'selected_case'], { root, path: `${path.dirname(binary)}${path.delimiter}${process.env.PATH ?? ''}` });
+    assert.equal(result.status, 0, result.text);
+    const calls: unknown[] = readFileSync(log, 'utf8').trim().split('\n').map(line => JSON.parse(line) as unknown);
+    assert.equal(calls.length, 2, 'the compile step and requested test both run');
+    for (const call of calls) {
+      assert.ok(typeof call === 'object' && call !== null && 'args' in call && Array.isArray(call.args) && 'target' in call);
+      assert.equal(call.target, null);
+      assert.equal(call.args[call.args.indexOf('--target-dir') + 1], explicit);
+    }
+  } finally {
+    if (inherited === undefined) delete process.env.CARGO_TARGET_DIR;
+    else process.env.CARGO_TARGET_DIR = inherited;
+  }
+});
