@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- 정적 선언 검사는 모든 구현을 계속 확인하면서 parity 실행은 구현을 선택할 수 있습니다. 빈 선택, 알 수 없는 구현, 실행할 바인딩이 없는 선택은 실패하고 기본 실행은 모든 바인딩을 유지합니다. Red: Go를 선택해도 다섯 구현이 모두 실행되는 것을 K700 테스트에서 확인했습니다. Green: K700 테스트가 통과합니다(1 test). (K700)
+
 - Parity declaration path 검사에서 non-file URI 값은 보존하고 file URL runner 경로는 checkout 탈출 여부를 확인한다. (K699)
 
 ## 0.0.58
