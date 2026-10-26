@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 2f782d4b4bb4ad070929f80d6566b35eb066834f2238cca4138750789627b1e0 -->
+<!-- source-sha256: 72b0d041da61b98fd40e64774cdd1fa47646e92bbcdf9ff300754928ddd6e3ba -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -612,7 +612,7 @@
 | K678 | 실제 locked install과 package 소비 검증을 유지하며 반복 준비 비용과 오래된 link 설명을 검토한다 | tests/source/checkout.mts, tests/source/checkout.test.mts, tests/source/package.test.mts, tests/source/consumer-layout.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/checkout.test.mts` | [ ] |
 | K679 | 기존 미완료 checklist 전체를 native package 소유권, 현재 runner 규칙, release 증거와 대조한 뒤 기존 지시의 재개 여부를 정한다 | common-standard plan 결정 대응표와 기존 checklist 판정, 한국어 짝 | `make docs-check` | [o] |
 | K680 | Native npm advisory node path를 보존하고 취약한 nested copy를 실제 locked version에 귀속한다 | scripts/kit/dependency-review.mts, advisory schema and policy tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-policy.test.mts` | [o] |
-| K681 | Review/update 경로의 Composer provider metadata 합성과 version override를 제거하고 native locked install과 advisory gate를 유지한다 | scripts/kit/dependency-review.mts, native Composer owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-review.test.mts` | [ ] |
+| K681 | Review/update 경로의 Composer provider metadata 합성과 version override를 제거하고 native locked install과 advisory gate를 유지한다 | scripts/kit/dependency-review.mts, native Composer owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-review.test.mts` | [~] |
 | K682 | Go와 Cargo 사전 build를 전체 operation timeout 금지 규칙에 맞추고 case 제한·취소·process 정리를 유지한다 | scripts/kit/run-tests.mts, tests/kit/test-build-first.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-build-first.test.mts` | [o] |
 | K683 | Resolver를 새로 만들거나 release 설치에 sibling checkout을 요구하지 않고 native source/release mode dependency 검증 범위를 정한다 | npm-install, composer-install, uv-install and owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/npm-install.test.mts` | [ ] |
 | K684 | 상속된 offline 설정이 online advisory review의 성공을 위장하지 못하는지 검증하고 offline gate는 commit된 review 기록만 읽도록 유지한다 | scripts/kit/dependency-review.mts and advisory owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-policy.test.mts` | [o] |
