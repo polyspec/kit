@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Native npm linking no longer disables package-lock reading: an offline locked registry range keeps its native tarball resolution instead of querying the registry again. --no-save retains the release manifest and lock. No legacy-peer-deps flag or already-linked skip is introduced. Native npm link may accept an incompatible linked peer; the focused fixture records that npm ls detects it, without adding a resolver or a new installation gate. Red: the locked-range case fails with ENOTCACHED at 89ee79f8; green: locked-range, peer observation and the existing release-to-source case pass, with changed-file type-aware lint (K671-6).
 - Bootstrap documentation and rules require the installed package path and regular shared copies, retaining optional native npm source links. The native npm lock records the hook command. Workflow units (16), rule units (13), document and rule checks pass (K671).
 - Python linking skips projects without declared polyspec dependencies instead of syncing an ambient uv workspace. The owning unit fails at 14c67f38 and passes with the guard (K670-4).
 - Release version commits allow manifest and lock metadata without allowing implementation changes under chore(release). The owning unit fails at 14c67f38 and passes with the fix (K670-3).

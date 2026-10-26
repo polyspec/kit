@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 440bfc350b62fc5ceaf4270a8d34800a89d544a06da4c9899b1982498f23d1da -->
+<!-- source-sha256: a8eca46b9f5a8288330727a34558147c33a8be71e27581390be650b9ccd044cc -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -598,3 +598,4 @@
 | K671-4 | install-packages fixture는 설치된 kit 패키지의 bootstrap과 kit.mk를 준비하고 네이티브 npm ci recipe를 검사한다 | tests/kit/install-packages.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K511 tests/kit/install-packages.test.mts` | [o] |
 | K670-3 | Release version commit은 manifest와 lock metadata를 허용하고 구현 code는 거부한다 | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K670-3 tests/kit/commits.test.mts` | [o] |
 | K670-4 | Python source link는 polyspec dependency를 선언하지 않은 project를 건너뛴다 | scripts/kit/link.mts, tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K670-4 tests/kit/link.test.mts` | [o] |
+| K671-6 | Native source 연결에서 npm lock 읽기를 유지하고 peer 규칙 억제나 기존 source 링크 생략을 추가하지 않는다 | scripts/kit/npm-install.mts, tests/source/npm-locked-link-real.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/npm-locked-link-real.test.mts`; selected native release-to-source case; changed-file type-aware lint | [o] |

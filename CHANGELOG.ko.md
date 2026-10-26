@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d5a3c133f4e15c81c865c69d1f8d2fd62e2fe77667126031e0f10bc09e8b8c59 -->
+<!-- source-sha256: 32845f06b7716eff2cb1ee99b5049184adcae5f774fc04a07b4efb92ae778dc8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Native npm 연결은 package-lock 읽기를 끄지 않는다. Offline으로 설치된 registry range는 기존 native tarball resolution을 사용하고 registry를 다시 조회하지 않는다. --no-save는 release manifest와 lock을 유지한다. legacy-peer-deps나 기존 링크 생략은 추가하지 않는다. Native npm link는 호환되지 않는 linked peer를 허용할 수 있으며, 소유 fixture는 npm ls가 이를 탐지함을 기록하고 별도 resolver나 설치 gate는 추가하지 않는다. Red: 89ee79f8에서 locked-range case가 ENOTCACHED로 실패했다. Green: locked-range·peer 관찰·기존 release-to-source case와 변경 파일 type-aware lint가 통과했다(K671-6).
 - Bootstrap 문서와 규칙은 설치된 package path와 일반 공유 사본을 사용하고 선택적인 native npm source link를 유지합니다. Native npm lock은 hook command를 기록합니다. Workflow unit 16개, rule unit 13개, 문서 및 rule 검사가 통과합니다(K671).
 - Python link는 polyspec dependency를 선언하지 않은 project에서 주변 uv workspace를 sync하지 않습니다. 소유 unit은 14c67f38에서 실패하고 guard 추가 후 통과합니다(K670-4).
 - Release version commit은 manifest와 lock metadata를 허용하되 chore(release)에 구현 변경을 허용하지 않습니다. 소유 unit은 14c67f38에서 실패하고 수정 후 통과합니다(K670-3).

@@ -1,5 +1,5 @@
 // Installs the locked npm dependencies with npm ci, then asks npm link to connect the selected local sources.
-// npm owns the installed links and metadata; --no-save and --package-lock=false retain the release manifest and lock.
+// npm owns the installed links and metadata; --no-save retains release files while npm reads the lock.
 import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
@@ -37,7 +37,7 @@ export function npmLink(project: string, folders: readonly ProvidedFolder[], npm
   mkdirSync(prefix, { recursive: true });
   print(`npm link: ${targets.join(', ')}: started`);
   const environment = { ...env, npm_config_prefix: prefix, npm_config_cache: path.join(prefix, 'cache'), npm_config_allow_remote: 'root' };
-  const flags = ['--no-save', '--package-lock=false', '--no-audit', '--no-fund'];
+  const flags = ['--no-save', '--no-audit', '--no-fund'];
   for (const target of targets) {
     print(`npm link provider: ${target}`);
     run(npm, ['link', ...flags], { cwd: target, env: environment });

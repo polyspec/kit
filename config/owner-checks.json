@@ -32,7 +32,7 @@
     { "paths": ["package-lock.json"], "targets": ["typecheck", "kit-check", "dependency-policy-check", "lint-ts"] },
     { "paths": ["tsconfig.json"], "targets": ["typecheck", "lint-ts"] },
     { "paths": ["scripts/kit/link.mts", "scripts/kit/cargo-source.mts"], "tests": ["tests/source/link-cargo-real.test.mts"] },
-    { "paths": ["scripts/kit/npm-install.mts"], "tests": ["tests/source/npm-source-link-real.test.mts"] },
+    { "paths": ["scripts/kit/npm-install.mts"], "tests": ["tests/source/npm-source-link-real.test.mts", "tests/source/npm-locked-link-real.test.mts"] },
     { "paths": ["scripts/kit/uv-install.mts"], "tests": ["tests/source/uv-editable-real.test.mts"] },
     { "paths": ["scripts/kit/worktree-setup.mts"], "tests": ["tests/source/worktree-python-real.test.mts"] },
     { "paths": ["scripts/kit/link.mts", "scripts/kit/worktree-setup.mts"], "tests": ["tests/source/go-worktree-real.test.mts"] },
