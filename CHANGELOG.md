@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+
+
 ## 0.0.58
 
 - Prepared kit 0.0.58 with Composer development path locks and exact multi-symbol API bindings, native consumer locks and advisory review. (K677-4)
@@ -23,6 +25,7 @@
 - PHP extension parity uses the existing isolated Composer library-test autoloader, preserves extension arguments and removes temporary installs after both attempts or a support-file failure. Pure library runs and bindings with explicit commands keep their existing execution. (K677-2)
 
 - The parity regression verifies cleanup after both successful and failed attempts and leaves the library vendor directory unchanged. (K677-2)
+- PHP feature bindings run only the exact methods grouped for their file. Bare and qualified method ids, FQCNs and provider data sets use escaped PHPUnit filters; the parity ledger still requires every selected id and ignores unselected test failures. Red: the K692 regression failed because an unselected failing method ran from the shared file. Green: the exact K692 unit passes (1 test); changed-file oxlint and docs-check pass (K692).
 
 - CI acceptance retains the complete earlier failure reports and the final successful run 40366841110: all 44 steps, 1425 kit tests and 182 source tests pass with zero failures, timeouts or skips. Release verification independently accepts the public annotated v0.0.56 tag; the entire local suite was not repeated for each fix (K686).
 

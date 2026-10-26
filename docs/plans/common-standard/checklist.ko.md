@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: d482e1a1d1a5d3cca869a0d6c19208ce2732dc17200d839d751b10cc37e35ba3 -->
+<!-- source-sha256: 36c6dab3029bca2515e37f84f775ef4bb1a73082ba762b1256694e68bc6015b1 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -642,4 +642,4 @@
 | K691 | 잘못된 parity reporter 출력은 R3 finding으로 기록하고 다음 바인딩을 계속 실행한다 | scripts/kit/parity-ledger.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K691 tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K696 | Composer development path lock을 허용하고 release consumer archive URL 검증을 유지한다. | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts, tests/kit/release-consumer.test.mts | `node --test tests/kit/link-state-check.test.mts tests/kit/release-consumer.test.mts` | [o] |
 | K697 | 하나의 API binding에 기존 단일 symbol 또는 비어 있지 않은 고유 symbols 목록을 허용한다. 선언한 모든 심벌을 R1로 검사하고 R11에서 정확한 전체 목록을 대조하며 구현별 binding 하나 규칙을 유지한다. | scripts/kit/schema/parity.schema.json, scripts/kit/parity-declaration.mts, scripts/kit/parity-units.mts, tests/kit/parity.test.mts, docs/operations/tool-inventory.md(.ko), CHANGELOG.md(.ko) | `node --test --test-name-pattern=K697 tests/kit/parity.test.mts` | [o] |
-| K692 | 바인딩이 테스트 파일을 공유할 때 선택한 PHPUnit feature method만 실행한다 | scripts/kit/parity-runners.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K692 tests/kit/parity.test.mts`; `make docs-check` | [~] |
+| K692 | 바인딩이 테스트 파일을 공유할 때 선택한 PHPUnit feature method만 실행한다 | scripts/kit/parity-runners.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K692 tests/kit/parity.test.mts`; `make docs-check` | [o] |
