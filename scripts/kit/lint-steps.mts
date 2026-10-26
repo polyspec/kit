@@ -2,18 +2,20 @@
 // checkout, the commands of the linters of its language, and this module runs them. Every step runs, also after a failure
 // of an earlier one, its output goes through `print`, and each prints one line, `[<name>] <label>: passed` or
 // `failed with <reason>`. A missing tool or configuration is a failure with its fix, never a skip.
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { execute } from './process.mts';
+import type { Outcome } from './process.mts';
 import { checkedFiles } from './tracked-files.mts';
 
 /**
  * A step of the lint: the command, its arguments, the folder it runs in relative to the root, and whether any output fails
  * it (`quiet`), for a linter that exits 0 when it reports a finding.
  */
-export type LintStep = { label: string; command: string; args: string[]; cwd: string; quiet?: boolean; env?: Record<string, string> };
+export type LintStep = { label: string; command: string; args: string[]; cwd: string; quiet?: boolean; env?: Record<string, string>; isolatedTemporaryDirectory?: boolean };
 
 /** The path of each command of `names` in the folder `folder` of `root`; throws `${folder}/<name> is missing; ${fix}` for a missing one. */
 export function lintCommands(root: string, folder: string, names: readonly string[], fix: string): Record<string, string> {
@@ -38,7 +40,17 @@ export function runLint(name: string, steps: readonly LintStep[], root: string, 
   const failed: string[] = [];
   for (const step of steps) {
     // A step runs the tools of mise.toml from their shims, in the environment of mise of the checkout.
-    const result = execute(step.command, step.args, { cwd: path.join(root, step.cwd), env: { ...toolsEnvironment(root), ...step.env } });
+    const env = { ...toolsEnvironment(root), ...step.env };
+    const temporaryDirectory = step.isolatedTemporaryDirectory
+      ? mkdtempSync(path.join(env.TMPDIR ?? tmpdir(), 'kit-lint-step-'))
+      : undefined;
+    if (temporaryDirectory !== undefined) env.TMPDIR = temporaryDirectory;
+    let result: Outcome;
+    try {
+      result = execute(step.command, step.args, { cwd: path.join(root, step.cwd), env });
+    } finally {
+      if (temporaryDirectory !== undefined) rmSync(temporaryDirectory, { recursive: true, force: true });
+    }
     const output = `${result.stdout}${result.stderr}`;
     print(output);
     const failure = result.error?.message ?? (result.status !== 0 ? `exit status ${result.status}` : step.quiet && output.trim() ? 'a finding' : undefined);

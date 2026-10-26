@@ -65,7 +65,7 @@ export function lintSteps(root: string): LintStep[] {
     if (own.length === 0) continue;
     const autoloader = packageAutoloader(root, folder, packages);
     if (!autoloader) throw new Error(`${path.relative(root, path.join(composerVendor(path.join(root, folder)), 'autoload.php'))} is missing, and no Composer project above ${folder} has one; PHPStan resolves the calls of the package with its autoloader: run composer install in ${folder}, or in the project that requires it`);
-    steps.push({ label: `phpstan ${folder}`, command: present(tools.phpstan, 'tools.phpstan'), args: ['analyse', '--no-progress', '--error-format=raw', PHPSTAN_MEMORY_LIMIT, `--configuration=${kitFile('phpstan.dist.neon')}`, `--autoload-file=${path.relative(path.join(root, folder), path.join(root, autoloader))}`, ...own], cwd: folder });
+    steps.push({ label: `phpstan ${folder}`, command: present(tools.phpstan, 'tools.phpstan'), args: ['analyse', '--no-progress', '--error-format=raw', PHPSTAN_MEMORY_LIMIT, `--configuration=${kitFile('phpstan.dist.neon')}`, `--autoload-file=${path.relative(path.join(root, folder), path.join(root, autoloader))}`, ...own], cwd: folder, isolatedTemporaryDirectory: true });
   }
   return steps;
 }

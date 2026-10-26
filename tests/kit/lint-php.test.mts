@@ -2,7 +2,7 @@
 // files of each Composer package from its folder with its autoloader; every step runs after a failure of an earlier one, and
 // a missing tool or autoloader fails with the fix. phpcs and phpstan are stubs.
 import assert from 'node:assert/strict';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -24,7 +24,7 @@ const FILES: Record<string, string> = {
   'tests/consumer/composer.json': '{}\n',
 };
 
-function checkout(t: TestContext, { installed = ['phpcs', 'phpstan'], failing = '', omit = '', files = {} }: { installed?: string[]; failing?: string; omit?: string; files?: Record<string, string> } = {}) {
+function checkout(t: TestContext, { installed = ['phpcs', 'phpstan'], failing = '', omit = '', tempLeak = false, files = {} }: { installed?: string[]; failing?: string; omit?: string; tempLeak?: boolean; files?: Record<string, string> } = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-php-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   for (const [file, text] of Object.entries({ ...FILES, ...files })) {
@@ -38,6 +38,7 @@ function checkout(t: TestContext, { installed = ['phpcs', 'phpstan'], failing = 
   for (const tool of installed) {
     writeFileSync(path.join(root, 'var/tools/bin', tool), `#!/bin/sh
 echo "${tool} $* [$(basename "$PWD")]" >> "${log}"
+${tempLeak && tool === 'phpstan' ? `printf '%s' "$TMPDIR" > "${root}/phpstan-tmpdir"; mkdir -p "$TMPDIR/phpstan/cache/nette.configurator"` : ''}
 ${failing ? `case "${tool}" in "${failing}") echo "found a problem" >&2; exit 1;; esac` : ''}
 `);
     chmodSync(path.join(root, 'var/tools/bin', tool), 0o755);
@@ -62,6 +63,27 @@ test('every step runs after an earlier one failed, and each failure is named', (
   assert.deepEqual(lint(root, () => {}), ['phpcs']);
   assert.deepEqual(calls(), ALL);
   assert.deepEqual(lint(checkout(t, { failing: 'phpstan' }).root, () => {}), ['phpstan packages/php']);
+});
+
+test('PHPStan temporary configuration is removed after its lint step', (t) => {
+  const temporary = mkdtempSync(path.join(tmpdir(), 'kit-lint-phpstan-cleanup-'));
+  const previous = process.env.TMPDIR;
+  process.env.TMPDIR = temporary;
+  try {
+    const { root } = checkout(t, { tempLeak: true });
+    assert.deepEqual(lint(root, () => {}), []);
+    const phpstanTemporaryDirectory = readFileSync(path.join(root, 'phpstan-tmpdir'), 'utf8');
+    assert.equal(existsSync(path.join(phpstanTemporaryDirectory, 'phpstan/cache/nette.configurator')), false);
+
+    const failing = checkout(t, { failing: 'phpstan', tempLeak: true });
+    assert.deepEqual(lint(failing.root, () => {}), ['phpstan packages/php']);
+    const failingTemporaryDirectory = readFileSync(path.join(failing.root, 'phpstan-tmpdir'), 'utf8');
+    assert.equal(existsSync(path.join(failingTemporaryDirectory, 'phpstan/cache/nette.configurator')), false);
+  } finally {
+    if (previous === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previous;
+    rmSync(temporary, { recursive: true, force: true });
+  }
 });
 
 test('a missing tool or autoloader fails with its fix', (t) => {
