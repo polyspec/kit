@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ef3326436ea32340b505652925cc8da407a43565285ada55c7942bf866d8aa7f -->
+<!-- source-sha256: ddccba8b349c1184b1f41232169cf9e9966b4a453877346798bc123cb8aeeecf -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- npm advisory review는 영향받는 native audit node path와 해당 locked copy의 정확한 version을 보존한다. 취약한 nested copy 대신 안전한 top-level copy를 기록하지 않으며 node version을 알 수 없으면 native range를 유지한다. Review와 offline gate finding은 영향받는 node를 표시한다. 기존 lock/package/advisory exception은 개별 path가 아니라 일치하는 모든 copy에 적용된다. Red: 80a3a877에서 nested-copy case가 안전한 top-level 8.3.4를 기록; Green: 선택한 귀속·fallback·schema case, typecheck 및 변경 파일 lint 통과 (K680).
 - Go·Cargo 사전 테스트 빌드는 전체 작업 시간 제한이 없다. 실행기는 명령 시작·실시간 출력·종료 상태·경과시간을 기록하고 실패한 빌드 이후 테스트를 실행하지 않는다. 사례별 제한시간·취소·부모 종료 감지·프로세스 그룹 정리는 별도로 유지한다. Red: e7fc0116에서 가상 시계 진행 경계 검사가 실패했다. Green: 빌드 소유 사례 네 개와 시간 초과·중단·부모 종료 정리 사례 세 개, 변경 파일 타입 인식 lint·typecheck가 통과한다 (K682).
 - Local Python provider는 locked sync에서 해당 release wheel 설치만 제외한 뒤 uv의 native editable 동작으로 설치한다. Release URL, hash와 lock은 유지하며 offline fixture가 환경이 선언된 source를 import하는지 확인한다(K689).
 - divergence checker는 `process.platform`과 `process.arch`가 warning metadata에 쓰일 때만 무시하고 runtime 분기 탐지는 유지한다. Red: 16ecc178에서 K688 focused case가 실패했다. Green: 수정이 commit된 tree에서 `make item-test ID=K688`가 통과한다(K688).

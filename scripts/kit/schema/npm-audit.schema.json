@@ -9,6 +9,10 @@
       "additionalProperties": {
         "type": "object",
         "properties": {
+          "nodes": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
           "range": {
             "type": "string"
           },

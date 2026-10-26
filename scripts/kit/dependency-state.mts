@@ -52,12 +52,9 @@ export type DependencyPolicy = {
   advisoryExceptions?: Record<string, unknown>[];
 };
 
-/**
- * The release of the package of an advisory as a line names it: the version that the lock holds, or the range of the
- * advisory (npm audit) when the lock holds the package at no path of its own name.
- */
-export const advisoryRelease = (advisory: { version?: string | undefined; range?: string | undefined }): string =>
-  advisory.version !== undefined ? advisory.version : `in range ${advisory.range}`;
+/** The known locked version or native advisory range, with its affected installed node when audit names one. */
+export const advisoryRelease = (advisory: { version?: string | undefined; range?: string | undefined; nodePath?: string | undefined }): string =>
+  `${advisory.version !== undefined ? advisory.version : `in range ${advisory.range}`}${advisory.nodePath === undefined ? '' : ` at ${advisory.nodePath}`}`;
 
 /** The policy of `root` validated against dependency-policy.schema.json; throws with every error of the schema. */
 export function readPolicy<Policy extends DependencyPolicy = DependencyPolicy>(root: string): Policy {

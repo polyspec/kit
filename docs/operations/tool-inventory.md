@@ -1038,6 +1038,9 @@ Package managers select dependency versions. A newer release alone does not fail
   with its reason and removal condition, and the review record keeps it. An advisory without an entry fails both as before.
 - An entry whose advisory the review of its lock did not find is stale and fails both.
   An entry without its reason or removal condition fails the gate and accepts nothing.
+
+For npm advisories, `nodePath` records the affected installed path reported by native `npm audit`; its version comes from that exact entry of the lock. If audit gives no path, or that path has no locked version, the review retains the advisory range without guessing a top-level version. Review and offline gate findings include the path. Advisory exceptions remain scoped to lock, package and advisory identifier: an accepted identifier covers all matching copies; path-specific exceptions are not supported.
+
 - `make dependency-review UPDATE=1` updates no package for an accepted advisory.
 - kit reviews its own `package-lock.json` (`config/dependency-policy.json`, `config/dependency-review.json`). A removed advisory leaves no permanent exception: the current review must still name each accepted advisory.
 

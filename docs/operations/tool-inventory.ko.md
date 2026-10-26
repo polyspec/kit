@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ef29b91dbf4c38052cf83f478c6e29fa5fe2eebddec3b42793847f9445439a0b -->
+<!-- source-sha256: 35cf8a1242b0704731ed6e97e2538c0dd9f6191a280fcd3943786e32b5cca084 -->
 
 # 도구 목록
 
@@ -947,6 +947,9 @@ Dependency version은 package manager가 선택합니다. 새 release가 있다�
   제거 조건과 함께 받아들였다고 출력하며, review 기록은 그 advisory를 유지합니다. 항목이 없는 advisory는 전처럼 둘 다 실패시킵니다.
 - lock의 review가 찾지 못한 advisory를 적은 항목은 stale이며 둘 다 실패시킵니다. 이유나 제거 조건이
   없는 항목은 gate를 실패시키고 아무것도 받아들이지 않습니다.
+
+npm advisory의 `nodePath`는 native `npm audit`가 보고한 영향받는 설치 path이며 version은 lock의 정확히 그 entry에서 읽는다. Audit가 path를 주지 않거나 해당 path의 locked version이 없으면 top-level version을 추측하지 않고 advisory range를 유지한다. Review와 offline gate finding은 path를 포함한다. Advisory exception의 범위는 lock, package와 advisory identifier이며 허용된 identifier는 일치하는 모든 copy에 적용된다. Path별 exception은 지원하지 않는다.
+
 - `make dependency-review UPDATE=1`은 받아들인 advisory 때문에 package를 갱신하지 않습니다.
 - kit은 자기 `package-lock.json`을 review합니다(`config/dependency-policy.json`, `config/dependency-review.json`). 제거된 advisory의 exception은 영구히 남지 않으며 현재 review가 허용한 advisory를 계속 이름 붙여야 합니다.
 

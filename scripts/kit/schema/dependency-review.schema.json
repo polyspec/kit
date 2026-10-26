@@ -44,7 +44,10 @@
           "advisories": {
             "type": "array",
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "nodePath": { "type": "string" }
+              }
             }
           }
         }

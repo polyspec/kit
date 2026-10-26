@@ -340,3 +340,55 @@ test('the gate judges no Composer lock against its manifest (K602)', (t) => {
   writeFileSync(path.join(root, file), JSON.stringify({ ...manifest, version: '9.9.9' }));
   assert.doesNotMatch(gate(root).stderr, /composer validate --strict/);
 });
+
+
+test('K680 npm advisories preserve native vulnerable node paths and their locked copy versions', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t, root);
+  const nested = 'node_modules/docs/node_modules/vite';
+  const another = 'node_modules/other/node_modules/vite';
+  editFixture(root, 'package-lock.json', (lock: { packages: Record<string, { version: string }> }) => {
+    lock.packages['node_modules/vite'] = { version: '8.3.4' };
+    lock.packages[nested] = { version: '6.4.3' };
+    lock.packages[another] = { version: '6.4.2' };
+  });
+  const via = [{ source: 680, url: 'https://example.invalid/advisory', severity: 'high', title: 'nested vulnerability' }];
+  stub.registry({ ...FIXTURE_REGISTRY, npmAudit: { vulnerabilities: { vite: { range: '<=6.4.3', nodes: [nested, another], via } } } });
+  const reviewed = review(root, ['--record'], stub.env);
+  assert.equal(reviewed.status, 1, reviewed.stdout + reviewed.stderr);
+  const record = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
+  const audit = record.locks.find(lock => lock.lock === 'package-lock.json');
+  assert.deepEqual(audit?.advisories, [
+    { package: 'vite', nodePath: nested, version: '6.4.3', id: '680', severity: 'high', title: 'nested vulnerability', url: via[0]?.url },
+    { package: 'vite', nodePath: another, version: '6.4.2', id: '680', severity: 'high', title: 'nested vulnerability', url: via[0]?.url },
+  ]);
+  const checked = gate(root, stub.env);
+  assert.equal(checked.status, 1, checked.stdout + checked.stderr);
+  for (const node of [nested, another]) {
+    assert.ok(reviewed.stdout.includes(node), reviewed.stdout);
+    assert.ok(checked.stderr.includes(node), checked.stderr);
+  }
+  assert.doesNotMatch(reviewed.stdout, /vite 8\.3\.4/);
+  assert.doesNotMatch(checked.stderr, /vite 8\.3\.4/);
+});
+
+
+test('K680 an unknown native node keeps its path and range without borrowing a safe top-level version', (t) => {
+  const root = fixture(t);
+  installCargoAuditStub(root);
+  installGovulncheckStub(root);
+  const stub = stubRegistries(t, root);
+  editFixture(root, 'package-lock.json', (lock: { packages: Record<string, { version: string }> }) => { lock.packages['node_modules/nested'] = { version: '9.0.0' }; });
+  const nodePath = 'node_modules/parent/node_modules/nested';
+  const via = [{ source: 681, url: 'https://example.invalid/advisory', severity: 'high', title: 'unknown copy' }];
+  stub.registry({ ...FIXTURE_REGISTRY, npmAudit: { vulnerabilities: { nested: { range: '<1.2.0', nodes: [nodePath], via } } } });
+  const reviewed = review(root, ['--record'], stub.env);
+  assert.equal(reviewed.status, 1, reviewed.stdout + reviewed.stderr);
+  const record = readConfig<ReviewRecord>(root, RECORD, 'dependency-review.schema.json');
+  assert.deepEqual(record.locks.find(lock => lock.lock === 'package-lock.json')?.advisories, [{ package: 'nested', nodePath, range: '<1.2.0', id: '681', severity: 'high', title: 'unknown copy', url: via[0]?.url }]);
+  const checked = gate(root, stub.env);
+  assert.equal(checked.status, 1, checked.stderr);
+  assert.ok(checked.stderr.includes(`nested in range <1.2.0 at ${nodePath}`), checked.stderr);
+});

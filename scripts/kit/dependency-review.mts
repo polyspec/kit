@@ -70,9 +70,10 @@ interface ReviewState {
 /** An advisory of a package of a lock. */
 export interface Advisory {
   package: string;
-  /** The version that the lock holds; an npm advisory of a package that the lock holds only nested has its range instead. */
+  /** The actual locked copy version, or the native advisory range when its node has no locked version. */
   version?: string | undefined;
   range?: string | undefined;
+  nodePath?: string | undefined;
   id: string;
   severity: string;
   title: string;
@@ -120,7 +121,7 @@ type Audit = { advisories: Advisory[]; error?: undefined } | { error: string; fi
 // that the review reads.
 interface NpmView { 'dist-tags'?: { latest?: string }; versions?: string | string[] }
 interface NpmVia { severity: string; source?: number; url: string; title: string }
-interface NpmAudit { vulnerabilities?: Record<string, { range: string; via?: (string | NpmVia)[] }> }
+interface NpmAudit { vulnerabilities?: Record<string, { range: string; nodes?: string[]; via?: (string | NpmVia)[] }> }
 interface GoVersions { Versions?: string[] }
 interface PypiProject { releases?: Record<string, unknown[]> }
 interface PypiRelease { vulnerabilities?: { id: string; summary?: string; link?: string }[] }
@@ -413,8 +414,12 @@ function advisories(root: string, state: ReviewState): Map<string, Audit> {
       for (const [name, vulnerability] of Object.entries(npm.value.vulnerabilities ?? {})) {
         for (const via of vulnerability.via ?? []) {
           if (typeof via !== 'object' || !NPM_SEVERITIES.has(via.severity)) continue;
-          const version = npmVersions[`node_modules/${name}`]?.version;
-          list.push({ package: name, ...(version !== undefined ? { version } : { range: vulnerability.range }), id: String(via.source ?? via.url), severity: via.severity, title: via.title, url: via.url });
+          // Native audit names affected installed copies; a top-level copy may be safe.
+          const nodes: (string | undefined)[] = vulnerability.nodes?.length ? [...new Set(vulnerability.nodes)] : [undefined];
+          for (const nodePath of nodes) {
+            const version = nodePath === undefined ? undefined : npmVersions[nodePath]?.version;
+            list.push({ package: name, ...(nodePath === undefined ? {} : { nodePath }), ...(version !== undefined ? { version } : { range: vulnerability.range }), id: String(via.source ?? via.url), severity: via.severity, title: via.title, url: via.url });
+          }
         }
       }
       result.set(lock, { advisories: list });
@@ -594,7 +599,7 @@ export function review(root: string, targets?: Targets) {
     comment: 'Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.',
     reviewed: targets?.snapshot ?? new Date().toISOString(),
     // advisories answers every lock of the state.
-    locks: state.locks.map(lock => ({ lock, sha256: fileDigest(path.join(root, lock)), advisories: (present(audits.get(lock), 'audits.get(lock)').advisories ?? []).map(({ package: name, version, range, id, severity, title, url }) => ({ package: name, ...(version !== undefined ? { version } : { range }), id, severity, title, ...(url ? { url } : {}) })) })),
+    locks: state.locks.map(lock => ({ lock, sha256: fileDigest(path.join(root, lock)), advisories: (present(audits.get(lock), 'audits.get(lock)').advisories ?? []).map(({ package: name, version, range, nodePath, id, severity, title, url }) => ({ package: name, ...(nodePath === undefined ? {} : { nodePath }), ...(version !== undefined ? { version } : { range }), id, severity, title, ...(url ? { url } : {}) })) })),
     // latestReleases answers every dependency of the state.
     dependencies: state.dependencies.map(dependency => ({ ecosystem: dependency.ecosystem, manifest: dependency.manifest, package: dependency.package, version: dependency.version, latest: present(latest.get(dependencyKey(dependency)), 'latest.get(dependencyKey(dependency))').latest ?? null })),
     vcs: state.vcs.map(({ lock, package: name, url, requestedRevision, commitId }) => ({ lock, package: name, url, requestedRevision, commitId })),

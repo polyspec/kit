@@ -37,7 +37,7 @@ export type Rule = keyof typeof RULES;
 /** A finding of the gate: the rule it breaks, its subject, the problem and the fix. */
 export type Finding = { rule: Rule; subject: string; problem: string; fix: string };
 /** An advisory that the review found for a package of a lock. */
-export type Advisory = { package: string; version?: string; range?: string; id: string; severity: string; title: string; url?: string };
+export type Advisory = { package: string; nodePath?: string; version?: string; range?: string; id: string; severity: string; title: string; url?: string };
 /** A git package of a lock as the review recorded it: its URL, requested revision and commit. */
 type ReviewedPin = { lock: string; package: string; url: string; requestedRevision: string; commitId: string };
 /**
