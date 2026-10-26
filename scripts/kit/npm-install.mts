@@ -2,6 +2,7 @@
 // npm owns the installed links and metadata; --no-save retains release files while npm reads the lock.
 import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, realpathSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { readJsonObject } from './bootstrap/files.mts';
 import { isMain } from './paths.mts';
@@ -11,6 +12,12 @@ import type { Provider } from './link-providers.mts';
 
 const SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
 const SOURCE_SECTIONS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const;
+
+/** The nearest installed npm package path that Node can resolve from `project`, including workspace ancestors. */
+function npmInstalledFolder(project: string, name: string): string | undefined {
+  const searchPaths = createRequire(path.join(project, 'package.json')).resolve.paths(name);
+  return searchPaths?.map(folder => path.join(folder, name)).find(existsSync);
+}
 
 /** Selects installed provider packages and declared provider dependencies, including sources not installed yet. */
 export function npmSourceFolders(project: string, providers: Iterable<Provider>): ProvidedFolder[] {
@@ -55,8 +62,10 @@ export function npmLink(project: string, folders: readonly ProvidedFolder[], npm
   const npmFolders = folders.filter(folder => folder.ecosystem === 'npm');
   const targets = [...new Set(npmFolders.map(folder => folder.target))];
   if (targets.length === 0) return;
-  if (npmFolders.length > 0 && npmFolders.every(folder => existsSync(folder.folder) && existsSync(folder.target)
-    && realpathSync(folder.folder) === realpathSync(folder.target))) {
+  if (npmFolders.length > 0 && npmFolders.every(folder => {
+    const installed = npmInstalledFolder(project, folder.name);
+    return installed !== undefined && existsSync(folder.target) && realpathSync(installed) === realpathSync(folder.target);
+  })) {
     print('npm link: every selected package already resolves to its source; skipped consumer reification');
     return;
   }

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: b4fc84fadb62d6b7825900ab42f6d4139052ab820d0a2260d76e615f5073b832 -->
+<!-- source-sha256: 794bfc89b8146227cf0e551c57ede412336de973cfcfb4b27f02acd2b5178b7b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -605,4 +605,4 @@
 | K672 | 로컬 npm source의 전체 transitive dependency graph를 연결한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts, tests/source/npm-source-link-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/kit/npm-install.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/source/npm-source-link-real.test.mts` | [o] |
 | K672-1 | Native source 선택 graph와 release override assertion을 유지하며 transitive npm graph fixture 이름을 일반화한다 | tests/kit/npm-install.test.mts, tests/source/npm-source-link-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/kit/npm-install.test.mts tests/source/npm-source-link-real.test.mts`; isolation owner case | [o] |
 | K673 | 선택한 모든 source link가 이미 일치하면 native npm 재해석을 생략한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K673 tests/kit/npm-install.test.mts` | [o] |
-| K674 | npm 재해석 전에 workspace 상위의 source link를 인식한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K674 tests/kit/npm-install.test.mts` | [~] |
+| K674 | npm 재해석 전에 workspace 상위의 source link를 인식한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts, tests/source/npm-source-link-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K674 tests/kit/npm-install.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/source/npm-source-link-real.test.mts` | [~] |

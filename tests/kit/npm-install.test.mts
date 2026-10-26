@@ -276,3 +276,33 @@ test('npmLink still uses native linking when one selected source path is wrong (
   assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), ['link', 'link']);
   assert.equal(output.at(-1), 'npm link: passed');
 });
+
+test('npmLink recognizes selected sources installed in an ancestor workspace node_modules (K674)', (t) => {
+  const { root, project: workspace } = fixture(t, 'kit-npm-workspace-source-idempotence-', {}, []);
+  const project = path.join(workspace, 'packages/client');
+  const language = provider(path.join(root, 'providers/language'), '@polyspec/dbspec-language');
+  const orm = provider(path.join(root, 'providers/orm'), '@polyspec/orm');
+  const orderedJson = provider(path.join(root, 'providers/ordered-json'), '@polyspec/ordered-json');
+  writeFileSync(path.join(language, 'package.json'), JSON.stringify({ name: '@polyspec/dbspec-language', dependencies: { '@polyspec/orm': '0.0.18' } }));
+  writeFileSync(path.join(orm, 'package.json'), JSON.stringify({ name: '@polyspec/orm', dependencies: { '@polyspec/ordered-json': '0.0.9' } }));
+  writeFileSync(path.join(workspace, 'package.json'), JSON.stringify({ name: 'workspace', private: true, workspaces: ['packages/*'],
+    overrides: { '@polyspec/ordered-json': 'https://example.invalid/ordered-json-0.0.9.tgz' } }));
+  mkdirSync(project, { recursive: true });
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'client', private: true,
+    dependencies: { '@polyspec/dbspec-language': '0.0.18' } }));
+  const providerFolders: [string, string][] = [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm], ['@polyspec/ordered-json', orderedJson]];
+  for (const [name, target] of providerFolders) {
+    const installed = path.join(workspace, 'node_modules', name);
+    mkdirSync(path.dirname(installed), { recursive: true });
+    symlinkSync(path.relative(path.dirname(installed), target), installed, 'dir');
+  }
+  const providers: Provider[] = providerFolders.map(([name, folder]) => ({ ecosystem: 'npm', name, folder, repository: root, checkout: root }));
+  const selected = npmSourceFolders(project, providers);
+  const output: string[] = [];
+  const npm = toolsPath(path.resolve(import.meta.dirname, '../..'), 'bin', 'npm');
+  npmLink(project, selected, npm, { ...process.env, npm_config_offline: 'true', npm_config_cache: path.join(root, 'npm-cache') }, message => output.push(message));
+  assert.deepEqual(selected.map(item => item.name).sort(), ['@polyspec/dbspec-language', '@polyspec/ordered-json', '@polyspec/orm']);
+  assert.deepEqual(output, ['npm link: every selected package already resolves to its source; skipped consumer reification']);
+  assert.equal(existsSync(path.join(project, 'node_modules')), false, 'the ancestor workspace links already resolve from the consumer');
+  assert.equal(existsSync(path.join(project, 'var/link/npm')), false, 'the no-op creates no npm prefix');
+});

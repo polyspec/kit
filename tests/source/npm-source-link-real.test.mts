@@ -135,6 +135,7 @@ describe('native npm transitive local source linking (K672)', () => {
   let codec: string;
   let declarations: string[];
   let actual: unknown;
+  let linkedWithNativeNpm = false;
   setup('linking a source package and its transitive source dependencies in a workspace with a release override', () => {
     directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-transitive-')));
     root = path.join(directory, 'workspace');
@@ -154,8 +155,8 @@ describe('native npm transitive local source linking (K672)', () => {
     writeFileSync(path.join(storage, 'index.cjs'), "module.exports = require('@polyspec/fixture-codec');\n");
     writeFileSync(path.join(codec, 'package.json'), JSON.stringify(manifest('@polyspec/fixture-codec')));
     writeFileSync(path.join(codec, 'index.cjs'), "module.exports = 'local-fixture-codec';\n");
-    const links: [string, string][] = [['@polyspec/fixture-language', language], ['@polyspec/fixture-storage', storage], ['@polyspec/fixture-codec', codec]];
-    for (const [name, folder] of links) {
+    const ancestorLinks: [string, string][] = [['@polyspec/fixture-storage', storage], ['@polyspec/fixture-codec', codec]];
+    for (const [name, folder] of ancestorLinks) {
       const installed = path.join(root, 'node_modules', name);
       mkdirSync(path.dirname(installed), { recursive: true });
       symlinkSync(path.relative(path.dirname(installed), folder), installed, 'dir');
@@ -167,13 +168,16 @@ describe('native npm transitive local source linking (K672)', () => {
     ];
     declarations = ['package.json', 'package-lock.json'].filter(file => existsSync(path.join(consumer, file))).map(file => readFileSync(path.join(consumer, file), 'utf8'));
     const folders = npmSourceFolders(consumer, providers);
-    npmLink(consumer, folders, NPM, { ...process.env, npm_config_offline: 'true', npm_config_cache: path.join(directory, 'cache') }, text => process.stdout.write(`[npm-transitive] ${text}\n`));
+    const linkOutput: string[] = [];
+    npmLink(consumer, folders, NPM, { ...process.env, npm_config_offline: 'true', npm_config_cache: path.join(directory, 'cache') }, text => linkOutput.push(text));
+    linkedWithNativeNpm = linkOutput.includes('npm link: passed');
     const result = spawnSync(process.execPath, ['-p', "require('@polyspec/fixture-language')"], { cwd: consumer, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr);
     actual = result.stdout.trim();
   });
   teardown('the transitive npm source fixture', () => { if (directory) rmSync(directory, { recursive: true, force: true }); });
   test('native npm links every local package in the source dependency graph without resolving its release URL (K672)', () => {
+    assert.equal(linkedWithNativeNpm, true, 'missing consumer source links use native npm linking');
     assert.equal(actual, 'local-fixture-codec');
     assert.deepEqual(['package.json', 'package-lock.json'].filter(file => existsSync(path.join(consumer, file))).map(file => readFileSync(path.join(consumer, file), 'utf8')), declarations);
     const linkedTargets: [string, string][] = [['@polyspec/fixture-language', language], ['@polyspec/fixture-storage', storage], ['@polyspec/fixture-codec', codec]];
