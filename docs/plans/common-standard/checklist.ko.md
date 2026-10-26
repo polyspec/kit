@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: fbd20bcd26530d39c304a8d282eb2a3ef590c348863bae4495311064fa38f5a7 -->
+<!-- source-sha256: ca727208161145927eac88e3ec579b154e606e819d9a87c51696b9965d7e17f9 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -606,3 +606,6 @@
 | K672-1 | Native source 선택 graph와 release override assertion을 유지하며 transitive npm graph fixture 이름을 일반화한다 | tests/kit/npm-install.test.mts, tests/source/npm-source-link-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/kit/npm-install.test.mts tests/source/npm-source-link-real.test.mts`; isolation owner case | [o] |
 | K673 | 선택한 모든 source link가 이미 일치하면 native npm 재해석을 생략한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K673 tests/kit/npm-install.test.mts` | [o] |
 | K674 | npm 재해석 전에 workspace 상위의 source link를 인식한다 | scripts/kit/npm-install.mts, tests/kit/npm-install.test.mts, tests/source/npm-source-link-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K674 tests/kit/npm-install.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K672 tests/source/npm-source-link-real.test.mts` | [o] |
+| K675 | Source link와 package bootstrap 인계, 대체된 결정, 검증 범위와 별도 release 상태를 문서화한다 | docs/plans/common-standard/plan.md, docs/operations/local-links.md, docs/operations/release.md와 한국어 짝 | `make docs-check` | [ ] |
+| K676 | 상속된 Cargo target directory의 checkout별 격리를 검증하고 보장한다. Source 선택 검증은 target 격리의 증거가 아니다 | scripts/kit/link.mts, scripts/kit/kit.mk, Cargo source 소유 검사 | `node scripts/kit/run-tests.mts node -- tests/kit/link.test.mts` | [ ] |
+| K677 | 0.0.55 공개 뒤 후속 npm 멱등성과 Node resolution 수정을 포함해 별도 CI와 consumer proof를 통과한 0.0.56을 release한다 | release manifest, native lock, dependency review, changelog, release workflow | `make release-verify TAG=v0.0.56` | [ ] |
