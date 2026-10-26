@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3ca9d7e8a1f9d1e6549a7a2e7a7646db58130358adb60533b5789ab9a08bf594 -->
+<!-- source-sha256: bf034915b3248e59f1b9fa3ed29cf18d313d5435fb70c683ad1602270516bfd6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 명시적인 setup과 teardown 작업은 node reporter와 exit watchdog에 구조화한 lifecycle event를 전달합니다. gap과 exit watch는 해당 작업 동안만 멈추고 끝나면 다시 적용하며, 개별 case timeout과 test 미실행 실패 및 process 누수 정리는 유지합니다. Red: 65582113에서 K662 setup과 gap 회귀 검사가 실패했습니다. Green: K662 setup/gap/failure 회귀 검사 3개와 typecheck, docs-check가 통과했습니다(K662).
 
 - npm 로컬 source link는 project-local prefix의 npm link가 생성하고 link와 설치 metadata도 npm이 관리합니다. release manifest와 lock은 유지되며 반복 실행에서도 source 수정이 바로 보입니다. Red: 80e3c56e의 native link 호출 이전 npm-install.test.mts가 실패했습니다. Green: 실제 npm source 수정 검증을 포함한 npm과 공통 link 단위 test 71개가 모두 통과합니다(K657-1).
 - 명시적 `FINAL_RUN=1`은 대기 중 checklist 항목이 있는 깨끗한 커밋 트리를 허용하고, 진행 중 항목과 변경된 트리는 거부하며 기존 CI report 경로를 유지합니다(K658).

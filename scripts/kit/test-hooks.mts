@@ -3,9 +3,12 @@
 // when its operation settles (the browser launched, the server announced readiness, the close resolved, the process
 // exited), and its result or error decides it. Each prints its start, a line while it is still running and its end with the
 // elapsed time.
+// Structured operation events suspend runner gap/exit watches for the operation and restore them in finally.
 import { after, before } from 'node:test';
 import { inspect } from 'node:util';
+import { setImmediate as turnTheLoop } from 'node:timers/promises';
 import { compactSeconds } from './time.mts';
+import { reportTestOperation } from './test-gap.mts';
 
 /** Where a hook is registered and how it reports. */
 export type HookOptions = {
@@ -19,9 +22,13 @@ function hook(register: 'before' | 'after', kind: string, name: string, operatio
   add(async () => {
     const started = performance.now();
     const elapsed = () => compactSeconds(performance.now() - started);
+    const id = `${kind} ${name}`;
+    reportTestOperation({ kind: 'operation-start', id });
     write(`[${kind}] ${name}: started\n`);
     const running = setInterval(() => write(`[${kind}] ${name}: still running (${elapsed()})\n`), heartbeatMs);
     try {
+      // Flush the structured event before an operation that may block the test-file event loop.
+      await turnTheLoop();
       await operation();
       write(`[${kind}] ${name}: finished in ${elapsed()}\n`);
     } catch (error) {
@@ -31,6 +38,7 @@ function hook(register: 'before' | 'after', kind: string, name: string, operatio
       throw error;
     } finally {
       clearInterval(running);
+      reportTestOperation({ kind: 'operation-end', id });
     }
   }, { timeout: Infinity });
 }

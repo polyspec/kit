@@ -6,10 +6,12 @@
 // A file whose own code never settles (K437) never ends its tests, so the deadline after the last test never starts. A watch
 // therefore runs from the process start and after each test: it exits 1 at the deadline, naming the running test or saying that
 // no test was reached. A running test has node's own timeout at the same deadline; the watch allows a margin over it.
+// Declared setup/teardown operations pause this watch and restore its pending deadline when they finish. They do not
+// change the timeout of any actual test or the leak deadline after all declared operations end.
 import { writeSync } from 'node:fs';
 import { after, afterEach, beforeEach } from 'node:test';
 import { stopDescendants } from './process-group.mts';
-import { PROCESS_UP } from './test-gap.mts';
+import { onTestOperation, PROCESS_UP } from './test-gap.mts';
 
 // The internal handle of a standard stream; Node.js does not declare it.
 type WithHandle = { _handle?: { setBlocking?: (blocking: boolean) => void } };
@@ -46,11 +48,24 @@ if (file && process.env.NODE_TEST_CONTEXT) {
     void stopDescendants(process.pid).finally(() => process.exit(1));
   };
   let watch: NodeJS.Timeout | undefined;
-  const arm = (ms: number, message: string) => {
+  let operations = 0;
+  let pending: { ms: number; message: string | (() => string) } | undefined;
+  const arm = (ms: number, message: string | (() => string)) => {
     clearTimeout(watch);
-    watch = setTimeout(() => failAndExit(message), ms);
+    pending = { ms, message };
+    if (operations > 0) return;
+    watch = setTimeout(() => failAndExit(typeof message === 'string' ? message : message()), ms);
     watch.unref();
   };
+  onTestOperation(({ kind }) => {
+    if (kind === 'operation-start') {
+      operations++;
+      clearTimeout(watch);
+    } else {
+      operations = Math.max(0, operations - 1);
+      if (operations === 0 && pending) arm(pending.ms, pending.message);
+    }
+  });
   arm(deadline, `no test started or ended within ${deadline} ms of the process start; the file's own code did not settle`);
   beforeEach(async (context) => {
     arm(deadline + RUNNING_TEST_MARGIN_MS, `the test "${context.name}" did not settle within ${deadline} ms; the process ends`);
@@ -61,7 +76,6 @@ if (file && process.env.NODE_TEST_CONTEXT) {
     await turnTheLoop();
   });
   after(() => {
-    clearTimeout(watch);
-    setTimeout(() => failAndExit(`the process did not exit ${deadline} ms after its last test; it holds ${process.getActiveResourcesInfo().join(', ')}`), deadline).unref();
+    arm(deadline, () => `the process did not exit ${deadline} ms after its last test; it holds ${process.getActiveResourcesInfo().join(', ')}`);
   });
 }

@@ -10,16 +10,22 @@
 //
 // A reporter that runs inside the tool (node --test, vitest) writes its test events as JSON lines to the file descriptor named by
 // KIT_TEST_EVENTS, which run-tests opens as a pipe, so the watch sees the events of every tool.
+// Declared setup/teardown operations suspend the watch until their matching operation-end events. The ordinary gap
+// deadline resumes afterwards; a missing test outside an operation still fails as before.
 import { writeSync } from 'node:fs';
+import { channel } from 'node:diagnostics_channel';
 
 /**
  * A test event: a test started (`start`) or ended (`end`), a process of the tool reported that it is up (`up`), or the tool starts
- * the process of the next file or package (`launch`), by the id of the test, file or package.
+ * the process of the next file or package (`launch`), or a declared long operation starts/ends, by its id.
  */
-export type TestEvent = { kind: 'start' | 'end' | 'up' | 'launch'; id: string };
+export type TestEvent = { kind: 'start' | 'end' | 'up' | 'launch' | 'operation-start' | 'operation-end'; id: string };
+
+/** A declared setup or teardown operation; its duration is not test-case time. */
+export type OperationEvent = { kind: 'operation-start' | 'operation-end'; id: string };
 
 /** The kinds of TestEvent. */
-const KINDS: readonly TestEvent['kind'][] = ['start', 'end', 'up', 'launch'];
+const KINDS: readonly TestEvent['kind'][] = ['start', 'end', 'up', 'launch', 'operation-start', 'operation-end'];
 const isKind = (kind: unknown): kind is TestEvent['kind'] => KINDS.some(known => known === kind);
 
 /** The bound of the start of a tool's process, before it reports that it is up (K549). */
@@ -30,6 +36,27 @@ export const START_UP_MS = 120_000;
  * file writes it to its standard output, which the reporter reads as test:stdout, and runners/python.py to its standard error.
  */
 export const PROCESS_UP = 'kit-test-process-up';
+
+/** A structured control line carried through node:test stdout to its reporter. */
+export const OPERATION_EVENT = 'kit-test-operation ';
+const operations = channel('kit:test-operation');
+
+/** Observes operations in the test-file process, where the exit watchdog is preloaded. */
+export function onTestOperation(listener: (event: OperationEvent) => void): void {
+  operations.subscribe((message: unknown) => {
+    if (typeof message !== 'object' || message === null || !('kind' in message) || !('id' in message)
+      || (message.kind !== 'operation-start' && message.kind !== 'operation-end') || typeof message.id !== 'string') {
+      throw new Error('not a declared test operation');
+    }
+    listener({ kind: message.kind, id: message.id });
+  });
+}
+
+/** Reports a declared operation to the local watchdog and the parent reporter without parsing human log text. */
+export function reportTestOperation(event: OperationEvent): void {
+  operations.publish(event);
+  if (process.env.NODE_TEST_CONTEXT && process.env[TEST_EVENTS]) writeSync(1, `${OPERATION_EVENT}${JSON.stringify(event)}\n`);
+}
 
 /** The environment variable that names the file descriptor a reporter writes its test events to. */
 export const TEST_EVENTS = 'KIT_TEST_EVENTS';
@@ -48,6 +75,7 @@ const RUN_START = 'the start of the run';
 export function createGap({ timeoutMs, startUpMs = START_UP_MS, onExpire }: { timeoutMs: number; startUpMs?: number; onExpire: (problem: string) => void }) {
   // The number of tests that are running; the watch is armed only when none is.
   let running = 0;
+  let operations = 0;
   let last = RUN_START;
   // Whether a process of the tool is starting and has not reported that it is up.
   let starting = true;
@@ -69,7 +97,13 @@ export function createGap({ timeoutMs, startUpMs = START_UP_MS, onExpire }: { ti
   return {
     event({ kind, id }: TestEvent): void {
       if (done) return;
-      if (kind === 'launch') {
+      if (kind === 'operation-start') {
+        operations++;
+        disarm();
+        return;
+      } else if (kind === 'operation-end') {
+        operations = Math.max(0, operations - 1);
+      } else if (kind === 'launch') {
         starting = true;
         last = `the start of ${id}`;
       } else if (kind === 'up') starting = false;
@@ -83,7 +117,7 @@ export function createGap({ timeoutMs, startUpMs = START_UP_MS, onExpire }: { ti
         running = Math.max(0, running - 1);
         last = `the end of ${id}`;
       }
-      if (running === 0) arm();
+      if (running === 0 && operations === 0) arm();
     },
     close(): void {
       done = true;

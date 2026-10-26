@@ -688,6 +688,28 @@ test('the gap watch arms at the start of the run and after a test ends, and a te
   });
 });
 
+test('declared setup operations suspend only the gap watch and restore it when the last operation ends (K662)', (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  return import('../../scripts/kit/test-gap.mts').then(({ createGap, parseTestEvent }) => {
+    const expired: string[] = [];
+    const gap = createGap({ timeoutMs: 1000, onExpire: problem => expired.push(problem) });
+    gap.event({ kind: 'up', id: 'file' });
+    gap.event({ kind: 'operation-start', id: 'setup first' });
+    gap.event({ kind: 'operation-start', id: 'setup nested' });
+    t.mock.timers.tick(10_000);
+    gap.event({ kind: 'operation-end', id: 'setup first' });
+    t.mock.timers.tick(10_000);
+    assert.deepEqual(expired, [], 'an unfinished declared operation has no test deadline');
+    gap.event({ kind: 'operation-end', id: 'setup nested' });
+    t.mock.timers.tick(999);
+    assert.deepEqual(expired, []);
+    t.mock.timers.tick(1);
+    assert.equal(expired.length, 1, 'the ordinary gap deadline is restored');
+    assert.deepEqual(parseTestEvent('{"kind":"operation-start","id":"setup first"}'), { kind: 'operation-start', id: 'setup first' });
+    gap.close();
+  });
+});
+
 // K371-1-1: a node file that never reports a test and never yields to its event loop. The file-side watch of test-exit-deadline runs in
 // that file's own thread, so it cannot end it; only the gap watch of the runner can. The file's own 20 s loop bounds the fixture: on a
 // base without the gap watch the run ends after 20 s, so the deadline of this test is far above the expected stop.

@@ -3,9 +3,32 @@
 // run-tests (K371-1) because its events arrived only when the file ended.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { tool } from './kit-tools.mts';
 import { tree } from './tree.mts';
+
+test('declared setup and teardown may outlast the case deadline while their short test still runs (K662)', { timeout: 30_000 }, (t) => {
+  const hooks = pathToFileURL(tool(import.meta.resolve('../../scripts/kit/test-hooks.mts'))).href;
+  const source = `import test from 'node:test';\nimport { spawnSync } from 'node:child_process';\nimport { setup, teardown } from ${JSON.stringify(hooks)};\nsetup('installation', async () => { await new Promise(resolve => setTimeout(resolve, 1200)); });\nteardown('cleanup', () => { const result = spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 1200)']); if (result.status !== 0) throw new Error('cleanup failed'); });\ntest('short assertion', () => {});\n`;
+  const root = tree(t, { 'tests/setup.test.mjs': source });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '1', '--', 'tests/setup.test.mjs'], { cwd: root, encoding: 'utf8' });
+  const output = result.stdout + result.stderr;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /1 passed, 0 failed, 0 timed out/);
+  assert.match(output, /\[setup\] installation: finished/);
+  assert.match(output, /\[teardown\] cleanup: finished/);
+  assert.doesNotMatch(output, /kit-test-operation /, 'structured control events are not test output');
+});
+
+test('a declared setup failure fails the run and keeps its original error (K662)', (t) => {
+  const hooks = pathToFileURL(tool(import.meta.resolve('../../scripts/kit/test-hooks.mts'))).href;
+  const source = `import test from 'node:test';\nimport { setup } from ${JSON.stringify(hooks)};\nsetup('installation', () => { throw new Error('installation fixture failed'); });\ntest('short assertion', () => {});\n`;
+  const root = tree(t, { 'tests/setup-failure.test.mjs': source });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '1', '--', 'tests/setup-failure.test.mjs'], { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /installation fixture failed/);
+});
 
 test('a file of synchronous tests that together outlast the deadline reports each test when it ends', { timeout: 60_000 }, (t) => {
   // Three tests of 1.5 s each block the event loop for 4.5 s in all; the deadline is 2 s.

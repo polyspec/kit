@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Declared setup and teardown operations report structured lifecycle events to the node reporter and its exit watchdog. Gap and exit watches pause only for these operations and resume afterwards; case timeouts, missing-test failures and leaked-process cleanup remain enforced. Red: the K662 setup and gap regressions failed at 65582113; green: the three K662 setup/gap/failure regressions, typecheck and docs-check pass (K662).
+
 - npm local source links are created by npm link with a project-local prefix, with npm owning its links and installed metadata. The release manifest and lock remain unchanged; edits to a linked source are visible on repeated runs. Red: npm-install.test.mts failed before the native link call at 80e3c56e; green: the npm and shared link unit tests pass 71 of 71, including a real npm source-edit case (K657-1).
 - Explicit `FINAL_RUN=1` accepts a clean committed tree with waiting checklist items, refuses active items or dirty trees, and preserves the normal CI report path (K658).
 - Parity requirement tracing defers an id only while the exact item in its declared English checklist is `[!]` and its task names that id; active gaps remain R13 findings, and invalid, active or duplicate references are rejected (K656).

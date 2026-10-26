@@ -8,7 +8,7 @@ import { Transform, type TransformCallback } from 'node:stream';
 import type { EventData } from 'node:test';
 import type { TestEvent } from 'node:test/reporters';
 import { createProgress, type Progress } from './test-progress.mts';
-import { PROCESS_UP, writeTestEvent } from './test-gap.mts';
+import { OPERATION_EVENT, parseTestEvent, PROCESS_UP, writeTestEvent } from './test-gap.mts';
 import { testRoot } from './paths.mts';
 import { present } from './present.mts';
 
@@ -116,12 +116,18 @@ export default class ProgressReporter extends Transform {
         if (data.file) this.failedFiles.add(realpathSync(data.file));
         this.progress.fail(`${file} › ${(error as TestFailure)?.failureType === 'hookFailed' ? 'hook' : data.name}`, duration, failureText(error));
       }
-    } else if (type === 'test:stdout' && data.message.includes(`${PROCESS_UP}\n`)) {
-      // The preload of the file reports its process up (K549); the line is no output of the file.
-      writeTestEvent({ kind: 'up', id: data.file ? path.relative(ROOT, data.file) : '' });
-      const rest = data.message.replace(`${PROCESS_UP}\n`, '');
-      if (rest) this.push(rest);
-    } else if (type === 'test:stderr' || type === 'test:stdout') this.push(data.message);
+    } else if (type === 'test:stdout') {
+      for (const line of data.message.split(/(?<=\n)/)) {
+        if (line === `${PROCESS_UP}\n`) {
+          // The preload reports process readiness; this control line is not test output.
+          writeTestEvent({ kind: 'up', id: data.file ? path.relative(ROOT, data.file) : '' });
+        } else if (line.startsWith(OPERATION_EVENT)) {
+          const event = parseTestEvent(line.slice(OPERATION_EVENT.length).trimEnd());
+          if (event.kind !== 'operation-start' && event.kind !== 'operation-end') throw new Error(`not an operation event: ${line}`);
+          writeTestEvent(event);
+        } else this.push(line);
+      }
+    } else if (type === 'test:stderr') this.push(data.message);
     callback();
   }
 
