@@ -19,10 +19,10 @@ K670-1 retains PHP tokenizer configuration. K670-3 permits release manifest meta
 
 ### Release state and next actions
 
-- K655, version 0.0.55: preparation and owning checks are recorded in CHANGELOG.md; publication is pending. [CI run 40313948359](https://github.com/polyspec/kit/actions/runs/40313948359) covers through K672-1. Its kit tests report 1398 passes and four failures. Collect the remaining source tests and gates before classifying every failure; do not cancel this run or treat its owning-test results as complete CI acceptance.
+- K655, version 0.0.55: preparation and owning checks are recorded in CHANGELOG.md; publication is pending. [CI run 40313948359](https://github.com/polyspec/kit/actions/runs/40313948359) covers through K672-1. It completed with 1398 kit-test passes and four failures; all 174 source tests and every other gate passed. K686-1/K686-2 correct those four owners. The corrected candidate still needs its own successful CI; prior source results are not acceptance for subsequently changed code.
 - K673 and K674 are later local main commits, outside that CI. K677 tracks a subsequent 0.0.56 release for accepted changes outside the published 0.0.55 tag. Until 0.0.55 is public, corrections can remain in its candidate; inspect the final candidate rather than assuming these local commits already belong to a published version. Each release needs successful CI for its own code and a successful consumer proof; 0.0.55 results cannot validate 0.0.56.
 - A failed CI blocks its release. Fix the failed owners, run their selected tests, and push the corrected release candidate. While developing, do not repeat the full local suite. Use the [release procedure](../../operations/release.md) after the candidate's CI passes; do not claim a tag, draft or version bump is a public release.
-- K676 records Cargo target-directory inheritance, which source-selection tests did not establish. K678 reviews repeated package-test preparation; native isolated install and package-consumption coverage remain required, and setup cost alone does not invalidate those tests.
+- K676 now isolates inherited Cargo target directories through native execution environments, with separate main/worktree metadata evidence. K678 reviews repeated package-test preparation; native isolated install and package-consumption coverage remain required, and setup cost alone does not invalidate those tests.
 
 K675 records this handoff. Checklist completion means the named implementation and evidence are complete; K655 and K677 remain open until their releases are public. Check Git, the CI run and the release before updating deployment state. The checklist remains tasks only, CHANGELOG.md holds actual changes and test evidence, and this section explains their relationship and remaining work.
 
@@ -43,15 +43,15 @@ Registration history is also explicit: K655, K657 and K664 were registered in pl
 | K444 | Superseded by K452-1 load preflight; literal extension_loaded coverage is not claimed. | `run-tests.mts probeExtensions; run-tests.test.mts K452-1` |
 | K445 | Keep historical scope exclusion; generated-file filtering is not established by this work. | `lint-python.mts lintSteps still selects tracked Python sources` |
 | K456 | Partially implemented; remaining command/result/elapsed visibility is K685. | `check-documents.mts; land.mts runGate; test-hooks.mts` |
-| K461 | Replace the old build deadline requirement; remaining whole-build timeout is K682. | `AGENTS operation rule; run-tests.mts BUILD_MS/buildWatch; test-build-first.test.mts` |
-| K466 | Old audit-removal rationale is obsolete; actual nested-copy attribution gap is K680. | `dependency-review.mts npm advisory collection ignores audit nodes` |
-| K467 | Do not restore old recipes; verify online-review offline-environment behavior under K684. | `dependency-review.mts query/advisories; offline gate reads committed review` |
+| K461 | Superseded: K682 removes the pre-test build deadline while preserving case limits. | `AGENTS operation rule; run-tests.mts BUILD_MS/buildWatch; test-build-first.test.mts` |
+| K466 | Superseded rationale: K680 now preserves native audit node paths and locked-copy versions. | `dependency-review.mts npm advisory collection ignores audit nodes` |
+| K467 | K684 rejects offline/error false-greens in online review; do not restore obsolete recipes. | `dependency-review.mts query/advisories; offline gate reads committed review` |
 | K470 | Superseded: the stale sprintf-js exception was removed; do not restore it. | `K660; dependency-policy.json advisoryExceptions; current review` |
 | K471 | Superseded: native npm owns overrides; copy-level advisory scope is K680. | `dependency policy advisoryExceptions and native npm overrides` |
 | K472 | Keep exclusion: no kit-imposed latest-version or sibling-version convergence. | `K660 newer-only test; dependency-review CLI result policy` |
-| K475 | Do not resume synthetic locks; active legacy review/update metadata rewriting is K681. | `dependency-review.mts providerEntries/composerEntries/runUpdateSteps` |
+| K475 | Superseded: K681 removes legacy metadata rewriting; do not restore synthetic locks. | `dependency-review.mts providerEntries/composerEntries/runUpdateSteps` |
 | K479-1 | Superseded: kit-generated composer.link manifests are retired. | `composer-install.mts selected COMPOSER; native Composer K664-2` |
-| K480-1 | Redefine native dependency checks under K683; do not invent a cross-language resolver. | `composer-install.mts native update; uv-install.mts pip check; npm peer limits` |
+| K480-1 | K683 defines native source/release checks; no cross-language resolver is introduced. | `composer-install.mts native update; uv-install.mts pip check; npm peer limits` |
 | K483 | Split the intent: NO_DEV exists; rejecting release installs without a checkout must not be restored. | `composer-install.mts native fallback; link.test.mts NO_DEV; K683` |
 | K573 | Keep cache exclusion; its old claim that main comparison disappeared is obsolete. | `land.mts mainRun; K603/K631/K580` |
 | K589 | Keep exclusion: never hide stale application locks by copying synthetic link metadata. | `worktree-setup.mts native vendor/autoload; selected manifests remain app-owned` |
@@ -66,15 +66,17 @@ Registration history is also explicit: K655, K657 and K664 were registered in pl
 | K56 | Keep exclusion: native uv owns Python environments; no custom installer prefix/home API. | `python-venv.mts makeVenv` |
 | K57 | Keep exclusion: native local-wheel proof already exists; no extra consumer-specific archive mapping API. | `release-consumer.mts installWheelFiles; wheel-dependencies.mts lockRequirements` |
 
-### Remaining implementation and execution order
+### Current implementation and execution order
 
-The first priority is K686: let the current CI finish, collect every failed owner and correct the release candidate. K655 stays open until that candidate has successful CI and a public consumer-proved release. Later version work is K677; an unpublished failed candidate may still be corrected at its current version.
+The first priority remains K686: obtain successful CI for the corrected candidate. K686-1 and K686-2 fix the four failed owners from the complete earlier run. K655 stays open until the candidate passes CI and its consumer proof and becomes public. An unpublished failed candidate can be corrected at 0.0.55; only changes outside the published tag require the subsequent version of K677.
 
-K681 is a real remaining ownership gap: the native installation path was migrated, but dependency-review still has providerEntries, scratch Composer manifests and version overrides. Do not claim every Composer metadata-synthesis path was removed. K680 similarly retains a real advisory attribution gap: native npm audit is used, but vulnerable nested copies can be labelled with the top-level version; this does not establish that the gate accepts those advisories.
+The audit findings led to implementation, not just new tasks. K681 removes the synthetic Composer review/update paths; K680 preserves native advisory paths and actual nested-copy versions. K684 reproduces and rejects native offline false-greens and native error JSON masquerading as a zero-advisory result. K682 removes the pre-test build deadline, and K676 isolates ambient Cargo targets. Their owning tests are recorded in CHANGELOG.md; they still require the corrected candidate's full CI.
 
-K682 addresses the remaining whole-build timeout. K683 defines native source/release validation, including npm's source-only missing-checkout behavior and peer-validation limits. K684 first reproduces the offline-environment review risk; it is not yet a demonstrated false-green. K685 addresses partial operation progress visibility. These are registered requirements, not completed fixes or reasons to restore obsolete mechanisms.
+K683 defines native source/release validation boundaries without a new resolver. K687 fixes default root report inputs; the integrated dependency owners had 44 passing assertions before this report-writing defect was found, and the separate CLI report regression verifies its correction. This is not a claim that the earlier command had a successful exit status.
 
-P30 and P35 are aligned with native source installation, application-owned constraints and independent release locks. No source is disguised as an installed release version; kit does not synthesize development metadata. Current code that violates that boundary is tracked by K681. An accepted later rule replaces an obsolete instruction rather than silently changing what an old completed or dropped ID means.
+K678 remains a setup-cost review: the real isolated installation test is legitimate. K685 remains incomplete, including land's existing 30-minute runMake deadline and buffered progress. K690 tracks the legacy worktree npm/Composer projections: kit still manually links installed entries and copies Composer installed records there. That preparation is not a native package-manager installation and was not migrated by the source-link or review fixes. The conventional alternative is native per-checkout installation with shared caches, with explicit storage planning; do not silently change package managers or synthesize manifests to retain folder sharing.
+
+P30/P35 describe the native ownership contract. Remaining compatibility paths are explicit pending items, not exceptions silently treated as completed. The obsolete coupled release gate K438 is retired; candidate acceptance follows its actual dependencies, CI and proof rather than requiring unrelated future improvements to finish first.
 
 ## Cause
 

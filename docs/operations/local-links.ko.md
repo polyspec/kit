@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 43cb96a25b068986437476e31c9fce77233ec3395556f8df4f499e36c06086b3 -->
+<!-- source-sha256: 442ae0fc9be08b5769ca629116dccd3c3f946aa308265a4217444bfe4ec401f1 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -67,6 +67,10 @@ Source 개발 계약은 배포된 dependency와 같은 version의 source 수정,
 - worktree-setup은 main checkout의 읽기 전용 `var/composer-artifacts` repository를 공유합니다(K622). Python environment는 자체 editable package가 worktree source를 실행해야 하므로 main environment로 가는 단일 directory link일 수 없습니다. make timestamp stamp는 새 checkout을 건너 이어질 수 없으며 거기서 유효해야 하는 stamp는 내용으로 판단합니다.
 - `main`은 `make land`와 pre-commit hook을 통과한 commit만 씁니다(K495). 두 번째 land는 첫 번째의 lock을 기다리고, `main`보다 뒤처진 branch는 그 worktree에서 rebase되며, `main`의 수동 merge, reset, update-ref는 reference-transaction hook이 거부합니다.
 - worktree와 branch는 branch가 `main`에 merge되면 바로 지웁니다. `make land`는 land한 branch를 지우고, `main`이 포함한 branch의 다른 깨끗한 worktree 중 process가 없는 것도 모두 지웁니다. process가 아직 실행 중인 worktree는 다음 land까지 남습니다(K626).
+
+## Legacy worktree 준비의 경계 (K690)
+
+위의 worktree 공유는 현재 npm/Composer entry link를 수동 구성하고 native autoload 생성 전에 Composer 설치 record의 byte를 복사합니다. 이 호환 경로는 native package manager 설치와 같지 않으며 완료된 source link 전환 범위에도 포함되지 않습니다. 일반 설치 패턴으로 재사용하지 않습니다. K690이 전환을 추적합니다. 정석 기준은 checkout별 native 설치와 공유 cache이며 실제 폴더 공유에는 manager 지원 또는 명시적인 저장 공간·설계 결정이 필요합니다. Manager 전환, metadata 조작, main 설치 변경을 암묵적으로 허용하지 않습니다.
 
 ## 알려진 영향
 

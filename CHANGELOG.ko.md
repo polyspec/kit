@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0087b3c02b1e09e7f7f8f60769aa6343ae17bbd1ee9b52acf1f4aa85d8e972ba -->
+<!-- source-sha256: 0cd76c4f07fe31ce778cbc96cfd302d90d6c95a775cb32bb0c174c0b34d60212 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Candidate 상태는 완료된 native 소유권 수정과 CI 실패 owner 네 건 수정을 아직 대기 중인 전체 candidate CI·공개와 구분합니다. Legacy worktree dependency 투영과 기존 land timeout은 K690/K685의 명시적인 잔여 작업이며 native 설치·deadline 제거 완료로 보고하지 않습니다(K679).
 - Source helper와 release 설치의 native 검증 경계를 명시했습니다. Release bootstrap에는 sibling checkout이 필요 없고 source용 npm-install은 선택한 개발 provider가 필요하며 readonly link 검사를 모든 peer/version 검증으로 간주하지 않습니다. Resolver나 새 runtime 강제는 추가하지 않았습니다(K683).
 - 실행 결과 입력 지문은 기존 Git 파일 목록을 사용해 루트 선택자 `.`을 추적 파일과 새 비무시 파일 전체로 해석한다. 무시된 출력은 제외하고 존재하지 않는 입력 경로는 계속 실패한다. --inputs 없이 --results를 지정한 선택 CLI 실행은 실제 통과 보고서를 작성한다. Red: 1a31679b에서 루트·보고서 회귀 두 개가 실패했다. Green: 소유 지문·보고서 사례 세 개와 변경 파일 타입 인식 lint가 통과한다 (K687).
 - Cargo source 명령, Make recipe와 standalone test runner는 상속된 CARGO_TARGET_DIR를 제외하고 명시적 native target 인자와 나머지 환경은 유지한다. Native metadata로 crate 컴파일이나 Cargo.lock 변경 없이 main과 Git worktree가 서로 다른 기본 target을 선택함을 확인한다. Red: d83b6c61에서 target 격리 소유 case 4개가 실패한다. Green: 해당 4개와 source/holder/locked-graph 회귀 5개가 통과하며 변경 파일의 type-aware lint와 typecheck도 통과한다(K676).

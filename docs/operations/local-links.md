@@ -67,6 +67,10 @@ Two runs with the same declared inputs must leave the same source selections, ma
 - `main` is written by `make land` and by commits whose pre-commit hook passed (K495): a second land waits for the first's lock, a branch behind `main` is rebased in its worktree, and a manual merge, reset or update-ref of `main` is refused by the reference-transaction hook.
 - A worktree and its branch are removed as soon as the branch is merged into `main`: `make land` removes the branch that it lands, and every other clean worktree of a branch that `main` contains in which no process runs; a worktree in which a process still runs is kept until a later land (K626).
 
+## Legacy worktree preparation boundary (K690)
+
+The worktree sharing described above currently constructs npm/Composer entry links and copies native Composer installed-record bytes before native autoload generation. This compatibility path is not the same as a native package-manager install and is not covered by the completed source-link migration. Do not reuse it as a general installation pattern. K690 tracks its migration: native per-checkout installation with shared caches is the conventional baseline; physical folder sharing needs package-manager support or an explicit storage/design decision. No package-manager migration, fabricated metadata or main-install mutation is implied.
+
 ## Known effects
 
 - Local installed records describe the dependencies actually installed by the native package manager. Composer development records and autoload must agree with the selected local source; release CI records describe released packages.
