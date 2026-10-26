@@ -5,6 +5,7 @@ import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSy
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { isStringList } from '../../scripts/kit/bootstrap/files.mts';
 import { uvInstallCommand } from '../../scripts/kit/uv-install.mts';
 
 const SITE = '.venv/lib/python3.14/site-packages';
@@ -125,7 +126,9 @@ test('uv install links the installed member of a uv workspace root that a checko
   const member = provider(path.join(workspace, 'contracts'), 'limepie-contracts', ['limepie/contracts']);
   const { status, output } = run([project, workspace], env);
   assert.equal(status, 0, output);
-  assert.deepEqual(JSON.parse(readFileSync(path.join(root, 'editable-installs.json'), 'utf8')).sort(), [workspace, member].sort(), 'uv installs each distribution of the declared workspace');
+  const installed: unknown = JSON.parse(readFileSync(path.join(root, 'editable-installs.json'), 'utf8'));
+  assert.ok(isStringList(installed), 'uv reports installed editable source paths');
+  assert.deepEqual(installed.sort(), [workspace, member].sort(), 'uv installs each distribution of the declared workspace');
   writeFileSync(path.join(workspace, 'pyproject.toml'), '[project]\nname = "limepie-server"\nversion = "0"\n\n[tool.uv.workspace]\nmembers = ["missing"]\n');
   const broken = run([project, workspace], env);
   assert.notEqual(broken.status, 0);
