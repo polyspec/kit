@@ -218,3 +218,19 @@ test('npmSourceFolders includes all declared provider sections and installed tra
   assert.equal(existsSync(path.join(project, 'node_modules/direct')), false, 'candidate selection installs nothing');
   assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), JSON.stringify(manifest));
 });
+
+test('npmSourceFolders follows each selected local package to its transitive local providers (K672)', (t) => {
+  const { root, project } = fixture(t, 'kit-npm-source-graph-', { '@polyspec/dbspec-language': '0.0.18' }, []);
+  const language = provider(path.join(root, 'providers/language'), '@polyspec/dbspec-language');
+  const orm = provider(path.join(root, 'providers/orm'), '@polyspec/orm');
+  const orderedJson = provider(path.join(root, 'providers/ordered-json'), '@polyspec/ordered-json');
+  writeFileSync(path.join(language, 'package.json'), JSON.stringify({ name: '@polyspec/dbspec-language', dependencies: { '@polyspec/orm': '0.0.18' } }));
+  writeFileSync(path.join(orm, 'package.json'), JSON.stringify({ name: '@polyspec/orm', dependencies: { '@polyspec/ordered-json': '0.0.9' } }));
+  const unrelated = provider(path.join(root, 'providers/unrelated'), '@polyspec/unrelated');
+  const providers: Provider[] = [language, orm, orderedJson, unrelated].map(folder => ({ ecosystem: 'npm', name: JSON.parse(readFileSync(path.join(folder, 'package.json'), 'utf8')).name,
+    folder, repository: root, checkout: root }));
+  const selected = npmSourceFolders(project, providers);
+  assert.deepEqual(selected.map(item => item.name).sort(), ['@polyspec/dbspec-language', '@polyspec/ordered-json', '@polyspec/orm']);
+  for (const item of selected) assert.equal(item.folder, path.join(project, 'node_modules', item.name));
+  assert.equal(selected.find(item => item.name === '@polyspec/ordered-json')?.target, orderedJson);
+});

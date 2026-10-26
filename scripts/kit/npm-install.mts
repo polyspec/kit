@@ -10,6 +10,7 @@ import { run } from './process.mts';
 import type { Provider } from './link-providers.mts';
 
 const SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
+const SOURCE_SECTIONS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const;
 
 /** Selects installed provider packages and declared provider dependencies, including sources not installed yet. */
 export function npmSourceFolders(project: string, providers: Iterable<Provider>): ProvidedFolder[] {
@@ -25,6 +26,26 @@ export function npmSourceFolders(project: string, providers: Iterable<Provider>)
     if (!declared.has(provider.name) || selected.has(provider.name)) continue;
     folders.push({ ecosystem: 'npm', name: provider.name, folder: path.join(project, 'node_modules', provider.name), target: provider.folder });
     selected.add(provider.name);
+  }
+  // A linked package can carry dependencies that its consumer does not declare. Link every local provider in that source graph as
+  // well, or npm resolves the release of a transitive dependency while processing the linked package (K672).
+  const byName = new Map(npm.map(provider => [provider.name, provider]));
+  const queue = [...selected];
+  for (let index = 0; index < queue.length; index += 1) {
+    const provider = byName.get(queue[index] ?? '');
+    if (!provider) continue;
+    const source = readJsonObject(provider.folder, 'package.json');
+    const dependencies = SOURCE_SECTIONS.flatMap(section => {
+      const value = source[section];
+      return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.keys(value) : [];
+    });
+    for (const name of dependencies) {
+      const dependency = byName.get(name);
+      if (!dependency || selected.has(name)) continue;
+      folders.push({ ecosystem: 'npm', name, folder: path.join(project, 'node_modules', name), target: dependency.folder });
+      selected.add(name);
+      queue.push(name);
+    }
   }
   return folders;
 }
@@ -43,7 +64,7 @@ export function npmLink(project: string, folders: readonly ProvidedFolder[], npm
     run(npm, ['link', ...flags], { cwd: target, env: environment });
   }
   const names = [...new Set(folders.filter(folder => folder.ecosystem === 'npm').map(folder => folder.name))];
-  const output = run(npm, ['link', ...names, ...flags], { cwd: project, env: environment });
+  const output = run(npm, ['link', ...names, ...flags, '--workspaces=false'], { cwd: project, env: environment });
   if (output.trim()) print(output.trim());
   print('npm link: passed');
 }

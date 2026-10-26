@@ -1,7 +1,7 @@
 // Native npm replaces a locked release with a selected source only in its consumer; repeated linking converges.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
@@ -123,5 +123,59 @@ describe('native npm undeployed source selection (K664-5)', () => {
     assert.equal(realpathSync(path.join(project, 'node_modules/unreleased-proof')), source);
     assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), manifest);
     assert.equal(existsSync(path.join(project, 'package-lock.json')), false, 'npm link creates no synthetic release lock');
+  });
+});
+
+describe('native npm transitive local source linking (K672)', () => {
+  let directory: string;
+  let root: string;
+  let consumer: string;
+  let language: string;
+  let orm: string;
+  let orderedJson: string;
+  let declarations: string[];
+  let actual: unknown;
+  setup('linking a source package and its transitive source dependencies in a workspace with a release override', () => {
+    directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-transitive-')));
+    root = path.join(directory, 'workspace');
+    consumer = path.join(root, 'packages/dbspec-codemirror');
+    language = path.join(root, 'packages/dbspec-language');
+    orm = path.join(root, 'packages/orm');
+    orderedJson = path.join(directory, 'ordered-json/packages/js');
+    for (const folder of [consumer, language, orm, orderedJson]) mkdirSync(folder, { recursive: true });
+    const remote = 'https://example.invalid/polyspec-ordered-json-npm-0.0.9.tgz';
+    const manifest = (name: string, dependencies: Record<string, string> = {}) => ({ name, version: '0.0.18', main: 'index.cjs', dependencies });
+    writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'orm-workspace', private: true, workspaces: ['packages/*'],
+      dependencies: { '@polyspec/ordered-json': remote }, overrides: { '@polyspec/ordered-json': remote } }));
+    writeFileSync(path.join(consumer, 'package.json'), JSON.stringify(manifest('@polyspec/dbspec-codemirror', { '@polyspec/dbspec-language': '0.0.18' })));
+    writeFileSync(path.join(language, 'package.json'), JSON.stringify(manifest('@polyspec/dbspec-language', { '@polyspec/orm': '0.0.18' })));
+    writeFileSync(path.join(language, 'index.cjs'), "module.exports = require('@polyspec/orm');\n");
+    writeFileSync(path.join(orm, 'package.json'), JSON.stringify(manifest('@polyspec/orm', { '@polyspec/ordered-json': '0.0.9' })));
+    writeFileSync(path.join(orm, 'index.cjs'), "module.exports = require('@polyspec/ordered-json');\n");
+    writeFileSync(path.join(orderedJson, 'package.json'), JSON.stringify(manifest('@polyspec/ordered-json')));
+    writeFileSync(path.join(orderedJson, 'index.cjs'), "module.exports = 'local-ordered-json';\n");
+    for (const [name, folder] of [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm], ['@polyspec/ordered-json', orderedJson]]) {
+      const installed = path.join(root, 'node_modules', name);
+      mkdirSync(path.dirname(installed), { recursive: true });
+      symlinkSync(path.relative(path.dirname(installed), folder), installed, 'dir');
+    }
+    const providers = [
+      { ecosystem: 'npm' as const, name: '@polyspec/dbspec-language', folder: language, repository: root, checkout: root },
+      { ecosystem: 'npm' as const, name: '@polyspec/orm', folder: orm, repository: root, checkout: root },
+      { ecosystem: 'npm' as const, name: '@polyspec/ordered-json', folder: orderedJson, repository: directory, checkout: directory },
+    ];
+    declarations = ['package.json', 'package-lock.json'].filter(file => existsSync(path.join(consumer, file))).map(file => readFileSync(path.join(consumer, file), 'utf8'));
+    const folders = npmSourceFolders(consumer, providers);
+    npmLink(consumer, folders, NPM, { ...process.env, npm_config_offline: 'true', npm_config_cache: path.join(directory, 'cache') }, text => process.stdout.write(`[npm-transitive] ${text}\n`));
+    const result = spawnSync(process.execPath, ['-p', "require('@polyspec/dbspec-language')"], { cwd: consumer, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    actual = result.stdout.trim();
+  });
+  teardown('the transitive npm source fixture', () => { if (directory) rmSync(directory, { recursive: true, force: true }); });
+  test('native npm links every local package in the source dependency graph without resolving its release URL (K672)', () => {
+    assert.equal(actual, 'local-ordered-json');
+    assert.deepEqual(['package.json', 'package-lock.json'].filter(file => existsSync(path.join(consumer, file))).map(file => readFileSync(path.join(consumer, file), 'utf8')), declarations);
+    for (const [name, target] of [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm], ['@polyspec/ordered-json', orderedJson]])
+      assert.equal(realpathSync(path.join(consumer, 'node_modules', name)), target);
   });
 });
