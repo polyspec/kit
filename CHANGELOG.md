@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Python source installation follows known local runtime dependency names and submits selected editables in one native uv transaction, including explicit root requirement extras. uv resolves compatible external dependencies without blanket --no-deps; native dependency, source-path and selected-provider completeness checks remain. Red: K689-2 fails at 7f1c091d because the development beta requires an unpublished local child and cached setuptools that are not installed. Green: the selected unit and real native case pass, including unchanged release URL/hash lock and live child-source edits; changed-file type-aware lint passes (K689-2).
+
 ## 0.0.55
 
 - The release candidate also retains the native Python editable overlay and platform diagnostic handling, with selected-provider completeness and control-flow regressions. Lint cleanup failures retain original diagnostics and subsequent checks. These later fixes have their own prospective child registrations and owning evidence (K655).

@@ -78,11 +78,33 @@ export function dependencyGroups(document: Record<string, unknown>, manifest: st
 }
 
 /** The normalized package names required by a pyproject's build, project, extra and group requirements. */
-export function manifestPackageNames(document: Record<string, unknown>, manifest: string): string[] {
-  const requirements = [
+function manifestRequirements(document: Record<string, unknown>, manifest: string): unknown[] {
+  return [
     ...dependencyArrays(document, manifest).filter(item => !item.kind.startsWith('group:')).flatMap(item => item.list),
     ...[...dependencyGroups(document, manifest).values()].flat(),
   ];
+}
+
+/** The normalized package names of the project's build, project, extra and group requirements. */
+export function manifestPackageNames(document: Record<string, unknown>, manifest: string): string[] {
+  return requirementPackageNames(manifestRequirements(document, manifest));
+}
+
+/** Explicit requirement extras forwarded to native editable requests without resolving versions or markers. */
+export function manifestPackageExtras(document: Record<string, unknown>, manifest: string): Map<string, string[]> {
+  const result = new Map<string, string[]>();
+  for (const requirement of manifestRequirements(document, manifest)) {
+    if (typeof requirement !== 'string') continue;
+    const parsed = parsePipRequirementsLine(requirement);
+    if (!parsed || (parsed.type !== 'ProjectName' && parsed.type !== 'ProjectURL')) continue;
+    const name = normalizeName(parsed.name);
+    result.set(name, [...new Set([...(result.get(name) ?? []), ...(parsed.extras ?? [])])]);
+  }
+  return result;
+}
+
+/** The normalized names of PEP 508 requirements; version and marker resolution remains native. */
+export function requirementPackageNames(requirements: readonly unknown[]): string[] {
   const names = requirements.flatMap((item) => {
     if (typeof item !== 'string') return [];
     const parsed = parsePipRequirementsLine(item);
@@ -94,4 +116,9 @@ export function manifestPackageNames(document: Record<string, unknown>, manifest
 /** The normalized polyspec distributions named by a pyproject's requirements. */
 export function manifestPolyspecNames(document: Record<string, unknown>, manifest: string): string[] {
   return manifestPackageNames(document, manifest).filter(name => name.startsWith('polyspec-'));
+}
+
+/** The names of a source project's runtime dependencies, without interpreting versions or markers. */
+export function runtimePackageNames(document: Record<string, unknown>, manifest: string): string[] {
+  return requirementPackageNames(dependencyArrays(document, manifest).filter(item => item.kind === 'dependencies').flatMap(item => item.list));
 }

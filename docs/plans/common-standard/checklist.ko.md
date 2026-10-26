@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: e047d952a25417ffb9de5d150a111c35b45eca29748bff429f212e9385cc93ee -->
+<!-- source-sha256: 062580cf5aeb25c92fb0764a59b04bf8514ae37ec5a0be0c15cf1ad0f5a4eea3 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -629,4 +629,4 @@
 | K682-1 | 사전 테스트 빌드 부모 종료 후 프로세스 그룹을 정리해 자식이 출력 파이프와 완료를 계속 붙잡지 못하게 한다 | scripts/kit/run-tests.mts, tests/kit/test-build-first.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K682-1 tests/kit/test-build-first.test.mts` | [o] |
 | K682-2 | 테스트 도구 부모가 종료하면 출력·사례 수·종료 상태를 보존하며 프로세스 그룹의 남은 자식을 정리한다 | scripts/kit/run-tests.mts, tests/kit/test-build-first.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K682-2 tests/kit/test-build-first.test.mts` | [o] |
 | K689-1 | native 설치 후 선택한 Python provider distribution이 누락되면 실패한다 | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-1 tests/kit/uv-install.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
-| K689-2 | 선택한 editable Python provider와 native runtime dependency를 하나의 uv transaction으로 해석한다 | scripts/kit/uv-install.mts, scripts/kit/pyproject-dependencies.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-2 tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; changed-file type-aware oxlint; `make docs-check` | [ ] |
+| K689-2 | 선택한 editable Python provider와 native runtime dependency를 하나의 uv transaction으로 해석한다 | scripts/kit/uv-install.mts, scripts/kit/pyproject-dependencies.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-2 tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |

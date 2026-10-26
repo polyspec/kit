@@ -42,7 +42,7 @@ Dependency review updates also leave Composer metadata to native commands. The r
 |---|---|
 | npm | `npm link` connects `node_modules/<name>` through the project-local npm prefix to its provider; npm owns the links and installed records |
 | Composer | Composer creates source links from declared path repositories, respecting `COMPOSER` and `COMPOSER_VENDOR_DIR`, and owns the selected lock and autoload |
-| Python | `uv sync --locked` reconciles the native lock while excluding declared local providers with `--no-install-package`; `uv pip install --offline --no-deps --reinstall-package <name> --editable <provider>` installs each discovered provider, uv owns its editable metadata, and `uv pip check` validates dependency consistency |
+| Python | `uv sync --locked` reconciles the native lock while excluding declared local providers with `--no-install-package`; `uv pip install --offline --editable <provider> ...` resolves the selected local runtime providers together, forwarding explicit requirement extras and letting uv install compatible dependencies, uv owns its editable metadata, and `uv pip check` validates dependency consistency |
 | Go | a git-ignored `go.work` at each Go module, with `use` lines for the module and the provider modules |
 | Rust | `link.mjs cargo <dir> <cargo args>` runs one cargo command with `--config` `[patch]` entries and a copy of the lock under `var/link/cargo` |
 

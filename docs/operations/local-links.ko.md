@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: f3a139b830742ea4a60241a6e2772b1fde140b7074ad43924b86208f809d6642 -->
+<!-- source-sha256: 4c4253b5cb01df9b4b0033aaf791a29a9d6018e467bd37ebd450fc78439d99a8 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -43,7 +43,7 @@ Dependency review의 update도 Composer metadata를 native 명령에 맡깁니�
 |---|---|
 | npm | `npm link`가 `node_modules/<name>`을 project-local npm prefix를 거쳐 provider에 연결하며 link와 설치 record는 npm이 관리합니다 |
 | Composer | 선언된 path repository에서 Composer가 source link를 만들며 `COMPOSER`, `COMPOSER_VENDOR_DIR`를 따르고 선택한 lock과 autoload를 관리합니다 |
-| Python | `uv sync --locked`가 native lock을 맞추며 `--no-install-package`로 선언된 local provider를 제외합니다. 이어서 `uv pip install --offline --no-deps --reinstall-package <name> --editable <provider>`로 발견한 provider를 설치하고 uv가 editable metadata를 관리하며, `uv pip check`가 dependency 호환성을 검사합니다 |
+| Python | `uv sync --locked`가 native lock을 맞추며 `--no-install-package`로 선언된 local provider를 제외합니다. 이어서 `uv pip install --offline --editable <provider> ...`로 선택한 local runtime provider와 명시적 requirement extra를 하나의 transaction에 전달해 호환 dependency를 해석·설치하고 uv가 editable metadata를 관리하며, `uv pip check`가 dependency 호환성을 검사합니다 |
 | Go | 각 Go module에 git이 무시하는 `go.work`. module과 provider module의 `use` 줄을 가집니다 |
 | Rust | `link.mjs cargo <dir> <cargo args>`가 `--config` `[patch]` 항목과 `var/link/cargo` 아래 lock 사본으로 cargo 명령 하나를 실행합니다 |
 

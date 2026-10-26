@@ -146,3 +146,48 @@ test('K689: offline native uv source linking preserves the release URL lock and 
   assert.equal(readFileSync(path.join(app, 'pyproject.toml'), 'utf8'), manifest);
   assert.equal(readFileSync(path.join(app, 'uv.lock'), 'utf8'), lock);
 });
+
+test('K689-2: one native transaction resolves an unpublished local runtime dependency and cached external dependency', { timeout: 120_000 }, (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-runtime-graph-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const app = path.join(root, 'app');
+  const wheels = path.join(root, 'wheels');
+  mkdirSync(app);
+  mkdirSync(wheels);
+  const source = (folder: string, name: string, version: string, dependencies: string[], value: string) => {
+    mkdirSync(path.join(folder, 'src', name.replaceAll('-', '_')), { recursive: true });
+    writeFileSync(path.join(folder, 'pyproject.toml'), `[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n[project]\nname = "${name}"\nversion = "${version}"\ndependencies = ${JSON.stringify(dependencies)}\n`);
+    writeFileSync(path.join(folder, 'src', name.replaceAll('-', '_'), '__init__.py'), `value = "${value}"\n`);
+    return { ecosystem: 'python' as const, name, folder, repository: folder, checkout: folder };
+  };
+  const release = source(path.join(root, 'release'), 'polyspec-beta', '0.0.1', [], 'release');
+  const beta = source(path.join(root, 'beta'), 'polyspec-beta', '0.0.2', ['polyspec-unpublished-c>=0.0.1', 'setuptools==84.0.0'], 'development');
+  const child = source(path.join(root, 'child'), 'polyspec-unpublished-c', '0.0.1', [], 'unpublished');
+  const uv = toolCommand(ROOT, 'uv');
+  const env = toolsEnvironment(ROOT, { ...process.env, UV_PROJECT_ENVIRONMENT: '.venv', UV_OFFLINE: '1', UV_NO_INDEX: '1', UV_FIND_LINKS: toolsPath(ROOT, 'wheels'), UV_CACHE_DIR: path.join(root, 'cache'), PYTHONDONTWRITEBYTECODE: '1' });
+  const success = (args: string[], cwd = app) => {
+    const result = spawnSync(uv, args, { cwd, env, encoding: 'utf8' });
+    assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+    return result.stdout;
+  };
+  success(['build', '--wheel', '--out-dir', wheels], release.folder);
+  const wheel = path.join(wheels, readdirSync(wheels).find(file => file.endsWith('.whl')) ?? 'missing');
+  const hash = createHash('sha256').update(readFileSync(wheel)).digest('hex');
+  const manifest = `[project]\nname = "app"\nversion = "0.0.0"\ndependencies = ["polyspec-beta @ ${pathToFileURL(wheel).href}#sha256=${hash}"]\n[tool.uv]\npackage = false\n`;
+  writeFileSync(path.join(app, 'pyproject.toml'), manifest);
+  success(['venv', '--python', toolCommand(ROOT, 'python3'), '.venv']);
+  success(['lock', '--no-sources']);
+  const locked = readFileSync(path.join(app, 'uv.lock'), 'utf8');
+  assert.deepEqual(uvEditable({ directory: app, providers: [beta, child], uv, env }).sort(), ['polyspec-beta', 'polyspec-unpublished-c']);
+  const python = path.join(app, '.venv/bin/python');
+  const probe = () => {
+    const result = spawnSync(python, ['-c', 'import polyspec_beta, polyspec_unpublished_c; from importlib.metadata import version; print(polyspec_beta.value, polyspec_unpublished_c.value, version("setuptools")); print(polyspec_beta.__file__); print(polyspec_unpublished_c.__file__)'], { cwd: app, env, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim().split('\n');
+  };
+  assert.deepEqual(probe(), ['development unpublished 84.0.0', path.join(beta.folder, 'src/polyspec_beta/__init__.py'), path.join(child.folder, 'src/polyspec_unpublished_c/__init__.py')]);
+  writeFileSync(path.join(child.folder, 'src/polyspec_unpublished_c/__init__.py'), 'value = "edited"\n');
+  assert.equal(probe()[0], 'development edited 84.0.0');
+  assert.equal(readFileSync(path.join(app, 'pyproject.toml'), 'utf8'), manifest);
+  assert.equal(readFileSync(path.join(app, 'uv.lock'), 'utf8'), locked);
+});

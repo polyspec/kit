@@ -1,6 +1,6 @@
 // Native uv owns declarations, lock validation, installation and dependency validation; these unit fixtures only record commands.
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -30,7 +30,7 @@ test('K689: uv sync excludes declared local providers and installs them as nativ
   const linked = readFileSync(log, 'utf8').trim().split('\n').slice(4);
   assert.equal(linked[0], 'workspace dir');
   assert.equal(linked[1], 'sync --locked --no-install-package polyspec-new-unreleased');
-  assert.match(linked[2] ?? '', /^pip install --offline --python .* --no-deps --reinstall-package polyspec-new-unreleased --editable /);
+  assert.match(linked[2] ?? '', /^pip install --offline --python .* --reinstall-package polyspec-new-unreleased --editable /);
   assert.match(linked[3] ?? '', /^pip check --python /);
   assert.match(linked[4] ?? '', /^pip list --python .* --format json$/);
   assert.equal(linked.some(command => command.includes('unused-sibling')), false);
@@ -63,4 +63,27 @@ test('K689-1: every selected local provider must be present in the native instal
   assert.deepEqual(uvEditable({ directory: root, uv, env, providers }), ['polyspec-new-unreleased']);
   assert.throws(() => uvEditable({ directory: root, uv, env: { ...env, UV_FIXTURE_LOCATION: path.dirname(root) }, providers }), /not the expected development source/);
   assert.deepEqual(uvEditable({ directory: root, uv, env: { ...env, UV_FIXTURE_LIST: '[{"name":"unrelated-release","version":"1.0.0"}]' }, providers: [{ ...provider, name: 'unused-sibling' }] }), [], 'valid release-only installs require no unrelated provider');
+});
+
+
+test('K689-2: source runtime providers share one native dependency-resolution transaction', { timeout: 30_000 }, (t) => {
+  const { root, uv, env, log } = fixture(t);
+  writeFileSync(path.join(root, 'pyproject.toml'), '[project]\nname = "app"\nversion = "0"\ndependencies = ["polyspec-new-unreleased[fast]"]\n');
+  const beta = path.join(root, 'beta');
+  const child = path.join(root, 'child');
+  mkdirSync(beta);
+  mkdirSync(child);
+  writeFileSync(path.join(beta, 'pyproject.toml'), '[project]\nname = "polyspec-new-unreleased"\nversion = "0.0.2"\ndependencies = ["polyspec-child>=0.0.1", "external>=1"]\n');
+  writeFileSync(path.join(child, 'pyproject.toml'), '[project]\nname = "polyspec-child"\nversion = "0.0.1"\ndependencies = []\n');
+  const providers = [
+    { ecosystem: 'python' as const, name: 'polyspec-new-unreleased', folder: beta, repository: beta, checkout: beta },
+    { ecosystem: 'python' as const, name: 'polyspec-child', folder: child, repository: child, checkout: child },
+  ];
+  const list = JSON.stringify(providers.map(provider => ({ name: provider.name, editable_project_location: provider.folder })));
+  assert.deepEqual(uvEditable({ directory: root, providers, uv, env: { ...env, UV_FIXTURE_LIST: list } }), providers.map(provider => provider.name));
+  const installs = readFileSync(log, 'utf8').split('\n').filter(line => line.startsWith('pip install '));
+  assert.equal(installs.length, 1);
+  assert.ok(installs[0]?.includes(`--editable ${beta}[fast]`));
+  assert.ok(installs[0]?.includes(`--editable ${child}`));
+  assert.doesNotMatch(installs[0] ?? '', /--no-deps/);
 });

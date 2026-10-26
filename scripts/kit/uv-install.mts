@@ -6,7 +6,7 @@ import { checkoutProviders, editableFolder, providedFolders } from './link-folde
 import { siblingCheckouts, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
-import { manifestPolyspecNames, normalizeName } from './pyproject-dependencies.mts';
+import { manifestPackageExtras, manifestPolyspecNames, normalizeName, runtimePackageNames } from './pyproject-dependencies.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
 
@@ -36,7 +36,19 @@ export function uvEditable({ directory, providers = [], uv = 'uv', env = process
   const manifest = path.join(project, 'pyproject.toml');
   const document = readToml(readFileSync(manifest, 'utf8'), manifest);
   const declared = new Set(manifestPolyspecNames(document, manifest));
-  const local = provided.filter(provider => declared.has(normalizeName(provider.name)));
+  const extras = manifestPackageExtras(document, manifest);
+  const local: Provider[] = [];
+  const selected = new Set<string>();
+  const visit = (provider: Provider): void => {
+    const name = normalizeName(provider.name);
+    if (selected.has(name)) return;
+    selected.add(name);
+    local.push(provider);
+    const file = path.join(provider.folder, 'pyproject.toml');
+    const names = new Set(runtimePackageNames(readToml(readFileSync(file, 'utf8'), file), file));
+    for (const dependency of provided) if (names.has(normalizeName(dependency.name))) visit(dependency);
+  };
+  for (const provider of provided) if (declared.has(normalizeName(provider.name))) visit(provider);
   const workspace = run(uv, ['workspace', 'dir'], { cwd: project, env }).trim();
   if (!path.isAbsolute(workspace)) throw new Error('uv workspace dir returned no absolute project root');
   const python = path.join(path.resolve(workspace, env.UV_PROJECT_ENVIRONMENT || '.venv'), 'bin/python');
@@ -44,9 +56,12 @@ export function uvEditable({ directory, providers = [], uv = 'uv', env = process
   try {
     const output = run(uv, ['sync', '--locked', ...sync, ...local.flatMap(provider => ['--no-install-package', provider.name])], { cwd: project, env });
     if (output.trim()) print(output.trim());
-    for (const provider of local) {
-      print(`uv development: installing ${provider.name} from its local source with uv pip install --editable`);
-      const linked = run(uv, ['pip', 'install', '--offline', '--python', python, '--no-deps', '--reinstall-package', provider.name, '--editable', provider.folder], { cwd: project, env });
+    if (local.length > 0) {
+      print(`uv development: resolving editable sources together: ${local.map(provider => provider.name).join(', ')}`);
+      const linked = run(uv, ['pip', 'install', '--offline', '--python', python, ...local.flatMap(provider => {
+        const requested = extras.get(normalizeName(provider.name)) ?? [];
+        return ['--reinstall-package', provider.name, '--editable', `${provider.folder}${requested.length ? `[${requested.join(',')}]` : ''}`];
+      })], { cwd: project, env });
       if (linked.trim()) print(linked.trim());
     }
     run(uv, ['pip', 'check', '--python', python], { cwd: project, env });
