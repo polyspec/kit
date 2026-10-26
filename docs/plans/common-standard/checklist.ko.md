@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f6ac7863945a2a05a7a8e98f451f4917498f46c41e9e7c51724e4eb7dc6892cd -->
+<!-- source-sha256: b95c32092e496923ade5201288c60f4c1b26a62c06b0b0d37ecff05e1fe1d2ae -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -618,3 +618,4 @@
 | K684 | 상속된 offline 설정이 online advisory review의 성공을 위장하지 못하는지 검증하고 offline gate는 commit된 review 기록만 읽도록 유지한다 | scripts/kit/dependency-review.mts and advisory owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-policy.test.mts` | [ ] |
 | K685 | 전체 operation deadline 없이 문서와 land 작업의 단계별 명령·결과·경과시간 출력을 보완한다 | check-documents, land and owning tests | `node scripts/kit/run-tests.mts node -- tests/kit/land.test.mts` | [ ] |
 | K686 | CI run 40313948359의 전체 실패를 수집하고 소유 범위를 수정한 뒤 수정된 release candidate의 CI를 통과시켜 공개한다 | complete CI report, failure-specific source changes and owning tests | `make docs-check` | [ ] |
+| K686-1 | Native npm provider 선택 fixture에 source graph 탐색 전 package manifest 입력을 완성한다 | tests/kit/npm-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="includes all declared provider sections" tests/kit/npm-install.test.mts` | [ ] |
