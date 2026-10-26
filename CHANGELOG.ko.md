@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 82db2906c5f72a73538fc608dfdf9bca0871d3ca5449bfaf24f52841fca8f347 -->
+<!-- source-sha256: 90e98b99169efeebec34cd0dcaad017410557df027cd1cc7178e350d0f2ac9b8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+
 
 ## 0.0.55
 
@@ -21,6 +23,7 @@
 - release와 gates는 Make 실행 전에 정확한 packageManager npm으로 consumer package lock을 bootstrap하며 이 단계에서는 lifecycle script를 실행하지 않고 이후 정식 toolchain과 package lifecycle 설치를 따른다. kit 자체는 source Makefile을 사용하고 자신의 published copy 설치를 건너뛴다. gates는 표준 root checkout을 사용하며 install, native link와 모든 gate target을 유지한다. floating 또는 tag 기반 형제 source clone은 제거했다. 기존 workflow 검사 13개가 통과했고 consumer 명령 인자, 명시적 cache, kit skip을 포함한 새 package-first 실행 및 root-layout 검사 3개와 변경 검사 파일 type-aware lint가 통과한다 (K671-3).
 - 설치된 kit bootstrap은 필수 형제 체크아웃 없이 네이티브 npm 소스 링크와 패키지 설치를 지원한다. npm이 polyspec-kit-hook 명령 링크를 소유하고 prepack은 소스 대상을 dist로 바꾸며 Claude 설정의 소비자 로컬 명령 바이트는 동일하다. pack 소유 단위 검사 두 개와 실제 소스·패키지 소비자 사례 한 개가 명령 허용과 hook 거부까지 통과한다. 변경 파일 타입 인식 lint와 typecheck도 통과한다 (K671-1).
 - 공유 principle, editor 설정, Claude 설정, release/gates workflow는 설치된 kit package의 regular copy로 관리합니다. sync는 bytes가 같아도 managed symlink를 atomic하게 교체하고 provider를 그대로 유지하며 반복 실행은 변경을 만들지 않습니다. tracked shared link의 sibling-checkout 예외를 제거하고 소비자 정리 전에 kit source checkout의 sync를 거부합니다. Red: 이전 동작에서 선택 copy-policy case 4개가 실패합니다. Green: 소유 case 4개와 type-aware lint가 통과합니다(K671-2).
+- npm source 연결은 선택한 provider의 전이 local npm dependency를 따라가며 consumer link 중 workspace 전체 재해석을 비활성화한다. 따라서 workspace override가 release URL을 지정해도 연결한 package의 dependency graph가 local source를 사용한다. 선택기 단위와 offline native npm fixture가 통과한다(K672).
 - Arginfo 생성이 선언한 PHP configuration을 유지한다. -n으로 비활성화하면 shared module로 로드하는 PHP 설치에서 tokenizer가 사라졌다. Red: -n이 tokenizer를 제거하면 K670-1 unit이 실패하며 green: fixture header를 생성한다(K670-1).
 - Consumer release는 make가 bootstrap을 읽기 전에 lock의 release tag로 sibling kit checkout과 npm dependency를 준비한다. kit 자체는 자기 source를 유지한다. Red: 준비 단계가 없으면 K670 workflow 회귀 검증이 실패하며 green: release workflow unit 9개가 통과한다(K670).
 - Cargo source 연결은 metadata와 요청 command 전에 생성된 개발 lock에서 잠긴 sibling crate만 offline 갱신한다. Red: metadata가 호환되는 v0.0.10 sibling 대신 cache의 ordered-json v0.0.9 release를 선택했다. Green: K664-3-1 회귀와 native offline locked metadata 실행이 local source를 선택하고 tracked release lock은 유지한다(K664-3-1).

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+
+
 ## 0.0.55
 
 - The Cargo fallback fixture allows the native offline update preflight and separately verifies that source refusal prevents the requested command and releases its holder. Red: the owning fallback case fails at cdb95b63; green: all four selected Cargo source cases pass (K671-8).
@@ -20,6 +22,7 @@
 - Release and gates bootstrap consumer package locks with the exact packageManager npm before Make, without lifecycle scripts during bootstrap; the regular toolchain and package lifecycle installation follows. Kit itself uses its source Makefile and skips installing a published copy of itself. Gates use the standard root checkout and retain install, native linking and every gate target. No floating or tag-based sibling source clone remains. Thirteen unchanged workflow cases passed; three new package-first execution and root-layout cases pass, including consumer command arguments, explicit cache and kit skip; changed-test type-aware lint passes (K671-3).
 - The installed kit bootstrap supports native npm source links and packed installs without a mandatory sibling checkout. npm owns the polyspec-kit-hook command link; prepack changes its source target to dist while Claude settings retain identical consumer-local command bytes. Two pack-owner units and one native source/packed consumer case pass, including allowed commands and hook refusal. Changed-file type-aware lint and typecheck pass (K671-1).
 - Shared principles, editor settings, Claude settings and release/gates workflows are regular copies from the installed kit package. Synchronization atomically replaces managed symlinks even when their bytes match, leaves their providers unchanged and writes nothing on repeat. Tracked shared links no longer require or receive a sibling-checkout exception, and synchronization refuses the kit source checkout before consumer cleanup. Red: four focused copy-policy cases fail on the old behavior; green: those four owning cases and type-aware lint pass (K671-2).
+- npm source linking follows the selected providers' transitive local npm dependencies and disables workspace-wide reification during the consumer link. This keeps a linked package's local dependency graph on source even when a workspace override names a release URL. The focused selector and offline native npm fixture pass (K672).
 - Arginfo generation retains the declared PHP configuration. Disabling it with -n removed tokenizer on PHP installations that load it as a shared module. Red: the K670-1 unit fails when -n drops tokenizer; green: it generates the fixture header (K670-1).
 - A consumer release prepares the sibling kit checkout and npm dependencies at the release tag of its lock before make reads the bootstrap. kit itself keeps its own sources. Red: the K670 workflow regression fails without preparation; green: all 9 release workflow units pass (K670).
 - Cargo source linking updates only locked sibling crates offline in the generated development lock before metadata and the requested command. Red: metadata selected the cached ordered-json v0.0.9 release for a compatible v0.0.10 sibling; green: the K664-3-1 regression and native offline locked metadata run select the local source, while the tracked release lock stays unchanged (K664-3-1).
