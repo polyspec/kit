@@ -59,6 +59,10 @@ The moves of points 2 and 3 are each a kit row of its own, after K438, since eac
 batched sync of the next release: reading the four kinds of kit-only configuration from the package, the reusable workflows with
 their callers, and the link document of the principles. Point 1 is a rule of the release procedure (docs/operations/release.md).
 
+## Current package bootstrap (K671)
+
+Consumers include the bootstrap of the installed `@polyspec/kit` package. Native npm installs the locked package before the first Make invocation. Shared principles, editor and Claude settings, and release/gates workflows are regular copies managed by kit-sync and checked by kit-check. A sibling source checkout is optional and can be connected through native `npm link ../kit`. This supersedes the sibling bootstrap and tracked shared links recorded below.
+
 ## What K614 did
 
 On 2026-10-25 the user approved the removal of the kit-sync copies, and K614 carries it out, with the plain symbolic links of a

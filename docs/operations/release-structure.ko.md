@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release-structure -->
-<!-- source-sha256: 324f7d5148eb8052c1c0d08bfec9914801f660613e069b9b9e0299f266fa494d -->
+<!-- source-sha256: f4fc91eea3d0b0726b51aadcb246aec20a0f7d3888306b6e993aeb257f9914ca -->
 # 릴리스 구조
 
 [English](release-structure.md)
@@ -56,6 +56,10 @@ K514는 이미 lint 설정을 사본에서 빼냈습니다. 각 lint는 설정�
 2번과 3번의 이동은 각각 kit-sync가 쓰는 것을 바꾸므로 다음 릴리스의 묶은 sync를 거치는, K438 뒤의 kit 행입니다. kit 전용 설정 네 종류를
 패키지에서 읽기, caller와 함께 재사용 workflow, principles의 link 문서입니다. 1번은 릴리스 절차(docs/operations/release.md)의
 규칙입니다.
+
+## 현재 package bootstrap (K671)
+
+소비자는 설치된 `@polyspec/kit` package의 bootstrap을 include합니다. 첫 Make 실행 전에 native npm이 lock의 package를 설치합니다. 공유 principles, editor와 Claude 설정, release/gates workflow는 kit-sync가 관리하고 kit-check가 검사하는 일반 사본입니다. 옆의 source checkout은 선택 사항이며 native `npm link ../kit`으로 연결할 수 있습니다. 이 동작은 아래에 기록된 sibling bootstrap과 추적된 공유 link를 대체합니다.
 
 ## K614이 한 일
 
