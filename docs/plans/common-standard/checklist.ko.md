@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 680358807723e59d5c5d8e7a73b73fe5931e59cfebb251bdfb0cbe7588ca1ac3 -->
+<!-- source-sha256: b4a3f85ec8abc83e53d75cc6bfce69e029340685067a028fee9fd41a080fd765 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -614,6 +614,7 @@
 | K677-2 | PHP extension parity binding을 기존 격리 library-test Composer autoloader로 실행하고 실패를 포함하여 두 실행 후 정리한다. | scripts/kit/parity-runners.mts, scripts/kit/parity-ledger.mts, tests/kit/parity.test.mts, docs/operations/tool-inventory.md(.ko), CHANGELOG.md(.ko) | `node --test --test-name-pattern=K677-2 tests/kit/parity.test.mts` | [o] |
 | K677-3 | 격리 PHP parity 수정과 native consumer lock, 의존성 검토를 포함한 kit 0.0.57 공개를 준비한다. | package.json, package-lock.json, tests/release-consumer/npm, config/dependency-review.json, CHANGELOG.md(.ko) | `node --test --test-name-pattern=K677-2 tests/kit/parity.test.mts` | [o] |
 | K677-4 | K696과 K697, native release consumer lock, 의존성 검토와 버전별 changelog를 포함한 kit 0.0.58 공개를 준비한다. | package.json, package-lock.json, tests/release-consumer/npm, config/dependency-review.json, CHANGELOG.md(.ko) | `node --test --test-name-pattern=K697 tests/kit/parity.test.mts` | [o] |
+| K677-5 | K698과 K430-2 수정 후 kit 0.0.58 consumer lock과 release 기록을 갱신한다. | tests/release-consumer/npm/package-lock.json, config/dependency-review.json, CHANGELOG.md(.ko) | `node --test tests/kit/run-command.test.mts` | [ ] |
 | K678 | 실제 locked install과 package 소비 검증을 유지하며 반복 준비 비용과 오래된 link 설명을 검토한다 | Reviewed six isolated builtCopy consumers across three source test files; retained native locked-install and packed-consumption coverage and per-process shared download cache; clarified dependency-root ownership and source-versus-packed export comments | `make docs-check` | [o] |
 | K679 | 기존 미완료 checklist 전체를 native package 소유권, 현재 runner 규칙, release 증거와 대조한 뒤 기존 지시의 재개 여부를 정한다 | common-standard plan 결정 대응표와 기존 checklist 판정, 한국어 짝 | `make docs-check` | [o] |
 | K680 | Native npm advisory node path를 보존하고 취약한 nested copy를 실제 locked version에 귀속한다 | scripts/kit/dependency-review.mts, advisory schema and policy tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-policy.test.mts` | [o] |
