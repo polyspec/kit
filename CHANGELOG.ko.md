@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c72180e19ab8d5b276a46be9f1ef6df90e3fb82fbf5f316539d1e034209ad69c -->
+<!-- source-sha256: 7cfd12e9276a167364d074cfc953d5c6fb697e5cf8e67dedfc00d56075a10a3d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- worktree 재빌드는 설치된 source 또는 packed kit의 공개 link export를 해석하고 workspace hook 경로는 실행 module을 따른다. source 경로 소유 검사 7개, 두 tool export fixture와 재빌드 순서 검사, 변경 파일 type-aware lint가 통과한다 (K661-9).
 - Dependency isolation은 runtime import, command, peer와 별도로 native TypeScript compiler가 kit 도구에서 실제 읽은 type declaration package를 사용으로 인정합니다. 미사용 type package는 계속 거부하며 test-only import는 도구 사용으로 세지 않습니다. Red: dependency-use case가 필요한 @types/picomatch를 거부합니다. Green: 소유 isolation 3개 case와 type-aware lint가 통과합니다(K661-10).
 - Parity 중복 검사는 진단 문장 전체 대신 finding 수, 공유 requirement, 충돌한 두 suite와 병합 안내를 확인한다. Python lock 검사는 uv 누락과 설치 안내를 독립적으로 확인한다. Release coverage는 앱 소유 PHP lint manifest와 kit이 쓰는 파일을 구분한다. Red: fc0fccc2에서 소유 case 3개가 실패했다. Green: 3개 모두 통과하며 변경 파일의 type-aware lint도 통과했다(K661-8).
 - 의존성 계약 테스트는 버전 선택·로컬 경로·설치 형태를 네이티브 패키지 관리자에 맡긴다. 보안 게이트는 미검토 잠금 변경과 검토된 취약점을 계속 거부하며, 패키지 범위는 취약점 진단을 선택한다. Python Git pin은 review가 기록하고 전체 잠금 지문이 보호한다. fc0fccc2에서 과거 게이트 기대 7개가 실패했고 현재 계약 검사 7개와 타입 인식 lint가 통과한다. 네이티브 설치 동작의 소유 검사는 npm-install.test.mts와 composer-install.test.mts에 있다 (K661-7).

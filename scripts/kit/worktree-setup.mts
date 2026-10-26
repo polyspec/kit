@@ -8,6 +8,7 @@
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
 import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -15,7 +16,8 @@ import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { run } from './process.mts';
 import { COMMIT_RULES } from './check-commits.mts';
 import { git, gitResult } from './git.mts';
-import { isMain, repositoryRoot } from './paths.mts';
+import { kitPackageRoot } from './kit-files.mts';
+import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { composerCommand } from './install-composer-project.mts';
 
 // A name of a worktree: a slug of lower case letters, digits and hyphens; an id: the letters, digits, dots and hyphens of a row.
@@ -308,9 +310,9 @@ function writeInstalled(source: string, target: string): void {
  * The link tool that rebuilds the packages of a worktree (K482). A consumer runs the link source of its linked kit (K613), and kit
  * itself runs its own scripts/kit/link.mts, which the worktree has as a source; the tool is chosen by which of the two the worktree holds.
  */
-function linkTool(folder: string): string {
-  const own = path.join(folder, 'scripts/kit/link.mts');
-  return existsSync(own) ? own : path.join(folder, 'node_modules/@polyspec/kit/scripts/kit/link.mts');
+export function worktreeLinkTool(folder: string): string {
+  const own = path.join(folder, path.relative(kitPackageRoot(), siblingTool(import.meta.url, 'link')));
+  return existsSync(own) ? own : createRequire(path.join(folder, 'package.json')).resolve('@polyspec/kit/link');
 }
 
 /** The artifact repository of Composer that a composer.json of a repository names (K622). */
@@ -367,7 +369,7 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   for (const target of linkStateOnly ? ['link-state-check'] : ['rebuild', 'link-state-check']) {
     // The rebuild (K482) builds the packages of the worktree's own repository before the check reads their builds: a new worktree has none yet.
     const [command, args] = target === 'rebuild'
-      ? [process.execPath, [linkTool(folder), 'rebuild', '.']]
+      ? [process.execPath, [worktreeLinkTool(folder), 'rebuild', '.']]
       : ['make', ['--no-print-directory', target]];
     print(`[worktree-setup] ${target === 'rebuild' ? 'link rebuild' : `make ${target}`} in ${folder}`);
     const result = spawnSync(command, args, { cwd: folder, stdio: 'inherit' });

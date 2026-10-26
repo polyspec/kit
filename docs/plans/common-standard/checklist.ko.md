@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: af8a6b48f5e11e0aac1caa42595a9bc3f543aeef405d6fbe9f3a0d799f3046e6 -->
+<!-- source-sha256: ffa5a2e5895e455400e394d5f2bbaaa0d02f04eb96801cc078db06dba45fc4b7 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -580,3 +580,4 @@
 | K662 | 개별 test watchdog은 실행 중인 test case에 적용하며 case 시작 전의 긴 설치와 setup 작업에 적용하지 않는다 | scripts/kit/test-hooks.mts, test-gap.mts, test-exit-deadline.mts, node-reporter.mts and their owning unit tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K662 tests/kit/run-tests.test.mts tests/kit/test-exit-deadline.test.mts` | [o] |
 | K661-2 | CI 문서 참조는 명시적 외부 Markdown link를 사용하고 release package 검사는 현재 source/packed 계약을 따른다 | scripts/kit/check-documents.mts, config/release.json, owning document and release tests | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K374 tests/kit/documents.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/release-workflow.test.mts` | [o] |
 | K661-1 | Go의 native null directive 집합을 허용하고 PHP arginfo는 extension 개발에만 준비하며 extension fixture는 native discovery와 platform 독립 parser 선택 입력을 사용한다 | scripts/kit/schema/go-mod.schema.json, scripts/kit/toolchain-files.mts, scripts/kit/install-tools.mts, Makefile, .github/workflows/ci.yml, tests/kit | `node scripts/kit/run-tests.mts node -- tests/kit/toolchain-files.test.mts tests/kit/dependency-toolchain.test.mts tests/kit/install-php.test.mts tests/kit/install-tools.test.mts`; `node scripts/kit/run-tests.mts node -- tests/kit/php-ext.test.mts` | [o] |
+| K661-9 | worktree 재빌드는 source와 packed kit의 공개 link export를 해석하고 hook 경로는 실행 module을 기준으로 계산한다 | scripts/kit/worktree-setup.mts, scripts/kit/link.mts, scripts/kit/link-folders.mts, package.json, tests/kit/worktree-setup.test.mts | paths.test.mts 7 pass; K482 and K661-9 fixtures pass; changed files type-aware oxlint pass | [o] |

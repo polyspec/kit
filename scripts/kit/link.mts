@@ -33,7 +33,8 @@ import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, t
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
-import { isMain } from './paths.mts';
+import { isMain, siblingTool } from './paths.mts';
+import { kitPackageRoot } from './kit-files.mts';
 import { errorCode, execute, run } from './process.mts';
 import { dependencyArrays, dependencyGroups, normalizeName } from './pyproject-dependencies.mts';
 
@@ -671,7 +672,7 @@ const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 
 // K440: a Claude Code session started in the workspace folder (the folder of kit and its siblings) loads no .claude/settings.json of
 // kit, so link --siblings writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by its kit checkout.
-const KIT_HOOK = 'scripts/kit/claude-hook.mts';
+const KIT_HOOK = path.relative(kitPackageRoot(), siblingTool(import.meta.url, 'claude-hook'));
 // The node of a kit checkout that runs the hook: installed by make install-tools (K171, K440-2).
 const KIT_NODE = 'var/tools/bin/node';
 

@@ -5,6 +5,7 @@
   "license": "MIT",
   "type": "module",
   "exports": {
+    "./link": "./scripts/kit/link.mts",
     "./tracked-files": "./scripts/kit/tracked-files.mts",
     "./test-hooks": "./scripts/kit/test-hooks.mts",
     "./test-progress": "./scripts/kit/test-progress.mts",

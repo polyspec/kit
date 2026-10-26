@@ -5,7 +5,7 @@
 //   npm       node_modules/<name>                  -> the folder of the provider's package.json
 //   Composer  <vendor-dir>/<vendor>/<package>      -> the folder of the provider's composer.json
 //   Python    <site-packages>/<package path>       -> the same package path under the provider's source root (src/ when it has one),
-//             one link per package, so the packages of one namespace (polyspec/orm, polyspec/ordered_json) link apart; a source root
+//             one link per package, so the packages of one namespace (example/orm, example/ordered_json) link apart; a source root
 //             whose pyproject maps its directories in the hatchling wheel sources links each directory to its mapped package path (K529)
 //
 // Each installed package is exactly one directory symlink, the user's rule (K591); no kit uv run writes through it, since every uv
@@ -43,7 +43,7 @@ function declaredName(folder: string, ecosystem: keyof typeof MANIFEST): string 
 }
 
 /**
- * The package folders of a checkout that the caller names (K494): the folders under packages/ to a depth of three (hyper's
+ * The package folders of a checkout that the caller names (K494): the folders under packages/ to a depth of three (a workspace's
  * packages/server/ts), node_modules and vendor never searched, that hold the manifest of `ecosystem`.
  */
 function packageFoldersOf(checkout: string, ecosystem: keyof typeof MANIFEST): string[] {
@@ -220,8 +220,8 @@ export function composerVendorDir(project: string, env: NodeJS.ProcessEnv): stri
 
 /**
  * The installed package paths of a Python provider folder that its pyproject.toml maps in the wheel target's sources (K529): each
- * source directory of the folder is installed as the package path of its entry, so the member limepie-contracts maps src to
- * limepie/contracts. Empty when the pyproject declares no such table.
+ * source directory of the folder is installed as the package path of its entry, so the member example-contracts maps src to
+ * example/contracts. Empty when the pyproject declares no such table.
  */
 function hatchSources(folder: string): { from: string; to: string }[] {
   const file = path.join(folder, MANIFEST.python);

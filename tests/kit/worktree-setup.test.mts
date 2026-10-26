@@ -8,7 +8,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
-import { prepareWorktreePython, setupWorktree } from '../../scripts/kit/worktree-setup.mts';
+import { prepareWorktreePython, setupWorktree, worktreeLinkTool } from '../../scripts/kit/worktree-setup.mts';
+import { packedFiles } from '../../scripts/kit/pack-manifest.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
 
@@ -21,6 +22,7 @@ const git = (cwd: string, ...args: string[]) => {
 // The kit of a consumer is a link to the kit checkout beside it (K591), ../kit of the fixture, whose link source node runs with its
 // types stripped, since it lies outside node_modules (K613).
 const linkKit = (main: string) => {
+  put(main, { '../kit/package.json': JSON.stringify({ name: '@polyspec/kit', type: 'module', exports: { './link': './scripts/kit/link.mts' } }) });
   mkdirSync(path.join(main, 'node_modules/@polyspec'), { recursive: true });
   symlinkSync('../../../kit', path.join(main, 'node_modules/@polyspec/kit'));
 };
@@ -513,4 +515,18 @@ test('worktree-setup links the var/composer-artifacts of the main checkout as on
   assert.equal(readFileSync(path.join(link, 'polyspec-orm-0.0.1.zip'), 'utf8'), 'zip\n');
   assert.equal(setupWorktree(main, { name: 'artifacts', id: 'K622', type: 'fix' }, { print: () => {} }), folder, 'a second run converges');
   assert.ok(lstatSync(link).isSymbolicLink());
+});
+
+
+test('K661-9: worktree tools resolve the installed public export for source and packed kits', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-tool-export-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  for (const file of ['scripts/kit/link.mts', 'dist/link.mjs']) {
+    const folder = path.join(parent, file.endsWith('.mts') ? 'source' : 'packed');
+    put(folder, {
+      'node_modules/@polyspec/kit/package.json': file.endsWith('.mts') ? readFileSync(path.resolve(import.meta.dirname, '../../package.json'), 'utf8') : packedFiles(path.resolve(import.meta.dirname, '../..'))['package.json'] ?? '',
+      [`node_modules/@polyspec/kit/${file}`]: 'export {};\n',
+    });
+    assert.equal(worktreeLinkTool(folder), path.join(folder, 'node_modules/@polyspec/kit', file));
+  }
 });
