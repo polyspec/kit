@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: ff512409b0744835ee17902737e7f5906469abdbd54c5d2440bc34a1755237e2 -->
+<!-- source-sha256: a71bdec40ddfc5c2a67aa3e62aef807768f1e5347088399418d74798666b1096 -->
 # 릴리스
 
 [English](release.md)
@@ -10,6 +10,8 @@ kit은 `main`의 commit 중 `ci` 실행이 success로 끝난 commit에 tag `vX.Y
 package-lock의 `@polyspec/kit`을 갱신하고 `make install-packages`와 `make kit-sync`를 실행해 릴리스를 채택합니다.
 
 소비자는 `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include합니다. 깨끗한 checkout에서 공유 workflow는 `packageManager`에 선언된 정확한 npm version으로 native `npm ci --ignore-scripts`를 먼저 실행하고 기존 tool 설치와 package 설치 target을 실행합니다. 옆의 kit checkout을 clone하지 않습니다. 로컬의 `npm link ../kit`은 같은 설치 package path에서 source bootstrap을 사용하며 kit 자체는 자기 source Makefile을 사용합니다.
+
+후속 변경은 앞선 release의 검증 증거를 무효화하지 않습니다. 현재 version은 자기 CI와 consumer proof가 통과하면 완료하고 다음 version을 올려 별도로 검증합니다. 로컬 main commit이 자동으로 원격 release에 포함되는 것은 아니므로 원격 candidate와 해당 CI를 확인합니다. 구현 완료와 소유 검사 통과는 공개를 뜻하지 않으며 proof 통과와 release 공개 후에만 release checklist 항목을 완료합니다.
 
 릴리스는 세 단계입니다. (1) commit `chore(release): Release X.Y.Z`가 `package.json`과 `package-lock.json`의 버전을 정하고
 `CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. 릴리스 commit은 소비자 lock도 담습니다: `make release-assets

@@ -9,6 +9,23 @@ Every polyspec repository follows one standard for its folders, its plans and ch
 kit holds the standard: PRINCIPLES.md states each rule once, a kit tool enforces it, and a repository keeps only the
 data that truly differs between repositories (`config/*.json`) and the rules of its own product (AGENTS.md).
 
+## Source-link and bootstrap handoff (2026-10-26)
+
+The implementation and deployment states are separate. K657 and K664 delegate source installation to native npm, Composer, uv, Go and Cargo. Applications own declarations and compatible development locks; routine application changes do not require a kit change. The current operating contract is [local links](../../operations/local-links.md).
+
+K671 replaces the mandatory sibling checkout and tracked shared-file links introduced by K614 and the K670 workaround. Consumers include the installed package bootstrap; kit-sync writes regular shared copies. Native `npm link ../kit` remains optional local development. Kit runs its own sources without installing its own published package. Restoring a sibling clone in CI would reintroduce the removed dependency.
+
+K670-1 retains PHP tokenizer configuration. K670-3 permits release manifest metadata without permitting implementation under a release chore. K670-4 skips unrelated Python projects. The proposed blanket `--legacy-peer-deps` and already-linked shortcut were not adopted in K671: lock reading alone fixed the demonstrated npm failure. K673 and K674 subsequently add and refine idempotent source recognition; their evidence belongs to those later changes, not to the earlier CI.
+
+### Release state and next actions
+
+- K655, version 0.0.55: preparation and owning checks are recorded in CHANGELOG.md; publication is pending. [CI run 40313948359](https://github.com/polyspec/kit/actions/runs/40313948359) covers through K672-1. Its kit tests report 1398 passes and four failures. Collect the remaining source tests and gates before classifying every failure; do not cancel this run or treat its owning-test results as complete CI acceptance.
+- K673 and K674 are later local main commits, outside that CI. K677 tracks a subsequent 0.0.56 release for accepted changes outside the published 0.0.55 tag. Until 0.0.55 is public, corrections can remain in its candidate; inspect the final candidate rather than assuming these local commits already belong to a published version. Each release needs successful CI for its own code and a successful consumer proof; 0.0.55 results cannot validate 0.0.56.
+- A failed CI blocks its release. Fix the failed owners, run their selected tests, and push the corrected release candidate. While developing, do not repeat the full local suite. Use the [release procedure](../../operations/release.md) after the candidate's CI passes; do not claim a tag, draft or version bump is a public release.
+- K676 records Cargo target-directory inheritance, which source-selection tests did not establish. K678 reviews repeated package-test preparation; native isolated install and package-consumption coverage remain required, and setup cost alone does not invalidate those tests.
+
+K675 records this handoff. Checklist completion means the named implementation and evidence are complete; K655 and K677 remain open until their releases are public. Check Git, the CI run and the release before updating deployment state. The checklist remains tasks only, CHANGELOG.md holds actual changes and test evidence, and this section explains their relationship and remaining work.
+
 ## Cause
 
 The repositories that take kit (orm, template, crudui, hyper, fsm, ordered-json) and flowmark were measured on

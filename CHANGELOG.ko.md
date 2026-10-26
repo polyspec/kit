@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f3aad6e245aec207cbf6270953f078493daa880e36ce66ab6ef13162d293e9f1 -->
+<!-- source-sha256: ba1458f15bc14184f57e19eef65fd455df6256aec50b5029c317501afd29c28d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Release 인계는 native source link 소유권, 대체된 sibling bootstrap, 구현 증거와 공개 release 승인을 구분합니다. CI 실패 시 release checklist는 미완료로 유지하고 공개된 0.0.55 tag 밖의 변경은 후속 version과 별도 검증을 거칩니다. Local link 문서는 npm lock 읽기를 유지합니다. Cargo target 상속과 package test 준비 비용은 명시적인 후속 작업으로 남깁니다(K675).
 - npm idempotence는 Node가 실제로 검색하는 경로를 확인하므로 workspace package는 상위 `node_modules`의 올바른 source link를 재사용한다. source path가 없거나 다른 link에 가려지면 native npm linking을 계속 실행한다(K674).
 - 선택한 설치 provider가 모두 source로 resolve되면 반복 local npm link는 아무 변경도 하지 않으며, 잘못되거나 누락된 source는 native npm link로 복구한다. Release URL override가 있는 offline source graph와 잘못된 target 복구 case가 통과한다(K673).
 
@@ -27,7 +28,6 @@
 - 공유 principle, editor 설정, Claude 설정, release/gates workflow는 설치된 kit package의 regular copy로 관리합니다. sync는 bytes가 같아도 managed symlink를 atomic하게 교체하고 provider를 그대로 유지하며 반복 실행은 변경을 만들지 않습니다. tracked shared link의 sibling-checkout 예외를 제거하고 소비자 정리 전에 kit source checkout의 sync를 거부합니다. Red: 이전 동작에서 선택 copy-policy case 4개가 실패합니다. Green: 소유 case 4개와 type-aware lint가 통과합니다(K671-2).
 - npm source 연결은 선택한 provider의 전이 local npm dependency를 따라가며 consumer link 중 workspace 전체 재해석을 비활성화한다. 따라서 workspace override가 release URL을 지정해도 연결한 package의 dependency graph가 local source를 사용한다. 선택기 단위와 offline native npm fixture가 통과한다(K672).
 - Arginfo 생성이 선언한 PHP configuration을 유지한다. -n으로 비활성화하면 shared module로 로드하는 PHP 설치에서 tokenizer가 사라졌다. Red: -n이 tokenizer를 제거하면 K670-1 unit이 실패하며 green: fixture header를 생성한다(K670-1).
-- Consumer release는 make가 bootstrap을 읽기 전에 lock의 release tag로 sibling kit checkout과 npm dependency를 준비한다. kit 자체는 자기 source를 유지한다. Red: 준비 단계가 없으면 K670 workflow 회귀 검증이 실패하며 green: release workflow unit 9개가 통과한다(K670).
 - Cargo source 연결은 metadata와 요청 command 전에 생성된 개발 lock에서 잠긴 sibling crate만 offline 갱신한다. Red: metadata가 호환되는 v0.0.10 sibling 대신 cache의 ordered-json v0.0.9 release를 선택했다. Green: K664-3-1 회귀와 native offline locked metadata 실행이 local source를 선택하고 tracked release lock은 유지한다(K664-3-1).
 
 - 릴리스 준비는 Composer 소유자 수정 이후 0.0.55 npm 아카이브를 다시 빌드하고 그 새 아카이브에서 네이티브 소비자 잠금을 다시 생성한다. 아카이브 바이트는 달라지고 의존성 그래프와 소비자 잠금은 바뀌지 않는다. 새 검토는 현재 잠금 다섯 개를 취약점 없이 검토하며 dependency-policy-check·release-versions·docs-check가 통과한다. main CI와 게시는 아직 대기 중이다 (K666).
