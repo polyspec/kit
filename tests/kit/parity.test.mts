@@ -1065,6 +1065,30 @@ test('R2: a suite without a binding of an implementation fails', TIMEOUT, (t) =>
   assert.match(findingAt(findings, 0).message, /tests\/vectors\/codec\.json has no binding of python/);
 });
 
+test('an invalid node reporter line fails its bindings and later bindings still run (K691)', TIMEOUT, (t) => {
+  const invalidReporter = ['sh', '-c', 'printf "exit 0\\n"'];
+  const { findings, ledger } = check(t, {
+    files: FEATURE_FILES,
+    edit: config => {
+      binding(config, 'codec', 'ts').command = invalidReporter;
+      const roundtrip = structuredClone(FEATURE) as UnitJson;
+      itemWhere(roundtrip.bindings ?? [], (entry: BindingJson) => entry.implementation === 'ts').command = invalidReporter;
+      config.units.push(roundtrip);
+      return config;
+    },
+  });
+  const invalid = findings.filter(entry => entry.implementation === 'ts' && (entry.unit === 'codec' || entry.unit === 'roundtrip'));
+  assert.deepEqual(keys(invalid), ['R3 codec ts', 'R3 roundtrip ts']);
+  for (const entry of invalid) {
+    assert.match(entry.message, /invalid reporter output in run 1: the parity node reporter wrote a line that is no case: exit 0/);
+    assert.match(entry.message, /invalid reporter output in run 2: the parity node reporter wrote a line that is no case: exit 0/);
+  }
+  assert.ok(ledger.runs.some(run => run.unit === 'codec' && run.implementation === 'php'),
+    'the suite continued after the malformed reporter output');
+  assert.ok(ledger.runs.some(run => run.unit === 'roundtrip' && run.implementation === 'php'), 'later feature bindings still ran');
+  assert.ok(ledger.cases.some(entry => entry.unit === 'codec' && entry.implementation === 'php' && entry.outcome === 'pass'));
+});
+
 test('R3: a binding that fails, misses a case, adds a case or exits with an error fails', TIMEOUT, (t) => {
   const { findings, ledger } = check(t, {
     files: {

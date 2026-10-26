@@ -50,6 +50,7 @@ interface Attempt {
   status: number | null;
   cases: Map<string, Outcome>;
   repeated: string[];
+  reportError?: string;
 }
 
 /** The names of `cases` (a map from case to outcome) whose outcome is `outcome`. */
@@ -114,9 +115,17 @@ function twice(run: BindingCommand & { shown: string }, root: string, where: { u
     say(`run ${where.unit} ${where.implementation} (${attempt} of 2): ${run.shown} (in ${run.cwd})`);
     const result = execute(run.command, run.args, { cwd: path.join(root, run.cwd), env: run.env });
     const status = result.error ? null : result.status;
-    const reported = result.error ? [] : outcomesOf(run, result).filter(([name]) => !group(name));
+    let reported: [string, Outcome][] = [];
+    let reportError: string | undefined;
+    if (!result.error) {
+      try { reported = outcomesOf(run, result).filter(([name]) => !group(name)); }
+      // catch-any -- Malformed child output is a binding finding, not a reason to abort the remaining bindings.
+      catch (error) {
+        reportError = error instanceof Error ? error.message : String(error);
+      }
+    }
     ledger.runs.push({ ...where, attempt, command: run.command, args: run.args, cwd: run.cwd, status });
-    return { result, status, cases: new Map(reported), repeated: repeated(reported) };
+    return { result, status, cases: new Map(reported), repeated: repeated(reported), ...(reportError === undefined ? {} : { reportError }) };
   };
   return [runOnce(1), runOnce(2)];
 }
@@ -157,6 +166,8 @@ function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, sa
     const failedRun = [
       first.result.error && `${run.shown} could not start: ${first.result.error.message}`,
       !first.result.error && first.status !== 0 && `exited with ${first.status ?? first.result.signal}${run.detail(first.result).length ? `: ${run.detail(first.result).join(' | ')}` : ''}`,
+      ...[first, second].flatMap((attempt, index) => attempt.reportError === undefined ? []
+        : [`invalid reporter output in run ${index + 1}: ${attempt.reportError}`]),
       first.status !== second.status && `exit ${first.status ?? 'none'} then ${second.status ?? 'none'}`,
       ...((runner ?? implementation.runner) === 'cargo' ? [first, second].flatMap((attempt, index) => {
         const unexpected = [...attempt.cases.keys()].filter(name => !bound.some(entry => entry.id === name));
@@ -210,6 +221,8 @@ export function runBindings(model: ParityModel, root: string, { env, files, say,
     const problems = [
       result.error && `${run.shown} could not start: ${result.error.message}`,
       !result.error && status !== 0 && `exited with ${status ?? result.signal}${run.detail(result).length ? `: ${run.detail(result).join(' | ')}` : ''}`,
+      ...[first, second].flatMap((attempt, index) => attempt.reportError === undefined ? []
+        : [`invalid reporter output in run ${index + 1}: ${attempt.reportError}`]),
       named(cases, 'fail').length && `failed: ${named(cases, 'fail').join(', ')}`,
       named(cases, 'skip').length && `skipped: ${named(cases, 'skip').join(', ')}`,
       `not executed: ${expected.filter(name => !cases.has(name)).join(', ')}`,
