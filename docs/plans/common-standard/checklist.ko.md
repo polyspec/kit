@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 062580cf5aeb25c92fb0764a59b04bf8514ae37ec5a0be0c15cf1ad0f5a4eea3 -->
+<!-- source-sha256: 178ee3842b8844f9d9e7b8dd85b8692b4a5c8881431f54f35f1ff02e443fb07f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -630,3 +630,4 @@
 | K682-2 | 테스트 도구 부모가 종료하면 출력·사례 수·종료 상태를 보존하며 프로세스 그룹의 남은 자식을 정리한다 | scripts/kit/run-tests.mts, tests/kit/test-build-first.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K682-2 tests/kit/test-build-first.test.mts` | [o] |
 | K689-1 | native 설치 후 선택한 Python provider distribution이 누락되면 실패한다 | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-1 tests/kit/uv-install.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K689-2 | 선택한 editable Python provider와 native runtime dependency를 하나의 uv transaction으로 해석한다 | scripts/kit/uv-install.mts, scripts/kit/pyproject-dependencies.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-2 tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
+| K689-3 | 기존 환경에 새로 선언한 Python source를 연결할 때 release lock 재조정을 강제하지 않는다 | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K689-3 tests/kit/uv-install.test.mts tests/source/uv-editable-real.test.mts`; changed-file type-aware oxlint; `make docs-check` | [ ] |
