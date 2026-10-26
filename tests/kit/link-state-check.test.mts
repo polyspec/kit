@@ -20,7 +20,7 @@ function commitAll(root: string, message: string) {
 }
 
 
-// K507: a tracked lock records each polyspec package at its release source; a path or link source is a finding, the local link is state only.
+// K507: npm and Cargo locks record release sources; Composer development locks may record native path repositories.
 const CARGO_PATH_LOCK = 'version = 4\n\n[[package]]\nname = "app"\nversion = "0.0.0"\ndependencies = [\n "polyspec-fixture-package",\n]\n\n[[package]]\nname = "polyspec-fixture-package"\nversion = "0.0.9"\ndependencies = [\n "serde",\n]\n';
 const CARGO_RELEASE_LOCK = CARGO_PATH_LOCK.replace('version = "0.0.9"\n', 'version = "0.0.9"\nsource = "git+https://github.com/polyspec/fixture-package?tag=v0.0.9#1f822e564e575d3958df8025cf911279c1f2a83b"\n');
 
@@ -47,10 +47,10 @@ test('a tracked package-lock.json that links a polyspec package is a finding, an
   assert.deepEqual(lockFindings(t, { 'package-lock.json': released }, 'package-lock.json'), []);
 });
 
-test('a tracked composer.lock that installs a polyspec package from a path is a finding, and one from its release passes (K507)', (t) => {
-  const path_ = JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', dist: { type: 'path', url: '../y' } }] });
+test('a tracked composer.lock accepts external polyspec path packages in packages and packages-dev, and release archives (K696)', (t) => {
+  const path_ = JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', dist: { type: 'path', url: '../y' } }], 'packages-dev': [{ name: 'polyspec/z', version: '0.0.1', dist: { type: 'path', url: '../z' } }] });
   const release = JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', dist: { type: 'zip', url: 'https://github.com/polyspec/y/releases/download/v0.0.1/y.zip' } }] });
-  assert.equal(lockFindings(t, { 'composer.lock': path_ }, 'composer.lock').length, 1);
+  assert.deepEqual(lockFindings(t, { 'composer.lock': path_ }, 'composer.lock'), []);
   assert.deepEqual(lockFindings(t, { 'composer.lock': release }, 'composer.lock'), []);
 });
 

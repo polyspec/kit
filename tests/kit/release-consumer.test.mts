@@ -196,6 +196,18 @@ test('install names each difference of the manifests and locks from the archives
   assert.deepEqual(box.calls('npm').slice(-1).map((call: { args: string[] }) => call.args[0]), ['install'], 'no install ran');
 });
 
+test('install rejects a Composer release consumer lock pointing to a local path (K696)', (t) => {
+  const box = consumerSandbox(t);
+  box.lock();
+  edit<ComposerLock>(box.root, `${COMPOSER}/composer.lock`, (lock) => {
+    const entry = lock.packages?.find(item => item.name === 'polyspec/kit-fixture');
+    assert.ok(entry);
+    entry.dist = { type: 'path', url: '../y' };
+    return lock;
+  });
+  stop(() => install(box), /polyspec\/kit-fixture is 0\.0\.1 from \.\.\/y, expected 0\.0\.1 from artifacts\/polyspec-kit-fixture-php-0\.0\.1\.zip/);
+});
+
 test('install fails for a missing lock', (t) => {
   const box = consumerSandbox(t);
   stop(() => install(box), /tests\/release-consumer\/npm\/package-lock\.json is missing; tests\/release-consumer\/composer\/composer\.lock is missing/);

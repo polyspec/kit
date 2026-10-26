@@ -5,7 +5,12 @@
 
 ## Unreleased
 
+
+
 ## 0.0.57
+- Composer development locks accept external polyspec path packages in both dependency sections. Installed source links remain checked separately; release consumer locks must still name the release archive URL. The local-path release regression preserves that rejection (K696).
+
+- A short PHPUnit class id matches a namespaced test class at its exact class-name boundary; FQCNs, bare methods and provider data sets keep their exact selection. Red: the K695 regression failed because the generated filter omitted the namespace prefix accepted by PHPUnit. Green: the K695 unit passes (1 test), with changed-file type-aware oxlint and docs-check (K695).
 
 - Prepared kit 0.0.57 with the isolated PHP parity runner correction and refreshed native consumer lock and dependency review. (K677-3)
 

@@ -1,12 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8ec7c4996f58b6f74e958f8a6f6829676934c20c71beb4017cfad21ef82c9b46 -->
+<!-- source-sha256: 3218a5cb38c46eba71937f8c7d463937d587b00ac06bdaa9547057aa5bcc00cb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+
+
 ## 0.0.57
+- Composer development lock은 두 dependency section의 external polyspec path package를 허용한다. 설치된 source link는 별도로 검사하고 release consumer lock은 release archive URL을 기록해야 한다. Local path release regression은 기존 거부 동작을 검증한다 (K696).
+
+- 짧은 PHPUnit class id는 namespaced test class의 정확한 class-name 경계에서 매칭하며 FQCN, bare method와 provider data set의 선택은 정확히 유지한다. Red: K695 regression은 생성된 filter에 PHPUnit이 요구하는 namespace prefix가 없어 실패했다. Green: K695 unit 1개, 변경 파일 type-aware oxlint와 docs-check가 통과한다 (K695).
 
 - 격리 PHP parity 실행기 수정과 갱신된 native consumer lock 및 의존성 검토를 포함한 kit 0.0.57 공개를 준비했습니다. (K677-3)
 

@@ -135,10 +135,9 @@ function workspaceHookFindings(root: string, env: NodeJS.ProcessEnv): string[] {
 }
 
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
-// K507: a tracked lock records each polyspec package at its release source, never a path or a link: the local link is state only, so
-// the tracked lock stays the release record (local is canonical). Each lock is read with its own structure. K448: a file: entry that
-// names the release tarball of the package is that record, and the repository's own packages (its workspace members, its in-repo path
-// repositories, its Cargo members) are paths by right and never findings.
+// K507: npm and Cargo locks record release sources; their own repository members may use paths.
+// Composer development locks may record native path repositories. folderLinkFindings checks the installed source links;
+// release-consumer validates the archive URLs of release consumer locks.
 const LOCK_FILES = ['Cargo.lock', 'package-lock.json', 'composer.lock'];
 const CARGO_POLYSPEC = /^polyspec[-_.]/i;
 
@@ -169,12 +168,7 @@ export function lockSourceFindings(file: string, text: string, members: Readonly
       return [`${file}: ${name} ${String(entry.version)} is a link or a path, not its release; the tracked lock names its release tarball, https://github.com/polyspec/${short}/releases/download/v${String(entry.version)}/<tarball>`];
     });
   }
-  const listed: unknown[] = [parsed.packages, parsed['packages-dev']].flatMap((list: unknown) => (Array.isArray(list) ? list as unknown[] : []));
-  return listed.flatMap((entry: unknown) => {
-    if (!isJsonObject(entry) || typeof entry.name !== 'string' || !entry.name.startsWith('polyspec/') || members.has(entry.name)) return [];
-    if (!isJsonObject(entry.dist) || entry.dist.type !== 'path') return [];
-    return [`${file}: ${entry.name} ${String(entry.version)} is installed from a path, not its release; the tracked lock names its release archive from its polyspec repository`];
-  });
+  return [];
 }
 
 /** The names of the packages that the repository of `root` provides itself: each tracked package.json, composer.json and Cargo.toml. */
