@@ -15,6 +15,19 @@ Local development uses the latest source of the required polyspec repositories t
 - kit orchestrates native commands and reports missing declarations or incompatible requirements. It does not bypass constraints, invent versions or reconcile installed metadata by hand.
 - Local installation state and release installation state are distinct. A selected Composer development manifest has its own native lock; it must describe the actual local dependencies.
 
+## Installation and validation boundaries
+
+| Mode | Native contract and scope |
+|---|---|
+| Release installation | The installed-package bootstrap uses native locked installation such as npm ci; no sibling checkout is a prerequisite. Composer installs the selected release manifest and lock. |
+| npm source helper | npm-install is a development-source helper: declared polyspec providers require checkouts. It is distinct from release install-packages. Native npm owns installation and linking. |
+| Composer source helper | The application selects its manifest and declared path repositories; native Composer resolves compatible requirements. With no local provider, normal locked installation remains available. |
+| Python source helper | The application declares uv path/workspace sources and prepares its native development lock. uv sync --locked and uv pip check validate the installed distributions. |
+
+link-check and link-state-check describe source connections; they are not a universal version or peer-dependency solver. Native npm link can accept an incompatible peer, as the native test records; npm ls --all is the native diagnostic when peer validation is required. No kit-written resolver or substituted installed version repairs such a mismatch. Composer and uv failures are preserved rather than hidden.
+
+Providers install their own changed dependencies and build inputs with their package manager. Reusing an already-correct source link does not install new external provider dependencies or rerun its lifecycle. Source edits remain visible without a new release; compiled outputs still need their native build.
+
 ## Mechanism
 
 The link tool orchestrates the native package-manager commands. For npm, it follows the selected providers' transitive local npm dependencies, runs `npm link` in each provider and then `npm link <name>...` in the consumer with workspace processing disabled, using a project-local npm prefix under `var/link/npm`. This prevents a workspace override from making npm resolve a local source dependency from its release URL. If every selected installed package already resolves to its source, consumer reification is skipped. `--no-save` retains the release manifest and lock while npm still reads the lock and manages installed links and records. Do not disable lock reading or add a blanket peer-dependency bypass. Source edits are visible immediately. npm retains its normal dependency and lifecycle behavior. Composer and Python use the native mechanisms below.

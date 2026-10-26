@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 75f35d4fc1d53925bef97bfaabeced480de417ee6fd0cfbd1f0dd462f1d692b1 -->
+<!-- source-sha256: 43cb96a25b068986437476e31c9fce77233ec3395556f8df4f499e36c06086b3 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -15,6 +15,19 @@
 - 앱이 dependency 선언과 lock을 소유합니다. package manager가 호환되는 requirement를 해석하고 설치 record, link, 생성 metadata를 관리합니다.
 - kit은 native 명령을 실행하고 선언 누락이나 호환되지 않는 requirement를 보고합니다. 제약을 우회하거나 버전을 만들거나 설치 metadata를 수기로 맞추지 않습니다.
 - 로컬 설치 상태와 release 설치 상태는 구분합니다. 선택한 Composer 개발 manifest에는 자체 native lock이 있으며 실제 로컬 dependency를 나타내야 합니다.
+
+## 설치와 검증의 경계
+
+| Mode | Native 계약과 범위 |
+|---|---|
+| Release 설치 | 설치 package bootstrap은 npm ci 같은 native locked 설치를 사용하며 sibling checkout이 선행 조건이 아니다. Composer는 선택한 release manifest와 lock을 설치한다. |
+| npm source helper | npm-install은 개발 source helper이며 선언된 polyspec provider는 checkout이 필요하다. Release용 install-packages와 별개이고 설치와 link는 native npm이 소유한다. |
+| Composer source helper | 앱이 manifest와 path repository를 선택하고 native Composer가 호환되는 requirement를 해석한다. 로컬 provider가 없으면 일반 locked 설치를 사용할 수 있다. |
+| Python source helper | 앱이 uv path/workspace source를 선언하고 native 개발 lock을 준비한다. uv sync --locked와 uv pip check는 설치 distribution을 검증한다. |
+
+link-check와 link-state-check는 source 연결을 설명하며 모든 version과 peer dependency를 해석하는 공통 solver가 아니다. Native 검사에서 확인했듯 npm link는 호환되지 않는 peer를 허용할 수 있으며 필요한 경우 native 진단은 npm ls --all이다. Kit 전용 resolver나 위장된 설치 version으로 불일치를 보정하지 않는다. Composer와 uv 실패도 숨기지 않는다.
+
+Provider는 변경된 dependency와 build 입력을 자신의 package manager로 설치한다. 이미 올바른 source link를 재사용해도 새 외부 provider dependency를 설치하거나 lifecycle을 다시 실행하지는 않는다. Source 수정은 새 release 없이 보이며 컴파일 산출물은 native build가 필요하다.
 
 ## 방식
 
