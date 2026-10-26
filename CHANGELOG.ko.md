@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 92aa4b0af40eb458343cfb86aa96185a11ec6e0ff691a1d197d6e2d733ed270f -->
+<!-- source-sha256: dfe70fa562732156b805054c85458adaf45df0736d11789a6bb86e441ba13d96 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- divergence checker는 `process.platform`과 `process.arch`가 warning metadata에 쓰일 때만 무시하고 runtime 분기 탐지는 유지한다. Red: 16ecc178에서 K688 focused case가 실패했다. Green: 수정이 commit된 tree에서 `make item-test ID=K688`가 통과한다(K688).
 - 과거 bootstrap 기대는 소비자 Node·네이티브 npm bin hook의 정확한 명령, 실행 가능한 소스와 packed dist 명령 대상 및 동일한 설정, Make 이전 설치 패키지 workflow를 검증한다. workflow 검사는 기록용 npm fixture를 재사용해 설치·빌드 없이 정확한 npm 선택과 kit 자체 소스 예외를 보존한다. Red: 380a23a5에서 이전 경로 기대 세 개가 실패했다. Green: 선택한 소유 사례 세 개와 변경 파일 타입 인식 lint가 통과한다 (K686-2).
 - npm provider 선택 fixture는 전이 graph 탐색 전에 기존 provider helper로 manifest를 포함한 각 source package를 생성한다. 선택 단언은 그대로 유지하고 제품 코드는 바꾸지 않는다. Red: 77eb86c8의 소유 case는 transitive package.json 누락으로 실패했다. Green: 완성된 native package 입력으로 해당 선택 case가 통과한다(K686-1).
 - 기존 미완료·폐기 checklist 31개 전체를 현재 code와 결정에 대조했습니다. 과거 ID를 보존하고 통합 공개 선행 조건을 폐기했으며 합성 link 문구를 native 소유권 규칙으로 대체하고 실제 결함은 K680–K686에 등록했습니다. Code와 test 읽기 검토는 실행 검증과 구분하며 K671의 구현 시점 등록도 명시합니다(K679).
