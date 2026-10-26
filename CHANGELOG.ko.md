@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 118595525dd7f4d79a602c8118348d4b616c818a445859d46ee8f0e958032bab -->
+<!-- source-sha256: 2b278bda94de80c7a4bb0246e5650144ac29550c301df4b9f5d13f5685895228 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Dependency review fixture는 새 release가 있더라도 advisory가 없는 완전한 review를 허용하고 새 release 정보와 update 안내 assertion을 유지한다. Red: fc0fccc2에서 소유 case 5개 실패; Green: 선택한 case 5개 통과 (K661-5).
 - Git 테스트 샌드박스는 기계 기본값과 무관하게 main으로 초기화하고 명시한 브랜치 옵션은 보존한다. fixture 여섯 파일이 공통 네이티브 초기화기를 사용해 자동 유지보수를 끄고 테스트 신원을 저장소 안에 둔다. Red: c3f0a859에서 init.defaultBranch=master일 때 K524·K583·공통 초기화기 검사가 실패했다. Green: 같은 기본값에서 소유 plan·sandbox 검사 7개가 통과한다 (K661-4).
 - Local-link 절차는 native source 개발과 CI의 정확한 배포 dependency 설치를 구분하고 dependency release를 독립적으로 진행하도록 정리합니다. native npm link, 앱이 선언한 Composer path repository와 개발 lock, uv editable 및 offline worktree environment를 설명합니다. 개발 규칙은 비표준 package 관리 요청의 이탈 지점을 보고하고 정석 대안을 제시하도록 명시합니다. 영어/한국어 문서는 docs-check를 통과합니다(K657).
 - fresh-checkout 검증은 setup에서 설치와 build를 수행한 뒤 공개 tracked-files API를 소비하며 kit-test나 source-test를 재귀 실행하지 않는다. smoke helper는 process group 정리, 실패한 command와 양쪽 output stream을 유지한다. Red: K659 회귀 검사는 kit-test trap을 실행하여 exit 43으로 실패했다. Green: 선택한 smoke·진단 case 8개와 typecheck가 통과한다. setup 경계 통합과 디스크 공간 확보 후 실제 fresh-checkout 검증은 설치·build 54.4초, API case 0.1초, teardown 3.0초로 통과했다. 전체 실행 결과는 2 passed, 0 failed, 0 timed out이며 재귀 suite는 실행하지 않았다(K659).

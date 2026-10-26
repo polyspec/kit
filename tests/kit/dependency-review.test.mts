@@ -25,7 +25,7 @@ test('a newer ruff release of mise.toml is named in the fix of its finding', (t)
   const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, pypi: { ...FIXTURE_REGISTRY.pypi, ruff: { '0.16.10': [{}], '0.16.11': [{}] } } });
   const result = review(root, [], stub.env);
-  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /^\[dependency-review\] mise\.toml ruff 0\.16\.10 < 0\.16\.11: a newer stable release exists\. Fix: set ruff in mise\.toml to 0\.16\.11, then make toolchain-lock and make install-tools\.$/m);
 });
 
@@ -74,7 +74,7 @@ test('a requirement of a published package of a Composer monorepo is reviewed fr
   const at = path.basename(root);
   stub.registry({ ...FIXTURE_REGISTRY, composer: { [at]: { 'psr/log': '3.0.3', 'example/framework': '1.0.0', 'example/helper': '2.0.0' } }, composerAudit: { [at]: { advisories: [], abandoned: [] } } });
   const result = review(root, [], stub.env);
-  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-php\/composer\.json psr\/log 3\.0\.2 < 3\.0\.3: a newer stable release exists\./m);
   assert.doesNotMatch(result.stdout, /example\/helper/);
   assert.doesNotMatch(result.stderr, /reported no release/);
@@ -113,7 +113,7 @@ test('the review does not compare a Composer package whose vendor folder is a sy
 
 // A requirement that only a dependency group of a pyproject.toml declares, here through the include of another group
 // (PEP 735), is reviewed like an extra: a newer release is a finding with the fix that pins it (K177).
-test('a newer release of a requirement of a dependency group is a finding (K177)', (t) => {
+test('a newer release of a dependency group requirement is informational (K177, K661-5)', (t) => {
   const root = fixture(t);
   const manifest = path.join(root, 'packages/fixture-python/pyproject.toml');
   writeFileSync(manifest, `${readFileSync(manifest, 'utf8')}\n[dependency-groups]\ntest = ["pytest==8.0.0"]\ndev = [{ include-group = "test" }]\n`);
@@ -122,7 +122,7 @@ test('a newer release of a requirement of a dependency group is a finding (K177)
   const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, pypi: { ...FIXTURE_REGISTRY.pypi, pytest: { '8.0.0': [{}], '8.1.0': [{}] } } });
   const result = review(root, [], stub.env);
-  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-python\/pyproject\.toml pytest 8\.0\.0 < 8\.1\.0: a newer stable release exists\./m);
   assert.equal(result.stdout.match(/pytest 8\.0\.0 < 8\.1\.0/g)?.length, 1, result.stdout);
 });

@@ -65,7 +65,7 @@ test('the review reports a newer stable release of a Go module and the gate read
   const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, go: { 'github.com/google/uuid': ['v1.6.0', 'v1.7.0', 'v2.0.0-rc.1'] } });
   const result = review(root, [], stub.env);
-  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-go\/go\.mod github\.com\/google\/uuid v1\.6\.0 < v1\.7\.0: a newer stable release exists\. Fix: make dependency-review UPDATE=1\.$/m);
   assert.equal(gate(root).status, 0);
 });

@@ -131,7 +131,7 @@ test('the review names a newer PyPI release of a registry package with the uv re
   const stub = stubRegistries(t, root);
   stub.registry({ ...FIXTURE_REGISTRY, pypi: { ...FIXTURE_REGISTRY.pypi, click: { '8.1.7': [{}], '8.1.8': [{}] } } });
   const result = review(root, [], stub.env);
-  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-python\/pylock\.toml click 8\.1\.7 < 8\.1\.8: a newer stable release exists\. Fix: regenerate packages\/fixture-python\/pylock\.toml with uv: uv lock --upgrade-package click, then uv export --format pylock\.toml --frozen --no-emit-project -o packages\/fixture-python\/pylock\.toml, then make dependency-review RECORD=1\.$/m);
 });
 
