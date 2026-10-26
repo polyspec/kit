@@ -3,7 +3,7 @@
 // Most cases use a stub; the native case checks source edits, while tests/source/npm-source-link-real.test.mts owns the release-to-source transition.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -234,4 +234,45 @@ test('npmSourceFolders follows each selected local package to its transitive loc
   assert.deepEqual(selected.map(item => item.name).sort(), ['@polyspec/fixture-codec', '@polyspec/fixture-language', '@polyspec/fixture-storage']);
   for (const item of selected) assert.equal(item.folder, path.join(project, 'node_modules', item.name));
   assert.equal(selected.find(item => item.name === '@polyspec/fixture-codec')?.target, codec);
+});
+
+test('npmLink skips consumer reification when every selected transitive source is already linked (K673)', (t) => {
+  const { root, project } = fixture(t, 'kit-npm-source-idempotence-', { '@polyspec/dbspec-language': '0.0.18' }, []);
+  const language = provider(path.join(root, 'providers/language'), '@polyspec/dbspec-language');
+  const orm = provider(path.join(root, 'providers/orm'), '@polyspec/orm');
+  const orderedJson = provider(path.join(root, 'providers/ordered-json'), '@polyspec/ordered-json');
+  writeFileSync(path.join(language, 'package.json'), JSON.stringify({ name: '@polyspec/dbspec-language', dependencies: { '@polyspec/orm': '0.0.18' } }));
+  writeFileSync(path.join(orm, 'package.json'), JSON.stringify({ name: '@polyspec/orm', dependencies: { '@polyspec/ordered-json': '0.0.9' } }));
+  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', private: true, dependencies: { '@polyspec/dbspec-language': '0.0.18' },
+    overrides: { '@polyspec/ordered-json': 'https://example.invalid/ordered-json-0.0.9.tgz' } }));
+  const providerFolders: [string, string][] = [['@polyspec/dbspec-language', language], ['@polyspec/orm', orm], ['@polyspec/ordered-json', orderedJson]];
+  for (const [name, target] of providerFolders) {
+    const installed = path.join(project, 'node_modules', name);
+    mkdirSync(path.dirname(installed), { recursive: true });
+    symlinkSync(path.relative(path.dirname(installed), target), installed, 'dir');
+  }
+  const providers: Provider[] = providerFolders.map(([name, folder]) => ({ ecosystem: 'npm', name, folder, repository: root, checkout: root }));
+  const selected = npmSourceFolders(project, providers);
+  const output: string[] = [];
+  const npm = toolsPath(path.resolve(import.meta.dirname, '../..'), 'bin', 'npm');
+  npmLink(project, selected, npm, { ...process.env, npm_config_offline: 'true', npm_config_cache: path.join(root, 'npm-cache') }, message => output.push(message));
+  assert.deepEqual(selected.map(item => item.name).sort(), ['@polyspec/dbspec-language', '@polyspec/ordered-json', '@polyspec/orm']);
+  assert.deepEqual(output, ['npm link: every selected package already resolves to its source; skipped consumer reification']);
+  assert.equal(existsSync(path.join(project, 'var/link/npm')), false, 'the no-op creates no npm prefix');
+});
+
+test('npmLink still uses native linking when one selected source path is wrong (K673)', (t) => {
+  const { root, project } = fixture(t, 'kit-npm-source-mixed-', { '@example/local': '0.0.9' }, []);
+  const source = provider(path.join(root, 'providers/source'), '@example/local');
+  const wrong = provider(path.join(root, 'providers/wrong'), '@example/local');
+  const installed = path.join(project, 'node_modules/@example/local');
+  mkdirSync(path.dirname(installed), { recursive: true });
+  symlinkSync(path.relative(path.dirname(installed), wrong), installed, 'dir');
+  const { npm, log } = stubNpm(root);
+  const output: string[] = [];
+  npmLink(project, [{ ecosystem: 'npm', name: '@example/local', folder: installed, target: source }], npm, process.env,
+    message => output.push(message));
+  assert.equal(realpathSync(installed), realpathSync(source));
+  assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), ['link', 'link']);
+  assert.equal(output.at(-1), 'npm link: passed');
 });

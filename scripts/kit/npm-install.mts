@@ -1,7 +1,7 @@
 // Installs the locked npm dependencies with npm ci, then asks npm link to connect the selected local sources.
 // npm owns the installed links and metadata; --no-save retains release files while npm reads the lock.
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { readJsonObject } from './bootstrap/files.mts';
 import { isMain } from './paths.mts';
@@ -52,8 +52,14 @@ export function npmSourceFolders(project: string, providers: Iterable<Provider>)
 
 /** Links local npm packages with npm, retaining the release manifest and lock and a project-local global prefix. */
 export function npmLink(project: string, folders: readonly ProvidedFolder[], npm: string, env: NodeJS.ProcessEnv, print: (text: string) => void): void {
-  const targets = [...new Set(folders.filter(folder => folder.ecosystem === 'npm').map(folder => folder.target))];
+  const npmFolders = folders.filter(folder => folder.ecosystem === 'npm');
+  const targets = [...new Set(npmFolders.map(folder => folder.target))];
   if (targets.length === 0) return;
+  if (npmFolders.length > 0 && npmFolders.every(folder => existsSync(folder.folder) && existsSync(folder.target)
+    && realpathSync(folder.folder) === realpathSync(folder.target))) {
+    print('npm link: every selected package already resolves to its source; skipped consumer reification');
+    return;
+  }
   const prefix = path.join(project, 'var/link/npm');
   mkdirSync(prefix, { recursive: true });
   print(`npm link: ${targets.join(', ')}: started`);
@@ -63,7 +69,7 @@ export function npmLink(project: string, folders: readonly ProvidedFolder[], npm
     print(`npm link provider: ${target}`);
     run(npm, ['link', ...flags], { cwd: target, env: environment });
   }
-  const names = [...new Set(folders.filter(folder => folder.ecosystem === 'npm').map(folder => folder.name))];
+  const names = [...new Set(npmFolders.map(folder => folder.name))];
   const output = run(npm, ['link', ...names, ...flags, '--workspaces=false'], { cwd: project, env: environment });
   if (output.trim()) print(output.trim());
   print('npm link: passed');

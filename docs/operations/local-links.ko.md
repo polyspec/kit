@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 3f9074500a156f86fbc210d202aca87d17b132f0b8208e71c75e21dbf3df10b0 -->
+<!-- source-sha256: d99609826f6c8c28acc3192cb86ccadc1d6ac6a41ee0b9117419295c309b7295 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -18,7 +18,7 @@
 
 ## 방식
 
-link 도구는 native package-manager 명령을 실행합니다. npm은 선택한 provider의 전이 local npm dependency를 따라가고 각 provider에서 `npm link`를 실행한 다음 workspace 처리를 끈 상태로 consumer에서 `npm link <name>...`을 실행하며, `var/link/npm` 아래 project-local npm prefix를 사용합니다. 이 방식은 workspace override 때문에 npm이 local source dependency의 release URL을 해석하는 일을 막습니다. `--no-save --package-lock=false`는 release manifest와 lock을 유지하고, 설치 link와 record는 npm이 관리합니다. source 수정은 즉시 반영됩니다. npm의 dependency 처리와 lifecycle 동작은 그대로 유지합니다. Composer와 Python도 아래 native 방식을 사용합니다.
+link 도구는 native package-manager 명령을 실행합니다. npm은 선택한 provider의 전이 local npm dependency를 따라가고 각 provider에서 `npm link`를 실행한 다음 workspace 처리를 끈 상태로 consumer에서 `npm link <name>...`을 실행하며, `var/link/npm` 아래 project-local npm prefix를 사용합니다. 이 방식은 workspace override 때문에 npm이 local source dependency의 release URL을 해석하는 일을 막습니다. 선택한 모든 설치 package가 이미 source로 resolve되면 consumer 재해석을 생략합니다. `--no-save --package-lock=false`는 release manifest와 lock을 유지하고, 설치 link와 record는 npm이 관리합니다. source 수정은 즉시 반영됩니다. npm의 dependency 처리와 lifecycle 동작은 그대로 유지합니다. Composer와 Python도 아래 native 방식을 사용합니다.
 
 Composer 로컬 개발은 앱이 선언한 `path` repository와 호환되는 requirement를 사용합니다. 기본 `composer.json`이나 명시적으로 선택한 `COMPOSER=composer.local.json`을 Composer가 읽고, 해당 manifest의 lock, 설치 record, link, autoload를 함께 관리합니다. kit는 임시 manifest, version alias, 별도 runtime metadata를 만들지 않습니다. `composer update <로컬 package> --with-dependencies`는 선택한 개발 lock과 전이 dependency를 변경할 수 있으며 실행 전에 그 사실을 출력합니다. release manifest와 lock은 별도 release 설치의 입력이며 개발 source metadata로 위장하지 않습니다.
 
