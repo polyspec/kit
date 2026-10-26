@@ -124,7 +124,7 @@ function recipeRefusal(target: string, database: MakeDatabase, assignments: Read
 function makeRefusal(args: string[], context: Context, seen: Set<string>): string | null {
   const { targets, assignments } = makeArguments(args);
   const variables = new Set(assignments.keys());
-  // ci-targets checks completed checklists before the explicit final run starts.
+  // ci-targets checks the committed tree and settled checklist state before the explicit final run starts.
   if (targets.length === 1 && targets[0] === 'ci-targets' && assignments.get('FINAL_RUN') === '1') return null;
   const suite = targets.find(target => SUITE_TARGETS.has(target));
   if (suite) return `make ${suite} ${SUITE}`;

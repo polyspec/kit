@@ -1,7 +1,8 @@
-// Tests of K240 and K654: suites run in CI or an explicit completed-checklist final verification. ci-only.mts decides whether a suite may run,
+// Tests of K240, K654 and K658: suites run in CI or an explicit clean-tree final verification. ci-only.mts decides whether a suite may run,
 // test-selection.mts whether a test run selects its tests, and claude-hook.mts refuses the Bash commands of an agent
 // that run a suite, a whole runtime without a selection, or set the variable that marks a CI run.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -124,31 +125,45 @@ test('the vendored Claude Code settings run the hook of the installed package be
 
 function finalTree(t: Parameters<typeof tree>[0], state: string) {
   const checklist = `| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K1 | Finish | file | command | ${state} |\n`;
-  return tree(t, {
+  const root = tree(t, {
     'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: 'K[0-9]+' }),
     'docs/plans/final/checklist.md': checklist,
     'docs/plans/final/checklist.ko.md': checklist,
   });
+  commitTree(root);
+  return root;
 }
 
-test('K654 explicit local final verification requires terminal checklist items', t => {
+function commitTree(root: string) {
+  for (const args of [['add', '.'], ['commit', '--quiet', '-m', 'test: prepare final-run fixture']]) {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`);
+  }
+}
+
+test('K658 explicit local final verification allows waiting items but refuses active work and dirty trees', t => {
   for (const state of ['[o]', '[-] cause: impossible', '[!] cause: external; retry: available']) {
     const root = finalTree(t, state);
     assert.equal(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, root), null, state);
     assert.ok(ciRefusal('make ci-targets', { FINAL_RUN: 'true' }, root), 'only 1 opts in');
   }
-  for (const state of ['[ ]', '[~]']) {
+  const waiting = finalTree(t, '[ ]');
+  assert.equal(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, waiting), null, 'a clean committed pending item may await the final verification');
+  for (const state of ['[~]']) {
     const root = finalTree(t, state);
     const result = ciRefusal('make ci-targets', { FINAL_RUN: '1' }, root);
     assert.ok(result);
     assert.match(result, /K1/);
     assert.ok(result.includes(state));
   }
+  const dirty = finalTree(t, '[ ]');
+  put(dirty, { 'README.md': 'uncommitted change\n' });
+  assert.match(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, dirty) ?? '', /clean committed tree/);
   const missing = tree(t);
   assert.match(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, missing) ?? '', /config\/checklist.json/);
   const empty = finalTree(t, '[o]');
   put(empty, { 'docs/plans/final/checklist.md': null, 'docs/plans/final/checklist.ko.md': null });
-  assert.match(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, empty) ?? '', /no checklist/);
+  assert.match(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, empty) ?? '', /readable matching checklists/);
   const malformed = finalTree(t, '[o]');
   put(malformed, { 'docs/plans/final/checklist.ko.md': null });
   assert.match(ciRefusal('make ci-targets', { FINAL_RUN: '1' }, malformed) ?? '', /checklist.ko.md/);
@@ -163,6 +178,7 @@ test('K654 the hook permits only the explicit guarded ci-targets final command',
 test('K654 ci-targets uses the explicit final checkout and writes its normal report', async t => {
   const root = finalTree(t, '[o]');
   put(root, { Makefile: 'good:\n\t@true\n' });
+  commitTree(root);
   const status = await ciTargets({ root, directory: 'var/report/final', targets: ['good'],
     environment: { node: 'v-test' }, env: { PATH: process.env.PATH, FINAL_RUN: '1' },
     print: () => {}, output: () => {} });

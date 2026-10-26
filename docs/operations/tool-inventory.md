@@ -321,11 +321,11 @@ another archive. To raise the version:
 ## Gates: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
 K240 removed `full-run.mts`, its record `var/full-run.json` and the target `rerun-failed`. Suite commands run in CI.
-A local final verification uses `make ci-targets FINAL_RUN=1 TARGETS="<target>..."` after every checklist item is terminal:
-completed, bypassed with its cause and retry condition, or impossible with its cause. The guard reads both checklist
-languages, refuses waiting or active items and unreadable or missing checklists, and names the file, item and actual state.
-The existing CI report records this final run. Run it once after the active work is complete; ordinary development
-continues to run only the owning unit tests. The table below records the merge of K6.1.
+A local final verification uses `make ci-targets FINAL_RUN=1 TARGETS="<target>..."` on a clean committed tree with no active
+checklist items. Waiting `[ ]` items may remain for this final acceptance run; active `[~]` items, an uncommitted tree, and
+unreadable or mismatched checklist pairs are refused. The guard names active items and actual tree changes. The existing CI
+report records this final run, and its lock prevents concurrent writers. Run it once after the scoped development is committed; ordinary
+development continues to run only the owning unit tests. The table below records the merge of K6.1.
 
 Files: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
 `schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, and the make targets `hooks`, `hooks-check`,

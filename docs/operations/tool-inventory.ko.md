@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 6ce18012a914049cbe7eb714144197291b3c620607cf0dfa9c305e593672251c -->
+<!-- source-sha256: 0ee9d45846b7701836e7415418959775d1a825c7161c8da29e759d72555640ed -->
 
 # 도구 목록
 
@@ -289,10 +289,11 @@ alint는 0.x이고 release가 잦습니다. 0.17과 0.18은 설정 key를 바꿨
 ## Gate: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
 K240은 `full-run.mts`, 그 record `var/full-run.json`과 target `rerun-failed`를 제거했습니다. Suite command는 CI에서 실행합니다.
-Local final verification은 모든 checklist 항목이 종결된 뒤 `make ci-targets FINAL_RUN=1 TARGETS="<target>..."`를 사용합니다.
-종결 상태는 완료, 원인과 재시도 조건이 있는 bypass, 원인이 있는 impossible입니다. Guard는 양언어 checklist를 읽고 waiting과
-active 항목, 읽을 수 없거나 누락된 checklist를 거부하며 file, item과 실제 state를 밝힙니다. 기존 CI report는 final run을
-기록합니다. 활성 작업을 완료한 뒤 한 번 실행하며, 일반 개발 중에는 소유 unit test만 계속 실행합니다. 아래 표는 K6.1의 merge를 기록합니다.
+Local final verification은 진행 중인 checklist 항목이 없고 커밋 트리가 깨끗할 때 `make ci-targets FINAL_RUN=1 TARGETS="<target>..."`를 사용합니다.
+최종 acceptance를 위한 이 실행에는 대기 상태 `[ ]` 항목이 남아도 됩니다. 진행 중 `[~]` 항목, 커밋되지 않은 트리,
+읽을 수 없거나 서로 맞지 않는 양언어 checklist는 거부합니다. Guard는 진행 중 항목과 실제 트리 변경을 밝힙니다.
+기존 CI report는 final run을 기록하고 lock은 동시 기록을 막습니다. 범위 내 개발을 커밋한 뒤 한 번 실행하며,
+일반 개발 중에는 소유 unit test만 계속 실행합니다. 아래 표는 K6.1의 merge를 기록합니다.
 
 파일: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
 `schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, 그리고 `kit.mk` 끝의 make target `hooks`, `hooks-check`,

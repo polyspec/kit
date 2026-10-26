@@ -283,7 +283,7 @@ owner-validate: ## Check that config/owner-checks.json owns every tracked path a
 
 CI_REPORT ?= var/report/ci-targets
 
-ci-targets: ## Run TARGETS past failures in CI, or with FINAL_RUN=1 after all checklist items are terminal; write CI_REPORT (logs, record.json, summary.md)
+ci-targets: ## Run TARGETS past failures in CI, or with FINAL_RUN=1 on a clean committed tree with no active checklist items; write CI_REPORT (logs, record.json, summary.md)
 	$(NODE) $(KIT)/ci-targets.$(KIT_EXT) $(CI_REPORT) $(TARGETS)
 
 ci-summary: ## Write summary.md of CI_REPORT again from its record, also for a run that stopped; never judges the targets
