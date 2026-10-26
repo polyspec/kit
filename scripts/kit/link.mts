@@ -680,6 +680,7 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
   const config: string[] = [];
   let held: ReturnType<typeof acquireHolderLock> | undefined;
   const expected = new Map<string, string>();
+  const patched: string[] = [];
   try {
     if (checkouts.length) {
       const workspace = path.dirname(run(tool.command, [...channel, 'locate-project', '--workspace', '--message-format', 'plain', ...manifestArgs], { cwd: consumer.scope, env: tool.env }).trim());
@@ -704,9 +705,13 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
         const url = declaredUrl(checkout);
         for (const crate of used) {
           config.push('--config', `patch.${JSON.stringify(url)}.${crate.name}.path=${JSON.stringify(crate.folder)}`);
+          patched.push(crate.name);
         }
       }
     }
+    // Resolve only the sibling packages in the generated development lock. A release lock can pin an older, incompatible
+    // version, so metadata against a fresh copy would otherwise ignore the path patch and report the release as selected.
+    if (patched.length) run(tool.command, [...channel, ...config, 'update', '--offline', ...patched, ...manifestArgs], { cwd: directory, env: tool.env });
     // This validates the resolved workspace, including packages outside a caller's -p execution scope.
     if (checkouts.length && expected.size) {
       const metadata = run(tool.command, [...channel, ...config, 'metadata', '--format-version=1', ...graphArgs], { cwd: directory, env: tool.env });

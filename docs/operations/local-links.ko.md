@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 206576881213374070fd2128c5fe78ce0136a1ce555a8ed1cf0ab8f216b1526c -->
+<!-- source-sha256: cb86372a16695153d3ebc251ce6e80e19b5e9f16b2a9be6b70daf6474f27ae7a -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -39,7 +39,7 @@ Composer 로컬 개발은 앱이 선언한 `path` repository와 호환되는 req
 
 `make link-state-check`(K305-1, P30)는 native npm, Composer, Python 설치를 통해 제공된 source가 예상 checkout으로 resolve되는지 검사하고 workspace link, `go.work`, Claude Code hook을 검증합니다. `make link-check`는 개발 보조로 불일치를 나열합니다. dependency 호환성은 각 native package manager가 판단합니다. release CI는 로컬 provider 탐색 대신 선언된 배포 dependency를 사용합니다.
 
-Source 개발 계약은 배포된 dependency와 같은 version의 source 수정, release보다 앞선 source checkout, 배포 이력이 없는 새 provider를 포함합니다. Native package metadata는 유효해야 하며 release가 없다는 이유로 package manager의 metadata 요구를 생략하지 않습니다. 앱이 호환되는 개발 requirement와 local source를 선언하며 source 사용에 tag나 배포 archive는 필요하지 않습니다. Cargo의 exact-version requirement는 patch 선택을 막을 수 있으므로 wrapper는 native workspace metadata를 검사하고 필요한 개발 source 대신 release가 선택되면 거부합니다. Cargo source 검사는 `-p`로 선택한 package에만 한정되지 않고 workspace resolution을 대상으로 합니다.
+Source 개발 계약은 배포된 dependency와 같은 version의 source 수정, release보다 앞선 source checkout, 배포 이력이 없는 새 provider를 포함합니다. Native package metadata는 유효해야 하며 release가 없다는 이유로 package manager의 metadata 요구를 생략하지 않습니다. 앱이 호환되는 개발 requirement와 local source를 선언하며 source 사용에 tag나 배포 archive는 필요하지 않습니다. Cargo의 exact-version requirement는 patch 선택을 막을 수 있으므로 wrapper는 native workspace metadata를 검사하고 필요한 개발 source 대신 release가 선택되면 거부합니다. 이 검사 전에 선언한 path patch를 사용해 복사한 lock에 이미 있는 sibling crate 이름만 대상으로 native `cargo update --offline`을 실행합니다. 이후 metadata와 요청 명령은 `var/link/cargo` 아래 생성된 lock을 사용하며 tracked manifest와 lock은 바뀌지 않고 다른 package의 전역 갱신도 요청하지 않습니다. Cargo source 검사는 `-p`로 선택한 package에만 한정되지 않고 workspace resolution을 대상으로 합니다.
 
 같은 선언 입력으로 두 번 실행하면 source 선택, manifest, lock, 설치 record가 같아야 하며 log와 timestamp는 이 상태에 포함하지 않습니다. Provider 코드 수정에 relink는 필요 없지만 compiled code에는 native build가 필요합니다. 명시적 `unlink`는 앱이 선택한 native lock 상태를 복원하고 생성한 Go workspace를 제거하며 앱이 소유한 local source 선언을 삭제하지 않으므로 복원 상태에도 native editable이 있을 수 있습니다. Release 설치는 release 선언과 lock을 사용합니다.
 

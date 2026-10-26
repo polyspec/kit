@@ -1271,6 +1271,22 @@ test('K664-3 refuses a release selected instead of the sibling development sourc
   assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /Cargo selected .*instead of development source/, 'a new dependency missing from the tracked lock cannot silently select its release');
 });
 
+test('K664-3-1 updates only locked sibling crates offline before validating Cargo metadata', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  const trackedLock = `version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\nsource = "git+https://github.com/polyspec/prov?tag=v0.0.1#abc"\n\n[[package]]\nname = "external-crate"\nversion = "2.3.4"\nsource = "git+https://github.com/example/external?tag=v2.3.4#def"\n`;
+  writeFileSync(path.join(consumer, 'Cargo.lock'), trackedLock);
+  const cargoLog = path.join(consumer, 'cargo-source.log');
+  const metadata = JSON.stringify({ packages: [{ id: 'provider', name: 'polyspec-prov', manifest_path: path.join(provider, 'rust/Cargo.toml') }], resolve: { nodes: [{ id: 'provider' }] } });
+  stub(path.dirname(env.CARGO), cargoLog, 'cargo', `mode=metadata\nlock=\nprevious=\nfor arg do\n  if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi\n  if [ "$arg" = update ]; then mode=update; fi\n  if [ "$previous" = --config ]; then case "$arg" in resolver.lockfile-path=*) lock=$(echo "$arg" | sed 's/^resolver.lockfile-path="//; s/"$//');; esac; fi\n  previous="$arg"\ndone\nif [ "$mode" = update ]; then\n  printf '%s\\n' 'version = 4' '' '[[package]]' 'name = "polyspec-prov"' 'version = "0.0.2"' '' '[[package]]' 'name = "external-crate"' 'version = "2.3.4"' 'source = "git+https://github.com/example/external?tag=v2.3.4#def"' > "$lock"\n  exit 0\nfi\nif [ "$mode" = metadata ]; then printf '%s' '${metadata}'; exit 0; fi\n`);
+  assert.equal(cargo({ directory: consumer, args: ['fetch', '--locked'], checkouts: current, env }), 0);
+  const calls = readFileSync(cargoLog, 'utf8').trim().split('\n').filter(line => !line.startsWith('cargo locate-project'));
+  assert.match(calls[0] ?? '', /update --offline polyspec-prov$/);
+  assert.doesNotMatch(calls[0] ?? '', /external-crate/);
+  assert.match(calls[1] ?? '', /metadata/);
+  assert.match(readFileSync(path.join(consumer, 'var/link/cargo/root/Cargo.lock'), 'utf8'), /name = "external-crate"[\s\S]*version = "2\.3\.4"[\s\S]*source = "git\+https:\/\/github\.com\/example\/external\?tag=v2\.3\.4#def"/);
+  assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), trackedLock, 'the tracked release lock remains byte-identical');
+});
+
 test('K664-3 refuses a concurrent holder before replacing the link lock', (t) => {
   const { consumer, env } = workspace(t);
   const folder = path.join(consumer, 'var/link/cargo/root');
