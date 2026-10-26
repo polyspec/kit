@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6d26adb5477e4cdc4a0b39a9994fd3e713b503ff863489df64985dce9975084b -->
+<!-- source-sha256: f3aad6e245aec207cbf6270953f078493daa880e36ce66ab6ef13162d293e9f1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- npm idempotence는 Node가 실제로 검색하는 경로를 확인하므로 workspace package는 상위 `node_modules`의 올바른 source link를 재사용한다. source path가 없거나 다른 link에 가려지면 native npm linking을 계속 실행한다(K674).
 - 선택한 설치 provider가 모두 source로 resolve되면 반복 local npm link는 아무 변경도 하지 않으며, 잘못되거나 누락된 source는 native npm link로 복구한다. Release URL override가 있는 offline source graph와 잘못된 target 복구 case가 통과한다(K673).
 
 ## 0.0.55

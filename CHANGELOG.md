@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- npm idempotence checks Node's actual resolution paths, so a workspace package reuses an already-correct source link from an ancestor `node_modules`. Missing or shadowed source paths still go through native npm linking (K674).
 - Repeating local npm linking is a no-op when every selected installed provider resolves to its source; a wrong or missing source still runs native npm linking. The offline source-graph case with a release URL override and the wrong-target repair case pass (K673).
 
 ## 0.0.55
