@@ -1,14 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 29d1002b0bc9b56c9a6a8518067862d70f7f6f760389fe9f84f1dbc7cac06df2 -->
+<!-- source-sha256: 778eb788181ca46862d196de2c15209138136c9fdcfdaf7d28e1d054a86dfb3b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- 각 독립 CI job의 오프라인 검사 전에 잠긴 Rust crate를 설치한다. Native Rust case 두 개는 빈 Cargo registry에서 실패하고 선언한 설치 후 통과하며, 영향받은 workflow case 세 개도 통과한다. (K705)
-
 ## 0.0.59
+
+- 각 독립 CI job의 오프라인 검사 전에 잠긴 Rust crate를 설치한다. Native Rust case 두 개는 빈 Cargo registry에서 실패하고 선언한 설치 후 통과하며, 영향받은 workflow case 세 개도 통과한다. (K705)
 
 - 독립 CI jobs와 필수 kit summary, 잠긴 native consumer 설치 및 완전한 Python backend fixture로 0.0.59를 준비한다. Workflow 테스트 16/16, 영향받은 parity case 124/124, 실제 Python 심벌 case 1/1이 통과했다. 공개 CI와 release proof는 K677-7에서 반드시 검증한다. (K677-6)
 

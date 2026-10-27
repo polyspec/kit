@@ -5,9 +5,9 @@
 
 ## Unreleased
 
-- Install locked Rust crates before each independent CI job runs offline checks. The two native Rust cases fail with an empty Cargo registry and pass after the declared installation; the three affected workflow cases pass. (K705)
-
 ## 0.0.59
+
+- Install locked Rust crates before each independent CI job runs offline checks. The two native Rust cases fail with an empty Cargo registry and pass after the declared installation; the three affected workflow cases pass. (K705)
 
 - Prepare 0.0.59 with independent CI jobs and the required kit summary, locked native consumer installation, and complete Python backend fixtures. Workflow tests pass 16/16, affected parity cases 124/124 and the real Python symbol case 1/1. Public CI and release proof remain required by K677-7. (K677-6)
 
