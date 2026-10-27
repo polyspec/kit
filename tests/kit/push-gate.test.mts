@@ -24,11 +24,23 @@ const start = (work: string, id = 'T1-1') => {
   for (const file of [CHECKLIST, TRANSLATION]) edit(work, file, text => swap(text, new RegExp(`(\\| ${id} \\|[^\\n]*)\\| \\[ \\] \\|`), '$1| [~] |'));
 };
 
-test('a push whose checklists hold waiting, done and bypassed items reaches the remote', (t) => {
+test('a push whose checklists hold waiting, verification, done and bypassed items reaches the remote', (t) => {
   const { work, remote } = prepared(t);
   const pushed = push(work);
   assert.equal(pushed.status, 0, pushed.stderr);
   assert.equal(remoteHead(remote), git(work, 'rev-parse', 'HEAD'));
+});
+
+test('a committed implementation in verification can be pushed while the release gate remains separate', (t) => {
+  const { work, remote } = prepared(t);
+  start(work);
+  commitAll(work, 'docs(checklist): Start T1-1 (#T1-1)');
+  for (const file of [CHECKLIST, TRANSLATION]) edit(work, file, text => swap(text, /\| T1-1 \|([^\n]*)\| \[~\] \|/, '| T1-1 |$1| [v] |'));
+  const verifying = commitAll(work, 'docs(checklist): Verify T1-1 (#T1-1)');
+  const pushed = push(work);
+  assert.equal(pushed.status, 0, pushed.stderr);
+  assert.equal(remoteHead(remote), git(work, 'rev-parse', 'HEAD'));
+  assert.ok(verifying);
 });
 
 test('a push whose commit has an item in progress is refused and names the file, the ID and what blocks', (t) => {
@@ -39,7 +51,7 @@ test('a push whose commit has an item in progress is refused and names the file,
   const active = commitAll(work, 'docs(checklist): Start T1-1 (#T1-1)');
   const pushed = push(work);
   assert.notEqual(pushed.status, 0);
-  assert.match(pushed.stderr, /push refused: 2 items are in the active state \(only the state \[~\] blocks; \[ \], \[o\], \[!\], \[-\] do not block\)/);
+  assert.match(pushed.stderr, /push refused: 2 items are in the active state \(only the state \[~\] blocks a push; \[ \], \[v\], \[o\], \[!\], \[-\] do not block a push\)/);
   assert.match(pushed.stderr, new RegExp(`  HEAD ${active.slice(0, 12)}: docs/plans/work/checklist\\.md T1-1 Print \`a \\\\\\| b\` for a union`));
   assert.match(pushed.stderr, /A push happens only when no item of a checklist is in its active state/);
   assert.match(pushed.stderr, /  working tree: docs\/plans\/work\/checklist\.md T1-1 /);
@@ -277,6 +289,18 @@ test('a branch that main has merged, or a worktree whose folder breaks its name,
   git(work, 'worktree', 'remove', path.join(path.dirname(work), 'scratch'));
   git(work, 'worktree', 'add', '--quiet', '-b', 'feat/lexer-T3', path.join(path.dirname(work), 'work-lexer-T3'));
   assert.equal(push(work).status, 0, 'a worktree named for its item, on a branch that main has not merged, passes');
+});
+
+test('a pushed branch pinned for intentional retention is exempt from merged-branch cleanup', (t) => {
+  const { work, remote } = prepared(t);
+  const branch = 'backup/cancelled-T1';
+  git(work, 'branch', branch);
+  const pinned = git(work, 'rev-parse', `refs/heads/${branch}`);
+  writeFileSync(path.join(work, 'config/retained-branches.json'), JSON.stringify({ schema: 1, branches: [{ branch, commit: pinned, reason: 'The user cancelled this development and asked to retain its local backup.', removalCondition: 'The user authorizes removal of the backup branch.' }] }) + '\n');
+  commitAll(work, 'docs(config): Retain the cancelled backup (#T1)');
+  const pushed = push(work);
+  assert.equal(pushed.status, 0, pushed.stderr);
+  assert.equal(remoteHead(remote), git(work, 'rev-parse', 'HEAD'));
 });
 
 // K510: the push gate checks the message and the identity of each pushed commit and the checklists of the pushed tip once; the row,

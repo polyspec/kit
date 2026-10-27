@@ -24,6 +24,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { git, gitResult } from './git.mts';
 import { COMMIT_RULES, logMessages, messageLines } from './check-commits.mts';
 import { present } from './present.mts';
+import { retainedBranch, retainedBranches } from './retained-branches.mts';
 
 const USAGE = 'Usage: node scripts/kit/push-gate.mts hook | commit <rev>';
 const NO_OBJECT = /^0+$/;
@@ -119,6 +120,7 @@ function worktrees(root: string): { path: string; branch?: string }[] {
  */
 export function branchFindings(root: string, pushed: readonly string[], types: readonly string[], idPattern: string): string[] {
   const found: string[] = [];
+  const retained = retainedBranches(root);
   const branchName = new RegExp(`^(?:${types.map(escaped).join('|')})/${SHORTNAME}-(?:${idPattern})$`);
   for (const branch of pushed.filter(name => name !== MAIN && !branchName.test(name))) {
     found.push(`the branch ${branch} is not named {type}/{shortname}-{checklist id}, such as ${types[0] ?? 'feat'}/<shortname>-<id>; push it under such a name`);
@@ -137,6 +139,7 @@ export function branchFindings(root: string, pushed: readonly string[], types: r
     for (const line of git(root, 'for-each-ref', '--format=%(refname:short) %(objectname)', 'refs/heads').split('\n').filter(Boolean)) {
       const [branch = '', sha = ''] = line.split(' ');
       if (branch === MAIN || sha === tip || gitResult(root, 'merge-base', '--is-ancestor', sha, tip).status !== 0) continue;
+      if (retainedBranch(retained, branch)) continue;
       const tree = others.find(entry => entry.branch === branch);
       found.push(`the branch ${branch} is merged into main; delete it with ${tree ? `git worktree remove ${tree.path} && ` : ''}git branch -d ${branch}`);
     }

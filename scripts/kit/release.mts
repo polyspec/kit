@@ -59,6 +59,7 @@ import { present } from './present.mts';
 import { toolCommand } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
 import { installedGenStub } from './install-php-arginfo.mts';
+import { CONFIG as CHECKLIST_CONFIG, inspectTrackers, parseConfig as parseChecklistConfig, PLANS, trackersOf } from './checklist.mts';
 
 export const MAIN = 'origin/main';
 export const CONFIG = 'config/release.json';
@@ -282,8 +283,9 @@ const taggedCommit = (ctx: Context, tag: string) => run('git', ['rev-parse', '--
  */
 export function goTagProblems(ctx: Context, tag: string): string[] {
   const [directory, version] = parseTag(ctx.config, tag);
-  if (directory !== null) return [];
   const commit = taggedCommit(ctx, tag);
+  assertNoUnverifiedItems(ctx, commit);
+  if (directory !== null) return [];
   const problems: string[] = [];
   for (const [module, modulePath] of Object.entries(ctx.config.goModules).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
     if (module === '.') continue;
@@ -296,7 +298,21 @@ export function goTagProblems(ctx: Context, tag: string): string[] {
   return problems;
 }
 
-/** The tagged commit is on main, its Go module tags exist and the latest run of every configured check concluded success: { commit, checks }. */
+/** Refuses release operations while a committed item is still in development or awaiting verification. */
+function assertNoUnverifiedItems(ctx: Context, commit: string): void {
+  const files = run('git', ['ls-tree', '-r', '--name-only', commit, '--', PLANS], at(ctx)).split('\n').filter(Boolean);
+  const configText = run('git', ['show', `${commit}:${CHECKLIST_CONFIG}`], at(ctx));
+  const trackers = trackersOf(parseChecklistConfig(configText, `${commit}:${CHECKLIST_CONFIG}`), files);
+  if (trackers.length === 0) throw new Stop(`${commit}: no readable checklist is present; releases require the declared plan checklists`);
+  const found = inspectTrackers(trackers, file => run('git', ['show', `${commit}:${file}`], at(ctx)));
+  if (found.problems.length) throw new Stop(`${commit}: checklist verification state is unreadable: ${found.problems.join('; ')}`);
+  const pending = [
+    ...found.active.map(item => `${item.file} ${item.id} ${item.title} [~]`),
+    ...found.verification.map(item => `${item.file} ${item.id} ${item.title} [v]`),
+  ];
+  if (pending.length) throw new Stop(`${commit}: release refused while checklist items await verification: ${pending.join('; ')}; complete verification and move each item to [o]`);
+}
+
 /**
  * Creates the annotated tag `tag` at origin/main and pushes it, the first step of a release that the release workflow starts from
  * a dispatch (K269); returns what it did. A second run passes when the tag already names that commit; a tag at another commit
@@ -305,6 +321,7 @@ export function goTagProblems(ctx: Context, tag: string): string[] {
 export function createTag(ctx: Context, tag: string): string {
   parseTag(ctx.config, tag);
   const main = run('git', ['rev-parse', '--verify', `${MAIN}^{commit}`], at(ctx)).trim();
+  assertNoUnverifiedItems(ctx, main);
   const existing = execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`], at(ctx));
   if (existing.status === 0) {
     const commit = existing.stdout.trim();
@@ -323,6 +340,7 @@ export function verify(ctx: Context, tag: string): { commit: string; checks: str
   const repository = ctx.repository ?? ctx.env.GITHUB_REPOSITORY;
   if (!repository) throw new Stop('GITHUB_REPOSITORY is not set; it names the repository <owner>/<name> whose check runs are read');
   const commit = taggedCommit(ctx, tag);
+  assertNoUnverifiedItems(ctx, commit);
   const problems: string[] = [];
   // A release tag is annotated: its object is a tag object that records the tagger and the time, not the commit itself.
   const kind = run('git', ['cat-file', '-t', `refs/tags/${tag}`], at(ctx)).trim();
@@ -732,6 +750,7 @@ export function recordedRelease(ctx: Pick<Context, 'root' | 'env' | 'config'>, t
 export function publish(ctx: Context, tag: string): string[] {
   const { root, config } = ctx;
   const [directory, version] = parseTag(config, tag);
+  assertNoUnverifiedItems(ctx, taggedCommit(ctx, tag));
   const notes = releaseNotes(ctx, tag);
   const names = directory === null ? assetNames(config, version) : [];
   const target = path.join(root, ASSETS);
@@ -762,6 +781,7 @@ export function publish(ctx: Context, tag: string): string[] {
  * Returns true when this call made it public.
  */
 export function undraft(ctx: Context, tag: string): boolean {
+  assertNoUnverifiedItems(ctx, taggedCommit(ctx, tag));
   const release = recordedRelease(ctx, tag);
   if (!release.draft) {
     ctx.log(`[release] ${tag}: the release is already public`);

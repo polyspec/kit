@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "config/retained-branches.json",
+  "description": "Local backup branches that a deliberate cancellation must preserve, pinned to their commit with a reason and removal condition.",
+  "type": "object",
+  "required": ["schema", "branches"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "type": "integer", "const": 1 },
+    "branches": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["branch", "commit", "reason", "removalCondition"],
+        "additionalProperties": false,
+        "properties": {
+          "branch": { "type": "string", "minLength": 1 },
+          "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+          "reason": { "type": "string", "minLength": 1 },
+          "removalCondition": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

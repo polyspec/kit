@@ -263,6 +263,17 @@ test('commit-items: a commit changes the state of at most one item, and a row it
   assert.match(first, /: commit-items: the commit changes the state of 2 items \(S1 \[ \] → \[~\], S2 \[ \] → \[~\]\); change one item per commit$/);
 });
 
+test('commit-state: verification permits a push, must finish before done, and can return to active after failure', (t) => {
+  const { root } = tracked(t, [
+    ['docs(plan): Start S1 (#S1)', { [PLAN]: plan([['S1', '[~]']]), 'CHANGELOG.md': '# Changelog\n', 'CHANGELOG.ko.md': '# 변경 기록\n' }],
+    ['docs(plan): Verify S1 (#S1)', { [PLAN]: plan([['S1', '[v]']]) }],
+    ['docs(plan): Retry S1 (#S1)', { [PLAN]: plan([['S1', '[~]']]) }],
+    ['docs(plan): Verify S1 again (#S1)', { [PLAN]: plan([['S1', '[v]']]) }],
+    ['feat(core): Finish S1 (#S1)\n\nNo-Red: a fixture of the item rules\n', { [PLAN]: plan([['S1', '[o]']]), 'CHANGELOG.md': '# Changelog\n\n- S1\n', 'CHANGELOG.ko.md': '# 변경 기록\n\n- S1\n' }],
+  ]);
+  assert.deepEqual(rangeFindings(root, 'HEAD~4..HEAD', TRACKED), []);
+});
+
 test('a checklist that a revision lacks reads as empty, and any other failure of git show names the revision and the file', (t) => {
   const { root, git } = tracked(t, [
     ['docs(core): Start (#S1)', { 'README.md': 'x\n' }],

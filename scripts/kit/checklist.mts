@@ -5,13 +5,13 @@
 // checklist strictly. One function, readChecklist, reads a checklist at both levels.
 //
 // A checklist is a table with one row per item, `| ID | title | ... | state |`; the state is the last cell and one of the
-// five states of kit (K242): [ ] waiting, [~] active, [o] done, [!] bypassed and [-] impossible. A state is the leading
+// six states of kit: [ ] waiting, [~] development, [v] verification, [o] done, [!] bypassed and [-] impossible. A state is the leading
 // `[x]` of its cell, or the whole cell when the cell does not start with `[`. A checklist that cannot be read is an error and
 // never an empty result: the gate refuses a push whose items it cannot read.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { lineBlocks } from './markdown.mts';
-import { readConfigFindings } from './schema-validate.mts';
+import { parseJson, readConfigFindings } from './schema-validate.mts';
 import { present } from './present.mts';
 import { git } from './git.mts';
 
@@ -31,10 +31,21 @@ export const CHECKLIST_HEADER = `| ${CHECKLIST_COLUMNS.join(' | ')} |\n|${CHECKL
 /** The states of kit, in their order: waiting, active, done, bypassed, impossible. */
 export const WAITING = '[ ]';
 export const ACTIVE = '[~]';
+export const VERIFYING = '[v]';
 export const DONE = '[o]';
 export const BYPASSED = '[!]';
 export const IMPOSSIBLE = '[-]';
-export const STATES = [WAITING, ACTIVE, DONE, BYPASSED, IMPOSSIBLE] as const;
+export const STATES = [WAITING, ACTIVE, VERIFYING, DONE, BYPASSED, IMPOSSIBLE] as const;
+
+/** The allowed transitions: an item may be marked done from development or verification; failed verification returns to development. */
+export const STATE_TRANSITIONS: Record<string, readonly string[]> = {
+  [WAITING]: [ACTIVE, IMPOSSIBLE],
+  [ACTIVE]: [VERIFYING, DONE, BYPASSED, IMPOSSIBLE, WAITING],
+  [VERIFYING]: [ACTIVE, DONE],
+  [BYPASSED]: [ACTIVE],
+  [DONE]: [],
+  [IMPOSSIBLE]: [],
+};
 
 /** A checklist of a plan folder: its document, its Korean twin and the pattern of its item IDs. */
 export interface Tracker {
@@ -48,6 +59,13 @@ export interface ChecklistConfig {
   schema: 1;
   hooks: string[];
   idPattern: string;
+}
+
+/** The config text of a committed tree, validated by the checklist schema and the pre-push hook rule. */
+export function parseConfig(text: string, source = CONFIG): ChecklistConfig {
+  const config = parseJson<ChecklistConfig>(text, 'checklist.schema.json', source);
+  if (!config.hooks.includes(PRE_PUSH_HOOK)) throw new Error(`${source}: $.hooks is ${JSON.stringify(config.hooks)}, it must include "${PRE_PUSH_HOOK}", which runs the push gate`);
+  return config;
 }
 
 /** An item of a checklist, with the state as the document writes it. */
@@ -108,14 +126,14 @@ export function planFindings(files: Iterable<string>): { file: string; message: 
   return findings;
 }
 
-const MARKER = /\[[ ~o!xX-]\]/g;
+const MARKER = /\[[ ~vo!xX-]\]/g;
 const DOCUMENT_MARKER = /^<!-- (?:doc-id|source-sha256): \S+ -->$/;
 const TABLE_BYPASS = /^\[!\] (?:cause|원인): \S.*; (?:retry|재시도): \S.*$/;
 const TABLE_IMPOSSIBLE = /^\[-\] (?:cause|원인): \S.*$/;
 // The first cell of a task row is the task ID, which a code span may follow: `T3.2 \`parallel\``.
 const ID_CELL = /^(\S+)(?:\s+`[^`]*`)?$/;
 // The state cell of a row as the strict reading accepts it.
-const EXPECTED_CELL = `${WAITING}, ${ACTIVE}, ${DONE}, ${BYPASSED} cause: <cause>; retry: <condition> or ${IMPOSSIBLE} cause: <cause>`;
+const EXPECTED_CELL = `${WAITING}, ${ACTIVE}, ${VERIFYING}, ${DONE}, ${BYPASSED} cause: <cause>; retry: <condition> or ${IMPOSSIBLE} cause: <cause>`;
 
 const stateOf = (cell: string): string => /^\[[^\]]*\]/.exec(cell)?.[0] ?? cell;
 
@@ -127,7 +145,7 @@ export const describeFinding = (finding: ChecklistFinding): string => (finding.l
  * state as the document writes it, for example `[o]`, and the findings as `{ line, column, rule, message }`.
  *
  * The lenient reading (the default) is the reading of the push gate and the commit check. It looks only at the items and
- * reports what makes the document unreadable as a checklist: a row that is malformed, a state outside the five, an ID listed
+ * reports what makes the document unreadable as a checklist: a row that is malformed, a state outside the six, an ID listed
  * twice and a document without an item.
  *
  * The strict reading (`strict: true`) is the reading of the document check. It reports the same and also that a checklist
@@ -307,7 +325,7 @@ export function compareTwin(english: string, korean: string, tracker: Tracker): 
 
 // A line that holds a checklist item: a table row whose last cell starts with a state marker, or a list item whose state
 // marker is followed by an ID (a bullet that only names a marker in prose, such as `- [o] never reopened`, is no item).
-const ITEM_LINE = /^\|.*\| \[[ ~o!-]\][^|]*\|\s*$|^ *[-*] \[[ ~o!-]\] [A-Z][A-Z0-9]*[-.]?[0-9]/m;
+const ITEM_LINE = /^\|.*\| \[[ ~vo!-]\][^|]*\|\s*$|^ *[-*] \[[ ~vo!-]\] [A-Z][A-Z0-9]*[-.]?[0-9]/m;
 
 /**
  * The documents of `files` (repository paths under docs/, each with its text) that hold a checklist item but are no
@@ -320,17 +338,23 @@ export function undeclaredChecklists(trackers: readonly Tracker[], files: { path
 
 /**
  * The state of every checklist of `trackers` as read by `read(file)`, which returns the text of a file or throws why it
- * cannot. Returns `{ active, problems }`: the active items as `{ file, id, title }` and the sentences that name what cannot
+ * cannot. Returns `{ active, verification, problems }`: the active items as `{ file, id, title }` and the sentences that name what cannot
  * be read.
  */
-export function inspectTrackers(trackers: readonly Tracker[], read: (file: string) => string, { open = false }: { open?: boolean } = {}): { active: { file: string; id: string; title: string }[]; problems: string[] } {
+export function inspectTrackers(trackers: readonly Tracker[], read: (file: string) => string, { open = false }: { open?: boolean } = {}): { active: { file: string; id: string; title: string }[]; verification: { file: string; id: string; title: string }[]; problems: string[] } {
   const active: { file: string; id: string; title: string }[] = [];
+  const verification: { file: string; id: string; title: string }[] = [];
   const problems: string[] = [];
   for (const tracker of trackers) {
     let english;
     try {
       english = read(tracker.path);
-      for (const item of activeItems(english, tracker, { open })) active.push({ file: tracker.path, id: item.id, title: item.title });
+      const parsed = readChecklist(english, tracker);
+      if (parsed.findings.length > 0) throw new Error(parsed.findings.map(describeFinding).join('; '));
+      for (const item of parsed.items) {
+        if (item.state === ACTIVE || (open && item.state === WAITING)) active.push({ file: tracker.path, id: item.id, title: item.title });
+        if (item.state === VERIFYING) verification.push({ file: tracker.path, id: item.id, title: item.title });
+      }
     } catch (error) {
       if (!(error instanceof Error)) throw error;
       problems.push(`${tracker.path}: ${error.message}`);
@@ -351,8 +375,8 @@ export function inspectTrackers(trackers: readonly Tracker[], read: (file: strin
       problems.push(error.message);
     }
   }
-  return { active, problems };
+  return { active, verification, problems };
 }
 
 /** The sentence that says which state stops a push and which do not. */
-export const BLOCKING = `only the state ${ACTIVE} blocks; ${[WAITING, DONE, BYPASSED, IMPOSSIBLE].join(', ')} do not block`;
+export const BLOCKING = `only the state ${ACTIVE} blocks a push; ${[WAITING, VERIFYING, DONE, BYPASSED, IMPOSSIBLE].join(', ')} do not block a push`;

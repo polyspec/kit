@@ -108,11 +108,23 @@ function committed(t: Parameters<typeof tree>[0], ...ids: string[]) {
 
 const states = (root: string, file: string) => rows(root, file).map(row => row.split(' | ').at(-1));
 
+function commitState(root: string, message: string): void {
+  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', message]]) {
+    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+  }
+}
+
 test('item-state performs an allowed transition in both languages and refuses another (K249-2)', (t) => {
   const root = committed(t, 'T1');
   setState(root, { id: 'T1', state: '[~]' });
   assert.deepEqual([states(root, 'docs/plans/parser/checklist.md'), states(root, 'docs/plans/parser/checklist.ko.md')], [['[~] |'], ['[~] |']]);
-  assert.throws(() => setState(root, { id: 'T1', state: '[~]' }), /T1 is \[~\]; from \[~\] an item moves to \[o\], \[!\], \[-\] or \[ \]/);
+  commitState(root, 'start');
+  setState(root, { id: 'T1', state: '[v]' });
+  commitState(root, 'verification');
+  assert.deepEqual(states(root, 'docs/plans/parser/checklist.md'), ['[v] |']);
+  assert.throws(() => setState(root, { id: 'T1', state: '[v]' }), /T1 is \[v\]; from \[v\] an item moves to \[~\] or \[o\]/);
+  setState(root, { id: 'T1', state: '[~]' });
   assert.throws(() => setState(root, { id: 'T9', state: '[~]' }), /T9 is no item of a checklist/);
   assert.throws(() => setState(root, { id: 'T1', state: '[x]' }), /the state "\[x\]" is none of/);
 });
@@ -120,6 +132,9 @@ test('item-state performs an allowed transition in both languages and refuses an
 test('item-state sets done only when the working tree adds the item to the changelog of both languages (K249-2)', (t) => {
   const root = committed(t, 'T1');
   setState(root, { id: 'T1', state: '[~]' });
+  commitState(root, 'start');
+  setState(root, { id: 'T1', state: '[v]' });
+  commitState(root, 'verification');
   // The red of the Verification is recorded before the done state.
   assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.md adds no line with \(T1\)/);
   writeFileSync(path.join(root, 'CHANGELOG.md'), `${CHANGELOG}- Parse (T1).\n`);
@@ -129,9 +144,24 @@ test('item-state sets done only when the working tree adds the item to the chang
   assert.deepEqual(states(root, 'docs/plans/parser/checklist.md'), ['[o] |']);
 });
 
+test('item-state may complete a unit-tested item directly from development without entering verification', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(0)"`' }));
+  writeFileSync(path.join(root, 'CHANGELOG.md'), CHANGELOG);
+  writeFileSync(path.join(root, 'CHANGELOG.ko.md'), CHANGELOG);
+  setState(root, { id: 'T1', state: '[~]' });
+  commitState(root, 'start');
+  writeFileSync(path.join(root, 'CHANGELOG.md'), `${CHANGELOG}- Parse (T1).\n`);
+  writeFileSync(path.join(root, 'CHANGELOG.ko.md'), `${CHANGELOG}- 파싱 (T1).\n`);
+  verifyDone(root, 'T1', () => {});
+  setState(root, { id: 'T1', state: '[o]' });
+  assert.deepEqual(states(root, 'docs/plans/parser/checklist.md'), ['[o] |']);
+});
+
 test('item-state writes the cause and the retry condition of a bypass and the cause of an impossible item in both languages (K249-2)', (t) => {
   const root = committed(t, 'T1', 'T2');
   setState(root, { id: 'T1', state: '[~]' });
+  commitState(root, 'start');
   assert.throws(() => setState(root, { id: 'T1', state: '[!]', cause: 'no runner' }), /RETRY is empty/);
   setState(root, { id: 'T1', state: '[!]', cause: 'no runner', retry: 'T2 done', causeKo: 'runner 없음', retryKo: 'T2 완료' });
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.md')[0], '| T1 | Task T1 | `a.mts` | `node --test a.test.mts` | [!] cause: no runner; retry: T2 done |');
@@ -220,7 +250,7 @@ test('verifyDone runs the Verification of the row and refuses a failing command 
   const quiet = () => {};
   // Both rows are active: the transition is checked first (K353-1).
   for (const file of ['docs/plans/parser/checklist.md', 'docs/plans/parser/checklist.ko.md']) {
-    writeFileSync(path.join(root, file), readFileSync(path.join(root, file), 'utf8').replaceAll(' | [ ] |', ' | [~] |'));
+    writeFileSync(path.join(root, file), readFileSync(path.join(root, file), 'utf8').replaceAll(' | [ ] |', ' | [v] |'));
   }
   writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
   assert.throws(() => verifyDone(root, 'T1', quiet), /T1: the verification must run on the tree that the commit holds[\s\S]*\?\? a\.mts/, 'an untracked deliverable');
@@ -237,7 +267,7 @@ test('verifyDone refuses a waiting row for its transition before it looks at the
   const root = plans(t, 'parser');
   newItem(root, item('parser', 'T1', { deliverables: '`a.mts`', verification: '`node -e "process.exit(0)"`' }));
   writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
-  assert.throws(() => verifyDone(root, 'T1', () => {}), /T1 is \[ \]; from \[ \] an item moves to \[~\]/);
+  assert.throws(() => verifyDone(root, 'T1', () => {}), /T1 is \[ \]; from \[ \] an item moves to \[~\] or \[-\]/);
 });
 
 // K353-2: item-test runs a command in the root, so it judges the files that the command names from the root.
@@ -494,6 +524,9 @@ test('item-new refuses a private path, and item-edit replaces the Task cells of 
   assert.deepEqual([rows(root, english)[0], rows(root, korean)[0]], ['| T1 | New task | `a.mts` | `node --test a.test.mts` | [ ] |', '| T1 | 새 작업 | `a.mts` | `node --test a.test.mts` | [ ] |']);
   assert.throws(() => editItem(root, { id: 'T1', task: 'See /home/someone/y', taskKo: '보기' }), /the path \/home\/someone\/ into a home directory/);
   setState(root, { id: 'T1', state: '[~]' });
+  commitState(root, 'start');
+  setState(root, { id: 'T1', state: '[v]' });
+  commitState(root, 'verification');
   for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(root, file), `${CHANGELOG}- Task (T1).\n`);
   setState(root, { id: 'T1', state: '[o]' });
   editItem(root, { id: 'T1', task: 'Done task', taskKo: '끝난 작업' });
@@ -509,6 +542,9 @@ test('item-edit replaces the Deliverables cell in both languages, and not of a d
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.ko.md'), ['| T1 | 작업 T1 | `b.mts` | `node --test a.test.mts` | [ ] |']);
   const done = committed(t, 'T2');
   setState(done, { id: 'T2', state: '[~]' });
+  commitState(done, 'start');
+  setState(done, { id: 'T2', state: '[v]' });
+  commitState(done, 'verification');
   for (const file of ['CHANGELOG.md', 'CHANGELOG.ko.md']) writeFileSync(path.join(done, file), `${CHANGELOG}- Task (T2).\n`);
   setState(done, { id: 'T2', state: '[o]' });
   assert.throws(() => editItem(done, { id: 'T2', deliverables: '`b.mts`' }), /is \[o\]/);

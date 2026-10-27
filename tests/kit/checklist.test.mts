@@ -1,5 +1,5 @@
 // Tests of the checklists (scripts/kit/checklist.mts): kit finds them in the plan folders (K241), reads each as a table with
-// the five states, the active state selects the items that block, an unreadable or inconsistent document is an error, a
+// the six states, development blocks pushes and verification blocks releases, an unreadable or inconsistent document is an error, a
 // translation must hold the same IDs and states, and an item ID is unique among the checklists of a repository.
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -83,7 +83,7 @@ test('a document that cannot be read as the tracker is an error and never an emp
   // Each document below has a finding, so [0] exists.
   const errors = (text: string) => parseTracker(text, TABLE).errors;
   assert.deepEqual(errors('# Tasks\n\nNo table.\n'), ['it has no item']);
-  assert.match(known(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [x] |\n')[0], 'errors(…)[0]'), /line 3: T1 has the state "\[x\]", the states are \[ \], \[~\], \[o\], \[!\], \[-\]/);  // the document has a finding.
+  assert.match(known(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [x] |\n')[0], 'errors(…)[0]'), /line 3: T1 has the state "\[x\]", the states are \[ \], \[~\], \[v\], \[o\], \[!\], \[-\]/);  // the document has a finding.
   assert.match(known(errors('| ID | Task | Done |\n|---|---|---|\n| T1 | A | [o] |\n| T1 | B | [o] |\n')[0], 'errors(…)[0]'), /line 4: the item T1 is listed twice/);  // the document has a finding.
   assert.match(known(errors('| ID | Task | Done |\n|---|---|---|\n| not an id | A | [o] |\n')[0], 'errors(…)[0]'), /line 3: .* is not a row with an ID in its first cell and a state in its last cell/);  // the document has a finding.
 });
@@ -138,22 +138,24 @@ test('inspectTrackers names each active item with its file and ID, and each unre
     // The check above throws for a name that files lacks.
     return known(files[name], 'files[name]');
   };
+  files['a.md'] = TABLE_TEXT.replace('| [~] |', '| [v] |');
+  files['a.ko.md'] = TABLE_TEXT.replace('| [~] |', '| [v] |');
   const found = inspectTrackers(trackers, read);
   assert.deepEqual(found.problems, []);
+  assert.deepEqual(found.verification, [{ file: 'a.md', id: 'T1.2', title: 'Print `a \\| b` for a union' }]);
   assert.deepEqual(found.active, [
-    { file: 'a.md', id: 'T1.2', title: 'Print `a \\| b` for a union' },
     { file: 'b.md', id: 'T5', title: 'Print a union' },
   ]);
   delete files['b.md'];
   assert.deepEqual(inspectTrackers(trackers, read).problems, ['b.md: does not exist']);
   files['a.ko.md'] = TABLE_TEXT.replace('| [~] |', '| [o] |');
-  assert.deepEqual(inspectTrackers(trackers, read).problems, ['T1.2 is [~] in a.md and [o] in a.ko.md', 'b.md: does not exist']);
+  assert.deepEqual(inspectTrackers(trackers, read).problems, ['T1.2 is [v] in a.md and [o] in a.ko.md', 'b.md: does not exist']);
   delete files['a.ko.md'];
   assert.deepEqual(inspectTrackers([TABLE], read).problems, ['a.ko.md: does not exist']);
 });
 
 test('the sentence of the blocking state names the other states', () => {
-  assert.equal(BLOCKING, 'only the state [~] blocks; [ ], [o], [!], [-] do not block');
+  assert.equal(BLOCKING, 'only the state [~] blocks a push; [ ], [v], [o], [!], [-] do not block a push');
 });
 
 test('loadConfig accepts the configuration of the fixture and names each rule that another breaks', (t) => {

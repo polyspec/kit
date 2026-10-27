@@ -30,6 +30,7 @@ import { runCommand, failureOf, type RunCommandResult } from './run-command.mts'
 import { watchParent } from './process-group.mts';
 import { compactSeconds } from './time.mts';
 import { refreshLinked } from './linked-build.mts';
+import { RETAINED_BRANCHES_CONFIG, retainedBranch, retainedBranches } from './retained-branches.mts';
 
 // The gates that land whatever the changed paths: the documents and the commit messages of the branch.
 const ALWAYS_GATES = ['docs-check', 'commits-check'];
@@ -327,6 +328,7 @@ function requireCleanMain(root: string): void {
  */
 async function landBranch(root: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void): Promise<void> {
   requireCleanMain(root);
+  retainedBranches(root);
   if (gitResult(root, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).status !== 0) throw new Error(`the branch ${branch} does not exist`);
   const folder = worktreeOf(root, branch);
   // The worktree of a repository whose Makefile declares WORKTREE_STOP has its servers stopped after the merge, before its removal,
@@ -388,10 +390,16 @@ function ownCommitsMerged(root: string, branch: string): boolean {
  * Removes the worktree and deletes the branch of each other branch that main contains, whose worktree is clean and in which no process
  * runs: a worktree that an earlier land kept while a process ran in it (K626); a fresh branch is no merged one (K628).
  */
-function removeMerged(root: string, landed: string, print: (text: string) => void): void {
+export function removeMerged(root: string, landed: string, print: (text: string) => void): void {
+  const retained = retainedBranches(root);
   const entries = git(root, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
   for (const { folder, branch } of entries) {
     if (folder === undefined || branch === undefined || branch === 'main' || branch === landed || path.resolve(folder) === path.resolve(root)) continue;
+    const declaration = retainedBranch(retained, branch);
+    if (declaration) {
+      print(`kept ${branch} at ${declaration.commit} by ${RETAINED_BRANCHES_CONFIG}: ${declaration.reason}; remove when ${declaration.removalCondition}`);
+      continue;
+    }
     if (!ownCommitsMerged(root, branch)) continue;
     if (git(folder, 'status', '--porcelain').trim() !== '' || worktreeProcesses(folder, machineListing()).length > 0) continue;
     git(root, 'worktree', 'remove', folder);
@@ -463,7 +471,13 @@ async function mainRun(root: string, gate: string, args: string[], print: (text:
 }
 
 /** Removes the worktree `folder` of the landed `branch`, after stopping its servers with `stop`, and deletes the branch. */
-async function removeLanded(root: string, branch: string, folder: string | undefined, stop: string[] | undefined, print: (text: string) => void): Promise<void> {
+export async function removeLanded(root: string, branch: string, folder: string | undefined, stop: string[] | undefined, print: (text: string) => void): Promise<void> {
+  const declaration = retainedBranch(retainedBranches(root), branch);
+  if (declaration) {
+    if (folder !== undefined && git(folder, 'status', '--porcelain').trim() === '' && stop !== undefined) await stopServers(folder, stop, print);
+    print(`kept ${branch} at ${declaration.commit}${folder === undefined ? '' : ` and its worktree ${folder}`} by ${RETAINED_BRANCHES_CONFIG}: ${declaration.reason}; remove when ${declaration.removalCondition}`);
+    return;
+  }
   let kept = false;
   if (folder !== undefined) {
     if (git(folder, 'status', '--porcelain').trim() === '') {

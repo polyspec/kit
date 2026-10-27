@@ -33,7 +33,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
-import { ACTIVE, BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
+import { BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATE_TRANSITIONS, STATES, trackersOf, VERIFYING, WAITING, workingPlanFiles } from './checklist.mts';
 import { COMMIT_RULES, type CommitRules, indexItemFindings, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
 import { fileAt } from './git.mts';
 import { refusal } from './claude-hook.mts';
@@ -324,16 +324,6 @@ export function splitPlan(root: string, { from, to, ids, title, titleKo }: PlanS
   }
 }
 
-// The states that an item in each state may move to: work starts, ends done, bypassed or impossible, or stops; a bypass
-// resumes. A done or an impossible item stays; a new finding on it is an item of its own (a derived ID).
-const TRANSITIONS: Record<string, readonly string[]> = {
-  [WAITING]: [ACTIVE, IMPOSSIBLE],
-  [ACTIVE]: [DONE, BYPASSED, IMPOSSIBLE, WAITING],
-  [BYPASSED]: [ACTIVE],
-  [DONE]: [],
-  [IMPOSSIBLE]: [],
-};
-
 /** The new state of an item, with the texts that its cell needs in the bypassed and the impossible state. */
 export type NewState = { id: string; state: string; cause?: string | undefined; retry?: string | undefined; causeKo?: string | undefined; retryKo?: string | undefined };
 
@@ -367,7 +357,7 @@ function withState(text: string, id: string, state: string): string {
 
 /**
  * Moves the item `change.id` to `change.state` in its checklist and the Korean twin and returns the two files as
- * { path: text }. Throws, writing nothing, on a state that is none of the five, a transition that TRANSITIONS does not allow,
+ * { path: text }. Throws, writing nothing, on a state that is not declared, a transition that STATE_TRANSITIONS does not allow,
  * the done state without a line with (<id>) that the working tree adds to each changelog of the commit rules, a missing
  * cause or retry condition, and what the commit-msg hook would refuse: a second item whose state differs from HEAD.
  */
@@ -376,7 +366,7 @@ export function setState(root: string, change: NewState): Record<string, string>
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
   const entry = findItem(trackers, read, change.id);
-  const allowed = present(TRANSITIONS[entry.item.state], 'TRANSITIONS[state]');
+  const allowed = present(STATE_TRANSITIONS[entry.item.state], 'STATE_TRANSITIONS[state]');
   if (!allowed.includes(change.state)) {
     const next = allowed.length ? `an item moves to ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')}` : 'an item stays; a new finding is an item of its own';
     throw new Error(`${change.id} is ${entry.item.state}; from ${entry.item.state} ${next}`);
@@ -441,14 +431,14 @@ function rowCells(text: string, id: string): string[] | undefined {
  * committed, so the verification below runs on the tree that the commit holds, and the commands of its Verification cell pass
  * (testItem). Throws with the cause; an agent's word that the tests passed closes nothing.
  */
-export function verifyDone(root: string, id: string, print: (text: string) => void = text => console.log(text)): void {
+function verifyForState(root: string, id: string, target: string, print: (text: string) => void): void {
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const tracker = trackers.find(entry => readChecklist(readFileSync(path.join(root, entry.path), 'utf8'), entry).items.some(item => item.id === id));
   if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
   // The transition is checked first (K353-1): a waiting row goes through the active state, which staging the files would not tell.
   const state = readChecklist(readFileSync(path.join(root, tracker.path), 'utf8'), tracker).items.find(item => item.id === id)?.state ?? '';
-  const allowed = present(TRANSITIONS[state], 'TRANSITIONS[state]');
-  if (!allowed.includes(DONE)) throw new Error(`${id} is ${state}; from ${state} ${allowed.length ? `an item moves to ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')}` : 'an item stays; a new finding is an item of its own'}`);
+  const allowed = present(STATE_TRANSITIONS[state], 'STATE_TRANSITIONS[state]');
+  if (!allowed.includes(target)) throw new Error(`${id} is ${state}; from ${state} ${allowed.length ? `an item moves to ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')}` : 'an item stays; a new finding is an item of its own'}`);
   const cells = rowCells(readFileSync(path.join(root, tracker.path), 'utf8'), id);
   const delivered = (cells?.[2] ?? '').split(/[\s,]+/).map(token => token.replace(/^`|`$/g, '')).filter(token => token !== '' && existsSync(path.join(root, token)));
   if (delivered.length > 0) {
@@ -458,6 +448,17 @@ export function verifyDone(root: string, id: string, print: (text: string) => vo
     if (loose.length > 0) throw new Error(`${id}: the verification must run on the tree that the commit holds; stage or commit these files first:\n${loose.join('\n')}`);
   }
   testItem(root, id, print);
+}
+
+
+/** Checks the committed implementation and its Verification commands before entering [v]. */
+export function verifyImplementation(root: string, id: string, print: (text: string) => void = text => console.log(text)): void {
+  verifyForState(root, id, VERIFYING, print);
+}
+
+/** Checks the Verification commands before moving a verified item to done. */
+export function verifyDone(root: string, id: string, print: (text: string) => void = text => console.log(text)): void {
+  verifyForState(root, id, DONE, print);
 }
 
 // A trailer line of a commit message, such as Co-Authored-By: Name <mail>, which git reads by its key and is never wrapped.
@@ -633,7 +634,8 @@ if (isMain(import.meta.url)) {
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
       // The done state needs the verification of the row to pass on the tree of the commit (K335).
-      if (change.state === DONE) verifyDone(root, change.id);
+      if (change.state === VERIFYING) verifyImplementation(root, change.id);
+      else if (change.state === DONE) verifyDone(root, change.id);
       for (const file of Object.keys(setState(root, change))) console.log(`[plan] set ${change.id} to ${change.state} in ${file}`);
     } else if (command === 'plan-split') {
       const split = { from: required(env.FROM, 'FROM'), to: required(env.TO, 'TO'), ids: required(env.IDS, 'IDS').split(/\s+/), title: env.TITLE, titleKo: env.TITLE_KO };

@@ -7,7 +7,7 @@ import { existsSync, mkdtempSync, readFileSync, watch, realpathSync, rmSync, wri
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { land, machineListing, runGate, worktreeProcesses } from '../../scripts/kit/land.mts';
+import { land, machineListing, removeLanded, removeMerged, runGate, worktreeProcesses } from '../../scripts/kit/land.mts';
 import { signalGroup } from '../../scripts/kit/process-group.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put, tree } from './tree.mts';
@@ -18,6 +18,33 @@ const git = (cwd: string, ...args: string[]) => {
   assert.equal(result.status, 0, result.stderr);
   return result.stdout.trim();
 };
+
+test('both land cleanup paths retain a declared backup branch and its worktree', async (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-retained-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  const folder = path.join(parent, 'repo-backup');
+  initRepository(main, '--initial-branch=main');
+  put(main, { 'tracked.txt': 'base\n' });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'backup/cancelled-T1', 'main');
+  put(folder, { 'tracked.txt': 'backup\n' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'cancelled work');
+  const pinned = git(main, 'rev-parse', 'refs/heads/backup/cancelled-T1');
+  git(main, 'merge', '--quiet', '--ff-only', 'backup/cancelled-T1');
+  put(main, { 'config/retained-branches.json': JSON.stringify({ schema: 1, branches: [{ branch: 'backup/cancelled-T1', commit: pinned, reason: 'The user cancelled this development and asked to retain its local backup.', removalCondition: 'The user authorizes removal of the backup branch.' }] }) + '\n' });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'declare retained backup');
+
+  const printed: string[] = [];
+  removeMerged(main, 'another-branch', line => printed.push(line));
+  await removeLanded(main, 'backup/cancelled-T1', folder, undefined, line => printed.push(line));
+  assert.equal(git(main, 'rev-parse', 'refs/heads/backup/cancelled-T1'), pinned);
+  assert.equal(existsSync(folder), true);
+  assert.equal(printed.filter(line => line.includes('kept backup/cancelled-T1 at')).length, 2, printed.join('\n'));
+});
 
 test('make land merges a rebased branch only after the gates it touches pass, and removes its branch and worktree (K394)', async (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));

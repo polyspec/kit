@@ -334,7 +334,9 @@ Files: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lo
 ### Policy
 
 A push is refused while an item of a tracker is in its active state (`[~]` for a checklist) in a pushed commit or in the working
-tree. The states waiting `[ ]`, done `[o]` and bypassed `[!]` do not block, and the refusal says so. The pre-push hook runs the
+tree. The verification state `[v]` means the implementation is committed and its declared unit tests passed: it allows a push,
+but blocks release and tag creation until the item is done. If verification fails, move it back to `[~]`. Waiting `[ ]`, verification
+`[v]`, done `[o]` and bypassed `[!]` do not block a push, and the refusal says so. The pre-push hook runs the
 gate. The pre-commit hook runs the generated-file check (K210): it refuses a staged path with a segment `node_modules`, `vendor`,
 `.venv`, `venv`, `__pycache__`, `target`, `dist` or `*.egg-info`, or a path that a glob of `paths` in `config/generated.json` matches,
 unless a glob of `exceptions` in that file matches it, and names the path (AGENTS.md "Generated files"). It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mts`, `COMMIT_RULES`),
@@ -353,7 +355,7 @@ record of a full run of the current tree exists. There is no pull request, merge
 ```
 
 K241 replaced the declared trackers of K6.1: kit finds the checklists as `docs/plans/<plan>/checklist.md`, each a table
-with the five states of kit, and `idPattern` is the one declaration of a checklist; the list format of orm is removed.
+with the six states of kit, and `idPattern` is the one declaration of a checklist; the list format of orm is removed.
 
 `hooks` lists the tracked hooks of `.githooks` and must include `pre-push`; `pre-commit` and `pre-push` are kit's own hooks, written by
 `make hooks` without an entry. `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output

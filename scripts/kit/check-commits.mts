@@ -42,7 +42,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
-import { BYPASSED, DONE, IMPOSSIBLE, loadConfig, PLANS, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
+import { BYPASSED, DONE, IMPOSSIBLE, loadConfig, PLANS, readChecklist, STATE_TRANSITIONS, trackersOf, workingPlanFiles } from './checklist.mts';
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
 import { clashMessage, rowClashes } from './row-ids.mts';
@@ -275,6 +275,10 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
   if (changes.length > 1) {
     const listed = changes.map(change => `${change.id} ${change.from} → ${change.to}`).join(', ');
     found.push({ rule: 'commit-items', message: `the commit changes the state of ${changes.length} items (${listed}); change one item per commit` });
+  }
+  for (const change of changes) {
+    const allowed = STATE_TRANSITIONS[change.from ?? ''];
+    if (!allowed?.includes(change.to)) found.push({ rule: 'commit-state', message: `the item ${change.id} moves from ${change.from} to ${change.to}; allowed transitions: ${allowed?.join(', ') || 'none'}` });
   }
   const changelog = config.changelog ? [config.changelog.path, ...(config.changelog.translation ? [config.changelog.translation] : [])] : [];
   for (const change of changes.filter(entry => entry.to === DONE)) {
