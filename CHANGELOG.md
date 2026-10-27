@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.60
+
 - The PHP extension builder keeps compiler warnings and the make failure cause without replacing the previous module; the focused fake-tool regression passes 1/1 and verifies temporary cleanup. (K709-1)
 
 - Push and release gates now distinguish development from verification, enforce verification before release or tag creation, and preserve declared retained branches. The focused K708 regressions passed 19/19; the release file initially passed 47 tests and had seven failures caused by its fixture resolving a mise shim as Go. After correcting the fixture to select Go outside `var/tools`, the seven affected tests passed. (K708)

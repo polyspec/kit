@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6a0da6dd3e2a6a743f7ba6d14b032d601439a6c865620085f9ce9f03a9628a3d -->
+<!-- source-sha256: e14a1e09027877fe8735aa884c657860db29ec6794ee0aa9417ad7f198944077 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.60
 
 - PHP extension builder는 기존 module을 바꾸지 않고 compiler warning과 make 실패 원인을 보존한다. 임시 산출물 정리를 확인하는 집중 fake-tool regression이 1/1 통과한다. (K709-1)
 

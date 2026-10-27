@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 57400ea00812f839358148d73cf48430a77e312b963ba5336e3c79f5a37bb4ff -->
+<!-- source-sha256: fb2df202de9922ecefd9953e0929550bf6a32186e40efa0ef497b7668b8de0d4 -->
 # 릴리스
 
 [English](release.md)
@@ -19,19 +19,23 @@ Release와 tag 생성은 `[~]` 또는 `[v]` 상태인 checklist item이 있으�
 
 후속 변경은 앞선 release의 검증 증거를 무효화하지 않습니다. 현재 version은 자기 CI와 consumer proof가 통과하면 완료하고 다음 version을 올려 별도로 검증합니다. 로컬 main commit이 자동으로 원격 release에 포함되는 것은 아니므로 원격 candidate와 해당 CI를 확인합니다. 구현 완료와 소유 검사 통과는 공개를 뜻하지 않으며 proof 통과와 release 공개 후에만 release checklist 항목을 완료합니다.
 
-릴리스는 세 단계입니다. (1) commit `chore(release): Release X.Y.Z`가 `package.json`과 `package-lock.json`의 버전을 정하고
-`CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. 릴리스 commit은 소비자 lock도 담습니다: `make release-assets
-TAG=vX.Y.Z` 다음 `make release-consumer-lock TAG=vX.Y.Z`(ONLINE)를 실행하고, 그것이 `tests/release-consumer/*/`에 쓴 manifest와
-lock을 버전 변경과 함께, 또는 tag 전의 다음 commit으로 commit합니다(docs/operations/tool-inventory.md, Consumer install of the release
-archives, 1단계와 2단계). 버전 변경은 `package-lock.json`을 다시 쓰므로, 릴리스 commit은 `make dependency-review RECORD=1`(ONLINE)이
-그 lock에 대해 쓴 `config/dependency-review.json`도 담습니다. CI는 review와 다른 lock을 실패시키는 `make dependency-policy-check`를
-실행합니다(K169). composer.json의 버전 변경도 마찬가지로 그 directory에서 `composer update --lock`으로 다시 lock합니다:
-`composer.lock`의 content-hash가 `version`을 포함하므로, 검사는 그 변경이 낡게 만든 lock을 실패시킵니다(`composerLock`, K180, K181). draft의 증명은 그 lock으로 archive를 설치하므로, lock이 없는 tag는 실패합니다. 이 commit은 `main`에
-들어가고 CI가 success로 끝납니다. tag는 CI가 success로 끝났고 그 lock을 담은 commit에만 붙입니다. (2) release workflow를 tag와 함께 dispatch합니다(`gh workflow run release.yml -f tag=vX.Y.Z`, 또는 GitHub API의
-workflow dispatch). 그 `make release-tag`가 origin/main에 annotated tag를 만들어 push하고, tag가 이미 있으면 통과합니다
-(K269). tag를 push해도 같은 workflow가 시작됩니다. (3) `.github/workflows/release.yml`이 실행됩니다. 이 파일은 vendor되는
-`workflows/release.yml` 그대로이며, `config/release.json`이 선언한 `@polyspec/kit`의 npm archive를 만들어 GitHub Release에
-draft로 게시하고, 소비자 project에서 증명한 뒤 공개합니다. 저장소는 그 asset의 URL과 integrity를 pin합니다.
+릴리스는 세 단계로 준비하고 진행합니다. (1) commit `chore(release): Release X.Y.Z`가 `package.json`과 `package-lock.json`의 버전을 정하고
+`CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. packing 전에 버전을 commit합니다. npm의 `postpack` script가 이 파일을
+`HEAD`에서 복원하기 때문입니다. tag 없는 candidate는 pin된 native npm으로 `npm pack --pack-destination var/release/assets`를 실행해
+만들고, 결과 archive 하나를 `polyspec-kit-npm-X.Y.Z.tgz`로 이름을 바꿉니다. 이 방법은 공식 release asset builder와 같은 native npm
+prepack을 실행하므로 임시 tag 없이 consumer lock과 proof를 준비할 수 있습니다. 릴리스 commit의 CI가 통과하고 실제 tag가 존재한 뒤
+`make release-assets TAG=vX.Y.Z`로 그 tag의 공식 archive를 만듭니다. candidate archive를 대상으로 `make release-consumer-lock
+TAG=vX.Y.Z`(ONLINE)를 실행하고, `tests/release-consumer/*/`에 기록된 manifest와 lock을 버전 변경과 함께 또는 tag 전의 다음 commit으로
+commit합니다(docs/operations/tool-inventory.md, Consumer install of the release archives, 1단계와 2단계). 버전 변경은 `package-lock.json`을
+다시 쓰므로, 릴리스 commit은 `make dependency-review RECORD=1`(ONLINE)이 해당 lock에 대해 쓴 `config/dependency-review.json`도 담습니다.
+CI는 review와 다른 lock을 실패시키는 `make dependency-policy-check`를 실행합니다(K169). composer.json의 버전 변경도 그 directory에서
+`composer update --lock`으로 다시 lock합니다. `composer.lock`의 content-hash가 `version`을 포함하므로, 검사는 그 변경이 낡게 만든 lock을
+실패시킵니다(`composerLock`, K180, K181). proof는 lock으로 archive를 설치하므로 lock이 없는 tag는 실패합니다. 이 commit은 `main`에 들어가고
+CI가 success로 끝나야 tag를 만듭니다. (2) release workflow를 tag와 함께 dispatch합니다(`gh workflow run release.yml -f tag=vX.Y.Z`, 또는
+GitHub API의 workflow dispatch). 그 `make release-tag`가 origin/main에 annotated tag를 만들어 push하고, tag가 이미 있으면 통과합니다(K269).
+tag를 push해도 같은 workflow가 시작됩니다. (3) `.github/workflows/release.yml`이 실행됩니다. 이 파일은 vendor되는
+`workflows/release.yml` 그대로이며 tag에서 공식 npm archive를 만들고 GitHub Release에 draft로 게시한 뒤 소비자 project에서 증명하고 공개합니다.
+저장소는 그 asset의 URL과 integrity를 pin합니다.
 
 릴리스 tag는 annotated tag입니다: `git tag -a vX.Y.Z -m vX.Y.Z`로 만듭니다. `release-verify`는 object 종류
 (`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
