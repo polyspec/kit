@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Publish 0.0.59 after main CI passes all 1,441 unit and 187 source cases. Release run 40448452188 verifies the tag, proves the draft consumer installation, and makes the release public. (K677-7)
+
 ## 0.0.59
 
 - Install locked Rust crates before each independent CI job runs offline checks. The two native Rust cases fail with an empty Cargo registry and pass after the declared installation; the three affected workflow cases pass. (K705)

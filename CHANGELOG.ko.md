@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 778eb788181ca46862d196de2c15209138136c9fdcfdaf7d28e1d054a86dfb3b -->
+<!-- source-sha256: 3bb7ce7c727fee5ddf05a46661078c1c86ffb40988b3365fee7a23d71e5dfe85 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Main CI의 단위 case 1,441개와 source case 187개가 모두 통과한 뒤 0.0.59를 공개한다. Release 실행 40448452188에서 tag와 draft consumer 설치를 검증한 뒤 배포를 공개했다. (K677-7)
 
 ## 0.0.59
 
