@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b6e2438c95f11fa6fce484b1e24b87a8021c51883d695689b266f73bfb2ba080 -->
+<!-- source-sha256: d8d1e43bb8e12e1fb73064a79659d6f9d60c75dabb151a551768d6193c75128a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Python 심벌 추출은 project 조회 실패를 프로젝트가 없는 경우로 취급하지 않고 오류로 보고한다. Red: K704 누락 entry case가 project 조회 오류 대신 extractor 실행 오류를 반환했다. Green: K701 package discovery case와 함께 K704가 통과한다(각 1 case). (K704)
 
 - File URI 경로 검사는 잘못된 URI의 기존 fallback 동작을 유지하고 예상하지 못한 parser 오류를 다시 던진다. Red: K699 회귀 테스트가 예상하지 못한 parser 오류를 받아들였다(1 test). Green: 회귀 테스트가 통과한다(1 test). (K703)
 

@@ -5,6 +5,11 @@
 
 ## Unreleased
 
+- Python symbol extraction reports project lookup failures instead of treating
+  a failed stat as no project. Red: the K704 missing-entry case returned the
+  extractor process error rather than the project lookup error; green: K704
+  passes (1 case), while the K701 package-discovery case still passes. (K704)
+
 - File URI path checking keeps malformed URI fallback behavior and rethrows
   unexpected parser failures. Red: the K699 regression accepted an unexpected
   parser error (1 test); green: the regression passes (1 test). (K703)
