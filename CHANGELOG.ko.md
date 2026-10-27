@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 30e80d26121b0ba815bb1aa7308a21f392a0027d2bfc7786ddec292e3f93708e -->
+<!-- source-sha256: 1281a6badb92deae956e0a74e1aa6ce2a013d4009b8df544954643cae7ad34b0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Cargo fetch 기대값에 provider checker lock을 포함하고 Go proof stub을 선택된 checkout tool 경로에 설치한다. Offline, 실패와 version assertion은 유지한다. (K713)
 
 - 기존 npm, Composer, generated PHP와 wheel producer를 재사용해 committed HEAD의 tagless candidate archive를 만든다. Candidate build는 미커밋 source를 거부하며 tag 생성과 공개의 CI gate는 유지한다. (K712)
 
