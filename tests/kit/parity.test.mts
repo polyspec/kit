@@ -21,6 +21,7 @@ import { initRepository } from './sandbox-repository.mts';
 import { KIT, KIT_MAKE, tool } from './kit-tools.mts';
 import { known } from './known.mts';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
+import { bindinglessCatches, emptyCatches } from '../../scripts/kit/catch-check.mts';
 
 const TIMEOUT = { timeout: 120_000 };
 // A declaration config/parity.json that a case edits, also into a shape that breaks the schema on purpose: each type names
@@ -1586,6 +1587,11 @@ test('the schema rejects PYTHONPATH and every path that leaves the repository; a
 });
 
 test('URI-valued environment references are not split into runner paths, while an external runner path still fails (K699)', TIMEOUT, () => {
+  const declarationFile = 'scripts/kit/parity-declaration.mts';
+  const declarationSource = readFileSync(declarationFile, 'utf8');
+  assert.deepEqual(bindinglessCatches(declarationFile, declarationSource), []);
+  assert.deepEqual(emptyCatches(declarationFile, declarationSource), []);
+
   const implementation: ParityImplementation = {
     name: 'php', runner: 'php', roots: ['php'], env: [{ name: 'ORM_FEATURE_DSN', value: '${ORM_FEATURE_DSN}' }],
   };
@@ -1593,6 +1599,14 @@ test('URI-valued environment references are not split into runner paths, while a
   const resolved = resolveReferences(implementation, { ORM_FEATURE_DSN: dsn }, '/repo');
   assert.deepEqual(resolved.errors, []);
   assert.equal(resolved.implementation.env?.[0]?.value, dsn);
+
+  const malformedFileUrl = resolveReferences({ ...implementation, command: '${PHP_RUNNER}', env: [
+    ...(implementation.env ?? []), { name: 'PHP_RUNNER', value: '${PHP_RUNNER}' },
+  ] }, {
+    ORM_FEATURE_DSN: dsn, PHP_RUNNER: 'file://%',
+  }, '/repo');
+  assert.equal(malformedFileUrl.errors.length, 2);
+  assert.ok(malformedFileUrl.errors.every(error => error.includes('path that leaves the repository')));
 
   const escaped = resolveReferences({ ...implementation, command: '${PHP_RUNNER}' }, {
     ORM_FEATURE_DSN: dsn, PHP_RUNNER: '/outside/php',
@@ -1611,6 +1625,27 @@ test('URI-valued environment references are not split into runner paths, while a
     }, '/repo');
     assert.equal(escapedFileUrl.errors.length, 1, command);
     assert.match(escapedFileUrl.errors[0] ?? '', /path that leaves the repository/, command);
+  }
+
+  const unexpected = new Error('URL parser sentinel');
+  const NativeURL = globalThis.URL;
+  try {
+    Object.defineProperty(globalThis, 'URL', {
+      configurable: true,
+      value: class extends NativeURL {
+        constructor(input: string | URL, base?: string | URL) {
+          if (input === 'https://unexpected.test/runner') throw unexpected;
+          super(input, base);
+        }
+      },
+    });
+    assert.throws(() => resolveReferences({ ...implementation, command: '${PHP_RUNNER}', env: [
+      ...(implementation.env ?? []), { name: 'PHP_RUNNER', value: '${PHP_RUNNER}' },
+    ] }, {
+      ORM_FEATURE_DSN: dsn, PHP_RUNNER: 'https://unexpected.test/runner',
+    }, '/repo'), error => error === unexpected);
+  } finally {
+    Object.defineProperty(globalThis, 'URL', { configurable: true, writable: true, value: NativeURL });
   }
 });
 

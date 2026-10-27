@@ -312,8 +312,9 @@ function leavingPath(value: string, root: string): string | undefined {
     try {
       const parsed = new URL(uri);
       return parsed.protocol === 'file:' ? fileURLToPath(parsed) : '';
-    } catch {
-      return uri;
+    } catch (error) {
+      if (error instanceof TypeError || error instanceof URIError) return uri;
+      throw error;
     }
   });
   return runnerValues.split(/[=:\s]/).find(word => word.startsWith('~') || (path.isAbsolute(word) && word !== root && !within(root, word)) || /(?:^|[^\w.-])\.\.(?:\/|$)/.test(word));
