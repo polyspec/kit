@@ -2,8 +2,9 @@
 
     python3 -I python.py <package directory or module file>
 
-Prints a JSON array of the public symbol ids, sorted, read with the standard library's ast; nothing is imported or run. A
-module is named by its path from the parent of the entry, and a package by its __init__.py. A module or package whose name
+Prints a JSON array of the public symbol ids, sorted, read with the standard library's ast. When a setuptools pyproject is
+present, setuptools build_py selects the source modules; no product module is imported or run. A module is named by its path
+from the parent of the entry, and a package by its __init__.py. A module or package whose name
 starts with _ is private, except __init__. The public names of a module are its __all__ when it assigns one a list or tuple
 of strings, else the names that it defines (def, class, assignment) and that do not start with _; an imported name belongs
 to the module that defines it. The public methods of a public class are its def names that do not start with _. The ids are
@@ -17,7 +18,9 @@ public class, as "<id> names the private <name>". A string annotation is read as
 import ast
 import contextlib
 import json
+import os
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -26,6 +29,55 @@ def module_name(path, base):
     if parts[-1] == "__init__":
         parts.pop()
     return ".".join(parts)
+
+
+def project_file(entry):
+    directory = entry if entry.is_dir() else entry.parent
+    for parent in (directory, *directory.parents):
+        candidate = parent / "pyproject.toml"
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def source_files(entry):
+    if not entry.is_dir():
+        return [entry]
+    manifest = project_file(entry)
+    if manifest is None:
+        return sorted(entry.rglob("*.py"))
+
+    config = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    build_system = config.get("build-system", {})
+    backend = build_system.get("build-backend", "setuptools.build_meta:__legacy__")
+    if backend not in ("setuptools.build_meta", "setuptools.build_meta:__legacy__"):
+        raise SystemExit(
+            f"{manifest}: Python symbol discovery requires setuptools package metadata, "
+            f"but build-backend is {backend!r}"
+        )
+
+    # Setuptools applies its declared package discovery and file mapping without importing the product package.
+    from setuptools.config.pyprojecttoml import apply_configuration
+    from setuptools.dist import Distribution
+
+    previous = Path.cwd()
+    try:
+        os.chdir(manifest.parent)
+        distribution = Distribution({"script_name": str(manifest)})
+        apply_configuration(distribution, manifest)
+        build_py = distribution.get_command_obj("build_py")
+        build_py.ensure_finalized()
+        candidates = [
+            Path(module_file).resolve()
+            for _, _, module_file in build_py.find_all_modules()
+        ]
+    finally:
+        os.chdir(previous)
+
+    root = entry.resolve()
+    return sorted(
+        {candidate for candidate in candidates if candidate.is_relative_to(root)}
+    )
 
 
 def private(path, base):
@@ -156,7 +208,7 @@ def main():
         if not entry.exists():
             raise SystemExit(f"{sys.argv[1]} does not exist")
         base = entry.parent
-        files = sorted(entry.rglob("*.py")) if entry.is_dir() else [entry]
+        files = source_files(entry)
         print(
             json.dumps(
                 sorted(
@@ -176,7 +228,7 @@ def main():
     if not entry.exists():
         raise SystemExit(f"{sys.argv[1]} does not exist")
     base = entry.parent
-    files = sorted(entry.rglob("*.py")) if entry.is_dir() else [entry]
+    files = source_files(entry)
     found = [
         symbol
         for path in files

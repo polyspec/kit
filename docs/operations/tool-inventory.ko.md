@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e8a2989b3b43c4098b16d8e0547e85e79bd92693abfc254d6a9b747105d2d4ee -->
+<!-- source-sha256: 8bfddb1119f4ce32210ba1b74eeafd7f298937043177459e031da5839aed56e6 -->
 
 # 도구 목록
 
@@ -1454,7 +1454,7 @@ implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parit
 | `go` | `var/tools/symbols-go/bin/kit-symbols-go`, `golang.org/x/tools/go/packages` v0.52.0 위의 kit 프로그램 | module directory | 각 internal이 아니고 test가 아닌 package의 export된 이름의 `<import path>.<name>`, `<import path>.<type>.<method or field>` |
 | `ts` | API Extractor 7.59.4(`@microsoft/api-extractor`, kit의 의존성)의 API model | 가장 가까운 `package.json`의 package에 있는, tsc 7이 내는 것 같은 `.d.ts` entry point. 그 package의 `tsconfig.json`으로, 없으면 ESNext library와 `@types` 없이 compile함 | `@scope/name!Codec#encode:member(1)` 같은 canonical reference |
 | `php` | nikic/php-parser 5.9.0 위의 `scripts/kit/symbols/php/extract.php` | source directory나 파일, 예를 들어 PHP extension의 `*.stub.php` | public 선언의 `Ns\Class`, `Ns\Class::method`, `Ns\Class::CONST`, `Ns\Class::$property`, `Ns\function`, `Ns\CONST`. docblock에 `@internal`(phpstan과 psalm이 읽는 대로 docblock 줄의 처음에 오는 tag)을 가진 class, function, constant, method, property는 public 선언이 아니고 그 tag를 가진 class는 member를 숨깁니다(K307) |
-| `python` | 표준 library `ast` 위의 `scripts/kit/symbols/python.py`, `var/tools/mise/shims/python3 -I`로 실행 | package directory나 module 파일 | `__all__`, 없으면 `_`로 시작하지 않는 이름의 `<module>.<name>`과 `<module>.<class>.<method>` |
+| `python` | `ast`로 정의를 읽는 `scripts/kit/symbols/python.py`가 `pyproject.toml`에서 선택한 모듈을 setuptools `build_py`에 묻고, kit은 검증한 `pythonBackend` wheel로 `uv --offline` 실행 | package directory나 module 파일 | `__all__`, 없으면 `_`로 시작하지 않는 이름의 `<module>.<name>`과 `<module>.<class>.<method>`; build backend에서 제외한 모듈은 public API가 아님 |
 | `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json`(format 61) | `Cargo.toml`, 그 library | root에서 닿는 각 public item(re-export 포함)의 `<crate>::<path>`와 그 public field, variant, inherent item, trait item |
 
 - repository는 `config/toolchain.json`의 `symbolExtractors`에 `go`와 `php`를 적습니다. 그러면 `make install-tools`가 go 프로그램을

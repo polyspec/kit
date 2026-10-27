@@ -16,7 +16,7 @@
 //   ts      the API model of API Extractor (@microsoft/api-extractor) of a .d.ts entry point, such as the one that tsc emits,
 //           in the package of the nearest package.json; ids the canonical references, such as @scope/name!Codec#encode:member(1)
 // An extractor that cannot run, fails or prints no list of ids is a finding that names the implementation and the command.
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Extractor as ApiExtractor, ExtractorConfig } from '@microsoft/api-extractor';
@@ -27,6 +27,7 @@ import { finding } from './parity-declaration.mts';
 import type { Environment, Extractor, Finding, ParityModel } from './parity-declaration.mts';
 import { execute } from './process.mts';
 import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
+import { buildBackend, verifyBackend } from './release-wheel.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
 import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
@@ -50,6 +51,47 @@ function listed(root: string, command: string, args: string[], env: Environment)
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
     return { error: error.message };
+  }
+}
+
+/** The nearest Python project manifest above a source entry, if it exists. */
+function pythonProject(entry: string): string | undefined {
+  let directory = entry;
+  try {
+    if (!statSync(entry).isDirectory()) directory = path.dirname(entry);
+  } catch {
+    return undefined;
+  }
+  for (;;) {
+    const manifest = path.join(directory, 'pyproject.toml');
+    if (existsSync(manifest)) return manifest;
+    const parent = path.dirname(directory);
+    if (parent === directory) return undefined;
+    directory = parent;
+  }
+}
+
+/** Runs the Python symbol reader with the pinned setuptools wheel when package discovery metadata is present. */
+export function pythonListed(root: string, entry: string, env: Environment, flags: string[] = []): Extracted {
+  let python: string;
+  try {
+    python = toolCommand(root, 'python3');
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+  const script = path.join(SYMBOLS, 'python.py');
+  if (pythonProject(path.resolve(root, entry)) === undefined) return listed(root, python, ['-I', script, entry, ...flags], env);
+
+  try {
+    const backend = buildBackend(root);
+    if (!/^setuptools==/i.test(backend.requirement)) {
+      return { error: `Python package discovery needs setuptools, but config/toolchain.json declares ${backend.requirement}` };
+    }
+    const wheel = verifyBackend(root, backend.requirement, backend.sha256);
+    const uv = toolCommand(root, 'uv');
+    return listed(root, uv, ['run', '--offline', '--no-project', '--python', python, '--with', wheel, 'python', '-I', script, entry, ...flags], env);
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -217,14 +259,7 @@ const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environme
     return withLeaks(listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env), () => listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry, '--leaks'], env));
   },
   python: (root, entry, env) => {
-    // A python3 that the checkout lacks is the error of the extractor, which the check reports (K393-2).
-    let command: string;
-    try {
-      command = toolCommand(root, 'python3');
-    } catch (error) {
-      return { error: error instanceof Error ? error.message : String(error) };
-    }
-    return withLeaks(listed(root, command, ['-I', path.join(SYMBOLS, 'python.py'), entry], env), () => listed(root, command, ['-I', path.join(SYMBOLS, 'python.py'), entry, '--leaks'], env));
+    return withLeaks(pythonListed(root, entry, env), () => pythonListed(root, entry, env, ['--leaks']));
   },
   rust: (root, entry, env) => rustdoc(root, entry, env),
   ts: (root, entry) => apiModel(root, entry),
