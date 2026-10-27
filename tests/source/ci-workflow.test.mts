@@ -14,6 +14,17 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const text = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
 // The group always takes part in a match of the pattern.
 const runs = [...text.matchAll(/^\s+run: (.+)$/gm)].map(match => known(match[1], 'match[1]'));
+const jobsText = text.slice(text.indexOf('jobs:\n'));
+function jobText(name: string): string {
+  const lines = jobsText.split('\n');
+  const start = lines.findIndex(line => line === `  ${name}:`);
+  assert.notEqual(start, -1, `the workflow declares job ${name}`);
+  const end = lines.findIndex((line, index) => index > start && /^  [A-Za-z0-9_-]+:$/.test(line));
+  return lines.slice(start + 1, end < 0 ? undefined : end).join('\n');
+}
+function jobRuns(name: string): string[] {
+  return [...jobText(name).matchAll(/^\s+run: (.+)$/gm)].map(match => known(match[1], 'match[1]'));
+}
 
 test('the CI workflow runs duplication-check after npm ci installed jscpd (K126)', () => {
   const check = runs.indexOf('make duplication-check');
@@ -26,20 +37,21 @@ test('the CI workflow lints kit with make lint-ts, the TypeScript lint of its co
 });
 
 test('the CI workflow gives kit-test go, python3 and cargo of the pins, not of the runner image (K78, K127)', () => {
-  const tools = runs.indexOf('make install-tools');
-  const rust = runs.indexOf('rustup toolchain install');
-  const kitTest = runs.indexOf('make kit-test');
+  const kitTestRuns = jobRuns('kit_tests');
+  const tools = kitTestRuns.indexOf('make install-tools');
+  const rust = kitTestRuns.indexOf('rustup toolchain install');
+  const kitTest = kitTestRuns.indexOf('make kit-test');
   // kit.mk puts the shims of mise first on PATH in every recipe, so the steps that run make need no PATH of their own.
   assert.ok(tools >= 0 && tools < kitTest, 'install-tools installs the tools of mise.lock before kit-test runs them');
-  assert.ok(!text.includes('GITHUB_PATH'), 'no step puts var/tools on PATH by hand');
+  assert.ok(!jobText('kit_tests').includes('GITHUB_PATH'), 'no step puts var/tools on PATH by hand');
   assert.ok(rust > 0 && rust < kitTest, 'rustup installs the channel of rust-toolchain.toml before kit-test runs cargo');
 });
 
 test('the CI workflow checks the dependencies of kit as each consumer does: the gate and its mutation check (K169)', () => {
-  // Without the gate in CI, the review record of kit went stale from K127 to K169 while every run passed.
-  const tools = runs.indexOf('make install-tools');
-  assert.ok(runs.indexOf('make dependency-policy-check') > tools, 'a step runs make dependency-policy-check after install-tools');
-  assert.ok(runs.indexOf('make dependency-policy-mutation-check') > tools, 'a step runs make dependency-policy-mutation-check after install-tools');
+  const checkRuns = jobRuns('checks');
+  const tools = checkRuns.indexOf('make install-tools');
+  assert.ok(checkRuns.indexOf('make dependency-policy-check') > tools, 'a step runs make dependency-policy-check after install-tools');
+  assert.ok(checkRuns.indexOf('make dependency-policy-mutation-check') > tools, 'a step runs make dependency-policy-mutation-check after install-tools');
 });
 
 test('the CI workflow checks the classes of config/rebuild.json and the owner rules of config/owner-checks.json (K182)', () => {
@@ -66,9 +78,10 @@ test('the CI workflow runs every make target of config/owner-checks.json but the
 test('the CI workflow installs the packages of the PHP symbol extractor after install-tools and before lint-php (K248-4)', () => {
   // lint-php runs PHPStan on scripts/kit/symbols/php with the autoloader of its Composer project; without the install the
   // step failed in the run of e9d0bb8.
-  const install = runs.indexOf('make kit-install-symbols-php');
-  assert.ok(install > runs.indexOf('make install-tools'), 'make kit-install-symbols-php runs after install-tools installed Composer');
-  assert.ok(install < runs.indexOf('make lint-php'), 'make kit-install-symbols-php runs before make lint-php');
+  const checkRuns = jobRuns('checks');
+  const install = checkRuns.indexOf('make kit-install-symbols-php');
+  assert.ok(install > checkRuns.indexOf('make install-tools'), 'make kit-install-symbols-php runs after install-tools installed Composer');
+  assert.ok(install < checkRuns.indexOf('make lint-php'), 'make kit-install-symbols-php runs before make lint-php');
 });
 
 test('the CI workflow runs docs-check', () => {
@@ -88,15 +101,19 @@ test('the CI workflow installs the packages with the pinned npm and then checks 
 });
 
 test('the CI workflow bootstraps in the order of a repository: the npm of packageManager, npm ci, then the other tools (K71-2)', () => {
-  assert.deepEqual(runs.slice(0, 3), ['make install-tools TOOLS=npm', 'make install-packages', 'make install-tools'], 'the first steps');
+  const bootstrap = ['make install-tools TOOLS=npm', 'make install-packages', 'make install-tools'];
+  for (const name of ['checks', 'kit_tests', 'source_tests']) {
+    assert.deepEqual(jobRuns(name).slice(0, 3), bootstrap, `${name} bootstraps from its own checkout`);
+  }
 });
 
 test('the CI workflow installs the PHP of .php-version before install-tools, which runs PHPUnit on it (K78)', () => {
   // The Composer projects of kit (config/phpunit, config/php-lint) require the PHP of the pin; the runner's own PHP is
   // older, so the workflow installs the declared release first (CI run 38438896766 failed on PHP 8.3.6).
   assert.equal(readFileSync(path.join(ROOT, '.php-version'), 'utf8').trim(), PINS.php);
-  const setup = text.indexOf('php-version-file: .php-version');
-  const tools = text.indexOf('run: make install-tools\n');
+  const checkJob = jobText('checks');
+  const setup = checkJob.indexOf('php-version-file: .php-version');
+  const tools = checkJob.indexOf('run: make install-tools\n');
   assert.ok(setup >= 0, 'the workflow sets up PHP from .php-version');
   assert.ok(tools > setup, 'install-tools runs after the PHP of .php-version is installed');
 });
@@ -111,7 +128,8 @@ test('kit declares every Rust nightly that parity-real runs, which make install-
   assert.ok(exceptions, 'config/toolchain.json declares no exceptions');
   const declared = new Set(exceptions.filter(entry => entry.tool === 'rust').map(entry => entry.channel));
   assert.deepEqual([...used].filter(channel => !declared.has(channel)), [], 'config/toolchain.json exceptions declare these nightlies');
-  assert.ok(runs.indexOf('make install-tools') < runs.indexOf('make source-test'), 'make install-tools runs before make source-test');
+  const sourceRuns = jobRuns('source_tests');
+  assert.ok(sourceRuns.indexOf('make install-tools') < sourceRuns.indexOf('make source-test'), 'make install-tools runs before make source-test');
 });
 
 test('rust-toolchain.toml declares the clippy that make lint-rust runs, so rustup installs it with the channel (K77)', () => {
@@ -122,11 +140,26 @@ test('rust-toolchain.toml declares the clippy that make lint-rust runs, so rustu
 });
 
 test('every check step runs after an earlier step failed, so one run shows every failure (K251)', () => {
-  // The steps of the job, each from its line `      - ` to the next; the checks follow the last install step.
-  const steps = text.split(/\n(?= {6}- )/).slice(1);
-  const install = steps.findLastIndex(step => /run: (make (?:kit-)?install-|rustup toolchain install)/.test(step));
-  assert.ok(install >= 0, 'the job installs its tools');
-  const checks = steps.slice(install + 1);
-  assert.ok(checks.length > 0, 'the job runs checks after the installs');
-  for (const step of checks) assert.match(step, /^ {8}if: \$\{\{ !cancelled\(\) \}\}$/m, `the step runs after a failed one:\n${step}`);
+  for (const name of ['checks', 'kit_tests', 'source_tests']) {
+    const steps = jobText(name).split(/\n(?= {6}- )/).slice(1);
+    const install = steps.findLastIndex(step => /run: (make (?:kit-)?install-|rustup toolchain install)/.test(step));
+    assert.ok(install >= 0, `${name} installs its tools`);
+    const checks = steps.slice(install + 1);
+    assert.ok(checks.length > 0, `${name} runs checks after the installs`);
+    for (const step of checks) assert.match(step, /^ {8}if: \$\{\{ !cancelled\(\) \}\}$/m, `${name} continues after a failed setup step:\n${step}`);
+  }
+});
+
+test('the kit required check aggregates independent checks, kit tests and source tests exactly once', () => {
+  const kit = jobText('kit');
+  assert.match(kit, /^    name: kit$/m, 'the required check keeps the name kit');
+  assert.match(kit, /^    if: \$\{\{ always\(\) \}\}$/m, 'the aggregator runs after failures');
+  assert.match(kit, /^    needs: \[checks, kit_tests, source_tests\]$/m, 'the aggregator needs every independent job');
+  assert.match(kit, /RESULTS: \$\{\{ toJSON\(needs\) \}\}/, 'the aggregator receives every job result');
+  assert.deepEqual(jobRuns('kit_tests').filter(run => run === 'make kit-test'), ['make kit-test']);
+  assert.deepEqual(jobRuns('source_tests').filter(run => run === 'make source-test'), ['make source-test']);
+  const checks = jobRuns('checks').filter(run => run.startsWith('make ') && !/^make (?:install-tools|install-packages|kit-install-)/.test(run));
+  const names = checks.map(run => run.split(/\s+/, 2)[1]);
+  assert.equal(new Set(names).size, names.length, 'each check target runs once');
+  assert.ok(!checks.includes('make kit-test') && !checks.includes('make source-test'));
 });
