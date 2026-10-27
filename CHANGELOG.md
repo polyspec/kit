@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The existing `cargo-downloads-fetch` installs the provider's locked Rust checker dependencies for consumer offline lint, and deduplicates the lock when run from Kit itself. The focused regression passes 1/1, and the ORM consumer install fetched all three ORM locks and the Kit checker lock. (K710)
+
 - The existing PHP extension CLI is public as `@polyspec/kit/php-extension`, with no change to its command or arguments. Its output/source-copy/configure argument case passes 1/1, the packed mapping passes 1/1, and the installed archive imports the module from dist (1/1). (K709)
 
 - Five shared helper APIs are explicit package subpaths in source and published installs. The packed manifest maps them to `dist`; the pack transformation passes 1/1 and the offline consumer installation imports all five and matches their exports to source (1/1). (K707)

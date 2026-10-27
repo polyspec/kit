@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cdbf62978b6777d83b5c3bf1bc4ae0fe55f09a1b2a313723a2463aa1434c6b43 -->
+<!-- source-sha256: 70a2d44185e12481f568366fac87735711b6b8962eed788a444ee683b90598b2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 기존 `cargo-downloads-fetch`가 consumer의 offline lint용으로 provider의 Rust checker lock을 설치하고, Kit 자신에서 실행할 때는 같은 lock을 중복 fetch하지 않습니다. 집중 회귀 테스트 1/1이 통과했고 ORM consumer 설치는 ORM lock 세 개와 Kit checker lock을 모두 fetch했습니다. (K710)
 
 - 기존 PHP extension CLI를 명령이나 인자를 바꾸지 않고 `@polyspec/kit/php-extension`으로 공개합니다. 출력/source-copy/configure 인자 case 1/1, packed mapping 1/1이 통과했고, 설치 archive에서 dist module import가 통과합니다(1/1). (K709)
 
