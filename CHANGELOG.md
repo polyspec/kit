@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- Parity bindings can append runner arguments without replacing the native
+  reporter; bindings with different arguments run separately, and `command`
+  cannot be combined with binding `args`. Red: the K702 regression failed on
+  undeclared binding arguments (1 test); green: the test passes (1 test).
+  (K702)
+
 - Python symbol extraction follows setuptools package discovery and excludes
   generated modules outside the declared package selection. The K701 fixture
   fails before the fix by exposing excluded modules and passes afterward (1

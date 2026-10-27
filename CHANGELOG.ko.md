@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a687d4b836e8f115b3f36cfdc75a3e7549a062b79ffb1a12a9424ab26cd8de01 -->
+<!-- source-sha256: 97eee732f76984a6c0281b6008dd7b0550ebf88751dee2d15069e443cf6767af -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Parity binding은 기본 native reporter를 대체하지 않고 runner 인자를 추가할 수 있습니다. 서로 다른 인자를 가진 binding은 별도로 실행하며 `command`와 binding `args`는 함께 쓸 수 없습니다. Red: K702 regression은 선언되지 않은 binding 인자로 실패했습니다(1 test). Green: 테스트가 통과합니다(1 test). (K702)
 
 - Python 심벌 추출은 setuptools 패키지 발견 설정을 따르고 선언된 패키지 선택에서 제외된 생성 모듈을 빼낸다. K701 fixture는 수정 전 제외 모듈을 노출해 실패하고 수정 후 통과한다(1 test). ORM 소스 추출 결과는 심벌 673개이며 생성 모델 심벌은 없다. (K701)
 
