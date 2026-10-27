@@ -47,6 +47,22 @@ export const STATE_TRANSITIONS: Record<string, readonly string[]> = {
   [IMPOSSIBLE]: [],
 };
 
+/** The states reachable from `from` by one or more legal working-tree transitions. */
+export function reachableStates(from: string): string[] {
+  const reached = new Set<string>();
+  const pending = [from];
+  for (let index = 0; index < pending.length; index += 1) {
+    const state = pending[index];
+    if (state === undefined) continue;
+    for (const next of STATE_TRANSITIONS[state] ?? []) {
+      if (reached.has(next)) continue;
+      reached.add(next);
+      pending.push(next);
+    }
+  }
+  return STATES.filter(state => reached.has(state));
+}
+
 /** A checklist of a plan folder: its document, its Korean twin and the pattern of its item IDs. */
 export interface Tracker {
   path: string;

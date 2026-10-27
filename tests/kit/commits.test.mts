@@ -263,6 +263,24 @@ test('commit-items: a commit changes the state of at most one item, and a row it
   assert.match(first, /: commit-items: the commit changes the state of 2 items \(S1 \[ \] → \[~\], S2 \[ \] → \[~\]\); change one item per commit$/);
 });
 
+test('K708-1 a committed final state may summarize legal working-tree transitions but cannot reverse them', (t) => {
+  const completed = tracked(t, [
+    ['docs(plan): Add S1 (#S1)', { [PLAN]: plan([['S1', '[ ]']]), 'CHANGELOG.md': '# Changelog\n', 'CHANGELOG.ko.md': '# 변경 기록\n' }],
+    ['feat(core): Finish S1 (#S1)\n\nNo-Red: a fixture of the item rules\n', {
+      [PLAN]: plan([['S1', '[o]']]), 'CHANGELOG.md': '# Changelog\n\n- S1\n', 'CHANGELOG.ko.md': '# 변경 기록\n\n- S1\n',
+    }],
+  ]);
+  assert.deepEqual(rangeFindings(completed.root, 'HEAD~1..HEAD', TRACKED), []);
+
+  const reversed = tracked(t, [
+    ['docs(plan): Add completed S1 (#S1)', { [PLAN]: plan([['S1', '[o]']]) }],
+    ['docs(plan): Reopen S1 (#S1)', { [PLAN]: plan([['S1', '[~]']]) }],
+  ]);
+  const findings = rangeFindings(reversed.root, 'HEAD~1..HEAD', TRACKED);
+  assert.equal(findings.length, 1, findings.join('\n'));
+  assert.match(findings[0] ?? '', /: commit-state: the item S1 moves from \[o\] to \[~\] without a legal state path; reachable states: none$/);
+});
+
 test('commit-state: verification permits a push, must finish before done, and can return to active after failure', (t) => {
   const { root } = tracked(t, [
     ['docs(plan): Start S1 (#S1)', { [PLAN]: plan([['S1', '[~]']]), 'CHANGELOG.md': '# Changelog\n', 'CHANGELOG.ko.md': '# 변경 기록\n' }],

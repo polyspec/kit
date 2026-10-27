@@ -101,6 +101,14 @@ test('the vendored copies of the installed kit are no tool sources of a consumer
   assert.deepEqual(toolSources(tree(t, files), Object.keys(files)), ['scripts/own.mts']);
 });
 
+test('K708-1 retained-branch lifecycle validation is classified as a polyspec policy', () => {
+  const root = repositoryRoot();
+  const declaration = readConfig<RebuildDeclaration>(root, REBUILD_DECLARATION, 'rebuild.schema.json');
+  const entry = declaration.tools['scripts/kit/retained-branches.mts'];
+  assert.equal(entry?.kind, 'policy');
+  assert.match(entry?.reason ?? '', /retained branch|retention/i);
+});
+
 test('K455: every tool of the checkout that rebuild-check reads has its class in config/rebuild.json', () => {
   const root = repositoryRoot();
   const declaration = readConfig<RebuildDeclaration>(root, REBUILD_DECLARATION, 'rebuild.schema.json');

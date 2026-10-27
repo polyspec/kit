@@ -394,6 +394,10 @@
       "kind": "ecosystem",
       "tool": "pip install --dry-run --report reads the METADATA of a wheel (K123) and smol-toml the pyproject (K73)"
     },
+    "scripts/kit/retained-branches.mts": {
+      "kind": "policy",
+      "reason": "validates the pinned cancellation-backup branch and its retention lifecycle under P10; no ecosystem tool interprets this repository policy"
+    },
     "scripts/kit/release.mts": {
       "kind": "policy",
       "reason": "release-please, changesets and semantic-release version and publish, but none proves a consumer install of every archive; their tag ordering goes to semver in K73"

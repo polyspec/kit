@@ -115,6 +115,11 @@ function commitState(root: string, message: string): void {
   }
 }
 
+test('K708-1 item-state keeps each working-tree transition on one allowed edge', (t) => {
+  const root = committed(t, 'T1');
+  assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /T1 is \[ \]; from \[ \] an item moves to \[~\] or \[-\]/);
+});
+
 test('item-state performs an allowed transition in both languages and refuses another (K249-2)', (t) => {
   const root = committed(t, 'T1');
   setState(root, { id: 'T1', state: '[~]' });
