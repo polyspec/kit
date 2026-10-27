@@ -272,6 +272,40 @@ test('the extension build stages declared sources and accepts an explicit output
   assert.equal(output.stdout, '42', 'the compiled extension called the staged shared source');
 });
 
+test('a failed extension build keeps compiler warnings and the make cause without replacing the published module', (t) => {
+  const root = tree(t, { ...good(), '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
+
+  const bin = path.join(root, 'var/failing-make-bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(path.join(bin, 'make'), `#!/bin/sh\nprintf '%s\\n' 'fixture.c:12:3: warning: retained warning' "make: *** No rule to make target 'missing-target'. Stop."\nexit 2\n`);
+  chmodSync(path.join(bin, 'make'), 0o755);
+
+  const output = path.join(root, 'var/custom-run/polyspec_demo.so');
+  const previousArtifact = 'previous extension artifact';
+  mkdirSync(path.dirname(output), { recursive: true });
+  mkdirSync(path.join(root, 'var/tmp'), { recursive: true });
+  writeFileSync(output, previousArtifact);
+  const env: NodeJS.ProcessEnv = {
+    HOME: process.env.HOME,
+    PATH: `${bin}${path.delimiter}${path.join(root, 'var/tools/bin')}${path.delimiter}${process.env.PATH ?? ''}`,
+    TMPDIR: path.join(root, 'var/tmp'),
+  };
+  const result = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', '--output', output], {
+    cwd: root, env, encoding: 'utf8',
+  });
+
+  assert.equal(result.error, undefined, `builder could not start: ${result.error?.message ?? ''}`);
+  assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+  assert.match(result.stderr, /fixture\.c:12:3: warning: retained warning/);
+  assert.match(result.stderr, /No rule to make target 'missing-target'/);
+  assert.equal(readFileSync(output, 'utf8'), previousArtifact, 'the failed build preserves the previous published module');
+  assert.deepEqual(readdirSync(path.dirname(output)).filter(name => name.startsWith('polyspec_demo.so.tmp.')), []);
+  assert.deepEqual(readdirSync(path.join(root, 'var/php-ext')).filter(name => name.startsWith('build.')), []);
+});
+
 test('a missing arginfo parser fails before gen_stub can invoke a network downloader (K560)', (t) => {
   const files = good();
   delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
