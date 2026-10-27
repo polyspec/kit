@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 28aa79fab6b2b05eb68550e6c6dac9e7bea713d3e6a3e1481148c4bfb6692f7c -->
+<!-- source-sha256: 17fe0cbffe3e3ba2f4f59fa59622eaf55a4784a4ca9a4cd33ad114f78fc8c3a5 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -664,3 +664,4 @@
 | K709 | PHP extension builder를 Kit package API로 공개한다 | A `php-extension` source and packed export, with installed-consumer coverage preserving the existing CLI options | `node scripts/kit/run-tests.mts node -- --test-name-pattern=build.stages.declared.sources tests/kit/php-ext.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=packed.exports tests/kit/pack-manifest.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=tarball.imports tests/source/package.test.mts` | [o] |
 | K709-1 | PHP extension 빌드 실패 시 진단과 기존 산출물을 보존한다 | tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern='a failed extension build keeps compiler warnings' tests/kit/php-ext.test.mts` | [o] |
 | K710 | 소비자 Cargo 설치에 Kit Rust checker lock을 포함한다 | scripts/kit/check-cargo-downloads.mts, tests/kit/cargo-downloads.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K710 tests/kit/cargo-downloads.test.mts` | [o] |
+| K711 | Kit 0.0.60과 native consumer lock을 준비한다 | package.json, package-lock.json, tests/release-consumer/npm/package.json, tests/release-consumer/npm/package-lock.json, config/dependency-review.json, CHANGELOG.md, CHANGELOG.ko.md | `make release-consumer TAG=v0.0.60`; `make dependency-policy-check` | [ ] |
