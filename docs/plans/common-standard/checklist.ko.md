@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 08d05e469339fefdcca3ff441bc933aed7fdd5703e8aa3f6f8b3cc624d530d45 -->
+<!-- source-sha256: 9ac0a14d7820ebc57d9defb0be85a7be7036e6f791e83cbb4fbf2263ab1532d5 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -660,3 +660,4 @@
 | K705 | 독립 오프라인 CI test job 전에 잠긴 Rust 검사기 의존성을 설치한다 | Explicit existing Cargo download setup in each job that needs the checker, cold-job workflow regression and passing K537/K620 unit cases; no network fallback during checks | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="a Rust Err arm\|a narrow Err arm" tests/kit/catch-check.test.mts` | [o] |
 | K706 | 예상한 Composer fixture 실패가 GitHub 오류 주석으로 노출되지 않게 한다 | Scoped fixture subprocess environment isolation, unchanged negative assertions and a focused regression; actual product failures retain their diagnostics | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K681 tests/kit/dependency-review.test.mts` | [ ] |
 | K707 | 공유 helper API를 source와 설치 package의 정식 exports로 제공한다 | Five public subpath exports, canonical pack mapping, native installed-consumer import proof and aligned API documentation | `node scripts/kit/run-tests.mts node -- tests/kit/pack-manifest.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/package.test.mts` | [ ] |
+| K708 | 푸시와 릴리스 게이트에서 개발과 검증 단계를 구분한다 | Explicit verification state and transitions, development blocking on push, verification blocking before release/tag, strict readable checklists, pinned intentional branch-retention declarations and native gate regressions | `node scripts/kit/run-tests.mts node -- tests/kit/checklist.test.mts tests/kit/push-gate.test.mts tests/kit/plan.test.mts tests/kit/release.test.mts` | [ ] |
