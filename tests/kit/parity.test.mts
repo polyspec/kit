@@ -508,6 +508,48 @@ test('each runner runs the native test of its binding', TIMEOUT, (t) => {
   assert.deepEqual(commands['codec python'], { cwd: '.', command: [path.join(root, 'var/tools/mise/shims/python3'), '-m', 'unittest', '-v', 'python/tests/test_codec.py'] });
 });
 
+test('K702 keeps per-binding arguments isolated on the native runner', TIMEOUT, (t) => {
+  const feature = (id: string, name: string, pattern: string): UnitJson => ({
+    id,
+    kind: 'feature',
+    requirements: ['CX-1'],
+    bindings: [
+      { implementation: 'go', test: 'go/codec_test.go', id: `TestCodec/${name}` },
+      { implementation: 'rust', test: 'rust/tests/codec.rs', id: `vectors::${name}` },
+      { implementation: 'ts', test: 'ts/tests/codec.mjs', id: name, args: [`--test-name-pattern=${pattern}`] },
+      { implementation: 'php', test: 'php/tests/codec.php', id: name },
+      { implementation: 'python', test: 'python/tests/test_codec.py', id: name },
+    ],
+  });
+  const change: Change = { edit: config => {
+    itemWhere(config.implementations, entry => entry.name === 'ts').args = ['--no-warnings'];
+    config.units.push(feature('node-empty', 'empty', '^empty$'), feature('node-ascii', 'ascii', '^ascii$'));
+    return config;
+  } };
+  const { findings, ledger } = check(t, change, { units: ['node-empty', 'node-ascii'], implementations: ['ts'] });
+  assert.deepEqual(findings, []);
+  const runs = ledger.runs.filter(run => run.implementation === 'ts');
+  assert.equal(runs.length, 4, 'different binding args get separate, repeatable runs');
+  for (const [index, id] of ['node-empty', 'node-ascii'].entries()) {
+    const pair = runs.filter(run => run.unit === id);
+    const pattern = index === 0 ? '--test-name-pattern=^empty$' : '--test-name-pattern=^ascii$';
+    assert.equal(pair.length, 2, `${id} runs twice`);
+    for (const run of pair) {
+      assert.equal(run.command, process.execPath);
+      assert.deepEqual(run.args.slice(0, 2), ['--no-warnings', pattern]);
+      assert.ok(run.args.includes(`--test-reporter=${path.join(KIT, 'parity-node-reporter.mts')}`));
+      assert.equal(run.args.at(-1), 'ts/tests/codec.mjs');
+    }
+  }
+
+  const ambiguous = check(t, { edit: config => {
+    change.edit?.(config);
+    Object.assign(binding(config, 'node-empty', 'ts'), { command: ['node', '--test', 'ts/tests/codec.mjs'] });
+    return config;
+  } }, { execute: false, units: ['node-empty'] });
+  assert.ok(ambiguous.findings.some(finding => finding.rule === 'declaration'), 'a full command override cannot also declare runner args');
+});
+
 test('an implementation declares the command, the arguments and the environment of its runner', TIMEOUT, (t) => {
   const declare = (withEnvironment: boolean) => (config: Declaration) => {
     const implementation = (name: string) => itemWhere(config.implementations, (entry: { name: string }) => entry.name === name);

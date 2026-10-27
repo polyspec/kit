@@ -77,9 +77,10 @@ function differences(first: Attempt, second: Attempt): string[] {
 function resolvedRun(declared: ParityImplementation, root: string, binding: RunTarget, kind: RunKind, env: Environment): ResolvedRun {
   const { implementation, errors } = resolveReferences(declared, env, root);
   const command = binding.command === undefined ? undefined : resolveCommand(binding.command, env, root);
-  const failures = [...errors, ...command?.errors ?? []];
+  const args = binding.args === undefined ? undefined : resolveCommand(binding.args, env, root, 'binding args');
+  const failures = [...errors, ...command?.errors ?? [], ...args?.errors ?? []];
   if (failures.length) return { error: `cannot start: ${failures.join('; ')}` };
-  const run = runOf(implementation, root, { ...binding, command: command?.command }, kind, env);
+  const run = runOf(implementation, root, { ...binding, command: command?.command, args: args?.command }, kind, env);
   if (run.error) return run;
   const shown = runOf(declared, root, binding, kind, env, false);
   // The runner of a binding does not read the references, so the declared run starts where the resolved run does.
@@ -150,24 +151,24 @@ const lastLines = ({ stdout, stderr }: { stdout: string; stderr: string }): stri
  */
 function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, say, units, implementations }: { env: Environment; say: (line: string) => void; units?: ReadonlySet<string> | undefined; implementations?: ReadonlySet<string> | undefined }): Finding[] {
   // The bindings of each test file of an implementation, in declaration order.
-  const files = new Map<string, { implementation: ParityImplementation; test: string; command: string[] | undefined; runner: Runner | undefined; bound: { unit: string; id: string }[] }>();
+  const files = new Map<string, { implementation: ParityImplementation; test: string; command: string[] | undefined; args: string[] | undefined; runner: Runner | undefined; bound: { unit: string; id: string }[] }>();
   for (const { unit, implementation } of pairs(model, 'feature')) {
     if (units !== undefined && !units.has(unit.id)) continue;
     if (implementations !== undefined && !implementations.has(implementation.name)) continue;
     // readDeclaration requires bindings and the id of each feature binding.
     for (const binding of present(unit.bindings, 'unit.bindings').filter(entry => entry.implementation === implementation.name)) {
-      // Bindings of one test file share a run only when they name the same command and the same runner (K422).
+      // Bindings of one test file share a run only when they name the same command, args and runner (K422).
       const runner = binding.runner ?? implementation.runner;
       // A Cargo feature id is an exact libtest filter, so its file cannot combine different native ids in one run.
-      const key = `${implementation.name}\0${binding.test}\0${JSON.stringify(binding.command ?? null)}\0${binding.runner ?? ''}${runner === 'cargo' ? `\0${binding.id}` : ''}`;
-      const entry = files.get(key) ?? { implementation, test: binding.test, command: binding.command, runner: binding.runner, bound: [] };
+      const key = `${implementation.name}\0${binding.test}\0${JSON.stringify(binding.command ?? null)}\0${JSON.stringify(binding.args ?? null)}\0${binding.runner ?? ''}${runner === 'cargo' ? `\0${binding.id}` : ''}`;
+      const entry = files.get(key) ?? { implementation, test: binding.test, command: binding.command, args: binding.args, runner: binding.runner, bound: [] };
       entry.bound.push({ unit: unit.id, id: present(binding.id, 'binding.id') });
       files.set(key, entry);
     }
   }
-  return [...files.values()].flatMap(({ implementation, test, command, runner, bound }) => {
+  return [...files.values()].flatMap(({ implementation, test, command, args, runner, bound }) => {
     const where = (unit: string) => ({ unit, implementation: implementation.name, place: test });
-    const run = resolvedRun(implementation, root, { test, command, runner, ids: bound.map(entry => entry.id) }, 'feature', env);
+    const run = resolvedRun(implementation, root, { test, command, args, runner, ids: bound.map(entry => entry.id) }, 'feature', env);
     if (run.error) return bound.map(entry => finding('R3', run.error, where(entry.unit)));
     const units = [...new Set(bound.map(entry => entry.unit))].join(', ');
     const [first, second] = twice(run, root, { unit: units, implementation: implementation.name }, ledger, say);

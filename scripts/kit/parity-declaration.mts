@@ -57,6 +57,7 @@ export interface ParityBinding {
   symbol?: string;
   id?: string;
   command?: string[] | undefined;
+  args?: string[] | undefined;
   /** The runner of this binding in place of the runner of its implementation, with its reason (K422). */
   runner?: Runner | undefined;
   reason?: string | undefined;
@@ -364,12 +365,12 @@ export function resolveReferences(entry: ParityImplementation, env: Environment,
 }
 
 /**
- * The words of the command of a binding with their references resolved from the invoking environment `env`, by the rules of
+ * The words of a binding command or args with their references resolved from the invoking environment `env`, by the rules of
  * resolveReferences: `{ command, errors }`, each error naming the word and the name that is unset or empty.
  */
-export function resolveCommand(command: string[], env: Environment, root: string): { command: string[]; errors: string[] } {
+export function resolveCommand(command: string[], env: Environment, root: string, what = 'binding command'): { command: string[]; errors: string[] } {
   const errors: string[] = [];
-  return { command: command.map(word => expand(word, env, 'binding command', message => errors.push(message), root)), errors };
+  return { command: command.map(word => expand(word, env, what, message => errors.push(message), root)), errors };
 }
 
 // The symbol of a php suite binding: a test method of a fully qualified class, as PHPUnit names it (Ns\\ClassTest::testX).
@@ -900,6 +901,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
       if (matchesAny(implementations.get(entry.implementation)?.support ?? [], entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} matches its support globs`);
       if (matchesAny((implementations.get(entry.implementation)?.internal ?? []).map(item => item.glob), entry.test)) fail(`${where}: the test ${entry.test} of ${entry.implementation} matches its internal globs; an internal test is no parity unit`);
       for (const word of entry.command ?? []) expand(word, undefined, 'binding command', message => fail(`${where}: the binding of ${entry.implementation}: ${message}`));
+      for (const word of entry.args ?? []) expand(word, undefined, 'binding args', message => fail(`${where}: the binding of ${entry.implementation}: ${message}`));
       // A binding runs with the runner of its own only with the reason of it, which says why its contract is checked there.
       if ((entry.runner === undefined) !== (entry.reason === undefined)) {
         const problem = entry.runner === undefined ? 'has reason without runner; name the runner that runs its test' : 'has runner without reason; say why the implementation checks its contract in that ecosystem';

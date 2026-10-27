@@ -21,6 +21,7 @@
 //           class) runs that method alone through `--filter`, and a case is a data set `<method> with data set "<case>"` of
 //           its data provider; without a symbol, a case is a test method `test_<case>` of the file; a feature id is the test method, `<Class>::<method>` or the bare method (K229)
 //   python  `python3 <args> -m unittest -v <test>`; a case is a test method `test_<case>`, and a feature id is the test method
+// Binding args append to the implementation's runner arguments; the runner then adds its native selector and reporter.
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { goEvents, cargoEvents, nodeEvents, phpunitEvents, pythonEvents, type Sink, type TestRef } from './test-output.mts';
@@ -78,7 +79,7 @@ interface RunnerOf {
 }
 
 /** What a run covers: the test file, the symbol of a suite binding, and the ids of the feature bindings that the file holds. */
-export type RunTarget = Pick<ParityBinding, 'test' | 'symbol' | 'command' | 'runner'> & { ids?: string[] };
+export type RunTarget = Pick<ParityBinding, 'test' | 'symbol' | 'command' | 'args' | 'runner'> & { ids?: string[] };
 
 /** The run of a binding that runOf gives: the command, its arguments and its environment. */
 export type BindingCommand = Omit<BindingRun, 'args' | 'error'> & { error?: never; args: string[]; command: string; env: Environment };
@@ -375,6 +376,7 @@ export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read' | 'merge'>, o
  * prepareLibrary=false renders a declared command without installing a second temporary autoloader.
  */
 export function runOf(implementation: Partial<ParityImplementation> & Pick<ParityImplementation, 'runner'>, root: string, binding: RunTarget, kind: RunKind, base: Environment, prepareLibrary = true): BindingCommand | RunError {
+  if (binding.command !== undefined && binding.args !== undefined) return { error: 'binding.command replaces the runner invocation and cannot accompany binding.args' };
   const own = binding.runner !== undefined;
   const runner = RUNNERS[binding.runner ?? implementation.runner];
   const run = runner.run(root, binding, kind, implementation.roots ?? []);
@@ -399,7 +401,8 @@ export function runOf(implementation: Partial<ParityImplementation> & Pick<Parit
   } catch (error) {
     return { error: `the runner cannot start: ${error instanceof Error ? error.message : String(error)}` };
   }
-  const args = run.args(own ? [] : implementation.args ?? []);
+  const prefix = [...(own ? [] : implementation.args ?? []), ...(binding.args ?? [])];
+  const args = run.args(prefix);
   try {
     const extension = prepareLibrary && !own && implementation.runner === 'php' && (implementation.roots ?? []).some(folder => {
       const manifest = path.join(root, folder, 'composer.json');

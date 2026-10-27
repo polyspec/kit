@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8bfddb1119f4ce32210ba1b74eeafd7f298937043177459e031da5839aed56e6 -->
+<!-- source-sha256: b770d542157d04e310434a85a5211096c4e467ff9cc353a48df40287a26d1ea7 -->
 
 # 도구 목록
 
@@ -1443,6 +1443,8 @@ binding은 `command`(argv 배열, 예: `["make", "feature-check", "ITEM=roundtri
 명령은 적은 그대로 쓰입니다. 시작하지 못하거나 0이 아닌 상태로 끝나면 그 명령을 이름 붙인 R3이며, runner의 기본 명령이 대신
 실행되지 않습니다. `command`의 단어는 `${NAME}` 참조를 담을 수 있고, binding을 실행할 때 `command`, `args`, `env`와 같은 규칙으로 풀립니다(K223). NAME이 설정되지 않았거나 비었으면 그 binding의 실행이 R3 finding이고 아무것도 실행하지 않으며, 기본값 형식은 없습니다. 단어는 `args`의 path 규칙을 따릅니다.
 
+`command`가 없는 binding은 `args`를 선언해 implementation runner 인자 뒤, runner가 native test selector와 reporter를 추가하기 전에 전달할 수 있습니다. 표준 runner와 출력 reader를 유지하면서 한 native test file을 binding별 filter로 실행합니다. 전체 실행을 대체하는 `command`와 binding `args`는 함께 쓸 수 없습니다. binding 인자의 `${NAME}` 참조는 implementation 인자와 같은 규칙으로 풉니다.
+
 ### Symbol extractor (K75)
 
 implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parity-check`는 extractor를 실행해 `entry`의 public API를 그
@@ -1501,7 +1503,7 @@ directory입니다. 한 directory를 공유하는 unit은 각각 비교하는 �
 | `comparators` | 여러 implementation의 출력을 비교하는 검사의 directory |
 | `tools` | 공유 implementation 집합 밖에 있는 tooling directory의 `root`와 `reason`으로, 매 실행이 출력합니다. R6은 그곳의 test를 받아들이고 R3과 R5는 판정하지 않습니다. 선택적 `units`는 implementation binding을 추가하지 않고 tool 소유 requirement와 정확한 native selector를 선언합니다. 각 test는 root 아래에 존재하고 selector와 인용된 모든 requirement를 포함해야 합니다. Parity는 trace를 검사하지만 test를 실행하지 않으며 기존 tool package owner check가 test를 실행합니다 |
 | `testPatterns` | 각 `runner`에 대해 repository 전체의 test 파일 `globs` |
-| `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `requirements`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. 맞은 파일은 declaration finding이고, 각 case directory는 `case.json`을 가집니다. Requirement of a case 참고. go binding은 그런 이름을 중첩 subtest로 보고합니다), directory suite의 선택적 `caseFile`, `bindings`(`implementation`, `test`, `symbol`과, runner의 명령을 대신하는 선택적 argv `command`; Feature unit 참고)를 가집니다. API unit은 구현마다 하나의 `symbols` 항목을 가집니다. 각 항목은 기존 `symbol` 문자열 또는 같은 API 개념에 속하는 정확한 공개 이름의 비어 있지 않은 고유 `symbols` 목록 중 하나만 선언합니다. R1은 목록의 모든 이름이 해당 구현에 있는지 검사하고 R11은 추출된 모든 공개 이름이 API unit에 선언되었는지 검사합니다. 기존 단일 문자열 선언의 의미는 유지합니다. |
+| `units` | `id`, `kind`(`suite`, `feature` 또는 `api`), `requirements`. suite는 `file`, `cases`(vector 파일이면 `$` 뒤에 `.<key>`와 `[*]` 단계와 선택적인 마지막 `.~` 단계가 오는 path로, `.~`는 object의 key를 case 이름으로 고릅니다. directory이면 그에 상대적인 glob으로, `/` 단계마다 directory 한 단계에 맞고, 맞은 directory 하나가 directory에 상대적인 path로 이름 붙은 case 하나입니다. 예는 `<group>/<case>/` 위의 `*/*`입니다. 맞은 파일은 declaration finding이고, 각 case directory는 `case.json`을 가집니다. Requirement of a case 참고. go binding은 그런 이름을 중첩 subtest로 보고합니다), directory suite의 선택적 `caseFile`, `bindings`(`implementation`, `test`, `symbol`, runner 인자에 추가되는 선택적 `args`, 전체 실행을 대체하는 선택적 argv `command`; 두 속성은 함께 쓸 수 없으며 Feature unit 참고)를 가집니다. API unit은 구현마다 하나의 `symbols` 항목을 가집니다. 각 항목은 기존 `symbol` 문자열 또는 같은 API 개념에 속하는 정확한 공개 이름의 비어 있지 않은 고유 `symbols` 목록 중 하나만 선언합니다. R1은 목록의 모든 이름이 해당 구현에 있는지 검사하고 R11은 추출된 모든 공개 이름이 API unit에 선언되었는지 검사합니다. 기존 단일 문자열 선언의 의미는 유지합니다. |
 | `errors` | `catalog`(`file`, `pattern`) |
 | `languageLists` | `file`, `pattern`(첫 group이 목록을 담고, group의 단어가 이름) |
 | `documents` | `globs`와 수 뒤에 오는 단어인 `nouns`(`languages`, `언어`) |
