@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: ddf701680b21364cb82297ab306c963bf1b50484c33c05b1d16f9ea490c75b13 -->
+<!-- source-sha256: dd54cca8d96544c7a00f6cdddbeafde8bd722cdbed1e45b208295fdb184109a3 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -666,5 +666,6 @@
 | K709-1 | PHP extension 빌드 실패 시 진단과 기존 산출물을 보존한다 | tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern='a failed extension build keeps compiler warnings' tests/kit/php-ext.test.mts` | [o] |
 | K710 | 소비자 Cargo 설치에 Kit Rust checker lock을 포함한다 | scripts/kit/check-cargo-downloads.mts, tests/kit/cargo-downloads.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K710 tests/kit/cargo-downloads.test.mts` | [o] |
 | K711 | Kit 0.0.60과 native consumer lock을 준비한다 | package.json, package-lock.json, tests/release-consumer/npm/package.json, tests/release-consumer/npm/package-lock.json, config/dependency-review.json, CHANGELOG.md(.ko), docs/operations/release.md(.ko) | `make release-consumer TAG=v0.0.60`; `make dependency-policy-check` | [o] |
+| K711-1 | 기존 Korean principles의 canonical plan 링크 수정을 0.0.60에 포함한다 | PRINCIPLES.ko.md, verified tracked canonical plan target, aligned changelog and reviewed existing change | `make docs-check` | [ ] |
 | K712 | tag 없는 consumer 준비를 위해 커밋된 HEAD에서 모든 release archive를 빌드한다 | scripts/kit/release.mts, scripts/kit/kit.mk, tests/kit/release.test.mts, docs/operations/release.md(.ko.md) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K712 tests/kit/release.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K713 | provider 도구 fixture를 실제 설치 도구 경로와 맞춘다 | Cargo provider-lock expectations, correctly installed Go proof stub, preserved failure assertions and scoped CI regression evidence | `node scripts/kit/run-tests.mts node -- tests/kit/cargo-downloads.test.mts`; `node scripts/kit/run-tests.mts node -- tests/kit/release-proof.test.mts` | [o] |
