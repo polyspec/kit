@@ -1,16 +1,16 @@
 {
   "schema": 1,
   "comment": "Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.",
-  "reviewed": "2026-10-27T02:39:52.667Z",
+  "reviewed": "2026-10-27T05:51:57.016Z",
   "locks": [
     {
       "lock": "package-lock.json",
-      "sha256": "909c521599bf1d52f7b35aa82063615f92b906a7211ab0848abc2c92083b0a4f",
+      "sha256": "cdc9ecfc72d5af2e58b630910e60ee901b836d0e78d096048a5ef9c319ebb54b",
       "advisories": []
     },
     {
       "lock": "tests/release-consumer/npm/package-lock.json",
-      "sha256": "768455278286ce7e774d4743def7c527e6669e6a303d5b9e6d8a9db47c5056f9",
+      "sha256": "d5331a1e49ffc8f476243ec8bd68721cd65e0a7869832937f6673b32b5fd62da",
       "advisories": []
     },
     {
@@ -54,7 +54,7 @@
       "manifest": "package.json",
       "package": "@microsoft/api-extractor",
       "version": "7.59.4",
-      "latest": "7.59.4"
+      "latest": "7.60.0"
     },
     {
       "ecosystem": "npm",
@@ -187,7 +187,7 @@
       "manifest": "package.json",
       "package": "oxc-parser",
       "version": "0.154.0",
-      "latest": "0.155.0"
+      "latest": "0.156.0"
     },
     {
       "ecosystem": "npm",
