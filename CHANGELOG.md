@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Added tagless candidate archives from committed HEAD through the existing npm, Composer, generated PHP and wheel producers; candidate builds reject uncommitted source, while tag creation and publication keep their CI gates. (K712)
+
 - Commits may record a final checklist state reachable through legal working-tree transitions; item-state still permits only one edge per operation. Regressions cover a committed waiting-to-done path, refusal of a direct waiting-to-done operation and refusal to reopen done items. The retained-branch lifecycle tool is classified as repository policy. (K708-1)
 
 ## 0.0.60

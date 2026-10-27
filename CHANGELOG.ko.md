@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fe3d2a737c15d8de37cfe1177f35115e5fd390110ad2d4303c72817b00931da4 -->
+<!-- source-sha256: 30e80d26121b0ba815bb1aa7308a21f392a0027d2bfc7786ddec292e3f93708e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 기존 npm, Composer, generated PHP와 wheel producer를 재사용해 committed HEAD의 tagless candidate archive를 만든다. Candidate build는 미커밋 source를 거부하며 tag 생성과 공개의 CI gate는 유지한다. (K712)
 
 - commit은 합법적인 working-tree 전이 경로로 도달한 최종 checklist state를 기록할 수 있으며, item-state의 각 작업은 여전히 한 단계만 허용한다. 회귀 검사는 대기에서 완료까지의 commit 경로, 직접 대기에서 완료로 옮기는 작업의 거부, 완료 항목 재개방 거부를 확인한다. Retained-branch lifecycle 도구는 repository policy로 분류한다. (K708-1)
 
