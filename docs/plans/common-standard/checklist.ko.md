@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3263f7bcc77867c2a302051f772b90725d2215583bb61cc8e77ca5d654c1ba36 -->
+<!-- source-sha256: 1680025c5813bd12f967bd3ca22e1192126cae4c54136dcb178db4f501394fe2 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -653,3 +653,4 @@
 | K700 | 전체 정적 선언 검증과 기본 전체 구현 실행을 유지하면서 parity runtime 실행을 구현별로 선택한다 | scripts/kit/parity.mts, scripts/kit/parity-ledger.mts, scripts/kit/kit.mk, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K700 tests/kit/parity.test.mts`; `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity.mts scripts/kit/parity-ledger.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K701 | 선언한 빌드 backend가 선택한 패키지의 Python 공개 심볼만 읽기 | scripts/kit/parity-symbols.mts; scripts/kit/symbols/python.py; tests/source/symbols-python-real.test.mts; docs/operations/tool-inventory.md(.ko); CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node -- tests/source/symbols-python-real.test.mts`; `make typecheck`; `make lint-python`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-symbols.mts tests/source/symbols-python-real.test.mts`; `make docs-check` | [o] |
 | K702 | 기본 native parity reporter를 대체하지 않고 binding별 인자를 runner에 전달한다 | scripts/kit/parity-declaration.mts; scripts/kit/parity-runners.mts; scripts/kit/parity-ledger.mts; scripts/kit/schema/parity.schema.json; tests/kit/parity.test.mts; docs/operations/tool-inventory.md(.ko) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K702 tests/kit/parity.test.mts`; `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-declaration.mts scripts/kit/parity-runners.mts scripts/kit/parity-ledger.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
+| K703 | 파일 URI 실행 경로를 해석할 때 예상 밖의 오류를 다시 던진다 | scripts/kit/parity-declaration.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K699 tests/kit/parity.test.mts`; `node scripts/kit/catch-check.mts`; `make typecheck`; changed-file type-aware oxlint; `make docs-check` | [ ] |
