@@ -5,6 +5,12 @@
 
 ## Unreleased
 
+- Python symbol extraction follows setuptools package discovery and excludes
+  generated modules outside the declared package selection. The K701 fixture
+  fails before the fix by exposing excluded modules and passes afterward (1
+  test); the ORM source extraction lists 673 symbols with no generated-model
+  symbols. (K701)
+
 - Parity execution can select implementations while static declaration checks still cover every implementation; empty, unknown and no-binding selections fail, and the default still runs all bindings. Red: the K700 test ran all five implementations after selecting Go. Green: the K700 test passes (1 test). (K700)
 
 

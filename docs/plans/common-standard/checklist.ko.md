@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: e16136310dc2dfaa0bdd30723571b56156b7f0b9d717c4ea9a7b44c0d540e50d -->
+<!-- source-sha256: 45dd0ad1812c6293b00391813c57139f7bd3da2060ca148100e2c699411eac86 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -651,4 +651,4 @@
 | K698 | Linked 및 packed 설치에서 native provider lint 실행 파일과 backend를 해석한다 | scripts/kit/lint-ts.mts, tests/kit/lint-ts.test.mts, tests/kit/catch-check-steps.test.mts | `node --test tests/kit/lint-ts.test.mts tests/kit/catch-check-steps.test.mts` and `make docs-check` | [o] |
 | K699 | 비 file URI 환경 값은 데이터로 처리하고 file URI runner 경로는 계속 검사한다 | scripts/kit/parity-declaration.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K699 tests/kit/parity.test.mts`; `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-declaration.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K700 | 전체 정적 선언 검증과 기본 전체 구현 실행을 유지하면서 parity runtime 실행을 구현별로 선택한다 | scripts/kit/parity.mts, scripts/kit/parity-ledger.mts, scripts/kit/kit.mk, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K700 tests/kit/parity.test.mts`; `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity.mts scripts/kit/parity-ledger.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
-| K701 | 선언한 빌드 backend가 선택한 패키지의 Python 공개 심볼만 읽기 | scripts/kit/parity-symbols.mts; scripts/kit/symbols/python.py; tests/source/symbols-python-real.test.mts; docs/operations/tool-inventory.md(.ko); CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node -- tests/source/symbols-python-real.test.mts`; `make typecheck`; `make lint-python`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-symbols.mts tests/source/symbols-python-real.test.mts`; `make docs-check` | [~] |
+| K701 | 선언한 빌드 backend가 선택한 패키지의 Python 공개 심볼만 읽기 | scripts/kit/parity-symbols.mts; scripts/kit/symbols/python.py; tests/source/symbols-python-real.test.mts; docs/operations/tool-inventory.md(.ko); CHANGELOG.md(.ko) | `node scripts/kit/run-tests.mts node -- tests/source/symbols-python-real.test.mts`; `make typecheck`; `make lint-python`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-symbols.mts tests/source/symbols-python-real.test.mts`; `make docs-check` | [o] |
