@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 715d6e6fe3fe5d3e994f36ca966ba32ba964e26fa919ce246e0a2071896a19e5 -->
+<!-- source-sha256: fe3d2a737c15d8de37cfe1177f35115e5fd390110ad2d4303c72817b00931da4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- commit은 합법적인 working-tree 전이 경로로 도달한 최종 checklist state를 기록할 수 있으며, item-state의 각 작업은 여전히 한 단계만 허용한다. 회귀 검사는 대기에서 완료까지의 commit 경로, 직접 대기에서 완료로 옮기는 작업의 거부, 완료 항목 재개방 거부를 확인한다. Retained-branch lifecycle 도구는 repository policy로 분류한다. (K708-1)
 
 ## 0.0.60
 
