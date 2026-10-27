@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 0f245e26343caf085240d272eed1a8344f03e2c7b66f9fa1a48941bbe650283b -->
+<!-- source-sha256: 95f14ed1d50b32d1397cac93c48c660b2923789417d7e1a5daa5172179d0610f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -658,3 +658,4 @@
 | K703 | 파일 URI 실행 경로를 해석할 때 예상 밖의 오류를 다시 던진다 | scripts/kit/parity-declaration.mts, tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K699 tests/kit/parity.test.mts` (includes catch-check assertions for the changed source file); `make typecheck`; `node_modules/.bin/oxlint --type-aware --deny-warnings --format unix -c .oxlintrc.json scripts/kit/parity-declaration.mts tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K704 | Python project discovery 오류를 숨기지 않고 보고한다 | scripts/kit/parity-symbols.mts, tests/source/symbols-python-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K704 tests/source/symbols-python-real.test.mts`; `node scripts/kit/catch-check.mts`; `make typecheck`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K705 | 독립 오프라인 CI test job 전에 잠긴 Rust 검사기 의존성을 설치한다 | Explicit existing Cargo download setup in each job that needs the checker, cold-job workflow regression and passing K537/K620 unit cases; no network fallback during checks | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="a Rust Err arm\|a narrow Err arm" tests/kit/catch-check.test.mts` | [o] |
+| K706 | 예상한 Composer fixture 실패가 GitHub 오류 주석으로 노출되지 않게 한다 | Scoped fixture subprocess environment isolation, unchanged negative assertions and a focused regression; actual product failures retain their diagnostics | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K681 tests/kit/dependency-review.test.mts` | [ ] |
