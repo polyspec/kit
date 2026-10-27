@@ -40,11 +40,34 @@ test('the CI workflow gives kit-test go, python3 and cargo of the pins, not of t
   const kitTestRuns = jobRuns('kit_tests');
   const tools = kitTestRuns.indexOf('make install-tools');
   const rust = kitTestRuns.indexOf('rustup toolchain install');
+  const cargoDownloads = kitTestRuns.indexOf('make cargo-downloads-fetch');
   const kitTest = kitTestRuns.indexOf('make kit-test');
   // kit.mk puts the shims of mise first on PATH in every recipe, so the steps that run make need no PATH of their own.
   assert.ok(tools >= 0 && tools < kitTest, 'install-tools installs the tools of mise.lock before kit-test runs them');
   assert.ok(!jobText('kit_tests').includes('GITHUB_PATH'), 'no step puts var/tools on PATH by hand');
   assert.ok(rust > 0 && rust < kitTest, 'rustup installs the channel of rust-toolchain.toml before kit-test runs cargo');
+  assert.ok(cargoDownloads > rust && cargoDownloads < kitTest, 'cargo-downloads-fetch fills the offline crate cache before kit-test runs cargo');
+  assert.match(jobText('kit_tests'), /- name: fetch Rust crates\n        if: \$\{\{ !cancelled\(\) \}\}\n        run: make cargo-downloads-fetch/);
+});
+
+test('the source tests fetch Rust crates before running Cargo offline', () => {
+  const sourceRuns = jobRuns('source_tests');
+  const rust = sourceRuns.indexOf('rustup toolchain install');
+  const cargoDownloads = sourceRuns.indexOf('make cargo-downloads-fetch');
+  const sourceTest = sourceRuns.indexOf('make source-test');
+  assert.ok(rust >= 0 && cargoDownloads > rust && cargoDownloads < sourceTest, 'the source tests fetch crates after installing Rust and before running');
+  assert.match(jobText('source_tests'), /- name: fetch Rust crates\n        if: \$\{\{ !cancelled\(\) \}\}\n        run: make cargo-downloads-fetch/);
+});
+
+test('the checks job fetches Rust crates before the offline Rust lints', () => {
+  const checkRuns = jobRuns('checks');
+  const rust = checkRuns.indexOf('rustup toolchain install');
+  const cargoDownloads = checkRuns.indexOf('make cargo-downloads-fetch');
+  assert.ok(cargoDownloads > rust, 'the checks job installs Rust before fetching crates');
+  for (const target of ['make lint-ts', 'make lint-rust']) {
+    assert.ok(cargoDownloads < checkRuns.indexOf(target), `${target} runs after the Cargo cache is populated`);
+  }
+  assert.match(jobText('checks'), /- name: fetch Rust crates\n        if: \$\{\{ !cancelled\(\) \}\}\n        run: make cargo-downloads-fetch/);
 });
 
 test('the CI workflow checks the dependencies of kit as each consumer does: the gate and its mutation check (K169)', () => {

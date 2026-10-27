@@ -47,6 +47,10 @@ jobs:
       # channel of rust-toolchain.toml.
       - name: install rust
         run: rustup toolchain install
+      # The Rust checks run offline, and some build a fresh target directory, so rustup's toolchain install does not provide their crates.
+      - name: fetch Rust crates
+        if: ${{ !cancelled() }}
+        run: make cargo-downloads-fetch
       # The Composer packages of the PHP symbol extractor, whose autoloader the PHPStan of lint-php reads (K248-4).
       - name: install php symbol packages
         run: make kit-install-symbols-php
@@ -211,6 +215,10 @@ jobs:
       # channel of rust-toolchain.toml.
       - name: install rust
         run: rustup toolchain install
+      # Tests run Rust commands offline, including in temporary projects with a fresh target directory.
+      - name: fetch Rust crates
+        if: ${{ !cancelled() }}
+        run: make cargo-downloads-fetch
       # The Composer packages of the PHP symbol extractor, whose autoloader the PHPStan of lint-php reads (K248-4).
       - name: install php symbol packages
         run: make kit-install-symbols-php
@@ -255,6 +263,10 @@ jobs:
       # channel of rust-toolchain.toml.
       - name: install rust
         run: rustup toolchain install
+      # Tests run Rust commands offline, including in temporary projects with a fresh target directory.
+      - name: fetch Rust crates
+        if: ${{ !cancelled() }}
+        run: make cargo-downloads-fetch
       # The Composer packages of the PHP symbol extractor, whose autoloader the PHPStan of lint-php reads (K248-4).
       - name: install php symbol packages
         run: make kit-install-symbols-php
