@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3bb7ce7c727fee5ddf05a46661078c1c86ffb40988b3365fee7a23d71e5dfe85 -->
+<!-- source-sha256: 029eb7e38f6dff8ecdb192b57be5f3766600c9c61ff6b32fc2eca7cefcf25e0b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 예상한 native Composer 실패는 진단을 유지하면서 GitHub Actions 오류 주석을 만들지 않습니다. commit `1aa82aea27a871743a4fa81684328431aa0de99e`의 CI `make kit-test`는 예상한 세 실패(exit status 2, 2, 1)에 오류 주석을 출력했습니다. 수정 후 focused K681 regression 1/1이 통과합니다. (K706)
 
 - Main CI의 단위 case 1,441개와 source case 187개가 모두 통과한 뒤 0.0.59를 공개한다. Release 실행 40448452188에서 tag와 draft consumer 설치를 검증한 뒤 배포를 공개했다. (K677-7)
 

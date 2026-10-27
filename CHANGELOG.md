@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Expected native Composer failures keep their diagnostics without GitHub Actions error annotations. CI `make kit-test` on `1aa82aea27a871743a4fa81684328431aa0de99e` emitted annotations for the three expected failures (exit statuses 2, 2 and 1); the focused K681 regression passes 1/1. (K706)
+
 - Publish 0.0.59 after main CI passes all 1,441 unit and 187 source cases. Release run 40448452188 verifies the tag, proves the draft consumer installation, and makes the release public. (K677-7)
 
 ## 0.0.59

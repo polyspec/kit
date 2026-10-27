@@ -338,7 +338,7 @@ function nativeComposerProject(t: TestContext) {
   composerOfCheckout(checkout, 'K681 native Composer ownership');
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-native-composer-review-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const env = { ...toolingEnvironment(checkout), COMPOSER: 'composer.local.json', COMPOSER_HOME: path.join(root, 'home'), COMPOSER_CACHE_DIR: path.join(root, 'cache'), COMPOSER_DISABLE_NETWORK: '1' };
+  const env: NodeJS.ProcessEnv = { ...toolingEnvironment(checkout), COMPOSER: 'composer.local.json', COMPOSER_HOME: path.join(root, 'home'), COMPOSER_CACHE_DIR: path.join(root, 'cache'), COMPOSER_DISABLE_NETWORK: '1' };
   const run = (args: string[]) => runUpdateSteps(checkout, [{ command: 'composer', args, cwd: path.relative(checkout, root) }], env);
   return { checkout, root, env, run };
 }
@@ -378,7 +378,10 @@ test('K681: native Composer resolves the selected application path graph and wri
 });
 
 test('K681: incompatible source versions and unreadable declared paths fail natively without metadata repair', (t) => {
-  const { root, run } = nativeComposerProject(t);
+  const project = nativeComposerProject(t);
+  // These expected Composer failures must retain their native diagnostics without workflow annotations.
+  delete project.env.GITHUB_ACTIONS;
+  const { root, run } = project;
   const manifest = { name: 'example/app', require: { 'example/local': '1.0.0' }, repositories: [{ type: 'path', url: 'source' }, { 'packagist.org': false }] };
   put(root, { 'composer.local.json': JSON.stringify(manifest), 'source/composer.json': JSON.stringify({ name: 'example/local', version: '2.0.0' }) });
   const before = readFileSync(path.join(root, 'composer.local.json'), 'utf8');
