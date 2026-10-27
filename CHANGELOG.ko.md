@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 64689140211c67042a370c8640388c45673186d7b53ac535347fda5a27e7dbd2 -->
+<!-- source-sha256: cdbf62978b6777d83b5c3bf1bc4ae0fe55f09a1b2a313723a2463aa1434c6b43 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 기존 PHP extension CLI를 명령이나 인자를 바꾸지 않고 `@polyspec/kit/php-extension`으로 공개합니다. 출력/source-copy/configure 인자 case 1/1, packed mapping 1/1이 통과했고, 설치 archive에서 dist module import가 통과합니다(1/1). (K709)
 
 - 다섯 shared helper API를 source와 published package의 명시적 subpath로 제공합니다. Packed manifest는 경로를 `dist`로 바꿉니다. Pack 변환 테스트 1/1이 통과했고, offline consumer 설치는 다섯 API를 모두 import해 source export와 비교했습니다(1/1). (K707)
 

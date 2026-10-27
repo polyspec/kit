@@ -70,7 +70,7 @@ test('npm pack packs exactly the files of package.json files and the files npm a
 
 // The tool APIs of kit that a repository imports; generic needs (globs, schemas, processes) come from their ecosystem
 // libraries, not from kit's internals.
-const EXPORTED = ['tracked-files', 'test-hooks', 'test-progress', 'run-tests', 'glob', 'parity-declaration', 'land', 'parity', 'checklist', 'holder-lock'];
+const EXPORTED = ['tracked-files', 'test-hooks', 'test-progress', 'run-tests', 'glob', 'parity-declaration', 'land', 'parity', 'checklist', 'php-extension', 'holder-lock'];
 // install-vscode needs its optional peer @vscode/test-electron, which only a repository with VS Code integration tests
 // installs: the export resolves, and without the peer the import fails naming it.
 const PEER_EXPORTED = { 'install-vscode': '@vscode/test-electron' };

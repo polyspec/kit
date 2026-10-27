@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The existing PHP extension CLI is public as `@polyspec/kit/php-extension`, with no change to its command or arguments. Its output/source-copy/configure argument case passes 1/1, the packed mapping passes 1/1, and the installed archive imports the module from dist (1/1). (K709)
+
 - Five shared helper APIs are explicit package subpaths in source and published installs. The packed manifest maps them to `dist`; the pack transformation passes 1/1 and the offline consumer installation imports all five and matches their exports to source (1/1). (K707)
 
 - Expected native Composer failures keep their diagnostics without GitHub Actions error annotations. CI `make kit-test` on `1aa82aea27a871743a4fa81684328431aa0de99e` emitted annotations for the three expected failures (exit statuses 2, 2 and 1); the focused K681 regression passes 1/1. (K706)

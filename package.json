@@ -16,6 +16,7 @@
     "./land": "./scripts/kit/land.mts",
     "./parity": "./scripts/kit/parity.mts",
     "./checklist": "./scripts/kit/checklist.mts",
+    "./php-extension": "./scripts/kit/php-extension.mts",
     "./holder-lock": "./scripts/kit/holder-lock.mts",
     "./run-command": "./scripts/kit/run-command.mts",
     "./install-vscode": "./scripts/kit/install-vscode.mts",
