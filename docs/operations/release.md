@@ -20,21 +20,22 @@ The public module subpaths include `glob`, `parity-declaration`, `land`, `parity
 
 Later changes do not invalidate an earlier release's evidence. Finish the current version from its own successful CI and consumer proof, then bump the next version and validate it separately. A local main commit is not automatically part of a remote release: check the remote candidate and its CI. Implementation completion and owning tests do not mean publication; update a release checklist item only after the proof passed and the release is public.
 
-A release is prepared and cut in three steps. (1) A commit `chore(release): Release X.Y.Z` sets the version in `package.json` and
-`package-lock.json` and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`. Commit the version before packing:
-the npm `postpack` script restores those files from `HEAD`. For a tagless candidate, use the pinned native npm to run
-`npm pack --pack-destination var/release/assets`; rename its single archive to `polyspec-kit-npm-X.Y.Z.tgz`. This runs the same
-native npm prepack as the official release asset builder and lets the consumer locks and proof be prepared without a temporary
-tag. After the release commit's CI succeeds and the real tag exists, `make release-assets TAG=vX.Y.Z` builds the official archive
-from that tag. Run `make release-consumer-lock TAG=vX.Y.Z` (ONLINE) against the candidate archive, and commit the manifests and
-locks it writes in `tests/release-consumer/*/` with the version change or in a following commit before the tag (docs/operations/tool-inventory.md,
-Consumer install of the release archives, steps 1 and 2). The version change rewrites `package-lock.json`, so the release commit
+A release is prepared and cut in three steps. (1) A commit `chore(release): Release X.Y.Z` sets the version in every release
+manifest and lock, and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`. Commit the version before packing:
+the native packers may run package lifecycle scripts that restore version files from `HEAD`. Build all tagless candidate archives
+from committed `HEAD` with `make release-candidate-assets VERSION=X.Y.Z`. This uses the same manifest validation, generated-file
+handling and native packers as the tagged asset producer; it neither resolves nor creates a tag. Run
+`make release-consumer-lock TAG=vX.Y.Z` (ONLINE) and the consumer proof against those candidate archive names, then commit the
+manifests and locks it writes in `tests/release-consumer/*/` before CI and tag creation (docs/operations/tool-inventory.md,
+Consumer install of the release archives, steps 1 and 2). The version change rewrites package-manager locks, so the release commit
 also carries `config/dependency-review.json` that `make dependency-review RECORD=1` (ONLINE) writes for it; CI runs
 `make dependency-policy-check`, which fails a lock that differs from the review (K169). A version change of a composer.json
 likewise re-locks it with `composer update --lock` in its directory, since the content-hash of `composer.lock` covers `version`;
 the check fails the lock that the change outdated (`composerLock`, K180, K181). The proof installs the archives from those locks,
-so a tag without them fails. The commit lands on `main` and its CI concludes success; only then can the tag be created on that
-commit. (2) The release workflow is dispatched with the tag (`gh workflow run release.yml -f tag=vX.Y.Z`, or the workflow
+so a commit without them cannot be tagged. The commit lands on `main` and its CI concludes success; only then can the real tag be
+created on that commit. Build official assets from that tag with `make release-assets TAG=vX.Y.Z`; this path requires and reads the
+actual tag and remains the only source for publication. (2) The release workflow is dispatched with the tag
+(`gh workflow run release.yml -f tag=vX.Y.Z`, or the workflow
 dispatch of the GitHub API); its `make release-tag` creates the annotated tag at origin/main and pushes it, and passes when the
 tag is there already (K269). A push of the tag starts the same workflow. (3) The run of `.github/workflows/release.yml`,
 which is the vendored `workflows/release.yml` itself: it builds the official npm archive from the tag, publishes it on the GitHub

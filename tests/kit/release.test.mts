@@ -308,6 +308,45 @@ test('assets builds one archive per package of the configuration', (t) => {
   assert.deepEqual(box.npmCalls().map(call => path.basename(call.cwd)), ['fixture-lib', 'fixture-app']);
 });
 
+test('K712 builds candidate archives from committed HEAD without a release tag', (t) => {
+  const generatedSource = '#include <sqlite3ext.h>\nSQLITE_EXTENSION_INIT1\n';
+  const box = releaseSandbox(t, { mutate(root) {
+    writeFileSync(path.join(root, 'packages/fixture-lib/shared.c'), generatedSource);
+    edit<ConfigJson>(root, 'config/release.json', config => ({
+      ...config,
+      packages: config.packages.map(item => item.directory === 'packages/fixture-php'
+        ? { ...item, generated: [{ kind: 'source-copy', source: 'packages/fixture-lib/shared.c', output: 'src/native/shared.c' }] }
+        : item),
+    }));
+  } });
+  const ctx = context(box);
+  assert.equal(git(box.root, 'tag', '--list'), '', 'the fixture has no release tag');
+  assert.throws(() => release.assets(ctx, 'v0.0.1'), error => error instanceof Stop, 'the official tag path still refuses a missing tag');
+  const output: string[] = [];
+  assert.equal(release.main(['candidate-assets', '0.0.1'], { root: box.root, env: ctx.env, print: line => output.push(line), error: line => output.push(line) }), 0, output.join('\n'));
+  assert.ok(output.some(line => line.includes('built fixture-lib-npm-0.0.1.tgz')));
+  assert.deepEqual(readdirSync(path.join(box.root, 'var/release/assets')).sort(), [
+    'fixture-app-npm-0.0.1.tgz', 'fixture-lib-npm-0.0.1.tgz', 'kit_fixture-0.0.1-py3-none-any.whl', 'polyspec-kit-fixture-php-0.0.1.zip',
+  ]);
+  const composerArchive = path.join(box.root, 'var/release/assets', 'polyspec-kit-fixture-php-0.0.1.zip');
+  assert.equal(spawnSync('unzip', ['-p', composerArchive, 'src/native/shared.c'], { encoding: 'utf8' }).stdout, generatedSource);
+  assert.deepEqual(box.npmCalls().map(call => path.basename(call.cwd)), ['fixture-lib', 'fixture-app']);
+  stop(() => release.candidateAssets(ctx, '0.0.2'), /HEAD candidate 0\.0\.2: the manifests of the commit .* do not install outside the repository/);
+  stop(() => release.candidateAssets(ctx, 'v0.0.1'), /candidate version .* is not X\.Y\.Z/);
+  assert.equal(git(box.root, 'tag', '--list'), '', 'candidate generation does not create or require a tag');
+});
+
+test('K712 candidate archives refuse changed package inputs rather than packing worktree files', (t) => {
+  const box = releaseSandbox(t);
+  writeFileSync(path.join(box.root, 'packages/fixture-lib/package.json'), '{"name":"changed"}\n');
+  stop(() => release.candidateAssets(context(box), '0.0.1'), /candidate assets require package inputs to match committed HEAD .* changed or untracked: packages\/fixture-lib/);
+  git(box.root, 'checkout', '--', 'packages/fixture-lib/package.json');
+  writeFileSync(path.join(box.root, 'packages/fixture-lib/untracked.js'), 'module.exports = true;\n');
+  stop(() => release.candidateAssets(context(box), '0.0.1'), /candidate assets require package inputs to match committed HEAD .* changed or untracked: packages\/fixture-lib\/untracked\.js/);
+  assert.deepEqual(box.npmCalls(), [], 'the candidate refuses before invoking npm');
+  assert.equal(existsSync(path.join(box.root, 'var/release/assets')), false);
+});
+
 test('each archive carries the manifest of its package unchanged', (t) => {
   const box = releaseSandbox(t);
   const ctx = context(box);
@@ -651,12 +690,12 @@ test('the command line runs each step, prints a line per step and exits with 1 o
   assert.match(result.stderr, /\[release\] coverage failed: 1 package files are not classified/);
 });
 
-test('the command line refuses a missing mode, a missing tag and an extra argument with the usage', (t) => {
+test('the command line refuses a missing mode, missing arguments and extra arguments with the usage', (t) => {
   const box = releaseSandbox(t);
-  for (const args of [[], ['verify'], ['bogus', 'v0.0.1'], ['verify', 'v0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {
+  for (const args of [[], ['verify'], ['candidate-assets'], ['bogus', 'v0.0.1'], ['verify', 'v0.0.1', 'extra'], ['candidate-assets', '0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {
     const result = cli(box, args);
     assert.equal(result.status, 2, args.join(' '));
-    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts tag\|verify\|versions\|assets\|publish\|undraft\|go-tags TAG \| coverage/);
+    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts tag\|verify\|versions\|assets\|publish\|undraft\|go-tags TAG \| candidate-assets VERSION \| coverage/);
   }
 });
 
@@ -669,9 +708,16 @@ test('make runs each release step with the tag of the environment and fails with
     assert.equal(result.status, 2, target);
     assert.match(result.stdout + result.stderr, new RegExp(`${target}: TAG is required, for example make ${target} TAG=v0\\.0\\.1`));
   }
-  let result = make('release-versions', 'TAG=v0.0.1');
+  let result = make('release-candidate-assets');
+  assert.equal(result.status, 2, 'the candidate target requires VERSION');
+  assert.match(result.stdout + result.stderr, /release-candidate-assets: VERSION is required, for example make release-candidate-assets VERSION=0\.0\.1/);
+  result = make('release-candidate-assets', 'VERSION=0.0.1');
   assert.equal(result.status, 0, result.stderr);
-  assert.ok(result.stdout.includes(`node ${tool(import.meta.resolve('../../scripts/kit/release.mts'))} versions "$TAG"\n[release] v0.0.1: `), result.stdout);
+  assert.match(result.stdout, /candidate-assets "\$VERSION"/);
+  assert.match(result.stdout, /\[release\] HEAD candidate 0\.0\.1: built fixture-lib-npm-0\.0\.1\.tgz/);
+  result = make('release-versions', 'TAG=v0.0.1');
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /versions "\$TAG"\n\[release\] v0\.0\.1: /);
   result = make('release-verify', 'TAG=v0.0.1');
   assert.equal(result.status, 0, result.stderr);
   result = make('release-coverage');

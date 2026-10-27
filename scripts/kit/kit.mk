@@ -301,7 +301,7 @@ commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HE
 	$(NODE) $(KIT)/check-commits.$(KIT_EXT) $(if $(RANGE),--range $(RANGE))
 # The steps of a release (scripts/kit/release.mts, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
-.PHONY: release-prepare release-tools release-tag release-verify release-versions release-assets release-publish release-undraft release-coverage release-go-tags release-backend
+.PHONY: release-prepare release-tools release-tag release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend
 
 # release-prepare is the preparation that a repository's release needs before release-tools, such as the checkout of a sibling
 # release: kit declares it with no recipe, and a repository adds its own with a release-prepare:: rule of its Makefile (K132).
@@ -334,6 +334,10 @@ release-versions: ## Require the version of TAG in every manifest, the Go module
 release-assets: ## Build the archive of every package of TAG into var/release/assets
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }
 	$(NODE) $(KIT)/release.$(KIT_EXT) assets "$$TAG"
+
+release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION into var/release/assets
+	@test -n "$$VERSION" || { echo "release-candidate-assets: VERSION is required, for example make release-candidate-assets VERSION=0.0.1"; exit 1; }
+	$(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
 
 release-publish: ## Create the GitHub Release of TAG as a draft with the notes and the archives of release-assets; a draft of an earlier run is replaced
 	@test -n "$$TAG" || { echo "release-publish: TAG is required, for example make release-publish TAG=v0.0.1"; exit 1; }
@@ -420,7 +424,7 @@ unlink: ## Restore the selected native locked installation of PROJECT and remove
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
 # The release, the dependency review and the dependency policy use the released versions (K343), so their Go runs without the go.work of the links.
-release-prepare release-tools release-verify release-versions release-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof dependency-review dependency-policy-check: export GOWORK := off
+release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof dependency-review dependency-policy-check: export GOWORK := off
 
 
 # ---- Lint (K77) ------------------------------------------------------------------------------------------------------

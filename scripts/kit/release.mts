@@ -601,24 +601,28 @@ function generatedArchiveFiles(ctx: Context, commit: string, folder: string, gen
  * package at the commit byte for byte; kit alone uses its canonical prepack source-to-dist manifest. The directory is replaced as a whole.
  */
 export function assets(ctx: Context, tag: string): string[] {
-  const { root, config } = ctx;
+  const { config } = ctx;
   const [directory, version] = parseTag(config, tag);
-  const target = path.join(root, ASSETS);
   if (directory !== null) {
+    const { root } = ctx;
+    const target = path.join(root, ASSETS);
     ctx.log(`[release] ${tag}: a Go module tag builds no archive`);
     rmSync(target, { recursive: true, force: true });
     mkdirSync(target, { recursive: true });
     return [];
   }
-  if (config.packages.some(item => item.generated?.length)) {
-    const zip = execute('zip', ['-v'], { cwd: root, env: ctx.env });
-    if (zip.error) throw new Stop(`zip is required to append generated files to Composer release archives; install Info-ZIP (for example, brew install zip or sudo apt-get install zip), then run make release-assets`);
-    if (zip.status !== 0) throw new Stop(`zip -v failed with exit status ${zip.status}; install a working Info-ZIP command, then run make release-assets`);
-  }
-  const commit = taggedCommit(ctx, tag);
+  const retry = `make release-assets TAG=${tag}`;
+  requireArchiveTools(ctx, retry);
+  return assetsFromCommit(ctx, tag, taggedCommit(ctx, tag), version);
+}
+
+/** Builds archives from one committed tree through the producer shared by tagged releases and tagless candidates. */
+function assetsFromCommit(ctx: Context, reference: string, commit: string, version: string): string[] {
+  const { root, config } = ctx;
+  const target = path.join(root, ASSETS);
   const names = assetNames(config, version);
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${path.posix.join(folder, MANIFEST_OF[kind])}`], at(ctx)));
-  // The lock of each wheel package is read from the tagged commit, as its manifest is.
+  // The lock of each wheel package is read from the source commit, as its manifest is.
   const locks = config.packages.map(({ kind, name }) => (kind === 'wheel' ? { file: wheelLock(config, name), text: run('git', ['show', `${commit}:${wheelLock(config, name)}`], at(ctx)) } : null));
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
     const file = path.posix.join(folder, MANIFEST_OF[kind]);
@@ -631,7 +635,7 @@ export function assets(ctx: Context, tag: string): string[] {
       ...manifestProblems(config, kind, manifest, version).map(problem => `${file}: ${problem}`),
     ];
   });
-  if (problems.length) throw new Stop(`${tag}: the manifests of the commit ${commit} do not install outside the repository: ${problems.join('; ')}`);
+  if (problems.length) throw new Stop(`${reference}: the manifests of the commit ${commit} do not install outside the repository: ${problems.join('; ')}`);
   const mtime = new Date(Number(run('git', ['show', '-s', '--format=%ct', commit], at(ctx)).trim()) * 1000).toISOString();
   const next = `${target}.next-${process.pid}`;
   const previous = `${target}.previous-${process.pid}`;
@@ -640,7 +644,7 @@ export function assets(ctx: Context, tag: string): string[] {
   mkdirSync(next, { recursive: true });
   try {
     config.packages.forEach(({ kind, directory: folder, name }, index) => {
-      ctx.log(`[release] ${tag}: packing ${name} from ${folder} into ${names[index]}`);
+      ctx.log(`[release] ${reference}: packing ${name} from ${folder} into ${names[index]}`);
       if (kind === 'npm') {
         const before = new Set(readdirSync(next));
         // npm is the tool of the checkout, never the one on PATH (K393-1).
@@ -701,7 +705,7 @@ export function assets(ctx: Context, tag: string): string[] {
         ...manifestProblems(config, kind, parseManifest(kind, packed, `${present(names[index], 'names[index]')}/${file}`), version).map(problem => `${names[index]}: ${problem}`),
       ];
     });
-    if (failures.length) throw new Stop(`${tag}: the release assets do not install outside the repository: ${failures.join('; ')}`);
+    if (failures.length) throw new Stop(`${reference}: the release assets do not install outside the repository: ${failures.join('; ')}`);
     if (existsSync(target)) renameSync(target, previous);
     try {
       renameSync(next, target);
@@ -715,6 +719,29 @@ export function assets(ctx: Context, tag: string): string[] {
     if (existsSync(previous) && !existsSync(target)) renameSync(previous, target);
   }
   return names;
+}
+
+/** Checks the native archive helper before package construction. */
+function requireArchiveTools(ctx: Context, retry: string): void {
+  if (!ctx.config.packages.some(item => item.generated?.length)) return;
+  const zip = execute('zip', ['-v'], { cwd: ctx.root, env: ctx.env });
+  if (zip.error) throw new Stop(`zip is required to append generated files to Composer release archives; install Info-ZIP (for example, brew install zip or sudo apt-get install zip), then run ${retry}`);
+  if (zip.status !== 0) throw new Stop(`zip -v failed with exit status ${zip.status}; install a working Info-ZIP command, then run ${retry}`);
+}
+
+/** Builds release candidates from committed HEAD without resolving, creating or pretending to have a tag. */
+export function candidateAssets(ctx: Context, version: string): string[] {
+  if (!EXACT_VERSION.test(version)) throw new Stop(`candidate version ${JSON.stringify(version)} is not X.Y.Z`);
+  const { config } = ctx;
+  const commit = run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], at(ctx)).trim();
+  const inputs = ['config/release.json', 'config/toolchain.json', ...config.packages.map(item => item.directory)];
+  const changed = run('git', ['diff', '--name-only', commit, '--', ...inputs], at(ctx)).trim().split('\n').filter(Boolean);
+  const untracked = run('git', ['ls-files', '--others', '--exclude-standard', '--', ...inputs], at(ctx)).trim().split('\n').filter(Boolean);
+  const sourceChanges = [...new Set([...changed, ...untracked])].sort();
+  if (sourceChanges.length) throw new Stop(`candidate assets require package inputs to match committed HEAD ${commit}; changed or untracked: ${sourceChanges.join(', ')}; commit the package inputs, then run make release-candidate-assets VERSION=${version}`);
+  const retry = `make release-candidate-assets VERSION=${version}`;
+  requireArchiveTools(ctx, retry);
+  return assetsFromCommit(ctx, `HEAD candidate ${version}`, commit, version);
 }
 
 /** The lock file of the wheel package `name` in consumers.wheel.lock. */
@@ -857,19 +884,25 @@ function fileDependencyProblems(root: string, config: ReleaseConfig, manifests: 
   return problems;
 }
 
-const USAGE = 'usage: node scripts/kit/release.mts tag|verify|versions|assets|publish|undraft|go-tags TAG | coverage';
+const USAGE = 'usage: node scripts/kit/release.mts tag|verify|versions|assets|publish|undraft|go-tags TAG | candidate-assets VERSION | coverage';
 
 /** Runs a step of the command line; the exit status. */
 export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
   const tagged = mode !== undefined && ['tag', 'verify', 'versions', 'assets', 'publish', 'undraft', 'go-tags'].includes(mode);
-  if (!(tagged && tag && rest.length === 0) && !(mode === 'coverage' && tag === undefined)) {
+  const candidate = mode === 'candidate-assets' && latest !== undefined && rest.length === 0;
+  if (!(tagged && tag && rest.length === 0) && !candidate && !(mode === 'coverage' && tag === undefined)) {
     error(USAGE);
     return 2;
   }
   try {
     const ctx = context(root, { env, log: print });
+    if (candidate) {
+      const names = candidateAssets(ctx, present(latest, 'candidate version'));
+      print(`[release] HEAD candidate ${latest}: built ${names.join(', ')} in ${ASSETS}`);
+      return 0;
+    }
     const release = tag === 'latest' ? latestTag(ctx) : tag;
     if (release !== tag) print(`[release] latest is ${release}`);
     tag = release;
