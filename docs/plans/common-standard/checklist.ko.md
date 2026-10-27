@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 963e3e420547faaebc1c09e1feebae73a86175ba76b0bffce3ab420e15cf716a -->
+<!-- source-sha256: 6b002fa96ce411838ac4bb31b5b2bb9b55c28352d6b15d2a6a18e64a3d2a0853 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -615,6 +615,7 @@
 | K677-3 | 격리 PHP parity 수정과 native consumer lock, 의존성 검토를 포함한 kit 0.0.57 공개를 준비한다. | package.json, package-lock.json, tests/release-consumer/npm, config/dependency-review.json, CHANGELOG.md(.ko) | `node --test --test-name-pattern=K677-2 tests/kit/parity.test.mts` | [o] |
 | K677-4 | K696과 K697, native release consumer lock, 의존성 검토와 버전별 changelog를 포함한 kit 0.0.58 공개를 준비한다. | package.json, package-lock.json, tests/release-consumer/npm, config/dependency-review.json, CHANGELOG.md(.ko) | `node --test --test-name-pattern=K697 tests/kit/parity.test.mts` | [o] |
 | K677-5 | K698과 K430-2 수정 후 kit 0.0.58 consumer lock과 release 기록을 갱신한다. | tests/release-consumer/npm/package-lock.json, config/dependency-review.json, CHANGELOG.md(.ko) | `node --test tests/kit/run-command.test.mts` | [o] |
+| K677-6 | 현재 release tree에서 native assets, consumer lock, 의존성 검토를 포함한 kit 0.0.59를 준비하고 CI와 consumer 검증 통과 후에만 공개한다 | package.json and package-lock.json at 0.0.59, versioned English and Korean changelog entries, local candidate assets, release-consumer npm lock, dependency review record, and release verification evidence | `node scripts/kit/run-tests.mts node -- --test-name-pattern="release-consumer-lock" tests/kit/release-consumer.test.mts`; `make release-assets TAG=v0.0.59`; `make release-consumer-lock TAG=v0.0.59`; `make dependency-review RECORD=1`; `make dependency-policy-check`; `make release-verify TAG=v0.0.59` | [ ] |
 | K678 | 실제 locked install과 package 소비 검증을 유지하며 반복 준비 비용과 오래된 link 설명을 검토한다 | Reviewed six isolated builtCopy consumers across three source test files; retained native locked-install and packed-consumption coverage and per-process shared download cache; clarified dependency-root ownership and source-versus-packed export comments | `make docs-check` | [o] |
 | K679 | 기존 미완료 checklist 전체를 native package 소유권, 현재 runner 규칙, release 증거와 대조한 뒤 기존 지시의 재개 여부를 정한다 | common-standard plan 결정 대응표와 기존 checklist 판정, 한국어 짝 | `make docs-check` | [o] |
 | K680 | Native npm advisory node path를 보존하고 취약한 nested copy를 실제 locked version에 귀속한다 | scripts/kit/dependency-review.mts, advisory schema and policy tests | `node scripts/kit/run-tests.mts node -- tests/kit/dependency-policy.test.mts` | [o] |
