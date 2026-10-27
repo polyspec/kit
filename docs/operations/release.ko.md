@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 5dc48dc2221cd83a1cab2806e3d9ecdba66f05fe458f2d0339705b5fce32e106 -->
+<!-- source-sha256: f2e902164a3a471923c9c8cfe95b5a32be602274e6dd16a5e9fb5deb45586620 -->
 # 릴리스
 
 [English](release.md)
@@ -12,6 +12,8 @@ package-lock의 `@polyspec/kit`을 갱신하고 `make install-packages`와 `make
 소비자는 `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include합니다. 깨끗한 checkout에서 공유 workflow는 `packageManager`에 선언된 정확한 npm version으로 native `npm ci --ignore-scripts`를 먼저 실행하고 기존 tool 설치와 package 설치 target을 실행합니다. 옆의 kit checkout을 clone하지 않습니다. 로컬의 `npm link ../kit`은 같은 설치 package path에서 source bootstrap을 사용하며 kit 자체는 자기 source Makefile을 사용합니다.
 
 Kit의 native npm prepack은 source export와 hook bin을 build된 dist path로 바꿉니다. Asset gate는 tag의 kit manifest에 같은 canonical producer 변환을 적용한 뒤 모든 byte를 비교하며 다른 package manifest는 byte-exact를 유지합니다. 기존 packed-consumer 검사는 단일 native pack으로 그 gate를 실행하고 생성된 archive를 설치합니다. Native consumer lock은 개발 lock과 다른 호환 전이 version을 해석할 수 있으므로 두 개의 정확한 locked graph를 모두 advisory review에 포함합니다.
+
+공개 module subpath에는 기존 tool module과 함께 `glob`, `parity-declaration`, `land`, `parity`, `checklist`가 있습니다. Source checkout에서는 각 경로가 `scripts/kit/<name>.mts`로 해석되고, packed consumer에서는 같은 subpath가 `dist/<name>.mjs`로 해석됩니다. Packed-consumer 검사는 설치한 archive에서 각 공개 subpath를 import하고 export 이름을 source module과 비교합니다.
 
 후속 변경은 앞선 release의 검증 증거를 무효화하지 않습니다. 현재 version은 자기 CI와 consumer proof가 통과하면 완료하고 다음 version을 올려 별도로 검증합니다. 로컬 main commit이 자동으로 원격 release에 포함되는 것은 아니므로 원격 candidate와 해당 CI를 확인합니다. 구현 완료와 소유 검사 통과는 공개를 뜻하지 않으며 proof 통과와 release 공개 후에만 release checklist 항목을 완료합니다.
 

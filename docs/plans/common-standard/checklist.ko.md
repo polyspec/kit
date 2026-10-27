@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 7d40dfbcac0b6c3e8e792f91ea2d1d9e7b23c799275319cd49cff09be6bda4db -->
+<!-- source-sha256: 86760920df8185df4968d2feb6b47a486ae8c95b6dd54af5cf0d8d46af09c1cd -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -659,5 +659,5 @@
 | K704 | Python project discovery 오류를 숨기지 않고 보고한다 | scripts/kit/parity-symbols.mts, tests/source/symbols-python-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K704 tests/source/symbols-python-real.test.mts`; `node scripts/kit/catch-check.mts`; `make typecheck`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K705 | 독립 오프라인 CI test job 전에 잠긴 Rust 검사기 의존성을 설치한다 | Explicit existing Cargo download setup in each job that needs the checker, cold-job workflow regression and passing K537/K620 unit cases; no network fallback during checks | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="a Rust Err arm\|a narrow Err arm" tests/kit/catch-check.test.mts` | [o] |
 | K706 | 예상한 Composer fixture 실패가 GitHub 오류 주석으로 노출되지 않게 한다 | Scoped fixture subprocess environment isolation, unchanged negative assertions and a focused regression; actual product failures retain their diagnostics | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K681 tests/kit/dependency-review.test.mts` | [o] |
-| K707 | 공유 helper API를 source와 설치 package의 정식 exports로 제공한다 | Five public subpath exports, canonical pack mapping, native installed-consumer import proof and aligned API documentation | `node scripts/kit/run-tests.mts node -- tests/kit/pack-manifest.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/package.test.mts` | [ ] |
+| K707 | 공유 helper API를 source와 설치 package의 정식 exports로 제공한다 | Five public subpath exports, canonical pack mapping, native installed-consumer import proof and aligned API documentation | `node scripts/kit/run-tests.mts node -- --test-name-pattern=packed.exports tests/kit/pack-manifest.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=tarball.imports tests/source/package.test.mts` | [o] |
 | K708 | 푸시와 릴리스 게이트에서 개발과 검증 단계를 구분한다 | Explicit verification state and transitions, development blocking on push, verification blocking before release/tag, strict readable checklists, pinned intentional branch-retention declarations and native gate regressions | `node scripts/kit/run-tests.mts node -- tests/kit/checklist.test.mts tests/kit/push-gate.test.mts tests/kit/plan.test.mts tests/kit/release.test.mts` | [ ] |

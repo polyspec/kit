@@ -13,6 +13,8 @@ Consumers include `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`. On 
 
 Kit's native npm prepack maps its source exports and hook bin to built dist paths. The asset gate applies the same canonical producer transformation to the tagged kit manifest and compares every resulting byte; other package manifests remain byte-exact. The existing packed-consumer test runs that gate with its single native pack and installs the resulting archive. The native consumer lock can resolve compatible transitive versions differently from the development lock, so both exact locked graphs are included in advisory review.
 
+The public module subpaths include `glob`, `parity-declaration`, `land`, `parity` and `checklist`, alongside the existing tool modules. A source checkout resolves each subpath to `scripts/kit/<name>.mts`; a packed consumer resolves the same subpath to `dist/<name>.mjs`. The packed-consumer test imports each public subpath from the installed archive and compares its exported names with the source module.
+
 Later changes do not invalidate an earlier release's evidence. Finish the current version from its own successful CI and consumer proof, then bump the next version and validate it separately. A local main commit is not automatically part of a remote release: check the remote candidate and its CI. Implementation completion and owning tests do not mean publication; update a release checklist item only after the proof passed and the release is public.
 
 A release is cut in three steps. (1) A commit `chore(release): Release X.Y.Z` sets the version in `package.json` and

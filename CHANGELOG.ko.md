@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 029eb7e38f6dff8ecdb192b57be5f3766600c9c61ff6b32fc2eca7cefcf25e0b -->
+<!-- source-sha256: 64689140211c67042a370c8640388c45673186d7b53ac535347fda5a27e7dbd2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 다섯 shared helper API를 source와 published package의 명시적 subpath로 제공합니다. Packed manifest는 경로를 `dist`로 바꿉니다. Pack 변환 테스트 1/1이 통과했고, offline consumer 설치는 다섯 API를 모두 import해 source export와 비교했습니다(1/1). (K707)
 
 - 예상한 native Composer 실패는 진단을 유지하면서 GitHub Actions 오류 주석을 만들지 않습니다. commit `1aa82aea27a871743a4fa81684328431aa0de99e`의 CI `make kit-test`는 예상한 세 실패(exit status 2, 2, 1)에 오류 주석을 출력했습니다. 수정 후 focused K681 regression 1/1이 통과합니다. (K706)
 
