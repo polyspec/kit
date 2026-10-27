@@ -14,7 +14,7 @@ import { installExtractor } from '../../scripts/kit/install-symbols.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { tree } from '../kit/tree.mts';
-import { sandboxMise, sandboxShims } from './real-tools.mts';
+import { sandboxMise, sandboxPythonProjectBackend, sandboxShims } from './real-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -213,7 +213,7 @@ test('the python extractor reads the public symbols of a package with ast: __all
   const files = {
     '.gitignore': 'var/\n',
     'docs/spec/codec.md': SPEC,
-    'python/pyproject.toml': '[project]\nname = "codec"\nversion = "0.1.0"\n',
+    'python/pyproject.toml': '[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n\n[project]\nname = "codec"\nversion = "0.1.0"\n\n[tool.setuptools]\npackage-dir = {"" = "src"}\n\n[tool.setuptools.packages.find]\nwhere = ["src"]\nnamespaces = true\n',
     'python/tests/test_trace.py': '# CX-1\nimport unittest\n\n\nclass Trace(unittest.TestCase):\n    def test_trace(self):\n        pass\n',
     'python/src/codec/__init__.py': 'from .core import Codec, encode\n\n__all__ = ["encode", "Codec"]\n',
     'python/src/codec/core.py': 'import json\n\nLIMIT = 3\n_CACHE = {}\n\n\ndef encode(value):\n    return json.dumps(value)\n\n\ndef _split(value):\n    return value\n\n\nclass Codec:\n    def decode(self, text):\n        return text\n\n    def _hidden(self):\n        pass\n\n\nclass _Private:\n    def visible(self):\n        pass\n',
@@ -222,10 +222,12 @@ test('the python extractor reads the public symbols of a package with ast: __all
   const all = ['codec.Codec', 'codec.encode', 'codec.core.Codec', 'codec.core.Codec.decode', 'codec.core.LIMIT', 'codec.core.encode'];
   const root = tree(t, { ...files, 'config/parity.json': declaration(all) });
   giveTools(root);
+  sandboxPythonProjectBackend(root);
   assert.deepEqual(lines(root), []);
   // codec.Codec of __all__ names the class that core defines; its methods are ids of core.
   const partial = tree(t, { ...files, 'config/parity.json': declaration(['codec.encode', 'codec.core.decode']) });
   giveTools(partial);
+  sandboxPythonProjectBackend(partial);
   assert.deepEqual(lines(partial), [
     'R1 python: codec.core.decode is no public symbol of python, as its python extractor reads python/src/codec',
     'R11 python: codec.Codec is public, and no API unit declares it',

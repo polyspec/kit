@@ -3,11 +3,13 @@
 // gets a script for each tool, as its own shim, that runs the binary that mise installed for this checkout.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
+import { readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
+import { buildBackend, verifyBackend } from '../../scripts/kit/release-wheel.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -35,4 +37,18 @@ export function sandboxMise(root: string): void {
   const bin = path.join(root, 'var/tools/bin');
   mkdirSync(bin, { recursive: true });
   writeFileSync(path.join(bin, 'mise'), `#!/bin/sh\ncd '${ROOT}' && exec '${toolCommand(ROOT, 'mise')}' "$@"\n`, { mode: 0o755 });
+}
+
+/** Gives a temporary Python discovery fixture the pinned backend declaration, wheel and uv of this checkout. */
+export function sandboxPythonProjectBackend(root: string): void {
+  const backend = buildBackend(ROOT);
+  const source = verifyBackend(ROOT, backend.requirement, backend.sha256);
+  const wheel = path.join(toolsPath(root, 'wheels'), path.basename(source));
+  mkdirSync(path.dirname(wheel), { recursive: true });
+  copyFileSync(source, wheel);
+  const config = path.join(root, 'config/toolchain.json');
+  mkdirSync(path.dirname(config), { recursive: true });
+  const current = existsSync(config) ? readJsonObject(config) : { schema: 1 };
+  writeFileSync(config, `${JSON.stringify({ ...current, pythonBackend: backend }, null, 2)}\n`);
+  sandboxShims(root, ['uv']);
 }
