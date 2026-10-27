@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 05dfc6cbfe321ddc0534a64813b9c0f632f77bf317b0d3cc5d886f5869a0ffb6 -->
+<!-- source-sha256: 6a0da6dd3e2a6a743f7ba6d14b032d601439a6c865620085f9ce9f03a9628a3d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- PHP extension builder는 기존 module을 바꾸지 않고 compiler warning과 make 실패 원인을 보존한다. 임시 산출물 정리를 확인하는 집중 fake-tool regression이 1/1 통과한다. (K709-1)
 
 - Push와 release gate가 development와 verification을 구분하고 release 또는 tag 생성 전에 verification을 요구하며 선언된 보존 branch를 유지한다. K708 집중 regression 19/19가 통과했다. 최초 release 파일 실행은 47개 통과, fixture가 Go 대신 mise shim을 찾은 환경 오류 7개였다. fixture가 `var/tools` 밖의 Go를 선택하도록 고친 뒤 해당 7개가 통과했다. (K708)
 
