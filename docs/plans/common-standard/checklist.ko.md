@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1269ee6c9f953e513f49ec46c2a300e21d533e796f5794b249c5f4b6c699c931 -->
+<!-- source-sha256: 3632e0e46b511409c9fe89f6755bda0e86ee445a4f9b47e633863d52c89dae81 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -666,4 +666,4 @@
 | K709-1 | PHP extension 빌드 실패 시 진단과 기존 산출물을 보존한다 | tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern='a failed extension build keeps compiler warnings' tests/kit/php-ext.test.mts` | [o] |
 | K710 | 소비자 Cargo 설치에 Kit Rust checker lock을 포함한다 | scripts/kit/check-cargo-downloads.mts, tests/kit/cargo-downloads.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K710 tests/kit/cargo-downloads.test.mts` | [o] |
 | K711 | Kit 0.0.60과 native consumer lock을 준비한다 | package.json, package-lock.json, tests/release-consumer/npm/package.json, tests/release-consumer/npm/package-lock.json, config/dependency-review.json, CHANGELOG.md(.ko), docs/operations/release.md(.ko) | `make release-consumer TAG=v0.0.60`; `make dependency-policy-check` | [o] |
-| K712 | tag 없는 consumer 준비를 위해 커밋된 HEAD에서 모든 release archive를 빌드한다 | scripts/kit/release.mts, scripts/kit/kit.mk, tests/kit/release.test.mts, docs/operations/release.md(.ko.md) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K712 tests/kit/release.test.mts`; changed-file type-aware oxlint; `make docs-check` | [ ] |
+| K712 | tag 없는 consumer 준비를 위해 커밋된 HEAD에서 모든 release archive를 빌드한다 | scripts/kit/release.mts, scripts/kit/kit.mk, tests/kit/release.test.mts, docs/operations/release.md(.ko.md) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K712 tests/kit/release.test.mts`; changed-file type-aware oxlint; `make docs-check` | [~] |
