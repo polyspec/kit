@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: aea198e2e41401854efddcd934fc4b9ae29893a5887fc4255eda9b15b1799cef -->
+<!-- source-sha256: 29d1002b0bc9b56c9a6a8518067862d70f7f6f760389fe9f84f1dbc7cac06df2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 각 독립 CI job의 오프라인 검사 전에 잠긴 Rust crate를 설치한다. Native Rust case 두 개는 빈 Cargo registry에서 실패하고 선언한 설치 후 통과하며, 영향받은 workflow case 세 개도 통과한다. (K705)
 
 ## 0.0.59
 
