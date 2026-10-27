@@ -57,11 +57,7 @@ function listed(root: string, command: string, args: string[], env: Environment)
 /** The nearest Python project manifest above a source entry, if it exists. */
 function pythonProject(entry: string): string | undefined {
   let directory = entry;
-  try {
-    if (!statSync(entry).isDirectory()) directory = path.dirname(entry);
-  } catch {
-    return undefined;
-  }
+  if (!statSync(entry).isDirectory()) directory = path.dirname(entry);
   for (;;) {
     const manifest = path.join(directory, 'pyproject.toml');
     if (existsSync(manifest)) return manifest;
@@ -80,9 +76,8 @@ export function pythonListed(root: string, entry: string, env: Environment, flag
     return { error: error instanceof Error ? error.message : String(error) };
   }
   const script = path.join(SYMBOLS, 'python.py');
-  if (pythonProject(path.resolve(root, entry)) === undefined) return listed(root, python, ['-I', script, entry, ...flags], env);
-
   try {
+    if (pythonProject(path.resolve(root, entry)) === undefined) return listed(root, python, ['-I', script, entry, ...flags], env);
     const backend = buildBackend(root);
     if (!/^setuptools==/i.test(backend.requirement)) {
       return { error: `Python package discovery needs setuptools, but config/toolchain.json declares ${backend.requirement}` };

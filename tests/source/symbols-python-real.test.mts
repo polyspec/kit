@@ -2,7 +2,8 @@
 // annotations or bases name a private symbol of the package (a name that starts with one _) is a leak; a public name is not.
 // Nothing is stubbed; make install-tools installs the python that this test runs.
 import assert from 'node:assert/strict';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -76,4 +77,13 @@ test('K701 honors setuptools package discovery exclusions when listing public sy
     'pkg/src/pkg/generated/models.py': 'class Account:\n    pass\n',
   }, 'pkg/src/pkg');
   assert.deepEqual(symbols, ['pkg.Public', 'pkg.api.Api', 'pkg.api.Api.call']);
+});
+
+test('K704 reports Python project discovery failures as extractor errors', (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'kit-python-project-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const entry = path.relative(ROOT, path.join(directory, 'missing.py'));
+  const result = pythonListed(ROOT, entry, toolsEnvironment(ROOT));
+  assert.ok('error' in result);
+  assert.match(result.error, /ENOENT/);
 });
