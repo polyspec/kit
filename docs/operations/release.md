@@ -25,6 +25,8 @@ manifest and lock, and turns the Unreleased section of `CHANGELOG.md(.ko)` into 
 the native packers may run package lifecycle scripts that restore version files from `HEAD`. Build all tagless candidate archives
 from committed `HEAD` with `make release-candidate-assets VERSION=X.Y.Z`. This uses the same manifest validation, generated-file
 handling and native packers as the tagged asset producer; it neither resolves nor creates a tag. Run
+the candidate command from a clean tracked tree with no non-ignored untracked files, because package lifecycle scripts can read
+build inputs outside their package directories. Commit source changes and rerun the candidate command when this check refuses.
 `make release-consumer-lock TAG=vX.Y.Z` (ONLINE) and the consumer proof against those candidate archive names, then commit the
 manifests and locks it writes in `tests/release-consumer/*/` before CI and tag creation (docs/operations/tool-inventory.md,
 Consumer install of the release archives, steps 1 and 2). The version change rewrites package-manager locks, so the release commit

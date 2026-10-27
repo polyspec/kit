@@ -732,13 +732,11 @@ function requireArchiveTools(ctx: Context, retry: string): void {
 /** Builds release candidates from committed HEAD without resolving, creating or pretending to have a tag. */
 export function candidateAssets(ctx: Context, version: string): string[] {
   if (!EXACT_VERSION.test(version)) throw new Stop(`candidate version ${JSON.stringify(version)} is not X.Y.Z`);
-  const { config } = ctx;
   const commit = run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], at(ctx)).trim();
-  const inputs = ['config/release.json', 'config/toolchain.json', ...config.packages.map(item => item.directory)];
-  const changed = run('git', ['diff', '--name-only', commit, '--', ...inputs], at(ctx)).trim().split('\n').filter(Boolean);
-  const untracked = run('git', ['ls-files', '--others', '--exclude-standard', '--', ...inputs], at(ctx)).trim().split('\n').filter(Boolean);
+  const changed = run('git', ['diff', '--name-only', commit], at(ctx)).trim().split('\n').filter(Boolean);
+  const untracked = run('git', ['ls-files', '--others', '--exclude-standard'], at(ctx)).trim().split('\n').filter(Boolean);
   const sourceChanges = [...new Set([...changed, ...untracked])].sort();
-  if (sourceChanges.length) throw new Stop(`candidate assets require package inputs to match committed HEAD ${commit}; changed or untracked: ${sourceChanges.join(', ')}; commit the package inputs, then run make release-candidate-assets VERSION=${version}`);
+  if (sourceChanges.length) throw new Stop(`candidate assets require source inputs to match committed HEAD ${commit}; changed or untracked paths: ${sourceChanges.join(', ')}; commit source changes, then run make release-candidate-assets VERSION=${version}`);
   const retry = `make release-candidate-assets VERSION=${version}`;
   requireArchiveTools(ctx, retry);
   return assetsFromCommit(ctx, `HEAD candidate ${version}`, commit, version);

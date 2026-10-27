@@ -336,13 +336,18 @@ test('K712 builds candidate archives from committed HEAD without a release tag',
   assert.equal(git(box.root, 'tag', '--list'), '', 'candidate generation does not create or require a tag');
 });
 
-test('K712 candidate archives refuse changed package inputs rather than packing worktree files', (t) => {
-  const box = releaseSandbox(t);
+test('K712 candidate archives refuse changed source inputs rather than packing worktree files', (t) => {
+  const box = releaseSandbox(t, { mutate(root) {
+    writeFileSync(path.join(root, 'Makefile'), 'release-assets: build\n');
+  } });
   writeFileSync(path.join(box.root, 'packages/fixture-lib/package.json'), '{"name":"changed"}\n');
-  stop(() => release.candidateAssets(context(box), '0.0.1'), /candidate assets require package inputs to match committed HEAD .* changed or untracked: packages\/fixture-lib/);
+  stop(() => release.candidateAssets(context(box), '0.0.1'), /candidate assets require source inputs to match committed HEAD .* changed or untracked paths: packages\/fixture-lib/);
   git(box.root, 'checkout', '--', 'packages/fixture-lib/package.json');
   writeFileSync(path.join(box.root, 'packages/fixture-lib/untracked.js'), 'module.exports = true;\n');
-  stop(() => release.candidateAssets(context(box), '0.0.1'), /candidate assets require package inputs to match committed HEAD .* changed or untracked: packages\/fixture-lib\/untracked\.js/);
+  stop(() => release.candidateAssets(context(box), '0.0.1'), /candidate assets require source inputs to match committed HEAD .* changed or untracked paths: packages\/fixture-lib\/untracked\.js/);
+  rmSync(path.join(box.root, 'packages/fixture-lib/untracked.js'));
+  writeFileSync(path.join(box.root, 'Makefile'), 'release-assets: build candidate-build\n');
+  stop(() => release.candidateAssets(context(box), '0.0.1'), /candidate assets require source inputs to match committed HEAD .* changed or untracked paths: Makefile/);
   assert.deepEqual(box.npmCalls(), [], 'the candidate refuses before invoking npm');
   assert.equal(existsSync(path.join(box.root, 'var/release/assets')), false);
 });

@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 9b434de28c53a6035bf22c8af9765cb52efd6febbaafb1b9bfe02bd32c7497fd -->
+<!-- source-sha256: d79b3b4a5860c3be63f4edbd066cccd927a300d4e0f3177644fe97eb2a1f41ba -->
 # 릴리스
 
 [English](release.md)
@@ -24,8 +24,10 @@ item-state 명령은 working-tree의 각 전이가 허용된 한 단계인지 �
 `CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. packing 전에 버전을 commit합니다. native packer가 version 파일을
 `HEAD`에서 복원하는 package lifecycle script를 실행할 수 있기 때문입니다. tag 없는 candidate archive 전체는 커밋된 `HEAD`에서
 `make release-candidate-assets VERSION=X.Y.Z`로 만듭니다. 이 명령은 tag asset producer와 같은 manifest 검사, 생성 파일 처리 및 native
-packer를 사용하며 tag를 조회하거나 만들지 않습니다. candidate archive 이름을 대상으로 `make release-consumer-lock TAG=vX.Y.Z`(ONLINE)와
-consumer proof를 실행한 뒤 `tests/release-consumer/*/`에 기록된 manifest와 lock을 CI 및 tag 생성 전에 commit합니다
+packer를 사용하며 tag를 조회하거나 만들지 않습니다. package lifecycle script가 package directory 바깥의 build input도 읽을 수 있으므로
+candidate command는 tracked 변경과 ignore되지 않은 untracked 파일이 없는 checkout을 요구합니다. 거부되면 source 변경을 commit한 뒤 candidate
+command를 다시 실행합니다. candidate archive 이름을 대상으로 `make release-consumer-lock TAG=vX.Y.Z`(ONLINE)와 consumer proof를 실행한 뒤
+`tests/release-consumer/*/`에 기록된 manifest와 lock을 CI 및 tag 생성 전에 commit합니다
 (docs/operations/tool-inventory.md, Consumer install of the release archives, 1단계와 2단계). 버전 변경은 package-manager lock을
 다시 쓰므로, 릴리스 commit은 `make dependency-review RECORD=1`(ONLINE)이 해당 lock에 대해 쓴 `config/dependency-review.json`도 담습니다.
 CI는 review와 다른 lock을 실패시키는 `make dependency-policy-check`를 실행합니다(K169). composer.json의 버전 변경도 그 directory에서
