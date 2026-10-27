@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f6254ad74eb7eb15ebf7c7dae54b3270bb9b852c38cdf23b0e34a8d3bf6ee7d8 -->
+<!-- source-sha256: a009a5b1c7a30ed87425426af5efed349742ee4c2cf9efbd2bb6eaabbe787754 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -615,7 +615,7 @@
 | K677-3 | 격리 PHP parity 수정과 native consumer lock, 의존성 검토를 포함한 kit 0.0.57 공개를 준비한다. | package.json, package-lock.json, tests/release-consumer/npm, config/dependency-review.json, CHANGELOG.md(.ko) | `node --test --test-name-pattern=K677-2 tests/kit/parity.test.mts` | [o] |
 | K677-4 | K696과 K697, native release consumer lock, 의존성 검토와 버전별 changelog를 포함한 kit 0.0.58 공개를 준비한다. | package.json, package-lock.json, tests/release-consumer/npm, config/dependency-review.json, CHANGELOG.md(.ko) | `node --test --test-name-pattern=K697 tests/kit/parity.test.mts` | [o] |
 | K677-5 | K698과 K430-2 수정 후 kit 0.0.58 consumer lock과 release 기록을 갱신한다. | tests/release-consumer/npm/package-lock.json, config/dependency-review.json, CHANGELOG.md(.ko) | `node --test tests/kit/run-command.test.mts` | [o] |
-| K677-6 | kit 0.0.59 manifests, native consumer locks, 검토된 의존성과 병렬 CI를 준비한다. 공개 release 검증은 K677-7에서 수행한다 | Versioned manifests and bilingual changelog, parallel CI with required kit aggregator, passing workflow and affected parity units, candidate assets, native consumer lock and dependency policy acceptance; public CI and release proof remain mandatory in K677-7 | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `make release-assets TAG=v0.0.59`; `make release-consumer-lock TAG=v0.0.59`; `make dependency-review RECORD=1`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.59` | [~] |
+| K677-6 | kit 0.0.59 manifests, native consumer locks, 검토된 의존성과 병렬 CI를 준비한다. 공개 release 검증은 K677-7에서 수행한다 | Versioned manifests and bilingual changelog, parallel CI with required kit aggregator, passing workflow and affected parity units, candidate assets, native consumer lock and dependency policy acceptance; public CI and release proof remain mandatory in K677-7 | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `make release-assets TAG=v0.0.59`; `make release-consumer-lock TAG=v0.0.59`; `make dependency-review RECORD=1`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.59` | [o] |
 | K677-7 | 최종 main CI 성공 후 kit 0.0.59를 공개하고 공개 배포의 consumer proof를 검증한다 | Successful kit CI on the final release commit, annotated public v0.0.59 tag, public release asset, and passing release proof; preparation remains K677-6 | `make release-verify TAG=v0.0.59`; `make release-proof TAG=v0.0.59` | [ ] |
 | K678 | 실제 locked install과 package 소비 검증을 유지하며 반복 준비 비용과 오래된 link 설명을 검토한다 | Reviewed six isolated builtCopy consumers across three source test files; retained native locked-install and packed-consumption coverage and per-process shared download cache; clarified dependency-root ownership and source-versus-packed export comments | `make docs-check` | [o] |
 | K679 | 기존 미완료 checklist 전체를 native package 소유권, 현재 runner 규칙, release 증거와 대조한 뒤 기존 지시의 재개 여부를 정한다 | common-standard plan 결정 대응표와 기존 checklist 판정, 한국어 짝 | `make docs-check` | [o] |
