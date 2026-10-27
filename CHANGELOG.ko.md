@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 97eee732f76984a6c0281b6008dd7b0550ebf88751dee2d15069e443cf6767af -->
+<!-- source-sha256: b6e2438c95f11fa6fce484b1e24b87a8021c51883d695689b266f73bfb2ba080 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- File URI 경로 검사는 잘못된 URI의 기존 fallback 동작을 유지하고 예상하지 못한 parser 오류를 다시 던진다. Red: K699 회귀 테스트가 예상하지 못한 parser 오류를 받아들였다(1 test). Green: 회귀 테스트가 통과한다(1 test). (K703)
 
 - Parity binding은 기본 native reporter를 대체하지 않고 runner 인자를 추가할 수 있습니다. 서로 다른 인자를 가진 binding은 별도로 실행하며 `command`와 binding `args`는 함께 쓸 수 없습니다. Red: K702 regression은 선언되지 않은 binding 인자로 실패했습니다(1 test). Green: 테스트가 통과합니다(1 test). (K702)
 

@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- File URI path checking keeps malformed URI fallback behavior and rethrows
+  unexpected parser failures. Red: the K699 regression accepted an unexpected
+  parser error (1 test); green: the regression passes (1 test). (K703)
+
 - Parity bindings can append runner arguments without replacing the native
   reporter; bindings with different arguments run separately, and `command`
   cannot be combined with binding `args`. Red: the K702 regression failed on
