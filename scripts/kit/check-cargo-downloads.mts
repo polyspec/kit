@@ -8,6 +8,8 @@
 //   node scripts/kit/check-cargo-downloads.mts [--fetch]
 import path from 'node:path';
 import { cargoLocks } from './dependency-state.mts';
+import { CATCH_CHECK_MANIFEST } from './lint-rust.mts';
+import { kitPackageRoot } from './kit-files.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 
@@ -17,9 +19,11 @@ export const FIX = 'run make cargo-downloads-fetch, which downloads the crates';
  * Runs `cargo fetch --locked` for every Cargo lock of `root`, offline unless `fetch`, and returns { locks, failures }: one
  * failure line per lock with the first error line of cargo.
  */
-export function cargoDownloads({ root = repositoryRoot(), fetch = false, cargo = 'cargo', env = process.env, print = () => {} }: { root?: string; fetch?: boolean; cargo?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void } = {}) {
+export function cargoDownloads({ root = repositoryRoot(), providerRoot = kitPackageRoot(), fetch = false, cargo = 'cargo', env = process.env, print = () => {} }: { root?: string; providerRoot?: string; fetch?: boolean; cargo?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void } = {}) {
   const failures: string[] = [];
   const locks = cargoLocks(root);
+  const providerLock = path.resolve(providerRoot, path.dirname(CATCH_CHECK_MANIFEST), 'Cargo.lock');
+  if (!locks.some(lock => path.resolve(root, lock) === providerLock)) locks.push(providerLock);
   for (const lock of locks) {
     const args = ['fetch', '--locked', ...(fetch ? [] : ['--offline']), '--manifest-path', path.join(path.dirname(lock), 'Cargo.toml')];
     const result = execute(cargo, args, { cwd: root, env });

@@ -47,3 +47,34 @@ test('--fetch runs cargo without --offline', (t) => {
   assert.deepEqual(failures, []);
   assert.deepEqual(stub.calls(), ['cargo fetch --locked --manifest-path packages/fixture-rust/Cargo.toml']);
 });
+
+test('K710 fetch includes the Kit catch-check lock for a consumer without fetching the same lock twice', (t) => {
+  const root = fixture(t);
+  const providerRoot = path.join(root, 'node_modules/@polyspec/kit');
+  const providerFolder = path.join(providerRoot, 'scripts/kit/catch-check-rust');
+  mkdirSync(providerFolder, { recursive: true });
+  writeFileSync(path.join(providerFolder, 'Cargo.toml'), '[package]\nname = "catch-check-rust"\nversion = "0.1.0"\n');
+  writeFileSync(path.join(providerFolder, 'Cargo.lock'), 'version = 3\n');
+  const stub = cargoStub(root);
+  const { locks, failures } = cargoDownloads({ root, providerRoot, fetch: true, cargo: stub.cargo, env: { ...process.env, MISSING: 'none' } });
+  assert.deepEqual(locks, ['packages/fixture-rust/Cargo.lock', path.join(providerRoot, 'scripts/kit/catch-check-rust/Cargo.lock')]);
+  assert.deepEqual(failures, []);
+  assert.deepEqual(stub.calls(), [
+    'cargo fetch --locked --manifest-path packages/fixture-rust/Cargo.toml',
+    `cargo fetch --locked --manifest-path ${path.join(providerFolder, 'Cargo.toml')}`,
+  ]);
+
+  const kitRoot = fixture(t);
+  const kitFolder = path.join(kitRoot, 'scripts/kit/catch-check-rust');
+  mkdirSync(kitFolder, { recursive: true });
+  writeFileSync(path.join(kitFolder, 'Cargo.toml'), '[package]\nname = "catch-check-rust"\nversion = "0.1.0"\n');
+  writeFileSync(path.join(kitFolder, 'Cargo.lock'), 'version = 3\n');
+  const providerStub = cargoStub(kitRoot);
+  const providerFetch = cargoDownloads({ root: kitRoot, providerRoot: kitRoot, fetch: true, cargo: providerStub.cargo, env: { ...process.env, MISSING: 'none' } });
+  assert.deepEqual(providerFetch.locks, ['packages/fixture-rust/Cargo.lock', 'scripts/kit/catch-check-rust/Cargo.lock']);
+  assert.deepEqual(providerFetch.failures, []);
+  assert.deepEqual(providerStub.calls(), [
+    'cargo fetch --locked --manifest-path packages/fixture-rust/Cargo.toml',
+    'cargo fetch --locked --manifest-path scripts/kit/catch-check-rust/Cargo.toml',
+  ]);
+});
