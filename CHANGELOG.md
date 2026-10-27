@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Push and release gates now distinguish development from verification, enforce verification before release or tag creation, and preserve declared retained branches. The focused K708 regressions passed 19/19; the release file initially passed 47 tests and had seven failures caused by its fixture resolving a mise shim as Go. After correcting the fixture to select Go outside `var/tools`, the seven affected tests passed. (K708)
+
 - The existing `cargo-downloads-fetch` installs the provider's locked Rust checker dependencies for consumer offline lint, and deduplicates the lock when run from Kit itself. The focused regression passes 1/1, and the ORM consumer install fetched all three ORM locks and the Kit checker lock. (K710)
 
 - The existing PHP extension CLI is public as `@polyspec/kit/php-extension`, with no change to its command or arguments. Its output/source-copy/configure argument case passes 1/1, the packed mapping passes 1/1, and the installed archive imports the module from dist (1/1). (K709)

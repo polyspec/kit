@@ -7,6 +7,7 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { fixtureCheckout } from './checkout.mts';
+import { checkoutTools } from './checkout-stubs.mts';
 import { toolStubs } from './registry.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { BACKEND_BYTES, BACKEND_FILE, PYTHON3_WHEEL_STUB } from './wheel-stubs.mts';
@@ -205,11 +206,8 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
   writeFileSync(path.join(root, 'var/tools/bin/npm'), NPM_STUB);
   chmodSync(path.join(root, 'var/tools/bin/npm'), 0o755);
-  // go is the tool of the checkout as well: its shim runs the go of PATH, which reads the go.mod files of the fixture.
-  const realGo = spawnSync('/bin/sh', ['-c', 'command -v go'], { encoding: 'utf8' }).stdout.trim();
-  mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
-  writeFileSync(path.join(root, 'var/tools/mise/shims/go'), `#!/bin/sh\nexec '${realGo}' "$@"\n`);
-  chmodSync(path.join(root, 'var/tools/mise/shims/go'), 0o755);
+  // go reads the go.mod files of the fixture. Pin the binary outside var/tools so a mise shim cannot recurse into this fixture's config.
+  checkoutTools(root, ['go']);
   const state = path.join(root, '.stubs/state.json');
   const npmLog = path.join(root, '.stubs/npm.log');
   writeFileSync(npmLog, '');
