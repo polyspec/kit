@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3632e0e46b511409c9fe89f6755bda0e86ee445a4f9b47e633863d52c89dae81 -->
+<!-- source-sha256: 747a847273a868029839ecea05009be37449c3debf5a0f24df26cf0c53571e5f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -667,3 +667,4 @@
 | K710 | 소비자 Cargo 설치에 Kit Rust checker lock을 포함한다 | scripts/kit/check-cargo-downloads.mts, tests/kit/cargo-downloads.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K710 tests/kit/cargo-downloads.test.mts` | [o] |
 | K711 | Kit 0.0.60과 native consumer lock을 준비한다 | package.json, package-lock.json, tests/release-consumer/npm/package.json, tests/release-consumer/npm/package-lock.json, config/dependency-review.json, CHANGELOG.md(.ko), docs/operations/release.md(.ko) | `make release-consumer TAG=v0.0.60`; `make dependency-policy-check` | [o] |
 | K712 | tag 없는 consumer 준비를 위해 커밋된 HEAD에서 모든 release archive를 빌드한다 | scripts/kit/release.mts, scripts/kit/kit.mk, tests/kit/release.test.mts, docs/operations/release.md(.ko.md) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K712 tests/kit/release.test.mts`; changed-file type-aware oxlint; `make docs-check` | [~] |
+| K713 | provider 도구 fixture를 실제 설치 도구 경로와 맞춘다 | Cargo provider-lock expectations, correctly installed Go proof stub, preserved failure assertions and scoped CI regression evidence | `node scripts/kit/run-tests.mts node -- tests/kit/cargo-downloads.test.mts`; `node scripts/kit/run-tests.mts node -- tests/kit/release-proof.test.mts` | [ ] |
