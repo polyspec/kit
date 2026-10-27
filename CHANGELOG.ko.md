@@ -1,14 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ca23ba83b79ca585a9a0f000d3efe397311c952d7119b8ea4e803b3a69dcce4f -->
+<!-- source-sha256: aea198e2e41401854efddcd934fc4b9ae29893a5887fc4255eda9b15b1799cef -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- 독립 CI jobs와 필수 kit summary, 잠긴 native consumer 설치 및 완전한 Python backend fixture로 0.0.59를 준비한다. Workflow 테스트 16/16, 영향받은 parity case 124/124, 실제 Python 심벌 case 1/1이 통과했다. 공개 CI와 release proof는 K677-7에서 반드시 검증한다. (K677-6)
-
 ## 0.0.59
+
+- 독립 CI jobs와 필수 kit summary, 잠긴 native consumer 설치 및 완전한 Python backend fixture로 0.0.59를 준비한다. Workflow 테스트 16/16, 영향받은 parity case 124/124, 실제 Python 심벌 case 1/1이 통과했다. 공개 CI와 release proof는 K677-7에서 반드시 검증한다. (K677-6)
 
 - Python 심벌 추출은 project 조회 실패를 프로젝트가 없는 경우로 취급하지 않고 오류로 보고한다. Red: K704 누락 entry case가 project 조회 오류 대신 extractor 실행 오류를 반환했다. Green: K701 package discovery case와 함께 K704가 통과한다(각 1 case). (K704)
 

@@ -5,9 +5,9 @@
 
 ## Unreleased
 
-- Prepare 0.0.59 with independent CI jobs and the required kit summary, locked native consumer installation, and complete Python backend fixtures. Workflow tests pass 16/16, affected parity cases 124/124 and the real Python symbol case 1/1. Public CI and release proof remain required by K677-7. (K677-6)
-
 ## 0.0.59
+
+- Prepare 0.0.59 with independent CI jobs and the required kit summary, locked native consumer installation, and complete Python backend fixtures. Workflow tests pass 16/16, affected parity cases 124/124 and the real Python symbol case 1/1. Public CI and release proof remain required by K677-7. (K677-6)
 
 - Python symbol extraction reports project lookup failures instead of treating
   a failed stat as no project. Red: the K704 missing-entry case returned the
