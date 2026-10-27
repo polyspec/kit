@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d8d1e43bb8e12e1fb73064a79659d6f9d60c75dabb151a551768d6193c75128a -->
+<!-- source-sha256: ab822848ff412fcf7cf3268ad39202093ac73ab6e13c8a8afd1338c12b23f2a1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.59
 
 - Python 심벌 추출은 project 조회 실패를 프로젝트가 없는 경우로 취급하지 않고 오류로 보고한다. Red: K704 누락 entry case가 project 조회 오류 대신 extractor 실행 오류를 반환했다. Green: K701 package discovery case와 함께 K704가 통과한다(각 1 case). (K704)
 

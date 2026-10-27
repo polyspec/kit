@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.59
+
 - Python symbol extraction reports project lookup failures instead of treating
   a failed stat as no project. Red: the K704 missing-entry case returned the
   extractor process error rather than the project lookup error; green: K704
