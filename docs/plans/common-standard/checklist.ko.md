@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 95f14ed1d50b32d1397cac93c48c660b2923789417d7e1a5daa5172179d0610f -->
+<!-- source-sha256: 08d05e469339fefdcca3ff441bc933aed7fdd5703e8aa3f6f8b3cc624d530d45 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -659,3 +659,4 @@
 | K704 | Python project discovery 오류를 숨기지 않고 보고한다 | scripts/kit/parity-symbols.mts, tests/source/symbols-python-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K704 tests/source/symbols-python-real.test.mts`; `node scripts/kit/catch-check.mts`; `make typecheck`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K705 | 독립 오프라인 CI test job 전에 잠긴 Rust 검사기 의존성을 설치한다 | Explicit existing Cargo download setup in each job that needs the checker, cold-job workflow regression and passing K537/K620 unit cases; no network fallback during checks | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="a Rust Err arm\|a narrow Err arm" tests/kit/catch-check.test.mts` | [o] |
 | K706 | 예상한 Composer fixture 실패가 GitHub 오류 주석으로 노출되지 않게 한다 | Scoped fixture subprocess environment isolation, unchanged negative assertions and a focused regression; actual product failures retain their diagnostics | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K681 tests/kit/dependency-review.test.mts` | [ ] |
+| K707 | 공유 helper API를 source와 설치 package의 정식 exports로 제공한다 | Five public subpath exports, canonical pack mapping, native installed-consumer import proof and aligned API documentation | `node scripts/kit/run-tests.mts node -- tests/kit/pack-manifest.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/package.test.mts` | [ ] |
