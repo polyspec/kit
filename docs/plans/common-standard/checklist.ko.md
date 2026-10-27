@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f15c96af5dbdbf947104b95325d6e246bab0baa8de9ac77f9434cb7678937d79 -->
+<!-- source-sha256: 951a813aeba967550b19a2edf7ff9d760194584978413d10257c08ffebf29de6 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -662,4 +662,5 @@
 | K707 | 공유 helper API를 source와 설치 package의 정식 exports로 제공한다 | Five public subpath exports, canonical pack mapping, native installed-consumer import proof and aligned API documentation | `node scripts/kit/run-tests.mts node -- --test-name-pattern=packed.exports tests/kit/pack-manifest.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=tarball.imports tests/source/package.test.mts` | [o] |
 | K708 | 푸시와 릴리스 게이트에서 개발과 검증 단계를 구분한다 | Explicit verification state and transitions, development blocking on push, verification blocking before release/tag, strict readable checklists, pinned intentional branch-retention declarations and native gate regressions | K708 선택 테스트 19개 통과. fixture Go shim 경로 수정 후 선택한 release 회귀 테스트 7개 통과. 최초 release 파일 실행은 47개 통과, 7개 환경 실패였으며 수정 후 실패한 7개만 재실행했다. `make docs-check` | [o] |
 | K709 | PHP extension builder를 Kit package API로 공개한다 | A `php-extension` source and packed export, with installed-consumer coverage preserving the existing CLI options | `node scripts/kit/run-tests.mts node -- --test-name-pattern=build.stages.declared.sources tests/kit/php-ext.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=packed.exports tests/kit/pack-manifest.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=tarball.imports tests/source/package.test.mts` | [o] |
+| K709-1 | PHP extension 빌드 실패 시 진단과 기존 산출물을 보존한다 | tests/kit/php-ext.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=a failed extension build keeps compiler warnings tests/kit/php-ext.test.mts` | [ ] |
 | K710 | 소비자 Cargo 설치에 Kit Rust checker lock을 포함한다 | scripts/kit/check-cargo-downloads.mts, tests/kit/cargo-downloads.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K710 tests/kit/cargo-downloads.test.mts` | [o] |
