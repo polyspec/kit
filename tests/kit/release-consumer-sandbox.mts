@@ -252,14 +252,13 @@ export function consumerSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.
   const names = release.assets(ctx(), tag);
   const bin = path.join(box.root, '.stubs/bin');
   const stateFile = path.join(box.root, '.stubs/tools.json');
-  // npm and composer are the tools of the checkout, so their stubs are the files that var/tools/bin holds, and go is the shim of
-  // mise (K393-1); the others are on PATH.
+  // npm, composer and go are selected from the checkout tool directory; the other stubs are on PATH.
   const checkoutBin = path.join(box.root, 'var/tools/bin');
   const checkoutShims = path.join(box.root, 'var/tools/mise/shims');
   mkdirSync(checkoutBin, { recursive: true });
   mkdirSync(checkoutShims, { recursive: true });
   for (const [name, source] of Object.entries(STUBS)) {
-    const folder = name === 'npm' || name === 'composer' ? checkoutBin : name === 'go' ? checkoutShims : bin;
+    const folder = name === 'npm' || name === 'composer' || name === 'go' ? checkoutBin : bin;
     writeFileSync(path.join(folder, name), source);
     chmodSync(path.join(folder, name), 0o755);
   }

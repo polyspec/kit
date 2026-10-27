@@ -5,7 +5,12 @@ import { chmodSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { cargoDownloads, FIX } from '../../scripts/kit/check-cargo-downloads.mts';
+import { CATCH_CHECK_MANIFEST } from '../../scripts/kit/lint-rust.mts';
+import { kitPackageRoot } from '../../scripts/kit/kit-files.mts';
 import { fixtureCheckout as fixture } from './checkout.mts';
+
+const PROVIDER_MANIFEST = path.resolve(kitPackageRoot(), CATCH_CHECK_MANIFEST);
+const PROVIDER_LOCK = path.join(path.dirname(PROVIDER_MANIFEST), 'Cargo.lock');
 
 // A cargo that logs its arguments and fails for a manifest named by MISSING with the error line of cargo.
 function cargoStub(root: string) {
@@ -26,10 +31,16 @@ test('every Cargo.lock is fetched offline and the check passes when every crate 
   const stub = cargoStub(root);
   const printed: string[] = [];
   const { locks, failures } = cargoDownloads({ root, cargo: stub.cargo, env: { ...process.env, MISSING: 'none' }, print: (line: string) => printed.push(line) });
-  assert.deepEqual(locks, ['packages/fixture-rust/Cargo.lock']);
+  assert.deepEqual(locks, ['packages/fixture-rust/Cargo.lock', PROVIDER_LOCK]);
   assert.deepEqual(failures, []);
-  assert.deepEqual(stub.calls(), ['cargo fetch --locked --offline --manifest-path packages/fixture-rust/Cargo.toml']);
-  assert.deepEqual(printed, ['packages/fixture-rust/Cargo.lock: every crate is downloaded']);
+  assert.deepEqual(stub.calls(), [
+    'cargo fetch --locked --offline --manifest-path packages/fixture-rust/Cargo.toml',
+    `cargo fetch --locked --offline --manifest-path ${PROVIDER_MANIFEST}`,
+  ]);
+  assert.deepEqual(printed, [
+    'packages/fixture-rust/Cargo.lock: every crate is downloaded',
+    `${PROVIDER_LOCK}: every crate is downloaded`,
+  ]);
 });
 
 test('a missing crate fails with the lock and the first error line of cargo, not its retry advice', (t) => {
@@ -45,7 +56,10 @@ test('--fetch runs cargo without --offline', (t) => {
   const stub = cargoStub(root);
   const { failures } = cargoDownloads({ root, fetch: true, cargo: stub.cargo, env: { ...process.env, MISSING: 'none' } });
   assert.deepEqual(failures, []);
-  assert.deepEqual(stub.calls(), ['cargo fetch --locked --manifest-path packages/fixture-rust/Cargo.toml']);
+  assert.deepEqual(stub.calls(), [
+    'cargo fetch --locked --manifest-path packages/fixture-rust/Cargo.toml',
+    `cargo fetch --locked --manifest-path ${PROVIDER_MANIFEST}`,
+  ]);
 });
 
 test('K710 fetch includes the Kit catch-check lock for a consumer without fetching the same lock twice', (t) => {
