@@ -21,9 +21,12 @@ import { initRepository } from './sandbox-repository.mts';
 import { KIT, KIT_MAKE, tool } from './kit-tools.mts';
 import { known } from './known.mts';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
+import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { bindinglessCatches, emptyCatches } from '../../scripts/kit/catch-check.mts';
+import { BACKEND_BYTES, BACKEND_FILE } from './wheel-stubs.mts';
 
 const TIMEOUT = { timeout: 120_000 };
+const PYTHON_BACKEND = { requirement: 'setuptools==84.0.0', sha256: sha256(BACKEND_BYTES) };
 // A declaration config/parity.json that a case edits, also into a shape that breaks the schema on purpose: each type names
 // the fields that the cases read, and every value that a case replaces is unknown.
 type Entry = { [field: string]: unknown };
@@ -231,6 +234,19 @@ for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
 process.exit(exit);
 `;
 
+// The uv stand-in of this declaration fixture: package symbol extraction still receives the pinned backend wheel through the
+// normal uv command shape, then runs the Python shim with the requested extractor arguments.
+const UV_STUB = `#!/usr/bin/env node
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
+const args = process.argv.slice(2);
+const python = args.indexOf('python');
+if (args[0] !== 'run' || python < 0) { process.stderr.write('uv stub: unexpected arguments ' + JSON.stringify(args) + '\\n'); process.exit(2); }
+const result = spawnSync(path.join(process.cwd(), 'var/tools/mise/shims/python3'), args.slice(python + 1), { stdio: 'inherit' });
+if (result.error) { process.stderr.write(result.error.message + '\\n'); process.exit(1); }
+process.exit(result.status ?? 1);
+`;
+
 const STUBS = mkdtempSync(path.join(tmpdir(), 'kit-parity-stubs-'));
 for (const [name, text] of [['go', GO_STUB], ['cargo', CARGO_STUB], ['php', PHP_STUB]] as const) {
   writeFileSync(path.join(STUBS, name), text);
@@ -287,8 +303,10 @@ const FILES = {
   'go/symbols.txt': 'go/codec.go::Encode\n',
   'rust/symbols.txt': 'encode\n',
   // rustdoc JSON is unstable, so the rust extractor runs the Rust nightly that an exception declares.
-  'config/toolchain.json': JSON.stringify({ schema: 1,
+  'config/toolchain.json': JSON.stringify({ schema: 1, pythonBackend: PYTHON_BACKEND,
     requirements: { pattern: 'CX-[0-9]+' }, exceptions: [{ tool: 'rust', channel: 'nightly-2026-10-01', scope: '.', reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' }] }),
+  [`var/tools/wheels/${BACKEND_FILE}`]: BACKEND_BYTES,
+  'var/tools/mise/shims/uv': UV_STUB,
   'ts/package.json': '{ "name": "codec-ts", "version": "0.0.0" }\n',
   'ts/index.d.ts': TS_API('export declare const encode: () => number;'),
   'php/symbols.txt': 'php/src/Codec.php::Codec::encode\n',
@@ -384,6 +402,7 @@ function repository(t: TestContext, { files = {}, edit = config => config }: Cha
   const root = tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
   chmodSync(path.join(root, 'var/tools/mise/shims/python3'), 0o755);
   chmodSync(path.join(root, 'var/tools/mise/shims/composer'), 0o755);
+  chmodSync(path.join(root, 'var/tools/mise/shims/uv'), 0o755);
   if (all['var/tools/symbols-go/bin/kit-symbols-go'] !== null) chmodSync(path.join(root, 'var/tools/symbols-go/bin/kit-symbols-go'), 0o755);
   return root;
 }
@@ -1220,7 +1239,7 @@ test('an API unit without symbols fails the declaration and names the unit, and 
 
 test('the rust extractor runs the Rust nightly of the exception whose scope holds the crate, and names a missing one (K75)', TIMEOUT, (t) => {
   const exception = (channel: string, scope = '.') => ({ tool: 'rust', channel, scope, reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' });
-  const messages = (exceptions: unknown[]) => check(t, { files: { 'config/toolchain.json': JSON.stringify({ schema: 1,
+  const messages = (exceptions: unknown[]) => check(t, { files: { 'config/toolchain.json': JSON.stringify({ schema: 1, pythonBackend: PYTHON_BACKEND,
     requirements: { pattern: 'CX-[0-9]+' }, exceptions }) } }).findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`);
   assert.deepEqual(messages([exception('nightly-2026-10-01', 'rust')]), []);
   const [none] = messages([exception('nightly-2026-10-01', 'go')]);
