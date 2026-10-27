@@ -169,7 +169,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 ## Repository 기준
 
 owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 시 실패하는 tool로 강제합니다. tool, 순서, 예측한 실패는
-[standards enforcement 계획](https://github.com/polyspec/kit/blob/main/docs/plans/standards-enforcement/plan.ko.md)(kit에만 있음)에 있습니다. tool이 착지하기 전에는 여기 적힌 대로
+[standards enforcement 계획](https://github.com/polyspec/kit/blob/main/docs/plans/standards-enforcement/plan.md)(kit에만 있음)에 있습니다. tool이 착지하기 전에는 여기 적힌 대로
 작업을 구속합니다.
 
 - S1 재발명 금지: 각 생태계의 규칙을 따르고, 그 tool과 library를 있는 그대로 씁니다. 우리 규칙은 우리가 만드는 것에만
