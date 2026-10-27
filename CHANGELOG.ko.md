@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3c659feb6719396b16e5d9ea31b18fd1426159b96a870d4dae796cdcfa3c6b32 -->
+<!-- source-sha256: e394c3fc2f0574daa3f49aad9320fc2ca94582469d1a726df13a257f8f39786b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.60
 
 - 기존 Korean principles의 canonical English standards plan 링크 수정을 release에 포함했다. (K711-1)
 
@@ -13,8 +15,6 @@
 - 기존 npm, Composer, generated PHP와 wheel producer를 재사용해 committed HEAD의 tagless candidate archive를 만든다. Candidate build는 미커밋 source를 거부하며 tag 생성과 공개의 CI gate는 유지한다. (K712)
 
 - commit은 합법적인 working-tree 전이 경로로 도달한 최종 checklist state를 기록할 수 있으며, item-state의 각 작업은 여전히 한 단계만 허용한다. 회귀 검사는 대기에서 완료까지의 commit 경로, 직접 대기에서 완료로 옮기는 작업의 거부, 완료 항목 재개방 거부를 확인한다. Retained-branch lifecycle 도구는 repository policy로 분류한다. (K708-1)
-
-## 0.0.60
 
 - Tag 없는 native npm candidate와 consumer lock, 최신 dependency review로 Kit 0.0.60을 준비합니다. 로컬 consumer 설치와 offline policy 검사가 통과했고 release tag는 만들지 않았습니다. (K711)
 

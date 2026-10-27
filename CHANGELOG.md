@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.60
+
 - Included the existing Korean principles link to the canonical English standards plan in the release. (K711-1)
 
 - Kept Cargo fetch expectations aligned with the provider checker lock and installed the Go proof stub at the selected checkout tool path, preserving offline, failure and version assertions. (K713)
@@ -12,8 +14,6 @@
 - Added tagless candidate archives from committed HEAD through the existing npm, Composer, generated PHP and wheel producers; candidate builds reject uncommitted source, while tag creation and publication keep their CI gates. (K712)
 
 - Commits may record a final checklist state reachable through legal working-tree transitions; item-state still permits only one edge per operation. Regressions cover a committed waiting-to-done path, refusal of a direct waiting-to-done operation and refusal to reopen done items. The retained-branch lifecycle tool is classified as repository policy. (K708-1)
-
-## 0.0.60
 
 - Prepared Kit 0.0.60 with a tagless native npm candidate, consumer lock and current dependency review. The local consumer installation and offline policy check passed; no release tag was created. (K711)
 
