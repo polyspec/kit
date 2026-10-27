@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 4ee36c3e4eaaa3116adcc45096c69789981166843f85faa2b050ed6fbe6386b5 -->
+<!-- source-sha256: 3060c88e973211c143a090f2fd0a9fa167798dd1015df806f1446e3874e70fda -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -662,3 +662,4 @@
 | K707 | 공유 helper API를 source와 설치 package의 정식 exports로 제공한다 | Five public subpath exports, canonical pack mapping, native installed-consumer import proof and aligned API documentation | `node scripts/kit/run-tests.mts node -- --test-name-pattern=packed.exports tests/kit/pack-manifest.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=tarball.imports tests/source/package.test.mts` | [o] |
 | K708 | 푸시와 릴리스 게이트에서 개발과 검증 단계를 구분한다 | Explicit verification state and transitions, development blocking on push, verification blocking before release/tag, strict readable checklists, pinned intentional branch-retention declarations and native gate regressions | `node scripts/kit/run-tests.mts node -- tests/kit/checklist.test.mts tests/kit/push-gate.test.mts tests/kit/plan.test.mts tests/kit/release.test.mts` | [ ] |
 | K709 | PHP extension builder를 Kit package API로 공개한다 | A `php-extension` source and packed export, with installed-consumer coverage preserving the existing CLI options | `node scripts/kit/run-tests.mts node -- --test-name-pattern=build.stages.declared.sources tests/kit/php-ext.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=packed.exports tests/kit/pack-manifest.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=tarball.imports tests/source/package.test.mts` | [o] |
+| K710 | 소비자 Cargo 설치에 Kit Rust checker lock을 포함한다 | scripts/kit/check-cargo-downloads.mts, tests/kit/cargo-downloads.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K710 tests/kit/cargo-downloads.test.mts` | [ ] |
