@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1281a6badb92deae956e0a74e1aa6ce2a013d4009b8df544954643cae7ad34b0 -->
+<!-- source-sha256: 3c659feb6719396b16e5d9ea31b18fd1426159b96a870d4dae796cdcfa3c6b32 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 기존 Korean principles의 canonical English standards plan 링크 수정을 release에 포함했다. (K711-1)
 
 - Cargo fetch 기대값에 provider checker lock을 포함하고 Go proof stub을 선택된 checkout tool 경로에 설치한다. Offline, 실패와 version assertion은 유지한다. (K713)
 

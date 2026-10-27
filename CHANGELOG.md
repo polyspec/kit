@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Included the existing Korean principles link to the canonical English standards plan in the release. (K711-1)
+
 - Kept Cargo fetch expectations aligned with the provider checker lock and installed the Go proof stub at the selected checkout tool path, preserving offline, failure and version assertions. (K713)
 
 - Added tagless candidate archives from committed HEAD through the existing npm, Composer, generated PHP and wheel producers; candidate builds reject uncommitted source, while tag creation and publication keep their CI gates. (K712)
