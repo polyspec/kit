@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 377a96c153e37c83a2eb36a5af04bddbd18cd2830c5dc6f16facd2b82ce71a0f -->
+<!-- source-sha256: ab482163474a3a22fdb4150006857e796acea80fa374c813fa736e0b38abfa2e -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -673,6 +673,6 @@
 | K715 | 보류한 동작을 실행하지 않고 패리티 바인딩을 보존한다 | scripts/kit/parity-requirements.mts scripts/kit/parity-declaration.mts scripts/kit/parity-units.mts scripts/kit/parity-ledger.mts scripts/kit/parity.mts tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K715 tests/kit/parity.test.mts` | [o] |
 | K716 | 릴리스 CI 40650656525가 보고한 패리티 회귀를 수정한다 | tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts scripts/kit/parity-symbols.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K715 tests/kit/parity-requirements.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K677-2 tests/kit/parity.test.mts` | [o] |
 | K717 | Internal PHP trait에서 합성된 공개 메서드를 추출한다 | scripts/kit/symbols/php/PublicSymbols.php tests/source/symbols-php-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K717 tests/source/symbols-php-real.test.mts` | [o] |
-| K718 | 독립 단위 검사와 언어별 native 검사를 CI job에서 병렬 실행한다 | .github/workflows/ci.yml Makefile scripts/kit/claude-hook.mts tests/kit/claude-hook.test.mts tests/source/ci-workflow.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K249-3 tests/kit/claude-hook.test.mts` | [~] |
+| K718 | 독립 단위 검사와 언어별 native 검사를 CI job에서 병렬 실행한다 | .github/workflows/ci.yml Makefile scripts/kit/claude-hook.mts tests/kit/claude-hook.test.mts tests/source/ci-workflow.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K249-3 tests/kit/claude-hook.test.mts` | [o] |
 | K719 | 언어 고유 API 형식을 정확한 릴리스 산출물과 언어 명시 요구사항으로 검증한다 | scripts/kit/parity-declaration.mts scripts/kit/parity-symbols.mts scripts/kit/parity-units.mts scripts/kit/schema/parity.schema.json tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K719 tests/kit/parity.test.mts` | [ ] |
-| K720 | 병렬 CI를 위해 공개 API와 native binding 패리티 단계를 분리한다 | scripts/kit/parity.mts tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K720 tests/kit/parity.test.mts` | [ ] |
+| K720 | 병렬 CI를 위해 공개 API와 native binding 패리티 단계를 분리한다 | scripts/kit/parity.mts tests/kit/parity.test.mts docs/operations/tool-inventory.md(.ko.md) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K720 tests/kit/parity.test.mts`; `make docs-check` | [ ] |

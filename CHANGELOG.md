@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Run Kit unit tests in six parallel CI shards and source tests in nine explicit groups, enforcing exact-once test coverage and the final success gate. (K718)
 - Extract effective public PHP trait members on consuming classes, including nested composition, aliases and visibility/precedence adaptations, while keeping internal trait declarations hidden. (K717)
 
 - Aligned mixed deferred-requirement expectations and preserved requirement markers in native PHP fixture rewrites, keeping the failure and cleanup assertions intact. (K716)
