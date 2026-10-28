@@ -4,6 +4,7 @@
     "make": "the scripts of package.json, owner-check.mts and the tests run the targets of the Makefile",
     "go": "tests/source/govulncheck-packages-real.test.mts runs the go of mise.toml",
     "rustup": "install-rust.mts installs the pinned Rust toolchain with rustup",
+    "taskkill.exe": "scripts/kit/process-group.mts uses Windows taskkill to stop a native process tree",
     "shasum": "tests/kit/release.test.mts checks the sha256 of the release assets with shasum",
     "php": "tests/source/link-composer-real.test.mts and symbols-php-real.test.mts run the php of mise.toml (K304-1, K307)",
     "openssl": "tests/kit/install-vscode.test.mts makes the certificate of its stub of update.code.visualstudio.com (K173)"

@@ -100,7 +100,7 @@ test('the infrastructure target discovers every tracked Node test and rejects an
 });
 
 test('the platform smoke requires its tracked fixture and uses the standard Node runner (K739)', () => {
-  const fixture = 'tests/kit/fixture/standard-case-sensitive-smoke.mts';
+  const fixture = 'tests/kit/standard-case-sensitive-smoke.mts';
   assert.deepEqual(caseSensitiveSmokeRuns([fixture]), [{ cwd: '.', tool: 'node', args: [fixture] }]);
   assert.throws(() => caseSensitiveSmokeRuns([]), /is not tracked/);
 });

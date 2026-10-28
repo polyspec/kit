@@ -4,7 +4,8 @@
       "**/*.test.{ts,mts,cts,mjs,cjs,js}",
       "scripts/**/*.{ts,mts,cts,mjs,cjs,js}",
       "benchmarks/**/*.{ts,mts,cts,mjs,cjs,js}",
-      "tests/kit/record-*.mts"
+      "tests/kit/record-*.mts",
+      "tests/kit/standard-case-sensitive-smoke.mts"
     ]
   },
   "ignoreDependencies": [

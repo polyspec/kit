@@ -188,7 +188,7 @@ export function infrastructureRuns(files: readonly string[], platform: NodeJS.Pl
 
 /** One tracked fixture for the platform workflow to smoke the actual resource-context and standard Node runner. */
 export function caseSensitiveSmokeRuns(files: readonly string[]): Run[] {
-  const fixture = 'tests/kit/fixture/standard-case-sensitive-smoke.mts';
+  const fixture = 'tests/kit/standard-case-sensitive-smoke.mts';
   if (!files.includes(fixture)) throw new Error(`${fixture} is not tracked; add the standard runner smoke fixture`);
   return [{ cwd: '.', tool: 'node', args: [fixture] }];
 }
