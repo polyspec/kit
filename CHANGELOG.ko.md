@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5ccde79490bbc5cec063f22475b4518429e7bca398756f3611ffa8cd8a069a96 -->
+<!-- source-sha256: 3aba9a31365136ada094cc6ce0f1129aeb68e67fd07a164d86bf3d4c56d43b7c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 임시 소비자 fixture가 찾는 위치에 PHP 파서를 설치하고 PHPStan raw 출력의 정확한 원인 유실 진단을 검증합니다. (K728)
 
 - 잠긴 PHPStan 규칙으로 잡은 예외의 원인 유실을 거부하고 언어별 실제 오류 검사와 검증 범위를 기록합니다. (K727)
 
