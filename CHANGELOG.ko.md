@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d25ca330811ec2a402b92064102a147338459fafe40996463fcd02d712abcd3e -->
+<!-- source-sha256: aa5d964ba75d5eead9ed88d9d09c2f7754bd2db6d0afce72866101a5c290b25b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 언어별 공개 API 형태를 해당 릴리스 산출물의 심볼로 검증하며 공통 동작, 실행 가능한 요구사항 추적과 전체 공개 심볼 검사를 유지합니다. (K719)
 - Kit 단위검사를 CI 6개 작업으로, 소스 검사를 명시적인 9개 그룹으로 병렬 실행하며 테스트 누락·중복과 최종 성공 판정을 검사합니다. (K718)
 - Nested composition, alias, visibility/precedence adaptation을 반영해 PHP trait의 유효한 공개 멤버를 사용하는 클래스에서 추출하고, internal trait 선언 자체는 숨기도록 했습니다. (K717)
 
