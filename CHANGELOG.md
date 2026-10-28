@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Reject caught-exception cause loss with a locked native PHPStan rule and document the executable language-specific error checks and their limits. (K727)
+
 - Run each TypeScript violation fixture through its explicitly declared owner step while keeping every finding assertion and real full-pipeline positive, negative and routing coverage. (K726)
 - Declare the PHP parser used by native autoload lint and compare broken-repository failures against the running Git diagnostic instead of version-specific wording. (K725)
 - Restore exact PHP/Composer, Go, Python and PHP extractor prerequisites for the CI shards that use them, and retain the forbidden-input rule after moving its negative-test fixture. (K724)

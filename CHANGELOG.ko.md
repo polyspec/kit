@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2670bf7311d2a8d07bd44bb36dde285e9cae5c2e9e8718e77eee1e40520bbb4c -->
+<!-- source-sha256: 5ccde79490bbc5cec063f22475b4518429e7bca398756f3611ffa8cd8a069a96 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 잠긴 PHPStan 규칙으로 잡은 예외의 원인 유실을 거부하고 언어별 실제 오류 검사와 검증 범위를 기록합니다. (K727)
 
 - TypeScript 위반 fixture마다 명시한 소유 검사 단계만 실행하고 기존 진단 단언 및 실제 전체 파이프라인의 정상·실패·라우팅 검증은 유지합니다. (K726)
 - native autoload lint의 PHP 파서 의존성을 선언하고 잘못된 저장소의 실패를 Git 버전별 문구 대신 실제 Git 진단과 비교합니다. (K725)
