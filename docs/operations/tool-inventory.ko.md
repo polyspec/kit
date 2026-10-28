@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: bfa872bf3140d258b9b9eb37a3e76504d2eaa1cbcc8aecc041d149bd82f1b73c -->
+<!-- source-sha256: 6adc6128eea758f9c1340d4bd24159f38bd90a176865d56b3e8ea0f396b6ad02 -->
 
 # 도구 목록
 
@@ -809,11 +809,41 @@ fixture이며, 각 fixture는 자기 위반에서 실패합니다. 모든 도구
 | 언어 | 도구 (pin) | 설정 | Runner |
 |---|---|---|---|
 | Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: `--config ruff.toml`로 ruff; 각 package의 Python 파일에 그 폴더에서 confidence 60으로 vulture |
-| PHP | phpcs 4.0.4, PHPStan 2.3.1, spaze/phpstan-disallowed-calls 4.15.0, phpstan/extension-installer 1.4.3 (Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon`; `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: checkout의 PHP 파일에 phpcs; 각 Composer package에 그 package 또는 그 위의 가장 가까운 Composer project(Composer monorepo의 root development project 등)의 `vendor/autoload.php`로 PHPStan(`composer-vendor.mts`, run-tests와 공유; `COMPOSER_VENDOR_DIR`는 다른 vendor directory를 지정) |
+| PHP | phpcs 4.0.4, PHPStan 2.3.1, phpstan/extension-installer 1.4.3, spaze/phpstan-disallowed-calls 4.15.0, shipmonk/phpstan-rules 4.4.1 (Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon` (ShipMonk의 caught-exception cause rule만 활성화); `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: checkout의 PHP 파일에 phpcs; 각 Composer package에 그 package 또는 그 위의 가장 가까운 Composer project(Composer monorepo의 root development project 등)의 `vendor/autoload.php`로 PHPStan(`composer-vendor.mts`, run-tests와 공유; `COMPOSER_VENDOR_DIR`는 다른 vendor directory를 지정) |
 | Rust | `rust-toolchain.toml`의 cargo clippy | `lint-cargo-lints` (`config/cargo.schema.json`), `clippy.toml` (P8: `Result::ok`, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`에 대한 `disallowed-methods`) | `lint-rust.mts`: 각 workspace에서 `cargo clippy --workspace --all-targets --locked -- -D warnings`와 P8 lint(`unused_must_use`, `let_underscore_must_use`, `let_underscore_untyped`, `map_err_ignore`, `allow_attributes_without_reason`); `kit-gates`의 member |
 | Go | golangci-lint 2.14.0, golang.org/x/tools 0.52.0의 deadcode (`mise.toml`) | `.golangci.yml`: error string은 spec의 대소문자를 유지하는 cross-port message이므로 ST1005 없는 staticcheck, 모든 finding 보고(`max-same-issues`와 `max-issues-per-linter` 0; K164) | `lint-go.mts`: 각 module에서 golangci-lint와 `deadcode -test ./...` |
 | TypeScript | oxlint 1.88.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (kit의 dependencies, kit과 함께 설치) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
 | 전체 | — | `.editorconfig` | 없음: 각 언어의 formatter가 같은 규칙을 강제합니다 |
+
+### 공통 lint 의무와 native 증거
+
+공통 오류 처리 의무는 P8(K256, K334)입니다. lint는 삼킨 오류, 버린 오류 결과, 실패를 감추는 fallback을 거부하고,
+필요한 예외 처리나 suppression에는 이유를 적습니다. 생태계별 rule 이름은 다르므로 동일한 rule 이름이 아니라 실제 위반
+fixture가 실패하고 이유를 밝힌 예외가 통과하는지로 확인합니다.
+
+| Runtime | Native fixture와 case | Owner 명령 |
+|---|---|---|
+| TypeScript | `tests/source/lint-ts-real.test.mts`: `the TypeScript lint fails on each planted violation…`; `the TypeScript lint passes on a catch with a stated need and on an error that keeps its cause` | `node scripts/kit/run-tests.mts node -- tests/source/lint-ts-real.test.mts` |
+| Go | `tests/source/lint-go-real.test.mts`: 생성된 `the Go lint fails on…` case가 미검사/무시한 오류, 오류일 때 nil 반환, `fmt.Errorf`의 `%v` wrapping을 검사하고 `%w`/`errors.Is`와 이유가 있는 suppression은 통과 | `node scripts/kit/run-tests.mts node -- tests/source/lint-go-real.test.mts` |
+| PHP | `tests/source/lint-php-real.test.mts`: `the PHP lint fails on each planted violation…`가 빈 주석 전용 catch와 `@`를 검사하고, `the PHP lint requires a replacement exception to retain its caught cause`가 원인을 잃은 예외를 거부하고 `previous`와 직접 다시 던지기를 통과시킵니다. | `node scripts/kit/run-tests.mts node -- tests/source/lint-php-real.test.mts` |
+| Python | `tests/source/lint-python-real.test.mts`: `the Python lint fails on each planted violation…`가 조용한 예외 처리, traceback 손실, `finally`의 return을 검사하고, 이유를 밝힌 처리는 통과 | `node scripts/kit/run-tests.mts node -- tests/source/lint-python-real.test.mts` |
+| Rust | `tests/source/lint-rust-real.test.mts`: `the Rust lint fails on each planted violation…`가 버린 `Result`, 오류를 무시하는 `map_err`, 오류를 기본값으로 바꾸는 동작을 검사하고, 이유가 있는 허용은 통과 | `node scripts/kit/run-tests.mts node -- tests/source/lint-rust-real.test.mts` |
+| PHP extension C | `tests/kit/php-ext.test.mts`: `the build of an extension fails on a dropped result that must be checked, P8 for C (K334)`가 `warn_unused_result`를 주입해 unchecked 실패와 확인된 성공을 비교 | `node scripts/kit/run-tests.mts node -- tests/kit/php-ext.test.mts` |
+
+`tests/kit/suppression-check.test.mts`는 지원 생태계의 이유 없는 suppression과 이유를 적은 형태도 검사합니다.
+`scripts/kit/lint-steps.mts::runLint`는 앞선 단계가 실패해도 모든 lint 단계를 실행하고 실패한 단계를 이름으로 보고하며,
+`tests/kit/lint-<runtime>.test.mts`가 이 동작을 검사합니다. 구문과 이름 해석은 각 언어의 parser/compiler/analyzer가
+담당합니다. 미사용 코드 검사는 Knip, deadcode, Vulture, Clippy 등 host별 범위가 다르며 공통 기준은 미사용 symbol 탐색
+범위가 언어마다 같다고 약속하지 않습니다. TypeScript의 type-aware Oxlint, Knip workspace/dependency 검사, API Extractor는
+TypeScript 전용 정적 검사이므로 추가 실행 시간만으로 공통 동작 격차라고 볼 수 없습니다.
+
+TypeScript와 PHP에는 잡은 exception을 새 exception으로 바꾸는 직접 fixture가 있습니다. PHP의 잠금된 ShipMonk rule은
+`previous` 없이 바꾸는 경우를 거부하고, 잡은 exception을 `previous`로 전달하거나 직접 다시 던지는 경우를 통과시킵니다.
+Go의 `%v`/`%w` 쌍은 format된 오류 wrapping을 검사하지만 같은 source-level 규칙을 증명하지 않습니다. Python은 다르게 동작합니다.
+`except` 안에서 새 exception을 던지면 처리 중인 exception이 자동으로 `__context__`에 연결되고, `raise ... from None`은 그 표시를
+억제합니다. 따라서 TRY201 fixture의 traceback 검사는 PHP의 명시적 생성자 인자 패턴과 같지 않습니다
+([Python exception chaining](https://docs.python.org/3/reference/simple_stmts.html#exception-chaining)). Rust의 `map_err` fixture는 오류를 무시하지 않는지 검사할 뿐, 잡은 cause를 전달하는지는 검사하지 않습니다.
+고정된 Python 3.14.8 runtime에서 implicit `__context__`와 `from None` 억제 flag를 각각 확인했습니다.
 
 TypeScript lint는 설치된 kit provider에서 Node의 native package lookup으로 선언된 dependency package를 해석해요. 각 package가 선언한 실행 파일을 실행하고 native backend bin directory를 oxlint에 제공해요. Linked source 설치와 packed 설치는 같은 lookup을 사용하며 consumer root의 transitive bin link를 요구하지 않아요.
 

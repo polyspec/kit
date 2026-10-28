@@ -1,8 +1,9 @@
-// Installs the PHP lint of kit, the Composer project of config/php-lint (phpcs, PHPStan, spaze/phpstan-disallowed-calls and
-// phpstan/extension-installer), into var/tools/php-lint, with the wrappers phpcs and phpstan in var/tools/bin, by
+// Installs the PHP lint of kit, the Composer project of config/php-lint (phpcs, PHPStan, spaze/phpstan-disallowed-calls,
+// ShipMonk's caught-exception cause rule and phpstan/extension-installer), into var/tools/php-lint, with the wrappers phpcs
+// and phpstan in var/tools/bin, by
 // install-composer-project.mts. The release of the project is the sha256 of its composer.lock: an installation holds the
 // lock it was installed from, so a changed lock installs again. extension-installer is a Composer plugin, which the
-// composer.json of the project allows; it registers the disallowed calls of PHPStan, so phpstan.dist.neon names no path.
+// composer.json of the project allows; it registers the PHPStan extensions, so phpstan.dist.neon names no package path.
 import { statSync } from 'node:fs';
 import path from 'node:path';
 import { fileDigest } from './bootstrap/digest.mts';

@@ -108,6 +108,21 @@ test('the PHP lint fails on each planted violation with the sniff or the rule th
   }
 });
 
+test('the PHP lint requires a replacement exception to retain its caught cause (P8, K334)', (t) => {
+  const lostCause = php('final class Demo\n{\n    public function double(int $value): int\n    {\n        try {\n            return $value * 2;\n        } catch (\\Throwable $error) {\n            throw new \\RuntimeException("doubling failed");\n        }\n    }\n}\n');
+  const failed = lintOf(repository(t, { [DEMO]: lostCause }));
+  assert.deepEqual(failed.failed, ['phpstan packages/php'], `only PHPStan should reject the cause loss:\n${failed.output}`);
+  assert.match(failed.output, /shipmonk\.missingPreviousException/, 'the PHPStan rule did not name the cause loss');
+
+  for (const source of [
+    php('final class Demo\n{\n    public function double(int $value): int\n    {\n        try {\n            return $value * 2;\n        } catch (\\Throwable $error) {\n            throw new \\RuntimeException("doubling failed", 0, $error);\n        }\n    }\n}\n'),
+    php('final class Demo\n{\n    public function double(int $value): int\n    {\n        try {\n            return $value * 2;\n        } catch (\\Throwable $error) {\n            throw $error;\n        }\n    }\n}\n'),
+  ]) {
+    const result = lintOf(repository(t, { [DEMO]: source }));
+    assert.deepEqual(result.failed, [], result.output);
+  }
+});
+
 test('the PHP lint resolves a library of a Composer monorepo with the autoloader of the root project', (t) => {
   const root = repository(t, MONOREPO, '.');
   assert.ok(!existsSync(path.join(root, 'packages/php/vendor')), 'the library has a vendor/ of its own');

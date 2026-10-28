@@ -898,11 +898,40 @@ violation; every tool is the latest stable release, checked on the pins of S4.
 | Language | Tools (pin) | Configuration | Runner |
 |---|---|---|---|
 | Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: ruff with `--config ruff.toml`; vulture at confidence 60 on the Python files of each package, from its folder |
-| PHP | phpcs 4.0.4, PHPStan 2.3.1, spaze/phpstan-disallowed-calls 4.15.0, phpstan/extension-installer 1.4.3 (the Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon`; `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: phpcs on the PHP files of the checkout; PHPStan on each Composer package with the `vendor/autoload.php` of the package or of the nearest Composer project above it, such as the root development project of a Composer monorepo (`composer-vendor.mts`, shared with run-tests; `COMPOSER_VENDOR_DIR` names another vendor directory) |
+| PHP | phpcs 4.0.4, PHPStan 2.3.1, phpstan/extension-installer 1.4.3, spaze/phpstan-disallowed-calls 4.15.0, shipmonk/phpstan-rules 4.4.1 (the Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon` (only ShipMonk's caught-exception cause rule is enabled); `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: phpcs on the PHP files of the checkout; PHPStan on each Composer package with the `vendor/autoload.php` of the package or of the nearest Composer project above it, such as the root development project of a Composer monorepo (`composer-vendor.mts`, shared with run-tests; `COMPOSER_VENDOR_DIR` names another vendor directory) |
 | Rust | cargo clippy of `rust-toolchain.toml` | `lint-cargo-lints` (`config/cargo.schema.json`), `clippy.toml` (P8: `disallowed-methods` for `Result::ok`, `unwrap_or`, `unwrap_or_default` and `unwrap_or_else`) | `lint-rust.mts`: `cargo clippy --workspace --all-targets --locked -- -D warnings` and the P8 lints (`unused_must_use`, `let_underscore_must_use`, `let_underscore_untyped`, `map_err_ignore`, `allow_attributes_without_reason`) in each workspace; a member of `kit-gates` |
 | Go | golangci-lint 2.14.0, deadcode of golang.org/x/tools 0.52.0 (`mise.toml`) | `.golangci.yml`: staticcheck without ST1005, since an error string is a cross-port message of the spec that keeps its capitalization, and every finding reported (`max-same-issues` and `max-issues-per-linter` 0; K164) | `lint-go.mts`: golangci-lint and `deadcode -test ./...` in each module |
 | TypeScript | oxlint 1.88.0 with oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (dependencies of kit, installed with it) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, and API Extractor in each package with an `api-extractor.json` |
 | All | — | `.editorconfig` | none: the formatters of each language enforce the same rules |
+
+### Shared lint obligations and native evidence
+
+The shared error-handling obligation is P8 (K256, K334): a lint rejects swallowed errors, dropped error results, and fallbacks
+that hide a failure; a necessary exception or suppression states its reason. The ecosystem rule names differ, so evidence is the
+real planted-failure and stated-reason cases, not identical rule names:
+
+| Runtime | Native fixture and case | Owner command |
+|---|---|---|
+| TypeScript | `tests/source/lint-ts-real.test.mts`: `the TypeScript lint fails on each planted violation…`; `the TypeScript lint passes on a catch with a stated need and on an error that keeps its cause` | `node scripts/kit/run-tests.mts node -- tests/source/lint-ts-real.test.mts` |
+| Go | `tests/source/lint-go-real.test.mts`: generated `the Go lint fails on…` cases for unchecked/blanked errors, nil-on-error, and `fmt.Errorf` wrapping with `%v`; the `%w`/`errors.Is` variant and reasoned suppression pass | `node scripts/kit/run-tests.mts node -- tests/source/lint-go-real.test.mts` |
+| PHP | `tests/source/lint-php-real.test.mts`: `the PHP lint fails on each planted violation…` covers empty/comment-only catches and `@`; `the PHP lint requires a replacement exception to retain its caught cause` rejects a lost cause and accepts both `previous` and direct rethrow | `node scripts/kit/run-tests.mts node -- tests/source/lint-php-real.test.mts` |
+| Python | `tests/source/lint-python-real.test.mts`: `the Python lint fails on each planted violation…` covers silent exceptions, traceback loss, and return from `finally`; stated handling passes | `node scripts/kit/run-tests.mts node -- tests/source/lint-python-real.test.mts` |
+| Rust | `tests/source/lint-rust-real.test.mts`: `the Rust lint fails on each planted violation…` covers dropped `Result`, ignored `map_err`, and error-to-default conversions; reasoned allowances pass | `node scripts/kit/run-tests.mts node -- tests/source/lint-rust-real.test.mts` |
+| PHP extension C | `tests/kit/php-ext.test.mts`: `the build of an extension fails on a dropped result that must be checked, P8 for C (K334)` injects `warn_unused_result` and verifies unchecked failure versus checked success | `node scripts/kit/run-tests.mts node -- tests/kit/php-ext.test.mts` |
+
+`tests/kit/suppression-check.test.mts` also checks reasonless and reasoned suppression forms across the supported ecosystems.
+`scripts/kit/lint-steps.mts::runLint` runs every lint step after an earlier step fails and reports each failed step by label;
+the `tests/kit/lint-<runtime>.test.mts` suites exercise that behavior. Syntax and name resolution are handled by each native
+parser/compiler/analyzer. Unused-code checks are deliberately host-specific (for example, Knip, deadcode, Vulture, and Clippy);
+the common standard does not promise identical unused-symbol reachability. Type-aware Oxlint, Knip's workspace/dependency scan,
+and API Extractor add TypeScript-specific checks, so their extra runtime is not evidence of a shared behavior gap.
+
+TypeScript and PHP have direct caught-exception replacement fixtures. PHP's locked ShipMonk rule rejects a replacement that omits
+`previous` and accepts a replacement with the caught exception plus a direct rethrow. Go's `%v`/`%w` pair checks formatted error
+wrapping and does not establish the same source-level rule. Python behaves differently: raising a new exception inside `except`
+automatically attaches the handled exception as `__context__`, while `raise ... from None` suppresses that display; its TRY201 fixture
+checks traceback preservation rather than PHP's explicit-constructor-argument pattern ([Python exception chaining](https://docs.python.org/3/reference/simple_stmts.html#exception-chaining)). Rust's `map_err` fixture checks that an error is not ignored, not caught-cause forwarding.
+The pinned Python 3.14.8 runtime was checked for both implicit `__context__` and the `from None` suppression flag.
 
 The make targets and the copies (`kit.copies`) are wired on the kit package. `toolchain-mise.mts` reads the lint tools of
 `mise.toml` and `toolchain-lint.mts` the PHP lint, after the bootstrap, and `make toolchain-check` probes each installed release:
