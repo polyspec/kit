@@ -149,7 +149,7 @@ test('parity phase coverage rejects missing, duplicate, mixed, empty and unknown
 });
 
 test('the default complete parity gate does not require phase targets in CHECK_TARGETS', () => {
-  const target = (name: string) => [name, { prerequisites: [], recipe: '' }] as const;
+  const target = (name: string): [string, { prerequisites: string[]; recipe: string }] => [name, { prerequisites: [], recipe: '' }];
   const make = { targets: new Map([target('parity-check'), target('parity-api-check'), target('parity-bindings-%-check')]), variables: new Map([['CHECK_TARGETS', 'parity-check']]) };
   assert.deepEqual(parityPhaseFindings(make, ['go']), []);
 });
