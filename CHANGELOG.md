@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Split the parity test file into two independent CI shards, preserving all 132 test titles and bodies exactly once and sharing their fixtures without duplication. (K722)
 - Fix parity phase fixture types, remove duplicated phase blocks, and isolate nested Make probes from parent shard variables so empty-selector checks cannot recurse into their own CI group. (K721)
 - Split parity CI into public API/static checks and selected native binding phases, preserving every static rule and the default complete check. (K720)
 - Verify host-native public API forms against their own release artifact while retaining shared behavior, executable requirement tracing and complete public symbol coverage. (K719)

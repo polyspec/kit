@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f2fbb8db6911392600d22b746f249b1dc797230eef141ffbe004367db0284e39 -->
+<!-- source-sha256: fa03a5f4250a541669f2c25f7372cf0341aad895b16d22f6ad86017cdff9e342 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- parity 테스트 파일을 두 독립 CI 작업으로 나누고 공통 fixture를 중복 없이 공유하며 132개 테스트의 이름과 본문을 각각 정확히 한 번 보존합니다. (K722)
 - parity 단계 fixture 타입과 중복 블록을 수정하고 자식 Make 검사에서 부모 shard 변수를 격리해 빈 선택값 검사가 같은 CI 그룹을 재귀 실행하지 않도록 했습니다. (K721)
 - parity CI를 공개 API·정적 검사와 언어별 native 실행 단계로 나누고 전체 정적 규칙 및 기본 전체 검사 동작을 유지합니다. (K720)
 - 언어별 공개 API 형태를 해당 릴리스 산출물의 심볼로 검증하며 공통 동작, 실행 가능한 요구사항 추적과 전체 공개 심볼 검사를 유지합니다. (K719)

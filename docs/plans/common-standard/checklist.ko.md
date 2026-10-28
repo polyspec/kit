@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: e6ad4d7a25c0de6ae9324bd9fec3b03751d1f4dce4f4d7bf7f378bfe2714d236 -->
+<!-- source-sha256: f19d9e0bd3b00330e1ef0d3f26e9054c650eb6ee83f5d6202c5f934842bbc017 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -677,4 +677,4 @@
 | K719 | 언어 고유 API 형식을 정확한 릴리스 산출물과 언어 명시 요구사항으로 검증한다 | scripts/kit/parity-declaration.mts scripts/kit/parity-symbols.mts scripts/kit/parity-units.mts scripts/kit/schema/parity.schema.json tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K719 tests/kit/parity.test.mts` | [o] |
 | K720 | 병렬 CI를 위해 공개 API와 native binding 패리티 단계를 분리한다 | scripts/kit/parity.mts tests/kit/parity.test.mts docs/operations/tool-inventory.md(.ko.md) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K720 tests/kit/parity.test.mts`; `make docs-check` | [o] |
 | K721 | 병렬 parity CI 타입 오류와 중복 단계 블록 수정 | scripts/kit/parity.mts tests/kit/parity.test.mts tests/source/ci-workflow.test.mts | `make typecheck`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K720 tests/kit/parity.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `make duplication-check` | [o] |
-| K722 | 가장 긴 parity 테스트 shard를 두 병렬 작업으로 분할 | Makefile .github/workflows/ci.yml tests/kit tests/source/ci-workflow.test.mts | `make typecheck`; `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts` | [~] |
+| K722 | 가장 긴 parity 테스트 shard를 두 병렬 작업으로 분할 | Makefile .github/workflows/ci.yml tests/kit tests/source/ci-workflow.test.mts | `make typecheck`; `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts` | [o] |
