@@ -3,7 +3,8 @@
 // is unset, and kit-test is kit's own target, since a repository holds no tests/kit.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -28,6 +29,60 @@ test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT 
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'docs-check', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
   assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
+});
+
+test('Windows Make recipes use the Node.js selected by mise and its npm CLI, while npm-install gets the native wrapper', (t) => {
+  const tools = mkdtempSync(path.join(tmpdir(), 'kit-make-windows-sdk-'));
+  t.after(() => rmSync(tools, { recursive: true, force: true }));
+  const mise = path.join(tools, 'mise-release/mise/bin/mise.exe');
+  mkdirSync(path.dirname(mise), { recursive: true });
+  if (process.platform === 'win32') copyFileSync(process.execPath, mise);
+  else writeFileSync(mise, '#!/bin/sh\nprintf \'%s\\n\' "$MISE_DATA_DIR|$MISE_CACHE_DIR|$MISE_STATE_DIR|$MISE_CONFIG_DIR|$MISE_GLOBAL_CONFIG_FILE|$MISE_GLOBAL_CONFIG_ROOT|$MISE_LOCKED|$MISE_AUTO_INSTALL|$UV_PYTHON_DOWNLOADS|$UV_NO_CONFIG|$UV_CACHE_DIR" >&2\nprintf \'%s\\n\' "$KIT_MISE_NODE_DIR"\n', { mode: 0o755 });
+  const nodeDirectory = process.platform === 'win32' ? path.join(tools, 'fake-node') : 'D:\\kit-sdk\\node\\26.12.0';
+  const node = process.platform === 'win32' ? path.join(nodeDirectory, 'node.exe') : path.join(ROOT, 'D:/kit-sdk/node/26.12.0/node.exe');
+  mkdirSync(path.dirname(node), { recursive: true });
+  if (process.platform === 'win32') copyFileSync(process.execPath, node);
+  else {
+    writeFileSync(node, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+    t.after(() => rmSync(path.join(ROOT, 'D:'), { recursive: true, force: true }));
+  }
+  const where = path.join(ROOT, 'where');
+  assert.equal(existsSync(where), false, 'the fixture has an uncontested name for mise where');
+  t.after(() => rmSync(where, { force: true }));
+  if (process.platform === 'win32') writeFileSync(where, `console.error(JSON.stringify(Object.fromEntries(['MISE_DATA_DIR', 'MISE_CACHE_DIR', 'MISE_STATE_DIR', 'MISE_CONFIG_DIR', 'MISE_GLOBAL_CONFIG_FILE', 'MISE_GLOBAL_CONFIG_ROOT', 'MISE_LOCKED', 'MISE_AUTO_INSTALL', 'UV_PYTHON_DOWNLOADS', 'UV_NO_CONFIG', 'UV_CACHE_DIR'].map(name => [name, process.env[name]]))));\nconsole.log(process.env.KIT_MISE_NODE_DIR);\n`);
+  const makeTools = tools.replaceAll('\\', '/');
+  const makeNodeDirectory = nodeDirectory.replaceAll('\\', '/');
+  const makefile = readFileSync(KIT_MK, 'utf8');
+  assert.match(makefile, /KIT_MISE_BINARY := .*mise\.exe/);
+  assert.match(makefile, /KIT_NODE_DIRECTORY := \$\(shell \$\(KIT_MISE_ENVIRONMENT_ARGS\) "\$\(KIT_MISE_BINARY\)" where node\)/);
+
+  const env = { ...process.env, KIT_MISE_NODE_DIR: nodeDirectory };
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'npm-install', 'KIT=scripts/kit', 'KIT_EXT=mts', 'OS=Windows_NT', `KIT_TOOLS=${makeTools}`], { cwd: ROOT, encoding: 'utf8', env });
+  assert.equal(dry.status, 0, dry.stdout + dry.stderr);
+  assert.match(dry.stdout, /NPM_BIN=.*\/bin\/npm\.cmd\s+.*node\.exe scripts\/kit\/npm-install\.mts/, dry.stderr);
+  const normalized = (value: string) => path.normalize(value.replaceAll('\\', '/'));
+  const environmentLine = dry.stderr.split('\n').find(line => process.platform === 'win32' ? line.startsWith('{') : line.includes('|'));
+  assert.ok(environmentLine, dry.stderr);
+  const values = process.platform === 'win32' ? Object.values(JSON.parse(environmentLine) as Record<string, string>) : environmentLine.split('|');
+  const [miseData, miseCache, miseState, miseConfig, globalConfig, globalConfigRoot, locked, autoInstall, uvDownloads, uvConfig, uvCache] = values;
+  const observed = { MISE_DATA_DIR: miseData, MISE_CACHE_DIR: miseCache, MISE_STATE_DIR: miseState, MISE_CONFIG_DIR: miseConfig, MISE_GLOBAL_CONFIG_FILE: globalConfig, MISE_GLOBAL_CONFIG_ROOT: globalConfigRoot, MISE_LOCKED: locked, MISE_AUTO_INSTALL: autoInstall, UV_PYTHON_DOWNLOADS: uvDownloads, UV_NO_CONFIG: uvConfig, UV_CACHE_DIR: uvCache };
+  assert.deepEqual({ ...observed, MISE_DATA_DIR: normalized(observed.MISE_DATA_DIR ?? ''), MISE_CACHE_DIR: normalized(observed.MISE_CACHE_DIR ?? ''), MISE_STATE_DIR: normalized(observed.MISE_STATE_DIR ?? ''), MISE_CONFIG_DIR: normalized(observed.MISE_CONFIG_DIR ?? ''), MISE_GLOBAL_CONFIG_FILE: normalized(observed.MISE_GLOBAL_CONFIG_FILE ?? ''), MISE_GLOBAL_CONFIG_ROOT: normalized(observed.MISE_GLOBAL_CONFIG_ROOT ?? ''), UV_CACHE_DIR: normalized(observed.UV_CACHE_DIR ?? '') }, {
+    MISE_DATA_DIR: normalized(path.join(tools, 'mise')),
+    MISE_CACHE_DIR: normalized(path.join(tools, 'mise/cache')),
+    MISE_STATE_DIR: normalized(path.join(tools, 'mise/state')),
+    MISE_CONFIG_DIR: normalized(path.join(tools, 'mise/config')),
+    MISE_GLOBAL_CONFIG_FILE: normalized(path.join(ROOT, 'mise.toml')),
+    MISE_GLOBAL_CONFIG_ROOT: normalized(ROOT),
+    MISE_LOCKED: '1',
+    MISE_AUTO_INSTALL: '0',
+    UV_PYTHON_DOWNLOADS: 'never',
+    UV_NO_CONFIG: '1',
+    UV_CACHE_DIR: normalized(path.join(tools, 'mise/cache/uv')),
+  });
+
+  const runner = spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(ROOT, 'Makefile'), 'install-packages', 'OS=Windows_NT', `KIT_TOOLS=${makeTools}`], { cwd: ROOT, encoding: 'utf8', env });
+  assert.equal(runner.status, 0, runner.stdout + runner.stderr);
+  assert.match(runner.stdout, /^.*node\.exe .*\/npm\/node_modules\/npm\/bin\/npm-cli\.js ci$/m);
 });
 
 test('consumer kit.mk exposes the shared PHP arginfo and selective symbol installers', () => {

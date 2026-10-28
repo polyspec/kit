@@ -52,5 +52,6 @@ test('the platform smoke installs pinned packages before SDK tools and requires 
   assert.match(workflow, /var\/tools\/bin\/node var\/tools\/npm\/node_modules\/npm\/bin\/npm-cli\.js ci --ignore-scripts --allow-remote=root/);
   assert.match(workflow, /\.\\var\\tools\\bin\\node\.cmd \.\\var\\tools\\npm\\node_modules\\npm\\bin\\npm-cli\.js ci --ignore-scripts --allow-remote=root/);
   assert.match(workflow, /install pinned Kit dependencies[\s\S]*?install pinned Go and Rust toolchains/);
+  assert.match(workflow, /verify Git Bash Make uses pinned Node\.js on Windows[\s\S]*?shell: bash[\s\S]*?run: make --no-print-directory kit-check/);
   assert.match(workflow, /platform-bootstrap-passed:[\s\S]*?if: always\(\)[\s\S]*?needs: \[bootstrap\][\s\S]*?BOOTSTRAP_RESULT: \$\{\{ needs\.bootstrap\.result \}\}[\s\S]*?test "\$BOOTSTRAP_RESULT" = success/);
 });

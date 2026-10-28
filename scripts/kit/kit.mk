@@ -34,13 +34,27 @@ export UV_CACHE_DIR := $(KIT_TOOLS)/mise/cache/uv
 MISE_ENVIRONMENT := MISE_DATA_DIR MISE_CACHE_DIR MISE_STATE_DIR MISE_CONFIG_DIR MISE_GLOBAL_CONFIG_FILE MISE_GLOBAL_CONFIG_ROOT MISE_LOCKED MISE_AUTO_INSTALL UV_PYTHON_DOWNLOADS UV_NO_CONFIG UV_CACHE_DIR
 export PATH := $(KIT_TOOLS)/bin:$(KIT_TOOLS)/mise/shims:$(PATH)
 
-# A recipe starts a tool of the checkout by its absolute path, never by its bare name: make 3.81 looks up a recipe line
-# without shell syntax on the PATH that make started with, not on the PATH above, so `node` there was the node of the
-# machine (K171). NODE is the Node.js of mise.toml, whose wrapper the bootstrap writes; BOOTSTRAP_NODE is the node of the
-# machine, which only starts the bootstrap that installs NODE and toolchain-lock, which writes the mise.lock that the bootstrap
-# installs NODE from (K174). A repository's own recipes use these variables too.
+# A recipe starts the pinned tools of the checkout by absolute paths, never by bare names (K171). POSIX uses the native shell
+# wrappers. On Windows Make recipes run in Git Bash, which cannot execute a .cmd wrapper as a Bash command, so NODE is the
+# node.exe selected by mise and NPM is that NODE with the installed npm-cli.js. NPM_BIN remains the native wrapper path for
+# Node's cross-spawn callers. If the SDK is absent, ordinary recipes still point into var/tools and fail; only the bootstrap
+# target uses the machine Node.js through BOOTSTRAP_NODE (K174).
+ifeq ($(OS),Windows_NT)
+KIT_MISE_BINARY := $(KIT_TOOLS)/mise-release/mise/bin/mise.exe
+ifneq ($(wildcard $(KIT_MISE_BINARY)),)
+KIT_MISE_ENVIRONMENT_ARGS := $(foreach variable,$(MISE_ENVIRONMENT),$(variable)="$($(variable))")
+KIT_NODE_DIRECTORY := $(shell $(KIT_MISE_ENVIRONMENT_ARGS) "$(KIT_MISE_BINARY)" where node)
+NODE := $(if $(KIT_NODE_DIRECTORY),$(subst \,/,$(KIT_NODE_DIRECTORY))/node.exe,$(KIT_TOOLS)/bin/node)
+else
+NODE := $(KIT_TOOLS)/bin/node
+endif
+NPM := $(NODE) $(KIT_TOOLS)/npm/node_modules/npm/bin/npm-cli.js
+NPM_BIN ?= $(if $(filter command line,$(origin NPM)),$(NPM),$(KIT_TOOLS)/bin/npm.cmd)
+else
 NODE := $(KIT_TOOLS)/bin/node
 NPM := $(KIT_TOOLS)/bin/npm
+NPM_BIN ?= $(NPM)
+endif
 ALINT := $(KIT_TOOLS)/mise/shims/alint
 BOOTSTRAP_NODE := node
 
@@ -445,7 +459,7 @@ composer-install: ## Resolve declared local providers and install the selected C
 # npm-install installs a consumer's npm packages: npm ci of the tracked lock, then the link of the folders (K448).
 .PHONY: npm-install
 npm-install: ## Install the npm packages of DIR with npm ci of its tracked lock, then link each installed package that a checkout of CHECKOUTS, else a sibling checkout, provides, each a package folder or a repository root whose package folders under packages/ the kit finds itself (K448, K494); ADD=<checkout>... links each named checkout whether or not the project declares its package (K485); a declared polyspec package with no checkout is refused (K483-1)
-	NPM_BIN=$(NPM) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR) $(CHECKOUTS) $(addprefix --add ,$(ADD))
+	NPM_BIN=$(NPM_BIN) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR) $(CHECKOUTS) $(addprefix --add ,$(ADD))
 
 # uv-install follows application source/workspace declarations with native locked sync and installed-distribution checks.
 .PHONY: uv-install
