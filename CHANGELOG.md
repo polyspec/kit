@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Fix parity phase fixture types, remove duplicated phase blocks, and isolate nested Make probes from parent shard variables so empty-selector checks cannot recurse into their own CI group. (K721)
 - Split parity CI into public API/static checks and selected native binding phases, preserving every static rule and the default complete check. (K720)
 - Verify host-native public API forms against their own release artifact while retaining shared behavior, executable requirement tracing and complete public symbol coverage. (K719)
 - Run Kit unit tests in six parallel CI shards and source tests in nine explicit groups, enforcing exact-once test coverage and the final success gate. (K718)

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ce6603f59b91b48a270e8b50c1823535d859fdeac218e14237decabfa4fca50e -->
+<!-- source-sha256: f2fbb8db6911392600d22b746f249b1dc797230eef141ffbe004367db0284e39 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- parity 단계 fixture 타입과 중복 블록을 수정하고 자식 Make 검사에서 부모 shard 변수를 격리해 빈 선택값 검사가 같은 CI 그룹을 재귀 실행하지 않도록 했습니다. (K721)
 - parity CI를 공개 API·정적 검사와 언어별 native 실행 단계로 나누고 전체 정적 규칙 및 기본 전체 검사 동작을 유지합니다. (K720)
 - 언어별 공개 API 형태를 해당 릴리스 산출물의 심볼로 검증하며 공통 동작, 실행 가능한 요구사항 추적과 전체 공개 심볼 검사를 유지합니다. (K719)
 - Kit 단위검사를 CI 6개 작업으로, 소스 검사를 명시적인 9개 그룹으로 병렬 실행하며 테스트 누락·중복과 최종 성공 판정을 검사합니다. (K718)
