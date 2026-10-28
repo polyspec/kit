@@ -55,7 +55,12 @@ test('stopGroup terminates a real root and descendant process tree', async () =>
   const lines = createInterface({ input: child.stdout });
   const closed = once(child, 'close');
   try {
-    const [line] = await once(lines, 'line');
+    const line = await new Promise<string>((resolve, reject) => {
+      lines.once('line', (value: unknown) => {
+        if (typeof value !== 'string') reject(new Error('the root process reported a non-string descendant record'));
+        else resolve(value);
+      });
+    });
     const record: unknown = JSON.parse(line);
     assert.ok(typeof record === 'object' && record !== null && 'descendant' in record && typeof record.descendant === 'number');
     const descendant = record.descendant;

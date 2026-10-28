@@ -14,6 +14,11 @@ export type Kill = (pid: number, signal: NodeJS.Signals | number) => unknown;
 
 const defaultKill: Kill = (pid, signal) => process.kill(pid, signal);
 
+/** Narrows JSON.parse's array result from any[] to unknown[]. */
+function isUnknownArray(value: unknown): value is unknown[] {
+  return Array.isArray(value);
+}
+
 /** Sends `signal` to the process group `pgid`; `kill` is process.kill by default and is injected by the tests. */
 export function signalGroup(pgid: number, signal: NodeJS.Signals | number, kill: Kill = defaultKill): GroupState {
   if (process.platform === 'win32' && kill === defaultKill) return signalWindowsTree(pgid, signal);
@@ -78,12 +83,15 @@ export function processTable(): ProcessEntry[] {
     const listed = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 28 });
     if (listed.error || listed.status !== 0) throw new Error(`powershell.exe could not list the processes: ${listed.error?.message ?? listed.stderr}`);
     const decoded: unknown = JSON.parse(listed.stdout || '[]');
-    const rows = Array.isArray(decoded) ? decoded : [decoded];
+    const rows: readonly unknown[] = isUnknownArray(decoded) ? decoded : [decoded];
     return rows.map(row => {
-      if (typeof row !== 'object' || row === null || !('pid' in row) || !('ppid' in row) || typeof row.pid !== 'number' || typeof row.ppid !== 'number') {
+      if (typeof row !== 'object' || row === null || !('pid' in row) || !('ppid' in row)) {
         throw new Error(`powershell.exe printed a line that is no process entry: ${JSON.stringify(row)}`);
       }
-      return { pid: row.pid, ppid: row.ppid, pgid: row.pid };
+      const pid = row.pid;
+      const ppid = row.ppid;
+      if (typeof pid !== 'number' || typeof ppid !== 'number') throw new Error(`powershell.exe printed a line that is no process entry: ${JSON.stringify(row)}`);
+      return { pid, ppid, pgid: pid };
     });
   }
   const listed = spawnSync('ps', ['-axo', 'pid=,ppid=,pgid='], { encoding: 'utf8', maxBuffer: 1 << 28 });
