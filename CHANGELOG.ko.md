@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: febaccca5077737186c4fc72e08eed971823e3a2b70c8b36f19d91f378e0a5a8 -->
+<!-- source-sha256: 0a7fb453f1ef21fb458f92f5339d12bccbeb5f73a31d9e50a577be19a43f3b54 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 테스트 파일이 없는 정상 Go helper package를 이름이 있는 테스트의 skip 및 빈 테스트 실행과 구분한다. (K733)
 
 - PHP arginfo 검증을 전체 toolchain 검사와 native extension build 범위에 적용한다. (K732)
 

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Distinguish successful Go helper packages with no test files from skipped named tests and empty test runs. (K733)
+
 - Scope PHP arginfo verification to full toolchain checks and native extension builds. (K732)
 
 - Run consumer shared, runtime and parity gates in independently prepared jobs with declared locked setup. (K731)
