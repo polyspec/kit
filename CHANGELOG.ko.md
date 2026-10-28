@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6118262db3e9f5503416a5904e9be37459607816a70e2a6056b2d513a6db5715 -->
+<!-- source-sha256: febaccca5077737186c4fc72e08eed971823e3a2b70c8b36f19d91f378e0a5a8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- PHP arginfo 검증을 전체 toolchain 검사와 native extension build 범위에 적용한다. (K732)
 
 - 소비자의 shared, runtime, parity gate를 선언된 잠금 setup으로 독립적으로 준비한 job에서 실행한다. (K731)
 

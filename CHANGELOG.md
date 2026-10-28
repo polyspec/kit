@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Scope PHP arginfo verification to full toolchain checks and native extension builds. (K732)
+
 - Run consumer shared, runtime and parity gates in independently prepared jobs with declared locked setup. (K731)
 
 - Prepare and clean up declared CI resource contexts around mandatory provider gates, including failed preparation and verification. (K731-1)
