@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1c8b54c8e0db03d68b20e5133ef5d3d5fc85d5eb02d921a9bee9b35b75e1853b -->
+<!-- source-sha256: 803e7bb9de28e4613e61c0af633c39e8eb764a8fa63cfa762fb2c4d9957dcb28 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 필요한 CI shard의 PHP·Composer·Go·Python·PHP 추출기 설치를 보완하고, 금지 입력 fixture를 이동한 뒤에도 실제 금지 입력 거부 규칙을 유지했습니다. (K724)
 - TOOLS 선택 설치에서 고정 버전 필수 의존성을 먼저 검증하고 다른 설치는 보존하며, 각 CI 작업이 필요한 환경만 독립적으로 준비하도록 했습니다. (K723)
 - parity 테스트 파일을 두 독립 CI 작업으로 나누고 공통 fixture를 중복 없이 공유하며 132개 테스트의 이름과 본문을 각각 정확히 한 번 보존합니다. (K722)
 - parity 단계 fixture 타입과 중복 블록을 수정하고 자식 Make 검사에서 부모 shard 변수를 격리해 빈 선택값 검사가 같은 CI 그룹을 재귀 실행하지 않도록 했습니다. (K721)
