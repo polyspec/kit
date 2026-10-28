@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4ee11b220af354485a65f85378097d7ac806010de9c19e8c721eedf6e1820fcd -->
+<!-- source-sha256: acfa31769b67be9d71d237f280fc58782c9300895e709fc8f6f3b86060c910ef -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 소유한 대소문자 구분 자원과 native process 정리를 사용해 workspace 및 infrastructure 테스트를 표준 runner로 실행한다. (K739)
 
 - 지원되는 namespace event extension으로 native PHPUnit 개별 제한시간을 반영하고 명시적 watchdog 설정을 보존한다. (K738)
 

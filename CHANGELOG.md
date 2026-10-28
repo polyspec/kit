@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Run workspace and infrastructure tests through the standard runner with owned case-sensitive resources and native process cleanup. (K739)
+
 - Honor native PHPUnit case deadlines through supported namespaced event extensions and preserve explicit watchdog settings. (K738)
 
 - Include changed direct exact Composer requirements in source updates without treating platform constraints as packages. (K737)
