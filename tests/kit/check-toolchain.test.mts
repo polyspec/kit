@@ -224,6 +224,19 @@ test('a repository with a PHP extension needs the installed pinned arginfo gener
   assert.deepEqual(arginfoToolFindings(none), []);
 });
 
+test('explicit toolchain selections do not require PHP extension arginfo, but the full check still does', (t) => {
+  const { root, stubs } = setup(t, OUTPUTS, { ...FILES, 'packages/php-ext/src/config.m4': '' });
+  for (const selected of [['node', 'go', 'rust'], ['php']]) {
+    const result = check(root, stubs.env, ...selected);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /^\[check-toolchain\].*\n\[check-toolchain\] .* tools run/m);
+  }
+  const full = check(root, stubs.env);
+  assert.equal(full.status, 1, full.stdout);
+  assert.match(full.stderr, /PHP extension arginfo tools are missing or incomplete: var\/tools\/php-arginfo\/gen_stub\.php is missing/);
+  assert.deepEqual(arginfoToolFindings(root), ['PHP extension arginfo tools are missing or incomplete: var/tools/php-arginfo/gen_stub.php is missing; run make install-tools, which installs the pinned PHP arginfo generator and parser']);
+});
+
 test('toolchain-check refuses php-fpm and php-cgi from PATH, and install-php wraps php-fpm of the same prefix (K341)', (t) => {
   const findings = (files: Record<string, string>) => bareFpmFindings(tree(t, files));
   const one = findings({ 'Makefile': 'all:\n\tphp-fpm -y fpm.conf\n' });

@@ -193,6 +193,7 @@ export function bareFpmFindings(root: string): string[] {
 if (isMain(import.meta.url)) {
   try {
     const requested = process.argv.slice(2);
+    const checkAllDeclared = requested.length === 0;
     const env = toolchainEnvironment(repositoryRoot());
     const declared = declaredTools(repositoryRoot());
     const tools = requested.length > 0 ? requested : TOOLS.filter(tool => declared[tool]);
@@ -201,7 +202,7 @@ if (isMain(import.meta.url)) {
     // No declaration is compared with a pin and no floor with a declaration (K448, S4): the checkout's own files decide its versions.
     const links = npmrcFindings(repositoryRoot(), env);
     const locked = miseLockSidecarFindings(repositoryRoot());
-    const system = [...arginfoToolFindings(repositoryRoot()), ...bareFpmFindings(repositoryRoot())];
+    const system = [...(checkAllDeclared ? arginfoToolFindings(repositoryRoot()) : []), ...bareFpmFindings(repositoryRoot())];
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
     for (const line of [...mismatches, ...links, ...locked, ...system]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools do not run from the tools of the checkout`);
