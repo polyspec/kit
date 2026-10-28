@@ -30,6 +30,18 @@ test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT 
   assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
 });
 
+test('consumer kit.mk exposes the shared PHP arginfo and selective symbol installers', () => {
+  const dry = (target: string, ...args: string[]) => spawnSync('make', [
+    '-n', '--no-print-directory', '-f', KIT_MK, target, 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', ...args,
+  ], { cwd: ROOT, encoding: 'utf8' });
+  const arginfo = dry('kit-install-php-arginfo');
+  assert.equal(arginfo.status, 0, arginfo.stderr);
+  assert.equal(arginfo.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-php-arginfo.mjs`);
+  const symbols = dry('kit-install-symbols', 'EXTRACTORS=go');
+  assert.equal(symbols.status, 0, symbols.stderr);
+  assert.equal(symbols.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs go`);
+});
+
 test('link-check names the sibling checkouts when CHECKOUTS is empty, as link does (K383)', () => {
   const dryRun = (goal: string, ...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, goal, 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', ...args], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
   assert.match(dryRun('link-check'), /--siblings$/);

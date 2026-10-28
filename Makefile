@@ -5,7 +5,7 @@ include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
 
-.PHONY: kit-test kit-fixture-record kit-tool-record source-test install-packages kit-install-symbols-php install kit-build
+.PHONY: kit-test kit-fixture-record kit-tool-record source-test install-packages kit-install-symbols-php kit-install-php-arginfo kit-install-symbols install kit-build
 
 # The suite of kit, which CI runs (.github/workflows/ci.yml); locally only the tests that own a change run
 # (node scripts/kit/run-tests.mts node -- <test file>).
@@ -145,9 +145,6 @@ kit-install: install-kit ## The install step of kit after its bootstrap: the pac
 	$(MAKE) --no-print-directory kit-install-symbols-php
 	$(MAKE) --no-print-directory kit-install-php-arginfo
 
-.PHONY: kit-install-php-arginfo
-kit-install-php-arginfo: ## Install the declared PHP generator and its paired parser for the PHP extension fixtures; ONLINE
-	$(ONLINE) $(NODE) scripts/kit/install-php-arginfo.mts
 install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order; a worktree installs nothing (K519); ONLINE
 ifneq ($(KIT_WORKTREE),)
 	@echo "[install-kit] $(CURDIR) is a worktree, which installs nothing: it runs the tools of the main checkout $(KIT_MAIN_CHECKOUT), and make worktree-setup links its node_modules to the main checkout's (K519)" >&2

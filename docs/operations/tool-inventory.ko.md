@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 7445852c7af709e4d89f43c030d97e741dec15792838939e2ea2fdf46c19d566 -->
+<!-- source-sha256: bfa872bf3140d258b9b9eb37a3e76504d2eaa1cbcc8aecc041d149bd82f1b73c -->
 
 # 도구 목록
 
@@ -68,7 +68,7 @@ PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283). minor�
 일치하는 것이 없으면 시도한 순서, `.php-version`, 설치 명령(`brew install php@<minor>` 또는 `apt install php<minor>-cli`)과
 함께 실패합니다.
 
-`packages/php-ext`가 있는 저장소는 `make install-tools`에서 PHP `gen_stub.php`가 요구하는 고정 PHP-Parser를 설치합니다. extension이 없는 PHP library는 arginfo generator나 extension 개발 도구가 필요하지 않습니다. Kit는 자체 extension fixture 준비를 `make kit-install-php-arginfo`로 선언하며, `make install`과 CI가 이 target을 명시적으로 실행합니다.
+`packages/php-ext`가 있는 저장소는 `make install-tools`에서 PHP `gen_stub.php`가 요구하는 고정 PHP-Parser를 설치합니다. extension이 없는 PHP library는 arginfo generator나 extension 개발 도구가 필요하지 않습니다. 공유 `kit.mk`는 consumer extension fixture에 `make kit-install-php-arginfo`를 제공하고, 선언된 parity extractor 하나를 `make kit-install-symbols EXTRACTORS="go"` 또는 `EXTRACTORS="php"`로 설치합니다. 먼저 대응하는 고정 도구를 `make install-tools TOOLS="php composer"` 또는 `TOOLS=go`로 설치해야 합니다. 두 target은 기존 pinned installer를 호출하며 `EXTRACTORS`는 `config/toolchain.json symbolExtractors`에 선언되어야 합니다. Kit 자체 extension fixture 준비도 `make kit-install-php-arginfo`를 사용하고, `make install`과 CI가 그 target을 명시적으로 실행합니다.
 Kit은 설치된 parser를 generator와 함께 `var/tools/php-arginfo`에 배치합니다. Build와 `make php-ext-arginfo`는 임시 source 사본에서
 generator를 offline 실행하고, `make php-ext-arginfo` 결과는 ignored `var/php-ext/arginfo`에만 씁니다. 설치가 없거나 오래되면
 `make toolchain-check`가 `make install-tools`를 안내합니다(K303, K560). Parser Composer project와 lock은 kit distribution에 도구와

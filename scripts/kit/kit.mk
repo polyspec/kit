@@ -52,6 +52,13 @@ kit-sync: ## Write the copies of the installed @polyspec/kit (kit.copies of its 
 kit-check: ## Check the installed @polyspec/kit against package-lock.json, the copies against it and the configuration against its schemas; offline
 	$(NODE) $(KIT)/kit-check.$(KIT_EXT)
 
+.PHONY: kit-install-php-arginfo kit-install-symbols
+kit-install-php-arginfo: ## Install the declared PHP generator and its paired parser for extension fixtures; ONLINE
+	$(ONLINE) $(NODE) $(KIT)/install-php-arginfo.$(KIT_EXT)
+
+kit-install-symbols: ## Install selected declared symbol extractors with EXTRACTORS="go php"; their pinned tools must be installed first; ONLINE
+	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) $(EXTRACTORS)
+
 # --- cargo downloads: the crates of every Cargo.lock are downloaded before a check runs cargo offline.
 .PHONY: cargo-downloads-check cargo-downloads-fetch
 cargo-downloads-check: ## Check that the crates of every Cargo.lock are in the registry of CARGO_HOME; offline

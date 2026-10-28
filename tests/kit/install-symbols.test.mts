@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { extractorRelease, installExtractor, SYMBOLS } from '../../scripts/kit/install-symbols.mts';
+import { extractorRelease, installDeclaredExtractors, installExtractor, SYMBOLS } from '../../scripts/kit/install-symbols.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 
 // A go that logs its arguments and writes the file after -o, as go build writes the binary.
@@ -67,6 +67,33 @@ test('the go extractor builds in sources under a mise.toml that the checkout doe
 test('without the go of mise.toml the go extractor fails with the install that provides it', (t) => {
   const { root } = checkout(t, { pinned: false });
   assert.throws(() => installExtractor({ root, extractor: 'go' }), /the go symbol extractor needs the Go of mise\.toml; declare go in mise\.toml and run make install-tools: .*go is not a tool of mise\.toml/s);
+});
+
+test('the shared symbols installer installs only explicitly requested declared extractors', (t) => {
+  const root = toolchainCheckout(t, {
+    'mise.toml': '[tools]\ngo = "1.27.3"\n',
+    'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['go', 'php'] }),
+  });
+  const calls: string[] = [];
+  const result = installDeclaredExtractors({
+    root,
+    extractors: ['go'],
+    install: ({ extractor }) => { calls.push(extractor); return { installed: true, release: 'fixture' }; },
+  });
+  assert.deepEqual(calls, ['go']);
+  assert.deepEqual(result, [{ installed: true, release: 'fixture' }]);
+});
+
+test('the shared symbols installer rejects unknown, undeclared and unpinned extractors before installing any', (t) => {
+  const root = toolchainCheckout(t, {
+    'mise.toml': '[tools]\ngo = "1.27.3"\n',
+    'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['go', 'php'] }),
+  });
+  const calls: string[] = [];
+  const install = ({ extractor }: Parameters<typeof installExtractor>[0]) => { calls.push(extractor); return { installed: true, release: 'fixture' }; };
+  assert.throws(() => installDeclaredExtractors({ root, extractors: ['python'], install }), /unknown symbol extractor python/);
+  assert.throws(() => installDeclaredExtractors({ root, extractors: ['php'], install }), /needs http:composer in mise.toml/);
+  assert.deepEqual(calls, []);
 });
 
 test('an installation whose RELEASE cannot be read fails with the file, and is not rebuilt as missing', (t) => {

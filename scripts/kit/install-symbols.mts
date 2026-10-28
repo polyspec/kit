@@ -21,8 +21,9 @@ import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerCommand, composerEnvironment } from './install-composer-project.mts';
 import { miseInstallEnvironment, miseWhere } from './bootstrap/install-mise.mts';
 import { toolsEnvironment } from './mise-tools.mts';
-import { MISE_TOOLS } from './toolchain-mise.mts';
-import type { InstalledExtractor } from './bootstrap/toolchain-declared.mts';
+import { declaredToolchain, type InstalledExtractor } from './bootstrap/toolchain-declared.mts';
+import { declaredMiseTools, MISE_TOOLS } from './toolchain-mise.mts';
+import { isMain, repositoryRoot } from './paths.mts';
 
 // The extractor programs that kit ships beside its tools (the build copies scripts/kit/symbols into dist/symbols).
 export const SYMBOLS = path.join(path.dirname(fileURLToPath(import.meta.url)), 'symbols');
@@ -98,4 +99,44 @@ export function installExtractor({ root, extractor, print = () => {} }: { root: 
       writeFileSync(path.join(next, 'RELEASE'), release);
     },
   });
+}
+
+/** Installs only the requested, declared extractors; their pinned runtime prerequisites must be declared before any build starts. */
+export function installDeclaredExtractors({
+  root = repositoryRoot(), extractors, print = () => {}, install = installExtractor,
+}: {
+  root?: string;
+  extractors: readonly string[];
+  print?: (text: string) => void;
+  install?: typeof installExtractor;
+}) {
+  if (extractors.length === 0 || extractors.some(name => name.trim() === '')) throw new Error('EXTRACTORS must name one or more declared symbol extractors; run make kit-install-symbols EXTRACTORS="go" or EXTRACTORS="php"');
+  if (new Set(extractors).size !== extractors.length) throw new Error(`EXTRACTORS repeats a symbol extractor: ${extractors.join(', ')}`);
+  const isExtractor = (name: string): name is InstalledExtractor => name === 'go' || name === 'php';
+  const selected = extractors.filter(isExtractor);
+  const unknown = extractors.filter(name => !isExtractor(name));
+  if (unknown.length) throw new Error(`unknown symbol extractor${unknown.length === 1 ? '' : 's'} ${unknown.join(', ')}; choose go, php`);
+  const toolchain = declaredToolchain(root);
+  const declared = toolchain.symbolExtractors?.extractors;
+  if (!declared) throw new Error('config/toolchain.json does not declare symbolExtractors; declare the requested extractor before installing it');
+  const undeclared = selected.filter(name => !declared.includes(name));
+  if (undeclared.length) throw new Error(`${undeclared.join(', ')} is not declared in config/toolchain.json symbolExtractors; declare it before installing it`);
+
+  const mise = declaredMiseTools(root);
+  if (selected.includes('go') && !mise.go) throw new Error('the Go symbol extractor needs go in mise.toml; run make install-tools TOOLS=go');
+  if (selected.includes('php')) {
+    if (!mise.composer) throw new Error('the PHP symbol extractor needs http:composer in mise.toml; run make install-tools TOOLS=php composer');
+    if (!toolchain.php || !existsSync(path.join(root, '.php-version'))) throw new Error('the PHP symbol extractor needs the PHP wrapper of .php-version; run make install-tools TOOLS=php composer');
+  }
+  return selected.map(extractor => install({ root, extractor, print }));
+}
+
+if (isMain(import.meta.url)) {
+  try {
+    installDeclaredExtractors({ extractors: process.argv.slice(2), print: text => console.log(`[install-symbols] ${text}`) });
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    console.error(`[install-symbols] ${error.message}`);
+    process.exitCode = 1;
+  }
 }
