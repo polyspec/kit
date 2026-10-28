@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 40491d16c27c2edde9c354450e56d23acf69bc40f1ddfc071ffe3225f7c772aa -->
+<!-- source-sha256: f9addc6e2213cd03f0414ea4da018fa1a63448def1a61eadd36eed0accc5200c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.63
 
 - 전체 parity 준비와 엄격한 설치 source 검증을 유지하면서 native source linking 범위를 각 runtime CI job에 맞춘다. (K743)
 
