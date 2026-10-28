@@ -6,8 +6,8 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
 import test from 'node:test';
-import { processTable, signalGroup, stopGroup } from '../../scripts/kit/process-group.mts';
-import type { Kill } from '../../scripts/kit/process-group.mts';
+import { processTable, signalGroup, signalWindowsTree, stopGroup } from '../../scripts/kit/process-group.mts';
+import type { Kill, ProcessEntry } from '../../scripts/kit/process-group.mts';
 import { terminateGroup } from '../../scripts/kit/run-tests.mts';
 
 /** A kill that fails with each code of `codes` in turn, then succeeds; it records each call. */
@@ -45,6 +45,31 @@ test('a timed-out test is terminated through its group, and EPERM from a member 
   assert.equal(terminateGroup(4321, kill), 'exiting');
   assert.deepEqual(calls, [[-4321, 'SIGTERM']]);
   assert.equal(terminateGroup(4321, killing('ESRCH').kill), 'ended');
+});
+
+test('Windows tree cleanup stops original descendants after root exit and reparenting', () => {
+  let entries: ProcessEntry[] = [
+    { pid: 20, ppid: 1, pgid: 20 },
+    { pid: 21, ppid: 20, pgid: 20 },
+    { pid: 22, ppid: 21, pgid: 20 },
+  ];
+  const calls: [number, boolean][] = [];
+  const state = signalWindowsTree(20, 'SIGTERM', {
+    table: () => entries,
+    terminate: (pid, tree) => {
+      calls.push([pid, tree]);
+      if (pid === 20) entries = entries.filter(entry => entry.pid !== 20).map(entry => entry.pid === 21 ? { ...entry, ppid: 1 } : entry);
+      else entries = entries.filter(entry => entry.pid !== pid);
+    },
+  });
+  assert.deepEqual(calls, [[20, true], [22, false], [21, false]], 'surviving descendants are stopped deepest-first from the original snapshot');
+  assert.equal(state, 'ended', 'the tree is ended only after the original descendant pids disappear');
+
+  const remaining = signalWindowsTree(30, 'SIGTERM', {
+    table: () => [{ pid: 30, ppid: 1, pgid: 30 }, { pid: 31, ppid: 30, pgid: 30 }],
+    terminate: () => {},
+  });
+  assert.equal(remaining, 'sent', 'a surviving process is never reported as ended');
 });
 
 test('stopGroup terminates a real root and descendant process tree', async () => {

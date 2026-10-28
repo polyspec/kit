@@ -34,28 +34,37 @@ export function signalGroup(pgid: number, signal: NodeJS.Signals | number, kill:
   }
 }
 
+/** The process snapshot and termination seam of the Windows tree stop. */
+export type WindowsTreeOperations = {
+  table?: () => ProcessEntry[];
+  terminate?: (pid: number, tree: boolean) => void;
+};
+
 /** Sends a Windows process-tree stop through taskkill, which is available on every supported Windows runner. */
-function signalWindowsTree(root: number, signal: NodeJS.Signals | number): GroupState {
-  const entries = processTable();
+export function signalWindowsTree(root: number, signal: NodeJS.Signals | number, operations: WindowsTreeOperations = {}): GroupState {
+  const table = operations.table ?? processTable;
+  const terminate = operations.terminate ?? ((pid, tree) => taskkill(pid, tree, true));
+  const entries = table();
   const descendants = descendantsOf(root, entries).map(entry => entry.pid);
   const present = entries.some(entry => entry.pid === root);
   if (signal === 0) return present || descendants.length ? 'sent' : 'ended';
-  // Windows has no POSIX process-group signals. taskkill's forced tree termination is the native whole-tree operation.
-  if (present) {
-    try {
-      taskkill(root, true, true);
-      return 'sent';
-    } catch (error) {
-      const current = processTable();
-      if (current.some(entry => entry.pid === root)) throw error;
-      const survivors = descendantsOf(root, current).map(entry => entry.pid).reverse();
-      for (const pid of survivors) taskkill(pid, false, true);
-      if (survivors.length === 0) return 'ended';
-      return 'sent';
-    }
+  // Windows has no POSIX process-group signals. Keep the first snapshot so descendants remain targets if the root exits during
+  // taskkill and they no longer appear beneath it in the next process table.
+  const depths = new Map<number, number>([[root, 0]]);
+  for (const entry of descendantsOf(root, entries)) depths.set(entry.pid, (depths.get(entry.ppid) ?? 0) + 1);
+  if (present) terminate(root, true);
+  const afterTreeStop = table();
+  for (const entry of descendantsOf(root, afterTreeStop)) {
+    depths.set(entry.pid, Math.max(depths.get(entry.pid) ?? 0, (depths.get(entry.ppid) ?? 0) + 1));
   }
-  for (const pid of descendants.reverse()) taskkill(pid, false, true);
-  return descendants.length ? 'sent' : 'ended';
+  const known = new Set([...descendants, ...descendantsOf(root, afterTreeStop).map(entry => entry.pid)]);
+  const alive = new Set(afterTreeStop.map(entry => entry.pid));
+  const survivors = [...known].filter(pid => alive.has(pid)).sort((left, right) => (depths.get(right) ?? 0) - (depths.get(left) ?? 0));
+  for (const pid of survivors) terminate(pid, false);
+  const final = table();
+  const finalPids = new Set(final.map(entry => entry.pid));
+  const remaining = [...known].some(pid => finalPids.has(pid)) || finalPids.has(root) || descendantsOf(root, final).length > 0;
+  return remaining ? 'sent' : 'ended';
 }
 
 /** Runs taskkill and ignores a process that exited between the CIM snapshot and the command. */

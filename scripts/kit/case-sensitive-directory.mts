@@ -36,7 +36,8 @@ export function withCaseSensitiveDirectory<T>(key: string, action: (directory: s
   const parent = mkdtempSync(path.join(options.parent ?? tmpdir(), 'kit-case-sensitive-'));
   const directory = path.join(parent, 'directory');
   mkdirSync(directory);
-  let attached = false;
+  let attachAttempted = false;
+  let outcome: { kind: 'value'; value: T } | { kind: 'error'; error: unknown };
   try {
     // Creating a directory on Linux's supported CI filesystems is sufficient; verification catches an unusual case-folding mount.
     if (platform === 'win32') {
@@ -46,8 +47,10 @@ export function withCaseSensitiveDirectory<T>(key: string, action: (directory: s
     } else if (platform === 'darwin') {
       const image = path.join(parent, 'case-sensitive.dmg');
       run('hdiutil', ['create', '-size', '64m', '-fs', 'Case-sensitive APFS', '-volname', 'kit-case', '-ov', image], command);
+      // A failed attach may still have mounted the image. Always try to detach after starting it, and retain the
+      // mountpoint and image if detachment cannot prove that they are safe to remove.
+      attachAttempted = true;
       run('hdiutil', ['attach', '-nobrowse', '-mountpoint', directory, image], command);
-      attached = true;
     } else if (platform !== 'linux') {
       throw new Error(`case-sensitive test directories are not supported on ${platform}`);
     }
@@ -55,16 +58,39 @@ export function withCaseSensitiveDirectory<T>(key: string, action: (directory: s
     const previous = process.env[key];
     process.env[key] = directory;
     try {
-      return action(directory);
+      outcome = { kind: 'value', value: action(directory) };
+    } catch (error) {
+      outcome = { kind: 'error', error };
     } finally {
       if (previous === undefined) delete process.env[key];
       else process.env[key] = previous;
     }
-  } finally {
+  } catch (error) {
+    outcome = { kind: 'error', error };
+  }
+
+  let cleanupFailure: Error | undefined;
+  let retainResources = false;
+  if (attachAttempted) {
     try {
-      if (attached) run('hdiutil', ['detach', directory], command);
-    } finally {
-      rmSync(parent, { recursive: true, force: true });
+      run('hdiutil', ['detach', directory], command);
+    } catch (error) {
+      retainResources = true;
+      cleanupFailure = new Error(
+        `could not confirm detachment of ${directory}; retained the mountpoint and image at ${parent}. Fix: run hdiutil detach ${JSON.stringify(directory)}, then remove ${JSON.stringify(parent)}`,
+        { cause: error },
+      );
     }
   }
+  if (!retainResources) {
+    try {
+      rmSync(parent, { recursive: true, force: true });
+    } catch (error) {
+      cleanupFailure = new Error(`could not remove temporary test resources at ${parent}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+    }
+  }
+  if (outcome.kind === 'error' && cleanupFailure) throw new AggregateError([outcome.error, cleanupFailure], `${String(outcome.error)}; cleanup also failed: ${cleanupFailure.message}`);
+  if (outcome.kind === 'error') throw outcome.error;
+  if (cleanupFailure) throw cleanupFailure;
+  return outcome.value;
 }

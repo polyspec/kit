@@ -2,7 +2,7 @@
 // runtime with the name filter of its runner, in the folder of the package; the integration and conformance suites live
 // under tests/ of the root and run only in CI (K244).
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -138,6 +138,70 @@ test('case-sensitive directory uses the platform provisioner and restores the na
 
 test('case-sensitive directory rejects an invalid environment key before running the action', () => {
   assert.throws(() => withCaseSensitiveDirectory('BAD-NAME', () => assert.fail('must not run')), /invalid environment variable name/);
+});
+
+test('a failed disk-image detach retains its resources and preserves the action failure (K739)', () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-detach-'));
+  const actionError = new Error('case-sensitive action failed');
+  const calls: string[][] = [];
+  let directory = '';
+  try {
+    assert.throws(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', (place) => {
+      directory = place;
+      writeFileSync(path.join(place, 'owned'), 'preserve');
+      throw actionError;
+    }, {
+      platform: 'darwin',
+      parent,
+      verify: () => undefined,
+      command: (_file, args) => {
+        calls.push(args);
+        return args[0] === 'detach' ? { status: 1, stderr: 'busy' } : { status: 0, stdout: '', stderr: '' };
+      },
+    }), error => {
+      assert.ok(error instanceof AggregateError);
+      assert.equal(error.errors[0], actionError);
+      assert.match(String(error.errors[1]), /retained the mountpoint and image/);
+      assert.match(String(error.errors[1]), /hdiutil detach/);
+      return true;
+    });
+    assert.deepEqual(calls.map(args => args[0]), ['create', 'attach', 'detach']);
+    assert.equal(readFileSync(path.join(directory, 'owned'), 'utf8'), 'preserve', 'the mounted directory was not recursively removed');
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test('a failed attach with an unconfirmed detach retains the possibly mounted path (K739)', () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-attach-'));
+  const calls: string[][] = [];
+  let mountpoint = '';
+  let ran = false;
+  try {
+    assert.throws(() => withCaseSensitiveDirectory('KIT_CASE_SENSITIVE_TEST_DIR', () => { ran = true; }, {
+      platform: 'darwin',
+      parent,
+      verify: () => undefined,
+      command: (_file, args) => {
+        calls.push(args);
+        if (args[0] === 'attach') {
+          mountpoint = args[3] ?? '';
+          return { status: 1, stderr: 'attach outcome uncertain' };
+        }
+        return args[0] === 'detach' ? { status: 1, stderr: 'not confirmed detached' } : { status: 0, stdout: '', stderr: '' };
+      },
+    }), error => {
+      assert.ok(error instanceof AggregateError);
+      assert.match(String(error.errors[0]), /hdiutil attach/);
+      assert.match(String(error.errors[1]), /retained the mountpoint and image/);
+      return true;
+    });
+    assert.equal(ran, false);
+    assert.deepEqual(calls.map(args => args[0]), ['create', 'attach', 'detach']);
+    assert.equal(existsSync(mountpoint), true, 'an uncertain mountpoint is left in place');
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
 });
 
 test('build-<runtime> runs the build of its ecosystem in each package, and names a runtime that has none (K246)', () => {
