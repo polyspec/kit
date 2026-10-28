@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "comment": "Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.",
-  "reviewed": "2026-10-28T13:05:27.868Z",
+  "reviewed": "2026-10-28T14:47:14.294Z",
   "locks": [
     {
       "lock": "package-lock.json",
-      "sha256": "ca9b579111294d850258b87d348a6e33c59c1da1bee2bba0b62078d8d93bdb41",
+      "sha256": "14ac95640ce5092ec1fda658c7fc9bcd8126b06c45dc49d0045db79e9a0127a7",
       "advisories": []
     },
     {
@@ -69,6 +69,13 @@
       "package": "@renovatebot/pep440",
       "version": "5.0.1",
       "latest": "6.0.0"
+    },
+    {
+      "ecosystem": "npm",
+      "manifest": "package.json",
+      "package": "@types/cross-spawn",
+      "version": "6.0.6",
+      "latest": "6.0.6"
     },
     {
       "ecosystem": "npm",
@@ -251,13 +258,6 @@
       "package": "unist-util-visit",
       "version": "5.1.0",
       "latest": "5.2.0"
-    },
-    {
-      "ecosystem": "npm",
-      "manifest": "package.json",
-      "package": "@types/cross-spawn",
-      "version": "6.0.6",
-      "latest": "6.0.6"
     },
     {
       "ecosystem": "npm",
