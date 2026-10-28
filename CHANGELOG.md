@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Support selected pinned tool installation through TOOLS with validated prerequisites, preserve unrelated installations, and let each CI job prepare only its own required environments. (K723)
 - Split the parity test file into two independent CI shards, preserving all 132 test titles and bodies exactly once and sharing their fixtures without duplication. (K722)
 - Fix parity phase fixture types, remove duplicated phase blocks, and isolate nested Make probes from parent shard variables so empty-selector checks cannot recurse into their own CI group. (K721)
 - Split parity CI into public API/static checks and selected native binding phases, preserving every static rule and the default complete check. (K720)
