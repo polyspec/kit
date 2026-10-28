@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Provide mandatory full or API/binding parity gate partitions with safe Make target generation and exact recipe validation. (K734)
+
 - Distinguish successful Go helper packages with no test files from skipped named tests and empty test runs. (K733)
 
 - Scope PHP arginfo verification to full toolchain checks and native extension builds. (K732)
