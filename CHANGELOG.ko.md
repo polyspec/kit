@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e394c3fc2f0574daa3f49aad9320fc2ca94582469d1a726df13a257f8f39786b -->
+<!-- source-sha256: cf7834c2df88032832260b717bfbff8e6c5092afcce4881026157eb7403c9611 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 명시적으로 선언한 모든 공개 API 입력과 crate별 Rust feature를 읽고, 일부 추출 실패를 불완전한 심볼 목록으로 승인하지 않도록 했습니다. (K714)
 
 ## 0.0.60
 

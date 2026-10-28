@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Read all explicitly declared public API inputs, including per-crate Rust features, and reject partial extraction instead of accepting an incomplete symbol inventory. (K714)
+
 ## 0.0.60
 
 - Included the existing Korean principles link to the canonical English standards plan in the release. (K711-1)
