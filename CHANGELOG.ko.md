@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b4970e5069300075febc340f049176d7845edf2fd71f60275065e2fc8dd6590a -->
+<!-- source-sha256: 8671b4c112c7b8e2208cade6b2756accebdac3689bed4b8ee762253094abf8d5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- source 갱신에 변경된 직접 exact Composer 요구사항을 포함하고 platform 제약은 package로 처리하지 않는다. (K737)
 
 - native 잠금 uv 동기화와 선언된 source overlay로 worktree Python 환경을 준비한다. (K736)
 

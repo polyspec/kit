@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Include changed direct exact Composer requirements in source updates without treating platform constraints as packages. (K737)
+
 - Prepare worktree Python environments through native locked uv synchronization and declared source overlays. (K736)
 
 - Accept exact Python unittest discovery file patterns while rejecting a later broad pattern. (K735)
