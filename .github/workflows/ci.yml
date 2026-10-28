@@ -41,12 +41,6 @@ jobs:
       # var/tools; kit.mk puts their shims first on PATH in every recipe, so the tests run those tools, not the runner image's.
       - name: install tools
         run: make install-tools
-      - name: install PHP extension fixture tools
-        run: make kit-install-php-arginfo
-      # cargo of the Rust pin for the tests that run cargo metadata: rustup, the one tool that the runner provides, installs the
-      # channel of rust-toolchain.toml.
-      - name: install rust
-        run: rustup toolchain install
       # The Rust checks run offline, and some build a fresh target directory, so rustup's toolchain install does not provide their crates.
       - name: fetch Rust crates
         if: ${{ !cancelled() }}
@@ -195,9 +189,9 @@ jobs:
         with:
           node-version-file: mise.toml
           package-manager-cache: false
-      # shivammathur/setup-php 2.40.0: the PHP of .php-version, which the Composer projects of kit (config/phpunit,
-      # config/php-lint) require; the runner's own PHP is older.
+      # Only shard 5 builds the PHP extension fixture and needs the declared PHP runtime.
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        if: ${{ matrix.shard == 5 }}
         with:
           php-version-file: .php-version
           tools: none
@@ -208,24 +202,20 @@ jobs:
       # The npm of packageManager installs TypeScript and the Node types from package-lock.json.
       - name: install packages
         run: make install-packages
-      # install-tools installs the tools of mise.toml at the digests of mise.lock with the mise of the bootstrap (Go, Python,
-      # uv, ruff, alint, golangci-lint, deadcode, vulture, Composer), then the pythonBackend and the Composer projects, into
-      # var/tools; kit.mk puts their shims first on PATH in every recipe, so the tests run those tools, not the runner image's.
-      - name: install tools
-        run: make install-tools
+      # The extension fixture in shard 5 needs the PHP wrapper, Composer and PHPUnit; its arginfo installer is separate.
+      - name: install PHP test tools
+        if: ${{ matrix.shard == 5 && !cancelled() }}
+        run: make install-tools TOOLS="php phpunit"
       - name: install PHP extension fixture tools
+        if: ${{ matrix.shard == 5 && !cancelled() }}
         run: make kit-install-php-arginfo
-      # cargo of the Rust pin for the tests that run cargo metadata: rustup, the one tool that the runner provides, installs the
-      # channel of rust-toolchain.toml.
-      - name: install rust
-        run: rustup toolchain install
-      # Tests run Rust commands offline, including in temporary projects with a fresh target directory.
+      # Shard 6 runs catch-check through offline Cargo and needs Rust plus its locked crate cache.
+      - name: install Rust test toolchain
+        if: ${{ matrix.shard == 6 && !cancelled() }}
+        run: make install-tools TOOLS=rust
       - name: fetch Rust crates
-        if: ${{ !cancelled() }}
+        if: ${{ matrix.shard == 6 && !cancelled() }}
         run: make cargo-downloads-fetch
-      # The Composer packages of the PHP symbol extractor, whose autoloader the PHPStan of lint-php reads (K248-4).
-      - name: install php symbol packages
-        run: make kit-install-symbols-php
       - name: kit tests
         if: ${{ !cancelled() }}
         run: make kit-test-shard SHARD=${{ matrix.shard }}
@@ -247,9 +237,9 @@ jobs:
         with:
           node-version-file: mise.toml
           package-manager-cache: false
-      # shivammathur/setup-php 2.40.0: the PHP of .php-version, which the Composer projects of kit (config/phpunit,
-      # config/php-lint) require; the runner's own PHP is older.
+      # Only PHP source groups run PHP, Composer projects or PHPUnit.
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
+        if: ${{ contains(fromJSON('["php","php-ext","common-1","common-2"]'), matrix.group) }}
         with:
           php-version-file: .php-version
           tools: none
@@ -260,24 +250,37 @@ jobs:
       # The npm of packageManager installs TypeScript and the Node types from package-lock.json.
       - name: install packages
         run: make install-packages
-      # install-tools installs the tools of mise.toml at the digests of mise.lock with the mise of the bootstrap (Go, Python,
-      # uv, ruff, alint, golangci-lint, deadcode, vulture, Composer), then the pythonBackend and the Composer projects, into
-      # var/tools; kit.mk puts their shims first on PATH in every recipe, so the tests run those tools, not the runner image's.
-      - name: install tools
-        run: make install-tools
-      - name: install PHP extension fixture tools
-        run: make kit-install-php-arginfo
-      # cargo of the Rust pin for the tests that run cargo metadata: rustup, the one tool that the runner provides, installs the
-      # channel of rust-toolchain.toml.
-      - name: install rust
-        run: rustup toolchain install
-      # Tests run Rust commands offline, including in temporary projects with a fresh target directory.
-      - name: fetch Rust crates
-        if: ${{ !cancelled() }}
-        run: make cargo-downloads-fetch
-      # The Composer packages of the PHP symbol extractor, whose autoloader the PHPStan of lint-php reads (K248-4).
-      - name: install php symbol packages
+      # Each source group installs only the declared tools its files exercise.
+      - name: install PHP source tools
+        if: ${{ matrix.group == 'php' && !cancelled() }}
+        run: make install-tools TOOLS="php composer phpcs phpstan"
+      - name: install PHP extension source tools
+        if: ${{ matrix.group == 'php-ext' && !cancelled() }}
+        run: make install-tools TOOLS="php phpunit"
+      - name: install Rust source tools
+        if: ${{ matrix.group == 'rust' && !cancelled() }}
+        run: make install-tools TOOLS=rust
+      - name: install Go source tools
+        if: ${{ matrix.group == 'go' && !cancelled() }}
+        run: make install-tools TOOLS="go golangciLint deadcode govulncheck"
+      - name: install Python source tools
+        if: ${{ matrix.group == 'python' && !cancelled() }}
+        run: make install-tools TOOLS="python uv ruff vulture"
+      - name: install common tool-record tools
+        if: ${{ matrix.group == 'common-1' && !cancelled() }}
+        run: make install-tools TOOLS="go php composer"
+      - name: install common parity tools
+        if: ${{ matrix.group == 'common-2' && !cancelled() }}
+        run: make install-tools TOOLS="go python uv php phpunit rust"
+      - name: install common runtime tools
+        if: ${{ matrix.group == 'common-3' && !cancelled() }}
+        run: make install-tools TOOLS="python alint"
+      - name: install PHP symbol packages
+        if: ${{ matrix.group == 'php' && !cancelled() }}
         run: make kit-install-symbols-php
+      - name: fetch Rust crates
+        if: ${{ (matrix.group == 'rust' || matrix.group == 'common-2') && !cancelled() }}
+        run: make cargo-downloads-fetch
       - name: source tests
         if: ${{ !cancelled() }}
         run: make source-test-group GROUP=${{ matrix.group }}

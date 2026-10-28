@@ -43,37 +43,36 @@ test('the CI workflow lints kit with make lint-ts, the TypeScript lint of its co
   assert.ok(lint > runs.indexOf('make install-packages'), 'a step runs make lint-ts after npm ci');
 });
 
-test('the CI workflow gives kit-test go, python3 and cargo of the pins, not of the runner image (K78, K127)', () => {
+test('only kit-test shards that use PHP or Cargo install those pinned tools (K78, K127)', () => {
   const kitTestRuns = jobRuns('kit_tests');
-  const tools = kitTestRuns.indexOf('make install-tools');
-  const rust = kitTestRuns.indexOf('rustup toolchain install');
+  const phpTools = kitTestRuns.indexOf('make install-tools TOOLS="php phpunit"');
+  const rustTools = kitTestRuns.indexOf('make install-tools TOOLS=rust');
   const cargoDownloads = kitTestRuns.indexOf('make cargo-downloads-fetch');
   const kitTest = kitTestRuns.indexOf('make kit-test-shard SHARD=${{ matrix.shard }}');
-  // kit.mk puts the shims of mise first on PATH in every recipe, so the steps that run make need no PATH of their own.
-  assert.ok(tools >= 0 && tools < kitTest, 'install-tools installs the tools of mise.lock before kit-test runs them');
   assert.ok(!jobText('kit_tests').includes('GITHUB_PATH'), 'no step puts var/tools on PATH by hand');
-  assert.ok(rust > 0 && rust < kitTest, 'rustup installs the channel of rust-toolchain.toml before kit-test runs cargo');
-  assert.ok(cargoDownloads > rust && cargoDownloads < kitTest, 'cargo-downloads-fetch fills the offline crate cache before kit-test runs cargo');
-  assert.match(jobText('kit_tests'), /- name: fetch Rust crates\n        if: \$\{\{ !cancelled\(\) \}\}\n        run: make cargo-downloads-fetch/);
+  assert.ok(phpTools >= 0 && phpTools < kitTest, 'the PHP fixture shard installs PHP and PHPUnit');
+  assert.ok(rustTools >= 0 && rustTools < kitTest, 'the Cargo fixture shard installs Rust');
+  assert.ok(cargoDownloads > rustTools && cargoDownloads < kitTest, 'the Cargo shard fetches its crates before running');
+  assert.match(jobText('kit_tests'), /if: \$\{\{ matrix\.shard == 5 \}\}[\s\S]*make kit-install-php-arginfo/);
+  assert.match(jobText('kit_tests'), /if: \$\{\{ matrix\.shard == 6 && !cancelled\(\) \}\}[\s\S]*make cargo-downloads-fetch/);
 });
 
-test('the source tests fetch Rust crates before running Cargo offline', () => {
+test('Rust source groups install Rust and fetch locked crates only for their selected group', () => {
   const sourceRuns = jobRuns('source_tests');
-  const rust = sourceRuns.indexOf('rustup toolchain install');
+  const rust = sourceRuns.indexOf('make install-tools TOOLS=rust');
   const cargoDownloads = sourceRuns.indexOf('make cargo-downloads-fetch');
   const sourceTest = sourceRuns.indexOf('make source-test-group GROUP=${{ matrix.group }}');
-  assert.ok(rust >= 0 && cargoDownloads > rust && cargoDownloads < sourceTest, 'the source tests fetch crates after installing Rust and before running');
-  assert.match(jobText('source_tests'), /- name: fetch Rust crates\n        if: \$\{\{ !cancelled\(\) \}\}\n        run: make cargo-downloads-fetch/);
+  assert.ok(rust >= 0 && cargoDownloads > rust && cargoDownloads < sourceTest, 'Rust groups install their toolchain and crates before tests');
+  assert.match(jobText('source_tests'), /if: \$\{\{ \(matrix\.group == 'rust' \|\| matrix\.group == 'common-2'\) && !cancelled\(\) \}\}[\s\S]*make cargo-downloads-fetch/);
+  assert.ok(!sourceRuns.includes('rustup toolchain install'), 'install-tools owns Rust toolchain installation');
 });
 
-test('the checks job fetches Rust crates before the offline Rust lints', () => {
+test('the checks job uses the complete locked toolchain before fetching Rust crates', () => {
   const checkRuns = jobRuns('checks');
-  const rust = checkRuns.indexOf('rustup toolchain install');
+  const tools = checkRuns.indexOf('make install-tools');
   const cargoDownloads = checkRuns.indexOf('make cargo-downloads-fetch');
-  assert.ok(cargoDownloads > rust, 'the checks job installs Rust before fetching crates');
-  for (const target of ['make lint-ts', 'make lint-rust']) {
-    assert.ok(cargoDownloads < checkRuns.indexOf(target), `${target} runs after the Cargo cache is populated`);
-  }
+  assert.ok(cargoDownloads > tools, 'the complete install precedes locked Rust crate fetching');
+  for (const target of ['make lint-ts', 'make lint-rust']) assert.ok(cargoDownloads < checkRuns.indexOf(target), `${target} runs after Cargo dependencies are present`);
   assert.match(jobText('checks'), /- name: fetch Rust crates\n        if: \$\{\{ !cancelled\(\) \}\}\n        run: make cargo-downloads-fetch/);
 });
 
@@ -131,11 +130,10 @@ test('the CI workflow installs the packages with the pinned npm and then checks 
   assert.ok(typecheck > install, 'make typecheck runs after npm ci installed TypeScript');
 });
 
-test('the CI workflow bootstraps in the order of a repository: the npm of packageManager, npm ci, then the other tools (K71-2)', () => {
-  const bootstrap = ['make install-tools TOOLS=npm', 'make install-packages', 'make install-tools'];
-  for (const name of ['checks', 'kit_tests', 'source_tests']) {
-    assert.deepEqual(jobRuns(name).slice(0, 3), bootstrap, `${name} bootstraps from its own checkout`);
-  }
+test('the CI workflow bootstraps npm and package-lock before job-specific tools (K71-2)', () => {
+  const bootstrap = ['make install-tools TOOLS=npm', 'make install-packages'];
+  for (const name of ['checks', 'kit_tests', 'source_tests']) assert.deepEqual(jobRuns(name).slice(0, 2), bootstrap, `${name} bootstraps from its own checkout`);
+  assert.ok(jobRuns('checks').includes('make install-tools'), 'checks installs all tools for its full gate set');
 });
 
 test('the CI workflow installs the PHP of .php-version before install-tools, which runs PHPUnit on it (K78)', () => {
@@ -160,7 +158,8 @@ test('kit declares every Rust nightly that parity-real runs, which make install-
   const declared = new Set(exceptions.filter(entry => entry.tool === 'rust').map(entry => entry.channel));
   assert.deepEqual([...used].filter(channel => !declared.has(channel)), [], 'config/toolchain.json exceptions declare these nightlies');
   const sourceRuns = jobRuns('source_tests');
-  assert.ok(sourceRuns.indexOf('make install-tools') < sourceRuns.indexOf('make source-test-group GROUP=${{ matrix.group }}'), 'make install-tools runs before each source-test group');
+  const parityTools = sourceRuns.indexOf('make install-tools TOOLS="go python uv php phpunit rust"');
+  assert.ok(parityTools >= 0 && parityTools < sourceRuns.indexOf('make source-test-group GROUP=${{ matrix.group }}'), 'the common parity group installs its exact runtimes before running');
 });
 
 test('rust-toolchain.toml declares the clippy that make lint-rust runs, so rustup installs it with the channel (K77)', () => {
@@ -177,7 +176,7 @@ test('every check step runs after an earlier step failed, so one run shows every
     assert.ok(install >= 0, `${name} installs its tools`);
     const checks = steps.slice(install + 1);
     assert.ok(checks.length > 0, `${name} runs checks after the installs`);
-    for (const step of checks) assert.match(step, /^ {8}if: \$\{\{ !cancelled\(\) \}\}$/m, `${name} continues after a failed setup step:\n${step}`);
+    for (const step of checks) assert.match(step, /^ {8}if: .*!cancelled\(\)/m, `${name} continues after a failed setup step:\n${step}`);
   }
 });
 

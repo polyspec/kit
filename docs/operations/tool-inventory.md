@@ -39,7 +39,12 @@ and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise ins
 not: PHP, which the machine provides and `install-php.mts` discovers and wraps (K283, below), the wheel backend (`pythonBackend`), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
 (`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install --no-self-update`
 in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo first runs) and the Rust channels of
-`exceptions`, and the symbol extractors. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
+`exceptions`, and the symbol extractors. With no `TOOLS` selectors this remains the full install. `make install-tools TOOLS="go python"`
+installs only those mise tools and their declared prerequisites; selectors are exact names accepted by `check-toolchain.mts`.
+`deadcode`, `govulncheck` and `golangciLint` also install Go, `vulture` installs Python and uv, Python installs the declared wheel
+backend, PHP composer tools install the declared PHP wrapper and Composer, and Rust installs its stable and declared exception
+channels. Unknown, empty and undeclared selectors fail before mutation. A selected install leaves other installed tools in place
+and does not build symbol extractors or PHP arginfo; those have explicit targets. The bootstrap selector `TOOLS=npm` is unchanged. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
 `packageManager` and mise itself, by the sha256 of `config/toolchain.json` `mise`; `install-tool.mts` builds each of them beside
 its target, checks it there and renames it, so a second run changes nothing. mise keeps its data, cache, state and config,
 its installs and its shims in `var/tools/mise`, and the wrapper `var/tools/bin/mise` sets that environment; nothing outside the
@@ -123,7 +128,7 @@ A repository may declare a downloaded tool of its own in `mise.toml` through the
 
 A Composer project of `var/tools` (PHPUnit, the PHP lint) counts as installed only while it is current (K284): its `composer.lock` equals the
 `composer.lock` of the project byte for byte, and Composer's own `composer check-platform-reqs --lock` passes in it under the PHP of
-`var/tools/bin`. Otherwise `make install-tools` installs it again through the temporary directory and the rename, so an installation
+`var/tools/bin`. Otherwise a full `make install-tools` installs it again through the temporary directory and the rename, so an installation
 made under another PHP is replaced, not run.
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of

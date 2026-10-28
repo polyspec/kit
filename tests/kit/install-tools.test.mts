@@ -67,11 +67,65 @@ test('a mise install that fails stops install-tools with the error of mise, befo
   assert.doesNotMatch(result.stdout, /backend/, 'the backend is not installed');
 });
 
-test('install-tools takes no tool names, and needs the mise of the bootstrap', (t) => {
+test('install-tools selects only declared tools and rejects empty or unknown selectors before mutation', (t) => {
+  const { root, stubs } = checkout(t, '[tools]\ngo = "1.27.3"\npython = "3.14.8"\nruff = "0.17.0"\n');
+  writeFileSync(path.join(root, 'var/tools/bin/go'), '#!/bin/sh\n', { mode: 0o755 });
+  writeFileSync(path.join(root, 'var/tools/bin/php'), '#!/bin/sh\n', { mode: 0o755 });
+  const selected = start(INSTALL_TOOLS, root, stubs.env, 'go', 'python');
+  assert.equal(selected.status, 0, selected.stderr);
+  assert.deepEqual(stubs.calls(), ['mise install --locked go python']);
+  assert.equal(readdirSync(path.join(root, 'var/tools/bin')).includes('go'), false, 'the selected Go shim is not shadowed by a legacy wrapper');
+  assert.equal(readdirSync(path.join(root, 'var/tools/bin')).includes('php'), true, 'an unrelated wrapper remains installed');
+
+  const unknown = start(INSTALL_TOOLS, root, stubs.env, 'go', 'not-declared');
+  assert.equal(unknown.status, 1);
+  assert.match(unknown.stderr, /unknown TOOLS selector not-declared; choose /);
+  assert.deepEqual(stubs.calls(), ['mise install --locked go python'], 'unknown selectors fail before another mise install');
+
+  const empty = start(INSTALL_TOOLS, root, stubs.env, '');
+  assert.equal(empty.status, 1);
+  assert.match(empty.stderr, /TOOLS must name one or more declared tool selectors/);
+  assert.deepEqual(stubs.calls(), ['mise install --locked go python'], 'empty selectors fail before another mise install');
+});
+
+test('selected tools include only their declared mise prerequisites, and a missing prerequisite fails before install', (t) => {
+  const toml = '[tools]\ngo = "1.27.3"\npython = "3.14.8"\nuv = "0.13.0"\n"pypi:vulture" = "2.16"\n"go:golang.org/x/tools/cmd/deadcode" = "0.52.0"\n';
+  const { root, stubs } = checkout(t, toml);
+  const result = start(INSTALL_TOOLS, root, stubs.env, 'deadcode', 'vulture');
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(stubs.calls(), ['mise install --locked go:golang.org/x/tools/cmd/deadcode go pypi:vulture python uv']);
+
+  const { root: incomplete, stubs: incompleteStubs } = checkout(t, '[tools]\n"go:golang.org/x/tools/cmd/deadcode" = "0.52.0"\n');
+  const missing = start(INSTALL_TOOLS, incomplete, incompleteStubs.env, 'deadcode');
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /go is needed by the selected TOOLS, but mise\.toml does not declare go/);
+  assert.deepEqual(incompleteStubs.calls(), [], 'transitive prerequisites are validated before mise is called');
+
+  const composerToml = '[tools]\n"http:composer" = { version = "2.8.12", url = "https://getcomposer.org/download/2.8.12/composer.phar" }\n';
+  const { root: composerOnly, stubs: composerStubs } = checkout(t, composerToml, { '.php-version': '8.4\n' });
+  writeFileSync(path.join(composerStubs.directory, 'bin/php'), '#!/bin/sh\nprintf "8.4\\n"\n', { mode: 0o755 });
+  const composer = start(INSTALL_TOOLS, composerOnly, composerStubs.env, 'composer');
+  assert.equal(composer.status, 0, composer.stderr);
+  assert.deepEqual(composerStubs.calls(), ['mise install --locked http:composer'], 'Composer installs its declared PHP prerequisite first');
+
+  const { root: missingPhp, stubs: missingPhpStubs } = checkout(t, composerToml);
+  const rejectedComposer = start(INSTALL_TOOLS, missingPhp, missingPhpStubs.env, 'composer');
+  assert.equal(rejectedComposer.status, 1);
+  assert.match(rejectedComposer.stderr, /selected PHP tools need PHP/);
+  assert.deepEqual(missingPhpStubs.calls(), [], 'Composer without a declared PHP pin fails before mutation');
+
+  const { root: phpConfigOnly, stubs: phpConfigStubs } = checkout(t, composerToml, { 'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.4'] }) });
+  const rejectedConfig = start(INSTALL_TOOLS, phpConfigOnly, phpConfigStubs.env, 'composer');
+  assert.equal(rejectedConfig.status, 1);
+  assert.match(rejectedConfig.stderr, /.php-version is missing/);
+  assert.deepEqual(phpConfigStubs.calls(), [], 'a PHP minor without the installable .php-version declaration fails before mutation');
+});
+
+test('a requested tool absent from the checkout declaration is refused before mutation, and install-tools needs bootstrap mise', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n');
   const named = start(INSTALL_TOOLS, root, stubs.env, 'ruff');
   assert.equal(named.status, 1);
-  assert.match(named.stderr, /\[install-tools\] install-tools takes no tool names; it installs every tool of mise\.lock and the declared tools that mise does not install, and it was given ruff/);
+  assert.match(named.stderr, /\[install-tools\] ruff is not declared by this checkout/);
   assert.deepEqual(stubs.calls(), []);
   const bare = toolchainCheckout(t, { 'mise.toml': '[tools]\n' });
   const missing = start(INSTALL_TOOLS, bare, stubs.env);

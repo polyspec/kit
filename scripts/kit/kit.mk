@@ -68,7 +68,7 @@ cargo-downloads-fetch: ## Download the crates of every Cargo.lock
 
 # TOOLS=npm is the first step of a checkout, before npm ci installs the packages that the other tools import, so it runs the
 # bootstrap installer of $(KIT)/bootstrap, which imports only Node.js built-ins.
-install-tools: ## Install the tools of mise.lock with mise, and the tools that mise does not install, into var/tools; TOOLS=npm runs the bootstrap; ONLINE
+install-tools: ## Install all locked tools or selected toolchain names from check-toolchain; TOOLS=npm runs the bootstrap; ONLINE
 ifneq ($(KIT_WORKTREE),)
 	@echo "[install-tools] $(CURDIR) is a worktree that runs the tools of the main checkout $(KIT_MAIN_CHECKOUT) and installs none; run make install-tools there (K519)" >&2
 	@exit 1

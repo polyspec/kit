@@ -79,7 +79,9 @@ const probes: Record<string, Probe> = {
   composer: shim('composer', { args: ['--version', '--no-ansi'], pattern: /^Composer version (\d+\.\d+\.\d+) /m }),
   vulture: shim('vulture', RELEASE_OUTPUT.vulture),
 };
-export const TOOLS = Object.keys(probes);
+type ToolName = keyof typeof probes;
+const isToolName = (name: string): name is ToolName => Object.hasOwn(probes, name);
+export const TOOLS = Object.keys(probes).filter(isToolName);
 
 /** The environment of the version commands: the tools of var/tools first on PATH (toolsEnvironment) and no toolchain selection or download. */
 export const toolchainEnvironment = (root: string, base: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv => ({ ...toolsEnvironment(root, base), GOTOOLCHAIN: 'local', RUSTUP_AUTO_INSTALL: '0' });
