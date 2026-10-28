@@ -558,10 +558,22 @@ parity-check: ## Run every parity binding and check every rule; UNITS="<id>..." 
 
 # The parity declaration is the source of the native implementation list. Generate an explicit phony target per implementation so
 # repository setup prerequisites, existing files and a consumer's `.PHONY` declarations cannot bypass the provider recipe.
+# The first install goals run before the checkout's Node wrapper exists. They do not need generated phase targets; defer their
+# declaration read until a later gate invocation, after the conventional `TOOLS=npm` bootstrap has installed Node. Any mixed
+# bootstrap and gate invocation, and every ordinary target, still validates and enumerates the declaration here.
+KIT_BOOTSTRAP_GOALS := install install-kit kit-install install-packages toolchain-lock install-tools
+KIT_BOOTSTRAP_ONLY := $(if $(strip $(MAKECMDGOALS)),$(if $(filter-out $(KIT_BOOTSTRAP_GOALS),$(MAKECMDGOALS)),,1),)
+ifneq ($(filter install-tools,$(MAKECMDGOALS)),)
+ifneq ($(TOOLS),npm)
+KIT_BOOTSTRAP_ONLY :=
+endif
+endif
+ifneq ($(KIT_BOOTSTRAP_ONLY),1)
 ifneq ($(wildcard config/parity.json),)
 KIT_PARITY_IMPLEMENTATIONS := $(shell $(NODE) $(KIT)/parity.$(KIT_EXT) --make-targets || echo __KIT_PARITY_TARGETS_ERROR__)
 ifneq ($(filter __KIT_PARITY_TARGETS_ERROR__,$(KIT_PARITY_IMPLEMENTATIONS)),)
 $(error config/parity.json implementation names could not be read safely; fix the parity declaration)
+endif
 endif
 endif
 KIT_PARITY_BINDING_TARGETS := $(addprefix parity-bindings-,$(addsuffix -check,$(KIT_PARITY_IMPLEMENTATIONS)))
