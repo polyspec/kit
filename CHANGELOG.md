@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Fix clean-checkout npm bootstrap by deferring parity target enumeration until an ordinary gate invocation; retain strict mixed-goal validation. (K742)
+
 - Prepared Kit 0.0.62 with native candidate packaging, locked consumer installation and a current dependency review. (K741)
 
 ## 0.0.62

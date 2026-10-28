@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 80eb30205311067156b97746fc6c2ecf5b89d951324f6912834cb85af522cf99 -->
+<!-- source-sha256: c13e64af9792585f4b4fedf267db422051fe57c444b81a84583003e1993458b5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 일반 gate 호출까지 parity target 열거를 늦춰 clean checkout의 npm bootstrap을 수정하고 혼합 goal의 엄격한 검증은 유지한다. (K742)
 
 - native candidate 패키징, 잠긴 소비자 설치 및 최신 의존성 검토로 Kit 0.0.62를 준비했다. (K741)
 
