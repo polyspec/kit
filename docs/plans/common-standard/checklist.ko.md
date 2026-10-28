@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 7535dca97f2b395aa2f2f4f636c7b83f70cb63537cdd0b1a86a243207439c286 -->
+<!-- source-sha256: f1a591816c5b98c0399b3e45b43712cf585565505951d2f5255076e6da745b25 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -692,3 +692,4 @@
 | K734 | Kit 소유 parity 단계 분할과 합산 검증 지원 (이슈 #6) | scripts/kit/kit-check.mts scripts/kit/kit.mk workflows/gates.yml scripts/kit/ci-setup.mts scripts/kit/schema/ci.schema.json tests/kit/kit-check.test.mts tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-check.test.mts tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts`; `make typecheck` | [ ] |
 | K735 | 정확한 Python discovery 파일 선택 인식 (이슈 #7) | scripts/kit/test-selection.mts tests/kit/test-selection.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-selection.test.mts`; `make typecheck` | [ ] |
 | K736 | native 잠금 소스 설치로 worktree Python 환경 준비 (이슈 #8) | scripts/kit/worktree-setup.mts tests/kit/worktree-setup.test.mts tests/source/worktree-python-real.test.mts docs/operations/local-links.md docs/operations/local-links.ko.md | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K533\|K555\|legacy\|offline" tests/kit/worktree-setup.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/worktree-python-real.test.mts`; `make typecheck` | [ ] |
+| K737 | native Composer 소스 갱신에 변경된 직접 의존성 포함 (이슈 #9) | scripts/kit/composer-install.mts tests/kit/composer-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/composer-install.test.mts`; `make typecheck` | [ ] |
