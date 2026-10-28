@@ -24,7 +24,7 @@ import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { isFile, runnerWords, selects } from './test-selection.mts';
 
 // The make targets of kit that run a suite or a group of its targets.
-const SUITE_TARGETS = new Set(['check', 'ci', 'ci-targets', 'check-run', 'rerun-failed', 'owner-check']);
+const SUITE_TARGETS = new Set(['check', 'ci', 'ci-targets', 'check-run', 'rerun-failed', 'owner-check', 'kit-test-shard']);
 // The variables whose value marks a CI run.
 const CI_MARKERS = new Set(['GITHUB_ACTIONS', 'CI']);
 // The words that run the command after them.

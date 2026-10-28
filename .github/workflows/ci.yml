@@ -179,7 +179,11 @@ jobs:
         run: make commits-check RANGE="$range"
 
   kit_tests:
-    name: kit tests
+    name: kit tests (${{ matrix.shard }})
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -224,10 +228,14 @@ jobs:
         run: make kit-install-symbols-php
       - name: kit tests
         if: ${{ !cancelled() }}
-        run: make kit-test
+        run: make kit-test-shard SHARD=${{ matrix.shard }}
 
   source_tests:
-    name: source tests
+    name: source tests (${{ matrix.group }})
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [ts, php, php-ext, rust, go, python, common-1, common-2, common-3]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -272,7 +280,7 @@ jobs:
         run: make kit-install-symbols-php
       - name: source tests
         if: ${{ !cancelled() }}
-        run: make source-test
+        run: make source-test-group GROUP=${{ matrix.group }}
 
   kit:
     name: kit

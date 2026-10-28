@@ -11,6 +11,68 @@ include scripts/kit/kit.mk
 # (node scripts/kit/run-tests.mts node -- <test file>).
 CHECK_TARGETS := typecheck kit-test source-test rebuild-check duplication-check
 
+# The explicit test shards balance the declared unit cases (K718); CI runs every shard independently.
+KIT_TEST_SHARDS := 1 2 3 4 5 6
+KIT_TEST_FILES_1 := \
+	tests/kit/check-toolchain.test.mts tests/kit/checklist.test.mts tests/kit/dependency-state.test.mts \
+	tests/kit/gate-targets.test.mts tests/kit/install-composer-project.test.mts tests/kit/install-mise.test.mts \
+	tests/kit/install-vscode.test.mts tests/kit/isolation.test.mts tests/kit/lint-python.test.mts \
+	tests/kit/parity.test.mts tests/kit/paths.test.mts tests/kit/php-platform.test.mts \
+	tests/kit/process.test.mts tests/kit/release-go-tags.test.mts tests/kit/test-exit-deadline.test.mts \
+	tests/kit/toolchain-declared.test.mts tests/kit/toolchain-lint.test.mts tests/kit/toolchain-lock.test.mts
+KIT_TEST_FILES_2 := \
+	tests/kit/bootstrap.test.mts tests/kit/bypass-check.test.mts tests/kit/check-rules.test.mts \
+	tests/kit/ci.test.mts tests/kit/editor-boundaries.test.mts tests/kit/glob.test.mts \
+	tests/kit/install-php.test.mts tests/kit/kit-mk.test.mts tests/kit/link-folders.test.mts \
+	tests/kit/link.test.mts tests/kit/owner-check.test.mts tests/kit/pack-manifest.test.mts \
+	tests/kit/push-gate.test.mts tests/kit/rebuild-check.test.mts tests/kit/release-root.test.mts \
+	tests/kit/release-tools.test.mts tests/kit/test-selection.test.mts tests/kit/text-absent.test.mts \
+	tests/kit/toolchain-exceptions.test.mts tests/kit/uv-install.test.mts
+KIT_TEST_FILES_3 := \
+	tests/kit/ci-only.test.mts tests/kit/dependency-advisory.test.mts tests/kit/dependency-cargo.test.mts \
+	tests/kit/dependency-policy.test.mts tests/kit/documents-stamp.test.mts tests/kit/install-symbols.test.mts \
+	tests/kit/kit-tools.test.mts tests/kit/markdown.test.mts tests/kit/parity-requirements.test.mts \
+	tests/kit/python-lock-check.test.mts tests/kit/python-lock.test.mts tests/kit/recipe-tools.test.mts \
+	tests/kit/release-tag.test.mts tests/kit/run-tests.test.mts tests/kit/runtime-targets.test.mts \
+	tests/kit/stubs.test.mts tests/kit/suppression-check.test.mts tests/kit/test-output.test.mts \
+	tests/kit/toolchain-mise.test.mts tests/kit/version.test.mts
+KIT_TEST_FILES_4 := \
+	tests/kit/dependency-review.test.mts tests/kit/dependency-toolchain.test.mts tests/kit/holder-lock.test.mts \
+	tests/kit/install-tools.test.mts tests/kit/kit-assets.test.mts tests/kit/kit-bootstrap.test.mts \
+	tests/kit/kit-check.test.mts tests/kit/kit-files.test.mts tests/kit/land.test.mts \
+	tests/kit/language-check.test.mts tests/kit/link-state-check.test.mts tests/kit/lint-go.test.mts \
+	tests/kit/pin-python-dependency.test.mts tests/kit/registry.test.mts tests/kit/release.test.mts \
+	tests/kit/sandbox-cleanup.test.mts tests/kit/test-gap-start.test.mts tests/kit/test-markers.test.mts \
+	tests/kit/toolchain-files.test.mts tests/kit/wheel-dependencies.test.mts tests/kit/wheel-sibling.test.mts
+KIT_TEST_FILES_5 := \
+	tests/kit/cargo-downloads.test.mts tests/kit/catch-check-steps.test.mts tests/kit/composer-install.test.mts \
+	tests/kit/dependency-go.test.mts tests/kit/duplication-check.test.mts tests/kit/git-hooks.test.mts \
+	tests/kit/install-npm.test.mts tests/kit/install-packages.test.mts tests/kit/lint-php.test.mts \
+	tests/kit/npm-install.test.mts tests/kit/php-ext.test.mts tests/kit/plan.test.mts \
+	tests/kit/process-group.test.mts tests/kit/python-lock-write.test.mts tests/kit/release-proof.test.mts \
+	tests/kit/release-wheel.test.mts tests/kit/retained-branches.test.mts tests/kit/sandbox-repository.test.mts \
+	tests/kit/schema.test.mts tests/kit/test-build-first.test.mts tests/kit/twin-merge.test.mts
+KIT_TEST_FILES_6 := \
+	tests/kit/catch-check.test.mts tests/kit/claude-hook.test.mts tests/kit/commits.test.mts \
+	tests/kit/divergence-check.test.mts tests/kit/documents.test.mts tests/kit/gates-workflow.test.mts \
+	tests/kit/generated-files.test.mts tests/kit/git.test.mts tests/kit/kit-sync.test.mts \
+	tests/kit/linked-sources.test.mts tests/kit/lint-rust.test.mts tests/kit/lint-ts.test.mts \
+	tests/kit/project-hook.test.mts tests/kit/python-venv.test.mts tests/kit/release-assets.test.mts \
+	tests/kit/release-consumer.test.mts tests/kit/release-tools-path.test.mts tests/kit/run-command.test.mts \
+	tests/kit/toolchain-npmrc.test.mts tests/kit/tracked-files.test.mts tests/kit/verification.test.mts \
+	tests/kit/worktree-setup.test.mts
+
+SOURCE_TEST_GROUPS := ts php php-ext rust go python common-1 common-2 common-3
+SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts tests/source/symbols-ts-real.test.mts
+SOURCE_TEST_FILES_php := tests/source/composer-install-real.test.mts tests/source/link-composer-real.test.mts tests/source/lint-php-real.test.mts tests/source/symbols-php-real.test.mts
+SOURCE_TEST_FILES_php-ext := tests/source/php-library-real.test.mts
+SOURCE_TEST_FILES_rust := tests/source/link-cargo-real.test.mts tests/source/lint-rust-real.test.mts
+SOURCE_TEST_FILES_go := tests/source/go-worktree-real.test.mts tests/source/govulncheck-packages-real.test.mts tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
+SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-lock-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-editable-real.test.mts tests/source/wheel-dependencies-real.test.mts tests/source/wheel-metadata-real.test.mts tests/source/wheel-sibling-real.test.mts tests/source/worktree-python-real.test.mts
+SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
+SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts tests/source/parity-real.test.mts
+SOURCE_TEST_FILES_common-3 := tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/installed-hook-real.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
+
 # The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm, as in a
 # repository (kit-bootstrap.mk); the release workflow that kit vendors and runs for itself calls it.
 install-packages: ## Install the packages of package-lock.json with the npm of var/tools; ONLINE
@@ -28,9 +90,22 @@ kit-test: ## Run the tests of the tools (tests/kit) through the test runner, wit
 	$(NODE) scripts/kit/run-tests.mts node -- tests/kit
 	@git status --porcelain -uall | diff var/kit-test-status - >&2 && git diff --binary HEAD | git hash-object --stdin | cmp -s var/kit-test-diff - || { echo "kit-test: the run changed the checkout: the status lines above, or a change of these tracked files: $$(git diff --name-only HEAD | tr '\n' ' ')" >&2; exit 1; }
 
+.PHONY: kit-test-shard source-test-group
+kit-test-shard: ## Run one declared kit unit-test shard; CI supplies SHARD=1..6; offline
+	@case " $(KIT_TEST_SHARDS) " in *" $(SHARD) "*) ;; *) echo "kit-test-shard: unknown or empty SHARD='$(SHARD)'; choose one of $(KIT_TEST_SHARDS)" >&2; exit 2;; esac
+	@test -n "$(KIT_TEST_FILES_$(SHARD))" || { echo "kit-test-shard: SHARD=$(SHARD) has no declared test files" >&2; exit 2; }
+	@mkdir -p var && git status --porcelain -uall > var/kit-test-status-$(SHARD) && git diff --binary HEAD | git hash-object --stdin > var/kit-test-diff-$(SHARD)
+	$(NODE) scripts/kit/run-tests.mts node -- $(KIT_TEST_FILES_$(SHARD))
+	@git status --porcelain -uall | diff var/kit-test-status-$(SHARD) - >&2 && git diff --binary HEAD | git hash-object --stdin | cmp -s var/kit-test-diff-$(SHARD) - || { echo "kit-test-shard: the run changed the checkout: the status lines above, or a change of these tracked files: $$(git diff --name-only HEAD | tr '\n' ' ')" >&2; exit 1; }
+
 # The kit's own tests (tests/source) check the kit's real Python and wheel path. kit-sync does not vendor them, so a consumer never runs them.
 source-test: ## Run the kit's own tests (tests/source) through the test runner, with the pythonBuild and pythonBackend of config/toolchain.json; offline after make install-tools
 	$(NODE) scripts/kit/run-tests.mts node -- tests/source
+
+source-test-group: ## Run one declared source-test group; CI supplies GROUP=ts|php|php-ext|rust|go|python|common-1|common-2|common-3; offline after make install-tools
+	@case " $(SOURCE_TEST_GROUPS) " in *" $(GROUP) "*) ;; *) echo "source-test-group: unknown or empty GROUP='$(GROUP)'; choose one of $(SOURCE_TEST_GROUPS)" >&2; exit 2;; esac
+	@test -n "$(SOURCE_TEST_FILES_$(GROUP))" || { echo "source-test-group: GROUP=$(GROUP) has no declared test files" >&2; exit 2; }
+	$(NODE) scripts/kit/run-tests.mts node -- $(SOURCE_TEST_FILES_$(GROUP))
 
 kit-fixture-record: ## Write the review record of tests/kit/fixture with the stub registries
 	$(NODE) tests/kit/record-fixture.mts

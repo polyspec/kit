@@ -2,6 +2,7 @@
 // documents and the commit messages besides the tests. Without them a commit that fails docs-check passed CI (b415ad8,
 // K82).
 import assert from 'node:assert/strict';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -41,7 +42,7 @@ test('the CI workflow gives kit-test go, python3 and cargo of the pins, not of t
   const tools = kitTestRuns.indexOf('make install-tools');
   const rust = kitTestRuns.indexOf('rustup toolchain install');
   const cargoDownloads = kitTestRuns.indexOf('make cargo-downloads-fetch');
-  const kitTest = kitTestRuns.indexOf('make kit-test');
+  const kitTest = kitTestRuns.indexOf('make kit-test-shard SHARD=${{ matrix.shard }}');
   // kit.mk puts the shims of mise first on PATH in every recipe, so the steps that run make need no PATH of their own.
   assert.ok(tools >= 0 && tools < kitTest, 'install-tools installs the tools of mise.lock before kit-test runs them');
   assert.ok(!jobText('kit_tests').includes('GITHUB_PATH'), 'no step puts var/tools on PATH by hand');
@@ -54,7 +55,7 @@ test('the source tests fetch Rust crates before running Cargo offline', () => {
   const sourceRuns = jobRuns('source_tests');
   const rust = sourceRuns.indexOf('rustup toolchain install');
   const cargoDownloads = sourceRuns.indexOf('make cargo-downloads-fetch');
-  const sourceTest = sourceRuns.indexOf('make source-test');
+  const sourceTest = sourceRuns.indexOf('make source-test-group GROUP=${{ matrix.group }}');
   assert.ok(rust >= 0 && cargoDownloads > rust && cargoDownloads < sourceTest, 'the source tests fetch crates after installing Rust and before running');
   assert.match(jobText('source_tests'), /- name: fetch Rust crates\n        if: \$\{\{ !cancelled\(\) \}\}\n        run: make cargo-downloads-fetch/);
 });
@@ -94,6 +95,7 @@ test('the CI workflow runs every make target of config/owner-checks.json but the
   const targets = new Set(owners.flatMap(owner => owner.targets ?? []));
   assert.deepEqual([...exempt].filter(target => !targets.has(target)), [], 'every exemption names a target of an owner rule');
   const ran = new Set(runs.flatMap(run => /^make ([a-z][a-z0-9-]*)/.exec(run)?.[1] ?? []));
+  if (ran.has('kit-test-shard')) ran.add('kit-test'); // The six explicit matrix shards cover the owner target's complete test inventory.
   assert.deepEqual([...targets].filter(target => !exempt.has(target) && !ran.has(target)), [], 'no CI step runs these owner targets');
   assert.deepEqual([...exempt].filter(target => ran.has(target)), [], 'an exempt target that a step runs needs no exemption');
 });
@@ -152,7 +154,7 @@ test('kit declares every Rust nightly that parity-real runs, which make install-
   const declared = new Set(exceptions.filter(entry => entry.tool === 'rust').map(entry => entry.channel));
   assert.deepEqual([...used].filter(channel => !declared.has(channel)), [], 'config/toolchain.json exceptions declare these nightlies');
   const sourceRuns = jobRuns('source_tests');
-  assert.ok(sourceRuns.indexOf('make install-tools') < sourceRuns.indexOf('make source-test'), 'make install-tools runs before make source-test');
+  assert.ok(sourceRuns.indexOf('make install-tools') < sourceRuns.indexOf('make source-test-group GROUP=${{ matrix.group }}'), 'make install-tools runs before each source-test group');
 });
 
 test('rust-toolchain.toml declares the clippy that make lint-rust runs, so rustup installs it with the channel (K77)', () => {
@@ -179,10 +181,41 @@ test('the kit required check aggregates independent checks, kit tests and source
   assert.match(kit, /^    if: \$\{\{ always\(\) \}\}$/m, 'the aggregator runs after failures');
   assert.match(kit, /^    needs: \[checks, kit_tests, source_tests\]$/m, 'the aggregator needs every independent job');
   assert.match(kit, /RESULTS: \$\{\{ toJSON\(needs\) \}\}/, 'the aggregator receives every job result');
-  assert.deepEqual(jobRuns('kit_tests').filter(run => run === 'make kit-test'), ['make kit-test']);
-  assert.deepEqual(jobRuns('source_tests').filter(run => run === 'make source-test'), ['make source-test']);
+  assert.match(jobText('kit_tests'), /fail-fast: false[\s\S]*shard: \[1, 2, 3, 4, 5, 6\]/);
+  assert.match(jobText('source_tests'), /fail-fast: false[\s\S]*group: \[ts, php, php-ext, rust, go, python, common-1, common-2, common-3\]/);
+  assert.deepEqual(jobRuns('kit_tests').filter(run => run === 'make kit-test-shard SHARD=${{ matrix.shard }}'), ['make kit-test-shard SHARD=${{ matrix.shard }}']);
+  assert.deepEqual(jobRuns('source_tests').filter(run => run === 'make source-test-group GROUP=${{ matrix.group }}'), ['make source-test-group GROUP=${{ matrix.group }}']);
   const checks = jobRuns('checks').filter(run => run.startsWith('make ') && !/^make (?:install-tools|install-packages|kit-install-)/.test(run));
   const names = checks.map(run => run.split(/\s+/, 2)[1]);
   assert.equal(new Set(names).size, names.length, 'each check target runs once');
   assert.ok(!checks.includes('make kit-test') && !checks.includes('make source-test'));
+});
+
+test('CI test shard declarations cover every tracked kit and source test file exactly once (K718)', () => {
+  const makefile = readFileSync(path.join(ROOT, 'Makefile'), 'utf8');
+  const assignments = new Map([...makefile.matchAll(/^([A-Za-z][A-Za-z0-9_-]*) := ((?:[^\n]*\\\n)*[^\n]*)/gm)]
+    .map(match => [known(match[1], 'match[1]'), known(match[2], 'match[2]').replace(/\\\n/g, ' ').split(/\s+/).filter(Boolean)]));
+  const names = (prefix: string) => [...assignments.keys()].filter(name => name.startsWith(prefix));
+  const files = (prefix: string) => names(prefix).flatMap(name => assignments.get(name) ?? []);
+  const tracked = (directory: string) => execFileSync('git', ['ls-files', '--', directory], { cwd: ROOT, encoding: 'utf8' })
+    .split('\n').filter(file => file.endsWith('.test.mts')).sort();
+  const assertExactOnce = (declared: string[], expected: string[], label: string) => {
+    assert.equal(new Set(declared).size, declared.length, `${label} repeats no file`);
+    assert.deepEqual([...declared].sort(), expected, `${label} includes every tracked test file exactly once`);
+  };
+  assert.deepEqual(names('KIT_TEST_FILES_').sort(), ['KIT_TEST_FILES_1', 'KIT_TEST_FILES_2', 'KIT_TEST_FILES_3', 'KIT_TEST_FILES_4', 'KIT_TEST_FILES_5', 'KIT_TEST_FILES_6']);
+  assertExactOnce(files('KIT_TEST_FILES_'), tracked('tests/kit'), 'kit shards');
+  assert.deepEqual(names('SOURCE_TEST_FILES_').sort(), ['SOURCE_TEST_FILES_common-1', 'SOURCE_TEST_FILES_common-2', 'SOURCE_TEST_FILES_common-3', 'SOURCE_TEST_FILES_go', 'SOURCE_TEST_FILES_php', 'SOURCE_TEST_FILES_php-ext', 'SOURCE_TEST_FILES_python', 'SOURCE_TEST_FILES_rust', 'SOURCE_TEST_FILES_ts']);
+  assertExactOnce(files('SOURCE_TEST_FILES_'), tracked('tests/source'), 'source groups');
+});
+
+test('the CI shard targets reject an empty or unknown selection before starting the runner (K718)', () => {
+  for (const [target, args] of [
+    ['kit-test-shard', []], ['kit-test-shard', ['SHARD=unknown']],
+    ['source-test-group', []], ['source-test-group', ['GROUP=unknown']],
+  ] as const) {
+    const result = spawnSync('make', ['--no-print-directory', target, ...args], { cwd: ROOT, encoding: 'utf8' });
+    assert.equal(result.status, 2, `${target} ${args.join(' ')}: ${result.stdout}${result.stderr}`);
+    assert.match(result.stderr, /unknown or empty/);
+  }
 });

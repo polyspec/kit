@@ -91,6 +91,7 @@ const named = (file: string) => /\.[a-z]+$/.test(file);
 
 test('a make target whose recipes or prerequisites run a suite is refused, as the suite would be (K249-3)', () => {
   assert.match(refusal('make kit-test', named, () => MAKE) ?? '', /^make kit-test runs .*run-tests\.mts node -- tests\/kit runs a whole runtime without a selection/);
+  assert.match(refusal('make kit-test-shard SHARD=1', named, () => MAKE) ?? '', /^make kit-test-shard runs only in CI/);
   assert.match(refusal('make all', named, () => MAKE) ?? '', /^make all runs make kit-test runs /);
   assert.equal(refusal('make unit', named, () => MAKE), null);
   assert.equal(refusal('make build', named, () => MAKE), null);
