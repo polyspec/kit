@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.61
+
 - Install the native PHP parser where temporary consumer fixtures resolve it and assert the concrete cause-loss diagnostic emitted by PHPStan raw output. (K728)
 
 - Reject caught-exception cause loss with a locked native PHPStan rule and document the executable language-specific error checks and their limits. (K727)

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3aba9a31365136ada094cc6ce0f1129aeb68e67fd07a164d86bf3d4c56d43b7c -->
+<!-- source-sha256: d8673ea65617acddf8a5bd0158594c2933ef4a3a7e89007f53855f4970a6c352 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.61
 
 - 임시 소비자 fixture가 찾는 위치에 PHP 파서를 설치하고 PHPStan raw 출력의 정확한 원인 유실 진단을 검증합니다. (K728)
 

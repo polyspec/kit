@@ -1,11 +1,11 @@
 {
   "schema": 1,
   "comment": "Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.",
-  "reviewed": "2026-10-27T05:51:57.016Z",
+  "reviewed": "2026-10-28T11:52:20.850Z",
   "locks": [
     {
       "lock": "package-lock.json",
-      "sha256": "cdc9ecfc72d5af2e58b630910e60ee901b836d0e78d096048a5ef9c319ebb54b",
+      "sha256": "e7f3e2fb6f37c6b1282182a99ac5451ab74ce632d50d5c96ff9fe3ef5c4f67c4",
       "advisories": []
     },
     {
@@ -110,7 +110,7 @@
       "manifest": "package.json",
       "package": "amaro",
       "version": "1.2.1",
-      "latest": "1.2.2"
+      "latest": "1.3.0"
     },
     {
       "ecosystem": "npm",
@@ -194,7 +194,7 @@
       "manifest": "package.json",
       "package": "oxlint",
       "version": "1.88.0",
-      "latest": "1.89.0"
+      "latest": "1.90.0"
     },
     {
       "ecosystem": "npm",
