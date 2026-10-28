@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: afa8b0c8036f208bdaec0a400e3215353e5db407c311081a7fcd968052d6d282 -->
+<!-- source-sha256: 07afce487570bd838bfc570f9f5ba62fef953360dc70e015b9d8b7a14be6f55d -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -698,3 +698,4 @@
 | K739 | 지원하는 모든 OS에서 native 대소문자 구분 자원으로 표준 workspace 테스트를 실행한다 | scripts/kit/runtime-targets.mts scripts/kit/case-sensitive-directory.mts scripts/kit/process-group.mts tests/kit/runtime-targets.test.mts tests/kit/process-group.test.mts tests/kit/standard-case-sensitive-smoke.mts scripts/kit/kit.mk .github/workflows/platform-bootstrap.yml config/owner-checks.json config/rebuild.json config/knip-entries.json knip.json Makefile scripts/kit/run-tests.mts tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/runtime-targets.test.mts tests/kit/process-group.test.mts`; `make typecheck`; `node --test --test-name-pattern="each tool starts" tests/kit/run-tests.test.mts` | [o] |
 | K740 | 릴리스 검토에서 확인한 stable 의존성 버전을 갱신한다 | package.json package-lock.json mise.toml mise.lock config/dependency-review.json | `make dependency-policy-check`; `make typecheck` | [o] |
 | K741 | native candidate 자산과 소비자 잠금 및 검증된 설치로 Kit 0.0.62를 준비한다 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-coverage`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.62` | [o] |
+| K742 | npm bootstrap 전 clean checkout parity target 열거 실패를 수정한다 (GitHub issue 15) | scripts/kit/kit.mk tests/kit/parity-api.test.mts tests/kit/kit-tools.test.mts | `node --test tests/kit/parity-api.test.mts tests/kit/kit-tools.test.mts` | [ ] |
