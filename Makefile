@@ -12,7 +12,7 @@ include scripts/kit/kit.mk
 CHECK_TARGETS := typecheck kit-test source-test rebuild-check duplication-check
 
 # The explicit test shards balance the declared unit cases (K718); CI runs every shard independently.
-KIT_TEST_SHARDS := 1 2 3 4 5 6
+KIT_TEST_SHARDS := 1 2 3 4 5 6 7
 KIT_TEST_FILES_1 := \
 	tests/kit/check-toolchain.test.mts tests/kit/checklist.test.mts tests/kit/dependency-state.test.mts \
 	tests/kit/gate-targets.test.mts tests/kit/install-composer-project.test.mts tests/kit/install-mise.test.mts \
@@ -61,6 +61,7 @@ KIT_TEST_FILES_6 := \
 	tests/kit/release-consumer.test.mts tests/kit/release-tools-path.test.mts tests/kit/run-command.test.mts \
 	tests/kit/toolchain-npmrc.test.mts tests/kit/tracked-files.test.mts tests/kit/verification.test.mts \
 	tests/kit/worktree-setup.test.mts
+KIT_TEST_FILES_7 := tests/kit/parity-api.test.mts
 
 SOURCE_TEST_GROUPS := ts php php-ext rust go python common-1 common-2 common-3
 SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts tests/source/symbols-ts-real.test.mts
