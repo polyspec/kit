@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cf7834c2df88032832260b717bfbff8e6c5092afcce4881026157eb7403c9611 -->
+<!-- source-sha256: ff9ba3e51ba1dea2e02c3f212ccd652d8ae4e249da80ac6a2469a6027284fb1c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 명시적으로 보류한 requirement의 binding을 보존하고, 해당 unit을 실행하거나 통과 건수로 계산하지 않으며 active/deferred requirement 혼합을 거부하도록 했습니다. (K715)
 
 - 명시적으로 선언한 모든 공개 API 입력과 crate별 Rust feature를 읽고, 일부 추출 실패를 불완전한 심볼 목록으로 승인하지 않도록 했습니다. (K714)
 

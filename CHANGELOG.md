@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Preserve bindings for explicitly held requirements, report held units without executing or counting passing cases, and reject mixed active/deferred requirements. (K715)
+
 - Read all explicitly declared public API inputs, including per-crate Rust features, and reject partial extraction instead of accepting an incomplete symbol inventory. (K714)
 
 ## 0.0.60
