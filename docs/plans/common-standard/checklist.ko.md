@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: b5f785666f19dce408eb16ad1560bde076b9c14fb0ed4a71f34172f0d691c1b6 -->
+<!-- source-sha256: 22fee6b9c54ea6de91b6f2a2749bdb32b19c59533a612deeb078ff40684ca62c -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -689,3 +689,4 @@
 | K731 | consumer gates를 선택 tool 기반 독립 CI job으로 준비한다 (issue #3) | workflows/gates.yml scripts/kit/kit.mk scripts/kit/ci-setup.mts scripts/kit/schema/ci.schema.json tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts Makefile docs/operations/tool-inventory.md docs/operations/tool-inventory.ko.md AGENTS.md AGENTS.ko.md | `node scripts/kit/run-tests.mts node -- tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts`; `make typecheck`; `make docs-check` | [~] |
 | K732 | 요청한 도구 환경에 맞게 arginfo 검사 범위 수정 (이슈 #4) | scripts/kit/check-toolchain.mts tests/kit/check-toolchain.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/check-toolchain.test.mts`; `make typecheck` | [~] |
 | K733 | 테스트 없는 Go 보조 패키지와 명시적으로 생략한 테스트 구분 (이슈 #5) | scripts/kit/test-output.mts scripts/kit/test-progress.mts tests/kit/test-output.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-output.test.mts`; `make typecheck` | [~] |
+| K734 | Kit 소유 parity 단계 분할과 합산 검증 지원 (이슈 #6) | scripts/kit/kit-check.mts scripts/kit/kit.mk workflows/gates.yml scripts/kit/ci-setup.mts scripts/kit/schema/ci.schema.json tests/kit/kit-check.test.mts tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-check.test.mts tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts`; `make typecheck` | [ ] |
