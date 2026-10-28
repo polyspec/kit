@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Accept exact Python unittest discovery file patterns while rejecting a later broad pattern. (K735)
+
 - Provide mandatory full or API/binding parity gate partitions with safe Make target generation and exact recipe validation. (K734)
 
 - Distinguish successful Go helper packages with no test files from skipped named tests and empty test runs. (K733)

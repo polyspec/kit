@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e949d4623243cffe07d0ecaca684312c72907899016b718465c4bbf251dd25fe -->
+<!-- source-sha256: b6942e8156aaf306a12caf6f188a701be6f71d04276f4c1f18515a9798161785 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 정확한 Python unittest discovery 파일 pattern을 허용하고 뒤에서 넓은 pattern으로 바꾸는 선택을 거부한다. (K735)
 
 - 안전한 Make target 생성과 정확한 recipe 검증으로 필수 전체 또는 API/binding parity gate 분할을 제공한다. (K734)
 

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 7846fa95530f5cffc00ca189b2a8b1c412f4f14f3f612492d57fb0e056fa7ba6 -->
+<!-- source-sha256: b8753f2683009de4a2e57ac583b888ce803ae18ce64713e56533669155df4c97 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -691,7 +691,7 @@
 | K732 | 요청한 도구 환경에 맞게 arginfo 검사 범위 수정 (이슈 #4) | scripts/kit/check-toolchain.mts tests/kit/check-toolchain.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/check-toolchain.test.mts`; `make typecheck` | [o] |
 | K733 | 테스트 없는 Go 보조 패키지와 명시적으로 생략한 테스트 구분 (이슈 #5) | scripts/kit/test-output.mts scripts/kit/test-progress.mts tests/kit/test-output.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-output.test.mts`; `make typecheck` | [o] |
 | K734 | Kit 소유 parity 단계 분할과 합산 검증 지원 (이슈 #6) | scripts/kit/kit-check.mts scripts/kit/kit.mk workflows/gates.yml scripts/kit/ci-setup.mts scripts/kit/schema/ci.schema.json tests/kit/kit-check.test.mts tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-check.test.mts tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts`; `make typecheck` | [o] |
-| K735 | 정확한 Python discovery 파일 선택 인식 (이슈 #7) | scripts/kit/test-selection.mts tests/kit/test-selection.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-selection.test.mts`; `make typecheck` | [v] |
+| K735 | 정확한 Python discovery 파일 선택 인식 (이슈 #7) | scripts/kit/test-selection.mts tests/kit/test-selection.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-selection.test.mts`; `make typecheck` | [o] |
 | K736 | native 잠금 소스 설치로 worktree Python 환경 준비 (이슈 #8) | scripts/kit/worktree-setup.mts tests/kit/worktree-setup.test.mts tests/source/worktree-python-real.test.mts docs/operations/local-links.md docs/operations/local-links.ko.md | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K533\|K555\|legacy\|offline" tests/kit/worktree-setup.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/worktree-python-real.test.mts`; `make typecheck` | [v] |
 | K737 | native Composer 소스 갱신에 변경된 직접 의존성 포함 (이슈 #9) | scripts/kit/composer-install.mts tests/kit/composer-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/composer-install.test.mts`; `make typecheck` | [v] |
 | K738 | 표준 runner에서 PHPUnit의 native 개별 테스트 제한시간을 반영한다 | scripts/kit/run-tests.mts scripts/kit/test-progress.mts scripts/kit/test-gap.mts scripts/kit/php-library/phpunit-deadline-extension.php scripts/kit/php-library/phpunit-deadline-prepend.php scripts/kit/php-library/phpunit-deadline-subscriber.php config/rebuild.json tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts`; `make typecheck` | [v] |
