@@ -49,9 +49,8 @@ test('Windows Make recipes use the Node.js selected by mise and its npm CLI, whi
   const where = path.join(ROOT, 'where');
   assert.equal(existsSync(where), false, 'the fixture has an uncontested name for mise where');
   t.after(() => rmSync(where, { force: true }));
-  if (process.platform === 'win32') writeFileSync(where, `console.error(JSON.stringify(Object.fromEntries(['MISE_DATA_DIR', 'MISE_CACHE_DIR', 'MISE_STATE_DIR', 'MISE_CONFIG_DIR', 'MISE_GLOBAL_CONFIG_FILE', 'MISE_GLOBAL_CONFIG_ROOT', 'MISE_LOCKED', 'MISE_AUTO_INSTALL', 'UV_PYTHON_DOWNLOADS', 'UV_NO_CONFIG', 'UV_CACHE_DIR'].map(name => [name, process.env[name]]))));\nconsole.log(process.env.KIT_MISE_NODE_DIR);\n`);
+  if (process.platform === 'win32') writeFileSync(where, `console.error(['MISE_DATA_DIR', 'MISE_CACHE_DIR', 'MISE_STATE_DIR', 'MISE_CONFIG_DIR', 'MISE_GLOBAL_CONFIG_FILE', 'MISE_GLOBAL_CONFIG_ROOT', 'MISE_LOCKED', 'MISE_AUTO_INSTALL', 'UV_PYTHON_DOWNLOADS', 'UV_NO_CONFIG', 'UV_CACHE_DIR'].map(name => process.env[name] ?? '').join('|'));\nconsole.log(process.env.KIT_MISE_NODE_DIR);\n`);
   const makeTools = tools.replaceAll('\\', '/');
-  const makeNodeDirectory = nodeDirectory.replaceAll('\\', '/');
   const makefile = readFileSync(KIT_MK, 'utf8');
   assert.match(makefile, /KIT_MISE_BINARY := .*mise\.exe/);
   assert.match(makefile, /KIT_NODE_DIRECTORY := \$\(shell \$\(KIT_MISE_ENVIRONMENT_ARGS\) "\$\(KIT_MISE_BINARY\)" where node\)/);
@@ -61,24 +60,21 @@ test('Windows Make recipes use the Node.js selected by mise and its npm CLI, whi
   assert.equal(dry.status, 0, dry.stdout + dry.stderr);
   assert.match(dry.stdout, /NPM_BIN=.*\/bin\/npm\.cmd\s+.*node\.exe scripts\/kit\/npm-install\.mts/, dry.stderr);
   const normalized = (value: string) => path.normalize(value.replaceAll('\\', '/'));
-  const environmentLine = dry.stderr.split('\n').find(line => process.platform === 'win32' ? line.startsWith('{') : line.includes('|'));
+  const environmentLine = dry.stderr.split('\n').find(line => line.includes('|'));
   assert.ok(environmentLine, dry.stderr);
-  const values = process.platform === 'win32' ? Object.values(JSON.parse(environmentLine) as Record<string, string>) : environmentLine.split('|');
-  const [miseData, miseCache, miseState, miseConfig, globalConfig, globalConfigRoot, locked, autoInstall, uvDownloads, uvConfig, uvCache] = values;
-  const observed = { MISE_DATA_DIR: miseData, MISE_CACHE_DIR: miseCache, MISE_STATE_DIR: miseState, MISE_CONFIG_DIR: miseConfig, MISE_GLOBAL_CONFIG_FILE: globalConfig, MISE_GLOBAL_CONFIG_ROOT: globalConfigRoot, MISE_LOCKED: locked, MISE_AUTO_INSTALL: autoInstall, UV_PYTHON_DOWNLOADS: uvDownloads, UV_NO_CONFIG: uvConfig, UV_CACHE_DIR: uvCache };
-  assert.deepEqual({ ...observed, MISE_DATA_DIR: normalized(observed.MISE_DATA_DIR ?? ''), MISE_CACHE_DIR: normalized(observed.MISE_CACHE_DIR ?? ''), MISE_STATE_DIR: normalized(observed.MISE_STATE_DIR ?? ''), MISE_CONFIG_DIR: normalized(observed.MISE_CONFIG_DIR ?? ''), MISE_GLOBAL_CONFIG_FILE: normalized(observed.MISE_GLOBAL_CONFIG_FILE ?? ''), MISE_GLOBAL_CONFIG_ROOT: normalized(observed.MISE_GLOBAL_CONFIG_ROOT ?? ''), UV_CACHE_DIR: normalized(observed.UV_CACHE_DIR ?? '') }, {
-    MISE_DATA_DIR: normalized(path.join(tools, 'mise')),
-    MISE_CACHE_DIR: normalized(path.join(tools, 'mise/cache')),
-    MISE_STATE_DIR: normalized(path.join(tools, 'mise/state')),
-    MISE_CONFIG_DIR: normalized(path.join(tools, 'mise/config')),
-    MISE_GLOBAL_CONFIG_FILE: normalized(path.join(ROOT, 'mise.toml')),
-    MISE_GLOBAL_CONFIG_ROOT: normalized(ROOT),
-    MISE_LOCKED: '1',
-    MISE_AUTO_INSTALL: '0',
-    UV_PYTHON_DOWNLOADS: 'never',
-    UV_NO_CONFIG: '1',
-    UV_CACHE_DIR: normalized(path.join(tools, 'mise/cache/uv')),
-  });
+  assert.deepEqual(environmentLine.split('|'), [
+    normalized(path.join(tools, 'mise')),
+    normalized(path.join(tools, 'mise/cache')),
+    normalized(path.join(tools, 'mise/state')),
+    normalized(path.join(tools, 'mise/config')),
+    normalized(path.join(ROOT, 'mise.toml')),
+    normalized(ROOT),
+    '1',
+    '0',
+    'never',
+    '1',
+    normalized(path.join(tools, 'mise/cache/uv')),
+  ]);
 
   const runner = spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(ROOT, 'Makefile'), 'install-packages', 'OS=Windows_NT', `KIT_TOOLS=${makeTools}`], { cwd: ROOT, encoding: 'utf8', env });
   assert.equal(runner.status, 0, runner.stdout + runner.stderr);
