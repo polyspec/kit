@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Writes mise.lock, the digests of the tools of mise.toml for every platform of LOCK_PLATFORMS (`make toolchain-lock`, ONLINE):
+// Writes mise.lock, the digests of the tools of mise.toml for every platform of LOCK_PLATFORMS, plus Windows Node and Go pins
+// (`make toolchain-lock`, ONLINE):
 //
 //   node scripts/kit/toolchain-lock.mts
 //
@@ -14,12 +15,12 @@
 // directories first on PATH and that Python as UV_PYTHON. The lock is then
 // checked by miseLockFindings, the check of make toolchain-check, so a lock that misses a digest fails here with the finding.
 import path from 'node:path';
-import { installMise } from './bootstrap/install-mise.mts';
+import { installMise, miseBinary, miseInstallEnvironment } from './bootstrap/install-mise.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { run as output } from './process.mts';
-import { declaredMiseTools, LOCK_PLATFORMS, miseLockFindings, MISE_TOOL_NAMES, MISE_TOOLS } from './toolchain-mise.mts';
+import { declaredMiseTools, LOCK_PLATFORMS, miseLockFindings, MISE_TOOL_NAMES, MISE_TOOLS, WINDOWS_LOCKED_TOOLS, WINDOWS_LOCK_PLATFORMS } from './toolchain-mise.mts';
 
 /** The tree under which `mise lock` writes the uv lock of each pypi: tool, a folder of the repository root. */
 export const MISE_LOCKS = '.mise/locks/';
@@ -32,14 +33,15 @@ export function lockTools({ root = repositoryRoot(), print = () => {} }: { root?
   const declaredMise = declaredToolchain(root).mise;
   if (!declaredMise) throw new Error('config/toolchain.json declares no mise; declare its version and the sha256 of its archive of each platform');
   installMise({ root, declared: declaredMise, print });
-  const mise = toolsPath(root, 'bin', 'mise');
+  const mise = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : toolsPath(root, 'bin', 'mise');
   // The environment of mise names the checkout's mise.toml as the global configuration (miseEnvironment), and mise then
   // locks its tools only with --global, which writes mise.lock beside that file.
   const platforms = ['--global', '--platform', LOCK_PLATFORMS.join(',')];
   const declared = declaredMiseTools(root);
   const pypi = MISE_TOOL_NAMES.some(name => MISE_TOOLS[name].key.startsWith('pypi:') && declared[name]);
-  // The wrapper sets the environment of mise itself; UV_PYTHON of toolsEnvironment would name a Python before mise installs it.
-  let env: NodeJS.ProcessEnv = process.env;
+  // On POSIX the wrapper sets the environment; Windows runs mise.exe directly with the same miseInstallEnvironment. UV_PYTHON
+  // of toolsEnvironment would name a Python before mise installs it.
+  let env: NodeJS.ProcessEnv = process.platform === 'win32' ? miseInstallEnvironment(root) : process.env;
   if (pypi) {
     if (!declared.uv || !declared.python) throw new Error(`a pypi: tool of mise.toml needs the uv and the Python of mise.toml, which lock it; declare ${MISE_TOOLS.uv.key} and ${MISE_TOOLS.python.key}`);
     const pinned = [MISE_TOOLS.uv.key, MISE_TOOLS.python.key];
@@ -48,9 +50,11 @@ export function lockTools({ root = repositoryRoot(), print = () => {} }: { root?
     const which = (command: string) => output(mise, ['which', command], { cwd: root, env }).trim();
     const uv = which(MISE_TOOLS.uv.command);
     const python = which(MISE_TOOLS.python.command);
-    env = { ...process.env, PATH: [path.dirname(uv), path.dirname(python), process.env.PATH ?? ''].join(path.delimiter), UV_PYTHON: python };
+    env = { ...env, PATH: [path.dirname(uv), path.dirname(python), env.PATH ?? ''].join(path.delimiter), UV_PYTHON: python };
   }
   run(mise, ['lock', ...platforms], { cwd: root, env }, print);
+  const windowsTools = WINDOWS_LOCKED_TOOLS.filter(name => declared[name as keyof typeof declared]);
+  if (windowsTools.length > 0) run(mise, ['lock', ...windowsTools, '--global', '--platform', WINDOWS_LOCK_PLATFORMS.join(',')], { cwd: root, env }, print);
   const findings = miseLockFindings(root);
   if (findings.length > 0) throw new Error(`mise.lock is incomplete:\n${findings.join('\n')}`);
   print('mise.lock pins every tool of mise.toml');

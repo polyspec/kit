@@ -145,8 +145,8 @@ test('the bootstrap requires the declaration of mise', (t) => {
   assert.match(result.stderr, /config\/toolchain\.json declares no mise; declare its version and the sha256 of its archive of each platform/);
 });
 
-// A mise.lock that pins node for every platform of LOCK_PLATFORMS, as mise lock writes it.
-const NODE_LOCK = `[[tools.node]]\nversion = "26.11.1"\nbackend = "core:node"\n\n${['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'].map(platform => `[tools.node."platforms.${platform}"]\nchecksum = "sha256:${'1'.repeat(64)}"\n`).join('\n')}`;
+// A mise.lock that pins node for every common platform and the Windows bootstrap platforms.
+const NODE_LOCK = `[[tools.node]]\nversion = "26.11.1"\nbackend = "core:node"\n\n${['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64', 'windows-x64', 'windows-arm64'].map(platform => `[tools.node."platforms.${platform}"]\nchecksum = "sha256:${'1'.repeat(64)}"\n`).join('\n')}`;
 
 test('a checkout whose mise.lock pins no node bootstraps in the documented order: make toolchain-lock, then make install-tools TOOLS=npm (K174)', (t) => {
   const release = miseRelease(t, NODE_LOCK);
@@ -163,7 +163,7 @@ test('a checkout whose mise.lock pins no node bootstraps in the documented order
   assert.equal(readFileSync(path.join(root, 'mise.lock'), 'utf8'), NODE_LOCK);
   const install = make('install-tools', 'TOOLS=npm');
   assert.equal(install.status, 0, `${install.stdout}${install.stderr}`);
-  assert.deepEqual(release.installs(), ['lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64', 'install --locked node']);
+  assert.deepEqual(release.installs(), ['lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64', 'lock node --global --platform windows-x64,windows-arm64', 'install --locked node']);
   assert.equal(readFileSync(path.join(root, 'var/tools/bin/node'), 'utf8').split('\n').at(-2), `exec '${NODE_INSTALL}/bin/node' "$@"`);
   assert.equal(stubs.calls().filter(line => line.startsWith('curl')).length, 1, 'the bootstrap downloaded mise again');
 });

@@ -15,7 +15,8 @@ import { installedGenStub } from './install-php-arginfo.mts';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
-import { RELEASE_OUTPUT, toolsPath } from './bootstrap/tool-wrappers.mts';
+import { commandPath, RELEASE_OUTPUT } from './bootstrap/tool-wrappers.mts';
+import { MISE_WRAPPER, NODE_WRAPPER } from './bootstrap/install-mise.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
@@ -54,10 +55,10 @@ const shim = (tool: keyof typeof MISE_TOOLS, output: { args: string[]; pattern: 
 // The command that prints the release of a tool, the pattern that reads it, and the fix of a mismatch.
 const probes: Record<string, Probe> = {
   // The node of mise.toml runs from its wrapper var/tools/bin/node, which the bootstrap writes, first on PATH (K171).
-  node: { command: root => toolsPath(root, 'bin', 'node'), args: ['--version'], pattern: /^v(\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools TOOLS=npm' },
+  node: { command: root => commandPath(root, NODE_WRAPPER), args: ['--version'], pattern: /^v(\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools TOOLS=npm' },
   // npm and php are the tools of the checkout, its wrappers in var/tools/bin, never the ones on PATH (K393-1).
   npm: { command: root => toolCommand(root, 'npm'), args: ['--version'], pattern: /^(\d+\.\d+\.\d+)$/m, fix: () => 'make install-tools TOOLS=npm' },
-  mise: { command: root => toolsPath(root, 'bin', 'mise'), ...RELEASE_OUTPUT.mise, fix: () => 'make install-tools TOOLS=npm' },
+  mise: { command: root => toolCommand(root, MISE_WRAPPER), ...RELEASE_OUTPUT.mise, fix: () => 'make install-tools TOOLS=npm' },
   // rustup installs the toolchain of rust-toolchain.toml through make install-tools (install-rust.mts); its proxy names a missing one.
   rust: { command: () => 'rustc', args: ['--version'], pattern: /^rustc (\d+\.\d+\.\d+) /m, absent: /toolchain '([^']+)' is not installed/, fix: () => INSTALL },
   php: { command: root => toolCommand(root, 'php'), args: ['-n', '-r', 'echo PHP_VERSION, "\\n";'], pattern: /^(\d+\.\d+\.\d+)/m, fix: v => `make install-tools finds the PHP of .php-version; install it first with ${present(v, 'the declared PHP minors').split(' or ').map(phpInstall).join(' or ')}` },
@@ -111,7 +112,7 @@ function probe(root: string, tool: string, run: Run): { release: string; error?:
   };
   const args = [...entry.args];
   if (entry.which) {
-    const mise = toolsPath(root, 'bin', 'mise');
+    const mise = toolCommand(root, MISE_WRAPPER);
     const found = run(mise, ['which', entry.which]);
     if (found.error || found.status !== 0) return failure(`${shownPath(root, mise)} which ${entry.which}`, found);
     args.push(found.stdout.trim());

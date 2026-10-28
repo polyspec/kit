@@ -28,8 +28,9 @@ ${platforms.map(platform => `[tools."${key}"."platforms.${platform}"]\nchecksum 
 
 // The platforms on which the bootstrap installs mise: the archives of config/toolchain.json mise (K134).
 const BOTH = ['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'];
+const WINDOWS = ['windows-x64', 'windows-arm64'];
 const LOCK = [
-  entry('go', '1.27.2', BOTH),
+  entry('go', '1.27.2', [...BOTH, ...WINDOWS]),
   entry('python', '3.14.8', BOTH),
   entry('ruff', '0.17.0', BOTH),
   entry('go:golang.org/x/vuln/cmd/govulncheck', '1.3.0', []),
@@ -95,13 +96,30 @@ test('a missing lock, tool, release, platform digest or uv lock is a finding wit
   ]);
 });
 
-// An ARM Linux runner or an Intel Mac installs the tools of mise.lock only when the lock pins their archives (K134).
-test('mise.lock pins the archive of every platform on which the bootstrap installs mise (K134)', (t) => {
+// Every managed tool has pins for each common Linux/macOS platform; selected Windows tools are checked separately below (K134).
+test('mise.lock pins the archive of every common Linux and macOS platform (K134)', (t) => {
   const two = LOCK.replaceAll(/\[tools\."[^"]+"\."platforms\.(linux-arm64|macos-x64)"\]\nchecksum = "[^"]+"\nurl = "[^"]+"\n/g, '');
   const root = toolchainCheckout(t, { 'mise.toml': MISE_TOML, 'mise.lock': two });
   const findings = miseLockFindings(root);
   assert.ok(findings.includes('mise.lock pins go 1.27.2 for linux-arm64 without the sha256 of its archive; run make toolchain-lock'), findings.join('\n'));
   assert.ok(findings.includes('mise.lock pins go 1.27.2 for macos-x64 without the sha256 of its archive; run make toolchain-lock'), findings.join('\n'));
+});
+
+test('mise.lock requires Windows pins for the bootstrap Node and selected Go tools', (t) => {
+  const root = toolchainCheckout(t, {
+    'mise.toml': '[tools]\nnode = "26.12.0"\ngo = "1.27.3"\n',
+    'mise.lock': [entry('node', '26.12.0', [...BOTH, ...WINDOWS]), entry('go', '1.27.3', [...BOTH, ...WINDOWS])].join('\n'),
+  });
+  assert.deepEqual(miseLockFindings(root), []);
+  const missing = toolchainCheckout(t, {
+    'mise.toml': '[tools]\nnode = "26.12.0"\ngo = "1.27.3"\n',
+    'mise.lock': [entry('node', '26.12.0', [...BOTH, 'windows-x64']), entry('go', '1.27.3', [...BOTH, 'windows-x64'])].join('\n'),
+  });
+  const findings = miseLockFindings(missing);
+  assert.deepEqual(findings.map(line => line.split(' without ')[0]), [
+    'mise.lock pins node 26.12.0 for windows-arm64',
+    'mise.lock pins go 1.27.3 for windows-arm64',
+  ]);
 });
 
 test('a repository declares an http tool with a version and an https url, which mise.lock pins by sha256 (K327)', (t) => {

@@ -2,7 +2,7 @@
 // var/tools/bin; the data, cache, state and config of mise, its installs and its shims, are var/tools/mise.
 // mise installs every other tool of the checkout from mise.toml and mise.lock, so it is installed first by the bootstrap, which
 // then installs the node of mise.toml with it (installNode), before npm and before any package (K171). The archive is mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of mise for
-// this platform; the download is refused unless its sha256 is the digest that the declaration gives for the platform. The
+// this platform (`.tar.gz` on POSIX and `.zip` on Windows); the download is refused unless its sha256 is the digest that the declaration gives for the platform. The
 // wrapper keeps every directory that mise reads or writes under var/tools, records the trust of the config of the checkout (trustConfig) and installs only
 // what mise.lock pins (MISE_LOCKED), so nothing of the machine changes and no config of the home is read.
 import { execFileSync } from 'node:child_process';
@@ -11,7 +11,7 @@ import { writeAtomic } from './files.mts';
 import path from 'node:path';
 import { fileDigest } from './digest.mts';
 import { installOnce } from './install-tool.mts';
-import { bootstrapEnvironment, printedRelease, quote, run, toolsPath, toolsRoot, wrapperText, writeWrapper } from './tool-wrappers.mts';
+import { bootstrapEnvironment, commandPath, printedRelease, run, toolsPath, toolsRoot, writeNativeWrapper } from './tool-wrappers.mts';
 
 // The asset of the mise archive of each platform key (process.platform-process.arch) that the declaration may name.
 export const MISE_ASSETS: Readonly<Record<string, string>> = {
@@ -19,7 +19,12 @@ export const MISE_ASSETS: Readonly<Record<string, string>> = {
   'darwin-x64': 'macos-x64',
   'linux-x64': 'linux-x64',
   'linux-arm64': 'linux-arm64',
+  'windows-x64': 'windows-x64',
+  'windows-arm64': 'windows-arm64',
 };
+
+/** The platform key shared by config/toolchain.json and mise.lock. */
+export const misePlatform = (platform = process.platform, arch = process.arch): string => `${platform === 'win32' ? 'windows' : platform === 'darwin' ? 'darwin' : platform}-${arch}`;
 
 /**
  * Records the trust of the mise.toml of the checkout `root` with `mise trust` in the state dir of the checkout (MISE_STATE_DIR),
@@ -62,7 +67,7 @@ export function foreignTrusts(root: string): { name: string; target: string }[] 
 }
 
 /** The download URL of the mise archive of `version` for the asset `asset`. */
-export const miseArchiveUrl = (version: string, asset: string): string => `https://github.com/jdx/mise/releases/download/v${version}/mise-v${version}-${asset}.tar.gz`;
+export const miseArchiveUrl = (version: string, asset: string, extension = 'tar.gz'): string => `https://github.com/jdx/mise/releases/download/v${version}/mise-v${version}-${asset}.${extension}`;
 
 /**
  * The environment in which the tools of mise run from its shims, var/tools/mise/shims, for the checkout `root`: the directories
@@ -114,17 +119,6 @@ export function miseInstallEnvironment(root: string): Record<string, string> {
 // The text of the wrapper mise: the environment of mise for the checkout, then the binary. mise links each shim to the mise
 // that PATH names, so the directory of the binary comes first on PATH: a shim that linked this wrapper would run mise itself,
 // since the wrapper drops the name of the shim.
-function miseWrapper(root: string, binary: string, version: string) {
-  const variables = miseInstallEnvironment(root);
-  const lines = [
-    ...Object.entries(variables).map(([name, value]) => `${name}=${quote(value)}`),
-    `PATH=${quote(path.dirname(binary))}:"$PATH"`,
-    `export ${Object.keys(variables).join(' ')} PATH`,
-    `exec ${quote(binary)} "$@"`,
-  ];
-  return wrapperText(`mise ${version} of this checkout`, lines.join('\n'));
-}
-
 /**
  * The go.mod of var/tools: mise installs Go there with the test sources of its distribution, and a repository whose root is a Go
  * module walks its whole tree with ./...; a go.mod makes var/tools a module of its own, which the pattern of an enclosing module
@@ -138,19 +132,21 @@ export const TOOLS_GO_MOD = '// The tools of this checkout, a module of its own 
  */
 /** The wrapper of var/tools/bin that runs the installed mise. */
 export const MISE_WRAPPER = 'mise';
+export const miseBinary = (directory: string, platform = process.platform): string => (platform === 'win32' ? path.win32 : path).join(directory, 'mise', 'bin', `mise${platform === 'win32' ? '.exe' : ''}`);
 
-export function installMise({ root, declared, platform = `${process.platform}-${process.arch}`, print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, string>> }; platform?: string; print?: (text: string) => void }) {
+export function installMise({ root, declared, platform = misePlatform(), print = () => {} }: { root: string; declared: { version: string; sha256: Readonly<Record<string, string>> }; platform?: string; print?: (text: string) => void }) {
   const asset = MISE_ASSETS[platform];
   if (!asset) throw new Error(`no mise archive is verified for ${platform}; the verified platforms are ${Object.keys(MISE_ASSETS).join(', ')}`);
   const sha256 = declared.sha256[platform];
-  if (!sha256) throw new Error(`config/toolchain.json mise declares no sha256 for ${platform}; declare the digest of mise-v${declared.version}-${asset}.tar.gz`);
-  const url = miseArchiveUrl(declared.version, asset);
+  const extension = platform.startsWith('windows-') ? 'zip' : 'tar.gz';
+  if (!sha256) throw new Error(`config/toolchain.json mise declares no sha256 for ${platform}; declare the digest of mise-v${declared.version}-${asset}.${extension}`);
+  const url = miseArchiveUrl(declared.version, asset, extension);
   const prefix = toolsPath(root, 'mise-release');
-  const binary = (directory: string) => path.join(directory, 'mise', 'bin', 'mise');
+  const binary = (directory: string) => miseBinary(directory);
   const result = installOnce({
     root, label: 'mise', prefix, recorded: declared.version, installedRelease: (directory: string) => printedRelease(binary(directory), 'mise'), print,
     install: (next: string) => {
-      const archive = path.join(next, `mise-${asset}.tar.gz`);
+      const archive = path.join(next, `mise-${asset}.${extension}`);
       const environment = bootstrapEnvironment(root);
       run('curl', ['--fail', '--silent', '--show-error', '--location', '--output', archive, url], { cwd: root, env: environment }, print);
       const actual = fileDigest(archive);
@@ -158,12 +154,12 @@ export function installMise({ root, declared, platform = `${process.platform}-${
         rmSync(archive, { force: true });
         throw new Error(`${url} has the sha256 ${actual}; config/toolchain.json mise declares ${sha256} for ${platform}`);
       }
-      run('tar', ['-xzf', archive, '-C', next], { cwd: root, env: environment }, print);
+      run('tar', [extension === 'zip' ? '-xf' : '-xzf', archive, '-C', next], { cwd: root, env: environment }, print);
       rmSync(archive, { force: true });
     },
   });
   trustConfig({ root, binary: binary(prefix), print });
-  writeWrapper(root, MISE_WRAPPER, miseWrapper(root, binary(prefix), declared.version), print);
+  writeNativeWrapper(root, MISE_WRAPPER, { comment: `mise ${declared.version} of this checkout`, executable: binary(prefix), environment: miseInstallEnvironment(root), pathPrefix: [path.dirname(binary(prefix))] }, print);
   writeAtomic(toolsPath(root, 'go.mod'), TOOLS_GO_MOD);
   return result;
 }
@@ -174,11 +170,13 @@ export function installMise({ root, declared, platform = `${process.platform}-${
  * later runs, so a tool started by a path under it runs outside the shims (K199).
  */
 export function miseWhere(root: string, key: string): string {
-  return execFileSync(toolsPath(root, 'bin', MISE_WRAPPER), ['where', key], { cwd: root, env: bootstrapEnvironment(root), encoding: 'utf8' }).trim();
+  const command = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : commandPath(root, MISE_WRAPPER);
+  return execFileSync(command, ['where', key], { cwd: root, env: { ...bootstrapEnvironment(root), ...miseEnvironment(root) }, encoding: 'utf8' }).trim();
 }
 
 /** The wrapper of var/tools/bin that runs the Node.js of mise.toml, which mise installs into var/tools/mise. */
 export const NODE_WRAPPER = 'node';
+export const nodeBinary = (directory: string, platform = process.platform): string => (platform === 'win32' ? path.win32 : path).join(directory, platform === 'win32' ? 'node.exe' : 'bin/node');
 
 /**
  * Installs the Node.js of mise.toml at the digest of mise.lock with the mise of the checkout (`mise install --locked node`)
@@ -188,14 +186,16 @@ export const NODE_WRAPPER = 'node';
  * declares no node, or a mise.lock that does not pin it, fails the install of mise. Returns the path of the wrapper.
  */
 export function installNode({ root, print = () => {} }: { root: string; print?: (text: string) => void }): string {
-  const mise = toolsPath(root, 'bin', MISE_WRAPPER);
+  const mise = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : commandPath(root, MISE_WRAPPER);
   try {
-    run(mise, ['install', '--locked', 'node'], { cwd: root, env: bootstrapEnvironment(root) }, print);
+    run(mise, ['install', '--locked', 'node'], { cwd: root, env: { ...bootstrapEnvironment(root), ...miseEnvironment(root) } }, print);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     throw new Error(`${error.message}; mise.toml must declare node, the Node.js release of the checkout, and mise.lock must pin it (make toolchain-lock)`, { cause: error });
   }
   const directory = miseWhere(root, 'node');
-  writeWrapper(root, NODE_WRAPPER, wrapperText('the Node.js of mise.toml of this checkout', `exec ${quote(path.join(directory, 'bin', 'node'))} "$@"`), print);
-  return toolsPath(root, 'bin', NODE_WRAPPER);
+  const executable = nodeBinary(directory);
+  writeNativeWrapper(root, NODE_WRAPPER, { comment: 'the Node.js of mise.toml of this checkout', executable }, print);
+  // npm's Windows wrapper starts node.exe directly, avoiding a nested .cmd launch and its second command-line expansion.
+  return process.platform === 'win32' ? executable : commandPath(root, NODE_WRAPPER);
 }

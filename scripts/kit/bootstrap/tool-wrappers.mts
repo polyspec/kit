@@ -37,6 +37,35 @@ export function toolsRoot(root: string): string {
 
 export const toolsPath = (root: string, ...parts: string[]): string => path.join(toolsRoot(root), TOOLS, ...parts);
 
+/** The native command file name written in var/tools/bin for a Windows checkout. */
+export const commandPath = (root: string, name: string, platform = process.platform): string => toolsPath(root, 'bin', `${name}${platform === 'win32' ? '.cmd' : ''}`);
+
+/** A batch wrapper for the Windows command processor; arguments are passed through in their original command-line form. */
+export function windowsWrapperText(comment: string, executable: string, { environment = {}, pathPrefix = [], args = [] }: { environment?: Record<string, string>; pathPrefix?: string[]; args?: string[] } = {}): string {
+  const set = (name: string, value: string) => `set "${name}=${value.replaceAll('%', '%%')}"`;
+  const lines = ['@echo off', 'setlocal', `rem ${comment}`];
+  for (const [name, value] of Object.entries(environment)) lines.push(set(name, value));
+  if (pathPrefix.length) lines.push(`set "PATH=${pathPrefix.join(';')};%PATH%"`);
+  lines.push(`"${executable}"${args.map(argument => ` "${argument.replaceAll('"', '""')}"`).join('')} %*`, 'exit /b %ERRORLEVEL%');
+  return `${lines.join('\r\n')}\r\n`;
+}
+
+/** Writes a native executable wrapper, using a batch file on Windows and a shell wrapper on POSIX. */
+export function writeNativeWrapper(root: string, name: string, { comment, executable, environment = {}, pathPrefix = [], args = [] }: { comment: string; executable: string; environment?: Record<string, string>; pathPrefix?: string[]; args?: string[] }, print: (text: string) => unknown): void {
+  if (process.platform === 'win32') {
+    const file = commandPath(root, name);
+    const text = windowsWrapperText(comment, executable, { environment, pathPrefix, args });
+    if (existsSync(file) && readFileSync(file, 'utf8') === text) return;
+    writeAtomic(file, text);
+    print(`wrote ${path.relative(root, file)}`);
+    return;
+  }
+  const variables = Object.entries(environment).map(([key, value]) => `${key}=${quote(value)}`);
+  const pathLine = pathPrefix.length ? `PATH=${pathPrefix.map(quote).join(':')}:"$PATH"` : undefined;
+  const lines = [...variables, ...(pathLine ? [pathLine, `export ${[...Object.keys(environment), 'PATH'].join(' ')}`] : Object.keys(environment).length ? [`export ${Object.keys(environment).join(' ')}`] : []), `exec ${quote(executable)}${args.map(argument => ` ${quote(argument)}`).join('')} "$@"`];
+  writeWrapper(root, name, wrapperText(comment, lines.join('\n')), print);
+}
+
 /**
  * The environment of the commands that install a tool: PATH without var/tools/bin, so that a wrapper of an earlier
  * install never installs its own replacement and the tool of the machine is the bootstrap.

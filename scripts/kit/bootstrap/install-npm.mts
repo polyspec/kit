@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { installOnce } from './install-tool.mts';
-import { bootstrapEnvironment, quote, run, toolsPath, wrapperText, writeWrapper } from './tool-wrappers.mts';
+import { bootstrapEnvironment, run, toolsPath, writeNativeWrapper } from './tool-wrappers.mts';
 import { fileDigest } from './digest.mts';
 import { readJsonObject } from './files.mts';
 
@@ -63,7 +63,11 @@ export function installNpm({ root, declared, node, print = () => {} }: { root: s
     },
   });
   for (const [name, cli] of Object.entries(NPM_WRAPPERS)) {
-    writeWrapper(root, name, wrapperText(`${name} ${declared.version} of this checkout`, `exec ${quote(node)} ${quote(path.join(prefix, 'node_modules/npm/bin', cli))} "$@"`), print);
+    writeNativeWrapper(root, name, {
+      comment: `${name} ${declared.version} of this checkout`,
+      executable: node,
+      args: [path.join(prefix, 'node_modules/npm/bin', cli)],
+    }, print);
   }
   return result;
 }

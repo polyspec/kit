@@ -15,7 +15,7 @@
 // step and has no time limit.
 import { existsSync, lstatSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { MISE_WRAPPER, NODE_WRAPPER, removeForeignTrusts } from './bootstrap/install-mise.mts';
+import { MISE_WRAPPER, NODE_WRAPPER, miseBinary, miseInstallEnvironment, removeForeignTrusts } from './bootstrap/install-mise.mts';
 import { NPM_WRAPPERS } from './bootstrap/install-npm.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -97,7 +97,7 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
   // A var that is a symbolic link belongs to another checkout: each checkout keeps its own var/tools and its own mise state (K469-1).
   const variables = path.join(root, 'var');
   if (existsSync(variables) && lstatSync(variables).isSymbolicLink()) throw new Error(`${variables} is a symbolic link; each checkout keeps its own var, so make install-tools refuses to write the var of another checkout (K469-1)`);
-  const mise = toolsPath(root, 'bin', 'mise');
+  const mise = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : toolsPath(root, 'bin', 'mise');
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
   // The trusted-configs of mise keep the trust of this checkout only: the entries of the home directory, of other checkouts and of removed worktrees go (K397).
   removeForeignTrusts(root);
@@ -111,7 +111,7 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
   if (selection.all) removeStaleWrappers(root, [MISE_WRAPPER, NODE_WRAPPER, ...Object.keys(NPM_WRAPPERS), ...(php ? PHP_WRAPPERS : []), ...(phpunit ? Object.keys(PHPUNIT_WRAPPERS) : []), ...(phpLint ? Object.keys(PHP_LINT_WRAPPERS) : [])], print);
   else removeStaleWrappers(root, [], print, selectedStaleWrappers(selection.mise));
   // The wrapper sets the environment of mise itself; the installs of kit that follow run the tools of mise.
-  if (selection.all || selection.mise.length > 0) run(mise, ['install', '--locked', ...(selection.all ? [] : selection.mise)], { cwd: root, env: process.env }, print);
+  if (selection.all || selection.mise.length > 0) run(mise, ['install', '--locked', ...(selection.all ? [] : selection.mise)], { cwd: root, env: process.platform === 'win32' ? miseInstallEnvironment(root) : process.env }, print);
   const env = toolsEnvironment(root);
   // The wrappers of php come before the installs that run Composer, so that Composer runs on the pinned PHP.
   if (selection.php && php) installPhp({ root, print });
@@ -130,7 +130,11 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
  * which now come from mise, would shadow the shims of mise on PATH (K149).
  */
 function removeStaleWrappers(root: string, written: readonly string[], print: (text: string) => void, selected?: readonly string[]): void {
-  for (const name of readdirSync(toolsPath(root, 'bin')).filter(name => !written.includes(name) && (!selected || selected.includes(name))).sort()) {
+  const retained = new Set(written.map(name => `${name}${process.platform === 'win32' ? '.cmd' : ''}`));
+  const selectedNames = selected?.map(name => `${name}${process.platform === 'win32' ? '.cmd' : ''}`);
+  for (const name of readdirSync(toolsPath(root, 'bin')).filter(name => {
+    return !retained.has(name) && (!selectedNames || selectedNames.includes(name));
+  }).sort()) {
     rmSync(toolsPath(root, 'bin', name), { recursive: true });
     print(`removed ${path.relative(root, toolsPath(root, 'bin', name))}`);
   }

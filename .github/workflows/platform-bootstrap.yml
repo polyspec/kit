@@ -1,0 +1,98 @@
+name: platform-bootstrap
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            shell: bash
+          - runner: macos-14
+            shell: bash
+          - runner: windows-2025
+            shell: pwsh
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 26.12.0
+          package-manager-cache: false
+      - name: install pinned mise, Node.js and npm
+        run: node scripts/kit/bootstrap/bootstrap.mts
+      - name: verify bootstrap is idempotent
+        if: matrix.runner != 'windows-2025'
+        shell: bash
+        run: |
+          output="$(node scripts/kit/bootstrap/bootstrap.mts 2>&1)"
+          printf '%s\n' "$output"
+          ! grep -q 'installing ' <<< "$output"
+      - name: verify Windows bootstrap is idempotent
+        if: matrix.runner == 'windows-2025'
+        shell: pwsh
+        run: |
+          $output = & node scripts/kit/bootstrap/bootstrap.mts 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "Bootstrap repeat failed: $output" }
+          $output
+          if ($output -match 'installing ') { throw "Bootstrap repeat installed a tool: $output" }
+      - name: install pinned Kit dependencies
+        if: matrix.runner != 'windows-2025'
+        shell: bash
+        run: var/tools/bin/node var/tools/npm/node_modules/npm/bin/npm-cli.js ci --ignore-scripts --allow-remote=root
+      - name: install pinned Kit dependencies on Windows
+        if: matrix.runner == 'windows-2025'
+        shell: pwsh
+        run: |
+          & .\var\tools\bin\node.cmd .\var\tools\npm\node_modules\npm\bin\npm-cli.js ci --ignore-scripts --allow-remote=root
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: install pinned Go and Rust toolchains
+        run: node scripts/kit/install-tools.mts go rust
+      - name: verify the Windows .cmd process path
+        run: node --test tests/kit/process.test.mts
+      - name: verify native wrappers and selected toolchains
+        if: matrix.runner != 'windows-2025'
+        shell: bash
+        run: |
+          test "$(var/tools/bin/mise --version | cut -d' ' -f1)" = 2026.10.10
+          test "$(var/tools/bin/node --version)" = v26.12.0
+          test "$(var/tools/bin/npm --version)" = 12.2.0
+          go_binary="$(var/tools/bin/mise which go)"
+          test "$("$go_binary" version | cut -d' ' -f3)" = go1.27.3
+          test "$(rustc --version | cut -d' ' -f2)" = 1.99.0
+          test "$(cargo --version | cut -d' ' -f2)" = 1.99.0
+      - name: verify native Windows wrappers and Go
+        if: matrix.runner == 'windows-2025'
+        shell: pwsh
+        run: |
+          $mise = (& .\var\tools\bin\mise.cmd --version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $mise -notmatch '^2026\.10\.10 ') { throw "Unexpected mise output: $mise" }
+          $node = (& .\var\tools\bin\node.cmd --version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $node -ne 'v26.12.0') { throw "Unexpected Node.js output: $node" }
+          $npm = (& .\var\tools\bin\npm.cmd --version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $npm -ne '12.2.0') { throw "Unexpected npm output: $npm" }
+          $goBinary = (& .\var\tools\bin\mise.cmd which go).Trim()
+          $go = (& $goBinary version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $go -notmatch 'go1\.27\.3 windows/') { throw "Unexpected Go output: $go" }
+          $rustc = (& rustc --version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $rustc -notmatch '^rustc 1\.99\.0 ') { throw "Unexpected rustc output: $rustc" }
+          $cargo = (& cargo --version).Trim()
+          if ($LASTEXITCODE -ne 0 -or $cargo -notmatch '^cargo 1\.99\.0 ') { throw "Unexpected cargo output: $cargo" }
+
+  platform-bootstrap-passed:
+    if: always()
+    needs: [bootstrap]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require all platform bootstrap matrix runs to pass
+        env:
+          BOOTSTRAP_RESULT: ${{ needs.bootstrap.result }}
+        run: test "$BOOTSTRAP_RESULT" = success

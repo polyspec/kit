@@ -6,7 +6,8 @@
     "CHANGELOG.ko.md"
   ],
   "checks": [
-    "kit"
+    "kit",
+    "platform-bootstrap-passed"
   ],
   "packages": [
     {

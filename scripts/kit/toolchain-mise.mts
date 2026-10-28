@@ -57,10 +57,14 @@ const isMiseTool = (name: string): name is MiseTool => Object.hasOwn(MISE_TOOLS,
 export const MISE_TOOL_NAMES: MiseTool[] = Object.keys(MISE_TOOLS).filter(isMiseTool);
 
 /**
- * The platforms of mise whose archives mise.lock pins: every platform on which the bootstrap installs mise, the archives of
- * config/toolchain.json mise, so that make install-tools runs on an x64 or an ARM Linux runner and on either Mac (K134).
+ * The platforms on which every mise tool must have an archive pin: Linux x64/ARM64 and macOS x64/ARM64. Windows bootstrap
+ * Node and the selected Go tool have their own explicit lock pins below; this does not claim the rest of kit's tools on Windows.
  */
 export const LOCK_PLATFORMS = ['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'];
+
+/** Additional Windows archives pinned for the bootstrap and the explicitly supported Go smoke install. */
+export const WINDOWS_LOCKED_TOOLS = ['node', 'go'] as const;
+export const WINDOWS_LOCK_PLATFORMS = ['windows-x64', 'windows-arm64'] as const;
 
 const RELEASE: Record<string, RegExp> = { vulture: /^\d+\.\d+(\.\d+)?$/ };
 const EXACT = /^\d+\.\d+\.\d+$/;
@@ -129,7 +133,8 @@ export function miseLockFindings(root: string): string[] {
       if (!isTable(graph) || typeof graph.digest !== 'string' || !graph.digest.startsWith('sha256:')) findings.push(`mise.lock pins ${key} ${String(version)} without the digest of its uv lock; install uv with mise and run make toolchain-lock`);
       continue;
     }
-    for (const platform of LOCK_PLATFORMS) {
+    const platforms = [...LOCK_PLATFORMS, ...(WINDOWS_LOCKED_TOOLS.some(tool => tool === key) ? WINDOWS_LOCK_PLATFORMS : [])];
+    for (const platform of platforms) {
       const archive = entry[`platforms.${platform}`];
       if (!isTable(archive) || typeof archive.checksum !== 'string' || !/^sha256:[0-9a-f]{64}$/.test(archive.checksum)) findings.push(`mise.lock pins ${key} ${String(version)} for ${platform} without the sha256 of its archive; run make toolchain-lock${key.startsWith('http:') ? `, after declaring the checksum of ${key} in mise.toml` : ''}`);
     }

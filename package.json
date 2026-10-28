@@ -69,6 +69,7 @@
   },
   "packageManager": "npm@12.2.0+sha512.66c2632a94e796649738b2d7894d710c2cc2e1696893823066687f6b0d8a52e5f2b54eeaeaa32ffdc513ecca1e49ff794a5c2ec3f9515d879f1b3182b291cf35",
   "devDependencies": {
+    "@types/cross-spawn": "6.0.6",
     "@types/node": "26.6.5",
     "@vscode/test-electron": "3.1.0",
     "typescript": "7.0.2"
@@ -162,6 +163,7 @@
     "acorn-walk": "8.3.5",
     "ajv": "8.20.0",
     "amaro": "1.2.1",
+    "cross-spawn": "7.0.6",
     "eslint-scope": "9.1.2",
     "github-slugger": "2.0.0",
     "jscpd": "5.4.1",

@@ -14,6 +14,7 @@ CHECK_TARGETS := typecheck kit-test source-test rebuild-check duplication-check
 # The explicit test shards balance the declared unit cases (K718); CI runs every shard independently.
 KIT_TEST_SHARDS := 1 2 3 4 5 6 7
 KIT_TEST_FILES_1 := \
+	tests/kit/bootstrap-platform.test.mts \
 	tests/kit/check-toolchain.test.mts tests/kit/checklist.test.mts tests/kit/dependency-state.test.mts \
 	tests/kit/gate-targets.test.mts tests/kit/install-composer-project.test.mts tests/kit/install-mise.test.mts \
 	tests/kit/install-vscode.test.mts tests/kit/isolation.test.mts tests/kit/lint-python.test.mts \

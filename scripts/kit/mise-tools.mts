@@ -20,7 +20,8 @@ export const shimsPath = (root: string, ...name: string[]): string => toolsPath(
  * in var/tools/mise/shims. A tool that the checkout lacks throws with the fix; PATH is never searched (K393-1).
  */
 export function toolCommand(root: string, name: string): string {
-  const tried = [toolsPath(root, 'bin', name), shimsPath(root, name)];
+  const extensions = process.platform === 'win32' ? ['.exe', '.cmd', ''] : [''];
+  const tried = [toolsPath(root, 'bin'), shimsPath(root)].flatMap(directory => extensions.map(extension => path.join(directory, `${name}${extension}`)));
   const found = tried.find(file => existsSync(file));
   if (found === undefined) throw new Error(`${name} of the checkout is missing (${tried.map(file => path.relative(root, file)).join(', ')}); run make install`);
   return found;
