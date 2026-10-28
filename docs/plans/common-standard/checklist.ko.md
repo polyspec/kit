@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 6081d94889f9eb8b7995fca469cf91d9d37db46adb11b2dbf315bc4a463ee166 -->
+<!-- source-sha256: 4ae0d3b189e5e6ac9afb96cd94a2015a024ebc8769369d847fce4787a11b01c1 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -682,3 +682,4 @@
 | K724 | CI shard 필수 도구 누락과 이동한 금지 입력 fixture 경로 수정 | .github/workflows/ci.yml config/layout.kit.yml config/layout.yml tests/source/ci-workflow.test.mts tests/source/layout-real.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="validator fixture\|make layout-check passes" tests/source/layout-real.test.mts`; `make layout-check` | [o] |
 | K725 | PHP 파서 필수 의존성 선언과 실제 Git 진단 검증 | config/toolchain.json tests/kit/lint-php.test.mts tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="the PHP extractor used for autoload-file lint is declared for install-tools" tests/kit/lint-php.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="a broken gitfile fails" tests/kit/link.test.mts` | [~] |
 | K726 | 위반 fixture별 관련 없는 TypeScript lint 단계 반복 제거 | tests/source/lint-ts-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="the TypeScript lint fails on each planted violation with the rule or the message that names it" tests/source/lint-ts-real.test.mts`; `make typecheck` | [ ] |
+| K727 | 기존 분석기 규칙으로 PHP 예외 원인 보존과 공통 검사 범위 보완 | config/php-lint/composer.json config/php-lint/composer.lock phpstan.dist.neon scripts/kit/install-php-lint.mts tests/source/lint-php-real.test.mts docs/operations/tool-inventory.md docs/operations/tool-inventory.ko.md config/dependency-review.json | `node scripts/kit/run-tests.mts node -- tests/source/lint-php-real.test.mts`; `make dependency-policy-check`; `make docs-check` | [ ] |
