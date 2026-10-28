@@ -1,13 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/ci.json",
-  "description": "Existing Make targets needed before the shared gates (`scripts/kit/ci-setup.mts`): repository-specific install and generation prerequisites grouped by shared checks, full parity, and runtime. Values name Make targets only; they are never shell commands.",
+  "description": "Existing Make targets needed before the shared gates (`scripts/kit/ci-setup.mts`): repository-specific install and generation prerequisites grouped by shared checks, parity, and runtime. `parityMode` selects the provider full gate (the default) or the provider-owned API and implementation-binding phases.",
   "type": "object",
   "required": ["schema", "setup"],
   "additionalProperties": false,
   "properties": {
     "schema": { "type": "integer", "const": 1 },
     "comment": { "type": "string" },
+    "parityMode": { "description": "The parity path of the provider gates workflow. `full` (default) runs complete parity-check; `phases` runs the global API phase and one binding phase for every implementation in config/parity.json.", "type": "string", "enum": ["full", "phases"] },
     "setup": {
       "type": "object",
       "required": ["shared", "parity", "runtimes"],

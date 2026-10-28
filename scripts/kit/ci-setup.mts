@@ -21,10 +21,14 @@ const RUNTIMES = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
 type Runtime = (typeof RUNTIMES)[number];
 type CIJob = 'shared' | 'parity' | Runtime;
 const CI_JOBS = ['shared', 'parity', ...RUNTIMES] as const satisfies readonly CIJob[];
-type CIConfig = { setup: { shared: string[]; parity: string[]; runtimes: Record<Runtime, string[]> }; tools?: Partial<Record<CIJob, string[]>> };
+type ParityMode = 'full' | 'phases';
+type CIConfig = { parityMode?: ParityMode; setup: { shared: string[]; parity: string[]; runtimes: Record<Runtime, string[]> }; tools?: Partial<Record<CIJob, string[]>> };
 type RuntimeJob = { runtime: Runtime | 'none'; checkTools: string[]; installTools: string[] };
 export type CIPlan = {
   sharedTargets: string[];
+  parityMode: ParityMode;
+  parityImplementations: string[];
+  parityMatrix: { implementation: string }[];
   parityTargets: string[];
   parityRuntimes: Runtime[];
   runtimes: RuntimeJob[];
@@ -35,6 +39,31 @@ export type CIPlan = {
   phpDirs: string[];
   pythonDirs: string[];
 };
+
+/** The exact binding matrix from config/parity.json, with duplicate and empty selections rejected before Actions schedules jobs. */
+export function parityBindingMatrix(implementations: readonly string[]): { implementation: string }[] {
+  if (implementations.length === 0) throw new Error('config/parity.json declares no implementations. Fix: declare every required implementation before selecting parityMode phases');
+  if (implementations.some(name => name === '')) throw new Error('config/parity.json declares an empty implementation name. Fix: use each implementation name as the provider target selector');
+  if (new Set(implementations).size !== implementations.length) throw new Error('config/parity.json declares duplicate implementation names. Fix: give every implementation a unique name');
+  return implementations.map(implementation => ({ implementation }));
+}
+
+/** Coverage findings for a planned binding matrix, useful to verify a workflow plan against its source declaration. */
+export function parityMatrixFindings(implementations: readonly string[], matrix: readonly { implementation: string }[]): string[] {
+  try {
+    parityBindingMatrix(implementations);
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    return [error.message];
+  }
+  const findings: string[] = [];
+  for (const name of new Set([...implementations, ...matrix.map(entry => entry.implementation)])) {
+    const expected = implementations.filter(value => value === name).length;
+    const actual = matrix.filter(entry => entry.implementation === name).length;
+    if (expected !== actual) findings.push(`parity binding matrix selects ${name} ${actual} times; config/parity.json requires ${expected}`);
+  }
+  return findings;
+}
 
 const runtimeTools: Record<Runtime, string[]> = {
   ts: [],
@@ -91,6 +120,7 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
   if (!existsSync(path.join(root, CI_CONFIG))) throw new Error(`${CI_CONFIG} is missing. Fix: declare shared, parity and runtime setup targets following docs/operations/tool-inventory.md (schema scripts/kit/schema/ci.schema.json)`);
   const config = readConfig<CIConfig>(root, CI_CONFIG, 'ci.schema.json');
   const db = makeDatabase(root);
+  const parityMode = config.parityMode ?? 'full';
   const setupEntries = [
     ['setup.shared', config.setup.shared], ['setup.parity', config.setup.parity],
     ...RUNTIMES.map(runtime => [`setup.runtimes.${runtime}`, config.setup.runtimes[runtime]] as [string, string[]]),
@@ -114,6 +144,19 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
   const runtimes = [...runtimeSet(files, folders)].sort();
   for (const runtime of RUNTIMES) {
     if (!runtimes.includes(runtime) && (config.tools?.[runtime]?.length ?? 0) > 0) throw new Error(`${CI_CONFIG}: tools.${runtime} selects tools for a runtime with no tracked package. Fix: move the tools to an active job or declare the runtime package`);
+  }
+  const parity = readConfig<{ implementations: { name: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
+  const implementationNames = parity.implementations.map(({ name }) => name);
+  parityBindingMatrix(implementationNames);
+  if (parityMode === 'phases') {
+    if (!db.targets.has('parity-api-check')) throw new Error(`config/ci.json selects parityMode phases, but parity-api-check is not a Make target. Fix: use the provider parity targets from kit.mk`);
+    if (db.targets.get('parity-api-check')?.recipe.trim() !== '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api') throw new Error(`config/ci.json selects parityMode phases, but parity-api-check does not use the provider API recipe. Fix: use the provider target without replacing its recipe`);
+    for (const implementation of implementationNames) {
+      if (!/^[a-z][a-z0-9-]*$/.test(implementation)) throw new Error(`config/parity.json has implementation name ${implementation}, which cannot select a provider binding target. Fix: use the declared implementation name format`);
+      const target = `parity-bindings-${implementation}-check`;
+      const recipe = db.targets.get(target)?.recipe.trim();
+      if (recipe !== `$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation ${implementation}`) throw new Error(`${CI_CONFIG} selects phases, but ${target} is missing its provider binding recipe. Fix: use the generated provider target and add setup prerequisites without replacing its recipe`);
+    }
   }
   return { config, runtimes, files, folders, db };
 }
@@ -161,7 +204,7 @@ function plan(root: string): CIPlan {
     checkTools: [...new Set([...runtimeTools[runtime], ...(config.tools?.[runtime] ?? [])])].filter(name => names.includes(name)),
     installTools: [...new Set([...runtimeTools[runtime], ...(config.tools?.[runtime] ?? [])])].filter(name => names.includes(name) && !['node', 'npm', 'mise'].includes(name)),
   }));
-  const parity = readConfig<{ implementations: { runner: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
+  const parity = readConfig<{ implementations: { name: string; runner: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
   const parityTools = new Set(parity.implementations.flatMap(implementation => parityRunnerTools[implementation.runner] ?? []));
   for (const runtime of runtimes) for (const tool of config.tools?.[runtime] ?? []) parityTools.add(tool);
   for (const tool of config.tools?.parity ?? []) parityTools.add(tool);
@@ -174,6 +217,9 @@ function plan(root: string): CIPlan {
   const linkTools = declared.go === undefined ? [] : ['go'];
   return {
     sharedTargets: config.setup.shared,
+    parityMode: config.parityMode ?? 'full',
+    parityImplementations: parity.implementations.map(({ name }) => name),
+    parityMatrix: parityBindingMatrix(parity.implementations.map(({ name }) => name)),
     parityTargets: config.setup.parity,
     parityRuntimes: runtimes,
     runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', checkTools: [], installTools: [] }],
@@ -224,6 +270,9 @@ function writePlan(root: string): void {
   }
   const outputs: Record<string, unknown> = {
     runtimes: result.runtimes,
+    parity_mode: result.parityMode,
+    parity_matrix: result.parityMatrix,
+    has_runtimes: result.runtimes.some(({ runtime }) => runtime !== 'none'),
     common_tools: result.commonTools,
     parity_tools: result.parityTools,
     extractors: result.extractors,
@@ -232,6 +281,34 @@ function writePlan(root: string): void {
     python_dirs: result.pythonDirs,
   };
   for (const [key, value] of Object.entries(outputs)) appendFileSync(output, `${key}=${JSON.stringify(value)}\n`);
+}
+
+export const GATE_REQUIRED_NEEDS = ['discover', 'shared', 'parity', 'parity-api', 'parity-bindings', 'runtime'] as const;
+export type GateResult = 'success' | 'failure' | 'cancelled' | 'skipped' | 'unknown';
+
+/** Whether the provider workflow's final aggregate accepted exactly the selected parity path and all required partitions. */
+export function gateResultsPass(mode: ParityMode, results: { discover: GateResult; shared: GateResult; parity: GateResult; api: GateResult; bindings: GateResult; runtime: GateResult }, hasRuntimes: boolean): boolean {
+  if (results.discover !== 'success' || results.shared !== 'success') return false;
+  if (mode === 'full') {
+    if (results.parity !== 'success' || results.api !== 'skipped' || results.bindings !== 'skipped') return false;
+  } else if (mode === 'phases') {
+    if (results.parity !== 'skipped' || results.api !== 'success' || results.bindings !== 'success') return false;
+  } else return false;
+  return hasRuntimes ? results.runtime === 'success' : results.runtime === 'skipped';
+}
+
+function verifyGateResults(): void {
+  const mode = process.env.KIT_CI_PARITY_MODE;
+  if (mode !== 'full' && mode !== 'phases') throw new Error(`the parity mode is missing or unknown (${mode ?? 'unset'}); fix config/ci.json and rerun the gates`);
+  const readResult = (name: string): GateResult => {
+    const value = process.env[`KIT_CI_${name.toUpperCase()}_RESULT`];
+    return value === 'success' || value === 'failure' || value === 'cancelled' || value === 'skipped' ? value : 'unknown';
+  };
+  const hasRuntimes = process.env.KIT_CI_HAS_RUNTIMES === 'true';
+  const results = { discover: readResult('discover'), shared: readResult('shared'), parity: readResult('parity'), api: readResult('parity_api'), bindings: readResult('parity_bindings'), runtime: readResult('runtime') };
+  if (!gateResultsPass(mode, results, hasRuntimes)) {
+    throw new Error(`gate result aggregation failed for parityMode ${mode}: ${JSON.stringify(results)}; fix every failed, skipped or unselected required partition and rerun CI`);
+  }
 }
 
 export function runCISetup(root: string, group: 'shared' | 'parity' | 'runtime', runtimeName?: Runtime): void {
@@ -256,6 +333,7 @@ if (isMain(import.meta.url)) {
     const root = repositoryRoot();
     const [mode = '', group = '', runtime = ''] = process.argv.slice(2);
     if (mode === '--plan') writePlan(root);
+    else if (mode === '--verify-gates') verifyGateResults();
     else {
       if (group !== 'shared' && group !== 'parity' && group !== 'runtime') throw new Error(`unknown CI setup group ${group}; choose shared, parity or runtime`);
       if (runtime !== '' && !isRuntime(runtime)) throw new Error(`unknown runtime ${runtime}; choose ${RUNTIMES.join(', ')}`);

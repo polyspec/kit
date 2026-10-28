@@ -201,12 +201,15 @@ kit-gates-runtime-go: lint-go ## Run the Go gate
 kit-gates-runtime-rust: lint-rust ## Run the Rust gate
 kit-gates-runtime-php-ext: lint-php-ext test-php-ext ## Run the PHP extension gates
 
-.PHONY: kit-ci-plan kit-ci-setup
+.PHONY: kit-ci-plan kit-ci-setup kit-ci-verify-gates
 kit-ci-plan: ## Validate config/ci.json and write the runtime/tool plan to GITHUB_OUTPUT for the shared gates workflow
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --plan
 
 kit-ci-setup: ## Run the locked setup targets declared by config/ci.json; GROUP=shared|parity|runtime and RUNTIME=<runtime>
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) $(GROUP) $(RUNTIME)
+
+kit-ci-verify-gates: ## Fail unless every gate partition of the selected full or phased CI path passed
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --verify-gates
 
 
 .PHONY: link-state-check
@@ -524,6 +527,24 @@ endif
 .PHONY: parity-check parity-declarations-check
 parity-check: ## Run every parity binding and check every rule; UNITS="<id>..." selects units and IMPLEMENTATIONS="<name>..." selects runtime bindings and support files (support files run when UNITS is empty), while static declaration checks stay global; the full check runs only in CI; offline
 	$(NODE) $(KIT)/parity.$(KIT_EXT) $(foreach unit,$(UNITS),--unit $(unit)) $(foreach implementation,$(IMPLEMENTATIONS),--implementation $(implementation))
+
+# The parity declaration is the source of the native implementation list. Generate an explicit phony target per implementation so
+# repository setup prerequisites, existing files and a consumer's `.PHONY` declarations cannot bypass the provider recipe.
+ifneq ($(wildcard config/parity.json),)
+KIT_PARITY_IMPLEMENTATIONS := $(shell $(NODE) $(KIT)/parity.$(KIT_EXT) --make-targets)
+ifeq ($(strip $(KIT_PARITY_IMPLEMENTATIONS)),)
+$(error config/parity.json has no usable implementation names for provider parity targets; fix the parity declaration)
+endif
+endif
+KIT_PARITY_BINDING_TARGETS := $(addprefix parity-bindings-,$(addsuffix -check,$(KIT_PARITY_IMPLEMENTATIONS)))
+.PHONY: parity-api-check $(KIT_PARITY_BINDING_TARGETS)
+parity-api-check: ## Run the global API and static parity phase
+	$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api
+define KIT_PARITY_BINDING_RULE
+parity-bindings-$(1)-check: ## Run native bindings for implementation $(1)
+	$$(NODE) $$(KIT)/parity.$$(KIT_EXT) --phase bindings --implementation $(1)
+endef
+$(foreach implementation,$(KIT_PARITY_IMPLEMENTATIONS),$(eval $(call KIT_PARITY_BINDING_RULE,$(implementation))))
 
 parity-declarations-check: ## Check the parity rules of config/parity.json that need no run: symbols, bindings, tests, error codes, lists, documents; UNITS="<id>..." reports only the findings of the named units, their schema findings included, and of config/parity.json itself (K400, K400-1); RULES="<rule>..." reports only the findings of the named rules, by id or name, and of config/parity.json itself (K414); IDS="<requirement>..." reports only the findings that name one of the requirement ids, and of config/parity.json itself (K414-1); offline
 	$(NODE) $(KIT)/parity.$(KIT_EXT) --declarations $(foreach unit,$(UNITS),--unit $(unit)) $(foreach rule,$(RULES),--rule $(rule)) $(foreach id,$(IDS),--id $(id))

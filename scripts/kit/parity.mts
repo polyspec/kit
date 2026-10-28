@@ -7,6 +7,7 @@
 // implementation (parity-symbols.mts) and reads the error codes from its generated artifact.
 //
 //   node scripts/kit/parity.mts [--phase all|api|bindings] [--declarations] [--unit <id>]... [--implementation <name>]...
+//   node scripts/kit/parity.mts --make-targets
 //     --declarations  check the declarations only: every rule except R1, R3 and R11; no binding and no extractor runs
 //     --phase all      run every existing phase (the default)
 //     --phase api      run public symbol extractors and all static parity rules; no native bindings run
@@ -69,6 +70,7 @@ import { misplacedTests, missingBindings, missingImplementations, pairs, undecla
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { loadConfig } from './checklist.mts';
+import { readConfig } from './schema-validate.mts';
 
 /** A finding as parity-declaration.mts finding() makes it: the rule, the unit, implementation and place it names, and the message. */
 export type ParityFinding = Finding;
@@ -236,22 +238,35 @@ export function checkParity(root: string, { execute = true, env = process.env, s
 }
 
 if (isMain(import.meta.url)) {
-  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, phase: { type: 'string' }, unit: { type: 'string', multiple: true }, implementation: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true }, id: { type: 'string', multiple: true } } });
+  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, phase: { type: 'string' }, unit: { type: 'string', multiple: true }, implementation: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true }, id: { type: 'string', multiple: true }, 'make-targets': { type: 'boolean' } } });
   const say = (text: string) => console.log(`[parity] ${text}`);
-  const phase = values.phase ?? 'all';
-  if (!isParityPhase(phase)) {
-    console.error(`[parity] --phase ${phase} is unknown; choose all, api, or bindings`);
-    process.exitCode = 1;
+  if (values['make-targets']) {
+    try {
+      const declaration = readConfig<{ implementations: { name: string }[] }>(repositoryRoot(), DECLARATION, 'parity.schema.json');
+      const names = declaration.implementations.map(({ name }) => name);
+      if (names.length === 0 || new Set(names).size !== names.length || names.some(name => !/^[a-z][a-z0-9-]*$/.test(name))) throw new Error(`${DECLARATION} has no usable unique implementation names`);
+      console.log(names.join(' '));
+    } catch (error) {
+      if (!(error instanceof Error)) throw error;
+      console.error(`[parity] ${error.message}`);
+      process.exitCode = 1;
+    }
   } else {
-    const selectedPhase = phase;
-    const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation, phase: selectedPhase });
-    if (selectedPhase === 'api' && !values.declarations) say('API phase ran no native bindings');
-    else if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
-    for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
-    if (findings.length) console.error(`[parity] ${findings.length} findings`);
-    else if (selectedPhase === 'api') say('API phase passed; native bindings were not run, so this is not a full parity pass');
-    else if (selectedPhase === 'bindings') say('bindings phase passed; public API extraction was not run, so this is not a full parity pass');
-    else say(values.declarations ? 'every declaration holds' : values.implementation === undefined ? 'every applicable unit holds' : 'selected runtime bindings and applicable declarations hold');
-    process.exitCode = findings.length ? 1 : 0;
+    const phase = values.phase ?? 'all';
+    if (!isParityPhase(phase)) {
+      console.error(`[parity] --phase ${phase} is unknown; choose all, api, or bindings`);
+      process.exitCode = 1;
+    } else {
+      const selectedPhase = phase;
+      const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation, phase: selectedPhase });
+      if (selectedPhase === 'api' && !values.declarations) say('API phase ran no native bindings');
+      else if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
+      for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
+      if (findings.length) console.error(`[parity] ${findings.length} findings`);
+      else if (selectedPhase === 'api') say('API phase passed; native bindings were not run, so this is not a full parity pass');
+      else if (selectedPhase === 'bindings') say('bindings phase passed; public API extraction was not run, so this is not a full parity pass');
+      else say(values.declarations ? 'every declaration holds' : values.implementation === undefined ? 'every applicable unit holds' : 'selected runtime bindings and applicable declarations hold');
+      process.exitCode = findings.length ? 1 : 0;
+    }
   }
 }

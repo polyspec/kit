@@ -4,11 +4,12 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, unlinkSync, w
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { ciPlan, ciSetupInvocations, runCISetup } from '../../scripts/kit/ci-setup.mts';
+import { fileURLToPath } from 'node:url';
+import { ciPlan, ciSetupInvocations, gateResultsPass, GATE_REQUIRED_NEEDS, parityBindingMatrix, parityMatrixFindings, runCISetup } from '../../scripts/kit/ci-setup.mts';
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 
 const runtimes = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
-type FixtureConfig = { setup: { shared: string[]; parity: string[]; runtimes: Record<string, string[]> }; tools?: Record<string, string[]> };
+type FixtureConfig = { parityMode?: 'full' | 'phases'; setup: { shared: string[]; parity: string[]; runtimes: Record<string, string[]> }; tools?: Record<string, string[]> };
 const fixtureConfig = (root: string) => readConfig<FixtureConfig>(root, 'config/ci.json', 'ci.schema.json');
 
 function fixture(): string {
@@ -23,13 +24,17 @@ function fixture(): string {
     units: [],
   }));
   writeFileSync(path.join(root, 'Makefile'), [
-    '.PHONY: shared-setup parity-setup go-setup',
+    '.PHONY: shared-setup parity-setup go-setup parity-api-check',
     'shared-setup:',
     '\t@printf shared >> setup.log',
     'parity-setup:',
     '\t@printf parity >> setup.log',
     'go-setup:',
     '\t@printf go >> setup.log',
+    'parity-api-check:',
+    '\t$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api',
+    'parity-bindings-go-client-check:',
+    '\t$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation go-client',
     '',
   ].join('\n'));
   const config = {
@@ -107,9 +112,87 @@ test('K731: the plan discovers tracked runtime packages and separates configured
     assert.deepEqual(result.sharedTargets, ['shared-setup']);
     assert.deepEqual(result.parityTargets, ['parity-setup']);
     assert.deepEqual(result.parityRuntimes, ['go']);
+    assert.equal(result.parityMode, 'full');
+    assert.deepEqual(result.parityImplementations, ['go-client']);
+    assert.deepEqual(result.parityMatrix, [{ implementation: 'go-client' }]);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('K734: phase mode plans one API job and the exact implementation matrix from parity.json', () => {
+  const root = fixture();
+  try {
+    const file = path.join(root, 'config/ci.json');
+    const config = fixtureConfig(root);
+    config.parityMode = 'phases';
+    writeFileSync(file, JSON.stringify(config));
+    const result = ciPlan(root);
+    assert.equal(result.parityMode, 'phases');
+    assert.deepEqual(result.parityImplementations, ['go-client']);
+    assert.deepEqual(result.parityMatrix, [{ implementation: 'go-client' }]);
+    const output = path.join(root, 'github-output');
+    const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
+    execFileSync(process.execPath, [script, '--plan'], { cwd: root, env: { ...process.env, GITHUB_OUTPUT: output } });
+    const actionOutputs = readFileSync(output, 'utf8');
+    assert.match(actionOutputs, /^parity_mode="phases"$/m);
+    assert.match(actionOutputs, /^parity_matrix=\[{"implementation":"go-client"}\]$/m);
+    assert.deepEqual(parityMatrixFindings(result.parityImplementations, result.parityMatrix), []);
+    assert.ok(parityMatrixFindings(result.parityImplementations, [{ implementation: 'other' }]).some(finding => finding.includes('go-client 0 times; config/parity.json requires 1')));
+    assert.deepEqual(parityBindingMatrix(['go', 'php-extension']), [{ implementation: 'go' }, { implementation: 'php-extension' }]);
+    assert.throws(() => parityBindingMatrix([]), /declares no implementations/);
+    assert.throws(() => parityBindingMatrix(['go', 'go']), /duplicate implementation names/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K734: phase mode rejects missing provider recipes and duplicate declaration selectors', () => {
+  const root = fixture();
+  try {
+    const configFile = path.join(root, 'config/ci.json');
+    const config = fixtureConfig(root);
+    config.parityMode = 'phases';
+    writeFileSync(configFile, JSON.stringify(config));
+    const makefile = path.join(root, 'Makefile');
+    const originalMakefile = readFileSync(makefile, 'utf8');
+    writeFileSync(makefile, originalMakefile.replace('$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api', '@true'));
+    assert.throws(() => ciPlan(root), /parity-api-check does not use the provider API recipe/);
+    writeFileSync(makefile, originalMakefile);
+    const parityFile = path.join(root, 'config/parity.json');
+    const parity = JSON.parse(readFileSync(parityFile, 'utf8')) as { implementations: { name: string; runner: string; roots: string[] }[] };
+    parity.implementations.push({ ...parity.implementations[0]! });
+    writeFileSync(parityFile, JSON.stringify(parity));
+    assert.throws(() => ciPlan(root), /duplicate implementation names/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K734: final gate results require the selected parity branch and every provider job', () => {
+  assert.deepEqual(GATE_REQUIRED_NEEDS, ['discover', 'shared', 'parity', 'parity-api', 'parity-bindings', 'runtime']);
+  assert.equal(gateResultsPass('full', { discover: 'success', shared: 'success', parity: 'success', api: 'skipped', bindings: 'skipped', runtime: 'success' }, true), true);
+  assert.equal(gateResultsPass('phases', { discover: 'success', shared: 'success', parity: 'skipped', api: 'success', bindings: 'success', runtime: 'skipped' }, false), true);
+  assert.equal(gateResultsPass('phases', { discover: 'success', shared: 'success', parity: 'success', api: 'success', bindings: 'success', runtime: 'success' }, true), false);
+  assert.equal(gateResultsPass('phases', { discover: 'success', shared: 'success', parity: 'skipped', api: 'success', bindings: 'skipped', runtime: 'success' }, true), false);
+  assert.equal(gateResultsPass('full', { discover: 'success', shared: 'success', parity: 'success', api: 'skipped', bindings: 'skipped', runtime: 'skipped' }, true), false);
+});
+
+test('K734: the final gate command returns failure for a missing selected phase job', () => {
+  const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
+  const env = {
+    ...process.env,
+    KIT_CI_DISCOVER_RESULT: 'success',
+    KIT_CI_SHARED_RESULT: 'success',
+    KIT_CI_PARITY_MODE: 'phases',
+    KIT_CI_PARITY_RESULT: 'skipped',
+    KIT_CI_PARITY_API_RESULT: 'success',
+    KIT_CI_PARITY_BINDINGS_RESULT: 'success',
+    KIT_CI_RUNTIME_RESULT: 'skipped',
+    KIT_CI_HAS_RUNTIMES: 'false',
+  };
+  assert.doesNotThrow(() => execFileSync(process.execPath, [script, '--verify-gates'], { env, stdio: 'pipe' }));
+  assert.throws(() => execFileSync(process.execPath, [script, '--verify-gates'], { env: { ...env, KIT_CI_PARITY_BINDINGS_RESULT: 'skipped' }, stdio: 'pipe' }), /gate result aggregation failed/);
 });
 
 test('K731: PHP extension jobs install their declared PHP and Composer tools and generate arginfo locally', () => {

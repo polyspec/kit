@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { check, gateFindings, retiredFindings, ruleTargets, runtimeTargetFindings, symlinkFindings, taskNameFindings } from '../../scripts/kit/kit-check.mts';
+import { check, gateFindings, parityPhaseFindings, retiredFindings, ruleTargets, runtimeTargetFindings, symlinkFindings, taskNameFindings } from '../../scripts/kit/kit-check.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put, tree } from './tree.mts';
 
@@ -102,6 +102,56 @@ test('lint-rust is required in CHECK_TARGETS only where the repository holds Rus
   const make = { targets, variables: new Map([['CHECK_TARGETS', 'kit-check']]) };
   assert.deepEqual(gateFindings(['docs/a.md', 'src/b.ts'], make), []);
   assert.deepEqual(gateFindings(['packages/rust/src/lib.rs'], make), ['Makefile: CHECK_TARGETS runs no lint-rust, a gate of kit-gates for the Rust of this repository; add it to CHECK_TARGETS']);
+});
+
+test('a complete provider-owned parity phase partition covers the mandatory parity gate', () => {
+  const target = (name: string, prerequisites: string[] = [], recipe = '') => [name, { prerequisites, recipe }] as const;
+  const implementations = ['go', 'php-extension'];
+  const valid = {
+    targets: new Map([
+      target('kit-gates', ['parity-check']), target('parity-check'),
+      target('parity-api-check', [], '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api'),
+      target('parity-bindings-%-check', [], '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation $*'),
+      target('parity-phases', ['parity-api-check', 'parity-bindings-go-check', 'parity-bindings-php-extension-check']),
+      target('parity-bindings-go-check', [], '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation go'),
+      target('parity-bindings-php-extension-check', [], '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation php-extension'),
+    ]),
+    variables: new Map([['CHECK_TARGETS', 'parity-phases']]),
+  };
+  assert.deepEqual(parityPhaseFindings(valid, implementations), []);
+  assert.deepEqual(gateFindings([], valid, implementations), []);
+});
+
+test('parity phase coverage rejects missing, duplicate, mixed, empty and unknown selectors', () => {
+  const target = (name: string, prerequisites: string[] = [], recipe = '') => [name, { prerequisites, recipe }] as const;
+  const implementations = ['go', 'php-extension'];
+  const make = (suite: string) => ({
+    targets: new Map([
+      target('parity-api-check', [], '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api'), target('parity-check'),
+      target('parity-bindings-%-check', [], '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation $*'),
+      target('parity-bindings-go-check', [], '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation go'),
+      target('parity-bindings-php-extension-check', [], '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation php-extension'),
+      target('parity-bindings--check', [], '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation '),
+      target('parity-bindings-other-check', [], '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation other'),
+    ]),
+    variables: new Map([['CHECK_TARGETS', suite]]),
+  });
+  assert.ok(parityPhaseFindings(make('parity-api-check parity-bindings-go-check'), implementations).some(finding => finding.includes('parity-bindings-php-extension-check exactly once; found 0')));
+  assert.ok(parityPhaseFindings(make('parity-api-check parity-api-check parity-bindings-go-check parity-bindings-php-extension-check'), implementations).some(finding => finding.includes('parity-api-check exactly once; found 2')));
+  assert.ok(parityPhaseFindings(make('parity-api-check parity-bindings-go-check parity-bindings-go-check parity-bindings-php-extension-check'), implementations).some(finding => finding.includes('parity-bindings-go-check exactly once; found 2')));
+  assert.ok(parityPhaseFindings(make('parity-check parity-api-check parity-bindings-go-check parity-bindings-php-extension-check'), implementations).some(finding => finding.includes('mixes parity-check with parity phases')));
+  const invalidSelectors = parityPhaseFindings(make('parity-api-check parity-bindings-go-check parity-bindings-php-extension-check parity-bindings--check parity-bindings-other-check'), implementations);
+  assert.ok(invalidSelectors.some(finding => finding.includes('unknown parity implementation (empty)')));
+  assert.ok(invalidSelectors.some(finding => finding.includes('unknown parity implementation other')));
+  const overridden = make('parity-api-check parity-bindings-go-check parity-bindings-php-extension-check');
+  overridden.targets.set('parity-bindings-go-check', { prerequisites: [], recipe: 'node scripts/kit/parity.mts --phase bindings --implementation go' });
+  assert.ok(parityPhaseFindings(overridden, implementations).some(finding => finding.includes('parity-bindings-go-check does not use its provider binding recipe')));
+});
+
+test('the default complete parity gate does not require phase targets in CHECK_TARGETS', () => {
+  const target = (name: string) => [name, { prerequisites: [], recipe: '' }] as const;
+  const make = { targets: new Map([target('parity-check'), target('parity-api-check'), target('parity-bindings-%-check')]), variables: new Map([['CHECK_TARGETS', 'parity-check']]) };
+  assert.deepEqual(parityPhaseFindings(make, ['go']), []);
 });
 
 // K534: land and the commit gate run what the owners of the changed paths select, so kit-check verifies that the owner rules select,

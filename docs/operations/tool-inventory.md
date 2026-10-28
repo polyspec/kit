@@ -873,8 +873,9 @@ Left as it is, with the reason:
   Git view.
 - `kit-check` also requires (K289) that `CHECK_TARGETS`, the suite that `make check` and the CI groups run, reaches every
   prerequisite of `kit-gates`, as a word or as a prerequisite of one, so a gate that the gates workflow runs is not left out of
-  the suite. The lint of a language, and the lint and test of a PHP extension, are required only in a repository that holds
-  code of it. kit's own checkout is not checked, since it is the source of the gates.
+  the suite. The parity prerequisite may be fulfilled by the complete provider-owned API and binding phase partition described
+  below. The lint of a language, and the lint and test of a PHP extension, are required only in a repository that holds code of it.
+  kit's own checkout is not checked, since it is the source of the gates.
 - `workflows/gates.yml` partitions the same `kit-gates` prerequisites into shared, parity, and runtime jobs. A consumer declares
   repository-owned setup targets in `config/ci.json`; each value is an existing Make target name, not a command. The schema is
   `scripts/kit/schema/ci.schema.json` and `kit-check` validates the consumer declaration. For example:
@@ -911,6 +912,12 @@ Left as it is, with the reason:
   An empty Go runtime list selects `build-go` only when every tracked `go.mod` has no `require` directives. If a Go module has
   dependencies, planning requires an explicit `setup.runtimes.go` target that fetches its locked modules before the build; Kit
   does not label a build as an install or silently rely on Go downloading during the offline gate.
+  `parityMode` is optional and defaults to `full`. `full` runs the complete provider `parity-check`; `phases` runs the provider
+  `parity-api-check` once and a `parity-bindings-<implementation>-check` matrix whose names come exactly from
+  `config/parity.json`. A phase consumer adds setup prerequisites to those concrete targets without replacing their recipes.
+  `kit-check` requires `CHECK_TARGETS` to select either the full target once or the complete API-plus-bindings partition, never both.
+  The final workflow job requires the selected parity path, every other required job and the exact matrix generated from the parity
+  declaration; a skipped, missing or failed selected job fails the aggregate.
   The optional `tools` map names extra pinned Kit tool selectors needed by setup targets. For example, a TypeScript generator
   target that needs Go declares `"tools": { "ts": ["go"] }`; Kit checks and installs that tool in the TypeScript job and in
   parity, which repeats runtime setup. `shared` and `parity` keys select tools for those jobs. Selectors must be known and
@@ -1538,7 +1545,9 @@ checks every rule except R1, R3 and R11 and runs nothing. Both are offline, prin
 `node scripts/kit/parity.mts --phase api` runs public-symbol extraction and all static parity rules, without native bindings; `--phase bindings`
 runs native bindings and their requirement checks, without public-symbol extraction. Together these phases cover the checks of the default `all` phase;
 each phase names its partial scope in the output and neither reports a full parity pass. `--phase all` is the default and preserves the full `parity-check`.
-`--phase api` cannot be combined with `--implementation`, and `--declarations` cannot be combined with a non-default phase. The make targets continue to use `all`.
+`--phase api` cannot be combined with `--implementation`, and `--declarations` cannot be combined with a non-default phase. Provider Make targets
+`parity-api-check` and `parity-bindings-%-check` expose the supported CI partition; the binding target selects the implementation named in `%`.
+The default `parity-check` continues to run `all`.
 `make parity-check UNITS="<id> <id>"` (K221) runs only the bindings (R3) of the named units, through the same runners, cwd and reader as a full run, and
 reports their outcomes with the same ledger lines. The cross-unit rules (R1, R2, R4 to R11) need every unit, so that run prints one line that says they do not run.
 An id that no unit of `config/parity.json` holds fails the run and names it; no run starts.

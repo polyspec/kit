@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c33decf517137d313ce91da70dbf9c3639d9198702b41222ace28216ad552dde -->
+<!-- source-sha256: 167cc0c5e58dbd9fdf614c2e7cf03de34c569098e16118fea6a916f0812f09b3 -->
 
 # 도구 목록
 
@@ -786,8 +786,9 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 - 설정 파일이 없다는 메시지는 `check-commits`, `check-documents`, `owner-check`에서 파일의 용도를 적으며, 세 문장이 다릅니다.
 - `kit-check`는 설치된 package의 `kit.copies`가 이름을 대는 사본만 disk에서 읽고, `trackedFiles`는 Git이 보는 파일을 읽습니다.
 - `kit-check`는 (K289) `make check`와 CI group이 실행하는 suite인 `CHECK_TARGETS`가 `kit-gates`의 모든 prerequisite에 단어나
-  prerequisite로 닿는지도 요구하므로, gates workflow가 실행하는 gate가 suite에서 빠지지 않습니다. 언어의 lint와 PHP extension의
-  lint·test는 그 code를 가진 저장소에서만 요구합니다. kit의 checkout은 gate의 source이므로 검사하지 않습니다.
+  prerequisite로 닿는지도 요구하므로, gates workflow가 실행하는 gate가 suite에서 빠지지 않습니다. 아래의 provider API와 binding phase
+  partition이 완전하면 parity prerequisite를 대신 충족합니다. 언어의 lint와 PHP extension의 lint·test는 그 code를 가진 저장소에서만
+  요구합니다. kit의 checkout은 gate의 source이므로 검사하지 않습니다.
 - `workflows/gates.yml`은 같은 `kit-gates` prerequisite를 shared, parity, runtime job으로 나눕니다. 소비 저장소는
   `config/ci.json`에 저장소별 setup target을 선언합니다. 각 값은 명령문이 아니라 실제 존재하는 Make target 이름입니다.
   schema는 `scripts/kit/schema/ci.schema.json`이며 `kit-check`가 소비 저장소의 선언을 검증합니다. 예:
@@ -824,6 +825,12 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   비어 있는 Go runtime 목록은 추적된 모든 `go.mod`에 `require` 지시문이 없을 때만 `build-go`를 선택합니다. Go module에
   dependency가 있으면 계획 단계가 실패하고 `setup.runtimes.go`에 build 전에 잠긴 module을 fetch하는 명시적 target을
   요구합니다. Kit은 build를 install로 부르거나 offline gate 도중 Go가 내려받기를 하도록 조용히 의존하지 않습니다.
+  `parityMode`는 선택 항목이며 기본값은 `full`입니다. `full`은 provider의 전체 `parity-check`를 실행합니다. `phases`는
+  `parity-api-check`를 한 번 실행하고 `config/parity.json`의 implementation 이름과 정확히 일치하는
+  `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite만 추가하고
+  provider recipe는 바꾸지 않습니다. `kit-check`는 `CHECK_TARGETS`가 전체 target 한 번 또는 API와 모든 binding phase를 완전하게
+  실행하도록 요구하며, 두 방식을 섞지 못하게 합니다. 마지막 workflow job은 선택한 parity 경로와 나머지 필수 job, parity 선언에서
+  만든 정확한 matrix를 요구합니다. 선택된 job의 누락, skip 또는 실패는 전체 aggregate를 실패시킵니다.
   선택 항목인 `tools` map은 setup target이 추가로 요구하는 Kit의 pinned tool selector를 선언합니다. 예를 들어 TypeScript
   generator target이 Go를 필요로 하면 `"tools": { "ts": ["go"] }`로 선언합니다. Kit은 해당 도구를 TypeScript job과 runtime
   setup을 반복하는 parity job에 설치하고 검사합니다. `shared`와 `parity` key는 각 job의 도구를 선택합니다. Selector는 Kit이
@@ -1401,7 +1408,7 @@ Make target: `parity-check`는 binding과 symbol extractor를 실행하고 모�
 R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습니다. 둘 다 offline이고, 단계마다와 finding마다 한 줄을 출력하며, finding이 있으면 1로 끝납니다.
 `node scripts/kit/parity.mts --phase api`는 native binding 없이 공개 symbol 추출과 모든 정적 parity 규칙을 실행합니다. `--phase bindings`는 공개 symbol 추출 없이
 native binding과 해당 requirement 검사를 실행합니다. 두 phase를 합치면 기본 `all` phase의 검사를 모두 다루며, 각 phase는 부분 범위를 출력하고 전체 parity 통과라고 보고하지 않습니다.
-`--phase all`이 기본값이며 기존 전체 `parity-check`를 유지합니다. `--phase api`와 `--implementation`은 함께 쓸 수 없고, `--declarations`는 기본 phase가 아닌 값과 함께 쓸 수 없습니다. Make target은 계속 `all`을 사용합니다.
+`--phase all`이 기본값이며 기존 전체 `parity-check`를 유지합니다. `--phase api`와 `--implementation`은 함께 쓸 수 없고, `--declarations`는 기본 phase가 아닌 값과 함께 쓸 수 없습니다. Provider Make target `parity-api-check`와 `parity-bindings-%-check`가 지원하는 CI partition을 제공합니다. Binding target은 `%`에 적힌 implementation만 선택하며 기본 `parity-check`는 계속 `all`을 실행합니다.
 `make parity-check UNITS="<id> <id>"`(K221)는 이름 붙은 unit의 binding(R3)만 실행합니다. 전체 실행과 같은 runner, cwd, reader를 쓰고 결과를 같은 ledger 줄로 보고합니다. unit 전체가 필요한 cross-unit rule(R1, R2, R4~R11)은 실행하지 않으며, 그 실행은 이를 알리는 줄을 한 줄 출력합니다. `config/parity.json`의 어떤 unit도 갖지 않은 id는 실행을 시작하지 않고 그 id를 적어 실패합니다.
 `make parity-declarations-check UNITS="<id> <id>"`(K400)는 그 unit을 가리키는 finding과 `config/parity.json` 자체의 finding만 보고합니다. 그래서 자기 unit의 선언을 고친 행은 다른 unit에 finding이 남아 있어도 통과합니다. UNITS가 없으면 모든 finding을 보고합니다.
 `make parity-declarations-check RULES="<rule> <rule>"`(K414)는 이름 붙은 rule(id 또는 이름)의 finding과 `config/parity.json` 자체의 finding만 보고합니다. 그래서 문서의 사실을 고정하는 행은 다른 rule에 finding이 남아 있어도 자기 rule을 검증합니다.
