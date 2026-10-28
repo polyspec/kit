@@ -24,8 +24,17 @@ final class PublicSymbols extends NodeVisitorAbstract
     /** @var list<array{string, callable(): list<string>}> a public symbol and what reads the classes that its signature, parent or interface names */
     private array $references = [];
 
+    /** @var array<string, Node\Stmt\Trait_> trait declarations, including internal traits used by public classes */
+    private array $traits = [];
+
+    /** @var list<array{string, Node\Stmt\ClassLike}> public class-like declarations whose trait members are composed after parsing */
+    private array $classLikes = [];
+
     public function enterNode(Node $node): null
     {
+        if ($node instanceof Node\Stmt\Trait_ && $node->namespacedName !== null) {
+            $this->traits[$node->namespacedName->toString()] = $node;
+        }
         if ($this->internal($node)) {
             if ($node instanceof Node\Stmt\ClassLike && $node->namespacedName !== null) {
                 $this->internalClasses[$node->namespacedName->toString()] = true;
@@ -35,6 +44,7 @@ final class PublicSymbols extends NodeVisitorAbstract
         if ($node instanceof Node\Stmt\ClassLike && $node->namespacedName !== null) {
             $class = $node->namespacedName->toString();
             $this->symbols[] = $class;
+            $this->classLikes[] = [$class, $node];
             $this->references[] = [$class, fn (): array => $this->parents($node)];
             foreach ($node->stmts as $member) {
                 $this->member($class, $member, $node instanceof Node\Stmt\Interface_);
@@ -51,6 +61,184 @@ final class PublicSymbols extends NodeVisitorAbstract
         return null;
     }
 
+    /** Adds members supplied by traits after every parsed file has registered its trait declarations. */
+    public function afterTraverse(array $nodes): null
+    {
+        foreach ($this->classLikes as [$class, $classLike]) {
+            $declared = [];
+            foreach ($classLike->stmts as $member) {
+                if ($member instanceof Node\Stmt\ClassMethod) {
+                    $declared[strtolower($member->name->toString())] = true;
+                }
+            }
+            foreach ($classLike->stmts as $member) {
+                if (!$member instanceof Node\Stmt\TraitUse) {
+                    continue;
+                }
+                foreach ($this->composeTraitUse($member) as $entry) {
+                    $effectiveName = $entry['name'] ?? (
+                        $entry['node'] instanceof Node\Stmt\ClassMethod
+                            ? $entry['node']->name->toString()
+                            : null
+                    );
+                    if ($effectiveName !== null && isset($declared[strtolower($effectiveName)])) {
+                        continue;
+                    }
+                    if ($entry['visibility'] === Node\Stmt\Class_::MODIFIER_PRIVATE) {
+                        continue;
+                    }
+                    $this->member(
+                        $class,
+                        $entry['node'],
+                        $classLike instanceof Node\Stmt\Interface_,
+                        $entry['visibility'] === Node\Stmt\Class_::MODIFIER_PUBLIC,
+                        $entry['name']
+                    );
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * The effective members supplied by a trait, including traits it uses; a declaration overrides a nested trait
+     * member.
+     *
+     * @param array<string, true> $seen
+     * @return list<array{trait: string, node: Node, visibility: int|null, name: string|null}>
+     */
+    private function traitMembers(string $name, array $seen = []): array
+    {
+        if (isset($seen[$name]) || !isset($this->traits[$name])) {
+            return [];
+        }
+        $seen[$name] = true;
+        $trait = $this->traits[$name];
+        $members = [];
+        foreach ($trait->stmts as $member) {
+            if (!$member instanceof Node\Stmt\TraitUse) {
+                continue;
+            }
+            foreach ($this->composeTraitUse($member, $seen) as $nestedMember) {
+                $key = $this->entryKey($nestedMember);
+                if ($key !== null) {
+                    $members[$key] = $nestedMember;
+                }
+            }
+        }
+        foreach ($trait->stmts as $member) {
+            if ($member instanceof Node\Stmt\TraitUse) {
+                continue;
+            }
+            $key = $this->memberKey($member);
+            if ($key !== null) {
+                $members[$key] = ['trait' => $name, 'node' => $member, 'visibility' => null, 'name' => null];
+            }
+        }
+        return array_values($members);
+    }
+
+    /** Applies PHP trait precedence and alias adaptations and returns the effective members of one trait-use. */
+    private function composeTraitUse(Node\Stmt\TraitUse $use, array $seen = []): array
+    {
+        $methods = [];
+        $members = [];
+        foreach ($use->traits as $trait) {
+            $traitName = $trait->toString();
+            foreach ($this->traitMembers($traitName, $seen) as $entry) {
+                $entry['trait'] = $traitName;
+                if ($entry['node'] instanceof Node\Stmt\ClassMethod) {
+                    $methods[] = $entry;
+                } else {
+                    $members[] = $entry;
+                }
+            }
+        }
+        foreach ($use->adaptations as $adaptation) {
+            if (!$adaptation instanceof Node\Stmt\TraitUseAdaptation\Precedence) {
+                continue;
+            }
+            $winner = $adaptation->trait?->toString();
+            foreach ($adaptation->insteadof as $loser) {
+                $loserName = $loser->toString();
+                $methods = array_values(array_filter(
+                    $methods,
+                    static fn(array $entry): bool => !(
+                        strcasecmp($entry['trait'], $loserName) === 0
+                        && strcasecmp(
+                            $entry['name'] ?? $entry['node']->name->toString(),
+                            $adaptation->method->toString()
+                        ) === 0
+                        && ($winner === null || strcasecmp($entry['trait'], $winner) !== 0)
+                    )
+                ));
+            }
+        }
+        $aliases = [];
+        foreach ($use->adaptations as $adaptation) {
+            if (!$adaptation instanceof Node\Stmt\TraitUseAdaptation\Alias) {
+                continue;
+            }
+            $methodName = $adaptation->method->toString();
+            $traitName = $adaptation->trait?->toString();
+            foreach ($methods as $index => $entry) {
+                $candidateName = $entry['name'] ?? $entry['node']->name->toString();
+                if (
+                    strcasecmp($candidateName, $methodName) !== 0
+                    || ($traitName !== null && strcasecmp($entry['trait'], $traitName) !== 0)
+                ) {
+                    continue;
+                }
+                if ($adaptation->newName !== null) {
+                    $aliases[] = [
+                        'trait' => $entry['trait'],
+                        'node' => $entry['node'],
+                        'visibility' => $adaptation->newModifier,
+                        'name' => $adaptation->newName->toString(),
+                    ];
+                } elseif ($adaptation->newModifier !== null) {
+                    $methods[$index]['visibility'] = $adaptation->newModifier;
+                }
+            }
+        }
+        return [...$methods, ...$aliases, ...$members];
+    }
+
+    /** The effective member key of a trait-use entry. */
+    private function entryKey(array $entry): ?string
+    {
+        if ($entry['node'] instanceof Node\Stmt\ClassMethod && $entry['name'] !== null) {
+            return 'method:' . strtolower($entry['name']);
+        }
+        return $this->memberKey($entry['node']);
+    }
+
+    /** A trait member's effective-name key, for direct declarations to override nested traits. */
+    private function memberKey(Node $member): ?string
+    {
+        if ($member instanceof Node\Stmt\ClassMethod) {
+            return 'method:' . strtolower($member->name->toString());
+        }
+        if ($member instanceof Node\Stmt\Property) {
+            $names = array_map(
+                static fn(Node\Stmt\PropertyProperty $property): string => $property->name->toString(),
+                $member->props
+            );
+            return 'property:' . implode(',', $names);
+        }
+        if ($member instanceof Node\Stmt\ClassConst) {
+            $names = array_map(
+                static fn(Node\Const_ $constant): string => $constant->name->toString(),
+                $member->consts
+            );
+            return 'constant:' . implode(',', $names);
+        }
+        if ($member instanceof Node\Stmt\EnumCase) {
+            return 'case:' . $member->name->toString();
+        }
+        return null;
+    }
+
     /** Whether the docblock of `$node` carries an @internal tag, as phpstan and psalm read it: the tag opens a docblock line. */
     private function internal(Node $node): bool
     {
@@ -59,14 +247,20 @@ final class PublicSymbols extends NodeVisitorAbstract
     }
 
     /** Adds the public member `$member` of the class `$class`; every member of an interface is public. */
-    private function member(string $class, Node $member, bool $interface): void
-    {
+    private function member(
+        string $class,
+        Node $member,
+        bool $interface,
+        bool $forcePublic = false,
+        ?string $methodName = null
+    ): void {
         if ($this->internal($member)) {
             return;
         }
-        if ($member instanceof Node\Stmt\ClassMethod && ($interface || $member->isPublic())) {
-            $this->symbols[] = "{$class}::{$member->name}";
-            $this->signature("{$class}::{$member->name}", $member);
+        if ($member instanceof Node\Stmt\ClassMethod && ($interface || $forcePublic || $member->isPublic())) {
+            $effectiveName = $methodName ?? $member->name->toString();
+            $this->symbols[] = "{$class}::{$effectiveName}";
+            $this->signature("{$class}::{$effectiveName}", $member);
             if ($member->name->toLowerString() === '__construct') {
                 foreach ($member->params as $param) {
                     $name = $param->var instanceof Node\Expr\Variable ? $param->var->name : null;

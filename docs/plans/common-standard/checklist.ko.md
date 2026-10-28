@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 52aab2daac2a9cd766c63417aa165a9a9b7fb27e7ad52e9017e7c69f37d6e77d -->
+<!-- source-sha256: df8d0ad881556d9b6f214ece9da07917539a6a6322d141b84c789bc913ccc935 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -672,4 +672,4 @@
 | K714 | 명시적으로 선언한 모든 공개 API 패키지 진입점을 읽는다 | scripts/kit/parity-symbols.mts scripts/kit/parity-declaration.mts scripts/kit/schema/parity.schema.json tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K714 tests/kit/parity.test.mts` | [o] |
 | K715 | 보류한 동작을 실행하지 않고 패리티 바인딩을 보존한다 | scripts/kit/parity-requirements.mts scripts/kit/parity-declaration.mts scripts/kit/parity-units.mts scripts/kit/parity-ledger.mts scripts/kit/parity.mts tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K715 tests/kit/parity.test.mts` | [o] |
 | K716 | 릴리스 CI 40650656525가 보고한 패리티 회귀를 수정한다 | tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts scripts/kit/parity-symbols.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K715 tests/kit/parity-requirements.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K677-2 tests/kit/parity.test.mts` | [o] |
-| K717 | Internal PHP trait에서 합성된 공개 메서드를 추출한다 | scripts/kit/symbols/php/extract.php tests/source/symbols-php-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K717 tests/source/symbols-php-real.test.mts` | [ ] |
+| K717 | Internal PHP trait에서 합성된 공개 메서드를 추출한다 | scripts/kit/symbols/php/PublicSymbols.php tests/source/symbols-php-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K717 tests/source/symbols-php-real.test.mts` | [~] |

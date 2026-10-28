@@ -62,6 +62,66 @@ test('the word internal outside an @internal tag does not hide a symbol (K307)',
   assert.deepEqual(symbolsOf(t, { 'src/A.php': source }), ['A\\Open', 'A\\Open::run']);
 });
 
+test('an internal trait contributes its public methods to its public consumer (K717)', (t) => {
+  const source = `<?php
+namespace A;
+
+/** @internal */
+class Hidden {}
+
+final class Collection
+{
+    use ArrayRows, OtherRows {
+        ArrayRows::shared insteadof OtherRows;
+        ArrayRows::toArray as private;
+        ArrayRows::privateHelper as public exposedHelper;
+        OtherRows::visible as renamedVisible;
+    }
+}
+
+/** @internal */
+trait ArrayRows
+{
+    use NestedRows;
+    public function toArray(): array { return []; }
+    public function shared(): Hidden { return new Hidden(); }
+    private function privateHelper(): void {}
+    /** @internal */
+    public function internalHelper(): void {}
+}
+
+/** @internal */
+trait NestedRows
+{
+    use NestedSource { nested as private nestedSecret; }
+}
+
+/** @internal */
+trait NestedSource
+{
+    public function nested(): void {}
+}
+
+/** @internal */
+trait OtherRows
+{
+    public function shared(): void {}
+    public function visible(): void {}
+}
+`;
+  assert.deepEqual(symbolsOf(t, { 'src/Rows.php': source }), [
+    'A\\Collection',
+    'A\\Collection::exposedHelper',
+    'A\\Collection::nested',
+    'A\\Collection::renamedVisible',
+    'A\\Collection::shared',
+    'A\\Collection::visible',
+  ]);
+  assert.deepEqual(symbolsOf(t, { 'src/Rows.php': source }, ['--leaks']), [
+    'A\\Collection::shared names the internal A\\Hidden',
+  ]);
+});
+
 // K307-1: an @internal symbol is hidden from the API, so a public signature, parent or interface that names it leaks it.
 test('a public signature, parent or interface that names an @internal class is a leak, and a public name is not (K307-1)', (t) => {
   const source = `<?php
