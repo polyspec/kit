@@ -43,17 +43,29 @@ test('the CI workflow lints kit with make lint-ts, the TypeScript lint of its co
   assert.ok(lint > runs.indexOf('make install-packages'), 'a step runs make lint-ts after npm ci');
 });
 
-test('only kit-test shards that use PHP or Cargo install those pinned tools (K78, K127)', () => {
+test('kit-test shards install only their declared PHP, Composer, runtime and Cargo prerequisites (K78, K127)', () => {
   const kitTestRuns = jobRuns('kit_tests');
-  const phpTools = kitTestRuns.indexOf('make install-tools TOOLS="php phpunit"');
+  const phpTools = kitTestRuns.indexOf('make install-tools TOOLS="php composer phpunit"');
   const rustTools = kitTestRuns.indexOf('make install-tools TOOLS=rust');
   const cargoDownloads = kitTestRuns.indexOf('make cargo-downloads-fetch');
   const kitTest = kitTestRuns.indexOf('make kit-test-shard SHARD=${{ matrix.shard }}');
   assert.ok(!jobText('kit_tests').includes('GITHUB_PATH'), 'no step puts var/tools on PATH by hand');
-  assert.ok(phpTools >= 0 && phpTools < kitTest, 'the PHP fixture shard installs PHP and PHPUnit');
+  assert.ok(phpTools >= 0 && phpTools < kitTest, 'the PHP fixture shard installs PHP, Composer and PHPUnit');
+  for (const [shard, tools] of [
+    [1, 'make install-tools TOOLS="php composer"'],
+    [3, 'make install-tools TOOLS="php composer"'],
+    [4, 'make install-tools TOOLS="php composer python go"'],
+    [7, 'make install-tools TOOLS="php composer"'],
+  ] as const) {
+    const install = kitTestRuns.indexOf(tools);
+    assert.ok(install >= 0 && install < kitTest, `shard ${shard} installs ${tools}`);
+    assert.ok(jobText('kit_tests').includes(`if: \${{ matrix.shard == ${shard} && !cancelled() }}\n        run: ${tools}`), `shard ${shard} installs only its declared tools`);
+  }
+  assert.match(jobText('kit_tests'), /if: \$\{\{ contains\(fromJSON\('\[1,3,4,5,7\]'\), matrix\.shard\) \}\}[\s\S]*?php-version-file: \.php-version/);
   assert.ok(rustTools >= 0 && rustTools < kitTest, 'the Cargo fixture shard installs Rust');
   assert.ok(cargoDownloads > rustTools && cargoDownloads < kitTest, 'the Cargo shard fetches its crates before running');
-  assert.match(jobText('kit_tests'), /if: \$\{\{ matrix\.shard == 5 \}\}[\s\S]*make kit-install-php-arginfo/);
+  assert.match(jobText('kit_tests'), /if: \$\{\{ matrix\.shard == 5 && !cancelled\(\) \}\}[\s\S]*make kit-install-php-arginfo/);
+  assert.match(jobText('kit_tests'), /if: \$\{\{ matrix\.shard == 5 && !cancelled\(\) \}\}[\s\S]*make kit-install-symbols EXTRACTORS=php/);
   assert.match(jobText('kit_tests'), /if: \$\{\{ matrix\.shard == 6 && !cancelled\(\) \}\}[\s\S]*make cargo-downloads-fetch/);
 });
 
@@ -145,6 +157,10 @@ test('the CI workflow installs the PHP of .php-version before install-tools, whi
   const tools = checkJob.indexOf('run: make install-tools\n');
   assert.ok(setup >= 0, 'the workflow sets up PHP from .php-version');
   assert.ok(tools > setup, 'install-tools runs after the PHP of .php-version is installed');
+});
+
+test('the fresh-checkout source group installs its declared PHP runtime', () => {
+  assert.match(jobText('source_tests'), /if: \$\{\{ contains\(fromJSON\('\["php","php-ext","common-1","common-2","common-3"\]'\), matrix\.group\) \}\}[\s\S]*?php-version-file: \.php-version/);
 });
 
 // parity-real runs the rust symbol extractor on the Rust nightly of its exception; CI has no nightly unless make install-tools,

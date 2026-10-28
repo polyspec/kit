@@ -163,6 +163,20 @@ test('make layout-check passes on a repository that follows the layout', (t) => 
   assert.match(result.stdout, /all rules passed/);
 });
 
+test('the PYTHONPATH validator fixture is excluded while a real declaration is rejected', (t) => {
+  assert.ok(existsSync(ALINT), 'the alint of mise.toml is missing; make install-tools installs it');
+  const fixture = layoutCheck(repository(t, {
+    'tests/kit/parity-api.test.mts': "const forbiddenName = 'PYTHONPATH';\n",
+  }));
+  assert.equal(fixture.status, 0, `${fixture.stdout}${fixture.stderr}`);
+
+  const declaration = layoutCheck(repository(t, {
+    'config/parity.json': JSON.stringify({ implementations: [{ name: 'python', env: [{ name: 'PYTHONPATH', value: 'packages/python/src' }] }] }),
+  }));
+  assert.notEqual(declaration.status, 0, declaration.stdout + declaration.stderr);
+  assert.match(declaration.stdout, /config\/parity\.json:\d+:\d+: error: layout-no-pythonpath:/);
+});
+
 test('make layout-check fails on each planted violation with the rule that names it', (t) => {
   assert.ok(existsSync(ALINT), 'the alint of mise.toml is missing; make install-tools installs it');
   for (const { rule, files } of VIOLATIONS) {
