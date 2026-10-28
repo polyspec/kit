@@ -260,11 +260,11 @@ test('PHPUnit uses its configured per-test deadline extension unless --timeout i
   const native = toolCommand({ tool: 'phpunit', timeoutSeconds: 30, timeoutExplicit: false, cwd: p, args: ['tests/SmallTest.php'] }, root);
   assert.equal(native.command, path.join(root, 'var/tools/bin/php'));
   assert.ok(native.args.includes(`auto_prepend_file=${path.join(path.dirname(tool(import.meta.resolve('../../scripts/kit/run-tests.mts'))), 'php-library/phpunit-deadline-prepend.php')}`));
-  assert.ok(native.args.includes('KitPHPUnitDeadlineExtension'));
+  assert.ok(native.args.includes('Polyspec\\Kit\\PHPUnit\\DeadlineExtension'));
   assert.ok(native.args.includes(path.join(root, 'p/phpunit.xml')));
   const explicit = toolCommand({ tool: 'phpunit', timeoutSeconds: 9, timeoutExplicit: true, cwd: p, args: ['tests/SmallTest.php'] }, root);
   assert.equal(explicit.command, path.join(root, 'vendor/bin/phpunit'));
-  assert.doesNotMatch(explicit.args.join(' '), /KitPHPUnitDeadlineExtension|auto_prepend_file/);
+  assert.doesNotMatch(explicit.args.join(' '), /DeadlineExtension|auto_prepend_file/);
 });
 
 // A PHP extension run starts the PHP of the checkout, the wrapper of var/tools/bin that install-tools writes, never the php of PATH (K393).

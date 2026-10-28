@@ -1,4 +1,6 @@
-<?php declare(strict_types=1);
+<?php
+
+declare(strict_types=1);
 
 if (getenv('KIT_PHP_LIBRARY_SOURCES') !== false) {
     require_once __DIR__ . '/prepend.php';
@@ -15,4 +17,5 @@ if (!is_string($autoload) || !is_file($autoload)) {
 }
 
 require_once $autoload;
+require_once __DIR__ . '/phpunit-deadline-subscriber.php';
 require_once __DIR__ . '/phpunit-deadline-extension.php';

@@ -206,7 +206,7 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
       const nativeTimeouts = !timeoutExplicit;
       const prepend = path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-library/phpunit-deadline-prepend.php');
       const bootstrap = nativeTimeouts ? ['-d', `auto_prepend_file=${prepend}`] : [];
-      const extension = nativeTimeouts ? ['--extension', 'KitPHPUnitDeadlineExtension'] : [];
+      const extension = nativeTimeouts ? ['--extension', 'Polyspec\\Kit\\PHPUnit\\DeadlineExtension'] : [];
       if (library) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(item => ['-d', `extension=${item}`]), ...bootstrap, library.phpunit, '--teamcity', ...extension, ...args] };
       // K452: an extension run gives PHPUnit the configuration of the package, so the bootstrap that it names loads as in the library run.
       const configuration = ['phpunit.xml', 'phpunit.xml.dist'].map(file => path.join(cwd, file)).find(file => existsSync(file));

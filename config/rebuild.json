@@ -578,6 +578,10 @@
       "kind": "ecosystem",
       "tool": "the PHP CLI auto_prepend_file setting loads the PHPUnit deadline extension after the Composer autoloader and before PHPUnit starts"
     },
+    "scripts/kit/php-library/phpunit-deadline-subscriber.php": {
+      "kind": "ecosystem",
+      "tool": "PHPUnit 13.4 PreparationStarted events expose the test metadata used to report its configured timeout"
+    },
     "scripts/kit/markers/python.py": {
       "kind": "ecosystem",
       "tool": "ast of the Python standard library, which reads the markers of the test files (K345)"
