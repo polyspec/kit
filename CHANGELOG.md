@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Prepared Kit 0.0.62 with native candidate packaging, locked consumer installation and a current dependency review. (K741)
+
 ## 0.0.62
 
 - Update reviewed stable dependency pins and native toolchain digests with a clean advisory record. (K740)
