@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3661f50b78acca3c4463a940e84b5e034fe43412db3ca0ff41f276b0fbaa3703 -->
+<!-- source-sha256: 0446472aeec4ab252b50fb9619b7748f6416b092f1249e5ff9d991dd7de597bd -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -673,3 +673,4 @@
 | K715 | 보류한 동작을 실행하지 않고 패리티 바인딩을 보존한다 | scripts/kit/parity-requirements.mts scripts/kit/parity-declaration.mts scripts/kit/parity-units.mts scripts/kit/parity-ledger.mts scripts/kit/parity.mts tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K715 tests/kit/parity.test.mts` | [o] |
 | K716 | 릴리스 CI 40650656525가 보고한 패리티 회귀를 수정한다 | tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts scripts/kit/parity-symbols.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K715 tests/kit/parity-requirements.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K677-2 tests/kit/parity.test.mts` | [o] |
 | K717 | Internal PHP trait에서 합성된 공개 메서드를 추출한다 | scripts/kit/symbols/php/PublicSymbols.php tests/source/symbols-php-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K717 tests/source/symbols-php-real.test.mts` | [o] |
+| K718 | 독립 단위 검사와 언어별 native 검사를 CI job에서 병렬 실행한다 | .github/workflows/ci.yml Makefile tests/kit/ci-workflow.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K718 tests/kit/ci-workflow.test.mts` | [ ] |
