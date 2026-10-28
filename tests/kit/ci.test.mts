@@ -2,7 +2,7 @@
 // report with its logs, record and summary, the first failure lines, and the judgment of the results of the needed jobs.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -252,4 +252,37 @@ test('the ci-passed command writes annotations on GitHub Actions only', (t) => {
   assert.match(hosted.stdout, /::error title=ci-passed::the job a ended with failure; expected success/);
   assert.equal(run({}).status, 2);
   assert.equal(run({ RESULTS: JSON.stringify({ a: ok }) }).status, 0);
+});
+
+test('the ci-passed command runs with Node built-ins and no installed packages', (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'kit-ci-passed-node-only-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const files = [
+    'ci-passed.mts',
+    'paths.mts',
+    'git.mts',
+    'process.mts',
+    'present.mts',
+    'bootstrap/files.mts',
+  ];
+  for (const file of files) {
+    const target = path.join(directory, 'scripts/kit', file);
+    mkdirSync(path.dirname(target), { recursive: true });
+    copyFileSync(path.join(KIT, file), target);
+  }
+  const command = path.join(directory, 'scripts/kit/ci-passed.mts');
+  const run = (env: Record<string, string>) => spawnSync(process.execPath, [command], {
+    cwd: directory,
+    encoding: 'utf8',
+    env: { PATH: process.env.PATH, ...env },
+  });
+  const passed = run({ RESULTS: JSON.stringify({ checks: ok }) });
+  assert.equal(passed.status, 0, passed.stderr);
+  assert.match(passed.stdout, /every needed job passed: checks/);
+  const failed = run({ GITHUB_ACTIONS: 'true', RESULTS: JSON.stringify({ checks: { result: 'failure' } }) });
+  assert.equal(failed.status, 1, failed.stderr);
+  assert.match(failed.stdout, /::error title=ci-passed::the job checks ended with failure; expected success/);
+  const missing = run({});
+  assert.equal(missing.status, 2, missing.stderr);
+  assert.match(missing.stdout, /RESULTS is not set/);
 });

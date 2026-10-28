@@ -5,7 +5,6 @@
 // when every needed job has the result `success`: a failed, cancelled or skipped job fails it (status 1), and so does RESULTS
 // that is unset, is not JSON or names no job (status 2, because nothing was judged). On GitHub Actions each finding is also
 // written as an `::error::` annotation.
-import { isMain } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
 
 /** The judgement of the needed jobs: the exit status, the lines to print and the failures. */
@@ -36,7 +35,7 @@ export function passed(text: string | undefined): Judgement {
   return { status: 0, lines: [...lines, `[ci-passed] every needed job passed: ${Object.keys(needs).join(', ')}`], errors: [] };
 }
 
-if (isMain(import.meta.url)) {
+if (import.meta.main) {
   const result = passed(process.env.RESULTS);
   for (const line of result.lines) console.log(line);
   if (process.env.GITHUB_ACTIONS === 'true') for (const error of result.errors) console.log(`::error title=ci-passed::${error}`);

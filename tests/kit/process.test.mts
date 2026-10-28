@@ -1,5 +1,6 @@
 // Tests of scripts/kit/process.mts: `run` returns the output of a command and stops with the cause when it fails.
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import { run, Stop } from '../../scripts/kit/process.mts';
 import { commandPath, writeNativeWrapper } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
@@ -8,7 +9,12 @@ import { tree } from './tree.mts';
 test('run stops with the exit status of a command that fails, and with the signal of one that a signal ended (K118)', () => {
   assert.equal(run(process.execPath, ['-e', 'console.log("out")']), 'out\n');
   assert.throws(() => run(process.execPath, ['-e', 'console.error("bad"); process.exit(3)']), (error: unknown) => error instanceof Stop && error.message.endsWith('exited with 3: bad'), 'a single stream keeps the form of the message');
-  assert.throws(() => run(process.execPath, ['-e', 'process.kill(process.pid, "SIGKILL")']), (error: unknown) => error instanceof Stop && error.message.endsWith('ended by signal SIGKILL: '));
+  const signalCommand = ['-e', 'process.kill(process.pid, "SIGKILL")'];
+  const native = spawnSync(process.execPath, signalCommand, { encoding: 'utf8' });
+  assert.equal(native.error, undefined);
+  assert.ok(native.signal !== null || (native.status !== null && native.status !== 0), 'the native self-signal command must fail');
+  const cause = native.signal === null ? `exited with ${native.status}: ` : `ended by signal ${native.signal}: `;
+  assert.throws(() => run(process.execPath, signalCommand), (error: unknown) => error instanceof Stop && error.message.endsWith(cause), 'run reports the native process result');
 });
 
 test('the message of a failed command holds both its streams (K352)', () => {
