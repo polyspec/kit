@@ -20,14 +20,31 @@ export type Snapshots = ReadonlyMap<string, ReadonlySet<string>>;
  * R1: each API unit has a binding in each implementation, and every declared symbol is public. An implementation whose extractor failed has no
  * snapshot, and that failure is already its finding.
  */
-export function missingImplementations(model: ParityModel, snapshots: Snapshots) {
+export function missingImplementations(
+  model: ParityModel,
+  snapshots: Snapshots,
+  entrySnapshots: ReadonlyMap<string, ReadonlyMap<string, ReadonlySet<string>>> = new Map()
+) {
   return pairs(model, 'api').flatMap(({ unit, implementation }) => {
     const where = { unit: unit.id, implementation: implementation.name, place: implementation.symbols === undefined ? undefined : symbolEntriesLabel(implementation.symbols) };
     // readDeclaration requires symbols of an API unit, and the rules do not run on a declaration with findings.
     const declared = present(unit.symbols, 'unit.symbols').find(entry => entry.implementation === implementation.name);
     if (!declared) return [finding('R1', `the API unit ${unit.id} declares no symbol of ${implementation.name}`, where)];
-    const snapshot = snapshots.get(implementation.name);
+    let snapshot = snapshots.get(implementation.name);
     if (snapshot === undefined) return [];
+    const ownerRoot = model.unitOwnerRoots.get(unit.id);
+    if (ownerRoot !== undefined) {
+      const artifact = model.unitOwnerArtifacts.get(unit.id);
+      const selectedEntries = [...(entrySnapshots.get(implementation.name) ?? [])]
+        .filter(([entry]) => artifact === 'git-tag'
+          ? entry === ownerRoot || path.posix.dirname(entry) === ownerRoot
+          : entry === ownerRoot || within(ownerRoot, entry))
+        .map(([, symbols]) => symbols);
+      if (selectedEntries.length === 0) {
+        return [finding('R1', `the API unit ${unit.id} has no symbol entry for release package ${ownerRoot} of ${implementation.name}`, where)];
+      }
+      snapshot = new Set(selectedEntries.flatMap(symbols => [...symbols]));
+    }
     return apiSymbols(declared).filter(symbol => !snapshot.has(symbol)).map(symbol =>
       finding('R1', `${symbol} is no public symbol of ${implementation.name}, as its ${implementation.symbols?.extractor} extractor reads ${implementation.symbols === undefined ? '(no entry)' : symbolEntriesLabel(implementation.symbols)}`, where));
   });

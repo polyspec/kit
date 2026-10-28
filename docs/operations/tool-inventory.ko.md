@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 6bb6477c77e5b32b444793ae7d0316d9d2a0b43badddbce776d741a5f5f3f849 -->
+<!-- source-sha256: 819bbfa24bd98c1e7c8616a6363e3fa26f6bf5ed87a3c02a7936274b33f027ba -->
 
 # 도구 목록
 
@@ -1324,6 +1324,9 @@ feature unit은 기존 `contracts/features.json` coverage part 또는 `config/re
 
 Make target: `parity-check`는 binding과 symbol extractor를 실행하고 모든 rule을 검사합니다. `parity-declarations-check`는
 R1, R3, R11을 뺀 모든 rule을 검사하며 아무것도 실행하지 않습니다. 둘 다 offline이고, 단계마다와 finding마다 한 줄을 출력하며, finding이 있으면 1로 끝납니다.
+`node scripts/kit/parity.mts --phase api`는 native binding 없이 공개 symbol 추출과 모든 정적 parity 규칙을 실행합니다. `--phase bindings`는 공개 symbol 추출 없이
+native binding과 해당 requirement 검사를 실행합니다. 두 phase를 합치면 기본 `all` phase의 검사를 모두 다루며, 각 phase는 부분 범위를 출력하고 전체 parity 통과라고 보고하지 않습니다.
+`--phase all`이 기본값이며 기존 전체 `parity-check`를 유지합니다. `--phase api`와 `--implementation`은 함께 쓸 수 없고, `--declarations`는 기본 phase가 아닌 값과 함께 쓸 수 없습니다. Make target은 계속 `all`을 사용합니다.
 `make parity-check UNITS="<id> <id>"`(K221)는 이름 붙은 unit의 binding(R3)만 실행합니다. 전체 실행과 같은 runner, cwd, reader를 쓰고 결과를 같은 ledger 줄로 보고합니다. unit 전체가 필요한 cross-unit rule(R1, R2, R4~R11)은 실행하지 않으며, 그 실행은 이를 알리는 줄을 한 줄 출력합니다. `config/parity.json`의 어떤 unit도 갖지 않은 id는 실행을 시작하지 않고 그 id를 적어 실패합니다.
 `make parity-declarations-check UNITS="<id> <id>"`(K400)는 그 unit을 가리키는 finding과 `config/parity.json` 자체의 finding만 보고합니다. 그래서 자기 unit의 선언을 고친 행은 다른 unit에 finding이 남아 있어도 통과합니다. UNITS가 없으면 모든 finding을 보고합니다.
 `make parity-declarations-check RULES="<rule> <rule>"`(K414)는 이름 붙은 rule(id 또는 이름)의 finding과 `config/parity.json` 자체의 finding만 보고합니다. 그래서 문서의 사실을 고정하는 행은 다른 rule에 finding이 남아 있어도 자기 rule을 검증합니다.

@@ -1456,6 +1456,10 @@ The checker trusts three inputs that it does not produce itself. Other checks cl
 
 Make targets: `parity-check` runs the bindings and the symbol extractors and checks every rule. `parity-declarations-check`
 checks every rule except R1, R3 and R11 and runs nothing. Both are offline, print a line for each step and each finding, and exit with 1 when a finding exists.
+`node scripts/kit/parity.mts --phase api` runs public-symbol extraction and all static parity rules, without native bindings; `--phase bindings`
+runs native bindings and their requirement checks, without public-symbol extraction. Together these phases cover the checks of the default `all` phase;
+each phase names its partial scope in the output and neither reports a full parity pass. `--phase all` is the default and preserves the full `parity-check`.
+`--phase api` cannot be combined with `--implementation`, and `--declarations` cannot be combined with a non-default phase. The make targets continue to use `all`.
 `make parity-check UNITS="<id> <id>"` (K221) runs only the bindings (R3) of the named units, through the same runners, cwd and reader as a full run, and
 reports their outcomes with the same ledger lines. The cross-unit rules (R1, R2, R4 to R11) need every unit, so that run prints one line that says they do not run.
 An id that no unit of `config/parity.json` holds fails the run and names it; no run starts.

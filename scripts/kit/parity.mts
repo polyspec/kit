@@ -6,8 +6,11 @@
 // and feature itself and keeps the ledger of the cases and test ids that ran, runs the symbol extractor of each
 // implementation (parity-symbols.mts) and reads the error codes from its generated artifact.
 //
-//   node scripts/kit/parity.mts [--declarations] [--unit <id>]... [--implementation <name>]...
+//   node scripts/kit/parity.mts [--phase all|api|bindings] [--declarations] [--unit <id>]... [--implementation <name>]...
 //     --declarations  check the declarations only: every rule except R1, R3 and R11; no binding and no extractor runs
+//     --phase all      run every existing phase (the default)
+//     --phase api      run public symbol extractors and all static parity rules; no native bindings run
+//     --phase bindings run native bindings twice and requirement checks; public symbol extractors do not run. May select runtimes with --implementation.
 //     --unit <id>     run only the bindings (R3) of the named units, through the same runners as a full run; the cross-unit
 //                     rules (R1, R2, R4 to R11) need every unit and do not run. An id that no unit holds is an error (K221).
 //                     With --declarations, the findings that name the units and those of config/parity.json itself count (K400),
@@ -69,14 +72,18 @@ import { loadConfig } from './checklist.mts';
 
 /** A finding as parity-declaration.mts finding() makes it: the rule, the unit, implementation and place it names, and the message. */
 export type ParityFinding = Finding;
+export type ParityPhase = 'all' | 'api' | 'bindings';
+const isParityPhase = (value: string): value is ParityPhase => value === 'all' || value === 'api' || value === 'bindings';
 
 /**
- * The check of the checkout at `root`: `{ findings, ledger }`, the findings in the order of the rules. `execute` runs the
- * bindings (R3) with the environment `env`; `say` prints a line for each step.
+ * The check of the checkout at `root`: `{ findings, ledger }`, the findings in the order of the rules. `phase: 'all'` preserves
+ * the full check; `phase: 'api'` runs R1/R11 without native bindings, and `phase: 'bindings'` runs native bindings and requirement
+ * checks without public symbol extraction. Together, `api` and `bindings` cover the full rule set; `execute` runs bindings (R3).
  */
-export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules, ids, implementations }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined; ids?: string[] | undefined; implementations?: string[] | undefined } = {}): { findings: ParityFinding[]; ledger: Ledger } {
+export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules, ids, implementations, phase = 'all' }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined; ids?: string[] | undefined; implementations?: string[] | undefined; phase?: ParityPhase } = {}): { findings: ParityFinding[]; ledger: Ledger } {
   const files = new Set(checkedFiles(root));
   const ledger: Ledger = { runs: [], cases: [] };
+  if (!execute && phase !== 'all') return { findings: [finding('declaration', `--declarations cannot be combined with --phase ${phase}`, { place: DECLARATION })], ledger };
   // Parity holds between implementations: a repository with one needs no declaration, and one with two or more fails without it.
   if (!existsSync(path.join(root, DECLARATION))) {
     const implementations = implementationFolders(files);
@@ -104,9 +111,12 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     const unknown = implementations.filter(name => !known.has(name));
     if (unknown.length) return { findings: unknown.map(name => finding('declaration', `--implementation ${name} names no implementation of ${DECLARATION}`, { place: DECLARATION })), ledger };
     say(execute
-      ? `--implementation ${implementations.join(', ')}: only their runtime bindings run, and their support files run when --unit is absent; implementation declarations and static checks stay global`
+      ? phase === 'bindings'
+        ? `--implementation ${implementations.join(', ')}: only their runtime bindings and missing-binding checks run; requirement checks stay global`
+        : `--implementation ${implementations.join(', ')}: only their runtime bindings run, and their support files run when --unit is absent; implementation declarations and static checks stay global`
       : `--implementation ${implementations.join(', ')}: declarations and static checks still cover every implementation; no runtime bindings run`);
   }
+  if (phase === 'api' && implementations !== undefined) return { findings: [finding('declaration', '--phase api extracts every implementation; --implementation is only valid with --phase bindings', { place: DECLARATION })], ledger };
   // With --unit, only the named units run: an id that no unit holds fails the run before any binding starts (K221).
   const selected = units === undefined ? undefined : new Set(units);
   if (selected !== undefined) {
@@ -130,6 +140,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     if (unknownRules.length) return { findings: unknownRules.map(rule => finding('declaration', `--rule ${rule} names no rule of the parity check`, { place: DECLARATION })), ledger };
     say(`--rule ${rules.join(', ')}: only the findings of these rules and of ${DECLARATION} itself count`);
   }
+  const idSet = ids === undefined ? undefined : new Set(ids);
   // With --id, a requirement is named by its id; an id that no shared or tool unit of the declaration cites fails the run before any check (K414-1).
   if (ids !== undefined) {
     const cited = new Set([
@@ -140,6 +151,64 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     const unknownIds = ids.filter(id => !cited.has(id));
     if (unknownIds.length) return { findings: unknownIds.map(id => finding('declaration', `--id ${id} names no requirement that a unit of ${DECLARATION} cites`, { place: DECLARATION })), ledger };
     say(`--id ${ids.join(', ')}: only the findings that name these requirements, and of ${DECLARATION} itself, count`);
+  }
+  if (phase === 'api') {
+    say('API phase: validate public symbols and all static parity rules; native bindings do not run');
+    const extracted = extractSymbols(model, root, { env, say });
+    const { codes, findings: unreadable } = readCodes(model, root);
+    if (unreadable.length) return { findings: unreadable, ledger };
+    const heldUnits = new Set<string>();
+    const requirementTraceFindings = requirementFindings(
+      model.config,
+      files,
+      file => readFileSync(path.join(root, file), 'utf8'),
+      model.cases,
+      model.config.deferredRequirements?.length ? loadConfig(root).idPattern : undefined,
+      entry => {
+        if (ids === undefined || ids.includes(entry.id)) say(`DEFERRED ${entry.id}: held by ${entry.item} in ${entry.checklist}`);
+      },
+      unit => heldUnits.add(unit),
+    );
+    const findings = [
+      ...extracted.findings,
+      ...missingImplementations(model, extracted.snapshots, extracted.entrySnapshots),
+      ...missingBindings(model),
+      ...undeclaredSuites(model, files),
+      ...undeclaredTests(model, files),
+      ...misplacedTests(model, files),
+      ...errorCatalog(model, codes),
+      ...languageLists(model, root),
+      ...documentCounts(model, root, files),
+      ...undeclaredPublic(model, extracted.snapshots),
+      ...requirementTraceFindings,
+    ].filter(item => (selected === undefined || (item.unit === undefined ? item.place?.split(':')[0] === DECLARATION : selected.has(item.unit)))
+      && (ruleIds === undefined || item.place?.split(':')[0] === DECLARATION || ruleIds.has(item.rule))
+      && (idSet === undefined || item.place?.split(':')[0] === DECLARATION || (item.requirements ?? []).some(id => idSet.has(id))));
+    return { findings, ledger };
+  }
+  if (phase === 'bindings') {
+    if (!execute) return { findings: [finding('declaration', '--phase bindings requires native binding execution; do not use --declarations', { place: DECLARATION })], ledger };
+    say(`bindings phase${implementations === undefined ? '' : ` for ${implementations.join(', ')}`}: native bindings run twice; public symbol extraction is skipped`);
+    const heldUnits = new Set<string>();
+    const requirementTraceFindings = requirementFindings(
+      model.config,
+      files,
+      file => readFileSync(path.join(root, file), 'utf8'),
+      model.cases,
+      model.config.deferredRequirements?.length ? loadConfig(root).idPattern : undefined,
+      entry => {
+        if (ids === undefined || ids.includes(entry.id)) say(`DEFERRED ${entry.id}: held by ${entry.item} in ${entry.checklist}`);
+      },
+      unit => heldUnits.add(unit),
+    );
+    for (const unit of heldUnits) if (selected === undefined || selected.has(unit)) say(`HELD ${unit}: its requirements are deferred; no runtime bindings execute`);
+    const executed = runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection, heldUnits });
+    const missing = missingBindings(model).filter(item => implementationSelection === undefined || implementationSelection.has(item.implementation ?? ''));
+    const findings = [...missing, ...executed.findings, ...requirementTraceFindings]
+      .filter(item => (selected === undefined || (item.unit === undefined ? item.place?.split(':')[0] === DECLARATION : selected.has(item.unit)))
+        && (ruleIds === undefined || item.place?.split(':')[0] === DECLARATION || ruleIds.has(item.rule))
+        && (idSet === undefined || item.place?.split(':')[0] === DECLARATION || (item.requirements ?? []).some(id => idSet.has(id))));
+    return { findings, ledger: executed.ledger };
   }
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
@@ -161,11 +230,11 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     : `tools root ${tool.root}: ${tool.reason}`);
   const executed = execute ? runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection, heldUnits }) : { ledger, findings: [] };
   if (selected !== undefined && execute) return { findings: [...executed.findings, ...requirementTraceFindings.filter(item => item.unit !== undefined && selected.has(item.unit))], ledger: executed.ledger };
-  const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), findings: [] };
+  const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), entrySnapshots: new Map(), findings: [] };
   say('check the units against the tree');
   const findings = [
     ...extracted.findings,
-    ...missingImplementations(model, extracted.snapshots),
+    ...missingImplementations(model, extracted.snapshots, extracted.entrySnapshots),
     ...missingBindings(model),
     ...executed.findings,
     ...undeclaredSuites(model, files),
@@ -180,18 +249,27 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   // The declarations of named units hold alone: a row that fixes its units passes while other units still have findings (K400).
   // The same holds for named rules and requirement ids (K414-1); the findings of config/parity.json itself stay with any filter.
   const isDeclaration = (item: ParityFinding) => item.place?.split(':')[0] === DECLARATION;
-  const idSet = ids === undefined ? undefined : new Set(ids);
   const named = findings.filter(item => (selected === undefined || (item.unit === undefined ? isDeclaration(item) : selected.has(item.unit))) && (ruleIds === undefined || isDeclaration(item) || ruleIds.has(item.rule)) && (idSet === undefined || isDeclaration(item) || (item.requirements ?? []).some(id => idSet.has(id))));
   return { findings: named, ledger: executed.ledger };
 }
 
 if (isMain(import.meta.url)) {
-  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, unit: { type: 'string', multiple: true }, implementation: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true }, id: { type: 'string', multiple: true } } });
+  const { values } = parseArgs({ options: { declarations: { type: 'boolean' }, phase: { type: 'string' }, unit: { type: 'string', multiple: true }, implementation: { type: 'string', multiple: true }, rule: { type: 'string', multiple: true }, id: { type: 'string', multiple: true } } });
   const say = (text: string) => console.log(`[parity] ${text}`);
-  const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation });
-  if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
-  for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
-  if (findings.length) console.error(`[parity] ${findings.length} findings`);
-  else say(values.declarations ? 'every declaration holds' : values.implementation === undefined ? 'every applicable unit holds' : 'selected runtime bindings and applicable declarations hold');
-  process.exitCode = findings.length ? 1 : 0;
+  const phase = values.phase ?? 'all';
+  if (!isParityPhase(phase)) {
+    console.error(`[parity] --phase ${phase} is unknown; choose all, api, or bindings`);
+    process.exitCode = 1;
+  } else {
+    const selectedPhase = phase;
+    const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation, phase: selectedPhase });
+    if (selectedPhase === 'api' && !values.declarations) say('API phase ran no native bindings');
+    else if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
+    for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
+    if (findings.length) console.error(`[parity] ${findings.length} findings`);
+    else if (selectedPhase === 'api') say('API phase passed; native bindings were not run, so this is not a full parity pass');
+    else if (selectedPhase === 'bindings') say('bindings phase passed; public API extraction was not run, so this is not a full parity pass');
+    else say(values.declarations ? 'every declaration holds' : values.implementation === undefined ? 'every applicable unit holds' : 'selected runtime bindings and applicable declarations hold');
+    process.exitCode = findings.length ? 1 : 0;
+  }
 }

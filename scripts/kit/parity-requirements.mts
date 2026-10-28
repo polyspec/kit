@@ -26,7 +26,7 @@ interface DeferredRequirement {
   item: string;
 }
 
-export function requirementFindings(config: { requirements: { pattern: string }; deferredRequirements?: DeferredRequirement[]; implementations?: { name: string; internal?: { glob: string }[] }[]; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[]; tools?: { root?: string; files?: string[]; reason: string; units?: { id: string; requirements: string[]; bindings: { test: string; id: string }[] }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>, checklistIdPattern?: string, onDeferred?: (entry: DeferredRequirement) => void, onHeldUnit?: (id: string) => void): Finding[] {
+export function requirementFindings(config: { requirements: { pattern: string }; deferredRequirements?: DeferredRequirement[]; implementations?: { name: string; internal?: { glob: string }[] }[]; units: { id: string; kind: string; file?: string; requirements: string[]; owner?: { kind: string }; bindings?: { implementation: string; test: string }[] }[]; tools?: { root?: string; files?: string[]; reason: string; units?: { id: string; requirements: string[]; bindings: { test: string; id: string }[] }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>, checklistIdPattern?: string, onDeferred?: (entry: DeferredRequirement) => void, onHeldUnit?: (id: string) => void): Finding[] {
   const { pattern } = config.requirements;
   const definition = new RegExp(`^\\s*(?:(?:[-*+]|\\d+[.)])\\s+\\*\\*(${pattern})\\*\\*|#{1,6}\\s+(${pattern})\\b)`);
   const listed = new Set(files);

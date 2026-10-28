@@ -162,8 +162,12 @@ export interface ParityModel {
   cases: Map<string, string[]>;
   tests: Map<string, string[]>;
   testRunners: Map<string, Runner[]>;
-  /** The implementation derived from a unit's declared repository owner, or all implementations when absent. */
+  /** The implementation derived from a feature/API unit's declared repository owner, or all implementations when absent. */
   unitImplementations: Map<string, ParityImplementation[]>;
+  /** The package root of a release-package-owned API unit, used to select that artifact's symbol inputs. */
+  unitOwnerRoots: Map<string, string>;
+  /** The artifact kind of a release-package-owned API unit, so crate manifests stay isolated from nested crates. */
+  unitOwnerArtifacts: Map<string, 'archive' | 'go-module' | 'git-tag'>;
 }
 
 /** The environment that the references of a runner value read. */
@@ -742,6 +746,8 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
   const units = new Map<string, ParityUnit>();
   const cases = new Map<string, string[]>();
   const unitImplementations = new Map<string, ParityImplementation[]>();
+  const unitOwnerRoots = new Map<string, string>();
+  const unitOwnerArtifacts = new Map<string, 'archive' | 'go-module' | 'git-tag'>();
   let featureOwners: unknown;
   let releaseOwners: unknown;
   const readOwnerRegistry = (file: string, label: string): unknown => {
@@ -868,7 +874,9 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     units.set(unit.id, unit);
     const where = `unit ${unit.id}`;
     if (unit.owner !== undefined) {
-      if (unit.kind !== 'feature') fail(`${where}: only a feature unit can have an owner; suites and API units apply to every implementation`);
+      if (unit.kind !== 'feature' && !(unit.kind === 'api' && unit.owner.kind === 'release-package')) {
+        fail(`${where}: only a feature or a release-package-owned API unit can have an owner; suites and unowned API units apply to every implementation`);
+      }
       const ownerScope = unit.owner;
       const multiOwner = ownerScope.kind === 'coverage-parts';
       let scopes: ParityOwner[];
@@ -889,8 +897,18 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
           if ((unit.bindings ?? []).some(binding => !ownerNames.includes(binding.implementation))) fail(`${where}: a multi-owner feature binds an implementation outside its declared owners`);
         }
         unitImplementations.set(unit.id, resolved.map(owner => owner.implementation));
+        if (unit.kind === 'api' && ownerScope.kind === 'release-package') {
+          const owner = present(resolved[0], 'resolved[0]');
+          unitOwnerRoots.set(unit.id, owner.root);
+          unitOwnerArtifacts.set(unit.id, ownerScope.artifact);
+          if ((unit.symbols ?? []).some(symbol => symbol.implementation !== owner.implementation.name)) {
+            fail(`${where}: release-package-owned API symbols must all belong to ${owner.implementation.name}`);
+          }
+        }
         for (const id of unit.requirements) {
-          const namedOwners = resolved.filter(owner => owner.markers.some(marker => multiOwner
+          const namedOwners = resolved.filter(owner => unit.kind === 'api'
+            ? requirementStartsWithOwner(id, owner.implementation.name)
+            : owner.markers.some(marker => multiOwner
             ? requirementNamesOwner(id, marker)
             : requirementStartsWithOwner(id, marker)));
           const ownerNamed = multiOwner
@@ -1002,6 +1020,8 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     tests,
     testRunners,
     unitImplementations,
+    unitOwnerRoots,
+    unitOwnerArtifacts,
   };
   return { errors, model, leftOut };
 }

@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { checkParity, type ParityFinding } from '../../scripts/kit/parity.mts';
-import { readDeclaration, resolveReferences, type ParityConfig, type ParityImplementation, type ParityModel } from '../../scripts/kit/parity-declaration.mts';
+import { readDeclaration, resolveReferences, symbolEntries, type ParityConfig, type ParityImplementation, type ParityModel } from '../../scripts/kit/parity-declaration.mts';
 import { misplacedTests, missingImplementations, undeclaredPublic } from '../../scripts/kit/parity-units.mts';
 import { checkedFiles } from '../../scripts/kit/tracked-files.mts';
 import { type BindingCommand, type RunError, runOf } from '../../scripts/kit/parity-runners.mts';
@@ -1309,6 +1309,181 @@ test('Rust symbol entries combine crate APIs and run each declared feature selec
   assert.equal(nonRustFeatures.findings[0]?.rule, 'declaration');
 });
 
+test('K719 scopes API symbols to a release package entry without narrowing shared APIs', TIMEOUT, (t) => {
+  const files = {
+    'docs/spec/rust-builder.md': '# Rust builder API\n\n- **INT-100** Rust native model generation exposes the builder crate API.\n',
+    'config/release.json': JSON.stringify({ packages: [], proof: { gitTag: {
+      'rust/build/Cargo.toml': { kind: 'rust', name: 'polyspec-orm-build', smoke: ['cargo', 'check'] },
+    } } }),
+    'rust/build/Cargo.toml': '[package]\nname = "polyspec-orm-build"\n',
+    'rust/build/symbols.txt': 'Builder\n',
+    'rust/tests/coverage_model_generation.rs': '#[test]\nfn coverage_model_generation_check() {}\n// INT-100\nPASS coverage_model_generation_check\n',
+    'contracts/features.json': JSON.stringify({ features: [{
+      id: 'model_generation', parity: ['rust-builder-behavior'], tests: ['rust/tests/coverage_model_generation.rs'],
+      coverage: { owners: { rust: { part: 'rust', tests: ['rust/tests/coverage_model_generation.rs'] } } },
+    }] }),
+  };
+  const configure = (config: Declaration) => {
+    config.requirements.pattern = '(?:CX-[0-9]+|INT-[0-9]+)';
+    const rust = itemWhere(config.implementations, implementation => implementation.name === 'rust');
+    rust.symbols = {
+      extractor: 'rust', entries: [{ entry: 'rust/Cargo.toml' }, { entry: 'rust/build/Cargo.toml' }],
+    };
+    config.units.push({
+      id: 'rust-build-api', kind: 'api', requirements: ['INT-100'],
+      owner: { kind: 'release-package', artifact: 'git-tag', package: 'polyspec-orm-build' },
+      symbols: [{ implementation: 'rust', symbol: 'codec::Builder' }],
+    });
+    return config;
+  };
+  const configureWithBehaviour = (config: Declaration) => {
+    configure(config);
+    config.units.push({
+      id: 'rust-builder-behavior', kind: 'feature', requirements: ['INT-100'],
+      owner: { kind: 'coverage-part', feature: 'model_generation', part: 'owner/rust' },
+      bindings: [{ implementation: 'rust', test: 'rust/tests/coverage_model_generation.rs', id: 'coverage_model_generation_check' }],
+    });
+    return config;
+  };
+
+  const apiOnly = check(t, { files, edit: configure }, { execute: false });
+  assert.ok(apiOnly.findings.some(finding => finding.rule === 'R13' && finding.message.includes('INT-100')));
+
+  const positive = check(t, { files, edit: configureWithBehaviour });
+  assert.deepEqual(keys(positive.findings), [], positive.findings.map(finding => finding.message).join('\n'));
+
+  const wrongArtifact = check(t, { files, edit: config => {
+    configure(config);
+    itemWhere(config.units, (unit: { id: string }) => unit.id === 'rust-build-api').owner = {
+      kind: 'release-package', artifact: 'archive', package: 'polyspec-orm-build',
+    };
+    return config;
+  } }, { execute: false });
+  assert.ok(wrongArtifact.findings.some(finding => finding.message.includes('polyspec-orm-build with artifact archive resolves to 0')));
+
+  const coverageOwnedApi = check(t, { files, edit: config => {
+    configure(config);
+    itemWhere(config.units, (unit: { id: string }) => unit.id === 'rust-build-api').owner = {
+      kind: 'coverage-part', feature: 'codec', part: 'owner/rust',
+    };
+    return config;
+  } }, { execute: false });
+  assert.ok(coverageOwnedApi.findings.some(finding => finding.message.includes('only a feature or a release-package-owned API unit')));
+
+  const otherRuntimeSymbol = check(t, { files, edit: config => {
+    configure(config);
+    const unit = itemWhere(config.units, entry => entry.id === 'rust-build-api');
+    unit.symbols = unit.symbols ?? [];
+    unit.symbols.push({
+      implementation: 'php', symbol: 'php/src/Codec.php::Codec::encode',
+    });
+    return config;
+  } }, { execute: false });
+  assert.ok(otherRuntimeSymbol.findings.some(finding => finding.message.includes('release-package-owned API symbols must all belong to rust')));
+
+  const suiteOwner = check(t, { edit: config => {
+    itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').owner = {
+      kind: 'release-package', artifact: 'git-tag', package: 'codec-build',
+    };
+    return config;
+  } }, { execute: false });
+  assert.ok(suiteOwner.findings.some(finding => finding.message.includes('only a feature or a release-package-owned API unit')));
+
+  const commonRequirement = check(t, { files: {
+    ...files,
+    'docs/spec/rust-builder.md': '# Rust builder API\n\n- **INT-100** Every implementation exports its builder API.\n',
+  }, edit: configure }, { execute: false });
+  assert.ok(commonRequirement.findings.some(finding => finding.message.includes('requirement INT-100 does not name its owner rust')));
+
+  const falseR1 = check(t, { files, edit: config => {
+    configure(config);
+    itemWhere(config.units, (unit: { id: string }) => unit.id === 'rust-build-api').symbols = [
+      { implementation: 'rust', symbol: 'codec::encode' },
+    ];
+    return config;
+  } });
+  assert.ok(falseR1.findings.some(finding => finding.rule === 'R1' && finding.unit === 'rust-build-api' && finding.message.includes('codec::encode is no public symbol of rust')));
+
+  const implementations = ['go', 'rust', 'ts', 'php', 'python', 'php-extension'].map(name => ({
+    name,
+    runner: 'node' as const,
+    roots: [name],
+    symbols: { extractor: 'ts' as const, entry: `${name}/index.d.ts` },
+  }));
+  const apiSymbols = implementations.map(implementation => ({ implementation: implementation.name, symbol: `${implementation.name}::Builder` }));
+  const model: ParityModel = {
+    config: {
+      schema: 1,
+      implementations,
+      requirements: { pattern: 'CX-[0-9]+' },
+      units: [{ id: 'shared-builder-api', kind: 'api', requirements: [], symbols: apiSymbols }],
+    },
+    implementations: new Map(implementations.map(implementation => [implementation.name, implementation])),
+    cases: new Map(), tests: new Map(), testRunners: new Map(), unitImplementations: new Map(), unitOwnerRoots: new Map(), unitOwnerArtifacts: new Map(),
+  };
+  const snapshots = new Map(implementations.map(implementation => [implementation.name, new Set([`${implementation.name}::Builder`])]));
+  assert.deepEqual(missingImplementations(model, snapshots), []);
+  itemWhere(model.config.units, unit => unit.id === 'shared-builder-api').symbols = apiSymbols.filter(entry => entry.implementation !== 'php-extension');
+  assert.ok(missingImplementations(model, snapshots).some(finding => finding.rule === 'R1' && finding.implementation === 'php-extension'));
+
+  const packageEntryResult = (
+    runtime: 'go' | 'php' | 'rust',
+    artifact: 'archive' | 'go-module' | 'git-tag',
+    root: string,
+    entry: string,
+    apiSymbol: string,
+    inputSymbols: Map<string, string[]>
+  ) => {
+    const implementation: ParityImplementation = {
+      name: runtime,
+      runner: runtime === 'go' ? 'go' : runtime === 'php' ? 'php' : 'cargo',
+      roots: [root],
+      symbols: { extractor: runtime, entry },
+    };
+    const unit = {
+      id: `${runtime}-package-api`, kind: 'api' as const, requirements: [],
+      owner: { kind: 'release-package' as const, artifact, package: `${runtime}-package` },
+      symbols: [{ implementation: runtime, symbol: apiSymbol }],
+    };
+    const scopedModel: ParityModel = {
+      config: { schema: 1, implementations: [implementation], requirements: { pattern: 'CX-[0-9]+' }, units: [unit] },
+      implementations: new Map([[runtime, implementation]]),
+      cases: new Map(), tests: new Map(), testRunners: new Map(),
+      unitImplementations: new Map([[unit.id, [implementation]]]),
+      unitOwnerRoots: new Map([[unit.id, root]]),
+      unitOwnerArtifacts: new Map([[unit.id, artifact]]),
+    };
+    const perEntry = new Map([...inputSymbols].map(([entryPath, symbols]) => [entryPath, new Set(symbols)]));
+    const allSymbols = new Set([...perEntry.values()].flatMap(symbols => [...symbols]));
+    return missingImplementations(
+      scopedModel,
+      new Map([[runtime, allSymbols]]),
+      new Map([[runtime, perEntry]])
+    );
+  };
+  assert.deepEqual(packageEntryResult(
+    'go', 'go-module', 'packages/go', 'packages/go/model', 'example.com/orm/model::Builder',
+    new Map([
+      ['packages/go/model', ['example.com/orm/model::Builder']],
+      ['packages/go/orm', ['example.com/orm/orm::Db']],
+    ])
+  ), [], 'a Go subpackage entry within its module belongs to the release package');
+  assert.deepEqual(packageEntryResult(
+    'php', 'archive', 'packages/php', 'packages/php/src', 'Polyspec\\Orm\\Connection',
+    new Map([
+      ['packages/php/src', ['Polyspec\\Orm\\Connection']],
+      ['packages/php-gen/src', ['Polyspec\\Orm\\Generator']],
+    ])
+  ), [], 'a Composer archive entry may be below its package root');
+  assert.ok(packageEntryResult(
+    'rust', 'git-tag', 'packages/rust/build', 'packages/rust/build/Cargo.toml', 'polyspec_orm_build::Wrong',
+    new Map([
+      ['packages/rust/build/Cargo.toml', ['polyspec_orm_build::Builder']],
+      ['packages/rust/build/schema/Cargo.toml', ['polyspec_orm_build::Wrong']],
+    ])
+  ).some(finding => finding.rule === 'R1'), 'a Rust API cannot be claimed from a different crate nested under the artifact');
+});
+
 test('R2: a suite without a binding of an implementation fails', TIMEOUT, (t) => {
   const { findings } = check(t, {
     files: { 'python/tests/test_codec.py': null },
@@ -1531,7 +1706,7 @@ test('R6: the tests of the PHP extension are those of packages/php, with no shar
     schema: 1, implementations, requirements: { pattern: 'CX-[0-9]+' },
     units: [{ id: 'width', kind: 'feature', requirements: [], bindings: implementations.map(entry => ({ implementation: entry.name, test: 'packages/php/tests/WidthTest.php' })) }],
   };
-  const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map(), unitImplementations: new Map() };
+  const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map(), unitImplementations: new Map(), unitOwnerRoots: new Map(), unitOwnerArtifacts: new Map() };
   assert.deepEqual(misplacedTests(model, []).map(finding => finding.implementation), []);
 });
 
@@ -1546,7 +1721,7 @@ test('R6: the tests of the PHP extension are those of every PHP library, package
     schema: 1, implementations, requirements: { pattern: 'CX-[0-9]+' },
     units: tests.map((test, index) => ({ id: `unit${index}`, kind: 'feature' as const, requirements: [], bindings: [{ implementation: 'php-ext', test }] })),
   };
-  const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map(), unitImplementations: new Map() };
+  const model: ParityModel = { config, implementations: new Map(implementations.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map(), unitImplementations: new Map(), unitOwnerRoots: new Map(), unitOwnerArtifacts: new Map() };
   assert.deepEqual(misplacedTests(model, []).map(finding => finding.implementation), []);
 });
 
@@ -1558,7 +1733,7 @@ test('R6 leaves out a file that an internal glob of any implementation selects (
   const file = 'packages/php-ext/tests/engine/engine.test.mjs';
   const model = (declared: boolean): ParityModel => {
     const list = declared ? implementations : implementations.map(({ internal: _internal, ...entry }) => entry);
-    return { config: { schema: 1, implementations: list, requirements: { pattern: 'CX-[0-9]+' }, units: [] }, implementations: new Map(list.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map([[file, ['node']]]), unitImplementations: new Map() };
+    return { config: { schema: 1, implementations: list, requirements: { pattern: 'CX-[0-9]+' }, units: [] }, implementations: new Map(list.map(entry => [entry.name, entry])), cases: new Map(), tests: new Map(), testRunners: new Map([[file, ['node']]]), unitImplementations: new Map(), unitOwnerRoots: new Map(), unitOwnerArtifacts: new Map() };
   };
   assert.deepEqual(misplacedTests(model(false), [file]).map(finding => finding.place), [file], 'without the declaration the node test outside the node roots is R6');
   assert.deepEqual(misplacedTests(model(true), [file]), []);
@@ -2343,6 +2518,112 @@ test('--unit with an id that no unit of the declaration holds is an error that n
   assert.notEqual(unknown.status, 0, unknown.stdout + unknown.stderr);
   assert.match(unknown.stderr, /--unit nope names no unit of config\/parity\.json/);
   assert.doesNotMatch(unknown.stdout, /\[parity\] run /);
+});
+
+test('K720 API phase extracts public symbols once and never runs native bindings', TIMEOUT, (t) => {
+  const root = repository(t, {
+    files: { 'go/api/symbols.txt': 'go/codec.go::Encode\n' },
+    edit: config => {
+      const go = itemWhere(config.implementations, implementation => implementation.name === 'go');
+      go.symbols = { extractor: 'go', entries: [{ entry: 'go' }, { entry: 'go/api' }] };
+      return config;
+    },
+  });
+  const model = readDeclaration(root, new Set(checkedFiles(root))).model;
+  assert.ok(model);
+  const lines: string[] = [];
+  const { findings, ledger } = checkParity(root, { phase: 'api', env: ENV, say: line => lines.push(line) });
+  assert.deepEqual(findings, []);
+  assert.deepEqual(ledger.runs, []);
+  assert.deepEqual(ledger.cases, []);
+  const expectedEntries = model.config.implementations.reduce((sum, implementation) => sum + (implementation.symbols === undefined ? 0 : symbolEntries(implementation.symbols).length), 0);
+  assert.equal(lines.filter(line => line.startsWith('extract the symbols of ')).length, expectedEntries);
+  for (const implementation of model.config.implementations) {
+    const expected = implementation.symbols === undefined ? 0 : symbolEntries(implementation.symbols).length;
+    assert.equal(lines.filter(line => line.startsWith(`extract the symbols of ${implementation.name}: `)).length, expected);
+  }
+  assert.ok(lines.includes('API phase: validate public symbols and all static parity rules; native bindings do not run'));
+});
+
+test('K720 API and bindings phases cover the same findings as the default check', TIMEOUT, (t) => {
+  const root = repository(t, {
+    files: {
+      'tests/vectors/unclaimed.json': '[]\n',
+      'php/symbols.txt': 'LEAK A\\\\Child::take names the internal A\\\\Hidden\n',
+    },
+    edit: config => {
+      itemWhere(config.units, unit => unit.id === 'codec').bindings = itemWhere(config.units, unit => unit.id === 'codec').bindings?.filter(entry => entry.implementation !== 'go');
+      return config;
+    },
+  });
+  const all = checkParity(root, { env: ENV, say: () => {} });
+  const api = checkParity(root, { phase: 'api', env: ENV, say: () => {} });
+  assert.ok(all.findings.some(finding => finding.rule === 'R2'));
+  assert.ok(all.findings.some(finding => finding.rule === 'R4'));
+  assert.ok(all.findings.some(finding => finding.rule === 'R17'));
+  const describe = (findings: ParityFinding[]) => findings.map(finding => `${finding.rule} ${finding.unit ?? '-'} ${finding.implementation ?? '-'} ${finding.place ?? '-'} ${finding.message}`).sort((left, right) => left.localeCompare(right));
+  assert.deepEqual(describe(api.findings), describe(all.findings.filter(finding => finding.rule !== 'R3')));
+  assert.deepEqual(api.ledger.runs, []);
+});
+
+test('K720 bindings phase runs selected native bindings twice without public symbol extraction', TIMEOUT, (t) => {
+  const root = repository(t);
+  const lines: string[] = [];
+  const { findings, ledger } = checkParity(root, { phase: 'bindings', implementations: ['go'], env: ENV, say: line => lines.push(line) });
+  assert.deepEqual(findings, []);
+  assert.ok(ledger.runs.length > 0);
+  assert.ok(ledger.runs.every(run => run.implementation === 'go'));
+  assert.deepEqual([...new Set(ledger.runs.map(run => run.attempt))].sort((left, right) => left - right), [1, 2]);
+  for (const unit of new Set(ledger.runs.map(run => run.unit))) {
+    assert.deepEqual(ledger.runs.filter(run => run.unit === unit).map(run => run.attempt), [1, 2]);
+  }
+  assert.doesNotMatch(lines.join('\n'), /extract the symbols of /);
+  assert.ok(lines.some(line => line.includes('bindings phase for go: native bindings run twice; public symbol extraction is skipped')));
+});
+
+test('K720 phase CLI scopes partial passes and rejects unknown phases, invalid selections, missing cases, and declaration conflicts', TIMEOUT, (t) => {
+  const run = (root: string, ...args: string[]) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/parity.mts')), ...args], { cwd: root, env: ENV, encoding: 'utf8' });
+  const root = repository(t);
+
+  const apiPhase = run(root, '--phase', 'api');
+  assert.equal(apiPhase.status, 0, apiPhase.stdout + apiPhase.stderr);
+  assert.equal((apiPhase.stdout.match(/\[parity\] extract the symbols of /g) ?? []).length, CONFIG.implementations.length);
+  assert.match(apiPhase.stdout, /API phase ran no native bindings/);
+  assert.match(apiPhase.stdout, /API phase passed; native bindings were not run, so this is not a full parity pass/);
+  assert.doesNotMatch(apiPhase.stdout, /\[parity\] run /);
+
+  const bindingsPhase = run(root, '--phase', 'bindings', '--implementation', 'go');
+  assert.equal(bindingsPhase.status, 0, bindingsPhase.stdout + bindingsPhase.stderr);
+  assert.match(bindingsPhase.stdout, /bindings ran twice/);
+  assert.match(bindingsPhase.stdout, /bindings phase passed; public API extraction was not run, so this is not a full parity pass/);
+  assert.doesNotMatch(bindingsPhase.stdout, /extract the symbols of /);
+
+  const unknownPhase = run(root, '--phase', 'unknown');
+  assert.equal(unknownPhase.status, 1, unknownPhase.stdout + unknownPhase.stderr);
+  assert.match(unknownPhase.stderr, /--phase unknown is unknown; choose all, api, or bindings/);
+  assert.doesNotMatch(unknownPhase.stdout, /\[parity\] run /);
+
+  const unknownRuntime = run(root, '--phase', 'bindings', '--implementation', 'missing');
+  assert.equal(unknownRuntime.status, 1, unknownRuntime.stdout + unknownRuntime.stderr);
+  assert.match(unknownRuntime.stderr, /--implementation missing names no implementation/);
+  assert.doesNotMatch(unknownRuntime.stdout, /\[parity\] run /);
+
+  const emptyRuntime = run(root, '--phase', 'bindings', '--implementation', '');
+  assert.equal(emptyRuntime.status, 1, emptyRuntime.stdout + emptyRuntime.stderr);
+  assert.match(emptyRuntime.stderr, /--implementation needs one or more nonempty implementation names/);
+  assert.doesNotMatch(emptyRuntime.stdout, /\[parity\] run /);
+
+  const declarationConflict = run(root, '--declarations', '--phase', 'api');
+  assert.equal(declarationConflict.status, 1, declarationConflict.stdout + declarationConflict.stderr);
+  assert.match(declarationConflict.stderr, /--declarations cannot be combined with --phase api/);
+  assert.doesNotMatch(declarationConflict.stdout, /extract the symbols of |\[parity\] run /);
+
+  const missingCaseRoot = repository(t, { files: { 'go/codec_test.go': 'PASS TestCodec/empty\n' } });
+  const missingCase = run(missingCaseRoot, '--phase', 'bindings', '--implementation', 'go');
+  assert.equal(missingCase.status, 1, missingCase.stdout + missingCase.stderr);
+  assert.match(missingCase.stderr, /R3 not-executed codec go go\/codec_test\.go: not executed: ascii/);
+  assert.match(missingCase.stdout, /bindings ran twice/);
+  assert.doesNotMatch(missingCase.stdout, /extract the symbols of /);
 });
 
 // K400: a row that fixes the declarations of its units verifies them alone, while the units of other rows still have findings.

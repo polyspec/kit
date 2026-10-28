@@ -264,14 +264,20 @@ const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environme
  * The public symbols of each implementation of `model` that declares symbols, by its name, and a finding for each extractor
  * that fails; `say` prints a line for each extraction.
  */
-export function extractSymbols(model: ParityModel, root: string, { env, say }: { env: Environment; say: (line: string) => void }): { snapshots: Map<string, Set<string>>; findings: Finding[] } {
+export function extractSymbols(model: ParityModel, root: string, { env, say }: { env: Environment; say: (line: string) => void }): {
+  snapshots: Map<string, Set<string>>;
+  entrySnapshots: Map<string, Map<string, Set<string>>>;
+  findings: Finding[];
+} {
   const snapshots = new Map<string, Set<string>>();
+  const entrySnapshots = new Map<string, Map<string, Set<string>>>();
   const findings: Finding[] = [];
   for (const implementation of model.config.implementations) {
     if (implementation.symbols === undefined) continue;
     const { extractor } = implementation.symbols;
     const entries = symbolEntries(implementation.symbols);
     const symbols: string[] = [];
+    const perEntry = new Map<string, Set<string>>();
     let failed = false;
     for (const { entry, features } of entries) {
       const label = features === undefined ? entry : `${entry} (features: ${features.join(', ')})`;
@@ -282,10 +288,16 @@ export function extractSymbols(model: ParityModel, root: string, { env, say }: {
         findings.push(finding('R1', `the ${extractor} extractor of ${label} gives no symbols: ${extracted.error}`, { implementation: implementation.name, place: label }));
       } else {
         symbols.push(...extracted.symbols);
+        const entrySymbols = perEntry.get(entry) ?? new Set<string>();
+        for (const symbol of extracted.symbols) entrySymbols.add(symbol);
+        perEntry.set(entry, entrySymbols);
         for (const leak of extracted.leaks ?? []) findings.push(finding('R17', `${leak}: a public signature, parent or interface names a symbol that is no public API`, { implementation: implementation.name, place: label }));
       }
     }
-    if (!failed) snapshots.set(implementation.name, new Set(symbols));
+    if (!failed) {
+      snapshots.set(implementation.name, new Set(symbols));
+      entrySnapshots.set(implementation.name, perEntry);
+    }
   }
-  return { snapshots, findings };
+  return { snapshots, entrySnapshots, findings };
 }
