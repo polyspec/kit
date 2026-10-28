@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dcb0435ac689a8c7b7b70526d64bb62916ec18540080bdd87874eabc36278969 -->
+<!-- source-sha256: f6ab3a749487c0c364aded988ea4b5159f0767d40ccf908cc712b6b4bec09f1d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 실패한 준비 및 검증을 포함해 필수 provider gate 전후에 선언된 CI 자원 context를 준비하고 정리한다. (K731-1)
 
 - 고정된 Node, npm, Go, Rust를 사용하는 검증된 Windows bootstrap과 native Make/process 실행을 제공한다. (K730)
 
