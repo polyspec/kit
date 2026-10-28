@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 07afce487570bd838bfc570f9f5ba62fef953360dc70e015b9d8b7a14be6f55d -->
+<!-- source-sha256: 9e81546f5b1e5894ca9eebe87912948bdc41ac54162fbd5d06455fd5bad0e477 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -699,3 +699,4 @@
 | K740 | 릴리스 검토에서 확인한 stable 의존성 버전을 갱신한다 | package.json package-lock.json mise.toml mise.lock config/dependency-review.json | `make dependency-policy-check`; `make typecheck` | [o] |
 | K741 | native candidate 자산과 소비자 잠금 및 검증된 설치로 Kit 0.0.62를 준비한다 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-coverage`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.62` | [o] |
 | K742 | npm bootstrap 전 clean checkout parity target 열거 실패를 수정한다 (GitHub issue 15) | scripts/kit/kit.mk tests/kit/parity-api.test.mts tests/kit/kit-tools.test.mts | `node --test tests/kit/parity-api.test.mts tests/kit/kit-tools.test.mts` | [ ] |
+| K743 | 선택 runtime CI job에 native source linking 범위를 맞춘다 (GitHub issue 14) | scripts/kit/link.mts tests/kit/link.test.mts workflows/gates.yml tests/kit/ci-workflow.test.mts scripts/kit/kit.mk | `node --test tests/kit/link.test.mts` | [ ] |
