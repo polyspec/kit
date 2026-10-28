@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: fe2ad45c9b3bd5c9af0826bdfe25d400534c0d5095f946593f108ab1ba52c684 -->
+<!-- source-sha256: 52a62716d5e918bc7417612a784066bec1585a9b6e3bd76346401d2c6e66fe13 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -669,3 +669,4 @@
 | K711-1 | 기존 Korean principles의 canonical plan 링크 수정을 0.0.60에 포함한다 | PRINCIPLES.ko.md, verified tracked canonical plan target, aligned changelog and reviewed existing change | `make docs-check` | [o] |
 | K712 | tag 없는 consumer 준비를 위해 커밋된 HEAD에서 모든 release archive를 빌드한다 | scripts/kit/release.mts, scripts/kit/kit.mk, tests/kit/release.test.mts, docs/operations/release.md(.ko.md) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K712 tests/kit/release.test.mts`; changed-file type-aware oxlint; `make docs-check` | [o] |
 | K713 | provider 도구 fixture를 실제 설치 도구 경로와 맞춘다 | Cargo provider-lock expectations, correctly installed Go proof stub, preserved failure assertions and scoped CI regression evidence | `node scripts/kit/run-tests.mts node -- tests/kit/cargo-downloads.test.mts`; `node scripts/kit/run-tests.mts node -- tests/kit/release-proof.test.mts` | [o] |
+| K714 | 명시적으로 선언한 모든 공개 API 패키지 진입점을 읽는다 | scripts/kit/parity-symbols.mts scripts/kit/parity-declaration.mts scripts/kit/schema/parity.schema.json tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/parity.test.mts` | [ ] |
