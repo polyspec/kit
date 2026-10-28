@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.62
+
 - Update reviewed stable dependency pins and native toolchain digests with a clean advisory record. (K740)
 
 - Run workspace and infrastructure tests through the standard runner with owned case-sensitive resources and native process cleanup. (K739)

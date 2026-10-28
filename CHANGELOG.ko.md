@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2aa79bba3994129e6d2315deb6c4ee6d5c2b1cb358e5474b7bea5d830bb52990 -->
+<!-- source-sha256: 4efbfc1252b313e22e781fa771f284c0836fea6db8467686abdb0b6ddfe51c5e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.62
 
 - 검토한 stable 의존성 버전과 native toolchain digest를 갱신하고 취약점 검토 기록을 유지한다. (K740)
 
