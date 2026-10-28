@@ -2986,11 +2986,11 @@ test('PHP extension parity isolates the Composer library autoload and cleans its
   native.args = ['-d', 'extension=var/native.so'];
   writeFileSync(configFile, JSON.stringify(config));
   for (const status of [0, 1]) {
-    writeFileSync(path.join(root, 'php/tests/codec.php'), `PASS test_empty\nPASS test_ascii\nEXIT ${status}\n`);
+    writeFileSync(path.join(root, 'php/tests/codec.php'), `PASS test_empty\nPASS test_ascii\nEXIT ${status}\n// CX-1\n`);
     const result = checkParity(root, { env: ENV, units: ['codec'], rules: ['R3'] });
     assert.equal(result.ledger.runs.filter(entry => entry.implementation === 'php').length, 2);
     assert.deepEqual(readdirSync(path.join(root, 'var/php-ext/library-tests')), []);
-    assert.equal(result.findings.some(entry => entry.implementation === 'php'), status !== 0);
+    assert.equal(result.findings.some(entry => entry.implementation === 'php'), status !== 0, JSON.stringify(result.findings));
   }
 });
 

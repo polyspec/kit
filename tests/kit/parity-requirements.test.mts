@@ -172,14 +172,14 @@ test('unknown and duplicate deferred requirements fail without hiding R13 (K656)
   assert.ok(duplicate.some(item => item.rule === 'R13' && item.requirements?.includes('AB-2')));
 });
 
-test('a deferred requirement cannot also have an active unit citation (K656)', () => {
+test('a deferred requirement cannot hide an active mixed unit (K715)', () => {
   const all = deferredFiles(heldChecklist('[!] cause: user held it; retry: user reopens work'));
   const found = requirementFindings(deferredConfig([
     { id: 'AB-2', checklist: 'docs/plans/work/checklist.md', item: 'K656' },
   ], [
     { id: 'codec-active', requirements: ['AB-1', 'AB-2', 'AB-3'] },
   ]), Object.keys(all), read(all), new Map(), 'K[0-9]+');
-  assert.ok(found.some(item => item.rule === 'declaration' && item.message.includes('both cited by an active unit and deferred')));
+  assert.ok(found.some(item => item.rule === 'declaration' && item.message.includes('is cited by a unit that also has active requirements')));
 });
 
 test('a tool-owned unit traces its requirement without adding an implementation binding (K604)', () => {
