@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Add verified Windows bootstrap and native Make/process execution with pinned Node, npm, Go and Rust. (K730)
+
 - Prepared Kit 0.0.61 from successful CI with native candidate packaging, locked consumer installation and a refreshed dependency review. (K729)
 
 ## 0.0.61

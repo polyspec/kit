@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 05cfe294244f3b1ce9cd940b67076ed975220bbf3712c3a77b30c74151f01068 -->
+<!-- source-sha256: dcb0435ac689a8c7b7b70526d64bb62916ec18540080bdd87874eabc36278969 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 고정된 Node, npm, Go, Rust를 사용하는 검증된 Windows bootstrap과 native Make/process 실행을 제공한다. (K730)
 
 - 통과한 CI를 기준으로 native 후보 패키징, 잠긴 소비자 설치와 갱신한 의존성 검토를 거쳐 Kit 0.0.61을 준비했습니다. (K729)
 
