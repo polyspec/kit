@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 8ac9d6cde7fcfad5fecf0c9f88cb855a648579bffa443864b44ae466fe98582b -->
+<!-- source-sha256: 4dc40f8601c2d4b91dc7d71b2555b02386974d2c255b53c07f9d78a2b28a68ef -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -675,4 +675,4 @@
 | K717 | Internal PHP trait에서 합성된 공개 메서드를 추출한다 | scripts/kit/symbols/php/PublicSymbols.php tests/source/symbols-php-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K717 tests/source/symbols-php-real.test.mts` | [o] |
 | K718 | 독립 단위 검사와 언어별 native 검사를 CI job에서 병렬 실행한다 | .github/workflows/ci.yml Makefile scripts/kit/claude-hook.mts tests/kit/claude-hook.test.mts tests/source/ci-workflow.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K249-3 tests/kit/claude-hook.test.mts` | [o] |
 | K719 | 언어 고유 API 형식을 정확한 릴리스 산출물과 언어 명시 요구사항으로 검증한다 | scripts/kit/parity-declaration.mts scripts/kit/parity-symbols.mts scripts/kit/parity-units.mts scripts/kit/schema/parity.schema.json tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K719 tests/kit/parity.test.mts` | [o] |
-| K720 | 병렬 CI를 위해 공개 API와 native binding 패리티 단계를 분리한다 | scripts/kit/parity.mts tests/kit/parity.test.mts docs/operations/tool-inventory.md(.ko.md) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K720 tests/kit/parity.test.mts`; `make docs-check` | [ ] |
+| K720 | 병렬 CI를 위해 공개 API와 native binding 패리티 단계를 분리한다 | scripts/kit/parity.mts tests/kit/parity.test.mts docs/operations/tool-inventory.md(.ko.md) | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K720 tests/kit/parity.test.mts`; `make docs-check` | [~] |
