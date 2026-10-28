@@ -65,7 +65,9 @@ test('kit-test shards install only their declared PHP, Composer, runtime and Car
   assert.ok(rustTools >= 0 && rustTools < kitTest, 'the Cargo fixture shard installs Rust');
   assert.ok(cargoDownloads > rustTools && cargoDownloads < kitTest, 'the Cargo shard fetches its crates before running');
   assert.match(jobText('kit_tests'), /if: \$\{\{ matrix\.shard == 5 && !cancelled\(\) \}\}[\s\S]*make kit-install-php-arginfo/);
-  assert.match(jobText('kit_tests'), /if: \$\{\{ matrix\.shard == 5 && !cancelled\(\) \}\}[\s\S]*make kit-install-symbols EXTRACTORS=php/);
+  const phpParser = kitTestRuns.indexOf('make kit-install-symbols-php');
+  assert.ok(phpParser > phpTools && phpParser < kitTest, 'the temporary PHP consumer fixtures resolve the parser from the Kit source installation');
+  assert.ok(jobText('kit_tests').includes('if: ${{ matrix.shard == 5 && !cancelled() }}\n        run: make kit-install-symbols-php'), 'only shard 5 installs the source parser for its consumer fixtures');
   assert.match(jobText('kit_tests'), /if: \$\{\{ matrix\.shard == 6 && !cancelled\(\) \}\}[\s\S]*make cargo-downloads-fetch/);
 });
 

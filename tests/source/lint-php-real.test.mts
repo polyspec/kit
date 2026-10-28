@@ -112,7 +112,7 @@ test('the PHP lint requires a replacement exception to retain its caught cause (
   const lostCause = php('final class Demo\n{\n    public function double(int $value): int\n    {\n        try {\n            return $value * 2;\n        } catch (\\Throwable $error) {\n            throw new \\RuntimeException("doubling failed");\n        }\n    }\n}\n');
   const failed = lintOf(repository(t, { [DEMO]: lostCause }));
   assert.deepEqual(failed.failed, ['phpstan packages/php'], `only PHPStan should reject the cause loss:\n${failed.output}`);
-  assert.match(failed.output, /shipmonk\.missingPreviousException/, 'the PHPStan rule did not name the cause loss');
+  assert.match(failed.output, /Exception \$error not passed as previous to .*RuntimeException/, `PHPStan did not report the lost cause:\n${failed.output}`);
 
   for (const source of [
     php('final class Demo\n{\n    public function double(int $value): int\n    {\n        try {\n            return $value * 2;\n        } catch (\\Throwable $error) {\n            throw new \\RuntimeException("doubling failed", 0, $error);\n        }\n    }\n}\n'),

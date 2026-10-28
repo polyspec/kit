@@ -218,9 +218,10 @@ jobs:
       - name: install PHP extension fixture tools
         if: ${{ matrix.shard == 5 && !cancelled() }}
         run: make kit-install-php-arginfo
-      - name: install PHP symbol extractor packages
+      # Temporary consumer fixtures resolve their parser from Kit's own source installation.
+      - name: install PHP parser for consumer fixtures
         if: ${{ matrix.shard == 5 && !cancelled() }}
-        run: make kit-install-symbols EXTRACTORS=php
+        run: make kit-install-symbols-php
       - name: install shard 7 tools
         if: ${{ matrix.shard == 7 && !cancelled() }}
         run: make install-tools TOOLS="php composer"
