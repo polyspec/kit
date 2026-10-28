@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 8edbbd99d7fa490ca144428c7aab071d7bd396c207cbf7980df365baeba9072c -->
+<!-- source-sha256: a5fe611452eb61ba2417f9e3afc57b6954f68bb46686d2ef055bb39903967dc4 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -30,6 +30,8 @@ link-check와 link-state-check는 source 연결을 설명하며 모든 version�
 Editable transaction은 명시한 root requirement extra를 전달하고 호환 source dependency는 uv가 해석한다. Native pip check 실패는 그대로 실패이다. pip check는 virtual project의 release URL 동일성이나 비활성 extra 전체를 검증하지 않는다. 선택 기준은 선언된 provider 이름이며 marker를 해석하는 공통 resolver라고 주장하지 않는다.
 
 Provider는 변경된 dependency와 build 입력을 자신의 package manager로 설치한다. 이미 올바른 source link를 재사용해도 새 외부 provider dependency를 설치하거나 lifecycle을 다시 실행하지는 않는다. Source 수정은 새 release 없이 보이며 컴파일 산출물은 native build가 필요하다.
+
+독립 runtime job은 `make link RUNTIME=<runtime>`을 실행한다(`go`, `php`, `php-ext`, `python`, `rust`, `ts`). 선택자는 provider 탐색, native package manager 호출과 설치 source 검증을 해당 runtime으로 제한한다. TypeScript는 npm, PHP와 PHP extension은 Composer, Python은 uv, Go는 workspace를 사용하고 Rust는 기존 Cargo source patch 경로를 유지한다. 기본 `make link`와 parity job은 선언한 모든 ecosystem을 유지한다.
 
 ## 방식
 

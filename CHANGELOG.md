@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Scope native source linking to each runtime CI job while preserving full parity preparation and strict installed-source verification. (K743)
+
 - Fix clean-checkout npm bootstrap by deferring parity target enumeration until an ordinary gate invocation; retain strict mixed-goal validation. (K742)
 
 - Prepared Kit 0.0.62 with native candidate packaging, locked consumer installation and a current dependency review. (K741)

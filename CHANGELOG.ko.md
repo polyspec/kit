@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c13e64af9792585f4b4fedf267db422051fe57c444b81a84583003e1993458b5 -->
+<!-- source-sha256: 40491d16c27c2edde9c354450e56d23acf69bc40f1ddfc071ffe3225f7c772aa -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 전체 parity 준비와 엄격한 설치 source 검증을 유지하면서 native source linking 범위를 각 runtime CI job에 맞춘다. (K743)
 
 - 일반 gate 호출까지 parity target 열거를 늦춰 clean checkout의 npm bootstrap을 수정하고 혼합 goal의 엄격한 검증은 유지한다. (K742)
 

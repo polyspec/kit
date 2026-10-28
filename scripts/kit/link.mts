@@ -521,7 +521,7 @@ function ownerFolders(work: Run, consumer: Consumer, project: string, ecosystems
  */
 function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, folders: readonly ProvidedFolder[], ecosystems: readonly ('npm' | 'composer' | 'python')[]): { ecosystem: Ecosystem; name: string }[] {
   const declared: { ecosystem: Ecosystem; name: string }[] = [];
-  const files: [Ecosystem, string, (file: string) => string[]][] = ([['composer', MANIFESTS.composer, declaredComposer], ['npm', MANIFESTS.npm, declaredNpm], ['python', MANIFESTS.python, declaredPython]] as const).filter(([ecosystem]) => ecosystems.includes(ecosystem));
+  const files: readonly (readonly [Ecosystem, string, (file: string) => string[]])[] = ([['composer', MANIFESTS.composer, declaredComposer], ['npm', MANIFESTS.npm, declaredNpm], ['python', MANIFESTS.python, declaredPython]] as const).filter(([ecosystem]) => ecosystems.includes(ecosystem));
   for (const [ecosystem, manifest, names] of files) {
     const file = path.join(project, manifest);
     if (!existsSync(file)) continue;
@@ -881,8 +881,12 @@ if (isMain(import.meta.url)) {
     if (project !== -1 && !projectDirectory) throw new Error('Usage: link.mjs ... --project <dir>');
     const runtimeIndex = command === 'link' || command === 'check' ? rest.indexOf('--runtime') : -1;
     const runtimeValue = runtimeIndex === -1 ? undefined : rest[runtimeIndex + 1];
-    if (runtimeIndex !== -1 && (runtimeValue === undefined || !isLinkRuntime(runtimeValue))) {
-      throw new Error(`unknown or missing runtime ${runtimeValue ?? ''}; choose go, php, php-ext, python, rust or ts`);
+    let runtime: LinkRuntime | undefined;
+    if (runtimeIndex !== -1) {
+      if (runtimeValue === undefined || !isLinkRuntime(runtimeValue)) {
+        throw new Error(`unknown or missing runtime ${runtimeValue ?? ''}; choose go, php, php-ext, python, rust or ts`);
+      }
+      runtime = runtimeValue;
     }
     const withoutOptions = rest.filter((_, index) => (project === -1 || (index !== project && index !== project + 1)) && (runtimeIndex === -1 || (index !== runtimeIndex && index !== runtimeIndex + 1)));
     // `--siblings` takes the checkouts beside the repository as the checkouts (K349): an install recipe links right after the
@@ -906,7 +910,7 @@ if (isMain(import.meta.url)) {
     }
     switch (command) {
       case 'link': case 'check':
-        if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined, ...(runtimeValue === undefined ? {} : { runtime: runtimeValue }) })) process.exitCode = 1;
+        if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
         else if (command === 'link' && siblings) writeWorkspaceHook(workspaceOf(projectDirectory ?? '.'));
         for (const finding of hookFindings) { print(finding); process.exitCode = 1; }
         break;

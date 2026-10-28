@@ -30,6 +30,8 @@ The editable transaction forwards explicit root requirement extras and lets uv r
 
 Providers install their own changed dependencies and build inputs with their package manager. Reusing an already-correct source link does not install new external provider dependencies or rerun its lifecycle. Source edits remain visible without a new release; compiled outputs still need their native build.
 
+Independent runtime jobs run `make link RUNTIME=<runtime>` (`go`, `php`, `php-ext`, `python`, `rust` or `ts`). The selector limits provider discovery, native package-manager calls and installed-source verification to that runtime. TypeScript uses npm, PHP and the PHP extension use Composer, Python uses uv and Go uses its workspace; Rust keeps its existing Cargo source-patch path. The default `make link` and parity jobs retain all declared ecosystems.
+
 ## Mechanism
 
 The link tool orchestrates the native package-manager commands. For npm, it follows the selected providers' transitive local npm dependencies, runs `npm link` in each provider and then `npm link <name>...` in the consumer with workspace processing disabled, using a project-local npm prefix under `var/link/npm`. This prevents a workspace override from making npm resolve a local source dependency from its release URL. If every selected installed package already resolves to its source, consumer reification is skipped. `--no-save` retains the release manifest and lock while npm still reads the lock and manages installed links and records. Do not disable lock reading or add a blanket peer-dependency bypass. Source edits are visible immediately. npm retains its normal dependency and lifecycle behavior. Composer and Python use the native mechanisms below.

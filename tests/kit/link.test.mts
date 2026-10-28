@@ -274,7 +274,11 @@ test('runtime links use only the selected native managers in a mixed-language co
       assert.match(log(), new RegExp(`^${command} `, 'm'), `${runtime} runs its native manager`);
       assert.doesNotMatch(log(), new RegExp(`^(?!${command} )(npm|composer|uv|go) `, 'm'), `${runtime} does not run another language manager`);
     }
-    if (runtime === 'ts') assert.equal(npmTarget(path.join(consumer, 'node_modules/@polyspec/x')), path.join(current[0], 'packages/ts'));
+    if (runtime === 'ts') {
+      const provider = current[0];
+      assert.ok(provider, 'the mixed fixture has its source provider');
+      assert.equal(npmTarget(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
+    }
   }
 });
 
