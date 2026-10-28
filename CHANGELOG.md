@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Prepared Kit 0.0.61 from successful CI with native candidate packaging, locked consumer installation and a refreshed dependency review. (K729)
+
 ## 0.0.61
 
 - Install the native PHP parser where temporary consumer fixtures resolve it and assert the concrete cause-loss diagnostic emitted by PHPStan raw output. (K728)

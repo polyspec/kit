@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d8673ea65617acddf8a5bd0158594c2933ef4a3a7e89007f53855f4970a6c352 -->
+<!-- source-sha256: 05cfe294244f3b1ce9cd940b67076ed975220bbf3712c3a77b30c74151f01068 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 통과한 CI를 기준으로 native 후보 패키징, 잠긴 소비자 설치와 갱신한 의존성 검토를 거쳐 Kit 0.0.61을 준비했습니다. (K729)
 
 ## 0.0.61
 
