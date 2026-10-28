@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 6adc6128eea758f9c1340d4bd24159f38bd90a176865d56b3e8ea0f396b6ad02 -->
+<!-- source-sha256: c33decf517137d313ce91da70dbf9c3639d9198702b41222ace28216ad552dde -->
 
 # 도구 목록
 
@@ -56,6 +56,11 @@ PATH 맨 앞에 둡니다. `var/tools/bin`에는 kit이 checkout의 선언에 �
 target은 `install-tools`와 `toolchain-lock`(`ONLINE`을 통한 online), `toolchain-check`(offline, `TOOLS`가 도구를 제한)입니다.
 Rust는 rustup에 남습니다. rustup과 `rust-toolchain.toml`은 Rust 생태계 자체의 toolchain 방식이고, mise의 rust backend도 결국
 rustup을 구동하므로, 층을 하나 더 두어도 얻는 것이 없습니다. mise의 빈틈마다 내린 결정은 docs/rebuild/toolchain.md에 있습니다.
+
+Platform pin에는 Node.js와 Go의 Windows x64·ARM64 archive가 있습니다. 나머지 mise lock 항목은 위 네 POSIX platform을 다룹니다.
+`.github/workflows/platform-bootstrap.yml`은 Ubuntu x64, macOS arm64, Windows x64에서 Node.js/npm/Go/Rust bootstrap smoke를 실행하며,
+반복 실행 결과와 native wrapper/version도 검사합니다. 새 CI 실행은 아직 대기 중입니다. 이 pin과 smoke가 Kit의 모든 gate가
+Windows에서 동작하거나 Windows PHP extension SDK를 지원한다고 입증하지는 않습니다.
 
 PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283). minor는 `.php-version`에서만 읽으며, PHP를 `config/toolchain.json`
 목록에만 둔 저장소는 실패하므로 `.php-version`을 추가해야 합니다. `install-php.mts`는 bootstrap의 PATH(`var/tools/bin` 제외,
@@ -783,6 +788,46 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 - `kit-check`는 (K289) `make check`와 CI group이 실행하는 suite인 `CHECK_TARGETS`가 `kit-gates`의 모든 prerequisite에 단어나
   prerequisite로 닿는지도 요구하므로, gates workflow가 실행하는 gate가 suite에서 빠지지 않습니다. 언어의 lint와 PHP extension의
   lint·test는 그 code를 가진 저장소에서만 요구합니다. kit의 checkout은 gate의 source이므로 검사하지 않습니다.
+- `workflows/gates.yml`은 같은 `kit-gates` prerequisite를 shared, parity, runtime job으로 나눕니다. 소비 저장소는
+  `config/ci.json`에 저장소별 setup target을 선언합니다. 각 값은 명령문이 아니라 실제 존재하는 Make target 이름입니다.
+  schema는 `scripts/kit/schema/ci.schema.json`이며 `kit-check`가 소비 저장소의 선언을 검증합니다. 예:
+
+  ```json
+  {
+    "schema": 1,
+    "setup": {
+      "shared": ["orm-install-shared-tools"],
+      "parity": ["orm-build-parity-fixtures"],
+      "runtimes": {
+        "go": ["orm-install-go"],
+        "php": ["orm-install-php"],
+        "php-ext": ["orm-install-php-extension"],
+        "python": ["orm-install-python"],
+        "rust": ["orm-install-rust"],
+        "ts": ["orm-install-ts"]
+      }
+    }
+  }
+  ```
+
+  runtime setup target은 해당 runtime job과 parity job에서 실행됩니다. parity는 추적된 모든 runtime을 실행하기 때문입니다.
+  비어 있지 않은 runtime 목록은 Kit 기본값을 대체하므로, 해당 runtime이 필요한 setup과 추적된 native package lock을
+  모두 포함해야 합니다. 목록이 비어 있으면 Kit의 기존 lock 기반 native target(`build-ts`, `build-go`, `cargo-downloads-fetch`,
+  추적된 lockfile에서 찾은 Composer/uv 설치 target)을 사용합니다. 필요한 PHP 또는 Python lock 프로젝트를 찾지 못하면 계획 단계가
+  실패하며 명시적 setup target을 요구합니다. 실행 전 모든 선언 target을 Make database와 대조합니다. 없는 target이나
+  집계 target인 `install`/`install-kit`은 수정 안내와 함께 실패하며 전체 설치로 대체하지 않습니다.
+  PHP runtime job은 선언된 PHP와 Composer 도구를 선택합니다. `packages/php-ext`가 있으면 PHP extension job도 이 도구를
+  선택하고 lint/build/test 전에 Kit의 `kit-install-php-arginfo`를 실행합니다. Extension test는 Composer package에 설치된
+  PHPUnit을 사용하므로 Kit의 private PHPUnit 선언은 필요하지 않습니다. PHP parity runner가 Composer를 쓰면 parity 도구에도
+  Composer를 포함합니다. PHP setup 목록을 직접 지정하는 소비 저장소는 root와 package를 포함해 필요한 Composer project를
+  모두 나열해야 합니다.
+  비어 있는 Go runtime 목록은 추적된 모든 `go.mod`에 `require` 지시문이 없을 때만 `build-go`를 선택합니다. Go module에
+  dependency가 있으면 계획 단계가 실패하고 `setup.runtimes.go`에 build 전에 잠긴 module을 fetch하는 명시적 target을
+  요구합니다. Kit은 build를 install로 부르거나 offline gate 도중 Go가 내려받기를 하도록 조용히 의존하지 않습니다.
+  선택 항목인 `tools` map은 setup target이 추가로 요구하는 Kit의 pinned tool selector를 선언합니다. 예를 들어 TypeScript
+  generator target이 Go를 필요로 하면 `"tools": { "ts": ["go"] }`로 선언합니다. Kit은 해당 도구를 TypeScript job과 runtime
+  setup을 반복하는 parity job에 설치하고 검사합니다. `shared`와 `parity` key는 각 job의 도구를 선택합니다. Selector는 Kit이
+  아는 이름이어야 하고 checkout이 선언해야 합니다. workflow가 이미 준비하는 node, npm, mise는 중복 선택할 수 없습니다.
 - npm range 함수는 dependency-state에 남습니다: version의 일반 순서가 아니라 npm의 규칙을 구현합니다.
 
 ## Python lint (K8.4)

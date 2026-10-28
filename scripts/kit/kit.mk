@@ -188,6 +188,26 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by. commits-check reads RANGE from the run.
 kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check link-state-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
 
+# CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
+# entry point above; these targets are only the disjoint workflow partitions. Toolchain probes are checked with their selected
+# TOOLS in the owning job, while the parity job checks every implementation in one run.
+.PHONY: kit-gates-static kit-gates-parity kit-gates-runtime-ts kit-gates-runtime-php kit-gates-runtime-python kit-gates-runtime-go kit-gates-runtime-rust kit-gates-runtime-php-ext
+kit-gates-static: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check commits-check bypass-check suppression-check divergence-check ## Run shared gates and the common toolchain probes
+kit-gates-parity: link-state-check parity-check ## Run package-link validation and the full parity gate in its own job
+kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate
+kit-gates-runtime-php: lint-php ## Run the PHP gate
+kit-gates-runtime-python: lint-python ## Run the Python gate
+kit-gates-runtime-go: lint-go ## Run the Go gate
+kit-gates-runtime-rust: lint-rust ## Run the Rust gate
+kit-gates-runtime-php-ext: lint-php-ext test-php-ext ## Run the PHP extension gates
+
+.PHONY: kit-ci-plan kit-ci-setup
+kit-ci-plan: ## Validate config/ci.json and write the runtime/tool plan to GITHUB_OUTPUT for the shared gates workflow
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --plan
+
+kit-ci-setup: ## Run the locked setup targets declared by config/ci.json; GROUP=shared|parity|runtime and RUNTIME=<runtime>
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) $(GROUP) $(RUNTIME)
+
 
 .PHONY: link-state-check
 link-state-check: ## Fail while an installed package folder that a sibling checkout provides is a copy or links elsewhere, a tracked lock records a provided polyspec package as a path or a link (K507), or a workspace link, go.work, the hook, the trust or a merged worktree is wrong; no version is judged (K448, S4); offline
@@ -494,7 +514,7 @@ composer-provider-entries: ## Removed metadata rewriting; fails with migration g
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.
 # Without UNITS the check is a full run, which runs only in CI (ci-only.mts). The guard runs while make reads the makefiles,
 # so no prerequisite that a repository adds to parity-check builds before it; kit-gates runs it in full, so kit-gates runs only in CI.
-ifneq ($(filter parity-check kit-gates,$(MAKECMDGOALS)),)
+ifneq ($(filter parity-check kit-gates kit-gates-parity,$(MAKECMDGOALS)),)
 ifeq ($(UNITS),)
 ifneq ($(shell $(NODE) $(KIT)/ci-only.$(KIT_EXT) make parity-check >&2; echo $$?),0)
 $(error parity-check: a full parity check runs only in CI; name the units with UNITS="<id>...")

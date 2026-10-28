@@ -61,6 +61,11 @@ their ecosystems. Make targets: `install-tools` and `toolchain-lock` (online thr
 mechanism, and the rust backend of mise drives rustup itself, so a second layer would add nothing. The decision of each gap
 of mise is in docs/rebuild/toolchain.md.
 
+The platform pins include Windows x64 and ARM64 archives for Node.js and Go; the other mise lock entries cover the four POSIX
+platforms above. `.github/workflows/platform-bootstrap.yml` runs the selected Node.js/npm/Go/Rust bootstrap smoke on Ubuntu x64,
+macOS arm64 and Windows x64, including a repeatability check and native wrapper/version checks. Its new CI run is still pending;
+these pins and smoke cases do not establish that every Kit gate runs on Windows or that a Windows PHP extension SDK is supported.
+
 PHP is discovered and wrapped, not installed (K283). The minor comes from `.php-version` only; a repository whose PHP is listed
 only in `config/toolchain.json` fails and must add `.php-version`. `install-php.mts` searches with the PATH of the bootstrap
 (without `var/tools/bin`, so it never finds its own wrapper) and the first match wins: (1) `php` on PATH whose
@@ -870,6 +875,46 @@ Left as it is, with the reason:
   prerequisite of `kit-gates`, as a word or as a prerequisite of one, so a gate that the gates workflow runs is not left out of
   the suite. The lint of a language, and the lint and test of a PHP extension, are required only in a repository that holds
   code of it. kit's own checkout is not checked, since it is the source of the gates.
+- `workflows/gates.yml` partitions the same `kit-gates` prerequisites into shared, parity, and runtime jobs. A consumer declares
+  repository-owned setup targets in `config/ci.json`; each value is an existing Make target name, not a command. The schema is
+  `scripts/kit/schema/ci.schema.json` and `kit-check` validates the consumer declaration. For example:
+
+  ```json
+  {
+    "schema": 1,
+    "setup": {
+      "shared": ["orm-install-shared-tools"],
+      "parity": ["orm-build-parity-fixtures"],
+      "runtimes": {
+        "go": ["orm-install-go"],
+        "php": ["orm-install-php"],
+        "php-ext": ["orm-install-php-extension"],
+        "python": ["orm-install-python"],
+        "rust": ["orm-install-rust"],
+        "ts": ["orm-install-ts"]
+      }
+    }
+  }
+  ```
+
+  Runtime setup targets are run in that runtime's job and in the parity job, since parity executes every tracked runtime.
+  A nonempty runtime list replaces Kit's defaults and must include all setup that runtime needs, including its tracked native
+  package locks. Empty runtime lists use Kit's existing locked targets (`build-ts`, `build-go`, `cargo-downloads-fetch`, and
+  the Composer/uv install targets discovered from tracked lockfiles). If a required PHP or Python lock project cannot be found,
+  planning fails and asks for an explicit setup target. Every declared target is checked against the Make database before
+  setup starts; a missing target or the aggregate `install`/`install-kit` fails with a fix, and no full-install fallback runs.
+  PHP runtime jobs select the declared PHP and Composer tools. PHP extension jobs select those prerequisites and, when
+  `packages/php-ext` exists, run Kit's `kit-install-php-arginfo` before lint/build/test. Extension tests use PHPUnit installed
+  with their Composer package, so Kit's private PHPUnit declaration is not required. PHP parity selection includes Composer
+  when its runner needs it. A consumer with a nonempty PHP setup list must include every Composer project it needs, including
+  root and package projects.
+  An empty Go runtime list selects `build-go` only when every tracked `go.mod` has no `require` directives. If a Go module has
+  dependencies, planning requires an explicit `setup.runtimes.go` target that fetches its locked modules before the build; Kit
+  does not label a build as an install or silently rely on Go downloading during the offline gate.
+  The optional `tools` map names extra pinned Kit tool selectors needed by setup targets. For example, a TypeScript generator
+  target that needs Go declares `"tools": { "ts": ["go"] }`; Kit checks and installs that tool in the TypeScript job and in
+  parity, which repeats runtime setup. `shared` and `parity` keys select tools for those jobs. Selectors must be known and
+  declared by the checkout; node, npm and mise are already provisioned by the workflow and cannot be repeated there.
 - The npm range functions stay in dependency-state: they implement npm's rules, not a general order of versions.
 
 ## Python lint (K8.4)

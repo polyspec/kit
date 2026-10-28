@@ -54,7 +54,7 @@ KIT_TEST_FILES_5 := \
 	tests/kit/release-wheel.test.mts tests/kit/retained-branches.test.mts tests/kit/sandbox-repository.test.mts \
 	tests/kit/schema.test.mts tests/kit/test-build-first.test.mts tests/kit/twin-merge.test.mts
 KIT_TEST_FILES_6 := \
-	tests/kit/catch-check.test.mts tests/kit/claude-hook.test.mts tests/kit/commits.test.mts \
+	tests/kit/catch-check.test.mts tests/kit/ci-setup.test.mts tests/kit/claude-hook.test.mts tests/kit/commits.test.mts \
 	tests/kit/divergence-check.test.mts tests/kit/documents.test.mts tests/kit/gates-workflow.test.mts \
 	tests/kit/generated-files.test.mts tests/kit/git.test.mts tests/kit/kit-sync.test.mts \
 	tests/kit/linked-sources.test.mts tests/kit/lint-rust.test.mts tests/kit/lint-ts.test.mts \

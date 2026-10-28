@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: b8a1f624e95658225eb0a24f0e38caf77a35617713501e9d60d19e73c5369903 -->
+<!-- source-sha256: 8c8c36f8a3755529c277a577dcdc1c2816f0985b35074e0a044b5c48b9b54c4b -->
 # 개발
 
 [English](AGENTS.md)
@@ -12,6 +12,10 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 같은 원칙을 가집니다; 각 저장소의 AGENTS.md는 그것으로 link하고 자기만의 규칙만 적습니다. 아래 규칙은 kit 자신의 것입니다.
 
 ## 규칙
+
+- Own: Kit 변경 요청은 GitHub issue에서 추적합니다. 각 issue에 구현 진행 상황, 검증 근거와 release 상태를 기록하고,
+  명시된 acceptance 조건을 충족한 뒤에만 닫습니다.
+  Enforced by: none, issue 갱신은 agent가 판단합니다
 
 - Own: 영어 문서가 정본입니다. 모든 문서에는 같은 정보를 담은 `.ko.md` 파일이 있으며, 두 파일을 한 변경에서 함께 고칩니다. 한국어 파일의
   개정 표식 `source-sha256`은 영어 파일의 sha256입니다. 한국어 문서는 기술 용어를 영어로 씁니다.

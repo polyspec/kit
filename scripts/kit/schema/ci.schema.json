@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "config/ci.json",
+  "description": "Existing Make targets needed before the shared gates (`scripts/kit/ci-setup.mts`): repository-specific install and generation prerequisites grouped by shared checks, full parity, and runtime. Values name Make targets only; they are never shell commands.",
+  "type": "object",
+  "required": ["schema", "setup"],
+  "additionalProperties": false,
+  "properties": {
+    "schema": { "type": "integer", "const": 1 },
+    "comment": { "type": "string" },
+    "setup": {
+      "type": "object",
+      "required": ["shared", "parity", "runtimes"],
+      "additionalProperties": false,
+      "properties": {
+        "shared": { "$ref": "#/$defs/targets" },
+        "parity": { "$ref": "#/$defs/targets" },
+        "runtimes": {
+          "type": "object",
+          "required": ["go", "php", "php-ext", "python", "rust", "ts"],
+          "additionalProperties": false,
+          "properties": {
+            "go": { "$ref": "#/$defs/targets" },
+            "php": { "$ref": "#/$defs/targets" },
+            "php-ext": { "$ref": "#/$defs/targets" },
+            "python": { "$ref": "#/$defs/targets" },
+            "rust": { "$ref": "#/$defs/targets" },
+            "ts": { "$ref": "#/$defs/targets" }
+          }
+        }
+      }
+    },
+    "tools": {
+      "description": "Optional extra pinned tools required by a shared/parity/runtime setup target. Values name existing Kit tool selectors, never commands.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shared": { "$ref": "#/$defs/tools" },
+        "parity": { "$ref": "#/$defs/tools" },
+        "go": { "$ref": "#/$defs/tools" },
+        "php": { "$ref": "#/$defs/tools" },
+        "php-ext": { "$ref": "#/$defs/tools" },
+        "python": { "$ref": "#/$defs/tools" },
+        "rust": { "$ref": "#/$defs/tools" },
+        "ts": { "$ref": "#/$defs/tools" }
+      }
+    }
+  },
+  "$defs": {
+    "targets": {
+      "description": "Existing no-argument Make targets. A nonempty runtime list replaces Kit defaults and must name every required setup target for that runtime; an empty runtime list uses Kit's native locked installation/build targets. The full `install` and `install-kit` aggregates are forbidden.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$" }
+    },
+    "tools": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*$" }
+    }
+  }
+}

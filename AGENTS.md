@@ -14,6 +14,10 @@ and states only its own rules. The rules below are kit's own.
 
 ## Rules
 
+- Own: Incoming Kit change requests are tracked in GitHub issues. Keep each issue updated with implementation progress,
+  verification evidence and release status, and close it only after its stated acceptance conditions are met.
+  Enforced by: none, issue updates require the judgement of the agent
+
 - Own: English documents are canonical. Every document has a `.ko.md` file with the same information; edit both in the same
   change. The revision marker `source-sha256` of the Korean file is the sha256 of the English file. Korean documents write
   technical terms in English.
