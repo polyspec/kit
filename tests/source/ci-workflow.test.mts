@@ -3,7 +3,8 @@
 // K82).
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -26,6 +27,11 @@ function jobText(name: string): string {
 function jobRuns(name: string): string[] {
   return [...jobText(name).matchAll(/^\s+run: (.+)$/gm)].map(match => known(match[1], 'match[1]'));
 }
+const isolatedMakeEnvironment = (environment: NodeJS.ProcessEnv) => ({
+  PATH: environment.PATH ?? '',
+  HOME: environment.HOME ?? '',
+  TMPDIR: environment.TMPDIR ?? '',
+});
 
 test('the CI workflow runs duplication-check after npm ci installed jscpd (K126)', () => {
   const check = runs.indexOf('make duplication-check');
@@ -214,8 +220,37 @@ test('the CI shard targets reject an empty or unknown selection before starting 
     ['kit-test-shard', []], ['kit-test-shard', ['SHARD=unknown']],
     ['source-test-group', []], ['source-test-group', ['GROUP=unknown']],
   ] as const) {
-    const result = spawnSync('make', ['--no-print-directory', target, ...args], { cwd: ROOT, encoding: 'utf8' });
+    const result = spawnSync('make', ['--no-print-directory', target, ...args], { cwd: ROOT, encoding: 'utf8', env: isolatedMakeEnvironment(process.env) });
     assert.equal(result.status, 2, `${target} ${args.join(' ')}: ${result.stdout}${result.stderr}`);
     assert.match(result.stderr, /unknown or empty/);
   }
+});
+
+test('a shard selection probe drops inherited GNU Make variables (K721)', (t) => {
+  const directory = mkdtempSync(path.join(tmpdir(), 'kit-make-selection-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const stub = path.join(directory, 'make');
+  writeFileSync(stub, `#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify(Object.fromEntries(['MAKEFLAGS', 'MFLAGS', 'MAKELEVEL', 'MAKEOVERRIDES', 'GROUP', 'SHARD'].map(name => [name, process.env[name] ?? null]))));\n`);
+  chmodSync(stub, 0o755);
+  const environment = isolatedMakeEnvironment({
+    PATH: `${directory}${path.delimiter}${process.env.PATH ?? ''}`,
+    HOME: process.env.HOME,
+    TMPDIR: process.env.TMPDIR,
+    MAKEFLAGS: '-- GROUP=common-1 SHARD=1',
+    MFLAGS: '-- GROUP=common-1 SHARD=1',
+    MAKELEVEL: '1',
+    MAKEOVERRIDES: 'GROUP=common-1 SHARD=1',
+    GROUP: 'common-1',
+    SHARD: '1',
+  });
+  const result = spawnSync('make', ['source-test-group'], { cwd: ROOT, encoding: 'utf8', env: environment });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), {
+    MAKEFLAGS: null,
+    MFLAGS: null,
+    MAKELEVEL: null,
+    MAKEOVERRIDES: null,
+    GROUP: null,
+    SHARD: null,
+  });
 });

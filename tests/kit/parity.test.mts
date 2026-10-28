@@ -2552,7 +2552,8 @@ test('K720 API and bindings phases cover the same findings as the default check'
       'php/symbols.txt': 'LEAK A\\\\Child::take names the internal A\\\\Hidden\n',
     },
     edit: config => {
-      itemWhere(config.units, unit => unit.id === 'codec').bindings = itemWhere(config.units, unit => unit.id === 'codec').bindings?.filter(entry => entry.implementation !== 'go');
+      const codec = itemWhere(config.units, unit => unit.id === 'codec');
+      codec.bindings = (codec.bindings ?? []).filter(entry => entry.implementation !== 'go');
       return config;
     },
   });

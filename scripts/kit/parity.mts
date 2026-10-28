@@ -141,6 +141,41 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     say(`--rule ${rules.join(', ')}: only the findings of these rules and of ${DECLARATION} itself count`);
   }
   const idSet = ids === undefined ? undefined : new Set(ids);
+  const traceRequirements = () => {
+    const heldUnits = new Set<string>();
+    const findings = requirementFindings(
+      model.config,
+      files,
+      file => readFileSync(path.join(root, file), 'utf8'),
+      model.cases,
+      model.config.deferredRequirements?.length ? loadConfig(root).idPattern : undefined,
+      entry => {
+        if (ids === undefined || ids.includes(entry.id)) say(`DEFERRED ${entry.id}: held by ${entry.item} in ${entry.checklist}`);
+      },
+      unit => heldUnits.add(unit),
+    );
+    return { findings, heldUnits };
+  };
+  const reportHeldUnits = (heldUnits: Set<string>) => {
+    for (const unit of heldUnits) if (selected === undefined || selected.has(unit)) say(`HELD ${unit}: its requirements are deferred; no runtime bindings execute`);
+  };
+  const sharedFindings = (codes: ReturnType<typeof readCodes>['codes'], snapshots: ReturnType<typeof extractSymbols>['snapshots'], beforeUndeclared: ParityFinding[] = []) => [
+    ...missingBindings(model),
+    ...beforeUndeclared,
+    ...undeclaredSuites(model, files),
+    ...undeclaredTests(model, files),
+    ...misplacedTests(model, files),
+    ...errorCatalog(model, codes),
+    ...languageLists(model, root),
+    ...documentCounts(model, root, files),
+    ...undeclaredPublic(model, snapshots),
+  ];
+  const matchesSelection = (item: ParityFinding) => {
+    const isDeclaration = item.place?.split(':')[0] === DECLARATION;
+    return (selected === undefined || (item.unit === undefined ? isDeclaration : selected.has(item.unit)))
+      && (ruleIds === undefined || isDeclaration || ruleIds.has(item.rule))
+      && (idSet === undefined || isDeclaration || (item.requirements ?? []).some(id => idSet.has(id)));
+  };
   // With --id, a requirement is named by its id; an id that no shared or tool unit of the declaration cites fails the run before any check (K414-1).
   if (ids !== undefined) {
     const cited = new Set([
@@ -157,74 +192,30 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     const extracted = extractSymbols(model, root, { env, say });
     const { codes, findings: unreadable } = readCodes(model, root);
     if (unreadable.length) return { findings: unreadable, ledger };
-    const heldUnits = new Set<string>();
-    const requirementTraceFindings = requirementFindings(
-      model.config,
-      files,
-      file => readFileSync(path.join(root, file), 'utf8'),
-      model.cases,
-      model.config.deferredRequirements?.length ? loadConfig(root).idPattern : undefined,
-      entry => {
-        if (ids === undefined || ids.includes(entry.id)) say(`DEFERRED ${entry.id}: held by ${entry.item} in ${entry.checklist}`);
-      },
-      unit => heldUnits.add(unit),
-    );
+    const { findings: requirementTraceFindings } = traceRequirements();
     const findings = [
       ...extracted.findings,
       ...missingImplementations(model, extracted.snapshots, extracted.entrySnapshots),
-      ...missingBindings(model),
-      ...undeclaredSuites(model, files),
-      ...undeclaredTests(model, files),
-      ...misplacedTests(model, files),
-      ...errorCatalog(model, codes),
-      ...languageLists(model, root),
-      ...documentCounts(model, root, files),
-      ...undeclaredPublic(model, extracted.snapshots),
+      ...sharedFindings(codes, extracted.snapshots),
       ...requirementTraceFindings,
-    ].filter(item => (selected === undefined || (item.unit === undefined ? item.place?.split(':')[0] === DECLARATION : selected.has(item.unit)))
-      && (ruleIds === undefined || item.place?.split(':')[0] === DECLARATION || ruleIds.has(item.rule))
-      && (idSet === undefined || item.place?.split(':')[0] === DECLARATION || (item.requirements ?? []).some(id => idSet.has(id))));
+    ].filter(matchesSelection);
     return { findings, ledger };
   }
   if (phase === 'bindings') {
     if (!execute) return { findings: [finding('declaration', '--phase bindings requires native binding execution; do not use --declarations', { place: DECLARATION })], ledger };
     say(`bindings phase${implementations === undefined ? '' : ` for ${implementations.join(', ')}`}: native bindings run twice; public symbol extraction is skipped`);
-    const heldUnits = new Set<string>();
-    const requirementTraceFindings = requirementFindings(
-      model.config,
-      files,
-      file => readFileSync(path.join(root, file), 'utf8'),
-      model.cases,
-      model.config.deferredRequirements?.length ? loadConfig(root).idPattern : undefined,
-      entry => {
-        if (ids === undefined || ids.includes(entry.id)) say(`DEFERRED ${entry.id}: held by ${entry.item} in ${entry.checklist}`);
-      },
-      unit => heldUnits.add(unit),
-    );
-    for (const unit of heldUnits) if (selected === undefined || selected.has(unit)) say(`HELD ${unit}: its requirements are deferred; no runtime bindings execute`);
+    const { findings: requirementTraceFindings, heldUnits } = traceRequirements();
+    reportHeldUnits(heldUnits);
     const executed = runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection, heldUnits });
     const missing = missingBindings(model).filter(item => implementationSelection === undefined || implementationSelection.has(item.implementation ?? ''));
     const findings = [...missing, ...executed.findings, ...requirementTraceFindings]
-      .filter(item => (selected === undefined || (item.unit === undefined ? item.place?.split(':')[0] === DECLARATION : selected.has(item.unit)))
-        && (ruleIds === undefined || item.place?.split(':')[0] === DECLARATION || ruleIds.has(item.rule))
-        && (idSet === undefined || item.place?.split(':')[0] === DECLARATION || (item.requirements ?? []).some(id => idSet.has(id))));
+      .filter(matchesSelection);
     return { findings, ledger: executed.ledger };
   }
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
-  const heldUnits = new Set<string>();
-  const requirementTraceFindings = requirementFindings(
-    model.config,
-    files,
-    file => readFileSync(path.join(root, file), 'utf8'),
-    model.cases,
-    model.config.deferredRequirements?.length ? loadConfig(root).idPattern : undefined,
-    entry => {
-      if (ids === undefined || ids.includes(entry.id)) say(`DEFERRED ${entry.id}: held by ${entry.item} in ${entry.checklist}`);
-    },
-    unit => heldUnits.add(unit),
-  );
-  for (const unit of heldUnits) if (selected === undefined || selected.has(unit)) say(`HELD ${unit}: its requirements are deferred; no runtime bindings execute`);
+  const { findings: requirementTraceFindings, heldUnits } = traceRequirements();
+  reportHeldUnits(heldUnits);
   for (const tool of model.config.tools ?? []) say(tool.root === undefined
     ? `tools exact files ${(tool.files ?? []).join(', ')}: ${tool.reason}`
     : `tools root ${tool.root}: ${tool.reason}`);
@@ -235,21 +226,12 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   const findings = [
     ...extracted.findings,
     ...missingImplementations(model, extracted.snapshots, extracted.entrySnapshots),
-    ...missingBindings(model),
-    ...executed.findings,
-    ...undeclaredSuites(model, files),
-    ...undeclaredTests(model, files),
-    ...misplacedTests(model, files),
-    ...errorCatalog(model, codes),
-    ...languageLists(model, root),
-    ...documentCounts(model, root, files),
-    ...undeclaredPublic(model, extracted.snapshots),
+    ...sharedFindings(codes, extracted.snapshots, executed.findings),
     ...requirementTraceFindings,
   ];
   // The declarations of named units hold alone: a row that fixes its units passes while other units still have findings (K400).
   // The same holds for named rules and requirement ids (K414-1); the findings of config/parity.json itself stay with any filter.
-  const isDeclaration = (item: ParityFinding) => item.place?.split(':')[0] === DECLARATION;
-  const named = findings.filter(item => (selected === undefined || (item.unit === undefined ? isDeclaration(item) : selected.has(item.unit))) && (ruleIds === undefined || isDeclaration(item) || ruleIds.has(item.rule)) && (idSet === undefined || isDeclaration(item) || (item.requirements ?? []).some(id => idSet.has(id))));
+  const named = findings.filter(matchesSelection);
   return { findings: named, ledger: executed.ledger };
 }
 
