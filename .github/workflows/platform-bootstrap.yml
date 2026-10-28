@@ -16,7 +16,7 @@ jobs:
         include:
           - runner: ubuntu-24.04
             shell: bash
-          - runner: macos-14
+          - runner: macos-15
             shell: bash
           - runner: windows-2025
             shell: pwsh

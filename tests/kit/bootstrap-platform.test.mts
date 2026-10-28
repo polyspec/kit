@@ -45,7 +45,7 @@ test('Windows wrappers invoke native executables and pass through command argume
 
 test('the platform smoke installs pinned packages before SDK tools and requires every OS result', () => {
   const workflow = readFileSync(new URL('../../.github/workflows/platform-bootstrap.yml', import.meta.url), 'utf8');
-  for (const runner of ['ubuntu-24.04', 'macos-14', 'windows-2025']) assert.ok(workflow.includes(`runner: ${runner}`), `${runner} is in the matrix`);
+  for (const runner of ['ubuntu-24.04', 'macos-15', 'windows-2025']) assert.ok(workflow.includes(`runner: ${runner}`), `${runner} is in the matrix`);
   assert.match(workflow, /install pinned mise, Node\.js and npm[\s\S]*?install pinned Kit dependencies/);
   assert.match(workflow, /verify bootstrap is idempotent[\s\S]*?run: node scripts\/kit\/bootstrap\/verify-idempotent\.mts/);
   assert.doesNotMatch(workflow, /grep -q ['"]installing |match ['"]installing /);
