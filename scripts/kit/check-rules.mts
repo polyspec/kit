@@ -16,7 +16,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { lineBlocks } from './markdown.mts';
-import { makeDatabase, type MakeDatabase } from './owner-check.mts';
+import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
 import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { CONFIG, DONE, IMPOSSIBLE, loadConfig, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
@@ -34,6 +34,28 @@ const ENFORCED = /^\s*Enforced by:\s*(.*)$/;
 const DEFAULT_DOCUMENTS = ['PRINCIPLES.md', 'AGENTS.md'];
 // The points that cannot be skipped: the folders whose files start make.
 const ENTRY_FOLDERS = ['.github/workflows', '.githooks'];
+
+/** Whether a recipe-free aggregate names only existing suite targets through an acyclic prerequisite graph. */
+function mandatoryAggregate(target: string, make: MakeDatabase): boolean {
+  const rule = make.targets.get(target);
+  if (rule === undefined || rule.recipe.trim() !== '' || rule.prerequisites.length === 0) return false;
+  const mandatory = new Set(suiteTargets(make));
+  if (!rule.prerequisites.every(prerequisite => mandatory.has(prerequisite) && make.targets.has(prerequisite))) return false;
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const acyclic = (name: string): boolean => {
+    if (visiting.has(name)) return false;
+    if (visited.has(name)) return true;
+    const current = make.targets.get(name);
+    if (current === undefined) return false;
+    visiting.add(name);
+    const valid = current.prerequisites.every(acyclic);
+    visiting.delete(name);
+    visited.add(name);
+    return valid;
+  };
+  return acyclic(target);
+}
 
 /** The rules of the document `text`: the items of its top-level lists, each with its `Enforced by:` line. */
 function rulesOf(text: string): Rule[] {
@@ -211,7 +233,7 @@ function checkFinding(root: string, check: string, make: MakeDatabase, reach: Re
   const target = /^make (\S+)$/.exec(check)?.[1];
   if (target !== undefined) {
     if (!make.targets.has(target)) return `${where}: make ${target} is no target of the Makefile`;
-    if (!reach.targets.has(target)) return `${where}: make ${target} runs at no point that cannot be skipped: no CI workflow, Git hook or Claude Code hook reaches it`;
+    if (!reach.targets.has(target) && !mandatoryAggregate(target, make)) return `${where}: make ${target} runs at no point that cannot be skipped: no CI workflow, Git hook or Claude Code hook reaches it`;
     return null;
   }
   if (!existsSync(path.join(root, check))) return `${where}: ${check} does not exist`;

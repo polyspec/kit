@@ -39,10 +39,10 @@ jobs:
 const PRE_PUSH = '#!/bin/sh\nexec make --no-print-directory push-gate-hook\n';
 const SETTINGS = JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'node scripts/kit/claude-hook.mts' }] }] } });
 
-function repository(t: TestContext, agents: string, korean = agents.replaceAll('Rules', '규칙')) {
+function repository(t: TestContext, agents: string, korean = agents.replaceAll('Rules', '규칙'), makefile = MAKEFILE, ci = CI) {
   return tree(t, {
-    Makefile: MAKEFILE,
-    '.github/workflows/ci.yml': CI,
+    Makefile: makefile,
+    '.github/workflows/ci.yml': ci,
     '.githooks/pre-push': PRE_PUSH,
     '.claude/settings.json': SETTINGS,
     'tests/unit/a.test.mts': '',
@@ -66,6 +66,32 @@ test('a rule enforced by a target that CI runs, a prerequisite, a target of a re
   const result = checkRules(root, ['AGENTS.md']);
   assert.deepEqual(result.findings, []);
   assert.deepEqual(result.unenforced.map(rule => rule.line), [13]);
+});
+
+test('a recipe-free aggregate is enforced when each existing prerequisite is a mandatory suite target', (t) => {
+  const makefile = `CHECK_TARGETS := feature-a feature-b\nci-run:\n\t$(MAKE) $(CHECK_TARGETS)\nfeature-coverage: feature-a feature-b\nfeature-a:\n\t@echo a\nfeature-b:\n\t@echo b\n`;
+  const root = repository(t, rules('- Features are checked.\n  Enforced by: `make feature-coverage`'), undefined, makefile);
+  assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
+});
+
+test('an aggregate is not enforced when it has a recipe, no prerequisite, an absent child or a cycle', (t) => {
+  const cases = [
+    ['own recipe', 'aggregate: first second\n\t@echo aggregate\nfirst:\n\t@echo first\nsecond:\n\t@echo second\n'],
+    ['empty', 'aggregate:\n'],
+    ['absent child', 'aggregate: first absent\nfirst:\n\t@echo first\n'],
+  ] as const;
+  for (const [name, extra] of cases) {
+    const makefile = `CHECK_TARGETS := first second\nci-run:\n\t$(MAKE) $(CHECK_TARGETS)\n${extra}`;
+    const root = repository(t, rules('- Features are checked.\n  Enforced by: `make aggregate`'), undefined, makefile);
+    assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, [
+      'AGENTS.md:3: make aggregate runs at no point that cannot be skipped: no CI workflow, Git hook or Claude Code hook reaches it',
+    ], name);
+  }
+  const cycleMake = 'CHECK_TARGETS := first second\nci-run:\n\t@echo run\naggregate: first second\nfirst: second\nsecond: first\n';
+  const cycleRoot = repository(t, rules('- Features are checked.\n  Enforced by: `make aggregate`'), undefined, cycleMake);
+  assert.deepEqual(checkRules(cycleRoot, ['AGENTS.md']).findings, [
+    'AGENTS.md:3: make aggregate runs at no point that cannot be skipped: no CI workflow, Git hook or Claude Code hook reaches it',
+  ], 'cycle');
 });
 
 test('a rule without the field, with an unknown or unreached target, an unreached test file or none without a reason fails', (t) => {
