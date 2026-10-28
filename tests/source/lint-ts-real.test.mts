@@ -12,6 +12,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { lint, lintSteps } from '../../scripts/kit/lint-ts.mts';
+import { runLint } from '../../scripts/kit/lint-steps.mts';
 import { readFixture } from '../kit/json-fixture.mts';
 import { known } from '../kit/known.mts';
 
@@ -53,15 +54,15 @@ const GOOD: Record<string, string> = {
 };
 
 // One violation for each rule: the files it adds or replaces, and the text that the failing step prints for it.
-const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp }[] = [
-  { name: 'a floating promise', files: { [INDEX]: `${DOUBLE}\n/**\n * Waits for nothing.\n */\nexport async function settle(): Promise<void> {\n  Promise.resolve(1);\n}\n` }, finding: /typescript\(no-floating-promises\)/ },
+const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp; step: string }[] = [
+  { name: 'a floating promise', files: { [INDEX]: `${DOUBLE}\n/**\n * Waits for nothing.\n */\nexport async function settle(): Promise<void> {\n  Promise.resolve(1);\n}\n` }, finding: /typescript\(no-floating-promises\)/, step: 'oxlint' },
   // A real floating promise among the node:test registrations, which the rule allows (K138), is still one.
-  { name: 'a floating promise in a test file', files: { 'tests/index.test.ts': `${TESTS}\nfetch('https://example.com/');\n` }, finding: new RegExp(`tests/index\\.test\\.ts:${TESTS.split('\n').length + 1}:1: .*\\[Error/typescript\\(no-floating-promises\\)\\]`) },
+  { name: 'a floating promise in a test file', files: { 'tests/index.test.ts': `${TESTS}\nfetch('https://example.com/');\n` }, finding: new RegExp(`tests/index\\.test\\.ts:${TESTS.split('\n').length + 1}:1: .*\\[Error/typescript\\(no-floating-promises\\)\\]`), step: 'oxlint' },
   // The escape hatches from the types of TypeScript (K155).
-  { name: 'an explicit any', files: { [INDEX]: `${DOUBLE}\n/**\n * Returns its value.\n */\nexport function same(value: any): number {\n  return value;\n}\n` }, finding: /typescript\(no-explicit-any\)/ },
-  { name: 'a @ts-ignore', files: { [INDEX]: `${DOUBLE}\n/**\n * Halves a value.\n */\nexport function half(value: number): number {\n  // @ts-ignore\n  return value / 2;\n}\n` }, finding: /typescript\(ban-ts-comment\)/ },
-  { name: 'a @ts-expect-error without a description', files: { 'tests/index.test.ts': `${TESTS}\ntest('double of a string', () => {\n  // @ts-expect-error\n  assert.equal(double('2'), 4);\n});\n` }, finding: /typescript\(ban-ts-comment\)/ },
-  { name: 'a type assertion that changes nothing', files: { [INDEX]: `${DOUBLE}\n/**\n * Halves a value.\n */\nexport function half(value: number): number {\n  return (value as number) / 2;\n}\n` }, finding: /typescript\(no-unnecessary-type-assertion\)/ },
+  { name: 'an explicit any', files: { [INDEX]: `${DOUBLE}\n/**\n * Returns its value.\n */\nexport function same(value: any): number {\n  return value;\n}\n` }, finding: /typescript\(no-explicit-any\)/, step: 'oxlint' },
+  { name: 'a @ts-ignore', files: { [INDEX]: `${DOUBLE}\n/**\n * Halves a value.\n */\nexport function half(value: number): number {\n  // @ts-ignore\n  return value / 2;\n}\n` }, finding: /typescript\(ban-ts-comment\)/, step: 'oxlint' },
+  { name: 'a @ts-expect-error without a description', files: { 'tests/index.test.ts': `${TESTS}\ntest('double of a string', () => {\n  // @ts-expect-error\n  assert.equal(double('2'), 4);\n});\n` }, finding: /typescript\(ban-ts-comment\)/, step: 'oxlint' },
+  { name: 'a type assertion that changes nothing', files: { [INDEX]: `${DOUBLE}\n/**\n * Halves a value.\n */\nexport function half(value: number): number {\n  return (value as number) / 2;\n}\n` }, finding: /typescript\(no-unnecessary-type-assertion\)/, step: 'oxlint' },
   // The unsafe flows of any (K157): JSON.parse returns any, which no value of a type may take on.
   ...([
     ['no-unsafe-argument', 'export function size(text: string): number {\n  return measure(JSON.parse(text));\n}\n\nfunction measure(value: string): number {\n  return value.length;\n}\n'],
@@ -70,20 +71,20 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
     ['no-unsafe-member-access', 'export function size(text: string): unknown {\n  const value: unknown = JSON.parse(text).length;\n  return value;\n}\n'],
     ['no-unsafe-return', 'export function size(text: string): number {\n  return JSON.parse(text);\n}\n'],
     ['no-unsafe-type-assertion', 'export function size(value: unknown): number {\n  return (value as string).length;\n}\n'],
-  ] as const).map(([rule, code]) => ({ name: `a violation of ${rule}`, files: { [INDEX]: `${DOUBLE}\n/**\n * Measures a value.\n */\n${code}` }, finding: new RegExp(`typescript\\(${rule}\\)`) })),
+  ] as const).map(([rule, code]) => ({ name: `a violation of ${rule}`, files: { [INDEX]: `${DOUBLE}\n/**\n * Measures a value.\n */\n${code}` }, finding: new RegExp(`typescript\\(${rule}\\)`), step: 'oxlint' })),
   // A value whose type admits undefined is read with a check, not asserted away (K156).
-  { name: 'a non-null assertion', files: { [INDEX]: `${DOUBLE}\n/**\n * Reads the first value.\n */\nexport function first(values: number[]): number {\n  return values[0]!;\n}\n` }, finding: /typescript\(no-non-null-assertion\)/ },
-  { name: 'a debugger statement', files: { [INDEX]: `${DOUBLE}\n/**\n * Stops in a debugger.\n */\nexport function pause(): void {\n  debugger;\n}\n` }, finding: /eslint\(no-debugger\)/ },
-  { name: 'a file that nothing imports', files: { 'src/orphan.ts': 'export const orphan = 1;\n' }, finding: /Unused files \(1\)\nsrc\/orphan\.ts/ },
-  { name: 'an export that nothing imports', files: { 'src/values.ts': '/** One. */\nexport const one = 1;\n/** Two. */\nexport const two = 2;\n', [INDEX]: `${DOUBLE}\nexport { one } from './values.ts';\n` }, finding: /Unused exports \(1\)\ntwo +src\/values\.ts/ },
+  { name: 'a non-null assertion', files: { [INDEX]: `${DOUBLE}\n/**\n * Reads the first value.\n */\nexport function first(values: number[]): number {\n  return values[0]!;\n}\n` }, finding: /typescript\(no-non-null-assertion\)/, step: 'oxlint' },
+  { name: 'a debugger statement', files: { [INDEX]: `${DOUBLE}\n/**\n * Stops in a debugger.\n */\nexport function pause(): void {\n  debugger;\n}\n` }, finding: /eslint\(no-debugger\)/, step: 'oxlint' },
+  { name: 'a file that nothing imports', files: { 'src/orphan.ts': 'export const orphan = 1;\n' }, finding: /Unused files \(1\)\nsrc\/orphan\.ts/, step: 'knip' },
+  { name: 'an export that nothing imports', files: { 'src/values.ts': '/** One. */\nexport const one = 1;\n/** Two. */\nexport const two = 2;\n', [INDEX]: `${DOUBLE}\nexport { one } from './values.ts';\n` }, finding: /Unused exports \(1\)\ntwo +src\/values\.ts/, step: 'knip' },
   // The false green of the verification: ae-undocumented fires only through the API report, which the base configuration enables.
-  { name: 'an undocumented export', files: { [INDEX]: `${DOUBLE}\nexport function triple(value: number): number {\n  return value * 3;\n}\n` }, finding: /\(ae-undocumented\) Missing documentation for "triple"/ },
-  { name: 'a forgotten export', files: { [INDEX]: `${DOUBLE}\ninterface Options {\n  factor: number;\n}\n\n/**\n * Scales a value.\n */\nexport function scale(value: number, options: Options): number {\n  return value * options.factor;\n}\n` }, finding: /\(ae-forgotten-export\) The symbol "Options" needs to be exported by the entry point index\.d\.ts/ },
+  { name: 'an undocumented export', files: { [INDEX]: `${DOUBLE}\nexport function triple(value: number): number {\n  return value * 3;\n}\n` }, finding: /\(ae-undocumented\) Missing documentation for "triple"/, step: 'api-extractor .' },
+  { name: 'a forgotten export', files: { [INDEX]: `${DOUBLE}\ninterface Options {\n  factor: number;\n}\n\n/**\n * Scales a value.\n */\nexport function scale(value: number, options: Options): number {\n  return value * options.factor;\n}\n` }, finding: /\(ae-forgotten-export\) The symbol "Options" needs to be exported by the entry point index\.d\.ts/, step: 'api-extractor .' },
   // No swallowed error (K256).
-  { name: 'an empty catch', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one, or nothing.\n */\nexport function tryDouble(): void {\n  try {\n    double(1);\n  } catch {}\n}\n` }, finding: /eslint\(no-empty\)/ },
+  { name: 'an empty catch', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one, or nothing.\n */\nexport function tryDouble(): void {\n  try {\n    double(1);\n  } catch {}\n}\n` }, finding: /eslint\(no-empty\)/, step: 'oxlint' },
   // P8 (K334): an error thrown from a catch carries the caught one as its cause.
-  { name: 'a thrown error that drops its cause', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one.\n */\nexport function wrap(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw new Error('doubling failed');\n  }\n}\n` }, finding: /eslint\(preserve-caught-error\)/ },
-  { name: 'a catch that only rethrows', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one.\n */\nexport function rethrow(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw error;\n  }\n}\n` }, finding: /eslint\(no-useless-catch\)/ },
+  { name: 'a thrown error that drops its cause', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one.\n */\nexport function wrap(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw new Error('doubling failed');\n  }\n}\n` }, finding: /eslint\(preserve-caught-error\)/, step: 'oxlint' },
+  { name: 'a catch that only rethrows', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one.\n */\nexport function rethrow(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw error;\n  }\n}\n` }, finding: /eslint\(no-useless-catch\)/, step: 'oxlint' },
 ];
 
 // The package.json of this checkout: the version of kit that the lock of the repository resolves, and the copies of kit in
@@ -150,6 +151,16 @@ function lintOf(root: string): { failed: string[]; output: string } {
   return { failed, output };
 }
 
+/** Runs one explicitly selected step for an isolated violation fixture. */
+function lintStepOf(root: string, label: string): { failed: string[]; output: string } {
+  const matches = lintSteps(root).filter(candidate => candidate.label === label);
+  assert.equal(matches.length, 1, `the fixture has exactly one owner step named ${label}`);
+  const step = known(matches[0], `lint step ${label}`);
+  let output = '';
+  const failed = runLint('lint-ts', [step], root, text => { output += text; });
+  return { failed, output };
+}
+
 test('the TypeScript lint passes on a package whose exports are documented, reached and tested', (t) => {
   for (const tool of ['oxlint', 'tsgolint', 'knip', 'api-extractor', 'tsc']) assert.ok(existsSync(path.join(BIN, tool)), `node_modules/.bin/${tool} is missing; run npm ci`);
   const { failed, output } = lintOf(repository(t));
@@ -164,8 +175,8 @@ test('the TypeScript lint passes on a @ts-expect-error with its description', (t
 });
 
 test('the TypeScript lint fails on each planted violation with the rule or the message that names it', (t) => {
-  for (const { name, files, finding } of VIOLATIONS) {
-    const { failed, output } = lintOf(repository(t, files));
+  for (const { name, files, finding, step } of VIOLATIONS) {
+    const { failed, output } = lintStepOf(repository(t, files), step);
     assert.notDeepEqual(failed, [], `${name}: the violation passed:\n${output}`);
     assert.match(output, finding, `${name} is not named:\n${output}`);
   }
