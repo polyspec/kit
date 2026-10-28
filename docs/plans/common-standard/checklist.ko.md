@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 65716b7d4ecf8d6dfa1f7b51705a7b61571de28f0e2d44569e6bc6527473a598 -->
+<!-- source-sha256: 5e5793923d996c61fa282ebf1426b138bc77a2549ae2c7bd48f2bff3d19dcf1d -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -691,5 +691,5 @@
 | K733 | 테스트 없는 Go 보조 패키지와 명시적으로 생략한 테스트 구분 (이슈 #5) | scripts/kit/test-output.mts scripts/kit/test-progress.mts tests/kit/test-output.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-output.test.mts`; `make typecheck` | [~] |
 | K734 | Kit 소유 parity 단계 분할과 합산 검증 지원 (이슈 #6) | scripts/kit/kit-check.mts scripts/kit/kit.mk workflows/gates.yml scripts/kit/ci-setup.mts scripts/kit/schema/ci.schema.json tests/kit/kit-check.test.mts tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-check.test.mts tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts`; `make typecheck` | [ ] |
 | K735 | 정확한 Python discovery 파일 선택 인식 (이슈 #7) | scripts/kit/test-selection.mts tests/kit/test-selection.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-selection.test.mts`; `make typecheck` | [~] |
-| K736 | native 잠금 소스 설치로 worktree Python 환경 준비 (이슈 #8) | scripts/kit/worktree-setup.mts tests/kit/worktree-setup.test.mts tests/source/worktree-python-real.test.mts docs/operations/local-links.md docs/operations/local-links.ko.md | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K533\|K555\|legacy\|offline" tests/kit/worktree-setup.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/worktree-python-real.test.mts`; `make typecheck` | [ ] |
+| K736 | native 잠금 소스 설치로 worktree Python 환경 준비 (이슈 #8) | scripts/kit/worktree-setup.mts tests/kit/worktree-setup.test.mts tests/source/worktree-python-real.test.mts docs/operations/local-links.md docs/operations/local-links.ko.md | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K533\|K555\|legacy\|offline" tests/kit/worktree-setup.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/worktree-python-real.test.mts`; `make typecheck` | [~] |
 | K737 | native Composer 소스 갱신에 변경된 직접 의존성 포함 (이슈 #9) | scripts/kit/composer-install.mts tests/kit/composer-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/composer-install.test.mts`; `make typecheck` | [ ] |

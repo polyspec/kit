@@ -10,7 +10,6 @@ import { constants, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, read
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath, pathToFileURL } from 'node:url';
 import { usedFolders, worktreeGoFolders, writeGoWorkspace } from './link.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { toolsPath, run as install } from './bootstrap/tool-wrappers.mts';
@@ -24,6 +23,7 @@ import { siblingCheckouts } from './link-providers.mts';
 import { npmLink, npmSourceFolders } from './npm-install.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand, composerEnvironment } from './install-composer-project.mts';
+import { uvInstallCommand } from './uv-install.mts';
 
 // A name of a worktree: a slug of lower case letters, digits and hyphens; an id: the letters, digits, dots and hyphens of a row.
 const NAME = /^[a-z][a-z0-9-]*$/;
@@ -100,46 +100,48 @@ function pythonEnvironments(main: string): string[] {
   return found.sort();
 }
 
-/** Restores a Python worktree environment through uv from explicit native freeze requirements. */
+/** The nearest tracked uv project that owns an environment's workspace. */
+function pythonProject(main: string, venv: string): string {
+  for (let directory = path.dirname(path.resolve(main, venv)); ; directory = path.dirname(directory)) {
+    if (existsSync(path.join(directory, 'pyproject.toml'))) return directory;
+    if (directory === main) break;
+  }
+  throw new Error(`no pyproject.toml owns Python environment ${venv} in ${main}; add the environment to a tracked uv project`);
+}
+
+/** Restores a Python worktree environment with the tracked lock and native editable source installation. */
 export function prepareWorktreePython({ main, folder, venv, uv, env = process.env, print }: {
   main: string; folder: string; venv: string; uv: string; env?: NodeJS.ProcessEnv; print: (text: string) => void;
 }): void {
   const source = path.join(main, venv);
   const target = path.join(folder, venv);
-  const requirements = path.join(folder, 'var/worktree-python', venv, 'requirements.txt');
+  const project = pythonProject(main, venv);
+  const worktreeProject = path.join(folder, path.relative(main, project));
+  const marker = path.join(folder, 'var/worktree-python', venv, 'native-uv');
   const entry = lstatSync(target, { throwIfNoEntry: false });
-  if (entry !== undefined && (!entry.isDirectory() || !existsSync(requirements) || lstatSync(path.join(target, 'pyvenv.cfg'), { throwIfNoEntry: false })?.isSymbolicLink())) {
+  if (entry !== undefined && (!entry.isDirectory() || !existsSync(marker) || lstatSync(path.join(target, 'pyvenv.cfg'), { throwIfNoEntry: false })?.isSymbolicLink())) {
     throw new Error(`${target} is not an environment created by native worktree setup; retain it and create a fresh worktree environment instead of rewriting Python installed metadata`);
   }
-  const environment = { ...env, UV_OFFLINE: '1', UV_PYTHON_DOWNLOADS: 'never', UV_CACHE_DIR: env.UV_CACHE_DIR || toolsPath(main, 'mise', 'cache', 'uv') };
-  print(`[worktree-setup] uv pip freeze: ${source}`);
-  const frozen = run(uv, ['pip', 'freeze', '--python', path.join(source, 'bin/python')], { cwd: main, env: environment });
-  const root = realpathSync(main);
-  const mapped = frozen.split('\n').map(line => {
-    const editable = /^(?:-e|--editable) (.+)$/.exec(line);
-    if (!editable?.[1]) return line;
-    const reference = editable[1];
-    if (/^[a-z][a-z0-9+.-]*:/i.test(reference) && !reference.startsWith('file:')) return line;
-    const directory = reference.startsWith('file:') ? fileURLToPath(reference) : path.resolve(main, reference);
-    const relative = path.relative(root, directory);
-    if (relative.startsWith(`..${path.sep}`) || relative === '..' || path.isAbsolute(relative)) return line;
-    const destination = path.join(folder, relative);
-    return `-e ${reference.startsWith('file:') ? pathToFileURL(destination).href : destination}`;
-  }).join('\n');
-  mkdirSync(path.dirname(requirements), { recursive: true });
-  writeFileSync(requirements, mapped);
-  print(`[worktree-setup] native Python install inputs: ${requirements}`);
+  const environment = {
+    ...env,
+    UV: uv,
+    UV_SYNC: '--no-install-project --all-groups',
+    UV_PROJECT_ENVIRONMENT: path.relative(worktreeProject, target),
+    UV_OFFLINE: '1',
+    UV_PYTHON_DOWNLOADS: 'never',
+    UV_CACHE_DIR: env.UV_CACHE_DIR || toolsPath(main, 'mise', 'cache', 'uv'),
+  };
   if (entry === undefined) {
     print(`[worktree-setup] uv venv: ${target}`);
     run(uv, ['venv', '--python', path.join(source, 'bin/python'), target], { cwd: main, env: environment });
+    mkdirSync(path.dirname(marker), { recursive: true });
+    writeFileSync(marker, 'native uv worktree environment\n');
   }
-  print(`[worktree-setup] uv pip install --offline: ${target}`);
-  try {
-    run(uv, ['pip', 'install', '--offline', '--python', path.join(target, 'bin/python'), '--requirement', requirements], { cwd: folder, env: environment });
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    throw new Error(`native worktree Python installation failed without network access; inspect uv's error and prepare the required inputs in the main checkout before retrying: ${error.message}`, { cause: error });
-  }
+  print(`[worktree-setup] native uv locked source install: ${target}`);
+  const checkouts = siblingCheckouts(folder).checkouts;
+  let output = '';
+  const status = uvInstallCommand([worktreeProject, ...checkouts], environment, text => { output += text; print(text.trimEnd()); });
+  if (status !== 0) throw new Error(`native worktree Python installation failed without network access; inspect uv's error and prepare the required inputs in the main checkout before retrying: ${output.trim()}`);
   print(`[worktree-setup] native Python environment ready: ${target}`);
 }
 

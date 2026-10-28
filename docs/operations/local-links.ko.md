@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 6f7bc92367a8e34b7fdd343a5c045037f810544c50e3ca8d16a235d7f50efa14 -->
+<!-- source-sha256: 8edbbd99d7fa490ca144428c7aab071d7bd396c207cbf7980df365baeba9072c -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -63,7 +63,7 @@ Source 개발 계약은 배포된 dependency와 같은 version의 source 수정,
 ## Worktree
 
 - worktree branch는 `main`에서 만든 `<type>/<name>-<id>`이고(P10) `make land`로 `main`에 들어갑니다. 도구는 main checkout에서 재사용합니다. Native offline npm ci와 Composer install이 각 worktree의 dependency tree, workspace link, 설치 record, autoload와 command proxy를 만듭니다. npm은 main project에 설정된 download cache를, Composer는 main tool 환경과 cache를 사용합니다. kit은 package link를 만들거나 설치 record를 복사하지 않습니다(K690).
-- Python environment는 `uv venv`로 만들고 main checkout의 cache 입력에서 `uv pip install --offline`으로 채웁니다(K657-4). native `uv pip freeze`의 requirement를 `var/worktree-python` 아래에 두며 main checkout 내부 editable 경로는 uv 설치 전에 대응하는 worktree source로 바꿉니다. script, editable metadata, 설치 record는 uv가 만듭니다. cache 입력이 없으면 main checkout에서 준비하라는 안내와 함께 실패하며 setup은 다운로드하지 않습니다. 기존 legacy environment는 수정하지 않고 보존한 채 거부합니다.
+- Python environment는 각 project의 tracked uv lock을 읽는 Kit native `uv-install` 경로로 준비합니다. worktree는 자체 `UV_PROJECT_ENVIRONMENT`를 사용하고 main checkout의 uv cache를 공유합니다. `uv sync --locked --offline --no-install-project --all-groups`로 잠긴 입력을 설치한 뒤 uv가 editable source provider를 적용하고 검증합니다. tracked lock은 유지하며 script, editable metadata와 설치 record는 uv가 만듭니다. cache 입력이 빠지면 준비 방법을 알리고 실패합니다. 기존 legacy environment는 수정하지 않고 보존한 채 거부합니다.
 - `make worktree-setup`은 이 dependency를 준비하고 worktree를 검사합니다. kit.mk와 kit 도구는 worktree 자신의 `mise.toml`과 main checkout의 `var/tools`를 사용합니다. 일반 `make install`과 `make install-tools`는 worktree에서 계속 거부하며 native offline dependency 준비는 worktree setup의 일부입니다. Cache 입력이 없으면 정상 실패하며 재시도 전에 main checkout에서 선언된 입력을 준비합니다.
 - `make worktree-link-state`는 같은 link 준비를 하고 product package를 rebuild하지 않은 채 `link-state-check`를 실행합니다. worktree의 목적이 link state 검사일 때 사용하며 검사를 건너뛰지는 않습니다. `make worktree-setup`은 검사 전 rebuild를 계속 수행합니다.
 - worktree-setup은 Composer 실행 전에 main checkout의 immutable `var/composer-artifacts` archive 입력을 복사하고 지원되는 filesystem에서는 cloning을 사용합니다. 설치된 vendor tree를 link하거나 metadata를 합성하지 않습니다(K690). Python environment는 자체 editable package가 worktree source를 실행해야 하므로 main environment로 가는 단일 directory link일 수 없습니다. make timestamp stamp는 새 checkout을 건너 이어질 수 없으며 거기서 유효해야 하는 stamp는 내용으로 판단합니다.

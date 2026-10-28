@@ -29,6 +29,11 @@ test('native uv Python worktree environments read worktree source and own their 
     const result = spawnSync(uv, args, { cwd: main, env, encoding: 'utf8' });
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
   };
+  const pyproject = '[project]\nname = "worktree-app"\nversion = "0.0.1"\ndependencies = ["kit-worktree-demo"]\n\n[tool.uv.sources]\nkit-worktree-demo = { workspace = true }\n\n[tool.uv.workspace]\nmembers = ["packages/demo"]\n';
+  writeFileSync(path.join(main, 'pyproject.toml'), pyproject);
+  writeFileSync(path.join(folder, 'pyproject.toml'), pyproject);
+  invoke(['lock', '--offline']);
+  writeFileSync(path.join(folder, 'uv.lock'), readFileSync(path.join(main, 'uv.lock')));
   invoke(['venv', '--python', toolCommand(ROOT, 'python3'), '.venv']);
   invoke(['pip', 'install', '--python', path.join(main, '.venv/bin/python'), '--editable', path.join(main, 'packages/demo')]);
   const sourceConfig = readFileSync(path.join(main, '.venv/pyvenv.cfg'), 'utf8');
@@ -46,9 +51,7 @@ test('native uv Python worktree environments read worktree source and own their 
   assert.equal(value(), '3');
   assert.equal(readFileSync(path.join(main, '.venv/pyvenv.cfg'), 'utf8'), sourceConfig);
   assert.equal(lstatSync(path.join(folder, '.venv/pyvenv.cfg')).isSymbolicLink(), false);
-  const inputs = readFileSync(path.join(folder, 'var/worktree-python/.venv/requirements.txt'), 'utf8');
-  assert.ok(inputs.includes(path.join(folder, 'packages/demo')));
-  assert.ok(!inputs.includes(path.join(main, 'packages/demo')));
+  assert.equal(readFileSync(path.join(folder, 'uv.lock'), 'utf8'), readFileSync(path.join(main, 'uv.lock'), 'utf8'));
   const record = spawnSync(python, ['-c', 'from importlib.metadata import distribution; print(distribution("kit-worktree-demo").read_text("direct_url.json"))'], { cwd: folder, env, encoding: 'utf8' });
   assert.equal(record.status, 0, record.stderr);
   assert.deepEqual(JSON.parse(record.stdout), { dir_info: { editable: true }, url: pathToFileURL(path.join(folder, 'packages/demo')).href });

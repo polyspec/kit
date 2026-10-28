@@ -51,22 +51,27 @@ link('node_modules/.bin/lp','../left-pad/bin.js');
 };
 
 /** A uv fixture that owns environment creation and records its native install inputs, without running Python. */
-function stubUv(parent: string, frozen: string): string {
+function stubUv(parent: string): string {
   const script = path.join(parent, 'uv.mjs');
   writeFileSync(script, `import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 const args = process.argv.slice(2);
-if (args[0] === 'pip' && args[1] === 'freeze') process.stdout.write(${JSON.stringify(frozen)});
+if (args[0] === 'workspace' && args[1] === 'dir') process.stdout.write(process.cwd());
 else if (args[0] === 'venv') {
   const directory = args.at(-1);
   mkdirSync(path.join(directory, 'bin'), { recursive: true });
   writeFileSync(path.join(directory, 'pyvenv.cfg'), 'native uv environment\\n');
   writeFileSync(path.join(directory, 'bin/python'), '# native interpreter\\n', { mode: 0o755 });
+} else if (args[0] === 'sync') {
+  if (process.env.UV_FIXTURE_FAIL === 'install') { process.stderr.write('required cached wheel missing'); process.exit(44); }
+  const directory = process.env.UV_PROJECT_ENVIRONMENT;
+  writeFileSync(path.join(directory, 'native-sync.json'), JSON.stringify({ args, offline: process.env.UV_OFFLINE, cache: process.env.UV_CACHE_DIR, projectEnvironment: process.env.UV_PROJECT_ENVIRONMENT }));
 } else if (args[0] === 'pip' && args[1] === 'install') {
   if (process.env.UV_FIXTURE_FAIL === 'install') { process.stderr.write('required cached wheel missing'); process.exit(44); }
-  const directory = path.dirname(path.dirname(args[args.indexOf('--python') + 1]));
-  writeFileSync(path.join(directory, 'native-install.json'), JSON.stringify({ requirements: readFileSync(args[args.indexOf('--requirement') + 1], 'utf8'), offline: process.env.UV_OFFLINE, cache: process.env.UV_CACHE_DIR }));
-} else process.exit(91);
+  writeFileSync(path.join(process.env.UV_PROJECT_ENVIRONMENT, 'native-editables.json'), JSON.stringify(args));
+} else if (args[0] === 'pip' && args[1] === 'check') process.stdout.write('');
+else if (args[0] === 'pip' && args[1] === 'list') process.stdout.write('[]');
+else process.exit(91);
 `);
   const uv = path.join(parent, 'uv');
   writeFileSync(uv, `#!/bin/sh\nexec '${process.execPath}' '${script}' "$@"\n`, { mode: 0o755 });
@@ -78,10 +83,11 @@ test('python worktree setup retains an existing legacy environment before runnin
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'main');
   const folder = path.join(parent, 'worktree');
-  put(main, { '.venv/pyvenv.cfg': 'main environment\n' });
+  put(main, { '.venv/pyvenv.cfg': 'main environment\n', 'pyproject.toml': '[project]\nname = "fixture"\nversion = "0.0.1"\n' });
+  put(folder, { 'pyproject.toml': '[project]\nname = "fixture"\nversion = "0.0.1"\n' });
   put(folder, { '.venv/pyvenv.cfg': 'legacy environment\n' });
   const printed: string[] = [];
-  assert.throws(() => prepareWorktreePython({ main, folder, venv: '.venv', uv: stubUv(parent, ''), print: text => printed.push(text) }), /not an environment created by native worktree setup/);
+  assert.throws(() => prepareWorktreePython({ main, folder, venv: '.venv', uv: stubUv(parent), print: text => printed.push(text) }), /not an environment created by native worktree setup/);
   assert.deepEqual(printed, [], 'uv does not run before the legacy environment is refused');
   assert.equal(readFileSync(path.join(folder, '.venv/pyvenv.cfg'), 'utf8'), 'legacy environment\n');
   assert.equal(readFileSync(path.join(main, '.venv/pyvenv.cfg'), 'utf8'), 'main environment\n');
@@ -92,11 +98,11 @@ test('python worktree installation reports an offline cache miss without modifyi
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'main');
   const folder = path.join(parent, 'worktree');
-  put(main, { '.venv/pyvenv.cfg': 'main environment\n' });
-  mkdirSync(folder);
-  assert.throws(() => prepareWorktreePython({ main, folder, venv: '.venv', uv: stubUv(parent, 'cached-package==1.0.0\n'), env: { ...process.env, UV_FIXTURE_FAIL: 'install' }, print: () => {} }), /failed without network access.*required cached wheel missing/);
+  put(main, { '.venv/pyvenv.cfg': 'main environment\n', 'pyproject.toml': '[project]\nname = "fixture"\nversion = "0.0.1"\n' });
+  put(folder, { 'pyproject.toml': '[project]\nname = "fixture"\nversion = "0.0.1"\n' });
+  assert.throws(() => prepareWorktreePython({ main, folder, venv: '.venv', uv: stubUv(parent), env: { ...process.env, UV_FIXTURE_FAIL: 'install' }, print: () => {} }), /failed without network access[\s\S]*required cached wheel missing/);
   assert.equal(readFileSync(path.join(main, '.venv/pyvenv.cfg'), 'utf8'), 'main environment\n');
-  assert.equal(readFileSync(path.join(folder, 'var/worktree-python/.venv/requirements.txt'), 'utf8'), 'cached-package==1.0.0\n');
+  assert.match(readFileSync(path.join(folder, 'var/worktree-python/.venv/native-uv'), 'utf8'), /native uv worktree environment/);
   assert.equal(lstatSync(path.join(folder, '.venv/pyvenv.cfg')).isSymbolicLink(), false, 'the failed install retains its independent native environment');
 });
 
@@ -249,6 +255,7 @@ test('worktree-setup gives each npm project and each Python environment of the m
     'tools/ts/node_modules/typescript/index.js': 'module.exports = 3;\n',
     'tests/other/package-lock.json': '{}\n',
     'py/pyproject.toml': '[project]\nname = "own"\n',
+    'pyproject.toml': '[project]\nname = "fixture"\nversion = "0.0.1"\n',
     'py/src/own/__init__.py': '',
     [`${venv}/pyvenv.cfg`]: 'home = /usr/bin\n',
     [`${venv}/bin/tool`]: `#!${main}/${venv}/bin/python\nimport own\n`,
@@ -265,10 +272,10 @@ test('worktree-setup gives each npm project and each Python environment of the m
   symlinkSync('python3.14', path.join(main, venv, 'bin/python'));
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const uv = stubUv(parent, `dep==1.0.0\n-e ${main}/py\n-e ${parent}/sibling\n`);
+  const uv = stubUv(parent);
   const quiet = { print: () => {}, uv };
   const check = (folder: string) => {
-    assert.ok(existsSync(path.join(folder, 'var/worktree-python/py/.venv/requirements.txt')), 'Python worktree inputs are explicit native requirements (K657-4)');
+    assert.ok(existsSync(path.join(folder, 'var/worktree-python/py/.venv/native-uv')), 'worktree setup records its native environment ownership');
     assert.ok(lstatSync(path.join(folder, 'tools/ts/node_modules')).isDirectory(), 'a nested npm project has a node_modules of its own');
     assert.equal(readFileSync(path.join(folder, 'tools/ts/node_modules/typescript/index.js'), 'utf8'), 'native nested npm package\n');
     assert.equal(existsSync(path.join(folder, 'tests/other/node_modules')), false, 'a project that the main checkout did not install gets none');
@@ -276,11 +283,14 @@ test('worktree-setup gives each npm project and each Python environment of the m
     assert.ok(real(venv).isDirectory() && !real(venv).isSymbolicLink(), 'the .venv is a folder of its own');
     assert.equal(readFileSync(path.join(folder, venv, 'pyvenv.cfg'), 'utf8'), 'native uv environment\n', 'uv creates its own environment configuration');
     assert.ok(real(`${venv}/bin/python`).isFile(), 'the fixture uv creates the native interpreter entry');
-    const installed: unknown = JSON.parse(readFileSync(path.join(folder, venv, 'native-install.json'), 'utf8'));
-    assert.ok(isJsonObject(installed), 'uv fixture records a native installation object');
-    assert.equal(installed.requirements, `dep==1.0.0\n-e ${folder}/py\n-e ${parent}/sibling\n`);
-    assert.equal(installed.offline, '1');
-    assert.equal(installed.cache, process.env.UV_CACHE_DIR || path.join(main, 'var/tools/mise/cache/uv'), 'uv uses the shared cache selected by the caller or main checkout');
+    const sync: unknown = JSON.parse(readFileSync(path.join(folder, venv, 'native-sync.json'), 'utf8'));
+    assert.ok(isJsonObject(sync) && Array.isArray(sync.args), 'uv fixture records the native locked sync');
+    assert.ok(sync.args.includes('--locked'));
+    assert.ok(sync.args.includes('--no-install-project'));
+    assert.equal(sync.offline, '1');
+    assert.equal(sync.cache, process.env.UV_CACHE_DIR || path.join(main, 'var/tools/mise/cache/uv'));
+    assert.equal(sync.projectEnvironment, path.relative(path.join(folder, 'py'), path.join(folder, venv)));
+    assert.equal(existsSync(path.join(folder, venv, 'native-editables.json')), false, 'no editable transaction runs without a declared local provider');
     assert.equal(existsSync(path.join(folder, site, '__editable__.own.pth')), false, 'kit does not copy or rewrite editable metadata');
     assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
   };
@@ -325,12 +335,11 @@ test('worktree-setup gives a worktree a Python environment of the main checkout 
   linkKit(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const uv = stubUv(parent, `-e ${main}/packages/validator\n`);
+  const uv = stubUv(parent);
   const folder = setupWorktree(main, { name: 'venv', id: 'T9', type: 'fix' }, { print: () => {}, uv });
   assert.ok(lstatSync(path.join(folder, 'var/python')).isDirectory(), 'the environment at var/python is a folder of the worktree');
-  const installed: unknown = JSON.parse(readFileSync(path.join(folder, 'var/python/native-install.json'), 'utf8'));
-  assert.ok(isJsonObject(installed), 'uv fixture records a native installation object');
-  assert.equal(installed.requirements, `-e ${folder}/packages/validator\n`, 'native install inputs name worktree project roots');
+  assert.ok(existsSync(path.join(folder, 'var/python/native-sync.json')), 'uv fixture records the native locked sync');
+  assert.equal(existsSync(path.join(folder, 'var/python/native-editables.json')), false, 'no editable transaction runs without a declared local provider');
   assert.equal(existsSync(path.join(folder, site, '__editable__.validator.pth')), false, 'kit does not rewrite .pth files');
   assert.equal(existsSync(path.join(folder, 'var/tools')), false, 'the tools of the main checkout are no environment of the worktree');
 });
