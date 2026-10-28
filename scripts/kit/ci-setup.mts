@@ -22,7 +22,12 @@ type Runtime = (typeof RUNTIMES)[number];
 type CIJob = 'shared' | 'parity' | Runtime;
 const CI_JOBS = ['shared', 'parity', ...RUNTIMES] as const satisfies readonly CIJob[];
 type ParityMode = 'full' | 'phases';
-type CIConfig = { parityMode?: ParityMode; setup: { shared: string[]; parity: string[]; runtimes: Record<Runtime, string[]> }; tools?: Partial<Record<CIJob, string[]>> };
+type CIConfig = {
+  parityMode?: ParityMode;
+  setup: { shared: string[]; parity: string[]; runtimes: Record<Runtime, string[]> };
+  tools?: Partial<Record<CIJob, string[]>>;
+  contexts?: Partial<Record<CIJob, { prepare: string; cleanup: string }>>;
+};
 type RuntimeJob = { runtime: Runtime | 'none'; checkTools: string[]; installTools: string[] };
 export type CIPlan = {
   sharedTargets: string[];
@@ -89,6 +94,13 @@ function toolchainNames(root: string): { declared: Record<string, unknown>; name
 
 const isRuntime = (value: string): value is Runtime => (RUNTIMES as readonly string[]).includes(value);
 
+function recursiveContextTarget(target: string): boolean {
+  return target === 'install' || target === 'install-kit' || target === 'kit-ci-setup' || target === 'kit-ci-context-prepare'
+    || target === 'kit-ci-context-cleanup' || target === 'kit-ci-plan' || target === 'kit-ci-verify-gates'
+    || target === 'parity-check' || target === 'parity-api-check' || /^parity-bindings-.+-check$/.test(target)
+    || /^kit-gates(?:-|$)/.test(target);
+}
+
 function runtimeSet(files: readonly string[], folders: readonly string[]): Set<Runtime> {
   const packageNames = new Set(folders.map(folder => path.posix.basename(folder)));
   const found = new Set<Runtime>();
@@ -131,6 +143,19 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
       if (!db.targets.has(target)) throw new Error(`${CI_CONFIG}: ${where} names ${target}, which is not a Make target. Fix: declare an existing locked install/build target; the full install target is not a fallback`);
     }
   }
+  const files = trackedFiles(root);
+  const folders = implementationFolders(files);
+  const runtimes = [...runtimeSet(files, folders)].sort();
+  for (const [scope, context] of Object.entries(config.contexts ?? {})) {
+    if (isRuntime(scope) && !runtimes.includes(scope)) throw new Error(`${CI_CONFIG}: contexts.${scope} selects a runtime with no tracked package. Fix: move the context to an active scope or declare the runtime package`);
+    for (const phase of ['prepare', 'cleanup'] as const) {
+      const target = context[phase];
+      if (recursiveContextTarget(target)) {
+        throw new Error(`${CI_CONFIG}: contexts.${scope}.${phase} names recursive Kit CI target ${target}. Fix: select a repository-owned context target`);
+      }
+      if (!db.targets.has(target)) throw new Error(`${CI_CONFIG}: contexts.${scope}.${phase} names ${target}, which is not a Make target. Fix: declare an existing repository-owned prepare and cleanup target`);
+    }
+  }
   const { names } = toolchainNames(root);
   for (const job of CI_JOBS) {
     for (const tool of config.tools?.[job] ?? []) {
@@ -139,9 +164,6 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
       if (!names.includes(tool)) throw new Error(`${CI_CONFIG}: tools.${job} names ${tool}, which this checkout does not declare. Fix: declare and pin ${tool} in the toolchain files before selecting it`);
     }
   }
-  const files = trackedFiles(root);
-  const folders = implementationFolders(files);
-  const runtimes = [...runtimeSet(files, folders)].sort();
   for (const runtime of RUNTIMES) {
     if (!runtimes.includes(runtime) && (config.tools?.[runtime]?.length ?? 0) > 0) throw new Error(`${CI_CONFIG}: tools.${runtime} selects tools for a runtime with no tracked package. Fix: move the tools to an active job or declare the runtime package`);
   }
@@ -324,6 +346,23 @@ export function runCISetup(root: string, group: 'shared' | 'parity' | 'runtime',
   }
 }
 
+export function runCIContext(root: string, phase: 'prepare' | 'cleanup', group: string, runtimeName?: Runtime): void {
+  if (group !== 'shared' && group !== 'parity' && group !== 'runtime') throw new Error(`unknown CI context group ${group}; choose shared, parity or runtime`);
+  const { config, runtimes } = readAndValidate(root);
+  let scope: CIJob;
+  if (group === 'runtime') {
+    if (runtimeName === undefined || !runtimes.includes(runtimeName)) throw new Error(`make kit-ci-context-${phase} GROUP=runtime needs a runtime present in tracked source files; choose ${runtimes.join(', ') || '(none)'}`);
+    scope = runtimeName;
+  } else {
+    if (runtimeName !== undefined) throw new Error(`make kit-ci-context-${phase} GROUP=${group} does not accept RUNTIME; omit it`);
+    scope = group;
+  }
+  const target = config.contexts?.[scope]?.[phase];
+  if (target === undefined) return;
+  const result = spawnMake('make', ['--no-print-directory', target], root);
+  if (result !== 0) throw new Error(`make ${target} failed in the CI context ${phase} for ${scope}; fix that target and rerun the gate`);
+}
+
 // Kept as one small seam for an execution test; commands always contain a validated target name, never config text as shell input.
 function spawnMake(command: string, args: string[], cwd: string): number {
   const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
@@ -337,6 +376,11 @@ if (isMain(import.meta.url)) {
     const [mode = '', group = '', runtime = ''] = process.argv.slice(2);
     if (mode === '--plan') writePlan(root);
     else if (mode === '--verify-gates') verifyGateResults();
+    else if (mode === '--context-prepare' || mode === '--context-cleanup') {
+      const [, contextGroup = '', contextRuntime = ''] = process.argv.slice(2);
+      if (contextRuntime !== '' && !isRuntime(contextRuntime)) throw new Error(`unknown runtime ${contextRuntime}; choose ${RUNTIMES.join(', ')}`);
+      runCIContext(root, mode === '--context-prepare' ? 'prepare' : 'cleanup', contextGroup, contextRuntime === '' ? undefined : contextRuntime);
+    }
     else {
       if (group !== 'shared' && group !== 'parity' && group !== 'runtime') throw new Error(`unknown CI setup group ${group}; choose shared, parity or runtime`);
       if (runtime !== '' && !isRuntime(runtime)) throw new Error(`unknown runtime ${runtime}; choose ${RUNTIMES.join(', ')}`);

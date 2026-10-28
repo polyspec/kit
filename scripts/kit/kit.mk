@@ -223,12 +223,18 @@ kit-gates-runtime-go: lint-go ## Run the Go gate
 kit-gates-runtime-rust: lint-rust ## Run the Rust gate
 kit-gates-runtime-php-ext: lint-php-ext test-php-ext ## Run the PHP extension gates
 
-.PHONY: kit-ci-plan kit-ci-setup kit-ci-verify-gates
+.PHONY: kit-ci-plan kit-ci-setup kit-ci-context-prepare kit-ci-context-cleanup kit-ci-verify-gates
 kit-ci-plan: ## Validate config/ci.json and write the runtime/tool plan to GITHUB_OUTPUT for the shared gates workflow
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --plan
 
 kit-ci-setup: ## Run the locked setup targets declared by config/ci.json; GROUP=shared|parity|runtime and RUNTIME=<runtime>
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) $(GROUP) $(RUNTIME)
+
+kit-ci-context-prepare: ## Run the optional repository context preparation target for GROUP and RUNTIME
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --context-prepare $(GROUP) $(RUNTIME)
+
+kit-ci-context-cleanup: ## Run the optional repository context cleanup target for GROUP and RUNTIME
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --context-cleanup $(GROUP) $(RUNTIME)
 
 kit-ci-verify-gates: ## Fail unless every gate partition of the selected full or phased CI path passed
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --verify-gates

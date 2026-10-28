@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/ci.json",
-  "description": "Existing Make targets needed before the shared gates (`scripts/kit/ci-setup.mts`): repository-specific install and generation prerequisites grouped by shared checks, parity, and runtime. `parityMode` selects the provider full gate (the default) or the provider-owned API and implementation-binding phases.",
+  "description": "Existing Make targets needed before and around the shared gates (`scripts/kit/ci-setup.mts`): repository-specific install and generation prerequisites grouped by shared checks, parity, and runtime. Optional contexts name paired repository-owned preparation and cleanup targets around each provider gate. `parityMode` selects the provider full gate (the default) or the provider-owned API and implementation-binding phases.",
   "type": "object",
   "required": ["schema", "setup"],
   "additionalProperties": false,
@@ -31,6 +31,21 @@
         }
       }
     },
+    "contexts": {
+      "description": "Optional paired existing Make targets for repository-owned CI resources. Preparation runs after locked install/build setup immediately before the provider gate. Cleanup runs with always() after preparation was entered, including when preparation or the gate fails.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shared": { "$ref": "#/$defs/context" },
+        "parity": { "$ref": "#/$defs/context" },
+        "go": { "$ref": "#/$defs/context" },
+        "php": { "$ref": "#/$defs/context" },
+        "php-ext": { "$ref": "#/$defs/context" },
+        "python": { "$ref": "#/$defs/context" },
+        "rust": { "$ref": "#/$defs/context" },
+        "ts": { "$ref": "#/$defs/context" }
+      }
+    },
     "tools": {
       "description": "Optional extra pinned tools required by a shared/parity/runtime setup target. Values name existing Kit tool selectors, never commands.",
       "type": "object",
@@ -58,6 +73,15 @@
       "type": "array",
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]*$" }
+    },
+    "context": {
+      "type": "object",
+      "required": ["prepare", "cleanup"],
+      "additionalProperties": false,
+      "properties": {
+        "prepare": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$" },
+        "cleanup": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$" }
+      }
     }
   }
 }

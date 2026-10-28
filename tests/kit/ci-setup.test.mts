@@ -6,11 +6,11 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { initRepository } from './sandbox-repository.mts';
-import { ciPlan, ciSetupInvocations, gateResultsPass, GATE_REQUIRED_NEEDS, parityBindingMatrix, parityMatrixFindings, runCISetup } from '../../scripts/kit/ci-setup.mts';
+import { ciPlan, ciSetupInvocations, gateResultsPass, GATE_REQUIRED_NEEDS, parityBindingMatrix, parityMatrixFindings, runCIContext, runCISetup } from '../../scripts/kit/ci-setup.mts';
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 
 const runtimes = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
-type FixtureConfig = { parityMode?: 'full' | 'phases'; setup: { shared: string[]; parity: string[]; runtimes: Record<string, string[]> }; tools?: Record<string, string[]> };
+type FixtureConfig = { parityMode?: 'full' | 'phases'; setup: { shared: string[]; parity: string[]; runtimes: Record<string, string[]> }; tools?: Record<string, string[]>; contexts?: Record<string, { prepare?: string; cleanup?: string }> };
 const fixtureConfig = (root: string) => readConfig<FixtureConfig>(root, 'config/ci.json', 'ci.schema.json');
 
 function fixture(): string {
@@ -25,7 +25,7 @@ function fixture(): string {
     units: [],
   }));
   writeFileSync(path.join(root, 'Makefile'), [
-    '.PHONY: shared-setup parity-setup go-setup parity-api-check',
+    '.PHONY: shared-setup parity-setup go-setup parity-api-check context-prepare context-cleanup',
     'shared-setup:',
     '\t@printf shared >> setup.log',
     'parity-setup:',
@@ -36,6 +36,10 @@ function fixture(): string {
     '\t$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api',
     'parity-bindings-go-client-check:',
     '\t$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation go-client',
+    'context-prepare:',
+    '\t@printf prepare >> setup.log',
+    'context-cleanup:',
+    '\t@printf cleanup >> setup.log',
     '',
   ].join('\n'));
   const config = {
@@ -75,6 +79,73 @@ test('K731: unknown targets and full-install aggregates fail before any setup ru
     writeFileSync(file, JSON.stringify(config));
     assert.throws(() => runCISetup(root, 'runtime', 'go'), /the full install aggregate/);
     assert.equal(existsSync(path.join(root, 'setup.log')), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K731-1: contexts require a complete pair of existing, non-recursive Make targets', () => {
+  const root = fixture();
+  try {
+    const file = path.join(root, 'config/ci.json');
+    const config = fixtureConfig(root);
+    config.contexts = { shared: { prepare: 'context-prepare', cleanup: 'context-cleanup' } };
+    writeFileSync(file, JSON.stringify(config));
+    assert.deepEqual(ciSetupInvocations(root, 'shared'), [{ target: 'shared-setup', args: [] }]);
+
+    config.contexts = { shared: { prepare: 'context-prepare' } };
+    writeFileSync(file, JSON.stringify(config));
+    assert.throws(() => ciPlan(root), /contexts\/shared must have required property 'cleanup'/);
+
+    config.contexts = { shared: { prepare: 'context-prepare', cleanup: 'missing-cleanup' } };
+    writeFileSync(file, JSON.stringify(config));
+    assert.throws(() => ciPlan(root), /contexts\.shared\.cleanup names missing-cleanup, which is not a Make target/);
+
+    config.contexts = { shared: { prepare: 'kit-ci-setup', cleanup: 'context-cleanup' } };
+    writeFileSync(file, JSON.stringify(config));
+    assert.throws(() => ciPlan(root), /names recursive Kit CI target kit-ci-setup/);
+
+    config.contexts = { parity: { prepare: 'parity-check', cleanup: 'context-cleanup' } };
+    writeFileSync(file, JSON.stringify(config));
+    assert.throws(() => ciPlan(root), /names recursive Kit CI target parity-check/);
+
+    writeFileSync(file, JSON.stringify({ ...fixtureConfig(root), contexts: { unknown: { prepare: 'context-prepare', cleanup: 'context-cleanup' } } }));
+    assert.throws(() => ciPlan(root), /contexts must NOT have additional properties/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K731-1: selected context targets run through Make and missing contexts are a no-op', () => {
+  const root = fixture();
+  try {
+    const file = path.join(root, 'config/ci.json');
+    assert.doesNotThrow(() => runCIContext(root, 'prepare', 'shared'));
+    assert.equal(existsSync(path.join(root, 'setup.log')), false, 'no context declaration preserves default setup behavior');
+    const config = fixtureConfig(root);
+    config.contexts = { shared: { prepare: 'context-prepare', cleanup: 'context-cleanup' } };
+    writeFileSync(file, JSON.stringify(config));
+    runCIContext(root, 'prepare', 'shared');
+    runCIContext(root, 'cleanup', 'shared');
+    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'preparecleanup');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K731-1: a failed context target is reported as a failed CI phase', () => {
+  const root = fixture();
+  try {
+    const config = fixtureConfig(root);
+    config.contexts = { shared: { prepare: 'context-prepare', cleanup: 'context-cleanup' } };
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    const makefile = path.join(root, 'Makefile');
+    writeFileSync(makefile, `${readFileSync(makefile, 'utf8').replace('context-prepare:\n\t@printf prepare >> setup.log', 'context-prepare:\n\t@false')}`);
+    assert.throws(() => runCIContext(root, 'prepare', 'shared'), /make context-prepare failed in the CI context prepare for shared/);
+    runCIContext(root, 'cleanup', 'shared');
+    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'cleanup', 'cleanup remains independently executable after prepare fails');
+    writeFileSync(makefile, readFileSync(makefile, 'utf8').replace('context-cleanup:\n\t@printf cleanup >> setup.log', 'context-cleanup:\n\t@false'));
+    assert.throws(() => runCIContext(root, 'cleanup', 'shared'), /make context-cleanup failed in the CI context cleanup for shared/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 167cc0c5e58dbd9fdf614c2e7cf03de34c569098e16118fea6a916f0812f09b3 -->
+<!-- source-sha256: 889793d84e8c5f40a2ff713fb0c6a7aeed9db0f98f2e313e2aca901375c06f27 -->
 
 # 도구 목록
 
@@ -835,6 +835,15 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   generator target이 Go를 필요로 하면 `"tools": { "ts": ["go"] }`로 선언합니다. Kit은 해당 도구를 TypeScript job과 runtime
   setup을 반복하는 parity job에 설치하고 검사합니다. `shared`와 `parity` key는 각 job의 도구를 선택합니다. Selector는 Kit이
   아는 이름이어야 하고 checkout이 선언해야 합니다. workflow가 이미 준비하는 node, npm, mise는 중복 선택할 수 없습니다.
+  선택 항목인 `contexts` map은 잠긴 setup 뒤, 기존 provider gate를 실행하기 직전에 저장소의 prepare target을 실행하고
+  gate 뒤에 cleanup target을 실행합니다. 각 scope에는 두 target이 모두 있어야 합니다. workflow 시작 전에 둘 다 실제 Make
+  target인지 검증하고, 재귀 실행을 막기 위해 Kit 자체 setup·gate·context dispatch target은 거부합니다. 예를 들어
+  `"contexts": { "shared": { "prepare": "ci-shared-prepare", "cleanup": "ci-shared-cleanup" } }`는 shared
+  context를 선택합니다. `parity`는 선택된 각 parity job에서 따로 실행하고, runtime key는 해당 runtime job에 적용합니다.
+  준비 단계에 진입한 뒤에는 Actions `always()`로 cleanup을 실행하므로 prepare 또는 gate가 실패해도 정리합니다. Cleanup 실패도
+  job 실패입니다. 잠긴 setup이 먼저 실패하면 prepare는 skip되고 cleanup도 실행하지 않습니다. Prepare target은 후속 workflow
+  step에 변수를 전달할 때 runner의 기본 `GITHUB_ENV`를 쓸 수 있으며 Kit은 별도 환경 protocol을 만들지 않습니다.
+  `contexts` 항목이 없으면 기존 gate 순서는 그대로 유지됩니다.
 - npm range 함수는 dependency-state에 남습니다: version의 일반 순서가 아니라 npm의 규칙을 구현합니다.
 
 ## Python lint (K8.4)

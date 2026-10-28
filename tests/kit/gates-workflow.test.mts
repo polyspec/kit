@@ -83,6 +83,30 @@ test('K473: the parity job links local packages before link-state and parity gat
   assert.ok(link < workflow.indexOf('      - name: parity gate\n'), 'make link runs before parity');
 });
 
+test('K731-1: context preparation surrounds the unchanged required gate and cleanup always runs after entry', () => {
+  const workflow = read('workflows/gates.yml');
+  const partitions = [
+    ['shared', 'prepare shared CI context', 'shared gates', 'cleanup shared CI context', 'GROUP=shared'],
+    ['parity', 'prepare parity CI context', 'parity gate', 'cleanup parity CI context', 'GROUP=parity'],
+    ['parity-api', 'prepare parity CI context', 'API phase', 'cleanup parity CI context', 'GROUP=parity'],
+    ['parity-bindings', 'prepare parity CI context', 'binding phase', 'cleanup parity CI context', 'GROUP=parity'],
+    ['runtime', 'prepare runtime CI context', 'runtime gate', 'cleanup runtime CI context', 'GROUP=runtime RUNTIME=${{ matrix.runtime }}'],
+  ] as const;
+  for (const [jobName, prepareName, gateName, cleanupName, selection] of partitions) {
+    const job = workflowJob(workflow, jobName);
+    const prepare = job.findIndex(line => line === `      - name: ${prepareName}` || line === `        name: ${prepareName}`);
+    const gate = job.findIndex(line => line === `      - name: ${gateName}`);
+    const cleanup = job.findIndex(line => line === `      - name: ${cleanupName}`);
+    assert.ok(prepare >= 0 && gate > prepare && cleanup > gate, `${jobName} prepares before its provider gate and cleans after it`);
+    assert.ok(job.slice(prepare, prepare + 4).some(line => line.includes(`make kit-ci-context-prepare ${selection}`)), `${jobName} selects its declared context`);
+    assert.ok(job.slice(cleanup, cleanup + 4).some(line => line.includes(`make kit-ci-context-cleanup ${selection}`)), `${jobName} selects its cleanup`);
+    assert.ok(job.slice(cleanup, cleanup + 4).some(line => line.includes("always() && steps.context_prepare.outcome != 'skipped'")), `${jobName} cleans up after prepare or gate failure only after preparation was entered`);
+    assert.doesNotMatch(job.slice(cleanup, cleanup + 4).join('\n'), /continue-on-error/);
+  }
+  assert.match(read('scripts/kit/kit.mk'), /^kit-ci-context-prepare:.*$/m);
+  assert.match(read('scripts/kit/kit.mk'), /^kit-ci-context-cleanup:.*$/m);
+});
+
 test('K671-3: gates use the standard root checkout and retain the native installation sequence', () => {
   const workflow = read('workflows/gates.yml');
   assert.doesNotMatch(workflow, /working-directory:|path: \$\{\{ github\.event\.repository\.name/);

@@ -922,6 +922,15 @@ Left as it is, with the reason:
   target that needs Go declares `"tools": { "ts": ["go"] }`; Kit checks and installs that tool in the TypeScript job and in
   parity, which repeats runtime setup. `shared` and `parity` keys select tools for those jobs. Selectors must be known and
   declared by the checkout; node, npm and mise are already provisioned by the workflow and cannot be repeated there.
+  The optional `contexts` map gives a job a repository-owned prepare and cleanup target after locked setup and immediately
+  around its existing provider gate. Each scope requires both targets; both are validated as existing Make targets before the
+  workflow runs, and Kit rejects its own setup, gate, and context-dispatch targets to prevent recursion. For example,
+  `"contexts": { "shared": { "prepare": "ci-shared-prepare", "cleanup": "ci-shared-cleanup" } }` selects a
+  shared context. `parity` applies independently in each selected parity job; runtime keys apply to that runtime's job. The
+  cleanup step uses Actions `always()` after preparation was entered, so it runs after either prepare or gate failure and its
+  own failure fails the job. If an earlier locked setup fails, preparation was skipped and cleanup is not entered. A prepare
+  target may export variables for later workflow steps through the runner's native `GITHUB_ENV`; Kit adds no environment
+  protocol. With no `contexts` entry, the workflow's gate sequence is unchanged.
 - The npm range functions stay in dependency-state: they implement npm's rules, not a general order of versions.
 
 ## Python lint (K8.4)
