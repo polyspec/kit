@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 6c8ac6aa0cf370a578f3d2170199f2861919164209501bcdfa89e40b4796ec83 -->
+<!-- source-sha256: 176f07f3022ed682b60ecaec7d66cecc9b15365c811bade9517cd66a7ab3e1d7 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -687,3 +687,4 @@
 | K729 | Kit 0.0.61 버전과 native 소비자 잠금 준비 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-consumer TAG=v0.0.61`; `make dependency-policy-check`; `make docs-check` | [o] |
 | K730 | consumer의 검증된 native Windows bootstrap과 선택 tool 설치를 지원한다 (issue #3) | Portable bootstrap, wrappers, platform locks and Windows CI coverage | `node --test tests/kit/install-tools.test.mts` | [ ] |
 | K731 | consumer gates를 선택 tool 기반 독립 CI job으로 준비한다 (issue #3) | Shared gates workflow with independent language and parity jobs and a final required gate | `node --test tests/source/ci-workflow.test.mts` | [ ] |
+| K732 | 요청한 도구 환경에 맞게 arginfo 검사 범위 수정 (이슈 #4) | scripts/kit/check-toolchain.mts tests/kit/check-toolchain.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/check-toolchain.test.mts`; `make typecheck` | [ ] |
