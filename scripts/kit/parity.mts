@@ -70,7 +70,7 @@ import { misplacedTests, missingBindings, missingImplementations, pairs, undecla
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { loadConfig } from './checklist.mts';
-import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
+import { isJsonList, isJsonObject, readJsonObject } from './bootstrap/files.mts';
 
 const hasImplementationName = (value: unknown): value is { name: string } => isJsonObject(value) && typeof value.name === 'string';
 
@@ -248,10 +248,14 @@ if (isMain(import.meta.url)) {
       // parity-declarations-check, where scoped unit checks may intentionally tolerate other schema findings.
       const declaration = readJsonObject(repositoryRoot(), DECLARATION);
       const entries = declaration.implementations;
-      if (!Array.isArray(entries) || (entries.length > 0 && !entries.every(hasImplementationName))) {
+      if (!isJsonList(entries)) {
         throw new Error(`${DECLARATION} has no usable implementation names`);
       }
-      const names = entries.map(entry => entry.name);
+      const names: string[] = [];
+      for (const entry of entries) {
+        if (!hasImplementationName(entry)) throw new Error(`${DECLARATION} has no usable implementation names`);
+        names.push(entry.name);
+      }
       if (new Set(names).size !== names.length || names.some(name => !/^[a-z][a-z0-9-]*$/.test(name))) throw new Error(`${DECLARATION} has no usable unique implementation names`);
       console.log(names.join(' '));
     } catch (error) {
