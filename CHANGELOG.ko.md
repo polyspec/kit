@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8671b4c112c7b8e2208cade6b2756accebdac3689bed4b8ee762253094abf8d5 -->
+<!-- source-sha256: 4ee11b220af354485a65f85378097d7ac806010de9c19e8c721eedf6e1820fcd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 지원되는 namespace event extension으로 native PHPUnit 개별 제한시간을 반영하고 명시적 watchdog 설정을 보존한다. (K738)
 
 - source 갱신에 변경된 직접 exact Composer 요구사항을 포함하고 platform 제약은 package로 처리하지 않는다. (K737)
 

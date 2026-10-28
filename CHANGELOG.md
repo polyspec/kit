@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Honor native PHPUnit case deadlines through supported namespaced event extensions and preserve explicit watchdog settings. (K738)
+
 - Include changed direct exact Composer requirements in source updates without treating platform constraints as packages. (K737)
 
 - Prepare worktree Python environments through native locked uv synchronization and declared source overlays. (K736)
