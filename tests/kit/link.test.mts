@@ -254,6 +254,39 @@ function linkLines(directories: string[], env: NodeJS.ProcessEnv, check = false)
   return { ok, text: lines.join('\n') };
 }
 
+test('runtime links use only the selected native managers in a mixed-language consumer', (t) => {
+  const cases = [
+    { runtime: 'ts', variable: 'NPM', command: 'npm' },
+    { runtime: 'php', variable: 'COMPOSER_BIN', command: 'composer' },
+    { runtime: 'php-ext', variable: 'COMPOSER_BIN', command: 'composer' },
+    { runtime: 'python', variable: 'UV', command: 'uv' },
+    { runtime: 'go', variable: 'GO', command: 'go' },
+    { runtime: 'rust', variable: undefined, command: undefined },
+  ] as const;
+  for (const { runtime, variable, command } of cases) {
+    const { consumer, env, log } = workspace(t);
+    const runtimeEnv = { PATH: env.PATH, ...(variable === undefined ? {} : { [variable]: env[variable] }) };
+    const lines: string[] = [];
+    const ok = link({ checkouts: current, directories: [consumer], check: false, print: text => lines.push(text), env: runtimeEnv, runtime });
+    assert.equal(ok, true, `${runtime}: ${lines.join('\n')}`);
+    if (command === undefined) assert.equal(log(), '', `${runtime} uses the cargo wrapper elsewhere and needs no folder manager here`);
+    else {
+      assert.match(log(), new RegExp(`^${command} `, 'm'), `${runtime} runs its native manager`);
+      assert.doesNotMatch(log(), new RegExp(`^(?!${command} )(npm|composer|uv|go) `, 'm'), `${runtime} does not run another language manager`);
+    }
+    if (runtime === 'ts') assert.equal(npmTarget(path.join(consumer, 'node_modules/@polyspec/x')), path.join(current[0], 'packages/ts'));
+  }
+});
+
+test('link rejects an unknown runtime before writing consumer links', (t) => {
+  const { consumer } = workspace(t);
+  const cli = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--runtime', 'ruby', '--project', consumer], { cwd: consumer, encoding: 'utf8' });
+  assert.equal(cli.status, 1, `${cli.stdout}\n${cli.stderr}`);
+  assert.match(`${cli.stdout}${cli.stderr}`, /unknown or missing runtime ruby/);
+  assert.equal(lstatSync(path.join(consumer, 'node_modules/@polyspec/x')).isSymbolicLink(), false);
+  assert.equal(existsSync(path.join(consumer, '.claude/settings.json')), false);
+});
+
 test('K670-4: a Python library with no polyspec dependency does not sync an ambient uv workspace', (t) => {
   const { root, env } = workspace(t);
   const library = repository(root, 'standalone', {

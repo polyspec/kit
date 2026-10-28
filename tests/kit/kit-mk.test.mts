@@ -112,6 +112,7 @@ test('link-check names the sibling checkouts when CHECKOUTS is empty, as link do
   assert.match(dryRun('link'), /--siblings$/);
   assert.match(dryRun('link-check', 'CHECKOUTS=a b'), / a b$/);
   assert.match(dryRun('link', 'CHECKOUTS=a b'), / a b$/);
+  assert.match(dryRun('link', 'RUNTIME=ts', 'CHECKOUTS=a b'), /link\.mjs link --runtime ts a b$/);
 });
 
 test('worktree-link-state invokes the explicit link-only worktree path (K619)', () => {

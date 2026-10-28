@@ -41,6 +41,15 @@ import { cargoMetadataArguments, verifyCargoSources } from './cargo-source.mts';
 import { manifestPolyspecNames, normalizeName } from './pyproject-dependencies.mts';
 
 type Print = (text: string) => void;
+type LinkRuntime = 'go' | 'php' | 'php-ext' | 'python' | 'rust' | 'ts';
+
+/** The native package managers that a runtime link may inspect or invoke. Rust source patches use the cargo wrapper instead. */
+const RUNTIME_ECOSYSTEMS: Readonly<Record<LinkRuntime, readonly Ecosystem[]>> = {
+  go: ['go'], php: ['composer'], 'php-ext': ['composer'], python: ['python'], rust: [], ts: ['npm'],
+};
+const ALL_ECOSYSTEMS: readonly Ecosystem[] = ['npm', 'composer', 'python', 'go'];
+
+const isLinkRuntime = (value: string): value is LinkRuntime => Object.hasOwn(RUNTIME_ECOSYSTEMS, value);
 
 /** The pin rule of the links: only a package pinned at 0.0.x is linked (docs/operations/local-links.md). */
 const ZERO = /^v?0\.0\./;
@@ -406,15 +415,17 @@ function linkGo(work: Run, consumer: Consumer) {
  * Links (or with `check`, reports) every polyspec package of each directory of `directories` that the main checkouts
  * `checkouts` provide; false when one is not linked.
  */
-export function link({ checkouts, directories, check, print, env = process.env, project = false }: { checkouts: readonly string[]; directories: readonly string[]; check: boolean; print: Print; env?: NodeJS.ProcessEnv; project?: boolean }): boolean {
+export function link({ checkouts, directories, check, print, env = process.env, project = false, runtime }: { checkouts: readonly string[]; directories: readonly string[]; check: boolean; print: Print; env?: NodeJS.ProcessEnv; project?: boolean; runtime?: LinkRuntime }): boolean {
   const consumers = directories.map(directory => consumerOf(directory, project));
+  const ecosystems = runtime === undefined ? ALL_ECOSYSTEMS : RUNTIME_ECOSYSTEMS[runtime];
   const first = consumers[0];
-  const go = first && first.manifests('go', true).length ? consumerTool(first.top, 'go', env) : undefined;
-  const work: Run = { found: providers(checkouts, go, first?.top ?? process.cwd(), first?.top), check, print, failed: false, env };
+  const go = ecosystems.includes('go') && first && first.manifests('go', true).length ? consumerTool(first.top, 'go', env) : undefined;
+  const found = providers(checkouts, go, first?.top ?? process.cwd(), first?.top);
+  const work: Run = { found: new Map([...found].filter(([, provider]) => ecosystems.includes(provider.ecosystem))), check, print, failed: false, env };
   for (const consumer of consumers) {
     print(`== ${consumer.scope}`);
-    linkPackageFolders(work, consumer);
-    linkGo(work, consumer);
+    if (ecosystems.some(ecosystem => ecosystem !== 'go')) linkPackageFolders(work, consumer, ecosystems);
+    if (ecosystems.includes('go')) linkGo(work, consumer);
   }
   return !work.failed;
 }
@@ -430,22 +441,24 @@ const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?|release-consumer)\//;
  * native source connection; with `check`, each folder that is a copy or links elsewhere is reported.
  * Native installation runs before inspecting folders so a newly declared provider can be installed.
  */
-function linkPackageFolders(work: Run, consumer: Consumer) {
+function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly Ecosystem[]) {
   // K447: every tracked project of the consumer, a nested one below the root such as hyper's examples/board included, as link-state-check
   // reads them; a test, a fixture or the release consumer keeps the install that it tests.
-  const projects = new Set([consumer.scope, ...(['npm', 'composer', 'python'] as const).flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))]);
+  const folderEcosystems = ecosystems.filter((ecosystem): ecosystem is 'npm' | 'composer' | 'python' => ecosystem !== 'go');
+  if (folderEcosystems.length === 0) return;
+  const projects = new Set([consumer.scope, ...folderEcosystems.flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))]);
   for (const project of [...projects].sort()) {
-    const composerOwners = owners(consumer, project, 'composer');
-    if (!work.check && existsSync(path.join(project, MANIFESTS.npm))) {
+    const composerOwners = folderEcosystems.includes('composer') ? owners(consumer, project, 'composer') : [];
+    if (folderEcosystems.includes('npm') && !work.check && existsSync(path.join(project, MANIFESTS.npm))) {
       const npm = consumerTool(consumer.top, 'npm', work.env);
       npmLink(project, npmSourceFolders(project, work.found.values()), npm.command, npm.env, work.print);
     }
     const pythonManifest = path.join(project, 'pyproject.toml');
-    if (!work.check && existsSync(pythonManifest) && declaredPython(pythonManifest).length > 0) {
+    if (folderEcosystems.includes('python') && !work.check && existsSync(pythonManifest) && declaredPython(pythonManifest).length > 0) {
       const uv = consumerTool(consumer.top, 'uv', work.env);
       uvEditable({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
     }
-    if (!work.check && composerOwners.length === 0 && existsSync(path.resolve(project, work.env.COMPOSER || MANIFESTS.composer))) {
+    if (folderEcosystems.includes('composer') && !work.check && composerOwners.length === 0 && existsSync(path.resolve(project, work.env.COMPOSER || MANIFESTS.composer))) {
       const composer = consumerTool(consumer.top, 'composer', work.env);
       composerLink(project, composerSourceFolders(project, work.found.values(), composer), composer, work.print);
     }
@@ -453,15 +466,15 @@ function linkPackageFolders(work: Run, consumer: Consumer) {
     const localProviders = [...work.found.values()].filter(provider => provider.ecosystem !== 'composer' || composerOwners.length === 0);
     const folders = providedFolders(project, localProviders, { vendorDir: composerOwners.length === 0 ? composerVendorDir(project, work.env) : undefined });
     // K529: a polyspec package that the manifests of the project declare, and that a provider of the run provides, has an installed folder.
-    const missing = declaredWithoutFolder(work, consumer, project, [...folders, ...ownerFolders(work, consumer, project)]);
+    const missing = declaredWithoutFolder(work, consumer, project, [...folders, ...ownerFolders(work, consumer, project, folderEcosystems)], folderEcosystems);
     for (const name of missing) line(work, 'NOT linked', name.ecosystem, `${name.name}: no installed folder in ${path.relative(consumer.top, project) || '.'}; install the project first`);
     if (missing.length > 0) work.failed = true;
     // K643: a Python package installed editable is linked natively when its record names the folder of its provider.
-    const elsewhere = editableElsewhere(work, consumer, project);
+    const elsewhere = folderEcosystems.includes('python') ? editableElsewhere(work, consumer, project) : [];
     for (const finding of elsewhere) line(work, 'NOT linked', 'python', finding);
     if (elsewhere.length > 0) work.failed = true;
     if (work.check) {
-      const legacy = legacyPythonLinks(project, work.found.values(), work.env);
+      const legacy = folderEcosystems.includes('python') ? legacyPythonLinks(project, work.found.values(), work.env) : [];
       for (const folder of legacy) line(work, 'NOT linked', 'python', `${path.relative(consumer.top, folder)}: legacy package link requires a fresh native editable environment`);
       if (legacy.length > 0) work.failed = true;
       const findings = folderFindings(consumer.top, folders);
@@ -496,8 +509,8 @@ function owners(consumer: Consumer, project: string, ecosystem: 'npm' | 'compose
 }
 
 /** The installed folders of `ecosystem` that the owners of the workspace member `project` hold for it (K590). */
-function ownerFolders(work: Run, consumer: Consumer, project: string): ProvidedFolder[] {
-  return (['npm', 'composer'] as const).flatMap(ecosystem => owners(consumer, project, ecosystem).flatMap(owner =>
+function ownerFolders(work: Run, consumer: Consumer, project: string, ecosystems: readonly ('npm' | 'composer' | 'python')[]): ProvidedFolder[] {
+  return (['npm', 'composer'] as const).filter(ecosystem => ecosystems.includes(ecosystem)).flatMap(ecosystem => owners(consumer, project, ecosystem).flatMap(owner =>
     providedFolders(owner, work.found.values(), { vendorDir: composerVendorDir(owner, work.env) }).filter(folder => folder.ecosystem === ecosystem)));
 }
 
@@ -506,9 +519,9 @@ function ownerFolders(work: Run, consumer: Consumer, project: string): ProvidedF
  * polyspec package with no folder is a finding, never a silent pass. A python member is installed as its package paths, so it is
  * installed when one of its folders is there.
  */
-function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, folders: readonly ProvidedFolder[]): { ecosystem: Ecosystem; name: string }[] {
+function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, folders: readonly ProvidedFolder[], ecosystems: readonly ('npm' | 'composer' | 'python')[]): { ecosystem: Ecosystem; name: string }[] {
   const declared: { ecosystem: Ecosystem; name: string }[] = [];
-  const files: [Ecosystem, string, (file: string) => string[]][] = [['composer', MANIFESTS.composer, declaredComposer], ['npm', MANIFESTS.npm, declaredNpm], ['python', MANIFESTS.python, declaredPython]];
+  const files: [Ecosystem, string, (file: string) => string[]][] = ([['composer', MANIFESTS.composer, declaredComposer], ['npm', MANIFESTS.npm, declaredNpm], ['python', MANIFESTS.python, declaredPython]] as const).filter(([ecosystem]) => ecosystems.includes(ecosystem));
   for (const [ecosystem, manifest, names] of files) {
     const file = path.join(project, manifest);
     if (!existsSync(file)) continue;
@@ -866,11 +879,16 @@ if (isMain(import.meta.url)) {
     const project = rest.indexOf('--project');
     const projectDirectory = project === -1 ? undefined : rest[project + 1];
     if (project !== -1 && !projectDirectory) throw new Error('Usage: link.mjs ... --project <dir>');
-    const withoutProject = rest.filter((_, index) => project === -1 || (index !== project && index !== project + 1));
+    const runtimeIndex = command === 'link' || command === 'check' ? rest.indexOf('--runtime') : -1;
+    const runtimeValue = runtimeIndex === -1 ? undefined : rest[runtimeIndex + 1];
+    if (runtimeIndex !== -1 && (runtimeValue === undefined || !isLinkRuntime(runtimeValue))) {
+      throw new Error(`unknown or missing runtime ${runtimeValue ?? ''}; choose go, php, php-ext, python, rust or ts`);
+    }
+    const withoutOptions = rest.filter((_, index) => (project === -1 || (index !== project && index !== project + 1)) && (runtimeIndex === -1 || (index !== runtimeIndex && index !== runtimeIndex + 1)));
     // `--siblings` takes the checkouts beside the repository as the checkouts (K349): an install recipe links right after the
     // install when polyspec checkouts are present, and a checkout without a sibling, such as CI, installs the released packages.
-    const siblings = withoutProject.includes('--siblings');
-    const positional = withoutProject.filter(argument => argument !== '--siblings');
+    const siblings = withoutOptions.includes('--siblings');
+    const positional = withoutOptions.filter(argument => argument !== '--siblings');
     const directories = [projectDirectory ?? '.'];
     // K498, K506: a consumer named by --project gets the claude-hook of the running kit before the packages are linked, whatever
     // their result, and check reads that entry; both run before the early return below, which a checkout without a polyspec sibling takes.
@@ -888,7 +906,7 @@ if (isMain(import.meta.url)) {
     }
     switch (command) {
       case 'link': case 'check':
-        if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined })) process.exitCode = 1;
+        if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined, ...(runtimeValue === undefined ? {} : { runtime: runtimeValue }) })) process.exitCode = 1;
         else if (command === 'link' && siblings) writeWorkspaceHook(workspaceOf(projectDirectory ?? '.'));
         for (const finding of hookFindings) { print(finding); process.exitCode = 1; }
         break;

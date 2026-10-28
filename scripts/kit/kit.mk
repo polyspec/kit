@@ -437,7 +437,7 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 # go.work at each Go module, which go reads by itself; unlink removes it.
 .PHONY: link link-check unlink
 link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; offline
-	$(NODE) $(KIT)/link.$(KIT_EXT) link $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
+	$(NODE) $(KIT)/link.$(KIT_EXT) link $(strip $(if $(PROJECT),--project $(PROJECT)) $(if $(RUNTIME),--runtime $(RUNTIME)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings))
 
 link-check: ## List each installed package folder that a checkout of CHECKOUTS, else the checkouts beside the repository, provides and that is a copy or links elsewhere, as NOT linked, and fail on one (K448); offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)

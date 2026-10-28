@@ -83,6 +83,14 @@ test('K473: the parity job links local packages before link-state and parity gat
   assert.ok(link < workflow.indexOf('      - name: parity gate\n'), 'make link runs before parity');
 });
 
+test('runtime jobs link only with the native managers for their selected runtime', () => {
+  const runtime = workflowJob(read('workflows/gates.yml'), 'runtime');
+  assert.ok(runtime.some(line => line.includes('run: make link RUNTIME=${{ matrix.runtime }}')), 'the runtime passes its selection to link');
+  assert.doesNotMatch(runtime.join('\n'), /run: make link\n/, 'the runtime does not link every tracked ecosystem');
+  const workflow = read('workflows/gates.yml');
+  assert.equal((workflow.match(/run: make link\n/g) ?? []).length, 3, 'the full parity, API and bindings jobs keep whole-repository linking');
+});
+
 test('K731-1: context preparation surrounds the unchanged required gate and cleanup always runs after entry', () => {
   const workflow = read('workflows/gates.yml');
   const partitions = [
