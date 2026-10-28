@@ -41,10 +41,12 @@ jobs:
         run: |
           & .\var\tools\bin\node.cmd .\var\tools\npm\node_modules\npm\bin\npm-cli.js ci --ignore-scripts --allow-remote=root
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: smoke the standard runner with a case-sensitive test directory
+        run: make case-sensitive-runner-smoke
       - name: install pinned Go and Rust toolchains
         run: node scripts/kit/install-tools.mts go rust
       - name: verify the Windows .cmd process path
-        run: node --test tests/kit/process.test.mts
+        run: node --test tests/kit/process.test.mts tests/kit/process-group.test.mts
       - name: verify native wrappers and selected toolchains
         if: matrix.runner != 'windows-2025'
         shell: bash

@@ -1,4 +1,5 @@
-// The signals and probes of a process group: kill(-pgid, signal) and kill(-pgid, 0). macOS answers EPERM for a group whose
+// The signals and probes of a process group: kill(-pgid, signal) and kill(-pgid, 0) on POSIX; taskkill and a CIM process
+// tree on Windows. macOS answers EPERM for a group whose
 // member is in exit, although the member is gone from the process table; the group has ended only when the call fails with
 // ESRCH. signalGroup returns 'sent' when the call succeeds, 'exiting' for EPERM and 'ended' for ESRCH; any other errno is an
 // error.
@@ -11,8 +12,11 @@ export type GroupState = 'sent' | 'exiting' | 'ended';
 /** Sends a signal to a process: process.kill or the stand-in of a test. */
 export type Kill = (pid: number, signal: NodeJS.Signals | number) => unknown;
 
+const defaultKill: Kill = (pid, signal) => process.kill(pid, signal);
+
 /** Sends `signal` to the process group `pgid`; `kill` is process.kill by default and is injected by the tests. */
-export function signalGroup(pgid: number, signal: NodeJS.Signals | number, kill: Kill = (pid, sig) => process.kill(pid, sig)): GroupState {
+export function signalGroup(pgid: number, signal: NodeJS.Signals | number, kill: Kill = defaultKill): GroupState {
+  if (process.platform === 'win32' && kill === defaultKill) return signalWindowsTree(pgid, signal);
   try {
     kill(-pgid, signal);
     return 'sent';
@@ -25,6 +29,41 @@ export function signalGroup(pgid: number, signal: NodeJS.Signals | number, kill:
   }
 }
 
+/** Sends a Windows process-tree stop through taskkill, which is available on every supported Windows runner. */
+function signalWindowsTree(root: number, signal: NodeJS.Signals | number): GroupState {
+  const entries = processTable();
+  const descendants = descendantsOf(root, entries).map(entry => entry.pid);
+  const present = entries.some(entry => entry.pid === root);
+  if (signal === 0) return present || descendants.length ? 'sent' : 'ended';
+  // Windows has no POSIX process-group signals. taskkill's forced tree termination is the native whole-tree operation.
+  if (present) {
+    try {
+      taskkill(root, true, true);
+      return 'sent';
+    } catch (error) {
+      const current = processTable();
+      if (current.some(entry => entry.pid === root)) throw error;
+      const survivors = descendantsOf(root, current).map(entry => entry.pid).reverse();
+      for (const pid of survivors) taskkill(pid, false, true);
+      if (survivors.length === 0) return 'ended';
+      return 'sent';
+    }
+  }
+  for (const pid of descendants.reverse()) taskkill(pid, false, true);
+  return descendants.length ? 'sent' : 'ended';
+}
+
+/** Runs taskkill and ignores a process that exited between the CIM snapshot and the command. */
+function taskkill(pid: number, tree: boolean, force: boolean): void {
+  const args = ['/PID', String(pid), ...(tree ? ['/T'] : []), ...(force ? ['/F'] : [])];
+  const result = spawnSync('taskkill.exe', args, { encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 20 });
+  if (result.error) throw new Error(`taskkill.exe ${args.join(' ')} could not start: ${result.error.message}`);
+  if (result.status === 0) return;
+  const current = processTable();
+  if (!current.some(entry => entry.pid === pid) && (!tree || descendantsOf(pid, current).length === 0)) return;
+  throw new Error(`taskkill.exe ${args.join(' ')} exited with ${result.status}: ${(result.stderr || result.stdout).trim()}`);
+}
+
 /** A process of the process table: its id, its parent's id and its process group id. */
 export interface ProcessEntry {
   pid: number;
@@ -32,8 +71,21 @@ export interface ProcessEntry {
   pgid: number;
 }
 
-/** The processes of the machine, read with ps (read only): one line of pid, parent and group id for each. */
+/** The processes of the machine, read with ps or Windows CIM (read only): each process has a pid, parent and group id. */
 export function processTable(): ProcessEntry[] {
+  if (process.platform === 'win32') {
+    const script = "$ErrorActionPreference='Stop'; Get-CimInstance Win32_Process | Select-Object @{Name='pid';Expression={$_.ProcessId}},@{Name='ppid';Expression={$_.ParentProcessId}},@{Name='pgid';Expression={$_.ProcessId}} | ConvertTo-Json -Compress";
+    const listed = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 28 });
+    if (listed.error || listed.status !== 0) throw new Error(`powershell.exe could not list the processes: ${listed.error?.message ?? listed.stderr}`);
+    const decoded: unknown = JSON.parse(listed.stdout || '[]');
+    const rows = Array.isArray(decoded) ? decoded : [decoded];
+    return rows.map(row => {
+      if (typeof row !== 'object' || row === null || !('pid' in row) || !('ppid' in row) || typeof row.pid !== 'number' || typeof row.ppid !== 'number') {
+        throw new Error(`powershell.exe printed a line that is no process entry: ${JSON.stringify(row)}`);
+      }
+      return { pid: row.pid, ppid: row.ppid, pgid: row.pid };
+    });
+  }
   const listed = spawnSync('ps', ['-axo', 'pid=,ppid=,pgid='], { encoding: 'utf8', maxBuffer: 1 << 28 });
   if (listed.error || listed.status !== 0) throw new Error(`ps could not list the processes: ${listed.error?.message ?? listed.stderr}`);
   return listed.stdout.split('\n').filter(line => line.trim() !== '').map((line) => {
@@ -63,8 +115,12 @@ export function descendantsOf(root: number, table: readonly ProcessEntry[]): Pro
  * and after the grace the same targets get SIGKILL, so a child of a process that ends at its deadline outlives it no longer. The group
  * of `root` is never signalled: it holds the runner that started `root`, which reports the result of its run.
  */
-export async function stopDescendants(root: number, { table = processTable, kill = (pid, signal) => process.kill(pid, signal), graceMs = 1000, skipGroup }: { table?: () => ProcessEntry[]; kill?: Kill | undefined; graceMs?: number; skipGroup?: number | undefined } = {}): Promise<void> {
+export async function stopDescendants(root: number, { table = processTable, kill = defaultKill, graceMs = 1000, skipGroup }: { table?: () => ProcessEntry[]; kill?: Kill | undefined; graceMs?: number; skipGroup?: number | undefined } = {}): Promise<void> {
   const found = descendantsOf(root, table()).filter(entry => entry.pgid !== skipGroup);
+  if (process.platform === 'win32' && kill === defaultKill) {
+    for (const entry of [...found].reverse()) taskkill(entry.pid, false, true);
+    return;
+  }
   const targets = [...new Set(found.map(entry => (entry.pgid === entry.pid ? -entry.pid : entry.pid)))];
   if (targets.length === 0) return;
   const deliver = (signal: NodeJS.Signals) => {

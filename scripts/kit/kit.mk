@@ -178,7 +178,15 @@ php-ext-arginfo: ## Write the ignored arginfo header of packages/php-ext from it
 # The unit tests of a runtime with CASES=<pattern>, the name filter of its runner; without CASES, every unit test, which
 # run-tests allows only in CI. The suites run only in CI (K244).
 test-go test-js test-php test-python test-rust test-ts: ## Run the unit tests of each package of the runtime with the name filter CASES=<pattern>; offline
-	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
+	CASE_SENSITIVE_ENV="$(CASE_SENSITIVE_ENV)" $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
+
+.PHONY: test-infrastructure
+test-infrastructure: ## Run every tracked root Node infrastructure test through the standard runner; offline
+	CASE_SENSITIVE_ENV="$(CASE_SENSITIVE_ENV)" $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) infrastructure
+
+.PHONY: case-sensitive-runner-smoke
+case-sensitive-runner-smoke: ## Smoke the standard Node runner with a temporary verified case-sensitive directory; offline
+	CASE_SENSITIVE_ENV=KIT_CASE_SENSITIVE_SMOKE_DIR $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) case-sensitive-smoke
 
 test-integration test-conformance: ## Run the suite of each runtime under tests/integration or tests/conformance of the root; only in CI
 	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)

@@ -29,6 +29,8 @@ import { extensionNames, isApplication, repositoryOf } from './php-extension.mts
 import { trackedFiles } from './tracked-files.mts';
 import { listedTests } from './run-tests.mts';
 import { toolCommand } from './mise-tools.mts';
+import { withCaseSensitiveDirectory } from './case-sensitive-directory.mts';
+import { readGoWork } from './toolchain-files.mts';
 
 /** A run of run-tests.mts: the folder, relative to the root, the tool, the options of run-tests and the arguments of the tool. */
 export type Run = { cwd: string; tool: string; options?: string[]; args: string[] };
@@ -175,6 +177,48 @@ export function suiteRuns(files: readonly string[], suite: string, vitest: (fold
   return runtimes.flatMap(runtime => runsOf(files, runtime, `tests/${suite}/${runtime}`, undefined, vitest, undefined, venv));
 }
 
+/** All tracked Node infrastructure tests, with platform-specific folders selected only on their matching platform. */
+export function infrastructureRuns(files: readonly string[], platform: NodeJS.Platform = process.platform): Run[] {
+  const platformFolder: Partial<Record<NodeJS.Platform, string>> = { darwin: 'darwin', linux: 'linux', win32: 'windows' };
+  const selected = files.filter(file => file.startsWith('tests/') && SCRIPT.test(file) && NODE_TEST.test(file))
+    .filter(file => !/^tests\/(darwin|linux|windows)\//.test(file) || file.startsWith(`tests/${platformFolder[platform] ?? '__unsupported__'}/`));
+  if (selected.length === 0) throw new Error('tests/ holds no tracked Node infrastructure tests for this platform');
+  return [{ cwd: '.', tool: 'node', args: selected }];
+}
+
+/** One tracked fixture for the platform workflow to smoke the actual resource-context and standard Node runner. */
+export function caseSensitiveSmokeRuns(files: readonly string[]): Run[] {
+  const fixture = 'tests/kit/fixture/standard-case-sensitive-smoke.mts';
+  if (!files.includes(fixture)) throw new Error(`${fixture} is not tracked; add the standard runner smoke fixture`);
+  return [{ cwd: '.', tool: 'node', args: [fixture] }];
+}
+
+/** Go modules selected by a tracked go.work, resolved by Go itself, including modules outside packages/. */
+export function goWorkspaceRuns(files: readonly string[], directories: readonly string[]): Run[] {
+  const modules = new Set(directories.map(directory => path.posix.normalize(directory)));
+  const tracked = new Set(files.filter(file => path.posix.basename(file) === 'go.mod').map(file => path.posix.dirname(file)));
+  const missing = [...modules].filter(directory => !tracked.has(directory)).sort();
+  if (missing.length) throw new Error(`go.work uses modules without a tracked go.mod: ${missing.join(', ')}`);
+  if (modules.size === 0) throw new Error('go.work declares no modules');
+  return [...modules].sort().map(cwd => ({ cwd, tool: 'go', args: ['./...'] }));
+}
+
+/** Build commands for every module named by go.work, with no package or path filter. */
+export function goWorkspaceBuilds(files: readonly string[], directories: readonly string[]): Build[] {
+  const runs = goWorkspaceRuns(files, directories);
+  return runs.map(({ cwd }) => ({ cwd, command: 'go', args: ['build', './...'] }));
+}
+
+function workspaceDirectories(root: string): string[] {
+  const use = readGoWork(root, 'go.work', process.env).Use ?? [];
+  return use.map(({ DiskPath }) => {
+    const absolute = path.isAbsolute(DiskPath) ? DiskPath : path.resolve(root, DiskPath);
+    const relative = path.relative(root, absolute).split(path.sep).join('/');
+    if (relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)) throw new Error(`go.work uses a module outside the checkout: ${DiskPath}`);
+    return relative || '.';
+  });
+}
+
 /** Whether the package.json of `folder` under `root`, or that of the root, declares vitest. */
 function usesVitest(root: string, folder: string): boolean {
   return [folder, '.'].some(place => {
@@ -218,7 +262,13 @@ if (isMain(import.meta.url)) {
     process.exit(result.status ?? 1);
   }
   if (target === 'build') {
-    const builds = buildRuns(files, name);
+    let builds: Build[];
+    try {
+      builds = name === 'go' && files.includes('go.work') ? goWorkspaceBuilds(files, workspaceDirectories(root)) : buildRuns(files, name);
+    } catch (error) {
+      console.error(`[runtime-targets] ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
     if (builds.length === 0) console.log(`[runtime-targets] the packages of ${name} have no build step`);
     for (const build of builds) {
       // go and uv are the tools of the checkout, never the ones on PATH (K393-1). cargo stays on PATH: install-tools does not wrap
@@ -234,6 +284,7 @@ if (isMain(import.meta.url)) {
   const vitest = (folder: string) => usesVitest(root, folder);
   const venv = (folder: string) => environmentOf(root, folder);
   const suite = (SUITES as readonly string[]).includes(target);
+  const caseSensitiveEnv = process.env.CASE_SENSITIVE_ENV || undefined;
   const refused = suite ? ciRefusal(`make test-${target}`) : null;
   if (refused) {
     console.error(`[runtime-targets] ${refused}`);
@@ -247,7 +298,13 @@ if (isMain(import.meta.url)) {
     const listed: Listed = run => listedTests([run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--', ...run.args], root);
     // The PHP packages of an application (K433) are read from the checkout, so that the extension run leaves them out.
     const read = (file: string) => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined);
-    runs = suite ? suiteRuns(files, target, vitest, venv) : runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension, venv, listed, notes, read);
+    if (caseSensitiveEnv !== undefined && target !== 'go' && target !== 'infrastructure' && target !== 'case-sensitive-smoke') throw new Error('CASE_SENSITIVE_ENV is supported only by test-go, test-infrastructure and case-sensitive-smoke');
+    if (target === 'infrastructure') runs = infrastructureRuns(files);
+    else if (target === 'case-sensitive-smoke') runs = caseSensitiveSmokeRuns(files);
+    else if (suite) runs = suiteRuns(files, target, vitest, venv);
+    else if (target === 'go' && files.includes('go.work')) {
+      runs = goWorkspaceRuns(files, workspaceDirectories(root));
+    } else runs = runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension, venv, listed, notes, read);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[runtime-targets] ${error.message}`);
@@ -258,10 +315,21 @@ if (isMain(import.meta.url)) {
     console.error(`[runtime-targets] tests/${target}/ holds no folder of a runtime`);
     process.exit(1);
   }
-  let failed = 0;
-  for (const run of runs) {
-    const result = spawnSync(process.execPath, [siblingTool(import.meta.url, 'run-tests'), run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--', ...run.args], { cwd: root, stdio: 'inherit' });
-    if (result.status !== 0) failed += 1;
+  const execute = () => {
+    let failed = 0;
+    for (const run of runs) {
+      const result = spawnSync(process.execPath, [siblingTool(import.meta.url, 'run-tests'), run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--', ...run.args], { cwd: root, stdio: 'inherit' });
+      if (result.status !== 0) failed += 1;
+    }
+    return failed ? 1 : 0;
+  };
+  if (caseSensitiveEnv !== undefined) {
+    try {
+      process.exit(withCaseSensitiveDirectory(caseSensitiveEnv, execute));
+    } catch (error) {
+      console.error(`[runtime-targets] ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    }
   }
-  process.exit(failed ? 1 : 0);
+  process.exit(execute());
 }

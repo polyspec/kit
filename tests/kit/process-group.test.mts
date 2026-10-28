@@ -2,8 +2,11 @@
 // EPERM while the member is already gone from the process table, and ESRCH once the group has ended. The cases inject kill, so no
 // test signals a real group.
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { createInterface } from 'node:readline';
 import test from 'node:test';
-import { signalGroup } from '../../scripts/kit/process-group.mts';
+import { processTable, signalGroup, stopGroup } from '../../scripts/kit/process-group.mts';
 import type { Kill } from '../../scripts/kit/process-group.mts';
 import { terminateGroup } from '../../scripts/kit/run-tests.mts';
 
@@ -42,4 +45,26 @@ test('a timed-out test is terminated through its group, and EPERM from a member 
   assert.equal(terminateGroup(4321, kill), 'exiting');
   assert.deepEqual(calls, [[-4321, 'SIGTERM']]);
   assert.equal(terminateGroup(4321, killing('ESRCH').kill), 'ended');
+});
+
+test('stopGroup terminates a real root and descendant process tree', async () => {
+  const source = `const { spawn } = require('node:child_process'); const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' }); process.stdout.write(JSON.stringify({ descendant: child.pid }) + '\\n'); process.on('SIGTERM', () => { child.kill('SIGTERM'); child.once('exit', () => process.exit(0)); }); setInterval(() => {}, 1000);`;
+  const child = spawn(process.execPath, ['-e', source], { detached: true, stdio: ['ignore', 'pipe', 'inherit'] });
+  assert.ok(child.pid);
+  assert.ok(child.stdout, 'the root process reports its descendant');
+  const lines = createInterface({ input: child.stdout });
+  const closed = once(child, 'close');
+  try {
+    const [line] = await once(lines, 'line');
+    const record: unknown = JSON.parse(line);
+    assert.ok(typeof record === 'object' && record !== null && 'descendant' in record && typeof record.descendant === 'number');
+    const descendant = record.descendant;
+    await stopGroup(child.pid, closed, 100);
+    const remaining = processTable().map(entry => entry.pid);
+    assert.equal(remaining.includes(child.pid), false, 'the root process ended');
+    assert.equal(remaining.includes(descendant), false, 'the descendant process ended');
+  } finally {
+    await stopGroup(child.pid, closed, 100);
+    lines.close();
+  }
 });

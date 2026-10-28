@@ -34,6 +34,10 @@
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"
     },
+    "scripts/kit/bootstrap/verify-idempotent.mts": {
+      "kind": "policy",
+      "reason": "the K730 platform-bootstrap gate: it snapshots the installed mise, Node.js, npm and wrappers around a repeated bootstrap; no ecosystem tool decides whether the bootstrap changed those installed files"
+    },
     "scripts/kit/changelog.mts": {
       "kind": "record",
       "record": "docs/rebuild/changelog.md"
@@ -41,6 +45,10 @@
     "scripts/kit/cargo-source.mts": {
       "kind": "ecosystem",
       "tool": "cargo metadata --format-version 1 with native graph-selection options; verify resolved package manifest paths against the requested development sources"
+    },
+    "scripts/kit/case-sensitive-directory.mts": {
+      "kind": "ecosystem",
+      "tool": "Node.js filesystem, OS and path APIs; hdiutil Case-sensitive APFS on macOS and fsutil.exe NTFS per-directory case sensitivity on Windows"
     },
     "scripts/kit/check-cargo-downloads.mts": {
       "kind": "ecosystem",
@@ -522,6 +530,10 @@
       "kind": "ecosystem",
       "tool": "composer install of the tracked lock, the Composer of install-composer-project.mts (K432)"
     },
+    "scripts/kit/ci-setup.mts": {
+      "kind": "policy",
+      "reason": "the shared CI gate contract partitions required jobs and validates each declared repository setup prerequisite; ecosystems execute the selected Make targets"
+    },
     "scripts/kit/divergence-check.mts": {
       "kind": "policy",
       "reason": "the rule of P32 and K315 that no implementation diverges from the contract through an escape hatch, a branch on the language, runtime or platform in a test; the patterns are polyspec's"
@@ -557,6 +569,14 @@
     "scripts/kit/php-library/prepend.php": {
       "kind": "ecosystem",
       "tool": "phpunit, which runs the prepended file before the tests of an extension run, with the Composer autoloader it names (K329)"
+    },
+    "scripts/kit/php-library/phpunit-deadline-extension.php": {
+      "kind": "ecosystem",
+      "tool": "PHPUnit 13.4 extension lifecycle events and resolved Configuration API deliver the configured size deadline for each prepared test"
+    },
+    "scripts/kit/php-library/phpunit-deadline-prepend.php": {
+      "kind": "ecosystem",
+      "tool": "the PHP CLI auto_prepend_file setting loads the PHPUnit deadline extension after the Composer autoloader and before PHPUnit starts"
     },
     "scripts/kit/markers/python.py": {
       "kind": "ecosystem",
@@ -637,22 +657,6 @@
     "scripts/kit/linked-build.mts": {
       "kind": "policy",
       "reason": "rebuilds after main moves what the consumers that link main live read (K551, K609): the dist of kit when a build input changed, and a stale npm build output through link-build; no ecosystem tool knows which outputs a move of main makes stale for linked consumers"
-    },
-    "scripts/kit/bootstrap/verify-idempotent.mts": {
-      "kind": "policy",
-      "reason": "the K730 platform-bootstrap gate: it snapshots the installed mise, Node.js, npm and wrappers around a repeated bootstrap; no ecosystem tool decides whether the bootstrap changed those installed files"
-    },
-    "scripts/kit/ci-setup.mts": {
-      "kind": "policy",
-      "reason": "the shared CI gate contract partitions required jobs and validates each declared repository setup prerequisite; ecosystems execute the selected Make targets"
-    },
-    "scripts/kit/php-library/phpunit-deadline-extension.php": {
-      "kind": "ecosystem",
-      "tool": "PHPUnit 13.4 extension lifecycle events and resolved Configuration API deliver the configured size deadline for each prepared test"
-    },
-    "scripts/kit/php-library/phpunit-deadline-prepend.php": {
-      "kind": "ecosystem",
-      "tool": "the PHP CLI auto_prepend_file setting loads the PHPUnit deadline extension after the Composer autoloader and before PHPUnit starts"
     }
   }
 }

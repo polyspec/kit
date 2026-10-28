@@ -34,7 +34,7 @@ KIT_TEST_FILES_3 := \
 	tests/kit/dependency-policy.test.mts tests/kit/documents-stamp.test.mts tests/kit/install-symbols.test.mts \
 	tests/kit/kit-tools.test.mts tests/kit/markdown.test.mts tests/kit/parity-requirements.test.mts \
 	tests/kit/python-lock-check.test.mts tests/kit/python-lock.test.mts tests/kit/recipe-tools.test.mts \
-	tests/kit/release-tag.test.mts tests/kit/run-tests.test.mts tests/kit/runtime-targets.test.mts \
+	tests/kit/release-tag.test.mts tests/kit/run-tests.test.mts \
 	tests/kit/stubs.test.mts tests/kit/suppression-check.test.mts tests/kit/test-output.test.mts \
 	tests/kit/toolchain-mise.test.mts tests/kit/version.test.mts
 KIT_TEST_FILES_4 := \
@@ -62,7 +62,7 @@ KIT_TEST_FILES_6 := \
 	tests/kit/release-consumer.test.mts tests/kit/release-tools-path.test.mts tests/kit/run-command.test.mts \
 	tests/kit/toolchain-npmrc.test.mts tests/kit/tracked-files.test.mts tests/kit/verification.test.mts \
 	tests/kit/worktree-setup.test.mts
-KIT_TEST_FILES_7 := tests/kit/parity-api.test.mts
+KIT_TEST_FILES_7 := tests/kit/parity-api.test.mts tests/kit/runtime-targets.test.mts
 
 SOURCE_TEST_GROUPS := ts php php-ext rust go python common-1 common-2 common-3
 SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts tests/source/symbols-ts-real.test.mts

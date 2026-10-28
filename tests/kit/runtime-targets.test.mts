@@ -2,8 +2,12 @@
 // runtime with the name filter of its runner, in the folder of the package; the integration and conformance suites live
 // under tests/ of the root and run only in CI (K244).
 import assert from 'node:assert/strict';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
-import { buildRuns, phpExtensionFolders, runtimeRuns, suiteRuns, taskTargets, type Run } from '../../scripts/kit/runtime-targets.mts';
+import { buildRuns, caseSensitiveSmokeRuns, goWorkspaceBuilds, goWorkspaceRuns, infrastructureRuns, phpExtensionFolders, runtimeRuns, suiteRuns, taskTargets, type Run } from '../../scripts/kit/runtime-targets.mts';
+import { withCaseSensitiveDirectory } from '../../scripts/kit/case-sensitive-directory.mts';
 import { libraryFolders } from '../../scripts/kit/php-extension.mts';
 
 const FILES = [
@@ -77,6 +81,63 @@ test('the test directories of a Python package are packages, which unittest disc
 test('a suite runs the folder of each runtime under tests/<suite>/ of the root (K244)', () => {
   assert.deepEqual(suiteRuns(FILES, 'integration', node), [{ cwd: 'tests/integration/go', tool: 'go', args: ['./...'] }]);
   assert.deepEqual(suiteRuns(FILES, 'conformance', node), [{ cwd: 'tests/conformance/ts', tool: 'node', args: ['a.test.ts'] }]);
+});
+
+test('the Go workspace is the source of truth for every standard module test and build (K739)', () => {
+  const files = ['go.work', 'packages/go/go.mod', 'examples/go.mod', 'tests/conformance/go/go.mod'];
+  const directories = ['examples', 'packages/go', 'tests/conformance/go'];
+  assert.deepEqual(goWorkspaceRuns(files, directories), directories.map(cwd => ({ cwd, tool: 'go', args: ['./...'] })));
+  assert.deepEqual(goWorkspaceBuilds(files, directories), directories.map(cwd => ({ cwd, command: 'go', args: ['build', './...'] })));
+  assert.throws(() => goWorkspaceRuns(files, ['packages/go', 'missing']), /without a tracked go.mod: missing/);
+  assert.throws(() => goWorkspaceRuns(files, []), /go.work declares no modules/);
+});
+
+test('the infrastructure target discovers every tracked Node test and rejects an empty inventory (K739)', () => {
+  const files = ['tests/a.test.mts', 'tests/darwin/mount.test.mts', 'tests/linux/fs.test.mts', 'tests/helper.mts'];
+  assert.deepEqual(infrastructureRuns(files, 'darwin'), [{ cwd: '.', tool: 'node', args: ['tests/a.test.mts', 'tests/darwin/mount.test.mts'] }]);
+  assert.deepEqual(infrastructureRuns(files, 'linux'), [{ cwd: '.', tool: 'node', args: ['tests/a.test.mts', 'tests/linux/fs.test.mts'] }]);
+  assert.throws(() => infrastructureRuns(['tests/helper.mts']), /no tracked Node infrastructure tests/);
+});
+
+test('the platform smoke requires its tracked fixture and uses the standard Node runner (K739)', () => {
+  const fixture = 'tests/kit/fixture/standard-case-sensitive-smoke.mts';
+  assert.deepEqual(caseSensitiveSmokeRuns([fixture]), [{ cwd: '.', tool: 'node', args: [fixture] }]);
+  assert.throws(() => caseSensitiveSmokeRuns([]), /is not tracked/);
+});
+
+test('case-sensitive directory uses the platform provisioner and restores the named environment', () => {
+  const parent = mkdtempSync(path.join(tmpdir(), 'kit-case-test-'));
+  const key = 'KIT_CASE_SENSITIVE_TEST_DIR';
+  const previous = process.env[key];
+  const calls: { file: string; args: string[] }[] = [];
+  let verified = false;
+  const command = (file: string, args: string[]) => {
+    calls.push({ file, args });
+    return { status: 0, stdout: '', stderr: '' };
+  };
+  try {
+    let used = '';
+    const result = withCaseSensitiveDirectory(key, directory => {
+      used = directory;
+      assert.equal(process.env[key], directory);
+      return 'ran';
+    }, { parent, platform: process.platform, command, verify: directory => { verified = existsSync(directory); } });
+    assert.equal(result, 'ran');
+    assert.equal(verified, true);
+    assert.equal(process.env[key], previous);
+    assert.equal(existsSync(used), false, 'the temporary test directory is removed');
+    if (process.platform === 'darwin') assert.deepEqual(calls.map(call => call.file), ['hdiutil', 'hdiutil', 'hdiutil']);
+    else if (process.platform === 'win32') assert.match(calls[0]?.file ?? '', /fsutil\.exe$/);
+    else assert.deepEqual(calls, []);
+  } finally {
+    if (previous === undefined) delete process.env[key];
+    else process.env[key] = previous;
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test('case-sensitive directory rejects an invalid environment key before running the action', () => {
+  assert.throws(() => withCaseSensitiveDirectory('BAD-NAME', () => assert.fail('must not run')), /invalid environment variable name/);
 });
 
 test('build-<runtime> runs the build of its ecosystem in each package, and names a runtime that has none (K246)', () => {
