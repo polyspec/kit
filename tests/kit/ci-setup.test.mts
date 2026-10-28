@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { initRepository } from './sandbox-repository.mts';
 import { ciPlan, ciSetupInvocations, gateResultsPass, GATE_REQUIRED_NEEDS, parityBindingMatrix, parityMatrixFindings, runCISetup } from '../../scripts/kit/ci-setup.mts';
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 
@@ -46,7 +47,7 @@ function fixture(): string {
     },
   };
   writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
-  execFileSync('git', ['init', '-q'], { cwd: root });
+  initRepository(root);
   execFileSync('git', ['add', 'Makefile', 'config/ci.json', 'config/parity.json', 'packages/go/go.mod'], { cwd: root });
   return root;
 }
@@ -160,8 +161,10 @@ test('K734: phase mode rejects missing provider recipes and duplicate declaratio
     assert.throws(() => ciPlan(root), /parity-api-check does not use the provider API recipe/);
     writeFileSync(makefile, originalMakefile);
     const parityFile = path.join(root, 'config/parity.json');
-    const parity = JSON.parse(readFileSync(parityFile, 'utf8')) as { implementations: { name: string; runner: string; roots: string[] }[] };
-    parity.implementations.push({ ...parity.implementations[0]! });
+    const parity = readConfig<{ implementations: { name: string; runner: string; roots: string[] }[] }>(root, 'config/parity.json', 'parity.schema.json');
+    const first = parity.implementations[0];
+    assert.ok(first, 'the fixture declares one implementation');
+    parity.implementations.push({ ...first });
     writeFileSync(parityFile, JSON.stringify(parity));
     assert.throws(() => ciPlan(root), /duplicate implementation names/);
   } finally {

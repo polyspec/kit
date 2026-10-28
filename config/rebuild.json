@@ -641,6 +641,10 @@
     "scripts/kit/bootstrap/verify-idempotent.mts": {
       "kind": "policy",
       "reason": "the K730 platform-bootstrap gate: it snapshots the installed mise, Node.js, npm and wrappers around a repeated bootstrap; no ecosystem tool decides whether the bootstrap changed those installed files"
+    },
+    "scripts/kit/ci-setup.mts": {
+      "kind": "policy",
+      "reason": "the shared CI gate contract partitions required jobs and validates each declared repository setup prerequisite; ecosystems execute the selected Make targets"
     }
   }
 }
