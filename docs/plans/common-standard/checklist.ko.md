@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: d7bf4869a64e54e0b0abc68389d2f3597d3b95ca6cbf94b1cbbf54d0ac5d5018 -->
+<!-- source-sha256: 7a2c83e76baa34822c2e0fa3b11f728bc771df6ec3af20e8ec51a5bc2869d505 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -702,3 +702,4 @@
 | K743 | 선택 runtime CI job에 native source linking 범위를 맞춘다 (GitHub issue 14) | scripts/kit/link.mts tests/kit/link.test.mts workflows/gates.yml tests/kit/gates-workflow.test.mts scripts/kit/kit.mk tests/kit/kit-mk.test.mts docs/operations/local-links.md docs/operations/local-links.ko.md | `node --test --test-name-pattern="runtime links use only\|unknown runtime" tests/kit/link.test.mts`; `node --test --test-name-pattern="K473\|runtime jobs link only" tests/kit/gates-workflow.test.mts`; `node --test --test-name-pattern="link-check names the sibling" tests/kit/kit-mk.test.mts`; `make typecheck` | [o] |
 | K744 | clean bootstrap과 runtime link 수정 배포를 위해 Kit 0.0.63을 준비한다 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-coverage`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.63` | [o] |
 | K745 | 독립 CI 계획, native runner 준비와 선택 parity를 수정한다 | scripts/kit/ci-setup.mts scripts/kit/schema/ci.schema.json workflows/gates.yml tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts | `node --test tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts` | [ ] |
+| K746 | 잠근 설치 provider로 test 소유권 이전을 검증한다 (issue 12) | scripts/kit/plan.mts scripts/kit/check-commits.mts package.json tests/kit/plan.test.mts tests/kit/commits.test.mts tests/kit/provider-tests.test.mts | `node --test tests/kit/plan.test.mts tests/kit/commits.test.mts tests/kit/provider-tests.test.mts` | [ ] |
