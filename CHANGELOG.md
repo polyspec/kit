@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Prepare worktree Python environments through native locked uv synchronization and declared source overlays. (K736)
+
 - Accept exact Python unittest discovery file patterns while rejecting a later broad pattern. (K735)
 
 - Provide mandatory full or API/binding parity gate partitions with safe Make target generation and exact recipe validation. (K734)

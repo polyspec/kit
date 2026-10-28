@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b6942e8156aaf306a12caf6f188a701be6f71d04276f4c1f18515a9798161785 -->
+<!-- source-sha256: b4970e5069300075febc340f049176d7845edf2fd71f60275065e2fc8dd6590a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- native 잠금 uv 동기화와 선언된 source overlay로 worktree Python 환경을 준비한다. (K736)
 
 - 정확한 Python unittest discovery 파일 pattern을 허용하고 뒤에서 넓은 pattern으로 바꾸는 선택을 거부한다. (K735)
 
