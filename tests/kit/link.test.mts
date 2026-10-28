@@ -10,7 +10,7 @@ import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets } from '../../scripts/kit/link-build.mts';
-import { assertIgnored, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
+import { assertIgnored, foreignEnvironment, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
 import { composerInstall, composerLink } from '../../scripts/kit/composer-install.mts';
 import { linkFindings } from '../../scripts/kit/link-state-check.mts';
@@ -466,8 +466,13 @@ test('a broken gitfile fails with git\'s own message, in the write check and in 
   const broken = path.join(root, 'broken');
   mkdirSync(broken);
   writeFileSync(path.join(broken, '.git'), 'gitdir: /nonexistent/git-dir\n');
-  assert.throws(() => assertIgnored(path.join(broken, 'var/x')), /not a git repository/);
-  assert.throws(() => linkLines([broken], env), /not a git repository/);
+  const target = path.join(broken, 'var/x');
+  const git = spawnSync('git', ['check-ignore', '-q', '--', target], { cwd: broken, env: foreignEnvironment(), encoding: 'utf8' });
+  assert.notEqual(git.status, 0, 'the broken gitfile must make native Git fail');
+  const diagnostic = git.stderr.trim();
+  assert.notEqual(diagnostic, '', 'native Git must provide the diagnostic that link preserves');
+  assert.throws(() => assertIgnored(target), (error: unknown) => error instanceof Error && error.message.endsWith(diagnostic));
+  assert.throws(() => linkLines([broken], env), (error: unknown) => error instanceof Error && error.message.includes(diagnostic));
 });
 
 test('link writes nothing that Git does not ignore, and names the path', (t) => {

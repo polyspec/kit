@@ -8,8 +8,10 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-php.mts';
+import { declaredToolchain } from '../../scripts/kit/bootstrap/toolchain-declared.mts';
 import { runLint } from '../../scripts/kit/lint-steps.mts';
 import { kitFile } from '../../scripts/kit/kit-files.mts';
+import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { present } from '../../scripts/kit/present.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { known } from './known.mts';
@@ -52,6 +54,12 @@ const ALL = [
   `phpcs -q -s --report=emacs --standard=${kitFile('phpcs.xml.dist')} packages/php/src/Demo.php packages/php/tests/DemoTest.php [root]`,
   `phpstan analyse --no-progress --error-format=raw --memory-limit=-1 --configuration=${kitFile('phpstan.dist.neon')} --autoload-file=vendor/autoload.php src/Demo.php tests/DemoTest.php [php]`,
 ];
+
+test('the PHP extractor used for autoload-file lint is declared for install-tools', () => {
+  const root = repositoryRoot();
+  const declaration = declaredToolchain(root).symbolExtractors;
+  assert.ok(declaration?.extractors.includes('php'), 'config/toolchain.json declares the PHP parser installed for the native autoload-file lint');
+});
 
 test('phpcs runs on the PHP files without the stubs, and PHPStan on each package with PHP files from its folder', (t) => {
   const { root, calls } = checkout(t);
