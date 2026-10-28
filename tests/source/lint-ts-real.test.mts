@@ -346,7 +346,12 @@ test('oxlint leaves out a file that config/knip-entries.json ignores, and the sa
 });
 
 test('an undocumented export passes API Extractor once the API report is off, which is why the base configuration enables it', (t) => {
-  const { failed, output } = lintOf(repository(t, known(VIOLATIONS.find(({ name }) => name === 'an undocumented export'), 'VIOLATIONS.find(({ name }) => name === …)').files, { report: false }));
+  const violation = known(VIOLATIONS.find(({ name }) => name === 'an undocumented export'), 'VIOLATIONS.find(({ name }) => name === …)');
+  const rejected = lintOf(repository(t, violation.files));
+  assert.ok(rejected.failed.includes('api-extractor .'), rejected.output);
+  assert.match(rejected.output, violation.finding);
+
+  const { failed, output } = lintOf(repository(t, violation.files, { report: false }));
   assert.deepEqual(failed, [], output);
 });
 
