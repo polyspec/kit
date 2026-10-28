@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 765abe6f5c5938cfcb363ed1a68cf86323975804613a543ad245577404c0a9de -->
+<!-- source-sha256: bd35c576b5b6cff04930f5c07e3cb0b0ae64626c7888cf6c55ba1395cbe3d1b0 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -688,4 +688,4 @@
 | K730 | consumer의 검증된 native Windows bootstrap과 선택 tool 설치를 지원한다 (issue #3) | Portable bootstrap, wrappers, platform locks and Windows CI coverage | `node --test tests/kit/install-tools.test.mts` | [ ] |
 | K731 | consumer gates를 선택 tool 기반 독립 CI job으로 준비한다 (issue #3) | Shared gates workflow with independent language and parity jobs and a final required gate | `node --test tests/source/ci-workflow.test.mts` | [ ] |
 | K732 | 요청한 도구 환경에 맞게 arginfo 검사 범위 수정 (이슈 #4) | scripts/kit/check-toolchain.mts tests/kit/check-toolchain.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/check-toolchain.test.mts`; `make typecheck` | [~] |
-| K733 | 테스트 없는 Go 보조 패키지와 명시적으로 생략한 테스트 구분 (이슈 #5) | scripts/kit/test-output.mts scripts/kit/test-progress.mts tests/kit/test-output.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-output.test.mts`; `make typecheck` | [ ] |
+| K733 | 테스트 없는 Go 보조 패키지와 명시적으로 생략한 테스트 구분 (이슈 #5) | scripts/kit/test-output.mts scripts/kit/test-progress.mts tests/kit/test-output.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-output.test.mts`; `make typecheck` | [~] |

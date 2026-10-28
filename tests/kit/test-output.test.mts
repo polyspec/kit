@@ -7,9 +7,10 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { cargoEvents, nodeEvents, type Sink, type TestRef } from '../../scripts/kit/test-output.mts';
+import { cargoEvents, goEvents, nodeEvents, toProgress, type Sink, type TestRef } from '../../scripts/kit/test-output.mts';
 import { outcomesOf, runOf } from '../../scripts/kit/parity-runners.mts';
 import { tool } from './kit-tools.mts';
+import { createProgress } from '../../scripts/kit/test-progress.mts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const NODE_REPORTER = tool(import.meta.resolve('../../scripts/kit/parity-node-reporter.mts'));
@@ -103,6 +104,59 @@ test('a node:test run of 2 passing and 1 failing case gives pass=2 and fail=1 th
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
+});
+
+// A Go package without test files is a group with no cases, not a skipped named case.
+test('goEvents treats no-test packages as groups while preserving named skips, empty-run failure, and build failure', () => {
+  const run = (events: Record<string, unknown>[], exitCode = 0) => {
+    const lines: string[] = [];
+    const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+    const build: string[] = [];
+    const feed = goEvents(toProgress(progress), build);
+    for (const event of events) feed(JSON.stringify(event));
+    return { result: progress.close('go test', { exitCode, build }), lines: lines.join('') };
+  };
+
+  const withHelpers = run([
+    { Action: 'start', Package: 'helper/benchmark' },
+    { Action: 'output', Package: 'helper/benchmark', Output: '? helper/benchmark [no test files]\n' },
+    { Action: 'skip', Package: 'helper/benchmark' },
+    { Action: 'start', Package: 'helper/probe' },
+    { Action: 'pass', Package: 'helper/probe', Elapsed: 0 },
+    { Action: 'start', Package: 'library' },
+    { Action: 'run', Package: 'library', Test: 'TestValue' },
+    { Action: 'pass', Package: 'library', Test: 'TestValue', Elapsed: 0.01 },
+    { Action: 'pass', Package: 'library', Elapsed: 0.02 },
+  ]);
+  assert.equal(withHelpers.result.ok, true, withHelpers.lines);
+  assert.deepEqual([withHelpers.result.passed, withHelpers.result.skipped, withHelpers.result.ran], [1, 0, 1]);
+  assert.match(withHelpers.lines, /helper\/benchmark: package has no test files/);
+  assert.match(withHelpers.lines, /helper\/probe: package ran no test case/);
+  assert.doesNotMatch(withHelpers.lines, /skipped cases:/);
+
+  const namedSkip = run([
+    { Action: 'start', Package: 'library' },
+    { Action: 'run', Package: 'library', Test: 'TestLater' },
+    { Action: 'skip', Package: 'library', Test: 'TestLater' },
+    { Action: 'pass', Package: 'library', Elapsed: 0.02 },
+  ]);
+  assert.equal(namedSkip.result.ok, false);
+  assert.deepEqual([namedSkip.result.skipped, namedSkip.result.ran], [1, 0]);
+  assert.match(namedSkip.lines, /skipped cases: library › TestLater/);
+
+  const empty = run([
+    { Action: 'start', Package: 'helper/benchmark' },
+    { Action: 'skip', Package: 'helper/benchmark' },
+  ]);
+  assert.equal(empty.result.ok, false);
+  assert.match(empty.lines, /no test ran/);
+
+  const compileFailure = run([
+    { Action: 'build-output', ImportPath: 'helper/broken', Output: '# helper/broken\nhelper.go:3: undefined: missing\n' },
+    { Action: 'build-fail', ImportPath: 'helper/broken' },
+  ], 1);
+  assert.equal(compileFailure.result.ok, false);
+  assert.match(compileFailure.lines, /build errors: helper.go:3: undefined: missing/);
 });
 
 // The lines that cargo test of a database target prints when a case's database is missing: the case database

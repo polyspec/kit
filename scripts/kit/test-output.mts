@@ -34,8 +34,8 @@ type GoEvent = { Action?: string; Package?: string; Test?: string; Output?: stri
  * Read go test -json events into the sink: each test with its id (the package and the test path, as the progress shows
  * it) and its name (the test name that go reports). The output of a test is passed to the sink only when it fails. The
  * compiler output of a package that does not build arrives as `build-output` events and its end as a `build-fail` event:
- * both reach the sink as lines and the error lines are added to `build`. A package that started no test case is reported
- * as skipped.
+ * both reach the sink as lines and the error lines are added to `build`. A package with no test cases is a neutral group; named
+ * skipped tests remain skips.
  */
 export function goEvents(sink: Sink, build: string[] = []): (line: string) => unknown {
   const output = new Map<string | undefined, string>();
@@ -77,12 +77,22 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
       case 'pass':
         output.delete(id);
         if (group && !started.get(event.Package)) {
-          sink.skip(test);
-          return sink.line(`○ ${id}: ran no test case`);
+          if (started.has(event.Package)) {
+            sink.pass(test);
+            return sink.line(`○ ${id}: package ran no test case`);
+          }
+          return sink.skip(test);
         }
         // test2json writes Elapsed on every pass event.
         return sink.pass(test, present(event.Elapsed, 'event.Elapsed') * 1000);
-      case 'skip': output.delete(id); return sink.skip(test);
+      case 'skip': {
+        output.delete(id);
+        if (group && started.has(event.Package) && !started.get(event.Package)) {
+          sink.pass(test);
+          return sink.line(`○ ${id}: package has no test files`);
+        }
+        return sink.skip(test);
+      }
       case 'fail': {
         const text = (output.get(id) ?? '').split('\n').filter(entry => !/^\s*(?:=== RUN|--- FAIL|=== (?:PAUSE|CONT))/.test(entry)).join('\n');
         output.delete(id);
