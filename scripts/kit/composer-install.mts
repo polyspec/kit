@@ -3,6 +3,7 @@
 import path from 'node:path';
 import { existsSync, lstatSync, realpathSync } from 'node:fs';
 import { isJsonList, isJsonObject, readJsonObject } from './bootstrap/files.mts';
+import { readComposerLockFile, readComposerManifestFile } from './manifests.mts';
 import type { ProvidedFolder } from './link-folders.mts';
 import type { Provider, Tool } from './link-providers.mts';
 import { checkoutProviders, providedFolders } from './link-folders.mts';
@@ -29,6 +30,26 @@ function requirePathRepository(project: string, tool: Tool): string {
   return file;
 }
 
+/** Adds exact direct requirements whose selected lock entry no longer matches the manifest. */
+function changedExactRequirements(manifestFile: string, lockFile: string, noDev: boolean): string[] {
+  if (!existsSync(lockFile)) return [];
+  const manifest = readComposerManifestFile(manifestFile);
+  const lock = readComposerLockFile(lockFile);
+  const locked = new Map([...(lock.packages ?? []), ...(lock['packages-dev'] ?? [])].map(item => [item.name, item.version]));
+  const requirements = { ...(manifest.require ?? {}), ...(!noDev ? (manifest['require-dev'] ?? {}) : {}) };
+  return Object.entries(requirements).filter(([name, spec]) => {
+    if (/^(php(?:-64bit|-ipv6|-zts|-debug)?|hhvm|ext-.+|lib-.+|composer(?:-plugin-api|-runtime-api)?)$/.test(name)) return false;
+    // Composer constraints with operators, ranges, branches or wildcards are not exact pins.
+    if (!/^[v]?\d+(?:\.\d+){1,3}(?:[-+][0-9A-Za-z.-]+)?$/.test(spec)) return false;
+    const version = locked.get(name);
+    return version === undefined || version.replace(/^v/, '') !== spec.replace(/^v/, '');
+  }).map(([name]) => name);
+}
+
+function lockPath(manifestFile: string): string {
+  return manifestFile.replace(/\.json$/, '') + '.lock';
+}
+
 /** Declared local dependencies are candidates even before their first native installation. */
 export function composerSourceFolders(project: string, providers: Iterable<Provider>, tool: Tool, noDev = false): ProvidedFolder[] {
   const provided = [...providers].filter(provider => provider.ecosystem === 'composer');
@@ -51,9 +72,9 @@ export function composerLink(project: string, folders: readonly ProvidedFolder[]
   const linked = folders.filter(folder => folder.ecosystem === 'composer');
   if (linked.length === 0) return false;
   const file = requirePathRepository(project, tool);
-  const names = [...new Set(linked.map(folder => folder.name))];
+  const lock = lockPath(file);
+  const names = [...new Set([...linked.map(folder => folder.name), ...changedExactRequirements(file, lock, noDev)])];
   print(`Composer local sources: updating ${names.join(', ')} with ${file}; its lock and dependent packages may change: started`);
-  const lock = file.replace(/\.json$/, '') + '.lock';
   const partial = existsSync(lock);
   if (!partial) print(`Composer local sources: ${lock} does not exist; Composer resolves all declared dependencies to create it`);
   const output = run(tool.command, ['update', ...(partial ? [...names, '--with-dependencies'] : []), '--no-interaction', '--no-audit', ...(noDev ? ['--no-dev'] : [])], { cwd: project, env: tool.env });

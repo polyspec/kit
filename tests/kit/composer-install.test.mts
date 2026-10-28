@@ -18,9 +18,9 @@ test('Composer local links require an explicit path repository before the packag
 test('Composer receives the explicit development manifest and installs a newly declared local dependency (K657-2, K664-2)', (t) => {
   const root = tree(t, {
     'composer.json': '{"require":{"example/local":"1.0.0"}}',
-    'composer.local.json': '{"require":{"example/local":"*"},"repositories":[{"type":"path","url":"source","options":{"symlink":true}}]}',
+    'composer.local.json': '{"require":{"example/local":"*"},"require-dev":{"phpstan/phpstan":"2.3.3","php":"8.4.27","ext-json":"8.4.27"},"repositories":[{"type":"path","url":"source","options":{"symlink":true}}]}',
     'source/composer.json': '{"name":"example/local","version":"2.0.0"}',
-    'composer.local.lock': '{}',
+    'composer.local.lock': '{"packages":[],"packages-dev":[{"name":"phpstan/phpstan","version":"2.3.2"}]}',
   });
   const script = path.join(root, 'composer.mjs');
   writeFileSync(script, `import { appendFileSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -51,6 +51,11 @@ if (args[0] === 'update') {
   });
   assert.ok(commands.every(entry => entry.manifest === 'composer.local.json'));
   assert.ok(commands.some(entry => entry.args[0] === 'update' && entry.args.includes('example/local') && entry.args.includes('--with-dependencies')));
+  assert.ok(commands.some(entry => entry.args[0] === 'update' && entry.args.includes('phpstan/phpstan')), 'changed direct exact development pins join the native partial update');
+  const update = commands.find(entry => entry.args[0] === 'update');
+  assert.ok(update);
+  assert.equal(update.args.includes('php'), false, 'PHP platform requirements are checked by Composer, not updated as packages');
+  assert.equal(update.args.includes('ext-json'), false, 'extension platform requirements are checked by Composer, not updated as packages');
   assert.equal(realpathSync(path.join(root, 'vendor/example/local')), realpathSync(path.join(root, 'source')));
   assert.equal(readFileSync(path.join(root, 'composer.local.lock'), 'utf8'), '{"native":"updated"}');
   assert.equal(readFileSync(path.join(root, 'composer.json'), 'utf8'), release);
