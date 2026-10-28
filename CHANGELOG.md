@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Prepare the Kit 0.0.63 candidate, native consumer lock and dependency review before release CI. (K744)
+
 ## 0.0.63
 
 - Scope native source linking to each runtime CI job while preserving full parity preparation and strict installed-source verification. (K743)
