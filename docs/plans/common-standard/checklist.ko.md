@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1acaf92838c8eef53c3cbbade1ab67b7958a347badfbaaba9e32797bdc805890 -->
+<!-- source-sha256: 15236c457489fc05cfb9541b6695e2c2a12a3ddd4dcc80564041a3c61e17761c -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -693,3 +693,4 @@
 | K735 | 정확한 Python discovery 파일 선택 인식 (이슈 #7) | scripts/kit/test-selection.mts tests/kit/test-selection.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-selection.test.mts`; `make typecheck` | [v] |
 | K736 | native 잠금 소스 설치로 worktree Python 환경 준비 (이슈 #8) | scripts/kit/worktree-setup.mts tests/kit/worktree-setup.test.mts tests/source/worktree-python-real.test.mts docs/operations/local-links.md docs/operations/local-links.ko.md | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K533\|K555\|legacy\|offline" tests/kit/worktree-setup.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/worktree-python-real.test.mts`; `make typecheck` | [v] |
 | K737 | native Composer 소스 갱신에 변경된 직접 의존성 포함 (이슈 #9) | scripts/kit/composer-install.mts tests/kit/composer-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/composer-install.test.mts`; `make typecheck` | [v] |
+| K738 | 표준 runner에서 PHPUnit의 native 개별 테스트 제한시간을 반영한다 | scripts/kit/run-tests.mts scripts/kit/test-progress.mts scripts/kit/test-gap.mts scripts/kit/php-library/phpunit-deadline-extension.php scripts/kit/php-library/phpunit-deadline-prepend.php tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts`; `make typecheck` | [ ] |
