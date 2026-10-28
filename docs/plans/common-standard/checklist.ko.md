@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 619194cf41984d5013354a3993514721f0749ced42e92187bf144e9684e7847f -->
+<!-- source-sha256: 2716dec29e2082f82b318cf54e56d5a8df7c0002aa3952b4ddb84c67f13e6085 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -671,3 +671,4 @@
 | K713 | provider 도구 fixture를 실제 설치 도구 경로와 맞춘다 | Cargo provider-lock expectations, correctly installed Go proof stub, preserved failure assertions and scoped CI regression evidence | `node scripts/kit/run-tests.mts node -- tests/kit/cargo-downloads.test.mts`; `node scripts/kit/run-tests.mts node -- tests/kit/release-proof.test.mts` | [o] |
 | K714 | 명시적으로 선언한 모든 공개 API 패키지 진입점을 읽는다 | scripts/kit/parity-symbols.mts scripts/kit/parity-declaration.mts scripts/kit/schema/parity.schema.json tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K714 tests/kit/parity.test.mts` | [o] |
 | K715 | 보류한 동작을 실행하지 않고 패리티 바인딩을 보존한다 | scripts/kit/parity-requirements.mts scripts/kit/parity-declaration.mts scripts/kit/parity-units.mts scripts/kit/parity-ledger.mts scripts/kit/parity.mts tests/kit/parity.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K715 tests/kit/parity.test.mts` | [o] |
+| K716 | 릴리스 CI 40650656525가 보고한 패리티 회귀를 수정한다 | tests/kit/parity-requirements.test.mts tests/kit/parity.test.mts scripts/kit/parity-symbols.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern=K715 tests/kit/parity-requirements.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K677-2 tests/kit/parity.test.mts` | [ ] |
