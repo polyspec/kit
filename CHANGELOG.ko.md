@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a4154e12a2bf6aba9eb760acb6627fe36220b734f324a35f3366f0eaae0553c9 -->
+<!-- source-sha256: 2670bf7311d2a8d07bd44bb36dde285e9cae5c2e9e8718e77eee1e40520bbb4c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- TypeScript 위반 fixture마다 명시한 소유 검사 단계만 실행하고 기존 진단 단언 및 실제 전체 파이프라인의 정상·실패·라우팅 검증은 유지합니다. (K726)
 - native autoload lint의 PHP 파서 의존성을 선언하고 잘못된 저장소의 실패를 Git 버전별 문구 대신 실제 Git 진단과 비교합니다. (K725)
 - 필요한 CI shard의 PHP·Composer·Go·Python·PHP 추출기 설치를 보완하고, 금지 입력 fixture를 이동한 뒤에도 실제 금지 입력 거부 규칙을 유지했습니다. (K724)
 - TOOLS 선택 설치에서 고정 버전 필수 의존성을 먼저 검증하고 다른 설치는 보존하며, 각 CI 작업이 필요한 환경만 독립적으로 준비하도록 했습니다. (K723)

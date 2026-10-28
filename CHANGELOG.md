@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Run each TypeScript violation fixture through its explicitly declared owner step while keeping every finding assertion and real full-pipeline positive, negative and routing coverage. (K726)
 - Declare the PHP parser used by native autoload lint and compare broken-repository failures against the running Git diagnostic instead of version-specific wording. (K725)
 - Restore exact PHP/Composer, Go, Python and PHP extractor prerequisites for the CI shards that use them, and retain the forbidden-input rule after moving its negative-test fixture. (K724)
 - Support selected pinned tool installation through TOOLS with validated prerequisites, preserve unrelated installations, and let each CI job prepare only its own required environments. (K723)
