@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 608e06954ba1eb904af72c886ab6a6495966e533fb016d4a64e844216cd7428b -->
+<!-- source-sha256: 6081d94889f9eb8b7995fca469cf91d9d37db46adb11b2dbf315bc4a463ee166 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -681,3 +681,4 @@
 | K723 | 선택한 고정 도구와 독립 CI 작업별 필수 환경 설치 | Makefile scripts/kit/install-tools.mts scripts/kit/check-toolchain.mts scripts/kit/install-symbols.mts scripts/kit/kit.mk .github/workflows/ci.yml tests/kit/install-tools.test.mts tests/kit/install-symbols.test.mts tests/kit/kit-mk.test.mts tests/source/ci-workflow.test.mts docs/operations/tool-inventory.md docs/operations/tool-inventory.ko.md | `make typecheck`; `node scripts/kit/run-tests.mts node -- tests/kit/install-tools.test.mts tests/source/ci-workflow.test.mts tests/kit/install-symbols.test.mts tests/kit/kit-mk.test.mts` | [o] |
 | K724 | CI shard 필수 도구 누락과 이동한 금지 입력 fixture 경로 수정 | .github/workflows/ci.yml config/layout.kit.yml config/layout.yml tests/source/ci-workflow.test.mts tests/source/layout-real.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="validator fixture\|make layout-check passes" tests/source/layout-real.test.mts`; `make layout-check` | [o] |
 | K725 | PHP 파서 필수 의존성 선언과 실제 Git 진단 검증 | config/toolchain.json tests/kit/lint-php.test.mts tests/kit/link.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="the PHP extractor used for autoload-file lint is declared for install-tools" tests/kit/lint-php.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="a broken gitfile fails" tests/kit/link.test.mts` | [~] |
+| K726 | 위반 fixture별 관련 없는 TypeScript lint 단계 반복 제거 | tests/source/lint-ts-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="the TypeScript lint fails on each planted violation with the rule or the message that names it" tests/source/lint-ts-real.test.mts`; `make typecheck` | [ ] |
