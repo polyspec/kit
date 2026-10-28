@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ff9ba3e51ba1dea2e02c3f212ccd652d8ae4e249da80ac6a2469a6027284fb1c -->
+<!-- source-sha256: 4b694dcc170ad95b5a3c2f7f32efc40240ecfcfc694d230a52801ac55561eef0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Mixed deferred-requirement 기대값을 현재 규칙에 맞추고 native PHP fixture를 다시 쓸 때 requirement marker를 보존했으며, 실패와 정리 단언은 유지했습니다. (K716)
 
 - 명시적으로 보류한 requirement의 binding을 보존하고, 해당 unit을 실행하거나 통과 건수로 계산하지 않으며 active/deferred requirement 혼합을 거부하도록 했습니다. (K715)
 

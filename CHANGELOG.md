@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Aligned mixed deferred-requirement expectations and preserved requirement markers in native PHP fixture rewrites, keeping the failure and cleanup assertions intact. (K716)
+
 - Preserve bindings for explicitly held requirements, report held units without executing or counting passing cases, and reject mixed active/deferred requirements. (K715)
 
 - Read all explicitly declared public API inputs, including per-crate Rust features, and reject partial extraction instead of accepting an incomplete symbol inventory. (K714)
