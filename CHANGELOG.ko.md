@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4b694dcc170ad95b5a3c2f7f32efc40240ecfcfc694d230a52801ac55561eef0 -->
+<!-- source-sha256: ed9d2381d66b9d287e942f402c3387fcc87514c4f6ba99d108c9219b93241080 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Nested composition, alias, visibility/precedence adaptation을 반영해 PHP trait의 유효한 공개 멤버를 사용하는 클래스에서 추출하고, internal trait 선언 자체는 숨기도록 했습니다. (K717)
 
 - Mixed deferred-requirement 기대값을 현재 규칙에 맞추고 native PHP fixture를 다시 쓸 때 requirement marker를 보존했으며, 실패와 정리 단언은 유지했습니다. (K716)
 

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Extract effective public PHP trait members on consuming classes, including nested composition, aliases and visibility/precedence adaptations, while keeping internal trait declarations hidden. (K717)
+
 - Aligned mixed deferred-requirement expectations and preserved requirement markers in native PHP fixture rewrites, keeping the failure and cleanup assertions intact. (K716)
 
 - Preserve bindings for explicitly held requirements, report held units without executing or counting passing cases, and reject mixed active/deferred requirements. (K715)
