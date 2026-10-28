@@ -92,8 +92,20 @@ export function selects(tool: string, args: readonly string[], isFileAt: (file: 
     case 'cargo':
       return words.length > 0;
     case 'python':
-      return words.some(word => word !== 'discover');
+      return words.some(word => word !== 'discover') || (words.includes('discover') && exactPythonDiscoveryPattern(command));
     default:
       return false;
   }
+}
+
+/** Whether unittest discovery names one exact Python test filename rather than a pattern that can select a suite. */
+function exactPythonDiscoveryPattern(args: readonly string[]): boolean {
+  let pattern: string | undefined;
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === '-p' || arg === '--pattern') pattern = args[++index];
+    else if (arg.startsWith('--pattern=')) pattern = arg.slice('--pattern='.length);
+    else if (arg.startsWith('-p') && arg.length > 2) pattern = arg.slice(2);
+  }
+  return pattern !== undefined && /^[A-Za-z0-9_.-]+\.py$/.test(pattern) && !pattern.includes('..');
 }
