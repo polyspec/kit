@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f4be5b2c717dabb88e817d37faa6698cb7918bfb06088909501a76a0ec926594 -->
+<!-- source-sha256: 47b35da4446c885549a927c3dc96df7641cf6ccb4bdca883738bb96f4ccdf05a -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -685,3 +685,4 @@
 | K727 | 기존 분석기 규칙으로 PHP 예외 원인 보존과 공통 검사 범위 보완 | config/php-lint/composer.json config/php-lint/composer.lock phpstan.dist.neon scripts/kit/install-php-lint.mts tests/source/lint-php-real.test.mts docs/operations/tool-inventory.md docs/operations/tool-inventory.ko.md | `node scripts/kit/run-tests.mts node -- tests/source/lint-php-real.test.mts`; `make dependency-policy-check`; `make docs-check` | [o] |
 | K728 | PHP fixture 설치와 예외 원인 진단 CI 실패 수정 | .github/workflows/ci.yml tests/source/ci-workflow.test.mts tests/source/lint-php-real.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="autoload files entry" tests/kit/lint-php.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="replacement exception" tests/source/lint-php-real.test.mts`; `make typecheck` | [o] |
 | K729 | Kit 0.0.61 버전과 native 소비자 잠금 준비 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-consumer TAG=v0.0.61`; `make dependency-policy-check`; `make docs-check` | [o] |
+| K730 | consumer의 검증된 native Windows bootstrap과 선택 tool 설치를 지원한다 (issue #3) | Portable bootstrap, wrappers, platform locks and Windows CI coverage | `node --test tests/kit/install-tools.test.mts` | [ ] |
