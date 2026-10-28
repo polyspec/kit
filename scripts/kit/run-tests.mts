@@ -70,6 +70,7 @@ const ERROR_LINE = /^(?:error(?:\[\w+\])?:|fatal error:|panic:|PHP Fatal error:)
 export type RunOptions = {
   tool: string;
   timeoutSeconds: number;
+  timeoutExplicit: boolean;
   cwd: string;
   args: string[];
   inputs: string[];
@@ -81,7 +82,7 @@ export type RunOptions = {
 };
 
 /** The options that the command of a tool reads. */
-export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'venv' | 'module'> & Partial<Pick<RunOptions, 'phpExtensions'>> & { library?: Pick<LibraryRun, 'phpunit' | 'prepend'> };
+export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'venv' | 'module'> & Partial<Pick<RunOptions, 'phpExtensions' | 'timeoutExplicit'>> & { library?: Pick<LibraryRun, 'phpunit' | 'prepend'> };
 
 // How a tool ended: it could not start, or it closed with a status or a signal.
 type Ended = { error: Error } | { error?: undefined; status: number | null; signal: NodeJS.Signals | null };
@@ -102,12 +103,13 @@ const INSTALL: Record<string, (options: { cwd: string; root: string }) => string
 export function parseArguments(argv: string[], root = repositoryRoot()) {
   const [tool, ...rest] = argv;
   if (tool === undefined || !TOOLS.includes(tool)) throw new Error(USAGE);
-  const options: RunOptions = { tool, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS, cwd: root, args: [], inputs: [], phpExtensions: [] };
+  const options: RunOptions = { tool, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS, timeoutExplicit: false, cwd: root, args: [], inputs: [], phpExtensions: [] };
   const { options: pairs, args } = runnerWords(rest);
   for (const [flag, value] of pairs) {
     if (flag === '--timeout') {
       if (!/^[1-9]\d*$/.test(value ?? '')) throw new Error(USAGE);
       options.timeoutSeconds = Number(value);
+      options.timeoutExplicit = true;
     } else if (flag === '--php-extension') {
       if (!value || tool !== 'phpunit') throw new Error(USAGE);
       options.phpExtensions.push(path.resolve(root, value));
@@ -166,7 +168,7 @@ export function probeExtensions(extensions: string[], php: string): string | und
   return undefined;
 }
 
-export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [], venv, module, library }: ToolOptions, root = repositoryRoot()): { command: string; args: string[]; build?: string[] } {
+export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd, args, phpExtensions = [], venv, module, library }: ToolOptions, root = repositoryRoot()): { command: string; args: string[]; build?: string[] } {
   const milliseconds = String(timeoutSeconds * 1000);
   switch (tool) {
     case 'node':
@@ -201,11 +203,15 @@ export function toolCommand({ tool, timeoutSeconds, cwd, args, phpExtensions = [
       // An extension run of the tests of the library (K329) starts the PHPUnit script itself, never the proxy of Composer, which names the
       // autoloader of the library; the file prepended to it names the autoloader without the sources of the library.
       // The PHP of both runs is the wrapper of var/tools/bin that install-tools writes for the checkout, never the php of PATH (K393).
-      if (library) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), '-d', `auto_prepend_file=${library.prepend}`, library.phpunit, '--teamcity', ...args] };
+      const nativeTimeouts = !timeoutExplicit;
+      const prepend = path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-library/phpunit-deadline-prepend.php');
+      const bootstrap = nativeTimeouts ? ['-d', `auto_prepend_file=${prepend}`] : [];
+      const extension = nativeTimeouts ? ['--extension', 'KitPHPUnitDeadlineExtension'] : [];
+      if (library) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(item => ['-d', `extension=${item}`]), ...bootstrap, library.phpunit, '--teamcity', ...extension, ...args] };
       // K452: an extension run gives PHPUnit the configuration of the package, so the bootstrap that it names loads as in the library run.
       const configuration = ['phpunit.xml', 'phpunit.xml.dist'].map(file => path.join(cwd, file)).find(file => existsSync(file));
       const configured = configuration === undefined ? [] : ['--configuration', configuration];
-      if (phpExtensions.length) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(extension => ['-d', `extension=${extension}`]), phpunit, '--teamcity', ...configured, ...args] };
+      if (phpExtensions.length || nativeTimeouts) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(item => ['-d', `extension=${item}`]), ...bootstrap, phpunit, '--teamcity', ...configured, ...extension, ...args] };
       return { command: phpunit, args: ['--teamcity', ...args] };
     }
     case 'python':
@@ -293,7 +299,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   const cargo = options.tool === 'cargo';
   const python = options.tool === 'python';
   // node and vitest report their tests from inside the tool, through the pipe of TEST_EVENTS_FD (K371-1).
-  const reporter = !reads;
+  const reporter = !reads || (options.tool === 'phpunit' && !options.timeoutExplicit);
   // The progress reporters write their counts to this file; the runner requires that a test ran.
   const results = mkdtempSync(path.join(tmpdir(), 'kit-test-result-'));
   const resultFile = path.join(results, 'result.json');
@@ -303,7 +309,18 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // The reporters run in the --cwd directory, so they take the repository root from TEST_ROOT.
   // The runner and its tool start with the mise of the checkout, so a run outside make, in a shell without its MISE_* variables,
   // trusts the mise.toml of the checkout and finds its tools; the variables that the run sets itself come after (K411).
-  const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), ...library?.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
+  const phpunitAutoload = options.tool === 'phpunit' && !options.timeoutExplicit
+    ? library?.env.KIT_PHP_AUTOLOAD ?? packageVendorFile(root, path.relative(root, options.cwd) || '.', 'autoload.php')
+    : undefined;
+  const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), ...library?.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(phpunitAutoload === undefined ? {} : { KIT_PHPUNIT_AUTOLOAD: path.resolve(root, phpunitAutoload) }), ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
+  delete env.KIT_PHPUNIT_AUTOLOAD;
+  delete env.KIT_TEST_EVENTS;
+  if (library === undefined) {
+    delete env.KIT_PHP_AUTOLOAD;
+    delete env.KIT_PHP_LIBRARY_SOURCES;
+  }
+  if (phpunitAutoload !== undefined) env.KIT_PHPUNIT_AUTOLOAD = path.resolve(root, phpunitAutoload);
+  if (reporter) env[TEST_EVENTS] = String(TEST_EVENTS_FD);
   // Native Cargo resolves its workspace target unless the caller supplied an explicit CLI target argument (K676).
   if (cargo) delete env.CARGO_TARGET_DIR;
   delete env.NODE_TEST_CONTEXT;
@@ -471,7 +488,14 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       // The pipe of the test events is the stream that spawn opened for TEST_EVENTS_FD: a readable one, checked here.
       const events = present(child.stdio[TEST_EVENTS_FD], 'child.stdio[TEST_EVENTS_FD]');
       if (!(events instanceof Readable)) throw new Error(`the test events of ${label} are not a readable pipe`);
-      readline.createInterface({ input: events }).on('line', text => gap.event(parseTestEvent(text)));
+      readline.createInterface({ input: events }).on('line', text => {
+        const event = parseTestEvent(text);
+        if (event.kind === 'timeout') {
+          upOnce();
+          progress?.timeout(event.id, event.timeoutMs);
+        }
+        gap.event(event);
+      });
     }
     const ended = await closed;
     await stopping;

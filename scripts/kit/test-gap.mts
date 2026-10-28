@@ -17,16 +17,30 @@ import { channel } from 'node:diagnostics_channel';
 
 /**
  * A test event: a test started (`start`) or ended (`end`), a process of the tool reported that it is up (`up`), or the tool starts
- * the process of the next file or package (`launch`), or a declared long operation starts/ends, by its id.
+ * the process of the next file or package (`launch`), or a declared long operation starts/ends, by its id. PHPUnit can also report
+ * the resolved configured timeout for a test before its TeamCity start event.
  */
-export type TestEvent = { kind: 'start' | 'end' | 'up' | 'launch' | 'operation-start' | 'operation-end'; id: string };
+export type TestEvent =
+  | { kind: 'start' | 'end' | 'up' | 'launch' | 'operation-start' | 'operation-end'; id: string }
+  | { kind: 'timeout'; id: string; timeoutMs: number };
 
 /** A declared setup or teardown operation; its duration is not test-case time. */
 export type OperationEvent = { kind: 'operation-start' | 'operation-end'; id: string };
 
 /** The kinds of TestEvent. */
-const KINDS: readonly TestEvent['kind'][] = ['start', 'end', 'up', 'launch', 'operation-start', 'operation-end'];
+const KINDS: readonly TestEvent['kind'][] = ['start', 'end', 'up', 'launch', 'operation-start', 'operation-end', 'timeout'];
 const isKind = (kind: unknown): kind is TestEvent['kind'] => KINDS.some(known => known === kind);
+
+/** The bounded `Class::method` identity that the PHPUnit extension reports for one test case. */
+export function isPHPUnitCaseId(id: string): boolean {
+  const separator = id.indexOf('::');
+  if (separator < 1 || separator > 256 || id.length - separator - 2 < 1 || id.length - separator - 2 > 512) return false;
+  for (let index = 0; index < id.length; index++) {
+    const code = id.charCodeAt(index);
+    if (code < 32 || code === 127) return false;
+  }
+  return !id.slice(0, separator).includes(':');
+}
 
 /** The bound of the start of a tool's process, before it reports that it is up (K549). */
 export const START_UP_MS = 120_000;
@@ -95,8 +109,10 @@ export function createGap({ timeoutMs, startUpMs = START_UP_MS, onExpire }: { ti
   };
   arm();
   return {
-    event({ kind, id }: TestEvent): void {
+    event(event: TestEvent): void {
       if (done) return;
+      if (event.kind === 'timeout') return;
+      const { kind, id } = event;
       if (kind === 'operation-start') {
         operations++;
         disarm();
@@ -130,8 +146,13 @@ export function createGap({ timeoutMs, startUpMs = START_UP_MS, onExpire }: { ti
 export function parseTestEvent(line: string): TestEvent {
   const event: unknown = JSON.parse(line);
   if (typeof event !== 'object' || event === null) throw new Error(`not a test event: ${line}`);
-  const { kind, id } = event as { kind?: unknown; id?: unknown };
+  const { kind, id, timeoutMs } = event as { kind?: unknown; id?: unknown; timeoutMs?: unknown };
   if (!isKind(kind) || typeof id !== 'string') throw new Error(`not a test event: ${line}`);
+  if (kind === 'timeout') {
+    if (!isPHPUnitCaseId(id)
+      || typeof timeoutMs !== 'number' || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1) throw new Error(`not a test event: ${line}`);
+    return { kind, id, timeoutMs };
+  }
   return { kind, id };
 }
 

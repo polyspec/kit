@@ -4,7 +4,7 @@
 import { writeFileSync } from 'node:fs';
 import { compactSeconds } from './time.mts';
 import { present } from './present.mts';
-import type { TestEvent } from './test-gap.mts';
+import { isPHPUnitCaseId, type TestEvent } from './test-gap.mts';
 
 /** The outcome of a test of a run; a test that ran out of time is `timeout`. */
 export type CaseStatus = 'pass' | 'fail' | 'skip' | 'timeout';
@@ -37,7 +37,9 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
   onEvent?: ((event: TestEvent) => unknown) | undefined;
 }) {
   const started = now();
-  const running = new Map<string, { started: number; expired: boolean }>();
+  const running = new Map<string, { started: number; expired: boolean; timeoutMs?: number }>();
+  const pendingTimeouts = new Map<string, number>();
+  const completed = new Set<string>();
   const counts = { passed: 0, failed: 0, skipped: 0, timedOut: 0 };
   // Each test with its outcome and elapsed time, in the order they ended; a test that ran out of time is `timeout`.
   const cases: TestCase[] = [];
@@ -48,13 +50,13 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
   const timer = setInterval(() => {
     for (const [id, test] of running) {
       const elapsed = now() - test.started;
-      if (timeoutMs !== undefined && elapsed > timeoutMs && !test.expired) {
+      if (test.timeoutMs !== undefined && elapsed > test.timeoutMs && !test.expired) {
         test.expired = true;
         counts.timedOut++;
-        line(`⏱ ${id} ran ${compactSeconds(elapsed)} and exceeded its ${compactSeconds(timeoutMs)} timeout${command ? `; stopping \`${command}\`` : ''}`);
+        line(`⏱ ${id} ran ${compactSeconds(elapsed)} and exceeded its ${compactSeconds(test.timeoutMs)} timeout${command ? `; stopping \`${command}\`` : ''}`);
         onTimeout?.(id);
       } else if (!test.expired) {
-        line(`… ${id} still running (${compactSeconds(elapsed)}${timeoutMs === undefined ? '' : ` of ${compactSeconds(timeoutMs)}`})`);
+        line(`… ${id} still running (${compactSeconds(elapsed)}${test.timeoutMs === undefined ? '' : ` of ${compactSeconds(test.timeoutMs)}`})`);
       }
     }
   }, heartbeatMs);
@@ -70,6 +72,13 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
   const finish = (id: string, durationMs: number | undefined, status: 'pass' | 'fail' | 'skip'): number => {
     const test = running.get(id);
     running.delete(id);
+    completed.add(id);
+    while (completed.size > 256) {
+      const oldest = completed.values().next().value;
+      if (oldest === undefined) break;
+      completed.delete(oldest);
+    }
+    pendingTimeouts.delete(id);
     const elapsedMs = durationMs ?? (test ? now() - test.started : 0);
     cases.push({ id, status: status === 'fail' && test?.expired ? 'timeout' : status, elapsedMs });
     onEvent?.({ kind: 'end', id });
@@ -80,10 +89,28 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
     start(id: string, { group = false }: { group?: boolean | undefined } = {}): void {
       if (group) groups.set(id, now());
       else {
-        running.set(id, { started: now(), expired: false });
+        const ownTimeout = pendingTimeouts.get(id);
+        pendingTimeouts.delete(id);
+        const effectiveTimeout = ownTimeout ?? timeoutMs;
+        running.set(id, { started: now(), expired: false, ...(effectiveTimeout === undefined ? {} : { timeoutMs: effectiveTimeout }) });
         onEvent?.({ kind: 'start', id });
       }
-      line(`▶ ${id}`);
+      const ownTimeout = group ? undefined : running.get(id)?.timeoutMs;
+      line(`▶ ${id}${ownTimeout === undefined || ownTimeout === timeoutMs ? '' : ` (timeout ${compactSeconds(ownTimeout)})`}`);
+    },
+    /** Replaces a running PHPUnit case's watchdog with its resolved native per-test limit. */
+    timeout(id: string, ownTimeoutMs: number): void {
+      if (!isPHPUnitCaseId(id)) throw new Error(`invalid test timeout identity: ${id}`);
+      if (!Number.isSafeInteger(ownTimeoutMs) || ownTimeoutMs < 1) throw new Error(`invalid test timeout for ${id}: ${ownTimeoutMs}`);
+      if (completed.has(id)) return;
+      const test = running.get(id);
+      if (test) {
+        test.timeoutMs = ownTimeoutMs;
+        line(`⌛ ${id} uses PHPUnit's configured ${compactSeconds(ownTimeoutMs)} timeout`);
+      } else {
+        pendingTimeouts.set(id, ownTimeoutMs);
+        if (pendingTimeouts.size > 256) throw new Error('too many PHPUnit test timeout events arrived before test starts');
+      }
     },
     /** Counts a run that ran out of time outside its tests, such as before the first test (K371-1), and prints why. */
     expire(text: string): void {

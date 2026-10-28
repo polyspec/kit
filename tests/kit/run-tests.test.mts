@@ -12,6 +12,7 @@ import { parseArguments, probeExtensions, PYTHON_START, run, toolCommand } from 
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from '../../scripts/kit/test-output.mts';
 import { inputsDigest } from '../../scripts/kit/tracked-files.mts';
 import { createProgress } from '../../scripts/kit/test-progress.mts';
+import { parseTestEvent } from '../../scripts/kit/test-gap.mts';
 import { put, tree } from './tree.mts';
 import { KIT, tool } from './kit-tools.mts';
 import type { JSONSchemaType } from 'ajv/dist/2020.js';
@@ -180,6 +181,8 @@ test('a node test that leaves a socket open is ended past the deadline and the s
 test('the arguments of the runner are read before the arguments of the tool', () => {
   const options = parseArguments(['node', '--timeout', '5', '--cwd', 'sub', '--', 'a.test.mjs', '--x'], '/repo');
   assert.deepEqual([options.tool, options.timeoutSeconds, options.cwd, options.args], ['node', 5, '/repo/sub', ['a.test.mjs', '--x']]);
+  assert.equal(options.timeoutExplicit, true);
+  assert.equal(parseArguments(['phpunit'], '/repo').timeoutExplicit, false);
   assert.deepEqual(parseArguments(['phpunit', '--php-extension', 'ext.so'], '/repo').phpExtensions, ['/repo/ext.so']);
   assert.deepEqual(parseArguments(['phpunit', '--php-extension', 'base.so', '--php-extension', 'ext.so', 't'], '/repo').phpExtensions, ['/repo/base.so', '/repo/ext.so']);
   assert.equal(parseArguments(['go', './...'], '/repo').args[0], './...');
@@ -191,6 +194,28 @@ test('the arguments of the runner are read before the arguments of the tool', ()
   for (const bad of [[], ['ruby'], ['go', '--results'], ['node', '--timeout', '0'], ['node', '--timeout', 'x'], ['node', '--php-extension', 'x'], ['node', '--cwd']]) {
     assert.throws(() => parseArguments(bad, '/repo'), /Usage: node scripts\/kit\/run-tests\.mts <node\|vitest\|go\|cargo\|phpunit\|python>/, JSON.stringify(bad));
   }
+});
+
+test('PHPUnit deadline events accept only a named case and a positive integer timeout', () => {
+  assert.deepEqual(parseTestEvent('{"kind":"timeout","id":"CatalogTest::testRead","timeoutMs":120000}'), { kind: 'timeout', id: 'CatalogTest::testRead', timeoutMs: 120000 });
+  for (const event of [
+    { kind: 'timeout', id: 'orphan', timeoutMs: 1000 },
+    { kind: 'timeout', id: 'CatalogTest::testRead', timeoutMs: 0 },
+    { kind: 'timeout', id: 'CatalogTest::testRead', timeoutMs: 1.5 },
+  ]) assert.throws(() => parseTestEvent(JSON.stringify(event)), /not a test event/);
+});
+
+test('a namespaced PHPUnit data-provider deadline matches its TeamCity case identity', () => {
+  const lines: string[] = [];
+  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, timeoutMs: 30_000, resultFile: '' });
+  progress.timeout('NamespacedSmallTest::testCases with data set "alpha"', 6_000);
+  const feed = phpunitEvents(toProgress(progress));
+  feed(`##teamcity[testStarted name='testCases with data set "alpha"' locationHint='php_qn:///tmp/NamespacedSmallTest.php::\\Deadline\\Fixture\\NamespacedSmallTest::testCases with data set "alpha"' flowId='1']`);
+  feed(`##teamcity[testFinished name='testCases with data set "alpha"' duration='12' flowId='1']`);
+  const result = progress.close('phpunit');
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.cases.map(({ id, status }) => [id, status]), [['NamespacedSmallTest::testCases with data set "alpha"', 'pass']]);
+  assert.match(lines.join(''), /NamespacedSmallTest::testCases with data set "alpha" \(timeout 6\.0s\)/);
 });
 
 test('each tool starts with its progress and timeout arguments and no limit on a whole run', (t) => {
@@ -211,23 +236,44 @@ test('each tool starts with its progress and timeout arguments and no limit on a
 test('phpunit runs the PHPUnit of the vendor directory that Composer gives the project of --cwd', (t) => {
   const root = tree(t, { 'p/composer.json': '{}\n', 'q/composer.json': '{"config":{"vendor-dir":"lib/vendor"}}\n', 'var/tools/bin/php': '#!/bin/sh\n' });
   const p = path.join(root, 'p');
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: ['t'] }, root), { command: path.join(p, 'vendor/bin/phpunit'), args: ['--teamcity', 't'] });
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: [], phpExtensions: ['/r/e.so'] }, root).args.slice(0, 3), ['-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit')]);
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: p, args: ['t'] }, root), { command: path.join(p, 'vendor/bin/phpunit'), args: ['--teamcity', 't'] });
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: p, args: [], phpExtensions: ['/r/e.so'] }, root).args.slice(0, 3), ['-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit')]);
   // K165: each extension is loaded with its own -d extension=, in the given order, so one can depend on an earlier one.
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: ['t'], phpExtensions: ['/r/base.so', '/r/e.so'] }, root), { command: path.join(root, 'var/tools/bin/php'), args: ['-d', 'extension=/r/base.so', '-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit'), '--teamcity', 't'] });
-  assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: path.join(root, 'q'), args: [] }, root).command, path.join(root, 'q/lib/vendor/bin/phpunit'));
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: p, args: ['t'], phpExtensions: ['/r/base.so', '/r/e.so'] }, root), { command: path.join(root, 'var/tools/bin/php'), args: ['-d', 'extension=/r/base.so', '-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit'), '--teamcity', 't'] });
+  assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: path.join(root, 'q'), args: [] }, root).command, path.join(root, 'q/lib/vendor/bin/phpunit'));
   t.after(() => { delete process.env.COMPOSER_VENDOR_DIR; });
   process.env.COMPOSER_VENDOR_DIR = '/elsewhere';
-  assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: [] }, root).command, '/elsewhere/bin/phpunit');
+  assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: p, args: [] }, root).command, '/elsewhere/bin/phpunit');
+});
+
+test('PHPUnit uses its configured per-test deadline extension unless --timeout is explicit', (t) => {
+  const root = tree(t, {
+    'composer.json': '{"config":{"vendor-dir":"vendor"}}\n',
+    'p/composer.json': '{}\n',
+    'p/phpunit.xml': '<phpunit/>\n',
+    'vendor/bin/phpunit': '',
+    'vendor/autoload.php': '',
+    'var/tools/bin/php': '',
+  });
+  composerStub(root);
+  const p = path.join(root, 'p');
+  const native = toolCommand({ tool: 'phpunit', timeoutSeconds: 30, timeoutExplicit: false, cwd: p, args: ['tests/SmallTest.php'] }, root);
+  assert.equal(native.command, path.join(root, 'var/tools/bin/php'));
+  assert.ok(native.args.includes(`auto_prepend_file=${path.join(path.dirname(tool(import.meta.resolve('../../scripts/kit/run-tests.mts'))), 'php-library/phpunit-deadline-prepend.php')}`));
+  assert.ok(native.args.includes('KitPHPUnitDeadlineExtension'));
+  assert.ok(native.args.includes(path.join(root, 'p/phpunit.xml')));
+  const explicit = toolCommand({ tool: 'phpunit', timeoutSeconds: 9, timeoutExplicit: true, cwd: p, args: ['tests/SmallTest.php'] }, root);
+  assert.equal(explicit.command, path.join(root, 'vendor/bin/phpunit'));
+  assert.doesNotMatch(explicit.args.join(' '), /KitPHPUnitDeadlineExtension|auto_prepend_file/);
 });
 
 // A PHP extension run starts the PHP of the checkout, the wrapper of var/tools/bin that install-tools writes, never the php of PATH (K393).
 test('a phpunit run with a PHP extension starts the php of the checkout, and fails without it (K393)', (t) => {
   const root = tree(t, { 'p/composer.json': '{}\n', 'var/tools/bin/php': '#!/bin/sh\n' });
   const p = path.join(root, 'p');
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: p, args: [], phpExtensions: ['/r/e.so'] }, root).command, path.join(root, 'var/tools/bin/php'));
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: p, args: [], phpExtensions: ['/r/e.so'] }, root).command, path.join(root, 'var/tools/bin/php'));
   const bare = tree(t, { 'p/composer.json': '{}\n' });
-  assert.throws(() => toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: path.join(bare, 'p'), args: [], phpExtensions: ['/r/e.so'] }, bare), /\/var\/tools\/bin\/php does not exist; run make install/);
+  assert.throws(() => toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: path.join(bare, 'p'), args: [], phpExtensions: ['/r/e.so'] }, bare), /\/var\/tools\/bin\/php does not exist; run make install/);
 });
 
 function recorder() {
@@ -299,6 +345,25 @@ test('the progress reports a test that outlives its timeout', (t) => {
   assert.deepEqual(closed.cases.map(({ id, status }) => [id, status]), [['slow', 'timeout']]);
 });
 
+test('PHPUnit deadlines apply before or during a test and a late event cannot leak to its next run', () => {
+  const lines: string[] = [];
+  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, timeoutMs: 30_000, resultFile: '' });
+  progress.timeout('SmallTest::testSmall', 6_000);
+  progress.start('SmallTest::testSmall');
+  progress.pass('SmallTest::testSmall', 1);
+  progress.start('MediumTest::testMedium');
+  progress.timeout('MediumTest::testMedium', 12_000);
+  progress.pass('MediumTest::testMedium', 1);
+  progress.timeout('SmallTest::testSmall', 1_000);
+  const result = progress.close('phpunit');
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.cases.map(({ id, status }) => [id, status]), [['SmallTest::testSmall', 'pass'], ['MediumTest::testMedium', 'pass']]);
+  assert.match(lines.join(''), /SmallTest::testSmall \(timeout 6\.0s\)/);
+  assert.match(lines.join(''), /MediumTest::testMedium uses PHPUnit's configured 12\.0s timeout/);
+  assert.doesNotMatch(lines.join(''), /uses PHPUnit's configured 1\.0s timeout/);
+  assert.throws(() => progress.timeout('no-case-id', 1000), /invalid test timeout identity/);
+});
+
 test('the go events print tests, show the output of a failing test, name build errors and skip a package without a test', () => {
   const lines: string[] = [];
   const progress = createProgress({ write: (text: string) => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
@@ -317,8 +382,8 @@ test('the go events print tests, show the output of a failing test, name build e
   assert.match(text, /✖ p › TestB/);
   assert.match(text, /b_test\.go:9: want 1 got 2/);
   assert.doesNotMatch(text, /--- FAIL/);
-  assert.match(text, /○ empty skipped/);
-  assert.match(text, /○ empty: ran no test case/);
+  assert.match(text, /○ empty: package ran no test case/);
+  assert.doesNotMatch(text, /empty skipped/);
   assert.match(text, /✖ build of bad failed/);
   assert.deepEqual(build, ['bad.go:3:1: syntax error']);
   assert.match(text, /not json/);
@@ -478,8 +543,8 @@ test('phpunit with --cwd of a package of a Composer monorepo runs the PHPUnit of
   const pass = "console.log(\"##teamcity[testStarted name='test_a' flowId='1']\"); console.log(\"##teamcity[testFinished name='test_a' duration='1' flowId='1']\");";
   const root = tree(t, { 'composer.json': '{}\n', 'vendor/bin/phpunit': `#!/usr/bin/env node\n${pass}\n`, 'packages/a/composer.json': '{}\n' });
   chmodSync(path.join(root, 'vendor/bin/phpunit'), 0o755);
-  assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: path.join(root, 'packages/a'), args: [] }, root).command, path.join(root, 'vendor/bin/phpunit'));
-  const result = await inProcess(t, ['phpunit', '--cwd', 'packages/a'], { root });
+  assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: path.join(root, 'packages/a'), args: [] }, root).command, path.join(root, 'vendor/bin/phpunit'));
+  const result = await inProcess(t, ['phpunit', '--timeout', '7', '--cwd', 'packages/a'], { root });
   assert.equal(result.status, 0, result.text);
   assert.match(result.text, /✔ phpunit packages\/a: 1 passed/);
 });
@@ -524,7 +589,7 @@ test('a tool that cannot start fails with its command and the fix', async (t) =>
   // The go of the checkout is missing from var/tools/mise/shims: the run stops before it starts, and PATH is not searched (K393).
   await assert.rejects(inProcess(t, ['go', './...']), /go of the checkout is missing \(var\/tools\/bin\/go, var\/tools\/mise\/shims\/go\); run make install/);
   // PHPUnit starts by its path in the vendor directory, so PATH does not matter for it.
-  const phpunit = await inProcess(t, ['phpunit'], { root: tree(t, COMPOSER_PROJECT) });
+  const phpunit = await inProcess(t, ['phpunit', '--timeout', '7'], { root: tree(t, COMPOSER_PROJECT) });
   assert.match(phpunit.text, /cannot start .*vendor\/bin\/phpunit: .*; run composer install in \./);
 });
 
@@ -1076,7 +1141,7 @@ test('the tools of kit are taken from the checkout, never from PATH (K393-1)', (
 // K452: an extension run gives PHPUnit the configuration of the package, so the bootstrap that it names is loaded as in the library run.
 test('an extension run gives PHPUnit the package configuration so its bootstrap loads (K452)', (t) => {
 const withConfig = tree(t, { 'p/composer.json': '{}\n', 'p/phpunit.xml.dist': '<phpunit bootstrap="tests/bootstrap.php"/>\n', 'var/tools/bin/php': '#!/bin/sh\n' });
-const configured = toolCommand({ tool: 'phpunit', timeoutSeconds: 7, cwd: path.join(withConfig, 'p'), args: [], phpExtensions: ['/r/e.so'] }, withConfig);
+const configured = toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: path.join(withConfig, 'p'), args: [], phpExtensions: ['/r/e.so'] }, withConfig);
 assert.ok(configured.args.includes('--configuration'), `the extension run passes no configuration: ${configured.args.join(' ')}`);
 });
 

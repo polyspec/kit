@@ -645,6 +645,14 @@
     "scripts/kit/ci-setup.mts": {
       "kind": "policy",
       "reason": "the shared CI gate contract partitions required jobs and validates each declared repository setup prerequisite; ecosystems execute the selected Make targets"
+    },
+    "scripts/kit/php-library/phpunit-deadline-extension.php": {
+      "kind": "ecosystem",
+      "tool": "PHPUnit 13.4 extension lifecycle events and resolved Configuration API deliver the configured size deadline for each prepared test"
+    },
+    "scripts/kit/php-library/phpunit-deadline-prepend.php": {
+      "kind": "ecosystem",
+      "tool": "the PHP CLI auto_prepend_file setting loads the PHPUnit deadline extension after the Composer autoloader and before PHPUnit starts"
     }
   }
 }

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 34fa025af9ac4b510d97b75e8fd0435fb6d01128aaf3040a526926b6608f4129 -->
+<!-- source-sha256: 873773b20ab689029323feb2dbc7eb5d62eb3bfe5ae549eda7a84e67be45f98f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -693,5 +693,5 @@
 | K735 | 정확한 Python discovery 파일 선택 인식 (이슈 #7) | scripts/kit/test-selection.mts tests/kit/test-selection.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/test-selection.test.mts`; `make typecheck` | [v] |
 | K736 | native 잠금 소스 설치로 worktree Python 환경 준비 (이슈 #8) | scripts/kit/worktree-setup.mts tests/kit/worktree-setup.test.mts tests/source/worktree-python-real.test.mts docs/operations/local-links.md docs/operations/local-links.ko.md | `node scripts/kit/run-tests.mts node -- --test-name-pattern="K533\|K555\|legacy\|offline" tests/kit/worktree-setup.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/worktree-python-real.test.mts`; `make typecheck` | [v] |
 | K737 | native Composer 소스 갱신에 변경된 직접 의존성 포함 (이슈 #9) | scripts/kit/composer-install.mts tests/kit/composer-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/composer-install.test.mts`; `make typecheck` | [~] |
-| K738 | 표준 runner에서 PHPUnit의 native 개별 테스트 제한시간을 반영한다 | scripts/kit/run-tests.mts scripts/kit/test-progress.mts scripts/kit/test-gap.mts scripts/kit/php-library/phpunit-deadline-extension.php scripts/kit/php-library/phpunit-deadline-prepend.php tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts`; `make typecheck` | [ ] |
+| K738 | 표준 runner에서 PHPUnit의 native 개별 테스트 제한시간을 반영한다 | scripts/kit/run-tests.mts scripts/kit/test-progress.mts scripts/kit/test-gap.mts scripts/kit/php-library/phpunit-deadline-extension.php scripts/kit/php-library/phpunit-deadline-prepend.php tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts`; `make typecheck` | [~] |
 | K739 | 지원하는 모든 OS에서 native 대소문자 구분 자원으로 표준 workspace 테스트를 실행한다 | scripts/kit/runtime-targets.mts scripts/kit/case-sensitive-directory.mts scripts/kit/process-group.mts tests/kit/runtime-targets.test.mts tests/kit/process-group.test.mts tests/kit/fixture/standard-case-sensitive-smoke.mts scripts/kit/kit.mk .github/workflows/platform-bootstrap.yml config/owner-checks.json Makefile | `node scripts/kit/run-tests.mts node -- tests/kit/runtime-targets.test.mts tests/kit/process-group.test.mts`; `make typecheck` | [ ] |
