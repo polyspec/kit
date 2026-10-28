@@ -1,10 +1,24 @@
 // Native bootstrap paths and wrappers are selected explicitly for Windows; this unit keeps the platform mapping and batch
 // command shape reviewable without downloading toolchains or invoking a shell.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { miseArchiveUrl, miseBinary, misePlatform, nodeBinary } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { windowsWrapperText } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
+import { changedFiles, snapshotFiles } from '../../scripts/kit/bootstrap/verify-idempotent.mts';
+
+test('bootstrap snapshots accept unchanged installed files and reject a changed installation', (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), 'kit-bootstrap-state-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const binary = path.join(root, 'node');
+  writeFileSync(binary, 'native binary');
+  const before = snapshotFiles({ 'node binary': binary });
+  assert.deepEqual(changedFiles(before, snapshotFiles({ 'node binary': binary })), []);
+  writeFileSync(binary, 'replaced native binary');
+  assert.deepEqual(changedFiles(before, snapshotFiles({ 'node binary': binary })), ['node binary']);
+});
 
 test('mise uses the release platform keys and Windows archive names', () => {
   assert.equal(misePlatform('win32', 'x64'), 'windows-x64');
@@ -33,6 +47,8 @@ test('the platform smoke installs pinned packages before SDK tools and requires 
   const workflow = readFileSync(new URL('../../.github/workflows/platform-bootstrap.yml', import.meta.url), 'utf8');
   for (const runner of ['ubuntu-24.04', 'macos-14', 'windows-2025']) assert.ok(workflow.includes(`runner: ${runner}`), `${runner} is in the matrix`);
   assert.match(workflow, /install pinned mise, Node\.js and npm[\s\S]*?install pinned Kit dependencies/);
+  assert.match(workflow, /verify bootstrap is idempotent[\s\S]*?run: node scripts\/kit\/bootstrap\/verify-idempotent\.mts/);
+  assert.doesNotMatch(workflow, /grep -q ['"]installing |match ['"]installing /);
   assert.match(workflow, /var\/tools\/bin\/node var\/tools\/npm\/node_modules\/npm\/bin\/npm-cli\.js ci --ignore-scripts --allow-remote=root/);
   assert.match(workflow, /\.\\var\\tools\\bin\\node\.cmd \.\\var\\tools\\npm\\node_modules\\npm\\bin\\npm-cli\.js ci --ignore-scripts --allow-remote=root/);
   assert.match(workflow, /install pinned Kit dependencies[\s\S]*?install pinned Go and Rust toolchains/);

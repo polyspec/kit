@@ -69,7 +69,6 @@
   },
   "packageManager": "npm@12.2.0+sha512.66c2632a94e796649738b2d7894d710c2cc2e1696893823066687f6b0d8a52e5f2b54eeaeaa32ffdc513ecca1e49ff794a5c2ec3f9515d879f1b3182b291cf35",
   "devDependencies": {
-    "@types/cross-spawn": "6.0.6",
     "@types/node": "26.6.5",
     "@vscode/test-electron": "3.1.0",
     "typescript": "7.0.2"
@@ -157,6 +156,7 @@
     "@microsoft/api-extractor": "7.59.4",
     "@microsoft/api-extractor-model": "7.33.15",
     "@renovatebot/pep440": "5.0.1",
+    "@types/cross-spawn": "6.0.6",
     "@types/picomatch": "4.0.3",
     "@types/semver": "7.8.0",
     "acorn": "8.19.0",

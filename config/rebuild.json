@@ -637,6 +637,10 @@
     "scripts/kit/linked-build.mts": {
       "kind": "policy",
       "reason": "rebuilds after main moves what the consumers that link main live read (K551, K609): the dist of kit when a build input changed, and a stale npm build output through link-build; no ecosystem tool knows which outputs a move of main makes stale for linked consumers"
+    },
+    "scripts/kit/bootstrap/verify-idempotent.mts": {
+      "kind": "policy",
+      "reason": "the K730 platform-bootstrap gate: it snapshots the installed mise, Node.js, npm and wrappers around a repeated bootstrap; no ecosystem tool decides whether the bootstrap changed those installed files"
     }
   }
 }

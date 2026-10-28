@@ -16,7 +16,7 @@ const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../sc
 // The directory of the installer that the copy starts; named through import.meta.resolve, so the import graph of
 // owner-check selects this test when the installer changes (K191).
 const BOOTSTRAP = path.dirname(fileURLToPath(import.meta.resolve('../../scripts/kit/bootstrap/bootstrap.mts')));
-const MODULES = ['bootstrap', 'digest', 'files', 'install-mise', 'install-npm', 'install-tool', 'tool-wrappers', 'toolchain-declared'];
+const MODULES = ['bootstrap', 'digest', 'files', 'install-mise', 'install-npm', 'install-tool', 'tool-wrappers', 'toolchain-declared', 'verify-idempotent'];
 
 test('the bootstrap modules are in scripts/kit/bootstrap, once', () => {
   assert.deepEqual(existsSync(BOOTSTRAP) ? readdirSync(BOOTSTRAP).sort() : [], MODULES.map(name => `${name}.mts`));
