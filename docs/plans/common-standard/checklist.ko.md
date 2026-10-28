@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 6735c9a678d91d391c9d6c99560738c5744d9ca86e28c2a35f7ccae0ee5ebc40 -->
+<!-- source-sha256: f049cc8b3f5eb3c9f8a9066b96fe1260d6bb0c53f5c61ad4cbdbe717deb794d2 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -684,3 +684,4 @@
 | K726 | 위반 fixture별 관련 없는 TypeScript lint 단계 반복 제거 | tests/source/lint-ts-real.test.mts | `node scripts/kit/run-tests.mts node -- --test-name-pattern="the TypeScript lint fails on each planted violation with the rule or the message that names it\|an undocumented export passes API Extractor" tests/source/lint-ts-real.test.mts`; `make typecheck` | [o] |
 | K727 | 기존 분석기 규칙으로 PHP 예외 원인 보존과 공통 검사 범위 보완 | config/php-lint/composer.json config/php-lint/composer.lock phpstan.dist.neon scripts/kit/install-php-lint.mts tests/source/lint-php-real.test.mts docs/operations/tool-inventory.md docs/operations/tool-inventory.ko.md | `node scripts/kit/run-tests.mts node -- tests/source/lint-php-real.test.mts`; `make dependency-policy-check`; `make docs-check` | [o] |
 | K728 | PHP fixture 설치와 예외 원인 진단 CI 실패 수정 | .github/workflows/ci.yml tests/source/ci-workflow.test.mts tests/source/lint-php-real.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="autoload files entry" tests/kit/lint-php.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="replacement exception" tests/source/lint-php-real.test.mts`; `make typecheck` | [o] |
+| K729 | Kit 0.0.61 버전과 native 소비자 잠금 준비 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-consumer TAG=v0.0.61`; `make dependency-policy-check`; `make docs-check` | [ ] |
