@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: d6a99fb81972a5c506562f5f60c715b4cbd308584a1cadf1eaf87911472d8d30 -->
+<!-- source-sha256: bb883b13722934950aef7800c9c08bccfacb4ec32481aaa2eb86ca44e4daa2b1 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -705,3 +705,4 @@
 | K746 | 잠근 설치 provider로 test 소유권 이전을 검증한다 (issue 12) | scripts/kit/plan.mts scripts/kit/check-commits.mts package.json tests/kit/plan.test.mts tests/kit/commits.test.mts tests/kit/provider-tests.test.mts | `node --test tests/kit/plan.test.mts tests/kit/commits.test.mts tests/kit/provider-tests.test.mts` | [ ] |
 | K747 | native Playwright case를 표준 reporter로 실행한다 (issue 13) | scripts/kit/run-tests.mts scripts/kit/playwright-reporter.mts scripts/kit/test-progress.mts scripts/kit/test-selection.mts package.json package-lock.json tests/kit/playwright-reporter.test.mts tests/kit/run-tests.test.mts tests/kit/test-selection.test.mts | `node --test tests/kit/playwright-reporter.test.mts tests/kit/run-tests.test.mts tests/kit/test-selection.test.mts` | [ ] |
 | K748 | tag에서 version을 얻는 Composer archive와 native proof를 지원한다 (issue 16) | scripts/kit/release.mts scripts/kit/release-consumer.mts tests/kit/release.test.mts tests/kit/release-consumer.test.mts tests/kit/release-consumer-sandbox.mts | `node --test tests/kit/release.test.mts tests/kit/release-consumer.test.mts` | [ ] |
+| K749 | CI를 통과한 확정 candidate를 단일 release 명령으로 배포한다 (issue 17) | scripts/kit/release-run.mts tests/kit/release-run.test.mts Makefile scripts/kit/kit.mk config/rebuild.json | `node --test tests/kit/release-run.test.mts` | [ ] |
