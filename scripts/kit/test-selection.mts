@@ -101,9 +101,9 @@ export function selects(tool: string, args: readonly string[], isFileAt: (file: 
 /** Whether unittest discovery names one exact Python test filename rather than a pattern that can select a suite. */
 function exactPythonDiscoveryPattern(args: readonly string[]): boolean {
   let pattern: string | undefined;
-  for (let index = 0; index < args.length; index++) {
-    const arg = args[index];
-    if (arg === '-p' || arg === '--pattern') pattern = args[++index];
+  const words = args.values();
+  for (const arg of words) {
+    if (arg === '-p' || arg === '--pattern') pattern = words.next().value;
     else if (arg.startsWith('--pattern=')) pattern = arg.slice('--pattern='.length);
     else if (arg.startsWith('-p') && arg.length > 2) pattern = arg.slice(2);
   }
