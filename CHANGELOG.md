@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Split parity CI into public API/static checks and selected native binding phases, preserving every static rule and the default complete check. (K720)
 - Verify host-native public API forms against their own release artifact while retaining shared behavior, executable requirement tracing and complete public symbol coverage. (K719)
 - Run Kit unit tests in six parallel CI shards and source tests in nine explicit groups, enforcing exact-once test coverage and the final success gate. (K718)
 - Extract effective public PHP trait members on consuming classes, including nested composition, aliases and visibility/precedence adaptations, while keeping internal trait declarations hidden. (K717)
