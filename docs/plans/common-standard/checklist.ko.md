@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 6470c0b1a919402fd28735d523f118578e8f3f37f3ce936a338f877bb9cdf2f1 -->
+<!-- source-sha256: 1e51b7957d41c62a788bad3357bb086f6d621526141eb347145497dddbd7aadb -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -700,3 +700,4 @@
 | K741 | native candidate 자산과 소비자 잠금 및 검증된 설치로 Kit 0.0.62를 준비한다 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-coverage`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.62` | [o] |
 | K742 | npm bootstrap 전 clean checkout parity target 열거 실패를 수정한다 (GitHub issue 15) | scripts/kit/kit.mk tests/kit/parity-api.test.mts tests/kit/kit-tools.test.mts | `node --test --test-name-pattern="clean consumer can parse its first npm bootstrap" tests/kit/kit-tools.test.mts`; `node --test --test-name-pattern="provider parity phase targets" tests/kit/gate-targets.test.mts`; `node --test --test-name-pattern="still rejects unreadable names" tests/kit/kit-mk.test.mts` | [o] |
 | K743 | 선택 runtime CI job에 native source linking 범위를 맞춘다 (GitHub issue 14) | scripts/kit/link.mts tests/kit/link.test.mts workflows/gates.yml tests/kit/gates-workflow.test.mts scripts/kit/kit.mk tests/kit/kit-mk.test.mts docs/operations/local-links.md docs/operations/local-links.ko.md | `node --test --test-name-pattern="runtime links use only\|unknown runtime" tests/kit/link.test.mts`; `node --test --test-name-pattern="K473\|runtime jobs link only" tests/kit/gates-workflow.test.mts`; `node --test --test-name-pattern="link-check names the sibling" tests/kit/kit-mk.test.mts`; `make typecheck` | [o] |
+| K744 | clean bootstrap과 runtime link 수정 배포를 위해 Kit 0.0.63을 준비한다 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-coverage`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.63` | [ ] |
