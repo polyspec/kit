@@ -380,12 +380,11 @@ if (isMain(import.meta.url)) {
       const [, contextGroup = '', contextRuntime = ''] = process.argv.slice(2);
       if (contextRuntime !== '' && !isRuntime(contextRuntime)) throw new Error(`unknown runtime ${contextRuntime}; choose ${RUNTIMES.join(', ')}`);
       runCIContext(root, mode === '--context-prepare' ? 'prepare' : 'cleanup', contextGroup, contextRuntime === '' ? undefined : contextRuntime);
-    }
-    else {
+    } else if (mode === '--setup') {
       if (group !== 'shared' && group !== 'parity' && group !== 'runtime') throw new Error(`unknown CI setup group ${group}; choose shared, parity or runtime`);
       if (runtime !== '' && !isRuntime(runtime)) throw new Error(`unknown runtime ${runtime}; choose ${RUNTIMES.join(', ')}`);
       runCISetup(root, group, runtime === '' ? undefined : runtime);
-    }
+    } else throw new Error(`unknown CI setup mode ${mode}; use --plan, --setup GROUP [RUNTIME], --context-prepare GROUP [RUNTIME], --context-cleanup GROUP [RUNTIME] or --verify-gates`);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[ci-setup] ${error.message}`);

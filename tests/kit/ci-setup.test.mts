@@ -67,6 +67,43 @@ test('K731: CI setup executes only the declared existing runtime targets', () =>
   }
 });
 
+test('K731-1: setup CLI is explicit and unknown modes cannot execute a valid group', () => {
+  const root = fixture();
+  try {
+    const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
+    assert.throws(() => execFileSync(process.execPath, [script, '--context-typo', 'shared'], { cwd: root, stdio: 'pipe' }), /unknown CI setup mode/);
+    assert.equal(existsSync(path.join(root, 'setup.log')), false, 'an unknown mode cannot start any configured Make target');
+    execFileSync(process.execPath, [script, '--setup', 'shared'], { cwd: root, stdio: 'pipe' });
+    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'shared', 'the explicit setup mode preserves the existing group selection');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K731-1: the real kit-ci-setup Make target forwards the explicit CLI mode', () => {
+  const root = fixture();
+  try {
+    const kitRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+    writeFileSync(path.join(root, 'Makefile'), [
+      `KIT := ${path.join(kitRoot, 'scripts/kit')}`,
+      'KIT_EXT := mts',
+      `include ${path.join(kitRoot, 'scripts/kit/kit.mk')}`,
+      '.PHONY: shared-setup parity-setup go-setup parity-api-check',
+      'shared-setup:', '\t@printf shared >> setup.log',
+      'parity-setup:', '\t@printf parity >> setup.log',
+      'go-setup:', '\t@printf go >> setup.log',
+      'parity-api-check:', '\t$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api',
+      'parity-bindings-go-client-check:', '\t$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation go-client',
+      '',
+    ].join('\n'));
+    execFileSync('git', ['add', 'Makefile'], { cwd: root });
+    execFileSync('make', ['kit-ci-setup', 'GROUP=shared', `NODE=${process.execPath}`], { cwd: root, stdio: 'pipe' });
+    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'shared');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('K731: unknown targets and full-install aggregates fail before any setup runs', () => {
   const root = fixture();
   try {
