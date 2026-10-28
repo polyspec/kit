@@ -36,7 +36,7 @@ function changedExactRequirements(manifestFile: string, lockFile: string, noDev:
   const manifest = readComposerManifestFile(manifestFile);
   const lock = readComposerLockFile(lockFile);
   const locked = new Map([...(lock.packages ?? []), ...(lock['packages-dev'] ?? [])].map(item => [item.name, item.version]));
-  const requirements = { ...(manifest.require ?? {}), ...(!noDev ? (manifest['require-dev'] ?? {}) : {}) };
+  const requirements = { ...(manifest.require ?? {}), ...(!noDev ? manifest['require-dev'] : {}) };
   return Object.entries(requirements).filter(([name, spec]) => {
     if (/^(php(?:-64bit|-ipv6|-zts|-debug)?|hhvm|ext-.+|lib-.+|composer(?:-plugin-api|-runtime-api)?)$/.test(name)) return false;
     // Composer constraints with operators, ranges, branches or wildcards are not exact pins.
