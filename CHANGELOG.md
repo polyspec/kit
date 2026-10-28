@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Run consumer shared, runtime and parity gates in independently prepared jobs with declared locked setup. (K731)
+
 - Prepare and clean up declared CI resource contexts around mandatory provider gates, including failed preparation and verification. (K731-1)
 
 - Add verified Windows bootstrap and native Make/process execution with pinned Node, npm, Go and Rust. (K730)

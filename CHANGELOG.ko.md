@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f6ab3a749487c0c364aded988ea4b5159f0767d40ccf908cc712b6b4bec09f1d -->
+<!-- source-sha256: 6118262db3e9f5503416a5904e9be37459607816a70e2a6056b2d513a6db5715 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 소비자의 shared, runtime, parity gate를 선언된 잠금 setup으로 독립적으로 준비한 job에서 실행한다. (K731)
 
 - 실패한 준비 및 검증을 포함해 필수 provider gate 전후에 선언된 CI 자원 context를 준비하고 정리한다. (K731-1)
 
