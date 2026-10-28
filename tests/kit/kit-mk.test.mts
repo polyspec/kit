@@ -15,7 +15,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const KIT_MK = path.join(ROOT, 'scripts/kit/kit.mk');
 const COMMON_DIR = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
 const MAIN = path.dirname(path.resolve(ROOT, COMMON_DIR));
-const recipes = readFileSync(KIT_MK, 'utf8').split('\n').filter(line => line.startsWith('\t'));
+const recipes = readFileSync(KIT_MK, 'utf8').split('\n').filter(line => line.startsWith('\t')).map(line => line.replaceAll('$$(', '$('));
 
 test('every recipe of kit.mk runs its tool through KIT and KIT_EXT, and none names scripts/kit', () => {
   const tools = recipes.filter(line => /\$\((?:BOOTSTRAP_)?NODE\) /.test(line));
@@ -40,6 +40,19 @@ test('consumer kit.mk exposes the shared PHP arginfo and selective symbol instal
   const symbols = dry('kit-install-symbols', 'EXTRACTORS=go');
   assert.equal(symbols.status, 0, symbols.stderr);
   assert.equal(symbols.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs go`);
+});
+
+test('kit.mk accepts a parity declaration with no implementation targets and still rejects unreadable names', (t) => {
+  const root = tree(t, { 'config/parity.json': JSON.stringify({ implementations: [] }) });
+  const args = ['--no-print-directory', '-n', '-f', KIT_MK, 'parity-api-check', `KIT=${path.join(ROOT, 'scripts/kit')}`, 'KIT_EXT=mts', `NODE=${process.execPath}`];
+  const empty = spawnSync('make', args, { cwd: root, encoding: 'utf8' });
+  assert.equal(empty.status, 0, empty.stdout + empty.stderr);
+  assert.match(empty.stdout, /parity\.mts --phase api/);
+
+  writeFileSync(path.join(root, 'config/parity.json'), '{ invalid json');
+  const unreadable = spawnSync('make', args, { cwd: root, encoding: 'utf8' });
+  assert.notEqual(unreadable.status, 0, unreadable.stdout + unreadable.stderr);
+  assert.match(unreadable.stderr, /implementation names could not be read safely/);
 });
 
 test('link-check names the sibling checkouts when CHECKOUTS is empty, as link does (K383)', () => {

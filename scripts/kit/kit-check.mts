@@ -247,7 +247,7 @@ export function parityPhaseFindings(make: MakeDatabase, implementations: readonl
   if (phaseCount === 0) return [];
   const findings: string[] = [];
   const apiRecipe = make.targets.get('parity-api-check')?.recipe.trim();
-  if (apiRecipe !== '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api') findings.push('Makefile: parity-api-check does not use the provider API recipe. Fix: keep the provider recipe and add setup prerequisites only');
+  if (makeRecipe(apiRecipe) !== '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api') findings.push('Makefile: parity-api-check does not use the provider API recipe. Fix: keep the provider recipe and add setup prerequisites only');
   if (fullCount > 0) findings.push('Makefile: CHECK_TARGETS mixes parity-check with parity phases. Fix: choose parity-check once or parity-api-check and every parity-bindings-<implementation>-check once');
   if ((occurrences.get('parity-api-check') ?? 0) !== 1) findings.push(`Makefile: CHECK_TARGETS must run parity-api-check exactly once; found ${occurrences.get('parity-api-check') ?? 0}. Fix: add parity-api-check once`);
   for (const name of new Set([...occurrences.keys()].filter(name => name.startsWith('parity-bindings-') && name.endsWith('-check')))) {
@@ -260,10 +260,13 @@ export function parityPhaseFindings(make: MakeDatabase, implementations: readonl
     if (count !== 1) findings.push(`Makefile: CHECK_TARGETS must run ${target} exactly once; found ${count}. Fix: add the provider target once`);
     const rule = make.targets.get(target);
     if (!rule) findings.push(`Makefile: ${target} has no provider target. Fix: use the implementation names generated from config/parity.json`);
-    else if (rule.recipe.trim() !== `$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation ${implementation}`) findings.push(`Makefile: ${target} does not use its provider binding recipe. Fix: add setup prerequisites without replacing the recipe`);
+    else if (makeRecipe(rule.recipe.trim()) !== `$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation ${implementation}`) findings.push(`Makefile: ${target} does not use its provider binding recipe. Fix: add setup prerequisites without replacing the recipe`);
   }
   return findings;
 }
+
+/** Make's database retains doubled dollars that were escaped through eval; compare the expanded provider recipe. */
+const makeRecipe = (recipe: string | undefined): string | undefined => recipe?.replaceAll('$$(', '$(');
 
 export function gateFindings(files: readonly string[], make: MakeDatabase, implementations: readonly string[] = []): string[] {
   const gates = make.targets.get('kit-gates')?.prerequisites ?? [];
@@ -338,11 +341,8 @@ function targetFindings(root: string, make: MakeDatabase): string[] {
   const files = trackedFiles(root);
   let implementations: string[] = [];
   if (existsSync(path.join(root, 'config/parity.json'))) {
-    try {
-      implementations = readConfig<{ implementations: { name: string }[] }>(root, 'config/parity.json', 'parity.schema.json').implementations.map(({ name }) => name);
-    } catch {
-      // checkConfig reports malformed parity declarations; phase selection has no sound names to validate here.
-    }
+    const declaration = readConfigFindings<{ implementations: { name: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
+    if (declaration.value !== undefined) implementations = declaration.value.implementations.map(({ name }) => name);
   }
   // K534: the owner rules as land reads them select the lint of each language for its sources.
   const owners = existsSync(path.join(root, DECLARATION)) ? lintSelectionFindings(files, make, ownerDeclaration(root)) : [];

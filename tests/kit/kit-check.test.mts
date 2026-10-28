@@ -120,6 +120,13 @@ test('a complete provider-owned parity phase partition covers the mandatory pari
   };
   assert.deepEqual(parityPhaseFindings(valid, implementations), []);
   assert.deepEqual(gateFindings([], valid, implementations), []);
+  const evalDatabase = {
+    targets: new Map(valid.targets),
+    variables: new Map(valid.variables),
+  };
+  evalDatabase.targets.set('parity-bindings-go-check', { prerequisites: [], recipe: '$$(NODE) $$(KIT)/parity.$$(KIT_EXT) --phase bindings --implementation go' });
+  evalDatabase.targets.set('parity-bindings-php-extension-check', { prerequisites: [], recipe: '$$(NODE) $$(KIT)/parity.$$(KIT_EXT) --phase bindings --implementation php-extension' });
+  assert.deepEqual(parityPhaseFindings(evalDatabase, implementations), []);
 });
 
 test('parity phase coverage rejects missing, duplicate, mixed, empty and unknown selectors', () => {

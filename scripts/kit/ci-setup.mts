@@ -150,16 +150,19 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
   parityBindingMatrix(implementationNames);
   if (parityMode === 'phases') {
     if (!db.targets.has('parity-api-check')) throw new Error(`config/ci.json selects parityMode phases, but parity-api-check is not a Make target. Fix: use the provider parity targets from kit.mk`);
-    if (db.targets.get('parity-api-check')?.recipe.trim() !== '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api') throw new Error(`config/ci.json selects parityMode phases, but parity-api-check does not use the provider API recipe. Fix: use the provider target without replacing its recipe`);
+    if (makeRecipe(db.targets.get('parity-api-check')?.recipe.trim()) !== '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api') throw new Error(`config/ci.json selects parityMode phases, but parity-api-check does not use the provider API recipe. Fix: use the provider target without replacing its recipe`);
     for (const implementation of implementationNames) {
       if (!/^[a-z][a-z0-9-]*$/.test(implementation)) throw new Error(`config/parity.json has implementation name ${implementation}, which cannot select a provider binding target. Fix: use the declared implementation name format`);
       const target = `parity-bindings-${implementation}-check`;
       const recipe = db.targets.get(target)?.recipe.trim();
-      if (recipe !== `$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation ${implementation}`) throw new Error(`${CI_CONFIG} selects phases, but ${target} is missing its provider binding recipe. Fix: use the generated provider target and add setup prerequisites without replacing its recipe`);
+      if (makeRecipe(recipe) !== `$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation ${implementation}`) throw new Error(`${CI_CONFIG} selects phases, but ${target} is missing its provider binding recipe. Fix: use the generated provider target and add setup prerequisites without replacing its recipe`);
     }
   }
   return { config, runtimes, files, folders, db };
 }
+
+/** Make's database retains doubled dollars that were escaped through eval; compare the expanded provider recipe. */
+const makeRecipe = (recipe: string | undefined): string | undefined => recipe?.replaceAll('$$(', '$(');
 
 function defaultSetup(root: string, runtime: Runtime, files: readonly string[], folders: readonly string[]): { target: string; args: string[] }[] {
   switch (runtime) {

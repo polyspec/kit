@@ -70,7 +70,9 @@ import { misplacedTests, missingBindings, missingImplementations, pairs, undecla
 import { isMain, repositoryRoot } from './paths.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { loadConfig } from './checklist.mts';
-import { readConfig } from './schema-validate.mts';
+import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
+
+const hasImplementationName = (value: unknown): value is { name: string } => isJsonObject(value) && typeof value.name === 'string';
 
 /** A finding as parity-declaration.mts finding() makes it: the rule, the unit, implementation and place it names, and the message. */
 export type ParityFinding = Finding;
@@ -242,9 +244,15 @@ if (isMain(import.meta.url)) {
   const say = (text: string) => console.log(`[parity] ${text}`);
   if (values['make-targets']) {
     try {
-      const declaration = readConfig<{ implementations: { name: string }[] }>(repositoryRoot(), DECLARATION, 'parity.schema.json');
-      const names = declaration.implementations.map(({ name }) => name);
-      if (names.length === 0 || new Set(names).size !== names.length || names.some(name => !/^[a-z][a-z0-9-]*$/.test(name))) throw new Error(`${DECLARATION} has no usable unique implementation names`);
+      // Make target generation needs only safe implementation names. Full declaration validation belongs to
+      // parity-declarations-check, where scoped unit checks may intentionally tolerate other schema findings.
+      const declaration = readJsonObject(repositoryRoot(), DECLARATION);
+      const entries = declaration.implementations;
+      if (!Array.isArray(entries) || (entries.length > 0 && !entries.every(hasImplementationName))) {
+        throw new Error(`${DECLARATION} has no usable implementation names`);
+      }
+      const names = entries.map(entry => entry.name);
+      if (new Set(names).size !== names.length || names.some(name => !/^[a-z][a-z0-9-]*$/.test(name))) throw new Error(`${DECLARATION} has no usable unique implementation names`);
       console.log(names.join(' '));
     } catch (error) {
       if (!(error instanceof Error)) throw error;

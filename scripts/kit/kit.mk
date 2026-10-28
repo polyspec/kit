@@ -531,9 +531,9 @@ parity-check: ## Run every parity binding and check every rule; UNITS="<id>..." 
 # The parity declaration is the source of the native implementation list. Generate an explicit phony target per implementation so
 # repository setup prerequisites, existing files and a consumer's `.PHONY` declarations cannot bypass the provider recipe.
 ifneq ($(wildcard config/parity.json),)
-KIT_PARITY_IMPLEMENTATIONS := $(shell $(NODE) $(KIT)/parity.$(KIT_EXT) --make-targets)
-ifeq ($(strip $(KIT_PARITY_IMPLEMENTATIONS)),)
-$(error config/parity.json has no usable implementation names for provider parity targets; fix the parity declaration)
+KIT_PARITY_IMPLEMENTATIONS := $(shell $(NODE) $(KIT)/parity.$(KIT_EXT) --make-targets || echo __KIT_PARITY_TARGETS_ERROR__)
+ifneq ($(filter __KIT_PARITY_TARGETS_ERROR__,$(KIT_PARITY_IMPLEMENTATIONS)),)
+$(error config/parity.json implementation names could not be read safely; fix the parity declaration)
 endif
 endif
 KIT_PARITY_BINDING_TARGETS := $(addprefix parity-bindings-,$(addsuffix -check,$(KIT_PARITY_IMPLEMENTATIONS)))
