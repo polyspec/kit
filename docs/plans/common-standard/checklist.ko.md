@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 4ecd394a7f30e93f788aed3e1ec97768a56fd8b288b94a569d164d407490c2b4 -->
+<!-- source-sha256: b9c87f01444adb9674c9d5bb40c5050c35ac469412980222e431c9925af7613b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -696,4 +696,4 @@
 | K737 | native Composer 소스 갱신에 변경된 직접 의존성 포함 (이슈 #9) | scripts/kit/composer-install.mts tests/kit/composer-install.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/composer-install.test.mts`; `make typecheck` | [o] |
 | K738 | 표준 runner에서 PHPUnit의 native 개별 테스트 제한시간을 반영한다 | scripts/kit/run-tests.mts scripts/kit/test-progress.mts scripts/kit/test-gap.mts scripts/kit/php-library/phpunit-deadline-extension.php scripts/kit/php-library/phpunit-deadline-prepend.php scripts/kit/php-library/phpunit-deadline-subscriber.php config/rebuild.json tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts`; `make typecheck` | [o] |
 | K739 | 지원하는 모든 OS에서 native 대소문자 구분 자원으로 표준 workspace 테스트를 실행한다 | scripts/kit/runtime-targets.mts scripts/kit/case-sensitive-directory.mts scripts/kit/process-group.mts tests/kit/runtime-targets.test.mts tests/kit/process-group.test.mts tests/kit/standard-case-sensitive-smoke.mts scripts/kit/kit.mk .github/workflows/platform-bootstrap.yml config/owner-checks.json config/rebuild.json config/knip-entries.json knip.json Makefile scripts/kit/run-tests.mts tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/runtime-targets.test.mts tests/kit/process-group.test.mts`; `make typecheck`; `node --test --test-name-pattern="each tool starts" tests/kit/run-tests.test.mts` | [o] |
-| K740 | 릴리스 검토에서 확인한 stable 의존성 버전을 갱신한다 | package.json package-lock.json mise.toml mise.lock config/dependency-review.json | `make dependency-policy-check`; `make typecheck` | [v] |
+| K740 | 릴리스 검토에서 확인한 stable 의존성 버전을 갱신한다 | package.json package-lock.json mise.toml mise.lock config/dependency-review.json | `make dependency-policy-check`; `make typecheck` | [o] |

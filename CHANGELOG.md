@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Update reviewed stable dependency pins and native toolchain digests with a clean advisory record. (K740)
+
 - Run workspace and infrastructure tests through the standard runner with owned case-sensitive resources and native process cleanup. (K739)
 
 - Honor native PHPUnit case deadlines through supported namespaced event extensions and preserve explicit watchdog settings. (K738)

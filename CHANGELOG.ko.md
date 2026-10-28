@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: acfa31769b67be9d71d237f280fc58782c9300895e709fc8f6f3b86060c910ef -->
+<!-- source-sha256: 2aa79bba3994129e6d2315deb6c4ee6d5c2b1cb358e5474b7bea5d830bb52990 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 검토한 stable 의존성 버전과 native toolchain digest를 갱신하고 취약점 검토 기록을 유지한다. (K740)
 
 - 소유한 대소문자 구분 자원과 native process 정리를 사용해 workspace 및 infrastructure 테스트를 표준 runner로 실행한다. (K739)
 
