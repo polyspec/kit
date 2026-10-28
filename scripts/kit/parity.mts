@@ -143,13 +143,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   }
   const { codes, findings: unreadable } = readCodes(model, root);
   if (unreadable.length) return { findings: unreadable, ledger };
-  for (const tool of model.config.tools ?? []) say(tool.root === undefined
-    ? `tools exact files ${(tool.files ?? []).join(', ')}: ${tool.reason}`
-    : `tools root ${tool.root}: ${tool.reason}`);
-  const executed = execute ? runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection }) : { ledger, findings: [] };
-  if (selected !== undefined && execute) return { findings: executed.findings, ledger: executed.ledger };
-  const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), findings: [] };
-  say('check the units against the tree');
+  const heldUnits = new Set<string>();
   const requirementTraceFindings = requirementFindings(
     model.config,
     files,
@@ -159,7 +153,16 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     entry => {
       if (ids === undefined || ids.includes(entry.id)) say(`DEFERRED ${entry.id}: held by ${entry.item} in ${entry.checklist}`);
     },
+    unit => heldUnits.add(unit),
   );
+  for (const unit of heldUnits) if (selected === undefined || selected.has(unit)) say(`HELD ${unit}: its requirements are deferred; no runtime bindings execute`);
+  for (const tool of model.config.tools ?? []) say(tool.root === undefined
+    ? `tools exact files ${(tool.files ?? []).join(', ')}: ${tool.reason}`
+    : `tools root ${tool.root}: ${tool.reason}`);
+  const executed = execute ? runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection, heldUnits }) : { ledger, findings: [] };
+  if (selected !== undefined && execute) return { findings: [...executed.findings, ...requirementTraceFindings.filter(item => item.unit !== undefined && selected.has(item.unit))], ledger: executed.ledger };
+  const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), findings: [] };
+  say('check the units against the tree');
   const findings = [
     ...extracted.findings,
     ...missingImplementations(model, extracted.snapshots),

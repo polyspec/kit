@@ -20,6 +20,27 @@ export type Runner = (typeof RUNNERS)[number];
 /** The extractor of the public symbols of an implementation (parity-symbols.mts). */
 export type Extractor = 'go' | 'php' | 'python' | 'rust' | 'ts';
 
+/** One explicitly selected symbol-extractor input, with Cargo features for Rust. */
+export interface ParitySymbolEntry {
+  entry: string;
+  features?: string[];
+}
+
+/** A legacy single input or the inputs whose public symbol inventories are combined. */
+export type ParitySymbols =
+  | { extractor: Extractor; entry: string; entries?: never }
+  | { extractor: Extractor; entries: ParitySymbolEntry[]; entry?: never };
+
+/** The paths read by a symbol extractor, preserving the legacy singular entry form. */
+export function symbolEntries(symbols: ParitySymbols): ParitySymbolEntry[] {
+  return symbols.entry !== undefined ? [{ entry: symbols.entry }] : symbols.entries;
+}
+
+/** The declared inputs of a symbol extraction, including their feature selections. */
+export function symbolEntriesLabel(symbols: ParitySymbols): string {
+  return symbolEntries(symbols).map(({ entry, features }) => features === undefined ? entry : `${entry} (features: ${features.join(', ')})`).join(', ');
+}
+
 /** An implementation of the declaration (parity.schema.json). */
 export interface ParityImplementation {
   name: string;
@@ -33,7 +54,7 @@ export interface ParityImplementation {
   command?: string;
   args?: string[];
   env?: { name: string; value: string }[];
-  symbols?: { extractor: Extractor; entry: string };
+  symbols?: ParitySymbols;
   errors?: { file: string; pattern: string };
   /** The implementation whose test files this one runs in its own runtime (K232). */
   shares?: string;
@@ -667,7 +688,15 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     }
   }
   for (const entry of config.implementations) {
-    if (entry.symbols !== undefined && !existsSync(path.join(root, entry.symbols.entry))) fail(`implementation ${entry.name}: the symbols entry ${entry.symbols.entry} does not exist`);
+    if (entry.symbols !== undefined) {
+      const seen = new Set<string>();
+      for (const symbolEntry of symbolEntries(entry.symbols)) {
+        if (!existsSync(path.join(root, symbolEntry.entry))) fail(`implementation ${entry.name}: the symbols entry ${symbolEntry.entry} does not exist`);
+        const key = JSON.stringify([symbolEntry.entry, [...(symbolEntry.features ?? [])].sort()]);
+        if (seen.has(key)) fail(`implementation ${entry.name}: the symbols entry ${symbolEntry.entry} and its feature selection are repeated`);
+        seen.add(key);
+      }
+    }
     if (entry.errors && !files.has(entry.errors.file)) fail(`implementation ${entry.name}: ${entry.errors.file} does not exist`);
   }
   // The runners whose convention or declared testPatterns select each file, and the test files of each implementation: those of

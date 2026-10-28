@@ -1599,6 +1599,10 @@ in binding arguments resolve by the same rule as implementation arguments.
 
 ### Symbol extractors (K75)
 
+An implementation may declare either the existing `entry` or a nonempty `entries` list of `{ entry, features? }` inputs (K714). Each input runs its native extractor; the public names and leaks are combined, and any input failure rejects the whole snapshot. Rust inputs may select explicit Cargo features; other extractors reject feature selections. Duplicate paths with the same feature selection are rejected.
+
+A feature unit whose requirements are all explicitly deferred by valid held checklist items retains its source bindings but runs no native cases (K715). The report names it `HELD`, and the execution ledger records no passing evidence for it. A unit mixing active and deferred requirements is rejected rather than silently held. Existing deferred requirements without a unit remain supported.
+
 `symbols` of an implementation declares `{ extractor, entry }`. `parity-check` runs the extractor, which reads the public API of
 `entry` with the standard tool of its ecosystem, and judges R1 and R11 on what it gives. Nothing is read from a committed
 snapshot, and `parity-declarations-check` runs no extractor.

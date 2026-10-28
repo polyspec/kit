@@ -26,7 +26,7 @@ interface DeferredRequirement {
   item: string;
 }
 
-export function requirementFindings(config: { requirements: { pattern: string }; deferredRequirements?: DeferredRequirement[]; implementations?: { name: string; internal?: { glob: string }[] }[]; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[]; tools?: { root?: string; files?: string[]; reason: string; units?: { id: string; requirements: string[]; bindings: { test: string; id: string }[] }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>, checklistIdPattern?: string, onDeferred?: (entry: DeferredRequirement) => void): Finding[] {
+export function requirementFindings(config: { requirements: { pattern: string }; deferredRequirements?: DeferredRequirement[]; implementations?: { name: string; internal?: { glob: string }[] }[]; units: { id: string; kind: string; file?: string; requirements: string[]; bindings?: { implementation: string; test: string }[] }[]; tools?: { root?: string; files?: string[]; reason: string; units?: { id: string; requirements: string[]; bindings: { test: string; id: string }[] }[] }[] }, files: Iterable<string>, read: (file: string) => string, cases: ReadonlyMap<string, string[]>, checklistIdPattern?: string, onDeferred?: (entry: DeferredRequirement) => void, onHeldUnit?: (id: string) => void): Finding[] {
   const { pattern } = config.requirements;
   const definition = new RegExp(`^\\s*(?:(?:[-*+]|\\d+[.)])\\s+\\*\\*(${pattern})\\*\\*|#{1,6}\\s+(${pattern})\\b)`);
   const listed = new Set(files);
@@ -114,10 +114,6 @@ export function requirementFindings(config: { requirements: { pattern: string };
       findings.push(finding('R14', `deferredRequirements cites ${entry.id}, which no file of docs/spec defines as a requirement`, { place: DECLARATION, requirements: [entry.id] }));
       continue;
     }
-    if (cited.has(entry.id)) {
-      findings.push(finding('declaration', `${entry.id} is both cited by an active unit and deferred; remove the deferred entry or the active citation`, { place: DECLARATION, requirements: [entry.id] }));
-      continue;
-    }
     if (checklistIdPattern === undefined) {
       findings.push(finding('declaration', `cannot verify deferred requirement ${entry.id}; config/checklist.json is unreadable`, { place: DECLARATION, requirements: [entry.id] }));
       continue;
@@ -147,8 +143,26 @@ export function requirementFindings(config: { requirements: { pattern: string };
       continue;
     }
     deferredIds.add(entry.id);
-    onDeferred?.(entry);
   }
+  // A deferred citation is evidence only when every requirement of that unit is held. Mixed units stay active and
+  // invalidate the overlapping deferral, so no active requirement can disappear from execution or R13 tracing.
+  const validDeferred = new Map(declarations.filter(entry => deferredIds.has(entry.id)).map(entry => [entry.id, entry]));
+  const whollyHeld = (unit: typeof requirementUnits[number]) => unit.requirements.length > 0 && unit.requirements.every(id => validDeferred.has(id));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const id of validDeferred.keys()) {
+      const citing = requirementUnits.filter(unit => unit.requirements.includes(id));
+      if (citing.some(unit => !whollyHeld(unit))) {
+        findings.push(finding('declaration', `${id} is cited by a unit that also has active requirements; deferred units must cite only requirements held by validated checklist items`, { place: DECLARATION, requirements: [id] }));
+        validDeferred.delete(id);
+        deferredIds.delete(id);
+        changed = true;
+      }
+    }
+  }
+  for (const entry of declarations) if (validDeferred.has(entry.id)) onDeferred?.(entry);
+  for (const unit of config.units) if (whollyHeld(unit)) onHeldUnit?.(unit.id);
   // R16: an internal test names no requirement of the spec (K313): the tests of a requirement are the units that cite it, so a contract
   // test cannot hide among the internal tests of an implementation.
   const identifier = new RegExp(`\\b(?:${pattern})\\b`, 'g');

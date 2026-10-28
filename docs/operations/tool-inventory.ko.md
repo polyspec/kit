@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5cefb9f13ecd1f1792a54c6ba0a12292e1d4c0b412a40cdff350379bb75abeb6 -->
+<!-- source-sha256: 6bb6477c77e5b32b444793ae7d0316d9d2a0b43badddbce776d741a5f5f3f849 -->
 
 # 도구 목록
 
@@ -1445,6 +1445,10 @@ binding은 `command`(argv 배열, 예: `["make", "feature-check", "ITEM=roundtri
 `command`가 없는 binding은 `args`를 선언해 implementation runner 인자 뒤, runner가 native test selector와 reporter를 추가하기 전에 전달할 수 있습니다. 표준 runner와 출력 reader를 유지하면서 한 native test file을 binding별 filter로 실행합니다. 전체 실행을 대체하는 `command`와 binding `args`는 함께 쓸 수 없습니다. binding 인자의 `${NAME}` 참조는 implementation 인자와 같은 규칙으로 풉니다.
 
 ### Symbol extractor (K75)
+
+Implementation은 기존 `entry` 또는 `{ entry, features? }` 입력을 가진 비어 있지 않은 `entries` 목록을 선언합니다(K714). 입력마다 native extractor를 실행해 public name과 leak을 합치며, 하나라도 실패하면 전체 snapshot을 거부합니다. Rust 입력만 명시적인 Cargo feature를 선택할 수 있습니다. 경로와 feature 선택이 같은 중복 입력은 거부합니다.
+
+Feature unit의 모든 requirement가 유효한 보류 checklist item으로 명시적으로 deferred되면 source binding은 유지하고 native case는 실행하지 않습니다(K715). 보고서는 이를 `HELD`로 표시하며 execution ledger에 통과 증거를 기록하지 않습니다. Active requirement와 deferred requirement가 섞인 unit은 조용히 보류하지 않고 거부합니다. Unit 없이 선언한 기존 deferred requirement도 지원합니다.
 
 implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parity-check`는 extractor를 실행해 `entry`의 public API를 그
 생태계의 표준 도구로 읽고, 그것이 주는 것으로 R1과 R11을 판정합니다. commit된 snapshot은 읽지 않으며,

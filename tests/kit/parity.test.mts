@@ -123,7 +123,7 @@ console.log(JSON.stringify(fs.readFileSync(path.join(process.argv[2], 'symbols.t
 // writes for serial tests: `running <n> tests`, then `test <name> ... ok` or `FAILED` for each test, then the result line.
 // A file with the line `HARNESS libtest-mimic` writes what libtest-mimic 0.8 writes, which pads each name to the longest one.
 //
-// Run as \`cargo +<nightly> rustdoc --manifest-path <crate>/Cargo.toml --lib --target-dir <dir> -- ... --output-format json\`,
+// Run as \`cargo +<nightly> rustdoc --manifest-path <crate>/Cargo.toml --lib [--features <features>] --target-dir <dir> -- ... --output-format json\`,
 // it writes <dir>/doc/codec.json in the shape of rustdoc JSON: the crate codec whose root module holds a public function for
 // each line of symbols.txt of the crate. Only nightly-2026-10-01 is installed.
 const CARGO_STUB = `#!/usr/bin/env node
@@ -132,7 +132,14 @@ const path = require('path');
 const args = process.argv.slice(2);
 if (args[1] === 'rustdoc') {
   if (args[0] !== '+nightly-2026-10-01') { process.stderr.write("error: toolchain '" + args[0].slice(1) + "' is not installed\\n"); process.exit(1); }
-  const names = fs.readFileSync(path.join(path.dirname(args[args.indexOf('--manifest-path') + 1]), 'symbols.txt'), 'utf8').split('\\n').filter(Boolean);
+  const crate = path.dirname(args[args.indexOf('--manifest-path') + 1]);
+  const required = path.join(crate, 'required-feature.txt');
+  if (fs.existsSync(required)) {
+    const features = args.includes('--features') ? args[args.indexOf('--features') + 1].split(',') : [];
+    const missing = fs.readFileSync(required, 'utf8').trim().split(',').filter(name => name && !features.includes(name));
+    if (missing.length) { process.stderr.write('missing rustdoc features: ' + missing.join(', ') + '\\n'); process.exit(2); }
+  }
+  const names = fs.readFileSync(path.join(crate, 'symbols.txt'), 'utf8').split('\\n').filter(Boolean);
   const index = { 0: { name: 'codec', visibility: 'public', inner: { module: { is_crate: true, items: names.map((_, i) => i + 1) } } } };
   names.forEach((name, i) => { index[i + 1] = { name, visibility: 'public', inner: { function: {} } }; });
   const doc = path.join(args[args.indexOf('--target-dir') + 1], 'doc');
@@ -1248,6 +1255,58 @@ test('the rust extractor runs the Rust nightly of the exception whose scope hold
   assert.match(known(two, 'two'), /holds 2 Rust nightlies whose scope holds rust\/Cargo\.toml: nightly-2026-10-01, nightly-2026-09-01; keep one/);
   const [uninstalled] = messages([exception('nightly-2026-09-01')]);
   assert.match(known(uninstalled, 'uninstalled'), /cargo \+nightly-2026-09-01 rustdoc .* exited with 1: error: toolchain 'nightly-2026-09-01' is not installed/);
+});
+
+test('Rust symbol entries combine crate APIs and run each declared feature selection (K714)', TIMEOUT, (t) => {
+  const entries = [
+    { entry: 'rust/Cargo.toml' },
+    { entry: 'rust/schema/Cargo.toml', features: ['live-db'] },
+  ];
+  const configure = (config: Declaration) => {
+    itemWhere(config.implementations, (implementation: { name: string }) => implementation.name === 'rust').symbols = {
+      extractor: 'rust', entries,
+    };
+    const rust = itemWhere(itemWhere(config.units, (unit: { id: string }) => unit.id === 'encode').symbols ?? [], (symbol: { implementation: string }) => symbol.implementation === 'rust');
+    delete rust.symbol;
+    rust.symbols = ['codec::encode', 'codec::decode'];
+    return config;
+  };
+  const files = {
+    'rust/schema/Cargo.toml': '[package]\nname = "codec-schema"\nversion = "0.1.0"\n',
+    'rust/schema/symbols.txt': 'decode\n',
+    'rust/schema/required-feature.txt': 'live-db\n',
+  };
+  const found = check(t, { files, edit: configure });
+  assert.deepEqual(keys(found.findings), [], found.findings.map(item => item.message).join('\n'));
+
+  const failed = check(t, { files: { ...files, 'rust/schema/symbols.txt': null }, edit: configure });
+  assert.deepEqual(keys(failed.findings), ['R1 - rust']);
+  assert.match(findingAt(failed.findings, 0).message, /rust\/schema\/Cargo\.toml \(features: live-db\).*exited with 1/);
+
+  const invalidEntries = [
+    [],
+    [{ entry: 'rust/Cargo.toml' }, { entry: 'rust/Cargo.toml' }],
+    [{ entry: 'rust/Cargo.toml', features: ['live-db', 'schema'] }, { entry: 'rust/Cargo.toml', features: ['schema', 'live-db'] }],
+    [{ entry: 'rust/Cargo.toml', features: [''] }],
+    [{ entry: 'rust/Cargo.toml', features: [] }],
+  ];
+  for (const invalid of invalidEntries) {
+    const invalidConfig = check(t, { edit: config => {
+      itemWhere(config.implementations, (implementation: { name: string }) => implementation.name === 'rust').symbols = {
+        extractor: 'rust', entries: invalid,
+      };
+      return config;
+    } }, { execute: false });
+    assert.equal(invalidConfig.findings[0]?.rule, 'declaration');
+  }
+
+  const nonRustFeatures = check(t, { edit: config => {
+    itemWhere(config.implementations, (implementation: { name: string }) => implementation.name === 'go').symbols = {
+      extractor: 'go', entries: [{ entry: 'go', features: ['live-db'] }],
+    };
+    return config;
+  } }, { execute: false });
+  assert.equal(nonRustFeatures.findings[0]?.rule, 'declaration');
 });
 
 test('R2: a suite without a binding of an implementation fails', TIMEOUT, (t) => {
@@ -2797,6 +2856,81 @@ test('R13 reports active gaps separately from a valid held requirement (K656)', 
   const result = checkParity(root, { execute: false, env: ENV, say: line => lines.push(line) });
   assert.deepEqual(result.findings.filter(item => item.rule === 'R13').map(item => item.requirements), [['CX-3']]);
   assert.ok(lines.includes('DEFERRED CX-2: held by K656 in docs/plans/held/checklist.md'), lines.join('\n'));
+});
+
+test('a feature unit whose requirements are all held keeps its bindings but does not execute them (K715)', TIMEOUT, (t) => {
+  const checklist = '# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | `node test.mts` | [!] cause: user held it; retry: user reopens the work |\n';
+  const boundFiles = {
+    'go/codec_test.go': `${FILES['go/codec_test.go']}\n// CX-2\n`,
+    'rust/tests/codec.rs': `${FILES['rust/tests/codec.rs']}\n// CX-2\n`,
+    'ts/tests/codec.mjs': `${FILES['ts/tests/codec.mjs']}\n// CX-2\n`,
+    'php/tests/codec.php': `${FILES['php/tests/codec.php']}\n// CX-2\n`,
+    'python/tests/test_codec.py': `${FILES['python/tests/test_codec.py']}\n# CX-2\n`,
+  };
+  const root = repository(t, {
+    files: {
+      ...boundFiles,
+      'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
+      'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A held feature remains declared and its native bindings remain owned.\n',
+      'docs/plans/held/checklist.md': checklist,
+    },
+    edit: config => {
+      (config as Entry).deferredRequirements = [{ id: 'CX-2', checklist: 'docs/plans/held/checklist.md', item: 'K656' }];
+      config.units.push({
+        id: 'held-codec', kind: 'feature', requirements: ['CX-2'], bindings: [
+          { implementation: 'go', test: 'go/codec_test.go', id: 'TestCodec/empty' },
+          { implementation: 'rust', test: 'rust/tests/codec.rs', id: 'vectors::empty' },
+          { implementation: 'ts', test: 'ts/tests/codec.mjs', id: 'empty' },
+          { implementation: 'php', test: 'php/tests/codec.php', id: 'test_empty' },
+          { implementation: 'python', test: 'python/tests/test_codec.py', id: 'test_empty' },
+        ],
+      });
+      return config;
+    },
+  });
+  const lines: string[] = [];
+  const declarations = checkParity(root, { execute: false, env: ENV, say: () => {} });
+  assert.ok(!declarations.findings.some(item => item.rule === 'R5' && item.place?.includes('codec')), keys(declarations.findings).join('\n'));
+  assert.ok(!declarations.findings.some(item => item.rule === 'R2' && item.unit === 'held-codec'), keys(declarations.findings).join('\n'));
+  const result = checkParity(root, { execute: true, env: ENV, say: line => lines.push(line), units: ['held-codec'] });
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.ledger.runs, []);
+  assert.deepEqual(result.ledger.cases, []);
+  assert.ok(lines.includes('HELD held-codec: its requirements are deferred; no runtime bindings execute'), lines.join('\n'));
+  assert.ok(!lines.some(line => line.includes('held-codec go:') || line.includes('held-codec rust:') || line.includes('held-codec ts:') || line.includes('held-codec php:') || line.includes('held-codec python:')), lines.join('\n'));
+});
+
+test('a deferred requirement cannot hide an active or mixed feature unit (K715)', TIMEOUT, (t) => {
+  const files = {
+    'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
+    'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A held feature remains declared.\n',
+    'docs/plans/held/checklist.md': '# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | `node test.mts` | [!] cause: user held it; retry: user reopens the work |\n',
+  };
+  const mixed = check(t, { files, edit: config => {
+    (config as Entry).deferredRequirements = [{ id: 'CX-2', checklist: 'docs/plans/held/checklist.md', item: 'K656' }];
+    config.units.push({ id: 'mixed-codec', kind: 'feature', requirements: ['CX-1', 'CX-2'], bindings: [
+      { implementation: 'go', test: 'go/codec_test.go', id: 'TestCodec/empty' },
+      { implementation: 'rust', test: 'rust/tests/codec.rs', id: 'vectors::empty' },
+      { implementation: 'ts', test: 'ts/tests/codec.mjs', id: 'empty' },
+      { implementation: 'php', test: 'php/tests/codec.php', id: 'test_empty' },
+      { implementation: 'python', test: 'python/tests/test_codec.py', id: 'test_empty' },
+    ] });
+    return config;
+  } }, { execute: false });
+  assert.ok(mixed.findings.some(item => item.rule === 'declaration' && item.message.includes('also has active requirements')), keys(mixed.findings).join('\n'));
+
+  const wrongState = check(t, { files: { ...files, 'docs/plans/held/checklist.md': files['docs/plans/held/checklist.md'].replace('[!] cause: user held it; retry: user reopens the work', '[o]') }, edit: config => {
+    (config as Entry).deferredRequirements = [{ id: 'CX-2', checklist: 'docs/plans/held/checklist.md', item: 'K656' }];
+    config.units.push({ id: 'held-codec', kind: 'feature', requirements: ['CX-2'], bindings: [
+      { implementation: 'go', test: 'go/codec_test.go', id: 'TestCodec/empty' },
+      { implementation: 'rust', test: 'rust/tests/codec.rs', id: 'vectors::empty' },
+      { implementation: 'ts', test: 'ts/tests/codec.mjs', id: 'empty' },
+      { implementation: 'php', test: 'php/tests/codec.php', id: 'test_empty' },
+      { implementation: 'python', test: 'python/tests/test_codec.py', id: 'test_empty' },
+    ] });
+    return config;
+  } }, { execute: false });
+  assert.ok(wrongState.findings.some(item => item.rule === 'declaration' && item.message.includes('not [!]')), wrongState.findings.map(item => item.message).join('\n'));
 });
 
 test('deferred requirement entries reject unrecognized fields (K656)', TIMEOUT, (t) => {

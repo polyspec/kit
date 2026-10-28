@@ -1,6 +1,6 @@
 // The symbol extractors of the language-parity check (R1 and R11). An implementation that declares `symbols: { extractor,
-// entry }` has its public API read by the standard tool of its ecosystem, never by a parser of kit, in the full check; nothing
-// is read from a saved snapshot. Each extractor gives the public symbol ids of `entry`:
+// entry }` or `entries` has its public API read by the standard tool of its ecosystem, never by a parser of kit, in the full
+// check; nothing is read from a saved snapshot. Each input gives public symbol ids, combined when `entries` is declared:
 //   python  scripts/kit/symbols/python.py, the standard library's ast, run by the python3 of mise.toml -I on a package directory
 //           or a module file; ids <module>.<name> and <module>.<class>.<method>
 //   go      var/tools/symbols-go/bin/kit-symbols-go (scripts/kit/symbols/go), golang.org/x/tools/go/packages, on a module
@@ -9,8 +9,8 @@
 //   php     scripts/kit/symbols/php/extract.php, nikic/php-parser, on a source directory or file, such as the *.stub.php of a
 //           PHP extension; ids Ns\Class, Ns\Class::method, Ns\Class::CONST, Ns\Class::$property, Ns\function and Ns\CONST
 //           of the public declarations; install-tools installs php-parser when config/toolchain.json symbolExtractors names php
-//   rust    the JSON of rustdoc (cargo +<nightly> rustdoc -- -Z unstable-options --output-format json) of the library of a
-//           Cargo.toml entry; rustdoc JSON is unstable (rust-lang/rust#76578), so the channel is the Rust nightly of
+//   rust    the JSON of rustdoc (cargo +<nightly> rustdoc -- [--features <features>] -Z unstable-options --output-format json)
+//           of each library Cargo.toml entry; rustdoc JSON is unstable (rust-lang/rust#76578), so the channel is the Rust nightly of
 //           config/toolchain.json exceptions whose scope holds the entry; ids <crate>::<path> of each public item reachable
 //           from the crate root (re-exports included), with the fields, variants, inherent items and trait items under it
 //   ts      the API model of API Extractor (@microsoft/api-extractor) of a .d.ts entry point, such as the one that tsc emits,
@@ -23,7 +23,7 @@ import { Extractor as ApiExtractor, ExtractorConfig } from '@microsoft/api-extra
 import { ApiModel } from '@microsoft/api-extractor-model';
 import type { ApiItem } from '@microsoft/api-extractor-model';
 import { toolCommand } from './mise-tools.mts';
-import { finding } from './parity-declaration.mts';
+import { finding, symbolEntries } from './parity-declaration.mts';
 import type { Environment, Extractor, Finding, ParityModel } from './parity-declaration.mts';
 import { execute } from './process.mts';
 import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
@@ -211,14 +211,14 @@ function rustNightly(root: string, entry: string): { channel: string; error?: ne
   return { error: `rustdoc JSON needs a Rust nightly (rust-lang/rust#76578), and config/toolchain.json exceptions declares none whose scope holds ${entry}; declare { tool: "rust", channel: "nightly-<yyyy-mm-dd>", scope, reason, retry: "rustdoc JSON is stable" }` };
 }
 
-/** The public symbols of the library of the Cargo.toml `entry`, read from the rustdoc JSON of the declared nightly. */
-function rustdoc(root: string, entry: string, env: Environment): Extracted {
+/** The public symbols of the library of the Cargo.toml `entry`, with its declared Cargo features, from rustdoc JSON. */
+function rustdoc(root: string, entry: string, env: Environment, features?: string[]): Extracted {
   const nightly = rustNightly(root, entry);
   if (nightly.error !== undefined) return nightly;
   // The build of the extractor keeps its own target directory in the checkout, which holds the JSON of one crate per run.
   const target = path.join(root, 'var/parity/rustdoc');
   rmSync(path.join(target, 'doc'), { recursive: true, force: true });
-  const args = [`+${nightly.channel}`, 'rustdoc', '--manifest-path', entry, '--lib', '--target-dir', target, '--', '-Z', 'unstable-options', '--output-format', 'json'];
+  const args = [`+${nightly.channel}`, 'rustdoc', '--manifest-path', entry, '--lib', ...(features === undefined ? [] : ['--features', features.join(',')]), '--target-dir', target, '--', '-Z', 'unstable-options', '--output-format', 'json'];
   const shown = ['cargo', ...args].join(' ');
   // rustup installs no toolchain on its own, so a nightly that is not installed is named.
   const result = execute('cargo', args, { cwd: root, env: { ...env, RUSTUP_AUTO_INSTALL: '0' } });
@@ -242,7 +242,7 @@ function withLeaks(symbols: Extracted, leaks: () => Extracted): Extracted {
 }
 
 // Each extractor: the public symbol ids of `entry` in the checkout `root`.
-const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environment) => Extracted> = {
+const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environment, features?: string[]) => Extracted> = {
   go: (root, entry, env) => {
     const command = path.join(symbolsPrefix(root, 'go'), 'bin', 'kit-symbols-go');
     if (!existsSync(command)) return { error: `${path.relative(root, command)} does not exist; name go in symbolExtractors of config/toolchain.json and run make install-tools` };
@@ -256,7 +256,7 @@ const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environme
   python: (root, entry, env) => {
     return withLeaks(pythonListed(root, entry, env), () => pythonListed(root, entry, env, ['--leaks']));
   },
-  rust: (root, entry, env) => rustdoc(root, entry, env),
+  rust: (root, entry, env, features) => rustdoc(root, entry, env, features),
   ts: (root, entry) => apiModel(root, entry),
 };
 
@@ -269,14 +269,23 @@ export function extractSymbols(model: ParityModel, root: string, { env, say }: {
   const findings: Finding[] = [];
   for (const implementation of model.config.implementations) {
     if (implementation.symbols === undefined) continue;
-    const { extractor, entry } = implementation.symbols;
-    say(`extract the symbols of ${implementation.name}: ${extractor} ${entry}`);
-    const extracted = EXTRACTORS[extractor](root, entry, env);
-    if (extracted.error !== undefined) findings.push(finding('R1', `the ${extractor} extractor of ${entry} gives no symbols: ${extracted.error}`, { implementation: implementation.name, place: entry }));
-    else {
-      snapshots.set(implementation.name, new Set(extracted.symbols));
-      for (const leak of extracted.leaks ?? []) findings.push(finding('R17', `${leak}: a public signature, parent or interface names a symbol that is no public API`, { implementation: implementation.name, place: entry }));
+    const { extractor } = implementation.symbols;
+    const entries = symbolEntries(implementation.symbols);
+    const symbols: string[] = [];
+    let failed = false;
+    for (const { entry, features } of entries) {
+      const label = features === undefined ? entry : `${entry} (features: ${features.join(', ')})`;
+      say(`extract the symbols of ${implementation.name}: ${extractor} ${label}`);
+      const extracted = EXTRACTORS[extractor](root, entry, env, features);
+      if (extracted.error !== undefined) {
+        failed = true;
+        findings.push(finding('R1', `the ${extractor} extractor of ${label} gives no symbols: ${extracted.error}`, { implementation: implementation.name, place: label }));
+      } else {
+        symbols.push(...extracted.symbols);
+        for (const leak of extracted.leaks ?? []) findings.push(finding('R17', `${leak}: a public signature, parent or interface names a symbol that is no public API`, { implementation: implementation.name, place: label }));
+      }
     }
+    if (!failed) snapshots.set(implementation.name, new Set(symbols));
   }
   return { snapshots, findings };
 }
