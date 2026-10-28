@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 49e707f735572fac58c38c7709b1b766b1c6e36448a67f301e524d9c91fd49ed -->
+<!-- source-sha256: cae785495187c3546f77db9ca60aaa09c0780eff74431294d8e387c918317ef6 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -679,3 +679,4 @@
 | K721 | 병렬 parity CI 타입 오류와 중복 단계 블록 수정 | scripts/kit/parity.mts tests/kit/parity.test.mts tests/source/ci-workflow.test.mts | `make typecheck`; `node scripts/kit/run-tests.mts node -- --test-name-pattern=K720 tests/kit/parity.test.mts`; `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `make duplication-check` | [o] |
 | K722 | 가장 긴 parity 테스트 shard를 두 병렬 작업으로 분할 | Makefile .github/workflows/ci.yml tests/kit tests/source/ci-workflow.test.mts | `make typecheck`; `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts` | [o] |
 | K723 | 선택한 고정 도구와 독립 CI 작업별 필수 환경 설치 | Makefile scripts/kit/install-tools.mts scripts/kit/check-toolchain.mts scripts/kit/install-symbols.mts scripts/kit/kit.mk .github/workflows/ci.yml tests/kit/install-tools.test.mts tests/kit/install-symbols.test.mts tests/kit/kit-mk.test.mts tests/source/ci-workflow.test.mts docs/operations/tool-inventory.md docs/operations/tool-inventory.ko.md | `make typecheck`; `node scripts/kit/run-tests.mts node -- tests/kit/install-tools.test.mts tests/source/ci-workflow.test.mts tests/kit/install-symbols.test.mts tests/kit/kit-mk.test.mts` | [o] |
+| K724 | CI shard 필수 도구 누락과 이동한 금지 입력 fixture 경로 수정 | .github/workflows/ci.yml config/layout.kit.yml config/layout.yml tests/source/ci-workflow.test.mts tests/source/layout-real.test.mts | `node scripts/kit/run-tests.mts node -- tests/source/ci-workflow.test.mts`; `node scripts/kit/run-tests.mts node -- --test-name-pattern="negative parity fixture\|make layout-check passes" tests/source/layout-real.test.mts`; `make layout-check` | [ ] |
