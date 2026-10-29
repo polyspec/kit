@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fc8498abe9db228399d46e25ea96fa57cbbda8ebcf483ef73bc9301b05947fd2 -->
+<!-- source-sha256: 42ad0ada2c4272b792786d2ff731e1399bbae4e10e16cf192f69cd1f730117ab -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Kit 0.0.66 release를 준비한다. (K775)
+
+## 0.0.66
 
 - release 대상과 dependency review는 저장소가 추적하는 go.work로 실행하고, 추적하는 것이 없을 때만 GOWORK를 끄므로 link가 쓰는 go.work는 계속 제외된다. (K774)
 
@@ -12,9 +16,9 @@
 
 - 배포본이 설치된 Python provider는 uv sync가 폴더를 남기지 않았어도 패키지 폴더가 링크된다. (K772)
 
-- Kit 0.0.65 release를 준비한다. (K770)
-
 ## 0.0.65
+
+- Kit 0.0.65 release를 준비한다. (K770)
 
 - 0.0.65 candidate의 전체 CI가 실패한 test는 K755, K760, K761, K762, K765를 따르고 S11은 gate가 실행하는 check를 이름한다. (K771)
 

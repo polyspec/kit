@@ -5,15 +5,19 @@
 
 ## Unreleased
 
+- Prepare the Kit 0.0.66 release. (K775)
+
+## 0.0.66
+
 - A release target and the dependency review run with the go.work that the repository tracks; GOWORK is off only when it tracks none, so the go.work files that link writes stay excluded. (K774)
 
 - link-state-check reports a tracked composer.json, package.json or pyproject.toml that links a package by a path outside the repository. (K773)
 
 - A Python provider whose distribution is installed gets its package folder linked when uv sync left the folder missing. (K772)
 
-- Prepare the Kit 0.0.65 release. (K770)
-
 ## 0.0.65
+
+- Prepare the Kit 0.0.65 release. (K770)
 
 - The tests that the full CI of the 0.0.65 candidate failed follow K755, K760, K761, K762 and K765, and S11 names a check that a gate runs. (K771)
 
