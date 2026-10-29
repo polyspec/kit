@@ -372,10 +372,12 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
   const providerTrailerCount = message === undefined ? 0 : [...message.matchAll(/^Provider-Test-Replacement:/gm)].length;
   const providerReferenceCount = message === undefined ? 0 : [...message.matchAll(/^Provider-Test-Replacement: (\S+) -> npm:(?:@[^/\s]+\/)?[^@/\s]+@\d+\.\d+\.\d+#[a-z0-9][a-z0-9._-]*$/gm)].length;
   const allProviderReplaced = deleted.length > 0 && providerTrailerCount === providerReferenceCount && providerReferenceCount === deleted.length;
-  // K787: a test deleted with the behaviour it tested names that behaviour's file, which the parent tracked and this commit deletes.
-  const removedWith = message !== undefined && [...message.matchAll(/^Removed-With: (\S+)$/gm)].some(([, file = '']) => !isTestFile(file) && before(file) !== '' && !tracked(file));
+  // K787, K793: a test deleted with the behaviour it tested names that behaviour's file, which the parent tracked and this commit deletes,
+  // and the deleted test itself names that file, so an unrelated file deleted alongside opens no gate.
+  const removedFiles = message === undefined ? [] : [...message.matchAll(/^Removed-With: (\S+)$/gm)].map(([, file = '']) => file).filter(file => !isTestFile(file) && before(file) !== '' && !tracked(file));
+  const removedWith = removedFiles.length > 0 && deleted.every(test => removedFiles.some(file => before(test).includes(path.basename(file))));
   if (message !== undefined && deleted.length > 0 && !archived && !allProviderReplaced && !removedWith && ![...message.matchAll(/^Replaced-By: (\S+)$/gm)].some(([, file = '']) => isTestFile(file) && tracked(file))) {
-    found.push({ rule: 'commit-deleted-test', message: `the commit deletes the test file ${deleted.join(', ')} and its body names no replacement, verified archive or deleted behaviour; add Replaced-By: <tracked test path>, Archived-To: <commit sha> for an identical archive of a held item, or Removed-With: <non-test file that this commit deletes> (${TEST_FILES})` });
+    found.push({ rule: 'commit-deleted-test', message: `the commit deletes the test file ${deleted.join(', ')} and its body names no replacement, verified archive or deleted behaviour; add Replaced-By: <tracked test path>, Archived-To: <commit sha> for an identical archive of a held item, or Removed-With: <non-test file that this commit deletes and the deleted test names> (${TEST_FILES})` });
   }
   return found;
 }

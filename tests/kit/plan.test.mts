@@ -409,7 +409,7 @@ test('a deleted test passes with Removed-With naming a non-test file that the pa
   newItem(root, item('parser', 'T1'));
   setState(root, { id: 'T1', state: '[~]' });
   const repo = committed(t, 'T1');
-  put(repo, { 'tests/a.test.mts': 'test;\n', 'src/a.mts': 'export {};\n', 'src/b.mts': 'export {};\n' });
+  put(repo, { 'tests/a.test.mts': "import '../src/a.mts';\n", 'src/a.mts': 'export {};\n', 'src/b.mts': 'export {};\n' });
   stage(repo, '-A');
   assert.equal(spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'Add a'], { cwd: repo }).status, 0);
   rmSync(path.join(repo, 'tests/a.test.mts'));
@@ -421,6 +421,27 @@ test('a deleted test passes with Removed-With naming a non-test file that the pa
   assert.deepEqual(rules('Removed-With: src/b.mts\n'), ['commit-deleted-test'], 'a file the commit keeps');
   assert.deepEqual(rules('Removed-With: tests/a.test.mts\n'), ['commit-deleted-test'], 'a test file');
   assert.deepEqual(rules('Removed-With: src/never.mts\n'), ['commit-deleted-test'], 'a file the parent never tracked');
+});
+
+// K793: each deleted test names a Removed-With file itself, so an unrelated file deleted alongside opens no gate.
+test('a deleted test passes Removed-With only for a deleted file that the test itself names (K793)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1'));
+  setState(root, { id: 'T1', state: '[~]' });
+  const repo = committed(t, 'T1');
+  put(repo, {
+    'tests/a.test.mts': "import '../src/a.mts';\n", 'tests/c.test.mts': "const fixture = 'config/c.json';\n",
+    'src/a.mts': 'export {};\n', 'src/b.mts': 'export {};\n', 'config/c.json': '{}\n',
+  });
+  stage(repo, '-A');
+  assert.equal(spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'Add a'], { cwd: repo }).status, 0);
+  for (const file of ['tests/a.test.mts', 'tests/c.test.mts', 'src/a.mts', 'src/b.mts', 'config/c.json']) rmSync(path.join(repo, file));
+  stage(repo, '-A');
+  const message = 'refactor(parser): Delete a and c (#T1)\n\nThe behaviour of a and c is gone.\n';
+  const rules = (trailer: string) => indexItemFindings(repo, COMMIT_RULES, `${message}${trailer}`).map(found => found.rule);
+  assert.deepEqual(rules('Removed-With: src/b.mts\n'), ['commit-deleted-test'], 'a deleted file that no deleted test names');
+  assert.deepEqual(rules('Removed-With: src/a.mts\n'), ['commit-deleted-test'], 'a file that only one deleted test names');
+  assert.deepEqual(rules('Removed-With: src/a.mts\nRemoved-With: config/c.json\n'), []);
 });
 
 test('blocked and dropped refuse an excuse that cites no kit row, and a deleted test needs Replaced-By (K339)', (t) => {

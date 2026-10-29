@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 01abc9b18c846ae6c425897555b118627d94f80dade406ac54f91de5a0694638 -->
+<!-- source-sha256: 7eb11b61a21f68b0a675aede79a4c5bfc9e290819d58175ca77592ea38019899 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Removed-With는 삭제된 테스트가 그 삭제된 파일을 직접 가리킬 때만 통과시키므로, 함께 지운 무관한 파일로는 gate가 열리지 않는다. (K793)
 - K449의 commit-type 검사는 어느 폴더에서든 Markdown 문서를 문서로 읽고, release commit은 다른 lock과 함께 uv.lock을 stage할 수 있다. (K791)
 
 - release manifest 검사는 저장소 자체 package의 tag version만 확인하고, K777의 polyspec release asset URL을 포함한 다른 모든 의존성의 형식은 package manager가 해석한다. (K785)
