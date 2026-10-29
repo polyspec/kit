@@ -723,4 +723,4 @@
 | K766 | worktree-setup links each installed Composer provider folder to its checkout, as it does for npm | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test --test-name-pattern=K766 tests/kit/worktree-setup.test.mts` | [o] |
 | K767 | After link writes an npm package folder, npm rebuild writes its bin links from the linked package.json | scripts/kit/npm-install.mts, scripts/kit/link.mts, scripts/kit/worktree-setup.mts | `node --test tests/source/installed-hook-real.test.mts` | [o] |
 | K769 | uv-install installs a project locked by pylock.toml with uv pip install -r, as its own install does, then links | scripts/kit/uv-install.mts, tests/source/uv-link-real.test.mts | `node --test --test-name-pattern=K769 tests/source/uv-link-real.test.mts` | [o] |
-| K770 | Prepare Kit 0.0.65 to publish K753 to K769 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-candidate VERSION=0.0.65` | [ ] |
+| K770 | Prepare Kit 0.0.65 to publish K753 to K769 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-candidate VERSION=0.0.65` | [~] |
