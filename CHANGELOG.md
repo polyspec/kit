@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- push-gate does not count a branch whose worktree has uncommitted changes as merged, so a row that another session just started no longer refuses every push. (K782)
+
 - Prepare the Kit 0.0.66 release. (K775)
 
 ## 0.0.66

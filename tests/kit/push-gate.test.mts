@@ -273,6 +273,17 @@ test('a pushed branch other than main is named {type}/{shortname}-{item id} (K25
   assert.equal(run(remote, 'git', ['rev-parse', '--verify', '--quiet', 'refs/heads/wip']).stdout.trim(), '');
 });
 
+test('a branch on an older main commit whose worktree has uncommitted changes is work in progress, not merged (K782)', (t) => {
+  const { work } = prepared(t);
+  const tree = path.join(path.dirname(work), 'work-lexer-T4');
+  git(work, 'worktree', 'add', '--quiet', '-b', 'feat/lexer-T4', tree);
+  writeFileSync(path.join(work, 'later.txt'), 'later\n');
+  commitAll(work, 'feat(core): Add a later file (#T1)');
+  assert.match(push(work).stderr, /the branch feat\/lexer-T4 is merged into main/, 'a clean worktree on a merged commit is a merged branch');
+  writeFileSync(path.join(tree, 'draft.txt'), 'draft\n');
+  assert.equal(push(work).status, 0, 'a worktree with uncommitted changes holds work in progress');
+});
+
 test('a branch that main has merged, or a worktree whose folder breaks its name, refuses the push (K253)', (t) => {
   const { work } = prepared(t);
   git(work, 'branch', 'feat/parser-T1');

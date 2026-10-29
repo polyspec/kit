@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9164020809842b554f733ecd0720e0a95862e6352c2b14de05d1dc65b4048245 -->
+<!-- source-sha256: 7a602d9a874addc5ac445ffb304fbe066551865d30bfcb229e4e333224a68486 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- push-gate는 worktree에 커밋하지 않은 변경이 있는 branch를 병합된 것으로 보지 않으므로, 다른 세션이 막 시작한 항목이 모든 push를 막지 않는다. (K782)
 
 - Kit 0.0.66 release를 준비한다. (K775)
 

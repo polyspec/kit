@@ -116,7 +116,8 @@ function worktrees(root: string): { path: string; branch?: string }[] {
  * The refusal lines of the branch rules of PRINCIPLES.md (K253): a pushed branch other than main is named
  * {type}/{shortname}-{checklist id}, a worktree folder {project}-{shortname}-{checklist id}, where the project is the folder
  * of the main worktree, and no local branch that main has merged remains. A branch is merged when main holds its tip and has
- * moved past it, so a branch just created from the tip of main is work that has not started yet.
+ * moved past it, so a branch just created from the tip of main is work that has not started yet; a branch whose worktree has
+ * uncommitted changes is work in progress, whatever its tip (K782).
  */
 export function branchFindings(root: string, pushed: readonly string[], types: readonly string[], idPattern: string): string[] {
   const found: string[] = [];
@@ -141,6 +142,7 @@ export function branchFindings(root: string, pushed: readonly string[], types: r
       if (branch === MAIN || sha === tip || gitResult(root, 'merge-base', '--is-ancestor', sha, tip).status !== 0) continue;
       if (retainedBranch(retained, branch)) continue;
       const tree = others.find(entry => entry.branch === branch);
+      if (tree && git(tree.path, 'status', '--porcelain').trim() !== '') continue;
       found.push(`the branch ${branch} is merged into main; delete it with ${tree ? `git worktree remove ${tree.path} && ` : ''}git branch -d ${branch}`);
     }
   }
