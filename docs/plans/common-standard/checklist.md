@@ -772,7 +772,7 @@
 | K817 | Release Kit 0.0.70 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K818 | Stamp only the marker line after the doc-id line, never a marker example in the body | scripts/kit/documents-stamp.mts | `node --test tests/kit/documents-stamp.test.mts` | [o] |
 | K819 | Release Kit 0.0.71 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
-| K820 | Start a mise tool on Windows by the executable that mise which names, never by its shim | scripts/kit/kit.mk, tests/kit/kit-mk.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-mk.test.mts` | [v] |
+| K820 | Start a mise tool on Windows by the executable that mise which names, never by its shim | scripts/kit/kit.mk, tests/kit/kit-mk.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-mk.test.mts` | [o] |
 | K821 | Install the Composer projects of a worktree with plain composer install and its own cache, and set up Go before Composer | scripts/kit/worktree-setup.mts | `node --test tests/kit/worktree-setup.test.mts` | [o] |
 | K822 | Run a mise shim through Git Bash make on the Windows runner of platform-bootstrap | .github/workflows/platform-bootstrap.yml, tests/kit/bootstrap-platform.test.mts | `node --test tests/kit/bootstrap-platform.test.mts` | [o] |
 | K823 | Release Kit 0.0.72 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |

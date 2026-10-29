@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 857bc7050c22ee01d494cd5f99ab86261ba282b4c163c03339e56e1f0bf47e94 -->
+<!-- source-sha256: 26e49c50dae582c0ba0c878295553e197e3e8ba0b3c75a09bc5d82b1ca1374a1 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -773,7 +773,7 @@
 | K817 | Kit 0.0.70 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K818 | 본문의 marker 예시가 아니라 doc-id 줄 다음의 marker 줄만 stamp함 | scripts/kit/documents-stamp.mts | `node --test tests/kit/documents-stamp.test.mts` | [o] |
 | K819 | Kit 0.0.71 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
-| K820 | Windows에서 mise 도구를 shim이 아니라 mise which가 가리키는 실행 파일로 시작한다 | scripts/kit/kit.mk, tests/kit/kit-mk.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-mk.test.mts` | [v] |
+| K820 | Windows에서 mise 도구를 shim이 아니라 mise which가 가리키는 실행 파일로 시작한다 | scripts/kit/kit.mk, tests/kit/kit-mk.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-mk.test.mts` | [o] |
 | K821 | worktree의 Composer 프로젝트를 Composer 자체 캐시로 일반 composer install해 설치하고, Go를 Composer보다 먼저 준비함 | scripts/kit/worktree-setup.mts | `node --test tests/kit/worktree-setup.test.mts` | [o] |
 | K822 | platform-bootstrap의 Windows runner에서 Git Bash make로 mise shim을 실행함 | .github/workflows/platform-bootstrap.yml, tests/kit/bootstrap-platform.test.mts | `node --test tests/kit/bootstrap-platform.test.mts` | [o] |
 | K823 | Kit 0.0.72 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
