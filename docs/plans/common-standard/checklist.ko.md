@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 7a70578c5b8abb170dd68c577ce5d5daac00eff5523c70b27cca7778e7aa73ff -->
+<!-- source-sha256: 382e2df15371c72c585b9f5bdb932cf07e7f3bc2485577fa5d3ad45d4c6cb907 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -734,7 +734,7 @@
 | K777 | release의 manifest 검사는 polyspec package를 정확한 version의 GitHub release asset URL로 지정한 dependency를 받아들이고, 그 밖의 URL은 거부한다 | scripts/kit/release.mts, tests/kit/release.test.mts | `node --test --test-name-pattern="the problems of a manifest" tests/kit/release.test.mts` | [o] |
 | K778 | release-assets와 release-candidate-assets만 저장소가 추적하는 go.work로 실행하고, dependency review, dependency policy와 나머지 release 대상은 GOWORK를 끄고 실행한다 | scripts/kit/kit.mk, tests/kit/link.test.mts | `node --test --test-name-pattern="K343\|K774" tests/kit/link.test.mts` | [o] |
 | K779 | K774와 K777 테스트는 구조 테스트를 통과한다: initRepository, 다른 저장소 이름 없음 | tests/kit/link.test.mts tests/kit/release.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/sandbox-repository.test.mts tests/kit/isolation.test.mts` | [o] |
-| K780 | worktree는 추적되는 composer.json이 선언한 checkout 안의 Composer artifact repository마다 main checkout의 디렉터리로 link한다(issue 19) | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts, docs/operations/local-links.md | `node --test --test-name-pattern="K622\|K780" tests/kit/worktree-setup.test.mts` | [ ] |
+| K780 | worktree는 추적되는 composer.json이 선언한 checkout 안의 Composer artifact repository마다 main checkout의 디렉터리로 link한다(issue 19) | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts, docs/operations/local-links.md | `node --test --test-name-pattern="K622\|K780" tests/kit/worktree-setup.test.mts` | [~] |
 | K781 | worktree-setup은 .mise/의 도구 환경을 준비하지 않는다. worktree는 main checkout의 도구를 쓴다(issue 19) | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test --test-name-pattern=K781 tests/kit/worktree-setup.test.mts` | [o] |
 | K782 | push-gate는 worktree에 커밋하지 않은 변경이 있는 branch를 병합된 것으로 보지 않는다 | scripts/kit/push-gate.mts tests/kit/push-gate.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K782 tests/kit/push-gate.test.mts` | [o] |
 | K783 | layout-check가 PHP library는 application framework를 require하지 않는다는 S10 규칙을 맡는다 | scripts/kit/library-frameworks.mts scripts/kit/kit.mk scripts/kit/check-dependency-policy.mts tests/kit/library-frameworks.test.mts tests/kit/dependency-policy.test.mts PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/library-frameworks.test.mts` | [ ] |
