@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 80364033cc26ed433710ebba1155d9539a41ffbde492d180e5ab8bac47b0bf3d -->
+<!-- source-sha256: 681586fd93ffd38f3314e3df66ba14e94e85bb59ff3a402091ced403068ead56 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -708,3 +708,4 @@
 | K749 | CI를 통과한 확정 candidate를 단일 release 명령으로 배포한다 (issue 17) | scripts/kit/release-run.mts tests/kit/release-run.test.mts Makefile scripts/kit/kit.mk config/rebuild.json | `node --test tests/kit/release-run.test.mts` | [o] |
 | K750 | 선택 설치에서 선언한 Rust toolchain component를 모두 설치한다 | scripts/kit/install-rust.mts tests/kit/install-rust.test.mts tests/kit/install-tools.test.mts | `node --test tests/kit/install-rust.test.mts` | [o] |
 | K751 | go.work의 모든 모듈을 go test 한 번으로 실행해서 빌드 전용 모듈이 빈 실행이 되지 않게 한다 (issue 5) | scripts/kit/runtime-targets.mts tests/kit/runtime-targets.test.mts | `node --test tests/kit/runtime-targets.test.mts` | [o] |
+| K752 | issue 5, 11, 12, 13, 16, 17, 18의 수정을 배포하기 위해 Kit 0.0.64를 준비한다 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-coverage`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.64` | [ ] |
