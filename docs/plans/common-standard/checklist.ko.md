@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 8adf79568479e2925dc7c7b0c5d227cf47f1e503e2431d14caf28d1c3bbd6218 -->
+<!-- source-sha256: 3fd76f4c45a3d466f19afca408094f8ec67551fd16a0428e9a44cd941ff04878 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -774,4 +774,4 @@
 | K818 | 본문의 marker 예시가 아니라 doc-id 줄 다음의 marker 줄만 stamp함 | scripts/kit/documents-stamp.mts | `node --test tests/kit/documents-stamp.test.mts` | [o] |
 | K819 | Kit 0.0.71 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K820 | Windows에서 mise 도구를 shim이 아니라 mise which가 가리키는 실행 파일로 시작한다 | scripts/kit/kit.mk, tests/kit/kit-mk.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-mk.test.mts` | [v] |
-| K821 | worktree의 Composer 프로젝트를 Composer 자체 캐시로 일반 composer install해 설치하고, Go를 Composer보다 먼저 준비함 | scripts/kit/worktree-setup.mts | `node --test tests/kit/worktree-setup.test.mts` | [~] |
+| K821 | worktree의 Composer 프로젝트를 Composer 자체 캐시로 일반 composer install해 설치하고, Go를 Composer보다 먼저 준비함 | scripts/kit/worktree-setup.mts | `node --test tests/kit/worktree-setup.test.mts` | [o] |

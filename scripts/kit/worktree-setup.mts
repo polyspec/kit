@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The worktree of a row (K348, docs/operations/local-links.md, Worktrees): `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]`
 // creates the worktree `../<repository>-<name>-<id>` of the main checkout on the branch `<type>/<name>-<id>` from main, installs its
-// dependencies through native offline package managers and shares its installed tools (K519), and restores Python environments with native uv
+// dependencies through native package managers (Composer with its own cache and network, K821) and shares its installed tools (K519), and restores Python environments with native uv
 // installation from the shared offline cache (K657-4). It rebuilds its own packages and checks it with `make link-state-check`. A second run on an existing worktree of that branch
 // links and checks it again, so a run leaves the same state.
 //
@@ -20,7 +20,7 @@ import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { checkoutProviders, linkFolders, providedFolders } from './link-folders.mts';
 import { siblingCheckouts } from './link-providers.mts';
 import { composerVendor } from './composer-vendor.mts';
-import { composerCommand, composerEnvironment } from './install-composer-project.mts';
+import { composerCommand } from './install-composer-project.mts';
 import { pylockOf, uvInstallCommand } from './uv-install.mts';
 import { MISE_LOCKS } from './toolchain-lock.mts';
 import { CONFIG as RELEASE_ASSETS, releaseAssets } from './release-assets.mts';
@@ -136,14 +136,13 @@ function composerProjects(main: string, folder: string, composer: string, env: N
   });
 }
 
-/** Native Composer writes its own vendor, autoload, binaries and records using the main checkout's Composer cache. */
-export function prepareWorktreeComposer({ main, folder, project = '.', composer = composerCommand(main, 'worktree dependencies'), env = composerEnvironment(main), print }: {
+/** Native Composer writes its own vendor, autoload, binaries and records as plain composer install does: its own cache and network (K821). */
+export function prepareWorktreeComposer({ main, folder, project = '.', composer = composerCommand(main, 'worktree dependencies'), env = toolsEnvironment(main), print }: {
   main: string; folder: string; project?: string; composer?: string; env?: NodeJS.ProcessEnv; print: (text: string) => void;
 }): void {
   const target = path.join(folder, project);
-  const environment: NodeJS.ProcessEnv = { ...env, COMPOSER_DISABLE_NETWORK: '1' };
-  const vendor = composerVendor(target, { command: composer, env: environment });
-  install(composer, ['install', '--no-interaction', '--no-progress', '--prefer-dist'], { cwd: target, env: environment }, print);
+  const vendor = composerVendor(target, { command: composer, env });
+  install(composer, ['install', '--no-interaction', '--no-progress', '--prefer-dist'], { cwd: target, env }, print);
   // K766: each installed Composer folder of a sibling provider is one plain link to its checkout, as for npm (K761).
   const checkouts = siblingCheckouts(folder).checkouts.filter(checkout => realpathSync(checkout) !== realpathSync(main));
   for (const text of linkFolders(providedFolders(target, checkoutProviders(checkouts, 'composer'), { vendorDir: vendor }))) print(text);
@@ -249,13 +248,13 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     for (const venv of pythonEnvironments(main, manifests, uvCommand, uvEnvironment)) prepareWorktreePython({ main, folder, venv, uv: uvCommand, env: uvEnvironment, print });
   }
   linkReleaseAssets(main, folder, print);
+  prepareWorktreeGo({ main, folder, ...(go === undefined ? {} : { go }), print });
   const composerProjectsPresent = git(folder, 'ls-files', '--', 'composer.json', '*/composer.json').trim() !== '';
   if (composerProjectsPresent) {
     const command = composer ?? composerCommand(main, 'worktree dependencies');
-    const environment = { ...composerEnvironment(main), COMPOSER_DISABLE_NETWORK: '1' };
+    const environment = toolsEnvironment(main, env);
     for (const project of composerProjects(main, folder, command, environment)) prepareWorktreeComposer({ main, folder, project, composer: command, env: environment, print });
   }
-  prepareWorktreeGo({ main, folder, ...(go === undefined ? {} : { go }), print });
   for (const target of linkStateOnly ? ['link-state-check'] : ['rebuild', 'link-state-check']) {
     // The rebuild (K482) builds the packages of the worktree's own repository before the check reads their builds: a new worktree has none yet.
     const [command, args] = target === 'rebuild'

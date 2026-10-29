@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 392aef214239f87df301ff5776b0a2ea28bf830274b5ce8c63ce62281e7d7344 -->
+<!-- source-sha256: 1397f5a44490be87f9ef778152b1a39707a7c5cfdbd34ce00397241969bd2672 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- worktree-setup은 worktree의 Composer 프로젝트를 일반 composer install처럼 Composer 자체 캐시와 네트워크로 설치하고, Composer보다 먼저 go.work를 준비합니다 (K821).
 - Windows에서 kit.mk가 mise binary의 디렉터리를 var/tools/bin 옆 PATH에 둔다. 그래서 mise shim이 "program not found"로 실패하지 않고 mise.exe를 시작한다 (K820).
 
 ## 0.0.71

@@ -528,7 +528,6 @@ test('K690 native managers replace dependency projections using shared caches an
   const calls = readFileSync(log, 'utf8');
   assert.ok(calls.includes('"ci","--offline","--cache",'+JSON.stringify(path.join(parent, 'npm-cache'))), calls);
   assert.ok(calls.includes('"install","--no-interaction","--no-progress","--prefer-dist"'), calls);
-  assert.ok(calls.includes('"offline":"1"'), calls);
   assert.ok(calls.includes('"allowRemote":"root"'), 'offline ci retains npm root-only remote policy');
   assert.deepEqual(['package.json', 'package-lock.json', 'composer.json', 'composer.lock', 'node_modules/fixture-lib/value', 'vendor/fixture/lib/value'].map(file => readFileSync(path.join(main, file), 'utf8')), before);
 });
@@ -538,4 +537,27 @@ test('K690 a missing offline npm cache fails normally without changing main depe
   writeFileSync(path.join(parent, 'cache-missing'), '');
   assert.throws(() => setupWorktree(main, { name: 'missing', id: 'K690', type: 'fix' }, { npm, composer, linkStateOnly: true, print: () => {} }), /exit status 41/);
   assert.equal(readFileSync(path.join(main, 'node_modules/fixture-lib/value'), 'utf8'), 'main npm installation');
+});
+
+// K821: a worktree's Composer projects install as plain composer install does, with Composer's own cache and network, not offline
+// against the kit cache of var/tools/composer that only kit's own tool installs fill; Go is prepared before Composer, so a Composer
+// failure leaves the worktree its go.work.
+test('K821 a worktree installs Composer projects with Composer\'s own cache and network, after its go.work', t => {
+  const { parent, main, npm, composer, log } = nativeManagers(t);
+  const folder = setupWorktree(main, { name: 'composer-cache', id: 'K821', type: 'fix' }, { npm, composer, linkStateOnly: true, print: () => {} });
+  assert.ok(existsSync(path.join(folder, 'vendor/composer/installed.json')));
+  const install = readFileSync(log, 'utf8').trim().split('\n').map((line): unknown => JSON.parse(line)).find(call => isJsonObject(call) && call.tool === 'composer' && Array.isArray(call.args) && call.args[0] === 'install');
+  assert.ok(isJsonObject(install), 'composer install ran');
+  assert.equal(install.offline, process.env.COMPOSER_DISABLE_NETWORK, 'the network setting is the caller\'s own');
+  assert.equal(install.cache, process.env.COMPOSER_CACHE_DIR, 'the cache is Composer\'s own');
+  const failing = path.join(parent, 'composer-failing');
+  writeFileSync(failing, `#!/bin/sh\n[ "$1" = config ] && { printf vendor; exit 0; }\nexit 100\n`, { mode: 0o755 });
+  put(main, { '.gitignore': 'node_modules/\nvendor/\nvar/\ngo.work\n', 'packages/go/go.mod': 'module example.com/repo\n\ngo 1.27\n' });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'go');
+  put(main, { 'packages/go/go.work': 'go 1.27\n\nuse .\n' });
+  const go = path.join(parent, 'go');
+  writeFileSync(go, `#!/bin/sh\nprintf '%s\\n' '{"Use":[{"DiskPath":"."}]}'\n`, { mode: 0o755 });
+  assert.throws(() => setupWorktree(main, { name: 'composer-fails', id: 'K821', type: 'fix' }, { npm, composer: failing, go, linkStateOnly: true, print: () => {} }), /exit status 100/);
+  assert.ok(existsSync(path.join(path.dirname(main), `${path.basename(main)}-composer-fails-K821/packages/go/go.work`)), 'go.work is prepared before Composer runs');
 });
