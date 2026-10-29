@@ -183,16 +183,18 @@ export function installDirectories(root: string): { directory: string; folder: s
 /**
  * The install directories of `root` that Git does not ignore, as lines naming the directory and the .gitignore to change (K372).
  * `git check-ignore` takes the directory with its trailing slash, so a directory-only pattern such as vendor/ matches it whether or
- * not it exists.
+ * not it exists. A symlink, such as a worktree's link to the install of main, is a file to Git: it is checked without the slash, which
+ * a pattern such as vendor matches and vendor/ does not (K814).
  */
 export function installFindings(root: string): string[] {
   return installDirectories(root).flatMap(({ directory, folder }) => {
-    const run = gitResult(root, 'check-ignore', '-q', `${directory}/`);
+    const entry = lstatSync(path.join(root, directory), { throwIfNoEntry: false })?.isSymbolicLink() ? directory : `${directory}/`;
+    const run = gitResult(root, 'check-ignore', '-q', entry);
     if (run.error) throw run.error;
     if (run.status === 0) return [];
     if (run.status !== 1) throw new Error(`git check-ignore failed in ${root}: ${run.stderr.trim()}`);
     const gitignore = folder === '.' ? '.gitignore' : `${folder}/.gitignore`;
-    return [`${directory}/ is not ignored by Git (K372); add ${directory}/ to ${gitignore}`];
+    return [`${entry} is not ignored by Git (K372); add ${entry} to ${gitignore}`];
   });
 }
 

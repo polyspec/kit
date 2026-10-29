@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- layout-check checks a symlinked install folder, such as a worktree link to the install of main, as the link: `vendor` in .gitignore ignores it, and git no longer refuses the pathspec as beyond a symbolic link (K814).
 - The release wheel build copies only the wheel into its output, without the .gitignore of uv build, and the real-tool tests build Python packages as uv does, with the network and no kit wheel folder; the tests of the deleted revision finding, legacy Composer projection and consumers field are aligned (K813).
 - The toolchain-check target test reads the node path that kit.mk resolves, so it passes in a worktree, which runs the tools of the main checkout (K792).
 - plan no longer refuses forms: item-state takes any declared state, item-new takes any id and writes rows that docs-check judges afterwards, and make commit takes an empty index, a new row on main and a missing body file to git. The done state needs a line with the id in each changelog, committed or not (K808).

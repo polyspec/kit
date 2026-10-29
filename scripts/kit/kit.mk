@@ -63,7 +63,7 @@ BOOTSTRAP_NODE := node
 kit-sync: ## Write the copies of the installed @polyspec/kit (kit.copies of its package.json), the version of package-lock.json; offline
 	$(NODE) $(KIT)/kit-sync.$(KIT_EXT)
 
-kit-check: ## Check the installed @polyspec/kit against package-lock.json, the copies against it and the configuration against its schemas; offline
+kit-check: ## Check the configuration against the schemas of kit, the PHP that a PHP repository declares and the tool recipes; offline
 	$(NODE) $(KIT)/kit-check.$(KIT_EXT)
 
 .PHONY: kit-install-php-arginfo kit-install-symbols

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ab3708758be6efe3ee28321baccd81fd1ac4d56f074bdf4e628998ae13ee947b -->
+<!-- source-sha256: 6ebafc3ac3c5fc226e4dbc7ae0e20c693d54368e056a90fe26bcbd6a9e65c642 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- layout-check는 worktree가 main의 install로 연결한 링크처럼 symlink인 install 폴더를 링크 자체로 검사합니다. .gitignore의 `vendor`가 그것을 무시하고, git이 symbolic link 너머의 pathspec이라며 거부하지 않습니다 (K814).
 - release wheel 빌드는 uv build의 .gitignore 없이 wheel만 출력 폴더에 복사하고, 실제 도구 테스트는 kit wheel 폴더 없이 uv처럼 네트워크로 Python 패키지를 빌드합니다. 삭제된 revision 검사, 레거시 Composer projection, consumers 필드의 테스트를 맞췄습니다 (K813).
 - toolchain-check 대상 테스트는 kit.mk가 정하는 node 경로를 읽으므로, main checkout의 도구를 쓰는 worktree에서도 통과합니다 (K792).
 - plan은 더 이상 형식을 거부하지 않습니다. item-state는 선언된 어느 상태든 받고, item-new는 어떤 ID든 받아 docs-check가 나중에 판단할 행을 쓰며, make commit은 빈 인덱스, main의 새 행, 없는 본문 파일을 git에 맡깁니다. 완료 상태는 커밋 여부와 관계없이 각 변경 기록에 ID가 담긴 줄을 요구합니다 (K808).

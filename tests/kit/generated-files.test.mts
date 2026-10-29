@@ -114,6 +114,22 @@ test('an install directory that Git does not ignore is a finding naming the .git
   assert.match(pyResult.stderr, /packages\/py\/\.venv\/ is not ignored by Git .*add packages\/py\/\.venv\/ to packages\/py\/\.gitignore/);
 });
 
+// K814: a worktree links its install folder to the install of main; Git sees the link as a file, beyond which no pathspec reaches.
+test('a symlinked install folder is checked as the link: vendor ignores it and vendor/ does not (K814)', (t) => {
+  const linked = (gitignore: string) => {
+    const box = checkout(t, { files: { 'composer.json': '{}\n', '.gitignore': `/var/\n${gitignore}\n` } });
+    mkdirSync(path.join(box.work, 'main-vendor'));
+    symlinkSync(path.join(box.work, 'main-vendor'), path.join(box.work, 'vendor'));
+    return installs(box.work);
+  };
+  const slash = linked('vendor/');
+  assert.equal(slash.status, 1, slash.stderr);
+  assert.match(slash.stderr, /vendor is not ignored by Git .*add vendor to \.gitignore/);
+  assert.doesNotMatch(slash.stderr, /beyond a symbolic link/);
+  const plain = linked('vendor');
+  assert.equal(plain.status, 0, plain.stderr);
+});
+
 // K426: the tracked mode checks every tracked file, not only the staged paths, so a generated file committed before the hook existed is a finding.
 test('a tracked generated file, executable object or generated-header file is refused unless config/generated.json declares it (K426)', (t) => {
   const tracked = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'tracked']);
