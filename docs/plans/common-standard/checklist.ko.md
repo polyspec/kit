@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: a682e16656dab749c98f6ea05a7b3eca8bdcd1d80260d002a19f0f8ad76c69e1 -->
+<!-- source-sha256: 3615720c1f2b5d5e93b8122997b905cd12bce92fb22db05ba2c8f6f94912ac9d -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -736,4 +736,4 @@
 | K779 | K774와 K777 테스트는 구조 테스트를 통과한다: initRepository, 다른 저장소 이름 없음 | tests/kit/link.test.mts tests/kit/release.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/sandbox-repository.test.mts tests/kit/isolation.test.mts` | [o] |
 | K780 | worktree는 추적되는 composer.json이 선언한 checkout 안의 Composer artifact repository마다 main checkout의 디렉터리로 link한다(issue 19) | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts, docs/operations/local-links.md | `node --test --test-name-pattern="K622\|K780" tests/kit/worktree-setup.test.mts` | [ ] |
 | K781 | worktree-setup은 .mise/의 도구 환경을 준비하지 않는다. worktree는 main checkout의 도구를 쓴다(issue 19) | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test --test-name-pattern=K781 tests/kit/worktree-setup.test.mts` | [ ] |
-| K782 | push-gate는 worktree에 커밋하지 않은 변경이 있는 branch를 병합된 것으로 보지 않는다 | scripts/kit/push-gate.mts tests/kit/push-gate.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K782 tests/kit/push-gate.test.mts` | [ ] |
+| K782 | push-gate는 worktree에 커밋하지 않은 변경이 있는 branch를 병합된 것으로 보지 않는다 | scripts/kit/push-gate.mts tests/kit/push-gate.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K782 tests/kit/push-gate.test.mts` | [~] |
