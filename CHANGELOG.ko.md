@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9b33c07b8f6e6700aabe0a48c9d9089a162d368dc7765a0370508056bd2f585e -->
+<!-- source-sha256: 5d0133646ca2d3609804f64b5e5a3ada0deff8e9cc9840dbb81d7a7bd9b9478d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 배포본이 설치된 Python provider는 uv sync가 폴더를 남기지 않았어도 패키지 폴더가 링크된다. (K772)
 
 - Kit 0.0.65 release를 준비한다. (K770)
 

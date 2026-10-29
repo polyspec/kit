@@ -20,7 +20,7 @@ function fixture(t: { after: (fn: () => void) => void }) {
   const uv = path.join(root, 'uv');
   writeFileSync(path.join(root, 'pyproject.toml'), '[project]\nname = "consumer"\nversion = "0.0.0"\ndependencies = ["polyspec-new-unreleased"]\n');
   // The fixture sync writes the release files into the package folder, as uv does, through a link that is still there.
-  writeFileSync(uv, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nif [ "$1 $2" = "workspace dir" ]; then echo '${root}'; fi\nif [ "$1" = sync ]; then mkdir -p '${site}/polyspec_new_unreleased' && echo release > '${site}/polyspec_new_unreleased/RELEASE'; fi\nif [ "$1 $2" = "pip check" ] && [ "$UV_FIXTURE_CONFLICT" = yes ]; then echo 'incompatible native dependency requirement' >&2; exit 1; fi\n`);
+  writeFileSync(uv, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nif [ "$1 $2" = "workspace dir" ]; then echo '${root}'; fi\nif [ "$1" = sync ] && [ -z "$UV_FIXTURE_KEEP" ]; then mkdir -p '${site}/polyspec_new_unreleased' && echo release > '${site}/polyspec_new_unreleased/RELEASE'; fi\nif [ "$1 $2" = "pip check" ] && [ "$UV_FIXTURE_CONFLICT" = yes ]; then echo 'incompatible native dependency requirement' >&2; exit 1; fi\n`);
   chmodSync(uv, 0o755);
   const provider = { ecosystem: 'python' as const, name: 'polyspec-new-unreleased', folder: checkout, repository: checkout, checkout };
   return { root, log, uv, site, checkout, provider, env: { ...process.env, UV: uv, UV_PROJECT_ENVIRONMENT: '.venv' } };
@@ -66,4 +66,14 @@ test('K689-3: the link never syncs the lock, and needs an existing environment',
   assert.doesNotMatch(readFileSync(log, 'utf8'), /^sync /m);
   rmSync(path.join(root, '.venv'), { recursive: true });
   assert.throws(() => uvLink({ directory: root, uv, env }), /requires an existing native environment/);
+});
+
+test('K772: the installer links a package folder that uv sync left missing, since the distribution is installed', { timeout: 30_000 }, (t) => {
+  const { root, uv, site, checkout, provider, env } = fixture(t);
+  uvLink({ directory: root, uv, env, providers: [provider] });
+  mkdirSync(path.join(site, 'polyspec_new_unreleased-0.0.1.dist-info'));
+  // uv sync keeps the installed distribution and writes no folder, as for python-server: the fixture uv writes nothing here.
+  const lines: string[] = [];
+  assert.equal(uvInstallCommand([root, checkout], { ...env, UV_FIXTURE_KEEP: 'yes' }, line => lines.push(line)), 0, lines.join(''));
+  assert.equal(realpathSync(path.join(site, 'polyspec_new_unreleased')), path.join(checkout, 'src/polyspec_new_unreleased'));
 });

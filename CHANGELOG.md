@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A Python provider whose distribution is installed gets its package folder linked when uv sync left the folder missing. (K772)
+
 - Prepare the Kit 0.0.65 release. (K770)
 
 ## 0.0.65

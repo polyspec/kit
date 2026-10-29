@@ -235,7 +235,7 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
       for (const site of sites) {
         for (const { from, to } of hatchSources(provider.folder)) {
           const folder = path.join(site, to);
-          if (present(folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
+          if (present(folder) || distributionInstalled(site, provider.name)) found.push({ ecosystem: 'python', name: `${provider.name} ${to}`, folder, target: path.join(provider.folder, from) });
         }
       }
     } else if (provider.ecosystem === 'python') {
@@ -244,12 +244,22 @@ export function providedFolders(project: string, provided: Iterable<Provider>, {
       for (const site of sites) {
         for (const relative of packages) {
           const folder = path.join(site, relative);
-          if (present(folder)) found.push({ ecosystem: 'python', name: `${provider.name} ${relative}`, folder, target: path.join(source, relative) });
+          if (present(folder) || distributionInstalled(site, provider.name)) found.push({ ecosystem: 'python', name: `${provider.name} ${relative}`, folder, target: path.join(source, relative) });
         }
       }
     }
   }
   return found;
+}
+
+/**
+ * Whether the site-packages `site` holds the distribution `name`, a <name>-<version>.dist-info of its normalized name (K772): uv keeps
+ * an installed distribution as it is, so a package folder that the installer unlinked before uv sync stays missing, and the
+ * distribution, not the folder, says that the package is installed.
+ */
+function distributionInstalled(site: string, name: string): boolean {
+  const normal = name.toLowerCase().replace(/[-_.]+/g, '_');
+  return readdirSync(site).some(entry => entry.endsWith('.dist-info') && entry.slice(0, entry.indexOf('-')).toLowerCase().replace(/[-_.]+/g, '_') === normal);
 }
 
 /**
