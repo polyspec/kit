@@ -760,3 +760,4 @@
 | K805 | Delete the form and order rules of commit messages; keep the AI policy and the Red line | scripts/kit/check-commits.mts scripts/kit/plan.mts scripts/kit/git-hooks.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/commits.test.mts` | [ ] |
 | K806 | Delete the K315 cause filter of item-state (EVASIVE_CAUSE in plan.mts) and its tests, so a CAUSE that cites a release is accepted | scripts/kit/plan.mts tests/kit/plan.test.mts | `var/tools/bin/node --test tests/kit/plan.test.mts` | [ ] |
 | K807 | Delete the land baseline run and the unowned path refusal | scripts/kit/land.mts, tests/kit/land.test.mts | `node --test tests/kit/land.test.mts` | [ ] |
+| K808 | Delete the form refusals of plan: transitions, id pattern, added rows, new row on main, staged and body checks | scripts/kit/plan.mts, tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [ ] |
