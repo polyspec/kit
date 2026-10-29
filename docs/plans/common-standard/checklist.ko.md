@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 31ee4a771bb6a308e593927bc2b555b623bbb4f85177ec4228082f7463826552 -->
+<!-- source-sha256: 83df561ddacf36bc790747aed0b0a0255635a7669ea06aa7789935caee19af01 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -719,4 +719,4 @@
 | K760 | go test -json이 benchmark의 pass event를 내지 않으므로, run-tests go가 benchmark를 결과 줄(출력함), 자식이 아닌 다음 benchmark의 시작, 또는 package의 끝에서 끝낸다. | scripts/kit/test-output.mts, tests/kit/test-output.test.mts | `node --test tests/kit/test-output.test.mts` | [o] |
 | K761 | make link가 설치된 npm·Composer polyspec 패키지 폴더를 각각 개발 checkout으로 가는 디렉터리 심링크 하나로 쓴다(사용자 규칙). npm link, npm link prefix와 cache, 전이 npm link 선택, Composer path repository 요구와 composer update는 없앤다. Go go.work와 Python editable install은 그대로 둔다. | scripts/kit/npm-install.mts, scripts/kit/composer-install.mts, scripts/kit/link.mts, scripts/kit/worktree-setup.mts, docs/operations/local-links.md and its Korean twin, tests | `node --test tests/kit/npm-install.test.mts tests/kit/link.test.mts` | [o] |
 | K762 | kit-bootstrap.mk가 make 시작 시 포함된 kit의 실제 경로로 KIT를 정하고 KIT와 KIT_EXT를 모든 재귀 make에 넘겨서, npm ci가 node_modules/@polyspec/kit을 바꿔도 링크된 consumer는 make 내내 sibling kit을 실행한다. | scripts/kit/kit-bootstrap.mk, tests/kit/kit-mk.test.mts | `node --test tests/kit/kit-mk.test.mts` | [o] |
-| K763 | Python link가 선택한 polyspec editable을 uv --no-deps로 설치해서, sibling을 release URL로 선언한 provider도 download가 필요 없다. 의존성 판단은 계속 uv pip check가 한다. | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node --test tests/kit/uv-install.test.mts` | [ ] |
+| K763 | Python link가 선택한 polyspec editable을 uv --no-deps로 설치해서, sibling을 release URL로 선언한 provider도 download가 필요 없다. 의존성 판단은 계속 uv pip check가 한다. | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node --test tests/kit/uv-install.test.mts` | [~] |
