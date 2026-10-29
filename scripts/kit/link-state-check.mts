@@ -9,7 +9,9 @@
 //             link over the install of a release archive is a finding (K318);
 //   Go        each `use` folder of go.work holds the go.mod of a module.
 // A plain copy among links is a finding, and a link that resolves to nothing is one. A checkout without a link passes: CI
-// installs the released packages. A finding names the ecosystem and the package.
+// installs the released packages. A finding names the ecosystem and the package. A tracked manifest that names a path outside
+// the repository (a Composer path repository, an npm file:/link: dependency, a uv source path) links a sibling by a second way
+// besides the folder link, so it is a finding in every checkout (K773).
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { isKitHookEntry, kitHookCheckout, kitNodeRunnable, trackedWorkspaceFolders, workspaceHookEntry, workspaceSettings } from './link.mts';
@@ -190,6 +192,46 @@ function trackedLockFindings(root: string): string[] {
   return trackedManifests(root, LOCK_FILES).flatMap(file => lockSourceFindings(file, readFileSync(path.join(root, file), 'utf8'), members));
 }
 
+const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+const NPM_PATH = /^(?:file|link):/;
+
+/** Whether the path `target`, relative to the folder of the tracked manifest `file`, leaves the repository. */
+function outside(file: string, target: string): boolean {
+  return path.posix.isAbsolute(target) || path.posix.normalize(path.posix.join(path.posix.dirname(file), target)).startsWith('../');
+}
+
+/**
+ * K773: the findings of one tracked manifest `file` with its text: each path outside the repository that it links a package by, a
+ * Composer path repository, an npm file:/link: dependency or a uv source path. A sibling is linked only by the folder link of make link
+ * (docs/operations/local-links.md); a path inside the repository, an own member, passes.
+ */
+export function manifestPathFindings(file: string, text: string): string[] {
+  const finding = (name: string, target: string) => `${file}: ${name} is linked by the path ${target} outside the repository; a sibling is linked only by the folder link of make link (docs/operations/local-links.md)`;
+  if (path.posix.basename(file) === 'pyproject.toml') {
+    const tool = readToml(text, file).tool;
+    const uv = isTable(tool) ? tool.uv : undefined;
+    const sources = isTable(uv) ? uv.sources : undefined;
+    if (!isTable(sources)) return [];
+    return Object.entries(sources).flatMap(([name, value]) => (Array.isArray(value) ? value : [value])
+      .flatMap((item: unknown) => isTable(item) && typeof item.path === 'string' && outside(file, item.path) ? [finding(name, item.path)] : []));
+  }
+  const manifest: unknown = JSON.parse(text);
+  if (!isJsonObject(manifest)) return [];
+  if (path.posix.basename(file) === 'composer.json') {
+    const repositories: unknown[] = Array.isArray(manifest.repositories) ? manifest.repositories : isJsonObject(manifest.repositories) ? Object.values(manifest.repositories) : [];
+    return repositories.flatMap(item => isJsonObject(item) && item.type === 'path' && typeof item.url === 'string' && outside(file, item.url) ? [finding('a path repository', item.url)] : []);
+  }
+  return DEPENDENCY_FIELDS.flatMap((field) => {
+    const dependencies = manifest[field];
+    return isJsonObject(dependencies) ? Object.entries(dependencies).flatMap(([name, spec]) => typeof spec === 'string' && NPM_PATH.test(spec) && outside(file, spec.replace(NPM_PATH, '')) ? [finding(name, spec)] : []) : [];
+  });
+}
+
+/** The findings of every tracked composer.json, package.json and pyproject.toml (K773). */
+function trackedManifestPathFindings(root: string): string[] {
+  return trackedManifests(root, ['composer.json', 'package.json', 'pyproject.toml']).flatMap(file => manifestPathFindings(file, readFileSync(path.join(root, file), 'utf8')));
+}
+
 /**
  * K448: the findings of the installed package folders of `root` that a sibling checkout provides: a folder that is a copy, or that
  * links elsewhere than to its provider. Nothing about a version is judged.
@@ -203,12 +245,12 @@ function folderLinkFindings(root: string, folders: readonly string[]): string[] 
 }
 
 /**
- * The findings of the links of `root`, sorted: K507's release record of the tracked locks, the folder of each provided package (a link to
+ * The findings of the links of `root`, sorted: K507's release record of the tracked locks, K773's paths of the tracked manifests, the folder of each provided package (a link to
  * its provider, never a copy), the workspace links, go.work and the hook of the checkout.
  */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const folders = manifestFolders(root);
-  return [...trackedLockFindings(root), ...folderLinkFindings(root, folders), ...workspaceHookFindings(root, env), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
+  return [...trackedLockFindings(root), ...trackedManifestPathFindings(root), ...folderLinkFindings(root, folders), ...workspaceHookFindings(root, env), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
 }
 
 if (isMain(import.meta.url)) {

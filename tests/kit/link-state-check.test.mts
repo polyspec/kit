@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { initRepository } from './sandbox-repository.mts';
-import { linkFindings, lockSourceFindings } from '../../scripts/kit/link-state-check.mts';
+import { linkFindings, lockSourceFindings, manifestPathFindings } from '../../scripts/kit/link-state-check.mts';
 import { put, tree } from './tree.mts';
 
 /** Commits every file of `root` (K453 tests: the build inputs of a provider are its tracked files). */
@@ -141,3 +141,18 @@ test('a release tarball entry and the repository own packages are no lock-source
   assert.deepEqual(lockSourceFindings('composer.lock', composerLock, own), [], 'an own in-repo path repository is no finding');
 });
 
+
+// K773: a tracked manifest that links a package by a path outside the repository links a sibling by a second way besides the folder link.
+test('a tracked manifest path outside the repository is a finding in Composer, npm and uv, and an in-repo path passes (K773)', (t) => {
+  const composer = JSON.stringify({ name: 'polyspec/app', repositories: [{ type: 'path', url: 'packages/own/php' }, { type: 'path', url: '../ordered-json/packages/php', options: { symlink: true } }] });
+  const npm = JSON.stringify({ name: '@polyspec/app', dependencies: { '@polyspec/own': 'file:packages/own', '@polyspec/x': 'file:../x' }, devDependencies: { '@polyspec/y': 'link:../y', '@polyspec/z': '0.0.1' } });
+  const uv = '[project]\nname = "app"\nversion = "0.0.0"\n\n[tool.uv.sources]\nown = { workspace = true }\npolyspec-orm = { path = "../../../orm/packages/python", editable = true }\n';
+  const found = (file: string, text: string) => manifestPathFindings(file, text).map(item => item.replace(/ outside.*$/, ''));
+  assert.deepEqual(found('composer.json', composer), ['composer.json: a path repository is linked by the path ../ordered-json/packages/php']);
+  assert.deepEqual(found('package.json', npm), ['package.json: @polyspec/x is linked by the path file:../x', 'package.json: @polyspec/y is linked by the path link:../y']);
+  assert.deepEqual(found('packages/app/pyproject.toml', uv), ['packages/app/pyproject.toml: polyspec-orm is linked by the path ../../../orm/packages/python']);
+  assert.deepEqual(manifestPathFindings('packages/a/package.json', JSON.stringify({ dependencies: { b: 'file:../b' } })), [], 'a sibling folder of the same repository passes');
+  const root = tree(t, { '.gitignore': 'var/\n', 'composer.json': composer });
+  commitAll(root, 'fixture');
+  assert.equal(linkFindings(root, process.env).filter(item => item.startsWith('composer.json:')).length, 1, 'link-state-check reports it');
+});

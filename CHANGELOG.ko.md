@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5d0133646ca2d3609804f64b5e5a3ada0deff8e9cc9840dbb81d7a7bd9b9478d -->
+<!-- source-sha256: 5603e0570ae8b1089d872704662d20aaa9248b5b1c93107f2b7980da531eec3b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- link-state-check는 저장소 밖 경로로 패키지를 연결하는 추적 composer.json, package.json, pyproject.toml을 발견으로 보고한다. (K773)
 
 - 배포본이 설치된 Python provider는 uv sync가 폴더를 남기지 않았어도 패키지 폴더가 링크된다. (K772)
 

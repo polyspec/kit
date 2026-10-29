@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- link-state-check reports a tracked composer.json, package.json or pyproject.toml that links a package by a path outside the repository. (K773)
+
 - A Python provider whose distribution is installed gets its package folder linked when uv sync left the folder missing. (K772)
 
 - Prepare the Kit 0.0.65 release. (K770)

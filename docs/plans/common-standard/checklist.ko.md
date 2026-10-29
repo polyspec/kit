@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 9add45cbaf323ad3472a77293993675a1a19da9a5a28bddf0f87716c5b871d06 -->
+<!-- source-sha256: 4bd7aa64244752b56c89a94ba77deb5e55c8a1dfa4626b8dc917f219b058c25c -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -727,4 +727,4 @@
 | K770 | K753부터 K769까지를 배포하기 위해 Kit 0.0.65를 준비한다 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.65` | [o] |
 | K771 | 0.0.65 candidate의 전체 CI가 실패한 test를 K755, K760, K761, K762, K765에 맞춘다 | tests/kit/test-output.test.mts, tests/kit/kit-bootstrap.test.mts, tests/source/consumer-layout.test.mts, tests/source/release-workflow.test.mts, tests/source/link-composer-real.test.mts, PRINCIPLES.md | `node --test tests/kit/isolation.test.mts tests/kit/kit-bootstrap.test.mts tests/kit/gates-workflow.test.mts` | [o] |
 | K772 | 배포본이 설치된 Python provider는 패키지 폴더가 없어도 그 폴더가 링크된다 | scripts/kit/link-folders.mts, tests/kit/uv-install.test.mts | `node --test --test-name-pattern=K772 tests/kit/uv-install.test.mts` | [o] |
-| K773 | link-state-check는 저장소 밖 경로로 형제 패키지를 연결하는 추적 매니페스트를 발견으로 보고한다 | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts | `node --test --test-name-pattern=K773 tests/kit/link-state-check.test.mts` | [~] |
+| K773 | link-state-check는 저장소 밖 경로로 형제 패키지를 연결하는 추적 매니페스트를 발견으로 보고한다 | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts | `node --test --test-name-pattern=K773 tests/kit/link-state-check.test.mts` | [o] |
