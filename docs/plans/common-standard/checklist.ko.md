@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 54b4fb46c711987ce5145752eabc6daa813ebd324394df0f0647e6c309adc875 -->
+<!-- source-sha256: cf266511c9672dab44413fce09c933f84a48fb65296d7fbb3c8df9a99af70018 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -717,4 +717,4 @@
 | K758 | commit-deleted-test가 링크된 provider를 그 checkout으로 판단한다: npm 패키지가 sibling checkout 링크인 Provider-Test-Replacement는 그 checkout(name, version, providerTests, 테스트 파일)으로 검증하고, 릴리즈 복사본은 계속 package-lock.json으로 검증한다. | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node --test tests/kit/commits.test.mts` | [o] |
 | K759 | Windows bootstrap이 PATH의 tar(Git Bash에서는 GNU tar) 대신 drive 경로와 zip을 읽는 Windows bsdtar(%SystemRoot%\System32\tar.exe)로 archive를 푼다. | scripts/kit/bootstrap/tool-wrappers.mts, scripts/kit/bootstrap/install-mise.mts, scripts/kit/bootstrap/install-npm.mts, tests/kit/install-mise.test.mts | `node --test tests/kit/install-mise.test.mts` | [o] |
 | K760 | go test -json이 benchmark의 pass event를 내지 않으므로, run-tests go가 benchmark를 결과 줄(출력함), 자식이 아닌 다음 benchmark의 시작, 또는 package의 끝에서 끝낸다. | scripts/kit/test-output.mts, tests/kit/test-output.test.mts | `node --test tests/kit/test-output.test.mts` | [o] |
-| K761 | make link가 설치된 npm·Composer polyspec 패키지 폴더를 각각 개발 checkout으로 가는 디렉터리 심링크 하나로 쓴다(사용자 규칙). npm link, npm link prefix와 cache, 전이 npm link 선택, Composer path repository 요구와 composer update는 없앤다. Go go.work와 Python editable install은 그대로 둔다. | scripts/kit/npm-install.mts, scripts/kit/composer-install.mts, scripts/kit/link.mts, scripts/kit/worktree-setup.mts, docs/operations/local-links.md and its Korean twin, tests | `node --test tests/kit/npm-install.test.mts tests/kit/link.test.mts` | [~] |
+| K761 | make link가 설치된 npm·Composer polyspec 패키지 폴더를 각각 개발 checkout으로 가는 디렉터리 심링크 하나로 쓴다(사용자 규칙). npm link, npm link prefix와 cache, 전이 npm link 선택, Composer path repository 요구와 composer update는 없앤다. Go go.work와 Python editable install은 그대로 둔다. | scripts/kit/npm-install.mts, scripts/kit/composer-install.mts, scripts/kit/link.mts, scripts/kit/worktree-setup.mts, docs/operations/local-links.md and its Korean twin, tests | `node --test tests/kit/npm-install.test.mts tests/kit/link.test.mts` | [o] |

@@ -1,4 +1,4 @@
-// Native locked installation must remain readable during local source linking; peer constraints remain enabled.
+// Native locked installation must remain readable during local source linking: the link is one plain directory symlink (K761).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -6,11 +6,11 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { setup, teardown } from '../../scripts/kit/test-hooks.mts';
-import { npmLink } from '../../scripts/kit/npm-install.mts';
+import { linkFolders } from '../../scripts/kit/link-folders.mts';
 import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { NPM } from './checkout.mts';
 
-describe('native locked npm source link (K671-6)', () => {
+describe('locked npm install with a plain source link (K671-6, K761)', () => {
   let root: string;
   let app: string;
   let source: string;
@@ -49,7 +49,7 @@ describe('native locked npm source link (K671-6)', () => {
     run(['ci', '--ignore-scripts', '--no-audit', '--no-fund'], app);
     before = snapshot();
     try {
-      npmLink(app, [{ ecosystem: 'npm', name: 'source-proof', folder: path.join(app, 'node_modules/source-proof'), target: source }], NPM, { ...process.env, npm_config_offline: 'true' }, text => process.stdout.write(`[locked-link] ${text}\n`));
+      for (const text of linkFolders([{ ecosystem: 'npm', name: 'source-proof', folder: path.join(app, 'node_modules/source-proof'), target: source }])) process.stdout.write(`[locked-link] ${text}\n`);
     } catch (error) { failure = error; }
   });
   teardown('the locked npm fixture', () => { if (root) rmSync(root, { recursive: true, force: true }); });
@@ -59,15 +59,6 @@ describe('native locked npm source link (K671-6)', () => {
     const value = spawnSync(process.execPath, ['-p', "require('locked-proof') + require('source-proof')"], { cwd: app, encoding: 'utf8' });
     assert.equal(value.status, 0, value.stderr);
     assert.equal(value.stdout.trim(), '19');
-  });
-  test('native npm inspection detects incompatible linked peers without disabling peer rules', () => {
-    writeFileSync(path.join(source, 'package.json'), JSON.stringify({ name: 'source-proof', version: '0.0.2', main: 'index.cjs', peerDependencies: { 'locked-proof': '^2.0.0' } }));
-    npmLink(app, [{ ecosystem: 'npm', name: 'source-proof', folder: path.join(app, 'node_modules/source-proof'), target: source }], NPM, { ...process.env, npm_config_offline: 'true' }, () => {});
-    const inspected = spawnSync(NPM, ['ls', '--all', '--offline'], { cwd: app, encoding: 'utf8', env: { ...process.env, npm_config_cache: path.join(root, 'cache') } });
-    assert.notEqual(inspected.status, 0, 'npm ls rejects the incompatible peer graph');
-    assert.match(inspected.stdout + inspected.stderr, /invalid.*locked-proof|locked-proof.*invalid|missing.*locked-proof|locked-proof.*missing/);
-    process.stdout.write(`[locked-peer] npm link succeeds; npm ls exits ${inspected.status}: ${inspected.stdout}${inspected.stderr}\n`);
-    assert.deepEqual(snapshot(), before);
   });
 
 });

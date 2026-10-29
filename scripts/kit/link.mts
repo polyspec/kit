@@ -1,10 +1,10 @@
 // The local links of 0.0.x development (docs/operations/local-links.md, K201, K205, K448). The checkouts that the arguments name are the
 // providers (link-providers.mts): each installed package folder of a consumer that a provider gives is replaced by a direct relative
-// symlink to the provider's package folder. npm and Composer own their links; Python still uses the legacy folder
-// writer until its native-install migration completes (K657). kit itself only
-// links, it never builds (link-build.mts rebuilds):
-//   npm       node_modules/<name> of each tracked project;
-//   Composer  <vendor-dir>/<vendor>/<package> of each tracked project, the vendor-dir of its composer.json;
+// symlink to the provider's package folder (K761): during development the installed folder is a plain directory symlink to the
+// development checkout, and a release uses the installed copy. No package manager re-resolves the consumer; Python installs editable
+// (K643). kit itself only links, it never builds (link-build.mts rebuilds):
+//   npm       node_modules/<name> of each tracked project, one directory symlink;
+//   Composer  <vendor-dir>/<vendor>/<package> of each tracked project, the vendor-dir of its composer.json, one directory symlink;
 //   Python    each package of the site-packages of a project's .venv, one link per package of a namespace;
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
 //             go reads by itself; unlink removes it;
@@ -24,11 +24,9 @@ import { fileURLToPath } from 'node:url';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
-import { composerLink, composerSourceFolders } from './composer-install.mts';
-import { npmLink, npmSourceFolders } from './npm-install.mts';
 import { legacyPythonLinks, uvEditable } from './uv-install.mts';
 import { rebuild } from './link-build.mts';
-import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, type ProvidedFolder, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
+import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolsRoot } from './bootstrap/tool-wrappers.mts';
@@ -449,22 +447,17 @@ function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly 
   const projects = new Set([consumer.scope, ...folderEcosystems.flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))]);
   for (const project of [...projects].sort()) {
     const composerOwners = folderEcosystems.includes('composer') ? owners(consumer, project, 'composer') : [];
-    if (folderEcosystems.includes('npm') && !work.check && existsSync(path.join(project, MANIFESTS.npm))) {
-      const npm = consumerTool(consumer.top, 'npm', work.env);
-      npmLink(project, npmSourceFolders(project, work.found.values()), npm.command, npm.env, work.print);
-    }
     const pythonManifest = path.join(project, 'pyproject.toml');
     if (folderEcosystems.includes('python') && !work.check && existsSync(pythonManifest) && declaredPython(pythonManifest).length > 0) {
       const uv = consumerTool(consumer.top, 'uv', work.env);
       uvEditable({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
     }
-    if (folderEcosystems.includes('composer') && !work.check && composerOwners.length === 0 && existsSync(path.resolve(project, work.env.COMPOSER || MANIFESTS.composer))) {
-      const composer = consumerTool(consumer.top, 'composer', work.env);
-      composerLink(project, composerSourceFolders(project, work.found.values(), composer), composer, work.print);
-    }
     // A path member uses its parent installer's vendor and selected manifest, not a separate member installation (K590).
     const localProviders = [...work.found.values()].filter(provider => provider.ecosystem !== 'composer' || composerOwners.length === 0);
     const folders = providedFolders(project, localProviders, { vendorDir: composerOwners.length === 0 ? composerVendorDir(project, work.env) : undefined });
+    // K761: each installed npm and Composer folder of a provided package is one plain directory symlink to its checkout; no package
+    // manager re-resolves the consumer. A declared package with no installed folder is reported below (K529).
+    if (!work.check) for (const text of linkFolders(folders.filter(folder => folder.ecosystem !== 'python'))) work.print(text);
     // K529: a polyspec package that the manifests of the project declare, and that a provider of the run provides, has an installed folder.
     const missing = declaredWithoutFolder(work, consumer, project, [...folders, ...ownerFolders(work, consumer, project, folderEcosystems)], folderEcosystems);
     for (const name of missing) line(work, 'NOT linked', name.ecosystem, `${name.name}: no installed folder in ${path.relative(consumer.top, project) || '.'}; install the project first`);
@@ -477,7 +470,7 @@ function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly 
       const legacy = folderEcosystems.includes('python') ? legacyPythonLinks(project, work.found.values(), work.env) : [];
       for (const folder of legacy) line(work, 'NOT linked', 'python', `${path.relative(consumer.top, folder)}: legacy package link requires a fresh native editable environment`);
       if (legacy.length > 0) work.failed = true;
-      const findings = folderFindings(consumer.top, folders);
+      const findings = [...folderFindings(consumer.top, folders), ...providerDependencyFindings(consumer.top, folders, work.found.values())];
       for (const finding of findings) line(work, 'NOT linked', finding.split(' ')[0] ?? '', finding.slice(finding.indexOf(' ') + 1));
       if (findings.length > 0) work.failed = true;
       continue;

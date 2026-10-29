@@ -10,7 +10,8 @@
 //
 // Each installed package is exactly one directory symlink, the user's rule (K591); no kit uv run writes through it, since every uv
 // install of kit removes the links first (K539).
-import { existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
@@ -289,16 +290,17 @@ export function hasPythonPackages(provider: Provider): boolean {
 const linksTo = (folder: string, target: string): boolean => lstatSync(folder).isSymbolicLink() && existsSync(folder) && realpathSync(folder) === realpathSync(target);
 
 /**
- * Replaces each provided folder that is not a link to its target with that one directory link (K591); returns a line for each folder it
- * changed.
+ * Replaces each provided folder that is not a link to its target with that one directory link (K591, K761); returns a line for each
+ * folder it changed. A folder that does not exist yet, as a package that ADD names (K485), gets its parent and the link.
  */
 export function linkFolders(folders: readonly ProvidedFolder[]): string[] {
   const lines: string[] = [];
   for (const item of folders) {
     // A link to the right folder stays, unless it is absolute, which is made relative (K326-3).
     if (present(item.folder) && linksTo(item.folder, item.target) && !path.isAbsolute(readlinkSync(item.folder))) continue;
-    const was = lstatSync(item.folder).isSymbolicLink() ? 'a link elsewhere' : 'a copy';
+    const was = !present(item.folder) ? 'missing' : lstatSync(item.folder).isSymbolicLink() ? 'a link elsewhere' : 'a copy';
     rmSync(item.folder, { recursive: true, force: true });
+    mkdirSync(path.dirname(item.folder), { recursive: true });
     // A relative link (K326-3): the checkout and its siblings move together, so the link survives a moved workspace.
     symlinkSync(path.relative(path.dirname(item.folder), item.target), item.folder);
     lines.push(`${item.ecosystem} ${item.name}: ${item.folder} was ${was}; linked to ${item.target}`);
@@ -314,5 +316,27 @@ export function folderFindings(root: string, folders: readonly ProvidedFolder[])
     if (!lstatSync(item.folder).isSymbolicLink()) return [`${item.ecosystem} ${item.name}: ${shown} is a copy, not a link to ${item.target}; fix: make link`];
     if (!linksTo(item.folder, item.target)) return [`${item.ecosystem} ${item.name}: ${shown} links to ${existsSync(item.folder) ? realpathSync(item.folder) : 'nothing'}, not to ${item.target}; fix: make link`];
     return [];
+  });
+}
+
+/**
+ * The findings of the polyspec packages that the linked npm providers of `folders` load (K761). Node resolves a dependency of a linked
+ * package from the real path of its checkout, so each polyspec package that the provider's manifest needs at run time must resolve there
+ * to the same checkout as in the consumer: a copy there is a second instance of the package, and `instanceof` fails across the two.
+ */
+export function providerDependencyFindings(root: string, folders: readonly ProvidedFolder[], provided: Iterable<Provider>): string[] {
+  const byName = new Map([...provided].filter(provider => provider.ecosystem === 'npm').map(provider => [provider.name, provider.folder]));
+  return folders.filter(item => item.ecosystem === 'npm' && present(item.folder) && linksTo(item.folder, item.target)).flatMap((item) => {
+    const manifest = readJsonObject(item.target, 'package.json');
+    const names = ['dependencies', 'peerDependencies', 'optionalDependencies'].flatMap(section => {
+      const value = manifest[section];
+      return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.keys(value) : [];
+    }).filter(name => byName.has(name));
+    return names.flatMap((name) => {
+      const resolved = createRequire(path.join(realpathSync(item.target), 'package.json')).resolve.paths(name)?.map(folder => path.join(folder, name)).find(present);
+      const target = byName.get(name) ?? '';
+      if (resolved === undefined || linksTo(resolved, target)) return [];
+      return [`npm ${name}: ${path.relative(root, resolved)}, which the linked ${item.name} loads, is ${lstatSync(resolved).isSymbolicLink() ? `a link to ${realpathSync(resolved)}` : 'a copy'}, not a link to ${target}; fix: make link in the checkout of ${item.name}`];
+    });
   });
 }

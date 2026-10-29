@@ -4,7 +4,7 @@
 // Python, go or cargo runs. make is the make of the machine, on Makefiles of the fixture.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { buildState, buildTargets } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, foreignEnvironment, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
-import { composerInstall, composerLink } from '../../scripts/kit/composer-install.mts';
+import { composerInstall } from '../../scripts/kit/composer-install.mts';
 import { linkFindings } from '../../scripts/kit/link-state-check.mts';
 import { acquireHolderLock } from '../../scripts/kit/holder-lock.mts';
 import { cargoMetadataArguments } from '../../scripts/kit/cargo-source.mts';
@@ -254,11 +254,11 @@ function linkLines(directories: string[], env: NodeJS.ProcessEnv, check = false)
   return { ok, text: lines.join('\n') };
 }
 
-test('runtime links use only the selected native managers in a mixed-language consumer', (t) => {
+test('runtime links use only the selected native managers in a mixed-language consumer; npm and Composer folders are plain links (K761)', (t) => {
   const cases = [
-    { runtime: 'ts', variable: 'NPM', command: 'npm' },
-    { runtime: 'php', variable: 'COMPOSER_BIN', command: 'composer' },
-    { runtime: 'php-ext', variable: 'COMPOSER_BIN', command: 'composer' },
+    { runtime: 'ts', variable: 'NPM', command: undefined },
+    { runtime: 'php', variable: 'COMPOSER_BIN', command: undefined },
+    { runtime: 'php-ext', variable: 'COMPOSER_BIN', command: undefined },
     { runtime: 'python', variable: 'UV', command: 'uv' },
     { runtime: 'go', variable: 'GO', command: 'go' },
     { runtime: 'rust', variable: undefined, command: undefined },
@@ -269,7 +269,7 @@ test('runtime links use only the selected native managers in a mixed-language co
     const lines: string[] = [];
     const ok = link({ checkouts: current, directories: [consumer], check: false, print: text => lines.push(text), env: runtimeEnv, runtime });
     assert.equal(ok, true, `${runtime}: ${lines.join('\n')}`);
-    if (command === undefined) assert.equal(log(), '', `${runtime} uses the cargo wrapper elsewhere and needs no folder manager here`);
+    if (command === undefined) assert.equal(log(), '', `${runtime} needs no package manager here: a plain symlink (K761), or the cargo wrapper elsewhere`);
     else {
       assert.match(log(), new RegExp(`^${command} `, 'm'), `${runtime} runs its native manager`);
       assert.doesNotMatch(log(), new RegExp(`^(?!${command} )(npm|composer|uv|go) `, 'm'), `${runtime} does not run another language manager`);
@@ -453,6 +453,49 @@ test('a second link run ends linked with the state of the first, in npm, Compose
   const second = linkLines([consumer], env);
   assert.equal(second.ok, true, second.text);
   assert.deepEqual(state(), before);
+});
+
+test('K761: link writes each installed npm and Composer package as one plain directory symlink to its checkout and runs neither npm nor Composer', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  const log = path.join(path.dirname(consumer), 'tools.log');
+  // An override that equals the direct dependency made npm link fail with EOVERRIDE (orm, limepie product, flowmark board), and a
+  // manifest with no Composer path repository was refused (limepie php/contracts); a plain symlink needs neither.
+  const manifest = readJsonObject(consumer, 'package.json');
+  put(consumer, {
+    'package.json': JSON.stringify({ ...manifest, overrides: { '@polyspec/x': '0.0.1' } }),
+    'composer.json': JSON.stringify({ name: 'cons/app', require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }),
+  });
+  writeFileSync(log, '');
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  const npmFolder = path.join(consumer, 'node_modules/@polyspec/x');
+  const composerFolder = path.join(consumer, 'var/contracts/vendor/polyspec/y');
+  assert.equal(readlinkSync(npmFolder), path.relative(path.dirname(npmFolder), path.join(provider, 'packages/ts')));
+  assert.equal(readlinkSync(composerFolder), path.relative(path.dirname(composerFolder), path.join(provider, 'packages/php')));
+  assert.doesNotMatch(readFileSync(log, 'utf8'), /^npm link|^composer update/m, 'no package manager re-resolves the consumer');
+});
+
+test('K761: a polyspec package that a linked provider loads is a link in the provider too, so consumer and provider load one instance', (t) => {
+  const { provider, consumer, env } = workspace(t);
+  const kit = path.join(path.dirname(consumer), 'kit');
+  // The provider needs @polyspec/kit at run time and its own install holds a copy: Node loads that copy for the linked package.
+  put(provider, {
+    'packages/ts/package.json': JSON.stringify({ name: '@polyspec/x', exports: { '.': './dist/index.js' }, dependencies: { '@polyspec/kit': '0.0.53' } }),
+    'packages/ts/node_modules/@polyspec/kit/package.json': '{"name":"@polyspec/kit","version":"0.0.53"}',
+    '.gitignore': 'dist/\nvar/\nnode_modules/\n',
+  });
+  git(provider, 'add', '-A');
+  git(provider, 'commit', '--quiet', '-m', 'kit dependency');
+  assert.equal(linkLines([consumer], env).ok, true);
+  const copied = linkLines([consumer], env, true);
+  assert.equal(copied.ok, false, copied.text);
+  assert.match(copied.text, /NOT linked\s+npm\s+@polyspec\/kit: .*packages\/ts\/node_modules\/@polyspec\/kit, which the linked @polyspec\/x loads, is a copy, not a link to .*kit; fix: make link in the checkout of @polyspec\/x/);
+  const lines: string[] = [];
+  assert.equal(link({ checkouts: current, directories: [provider], check: false, print: text => lines.push(text), env, runtime: 'ts' }), true, lines.join('\n'));
+  assert.equal(linkLines([consumer], env, true).ok, true);
+  const loaded = (from: string) => realpathSync(path.join(from, 'node_modules/@polyspec/kit'));
+  assert.equal(loaded(path.join(provider, 'packages/ts')), realpathSync(kit));
+  assert.equal(loaded(consumer), loaded(path.join(provider, 'packages/ts')), 'consumer and provider resolve one real path');
 });
 
 test('two package folders that provide one name fail with both; a repository root next to a package folder does not', (t) => {
@@ -1081,7 +1124,7 @@ test('composer-install takes the checkouts after DIR and runs the install with t
 // K448: the link is the folder. Each installed polyspec package folder that a sibling checkout provides becomes a direct symlink to
 // the provider's package folder, a copy is removed, and no package manager runs: no composer.link.json, no npm, no Composer, so no
 // version, constraint or provider version is read.
-test('link connects npm through its package manager and retains the other local source links (K657-1)', (t) => {
+test('link writes the npm and Composer folders as plain links with no package manager (K761)', (t) => {
   const { provider, consumer, env, log } = workspace(t);
   put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }) });
   git(consumer, 'add', '-A');
@@ -1096,7 +1139,7 @@ test('link connects npm through its package manager and retains the other local 
   assert.equal(lstatSync(npm).isSymbolicLink(), true, 'node_modules/@polyspec/x is one symlink (K591)');
   assert.equal(npmTarget(npm), realpathSync(path.join(provider, 'packages/ts')));
   assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no Composer link manifest is written');
-  assert.match(log(), /^npm link /m, 'npm owns its local package link (K657-1)');
+  assert.doesNotMatch(log(), /^npm link |^composer update /m, 'no package manager re-resolves the consumer (K761)');
 });
 
 // K447: link covers every tracked Composer project of the checkout, not only the root: a project below the root with its own lock (hyper
@@ -1157,8 +1200,8 @@ test('K529: link reads COMPOSER_VENDOR_DIR as the vendor folder before config.ve
 });
 
 // K529 (c): check reports a missing install; mutation delegates the declared initial install to Composer.
-test('K529: check rejects a missing declared package and mutation installs its source (K529)', (t) => {
-  const { consumer, provider, env } = workspace(t);
+test('K529: check and link reject a missing declared package; link installs nothing, the install of the project does (K529, K761)', (t) => {
+  const { consumer, env } = workspace(t);
   put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/not-installed' } }) });
   put(consumer, { 'composer-vendor-dir': 'var/not-installed' });
   git(consumer, 'add', '-A');
@@ -1167,10 +1210,9 @@ test('K529: check rejects a missing declared package and mutation installs its s
   assert.equal(checked.ok, false, checked.text);
   assert.match(checked.text, /NOT linked\s+composer\s+polyspec\/y/);
   const linked = linkLines([consumer], env);
-  assert.equal(linked.ok, true, linked.text);
-  assert.equal(realpathSync(path.join(consumer, 'var/not-installed/polyspec/y')), path.join(provider, 'packages/php'));
-  assert.equal(linkLines([consumer], env, true).ok, true);
-
+  assert.equal(linked.ok, false, linked.text);
+  assert.match(linked.text, /NOT linked\s+composer\s+polyspec\/y: no installed folder .*install the project first/);
+  assert.equal(existsSync(path.join(consumer, 'var/not-installed/polyspec/y')), false);
 });
 
 
@@ -1206,7 +1248,7 @@ test('K643: a python package installed editable from its provider is linked, and
 // whose package-lock.json installs it, and the root composer.json installs a Composer package through its path repository into the
 // root's vendor. link takes the member's installed folders from that owner; a package that the owner lacks stays a finding of the member.
 test('K590: link takes the installed folders of a workspace member with no lock from the project whose lock installs it (K590)', (t) => {
-  const { consumer, provider, env } = workspace(t);
+  const { consumer, env } = workspace(t);
   const manifest = readJsonObject(path.join(consumer, 'package.json'));
   put(consumer, {
     'package.json': JSON.stringify({ ...manifest, workspaces: ['packages/app'] }),
@@ -1216,7 +1258,6 @@ test('K590: link takes the installed folders of a workspace member with no lock 
   });
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'workspace members');
-  rmSync(path.join(consumer, 'var/contracts/vendor'), { recursive: true, force: true });
   const linked = linkLines([consumer], env);
   assert.equal(linked.ok, true, linked.text);
   assert.doesNotMatch(linked.text, /no installed folder/);
@@ -1229,11 +1270,6 @@ test('K590: link takes the installed folders of a workspace member with no lock 
   const missing = linkLines([consumer], env, true);
   assert.equal(missing.ok, false, missing.text);
   assert.match(missing.text, /NOT linked\s+npm\s+@polyspec\/x: no installed folder in packages\/app/);
-  const repaired = linkLines([consumer], env);
-  assert.equal(repaired.ok, true, repaired.text);
-  assert.equal(realpathSync(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
-  assert.equal(linkLines([consumer], env, true).ok, true);
-
 });
 
 test('K657-3: Python links use native editable installation and check refuses legacy links without invoking uv', (t) => {
@@ -1293,61 +1329,6 @@ test('unlink removes legacy package links before native sync and keeps declared 
   assert.deepEqual(metadata, { url: pathToFileURL(path.join(provider, 'packages/python')).href, dir_info: { editable: true } });
   assert.match(lines.join('\n'), /polyspec_z/, 'the removed link is named');
 });
-
-test('K664: shared link installs declared npm and Composer sources before inspecting missing folders', (t) => {
-  const { consumer, provider, env, log } = workspace(t);
-  const vendor = path.join(consumer, 'var/contracts/vendor');
-  rmSync(vendor, { recursive: true, force: true });
-  const npmFolder = path.join(consumer, 'node_modules/@polyspec/x');
-  rmSync(npmFolder, { recursive: true, force: true });
-  const installed = linkLines([consumer], env);
-  assert.equal(installed.ok, true, installed.text);
-  assert.doesNotMatch(installed.text, /no installed folder/);
-  assert.equal(realpathSync(npmFolder), path.join(provider, 'packages/ts'));
-  assert.equal(realpathSync(path.join(vendor, 'polyspec/y')), path.join(provider, 'packages/php'));
-  const record = readJsonObject(vendor, 'composer/installed.json');
-  assert.ok(Array.isArray(record.packages));
-  assert.ok(record.packages.some((entry: unknown) => typeof entry === 'object' && entry !== null && 'name' in entry && entry.name === 'polyspec/y'));
-  assert.match(log(), /^composer update polyspec\/y .*--with-dependencies/m);
-});
-
-// K653's source/runtime metadata mismatch is resolved by the native development manifest, not a synthetic release record.
-test('K653: native Composer updates source requirements and its development lock (K657-2)', (t) => {
-  const { consumer, provider, env, log } = workspace(t);
-  const vendor = path.join(consumer, 'var/contracts/vendor');
-  const source = { name: 'polyspec/y', version: '0.0.2', require: { php: '>=8.4' } };
-  put(provider, { 'packages/php/composer.json': JSON.stringify(source) });
-  const record = { packages: [{ name: source.name, version: '0.0.1', require: { php: '>=8.5' }, 'install-path': '../polyspec/y' }] };
-  put(consumer, { 'var/contracts/vendor/composer/installed.json': JSON.stringify(record), 'composer.lock': JSON.stringify({ packages: record.packages, 'packages-dev': [] }) });
-  const before = readFileSync(path.join(consumer, 'composer.lock'), 'utf8');
-  const first = linkLines([consumer], env);
-  assert.equal(first.ok, true, first.text);
-  assert.match(log(), /^composer update polyspec\/y .*--with-dependencies/m);
-  assert.doesNotMatch(log(), /--ignore-platform|platform-check|--no-install/);
-  assert.notEqual(readFileSync(path.join(consumer, 'composer.lock'), 'utf8'), before);
-  const installed = readJsonObject(vendor, 'composer/installed.json');
-  assert.deepEqual(installed.packages, [{ ...record.packages[0], version: source.version, require: source.require, dist: { type: 'path', url: path.join(provider, 'packages/php') } }]);
-  assert.equal(realpathSync(path.join(vendor, 'polyspec/y')), path.join(provider, 'packages/php'));
-  const second = linkLines([consumer], env);
-  assert.equal(second.ok, true, second.text);
-  assert.equal(existsSync(path.join(consumer, 'var/link/composer')), false, 'no synthetic Composer state is written');
-});
-
-
-test('K653: a Composer platform resolution failure propagates and releases its lease', (t) => {
-  const { consumer, provider, env } = workspace(t);
-  put(provider, { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/y', require: { php: '>=8.5' } }) });
-  put(consumer, { 'composer.lock': JSON.stringify({ packages: [] }), 'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', require: { php: '>=8.4' } }] }) });
-  const command = env.COMPOSER_BIN;
-  assert.ok(command);
-  writeFileSync(command, '#!/bin/sh\nexit 31\n');
-  chmodSync(command, 0o755);
-  const folders = providedFolders(consumer, [{ ecosystem: 'composer', name: 'polyspec/y', folder: path.join(provider, 'packages/php'), checkout: provider, repository: provider }], { vendorDir: 'var/contracts/vendor' });
-  const tool = { command, env };
-  assert.throws(() => composerLink(consumer, folders, tool, () => {}), /exited with 31/);
-  assert.equal(existsSync(path.join(consumer, 'var/link/composer/metadata.lock')), false);
-});
-
 
 test('K664-3 refuses a release selected instead of the sibling development source and releases its holder', (t) => {
   const { consumer, env } = workspace(t);

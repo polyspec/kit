@@ -1,16 +1,13 @@
-// npm-install runs npm ci of the release lock, then npm link connects selected source packages.
-// npm owns resolution, installed links and metadata; the release manifest and lock stay unchanged.
-// Most cases use a stub; the native case checks source edits, while tests/source/npm-source-link-real.test.mts owns the release-to-source transition.
+// npm-install runs npm ci of the release lock, then makes each installed provided package one plain directory symlink to its checkout
+// (K761); the release manifest and lock stay unchanged. The cases use a stub npm.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import test from 'node:test';
-import { npmInstall, npmLink, npmSourceFolders } from '../../scripts/kit/npm-install.mts';
-import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
-import type { Provider } from '../../scripts/kit/link-providers.mts';
+import { npmInstall } from '../../scripts/kit/npm-install.mts';
 
 const LOCK = (names: string[]) => {
   const packages: Record<string, { version?: string }> = { '': {} };
@@ -80,28 +77,12 @@ const provider = (folder: string, name: string) => {
   return folder;
 };
 
-test('native npm links expose source edits and retain release files on repeated linking (K657-1)', (t) => {
-  const { root, project, manifest, lock } = fixture(t, 'kit-npm-native-', { '@example/local': 'https://example.invalid/local-0.0.1.tgz' }, ['@example/local']);
-  const source = provider(path.join(root, 'source'), '@example/local');
-  const npm = toolsPath(path.resolve(import.meta.dirname, '../..'), 'bin', 'npm');
-  const folders = [{ ecosystem: 'npm' as const, name: '@example/local', folder: path.join(project, 'node_modules/@example/local'), target: source }];
-  const env = { ...process.env, npm_config_offline: 'true' };
-  const value = () => spawnSync(process.execPath, ['-p', 'require("@example/local")'], { cwd: project, encoding: 'utf8' });
-  npmLink(project, folders, npm, env, () => {});
-  assert.equal(value().stdout.trim(), '1');
-  writeFileSync(path.join(source, 'index.js'), 'module.exports = 2;\n');
-  npmLink(project, folders, npm, env, () => {});
-  assert.equal(value().stdout.trim(), '2');
-  assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), manifest);
-  assert.equal(readFileSync(path.join(project, 'package-lock.json'), 'utf8'), lock);
-});
-
 test('npm install runs npm ci of the tracked lock, then links each provided package to its checkout and changes no tracked file (K448)', (t) => {
   const { root, project, manifest, lock, npm, log } = fixture(t, 'kit-npm-', { '@polyspec/fixture-codec': '0.0.9', 'left-pad': '1.3.0' }, ['@polyspec/fixture-codec', 'left-pad']);
   const sibling = provider(path.join(root, 'fixture-codec'), '@polyspec/fixture-codec');
   const lines: string[] = [];
   assert.equal(npmInstall({ directory: project, checkouts: [sibling], npm, print: text => lines.push(text), env: process.env }), 'linked', lines.join('\n'));
-  assert.equal(readFileSync(log, 'utf8'), 'ci\nlink\nlink\n', 'npm owns both the locked install and the local link (K657-1)');
+  assert.equal(readFileSync(log, 'utf8'), 'ci\n', 'npm installs the lock; kit writes the link, with no npm link (K761)');
   const link = path.join(project, 'node_modules/@polyspec/fixture-codec');
   assert.equal(lstatSync(link).isSymbolicLink(), true, 'the provided package is one symlink, its installed copy removed (K591)');
   assert.equal(npmTarget(link), realpathSync(sibling));
@@ -150,7 +131,7 @@ test('make npm-install forwards CHECKOUTS to the tool, which installs the lock a
   const kit = fileURLToPath(new URL('../..', import.meta.url));
   const made = spawnSync('make', ['--no-print-directory', '-C', kit, 'npm-install', `DIR=${project}`, `CHECKOUTS=${folder}`, `NPM=${npm}`, `NODE=${process.execPath}`], { encoding: 'utf8' });
   assert.equal(made.status, 0, made.stderr);
-  assert.equal(readFileSync(log, 'utf8'), 'ci\nlink\nlink\n');
+  assert.equal(readFileSync(log, 'utf8'), 'ci\n');
   assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/fixture-client')), realpathSync(folder));
   assert.equal(existsSync(path.join(project, 'node_modules/@polyspec/fixture-client/index.js')), true);
 });
@@ -198,111 +179,4 @@ test('npm install runs npm ci with allow-remote=root, so a lock that names the r
   const { npm_config_allow_remote: _unset, ...env } = process.env;
   npmInstall({ directory: project, checkouts: [], npm, print: () => {}, env });
   assert.equal(readFileSync(path.join(root, 'npm-ci.env'), 'utf8'), 'allow-remote=root\n');
-});
-
-
-test('npmSourceFolders includes all declared provider sections and installed transitives without selecting unrelated sources (K664-5)', (t) => {
-  const { root, project } = fixture(t, 'kit-npm-source-candidates-', {}, []);
-  const manifest = { dependencies: { direct: '0.0.1', unknown: '0.0.1' }, devDependencies: { dev: '0.0.1' }, optionalDependencies: { optional: '0.0.1' }, peerDependencies: { peer: '0.0.1' } };
-  writeFileSync(path.join(project, 'package.json'), JSON.stringify(manifest));
-  mkdirSync(path.join(project, 'node_modules/transitive'), { recursive: true });
-  const providers: Provider[] = ['direct', 'dev', 'optional', 'peer', 'transitive', 'unrelated'].map(name => ({ ecosystem: 'npm', name, folder: provider(path.join(root, name), name), repository: root, checkout: root }));
-  providers.push({ ecosystem: 'composer', name: 'other', folder: path.join(root, 'other'), repository: root, checkout: root });
-  const selected = npmSourceFolders(project, providers);
-  assert.deepEqual(selected.map(folder => folder.name).sort(), ['dev', 'direct', 'optional', 'peer', 'transitive']);
-  for (const folder of selected) {
-    assert.equal(folder.ecosystem, 'npm');
-    assert.equal(folder.folder, path.join(project, 'node_modules', folder.name));
-    assert.equal(folder.target, path.join(root, folder.name));
-  }
-  assert.equal(existsSync(path.join(project, 'node_modules/direct')), false, 'candidate selection installs nothing');
-  assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), JSON.stringify(manifest));
-});
-
-test('npmSourceFolders follows each selected local package to its transitive local providers (K672)', (t) => {
-  const { root, project } = fixture(t, 'kit-npm-source-graph-', { '@polyspec/fixture-language': '0.0.18' }, []);
-  const language = provider(path.join(root, 'providers/language'), '@polyspec/fixture-language');
-  const storage = provider(path.join(root, 'providers/storage'), '@polyspec/fixture-storage');
-  const codec = provider(path.join(root, 'providers/fixture-codec'), '@polyspec/fixture-codec');
-  writeFileSync(path.join(language, 'package.json'), JSON.stringify({ name: '@polyspec/fixture-language', dependencies: { '@polyspec/fixture-storage': '0.0.18' } }));
-  writeFileSync(path.join(storage, 'package.json'), JSON.stringify({ name: '@polyspec/fixture-storage', dependencies: { '@polyspec/fixture-codec': '0.0.9' } }));
-  const unrelated = provider(path.join(root, 'providers/unrelated'), '@polyspec/unrelated');
-  const providerFolders: [string, string][] = [['@polyspec/fixture-language', language], ['@polyspec/fixture-storage', storage],
-    ['@polyspec/fixture-codec', codec], ['@polyspec/unrelated', unrelated]];
-  const providers: Provider[] = providerFolders.map(([name, folder]) => ({ ecosystem: 'npm', name, folder, repository: root, checkout: root }));
-  const selected = npmSourceFolders(project, providers);
-  assert.deepEqual(selected.map(item => item.name).sort(), ['@polyspec/fixture-codec', '@polyspec/fixture-language', '@polyspec/fixture-storage']);
-  for (const item of selected) assert.equal(item.folder, path.join(project, 'node_modules', item.name));
-  assert.equal(selected.find(item => item.name === '@polyspec/fixture-codec')?.target, codec);
-});
-
-test('npmLink skips consumer reification when every selected transitive source is already linked (K673)', (t) => {
-  const { root, project } = fixture(t, 'kit-npm-source-idempotence-', { '@polyspec/alpha': '0.0.18' }, []);
-  const language = provider(path.join(root, 'providers/language'), '@polyspec/alpha');
-  const orm = provider(path.join(root, 'providers/beta'), '@polyspec/beta');
-  const orderedJson = provider(path.join(root, 'providers/gamma'), '@polyspec/gamma');
-  writeFileSync(path.join(language, 'package.json'), JSON.stringify({ name: '@polyspec/alpha', dependencies: { '@polyspec/beta': '0.0.18' } }));
-  writeFileSync(path.join(orm, 'package.json'), JSON.stringify({ name: '@polyspec/beta', dependencies: { '@polyspec/gamma': '0.0.9' } }));
-  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'app', private: true, dependencies: { '@polyspec/alpha': '0.0.18' },
-    overrides: { '@polyspec/gamma': 'https://example.invalid/gamma-0.0.9.tgz' } }));
-  const providerFolders: [string, string][] = [['@polyspec/alpha', language], ['@polyspec/beta', orm], ['@polyspec/gamma', orderedJson]];
-  for (const [name, target] of providerFolders) {
-    const installed = path.join(project, 'node_modules', name);
-    mkdirSync(path.dirname(installed), { recursive: true });
-    symlinkSync(path.relative(path.dirname(installed), target), installed, 'dir');
-  }
-  const providers: Provider[] = providerFolders.map(([name, folder]) => ({ ecosystem: 'npm', name, folder, repository: root, checkout: root }));
-  const selected = npmSourceFolders(project, providers);
-  const output: string[] = [];
-  const npm = toolsPath(path.resolve(import.meta.dirname, '../..'), 'bin', 'npm');
-  npmLink(project, selected, npm, { ...process.env, npm_config_offline: 'true', npm_config_cache: path.join(root, 'npm-cache') }, message => output.push(message));
-  assert.deepEqual(selected.map(item => item.name).sort(), ['@polyspec/alpha', '@polyspec/beta', '@polyspec/gamma']);
-  assert.deepEqual(output, ['npm link: every selected package already resolves to its source; skipped consumer reification']);
-  assert.equal(existsSync(path.join(project, 'var/link/npm')), false, 'the no-op creates no npm prefix');
-});
-
-test('npmLink still uses native linking when one selected source path is wrong (K673)', (t) => {
-  const { root, project } = fixture(t, 'kit-npm-source-mixed-', { '@example/local': '0.0.9' }, []);
-  const source = provider(path.join(root, 'providers/source'), '@example/local');
-  const wrong = provider(path.join(root, 'providers/wrong'), '@example/local');
-  const installed = path.join(project, 'node_modules/@example/local');
-  mkdirSync(path.dirname(installed), { recursive: true });
-  symlinkSync(path.relative(path.dirname(installed), wrong), installed, 'dir');
-  const { npm, log } = stubNpm(root);
-  const output: string[] = [];
-  npmLink(project, [{ ecosystem: 'npm', name: '@example/local', folder: installed, target: source }], npm, process.env,
-    message => output.push(message));
-  assert.equal(realpathSync(installed), realpathSync(source));
-  assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), ['link', 'link']);
-  assert.equal(output.at(-1), 'npm link: passed');
-});
-
-test('npmLink recognizes selected sources installed in an ancestor workspace node_modules (K674)', (t) => {
-  const { root, project: workspace } = fixture(t, 'kit-npm-workspace-source-idempotence-', {}, []);
-  const project = path.join(workspace, 'packages/client');
-  const language = provider(path.join(root, 'providers/language'), '@polyspec/alpha');
-  const orm = provider(path.join(root, 'providers/beta'), '@polyspec/beta');
-  const orderedJson = provider(path.join(root, 'providers/gamma'), '@polyspec/gamma');
-  writeFileSync(path.join(language, 'package.json'), JSON.stringify({ name: '@polyspec/alpha', dependencies: { '@polyspec/beta': '0.0.18' } }));
-  writeFileSync(path.join(orm, 'package.json'), JSON.stringify({ name: '@polyspec/beta', dependencies: { '@polyspec/gamma': '0.0.9' } }));
-  writeFileSync(path.join(workspace, 'package.json'), JSON.stringify({ name: 'workspace', private: true, workspaces: ['packages/*'],
-    overrides: { '@polyspec/gamma': 'https://example.invalid/gamma-0.0.9.tgz' } }));
-  mkdirSync(project, { recursive: true });
-  writeFileSync(path.join(project, 'package.json'), JSON.stringify({ name: 'client', private: true,
-    dependencies: { '@polyspec/alpha': '0.0.18' } }));
-  const providerFolders: [string, string][] = [['@polyspec/alpha', language], ['@polyspec/beta', orm], ['@polyspec/gamma', orderedJson]];
-  for (const [name, target] of providerFolders) {
-    const installed = path.join(workspace, 'node_modules', name);
-    mkdirSync(path.dirname(installed), { recursive: true });
-    symlinkSync(path.relative(path.dirname(installed), target), installed, 'dir');
-  }
-  const providers: Provider[] = providerFolders.map(([name, folder]) => ({ ecosystem: 'npm', name, folder, repository: root, checkout: root }));
-  const selected = npmSourceFolders(project, providers);
-  const output: string[] = [];
-  const npm = toolsPath(path.resolve(import.meta.dirname, '../..'), 'bin', 'npm');
-  npmLink(project, selected, npm, { ...process.env, npm_config_offline: 'true', npm_config_cache: path.join(root, 'npm-cache') }, message => output.push(message));
-  assert.deepEqual(selected.map(item => item.name).sort(), ['@polyspec/alpha', '@polyspec/beta', '@polyspec/gamma']);
-  assert.deepEqual(output, ['npm link: every selected package already resolves to its source; skipped consumer reification']);
-  assert.equal(existsSync(path.join(project, 'node_modules')), false, 'the ancestor workspace links already resolve from the consumer');
-  assert.equal(existsSync(path.join(project, 'var/link/npm')), false, 'the no-op creates no npm prefix');
 });

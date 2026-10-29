@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 import { setup, teardown } from '../../scripts/kit/test-hooks.mts';
-import { npmLink } from '../../scripts/kit/npm-install.mts';
+import { linkFolders } from '../../scripts/kit/link-folders.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { copyTracked, commitSandbox, kitConsumer, packedKit, NPM } from './checkout.mts';
 import { readFixture } from '../kit/json-fixture.mts';
@@ -40,15 +40,14 @@ describe('installed kit bootstrap and hook bin (K671-1)', () => {
       const consumer = path.join(directory, `${kind}-consumer`);
       mkdirSync(consumer);
       writeFileSync(path.join(consumer, 'package.json'), JSON.stringify({ name: `${kind}-consumer`, private: true }));
-      if (kind === 'source') {
-        npmLink(consumer, [{ ecosystem: 'npm', name: '@polyspec/kit', folder: path.join(consumer, 'node_modules/@polyspec/kit'), target: source }], NPM, { ...process.env, npm_config_offline: 'true' }, text => process.stdout.write(`[installed-hook] ${text}\n`));
-      } else {
-        const { manifest, lock } = kitConsumer(packed);
-        writeFileSync(path.join(consumer, 'package.json'), JSON.stringify(manifest));
-        writeFileSync(path.join(consumer, 'package-lock.json'), JSON.stringify(lock));
-        // Seed the existing exact registry graph, then let npm read the archive and generate its bin metadata itself.
-        run(NPM, ['install', '--offline', '--allow-remote=root', '--ignore-scripts', '--no-audit', '--no-fund', archive], consumer);
-      }
+      const { manifest, lock } = kitConsumer(packed);
+      writeFileSync(path.join(consumer, 'package.json'), JSON.stringify(manifest));
+      writeFileSync(path.join(consumer, 'package-lock.json'), JSON.stringify(lock));
+      // Seed the existing exact registry graph, then let npm read the archive and generate its bin metadata itself.
+      run(NPM, ['install', '--offline', '--allow-remote=root', '--ignore-scripts', '--no-audit', '--no-fund', archive], consumer);
+      // The source consumer installs the release, then its kit folder becomes one plain link to the checkout (K761); the bin link of the
+      // install reads through it.
+      if (kind === 'source') linkFolders([{ ecosystem: 'npm', name: '@polyspec/kit', folder: path.join(consumer, 'node_modules/@polyspec/kit'), target: source }]);
       assert.equal(existsSync(path.join(path.dirname(consumer), 'kit')), false);
       mkdirSync(path.join(consumer, '.claude'));
       copyFileSync(path.join(consumer, 'node_modules/@polyspec/kit/claude/settings.json'), path.join(consumer, '.claude/settings.json'));
@@ -82,7 +81,9 @@ describe('installed kit bootstrap and hook bin (K671-1)', () => {
       assert.doesNotMatch(result.settings, /scripts\/kit\/claude-hook|dist\/claude-hook|\.\.\/kit/);
       assert.equal(result.bootstrap, result.kind === 'source'
         ? 'node_modules/@polyspec/kit/scripts/kit|mts' : 'node_modules/@polyspec/kit/dist|mjs');
-      assert.ok(result.target.endsWith(result.kind === 'source' ? '/scripts/kit/claude-hook.mts' : '/dist/claude-hook.mjs'), result.target);
+      // The bin link is the one of the installed release; in the source consumer it reads the checkout through the folder link (K761).
+      assert.ok(result.target.endsWith('/dist/claude-hook.mjs'), result.target);
+      if (result.kind === 'source') assert.ok(result.target.startsWith(path.join(directory, 'provider')), result.target);
     }
     assert.equal(observations[0]?.settings, observations[1]?.settings);
   });

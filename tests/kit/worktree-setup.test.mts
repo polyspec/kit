@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -363,21 +363,23 @@ test('worktree-setup has no disk floor (K596)', async () => {
   assert.equal(setup.freeBytes, undefined);
 });
 
-test('K598: source providers are delegated to native npm link after offline ci', t => {
+test('K598: the installed folder of a source provider becomes one plain link after offline ci, with no npm link (K761)', t => {
   const { main, npm, composer, log } = nativeManagers(t);
-  initRepository(path.join(path.dirname(main), 'prov'), '--initial-branch=main');
-  put(path.join(path.dirname(main), 'prov'), { 'package.json': '{"name":"@polyspec/x"}' });
-  git(path.join(path.dirname(main), 'prov'), 'remote', 'add', 'origin', 'https://github.com/polyspec/prov.git');
-  git(path.join(path.dirname(main), 'prov'), 'add', 'package.json');
-  git(path.join(path.dirname(main), 'prov'), 'commit', '--quiet', '-m', 'provider');
+  const provider = path.join(path.dirname(main), 'prov');
+  initRepository(provider, '--initial-branch=main');
+  put(provider, { 'package.json': '{"name":"@polyspec/x"}' });
+  git(provider, 'remote', 'add', 'origin', 'https://github.com/polyspec/prov.git');
+  git(provider, 'add', 'package.json');
+  git(provider, 'commit', '--quiet', '-m', 'provider');
   put(main, { 'package.json': '{"name":"fixture","dependencies":{"@polyspec/x":"1.0.0"}}' });
   git(main, 'add', 'package.json');
   git(main, 'commit', '--quiet', '-m', 'declare provider');
   const options = { npm, composer, linkStateOnly: true, print: () => {} };
   const folder = setupWorktree(main, { name: 'provider', id: 'K598', type: 'fix' }, options);
   const calls = readFileSync(log, 'utf8').split('\n').filter(Boolean).map((line): unknown => JSON.parse(line));
-  assert.ok(calls.some(call => isJsonObject(call) && call.tool === 'npm' && call.cwd === path.join(path.dirname(main), 'prov') && Array.isArray(call.args) && call.args[0] === 'link'));
-  assert.ok(calls.some(call => isJsonObject(call) && call.tool === 'npm' && call.cwd === folder && Array.isArray(call.args) && call.args.includes('@polyspec/x')));
+  assert.equal(calls.some(call => isJsonObject(call) && call.tool === 'npm' && Array.isArray(call.args) && call.args[0] === 'link'), false, 'no npm link runs');
+  const installed = path.join(folder, 'node_modules/@polyspec/x');
+  assert.equal(readlinkSync(installed), path.relative(path.dirname(installed), provider));
   assert.equal(readFileSync(path.join(main, 'package.json'), 'utf8'), '{"name":"fixture","dependencies":{"@polyspec/x":"1.0.0"}}');
 });
 
@@ -477,7 +479,7 @@ function nativeManagers(t: TestContext) {
   const npm = path.join(parent, 'npm');
   const composer = path.join(parent, 'composer');
   const log = path.join(parent, 'calls.jsonl');
-  writeFileSync(npm, `#!${process.execPath}\nconst fs=require('node:fs');const path=require('node:path');const args=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(log)},JSON.stringify({tool:'npm',args,cwd:process.cwd(),allowRemote:process.env.npm_config_allow_remote})+'\\n');if(args[0]==='config')process.stdout.write(${JSON.stringify(path.join(parent, 'npm-cache'))});else if(args[0]==='ci'){if(fs.existsSync(${JSON.stringify(path.join(parent, 'cache-missing'))})){console.error('required package absent from offline cache');process.exit(41);}fs.mkdirSync('node_modules/fixture-lib',{recursive:true});fs.writeFileSync('node_modules/fixture-lib/value','native npm installation');}\n`, { mode: 0o755 });
+  writeFileSync(npm, `#!${process.execPath}\nconst fs=require('node:fs');const path=require('node:path');const args=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(log)},JSON.stringify({tool:'npm',args,cwd:process.cwd(),allowRemote:process.env.npm_config_allow_remote})+'\\n');if(args[0]==='config')process.stdout.write(${JSON.stringify(path.join(parent, 'npm-cache'))});else if(args[0]==='ci'){if(fs.existsSync(${JSON.stringify(path.join(parent, 'cache-missing'))})){console.error('required package absent from offline cache');process.exit(41);}fs.mkdirSync('node_modules/fixture-lib',{recursive:true});fs.writeFileSync('node_modules/fixture-lib/value','native npm installation');for(const name of Object.keys(JSON.parse(fs.readFileSync('package.json','utf8')).dependencies??{})){fs.mkdirSync(path.join('node_modules',name),{recursive:true});fs.writeFileSync(path.join('node_modules',name,'package.json'),JSON.stringify({name}));}}\n`, { mode: 0o755 });
   writeFileSync(composer, `#!${process.execPath}\nconst fs=require('node:fs');const args=process.argv.slice(2);fs.appendFileSync(${JSON.stringify(log)},JSON.stringify({tool:'composer',args,cwd:process.cwd(),offline:process.env.COMPOSER_DISABLE_NETWORK,cache:process.env.COMPOSER_CACHE_DIR})+'\\n');if(args[0]==='config')process.stdout.write(process.env.COMPOSER_VENDOR_DIR||'vendor');else{fs.mkdirSync('vendor/composer',{recursive:true});fs.mkdirSync('vendor/fixture/lib',{recursive:true});fs.writeFileSync('vendor/fixture/lib/value','native Composer installation');fs.writeFileSync('vendor/composer/installed.json',JSON.stringify({origin:process.cwd()}));fs.writeFileSync('vendor/autoload.php',process.cwd());fs.mkdirSync('vendor/bin',{recursive:true});fs.writeFileSync('vendor/bin/tool','#!/bin/sh\\n# native Composer proxy\\n',{mode:0o755});}\n`, { mode: 0o755 });
   return { parent, main, npm, composer, log };
 }

@@ -1,73 +1,25 @@
-// Composer owns local path installs and their lock, installed records and autoload (K657-2).
+// composer-install runs composer install of the selected manifest's lock, then makes each installed provided package one plain
+// directory symlink to its checkout (K761); no path repository and no composer update are needed.
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, readlinkSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { composerInstall, composerLink } from '../../scripts/kit/composer-install.mts';
-import { tree, put } from './tree.mts';
-import { isJsonList, isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
+import { composerInstall } from '../../scripts/kit/composer-install.mts';
+import { tree } from './tree.mts';
 
-test('Composer local links require an explicit path repository before the package manager runs (K657-2)', (t) => {
-  const root = tree(t, { 'composer.json': '{"require":{"example/local":"*"}}', 'source/composer.json': '{"name":"example/local","version":"1.0.0"}', 'vendor/example/local/package.txt': 'release' });
-  const folders = [{ ecosystem: 'composer' as const, name: 'example/local', folder: path.join(root, 'vendor/example/local'), target: path.join(root, 'source') }];
-  assert.throws(() => composerLink(root, folders, { command: 'unused-composer', env: {} }, () => {}), /path repository/);
-  assert.equal(readFileSync(path.join(root, 'vendor/example/local/package.txt'), 'utf8'), 'release');
-  assert.equal(existsSync(path.join(root, 'var/link/composer')), false);
-});
-
-test('Composer receives the explicit development manifest and installs a newly declared local dependency (K657-2, K664-2)', (t) => {
+test('composer install installs the lock, then links each installed provided package to its checkout with no path repository (K761)', (t) => {
+  const release = '{"require":{"example/local":"1.0.0"}}';
   const root = tree(t, {
-    'composer.json': '{"require":{"example/local":"1.0.0"}}',
-    'composer.local.json': '{"require":{"example/local":"*"},"require-dev":{"phpstan/phpstan":"2.3.3","php":"8.4.27","ext-json":"8.4.27"},"repositories":[{"type":"path","url":"source","options":{"symlink":true}}]}',
+    'composer.json': release,
+    'composer.lock': '{"packages":[{"name":"example/local","version":"1.0.0"}]}',
     'source/composer.json': '{"name":"example/local","version":"2.0.0"}',
-    'composer.local.lock': '{"packages":[],"packages-dev":[{"name":"phpstan/phpstan","version":"2.3.2"}]}',
+    composer: '#!/bin/sh\necho "$*" >> commands.log\nif [ "$1" = config ]; then printf vendor; fi\nif [ "$1" = install ]; then mkdir -p vendor/example/local && echo release > vendor/example/local/package.txt; fi\n',
   });
-  const script = path.join(root, 'composer.mjs');
-  writeFileSync(script, `import { appendFileSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
-const args = process.argv.slice(2);
-appendFileSync('commands.jsonl', JSON.stringify({ args, manifest: process.env.COMPOSER, vendor: process.env.COMPOSER_VENDOR_DIR }) + '\\n');
-if (args[0] === 'config') { process.stdout.write('vendor'); }
-if (args[0] === 'update') {
-  const manifest = JSON.parse(readFileSync(process.env.COMPOSER, 'utf8'));
-  const repository = manifest.repositories[0];
-  rmSync('vendor/example/local', { recursive: true, force: true });
-  mkdirSync('vendor/example', { recursive: true });
-  symlinkSync(path.relative(path.resolve('vendor/example'), path.resolve(repository.url)), 'vendor/example/local');
-  writeFileSync('composer.local.lock', '{"native":"updated"}');
-  writeFileSync('vendor/autoload.php', '<?php // native autoload');
-}
-`);
   const command = path.join(root, 'composer');
-  put(root, { composer: `#!/bin/sh\nexec '${process.execPath}' '${script}' "$@"\n` });
   chmodSync(command, 0o755);
-  const release = readFileSync(path.join(root, 'composer.json'), 'utf8');
-  const result = composerInstall({ directory: root, checkouts: [path.join(root, 'source')], env: { ...process.env, COMPOSER_BIN: command, COMPOSER: 'composer.local.json', COMPOSER_VENDOR_DIR: 'vendor' }, print: () => {} });
+  const result = composerInstall({ directory: root, checkouts: [path.join(root, 'source')], env: { ...process.env, COMPOSER_BIN: command }, print: () => {} });
   assert.equal(result, 'linked');
-  const commands = readFileSync(path.join(root, 'commands.jsonl'), 'utf8').trim().split('\n').map(line => {
-    const entry: unknown = JSON.parse(line);
-    assert.ok(isJsonObject(entry) && isJsonList(entry.args));
-    return { args: entry.args, manifest: entry.manifest };
-  });
-  assert.ok(commands.every(entry => entry.manifest === 'composer.local.json'));
-  assert.ok(commands.some(entry => entry.args[0] === 'update' && entry.args.includes('example/local') && entry.args.includes('--with-dependencies')));
-  assert.ok(commands.some(entry => entry.args[0] === 'update' && entry.args.includes('phpstan/phpstan')), 'changed direct exact development pins join the native partial update');
-  const update = commands.find(entry => entry.args[0] === 'update');
-  assert.ok(update);
-  assert.equal(update.args.includes('php'), false, 'PHP platform requirements are checked by Composer, not updated as packages');
-  assert.equal(update.args.includes('ext-json'), false, 'extension platform requirements are checked by Composer, not updated as packages');
-  assert.equal(realpathSync(path.join(root, 'vendor/example/local')), realpathSync(path.join(root, 'source')));
-  assert.equal(readFileSync(path.join(root, 'composer.local.lock'), 'utf8'), '{"native":"updated"}');
-  assert.equal(readFileSync(path.join(root, 'composer.json'), 'utf8'), release);
-  assert.equal(existsSync(path.join(root, 'var/link/composer')), false);
-});
-
-test('a native Composer resolution failure leaves the existing package in place and propagates (K657-2)', (t) => {
-  const root = tree(t, { 'composer.json': '{"repositories":[{"type":"path","url":"source","options":{"symlink":true}}]}', 'source/composer.json': '{"name":"example/local"}', 'vendor/example/local/package.txt': 'release', composer: '#!/bin/sh\nexit 31\n' });
-  const command = path.join(root, 'composer');
-  chmodSync(command, 0o755);
-  const folders = [{ ecosystem: 'composer' as const, name: 'example/local', folder: path.join(root, 'vendor/example/local'), target: path.join(root, 'source') }];
-  assert.throws(() => composerLink(root, folders, { command, env: process.env }, () => {}), /exited with 31/);
-  assert.equal(readFileSync(path.join(root, 'vendor/example/local/package.txt'), 'utf8'), 'release');
-  assert.equal(existsSync(path.join(root, 'var/link/composer')), false);
+  assert.equal(readlinkSync(path.join(root, 'vendor/example/local')), '../../source');
+  assert.doesNotMatch(readFileSync(path.join(root, 'commands.log'), 'utf8'), /^update/m, 'no composer update re-resolves the project');
+  assert.equal(readFileSync(path.join(root, 'composer.json'), 'utf8'), release, 'the release manifest is unchanged');
 });

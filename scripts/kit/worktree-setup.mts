@@ -18,9 +18,8 @@ import { COMMIT_RULES } from './check-commits.mts';
 import { git, gitResult } from './git.mts';
 import { kitPackageRoot } from './kit-files.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
-import { checkoutProviders } from './link-folders.mts';
+import { checkoutProviders, linkFolders, providedFolders } from './link-folders.mts';
 import { siblingCheckouts } from './link-providers.mts';
-import { npmLink, npmSourceFolders } from './npm-install.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand, composerEnvironment } from './install-composer-project.mts';
 import { uvInstallCommand } from './uv-install.mts';
@@ -53,7 +52,7 @@ export function prepareWorktreeNpm({ main, folder, project = '.', npm = toolComm
   const environment = { ...env, npm_config_offline: 'true', npm_config_cache: cache, npm_config_allow_remote: 'root' };
   install(npm, ['ci', '--offline', '--cache', cache, '--prefix', target, '--no-audit', '--no-fund'], { cwd: target, env: environment }, print);
   const checkouts = siblingCheckouts(folder).checkouts.filter(checkout => realpathSync(checkout) !== realpathSync(main));
-  npmLink(target, npmSourceFolders(target, checkoutProviders(checkouts, 'npm')), npm, environment, print);
+  for (const text of linkFolders(providedFolders(target, checkoutProviders(checkouts, 'npm')))) print(text);
 }
 
 /**

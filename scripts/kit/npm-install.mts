@@ -1,93 +1,18 @@
-// Installs the locked npm dependencies with npm ci, then asks npm link to connect the selected local sources.
-// npm owns the installed links and metadata; --no-save retains release files while npm reads the lock.
+// Installs the locked npm dependencies with npm ci, then makes each installed folder of a provided package one plain directory symlink
+// to its checkout (K761); the tracked manifest and lock stay as they are.
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, realpathSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { existsSync, lstatSync } from 'node:fs';
 import path from 'node:path';
 import { readJsonObject } from './bootstrap/files.mts';
 import { isMain } from './paths.mts';
-import { checkoutProviders, providedFolders, type ProvidedFolder } from './link-folders.mts';
-import { run } from './process.mts';
-import type { Provider } from './link-providers.mts';
+import { checkoutProviders, linkFolders, providedFolders } from './link-folders.mts';
 
 const SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
-const SOURCE_SECTIONS = ['dependencies', 'optionalDependencies', 'peerDependencies'] as const;
-
-/** The nearest installed npm package path that Node can resolve from `project`, including workspace ancestors. */
-function npmInstalledFolder(project: string, name: string): string | undefined {
-  const searchPaths = createRequire(path.join(project, 'package.json')).resolve.paths(name);
-  return searchPaths?.map(folder => path.join(folder, name)).find(existsSync);
-}
-
-/** Selects installed provider packages and declared provider dependencies, including sources not installed yet. */
-export function npmSourceFolders(project: string, providers: Iterable<Provider>): ProvidedFolder[] {
-  const npm = [...providers].filter(provider => provider.ecosystem === 'npm');
-  const folders = providedFolders(project, npm);
-  const manifest = readJsonObject(project, 'package.json');
-  const declared = new Set(SECTIONS.flatMap(section => {
-    const dependencies = manifest[section];
-    return typeof dependencies === 'object' && dependencies !== null && !Array.isArray(dependencies) ? Object.keys(dependencies) : [];
-  }));
-  const selected = new Set(folders.map(folder => folder.name));
-  for (const provider of npm) {
-    if (!declared.has(provider.name) || selected.has(provider.name)) continue;
-    folders.push({ ecosystem: 'npm', name: provider.name, folder: path.join(project, 'node_modules', provider.name), target: provider.folder });
-    selected.add(provider.name);
-  }
-  // A linked package can carry dependencies that its consumer does not declare. Link every local provider in that source graph as
-  // well, or npm resolves the release of a transitive dependency while processing the linked package (K672).
-  const byName = new Map(npm.map(provider => [provider.name, provider]));
-  const queue = [...selected];
-  for (let index = 0; index < queue.length; index += 1) {
-    const provider = byName.get(queue[index] ?? '');
-    if (!provider) continue;
-    const source = readJsonObject(provider.folder, 'package.json');
-    const dependencies = SOURCE_SECTIONS.flatMap(section => {
-      const value = source[section];
-      return typeof value === 'object' && value !== null && !Array.isArray(value) ? Object.keys(value) : [];
-    });
-    for (const name of dependencies) {
-      const dependency = byName.get(name);
-      if (!dependency || selected.has(name)) continue;
-      folders.push({ ecosystem: 'npm', name, folder: path.join(project, 'node_modules', name), target: dependency.folder });
-      selected.add(name);
-      queue.push(name);
-    }
-  }
-  return folders;
-}
-
-/** Links local npm packages with npm, retaining the release manifest and lock and a project-local global prefix. */
-export function npmLink(project: string, folders: readonly ProvidedFolder[], npm: string, env: NodeJS.ProcessEnv, print: (text: string) => void): void {
-  const npmFolders = folders.filter(folder => folder.ecosystem === 'npm');
-  const targets = [...new Set(npmFolders.map(folder => folder.target))];
-  if (targets.length === 0) return;
-  if (npmFolders.length > 0 && npmFolders.every(folder => {
-    const installed = npmInstalledFolder(project, folder.name);
-    return installed !== undefined && existsSync(folder.target) && realpathSync(installed) === realpathSync(folder.target);
-  })) {
-    print('npm link: every selected package already resolves to its source; skipped consumer reification');
-    return;
-  }
-  const prefix = path.join(project, 'var/link/npm');
-  mkdirSync(prefix, { recursive: true });
-  print(`npm link: ${targets.join(', ')}: started`);
-  const environment = { ...env, npm_config_prefix: prefix, npm_config_cache: path.join(prefix, 'cache'), npm_config_allow_remote: 'root' };
-  const flags = ['--no-save', '--no-audit', '--no-fund'];
-  for (const target of targets) {
-    print(`npm link provider: ${target}`);
-    run(npm, ['link', ...flags], { cwd: target, env: environment });
-  }
-  const names = [...new Set(npmFolders.map(folder => folder.name))];
-  const output = run(npm, ['link', ...names, ...flags, '--workspaces=false'], { cwd: project, env: environment });
-  if (output.trim()) print(output.trim());
-  print('npm link: passed');
-}
 
 /**
  * Installs the packages of `directory` and returns the path that it took: `linked` (a package of the project is linked to its checkout)
  * or `locked` (no checkout provides one). The tracked lock is installed as it is, with npm ci, and each installed package that a checkout
- * provides is connected by npm link. npm manages its own dependency resolution and installed records. `npm` is the npm to run;
+ * provides becomes one plain directory symlink to its checkout (K761). `npm` is the npm to run;
  * the environment is `env`.
  */
 export function npmInstall({ directory, checkouts, npm = 'npm', env = process.env, print, explicit = false, added = [] }: {
@@ -135,7 +60,7 @@ export function npmInstall({ directory, checkouts, npm = 'npm', env = process.en
     print(`npm-install ${project}: npm ci of the tracked lock; no installed package is provided by a checkout`);
     return 'locked';
   }
-  npmLink(project, folders, npm, env, print);
+  for (const text of linkFolders(folders)) print(text);
   print(`npm-install ${project}: npm ci of the tracked lock, then linked ${folders.map(item => item.name).join(', ')} to their checkouts`);
   return 'linked';
 }
