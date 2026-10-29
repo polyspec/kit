@@ -14,10 +14,10 @@ import { validate, type OwnerDeclaration } from '../../scripts/kit/owner-check.m
 import { globExpression } from '../../scripts/kit/glob.mts';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { tree } from './tree.mts';
-import { COMMIT_MSG, PRE_COMMIT, PRE_MERGE_COMMIT, PREPARE_COMMIT_MSG } from '../../scripts/kit/git-hooks.mts';
+import { COMMIT_MSG, PRE_COMMIT, PREPARE_COMMIT_MSG } from '../../scripts/kit/git-hooks.mts';
 
 // The hooks that make hooks writes into every checkout (K495).
-const HOOKS = [PRE_COMMIT, PRE_MERGE_COMMIT, COMMIT_MSG, PREPARE_COMMIT_MSG];
+const HOOKS = [PRE_COMMIT, COMMIT_MSG, PREPARE_COMMIT_MSG];
 import { readFixture } from './json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 
@@ -156,10 +156,10 @@ test('kit-sync protects the kit source checkout from consumer copy cleanup (K671
 
 // K193: the release workflow sets up the PHP of .php-version only, so a repository that needs PHP without it released with the
 // PHP of the runner; kit-check names it with the fix in CI, whose passed run the release requires (K755).
-test('kit-check names a repository that needs PHP without .php-version: Composer packages, the Composer consumer, php of the toolchain', (t) => {
+test('kit-check names a repository that needs PHP without .php-version: Composer packages and php of the toolchain', (t) => {
   const fixture = readFileSync(path.join(import.meta.dirname, 'fixture/config/release.json'), 'utf8');
   const root = tree(t, { 'config/release.json': fixture, 'config/toolchain.json': `${JSON.stringify({ schema: 1 })}\n` });
-  assert.deepEqual(checkConfig(root), ['.php-version is missing, but the Composer packages [polyspec/kit-fixture] of config/release.json and the Composer consumer of config/release.json need PHP; CI and the release workflow set up the PHP of .php-version, and without it the release runs the PHP of the runner. Fix: declare .php-version with the PHP minor release, such as <major>.<minor>']);
+  assert.deepEqual(checkConfig(root), ['.php-version is missing, but the Composer packages [polyspec/kit-fixture] of config/release.json need PHP; CI and the release workflow set up the PHP of .php-version, and without it the release runs the PHP of the runner. Fix: declare .php-version with the PHP minor release, such as <major>.<minor>']);
   write(root, 'config/toolchain.json', `${JSON.stringify({ schema: 1, php: ['8.5'] })}\n`);
   assert.match(checkConfig(root).join(), /and php \["8\.5"\] of config\/toolchain\.json need PHP; .* Fix: declare \.php-version with the PHP minor release, such as 8\.5$/);
   write(root, '.php-version', '8.5\n');
@@ -195,7 +195,7 @@ test('a consumer after kit-sync passes owner-validate with the rules that kit sh
   // make hooks writes the hooks of kit (K495, K522), which a rule that kit ships owns.
   for (const hook of HOOKS) write(root, hook, '#!/bin/sh\n');
   // Installed copies and the consumer commit identity are regular files owned by the shipped rules.
-  const held = ['.github/workflows/release.yml', '.github/workflows/gates.yml', '.claude/settings.json', '.editorconfig', 'PRINCIPLES.md', 'PRINCIPLES.ko.md', 'config/commit-identity.json'];
+  const held = ['.github/workflows/release.yml', '.github/workflows/gates.yml', '.claude/settings.json', '.editorconfig', 'PRINCIPLES.md', 'PRINCIPLES.ko.md'];
   for (const file of held) write(root, file, `${file}\n`);
   write(root, 'config/owner-checks.json', '{}\n');
   const tracked = [...Object.keys(copies), ...HOOKS, ...held, 'config/owner-checks.json', 'package.json', 'package-lock.json'];

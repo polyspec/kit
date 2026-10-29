@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3a0beedded69d6da39fd68b1be6ae95fdacfc494fa61c41b3656c4afdbd47cca -->
+<!-- source-sha256: 869e2ac503a7f79983887ef893f42bcac1c39a3ab15ae32aefa151c89af0881f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -758,7 +758,7 @@
 | K802 | lint-rust는 cargo-fetch처럼 각 workspace의 clippy를 sibling checkout과 함께 cargo link로 실행한다(K448-5) | scripts/kit/lint-rust.mts scripts/kit/link.mts tests/kit/lint-rust.test.mts tests/kit/link.test.mts | `node --test tests/kit/lint-rust.test.mts tests/kit/link.test.mts` | [o] |
 | K803 | parity 기호의 python distribution을 entry의 pyproject에서 읽고 distribution 필드를 없앤다 | scripts/kit/parity-symbols.mts scripts/kit/parity-declaration.mts scripts/kit/schema/parity.schema.json CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/parity-api.test.mts` | [o] |
 | K804 | push gate와 그 pre-push hook, CI check를 삭제한다 | scripts/kit/push-gate.mts scripts/kit/git-hooks.mts scripts/kit/checklist.mts scripts/kit/kit.mk scripts/kit/release.mts .github/workflows/ci.yml CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/git-hooks.test.mts` | [o] |
-| K805 | commit message의 형식과 순서 규칙을 삭제하고 AI 정책과 Red 줄만 남긴다 | scripts/kit/check-commits.mts scripts/kit/plan.mts scripts/kit/git-hooks.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/commits.test.mts` | [~] |
+| K805 | commit message의 형식과 순서 규칙을 삭제하고 AI 정책과 Red 줄만 남긴다 | scripts/kit/check-commits.mts scripts/kit/plan.mts scripts/kit/git-hooks.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/commits.test.mts` | [o] |
 | K806 | item-state의 K315 원인 필터(plan.mts의 EVASIVE_CAUSE)와 그 테스트를 삭제하여 release를 인용한 원인도 받아들인다 | scripts/kit/plan.mts tests/kit/plan.test.mts | `var/tools/bin/node --test tests/kit/plan.test.mts` | [~] |
 | K807 | land의 main baseline 실행과 unowned path 거부를 지운다 | scripts/kit/land.mts, tests/kit/land.test.mts | `node --test tests/kit/land.test.mts` | [ ] |
 | K808 | plan의 형식 거부를 지운다: 전이, id pattern, 추가 행, main의 새 행, staged와 body 검사 | scripts/kit/plan.mts, tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [ ] |

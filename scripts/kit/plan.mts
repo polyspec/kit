@@ -34,7 +34,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
 import { BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATE_TRANSITIONS, STATES, trackersOf, VERIFYING, WAITING, workingPlanFiles } from './checklist.mts';
-import { COMMIT_RULES, type CommitRules, indexItemFindings, messageFindings, nextIdentityFindings, workingItemFindings } from './check-commits.mts';
+import { COMMIT_RULES, indexItemFindings, messageFindings, nextIdentityFindings } from './check-commits.mts';
 import { fileAt } from './git.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
@@ -205,15 +205,13 @@ export function editItem(root: string, { id, deliverables, verification, task, t
  * The files that write the English and Korean state cells into the row of `entry` in its checklist and twin, through the checks of
  * the commit rules and of the checklists; throws, writing nothing, on a finding that writing them would add.
  */
-function stateFiles(root: string, trackers: Tracker[], entry: ReturnType<typeof findItem>, id: string, [english, korean]: [string, string], rules: CommitRules): Record<string, string> {
+function stateFiles(root: string, trackers: Tracker[], entry: ReturnType<typeof findItem>, id: string, [english, korean]: [string, string]): Record<string, string> {
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
   const files = restamped(root, {
     [entry.tracker.path]: withState(read(entry.tracker.path), id, english),
     [entry.tracker.translation]: withState(read(entry.tracker.translation), id, korean),
   });
   refuseAdded(root, trackers, files);
-  const refused = workingItemFindings(root, rules, files);
-  if (refused.length) throw new Error(refused.map(finding => finding.message).join('\n'));
   return files;
 }
 
@@ -236,7 +234,7 @@ export function editState(root: string, change: Omit<NewState, 'state'>): Record
   const state = entry.item.state;
   if (state !== BYPASSED && state !== IMPOSSIBLE) throw new Error(`${change.id} is ${state}; item-edit rewrites the cause and the retry of a bypassed (${BYPASSED}) item and the cause of an impossible (${IMPOSSIBLE}) one`);
   if (state === IMPOSSIBLE && (change.retry !== undefined || change.retryKo !== undefined)) throw new Error(`${change.id} is ${IMPOSSIBLE}, which has no retry condition; RETRY and RETRY_KO belong to a bypassed item`);
-  const files = stateFiles(root, trackers, entry, change.id, stateCells({ ...change, state }), COMMIT_RULES);
+  const files = stateFiles(root, trackers, entry, change.id, stateCells({ ...change, state }));
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
 }
@@ -370,7 +368,7 @@ export function setState(root: string, change: NewState): Record<string, string>
       if (count(existsSync(path.join(root, file)) ? read(file) : '') <= count(fileAt(root, 'HEAD', file))) throw new Error(`${file} adds no line with (${change.id}) to HEAD; record the item in the changelog of both languages first`);
     }
   }
-  const files = stateFiles(root, trackers, entry, change.id, stateCells(change), rules);
+  const files = stateFiles(root, trackers, entry, change.id, stateCells(change));
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
 }
@@ -561,7 +559,7 @@ function commitStaged(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv, 
   // A staged Korean twin with a stale source-sha256 is refused as the pre-commit check refuses it (K382).
   const twins = stagedTwinFindings(root);
   if (twins.length) throw new Error(twins.join('\n'));
-  const findings = [...messageFindings(message, rules), ...nextIdentityFindings(root), ...indexItemFindings(root, rules, message)];
+  const findings = [...messageFindings(message), ...nextIdentityFindings(root), ...indexItemFindings(root, message)];
   if (findings.length) throw new Error(findings.map(finding => finding.message).join('\n'));
   // K603: a commit checks its message, its rows and its documents; no gate, build or type check runs.
   const result = spawnSync('git', ['commit', '--quiet', '-F', '-'], { cwd: root, input: message, encoding: 'utf8', env: { ...process.env, ...env } });

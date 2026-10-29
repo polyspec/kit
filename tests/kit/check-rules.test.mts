@@ -258,11 +258,8 @@ test('the working guidelines are stated in PRINCIPLES.md, each in its own rule w
   assert.deepEqual(ruleIds(korean), ruleIds(principles));
 });
 
-// K359-1: a rule names the check that a done item built, not the item: P24 names the commit-row rule of commits-check (K424),
-// so the principles of kit pass the check of the rules.
+// K359-1: a rule names the check that a done item built, not the item, so the principles of kit pass the check of the rules.
 test('the principles of kit name the checks that their done items built, and pass the check of the rules (K359-1)', () => {
-  const rules = ruleTexts(readFileSync(new URL('../../PRINCIPLES.md', import.meta.url), 'utf8'));
-  assert.match(rules.get('P24') ?? '', /^  Enforced by: .*`make commits-check`/m);
   assert.deepEqual(checkRules(fileURLToPath(new URL('../..', import.meta.url)), ['PRINCIPLES.md']).findings, []);
 });
 

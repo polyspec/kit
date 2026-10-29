@@ -7,7 +7,7 @@ import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { HOOKS_PATH, PRE_COMMIT, PRE_MERGE_COMMIT, PRE_MERGE_COMMIT_CONTENT, hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
+import { HOOKS_PATH, PRE_COMMIT, PRE_COMMIT_CONTENT, hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
 import { checkout, git, prepared, run } from './gates-checkout.mts';
 import { KIT_MAKEFILE, tool } from './kit-tools.mts';
 import { korean, put, tree } from './tree.mts';
@@ -26,21 +26,21 @@ test('install sets core.hooksPath and writes the executable hooks of kit; check 
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-merge-commit written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.githooks\/prepare-commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.githooks\/prepare-commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
-  assert.equal(readFileSync(path.join(work, PRE_MERGE_COMMIT), 'utf8'), PRE_MERGE_COMMIT_CONTENT);
-  assert.equal(statSync(path.join(work, PRE_MERGE_COMMIT)).mode & 0o777, 0o755);
+  assert.equal(readFileSync(path.join(work, PRE_COMMIT), 'utf8'), PRE_COMMIT_CONTENT);
+  assert.equal(statSync(path.join(work, PRE_COMMIT)).mode & 0o777, 0o755);
   assert.equal(check(work).status, 0);
 });
 
 test('a second install changes nothing: no file is rewritten and no setting is touched', (t) => {
   const { work } = checkout(t);
   assert.equal(hooks(work).status, 0);
-  const before = statSync(path.join(work, PRE_MERGE_COMMIT));
+  const before = statSync(path.join(work, PRE_COMMIT));
   const second = hooks(work);
   assert.equal(second.status, 0, second.stderr);
   assert.match(second.stdout, /^\[git-hooks\] nothing to change\n\[git-hooks\] the hooks are installed/);
-  const after = statSync(path.join(work, PRE_MERGE_COMMIT));
+  const after = statSync(path.join(work, PRE_COMMIT));
   assert.equal(after.mtimeMs, before.mtimeMs);
   assert.equal(after.ino, before.ino);
   assert.deepEqual(installHooks(work), []);
@@ -60,19 +60,19 @@ test('check fails while core.hooksPath is not .githooks, naming the value and ma
 test('check fails while a hook of kit is missing, not executable or changed; install repairs them', (t) => {
   const { work } = checkout(t);
   hooks(work);
-  const file = path.join(work, PRE_MERGE_COMMIT);
+  const file = path.join(work, PRE_COMMIT);
   rmSync(file);
-  assert.match(check(work).stderr, /\.githooks\/pre-merge-commit does not exist; restore it from Git and run make hooks/);
+  assert.match(check(work).stderr, /\.githooks\/pre-commit does not exist; restore it from Git and run make hooks/);
 
   assert.equal(hooks(work).status, 0);
   chmodSync(file, 0o644);
-  assert.match(check(work).stderr, /\.githooks\/pre-merge-commit is not executable, so Git does not run it; run make hooks/);
+  assert.match(check(work).stderr, /\.githooks\/pre-commit is not executable, so Git does not run it; run make hooks/);
   assert.equal(hooks(work).status, 0);
   assert.equal(statSync(file).mode & 0o777, 0o755);
 
   writeFileSync(file, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
-  assert.match(check(work).stderr, /\.githooks\/pre-merge-commit differs from the hook of scripts\/kit\/git-hooks\.mts; run make hooks and commit the file/);
-  assert.match(hooks(work).stdout, /\.githooks\/pre-merge-commit written/);
+  assert.match(check(work).stderr, /\.githooks\/pre-commit differs from the hook of scripts\/kit\/git-hooks\.mts; run make hooks and commit the file/);
+  assert.match(hooks(work).stdout, /\.githooks\/pre-commit written/);
   assert.equal(check(work).status, 0);
 });
 
@@ -90,7 +90,7 @@ test('the listed hooks of the repository are checked and made executable, and a 
   assert.match(installed.stdout, /\.githooks\/post-merge made executable/);
   assert.equal(statSync(hook).mode & 0o100, 0o100);
   assert.equal(readFileSync(hook, 'utf8'), '#!/bin/sh\nexit 0\n', 'install does not rewrite a hook of the repository');
-  assert.equal(existsSync(path.join(work, '.githooks/pre-merge-commit')), true);
+  assert.equal(existsSync(path.join(work, '.githooks/pre-commit')), true);
   assert.equal(hooksIssue(work), null);
 });
 
@@ -391,47 +391,5 @@ test('the pre-commit hook on main runs no gate, so a commit that adds a finding 
   const gated = commit('feat(hooks): Add a flag (#T1-1)');
   assert.equal(gated.status, 0, `a commit with a finding of a gate passes: ${gated.stderr}`);
   assert.notEqual(git(work, 'rev-parse', 'HEAD'), head, 'the commit is made');
-});
-
-// K404-1: a merge commit on main is refused by the pre-merge-commit hook, so main moves only by commits and fast-forwards. A merge
-// commit on another branch and a fast-forward of main pass.
-test('the pre-merge-commit hook refuses a merge commit on main and passes a fast-forward and a merge on another branch (K404-1)', (t) => {
-  const { work } = prepared(t, { files: { 'config/owner-checks.json': OWNERS } });
-  assert.equal(hooks(work).status, 0);
-  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
-  const run2 = (...args: string[]) => run(work, 'git', [...identity, ...args]);
-  const change = (name: string, subject: string) => {
-    writeFileSync(path.join(work, name), `${name}\n`);
-    git(work, 'add', name);
-    const made = run2('commit', '--quiet', '-m', `${subject}\n\nThe body names the change.\n`);
-    assert.equal(made.status, 0, made.stderr);
-  };
-  change('a.txt', 'feat(hooks): Add the first file (#T1-1)');
-  git(work, 'checkout', '--quiet', '-b', 'fix/merge-T1-1');
-  change('b.txt', 'feat(hooks): Add the branch file (#T1-1)');
-  git(work, 'checkout', '--quiet', 'main');
-  change('c.txt', 'feat(hooks): Add the main file (#T1-1)');
-
-  const head = git(work, 'rev-parse', 'HEAD');
-  const merged = run2('merge', '--no-ff', '--quiet', '-m', 'feat(hooks): Merge the branch (#T1-1)', 'fix/merge-T1-1');
-  assert.equal(merged.status, 1, 'a merge commit on main is refused');
-  assert.match(merged.stderr, /merge commit on main/, 'the refusal names the rule');
-  assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused merge changes no commit');
-
-  git(work, 'checkout', '--quiet', 'fix/merge-T1-1');
-  const onBranch = run2('merge', '--no-ff', '--quiet', '-m', 'feat(hooks): Merge main into the branch (#T1-1)', 'main');
-  assert.equal(onBranch.status, 0, `a merge commit on another branch passes: ${onBranch.stderr}`);
-  git(work, 'checkout', '--quiet', 'main');
-  // A fast-forward of main is the merge of make land.
-  const forward = run(work, 'git', [...identity, 'merge', '--ff-only', '--quiet', 'fix/merge-T1-1']);
-  assert.equal(forward.status, 0, `a fast-forward of main by make land passes: ${forward.stderr}`);
-});
-
-test('the pre-merge-commit hook that make hooks writes calls the make target merge-commit-hook and names no tool path (K404-1)', (t) => {
-  const { work } = prepared(t);
-  assert.equal(hooks(work).status, 0);
-  const hook = readFileSync(path.join(work, '.githooks/pre-merge-commit'), 'utf8');
-  assert.doesNotMatch(hook, /scripts\/kit|node_modules|\.mts|\.mjs/);
-  assert.match(hook, /^exec make --no-print-directory merge-commit-hook$/m);
 });
 

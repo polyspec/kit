@@ -34,7 +34,6 @@
     "scripts/kit/catch-check-rust/Cargo.lock",
     "scripts/kit/catch-check-rust/src/",
     "config/layout.kit.yml",
-    "config/commit-identity.json",
     "ruff.toml",
     "phpcs.xml.dist",
     "phpstan.dist.neon",
@@ -152,16 +151,7 @@
       },
       {
         "paths": [
-          "config/commit-identity.json"
-        ],
-        "targets": [
-          "commits-check"
-        ]
-      },
-      {
-        "paths": [
           ".githooks/pre-commit",
-          ".githooks/pre-merge-commit",
           ".githooks/commit-msg",
           ".githooks/prepare-commit-msg"
         ],

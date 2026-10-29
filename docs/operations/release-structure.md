@@ -31,7 +31,7 @@ K514 already moved the lint configurations out of the copies: each lint reads it
 | `.claude/settings.json` | yes: Claude Code reads it from the repository | a copy |
 | `.editorconfig` | yes: an editor reads it from the root of the repository | a copy |
 | `PRINCIPLES.md`, `PRINCIPLES.ko.md` | no: a document that a reader follows by a link | a link document to the package |
-| `config/layout.kit.yml`, `config/commit-identity.json` | no: only the tools of kit read them | read from the package, as K514 |
+| `config/layout.kit.yml` | no: only the tools of kit read it | read from the package, as K514 |
 | `config/pyproject.schema.json`, `config/composer.schema.json`, `config/cargo.schema.json` | no: only the layout check of kit reads them | read from the package, as K514 |
 | `config/php-lint/composer.json`, `composer.lock` | no: install-tools reads them to install the PHP lint into var/tools | read from the package, as K514 |
 
@@ -42,7 +42,7 @@ K514 already moved the lint configurations out of the copies: each lint reads it
    per change. A fix that the bootstrap needs between releases goes into the package's own tools wherever the bootstrap can call
    them after install, so the copy keeps its content.
 2. **Configurations by reference.** Every file that only a tool of kit reads is read from the package, as K514 does for the lints:
-   `config/layout.kit.yml`, `config/commit-identity.json`, the three manifest schemas and the PHP lint project. A consumer that
+   `config/layout.kit.yml`, the three manifest schemas and the PHP lint project. A consumer that
    extends a configuration names the package (`@polyspec/kit/config/...`), never a copy (C17.11-1).
 3. **Copies only where a tool requires them.** The remaining copies are those of the table that a tool reads from the repository:
    the bootstrap layer, `.claude/settings.json` and `.editorconfig`. The two workflows become thin callers of reusable workflows of
@@ -71,8 +71,6 @@ local development checkout:
 - The bootstrap layer is no copy: a repository includes `../kit/scripts/kit/kit-bootstrap.mk`, which runs the installer of
   `scripts/kit/bootstrap` beside it.
 - The PHP lint project `config/php-lint` is read from the kit that runs.
-- `config/commit-identity.json` is a declaration of each repository, a plain file of it that kit-check no longer compares, as the
-  workflows are.
 - `PRINCIPLES.md`, its twin, `.editorconfig` and `.claude/settings.json` are tracked symbolic links to the files of `../kit`.
 - The two workflows stay plain files of each repository, since GitHub follows no symbolic link, and kit-check no longer compares
   them.

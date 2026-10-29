@@ -274,7 +274,7 @@ test('the python symbols declare only the entry, and the distribution is the pro
   assert.ok(declaration({ extractor: 'python', entry: 'python', distribution: 'codec' }) > 0, 'distribution is no field');
   const unnamed = check(t, { files: { 'python/pyproject.toml': '[project]\nversion = "0.0.0"\n' } });
   assert.ok(unnamed.findings.some(finding => /no pyproject\.toml from python up to the checkout names a \[project\]\.name/.test(finding.message)), JSON.stringify(unnamed.findings));
-  // A consumer names the package folder below its uv project, such as packages/python/src/polyspec/template: the nearest
+  // A consumer names the package folder below its uv project, such as packages/python/src/<package>: the nearest
   // pyproject.toml above it names the distribution.
   assert.equal(declaration({ extractor: 'python', entry: 'python/src/codec' }), 0);
 });

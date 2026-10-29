@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: dd284a3f304b9e20f1c8c325b149db6491ba16195051d7d4638a1f2238421c75 -->
+<!-- source-sha256: e47bd98a8938c88692bdf7899504d2e793b3a96e3f189b95ef4697a85b15352a -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -12,7 +12,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 
 - P1 모든 것은 그 일을 하는 사람의 책임입니다: code, test, 문서, AGENTS, memory. 그중 하나라도 빠지면 작업은 끝나지
   않았습니다.
-  Enforced by: `make commits-check`, `make docs-check`
+  Enforced by: `make docs-check`
 - P2 규칙은 옳기 때문에 지키며, 있기 때문에 지키지 않습니다. "원래 있었다"는 근거가 아닙니다. 틀린 규칙, code 경로, 문서를
   발견하면 보고하고 바로잡습니다; 발견한 이상한 점은 즉시 보고하며 규칙을 만들거나 바로잡아야 하는지를 함께 묻고, 작업이
   넘어가기 전에 고치거나 납득할 만하게 확인합니다.
@@ -26,7 +26,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 - P5 잘못된 변경은 의도가 아니라 해로움과 옳음으로 판단합니다. 해로운 변경은 즉시 되돌리고, 해롭지 않지만 틀렸거나 불필요한
   변경은 제거하며, 작업과 무관하지만 옳은 변경은 남겨 실제 이유와 함께 따로 commit하고, 속하지 않은 작업의 일부로 기록하지
   않습니다.
-  Enforced by: `make commits-check`
+  Enforced by: none, 안내하는 규칙이다: commit-msg hook은 AI footer와 identity, Red 줄, fix의 test만 검사한다 (K805)
 
 ## 기준
 
@@ -41,7 +41,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`
 - P9 올바름이 먼저입니다; 빠름은 올바름을 지킬 때만 좇습니다.
   Enforced by: none, 올바름과 빠름의 순서는 판단입니다.
-- P10 main에 작업이 들어가는 길은 둘입니다. main에서 직접 하는 작업은 P38의 gate를 거친 commit으로 들어갑니다. 병렬이나 격리된
+- P10 main에 작업이 들어가는 길은 둘입니다. main에서 직접 하는 작업은 P38의 commit으로 들어갑니다. 병렬이나 격리된
   작업은 자기 worktree와 branch를 가지며, `{type}/{shortname}-{체크리스트 id}`와 `{프로젝트}-{shortname}-{체크리스트 id}`로
   이름 짓고 `make worktree-setup`으로 만듭니다. 이 작업은 `make land`의
   fast-forward로만 main에 들어가며, `config/retained-branches.json`이 의도적인 취소 백업의 정확한 local branch와 전체 commit을
@@ -49,10 +49,10 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   이동했으면 거부하고, 일치하는 branch와 worktree를 보존합니다. merge될 수 없는 test나
   실험 code는 남길 가치가 있으면 cherry-pick하고 아니면 폐기하며, 항상 commit 전에 합니다; 바로 지울 수 없으면 checklist
   하위 항목에 제거 조건을 적습니다.
-  Enforced by: `.githooks/pre-merge-commit`
+  Enforced by: none, make land가 branch가 main에 들어가는 길이며, 변경이 어느 길로 왔는지 hook은 보지 못한다.
 - P11 code 주석, identifier, log, error message, test 이름, commit message는 영어로 씁니다. 문서는 영어이며, 각각 기술 용어를
   영어로 쓰는 한국어 쌍을 가집니다.
-  Enforced by: `make commits-check`는 commit message에 대해, `make language-check`는 code에 대해
+  Enforced by: `make language-check`는 code에 대해
 
 ## 설계
 
@@ -82,7 +82,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   test는 아무것도 증명하지 않으며, 실행되지 않고 통과하는 test는 결함입니다.
   변경으로 낡게 된 주석이나 문서는 그 변경의 commit에서 고칩니다. 행이 끝난 뒤 찾은 것은 Verification이
   `make text-absent FILE=<path> TEXT=<낡은 text>`인 하위 항목으로 두며, 낡은 text가 남아 있는 동안 실패합니다.
-  Enforced by: `make commits-check`
+  Enforced by: `.githooks/commit-msg`는 done 행의 Red 줄과 fix의 test에 대해
 - P20 항목은 자기 단위 test의 red, 구현, green으로 완료합니다. 바뀐 것의 소유 검사만 돌리며, 전체 모음은 수정마다, 항목마다,
   마지막에도 돌리지 않습니다. 전체 모음은 conductor의 명령으로만 돌며, 이는 `.claude/settings.json`의 Claude Code hook이
   강제합니다.
@@ -112,22 +112,22 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   `<id>-<n>`은 한 plan 안에서 그 item을 따른다. `make plan-new`와 `make item-new`가 그것을 쓰고, `make plan-split`이 item을 다른 plan으로 옮긴다.
   변경은 등록된 행에서 시작한다: `make item-new`가 어떤 작업보다 먼저 행을 등록하며, commit은 그 행을 이름으로 적는다
   (P28).
-  Enforced by: `make docs-check`, `make commits-check`
+  Enforced by: `make docs-check`
 - P25 item은 `[ ]` waiting, `[~]` active, `[v]` verification, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed 또는
   `[-] cause: <cause>` impossible이며, `make item-state`의 전이로만 움직인다. verification은 구현이 commit되었고 선언한 unit test가
   통과했음을 뜻한다. push는 허용하지만 done이 되기 전 tag 생성과 release를 막으며, verification이 실패하면 active로 되돌린다.
   done item에 대한 새 발견은 그 자신의 sub-item이 되고, done item은 state를 유지한다.
-  Enforced by: `make docs-check`, `make commits-check`
+  Enforced by: `make docs-check`
 - P26 열린 item은 Verification cell에 자기 unit test의 command를 명시한다. 어떤 item도 suite로 검증하지 않는다. Suite는 CI에서
   실행하거나 모든 checklist item이 종결된 뒤 명시적인 final verification으로 한 번 실행한다. `make item-test`가 그 command를 실행한다.
   Enforced by: `make docs-check`, `.claude/settings.json`
 - P27 commit은 최대 한 item을 완료한다. state를 최대 하나 바꾸고, item을 done으로 옮기는 commit은 그것을 CHANGELOG.md와 그
   한국어 짝에 기록한다. commit되지 않은 작업은 최대 한 item이다.
-  Enforced by: `make commits-check`
+  Enforced by: none, 안내하는 규칙이다: commit-msg hook은 AI footer와 identity, Red 줄, fix의 test만 검사한다 (K805)
 - P28 commit message는 `type(scope): Subject (#id)`이며, type은 feat, fix, docs, style, refactor, test, chore 중 하나,
   Subject는 대문자로 시작하고 마침표 없이 끝나는 50자 이하, 그 뒤 빈 줄과 72자로 감싼 body이다. `make commit`이 그것을
   쓴다. AI 도구의 footer, 곧 그 co-author나 session trailer는 넣지 않는다. author와 committer는 사람이며 AI 도구가 아니다.
-  Enforced by: `make commits-check`
+  Enforced by: `.githooks/commit-msg`는 AI footer와 identity에 대해
 - P29 작업의 make target은 고정된 이름을 가진다. `install`, `build`, `test`, `lint`, `docs-check`와 `packages/`의 runtime마다
   `build-<runtime>`, `test-<runtime>`, `lint-<runtime>`이며, 모두 kit이 정의한다. 저장소는 `build: kit-build`처럼 자기
   prerequisite로 작업에 합류하고, 작업 이름으로 시작하는 다른 target으로 합류하지 않는다 (K246).
@@ -159,12 +159,9 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
 - P37 결과는 그 check가 실행된 뒤, 그 실행의 출력과 함께만 보고한다. 출력 없이 check가 통과한다고 주장하는 것은 결과가
   아니다.
   Enforced by: none, 주장하기 전에 결과를 확인했는지는 판단이다.
-- P38 main은 checkout마다 한 행위자가 gate를 거친 commit으로 직접 쓸 수 있다. main의 commit은 `make land`가 스테이징된 경로에
-  대해 고르는 gate를 스테이징된 tree에서 실행하고, HEAD에 없는 finding일 때만 이름을 적어 거부한다. main의 merge commit은
-  거부하므로 main은 commit과 fast-forward로만 움직인다. 저장소의 첫 commit은 main을 만들며 비교할 commit이 없으므로 gate를
-  거치지 않는다. hook은 실수로 gate를 거치지 않은 commit을 막는다. 의도적 우회(`--no-verify`, `core.hooksPath`, raw
-  `update-ref`)는 이 규칙의 범위 밖이다 (K404, K446, K404-1).
-  Enforced by: `.githooks/pre-commit`, `.githooks/pre-merge-commit`
+- P38 main은 checkout마다 한 행위자가 commit으로 직접 쓸 수 있다. branch는 바뀐 경로가 고르는 gate를 실행하는 `make land`의
+  fast-forward로 main에 들어간다 (K404, K446, K603).
+  Enforced by: none, make land가 branch가 main에 들어가는 길이며, 변경이 어느 길로 왔는지 hook은 보지 못한다.
 
 ## Repository 기준
 

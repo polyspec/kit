@@ -47,7 +47,6 @@
     { "paths": ["config/php-lint/**"], "targets": ["kit-test"], "tests": ["tests/source/lint-php-real.test.mts"] },
     { "paths": ["config/owner-checks.json"], "targets": ["owner-validate"] },
     { "paths": ["config/generated.json"], "tests": ["tests/kit/generated-files.test.mts"] },
-    { "paths": ["config/commit-identity.json"], "tests": ["tests/kit/commits.test.mts"] },
     { "paths": ["config/checklist.json", ".githooks/**"], "targets": ["docs-check", "hooks-check"], "tests": ["tests/source/checklist-real.test.mts"] },
     { "paths": ["tsconfig.build.json"], "targets": ["typecheck"], "tests": ["tests/source/package.test.mts"] },
     { "paths": ["config/release.json"], "targets": ["kit-check", "release-coverage"], "tests": ["tests/kit/release-root.test.mts", "tests/kit/release.test.mts", "tests/source/consumer-layout.test.mts"] },

@@ -2,11 +2,10 @@
 // Lands a branch on main (K394): `make land BRANCH=<branch>`, run in the main checkout. It refuses unless the main checkout is on
 // main and clean, the branch exists, and a worktree has the branch checked out (its gates run on its own tree and install); a branch
 // that main has left behind is rebased onto main in that worktree first, and a rebase that conflicts is refused (K495-1). It runs the static gates of kit-gates that the changed paths of the branch select through
-// config/owner-checks.json, always with docs-check and commits-check (commits-check over main..<branch>). No test runs (K394-1): parity-check
+// config/owner-checks.json, always with docs-check. No test runs (K394-1): parity-check
 // and every test- target that the owners select are printed as not run. A gate that fails in the worktree is refused only when its
 // output has a line that main does not have: the same gate runs in the main checkout, and a line of the branch output that occurs
-// more often there than in the output on main is a new finding. A gate that fails on main too, with no new finding, goes on;
-// commits-check refuses on any failure. On a refusal it prints the gate and its output and merges nothing. Then it merges
+// more often there than in the output on main is a new finding. A gate that fails on main too, with no new finding, goes on. On a refusal it prints the gate and its output and merges nothing. Then it merges
 // fast-forward, removes the worktree when it
 // has no uncommitted change (an ignored install does not count) and deletes the branch. A branch that main already contains
 // skips the gates and the merge, and only what is left is removed. Before a worktree is removed, the make targets that WORKTREE_STOP
@@ -31,7 +30,7 @@ import { refreshLinked } from './linked-build.mts';
 import { RETAINED_BRANCHES_CONFIG, retainedBranch, retainedBranches } from './retained-branches.mts';
 
 // The gates that land whatever the changed paths: the documents and the commit messages of the branch.
-const ALWAYS_GATES = ['docs-check', 'commits-check'];
+const ALWAYS_GATES = ['docs-check'];
 
 // K429, K441-1: the processes of the machine that run in a worktree, read with ps and lsof (read only). A process runs in a worktree
 // when its working directory, one of its open files or its executable lies in it; a path that only its command line names, as the
@@ -414,8 +413,7 @@ interface GatesRun {
 /**
  * Rebases `branch` on main in its worktree `folder` when main has left it behind, runs its gates there, and returns the main commit
  * that they ran on and the gates that passed (K571); throws, merging nothing, on a refusal. After `previous`, the run of a
- * main that moved since, only the gates that the paths of the moved commits select run again, and commits-check, since the rebased
- * commits are new; a gate that passed before and whose inputs no moved commit touched keeps its result (K580).
+ * main that moved since, only the gates that the paths of the moved commits select run again; a gate that passed before and whose inputs no moved commit touched keeps its result (K580).
  */
 async function gateBranch(root: string, folder: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void, previous?: GatesRun): Promise<GatesRun> {
   // K495-1: a branch that main has left behind, as the land this one waited for leaves it, is rebased here; the gates below run on
@@ -428,18 +426,17 @@ async function gateBranch(root: string, folder: string, branch: string, print: (
   for (const gate of excluded) print(`${gate} runs tests, which the Verification of the rows runs; land does not run it`);
   print(`gates of ${branch} in ${folder}: ${gates.join(', ')}`);
   const moved = previous === undefined ? undefined : git(root, 'diff', '--name-only', `${previous.gated}..${gated}`).split('\n').filter(line => line !== '');
-  const touched = moved === undefined ? undefined : new Set([...gatesOf(folder, moved).gates, 'commits-check']);
+  const touched = moved === undefined ? undefined : new Set(gatesOf(folder, moved).gates);
   for (const gate of gates) {
     if (touched !== undefined && previous?.gates.includes(gate) === true && !touched.has(gate)) {
       print(`${gate} keeps its result: no commit that moved main touches what it checks (K580)`);
       continue;
     }
     print(`${gate} in ${folder}`);
-    const args = gate === 'commits-check' ? [`RANGE=main..${branch}`] : [];
-    const candidate = await runGate(folder, gate, args, print);
+    const candidate = await runGate(folder, gate, [], print);
     // K631: a gate red on main does not block a branch when it is red there too; a branch owes only not to break a green gate.
     // K631-1: report both failures truthfully and keep the candidate's diagnostics visible; no output line is compared.
-    if (candidate.result.status !== 0 && gate !== 'commits-check' && (await mainRun(root, gate, args, print, sleep)).result.status !== 0) {
+    if (candidate.result.status !== 0 && (await mainRun(root, gate, [], print, sleep)).result.status !== 0) {
       print(`${gate} fails on candidate and main; continuing under K631`);
       print(`${gate} candidate stdout:\n${candidate.result.stdout}`);
       print(`${gate} candidate stderr:\n${candidate.result.stderr}`);

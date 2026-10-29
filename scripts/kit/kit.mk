@@ -119,7 +119,7 @@ layout-check: ## Check the folder layout of the checkout (S5) against config/lay
 # ---- The gates: Git hooks -------------------------------------------------------------------------------------------
 # scripts/kit/git-hooks.mts reads config/checklist.json. The full suite runs only in CI, as the targets of
 # `make ci-targets` (ci-only.mts); no target runs it locally.
-.PHONY: hooks hooks-check staged-generated-hook commit-gates-hook merge-commit-hook commit-msg-hook
+.PHONY: hooks hooks-check staged-generated-hook commit-msg-hook
 
 # Git runs the hooks of core.hooksPath. A checkout that tracks .githooks/pre-commit sets it on every make invocation.
 ifneq ($(wildcard .githooks/pre-commit),)
@@ -131,7 +131,7 @@ endif
 twin-merge: ## The merge drivers that make hooks declares: kit-twin of a Korean changelog or checklist (K354), kit-changelog of CHANGELOG.md, whose Unreleased entries it puts newest first (K354-1), and kit-checklist of a checklist, which merges its task rows by ID (K354-3); git runs it with MERGE="<base> <ours> <theirs> <path>"; offline
 	@$(NODE) $(KIT)/twin-merge.$(KIT_EXT) $(MERGE)
 
-hooks: ## Set core.hooksPath to .githooks, write the pre-commit, pre-merge-commit, commit-msg and prepare-commit-msg hooks of kit and check the hooks
+hooks: ## Set core.hooksPath to .githooks, write the pre-commit, commit-msg and prepare-commit-msg hooks of kit and check the hooks
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install
 
 hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/checklist.json is missing, not executable or changed
@@ -139,12 +139,6 @@ hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/c
 
 staged-generated-hook: ## The generated-file check of the pre-commit hook: fail while a staged path has a generated segment that config/generated.json does not declare; the hook that make hooks writes runs it
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) staged
-
-commit-gates-hook: ## No gate runs on a commit (K603): the gates run once, at land; the pre-commit hook that make hooks writes still calls it
-	@$(NODE) $(KIT)/check-commits.$(KIT_EXT) --commit-gates
-
-merge-commit-hook: ## Refuse a merge commit on main (K404-1, P38): the pre-merge-commit hook that make hooks writes runs it
-	@$(NODE) $(KIT)/check-commits.$(KIT_EXT) --merge-commit
 
 commit-msg-hook: ## The message checks of make commit on the message being committed as MESSAGE (K380); the commit-msg hook that make hooks writes runs it
 	$(NODE) $(KIT)/check-commits.$(KIT_EXT) --message $(MESSAGE)
@@ -199,14 +193,14 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 
 .PHONY: kit-gates
 # The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
-# (K270): each make target that a rule of PRINCIPLES.md is enforced by. commits-check reads RANGE from the run.
-kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check commits-check link-state-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+# (K270): each make target that a rule of PRINCIPLES.md is enforced by.
+kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check link-state-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
 # entry point above; these targets are only the disjoint workflow partitions. Toolchain probes are checked with their selected
 # TOOLS in the owning job, while the parity job checks every implementation in one run.
 .PHONY: kit-gates-static kit-gates-parity kit-gates-runtime-ts kit-gates-runtime-php kit-gates-runtime-python kit-gates-runtime-go kit-gates-runtime-rust kit-gates-runtime-php-ext
-kit-gates-static: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check commits-check bypass-check suppression-check divergence-check ## Run shared gates and the common toolchain probes
+kit-gates-static: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check ## Run shared gates and the common toolchain probes
 kit-gates-parity: link-state-check parity-check ## Run package-link validation and the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate
 kit-gates-runtime-php: lint-php ## Run the PHP gate
@@ -345,10 +339,6 @@ ci-summary: ## Write summary.md of CI_REPORT again from its record, also for a r
 ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has the result success
 	$(NODE) $(KIT)/ci-passed.$(KIT_EXT)
 
-.PHONY: commits-check
-
-commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HEAD) against COMMIT_RULES of check-commits.mts; offline
-	$(NODE) $(KIT)/check-commits.$(KIT_EXT) $(if $(RANGE),--range $(RANGE))
 # The steps of a release (scripts/kit/release.mts, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
 .PHONY: release-prepare release-tools release-tag release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags
@@ -455,7 +445,7 @@ worktree-link-state: ## Prepare native offline worktree dependencies with shared
 # WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of
 # orm). land runs it, with make in the worktree, before it removes the worktree; a failing stop keeps the worktree.
 .PHONY: land
-land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout is on main and clean and the branch is rebased on main and has a worktree; runs the static gates of kit-gates that its changed paths select, with docs-check and commits-check, in its worktree (no test: parity-check and test- targets are printed as not run, K394-1); a gate that fails there is refused only on a finding that main does not have, compared with the same gate run on main; merges fast-forward, then runs the WORKTREE_STOP targets of the worktree and removes it, refused while a process runs in it (K429), and removes the branch; offline
+land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout is on main and clean and the branch is rebased on main and has a worktree; runs the static gates of kit-gates that its changed paths select, with docs-check, in its worktree (no test: parity-check and test- targets are printed as not run, K394-1); a gate that fails there is refused only on a finding that main does not have, compared with the same gate run on main; merges fast-forward, then runs the WORKTREE_STOP targets of the worktree and removes it, refused while a process runs in it (K429), and removes the branch; offline
 	$(NODE) $(KIT)/land.$(KIT_EXT) $(BRANCH)
 
 

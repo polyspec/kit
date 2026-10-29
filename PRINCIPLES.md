@@ -12,7 +12,7 @@ in kit, with its grounding.
 
 - P1 Everything is the responsibility of whoever works on it: the code, its tests, its documents, AGENTS and the memory. A task
   is not done while one of them is missing.
-  Enforced by: `make commits-check`, `make docs-check`
+  Enforced by: `make docs-check`
 - P2 A rule is followed because it is right, never because it exists. "It was there before" is no ground. A rule, a code path
   or a document found wrong is reported and corrected; a found oddity is reported at once, with the question whether a rule
   must be made or corrected, and it is fixed or confirmed convincingly before the work moves on.
@@ -26,7 +26,7 @@ in kit, with its grounding.
 - P5 A wrong change is judged by its harm and its correctness, not by its intent. A harmful change is reverted at once; a
   harmless change that is wrong or unneeded is removed; a correct change unrelated to the work is kept and committed on
   its own with its real reason, never recorded as part of the work it did not belong to.
-  Enforced by: `make commits-check`
+  Enforced by: none, a guided rule: the commit-msg hook checks only the AI footer and identity, the Red line and the test of a fix (K805)
 
 ## Standards
 
@@ -41,7 +41,7 @@ in kit, with its grounding.
   Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`
 - P9 Correct first; fast only when it stays correct.
   Enforced by: none, the order of correctness and speed is a judgement.
-- P10 Work reaches main in one of two ways. Direct work on main is committed through the gated commits of P38. Parallel or
+- P10 Work reaches main in one of two ways. Direct work on main is committed through the commits of P38. Parallel or
   isolated work has its own worktree and branch, named `{type}/{shortname}-{checklist id}` and `{project}-{shortname}-{checklist id}`,
   made by `make worktree-setup`; it reaches main only by the fast-forward of `make land`,
   and `make land` removes its worktree and branch right after the merge unless `config/retained-branches.json` pins that exact
@@ -49,10 +49,10 @@ in kit, with its grounding.
   rejects a moved local ref and preserves a matching branch and worktree. Test or experiment code that cannot merge is
   cherry-picked when it is worth keeping and otherwise discarded, always before the commit; when it cannot be removed at once, a
   checklist sub-item states the condition of its removal.
-  Enforced by: `.githooks/pre-merge-commit`
+  Enforced by: none, make land is the way a branch reaches main, and no hook can see which way a change took.
 - P11 Code comments, identifiers, logs, error messages, test names and commit messages are written in English. Documents are
   English, each with a Korean twin that writes technical terms in English.
-  Enforced by: `make commits-check` for the commit messages, `make language-check` for the code
+  Enforced by: `make language-check` for the code
 
 ## Design
 
@@ -83,7 +83,7 @@ in kit, with its grounding.
   A test that cannot fail proves nothing, and a test that passes without running is a defect.
   A comment or document that a change makes stale is corrected in the commit of that change; one found after its row is done
   is a sub-item whose Verification is `make text-absent FILE=<path> TEXT=<stale text>`, which fails while the stale text is there.
-  Enforced by: `make commits-check`
+  Enforced by: `.githooks/commit-msg` for the Red line of a done row and the test of a fix
 - P20 An item is completed by its own unit tests: red, implementation, green. Only the checks that own what changed run; the
   full suite is not run, neither per fix, per item nor at the end. The full suite runs only on the order of the conductor,
   which the Claude Code hook in `.claude/settings.json` enforces.
@@ -118,23 +118,23 @@ repository.
   sub-item `<id>-<n>` follows its item in one plan. `make plan-new` and `make item-new` write them, and `make plan-split` moves items to another plan.
   A change starts from its registered row: `make item-new` registers the row before any work, and its commit names the row
   (P28).
-  Enforced by: `make docs-check`, `make commits-check`
+  Enforced by: `make docs-check`
 - P25 An item is `[ ]` waiting, `[~]` active, `[v]` verification, `[o]` done, `[!] cause: <cause>; retry: <condition>` bypassed or
   `[-] cause: <cause>` impossible, and moves only along the transitions of `make item-state`. Verification means the implementation is
   committed and its declared unit tests passed. It permits a push, but blocks tag creation and release until it is done; a failed
   verification returns it to active. A new finding on a done item is a sub-item of its own; the done item keeps its state.
-  Enforced by: `make docs-check`, `make commits-check`
+  Enforced by: `make docs-check`
 - P26 An open item names, in its Verification cell, the commands of its own unit tests; no item is verified by a suite. A suite runs in CI, or once as an explicit final verification after all checklist
   items are terminal. `make item-test` runs the commands.
   Enforced by: `make docs-check`, `.claude/settings.json`
 - P27 A commit completes at most one item: it moves at most one state, and the commit that moves an item to done records it in
   CHANGELOG.md and its Korean twin. The uncommitted work is at most one item.
-  Enforced by: `make commits-check`
+  Enforced by: none, a guided rule: the commit-msg hook checks only the AI footer and identity, the Red line and the test of a fix (K805)
 - P28 A commit message is `type(scope): Subject (#id)` with a type of feat, fix, docs, style, refactor, test or chore, a Subject
   of at most 50 characters that starts with a capital letter and ends without a period, a blank line and a body wrapped at
   72 characters, with no footer of an AI tool: no co-author or session trailer of one. Its author and committer are a
   person, never an AI tool. `make commit` writes it.
-  Enforced by: `make commits-check`
+  Enforced by: `.githooks/commit-msg` for the AI footer and identity
 - P29 The make targets of a task have fixed names: `install`, `build`, `test`, `lint`, `docs-check`, and `build-<runtime>`,
   `test-<runtime>` and `lint-<runtime>` for each runtime of `packages/`, all defined by kit. A repository joins a task by a
   prerequisite of its own, such as `build: kit-build`, never by another target that starts with a task's name (K246).
@@ -169,12 +169,9 @@ repository.
 - P37 A result is reported only after its check has run, with the output of that run. A claim that a check passes, made
   without its output, is not a result.
   Enforced by: none, whether a result was checked before it was claimed is a judgement.
-- P38 main may be written directly, by one actor per checkout, through gated commits. A commit on main runs the gates that
-  `make land` selects for its staged paths, on the staged tree, and is refused only on a finding that HEAD lacks, which it names.
-  A merge commit on main is refused, so main moves by commits and fast-forwards only. The first commit of a repository, which
-  creates main with no commit to compare with, is not gated. The hooks protect against an accidental ungated commit; a deliberate
-  bypass (`--no-verify`, `core.hooksPath`, a raw `update-ref`) is out of scope (K404, K446, K404-1).
-  Enforced by: `.githooks/pre-commit`, `.githooks/pre-merge-commit`
+- P38 main may be written directly, by one actor per checkout, through commits; a branch reaches main by the fast-forward of
+  `make land`, which runs the gates that its changed paths select (K404, K446, K603).
+  Enforced by: none, make land is the way a branch reaches main, and no hook can see which way a change took.
 
 ## Repository standards
 

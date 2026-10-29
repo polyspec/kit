@@ -3,7 +3,8 @@
 
 [한국어](check-commits.ko.md)
 
-Verdict: **none fits.** kit keeps `check-commits.mts`. Measured for K73 (scratchpad k73, VERDICTS section 6) on 2026-10-13.
+Verdict: **none fits.** kit keeps `check-commits.mts`. Measured for K73 (scratchpad k73, VERDICTS section 6) on 2026-10-13; the
+form rules of the message that commitlint was measured against were deleted by K805.
 
 ## Covers
 
@@ -13,23 +14,21 @@ Verdict: **none fits.** kit keeps `check-commits.mts`. Measured for K73 (scratch
 
 | Item | Requirement |
 |---|---|
-| M1 | the header is `type(scope): Subject (#id)` with a type of config/commits.json |
-| M2 | the Subject starts with an ASCII capital, has no period before `(#id)` and at most `subjectMax` characters |
-| M3 | a blank line, then a body whose lines have at most `bodyMax` characters, except a single long word |
-| I1 | commit-items: a commit changes the state of at most one checklist item; a row that it adds is not a change |
-| I2 | commit-changelog: a commit that finishes an item also changes the changelog and its translation |
+| A1 | commit-ai-footer: the message holds no co-author or session trailer of an AI tool |
+| A2 | commit-ai-identity: no AI tool is the author or the committer |
+| R1 | commit-red: a commit that moves a checklist row to done states a Red or No-Red line |
+| R2 | commit-fix-test: a fix commit changes a test file, or states its red |
 
 ## Tools evaluated
 
 | Tool | State | Verdict |
 |---|---|---|
-| @commitlint/lint | 21.2.3 | M1 and part of M3 map onto `type-enum`, `subject-max-length`, `body-leading-blank` and a header pattern. With stock rules, 10 of 3886 messages differ: `subject-full-stop` reads the end of the header, so a period before `(#id)` passes; `subject-case` accepts a digit, a backtick or `Ä`; `body-max-line-length` exempts URLs only; trailing whitespace fails the header. The same result needs a local plugin that restates three rules, an adapter, and five packages. I1 and I2 read the trackers and the diff and are outside commitlint |
+| @commitlint/lint | 21.2.3 | A1 maps onto a header or footer pattern of a local plugin. A2 reads the identity that git gives the commit, and R1 and R2 read the checklists and the staged diff, which are outside commitlint |
 
 ## Why none fits
 
-commitlint matches kit only with a plugin that re-implements half of the message rules, and the item rules stay in kit in
-every case, so kit would keep its rules and add five packages.
+R1 and R2 read the checklists and the diff, which no message linter reads, so kit would keep them and add five packages for A1.
 
 ## Retry condition
 
-Revisit when commitlint's stock rules express M2 and M3 (a period before a suffix, an ASCII capital, a long-word exception).
+Revisit when a commit-msg tool reads the staged diff and the checklist rows of the change.

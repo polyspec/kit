@@ -64,7 +64,6 @@ test('the pre-commit hook that git-hooks install writes calls the make target st
   const hook = readFileSync(path.join(work, '.githooks/pre-commit'), 'utf8');
   assert.doesNotMatch(hook, /scripts\/kit|node_modules|\.mts|\.mjs/);
   assert.match(hook, /^make --no-print-directory staged-generated-hook \|\| exit 1$/m);
-  assert.match(hook, /^make --no-print-directory commit-gates-hook \|\| exit 1$/m);
 });
 
 test('a staged executable is refused whatever its path, and one that config/generated.json declares passes (K416)', (t) => {

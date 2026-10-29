@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release-structure -->
-<!-- source-sha256: 2254405e2e3cd7364f491ef9282cc556b49b12681c825f850d31e2fd461cb0f7 -->
+<!-- source-sha256: 7d03abf20ddd881b9b06e1657da56d186a8f2b6e55b4f326bf7c9f776e67c0f4 -->
 # 릴리스 구조
 
 [English](release-structure.md)
@@ -31,7 +31,7 @@ K514는 이미 lint 설정을 사본에서 빼냈습니다. 각 lint는 설정�
 | `.claude/settings.json` | 예: Claude Code가 저장소에서 읽는다 | 사본 |
 | `.editorconfig` | 예: 편집기가 저장소 루트에서 읽는다 | 사본 |
 | `PRINCIPLES.md`, `PRINCIPLES.ko.md` | 아니오: 독자가 link로 따라가는 문서 | 패키지로 가는 link 문서 |
-| `config/layout.kit.yml`, `config/commit-identity.json` | 아니오: kit의 도구만 읽는다 | K514처럼 패키지에서 읽음 |
+| `config/layout.kit.yml` | 아니오: kit의 도구만 읽는다 | K514처럼 패키지에서 읽음 |
 | `config/pyproject.schema.json`, `config/composer.schema.json`, `config/cargo.schema.json` | 아니오: kit의 layout check만 읽는다 | K514처럼 패키지에서 읽음 |
 | `config/php-lint/composer.json`, `composer.lock` | 아니오: install-tools가 PHP lint를 var/tools에 설치하려고 읽는다 | K514처럼 패키지에서 읽음 |
 
@@ -41,7 +41,7 @@ K514는 이미 lint 설정을 사본에서 빼냈습니다. 각 lint는 설정�
    릴리스에 묶여 그 wave에서 저장소마다 한 번 sync되며, 변경마다 sync되지 않습니다. 릴리스 사이에 bootstrap에 필요한 수정은 bootstrap이
    설치 뒤 부를 수 있는 곳마다 패키지 자신의 도구에 들어가므로, 사본은 그 내용을 유지합니다.
 2. **참조로 쓰는 설정.** kit의 도구만 읽는 모든 파일은 K514가 lint에 하듯 패키지에서 읽습니다. `config/layout.kit.yml`,
-   `config/commit-identity.json`, manifest schema 셋, PHP lint 프로젝트입니다. 설정을 extends하는 consumer는 사본이 아니라 패키지
+   manifest schema 셋, PHP lint 프로젝트입니다. 설정을 extends하는 consumer는 사본이 아니라 패키지
    (`@polyspec/kit/config/...`)를 이름 붙입니다(C17.11-1).
 3. **도구가 요구하는 곳에만 사본.** 남는 사본은 표에서 도구가 저장소에서 읽는 것들입니다. bootstrap 층, `.claude/settings.json`,
    `.editorconfig`입니다. 두 workflow는 kit의 재사용 workflow를 부르는 얇은 caller가 되므로(`uses:
@@ -68,7 +68,6 @@ K514는 이미 lint 설정을 사본에서 빼냈습니다. 각 lint는 설정�
 - bootstrap 층은 복사본이 아닙니다. 저장소는 `../kit/scripts/kit/kit-bootstrap.mk`를 include하고, 그것이 곁의
   `scripts/kit/bootstrap` installer를 실행합니다.
 - PHP lint project `config/php-lint`는 실행되는 kit에서 읽습니다.
-- `config/commit-identity.json`은 각 저장소의 선언이며, workflow처럼 kit-check가 더 비교하지 않는 그 저장소의 일반 파일입니다.
 - `PRINCIPLES.md`, 그 짝, `.editorconfig`, `.claude/settings.json`은 `../kit`의 파일로 가는 tracked symbolic link입니다.
 - 두 workflow는 GitHub가 symbolic link를 따르지 않으므로 각 저장소의 일반 파일로 남고, kit-check는 더 비교하지 않습니다.
 - `config/layout.kit.yml`과 그것이 이름 붙인 manifest schema 세 개는 kit-sync가 쓰는 복사본으로 남습니다. alint 0.18.2가

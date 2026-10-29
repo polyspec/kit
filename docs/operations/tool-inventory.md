@@ -339,7 +339,7 @@ record of a full run of the current tree exists. There is no pull request, merge
 K241 replaced the declared trackers of K6.1: kit finds the checklists as `docs/plans/<plan>/checklist.md`, each a table
 with the six states of kit, and `idPattern` is the one declaration of a checklist; the list format of orm is removed.
 
-`hooks` lists the tracked hooks of `.githooks` of the repository; `pre-commit`, `pre-merge-commit`, `commit-msg` and
+`hooks` lists the tracked hooks of `.githooks` of the repository; `pre-commit`, `commit-msg` and
 `prepare-commit-msg` are kit's own hooks, written by `make hooks` without an entry. `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output
 folder, for example), and `exceptions`, the globs of paths that stay tracked (test fixtures, for example); its schema is
 `schema/generated.schema.json`. A tracker has `path`, `format` (`table`: a row
@@ -604,8 +604,10 @@ Dropped behaviors:
 ## Commit message check (K8.1-4)
 
 `scripts/kit/check-commits.mts` takes `scripts/git/check.mjs` of orm as the shared git hygiene check; template, crudui, hyper
-and ordered-json state the same message format in their rules but have no check. The format and the limits are the constant
-`COMMIT_RULES` of check-commits.mts, the same for every repository (K243).
+and ordered-json state the same message format in their rules but have no check. The constant `COMMIT_RULES` of
+check-commits.mts holds the types and the body width that make commit writes, the same for every repository (K243). The commit-msg
+hook checks only the AI footer and identity, the Red line of a done row and the test of a fix (K805); the form of the subject
+is guidance that make commit writes.
 
 Merged behaviors:
 
@@ -814,8 +816,8 @@ Other duplicates removed:
 
 Behaviors that differ between the copies and were merged (the wider or safer one is kept):
 
-- A failed git command reports `git <arguments> exited with <status>: <standard error>` everywhere; `check-commits` names the
-  git command in the message about a range that does not resolve.
+- A failed git command reports `git <arguments> exited with <status>: <standard error>` everywhere; `check-commits` reads no
+  range since K805.
 - A target name for `ci-targets` starts with a letter or a digit, as it did for `full-run`; `ci-targets` accepted `-x`, which
   make reads as an option.
 - `release` coverage skips `node_modules`, `var` and `.tools` as well as the kit fixture.

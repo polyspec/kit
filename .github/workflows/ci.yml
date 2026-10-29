@@ -13,10 +13,8 @@ jobs:
   checks:
     runs-on: ubuntu-24.04
     steps:
-      # actions/checkout v7.0.1; commits-check reads the commits of the run, so the checkout carries the full commit graph.
+      # actions/checkout v7.0.1.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          fetch-depth: 0
       # actions/setup-node v7.1.0: the Node.js of mise.toml starts the bootstrap, which installs that release into var/tools with
       # mise (K171); every later step runs the node of var/tools, and npm ci installs the packages with the pinned npm.
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
@@ -146,22 +144,6 @@ jobs:
       - name: release coverage
         if: ${{ !cancelled() }}
         run: make release-coverage
-      # The commits the run was triggered by: those of the pull request over its base, or those of the push. A manual run and
-      # the first push of a branch have no earlier commit, so the run checks HEAD.
-      - name: commit range
-        if: ${{ !cancelled() }}
-        env:
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          BEFORE: ${{ github.event.before }}
-        run: |
-          if [ -n "$BASE" ]; then echo "range=$BASE..$HEAD_SHA"
-          elif [ -n "$BEFORE" ] && [ "$BEFORE" != 0000000000000000000000000000000000000000 ]; then echo "range=$BEFORE..$GITHUB_SHA"
-          else echo "range=HEAD"
-          fi >> "$GITHUB_ENV"
-      - name: commits check
-        if: ${{ !cancelled() }}
-        run: make commits-check RANGE="$range"
 
   kit_tests:
     name: kit tests (${{ matrix.shard }})

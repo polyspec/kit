@@ -172,12 +172,6 @@ test('item-state writes the cause and the retry condition of a bypass and the ca
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.ko.md')[0], '| T1 | 작업 T1 | `a.mts` | `node --test a.test.mts` | [!] 원인: runner 없음; 재시도: T2 완료 |');
 });
 
-test('item-state refuses while another item has a state other than that of HEAD, as the commit check would (K249-2)', (t) => {
-  const root = committed(t, 'T1', 'T2');
-  setState(root, { id: 'T1', state: '[~]' });
-  assert.throws(() => setState(root, { id: 'T2', state: '[~]' }), /the commit changes the state of 2 items/);
-});
-
 test('item-new, item-edit and item-state write the marker of the new English text into a current Korean twin, and keep a stale one stale (K368)', (t) => {
   const root = committed(t, 'T1');
   const english = 'docs/plans/parser/checklist.md';
@@ -357,12 +351,8 @@ test('commit refuses what the commit-msg hook refuses and an empty index, and co
   assert.throws(() => commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse', bodyFile: body }, identity), /nothing is staged/);
   writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
   stage(root, 'a.mts');
-  assert.throws(() => commitItem(root, { id: 'T1', type: 'wip', scope: 'parser', subject: 'Parse', bodyFile: body }, identity), /expected "type\(scope\): Subject \(#id\)"/);
-  assert.throws(() => commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'parse.', bodyFile: body }, identity), /does not start with a capital letter/);
-  setState(root, { id: 'T1', state: '[~]' });
-  writeFileSync(path.join(root, 'docs/plans/parser/checklist.md'), readFileSync(path.join(root, 'docs/plans/parser/checklist.md'), 'utf8').replace(/(\| T2 \|[^\n]*)\| \[ \] \|/, '$1| [~] |'));
-  stage(root, '-A');
-  assert.throws(() => commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse', bodyFile: body }, identity), /changes the state of 2 items/);
+  writeFileSync(body, 'Why.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n');
+  assert.throws(() => commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse', bodyFile: body }, identity), /footer of an AI tool/);
   assert.equal(log(root), head);
 });
 
