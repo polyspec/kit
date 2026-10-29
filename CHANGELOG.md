@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Add make release-candidate and make release, which publish the exact commit of a successful CI run without a second version or test cycle. (K749)
+
 - Accept a deleted test that names a locked, installed provider test with Provider-Test-Replacement; unverified references are still refused. (K746)
 
 - Pass the channel, profile, components and targets of rust-toolchain.toml to rustup, so an installed toolchain gains a missing component. (K750)

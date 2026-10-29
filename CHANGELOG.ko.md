@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9d1464a205b9d15038e814235198dd007dde21cb346c2839d6f8790f8640694a -->
+<!-- source-sha256: 99d456889b20a0b077bfbd3ddcabd58f72abea7107fe6ae3a365fecc8d68677f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 성공한 CI run의 정확한 commit을 두 번째 version·test 주기 없이 게시하는 make release-candidate와 make release를 추가한다. (K749)
 
 - 삭제된 테스트가 Provider-Test-Replacement로 lock되고 설치된 provider 테스트를 가리키면 받아들인다; 검증되지 않은 참조는 여전히 거부한다. (K746)
 

@@ -62,7 +62,7 @@ KIT_TEST_FILES_6 := \
 	tests/kit/release-consumer.test.mts tests/kit/release-tools-path.test.mts tests/kit/run-command.test.mts \
 	tests/kit/toolchain-npmrc.test.mts tests/kit/tracked-files.test.mts tests/kit/verification.test.mts \
 	tests/kit/worktree-setup.test.mts
-KIT_TEST_FILES_7 := tests/kit/parity-api.test.mts tests/kit/runtime-targets.test.mts tests/kit/install-rust.test.mts tests/kit/provider-tests.test.mts
+KIT_TEST_FILES_7 := tests/kit/parity-api.test.mts tests/kit/runtime-targets.test.mts tests/kit/install-rust.test.mts tests/kit/provider-tests.test.mts tests/kit/release-run.test.mts
 
 SOURCE_TEST_GROUPS := ts php php-ext rust go python common-1 common-2 common-3
 SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts tests/source/symbols-ts-real.test.mts

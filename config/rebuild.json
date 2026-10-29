@@ -394,6 +394,10 @@
       "kind": "policy",
       "reason": "release-please, changesets and semantic-release version and publish, but none proves a consumer install of every archive; their tag ordering goes to semver in K73"
     },
+    "scripts/kit/release-run.mts": {
+      "kind": "policy",
+      "reason": "orders candidate archive builds, consumer lock and install proof, exact-commit CI validation and the existing tag-triggered release workflow; no ecosystem release tool enforces this repository's single-CI ordering"
+    },
     "scripts/kit/release-tools.mts": {
       "kind": "ecosystem",
       "tool": "install-tools (mise install --locked) and rustup for the release toolchains"

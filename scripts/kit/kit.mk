@@ -361,6 +361,14 @@ commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HE
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
 .PHONY: release-prepare release-tools release-tag release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend
 
+# Freeze the native candidate before CI, then publish the exact successful commit without another test run.
+.PHONY: release-candidate release
+release-candidate: ## Prepare VERSION archives and native consumer locks before CI
+	$(NODE) $(KIT)/release-run.$(KIT_EXT) prepare "$(VERSION)"
+
+release: ## Publish VERSION at SHA after the successful CI run RUN; no version edits or tests
+	$(NODE) $(KIT)/release-run.$(KIT_EXT) publish "$(VERSION)" "$(SHA)" "$(RUN)"
+
 # release-prepare is the preparation that a repository's release needs before release-tools, such as the checkout of a sibling
 # release: kit declares it with no recipe, and a repository adds its own with a release-prepare:: rule of its Makefile (K132).
 release-prepare:: ## Prepare what the release of this repository needs before release-tools; a repository declares it with release-prepare::
