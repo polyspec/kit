@@ -155,7 +155,7 @@ test('the CI workflow installs the PHP of .php-version before install-tools, whi
 });
 
 test('the fresh-checkout source group installs its declared PHP runtime', () => {
-  assert.match(jobText('source_tests'), /if: \$\{\{ contains\(fromJSON\('\["php","php-ext","common-1","common-2","common-3"\]'\), matrix\.group\) \}\}[\s\S]*?php-version-file: \.php-version/);
+  assert.match(jobText('source_tests'), /if: \$\{\{ contains\(fromJSON\('\["php","common-1","common-2","common-3"\]'\), matrix\.group\) \}\}[\s\S]*?php-version-file: \.php-version/);
 });
 
 // parity-real runs the rust symbol extractor on the Rust nightly of its exception; CI has no nightly unless make install-tools,
@@ -198,7 +198,7 @@ test('the kit required check aggregates independent checks, kit tests and source
   assert.match(kit, /^    needs: \[checks, kit_tests, source_tests\]$/m, 'the aggregator needs every independent job');
   assert.match(kit, /RESULTS: \$\{\{ toJSON\(needs\) \}\}/, 'the aggregator receives every job result');
   assert.match(jobText('kit_tests'), /fail-fast: false[\s\S]*shard: \[1, 2, 3, 4, 5, 6, 7\]/);
-  assert.match(jobText('source_tests'), /fail-fast: false[\s\S]*group: \[ts, php, php-ext, rust, go, python, common-1, common-2, common-3\]/);
+  assert.match(jobText('source_tests'), /fail-fast: false[\s\S]*group: \[ts, php, rust, go, python, common-1, common-2, common-3\]/);
   assert.deepEqual(jobRuns('kit_tests').filter(run => run === 'make kit-test-shard SHARD=${{ matrix.shard }}'), ['make kit-test-shard SHARD=${{ matrix.shard }}']);
   assert.deepEqual(jobRuns('source_tests').filter(run => run === 'make source-test-group GROUP=${{ matrix.group }}'), ['make source-test-group GROUP=${{ matrix.group }}']);
   const checks = jobRuns('checks').filter(run => run.startsWith('make ') && !/^make (?:install-tools|install-packages|kit-install-)/.test(run));
@@ -221,7 +221,7 @@ test('CI test shard declarations cover every tracked kit and source test file ex
   };
   assert.deepEqual(names('KIT_TEST_FILES_').sort(), ['KIT_TEST_FILES_1', 'KIT_TEST_FILES_2', 'KIT_TEST_FILES_3', 'KIT_TEST_FILES_4', 'KIT_TEST_FILES_5', 'KIT_TEST_FILES_6', 'KIT_TEST_FILES_7']);
   assertExactOnce(files('KIT_TEST_FILES_'), tracked('tests/kit'), 'kit shards');
-  assert.deepEqual(names('SOURCE_TEST_FILES_').sort(), ['SOURCE_TEST_FILES_common-1', 'SOURCE_TEST_FILES_common-2', 'SOURCE_TEST_FILES_common-3', 'SOURCE_TEST_FILES_go', 'SOURCE_TEST_FILES_php', 'SOURCE_TEST_FILES_php-ext', 'SOURCE_TEST_FILES_python', 'SOURCE_TEST_FILES_rust', 'SOURCE_TEST_FILES_ts']);
+  assert.deepEqual(names('SOURCE_TEST_FILES_').sort(), ['SOURCE_TEST_FILES_common-1', 'SOURCE_TEST_FILES_common-2', 'SOURCE_TEST_FILES_common-3', 'SOURCE_TEST_FILES_go', 'SOURCE_TEST_FILES_php', 'SOURCE_TEST_FILES_python', 'SOURCE_TEST_FILES_rust', 'SOURCE_TEST_FILES_ts']);
   assertExactOnce(files('SOURCE_TEST_FILES_'), tracked('tests/source'), 'source groups');
 });
 

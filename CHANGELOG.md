@@ -22,6 +22,7 @@
 - Delete dependency-review, dependency-state, version.mts, pin-python-dependency and composer-provider-entries with their records; npm, composer, uv, cargo audit and govulncheck report outdated and vulnerable dependencies. (K786)
 
 - Delete dependency-policy-check and dependency-policy-mutation-check; npm ci, composer install and uv sync --locked verify the locks. (K784)
+- Run PHP library tests through Composer's own autoload and install Composer tool projects with composer install in place; delete php-library-autoload and the install staging. (K790) `run-tests --without-library` and its end-of-run check that no library source was included are gone; an extension run uses the Composer project and PHPUnit of the package as they are.
 
 - The release manifest check keeps only the tag version of the repository own packages; the form of every other dependency, including the polyspec release asset URL of K777, is the package manager's to resolve. (K785)
 

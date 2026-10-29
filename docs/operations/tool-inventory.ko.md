@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d4f45ed875eb6c41dc21a70fa6b1aeaff84b3103d5617e2092151465560ec4aa -->
+<!-- source-sha256: 179eb299cd9d31a1e8b2104653365d29dcb566e145614fdc0103fe0754235baf -->
 
 # 도구 목록
 
@@ -105,10 +105,9 @@ staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, comm
 | vulture | `mise.toml`의 `"pypi:vulture"`: `mise.lock`이 mise가 `.mise/locks` 아래에 쓰는 uv lock의 digest를 가짐. 그 sidecar folder는 mise의 문서대로 저장소가 mise.lock과 함께 track하며, Git이 track하지 않거나 track한 파일이 없으면 `make toolchain-check`가 실패합니다. checkout의 `mise install --locked`가 "dependency sidecar … No such file or directory"로 실패하기 때문입니다 (K192) | mise로 설치 |
 | PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | `mise.toml`의 Composer로 설치 |
 
-`var/tools`의 Composer project(PHPUnit, PHP lint)는 최신일 때만 설치된 것으로 칩니다(K284). 설치의 `composer.lock`이 project의
-`composer.lock`과 byte 단위로 같고, Composer 자체의 `composer check-platform-reqs --lock`이 `var/tools/bin`의 PHP 아래에서 그 설치에서
-통과해야 합니다. 아니면 `make install-tools`가 임시 디렉터리와 rename을 거쳐 다시 설치하므로, 다른 PHP로 만든 설치는 실행되지 않고
-교체됩니다.
+`var/tools`의 Composer project(PHPUnit, PHP lint)는 project folder에서 `COMPOSER_VENDOR_DIR`를 `var/tools/<folder>/vendor`로 둔
+`composer install`로 설치합니다(K790). Composer는 commit된 `composer.lock`이 지정한 것을 설치하고, vendor directory가 이미 그것을
+담고 있으면 아무것도 하지 않으며, 매 실행마다 `var/tools/bin`의 PHP 아래에서 lock의 platform requirement를 확인합니다.
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
 목록), `mise`(`version`, platform별 archive의 `sha256`), `phpunit`(`version`), `symbolExtractors`,
@@ -490,7 +489,8 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
   `config.vendor-dir`; K184), 또는 그 위의 가장 가까운 Composer project(monorepo의 root 등, K186)의 `bin/phpunit`을 실행하고, extension은
   `--php-extension`(template, hyper의 `--extension`)으로 넘깁니다. 없는 extension은 tool을 시작하기 전에 실패합니다.
   `--php-extension`은 반복할 수 있습니다: 각 extension은 PHP 자체의 방식인 자기 `-d extension=<path>`로 주어진 순서대로
-  load되므로 의존하는 extension 뒤에 load되며, 각각이 build되었는지 tool이 시작하기 전에 확인합니다(K165). `--without-library <folder>`(K329)는 Composer의 proxy가 아니라 PHPUnit script를 직접 실행하고, library의 vendor directory 위에 Composer가 dump한 autoloader를 이름으로 부르는 파일을 앞에 붙입니다. 그 autoloader는 library의 dependency와 autoload-dev를 담고 library 자신의 autoload(psr-4, classmap, files)는 담지 않으므로 library의 source가 extension 옆에 하나도 load되지 않으며, source를 include하는 test는 실행이 끝날 때 실패합니다.
+  load되므로 의존하는 extension 뒤에 load되며, 각각이 build되었는지 tool이 시작하기 전에 확인합니다(K165). extension 실행은
+  `<cwd>`의 Composer project와 PHPUnit을 그대로 쓰며, kit은 자기 autoloader를 준비하지 않습니다(K790).
 - 시작할 수 없는 tool은 command와 고치는 방법과 함께 실패합니다.
 - `python`(K17)은 `python3 -m unittest <arguments> -v`를 실행하고 표준 오류를 읽습니다. test는 시작할 때 `<description> ... `을,
   끝날 때 결과를 쓰며, 이는 cargo의 직렬 libtest 출력과 같은 모양이므로 시작·결과 줄 parser 하나가 둘을 읽습니다. `ok`는
@@ -1341,7 +1341,7 @@ vitest의 todo와 unittest의 `expected failure`입니다. 통과가 아니므�
 `/`에서 중첩하기 때문입니다. node:test 실행은 `NODE_TEST_CONTEXT`를 뺀 environment로 시작합니다. 검사를 시작한 test 실행에 합류하지
 않게 하기 위해서입니다.
 
-Composer php-ext package를 root로 하는 PHP 구현은 확장 package test와 같은 격리 Composer autoloader로 library test binding을 실행합니다. 의존성과 autoload-dev를 포함하고 library autoload는 제외하며 확장 인수를 유지합니다. 두 parity 실행은 이 설치를 공유하고 성공과 실패 모두에서 정리합니다. 자체 runner나 command가 있는 binding은 선언된 실행을 유지합니다.
+Composer php-ext package를 root로 하는 PHP 구현은 library 자체 Composer project의 PHPUnit과 확장 인수로 library test binding을 실행합니다(K790). 자체 runner나 command가 있는 binding은 선언된 실행을 유지합니다.
 
 PHPUnit은 작업 directory에서 설정을 읽습니다. 검사는 모든 runner의 작업 directory를 checkout root로 두어서 `command`, `args`와 경로가
 한 기준을 공유하므로, php binding은 자신의 package의 설정을 직접 적습니다. `--configuration`에 package의 `phpunit.xml`(없고

@@ -51,7 +51,6 @@ import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 import { readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
-import { libraryTestRun, type LibraryRun } from './php-library-autoload.mts';
 import { ciRefusal } from './ci-only.mts';
 import { isFile, runnerWords, selects } from './test-selection.mts';
 
@@ -75,14 +74,13 @@ export type RunOptions = {
   args: string[];
   inputs: string[];
   phpExtensions: string[];
-  withoutLibrary?: string;
   venv?: string;
   module?: string;
   results?: string;
 };
 
 /** The options that the command of a tool reads. */
-export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'venv' | 'module'> & Partial<Pick<RunOptions, 'phpExtensions' | 'timeoutExplicit'>> & { library?: Pick<LibraryRun, 'phpunit' | 'prepend'> };
+export type ToolOptions = Pick<RunOptions, 'tool' | 'timeoutSeconds' | 'cwd' | 'args' | 'venv' | 'module'> & Partial<Pick<RunOptions, 'phpExtensions' | 'timeoutExplicit'>>;
 
 // How a tool ended: it could not start, or it closed with a status or a signal.
 type Ended = { error: Error } | { error?: undefined; status: number | null; signal: NodeJS.Signals | null };
@@ -114,9 +112,6 @@ export function parseArguments(argv: string[], root = repositoryRoot()) {
     } else if (flag === '--php-extension') {
       if (!value || tool !== 'phpunit') throw new Error(USAGE);
       options.phpExtensions.push(path.resolve(root, value));
-    } else if (flag === '--without-library') {
-      if (!value || tool !== 'phpunit') throw new Error(USAGE);
-      options.withoutLibrary = value;
     } else if (flag === '--venv') {
       if (!value || tool !== 'python') throw new Error(USAGE);
       options.venv = path.resolve(root, value);
@@ -190,7 +185,7 @@ export function probeExtensions(extensions: string[], php: string): string | und
   return undefined;
 }
 
-export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd, args, phpExtensions = [], venv, module, library }: ToolOptions, root = repositoryRoot()): { command: string; args: string[]; build?: string[] } {
+export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd, args, phpExtensions = [], venv, module }: ToolOptions, root = repositoryRoot()): { command: string; args: string[]; build?: string[] } {
   const milliseconds = String(timeoutSeconds * 1000);
   switch (tool) {
     case 'node':
@@ -227,14 +222,11 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
       const phpunit = found === undefined ? path.join(composerVendor(cwd), 'bin/phpunit') : path.join(root, found);
       // Each --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit with its own
       // -d extension=, in the given order, so an extension loads after one that it depends on.
-      // An extension run of the tests of the library (K329) starts the PHPUnit script itself, never the proxy of Composer, which names the
-      // autoloader of the library; the file prepended to it names the autoloader without the sources of the library.
       // The PHP of both runs is the wrapper of var/tools/bin that install-tools writes for the checkout, never the php of PATH (K393).
       const nativeTimeouts = !timeoutExplicit;
       const prepend = path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-library/phpunit-deadline-prepend.php');
       const bootstrap = nativeTimeouts ? ['-d', `auto_prepend_file=${prepend}`] : [];
       const extension = nativeTimeouts ? ['--extension', 'Polyspec\\Kit\\PHPUnit\\DeadlineExtension'] : [];
-      if (library) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(item => ['-d', `extension=${item}`]), ...bootstrap, library.phpunit, '--teamcity', ...extension, ...args] };
       // K452: an extension run gives PHPUnit the configuration of the package, so the bootstrap that it names loads as in the library run.
       const configuration = ['phpunit.xml', 'phpunit.xml.dist'].map(file => path.join(cwd, file)).find(file => existsSync(file));
       const configured = configuration === undefined ? [] : ['--configuration', configuration];
@@ -258,17 +250,12 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
  */
 export function listedTests(argv: string[], root = repositoryRoot(), callerEnv: NodeJS.ProcessEnv = process.env): string[] {
   const options = parseArguments(argv, root);
-  const library = options.withoutLibrary === undefined ? undefined : libraryTestRun(root, options.withoutLibrary, callerEnv);
-  try {
-    const { command, args } = toolCommand({ ...options, args: [...options.args, '--list-tests'], ...(library === undefined ? {} : { library }) }, root);
-    // The tool of the checkout starts with the mise of the checkout, as a run in make does (K411).
-    const result = spawnSync(command, args, { cwd: options.cwd, env: { ...toolsEnvironment(root, callerEnv), ...library?.env }, encoding: 'utf8' });
-    if (result.error) throw result.error;
-    if (result.status !== 0) throw new Error(`phpunit --list-tests in ${path.relative(root, options.cwd) || '.'} ended with ${result.status}: ${result.stderr.trim()}`);
-    return result.stdout.split('\n').flatMap(line => /^\s*-\s+(\S.*)$/.exec(line)?.[1] ?? []);
-  } finally {
-    library?.cleanup();
-  }
+  const { command, args } = toolCommand({ ...options, args: [...options.args, '--list-tests'] }, root);
+  // The tool of the checkout starts with the mise of the checkout, as a run in make does (K411).
+  const result = spawnSync(command, args, { cwd: options.cwd, env: toolsEnvironment(root, callerEnv), encoding: 'utf8' });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`phpunit --list-tests in ${path.relative(root, options.cwd) || '.'} ended with ${result.status}: ${result.stderr.trim()}`);
+  return result.stdout.split('\n').flatMap(line => /^\s*-\s+(\S.*)$/.exec(line)?.[1] ?? []);
 }
 
 /** Runs the tool of `argv`; resolves the exit status of the run (0 passed, 1 failed). */
@@ -292,33 +279,27 @@ const PARENT_POLL_MS = 200;
 export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env, startUpMs = START_UP_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv; startUpMs?: number } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
-  // The tests of the PHP library run against the extension with none of the library's sources (K329).
-  const library = options.withoutLibrary === undefined ? undefined : libraryTestRun(root, options.withoutLibrary, callerEnv);
-  const { command, args, build } = toolCommand({ ...options, ...(library === undefined ? {} : { library }) }, root);
+  const { command, args, build } = toolCommand(options, root);
   const label = `${options.tool} ${path.relative(root, options.cwd) || '.'}${options.args.length ? ` ${options.args.join(' ')}` : ''}`;
   write(`▶ ${label} (each test ${options.timeoutSeconds}s)\n`);
   // A run that selects no test runs a whole runtime, which is a suite and runs only in CI (ci-only.mts).
   const unselected = !selects(options.tool, options.args, file => isFile(path.resolve(options.cwd, file))) && ciRefusal(`a ${options.tool} run without a selection`, callerEnv, root);
   if (unselected) {
-    library?.cleanup();
     write(`✖ ${label}: ${unselected}\n`);
     return 1;
   }
   const unbuilt = options.phpExtensions.find(extension => !existsSync(extension));
   if (unbuilt) {
-    library?.cleanup();
     write(`✖ ${label}: the PHP extension ${path.relative(root, unbuilt)} is not built; build it before the run\n`);
     return 1;
   }
   const unloaded = options.phpExtensions.length ? probeExtensions(options.phpExtensions, checkoutFile(toolsPath(root, 'bin', 'php'))) : undefined;
   if (unloaded) {
-    library?.cleanup();
     write(`✖ ${label}: ${unloaded}\n`);
     return 1;
   }
   const venvRefusal = options.venv && venvProblem(options.venv, root);
   if (venvRefusal) {
-    library?.cleanup();
     write(`✖ ${label}: ${venvRefusal}\n`);
     return 1;
   }
@@ -337,15 +318,11 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // The runner and its tool start with the mise of the checkout, so a run outside make, in a shell without its MISE_* variables,
   // trusts the mise.toml of the checkout and finds its tools; the variables that the run sets itself come after (K411).
   const phpunitAutoload = options.tool === 'phpunit' && !options.timeoutExplicit
-    ? library?.env.KIT_PHP_AUTOLOAD ?? packageVendorFile(root, path.relative(root, options.cwd) || '.', 'autoload.php')
+    ? packageVendorFile(root, path.relative(root, options.cwd) || '.', 'autoload.php')
     : undefined;
-  const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), ...library?.env, KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(phpunitAutoload === undefined ? {} : { KIT_PHPUNIT_AUTOLOAD: path.resolve(root, phpunitAutoload) }), ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
+  const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(phpunitAutoload === undefined ? {} : { KIT_PHPUNIT_AUTOLOAD: path.resolve(root, phpunitAutoload) }), ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
   delete env.KIT_PHPUNIT_AUTOLOAD;
   delete env.KIT_TEST_EVENTS;
-  if (library === undefined) {
-    delete env.KIT_PHP_AUTOLOAD;
-    delete env.KIT_PHP_LIBRARY_SOURCES;
-  }
   if (phpunitAutoload !== undefined) env.KIT_PHPUNIT_AUTOLOAD = path.resolve(root, phpunitAutoload);
   if (reporter) env[TEST_EVENTS] = String(TEST_EVENTS_FD);
   // Native Cargo resolves its workspace target unless the caller supplied an explicit CLI target argument (K676).
@@ -565,7 +542,6 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     clearInterval(parentWatch);
     if (onInterrupt) for (const signal of INTERRUPTS) process.off(signal, onInterrupt);
     rmSync(results, { recursive: true, force: true });
-    library?.cleanup();
     // With its handler removed, the signal ends the runner as it would have without one, unless the host handles it.
     if (interrupted) process.kill(process.pid, interrupted);
   }

@@ -110,10 +110,9 @@ A repository may declare a downloaded tool of its own in `mise.toml` through the
 | vulture | `"pypi:vulture"` of `mise.toml`: `mise.lock` holds the digest of the uv lock that mise writes under `.mise/locks`, a sidecar folder that the repository tracks with mise.lock, as mise's documentation says; `make toolchain-check` fails when Git does not track it or a tracked file of it is missing, since `mise install --locked` of a checkout fails with "dependency sidecar … No such file or directory" (K192) | install with mise |
 | PHPUnit | `config/toolchain.json` `phpunit` `{ version }`, with the Composer project of `config/phpunit` (`composer.json`, `composer.lock`); kit runs it for its own PHP tests only, and a consumer keeps its PHPUnit in its package `composer.json` | install with the Composer of `mise.toml` |
 
-A Composer project of `var/tools` (PHPUnit, the PHP lint) counts as installed only while it is current (K284): its `composer.lock` equals the
-`composer.lock` of the project byte for byte, and Composer's own `composer check-platform-reqs --lock` passes in it under the PHP of
-`var/tools/bin`. Otherwise a full `make install-tools` installs it again through the temporary directory and the rename, so an installation
-made under another PHP is replaced, not run.
+A Composer project of `var/tools` (PHPUnit, the PHP lint) is installed by `composer install` in the folder of the project, with
+`COMPOSER_VENDOR_DIR` set to `var/tools/<folder>/vendor` (K790). Composer installs what the committed `composer.lock` names, does nothing
+when the vendor directory already holds it, and checks the platform requirements of the lock under the PHP of `var/tools/bin` on each run.
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
 minor releases), `mise` (`version`, `sha256` of each platform's archive), `phpunit` (`version`),
@@ -543,10 +542,8 @@ The exported `runCommand` waits for process group cleanup after output closes: a
   root of a monorepo (K186), with `--php-extension`
   for an extension (template, hyper's `--extension`); a missing extension fails before the tool starts. `--php-extension`
   repeats: each extension is loaded with its own `-d extension=<path>`, PHP's own way, in the given order, so one loads after
-  an extension that it depends on, and each is checked as built before the tool starts (K165). `--without-library <folder>` (K329)
-  runs the PHPUnit script itself, never the proxy of Composer, with a prepended file that names an autoloader which Composer dumps
-  over the vendor directory of the library: its dependencies and its autoload-dev, not its own autoload (psr-4, classmap, files), so
-  none of the sources of the library is loaded next to the extension; a test that includes one fails the run at its end.
+  an extension that it depends on, and each is checked as built before the tool starts (K165). An extension run uses the
+  Composer project and the PHPUnit of `<cwd>` as they are; kit prepares no autoloader of its own (K790).
 - A tool that cannot start fails with its command and the fix.
 - `python` (K17) runs `python3 -m unittest <arguments> -v` and reads its standard error: a test prints `<description> ... `
   when it starts and its outcome when it ends, the same shape as the serial libtest output of cargo, so one parser of start
@@ -1471,7 +1468,7 @@ The go, cargo, php and python runners read their tool's output with the parsers 
 theirs is parsed. A todo is a test that the tool expects to fail, a node or vitest todo or a unittest `expected failure`: it
 is no pass, so its case fails the check, while run-tests shows it as a pass line.
 
-A PHP implementation rooted in a Composer php-ext package runs library test bindings with the isolated Composer autoloader used by extension package tests. It includes dependencies and autoload-dev while excluding the library autoload, and keeps the extension arguments. Both parity attempts share this installation; it is removed after success or failure. A binding with its own runner or command keeps that declared execution.
+A PHP implementation rooted in a Composer php-ext package runs library test bindings with the PHPUnit of the library's own Composer project and the extension arguments (K790). A binding with its own runner or command keeps that declared execution.
 
 PHPUnit reads its configuration from the working directory, and the check keeps the checkout root as the working directory of
 every runner, so that the `command`, `args` and paths of each runner share one base. A php binding therefore names the

@@ -88,7 +88,7 @@ rules:
       - "!scripts/kit/symbols/**"
       # The marker check reads a Python test with the ast module of the Python of the checkout (K345), which only Python can call.
       - "!scripts/kit/markers/**"
-      # PHPUnit prepends this file into the PHP of an extension run (K329), so only a PHP file can be it.
+      # PHPUnit prepends the deadline file into the PHP of its run, so only a PHP file can be it.
       - "!scripts/kit/php-library/**"
       # The runner of the python tests runs unittest inside the Python of the tests, which only a program of that language can do (K371).
       - "!scripts/kit/runners/**"

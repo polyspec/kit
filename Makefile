@@ -16,7 +16,7 @@ KIT_TEST_SHARDS := 1 2 3 4 5 6 7
 KIT_TEST_FILES_1 := \
 	tests/kit/bootstrap-platform.test.mts \
 	tests/kit/check-toolchain.test.mts tests/kit/checklist.test.mts \
-	tests/kit/gate-targets.test.mts tests/kit/install-composer-project.test.mts tests/kit/install-mise.test.mts \
+	tests/kit/gate-targets.test.mts tests/kit/install-mise.test.mts \
 	tests/kit/install-vscode.test.mts tests/kit/isolation.test.mts tests/kit/lint-python.test.mts \
 	tests/kit/parity.test.mts tests/kit/paths.test.mts tests/kit/php-platform.test.mts \
 	tests/kit/process.test.mts tests/kit/release-go-tags.test.mts tests/kit/test-exit-deadline.test.mts \
@@ -63,10 +63,9 @@ KIT_TEST_FILES_6 := \
 	tests/kit/worktree-setup.test.mts
 KIT_TEST_FILES_7 := tests/kit/parity-api.test.mts tests/kit/runtime-targets.test.mts tests/kit/install-rust.test.mts tests/kit/provider-tests.test.mts tests/kit/release-run.test.mts tests/kit/playwright-reporter.test.mts
 
-SOURCE_TEST_GROUPS := ts php php-ext rust go python common-1 common-2 common-3
+SOURCE_TEST_GROUPS := ts php rust go python common-1 common-2 common-3
 SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts tests/source/symbols-ts-real.test.mts
 SOURCE_TEST_FILES_php := tests/source/composer-install-real.test.mts tests/source/link-composer-real.test.mts tests/source/lint-php-real.test.mts tests/source/symbols-php-real.test.mts
-SOURCE_TEST_FILES_php-ext := tests/source/php-library-real.test.mts
 SOURCE_TEST_FILES_rust := tests/source/link-cargo-real.test.mts tests/source/lint-rust-real.test.mts
 SOURCE_TEST_FILES_go := tests/source/go-worktree-real.test.mts tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
 SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts tests/source/wheel-sibling-real.test.mts tests/source/worktree-python-real.test.mts
@@ -103,7 +102,7 @@ kit-test-shard: ## Run one declared kit unit-test shard; CI supplies SHARD=1..6;
 source-test: ## Run the kit's own tests (tests/source) through the test runner, with the tools of mise.toml; offline after make install-tools, except uv build, which installs the build-system.requires of each wheel it builds
 	$(NODE) scripts/kit/run-tests.mts node -- tests/source
 
-source-test-group: ## Run one declared source-test group; CI supplies GROUP=ts|php|php-ext|rust|go|python|common-1|common-2|common-3; offline after make install-tools
+source-test-group: ## Run one declared source-test group; CI supplies GROUP=ts|php|rust|go|python|common-1|common-2|common-3; offline after make install-tools
 	@case " $(SOURCE_TEST_GROUPS) " in *" $(GROUP) "*) ;; *) echo "source-test-group: unknown or empty GROUP='$(GROUP)'; choose one of $(SOURCE_TEST_GROUPS)" >&2; exit 2;; esac
 	@test -n "$(SOURCE_TEST_FILES_$(GROUP))" || { echo "source-test-group: GROUP=$(GROUP) has no declared test files" >&2; exit 2; }
 	$(NODE) scripts/kit/run-tests.mts node -- $(SOURCE_TEST_FILES_$(GROUP))

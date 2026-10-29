@@ -168,7 +168,7 @@
     },
     "scripts/kit/install-composer-project.mts": {
       "kind": "ecosystem",
-      "tool": "composer install of the committed lock of a Composer project of kit (config/phpunit, config/php-lint), with the Composer of mise.toml (K77, K127)"
+      "tool": "composer install of the committed lock of a Composer project of kit (config/phpunit, config/php-lint) in its folder into var/tools/<folder>/vendor, with the Composer of mise.toml (K77, K127, K790)"
     },
     "scripts/kit/install-php-lint.mts": {
       "kind": "ecosystem",
@@ -525,14 +525,6 @@
     "scripts/kit/npm-install.mts": {
       "kind": "ecosystem",
       "tool": "npm ci installs the locked dependencies and npm link connects declared sibling sources; npm owns installed links and metadata while --no-save and --package-lock=false preserve release records"
-    },
-    "scripts/kit/php-library-autoload.mts": {
-      "kind": "ecosystem",
-      "tool": "composer dump-autoload, which writes the autoloader of the extension run of the PHP library (K329)"
-    },
-    "scripts/kit/php-library/prepend.php": {
-      "kind": "ecosystem",
-      "tool": "phpunit, which runs the prepended file before the tests of an extension run, with the Composer autoloader it names (K329)"
     },
     "scripts/kit/php-library/phpunit-deadline-extension.php": {
       "kind": "ecosystem",

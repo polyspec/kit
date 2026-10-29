@@ -84,9 +84,9 @@ function pythonPackages(files: readonly string[], folder: string): void {
  */
 export type Listed = (run: Run) => string[];
 
-/** The run of PHPUnit of the PHP library `cwd` against the built extension of the folder `folder`, with the arguments `args` (K329). */
-function phpExtensionRun(cwd: string, folder: string, extension: string, args: string[]): Run {
-  return { cwd, tool: 'phpunit', options: ['--php-extension', extension, ...(cwd === folder ? [] : ['--without-library', cwd])], args };
+/** The run of PHPUnit of the PHP package `cwd`, with its own Composer project, against the built extension, with the arguments `args`. */
+function phpExtensionRun(cwd: string, extension: string, args: string[]): Run {
+  return { cwd, tool: 'phpunit', options: ['--php-extension', extension], args };
 }
 
 // The listing of a run is needed only when CASES names a test; a caller that passes none gets this error.
@@ -113,10 +113,10 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
       return [{ cwd: folder, tool: 'phpunit', args: filter('--filter') }];
     case 'php-ext':
       if (extension === undefined) throw new Error(`the tests of ${folder} load the built extension, which is not named`);
-      // The tests of a library run against the extension with none of the library's sources (K329); the tests of the extension itself
-      // load its own sources. CASES is one filter for every library, so a library where PHPUnit lists no test for it is not run (K390):
-      // a filter that selects no test anywhere is a typo, and fails.
-      const runs = phpExtensionFolders(files, folder, read).map(cwd => phpExtensionRun(cwd, folder, extension, filter('--filter')));
+      // The tests of each library and of the extension run in their own Composer projects with the extension loaded (K790). CASES
+      // is one filter for every library, so a library where PHPUnit lists no test for it is not run (K390): a filter that selects
+      // no test anywhere is a typo, and fails.
+      const runs = phpExtensionFolders(files, folder, read).map(cwd => phpExtensionRun(cwd, extension, filter('--filter')));
       const selected = cases === undefined ? runs : runs.filter(run => listed(run).length > 0);
       if (cases !== undefined && selected.length === 0) throw new Error(`CASES=${cases} selects no test of ${runs.map(run => run.cwd).join(', ')}; fix the name of the test`);
       for (const run of runs.filter(run => !selected.includes(run))) notes.push(`${run.cwd}: no case selected by CASES`);

@@ -2,15 +2,7 @@
 
 declare(strict_types=1);
 
-if (getenv('KIT_PHP_LIBRARY_SOURCES') !== false) {
-    require_once __DIR__ . '/prepend.php';
-}
-
-if (getenv('KIT_PHP_LIBRARY_SOURCES') !== false) {
-    $autoload = getenv('KIT_PHP_AUTOLOAD');
-} else {
-    $autoload = getenv('KIT_PHPUNIT_AUTOLOAD');
-}
+$autoload = getenv('KIT_PHPUNIT_AUTOLOAD');
 if (!is_string($autoload) || !is_file($autoload)) {
     fwrite(STDERR, "phpunit-deadline-prepend.php: the PHPUnit Composer autoloader is missing\n");
     exit(2);

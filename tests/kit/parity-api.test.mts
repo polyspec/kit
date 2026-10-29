@@ -7,12 +7,12 @@ const {
   FEATURE_FILES, FILES, INTERNAL, KIT_MAKE,
   NODE_CODEC, TIMEOUT, TS_API,
   binding, bindinglessCatches, caseDirectories, check,
-  checkParity, chmodSync, coveragePartChange, emptyCatches,
-  existsSync, feature, findingAt, initRepository,
-  isJsonObject, itemAt, itemWhere, keys,
+  checkParity, coveragePartChange, emptyCatches,
+  feature, findingAt, initRepository,
+  itemAt, itemWhere, keys,
   known, misplacedTests, missingImplementations, mkdirSync,
   mkdtempSync, path, pythonEncodingFindings, pythonEncodingSymbols,
-  readFileSync, readdirSync, repository, resolveReferences,
+  readFileSync, repository, resolveReferences,
   rmSync, runOf, sharing, spawnSync,
   symlinkSync, tmpdir, tool, tree,
   vitestRepository, widthUnit, writeFileSync,
@@ -1985,28 +1985,14 @@ test('parity-declarations-check UNITS fails while docs/spec defines a requiremen
   assert.ok(scoped.some(item => /CX-1 is defined at docs\/spec\/codec\.md:3 and docs\/spec\/codec\.md:4/.test(item.message)), keys(scoped).join('\n'));
 });
 
-test('PHP extension parity isolates the Composer library autoload and cleans its work directory (K677-2)', TIMEOUT, (t) => {
+test('PHP extension parity runs library tests with the PHPUnit of the library and the extension arguments (K677-2, K790)', TIMEOUT, (t) => {
   const root = repository(t, { files: {
     'native/composer.json': JSON.stringify({ type: 'php-ext' }),
     'php/composer.json': JSON.stringify({ autoload: { files: ['src/functions.php'] }, 'autoload-dev': { 'psr-4': { 'Example\\Tests\\': 'tests/' } } }),
-    'php/vendor/phpunit/phpunit/phpunit': '<?php',
-    'php/vendor/composer/installed.json': '{"packages":[]}',
-    'var/tools/mise/shims/composer': '#!/usr/bin/env node\nconst fs = require("node:fs"), path = require("node:path"); if (process.argv.includes("vendor-dir")) console.log("vendor"); if (process.argv.includes("dump-autoload")) { const work = process.argv[process.argv.indexOf("--working-dir") + 1]; const config = JSON.parse(fs.readFileSync(path.join(work, "composer.json"), "utf8")); fs.writeFileSync(path.join(config.config["vendor-dir"], "autoload.php"), "<?php"); }\n',
   } });
-  chmodSync(path.join(root, 'var/tools/mise/shims/composer'), 0o755);
   const run = runOf({ name: 'native', runner: 'php', roots: ['native'], args: ['-d', 'extension=var/native.so'] }, root, { test: 'php/tests/codec.php' }, 'suite', ENV);
   if (run.error) throw new Error(run.error);
-  assert.ok(run.env.KIT_PHP_AUTOLOAD, 'the native run must use the isolated Composer autoloader');
-  assert.match(run.args.join(' '), /auto_prepend_file=.*php-library\/prepend\.php/);
-  assert.ok(!run.args.includes('php/vendor/bin/phpunit'));
-  const work = path.dirname(path.dirname(String(run.env.KIT_PHP_AUTOLOAD)));
-  const generated: unknown = JSON.parse(readFileSync(path.join(work, 'composer.json'), 'utf8'));
-  assert.ok(isJsonObject(generated));
-  assert.equal(generated.autoload, undefined);
-  assert.ok(run.cleanup);
-  run.cleanup();
-  assert.ok(!existsSync(work));
-  assert.ok(existsSync(path.join(root, 'php/vendor/bin/phpunit')));
+  assert.deepEqual(run.args.slice(0, 3), ['-d', 'extension=var/native.so', 'php/vendor/bin/phpunit']);
   const configFile = path.join(root, 'config/parity.json');
   const config: Declaration = structuredClone(CONFIG);
   const native = itemWhere(config.implementations, entry => entry.name === 'php');
@@ -2017,7 +2003,6 @@ test('PHP extension parity isolates the Composer library autoload and cleans its
     writeFileSync(path.join(root, 'php/tests/codec.php'), `PASS test_empty\nPASS test_ascii\nEXIT ${status}\n// CX-1\n`);
     const result = checkParity(root, { env: ENV, units: ['codec'], rules: ['R3'] });
     assert.equal(result.ledger.runs.filter(entry => entry.implementation === 'php').length, 2);
-    assert.deepEqual(readdirSync(path.join(root, 'var/php-ext/library-tests')), []);
     assert.equal(result.findings.some(entry => entry.implementation === 'php'), status !== 0, JSON.stringify(result.findings));
   }
 });

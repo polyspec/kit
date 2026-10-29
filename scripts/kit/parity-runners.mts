@@ -30,8 +30,6 @@ import { siblingTool } from './paths.mts';
 import type { Environment, ParityBinding, ParityImplementation, ParityUnit, Runner } from './parity-declaration.mts';
 import { readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
-import { libraryTestRun } from './php-library-autoload.mts';
-import { readJsonObject } from './bootstrap/files.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { isTable, readToml } from './toml.mts';
 
@@ -53,7 +51,6 @@ export type Outcome = 'pass' | 'fail' | 'skip';
 /** How a binding runs and how its output is read; see RUNNERS. */
 export interface BindingRun {
   error?: never;
-  cleanup?: () => void;
   args: (test: string[]) => string[];
   cwd: string;
   caseOf: (test: TestRef) => string | undefined;
@@ -373,9 +370,8 @@ export function outcomesOf(run: Pick<BindingRun, 'caseOf' | 'read' | 'merge'>, o
  * the program and the arguments of the runner, and runs in the directory of the implementation that holds the test; the runner
  * still reads its output (K216). A binding with a runner of its own runs with the default program, arguments and output parser
  * of that runner, not those of the implementation, which keeps its roots and environment (K422).
- * prepareLibrary=false renders a declared command without installing a second temporary autoloader.
  */
-export function runOf(implementation: Partial<ParityImplementation> & Pick<ParityImplementation, 'runner'>, root: string, binding: RunTarget, kind: RunKind, base: Environment, prepareLibrary = true): BindingCommand | RunError {
+export function runOf(implementation: Partial<ParityImplementation> & Pick<ParityImplementation, 'runner'>, root: string, binding: RunTarget, kind: RunKind, base: Environment): BindingCommand | RunError {
   if (binding.command !== undefined && binding.args !== undefined) return { error: 'binding.command replaces the runner invocation and cannot accompany binding.args' };
   const own = binding.runner !== undefined;
   const runner = RUNNERS[binding.runner ?? implementation.runner];
@@ -403,21 +399,5 @@ export function runOf(implementation: Partial<ParityImplementation> & Pick<Parit
   }
   const prefix = [...(own ? [] : implementation.args ?? []), ...(binding.args ?? [])];
   const args = run.args(prefix);
-  try {
-    const extension = prepareLibrary && !own && implementation.runner === 'php' && (implementation.roots ?? []).some(folder => {
-      const manifest = path.join(root, folder, 'composer.json');
-      return existsSync(manifest) && readJsonObject(manifest).type === 'php-ext';
-    });
-    const composer = extension ? nearest(root, binding.test, 'composer.json') : undefined;
-    if (composer !== undefined && !(implementation.roots ?? []).includes(composer)) {
-      const phpunit = packageVendorFile(root, composer, 'bin/phpunit');
-      const index = phpunit === undefined ? -1 : args.indexOf(phpunit);
-      if (index < 0) return { error: 'the PHP extension runner cannot locate the library PHPUnit argument' };
-      const library = libraryTestRun(root, composer, env);
-      return { ...run, command, args: [...args.slice(0, index), '-d', `auto_prepend_file=${library.prepend}`, library.phpunit, ...args.slice(index + 1)], env: { ...env, ...library.env }, cleanup: library.cleanup };
-    }
-  } catch (error) {
-    return { error: `the PHP extension runner cannot prepare its isolated autoloader: ${error instanceof Error ? error.message : String(error)}` };
-  }
   return { ...run, args, command, env };
 }

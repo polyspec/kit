@@ -16,7 +16,7 @@ export function isFile(file: string): boolean {
 }
 
 // The options of run-tests.mts, each followed by its value.
-const RUNNER_OPTIONS = ['--timeout', '--php-extension', '--without-library', '--venv', '--module', '--cwd', '--results', '--inputs'];
+const RUNNER_OPTIONS = ['--timeout', '--php-extension', '--venv', '--module', '--cwd', '--results', '--inputs'];
 
 /**
  * The options of run-tests.mts in `words`, the words after its tool, each with its value, and the arguments that it passes to the
