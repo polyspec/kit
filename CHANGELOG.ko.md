@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8de7bae73a74ff1cb781ba8e4393857125caf18cba792155042a2845a354e171 -->
+<!-- source-sha256: c979de4c53c07bfcbf3de0d48480bf55ca8f244bd9849bf38e5f349f9c5eb609 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- wheel 빌드는 uv build가 쓰기 전에 빌드 폴더를 만듭니다 (K816).
 - gates workflow의 shared job은 commit range를 계산하지 않고 kit-gates-static에 RANGE를 넘기지 않습니다. commits-check가 삭제된 뒤로 어떤 target도 그것을 읽지 않습니다 (K815).
 - layout-check는 worktree가 main의 install로 연결한 링크처럼 symlink인 install 폴더를 링크 자체로 검사합니다. .gitignore의 `vendor`가 그것을 무시하고, git이 symbolic link 너머의 pathspec이라며 거부하지 않습니다 (K814).
 - release wheel 빌드는 uv build의 .gitignore 없이 wheel만 출력 폴더에 복사하고, 실제 도구 테스트는 kit wheel 폴더 없이 uv처럼 네트워크로 Python 패키지를 빌드합니다. 삭제된 revision 검사, 레거시 Composer projection, consumers 필드의 테스트를 맞췄습니다 (K813).

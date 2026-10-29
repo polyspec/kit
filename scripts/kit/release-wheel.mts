@@ -47,6 +47,7 @@ export function buildWheel({ root, env, commit, directory, output }: { root: str
     const epoch = run('git', ['show', '-s', '--format=%ct', commit], { cwd: root, env }).trim();
     // uv build writes a .gitignore into its output folder, so the wheel is built apart and only the wheel is copied into `output`.
     const built = path.join(folder, 'dist');
+    mkdirSync(built);
     run(uv, ['build', '--wheel', '--python', python, '--out-dir', built, source], { cwd: folder, env: { ...env, SOURCE_DATE_EPOCH: epoch } });
     for (const name of readdirSync(built).filter(entry => entry.endsWith('.whl'))) copyFileSync(path.join(built, name), path.join(output, name));
   } finally {

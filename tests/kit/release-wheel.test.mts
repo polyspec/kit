@@ -2,7 +2,7 @@
 // Requires-Dist that is not a plain name==version, and the version in pyproject.toml. The uv and the Python of the sandbox are the stubs of wheel-stubs.mts; no test reaches an index.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
@@ -38,7 +38,10 @@ test('assets builds the wheel of the tagged commit with uv build, which installs
   const builds = box.pipCalls().filter(call => call.args[0] === 'build');
   const [build] = builds;
   assert.ok(build && builds.length === 1, 'uv build ran once');
-  assert.deepEqual(build.args.slice(0, -1), ['build', '--wheel', '--python', path.join(box.root, 'var/tools/mise/shims/python3'), '--out-dir', path.join(box.root, `${release.ASSETS}.next-${process.pid}`)], 'the native build frontend, with the Python of the checkout');
+  assert.deepEqual(build.args.slice(0, -2), ['build', '--wheel', '--python', path.join(box.root, 'var/tools/mise/shims/python3'), '--out-dir'], 'the native build frontend, with the Python of the checkout');
+  // uv build writes a .gitignore into its output folder, so it builds outside the checkout and only the wheel reaches the assets (K813).
+  assert.ok(!build.args.at(-2)?.startsWith(box.root), 'the wheel is built into a folder outside the checkout');
+  assert.ok(!readdirSync(path.join(box.root, release.ASSETS)).includes('.gitignore'), 'the assets hold no .gitignore of uv build');
   assert.ok(!build.args.at(-1)?.startsWith(box.root), 'the wheel is built from a copy of the tagged commit, not the working tree');
 });
 

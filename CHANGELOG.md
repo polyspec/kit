@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The wheel build creates its build folder before uv build writes into it (K816).
 - The shared job of the gates workflow computes no commit range and passes no RANGE to kit-gates-static, which no target reads since commits-check is deleted (K815).
 - layout-check checks a symlinked install folder, such as a worktree link to the install of main, as the link: `vendor` in .gitignore ignores it, and git no longer refuses the pathspec as beyond a symbolic link (K814).
 - The release wheel build copies only the wheel into its output, without the .gitignore of uv build, and the real-tool tests build Python packages as uv does, with the network and no kit wheel folder; the tests of the deleted revision finding, legacy Composer projection and consumers field are aligned (K813).
