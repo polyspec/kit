@@ -751,4 +751,4 @@
 | K795 | Prepare Kit 0.0.67 to publish K780 to K793 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.67` | [o] |
 | K797 | Delete the deleted-test gate | scripts/kit/check-commits.mts scripts/kit/plan.mts tests/kit/plan.test.mts tests/kit/commits.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/plan.test.mts tests/kit/commits.test.mts` | [o] |
 | K798 | Delete the release consumer and its lock proof | scripts/kit/release-consumer.mts scripts/kit/release-run.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/release-run.test.mts` | [ ] |
-| K799 | Delete the shared copy check of kit-check | scripts/kit/kit-check.mts tests/kit/kit-check.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-check.test.mts` | [ ] |
+| K799 | Delete the shared copy check of kit-check | scripts/kit/kit-check.mts tests/kit/kit-check.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-check.test.mts` | [~] |
