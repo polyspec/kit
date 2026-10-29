@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1035b0a788bc0362d40eb362b8eca4c74ab214efab749160412cf2534176c376 -->
+<!-- source-sha256: bc6f186adc9ba795d2cbe3e955a0f4ed715c43019d3a5003ba4a93a8fb5a7163 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -739,3 +739,4 @@
 | K782 | push-gate는 worktree에 커밋하지 않은 변경이 있는 branch를 병합된 것으로 보지 않는다 | scripts/kit/push-gate.mts tests/kit/push-gate.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K782 tests/kit/push-gate.test.mts` | [o] |
 | K783 | layout-check가 PHP library는 application framework를 require하지 않는다는 S10 규칙을 맡는다 | scripts/kit/library-frameworks.mts scripts/kit/kit.mk scripts/kit/check-dependency-policy.mts tests/kit/library-frameworks.test.mts tests/kit/dependency-policy.test.mts PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/library-frameworks.test.mts` | [ ] |
 | K784 | dependency-policy-check와 그 mutation 검사를 지운다. lock 검증은 package manager가 한다 | scripts/kit/check-dependency-policy.mts scripts/kit/check-dependency-policy-mutation.mts scripts/kit/dependency-files.mts scripts/kit/kit.mk .github/workflows/ci.yml | `node --test tests/kit/gate-targets.test.mts` | [ ] |
+| K786 | dependency-review, dependency-state, version.mts, pin-python-dependency를 지운다. 낡거나 취약한 의존성은 package manager가 보고한다 | scripts/kit/dependency-review.mts scripts/kit/dependency-state.mts scripts/kit/version.mts scripts/kit/pin-python-dependency.mts scripts/kit/kit.mk | `node --test tests/kit/gate-targets.test.mts` | [ ] |
