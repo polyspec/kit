@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: fcc1a3ac9ec4bee4b5a1b858ff1e8bee72d79944ec8562ad3602ec7ce8f379c9 -->
+<!-- source-sha256: 02dfdca2769b0ab90d5c22331c10b1001710e9a89dbfdfbde11ed54f697d4600 -->
 # 개발
 
 [English](AGENTS.md)
@@ -37,8 +37,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Refines P14: [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 `scripts/kit/`의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를
   쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다. kit은 dependency 해석, link, 설치 record, 생성 metadata를 native package manager에 위임하며 직접 dependency 폴더를 교체하거나 설치 metadata를 합성하지 않습니다.
   Enforced by: `make rebuild-check`
-- Own: 추적되는 공유 root 파일과 workflow는 설치된 kit package의 일반 파일 사본이며 `make kit-sync`가 관리합니다.
-  `make kit-check`는 추적된 symbolic link를 거부합니다. 소비자는
+- Own: 추적되는 공유 root 파일과 workflow는 설치된 kit package의 일반 파일 사본이며 `make kit-sync`가 관리합니다. 소비자는
   `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include하며 첫 Make 실행 전에 lock에 고정된 npm dependency를 설치합니다.
   로컬 개발은 native npm link, Composer path repository, uv editable 설치로 설치된 package를 provider source에 연결합니다
   (`docs/operations/local-links.md`). 이 link는 추적되지 않고 release output에 들어가지 않습니다.

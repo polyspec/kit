@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: a1f86bbf54bb93d8dd68bbda2c65218582716bf409f843f884d979db4e680c34 -->
+<!-- source-sha256: b986bbf1834855eadd9cd200606d440db3e379f75358869cd45c0d1e08f389a3 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -763,6 +763,6 @@
 | K807 | land의 main baseline 실행과 unowned path 거부를 지운다 | scripts/kit/land.mts, tests/kit/land.test.mts | `node --test tests/kit/land.test.mts` | [o] |
 | K808 | plan의 형식 거부를 지운다: 전이, id pattern, 추가 행, main의 새 행, staged와 body 검사 | scripts/kit/plan.mts, tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [ ] |
 | K809 | docs-check의 형식 거부를 지운다: 짝, revision stamp, twin 일치, plan folder, status table, doc-id, checklist 짝 | scripts/kit/check-documents.mts, tests/kit/documents.test.mts | `node --test tests/kit/documents.test.mts` | [ ] |
-| K810 | kit-check와 kit-sync의 형식 거부를 지운다: 고정 task 이름, runtime target, tracked symlink, lint 선택, retired 파일 | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [~] |
+| K810 | kit-check와 kit-sync의 형식 거부를 지운다: 고정 task 이름, runtime target, tracked symlink, lint 선택, retired 파일 | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [o] |
 | K811 | worktree-setup의 거부를 지운다: 이름 형식, 바깥 Composer, Python env 소유, release archive link | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test tests/kit/worktree-setup.test.mts` | [ ] |
 | K812 | release의 version 검사와 manifest 문제를 지운다. asset은 package manager가 만든다 | scripts/kit/release.mts, tests/kit/release.test.mts | `node --test tests/kit/release.test.mts` | [ ] |

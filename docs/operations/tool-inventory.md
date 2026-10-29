@@ -834,7 +834,7 @@ Left as it is, with the reason:
   does (task K11-1).
 - The message that a configuration file is missing, in the commands `check-commits`, `check-documents` and `owner-check`, names
   the purpose of the file; the three sentences differ.
-- `kit-check` also requires (K289) that `CHECK_TARGETS`, the suite that `make check` and the CI groups run, reaches every
+- K810 deleted this check, the names, runtime targets and lint selection of K246 and K534, and the tracked link check. `kit-check` required (K289) that `CHECK_TARGETS`, the suite that `make check` and the CI groups run, reaches every
   prerequisite of `kit-gates`, as a word or as a prerequisite of one, so a gate that the gates workflow runs is not left out of
   the suite. The parity prerequisite may be fulfilled by the complete provider-owned API and binding phase partition described
   below. The lint of a language, and the lint and test of a PHP extension, are required only in a repository that holds code of it.

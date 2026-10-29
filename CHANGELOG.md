@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit-check reads only the configuration against the schemas of kit, the PHP that a PHP repository declares and the tool recipes. The names of the targets, the runtime targets, the CHECK_TARGETS suite, the tracked links, the lint selection of the owner rules and the retired files are the repository's own and no longer checked (K810).
 - Delete the K315 cause filter: item-state no longer refuses a bypassed or impossible cause that cites a release, a flake, an unrelated failure, the environment or a kit row. The tests that pinned it are deleted (K806).
 - land no longer runs a failing gate again on main as a baseline (K631): a gate that fails in the worktree refuses the branch. A path that no owner declares selects no gate instead of refusing the land (K807).
 - Keep only the commit rules that guard a result: the AI footer and identity, the Red line of a done row and the test of a fix. Delete the subject form, language, identity, row, type, state, changelog, generated and twin rules of a commit, `commits-check` with its range mode and CI step, config/commit-identity.json, the pre-merge-commit hook and the no-op commit-gates hook. Consumer step: `make hooks`, then `git rm .githooks/pre-merge-commit config/commit-identity.json` and drop any `commits-check` step of a workflow (K805).

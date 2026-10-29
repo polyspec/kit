@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a291643ca8ffcd632bec2d478c675f922e4cf529f63965efd18b01ddea65a2c2 -->
+<!-- source-sha256: 78ba46407435735b85d6383c14a66bf947e82826878f586461ed52611afdca4b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit-check는 kit schema에 대한 설정, PHP 저장소가 선언한 PHP, 도구 recipe만 읽는다. target 이름, runtime target, CHECK_TARGETS 묶음, tracked link, owner rule의 lint 선택, retired 파일은 저장소의 것이며 더 검사하지 않는다 (K810).
 - K315 cause 필터를 삭제합니다: item-state는 릴리스, flake, 무관한 실패, 환경, kit 행을 인용한 bypass 또는 불가 원인을 더 이상 거부하지 않습니다. 이 필터를 고정하던 테스트도 삭제합니다(K806).
 - land는 실패한 gate를 baseline으로 main에서 다시 돌리지 않는다(K631): worktree에서 실패한 gate는 branch를 거부한다. 소유자가 없는 경로는 land를 거부하지 않고 gate를 고르지 않는다 (K807).
 - 결과를 지키는 commit 규칙만 남긴다: AI footer와 identity, done 행의 Red 줄, fix의 test. commit의 subject 형식, 언어, identity, 행, type, 상태, changelog, generated, twin 규칙과 range mode 및 CI 단계를 가진 `commits-check`, config/commit-identity.json, pre-merge-commit hook, 아무것도 하지 않는 commit-gates hook을 지운다. consumer 단계: `make hooks` 뒤 `git rm .githooks/pre-merge-commit config/commit-identity.json`, workflow의 `commits-check` 단계를 지운다 (K805).

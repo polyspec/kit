@@ -42,8 +42,7 @@ and states only its own rules. The rules below are kit's own.
   creates, is accepted; our rules govern what we create. kit delegates dependency resolution, links, installed records
   and generated metadata to the native package manager; it does not replace dependency folders or synthesize installed metadata itself.
   Enforced by: `make rebuild-check`
-- Own: Tracked shared root files and workflows are regular copies of the installed kit package, managed by `make kit-sync`.
-  `make kit-check` rejects tracked symbolic links. Consumers include
+- Own: Tracked shared root files and workflows are regular copies of the installed kit package, managed by `make kit-sync`. Consumers include
   `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`; they install the locked npm dependencies before the first Make invocation.
   Local development uses native npm links, Composer path repositories and uv editable installations to connect installed
   packages to provider source (`docs/operations/local-links.md`). Such links are untracked and stay out of released output.
