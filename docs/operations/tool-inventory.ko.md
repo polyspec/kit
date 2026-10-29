@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 9ede16b834a76166c373ea4055d29dd8b9d205a2f588096de35f6e8476b60dae -->
+<!-- source-sha256: 6c109bda538ff928d988d5e93bbfab428be45cfa91fde06935bd7b94f367ab14 -->
 
 # 도구 목록
 
@@ -273,6 +273,10 @@ alint는 0.x이고 release가 잦습니다. 0.17과 0.18은 설정 key를 바꿨
 
 ## Gate: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
+K804는 push gate(`push-gate.mts`, pre-push hook, `push-gate-hook`, `push-gate-commit`, `hooks`가 `pre-push`를 포함해야 한다는
+규칙)를 삭제했습니다. push는 검사하지 않으며, message 규칙은 commit-msg hook을 통해 commit 때 실행합니다. 아래 표는 K6.1의 merge를
+기록합니다.
+
 K240은 `full-run.mts`, 그 record `var/full-run.json`과 target `rerun-failed`를 제거했습니다. Suite command는 CI에서 실행합니다.
 Local final verification은 진행 중인 checklist 항목이 없고 커밋 트리가 깨끗할 때 `make ci-targets FINAL_RUN=1 TARGETS="<target>..."`를 사용합니다.
 최종 acceptance를 위한 이 실행에는 대기 상태 `[ ]` 항목이 남아도 됩니다. 진행 중 `[~]` 항목, 커밋되지 않은 트리,
@@ -280,17 +284,14 @@ Local final verification은 진행 중인 checklist 항목이 없고 커밋 트�
 기존 CI report는 final run을 기록하고 lock은 동시 기록을 막습니다. 범위 내 개발을 커밋한 뒤 한 번 실행하며,
 일반 개발 중에는 소유 unit test만 계속 실행합니다. 아래 표는 K6.1의 merge를 기록합니다.
 
-파일: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
+파일: `scripts/kit/checklist.mts`, `git-hooks.mts`, `holder-lock.mts`,
 `schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, 그리고 `kit.mk` 끝의 make target `hooks`, `hooks-check`,
-`staged-generated-hook`, `push-gate-commit`, `rerun-failed`입니다.
+`staged-generated-hook`입니다.
 lock은 crudui, guard와 hook은 template, tracker는 다섯 구현의 합집합을 기반으로 삼았습니다.
 
 ### 정책
 
-tracker의 항목이 active 상태(checklist는 `[~]`)이면 push한 commit이나 working tree에 있을 때 push를 거부합니다. verification `[v]`는 구현이 commit되었고 선언한 unit test가 통과했음을 뜻합니다. push는 허용하지만 item이 done이 될 때까지 release와 tag 생성을 막습니다. verification이 실패하면 `[~]`로 되돌립니다. 대기 `[ ]`, verification `[v]`, 완료 `[o]`, 우회 `[!]` 상태는 push를 막지 않으며 거부 메시지가 이를 밝힙니다. pre-push hook이 gate를 실행합니다. pre-commit hook은 generated 파일 검사(K210)를 실행합니다. `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `target`, `dist`, `*.egg-info` segment를 가졌거나 `config/generated.json`의 `paths` glob과 맞는 staged 경로를, `exceptions` glob과 맞지 않으면 거부하고 경로를 이름으로 밝힙니다(AGENTS.md "Generated files"). 또한 push하는 각 commit의 message를 `make commits-check`(`check-commits.mts`, `COMMIT_RULES`)의
-규칙으로 검사합니다. push된 commit은 고칠 수 없기 때문입니다. push하는 ref마다 commit은 원격 sha부터 로컬 sha까지의 range이며, 원격 sha가
-0이면 어떤 원격 ref에도 없는 commit입니다. 삭제하는 ref는 commit을 push하지 않으므로 건너뜁니다. 검사 결과가 있는 push는 거부하며,
-각 결과는 commit과 줄을 `<commit>: <rule>: <message>`로 적습니다. 전체 실행의 guard는
+verification `[v]`는 구현이 commit되었고 선언한 unit test가 통과했음을 뜻하며, item이 done이 될 때까지 release와 tag 생성을 막습니다. verification이 실패하면 `[~]`로 되돌립니다. pre-commit hook은 generated 파일 검사(K210)를 실행합니다. `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `target`, `dist`, `*.egg-info` segment를 가졌거나 `config/generated.json`의 `paths` glob과 맞는 staged 경로를, `exceptions` glob과 맞지 않으면 거부하고 경로를 이름으로 밝힙니다(AGENTS.md "Generated files"). 전체 실행의 guard는
 항목이 active 상태인 동안, 추적하는 파일에 변경이 있는 동안, 현재 tree의 전체 실행 기록이 있을 때 거부합니다. 이 정책에는 pull
 request, merge queue, ruleset이 없습니다.
 
@@ -298,7 +299,7 @@ request, merge queue, ruleset이 없습니다.
 ```json
 {
   "schema": 1,
-  "hooks": ["pre-push"],
+  "hooks": [],
   "idPattern": "K[0-9]+(?:[.-][0-9]+)*"
 }
 ```
@@ -306,7 +307,7 @@ request, merge queue, ruleset이 없습니다.
 K241은 K6.1의 선언된 tracker를 대체했습니다. kit은 checklist를 `docs/plans/<plan>/checklist.md`로 찾고, 각각은 kit의 state 6개를
 가진 table이며, `idPattern`이 checklist의 유일한 선언입니다. orm의 list format은 제거되었습니다.
 
-`hooks`는 `.githooks`에서 추적하는 hook의 목록이며 `pre-push`를 포함해야 합니다. `pre-commit`과 `pre-push`는 kit의 hook으로, 항목 없이 `make hooks`가 씁니다. `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
+`hooks`는 `.githooks`에서 추적하는 저장소의 hook 목록입니다. `pre-commit`, `pre-merge-commit`, `commit-msg`, `prepare-commit-msg`는 kit의 hook으로, 항목 없이 `make hooks`가 씁니다. `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
 행, `list`: `- [state] ID text` 항목이며 하위 항목은 들여 씁니다), `active`를 가지고, `translation`, `states`(목록 밖의 state는 오류),
 `column`(state가 있는 table 행의 0부터 센 cell, 없으면 마지막 cell)을 가질 수 있습니다. state는 cell이나 항목 앞의 `[x]`이고,
 cell이 `[`로 시작하지 않으면 cell 전체입니다.

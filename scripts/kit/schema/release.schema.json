@@ -37,7 +37,7 @@
       }
     },
     "checks": {
-      "description": "The check runs of the tagged commit that must have concluded success; push-gate and ci-passed when absent.",
+      "description": "The check runs of the tagged commit that must have concluded success; ci-passed when absent.",
       "type": "array",
       "minItems": 1,
       "items": {

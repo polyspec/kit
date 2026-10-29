@@ -26,7 +26,7 @@ KIT_TEST_FILES_2 := \
 	tests/kit/ci.test.mts tests/kit/editor-boundaries.test.mts tests/kit/glob.test.mts \
 	tests/kit/install-php.test.mts tests/kit/kit-mk.test.mts tests/kit/link-folders.test.mts \
 	tests/kit/link.test.mts tests/kit/owner-check.test.mts tests/kit/pack-manifest.test.mts \
-	tests/kit/push-gate.test.mts tests/kit/rebuild-check.test.mts tests/kit/release-root.test.mts \
+	tests/kit/rebuild-check.test.mts tests/kit/release-root.test.mts \
 	tests/kit/release-tools.test.mts tests/kit/test-selection.test.mts tests/kit/text-absent.test.mts \
 	tests/kit/toolchain-exceptions.test.mts tests/kit/uv-install.test.mts
 KIT_TEST_FILES_3 := \

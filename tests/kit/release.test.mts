@@ -82,7 +82,7 @@ test('the configuration is checked for the rules that the schema cannot express'
   assert.equal(release.loadConfig(box.root).checks.join(), 'push-gate,ci-passed');
   const original = readJson<ConfigJson>(box.root, 'config/release.json');
   writeJson(box.root, 'config/release.json', (({ checks: _checks, ...rest }) => rest)(original));
-  assert.equal(release.loadConfig(box.root).checks.join(), 'push-gate,ci-passed', 'the checks default to push-gate and ci-passed');
+  assert.equal(release.loadConfig(box.root).checks.join(), 'ci-passed', 'the checks default to ci-passed');
   writeJson(box.root, 'config/release.json', original);
   stop(load(c => ({ ...c, manifests: { ...c.manifests, 'package.json': 'tarball' } })), /manifests\.package\.json is "tarball", the allowed values are archive, version, git-tag/);
   writeJson(box.root, 'config/release.json', original);

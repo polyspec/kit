@@ -17,7 +17,7 @@ unit-test:
 \tnode scripts/kit/run-tests.mts node -- tests/unit
 docs-check:
 \t@echo docs
-push-gate-hook:
+commit-gates-hook:
 \t@echo gate
 orphan:
 \t@echo nobody runs it
@@ -36,14 +36,14 @@ jobs:
           echo "\${{ github.sha }}"
           make docs-check
 `;
-const PRE_PUSH = '#!/bin/sh\nexec make --no-print-directory push-gate-hook\n';
+const PRE_COMMIT = '#!/bin/sh\nexec make --no-print-directory commit-gates-hook\n';
 const SETTINGS = JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: 'node scripts/kit/claude-hook.mts' }] }] } });
 
 function repository(t: TestContext, agents: string, korean = agents.replaceAll('Rules', '규칙'), makefile = MAKEFILE, ci = CI) {
   return tree(t, {
     Makefile: makefile,
     '.github/workflows/ci.yml': ci,
-    '.githooks/pre-push': PRE_PUSH,
+    '.githooks/pre-commit': PRE_COMMIT,
     '.claude/settings.json': SETTINGS,
     'tests/unit/a.test.mts': '',
     'tests/other/b.test.mts': '',
@@ -59,7 +59,7 @@ test('a rule enforced by a target that CI runs, a prerequisite, a target of a re
     '- Lint passes.\n  Enforced by: `make lint`',
     '- Units pass.\n  Enforced by: `make unit-test`, `tests/unit/a.test.mts`',
     '- Documents hold.\n  Enforced by: `make docs-check`',
-    '- A push holds no item in progress.\n  Enforced by: `make push-gate-hook`',
+    '- A commit runs its gates.\n  Enforced by: `make commit-gates-hook`',
     '- A suite runs only in CI.\n  Enforced by: `.claude/settings.json`',
     '- Questions are needed.\n  Enforced by: none, no tool can judge whether a question is needed.',
   ));
@@ -130,7 +130,7 @@ test('a rule that a planned item will enforce names its open item; a closed or u
   const root = tree(t, {
     Makefile: MAKEFILE,
     '.github/workflows/ci.yml': CI,
-    'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: 'K[0-9]+' }),
+    'config/checklist.json': JSON.stringify({ schema: 1, hooks: [], idPattern: 'K[0-9]+' }),
     'docs/plans/x/checklist.md': checklist,
     'AGENTS.md': rules('- Open.\n  Enforced by: planned K1', '- Closed.\n  Enforced by: planned K2', '- Unknown.\n  Enforced by: planned K9', '- Both.\n  Enforced by: `make lint`, planned K1'),
   });

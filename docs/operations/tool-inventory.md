@@ -304,6 +304,10 @@ another archive. To raise the version:
 
 ## Gates: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
+K804 deleted the push gate (`push-gate.mts`, the pre-push hook, `push-gate-hook`, `push-gate-commit` and the rule that
+`hooks` includes `pre-push`): a push is not checked; the message rules run at commit, through the commit-msg hook. The tables
+below record the merge of K6.1.
+
 K240 removed `full-run.mts`, its record `var/full-run.json` and the target `rerun-failed`. Suite commands run in CI.
 A local final verification uses `make ci-targets FINAL_RUN=1 TARGETS="<target>..."` on a clean committed tree with no active
 checklist items. Waiting `[ ]` items may remain for this final acceptance run; active `[~]` items, an uncommitted tree, and
@@ -311,29 +315,23 @@ unreadable or mismatched checklist pairs are refused. The guard names active ite
 report records this final run, and its lock prevents concurrent writers. Run it once after the scoped development is committed; ordinary
 development continues to run only the owning unit tests. The table below records the merge of K6.1.
 
-Files: `scripts/kit/checklist.mts`, `push-gate.mts`, `git-hooks.mts`, `holder-lock.mts`, `full-run.mts`,
-`schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, and the make targets `hooks`, `hooks-check`,
-`staged-generated-hook`, `push-gate-commit` and `rerun-failed` at the end of `kit.mk`. The base is crudui for the lock, template for the guard and the hook, and the union of all five for the trackers.
+Files: `scripts/kit/checklist.mts`, `git-hooks.mts`, `holder-lock.mts`,
+`schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, and the make targets `hooks`, `hooks-check`
+and `staged-generated-hook` at the end of `kit.mk`. The base is crudui for the lock, template for the guard and the hook, and the union of all five for the trackers.
 
 ### Policy
 
-A push is refused while an item of a tracker is in its active state (`[~]` for a checklist) in a pushed commit or in the working
-tree. The verification state `[v]` means the implementation is committed and its declared unit tests passed: it allows a push,
-but blocks release and tag creation until the item is done. If verification fails, move it back to `[~]`. Waiting `[ ]`, verification
-`[v]`, done `[o]` and bypassed `[!]` do not block a push, and the refusal says so. The pre-push hook runs the
-gate. The pre-commit hook runs the generated-file check (K210): it refuses a staged path with a segment `node_modules`, `vendor`,
+The verification state `[v]` means the implementation is committed and its declared unit tests passed; it blocks release and tag
+creation until the item is done. If verification fails, move it back to `[~]`. The pre-commit hook runs the generated-file check (K210): it refuses a staged path with a segment `node_modules`, `vendor`,
 `.venv`, `venv`, `__pycache__`, `target`, `dist` or `*.egg-info`, or a path that a glob of `paths` in `config/generated.json` matches,
-unless a glob of `exceptions` in that file matches it, and names the path (AGENTS.md "Generated files"). It also checks the message of each pushed commit with the rules of `make commits-check` (`check-commits.mts`, `COMMIT_RULES`),
-because a pushed commit cannot be rewritten. For each pushed ref, the commits are the range from the remote sha to the local sha, or, when
-the remote sha is zero, the commits that no remote ref holds. A deleted ref pushes no commit and is skipped. A push with a finding is
-refused, and each finding names its commit and line (`<commit>: <rule>: <message>`). The guard of the full run refuses while an item is in the active state, while tracked files have changes, and when the
+unless a glob of `exceptions` in that file matches it, and names the path (AGENTS.md "Generated files"). The guard of the full run refuses while an item is in the active state, while tracked files have changes, and when the
 record of a full run of the current tree exists. There is no pull request, merge queue or ruleset in this policy.
 
 ### `config/checklist.json`
 ```json
 {
   "schema": 1,
-  "hooks": ["pre-push"],
+  "hooks": [],
   "idPattern": "K[0-9]+(?:[.-][0-9]+)*"
 }
 ```
@@ -341,8 +339,8 @@ record of a full run of the current tree exists. There is no pull request, merge
 K241 replaced the declared trackers of K6.1: kit finds the checklists as `docs/plans/<plan>/checklist.md`, each a table
 with the six states of kit, and `idPattern` is the one declaration of a checklist; the list format of orm is removed.
 
-`hooks` lists the tracked hooks of `.githooks` and must include `pre-push`; `pre-commit` and `pre-push` are kit's own hooks, written by
-`make hooks` without an entry. `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output
+`hooks` lists the tracked hooks of `.githooks` of the repository; `pre-commit`, `pre-merge-commit`, `commit-msg` and
+`prepare-commit-msg` are kit's own hooks, written by `make hooks` without an entry. `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output
 folder, for example), and `exceptions`, the globs of paths that stay tracked (test fixtures, for example); its schema is
 `schema/generated.schema.json`. A tracker has `path`, `format` (`table`: a row
 `| ID | ... | state |`; `list`: an item `- [state] ID text`, indented for a sub-item) and `active`; it may have `translation`,

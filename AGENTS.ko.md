@@ -1,12 +1,12 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 1599c1b5825c2470ae4323aaac67c71e361aef6430f0af2b68c34a38e39df80d -->
+<!-- source-sha256: fcc1a3ac9ec4bee4b5a1b858ff1e8bee72d79944ec8562ad3602ec7ce8f379c9 -->
 # 개발
 
 [English](AGENTS.md)
 
 ## 목적
 
-kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release, 의존성, push-gate, 문서, 설치 도구입니다. 저장소는 `scripts/kit/`와
+kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release, 의존성, 문서, 설치 도구입니다. 저장소는 `scripts/kit/`와
 `tests/kit/` 대신 package `@polyspec/kit`을 설치하고, 그 `package.json`의 `kit.copies`가 나열하는 파일의 사본을 byte 단위로 같게 두며, 사본은 `make kit-sync`가 씁니다. 저장소끼리 다른 것은
 `config/*.json`뿐입니다. kit은 어느 저장소에도 의존하지 않습니다. kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.md)와 그 한국어 쌍도 담아 같은 경로로 vendor하므로, 모든 저장소가
 같은 원칙을 가집니다; 각 저장소의 AGENTS.md는 그것으로 link하고 자기만의 규칙만 적습니다. 아래 규칙은 kit 자신의 것입니다.

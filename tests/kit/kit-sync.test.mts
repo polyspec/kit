@@ -14,10 +14,10 @@ import { validate, type OwnerDeclaration } from '../../scripts/kit/owner-check.m
 import { globExpression } from '../../scripts/kit/glob.mts';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { tree } from './tree.mts';
-import { COMMIT_MSG, PRE_COMMIT, PRE_MERGE_COMMIT, PRE_PUSH, PREPARE_COMMIT_MSG } from '../../scripts/kit/git-hooks.mts';
+import { COMMIT_MSG, PRE_COMMIT, PRE_MERGE_COMMIT, PREPARE_COMMIT_MSG } from '../../scripts/kit/git-hooks.mts';
 
 // The hooks that make hooks writes into every checkout (K495).
-const HOOKS = [PRE_COMMIT, PRE_MERGE_COMMIT, PRE_PUSH, COMMIT_MSG, PREPARE_COMMIT_MSG];
+const HOOKS = [PRE_COMMIT, PRE_MERGE_COMMIT, COMMIT_MSG, PREPARE_COMMIT_MSG];
 import { readFixture } from './json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 

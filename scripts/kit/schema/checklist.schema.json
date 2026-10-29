@@ -8,9 +8,8 @@
   "properties": {
     "schema": { "type": "integer", "const": 1 },
     "hooks": {
-      "description": "The tracked hooks of .githooks that every checkout installs; pre-push is required and runs the push gate.",
+      "description": "The tracked hooks of .githooks that every checkout installs beside the hooks of kit.",
       "type": "array",
-      "minItems": 1,
       "items": { "type": "string", "pattern": "^[a-z][a-z-]*$" }
     },
     "idPattern": {

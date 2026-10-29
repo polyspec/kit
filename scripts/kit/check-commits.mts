@@ -34,8 +34,7 @@
 // A commit of a range is compared with its parent; the message being committed, with the index against HEAD, or against the parent
 // of HEAD when the commit amends it (K380-2). The item rules
 // read the checklists of the plan folders at each side of the change (checklist.mts). A merge commit keeps the message that Git writes and is not checked. Each finding is one line
-// `<commit>: <rule>: <message>`; the command exits with status 1 when there is one. The pre-push hook (push-gate.mts) reads the
-// message and identity findings of the commits that a push sends, through `logMessages` and `messageLines` (K510).
+// `<commit>: <rule>: <message>`; the command exits with status 1 when there is one.
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';

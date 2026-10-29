@@ -61,7 +61,7 @@ import { CONFIG as CHECKLIST_CONFIG, inspectTrackers, parseConfig as parseCheckl
 export const MAIN = 'origin/main';
 export const CONFIG = 'config/release.json';
 export const ASSETS = 'var/release/assets';
-export const DEFAULT_CHECKS = ['push-gate', 'ci-passed'];
+export const DEFAULT_CHECKS = ['ci-passed'];
 // GitHub refuses a release body over 125000 characters.
 export const NOTES_LIMIT = 125000;
 export const MODES: readonly string[] = ['archive', 'version', 'git-tag'];

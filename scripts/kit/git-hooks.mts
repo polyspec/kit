@@ -1,27 +1,26 @@
 #!/usr/bin/env node
 // The tracked Git hooks of a checkout. Git runs the hooks of `core.hooksPath`; a checkout sets it to `.githooks`, which
-// holds the hooks that config/checklist.json lists. The hooks `pre-commit`, `pre-merge-commit`, `pre-push`, `commit-msg`,
+// holds the hooks that config/checklist.json lists. The hooks `pre-commit`, `pre-merge-commit`, `commit-msg`,
 // and `prepare-commit-msg` belong to kit: `pre-commit` refuses a staged generated path through
 // `make staged-generated-hook`, then runs the gates of land on the staged tree of a commit on main through `make commit-gates-hook`
 // (K404-1); `pre-merge-commit` refuses a merge commit on main through `make merge-commit-hook`
-// (K404-1); `pre-push` runs the push gate through `make push-gate-hook`, and `commit-msg` runs the message checks of make commit on every
+// (K404-1); `commit-msg` runs the message checks of make commit on every
 // commit, an amend included, through `make commit-msg-hook`, `prepare-commit-msg` records an amend for that check through
 // `make prepare-commit-msg-hook` (K380-2); each has the content of its constant, so every checkout holds the same file. The other hooks belong to the repository. make hooks
 // also declares the merges of the changelogs and checklists (K354): a union, and the driver kit-twin for their Korean twins.
 //
-//   node scripts/kit/git-hooks.mts install   set core.hooksPath, write pre-push when it differs, make each listed hook
+//   node scripts/kit/git-hooks.mts install   set core.hooksPath, write the hooks of kit when they differ, make each listed hook
 //                                            executable, then check; a second run changes nothing
 //   node scripts/kit/git-hooks.mts check     fail while a hook is not installed
 import { chmodSync, existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { loadConfig, PRE_PUSH_HOOK } from './checklist.mts';
+import { loadConfig } from './checklist.mts';
 import { CONFIG } from './generated-files.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
 
 export const HOOKS_PATH = '.githooks';
-export const PRE_PUSH = `${HOOKS_PATH}/${PRE_PUSH_HOOK}`;
 export const PRE_MERGE_COMMIT = `${HOOKS_PATH}/pre-merge-commit`;
 export const PRE_COMMIT = `${HOOKS_PATH}/pre-commit`;
 export const COMMIT_MSG = `${HOOKS_PATH}/commit-msg`;
@@ -41,13 +40,6 @@ export const PRE_MERGE_COMMIT_CONTENT = `#!/bin/sh
 # stays across the versions of kit.
 cd "$(git rev-parse --show-toplevel)" || exit 1
 exec make --no-print-directory merge-commit-hook
-`;
-export const PRE_PUSH_CONTENT = `#!/bin/sh
-# The pre-push hook. Git starts it with the pushed refs on standard input. The push gate refuses the push while an item of
-# a tracker of config/checklist.json is in its active state, in a pushed commit or in the working tree. Written by
-# \`make hooks\`; do not edit it. It calls the make target of the push gate, which stays across the versions of kit.
-cd "$(git rev-parse --show-toplevel)" || exit 1
-exec make --no-print-directory push-gate-hook
 `;
 export const COMMIT_MSG_CONTENT = `#!/bin/sh
 # The commit-msg hook. Git runs it with the file of the message being committed as its argument, before each commit, an amend
@@ -69,7 +61,6 @@ exec make --no-print-directory prepare-commit-msg-hook SOURCE="$2" SHA="$3"
 const KIT_HOOKS = [
   { file: PRE_COMMIT, content: PRE_COMMIT_CONTENT },
   { file: PRE_MERGE_COMMIT, content: PRE_MERGE_COMMIT_CONTENT },
-  { file: PRE_PUSH, content: PRE_PUSH_CONTENT },
   { file: COMMIT_MSG, content: COMMIT_MSG_CONTENT },
   { file: PREPARE_COMMIT_MSG, content: PREPARE_COMMIT_MSG_CONTENT },
 ];
@@ -192,6 +183,9 @@ export function installHooks(root: string, hooks: string[] = loadConfig(root).ho
     if (!existsSync(absolute) || readFileSync(absolute, 'utf8') !== content) {
       writeAtomic(absolute, content, { mode: 0o755 });
       changes.push(`${file} written`);
+    } else if ((statSync(absolute).mode & 0o100) === 0) {
+      chmodSync(absolute, statSync(absolute).mode | 0o755);
+      changes.push(`${file} made executable`);
     }
   }
   for (const name of hooks) {
@@ -219,7 +213,7 @@ if (isMain(import.meta.url)) {
     }
     const issue = hooksIssue(root);
     if (issue) console.error(`[git-hooks] the hooks are not installed: ${issue}`);
-    else console.log(`[git-hooks] the hooks ${loadConfig(root).hooks.join(', ')} are installed: core.hooksPath is ${HOOKS_PATH}`);
+    else console.log(`[git-hooks] the hooks are installed: core.hooksPath is ${HOOKS_PATH}`);
     process.exitCode = issue ? 1 : 0;
   }
 }

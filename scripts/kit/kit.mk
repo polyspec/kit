@@ -116,15 +116,13 @@ layout-check: ## Check the folder layout of the checkout (S5) against config/lay
 	$(ALINT) check --config config/layout.yml --color never --compact .
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) installs
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) tracked
-# ---- The gates: Git hooks and push gate --------------------------------------------------------------------------------
-# scripts/kit/git-hooks.mts and push-gate.mts read config/checklist.json. The full suite runs only in CI, as the targets of
+# ---- The gates: Git hooks -------------------------------------------------------------------------------------------
+# scripts/kit/git-hooks.mts reads config/checklist.json. The full suite runs only in CI, as the targets of
 # `make ci-targets` (ci-only.mts); no target runs it locally.
-COMMIT ?= HEAD
+.PHONY: hooks hooks-check staged-generated-hook commit-gates-hook merge-commit-hook commit-msg-hook
 
-.PHONY: hooks hooks-check staged-generated-hook commit-gates-hook merge-commit-hook push-gate-hook commit-msg-hook push-gate-commit
-
-# Git runs the hooks of core.hooksPath. A checkout that tracks .githooks/pre-push sets it on every make invocation.
-ifneq ($(wildcard .githooks/pre-push),)
+# Git runs the hooks of core.hooksPath. A checkout that tracks .githooks/pre-commit sets it on every make invocation.
+ifneq ($(wildcard .githooks/pre-commit),)
 ifneq ($(shell git config core.hooksPath),.githooks)
 $(shell git config core.hooksPath .githooks)
 endif
@@ -133,7 +131,7 @@ endif
 twin-merge: ## The merge drivers that make hooks declares: kit-twin of a Korean changelog or checklist (K354), kit-changelog of CHANGELOG.md, whose Unreleased entries it puts newest first (K354-1), and kit-checklist of a checklist, which merges its task rows by ID (K354-3); git runs it with MERGE="<base> <ours> <theirs> <path>"; offline
 	@$(NODE) $(KIT)/twin-merge.$(KIT_EXT) $(MERGE)
 
-hooks: ## Set core.hooksPath to .githooks, write the pre-commit, pre-merge-commit, pre-push, commit-msg and prepare-commit-msg hooks of kit and check the hooks
+hooks: ## Set core.hooksPath to .githooks, write the pre-commit, pre-merge-commit, commit-msg and prepare-commit-msg hooks of kit and check the hooks
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install
 
 hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/checklist.json is missing, not executable or changed
@@ -141,9 +139,6 @@ hooks-check: ## Fail while core.hooksPath is not .githooks or a hook of config/c
 
 staged-generated-hook: ## The generated-file check of the pre-commit hook: fail while a staged path has a generated segment that config/generated.json does not declare; the hook that make hooks writes runs it
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) staged
-
-push-gate-hook: ## The push gate of the pre-push hook, with the pushed refs on standard input; the hook that make hooks writes runs it
-	$(NODE) $(KIT)/push-gate.$(KIT_EXT) hook
 
 commit-gates-hook: ## No gate runs on a commit (K603): the gates run once, at land; the pre-commit hook that make hooks writes still calls it
 	@$(NODE) $(KIT)/check-commits.$(KIT_EXT) --commit-gates
@@ -156,9 +151,6 @@ commit-msg-hook: ## The message checks of make commit on the message being commi
 
 prepare-commit-msg-hook: ## The record of an amend that the commit-msg check reads (K380-2), from the SOURCE and the SHA that git gives the prepare-commit-msg hook, silent on every commit, which it only records (K380-3); the hook that make hooks writes runs it
 	@$(NODE) $(KIT)/check-commits.$(KIT_EXT) --prepare --source=$(SOURCE) --sha=$(SHA)
-
-push-gate-commit: ## The push gate on COMMIT (HEAD): fail while it has an item in an active state or does not track an executable hook
-	$(NODE) $(KIT)/push-gate.$(KIT_EXT) commit $(COMMIT)
 
 # --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
 .PHONY: build test lint build-go build-js build-php build-python build-rust build-ts lint-js build-php-ext lint-php-ext test-php-ext php-ext-arginfo

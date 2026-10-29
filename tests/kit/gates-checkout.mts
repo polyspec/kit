@@ -13,8 +13,8 @@ import { KIT_MAKEFILE, tool } from './kit-tools.mts';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE = path.join(HERE, 'fixture');
 
-export const CHECKLIST = 'docs/plans/work/checklist.md';
-export const TRANSLATION = 'docs/plans/work/checklist.ko.md';
+const CHECKLIST = 'docs/plans/work/checklist.md';
+const TRANSLATION = 'docs/plans/work/checklist.ko.md';
 
 export function run(cwd: string, command: string, args: string[], options: Omit<SpawnSyncOptionsWithStringEncoding, 'encoding'> = {}) {
   return spawnSync(command, args, { cwd, encoding: 'utf8', ...options });
@@ -39,7 +39,7 @@ export function commitIndex(cwd: string, message: string) {
 }
 
 /** Commits every change of the working tree and returns the commit. */
-export function commitAll(cwd: string, message: string) {
+function commitAll(cwd: string, message: string) {
   git(cwd, 'add', '--all');
   return commitIndex(cwd, message);
 }
@@ -65,7 +65,7 @@ export function checkout(t: Pick<TestContext, 'after'>, { state = '[ ]', config 
   const work = path.join(directory, 'work');
   const remote = path.join(directory, 'remote.git');
   mkdirSync(work);
-  // The pre-push hook calls make push-gate-hook, so the checkout includes kit.mk of this checkout with its sources, as kit does.
+  // The hooks call make targets, so the checkout includes kit.mk of this checkout with its sources, as kit does.
   writeFileSync(path.join(work, 'Makefile'), KIT_MAKEFILE);
   mkdirSync(path.join(work, 'config'));
   cpSync(path.join(FIXTURE, 'config/checklist.json'), path.join(work, 'config/checklist.json'));

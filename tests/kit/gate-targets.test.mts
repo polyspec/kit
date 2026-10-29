@@ -1,5 +1,5 @@
 // Tests of the make targets of the gates in scripts/kit/kit.mk: the commands that each target runs, and the setting of
-// core.hooksPath at every make invocation of a checkout that tracks the pre-push hook.
+// core.hooksPath at every make invocation of a checkout that tracks the pre-commit hook.
 import assert from 'node:assert/strict';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -36,8 +36,6 @@ test('each target runs the tool of its gate with the commit and the keys that th
   const directory = repository(t);
   assert.deepEqual(commands(directory, 'hooks'), ['$(NODE) scripts/kit/git-hooks.mts install']);
   assert.deepEqual(commands(directory, 'hooks-check'), ['$(NODE) scripts/kit/git-hooks.mts check']);
-  assert.deepEqual(commands(directory, 'push-gate-commit'), ['$(NODE) scripts/kit/push-gate.mts commit HEAD']);
-  assert.deepEqual(commands(directory, 'push-gate-commit', 'COMMIT=abc123'), ['$(NODE) scripts/kit/push-gate.mts commit abc123']);
   assert.deepEqual(commands(directory, 'kit-ci-verify-gates'), ['$(NODE) scripts/kit/ci-setup.mts --verify-gates']);
 });
 
@@ -65,12 +63,12 @@ test('the source checkout can dry-run the first npm tool install without a parit
   assert.deepEqual(commands(directory, 'install-tools', 'TOOLS=npm'), ['node scripts/kit/bootstrap/bootstrap.mts']);
 });
 
-test('a make invocation sets core.hooksPath in a checkout that tracks the pre-push hook, and in no other', (t) => {
+test('a make invocation sets core.hooksPath in a checkout that tracks the pre-commit hook, and in no other', (t) => {
   const directory = repository(t);
   commands(directory, 'hooks-check');
   assert.equal(run(directory, 'git', ['config', 'core.hooksPath']).status, 1, 'a checkout without the hook got a hooks path');
   mkdirSync(path.join(directory, '.githooks'));
-  writeFileSync(path.join(directory, '.githooks/pre-push'), '#!/bin/sh\n');
+  writeFileSync(path.join(directory, '.githooks/pre-commit'), '#!/bin/sh\n');
   commands(directory, 'hooks-check');
   assert.equal(git(directory, 'config', 'core.hooksPath'), '.githooks');
   git(directory, 'config', 'core.hooksPath', 'elsewhere');

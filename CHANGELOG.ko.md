@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0ba064a8049d7c8609ea03ccf44d79a168ee04c49f6b8bacff1db6e1eb4b170e -->
+<!-- source-sha256: 8aa48729d37298807ae2010df26f2b16019c74664cbe0a7c457bfdfef012eb2d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- push gate를 삭제합니다: push-gate.mts, pre-push hook, `make push-gate-hook`과 `push-gate-commit`, config/checklist.json이 pre-push를 나열해야 한다는 규칙. push는 검사하지 않고 message 규칙은 commit 때 실행합니다. config/release.json이 check를 적지 않으면 release-verify는 `ci-passed`를 검사합니다. 저장소는 .githooks/pre-push를 git rm으로 지우고, config/checklist.json의 `hooks`에서 pre-push를 빼고, push-gate라는 CI job이나 release check를 지웁니다. (K804)
 - 릴리스의 consumer 설치와 proof를 삭제합니다(release-consumer.mts, release-consumer-config.mts, release-proof.mts, `make release-consumer`, `release-consumer-lock`, `release-proof`). config/release.json의 `consumers`와 `proof` 절, release-run prepare의 lock 단계, release-coverage의 file: dependency 형식 검사도 삭제합니다. 릴리스 설치는 consumer의 package manager가 합니다. release-tools는 install-tools만 실행합니다. git-tag parity owner는 `manifests`의 `git-tag` Cargo.toml이며 그 `[package].name`으로 이름을 정합니다. 저장소는 config/release.json에서 `consumers`와 `proof`를, 그리고 tests/release-consumer project를 지웁니다. (K798)
 - python parity symbols는 다시 entry만 선언한다. distribution은 entry에서 위로 가장 가까운 pyproject.toml의 [project].name이며 `distribution` field는 지운다 (K803).
 - PHP library 테스트를 Composer 자신의 autoload로 실행하고 Composer tool project를 그 자리에서 composer install로 설치합니다. php-library-autoload와 설치 staging을 삭제합니다. (K790) `run-tests --without-library`와 library source가 포함되지 않았는지 보던 실행 끝의 검사도 없어집니다. extension 실행은 package의 Composer project와 PHPUnit을 그대로 씁니다.

@@ -1,19 +1,19 @@
-// Tests of the Git hooks (scripts/kit/git-hooks.mts): `install` sets core.hooksPath, writes the pre-push hook and makes the
+// Tests of the Git hooks (scripts/kit/git-hooks.mts): `install` sets core.hooksPath, writes the hooks of kit and makes the
 // listed hooks executable, a second run changes nothing, and `check` fails with the cause and the fix for each hook that is
 // not installed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { HOOKS_PATH, PRE_COMMIT, PRE_PUSH, PRE_PUSH_CONTENT, hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
+import { HOOKS_PATH, PRE_COMMIT, PRE_MERGE_COMMIT, PRE_MERGE_COMMIT_CONTENT, hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
 import { checkout, git, prepared, run } from './gates-checkout.mts';
 import { KIT_MAKEFILE, tool } from './kit-tools.mts';
 import { korean, put, tree } from './tree.mts';
 
 // The configuration of a repository that declares the pattern of its item IDs (K354-3).
-const CONFIG_JSON = '{ "schema": 1, "hooks": ["pre-push"], "idPattern": "T[0-9]+(?:[.-][0-9]+)*" }\n';
+const CONFIG_JSON = '{ "schema": 1, "hooks": [], "idPattern": "T[0-9]+(?:[.-][0-9]+)*" }\n';
 
 // The owner rules of a fixture whose gate is bypass-check, the kit gate that fails on a --no-verify in a script: every path is owned.
 const OWNERS = JSON.stringify({ schema: 1, owners: [{ paths: ['**'], targets: ['bypass-check'] }] }, null, 2) + '\n';
@@ -21,26 +21,26 @@ const OWNERS = JSON.stringify({ schema: 1, owners: [{ paths: ['**'], targets: ['
 const hooks = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install']);
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'check']);
 
-test('install sets core.hooksPath and writes the executable pre-push hook; check passes', (t) => {
+test('install sets core.hooksPath and writes the executable hooks of kit; check passes', (t) => {
   const { work } = checkout(t);
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-merge-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.githooks\/prepare-commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-merge-commit written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.githooks\/prepare-commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
-  assert.equal(readFileSync(path.join(work, PRE_PUSH), 'utf8'), PRE_PUSH_CONTENT);
-  assert.equal(statSync(path.join(work, PRE_PUSH)).mode & 0o777, 0o755);
+  assert.equal(readFileSync(path.join(work, PRE_MERGE_COMMIT), 'utf8'), PRE_MERGE_COMMIT_CONTENT);
+  assert.equal(statSync(path.join(work, PRE_MERGE_COMMIT)).mode & 0o777, 0o755);
   assert.equal(check(work).status, 0);
 });
 
 test('a second install changes nothing: no file is rewritten and no setting is touched', (t) => {
   const { work } = checkout(t);
   assert.equal(hooks(work).status, 0);
-  const before = statSync(path.join(work, PRE_PUSH));
+  const before = statSync(path.join(work, PRE_MERGE_COMMIT));
   const second = hooks(work);
   assert.equal(second.status, 0, second.stderr);
-  assert.match(second.stdout, /^\[git-hooks\] nothing to change\n\[git-hooks\] the hooks pre-push are installed/);
-  const after = statSync(path.join(work, PRE_PUSH));
+  assert.match(second.stdout, /^\[git-hooks\] nothing to change\n\[git-hooks\] the hooks are installed/);
+  const after = statSync(path.join(work, PRE_MERGE_COMMIT));
   assert.equal(after.mtimeMs, before.mtimeMs);
   assert.equal(after.ino, before.ino);
   assert.deepEqual(installHooks(work), []);
@@ -57,27 +57,27 @@ test('check fails while core.hooksPath is not .githooks, naming the value and ma
   assert.match(check(work).stderr, /core\.hooksPath is not set, not \.githooks/);
 });
 
-test('check fails while the pre-push hook is missing, not executable or changed; install repairs them', (t) => {
+test('check fails while a hook of kit is missing, not executable or changed; install repairs them', (t) => {
   const { work } = checkout(t);
   hooks(work);
-  const file = path.join(work, PRE_PUSH);
+  const file = path.join(work, PRE_MERGE_COMMIT);
   rmSync(file);
-  assert.match(check(work).stderr, /\.githooks\/pre-push does not exist; restore it from Git and run make hooks/);
+  assert.match(check(work).stderr, /\.githooks\/pre-merge-commit does not exist; restore it from Git and run make hooks/);
 
   assert.equal(hooks(work).status, 0);
   chmodSync(file, 0o644);
-  assert.match(check(work).stderr, /\.githooks\/pre-push is not executable, so Git does not run it; run make hooks/);
+  assert.match(check(work).stderr, /\.githooks\/pre-merge-commit is not executable, so Git does not run it; run make hooks/);
   assert.equal(hooks(work).status, 0);
   assert.equal(statSync(file).mode & 0o777, 0o755);
 
   writeFileSync(file, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
-  assert.match(check(work).stderr, /\.githooks\/pre-push differs from the hook of scripts\/kit\/git-hooks\.mts; run make hooks and commit the file/);
-  assert.match(hooks(work).stdout, /\.githooks\/pre-push written/);
+  assert.match(check(work).stderr, /\.githooks\/pre-merge-commit differs from the hook of scripts\/kit\/git-hooks\.mts; run make hooks and commit the file/);
+  assert.match(hooks(work).stdout, /\.githooks\/pre-merge-commit written/);
   assert.equal(check(work).status, 0);
 });
 
 test('the listed hooks of the repository are checked and made executable, and a missing one fails the check', (t) => {
-  const config = { schema: 1, hooks: ['pre-push', 'post-merge'], idPattern: 'T[0-9]+(?:[.-][0-9]+)*' };
+  const config = { schema: 1, hooks: ['post-merge'], idPattern: 'T[0-9]+(?:[.-][0-9]+)*' };
   const { work } = checkout(t, { config });
   const failed = hooks(work);
   assert.equal(failed.status, 1);
@@ -90,7 +90,7 @@ test('the listed hooks of the repository are checked and made executable, and a 
   assert.match(installed.stdout, /\.githooks\/post-merge made executable/);
   assert.equal(statSync(hook).mode & 0o100, 0o100);
   assert.equal(readFileSync(hook, 'utf8'), '#!/bin/sh\nexit 0\n', 'install does not rewrite a hook of the repository');
-  assert.equal(existsSync(path.join(work, '.githooks/pre-push')), true);
+  assert.equal(existsSync(path.join(work, '.githooks/pre-merge-commit')), true);
   assert.equal(hooksIssue(work), null);
 });
 
@@ -121,19 +121,6 @@ test('git-hooks takes only install or check', (t) => {
   const refused = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'remove']);
   assert.equal(refused.status, 2);
   assert.match(refused.stderr, /Usage: node scripts\/kit\/git-hooks\.mts install \| check/);
-});
-
-// A make target is the interface of kit that stays across its versions, and the path of a tool does not: the pre-push hook
-// calls the target push-gate-hook, which kit.mk runs from the tools of KIT.
-test('the pre-push hook calls the make target push-gate-hook and names no tool path', () => {
-  assert.doesNotMatch(PRE_PUSH_CONTENT, /scripts\/kit|node_modules|\.mts|\.mjs/);
-  assert.match(PRE_PUSH_CONTENT, /^exec make --no-print-directory push-gate-hook$/m);
-  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(import.meta.dirname, '../../scripts/kit/kit.mk'), 'push-gate-hook', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { encoding: 'utf8' });
-  assert.equal(dry.status, 0, dry.stderr);
-  // kit.mk starts the tool with the node of the main checkout by its absolute path (K171, K519), which is the checkout itself outside a
-  // linked worktree; make names the directory by its real path.
-  const common = path.resolve(spawnSync('git', ['rev-parse', '--git-common-dir'], { encoding: 'utf8' }).stdout.trim());
-  assert.equal(dry.stdout.trim(), `${path.join(realpathSync(path.dirname(common)), 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/push-gate.mjs hook`);
 });
 
 // K380: kit owns the commit-msg hook, which runs the message checks of make commit on every commit, an amend included.

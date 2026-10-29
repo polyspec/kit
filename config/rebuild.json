@@ -330,10 +330,6 @@
       "kind": "ecosystem",
       "tool": "node:child_process"
     },
-    "scripts/kit/push-gate.mts": {
-      "kind": "policy",
-      "reason": "the push gate over polyspec's checklist trackers"
-    },
     "scripts/kit/pyproject-dependencies.mts": {
       "kind": "policy",
       "reason": "lists the dependency arrays of a pyproject.toml for link, and resolves the include-group tables of [dependency-groups] as the reference implementation of PEP 735 does; no npm package reads dependency groups (K177)"

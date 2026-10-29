@@ -5,7 +5,7 @@
 
 ## Purpose
 
-kit holds the tools that every polyspec repository shares: the release, dependency, push-gate, document and install
+kit holds the tools that every polyspec repository shares: the release, dependency, document and install
 tools. A repository installs them as the package `@polyspec/kit` and holds byte-for-byte copies of the files that
 `kit.copies` of its `package.json` lists, written by `make kit-sync`; a repository differs from another only in
 `config/*.json`. kit depends on no repository. kit also carries the working principles of every polyspec repository, [PRINCIPLES.md](PRINCIPLES.md) and its Korean twin,

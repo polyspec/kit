@@ -49,7 +49,7 @@ in kit, with its grounding.
   rejects a moved local ref and preserves a matching branch and worktree. Test or experiment code that cannot merge is
   cherry-picked when it is worth keeping and otherwise discarded, always before the commit; when it cannot be removed at once, a
   checklist sub-item states the condition of its removal.
-  Enforced by: `.githooks/pre-push`, `.githooks/pre-merge-commit`
+  Enforced by: `.githooks/pre-merge-commit`
 - P11 Code comments, identifiers, logs, error messages, test names and commit messages are written in English. Documents are
   English, each with a Korean twin that writes technical terms in English.
   Enforced by: `make commits-check` for the commit messages, `make language-check` for the code

@@ -162,7 +162,6 @@
         "paths": [
           ".githooks/pre-commit",
           ".githooks/pre-merge-commit",
-          ".githooks/pre-push",
           ".githooks/commit-msg",
           ".githooks/prepare-commit-msg"
         ],

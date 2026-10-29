@@ -1,7 +1,6 @@
 // The checklists of a repository. A plan is the folder docs/plans/<plan>/ with plan.md, checklist.md and their Korean twins
 // plan.ko.md and checklist.ko.md (K241); kit finds the checklists in the files of a tree, so a repository declares no path.
-// The push gate (push-gate.mts) reads the items that are in the active state of each checklist; the commit check
-// (check-commits.mts) reads the states that a commit changes; the document check (check-documents.mts) reads every
+// The commit check (check-commits.mts) reads the states that a commit changes; the document check (check-documents.mts) reads every
 // checklist strictly. One function, readChecklist, reads a checklist at both levels.
 //
 // A checklist is a table with one row per item, `| ID | title | ... | state |`; the state is the last cell and one of the
@@ -16,7 +15,6 @@ import { present } from './present.mts';
 import { git } from './git.mts';
 
 export const CONFIG = 'config/checklist.json';
-export const PRE_PUSH_HOOK = 'pre-push';
 // The folder of the plans and the files of a plan folder.
 export const PLANS = 'docs/plans';
 export const PLAN_FILES = ['plan.md', 'plan.ko.md', 'checklist.md', 'checklist.ko.md'] as const;
@@ -77,11 +75,9 @@ export interface ChecklistConfig {
   idPattern: string;
 }
 
-/** The config text of a committed tree, validated by the checklist schema and the pre-push hook rule. */
+/** The config text of a committed tree, validated by the checklist schema. */
 export function parseConfig(text: string, source = CONFIG): ChecklistConfig {
-  const config = parseJson<ChecklistConfig>(text, 'checklist.schema.json', source);
-  if (!config.hooks.includes(PRE_PUSH_HOOK)) throw new Error(`${source}: $.hooks is ${JSON.stringify(config.hooks)}, it must include "${PRE_PUSH_HOOK}", which runs the push gate`);
-  return config;
+  return parseJson<ChecklistConfig>(text, 'checklist.schema.json', source);
 }
 
 /** An item of a checklist, with the state as the document writes it. */
@@ -106,7 +102,6 @@ export function loadConfig(root: string): ChecklistConfig {
   if (!existsSync(file)) throw new Error(`${CONFIG} does not exist in ${root}; the repository declares its hooks and the pattern of its item IDs there`);
   const { value: config, errors } = readConfigFindings<ChecklistConfig>(root, CONFIG, 'checklist.schema.json');
   if (errors) throw new Error(errors.join('\n'));
-  if (!config.hooks.includes(PRE_PUSH_HOOK)) throw new Error(`${CONFIG}: $.hooks is ${JSON.stringify(config.hooks)}, it must include "${PRE_PUSH_HOOK}", which runs the push gate`);
   return config;
 }
 
