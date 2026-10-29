@@ -287,10 +287,10 @@ test('the problems of a manifest name the field, the dependency and the form of 
   assert.deepEqual(problems('npm', { dependencies: { x: 'github:a/b' } }), ['dependencies x: github:a/b is a git source, not a registry version']);
   assert.deepEqual(problems('npm', { dependencies: { x: 'https://example.com/x.tgz' } }), ['dependencies x: https://example.com/x.tgz is a URL, not a registry version']);
   // A polyspec package at 0.0.x is released as a GitHub release asset, so a dependency on one is that asset's URL (K777).
-  const asset = 'https://github.com/polyspec/ordered-json/releases/download/v0.0.10/polyspec-ordered-json-npm-0.0.10.tgz';
-  assert.deepEqual(problems('npm', { dependencies: { '@polyspec/ordered-json': asset } }), []);
-  assert.deepEqual(problems('npm', { dependencies: { x: 'https://github.com/polyspec/ordered-json/releases/download/latest/x.tgz' } }),
-    ['dependencies x: https://github.com/polyspec/ordered-json/releases/download/latest/x.tgz is a URL, not a registry version']);
+  const asset = 'https://github.com/polyspec/p/releases/download/v0.0.10/polyspec-p-npm-0.0.10.tgz';
+  assert.deepEqual(problems('npm', { dependencies: { '@polyspec/p': asset } }), []);
+  assert.deepEqual(problems('npm', { dependencies: { x: 'https://github.com/polyspec/p/releases/download/latest/x.tgz' } }),
+    ['dependencies x: https://github.com/polyspec/p/releases/download/latest/x.tgz is a URL, not a registry version']);
   assert.deepEqual(problems('npm', { dependencies: { x: 'https://github.com/other/x/releases/download/v0.0.1/x.tgz' } }),
     ['dependencies x: https://github.com/other/x/releases/download/v0.0.1/x.tgz is a URL, not a registry version']);
   assert.deepEqual(problems('npm', { dependencies: { 'fixture-lib': asset } }), [`dependencies fixture-lib: ${asset} is a polyspec release asset, not 1.0.0`]);

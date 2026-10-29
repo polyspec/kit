@@ -9,6 +9,8 @@
 
 ## 0.0.66
 
+- The go.work release test creates its repository through initRepository, and the release asset test names no other repository, as every kit test does. (K779)
+
 - Only release-assets and release-candidate-assets run with the go.work that the repository tracks; the dependency review, the dependency policy and the other release targets run with GOWORK off again, so they read the lock of each module as it is released. (K778)
 
 - The release check of a manifest accepts a dependency on a polyspec package named by its GitHub release asset URL at an exact version, and refuses every other URL. (K777)

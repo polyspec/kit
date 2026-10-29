@@ -717,7 +717,7 @@ test('K774, K778: an archive build runs with the go.work that the repository tra
   chmodSync(path.join(dir, 'bin/node'), 0o755);
   const { GOWORK: _inherited, ...base } = process.env;
   const make = (...goals: string[]) => spawnSync('make', ['-C', dir, `NODE=${path.join(dir, 'bin/node')}`, ...goals], { encoding: 'utf8', env: { ...base, TAG: 'v0.0.1' } });
-  git(dir, 'init', '--quiet');
+  initRepository(dir);
   assert.equal(make('release-assets').status, 0);
   git(dir, 'add', 'go.work');
   assert.equal(make('release-assets').status, 0);

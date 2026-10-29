@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4b09dc04c69791138c0262c3d36cb554c5fe8c7749a8fcb4e2f6ccd716533184 -->
+<!-- source-sha256: 9164020809842b554f733ecd0720e0a95862e6352c2b14de05d1dc65b4048245 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,8 @@
 - Kit 0.0.66 release를 준비한다. (K775)
 
 ## 0.0.66
+
+- go.work release 테스트는 저장소를 initRepository로 만들고 release asset 테스트는 다른 저장소 이름을 쓰지 않는다. 모든 kit 테스트와 같다. (K779)
 
 - release-assets와 release-candidate-assets만 저장소가 추적하는 go.work로 실행하고, dependency review, dependency policy와 나머지 release 대상은 다시 GOWORK를 끄고 실행하므로 각 module의 lock을 release된 그대로 읽는다. (K778)
 
