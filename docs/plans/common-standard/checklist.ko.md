@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: c744f5aa5f87884234f1cdbbaf074946bc829b9fcf7cef3c5f2583908e67b538 -->
+<!-- source-sha256: 9d543a01ac57335904b7a9998e983b38b3a701ba75a9ffaa4ceb05d807b94fa5 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -772,3 +772,4 @@
 | K816 | uv build가 쓰기 전에 buildWheel의 빌드 폴더를 만듦 | scripts/kit/release-wheel.mts | `node --test tests/kit/release-wheel.test.mts tests/kit/release.test.mts` | [o] |
 | K817 | Kit 0.0.70 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K818 | 본문의 marker 예시가 아니라 doc-id 줄 다음의 marker 줄만 stamp함 | scripts/kit/documents-stamp.mts | `node --test tests/kit/documents-stamp.test.mts` | [o] |
+| K819 | Kit 0.0.71 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [ ] |
