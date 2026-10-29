@@ -162,11 +162,11 @@ test('goEvents treats no-test packages as groups while preserving named skips, e
 // The lines that cargo test of a database target prints when a case's database is missing: the case database
 // prints its step between the name of the test and its result, so the result FAILED stands alone on its line (K229).
 test('goEvents ends a benchmark at its result line, at the next benchmark that is not its child, or with its package (K760)', () => {
-  // go test -json emits run and output events for a benchmark, but no pass event (flowmark, go1.27.3).
+  // go test -json emits run and output events for a benchmark, but no pass event (go1.27.3).
   const lines: string[] = [];
   const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
   const feed = goEvents(toProgress(progress));
-  const pkg = 'flowmark/writepath';
+  const pkg = 'example/writepath';
   for (const event of [
     { Action: 'start', Package: pkg },
     { Action: 'run', Package: pkg, Test: 'BenchmarkWrite' },

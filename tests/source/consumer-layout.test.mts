@@ -5,7 +5,7 @@
 // targets, which run the sources of ../kit (K613). The consumer holds the copies of kit.copies, which it takes from the tarball.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -79,14 +79,14 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const env = { ...process.env, npm_config_cache: cache, npm_config_offline: 'true', npm_config_audit: 'false', npm_config_fund: 'false' };
   const make = (...args: string[]) => spawnSync('make', ['--no-print-directory', ...args], { cwd: consumer, env, encoding: 'utf8' });
 
-  // The steps of the release workflow before release-tools run in its order: the bootstrap, kit-check, which fails a
-  // checkout that needs PHP without .php-version before any release step (K193), then release-prepare, which a consumer
-  // without a preparation of its own runs as no work (K132); release-tag runs before it on a dispatch (K269).
+  // The steps of the release workflow before release-tools run in its order: the bootstrap, then release-prepare, which a
+  // consumer without a preparation of its own runs as no work (K132); release-tag runs before it on a dispatch (K269). The release
+  // runs no kit-check of its own: release-verify refuses a commit whose CI did not pass (K755).
   const workflow = readFileSync(path.join(consumer, '.github/workflows/release.yml'), 'utf8');
   // The make steps of the workflow; a step that checks the runner, as for zip, runs no target.
   const steps = [...workflow.matchAll(/^\s+run: (make .+)$/gm)].map(match => match[1] ?? '');
   const bootstrap = steps.slice(0, steps.indexOf('make release-tools'));
-  assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', 'make kit-check', 'make release-tag', 'make release-prepare'], 'the release workflow bootstraps the package, checks the checkout and prepares the release before release-tools');
+  assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', 'make release-tag', 'make release-prepare'], 'the release workflow bootstraps the package and prepares the release before release-tools; release-verify stands for kit-check (K755)');
   // release-tag runs only on a dispatch, with the tag of its input (K269); release-tag.test.mts runs it.
   for (const command of bootstrap.filter(command => command !== 'make release-tag')) {
     const step = spawnSync('sh', ['-c', command], { cwd: consumer, env, encoding: 'utf8' });
@@ -100,7 +100,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   for (const target of [['kit-sync'], ['kit-check'], ['toolchain-check', 'TOOLS=node npm']]) {
     const result = make(...target);
     assert.equal(result.status, 0, `make ${target.join(' ')}: ${result.stdout}${result.stderr}`);
-    assert.match(result.stdout, /\.\.\/kit\/scripts\/kit\/[a-z-]+\.mts/, `make ${target.join(' ')} runs the sources of the kit checkout beside the consumer`);
+    // KIT is the real path of the kit checkout beside the consumer (K762).
+    assert.ok(result.stdout.includes(`${path.join(realpathSync(path.join(work, 'kit')), 'scripts/kit')}/`), `make ${target.join(' ')} runs the sources of the kit checkout beside the consumer`);
   }
   // The smoke command of the release of kit (consumers.npm of config/release.json) runs in the consumer.
   const release = readFixture<ReleaseConfig>(ROOT, 'config/release.json');

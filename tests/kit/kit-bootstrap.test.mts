@@ -29,6 +29,9 @@ function repository(t: TestContext, makefile = '') {
 
 const make = (root: string, ...args: string[]) => spawnSync('make', ['--no-print-directory', ...args], { cwd: root, encoding: 'utf8' });
 
+// The real path of the scripts of the kit checkout beside `root`, which the bootstrap names as KIT (K762).
+const kit = (root: string) => path.join(realpathSync(path.dirname(root)), 'kit/scripts/kit');
+
 // The absolute path of the tool `file` of var/tools of `root` as make names it, by the real path of the directory (K171).
 const tool = (root: string, file: string) => path.join(realpathSync(root), 'var/tools/bin', file);
 
@@ -36,15 +39,15 @@ test('the bootstrap includes the kit.mk beside it, which runs the sources of the
   const root = repository(t);
   const dry = make(root, '-n', 'docs-check');
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), `${tool(root, 'node')} ../kit/scripts/kit/check-documents.mts`);
-  assert.equal(make(root, '-n', 'install-tools', 'TOOLS=go').stdout.trim(), `${tool(root, 'node')} ../kit/scripts/kit/install-tools.mts go`);
+  assert.equal(dry.stdout.trim(), `${tool(root, 'node')} ${kit(root)}/check-documents.mts`);
+  assert.equal(make(root, '-n', 'install-tools', 'TOOLS=go').stdout.trim(), `${tool(root, 'node')} ${kit(root)}/install-tools.mts go`);
 });
 
 test('install-tools TOOLS=npm runs the bootstrap installer of the kit checkout with the node of the machine', (t) => {
   const root = repository(t);
   const dry = make(root, '-n', 'install-tools', 'TOOLS=npm', 'ONLINE=online-wrapper');
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), 'online-wrapper node ../kit/scripts/kit/bootstrap/bootstrap.mts');
+  assert.equal(dry.stdout.trim(), `online-wrapper node ${kit(root)}/bootstrap/bootstrap.mts`);
 });
 
 test('install-packages runs npm ci with the pinned npm of var/tools', (t) => {
@@ -71,8 +74,8 @@ test('npm of install-packages and of dependency-review gets allow-remote=root fr
   for (const file of ['node', 'npm']) writeFileSync(path.join(root, 'var/tools/bin', file), `#!/bin/sh\necho "${file} allow-remote=$npm_config_allow_remote: $*"\n`, { mode: 0o755 });
   const lines = (...goal: string[]) => make(root, '-s', ...goal).stdout.split('\n').filter(line => line.includes(' allow-remote='));
   assert.deepEqual(lines('install-packages'), ['npm allow-remote=root: ci']);
-  assert.deepEqual(lines('dependency-review', 'UPDATE=1'), ['node allow-remote=root: ../kit/scripts/kit/dependency-review.mts --update']);
-  assert.deepEqual(lines('docs-check'), ['node allow-remote=: ../kit/scripts/kit/check-documents.mts'], 'another recipe does not get it');
+  assert.deepEqual(lines('dependency-review', 'UPDATE=1'), [`node allow-remote=root: ${kit(root)}/dependency-review.mts --update`]);
+  assert.deepEqual(lines('docs-check'), [`node allow-remote=: ${kit(root)}/check-documents.mts`], 'another recipe does not get it');
 });
 
 test('make install runs the bootstrap of kit first, then the install steps that the repository adds to install (K246-2)', (t) => {

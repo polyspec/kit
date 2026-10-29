@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 0a1d0eb22c17e62060bcf69445e8128b6b2e361f6c76eb0ef20ab86a0b5da969 -->
+<!-- source-sha256: 04168168dd08786965f4ac6625412abd1ebb9103d3e03d01ae64688fa66e16fb -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -224,5 +224,5 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
 - S11 로컬 링크: 개발 중 각 polyspec 패키지의 설치 폴더(node_modules, vendor, site-packages)는 checkout으로 가는 평범한
   디렉터리 심링크 하나입니다. 패키지 매니저의 링크 단계(npm link, Composer path repository, pip/uv editable)는 쓰지 않습니다
   (K591, K761, K765).
-  Enforced by: `make link-state-check`, `make kit-test`(K761 link test가 tool log에 npm link, composer update, editable 설치가
-  없음을 확인)
+  Enforced by: `make link-state-check`. kit의 K761 link test도 tool log에 npm link, composer update, editable 설치가 없음을
+  확인합니다

@@ -9,6 +9,8 @@
 
 ## 0.0.65
 
+- The tests that the full CI of the 0.0.65 candidate failed follow K755, K760, K761, K762 and K765, and S11 names a check that a gate runs. (K771)
+
 - uv-install installs a project locked by pylock.toml and no uv.lock with uv pip install -r, as its own install does, so worktree-setup prepares such a project. (K769)
 
 - make link writes the node_modules/.bin links of each linked npm package from the linked package.json, so a bin such as polyspec-kit-hook runs the checkout's source. (K767)

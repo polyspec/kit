@@ -246,5 +246,5 @@ tool lands, a standard binds the work as written here.
 - S11 Local links: during development each polyspec package's install folder (node_modules, vendor, site-packages) is one
   plain directory symlink to its checkout. No package-manager link step (npm link, Composer path repository, pip/uv editable)
   (K591, K761, K765).
-  Enforced by: `make link-state-check`, and `make kit-test`, whose K761 link test finds no npm link, composer update or
-  editable install in the tool log
+  Enforced by: `make link-state-check`; the K761 link test of kit also finds no npm link, composer update or editable install
+  in the tool log

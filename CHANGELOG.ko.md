@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e68987e8877f8a46027e0f33b55acc0114f77b43e2023ba731f264684e9263d5 -->
+<!-- source-sha256: 9b33c07b8f6e6700aabe0a48c9d9089a162d368dc7765a0370508056bd2f585e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,8 @@
 - Kit 0.0.65 release를 준비한다. (K770)
 
 ## 0.0.65
+
+- 0.0.65 candidate의 전체 CI가 실패한 test는 K755, K760, K761, K762, K765를 따르고 S11은 gate가 실행하는 check를 이름한다. (K771)
 
 - uv-install은 uv.lock 없이 pylock.toml로 잠긴 project를 자체 설치처럼 uv pip install -r로 설치하므로 worktree-setup이 그런 project를 준비한다. (K769)
 
