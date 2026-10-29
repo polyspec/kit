@@ -197,7 +197,8 @@ test('the make target toolchain-check passes the tools to the check', () => {
   const root = path.join(path.dirname(new URL(import.meta.url).pathname), '../..');
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'toolchain-check', 'TOOLS=npm go'], { cwd: root, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), `${path.join(root, 'var/tools/bin/node')} scripts/kit/check-toolchain.mts npm go`);
+  // A worktree runs the tools of the main checkout, so the node path is the one kit.mk resolves, not the root of this checkout (K792).
+  assert.match(dry.stdout.trim(), /^\/\S+\/var\/tools\/bin\/node scripts\/kit\/check-toolchain\.mts npm go$/);
 });
 
 // mise's documentation says to commit the sidecar folder of mise.lock: mise install --locked of a fresh checkout replays the uv
