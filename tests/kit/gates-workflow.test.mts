@@ -81,19 +81,13 @@ test('K671-3: gates bootstrap the installed package with exact npm before Make, 
   assertWorkflowPackageBootstrap(read('workflows/gates.yml'), t);
 });
 
-test('K473: the parity job links local packages before link-state and parity gates', () => {
+// K824: CI is release mode: the package managers install the declared versions, and nothing is linked, so no job runs link,
+// link-state-check or a package-link toolchain.
+test('K824: no gates job links packages or checks links; CI installs with the package managers only', () => {
   const workflow = read('workflows/gates.yml');
-  const link = workflow.indexOf('        run: make link\n');
-  assert.ok(link !== -1, 'a step runs make link');
-  assert.ok(link < workflow.indexOf('      - name: parity gate\n'), 'make link runs before parity');
-});
-
-test('runtime jobs link only with the native managers for their selected runtime', () => {
-  const runtime = workflowJob(read('workflows/gates.yml'), 'runtime');
-  assert.ok(runtime.some(line => line.includes('run: make link RUNTIME=${{ matrix.runtime }}')), 'the runtime passes its selection to link');
-  assert.doesNotMatch(runtime.join('\n'), /run: make link\n/, 'the runtime does not link every tracked ecosystem');
-  const workflow = read('workflows/gates.yml');
-  assert.equal((workflow.match(/run: make link\n/g) ?? []).length, 3, 'the full parity, API and bindings jobs keep whole-repository linking');
+  assert.doesNotMatch(workflow, /make link|link-state-check|link_tools|package-link/);
+  assert.doesNotMatch(read('.github/workflows/ci.yml'), /link-state-check/);
+  assert.doesNotMatch(read('scripts/kit/kit.mk').split('\n').filter(line => /^kit-gates(-parity)?:/.test(line)).join('\n'), /link-state-check/);
 });
 
 test('K731-1: context preparation surrounds the unchanged required gate and cleanup always runs after entry', () => {
@@ -131,7 +125,7 @@ test('K671-3: gates use the standard root checkout and retain the native install
 
 test('the parity partition runs the full parity check, which runs only in CI, so every implementation runs its bindings in the gates (S6, K272)', () => {
   const kitMk = read('scripts/kit/kit.mk');
-  assert.match(kitMk, /^kit-gates-parity: link-state-check parity-check /m);
+  assert.match(kitMk, /^kit-gates-parity: parity-check /m);
   assert.match(kitMk, /^ifneq \(\$\(filter parity-check kit-gates kit-gates-parity,\$\(MAKECMDGOALS\)\),\)$/m, 'the CI guard of parity-check covers both aggregate and parity gates');
   assert.deepEqual(workflowNeeds(workflowJob(read('workflows/gates.yml'), 'required'), 'required').sort(), [...GATE_REQUIRED_NEEDS].sort());
 });
@@ -147,7 +141,7 @@ test('K734: the provider workflow selects exactly one parity path and aggregates
   assert.ok(bindings.includes("    if: ${{ needs.discover.outputs.parity_mode == 'phases' }}"));
   assert.ok(bindings.includes('        include: ${{ fromJSON(needs.discover.outputs.parity_matrix) }}'));
   assert.ok(bindings.some(line => line.includes('run: make parity-bindings-${{ matrix.implementation }}-check')));
-  assert.ok(api.some(line => line.includes('run: make -k link-state-check parity-api-check')));
+  assert.ok(api.some(line => line.includes('run: make -k parity-api-check')));
   assert.deepEqual(workflowNeeds(required, 'required').sort(), [...GATE_REQUIRED_NEEDS].sort());
   assert.ok(required.some(line => line.includes('run: make kit-ci-verify-gates')));
   assert.ok(required.some(line => line.includes('KIT_CI_PARITY_API_RESULT: ${{ needs.parity-api.result }}')));

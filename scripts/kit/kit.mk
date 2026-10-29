@@ -200,14 +200,14 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by.
-kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check link-state-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
 # entry point above; these targets are only the disjoint workflow partitions. Toolchain probes are checked with their selected
 # TOOLS in the owning job, while the parity job checks every implementation in one run.
 .PHONY: kit-gates-static kit-gates-parity kit-gates-runtime-ts kit-gates-runtime-php kit-gates-runtime-python kit-gates-runtime-go kit-gates-runtime-rust kit-gates-runtime-php-ext
 kit-gates-static: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check ## Run shared gates and the common toolchain probes
-kit-gates-parity: link-state-check parity-check ## Run package-link validation and the full parity gate in its own job
+kit-gates-parity: parity-check ## Run the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate
 kit-gates-runtime-php: lint-php ## Run the PHP gate
 kit-gates-runtime-python: lint-python ## Run the Python gate

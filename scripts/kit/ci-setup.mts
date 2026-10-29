@@ -44,7 +44,6 @@ export type CIPlan = {
   commonTools: string[];
   parityTools: string[];
   extractors: string[];
-  linkTools: string[];
   phpDirs: string[];
   pythonDirs: string[];
 };
@@ -256,7 +255,6 @@ function plan(root: string): CIPlan {
     : [];
   if (extractors.includes('go')) parityTools.add('go');
   if (extractors.includes('php')) { parityTools.add('php'); parityTools.add('composer'); }
-  const linkTools = declared.go === undefined ? [] : ['go'];
   return {
     sharedTargets: config.setup.shared,
     runner: config.runner ?? 'ubuntu-24.04',
@@ -269,7 +267,6 @@ function plan(root: string): CIPlan {
     commonTools,
     parityTools: [...parityTools].filter(name => names.includes(name)).sort(),
     extractors,
-    linkTools,
     phpDirs: phpDirectories(root, files, folders),
     pythonDirs: pythonDirectories(root, files, folders),
   };
@@ -320,7 +317,6 @@ function writePlan(root: string): void {
     common_tools: result.commonTools,
     parity_tools: result.parityTools,
     extractors: result.extractors,
-    link_tools: result.linkTools,
     php_dirs: result.phpDirs,
     python_dirs: result.pythonDirs,
   };

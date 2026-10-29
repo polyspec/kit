@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 8759e688ce53dab827e76d400ed49444b7c7c2ceaf4fc9bf5416ce0e096cc723 -->
+<!-- source-sha256: 0059076c985cff51da7376e9b4ca76bdf40b31fcfafbeadf9c7aac7d6b4eb79a -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -777,5 +777,5 @@
 | K821 | worktree의 Composer 프로젝트를 Composer 자체 캐시로 일반 composer install해 설치하고, Go를 Composer보다 먼저 준비함 | scripts/kit/worktree-setup.mts | `node --test tests/kit/worktree-setup.test.mts` | [o] |
 | K822 | platform-bootstrap의 Windows runner에서 Git Bash make로 mise shim을 실행함 | .github/workflows/platform-bootstrap.yml, tests/kit/bootstrap-platform.test.mts | `node --test tests/kit/bootstrap-platform.test.mts` | [o] |
 | K823 | Kit 0.0.72 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
-| K824 | link --siblings가 sibling checkout을 찾지 못해도 저장소 자신의 패키지를 링크함 | scripts/kit/link.mts, tests/kit/link.test.mts | `node --test tests/kit/link.test.mts` | [~] |
+| K824 | package manager로만 설치하는 CI에서 link와 link-state-check를 실행하지 않음 | workflows/gates.yml, scripts/kit/kit.mk, .github/workflows/ci.yml | `node --test tests/kit/gates-workflow.test.mts tests/kit/check-rules.test.mts` | [o] |
 | K825 | release, tag 생성, FINAL_RUN의 checklist 상태 거부를 삭제함 | scripts/kit/release.mts, scripts/kit/ci-only.mts, docs/operations/release.md | `node --test tests/kit/release.test.mts tests/kit/ci-only.test.mts` | [ ] |

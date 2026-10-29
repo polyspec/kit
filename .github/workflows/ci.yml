@@ -118,10 +118,6 @@ jobs:
       - name: suppression check
         if: ${{ !cancelled() }}
         run: make suppression-check
-      # Every installed 0.0.x polyspec package is a link that resolves, or nothing is linked; CI links nothing, so it passes (K305-1).
-      - name: link state check
-        if: ${{ !cancelled() }}
-        run: make link-state-check
       # The comments, identifiers, messages and test names of the code are English (K252).
       - name: language check
         if: ${{ !cancelled() }}
