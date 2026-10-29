@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- Prepare the Kit 0.0.67 release. (K795)
+
+## 0.0.67
+
 - Removed-With passes a deleted test only when the test itself names the deleted file, so an unrelated file deleted alongside opens no gate. (K793)
 - The commit-type check of K449 reads a Markdown document as a document in every folder, and a release commit may stage uv.lock beside the other locks. (K791)
 

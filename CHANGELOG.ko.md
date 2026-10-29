@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7eb11b61a21f68b0a675aede79a4c5bfc9e290819d58175ca77592ea38019899 -->
+<!-- source-sha256: d2c26961f049ad89b3fc4e8b76efed125581b2d3e6da0dbd6dcb2a829f0a81e9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Kit 0.0.67 release를 준비한다. (K795)
+
+## 0.0.67
 
 - Removed-With는 삭제된 테스트가 그 삭제된 파일을 직접 가리킬 때만 통과시키므로, 함께 지운 무관한 파일로는 gate가 열리지 않는다. (K793)
 - K449의 commit-type 검사는 어느 폴더에서든 Markdown 문서를 문서로 읽고, release commit은 다른 lock과 함께 uv.lock을 stage할 수 있다. (K791)
