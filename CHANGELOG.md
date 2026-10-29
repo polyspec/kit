@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The release check of a manifest accepts a dependency on a polyspec package named by its GitHub release asset URL at an exact version, and refuses every other URL. (K777)
+
 - Prepare the Kit 0.0.66 release. (K775)
 
 ## 0.0.66

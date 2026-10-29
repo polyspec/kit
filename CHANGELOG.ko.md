@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: db5006c71bc20daa826fc9a22b5f68546c898d9442add8da1a27bbaf5a8b0061 -->
+<!-- source-sha256: e378982736535f488ff99b9547045333504edf3fdc58500ab8ad547d5c1b78e7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- release의 manifest 검사는 polyspec package를 정확한 version의 GitHub release asset URL로 지정한 dependency를 받아들이고, 그 밖의 URL은 거부한다. (K777)
 
 - Kit 0.0.66 release를 준비한다. (K775)
 

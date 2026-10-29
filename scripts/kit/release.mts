@@ -503,8 +503,12 @@ const SOURCE_FORMS: [RegExp, string][] = [
   [/@dev\b|^dev-|-dev$/, 'a development version'],
 ];
 
+/** A polyspec package at 0.0.x is released only as a GitHub release asset, so a dependency on one names that asset at its exact version (K777). */
+const POLYSPEC_RELEASE_ASSET = /^https:\/\/github\.com\/polyspec\/[^/]+\/releases\/download\/v\d+\.\d+\.\d+\/[^/]+$/;
+
 /** The form of a dependency spec that is not an exact version. */
 function specForm(spec: string): string {
+  if (POLYSPEC_RELEASE_ASSET.test(spec)) return 'a polyspec release asset';
   for (const [pattern, form] of SOURCE_FORMS) if (pattern.test(spec)) return form;
   return EXACT_VERSION.test(spec) ? 'another version' : 'a range';
 }
@@ -516,7 +520,8 @@ function scopesOf(config: Pick<ReleaseConfig, 'packages'>, kind: PackageKind): S
 
 /**
  * The problems of a manifest that an archive of `kind` carries at `version`. A consumer installs the archives together
- * without the repository, so a dependency is a registry version: no path, URL, git source or development version. A dependency on a
+ * without the repository, so a dependency is a registry version or the release asset of a polyspec package: no path, other URL,
+ * git source or development version. A dependency on a
  * package of a scope of this repository is one exact version, and the version of a package of this repository is the
  * version of the tag. A package.json declares no `overrides`; a composer.json declares the version of the tag and no
  * `repositories`.
@@ -529,7 +534,9 @@ export function manifestProblems(config: Pick<ReleaseConfig, 'packages'>, kind: 
   for (const field of fields) {
     for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
       const form = specForm(spec);
-      const sourced = form !== 'a range' && form !== 'another version';
+      // A release asset is the exact version of a package of another repository; a package of this repository is the version of the tag.
+      if (form === 'a polyspec release asset' && !ours.has(name)) continue;
+      const sourced = form !== 'a range' && form !== 'another version' && form !== 'a polyspec release asset';
       const ofScope = [...scopes].some(scope => name.startsWith(scope));
       if (sourced) problems.push(`${field} ${name}: ${spec} is ${form}, not a registry version`);
       else if (ours.has(name) ? spec !== version : ofScope && !EXACT_VERSION.test(spec)) problems.push(`${field} ${name}: ${spec} is ${form}, not ${ours.has(name) ? version : 'an exact version'}`);

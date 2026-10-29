@@ -286,6 +286,14 @@ test('the problems of a manifest name the field, the dependency and the form of 
   assert.deepEqual(problems('npm', { dependencies: { x: 'git+https://example.com/x.git' } }), ['dependencies x: git+https://example.com/x.git is a git source, not a registry version']);
   assert.deepEqual(problems('npm', { dependencies: { x: 'github:a/b' } }), ['dependencies x: github:a/b is a git source, not a registry version']);
   assert.deepEqual(problems('npm', { dependencies: { x: 'https://example.com/x.tgz' } }), ['dependencies x: https://example.com/x.tgz is a URL, not a registry version']);
+  // A polyspec package at 0.0.x is released as a GitHub release asset, so a dependency on one is that asset's URL (K777).
+  const asset = 'https://github.com/polyspec/ordered-json/releases/download/v0.0.10/polyspec-ordered-json-npm-0.0.10.tgz';
+  assert.deepEqual(problems('npm', { dependencies: { '@polyspec/ordered-json': asset } }), []);
+  assert.deepEqual(problems('npm', { dependencies: { x: 'https://github.com/polyspec/ordered-json/releases/download/latest/x.tgz' } }),
+    ['dependencies x: https://github.com/polyspec/ordered-json/releases/download/latest/x.tgz is a URL, not a registry version']);
+  assert.deepEqual(problems('npm', { dependencies: { x: 'https://github.com/other/x/releases/download/v0.0.1/x.tgz' } }),
+    ['dependencies x: https://github.com/other/x/releases/download/v0.0.1/x.tgz is a URL, not a registry version']);
+  assert.deepEqual(problems('npm', { dependencies: { 'fixture-lib': asset } }), [`dependencies fixture-lib: ${asset} is a polyspec release asset, not 1.0.0`]);
   assert.deepEqual(problems('npm', { dependencies: { x: '1.0.0-dev' } }), ['dependencies x: 1.0.0-dev is a development version, not a registry version']);
   assert.deepEqual(problems('npm', { overrides: { a: '1' } }), ['overrides: {"a":"1"}; a published package.json resolves only by name and version']);
   const composer = { version: '1.0.0', require: { php: '>=8.2', 'polyspec/kit-fixture': '1.0.0', 'polyspec/other': '1.2.3' } };

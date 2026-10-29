@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 672fb204f4d265380669917bd371c56027eee4fb7ddc0eb29ca4f4b279e04c78 -->
+<!-- source-sha256: 10e320ed389cf18e09f7fca96594bd23f08a8902383b0d1cd0448f2b0a1aac0b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -731,4 +731,4 @@
 | K774 | release 대상과 dependency review는 저장소가 추적하는 go.work로 실행하고, 추적하는 것이 없을 때만 GOWORK를 끈다 | scripts/kit/kit.mk, tests/kit/link.test.mts | `node --test --test-name-pattern=K774 tests/kit/link.test.mts` | [o] |
 | K775 | K772부터 K774까지를 배포하기 위해 Kit 0.0.66을 준비한다 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.66` | [o] |
 | K776 | K773 link-state-check 픽스처는 다른 저장소 이름을 쓰지 않는다 | tests/kit/link-state-check.test.mts tests/kit/test-output.test.mts scripts/kit/link-state-check.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/isolation.test.mts` | [o] |
-| K777 | release의 manifest 검사는 polyspec package를 정확한 version의 GitHub release asset URL로 지정한 dependency를 받아들이고, 그 밖의 URL은 거부한다 | scripts/kit/release.mts, tests/kit/release.test.mts | `node --test --test-name-pattern="the problems of a manifest" tests/kit/release.test.mts` | [~] |
+| K777 | release의 manifest 검사는 polyspec package를 정확한 version의 GitHub release asset URL로 지정한 dependency를 받아들이고, 그 밖의 URL은 거부한다 | scripts/kit/release.mts, tests/kit/release.test.mts | `node --test --test-name-pattern="the problems of a manifest" tests/kit/release.test.mts` | [o] |
