@@ -7,9 +7,8 @@
 // var/tools/mise/shims (mise-tools.mts), never from PATH, in the environment of mise of the checkout; var/tools/bin and the
 // shims come first on PATH, GOTOOLCHAIN=local keeps go from selecting another toolchain and RUSTUP_AUTO_INSTALL=0 keeps rustup
 // from installing one. A tool that is missing or fails to start is a finding that names its fix; the release that runs is shown and
-// never compared, since kit enforces no version (S4, K448): the checkout's mise.toml and its lock decide it. A uv lock sidecar that
-// mise.lock names and Git does not track (miseLockSidecarFindings, K192) and a key of an .npmrc that keeps npm from linking are
-// findings too.
+// never compared, since kit enforces no version (S4, K448): the checkout's mise.toml and its lock decide it. A key of an .npmrc
+// that keeps npm from linking is a finding too.
 import { phpInstall } from './install-php.mts';
 import { installedGenStub } from './install-php-arginfo.mts';
 import { existsSync, readFileSync } from 'node:fs';
@@ -21,7 +20,7 @@ import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute } from './process.mts';
 import { declaredRust } from './toolchain-files.mts';
-import { declaredMiseTools, miseLockSidecarFindings, MISE_TOOLS } from './toolchain-mise.mts';
+import { declaredMiseTools, MISE_TOOLS } from './toolchain-mise.mts';
 import { declaredLintTools } from './toolchain-lint.mts';
 import { npmrcFindings } from './toolchain-floors.mts';
 import { present } from './present.mts';
@@ -202,14 +201,12 @@ if (isMain(import.meta.url)) {
     const mismatches = toolchainMismatches(tools);
     // No declaration is compared with a pin and no floor with a declaration (K448, S4): the checkout's own files decide its versions.
     const links = npmrcFindings(repositoryRoot(), env);
-    const locked = miseLockSidecarFindings(repositoryRoot());
     const system = [...(checkAllDeclared ? arginfoToolFindings(repositoryRoot()) : []), ...bareFpmFindings(repositoryRoot())];
     console.log(`[check-toolchain] ${Object.entries(toolchainVersions(tools)).map(([tool, release]) => `${tool} ${release}`).join(', ')}`);
-    for (const line of [...mismatches, ...links, ...locked, ...system]) console.error(`[check-toolchain] ${line}`);
+    for (const line of [...mismatches, ...links, ...system]) console.error(`[check-toolchain] ${line}`);
     if (mismatches.length > 0) console.error(`[check-toolchain] ${mismatches.length} of ${tools.length} tools do not run from the tools of the checkout`);
     if (links.length > 0) console.error(`[check-toolchain] ${links.length} keys of .npmrc keep npm from linking`);
-    if (locked.length > 0) console.error(`[check-toolchain] ${locked.length} findings of the pins of mise.lock`);
-    if (mismatches.length > 0 || links.length > 0 || locked.length > 0 || system.length > 0) process.exitCode = 1;
+    if (mismatches.length > 0 || links.length > 0 || system.length > 0) process.exitCode = 1;
     else console.log(`[check-toolchain] ${tools.length} tools run from the tools of the checkout`);
   } catch (error) {
     if (!(error instanceof Error)) throw error;

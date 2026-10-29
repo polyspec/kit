@@ -70,13 +70,13 @@ and states only its own rules. The rules below are kit's own.
   govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer, vulture), writes their digests into `mise.lock` with
   `make toolchain-lock` and installs them with `make install-tools`, which runs `mise install --locked` with the mise of the bootstrap. The uv lock of a `pypi:` tool is the sidecar folder
   `.mise/locks/<tool>/<version>` that mise.lock names: kit-written lock data, tracked with mise.lock as mise's documentation
-  says, which `make toolchain-check` fails when Git does not track it (K192). A wheel is built by uv build from the
+  says; `mise install --locked` itself fails without it (K192), so kit adds no check of mise.lock (K835). A wheel is built by uv build from the
   build-system.requires of its own pyproject.toml; kit pins no build backend (K788). A vendored test checks a consumer's declaration only against
   this rule. The vendored dependency tests read go and Composer through stubs that answer from records of the real tools,
   never by running them. The kit's own tests of its real tools are in `tests/source`: kit-sync does not vendor
   them, a source test that runs a pinned tool needs `make install-tools` first, `make source-test` runs them, and CI runs
   them after `make kit-test`.
-  Enforced by: `make toolchain-check`
+  Enforced by: none, mise install --locked checks mise.lock and its sidecars itself (K835)
 - Own: kit's own checks run the tools of its `mise.toml` at the pins of kit, which `make install-tools` installs into
   var/tools/mise, and the Rust of `rust-toolchain.toml`; the Node.js of `mise.toml` is installed by the bootstrap
   (`make install-tools TOOLS=npm`) before npm (K171). Every recipe of kit.mk runs with the environment of mise of the

@@ -3,7 +3,7 @@
 // var/tools/mise/shims, so a test sets the running version of each tool.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -11,7 +11,7 @@ import { arginfoToolFindings, bareFpmFindings, toolchainMismatches, toolchainVer
 import { LOCK_PLATFORMS } from '../../scripts/kit/toolchain-mise.mts';
 import { installCargoAuditStub, installGovulncheckStub } from './checkout.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { miseStub, versionStubs } from './toolchain-stubs.mts';
+import { versionStubs } from './toolchain-stubs.mts';
 import { tool } from './kit-tools.mts';
 import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 import { known } from './known.mts';
@@ -81,33 +81,8 @@ test('every declared tool at its declared version passes, offline, and the run p
   assert.deepEqual(stubs.calls().map(line => known(line.split(' ')[0], 'line.split(…)[0]')).sort(), ['composer', 'go', 'npm', 'php', 'phpcs', 'phpstan', 'python3', 'ruff', 'rustc', 'composer', 'go', 'npm', 'php', 'phpcs', 'phpstan', 'python3', 'ruff', 'rustc'].sort(), 'only version commands run, each once for the check and once for the evidence');
 });
 
-// The lint tools of K77: vulture, golangci-lint and deadcode of mise.toml, and phpcs and PHPStan of the locked PHP lint project.
-// deadcode prints no release, so its probe is go version -m of the binary that `mise which deadcode` names, which the go stub
-// answers.
+// The locked PHP lint project, whose phpcs and PHPStan are tools of a checkout that declares PHP.
 const LINT_LOCK = JSON.stringify({ packages: [{ name: 'phpstan/phpstan', version: '2.3.1' }, { name: 'squizlabs/php_codesniffer', version: '4.0.4' }, { name: 'spaze/phpstan-disallowed-calls', version: 'v4.15.0' }] });
-const LINT_MISE = { 'pypi:vulture': '2.16', 'golangci-lint': '2.14.0', 'go:golang.org/x/tools/cmd/deadcode': '0.52.0' };
-const LINT_LOCKED = miseLock({ 'golangci-lint': '2.14.0', 'go:golang.org/x/tools/cmd/deadcode': '0.52.0' }) + `\n[[tools."pypi:vulture"]]\nversion = "2.16"\nuv = { path = ".mise/locks/pypi-vulture/2.16", digest = "${SUM}" }\n`;
-// The PHP lint is a tool of a checkout that declares PHP.
-// The uv lock of vulture that mise.lock names, a sidecar folder that the checkout tracks (K192).
-const SIDECAR = '.mise/locks/pypi-vulture/2.16';
-const SIDECAR_FILES = { [`${SIDECAR}/pyproject.toml`]: '[project]\nname = "mise-pypi-tool-environment"\n', [`${SIDECAR}/uv.lock`]: 'version = 1\n' };
-const LINT_FILES = { 'config/toolchain.json': JSON.stringify({ schema: 1, php: [PHP] }), 'mise.toml': miseToml(LINT_MISE), 'mise.lock': LINT_LOCKED, 'config/php-lint/composer.lock': LINT_LOCK, ...SIDECAR_FILES };
-const track = (root: string, ...paths: string[]) => spawnSync('git', ['-C', root, 'add', '--', ...paths], { encoding: 'utf8' });
-// The lint setup: the version stubs, the tracked sidecar, and the stub of mise that names the deadcode binary.
-const lintSetup = (t: TestContext, outputs: Record<string, string | null>) => {
-  const made = setup(t, outputs, LINT_FILES);
-  track(made.root, SIDECAR);
-  miseStub(made.root, { 'which deadcode': '/checkout/var/tools/mise/installs/deadcode/bin/deadcode' });
-  return made;
-};
-const lintOutputs = ({ vulture = '2.16', golangci = '2.14.0', tools = '0.52.0', phpcs = '4.0.4', phpstan = '2.3.1' } = {}) => ({
-  vulture: `vulture ${vulture}`,
-  'golangci-lint': `golangci-lint has version ${golangci} built with go1.27.0 from 114493f9 on 2026-09-24T11:07:15Z`,
-  go: `/checkout/var/tools/mise/installs/deadcode/bin/deadcode: go1.27.2\n\tpath\tgolang.org/x/tools/cmd/deadcode\n\tmod\tgolang.org/x/tools\tv${tools}\th1:x=`,
-  phpcs: `PHP_CodeSniffer version ${phpcs} (stable) by Squiz and PHPCSStandards`,
-  phpstan: `PHPStan - PHP Static Analysis Tool ${phpstan}`,
-});
-
 test('the vendored PHP lint is no tool to check in a repository that declares no PHP', (t) => {
   const { root, stubs } = setup(t, OUTPUTS, { 'package.json': FILES['package.json'], 'config/php-lint/composer.lock': LINT_LOCK });
   const result = check(root, stubs.env);
@@ -199,23 +174,6 @@ test('the make target toolchain-check passes the tools to the check', () => {
   assert.equal(dry.status, 0, dry.stderr);
   // A worktree runs the tools of the main checkout, so the node path is the one kit.mk resolves, not the root of this checkout (K792).
   assert.match(dry.stdout.trim(), /^\/\S+\/var\/tools\/bin\/node scripts\/kit\/check-toolchain\.mts npm go$/);
-});
-
-// mise's documentation says to commit the sidecar folder of mise.lock: mise install --locked of a fresh checkout replays the uv
-// lock in it, so an untracked or deleted sidecar fails there; a repository that deleted it to pass its layout check lost it (K192).
-test('the uv lock sidecar that mise.lock names is a tracked folder of the checkout, its tracked files present (K192)', (t) => {
-  const { root, stubs } = lintSetup(t, lintOutputs());
-  assert.equal(check(root, stubs.env, 'vulture').status, 0);
-  spawnSync('git', ['-C', root, 'rm', '-r', '--cached', '--quiet', '--', SIDECAR]);
-  const untracked = check(root, stubs.env, 'vulture');
-  assert.equal(untracked.status, 1, untracked.stdout);
-  assert.deepEqual(untracked.stderr.trim().split('\n'), [
-    `[check-toolchain] mise.lock pins pypi:vulture 2.16 by the uv lock in ${SIDECAR}, which Git does not track; mise install --locked of a checkout needs it, so commit ${SIDECAR} with mise.lock (make toolchain-lock writes it)`,
-    '[check-toolchain] 1 findings of the pins of mise.lock',
-  ]);
-  track(root, SIDECAR);
-  rmSync(path.join(root, SIDECAR, 'uv.lock'));
-  assert.match(check(root, stubs.env, 'vulture').stderr, new RegExp(`whose tracked file ${SIDECAR.replaceAll('.', '\\.')}/uv\\.lock is missing; restore it with git checkout -- `));
 });
 
 test('a repository with a PHP extension needs the installed pinned arginfo generator and parser, and toolchain-check names make install-tools (K303, K560)', (t) => {

@@ -9,15 +9,14 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { declaredMiseTools, miseLockFindings } from '../../scripts/kit/toolchain-mise.mts';
+import { declaredMiseTools } from '../../scripts/kit/toolchain-mise.mts';
 import { buildWheel, wheelName } from '../../scripts/kit/release-wheel.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURE = 'tests/kit/fixture/packages/fixture-python';
 
-test('mise.toml declares the Python of the kit and mise.lock pins its build', () => {
+test('mise.toml declares the Python of the kit', () => {
   assert.deepEqual(declaredMiseTools(ROOT).python, { version: '3.14.8', source: 'mise.toml tools.python' });
-  assert.deepEqual(miseLockFindings(ROOT).filter(line => line.includes(' python ')), [], 'mise.lock pins the build of each platform by its sha256');
 });
 
 test('the fixture wheel is built with the real Python and uv build', { timeout: 900000 }, (t) => {

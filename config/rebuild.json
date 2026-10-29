@@ -440,7 +440,7 @@
     },
     "scripts/kit/toolchain-mise.mts": {
       "kind": "policy",
-      "reason": "polyspec's rule that mise.lock pins every tool of mise.toml by the sha256 of its archive of each platform, a go: tool excepted for the checksum database of Go; mise.toml and mise.lock are read by smol-toml (K127)"
+      "reason": "polyspec's set of the tools of mise.toml that kit runs, with their keys and commands; mise.toml is read by smol-toml, and mise.lock is mise's record, which kit does not judge (K127, K835)"
     },
     "scripts/kit/toolchain-pins.mts": {
       "kind": "policy",

@@ -12,22 +12,21 @@
 // uv and a Python, which must be the pinned ones, never a uv or a Python of the machine: mise 2026.10.8 resolved with the uv
 // that came first on PATH, and that uv with a python3 that it found on PATH (measured). So a mise.toml with a pypi: tool locks
 // the uv and the Python of mise.toml alone first, installs them from that lock, and then locks every tool with their
-// directories first on PATH and that Python as UV_PYTHON. The lock is then
-// checked by miseLockFindings, the check of make toolchain-check, so a lock that misses a digest fails here with the finding.
+// directories first on PATH and that Python as UV_PYTHON.
 import path from 'node:path';
 import { installMise, miseBinary, miseInstallEnvironment } from './bootstrap/install-mise.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { run as output } from './process.mts';
-import { declaredMiseTools, LOCK_PLATFORMS, miseLockFindings, MISE_TOOL_NAMES, MISE_TOOLS, WINDOWS_LOCKED_TOOLS, WINDOWS_LOCK_PLATFORMS } from './toolchain-mise.mts';
+import { declaredMiseTools, LOCK_PLATFORMS, MISE_TOOL_NAMES, MISE_TOOLS, WINDOWS_LOCKED_TOOLS, WINDOWS_LOCK_PLATFORMS } from './toolchain-mise.mts';
 
 /** The tree under which `mise lock` writes the uv lock of each pypi: tool, a folder of the repository root. */
 export const MISE_LOCKS = '.mise/locks/';
 
 /**
  * Installs the mise of config/toolchain.json of `root` (installMise of the bootstrap, which keeps an installed one) and writes
- * mise.lock with it; throws with the findings of a lock that misses a digest.
+ * mise.lock with it.
  */
 export function lockTools({ root = repositoryRoot(), print = () => {} }: { root?: string; print?: (text: string) => void } = {}): void {
   const declaredMise = declaredToolchain(root).mise;
@@ -55,9 +54,7 @@ export function lockTools({ root = repositoryRoot(), print = () => {} }: { root?
   run(mise, ['lock', ...platforms], { cwd: root, env }, print);
   const windowsTools = WINDOWS_LOCKED_TOOLS.filter(name => declared[name as keyof typeof declared]);
   if (windowsTools.length > 0) run(mise, ['lock', ...windowsTools, '--global', '--platform', WINDOWS_LOCK_PLATFORMS.join(',')], { cwd: root, env }, print);
-  const findings = miseLockFindings(root);
-  if (findings.length > 0) throw new Error(`mise.lock is incomplete:\n${findings.join('\n')}`);
-  print('mise.lock pins every tool of mise.toml');
+  print('wrote mise.lock');
 }
 
 if (isMain(import.meta.url)) {

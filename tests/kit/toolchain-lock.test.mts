@@ -66,7 +66,7 @@ test('toolchain-lock locks the tools of mise.toml, which the environment of mise
   ]);
   assert.equal(readFileSync(path.join(root, 'mise.lock'), 'utf8'), LOCK);
   assert.equal(printed[0], `mise: ${VERSION} is installed in var/tools/mise-release`);
-  assert.deepEqual(printed.at(-1), 'mise.lock pins every tool of mise.toml');
+  assert.deepEqual(printed.at(-1), 'wrote mise.lock');
 });
 
 test('toolchain-lock reapplies Windows pins for bootstrap Node and selected Go after locking common platforms', (t) => {

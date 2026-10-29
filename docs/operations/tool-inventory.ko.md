@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0feca1bdb637da3c606fb9108c70b9c2e5abf0605dcd1c56e1d7e9a4a33251d5 -->
+<!-- source-sha256: 47463e3a2a8541b15d66a2abf0ece4c48c38359254b50e1a4ed15edd7e4d246c -->
 
 # 도구 목록
 
@@ -82,7 +82,7 @@ Composer release archive는 generated header를 stub/output 경로로 선언합�
 staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, commit timestamp를 고정합니다. `zip`이 없으면
 `make release-assets`가 먼저 설치 안내와 함께 실패하며, Ubuntu release workflow는 asset build 전에 runner의 `zip` 제공 여부를 확인합니다.
 
-저장소는 `mise.toml`에 http backend로 자기 도구를 선언할 수 있다(K327). 예: `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`. key는 `http:`로 시작하고, version을 선언하며, url은 https이다. `mise.lock`이 lock의 모든 platform에 대해 그 sha256을 pin하고 `make toolchain-check`가 sha256이 빠진 platform을 이름으로 알리며, mise가 `mise install --locked`에서 digest를 검사한다. kit이 검사하지 않는 다른 backend의 도구는 여전히 거부한다.
+저장소는 `mise.toml`에 http backend로 자기 도구를 선언할 수 있다(K327). 예: `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`. key는 `http:`로 시작하고, version을 선언하며, url은 https이다. `mise.lock`이 lock의 모든 platform에 대해 그 sha256을 pin하고, mise가 `mise install --locked`에서 digest를 검사한다. kit이 검사하지 않는 다른 backend의 도구는 여전히 거부한다.
 
 ### 선언
 
@@ -102,7 +102,7 @@ staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, comm
 | cargo-nextest | `mise.toml`의 `"github:nextest-rs/nextest" = { version, version_prefix = "cargo-nextest-" }`: platform별 native binary(macOS는 universal binary), 그 sha256은 `mise.lock`에. check-toolchain이 `cargo-nextest --version`을 읽음(K143) | mise로 설치 |
 | cargo-deny | `mise.toml`의 `cargo-deny`(mise registry의 aqua backend, `aqua:EmbarkStudios/cargo-deny`): platform별 native binary, 그 sha256은 `mise.lock`에. check-toolchain이 `cargo-deny --version`을 읽음(K143) | mise로 설치 |
 | govulncheck, deadcode | `mise.toml`의 `"go:golang.org/x/vuln/cmd/govulncheck"`, `"go:golang.org/x/tools/cmd/deadcode"`, `go:` backend가 build; `mise.lock`은 release를 기록하고, Go가 `GOFLAGS=-mod=readonly`로 모든 module을 `GOSUMDB`에 비추어 확인함(선언된 예외) | mise로 설치 |
-| vulture | `mise.toml`의 `"pypi:vulture"`: `mise.lock`이 mise가 `.mise/locks` 아래에 쓰는 uv lock의 digest를 가짐. 그 sidecar folder는 mise의 문서대로 저장소가 mise.lock과 함께 track하며, Git이 track하지 않거나 track한 파일이 없으면 `make toolchain-check`가 실패합니다. checkout의 `mise install --locked`가 "dependency sidecar … No such file or directory"로 실패하기 때문입니다 (K192) | mise로 설치 |
+| vulture | `mise.toml`의 `"pypi:vulture"`: `mise.lock`이 mise가 `.mise/locks` 아래에 쓰는 uv lock의 digest를 가짐. 그 sidecar folder는 mise의 문서대로 저장소가 mise.lock과 함께 track합니다. 그것이 없으면 checkout의 `mise install --locked`가 "dependency sidecar … No such file or directory"로 실패하므로(K192) kit은 검사를 더하지 않습니다 (K835) | mise로 설치 |
 | PHPUnit | `config/toolchain.json`의 `phpunit` `{ version }`; `config/phpunit`의 Composer project(`composer.json`, `composer.lock`)로 설치. kit은 자신의 PHP 테스트에만 쓰며, consumer는 PHPUnit을 패키지의 `composer.json`에 둠 | `mise.toml`의 Composer로 설치 |
 
 `var/tools`의 Composer project(PHPUnit, PHP lint)는 project folder에서 `COMPOSER_VENDOR_DIR`를 `var/tools/<folder>/vendor`로 둔
@@ -112,8 +112,8 @@ staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, comm
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
 목록), `mise`(`version`, platform별 archive의 `sha256`), `phpunit`(`version`), `symbolExtractors`,
 `exceptions`(아래)입니다. Node.js를 포함한 `mise.toml`의 도구는 여기에 key가 없습니다.
-`mise.toml`은 kit이 검사하는 도구만 선언하며(`toolchain-mise.mts`의 `MISE_TOOLS`), 각각 정확한 release로 선언합니다.
-`mise.lock`이 그중 하나라도 위와 같이 고정하지 않으면 `toolchain-check`가 실패합니다. Rust는 `rustup`이 읽는
+`mise.toml`은 kit이 검사하는 도구만 선언하며(`toolchain-mise.mts`의 `MISE_TOOLS`), 각각 mise가 해석하는 release로
+선언합니다. `mise.lock`은 mise의 기록이며 kit은 그것을 판정하지 않습니다(K835). Rust는 `rustup`이 읽는
 자기 파일에 두고, CI의 `setup-node`는 bootstrap을 시작하기 위해서만 `mise.toml`의 node를 읽습니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
 
 ### Pin, 하한, 예외(K78)

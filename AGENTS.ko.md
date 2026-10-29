@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 02dfdca2769b0ab90d5c22331c10b1001710e9a89dbfdfbde11ed54f697d4600 -->
+<!-- source-sha256: e13407294c6619426096317c467f0f5714a3d40f275299f344549e88144ddd50 -->
 # 개발
 
 [English](AGENTS.md)
@@ -62,13 +62,13 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Own: 저장소는 설치하는 도구(Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, cargo-nextest,
   cargo-deny, Composer, vulture)를 `mise.toml`에 선언하고, `make toolchain-lock`으로 그 digest를 `mise.lock`에 쓰며, `make install-tools`로 설치합니다. 이
   target은 bootstrap의 mise로 `mise install --locked`를 실행합니다. `pypi:` 도구의 uv lock은 mise.lock이 가리키는 sidecar folder
-  `.mise/locks/<tool>/<version>`입니다: kit이 쓰는 lock data이며 mise의 문서대로 mise.lock과 함께 track하고, Git이 track하지
-  않으면 `make toolchain-check`가 실패합니다(K192). wheel은 uv build가 자기 pyproject.toml의 build-system.requires로
+  `.mise/locks/<tool>/<version>`입니다: kit이 쓰는 lock data이며 mise의 문서대로 mise.lock과 함께 track합니다. 그것이
+  없으면 `mise install --locked`가 스스로 실패하므로(K192) kit은 mise.lock을 검사하지 않습니다(K835). wheel은 uv build가 자기 pyproject.toml의 build-system.requires로
   build하며, kit은 build backend를 고정하지 않습니다(K788). vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. vendored dependency test는 go와 Composer를 실제 도구의
   기록으로 답하는 stub으로 읽으며, 실제 도구를 실행하지 않습니다. kit 자신의 실제 도구 test는 `tests/source`에 있습니다.
   kit-sync가 vendor하지 않으며, 고정한 도구를 실행하는 source test에는 먼저 `make install-tools`가 필요하고, `make
   source-test`가 실행하며 CI는 `make kit-test` 뒤에 실행합니다.
-  Enforced by: `make toolchain-check`
+  Enforced by: none, mise install --locked checks mise.lock and its sidecars itself (K835)
 - Own: kit 자신의 검사는 kit pin에 맞춘 `mise.toml`의 도구를 쓰며, 이것들은 `make install-tools`가 var/tools/mise에 설치합니다.
   Rust는 `rust-toolchain.toml`의 것을 쓰고, `mise.toml`의 Node.js는 bootstrap(`make install-tools TOOLS=npm`)이 npm보다 먼저
   설치합니다(K171). kit.mk의 모든 recipe는 checkout의 mise 환경으로, var/tools/bin과 mise의 shim을 PATH 맨 앞에 두고

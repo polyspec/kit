@@ -1,13 +1,10 @@
-// Tests of scripts/kit/toolchain-mise.mts (K127): the tools of mise.toml are read with their exact releases and the key that
-// declares them, a key of a tool that kit does not check is refused, and miseLockFindings names each tool that mise.lock does
-// not pin by the sha256 of its archive of every platform, by the digest of its uv lock (pypi:), or at all; a go: tool is
-// pinned by its release, and Go checks its modules.
+// Tests of scripts/kit/toolchain-mise.mts (K127): the tools of mise.toml are read with their releases as declared and the key
+// that declares them, and a key of a tool that kit does not check is refused. mise.lock is mise's record, which kit does not judge (K835).
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { declaredMiseTools, miseLockFindings } from '../../scripts/kit/toolchain-mise.mts';
+import { declaredMiseTools } from '../../scripts/kit/toolchain-mise.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 
-const SUM = `sha256:${'a'.repeat(64)}`;
 const MISE_TOML = `[tools]
 go = "1.27.2"
 python = "3.14.8"
@@ -18,27 +15,6 @@ ruff = "0.17.0"
 cargo-deny = "0.20.2"
 "pypi:vulture" = "2.16"
 `;
-
-// The mise.lock entry of `key` at `version`, with the archives of `platforms` and the extra lines `more`.
-const entry = (key: string, version: string, platforms: string[], more = '') => `[[tools."${key}"]]
-version = "${version}"
-backend = "${key}"
-${more}
-${platforms.map(platform => `[tools."${key}"."platforms.${platform}"]\nchecksum = "${SUM}"\nurl = "https://example.invalid/${platform}"\n`).join('\n')}`;
-
-// The platforms on which the bootstrap installs mise: the archives of config/toolchain.json mise (K134).
-const BOTH = ['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'];
-const WINDOWS = ['windows-x64', 'windows-arm64'];
-const LOCK = [
-  entry('go', '1.27.2', [...BOTH, ...WINDOWS]),
-  entry('python', '3.14.8', BOTH),
-  entry('ruff', '0.17.0', BOTH),
-  entry('go:golang.org/x/vuln/cmd/govulncheck', '1.3.0', []),
-  entry('github:rustsec/rustsec', '0.22.2', BOTH),
-  entry('github:nextest-rs/nextest', '0.9.146', BOTH),
-  entry('cargo-deny', '0.20.2', BOTH),
-  entry('pypi:vulture', '2.16', [], `uv = { path = ".mise/locks/pypi-vulture/2.16", digest = "${SUM}" }`),
-].join('\n');
 
 test('the tools of mise.toml are read with their releases and the declaring key; no mise.toml declares none', (t) => {
   const root = toolchainCheckout(t, { 'mise.toml': MISE_TOML });
@@ -55,82 +31,25 @@ test('the tools of mise.toml are read with their releases and the declaring key;
   assert.deepEqual(declaredMiseTools(toolchainCheckout(t)), {});
 });
 
-test('a tool that kit does not check, or a release that is not exact, is refused with the key and the value', (t) => {
+test('a tool that kit does not check is refused with the key, and a release is taken as declared (K835)', (t) => {
   assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\ndeno = "2.6.0"\n' })), /mise\.toml tools declares deno, which kit does not check; the tools are node, go, python, /);
-  assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\nnode = "26"\n' })), /mise\.toml tools\.node must declare an exact release, <major>\.<minor>\.<patch>; it declares "26"/);
-  assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\ngo = "1.27"\n' })), /mise\.toml tools\.go must declare an exact release, <major>\.<minor>\.<patch>; it declares "1\.27"/);
-  assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\n"pypi:vulture" = "latest"\n' })), /mise\.toml tools\.pypi:vulture must declare an exact release as PyPI names it; it declares "latest"/);
-  assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\nruff = { backend = "aqua" }\n' })), /tools\.ruff must declare an exact release, <major>\.<minor>\.<patch>; it declares undefined/);
-});
-
-test('a lock that pins every tool has no finding; a go: tool needs no digest', (t) => {
-  assert.deepEqual(miseLockFindings(toolchainCheckout(t, { 'mise.toml': MISE_TOML, 'mise.lock': LOCK })), []);
-  assert.deepEqual(miseLockFindings(toolchainCheckout(t)), [], 'no mise.toml locks nothing');
-});
-
-test('a missing lock, tool, release, platform digest or uv lock is a finding with the fix', (t) => {
-  assert.deepEqual(miseLockFindings(toolchainCheckout(t, { 'mise.toml': MISE_TOML })), ['mise.lock is missing; run make toolchain-lock']);
-  const lock = [
-    entry('go', '1.27.1', BOTH),
-    entry('python', '3.14.8', ['linux-x64']),
-    entry('go:golang.org/x/vuln/cmd/govulncheck', '1.3.0', []),
-    entry('github:rustsec/rustsec', '0.22.2', BOTH),
-    entry('github:nextest-rs/nextest', '0.9.146', BOTH),
-    entry('cargo-deny', '0.20.2', ['linux-x64', 'macos-arm64']),
-    entry('pypi:vulture', '2.16', []),
-  ].join('\n');
-  const composer = `${MISE_TOML}"http:composer" = { version = "2.10.3", url = "https://getcomposer.org/download/{{ version }}/composer.phar" }\n`;
-  assert.deepEqual(miseLockFindings(toolchainCheckout(t, { 'mise.toml': composer, 'mise.lock': `${lock}\n${entry('http:composer', '2.10.3', [])}` })), [
-    'mise.lock does not pin go 1.27.2; run make toolchain-lock',
-    'mise.lock pins python 3.14.8 for linux-arm64 without the sha256 of its archive; run make toolchain-lock',
-    'mise.lock pins python 3.14.8 for macos-arm64 without the sha256 of its archive; run make toolchain-lock',
-    'mise.lock pins python 3.14.8 for macos-x64 without the sha256 of its archive; run make toolchain-lock',
-    'mise.lock does not pin ruff 0.17.0; run make toolchain-lock',
-    'mise.lock pins cargo-deny 0.20.2 for linux-arm64 without the sha256 of its archive; run make toolchain-lock',
-    'mise.lock pins cargo-deny 0.20.2 for macos-x64 without the sha256 of its archive; run make toolchain-lock',
-    'mise.lock pins pypi:vulture 2.16 without the digest of its uv lock; install uv with mise and run make toolchain-lock',
-    'mise.lock pins http:composer 2.10.3 for linux-x64 without the sha256 of its archive; run make toolchain-lock, after declaring the checksum of http:composer in mise.toml',
-    'mise.lock pins http:composer 2.10.3 for linux-arm64 without the sha256 of its archive; run make toolchain-lock, after declaring the checksum of http:composer in mise.toml',
-    'mise.lock pins http:composer 2.10.3 for macos-arm64 without the sha256 of its archive; run make toolchain-lock, after declaring the checksum of http:composer in mise.toml',
-    'mise.lock pins http:composer 2.10.3 for macos-x64 without the sha256 of its archive; run make toolchain-lock, after declaring the checksum of http:composer in mise.toml',
-  ]);
-});
-
-// Every managed tool has pins for each common Linux/macOS platform; selected Windows tools are checked separately below (K134).
-test('mise.lock pins the archive of every common Linux and macOS platform (K134)', (t) => {
-  const two = LOCK.replaceAll(/\[tools\."[^"]+"\."platforms\.(linux-arm64|macos-x64)"\]\nchecksum = "[^"]+"\nurl = "[^"]+"\n/g, '');
-  const root = toolchainCheckout(t, { 'mise.toml': MISE_TOML, 'mise.lock': two });
-  const findings = miseLockFindings(root);
-  assert.ok(findings.includes('mise.lock pins go 1.27.2 for linux-arm64 without the sha256 of its archive; run make toolchain-lock'), findings.join('\n'));
-  assert.ok(findings.includes('mise.lock pins go 1.27.2 for macos-x64 without the sha256 of its archive; run make toolchain-lock'), findings.join('\n'));
-});
-
-test('mise.lock requires Windows pins for the bootstrap Node and selected Go tools', (t) => {
-  const root = toolchainCheckout(t, {
-    'mise.toml': '[tools]\nnode = "26.12.0"\ngo = "1.27.3"\n',
-    'mise.lock': [entry('node', '26.12.0', [...BOTH, ...WINDOWS]), entry('go', '1.27.3', [...BOTH, ...WINDOWS])].join('\n'),
+  assert.deepEqual(declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\nnode = "26"\ngo = "1.27"\n"pypi:vulture" = "latest"\n' })), {
+    node: { version: '26', source: 'mise.toml tools.node' },
+    go: { version: '1.27', source: 'mise.toml tools.go' },
+    vulture: { version: 'latest', source: 'mise.toml tools.pypi:vulture' },
   });
-  assert.deepEqual(miseLockFindings(root), []);
-  const missing = toolchainCheckout(t, {
-    'mise.toml': '[tools]\nnode = "26.12.0"\ngo = "1.27.3"\n',
-    'mise.lock': [entry('node', '26.12.0', [...BOTH, 'windows-x64']), entry('go', '1.27.3', [...BOTH, 'windows-x64'])].join('\n'),
+  // A list declares the tool at its first release, and a table without a version at the release that mise resolves.
+  assert.deepEqual(declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\npython = ["3.14.8", "3.13.1"]\nruff = { backend = "aqua" }\n' })), {
+    python: { version: '3.14.8', source: 'mise.toml tools.python' },
+    ruff: { version: 'as mise resolves it', source: 'mise.toml tools.ruff' },
   });
-  const findings = miseLockFindings(missing);
-  assert.deepEqual(findings.map(line => line.split(' without ')[0]), [
-    'mise.lock pins node 26.12.0 for windows-arm64',
-    'mise.lock pins go 1.27.3 for windows-arm64',
-  ]);
 });
 
-test('a repository declares an http tool with a version and an https url, which mise.lock pins by sha256 (K327)', (t) => {
+test('a repository declares an http tool with a version and an https url (K327)', (t) => {
   const http = '"http:pie" = { version = "1.2.3", url = "https://example.invalid/pie-{{version}}.phar" }\n';
-  const checkout = (extra: string, lock = LOCK) => toolchainCheckout(t, { 'mise.toml': `${MISE_TOML}${extra}`, 'mise.lock': lock });
+  const checkout = (extra: string) => toolchainCheckout(t, { 'mise.toml': `${MISE_TOML}${extra}` });
   assert.deepEqual(Object.keys(declaredMiseTools(checkout(http))), ['go', 'python', 'ruff', 'govulncheck', 'cargoAudit', 'cargoNextest', 'cargoDeny', 'vulture']);
   assert.throws(() => declaredMiseTools(checkout('"http:pie" = "1.2.3"\n')), /mise\.toml tools\.http:pie: must be a table with the version and the url of the download/);
   assert.throws(() => declaredMiseTools(checkout('"http:pie" = { version = "1.2.3", url = "http://example.invalid/pie" }\n')), /must declare the https url of the download/);
   assert.throws(() => declaredMiseTools(checkout('"http:pie" = { url = "https://example.invalid/pie" }\n')), /must declare the version of the download/);
-  // The lock pins it for every platform: a missing sha256 is a finding, as for a tool of kit.
-  const missing = miseLockFindings(checkout(http, `${LOCK}\n${entry('http:pie', '1.2.3', ['linux-x64'])}`));
-  assert.deepEqual(missing.map(line => line.split(' without ')[0]), ['mise.lock pins http:pie 1.2.3 for linux-arm64', 'mise.lock pins http:pie 1.2.3 for macos-arm64', 'mise.lock pins http:pie 1.2.3 for macos-x64']);
-  assert.deepEqual(miseLockFindings(checkout(http, `${LOCK}\n${entry('http:pie', '1.2.3', BOTH)}`)), []);
 });

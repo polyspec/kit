@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2320d84f02822b5068f4ae3b574c0c541449ff81b47df5b2a54e2739a7d52f99 -->
+<!-- source-sha256: b129f6ccfef090bc89335a48041c629623b6f56a01fc5b4b836810ef5ed375a6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit은 mise.toml의 release를 선언된 그대로 받고 더 이상 mise.lock을 판정하지 않습니다. exact-release 거부, make toolchain-lock의 lock digest 검사, make toolchain-check의 sidecar 검사가 없어졌으며, `mise install --locked`가 lock과 sidecar를 스스로 검사합니다 (K835).
 - PHP lint 도구는 config/php-lint/composer.lock이 기록한 phpcs와 phpstan release를 기록된 그대로 받습니다. kit은 더 이상 release가 <major>.<minor>.<patch>가 아닌 lock을 거부하지 않습니다 (K834).
 - PHP arginfo 설치는 더 이상 php-arginfo/<release> lock의 nikic/php-parser release를 gen_stub.php가 이름 붙인 release와 비교하지 않습니다. 폴더가 그 release로 선택되므로 그 비교는 폴더를 자기 이름과 비교했습니다 (K833).
 - link-state-check는 더 이상 tracked lock의 내용을 판정하지 않습니다. polyspec 패키지의 Cargo.lock 또는 package-lock.json 항목이 path나 link여도 finding이 아니며, lock은 그 package manager의 기록입니다 (K831).

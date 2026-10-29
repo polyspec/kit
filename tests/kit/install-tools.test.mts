@@ -195,14 +195,14 @@ test('a rust-toolchain.toml without rustup fails with the one prerequisite of th
 const lockText = (graph: boolean) => `[[tools.ruff]]\nversion = "0.17.0"\n${['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'].map(platform => `[tools.ruff."platforms.${platform}"]\nchecksum = "${SUM}"\n`).join('')}
 [[tools."pypi:vulture"]]\nversion = "2.16"\n${graph ? `uv = { path = ".mise/locks/pypi-vulture/2.16", digest = "${SUM}" }\n` : ''}`;
 
-test('toolchain-lock runs mise lock for the four platforms of the bootstrap and passes a lock that pins every tool', (t) => {
+test('toolchain-lock runs mise lock for the four platforms of the bootstrap', (t) => {
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'mise.lock': lockText(true) });
   miseReleaseStub(root);
   const result = start(TOOLCHAIN_LOCK, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
   // The install of mise records the trust of the checkout's mise.toml first (K208), then the lock runs.
   assert.deepEqual(stubs.calls(), [`mise trust ${path.join(root, 'mise.toml')}`, 'mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64']);
-  assert.match(result.stdout, /\[toolchain-lock\] mise\.lock pins every tool of mise\.toml/);
+  assert.match(result.stdout, /\[toolchain-lock\] wrote mise\.lock/);
 });
 
 // The uv and the Python that the stub of mise names as its own, by `mise which`.
@@ -221,8 +221,7 @@ test('a pypi: tool is locked with the uv and the Python of mise first on PATH, n
   writeFileSync(path.join(machine, 'uv'), '#!/bin/sh\necho "the uv of the machine ran" >&2\nexit 1\n', { mode: 0o755 });
   const log = path.join(stubs.directory, 'env.log');
   const result = start(TOOLCHAIN_LOCK, root, { ...stubs.env, PATH: `${machine}${path.delimiter}${stubs.env.PATH}`, STUB_MISE_ENV_LOG: log });
-  // The stub writes no lock, so the lock still misses the uv lock and the command fails with the findings.
-  assert.equal(result.status, 1);
+  assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(stubs.calls(), [
     `mise trust ${path.join(root, 'mise.toml')}`,
     'mise lock uv python --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64',
@@ -236,7 +235,6 @@ test('a pypi: tool is locked with the uv and the Python of mise first on PATH, n
   // The wrapper of the installed mise puts the directory of its binary first (miseWrapper), then the uv and the Python of mise.
   assert.deepEqual(last.PATH.split(path.delimiter).slice(0, 3), [path.join(root, 'var/tools/mise-release/mise/bin'), path.dirname(MISE_UV), path.dirname(MISE_PYTHON)], 'the uv and the Python of mise come first');
   assert.equal(last.UV_PYTHON, MISE_PYTHON, 'uv resolves with the Python of mise');
-  assert.match(result.stderr, /mise\.lock pins pypi:vulture 2\.16 without the digest of its uv lock/);
 });
 
 test('a pypi: tool without the uv or the Python of mise.toml is refused before any lock', (t) => {

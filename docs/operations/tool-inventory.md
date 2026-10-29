@@ -87,7 +87,7 @@ then append the staged file with Info-ZIP (`zip`) using stored entries, mode 064
 fails early with installation guidance when `zip` is missing. The Ubuntu release workflow checks that its runner provides `zip`
 before building assets.
 
-A repository may declare a downloaded tool of its own in `mise.toml` through the http backend (K327), such as `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`: the key starts with `http:`, the version is declared, and the url is https. `mise.lock` pins its sha256 for every platform of the lock, and `make toolchain-check` names the platform whose sha256 is missing; mise checks the digest at `mise install --locked`. A tool of another backend that kit does not check is still refused.
+A repository may declare a downloaded tool of its own in `mise.toml` through the http backend (K327), such as `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`: the key starts with `http:`, the version is declared, and the url is https. `mise.lock` pins its sha256 for every platform of the lock, and mise checks the digest at `mise install --locked`. A tool of another backend that kit does not check is still refused.
 
 ### Declarations
 
@@ -107,7 +107,7 @@ A repository may declare a downloaded tool of its own in `mise.toml` through the
 | cargo-nextest | `"github:nextest-rs/nextest" = { version, version_prefix = "cargo-nextest-" }` of `mise.toml`: the native binary of each platform (the universal binary on macOS), its sha256 in `mise.lock`; check-toolchain reads `cargo-nextest --version` (K143) | install with mise |
 | cargo-deny | `cargo-deny` of `mise.toml` (the aqua backend of the registry of mise, `aqua:EmbarkStudios/cargo-deny`): the native binary of each platform, its sha256 in `mise.lock`; check-toolchain reads `cargo-deny --version` (K143) | install with mise |
 | govulncheck, deadcode | `"go:golang.org/x/vuln/cmd/govulncheck"`, `"go:golang.org/x/tools/cmd/deadcode"` of `mise.toml`, built by the `go:` backend; `mise.lock` records the release, and Go checks every module against `GOSUMDB` with `GOFLAGS=-mod=readonly` (the declared exception) | install with mise |
-| vulture | `"pypi:vulture"` of `mise.toml`: `mise.lock` holds the digest of the uv lock that mise writes under `.mise/locks`, a sidecar folder that the repository tracks with mise.lock, as mise's documentation says; `make toolchain-check` fails when Git does not track it or a tracked file of it is missing, since `mise install --locked` of a checkout fails with "dependency sidecar … No such file or directory" (K192) | install with mise |
+| vulture | `"pypi:vulture"` of `mise.toml`: `mise.lock` holds the digest of the uv lock that mise writes under `.mise/locks`, a sidecar folder that the repository tracks with mise.lock, as mise's documentation says; `mise install --locked` of a checkout fails with "dependency sidecar … No such file or directory" without it (K192), so kit adds no check (K835) | install with mise |
 | PHPUnit | `config/toolchain.json` `phpunit` `{ version }`, with the Composer project of `config/phpunit` (`composer.json`, `composer.lock`); kit runs it for its own PHP tests only, and a consumer keeps its PHPUnit in its package `composer.json` | install with the Composer of `mise.toml` |
 
 A Composer project of `var/tools` (PHPUnit, the PHP lint) is installed by `composer install` in the folder of the project, with
@@ -117,7 +117,7 @@ when the vendor directory already holds it, and checks the platform requirements
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
 minor releases), `mise` (`version`, `sha256` of each platform's archive), `phpunit` (`version`),
 `symbolExtractors` and `exceptions` (below). A tool of `mise.toml`, Node.js among them, has no key there. `mise.toml` declares only the tools that kit checks (`MISE_TOOLS` of `toolchain-mise.mts`), each
-at an exact release, and `toolchain-check` fails while `mise.lock` does not pin one of them as above. Rust stays in its own
+at the release that mise resolves; `mise.lock` is mise's record, which kit does not judge (K835). Rust stays in its own
 file, which `rustup` reads; CI's `setup-node` reads the node of `mise.toml` only to start the bootstrap. A tool that is not declared is neither installed nor checked.
 
 ### Pins, floors and exceptions (K78)
