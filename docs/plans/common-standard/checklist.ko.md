@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 42c69c1ffac68221141dd828a39170904101c7e03da7af663687948a71ed9599 -->
+<!-- source-sha256: b1c846d2b6b6cd6d6ce033b24ea2789135bda93022cda2861e3d3e86f192155d -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -771,4 +771,4 @@
 | K815 | gates workflow의 shared job은 commit range를 계산하지 않고 kit-gates-static에 RANGE를 넘기지 않는다. K805가 commits-check를 삭제한 뒤로 어떤 target도 그것을 읽지 않는다 | workflows/gates.yml tests/kit/gates-workflow.test.mts | `node --test tests/kit/gates-workflow.test.mts` | [o] |
 | K816 | uv build가 쓰기 전에 buildWheel의 빌드 폴더를 만듦 | scripts/kit/release-wheel.mts | `node --test tests/kit/release-wheel.test.mts tests/kit/release.test.mts` | [o] |
 | K817 | Kit 0.0.70 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
-| K818 | 본문의 marker 예시가 아니라 doc-id 줄 다음의 marker 줄만 stamp함 | scripts/kit/documents-stamp.mts | `node --test tests/kit/documents-stamp.test.mts` | [ ] |
+| K818 | 본문의 marker 예시가 아니라 doc-id 줄 다음의 marker 줄만 stamp함 | scripts/kit/documents-stamp.mts | `node --test tests/kit/documents-stamp.test.mts` | [~] |
