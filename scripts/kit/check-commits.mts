@@ -9,8 +9,9 @@
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
 //   node scripts/kit/check-commits.mts --prepare --source=<s> --sha=<sha>   the record of an amend, from the prepare-commit-msg hook (K380-2)
 //
-// The change is the index against HEAD, or against the parent of HEAD when the commit amends it (K380-2). Each finding is one line
-// `<rule>: <message>`; the command exits with status 1 when there is one.
+// The change is the index against HEAD, or against the parent of HEAD when the commit amends it (K380-2, K891). Each finding is one
+// line `<rule>: <message>`; the command exits with status 1 when there is one.
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
@@ -215,6 +216,27 @@ export function takeAmend(root: string) {
   return named !== '' && named === commitOf(root, 'HEAD');
 }
 
+/**
+ * Whether the git commit that runs the commit-msg hook amends HEAD (K891), from the arguments of that git process, an ancestor of this
+ * one: git gives the prepare-commit-msg hook the source `commit` only for --amend without -m or -F (K380-2), and no source names an
+ * amend of git commit --amend -F. The nearest git process decides; ps joins its arguments with spaces, so only the arguments before
+ * the first message option count, since the words of a message could read as --amend or an abbreviation of it that git accepts.
+ */
+export function amendingCommit(pid = process.ppid): boolean {
+  for (let current = pid, depth = 0; current > 1 && depth < 10; depth++) {
+    const fields = /^\s*(\d+)\s+(.*)$/.exec(spawnSync('ps', ['-o', 'ppid=,command=', '-p', String(current)], { encoding: 'utf8' }).stdout.trim());
+    if (fields === null) return false;
+    const args = (fields[2] ?? '').split(/\s+/);
+    if (path.basename(args[0] ?? '') === 'git') {
+      const options = args.slice(args.indexOf('commit') + 1);
+      const message = options.findIndex(arg => /^(-[aeinoqsvz]*[mFCc]|--(message|file|reuse-message|reedit-message|template)(=|$))/.test(arg));
+      return args.includes('commit') && options.slice(0, message === -1 ? undefined : message).some(arg => /^--am(e|en|end)?$/.test(arg));
+    }
+    current = Number(fields[1]);
+  }
+  return false;
+}
+
 /** The message of a commit-msg file: without the comment lines that Git removes; null for a merge commit. */
 export function fileMessage(text: string) {
   const message = text.split('\n').filter(line => !line.startsWith('#')).join('\n').replace(/^\n+/, '');
@@ -231,7 +253,7 @@ if (isMain(import.meta.url)) {
       process.exit(0);
     }
     if (values.message === undefined) throw new Error('Usage: node scripts/kit/check-commits.mts --message <file> | --prepare --source=<s> --sha=<sha>');
-    const amend = takeAmend(root);
+    const amend = takeAmend(root) || amendingCommit();
     const message = fileMessage(readFileSync(values.message, 'utf8'));
     findings = message === null ? [] : [...messageFindings(message), ...nextIdentityFindings(root), ...indexItemFindings(root, message, amend)].map(found => `${found.rule}: ${found.message}`);
   } catch (error) {

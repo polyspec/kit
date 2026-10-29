@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9c2656b698cdc3488e8f6e7c7046a738d2625d8e541f8a3a335c731fd86281d8 -->
+<!-- source-sha256: 7c7b883c1a9aaafdb6245d682f5ab59857bf417357736d8619d499ca9e7798de -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- git commit --amend의 commit-fix-test는 -m과 -F에서도 amend가 만드는 commit을 판단합니다. git은 -m이나 -F가 없을 때만 prepare-commit-msg hook에 amend를 알리므로, commit-msg 검사는 자신을 실행한 git commit의 message 앞 option에서 amend를 읽습니다 (K891).
 - make link은 installer가 아직 실행되지 않은 project를 npm, Composer, Python에서 설치되지 않은 package처럼 빼며, 다른 project가 설치되기 전에 sub-install이 link할 때 make install을 멈추지 않습니다. 여전히 Python environment를 만들지 않으며(K689-3), link-state-check는 설치된 folder가 link하지 않는 선언된 제공 package마다 보고하므로 설치되지 않은 project는 link-state-check에서 실패로 끝납니다 (K888).
 
 ## 0.0.75

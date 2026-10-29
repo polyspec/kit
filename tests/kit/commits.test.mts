@@ -2,7 +2,7 @@
 // the test of a fix, each with a passing and a failing case, and the commit-msg command.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { chmodSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -155,4 +155,33 @@ test('the command checks a message file and exits with the findings', (t) => {
   assert.equal(refused.status, 1);
   assert.match(refused.stderr, /\[check-commits\] commit-ai-footer: line 3 of the message is the footer of an AI tool/);
   assert.equal(command('--range', 'HEAD').status, 1);
+});
+
+// K891: git gives the prepare-commit-msg hook the source `commit` only for --amend without -m or -F (K380-2), so the amend of a fix
+// commit is judged as the whole commit that it makes in each form, by the git commit that runs the commit-msg hook.
+test('commit-fix-test judges the commit that git commit --amend makes, in each form, and still refuses a fix with no test (K891)', (t) => {
+  const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST), [PLAN]: plan([['S1', '[ ]']]) });
+  const check = tool(import.meta.resolve('../../scripts/kit/check-commits.mts'));
+  put(root, { '.git/hooks/commit-msg': `#!/bin/sh\nexec '${process.execPath}' '${check}' --message "$1"\n` });
+  chmodSync(path.join(root, '.git/hooks/commit-msg'), 0o755);
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, GIT_EDITOR: 'true' } });
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '--no-verify', '-m', 'feat(core): Start (#S1)').status, 0);
+  put(root, { 'machine_test.go': 'package machine\n', 'machine.go': 'package machine\n' });
+  git('add', '-A');
+  const made = git('commit', '-q', '-m', 'fix(core): Keep the state (#S1)');
+  assert.equal(made.status, 0, made.stderr);
+  writeFileSync(path.join(root, 'MSG'), 'fix(core): Keep the state (#S1)\n');
+  for (const [index, form] of [['--amend', '-F', 'MSG'], ['--amend', '-m', 'fix(core): Keep the state (#S1)'], ['--amend', '--no-edit'], ['--amen', '-F', 'MSG']].entries()) {
+    put(root, { [PLAN]: plan([['S1', '[ ]']]) + `\n<!-- ${index} -->\n` });
+    git('add', PLAN);
+    const amended = git('commit', '-q', ...form);
+    assert.equal(amended.status, 0, `${form.join(' ')}: ${amended.stderr}`);
+  }
+  put(root, { 'other.go': 'package machine\n' });
+  git('add', '-A');
+  // A message whose words read as --amend makes a new commit, which is judged against HEAD.
+  const refused = git('commit', '-qm', 'fix(core): Keep the state after --amend (#S1)');
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /commit-fix-test: the fix commit changes no test file/);
 });
