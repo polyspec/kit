@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 53e61cf1b140612da3c01c42728130ea3bc65570f815d5c184c2b12582a2a119 -->
+<!-- source-sha256: 78454d1823473c8d876927471f52eebd1ddd10bafd85f11c05882dd21b71de73 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -770,4 +770,4 @@
 | K814 | layout-check에서 symlink인 install 항목을 링크 자체로 검사 | scripts/kit/generated-files.mts, tests/kit/generated-files.test.mts | `node --test tests/kit/generated-files.test.mts` | [o] |
 | K815 | gates workflow의 shared job은 commit range를 계산하지 않고 kit-gates-static에 RANGE를 넘기지 않는다. K805가 commits-check를 삭제한 뒤로 어떤 target도 그것을 읽지 않는다 | workflows/gates.yml tests/kit/gates-workflow.test.mts | `node --test tests/kit/gates-workflow.test.mts` | [o] |
 | K816 | uv build가 쓰기 전에 buildWheel의 빌드 폴더를 만듦 | scripts/kit/release-wheel.mts | `node --test tests/kit/release-wheel.test.mts tests/kit/release.test.mts` | [o] |
-| K817 | Kit 0.0.70 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [~] |
+| K817 | Kit 0.0.70 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |

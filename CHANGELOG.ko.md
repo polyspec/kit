@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c979de4c53c07bfcbf3de0d48480bf55ca8f244bd9849bf38e5f349f9c5eb609 -->
+<!-- source-sha256: 5e0305bddf69ea3a71c3d4934a374b86dec3b95ac2d00257545c7e7cfa50588b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.70
+
+- Kit 0.0.70 릴리즈: 족쇄를 삭제하고 하네스만 남겼습니다 (K817).
 - wheel 빌드는 uv build가 쓰기 전에 빌드 폴더를 만듭니다 (K816).
 - gates workflow의 shared job은 commit range를 계산하지 않고 kit-gates-static에 RANGE를 넘기지 않습니다. commits-check가 삭제된 뒤로 어떤 target도 그것을 읽지 않습니다 (K815).
 - layout-check는 worktree가 main의 install로 연결한 링크처럼 symlink인 install 폴더를 링크 자체로 검사합니다. .gitignore의 `vendor`가 그것을 무시하고, git이 symbolic link 너머의 pathspec이라며 거부하지 않습니다 (K814).
@@ -30,10 +33,10 @@
 - kit-check는 kit 사본을 설치된 package와 비교하지 않고, package가 설치되고 lock되었는지도 검사하지 않는다. 설정만 검사한다. (K799)
 - wheel-dependencies, pylock.mts, make python-lock과 python-lock-check가 있는 python-lock, schema가 있는 config/dependency-policy.json, config/release.json의 consumers.wheel.polyspec를 지운다. release-consumer는 각 wheel lock을 hash를 검사하는 uv pip install -r <pylock>로 설치하고, 저장소는 uv lock이나 uv export로 Python을 lock한다. (K789)
 - 삭제된 테스트의 commit gate를 없앤다. 테스트 파일을 지우는 commit에 Replaced-By, Archived-To, Provider-Test-Replacement, Removed-With trailer가 필요 없다. (K797)
-- Kit 0.0.67 release를 준비한다. (K795)
 
 ## 0.0.67
 
+- Kit 0.0.67 release를 준비한다. (K795)
 - Removed-With는 삭제된 테스트가 그 삭제된 파일을 직접 가리킬 때만 통과시키므로, 함께 지운 무관한 파일로는 gate가 열리지 않는다. (K793)
 - K449의 commit-type 검사는 어느 폴더에서든 Markdown 문서를 문서로 읽고, release commit은 다른 lock과 함께 uv.lock을 stage할 수 있다. (K791)
 - dependency-review, dependency-state, version.mts, pin-python-dependency, composer-provider-entries와 그 기록을 지운다. 낡거나 취약한 의존성은 npm, composer, uv, cargo audit와 govulncheck가 보고한다. (K786)

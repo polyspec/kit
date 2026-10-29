@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+## 0.0.70
+
+- Release Kit 0.0.70: the shackles are deleted and the harness stays (K817).
 - The wheel build creates its build folder before uv build writes into it (K816).
 - The shared job of the gates workflow computes no commit range and passes no RANGE to kit-gates-static, which no target reads since commits-check is deleted (K815).
 - layout-check checks a symlinked install folder, such as a worktree link to the install of main, as the link: `vendor` in .gitignore ignores it, and git no longer refuses the pathspec as beyond a symbolic link (K814).
@@ -27,10 +30,10 @@
 - Delete the S10 rule that an application on a userland framework is its own Composer package, and its layout-check (library-frameworks.mts); a PHP library may require any package. (K800)
 - kit-check no longer compares the copies of kit with the installed package, nor checks that the package is installed and locked; it checks the configuration only. (K799)
 - The deleted-test commit gate is gone: a commit that deletes a test file needs no Replaced-By, Archived-To, Provider-Test-Replacement or Removed-With trailer. (K797)
-- Prepare the Kit 0.0.67 release. (K795)
 
 ## 0.0.67
 
+- Prepare the Kit 0.0.67 release. (K795)
 - Removed-With passes a deleted test only when the test itself names the deleted file, so an unrelated file deleted alongside opens no gate. (K793)
 - The commit-type check of K449 reads a Markdown document as a document in every folder, and a release commit may stage uv.lock beside the other locks. (K791)
 - Delete wheel-dependencies, pylock.mts, python-lock with make python-lock and python-lock-check, config/dependency-policy.json with its schema, and consumers.wheel.polyspec of config/release.json; release-consumer installs each wheel lock with uv pip install -r <pylock>, which checks its hashes, and a repository locks Python with uv lock or uv export. (K789)
