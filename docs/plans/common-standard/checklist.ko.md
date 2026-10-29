@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 62e4825d96dbf5da05e432a79b1d6af2106bc6fc3aaa1890ab408335ead51049 -->
+<!-- source-sha256: f4cdaea310eb7c37f87016b9df4725090d341a3a257de1d0c8b2b5d5e5c755ce -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -752,3 +752,4 @@
 | K795 | K780부터 K793까지 게시할 Kit 0.0.67 준비 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.67` | [o] |
 | K797 | 삭제된 테스트 gate 삭제 | scripts/kit/check-commits.mts scripts/kit/plan.mts tests/kit/plan.test.mts tests/kit/commits.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/plan.test.mts tests/kit/commits.test.mts` | [o] |
 | K798 | release consumer와 lock proof 삭제 | scripts/kit/release-consumer.mts scripts/kit/release-run.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/release-run.test.mts` | [ ] |
+| K799 | kit-check의 공유 복사본 검사 삭제 | scripts/kit/kit-check.mts tests/kit/kit-check.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-check.test.mts` | [ ] |
