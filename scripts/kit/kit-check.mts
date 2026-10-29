@@ -14,7 +14,7 @@ import { readConfig, readConfigFindings, SCHEMAS } from './schema-validate.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readNpmManifest } from './manifests.mts';
 import { PHPUNIT_MANIFEST, toolchainConfig } from './bootstrap/toolchain-declared.mts';
-import { MISE_LOCKS } from './toolchain-lock.mts';
+import { MISE_LOCKS } from './toolchain-mise.mts';
 import { makeDatabase } from './owner-check.mts';
 import { bareToolFindings, testRunnerFindings } from './recipe-tools.mts';
 

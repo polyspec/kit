@@ -47,25 +47,6 @@ export function miseStub(root: string, output: Record<string, string> = {}) {
   return file;
 }
 
-/** The release of mise that miseReleaseStub declares in config/toolchain.json. */
-const MISE_STUB_RELEASE = '2026.10.8';
-
-/**
- * The installed mise release of the checkout `root` (var/tools/mise-release) as the stub of miseStub, at the release that it
- * declares in config/toolchain.json, so installMise keeps it and writes the wrapper var/tools/bin/mise that runs it: make
- * toolchain-lock installs the declared mise itself (K174). It prints its release for --version without a log line.
- */
-export function miseReleaseStub(root: string, output: Record<string, string> = {}) {
-  const config = path.join(root, 'config/toolchain.json');
-  mkdirSync(path.dirname(config), { recursive: true });
-  writeFileSync(config, JSON.stringify({ schema: 1, mise: { version: MISE_STUB_RELEASE, sha256: { [`${process.platform}-${process.arch}`]: '0'.repeat(64) } } }));
-  const file = path.join(root, 'var/tools/mise-release/mise/bin/mise');
-  mkdirSync(path.dirname(file), { recursive: true });
-  const version = `if (process.argv[2] === '--version') { console.log('${MISE_STUB_RELEASE} linux-x64 (2026-10-11)'); process.exit(0); }\n`;
-  writeFileSync(file, `#!/usr/bin/env node\n${version}${HEADER.replace('#!/usr/bin/env node\n', '')}${miseStubBody(output)}`, { mode: 0o755 });
-  return file;
-}
-
 // The answers of the stub of mise: the log of STUB_MISE_ENV_LOG, the failure of STUB_MISE_FAILS and the `output` of its arguments.
 const miseStubBody = (output: Record<string, string>) => `
 if (process.env.STUB_MISE_ENV_LOG) fs.appendFileSync(process.env.STUB_MISE_ENV_LOG, JSON.stringify({ args, PATH: process.env.PATH, UV_PYTHON: process.env.UV_PYTHON }) + '\\n');

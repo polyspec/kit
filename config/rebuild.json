@@ -434,10 +434,6 @@
       "kind": "policy",
       "reason": "reads the declarations of the lint tools in config/toolchain.json and config/php-lint/composer.lock after the bootstrap (K77); the install of each tool has its own class here"
     },
-    "scripts/kit/toolchain-lock.mts": {
-      "kind": "ecosystem",
-      "tool": "mise lock for linux-x64 and macos-arm64, and mise install --locked of uv and python for the uv lock of a pypi: tool (K127)"
-    },
     "scripts/kit/toolchain-mise.mts": {
       "kind": "policy",
       "reason": "polyspec's set of the tools of mise.toml that kit runs, with their keys and commands; mise.toml is read by smol-toml, and mise.lock is mise's record, which kit does not judge (K127, K835)"

@@ -22,7 +22,7 @@ import { siblingCheckouts } from './link-providers.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { pylockOf, uvInstallCommand } from './uv-install.mts';
-import { MISE_LOCKS } from './toolchain-lock.mts';
+import { MISE_LOCKS } from './toolchain-mise.mts';
 import { CONFIG as RELEASE_ASSETS, releaseAssets } from './release-assets.mts';
 
 /** The worktree of a row: its folder beside the main checkout and its branch. */

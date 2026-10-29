@@ -34,7 +34,7 @@ repositories (lines).
 ## Toolchains (K8.2)
 
 mise with `mise.lock` installs the tools of a checkout (K127). `mise.toml` declares them and `mise.lock` pins each archive by
-its sha256 for linux-x64, linux-arm64, macos-arm64 and macos-x64, the platforms of the bootstrap of mise; `make toolchain-lock` writes the lock (`scripts/kit/toolchain-lock.mts`, `mise lock`)
+its sha256 for each platform of linux, macOS and Windows on x64 and arm64 that has its archive, as mise records them; `make toolchain-lock` writes the lock with `mise lock` (K836): it first locks and installs the uv and the python that `mise.toml` declares and names that Python as `UV_PYTHON`, since a `pypi:` tool locks with uv, which takes the first uv on PATH and a managed Python of the home before PATH,
 and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise install --locked`), then installs what mise does
 not: PHP, which the machine provides and `install-php.mts` discovers and wraps (K283, below), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
 (`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install --no-self-update`
@@ -222,10 +222,10 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 - A recipe starts a tool of the checkout by its absolute path, never by its bare name (K171): make 3.81, the make of macOS,
   looks up a recipe line without shell syntax on the PATH that make started with, not on the PATH that kit.mk exports, so a
   bare `node` ran the node of the machine. kit.mk names them `$(NODE)`, `$(NPM)` and `$(ALINT)`; `BOOTSTRAP_NODE` is the
-  node of the machine, which only starts the bootstrap and `make toolchain-lock` (K174): the bootstrap installs the node of
-  the checkout from the `mise.lock` that toolchain-lock writes, so toolchain-lock runs before that node exists, and it
-  installs the mise of `config/toolchain.json` itself, as the bootstrap does. A checkout whose `mise.lock` pins no node runs
-  `make toolchain-lock`, then `make install-tools TOOLS=npm`. `make kit-check` fails a recipe of the Makefile that starts a tool
+  node of the machine, which only starts the bootstrap: the bootstrap installs mise and then the node of the checkout from
+  `mise.lock`. `make toolchain-lock` runs the mise that the bootstrap installed (K836), so a checkout whose `mise.lock` pins
+  no node runs `make install-tools TOOLS=npm`, which installs mise and stops at the node, then `make toolchain-lock`, then
+  `make install-tools TOOLS=npm` again. `make kit-check` fails a recipe of the Makefile that starts a tool
   of the checkout (`recipe-tools.mts`: the wrappers of var/tools/bin and the commands of `mise.toml`) by its bare name.
   Before the package is installed, `kit-bootstrap.mk` names `$(NODE)` and `$(NPM)` as kit.mk does, so a recipe of the
   repository that install-packages needs runs the node of the checkout (K185).

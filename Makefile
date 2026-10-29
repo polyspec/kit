@@ -20,7 +20,7 @@ KIT_TEST_FILES_1 := \
 	tests/kit/install-vscode.test.mts tests/kit/isolation.test.mts tests/kit/lint-python.test.mts \
 	tests/kit/parity.test.mts tests/kit/paths.test.mts tests/kit/php-platform.test.mts \
 	tests/kit/process.test.mts tests/kit/release-go-tags.test.mts tests/kit/test-exit-deadline.test.mts \
-	tests/kit/toolchain-declared.test.mts tests/kit/toolchain-lint.test.mts tests/kit/toolchain-lock.test.mts
+	tests/kit/toolchain-declared.test.mts tests/kit/toolchain-lint.test.mts
 KIT_TEST_FILES_2 := \
 	tests/kit/bootstrap.test.mts tests/kit/bypass-check.test.mts tests/kit/check-rules.test.mts \
 	tests/kit/ci.test.mts tests/kit/editor-boundaries.test.mts tests/kit/glob.test.mts \

@@ -32,7 +32,7 @@ toolchains that a repository does not install. This record covers those parts. M
 
 | Tool | State | Verdict |
 |---|---|---|
-| mise with `mise.lock` | 2026.10.8; `mise.toml` declares the tools, `make toolchain-lock` runs `mise lock --platform linux-x64,linux-arm64,macos-arm64,macos-x64`, `make install-tools` runs `mise install --locked` | **replaces** the release installers of Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer and vulture (P1, P4, P5); the gaps below are each decided |
+| mise with `mise.lock` | 2026.10.8; `mise.toml` declares the tools, `make toolchain-lock` runs `mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64,windows-x64,windows-arm64`, after locking and installing the uv and the python that `mise.toml` declares, with `UV_PYTHON` set to that python (K836), `make install-tools` runs `mise install --locked` | **replaces** the release installers of Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer and vulture (P1, P4, P5); the gaps below are each decided |
 | mise for P2 | the `npm:` backend installs with npm | circular: it needs an npm before the pinned npm |
 | mise for itself | the npm package `@jdxcode/mise` holds no binary and fetches an unlocked platform package in a preinstall script | none fits: the bootstrap installs mise from its release archive by the sha256 of `config/toolchain.json` `mise` |
 | asdf | plugins, no checksums in a lock | out |

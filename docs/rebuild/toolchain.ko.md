@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-toolchain -->
-<!-- source-sha256: bef51405e8b7594cc256ebf615e6ad228fbdc106badba2e351a26c609d3acc39 -->
+<!-- source-sha256: 449ec700c08bab644de9510f87dd980a32c39ae8500a4570588225224286dee7 -->
 # 재구현 기록: toolchain
 
 [English](toolchain.md)
@@ -32,7 +32,7 @@
 
 | 도구 | 상태 | 판정 |
 |---|---|---|
-| mise와 `mise.lock` | 2026.10.8. `mise.toml`이 도구를 선언하고, `make toolchain-lock`이 `mise lock --platform linux-x64,linux-arm64,macos-arm64,macos-x64`를, `make install-tools`가 `mise install --locked`를 실행합니다 | Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer, vulture의 release installer를 **교체**합니다(P1, P4, P5). 아래 빈틈은 각각 결정했습니다 |
+| mise와 `mise.lock` | 2026.10.8. `mise.toml`이 도구를 선언하고, `make toolchain-lock`이 `mise.toml`이 선언한 uv와 python을 lock하고 설치해 그 python을 `UV_PYTHON`으로 둔 뒤 `mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64,windows-x64,windows-arm64`를(K836), `make install-tools`가 `mise install --locked`를 실행합니다 | Go, Python, uv, ruff, alint, golangci-lint, deadcode, govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer, vulture의 release installer를 **교체**합니다(P1, P4, P5). 아래 빈틈은 각각 결정했습니다 |
 | P2를 위한 mise | `npm:` backend는 npm으로 설치합니다 | 순환: 고정한 npm보다 먼저 npm이 있어야 합니다 |
 | mise 자체를 위한 mise | npm package `@jdxcode/mise`는 binary가 없고, preinstall script에서 lock되지 않은 platform package를 가져옵니다 | 맞는 도구 없음: bootstrap이 `config/toolchain.json` `mise`의 sha256으로 release archive에서 mise를 설치합니다 |
 | asdf | plugin, lock에 checksum 없음 | 제외 |

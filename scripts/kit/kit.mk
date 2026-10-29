@@ -105,10 +105,26 @@ else
 	$(ONLINE) $(NODE) $(KIT)/install-tools.$(KIT_EXT) $(TOOLS)
 endif
 
-# toolchain-lock runs before the node of the checkout exists, which the bootstrap installs from mise.lock, so the node of the
-# machine starts it, and it installs the mise of config/toolchain.json itself (K174).
-toolchain-lock: ## Write mise.lock: the digests of the tools of mise.toml for linux-x64, linux-arm64, macos-arm64 and macos-x64, with mise lock; ONLINE
-	$(ONLINE) $(BOOTSTRAP_NODE) $(KIT)/toolchain-lock.$(KIT_EXT)
+# toolchain-lock is mise lock (K836) with the mise of config/toolchain.json, which the bootstrap installs (make install-tools
+# TOOLS=npm, K174); var/tools/bin and the shims of mise come first on the PATH of every recipe (PATH above). mise locks a pypi:
+# tool with uv, which takes the first uv on PATH and a managed Python of the home before PATH (measured with mise 2026.10.10:
+# the machine uv and CPython 3.14.7 of ~/.local/share/uv). So mise first locks uv and python, which locks nothing when mise.toml
+# declares neither; mise lists a tool only once it is locked (MISE_LOCKED of the wrapper). It then installs each of them that it
+# lists, under any key form, and when it lists python the full lock names that Python as UV_PYTHON. mise records the archives
+# that each platform has.
+TOOLCHAIN_LOCK_PLATFORMS := linux-x64,linux-arm64,macos-arm64,macos-x64,windows-x64,windows-arm64
+toolchain-lock: ## Write mise.lock with mise lock: the digests of the tools of mise.toml for each platform of linux, macOS and Windows on x64 and arm64 that has their archive; ONLINE
+	@test -x $(KIT_TOOLS)/bin/mise || { echo "[toolchain-lock] $(KIT_TOOLS)/bin/mise is missing; run make install-tools TOOLS=npm, the bootstrap that installs the mise of config/toolchain.json" >&2; exit 1; }
+	$(ONLINE) $(KIT_TOOLS)/bin/mise lock uv python --global --platform $(TOOLCHAIN_LOCK_PLATFORMS)
+	tools=; for tool in uv python; do \
+	  listed="$$($(KIT_TOOLS)/bin/mise ls --global --json $$tool)" || exit 1; \
+	  case "$$listed" in *'"requested_version"'*) tools="$$tools $$tool";; esac; \
+	done; \
+	if [ -n "$$tools" ]; then $(ONLINE) $(KIT_TOOLS)/bin/mise install --locked $$tools || exit 1; fi; \
+	case "$$tools" in \
+	  *python) python="$$($(KIT_TOOLS)/bin/mise which python3)" || exit 1; UV_PYTHON="$$python" $(ONLINE) $(KIT_TOOLS)/bin/mise lock --global --platform $(TOOLCHAIN_LOCK_PLATFORMS);; \
+	  *) $(ONLINE) $(KIT_TOOLS)/bin/mise lock --global --platform $(TOOLCHAIN_LOCK_PLATFORMS);; \
+	esac
 
 toolchain-check: ## Check that the running tools are the declared versions; TOOLS limits the tools; offline
 	$(NODE) $(KIT)/check-toolchain.$(KIT_EXT) $(TOOLS)

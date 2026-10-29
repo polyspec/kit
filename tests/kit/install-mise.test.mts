@@ -145,29 +145,6 @@ test('the bootstrap requires the declaration of mise', (t) => {
   assert.match(result.stderr, /config\/toolchain\.json declares no mise; declare its version and the sha256 of its archive of each platform/);
 });
 
-// A mise.lock that pins node for every common platform and the Windows bootstrap platforms.
-const NODE_LOCK = `[[tools.node]]\nversion = "26.11.1"\nbackend = "core:node"\n\n${['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64', 'windows-x64', 'windows-arm64'].map(platform => `[tools.node."platforms.${platform}"]\nchecksum = "sha256:${'1'.repeat(64)}"\n`).join('\n')}`;
-
-test('a checkout whose mise.lock pins no node bootstraps in the documented order: make toolchain-lock, then make install-tools TOOLS=npm (K174)', (t) => {
-  const release = miseRelease(t, NODE_LOCK);
-  const root = checkout(t, release.sha256);
-  // A repository that takes kit 0.0.48 declares node in mise.toml; its mise.lock does not pin it yet, and var/tools holds no
-  // node of the checkout. Its Makefile includes the kit.mk of the installed package.
-  writeFileSync(path.join(root, 'mise.toml'), '[tools]\nnode = "26.11.1"\n');
-  writeFileSync(path.join(root, 'mise.lock'), '');
-  writeFileSync(path.join(root, 'Makefile'), `KIT := ${KIT}\nKIT_EXT := mts\ninclude $(KIT)/kit.mk\n`);
-  const stubs = toolchainStubs(t, { downloads: { [release.url]: release.archive } });
-  const make = (...goals: string[]) => spawnSync('make', ['--no-print-directory', ...goals], { cwd: root, env: stubs.env, encoding: 'utf8' });
-  const lock = make('toolchain-lock');
-  assert.equal(lock.status, 0, `${lock.stdout}${lock.stderr}`);
-  assert.equal(readFileSync(path.join(root, 'mise.lock'), 'utf8'), NODE_LOCK);
-  const install = make('install-tools', 'TOOLS=npm');
-  assert.equal(install.status, 0, `${install.stdout}${install.stderr}`);
-  assert.deepEqual(release.installs(), ['lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64', 'lock node --global --platform windows-x64,windows-arm64', 'install --locked node']);
-  assert.equal(readFileSync(path.join(root, 'var/tools/bin/node'), 'utf8').split('\n').at(-2), `exec '${NODE_INSTALL}/bin/node' "$@"`);
-  assert.equal(stubs.calls().filter(line => line.startsWith('curl')).length, 1, 'the bootstrap downloaded mise again');
-});
-
 // K397-1: with MISE_GLOBAL_CONFIG_FILE set, mise install records the trust of the root of the global config, the home directory
 // unless MISE_GLOBAL_CONFIG_ROOT names another; the checkout is that root, so the trust that mise records is its own.
 test('the mise of a checkout takes the checkout as the root of its global config (K397-1)', () => {

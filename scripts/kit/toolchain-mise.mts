@@ -47,15 +47,8 @@ const isMiseTool = (name: string): name is MiseTool => Object.hasOwn(MISE_TOOLS,
 /** The tools of MISE_TOOLS. */
 export const MISE_TOOL_NAMES: MiseTool[] = Object.keys(MISE_TOOLS).filter(isMiseTool);
 
-/**
- * The platforms on which every mise tool must have an archive pin: Linux x64/ARM64 and macOS x64/ARM64. Windows bootstrap
- * Node and the selected Go tool have their own explicit lock pins below; this does not claim the rest of kit's tools on Windows.
- */
-export const LOCK_PLATFORMS = ['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'];
-
-/** Additional Windows archives pinned for the bootstrap and the explicitly supported Go smoke install. */
-export const WINDOWS_LOCKED_TOOLS = ['node', 'go'] as const;
-export const WINDOWS_LOCK_PLATFORMS = ['windows-x64', 'windows-arm64'] as const;
+/** The tree under which `mise lock` writes the uv lock of each pypi: tool, a folder of the repository root. */
+export const MISE_LOCKS = '.mise/locks/';
 
 // The [tools] table of mise.toml of `root`, or undefined without the file.
 function toolsTable(root: string): Record<string, unknown> | undefined {

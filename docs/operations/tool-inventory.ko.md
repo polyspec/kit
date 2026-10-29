@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5cf5cf70d51ba3f495fd8188e201690cac781ca7620fb4f28184deee06a5f27d -->
+<!-- source-sha256: 1dae6987009c891b460de98c2ce453ab5d3ceb2c248451b0dd548cfe06b3dcf0 -->
 
 # 도구 목록
 
@@ -37,8 +37,8 @@ export된 `runCommand`는 output이 닫힌 뒤에도 process group cleanup 완�
 ## Toolchain (K8.2)
 
 checkout의 도구는 `mise.lock`을 쓰는 mise가 설치합니다(K127). `mise.toml`이 도구를 선언하고 `mise.lock`이 각 archive를
-mise bootstrap의 플랫폼인 linux-x64, linux-arm64, macos-arm64, macos-x64의 sha256으로 고정합니다. `make toolchain-lock`이 lock을 쓰고(`scripts/kit/toolchain-lock.mts`, `mise
-lock`), `make install-tools`가 그것을 설치한 뒤(`scripts/kit/install-tools.mts`, `mise install --locked`) mise가 설치하지 않는
+x64와 arm64의 linux, macOS, Windows 중 archive가 있는 각 platform의 sha256으로 mise가 기록하는 대로 고정합니다. `make toolchain-lock`이 `mise lock`으로 lock을 씁니다(K836).
+`pypi:` 도구는 uv로 lock되고 uv는 PATH의 첫 uv와 PATH보다 먼저 home의 managed Python을 쓰므로, 먼저 `mise.toml`이 선언한 uv와 python을 lock하고 설치한 뒤 그 Python을 `UV_PYTHON`으로 지정합니다. `make install-tools`가 그것을 설치한 뒤(`scripts/kit/install-tools.mts`, `mise install --locked`) mise가 설치하지 않는
 것을 설치합니다. PHP는 machine이 제공하며 `install-php.mts`가 탐색해 wrapper로 제공하고(K283, 아래), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
 설치하는(`install-rust.mts`) `rust-toolchain.toml`의 toolchain과 그 component(checkout에서 파일을 읽는
 `rustup toolchain install --no-self-update`; rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다)와 `exceptions`의
@@ -196,10 +196,10 @@ Go와 Python을 그 pin으로 선언해야 합니다:
   machine의 도구가 아닙니다.
 - recipe는 checkout의 도구를 이름만으로가 아니라 절대 경로로 실행합니다(K171): macOS의 make인 make 3.81은 shell 문법이 없는
   recipe 줄을 kit.mk가 export한 PATH가 아니라 make가 시작할 때의 PATH에서 찾으므로, 이름만 쓴 `node`는 machine의 node를
-  실행했습니다. kit.mk는 이를 `$(NODE)`, `$(NPM)`, `$(ALINT)`로 부르며, `BOOTSTRAP_NODE`는 bootstrap과
-  `make toolchain-lock`만 시작하는 machine의 node입니다(K174): bootstrap은 toolchain-lock이 쓰는 `mise.lock`에서 checkout의 node를
-  설치하므로 toolchain-lock은 그 node가 생기기 전에 돌며, bootstrap처럼 `config/toolchain.json`의 mise를 스스로 설치합니다.
-  `mise.lock`이 node를 고정하지 않은 checkout은 `make toolchain-lock`, 그다음 `make install-tools TOOLS=npm`을 실행합니다. `make kit-check`는 checkout의 도구(`recipe-tools.mts`: var/tools/bin의 wrapper와 `mise.toml`의
+  실행했습니다. kit.mk는 이를 `$(NODE)`, `$(NPM)`, `$(ALINT)`로 부르며, `BOOTSTRAP_NODE`는 bootstrap만
+  시작하는 machine의 node입니다. bootstrap은 mise를 설치한 뒤 `mise.lock`에서 checkout의 node를 설치합니다. `make toolchain-lock`은
+  bootstrap이 설치한 mise를 실행하므로(K836), `mise.lock`이 node를 고정하지 않은 checkout은 mise를 설치하고 node에서 멈추는
+  `make install-tools TOOLS=npm`, 그다음 `make toolchain-lock`, 다시 `make install-tools TOOLS=npm`을 실행합니다. `make kit-check`는 checkout의 도구(`recipe-tools.mts`: var/tools/bin의 wrapper와 `mise.toml`의
   command)를 이름만으로 실행하는 Makefile의 recipe를 실패시킵니다. package가 설치되기 전에도 `kit-bootstrap.mk`는 kit.mk처럼
   `$(NODE)`와 `$(NPM)`을 정의하므로, install-packages가 필요로 하는 저장소의 recipe는 checkout의 node를 실행합니다(K185).
 - consumer의 package-lock은 `@polyspec/kit`을 release asset의 URL로 고정하며, npm 12는 그것을 `allow-remote=root`일 때만

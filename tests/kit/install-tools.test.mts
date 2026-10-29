@@ -1,8 +1,6 @@
-// Tests of scripts/kit/install-tools.mts and scripts/kit/toolchain-lock.mts (K127): install-tools has mise install every tool
-// of mise.lock (`mise install --locked`, by the wrapper of the bootstrap) before the tools that mise does not install, takes no
-// tool names, and stops on a failed mise install; toolchain-lock writes mise.lock with `mise lock` for the platforms of kit,
-// locks a pypi: tool with the uv and the Python of mise.toml, installed first, at the head of PATH, and fails on a lock that
-// misses a digest.
+// Tests of scripts/kit/install-tools.mts (K127): install-tools has mise install every tool of mise.lock (`mise install --locked`,
+// by the wrapper of the bootstrap) before the tools that mise does not install, takes no tool names, and stops on a failed mise
+// install; toolchain-lock is the mise lock of kit.mk (K836).
 // var/tools/bin/mise is a stub that logs its calls, so no test reaches a network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -11,20 +9,16 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { toolchainCheckout } from './toolchain-checkout.mts';
-import { miseReleaseStub, miseStub, toolchainStubs } from './toolchain-stubs.mts';
+import { miseStub, toolchainStubs } from './toolchain-stubs.mts';
 import { KIT, tool } from './kit-tools.mts';
 import type { JSONSchemaType } from 'ajv/dist/2020.js';
 import { readStubLines, TEXTS } from './stub-json.mts';
-import { known } from './known.mts';
 
+const ROOT = path.resolve(KIT, '../..');
 /** A call of the mise stub: its arguments, PATH and UV_PYTHON. */
 const MISE_CALL: JSONSchemaType<{ args: string[]; PATH: string; UV_PYTHON?: string }> = { type: 'object', required: ['args', 'PATH'], properties: { args: TEXTS, PATH: { type: 'string' }, UV_PYTHON: { type: 'string', nullable: true } } };
 
-const ROOT = path.resolve(KIT, '../..');
-const SUM = `sha256:${'a'.repeat(64)}`;
-
 const INSTALL_TOOLS = import.meta.resolve('../../scripts/kit/install-tools.mts');
-const TOOLCHAIN_LOCK = import.meta.resolve('../../scripts/kit/toolchain-lock.mts');
 /** The run of the tool of the module URL `module` in `root`. */
 const start = (module: string, root: string, env: NodeJS.ProcessEnv, ...args: string[]) => spawnSync(process.execPath, [tool(module), ...args], { cwd: root, env, encoding: 'utf8' });
 
@@ -191,70 +185,53 @@ test('a rust-toolchain.toml without rustup fails with the one prerequisite of th
   assert.match(result.stderr, /\[install-tools\] rust-toolchain\.toml declares the Rust toolchain, and rustup is missing; rustup is the one tool that the machine provides \(AGENTS\.md\): install it from https:\/\/rustup\.rs/);
 });
 
-// A mise.lock that pins ruff for both platforms, and pypi:vulture with the digest of its uv lock when `graph` says so.
-const lockText = (graph: boolean) => `[[tools.ruff]]\nversion = "0.17.0"\n${['linux-x64', 'linux-arm64', 'macos-arm64', 'macos-x64'].map(platform => `[tools.ruff."platforms.${platform}"]\nchecksum = "${SUM}"\n`).join('')}
-[[tools."pypi:vulture"]]\nversion = "2.16"\n${graph ? `uv = { path = ".mise/locks/pypi-vulture/2.16", digest = "${SUM}" }\n` : ''}`;
-
-test('toolchain-lock runs mise lock for the four platforms of the bootstrap', (t) => {
-  const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'mise.lock': lockText(true) });
-  miseReleaseStub(root);
-  const result = start(TOOLCHAIN_LOCK, root, stubs.env);
-  assert.equal(result.status, 0, result.stderr);
-  // The install of mise records the trust of the checkout's mise.toml first (K208), then the lock runs.
-  assert.deepEqual(stubs.calls(), [`mise trust ${path.join(root, 'mise.toml')}`, 'mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64']);
-  assert.match(result.stdout, /\[toolchain-lock\] wrote mise\.lock/);
-});
-
-// The uv and the Python that the stub of mise names as its own, by `mise which`.
-const MISE_UV = '/mise/installs/uv/0.12.24/bin/uv';
-const MISE_PYTHON = '/mise/installs/python/3.14.8/bin/python3';
-const WHICH = { 'which uv': MISE_UV, 'which python3': MISE_PYTHON };
-
-test('a pypi: tool is locked with the uv and the Python of mise first on PATH, never with a uv of the machine', (t) => {
-  const toml = '[tools]\nuv = "0.12.24"\npython = "3.14.8"\n"pypi:vulture" = "2.16"\n';
-  const root = toolchainCheckout(t, { 'mise.toml': toml, 'mise.lock': lockText(false) });
-  miseReleaseStub(root, WHICH);
-  const stubs = toolchainStubs(t);
-  // A uv of the machine comes first on the PATH of the caller.
-  const machine = path.join(stubs.directory, 'machine');
-  mkdirSync(machine);
-  writeFileSync(path.join(machine, 'uv'), '#!/bin/sh\necho "the uv of the machine ran" >&2\nexit 1\n', { mode: 0o755 });
+// K836: make toolchain-lock is mise lock with the mise of the bootstrap. mise locks a pypi: tool with the first uv on PATH, and uv
+// takes a managed Python of the home before PATH (measured), so mise first locks uv and python; it installs each that it then lists,
+// under any key form, and when it lists python the full lock names that Python as UV_PYTHON; var/tools/bin and the shims
+// come first on PATH.
+const PLATFORMS = 'linux-x64,linux-arm64,macos-arm64,macos-x64,windows-x64,windows-arm64';
+const MISE_PYTHON = '/checkout/var/tools/mise/installs/python/3.14.8/bin/python3';
+const listed = (declared: boolean) => JSON.stringify(declared ? [{ requested_version: '1.0.0' }] : [], null, 2);
+const lockRun = (t: TestContext, uv: boolean, python: boolean) => {
+  const { root, stubs } = checkout(t, '[tools]\n');
+  miseStub(root, { 'which python3': MISE_PYTHON, 'ls --global --json uv': listed(uv), 'ls --global --json python': listed(python) });
   const log = path.join(stubs.directory, 'env.log');
-  const result = start(TOOLCHAIN_LOCK, root, { ...stubs.env, PATH: `${machine}${path.delimiter}${stubs.env.PATH}`, STUB_MISE_ENV_LOG: log });
-  assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(stubs.calls(), [
-    `mise trust ${path.join(root, 'mise.toml')}`,
-    'mise lock uv python --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64',
-    'mise install --locked uv python',
-    'mise which uv',
-    'mise which python3',
-    'mise lock --global --platform linux-x64,linux-arm64,macos-arm64,macos-x64',
-  ]);
-  const calls = readStubLines(log, MISE_CALL);
-  const last = known(calls.at(-1), 'calls.at(-1)');
-  // The wrapper of the installed mise puts the directory of its binary first (miseWrapper), then the uv and the Python of mise.
-  assert.deepEqual(last.PATH.split(path.delimiter).slice(0, 3), [path.join(root, 'var/tools/mise-release/mise/bin'), path.dirname(MISE_UV), path.dirname(MISE_PYTHON)], 'the uv and the Python of mise come first');
-  assert.equal(last.UV_PYTHON, MISE_PYTHON, 'uv resolves with the Python of mise');
+  const make = spawnSync('make', ['--no-print-directory', '-f', path.join(KIT, 'kit.mk'), `KIT=${KIT}`, 'KIT_EXT=mts', 'toolchain-lock'], { cwd: root, env: { ...stubs.env, STUB_MISE_ENV_LOG: log }, encoding: 'utf8' });
+  assert.equal(make.status, 0, `${make.stdout}${make.stderr}`);
+  return { root, calls: readStubLines(log, MISE_CALL) };
+};
+
+test('toolchain-lock locks and installs the uv and the Python that mise lists, and locks with that Python (K836)', (t) => {
+  const { root, calls } = lockRun(t, true, true);
+  assert.deepEqual(calls.map(call => call.args.join(' ')), [`lock uv python --global --platform ${PLATFORMS}`, 'ls --global --json uv', 'ls --global --json python', 'install --locked uv python', 'which python3', `lock --global --platform ${PLATFORMS}`]);
+  assert.equal(calls.at(-1)?.UV_PYTHON, MISE_PYTHON, 'uv resolves with the Python of mise.toml');
+  for (const call of calls) assert.deepEqual(call.PATH.split(path.delimiter).slice(0, 2), [path.join(root, 'var/tools/bin'), path.join(root, 'var/tools/mise/shims')], 'var/tools/bin and the shims come first');
 });
 
-test('a pypi: tool without the uv or the Python of mise.toml is refused before any lock', (t) => {
-  const { root, stubs } = checkout(t, '[tools]\n"pypi:vulture" = "2.16"\n');
-  miseReleaseStub(root);
-  const alone = start(TOOLCHAIN_LOCK, root, stubs.env);
-  assert.equal(alone.status, 1);
-  assert.match(alone.stderr, /a pypi: tool of mise\.toml needs the uv and the Python of mise\.toml, which lock it; declare uv and python/);
-  // Only the trust of the checkout runs before the refusal: no lock and no install of a tool (K208).
-  assert.deepEqual(stubs.calls(), [`mise trust ${path.join(root, 'mise.toml')}`]);
+test('toolchain-lock without the uv and the Python in mise.toml is one mise lock (K836)', (t) => {
+  assert.deepEqual(lockRun(t, false, false).calls.map(call => call.args.join(' ')), [`lock uv python --global --platform ${PLATFORMS}`, 'ls --global --json uv', 'ls --global --json python', `lock --global --platform ${PLATFORMS}`]);
+  const uv = lockRun(t, true, false);
+  assert.deepEqual(uv.calls.map(call => call.args.join(' ')), [`lock uv python --global --platform ${PLATFORMS}`, 'ls --global --json uv', 'ls --global --json python', 'install --locked uv', `lock --global --platform ${PLATFORMS}`]);
+  assert.equal(uv.calls.at(-1)?.UV_PYTHON, undefined, 'no Python is named while mise.toml declares none');
+  const python = lockRun(t, false, true);
+  assert.deepEqual(python.calls.map(call => call.args.join(' ')), [`lock uv python --global --platform ${PLATFORMS}`, 'ls --global --json uv', 'ls --global --json python', 'install --locked python', 'which python3', `lock --global --platform ${PLATFORMS}`]);
+  assert.equal(python.calls.at(-1)?.UV_PYTHON, MISE_PYTHON);
 });
 
-test('the make targets install-tools and toolchain-lock run their tools online, and TOOLS=npm runs the bootstrap of KIT', (t) => {
+test('toolchain-lock without the mise of the bootstrap names make install-tools TOOLS=npm (K174, K836)', (t) => {
+  const root = toolchainCheckout(t, { 'mise.toml': '[tools]\nruff = "0.17.0"\n' });
+  const make = spawnSync('make', ['--no-print-directory', '-f', path.join(KIT, 'kit.mk'), `KIT=${KIT}`, 'KIT_EXT=mts', 'toolchain-lock'], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(make.status, 0);
+  assert.match(make.stderr, /var\/tools\/bin\/mise is missing; run make install-tools TOOLS=npm, the bootstrap that installs the mise of config\/toolchain\.json/);
+});
+
+test('the make target install-tools runs its tools online, and TOOLS=npm runs the bootstrap of KIT', (t) => {
   const root = toolchainCheckout(t);
   const dry = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(KIT, 'kit.mk'), 'KIT=scripts/kit', 'KIT_EXT=mts', 'ONLINE=online-wrapper', ...args], { cwd: root, encoding: 'utf8' });
   // The tools run with the node of the checkout by its absolute path; the bootstrap, which installs it, with the node of the
-  // machine (K171), and toolchain-lock too, which writes the mise.lock that the bootstrap installs that node from (K174).
+  // machine (K171).
   const node = path.join(root, 'var/tools/bin/node');
   assert.equal(dry('install-tools').stdout.trim(), `online-wrapper ${node} scripts/kit/install-tools.mts`);
-  assert.equal(dry('toolchain-lock').stdout.trim(), 'online-wrapper node scripts/kit/toolchain-lock.mts');
   // In kit, `make install-tools TOOLS=npm` is the first step of a checkout: install-tools.mts imports modules that import the
   // packages of package-lock.json, which npm ci installs only after it.
   assert.equal(dry('install-tools', 'TOOLS=npm').stdout.trim(), 'online-wrapper node scripts/kit/bootstrap/bootstrap.mts');
