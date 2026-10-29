@@ -5,7 +5,7 @@
     "license": "proprietary",
     "require": {
         "php": ">=8.4",
-        "nikic/php-parser": "5.0.*"
+        "nikic/php-parser": "5.0.0"
     },
     "config": {
         "sort-packages": true,

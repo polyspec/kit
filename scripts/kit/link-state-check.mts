@@ -136,7 +136,6 @@ function workspaceHookFindings(root: string, env: NodeJS.ProcessEnv): string[] {
   return found;
 }
 
-/** The findings of the links of `root`, sorted; none while nothing is linked. */
 const CARGO_POLYSPEC = /^polyspec[-_.]/i;
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];

@@ -35,13 +35,6 @@ test('a tracked lock that records a polyspec package by a path or a link is no f
   assert.deepEqual(lockFindings(t, { 'package-lock.json': linked }, 'package-lock.json'), []);
 });
 
-test('a tracked composer.lock accepts external polyspec path packages in packages and packages-dev, and release archives (K696)', (t) => {
-  const path_ = JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', dist: { type: 'path', url: '../y' } }], 'packages-dev': [{ name: 'polyspec/z', version: '0.0.1', dist: { type: 'path', url: '../z' } }] });
-  const release = JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', dist: { type: 'zip', url: 'https://github.com/polyspec/y/releases/download/v0.0.1/y.zip' } }] });
-  assert.deepEqual(lockFindings(t, { 'composer.lock': path_ }, 'composer.lock'), []);
-  assert.deepEqual(lockFindings(t, { 'composer.lock': release }, 'composer.lock'), []);
-});
-
 // K399-2: a go.work that link wrote below a tracked go.work lacks the modules of that workspace, which link uses too.
 test('a git-ignored go.work below a tracked go.work that lacks the workspace modules is a finding, and passes once it uses them (K399-2)', (t) => {
   const root = tree(t, {
@@ -65,8 +58,7 @@ test('the Composer projects that kit writes are no consumer project, so a reposi
 });
 
 
-// K594: link-state-check judges only that each install location is the right symbolic link (and the release record of the tracked
-// locks, go.work and the Claude Code hook): the trust of mise, a merged branch that is left and the build of a provider are no link,
+// K594: link-state-check judges only that each install location is the right symbolic link (and go.work and the Claude Code hook): the trust of mise, a merged branch that is left and the build of a provider are no link,
 // so a foreign trust and a provider that was never built are no finding. K583 builds a stale provider at its commit.
 test('a foreign mise trust and a linked provider that was never built are no finding of link-state-check (K594)', (t) => {
   const provider = tree(t, {

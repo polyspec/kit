@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The PHP arginfo project of PHP-Parser 5.0.0 requires nikic/php-parser 5.0.0 exactly, as the one of 5.6.1 does, so Composer refuses a lock whose parser does not satisfy that requirement, in place of the deleted compare (K833); the link-state-check tests drop the K696 case and a comment that K831 left (K837).
 - kit reads the channel of rust-toolchain.toml as declared, `stable` or `1.90` among them; rustup judges it, and kit no longer refuses a channel that is not <major>.<minor>.<patch>, nor, in make install-tools, a rust-toolchain.toml without a channel or with fields of another type: it passes what is declared to rustup (K840).
 - kit no longer refuses a mise.toml key of a tool that it does not run, nor an http: tool without an https url and a version: mise judges its own configuration, and kit checks the tools that it runs only (K839).
 - kit takes the releases of mise.toml as declared and no longer judges mise.lock: the exact-release refusal, the lock-digest check of make toolchain-lock and the sidecar check of make toolchain-check are gone, since `mise install --locked` checks the lock and its sidecars itself (K835).
