@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 7252b97a6ad146c544701a614ee4c7d3a942c346ec329c967fcfb028e21fa7ae -->
+<!-- source-sha256: d1fd493bc220e78a651085ff5a725c5485d35abdb3cc6519f652d4721b64c21d -->
 
 # 도구 목록
 
@@ -216,7 +216,7 @@ S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 
 - `make layout-check`는 `var/tools/mise/shims/alint check --config config/layout.yml .`을 실행합니다(offline). `mise.toml`의
   `"github:asamarts/alint"`가 release를 선언하고 `mise.lock`이 platform별 archive의 sha256을 고정합니다(K127).
 - `config/layout.kit.yml`은 공통 rule과 template을 담습니다. 사본(package.json의 `kit.copies`)이므로 kit-sync가 설치된 package에서 쓰고
-  kit-check가 byte 단위로 비교하며, 레포는 이 파일을 고치지 않습니다. alint는 `extends:` 대상을 그것을 적은 설정의 폴더에서만 읽기
+  레포는 이 파일을 고치지 않습니다. alint는 `extends:` 대상을 그것을 적은 설정의 폴더에서만 읽기
   때문에 이 파일은 `config/`에 있습니다.
 - 레포의 `config/layout.yml`은 이 파일을 extends하고 자기 map을 더합니다. 자기 이름으로 template `no-repository-prefix`와
   `go-module-path`의 instance를 두고, port가 있는 component마다 `component-ports` instance를 하나 두며, rule id로 override합니다
@@ -759,7 +759,6 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   지우고, 완전한 줄만 넘기고, log 쓰기 실패를 기록합니다. full run의 target log는 명령으로 시작하고 CI report의 log처럼
   `[report] make <target> exited with status N`으로 끝납니다(task K11-1).
 - 설정 파일이 없다는 메시지는 `check-commits`, `check-documents`, `owner-check`에서 파일의 용도를 적으며, 세 문장이 다릅니다.
-- `kit-check`는 설치된 package의 `kit.copies`가 이름을 대는 사본만 disk에서 읽고, `trackedFiles`는 Git이 보는 파일을 읽습니다.
 - `kit-check`는 (K289) `make check`와 CI group이 실행하는 suite인 `CHECK_TARGETS`가 `kit-gates`의 모든 prerequisite에 단어나
   prerequisite로 닿는지도 요구하므로, gates workflow가 실행하는 gate가 suite에서 빠지지 않습니다. 아래의 provider API와 binding phase
   partition이 완전하면 parity prerequisite를 대신 충족합니다. 언어의 lint와 PHP extension의 lint·test는 그 code를 가진 저장소에서만
@@ -967,7 +966,7 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   (fixture). subtest `t.test`도 이름이 `test`이며, Node 26의 runner는 그것을 기다립니다. consumer의 tsconfig는 자기 script를
   담고 `scripts/kit`의 kit 사본은 담지 않으므로, oxlint-tsgolint는 그 사본을 project 밖에서 node의 type 없이 검사하게 되고
   거기서는 모든 `node:*` import가 `any`입니다(K150). 그래서 consumer에서 lint-ts는 설치된 package의 `kit.copies`, 곧 kit-sync가
-  쓰고 kit-check가 byte 단위로 비교하는 기록의 각 파일마다 oxlint에 `--ignore-pattern`을 하나씩 줍니다: kit은 자기 사본을 자기
+  쓰는 기록의 각 파일마다 oxlint에 `--ignore-pattern`을 하나씩 줍니다: kit은 자기 사본을 자기
   tsconfig로 lint합니다. 설정 파일의 pattern은 그 파일의 directory를 기준으로 하므로 pattern은 명령줄로 갑니다. fixture
   consumer에서 사본에 심은 위반은 통과하고 자기 script의 같은 위반은 실패하며, 설치된 kit이 lock된 version이 아니면
   kit-check처럼 실패합니다(K157). type의 비상구는 실패합니다(K155): `ban-ts-comment`는 `@ts-ignore`와
@@ -1121,7 +1120,7 @@ developer도 어떤 released tag에든 실행할 수 있습니다. offline check
 
 ### Release workflow, tool과 draft (K38)
 
-- `workflows/release.yml`은 사본 `.github/workflows/release.yml`의 원본입니다(package.json의 `kit.copies`). `make kit-sync`가 설치된 package에서 이를 쓰며, `make kit-check`가 차이를 실패시킵니다.
+- `workflows/release.yml`은 사본 `.github/workflows/release.yml`의 원본입니다(package.json의 `kit.copies`). `make kit-sync`가 설치된 package에서 이를 씁니다.
 - `make release-prepare`는 sibling release의 checkout처럼 저장소의 release가 release-tools 전에 필요로 하는 준비를 실행합니다:
   kit.mk는 이를 일이 없는 double-colon target으로 선언하고, 저장소는 Makefile에 `release-prepare::` 규칙을 더합니다(K132).
   vendor된 release workflow는 install-packages 다음에 이를 실행합니다.

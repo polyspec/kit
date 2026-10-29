@@ -246,7 +246,7 @@ no rebuild record for it; this section records the choice.
 - `make layout-check` runs `var/tools/mise/shims/alint check --config config/layout.yml .` (offline). `"github:asamarts/alint"`
   of `mise.toml` declares the release and `mise.lock` pins the sha256 of the archive of each platform (K127).
 - `config/layout.kit.yml` holds the common rules and templates. It is a copy (`kit.copies` of package.json), so kit-sync
-  writes it from the installed package and kit-check compares it byte for byte; a repository never edits it. It lies in `config/` because alint reads an `extends:`
+  writes it from the installed package; a repository never edits it. It lies in `config/` because alint reads an `extends:`
   target only from the folder of the config that names it.
 - `config/layout.yml` of a repository extends it and adds its map: the instances of the templates `no-repository-prefix` and
   `go-module-path` with its name, one `component-ports` instance for each component with ports, and overrides by rule id (its
@@ -842,8 +842,6 @@ Left as it is, with the reason:
   does (task K11-1).
 - The message that a configuration file is missing, in the commands `check-commits`, `check-documents` and `owner-check`, names
   the purpose of the file; the three sentences differ.
-- `kit-check` reads only the copies that `kit.copies` of the installed package names, from the disk; `trackedFiles` reads the
-  Git view.
 - `kit-check` also requires (K289) that `CHECK_TARGETS`, the suite that `make check` and the CI groups run, reaches every
   prerequisite of `kit-gates`, as a word or as a prerequisite of one, so a gate that the gates workflow runs is not left out of
   the suite. The parity prerequisite may be fulfilled by the complete provider-owned API and binding phase partition described
@@ -1061,7 +1059,7 @@ TypeScript lint resolves its declared dependency packages with Node's native pac
   tsconfig covers its own scripts, not the copies of kit in `scripts/kit`, so oxlint-tsgolint would check those copies
   outside the project, without the types of node, where every `node:*` import is `any` (K150). In a consumer lint-ts
   therefore gives oxlint one `--ignore-pattern` for each file of `kit.copies` of the installed package, the record that
-  kit-sync writes and kit-check compares byte for byte: kit lints its copies with its own tsconfig. A pattern of a
+  kit-sync writes: kit lints its copies with its own tsconfig. A pattern of a
   configuration file is rooted at the directory of that file, so the patterns go on the command line. A violation planted
   in a copy passes the lint of the fixture consumer, the same violation in its own script fails, and an installed kit that
   is not the locked version fails as kit-check does (K157). The escape
@@ -1225,7 +1223,7 @@ fails that run and the release stays a draft. A developer may run it for any rel
 ### Release workflow, tools and draft (K38)
 
 - `workflows/release.yml` is the source of the copy `.github/workflows/release.yml` (`kit.copies` of package.json): `make kit-sync`
-  writes it from the installed package, and `make kit-check` fails on a difference.
+  writes it from the installed package.
 - `make release-prepare` runs the preparation that a repository's release needs before release-tools, such as the checkout of a
   sibling release: kit.mk declares it as a double-colon target with no work, and a repository adds a `release-prepare::` rule
   to its Makefile (K132). The vendored release workflow runs it after install-packages.

@@ -1,19 +1,14 @@
 #!/usr/bin/env node
-// Checks a repository against the installed package @polyspec/kit, without a network (`make kit-check`): each copy that the
-// package declares (`kit.copies` of its package.json) is byte for byte its file of the installed package, of whatever version;
-// npm ci installs the version of package-lock.json by its integrity, and a local link is the development state (K267). The
-// configuration of config/*.json is checked against the schemas of the package as well, and a config/release.json with a
-// wheel package or the wheel consumer against pythonBackend of config/toolchain.json, which the wheels need, a repository
-// that needs PHP against .php-version, the PHP that CI and the release workflow set up (K193), and no recipe of the Makefile
-// starts a tool of the checkout by its bare name (recipe-tools.mts, K171), no target of the Makefile repeats a fixed task
-// of kit.mk under another name and each runtime of packages/ has its targets (K246). kit itself, the source of the copies,
-// checks its configuration and its recipes only.
+// Checks the configuration of a repository without a network (`make kit-check`): config/*.json against the schemas of kit, a
+// config/release.json with a wheel package or the wheel consumer against pythonBackend of config/toolchain.json, which the
+// wheels need, a repository that needs PHP against .php-version, the PHP that CI and the release workflow set up (K193), and no
+// recipe of the Makefile starts a tool of the checkout by its bare name (recipe-tools.mts, K171), no target of the Makefile
+// repeats a fixed task of kit.mk under another name and each runtime of packages/ has its targets (K246). Whether the copies
+// of kit match the installed package is npm's and kit-sync's business, not a check (K799).
 //
 //   node scripts/kit/kit-check.mts
 //
-// A change of a copy is made in kit and written with `make kit-sync`, never in the repository; the check names each copy that
-// is missing or differs, and the fix.
-import { lstatSync, existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readConfig, readConfigFindings, SCHEMAS } from './schema-validate.mts';
@@ -345,28 +340,10 @@ function targetFindings(root: string, make: MakeDatabase): string[] {
   return [...names, ...runtimeTargetFindings(files, make), ...(isSource(root) ? [] : gateFindings(files, make, implementations)), ...owners];
 }
 
-/**
- * The findings of `root`: the configuration, the recipes, the tracked links, and the installed package and its copies; empty
- * when they match.
- */
+/** The findings of `root`: the configuration, the recipes and the tracked links; empty when they match. */
 export function check(root: string): string[] {
   const make = makeDatabase(root);
-  const config = [...checkConfig(root), ...bareToolFindings(make), ...testRunnerFindings(make), ...targetFindings(root, make), ...symlinkFindings(root), ...retiredFindings(root)];
-  if (isSource(root)) return config;
-  const kit = installedKit(root);
-  if ('finding' in kit) return [...config, kit.finding];
-  const found: string[] = RETIRED_COPIES.filter(file => existsSync(path.join(root, file))).map(file => `${file}: kit no longer copies it and reads it from ${PACKAGE} (K514), so this copy is stale. Fix: make kit-sync, which removes it`);
-  for (const { file, from } of kit.copies) {
-    if (!existsSync(path.join(root, file))) {
-      found.push(`${file}: the copy of ${PACKAGE} ${kit.version} is missing. Fix: make kit-sync`);
-    } else if (lstatSync(path.join(root, file)).isSymbolicLink()) {
-      found.push(`${file}: the copy of ${PACKAGE} ${kit.version} is a symbolic link, not a regular file. Fix: make kit-sync`);
-    } else if (!readFileSync(path.join(root, file)).equals(readFileSync(path.join(root, INSTALLED, from)))) {
-      found.push(`${file}: differs from ${INSTALLED}/${from} of ${PACKAGE} ${kit.version}. Fix: make kit-sync`);
-    }
-  }
-  for (const file of strayCopies(root, kit.copies)) found.push(`${file} is no copy of ${PACKAGE} ${kit.version}; ${COPY_DIRECTORY} holds the copies of kit only. Fix: make kit-sync, which removes it`);
-  return [...config, ...found];
+  return [...checkConfig(root), ...bareToolFindings(make), ...testRunnerFindings(make), ...targetFindings(root, make), ...symlinkFindings(root), ...retiredFindings(root)];
 }
 
 if (isMain(import.meta.url)) {
@@ -374,8 +351,8 @@ if (isMain(import.meta.url)) {
   const found = check(root);
   for (const line of found) console.error(`[kit-check] ${line}`);
   if (found.length) {
-    console.error(`[kit-check] ${found.length} findings in the configuration and the copies of ${PACKAGE}`);
+    console.error(`[kit-check] ${found.length} findings in the configuration`);
     process.exit(1);
   }
-  console.log(isSource(root) ? '[kit-check] the configuration matches its schemas' : `[kit-check] the configuration matches its schemas and the copies match ${PACKAGE} ${readNpmManifest(root, `${INSTALLED}/package.json`).version ?? ''}`);
+  console.log('[kit-check] the configuration matches its schemas');
 }

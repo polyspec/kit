@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release-structure -->
-<!-- source-sha256: f4fc91eea3d0b0726b51aadcb246aec20a0f7d3888306b6e993aeb257f9914ca -->
+<!-- source-sha256: 2254405e2e3cd7364f491ef9282cc556b49b12681c825f850d31e2fd461cb0f7 -->
 # 릴리스 구조
 
 [English](release-structure.md)
@@ -59,7 +59,7 @@ K514는 이미 lint 설정을 사본에서 빼냈습니다. 각 lint는 설정�
 
 ## 현재 package bootstrap (K671)
 
-소비자는 설치된 `@polyspec/kit` package의 bootstrap을 include합니다. 첫 Make 실행 전에 native npm이 lock의 package를 설치합니다. 공유 principles, editor와 Claude 설정, release/gates workflow는 kit-sync가 관리하고 kit-check가 검사하는 일반 사본입니다. 옆의 source checkout은 선택 사항이며 native `npm link ../kit`으로 연결할 수 있습니다. 이 동작은 아래에 기록된 sibling bootstrap과 추적된 공유 link를 대체합니다.
+소비자는 설치된 `@polyspec/kit` package의 bootstrap을 include합니다. 첫 Make 실행 전에 native npm이 lock의 package를 설치합니다. 공유 principles, editor와 Claude 설정, release/gates workflow는 kit-sync가 쓰는 일반 사본입니다. 옆의 source checkout은 선택 사항이며 native `npm link ../kit`으로 연결할 수 있습니다. 이 동작은 아래에 기록된 sibling bootstrap과 추적된 공유 link를 대체합니다.
 
 ## K614이 한 일
 
@@ -71,6 +71,6 @@ K514는 이미 lint 설정을 사본에서 빼냈습니다. 각 lint는 설정�
 - `config/commit-identity.json`은 각 저장소의 선언이며, workflow처럼 kit-check가 더 비교하지 않는 그 저장소의 일반 파일입니다.
 - `PRINCIPLES.md`, 그 짝, `.editorconfig`, `.claude/settings.json`은 `../kit`의 파일로 가는 tracked symbolic link입니다.
 - 두 workflow는 GitHub가 symbolic link를 따르지 않으므로 각 저장소의 일반 파일로 남고, kit-check는 더 비교하지 않습니다.
-- `config/layout.kit.yml`과 그것이 이름 붙인 manifest schema 세 개는 kit-check가 비교하는 복사본으로 남습니다. alint 0.18.2가
+- `config/layout.kit.yml`과 그것이 이름 붙인 manifest schema 세 개는 kit-sync가 쓰는 복사본으로 남습니다. alint 0.18.2가
   kit에서 읽는 모든 방법을 거부합니다. 저장소 밖의 `extends:`는 "`extends:` target … resolves to … which is outside the lint
   root"로, 그 파일로 가는 symbolic link도 같은 오류로, 두 번째 `--config`는 "`--config` may be given at most once"로 실패합니다.

@@ -75,44 +75,16 @@ test('a copy whose path leaves its directory is refused, and nothing is written'
   assert.equal(existsSync(path.join(root, '../outside.txt')), false);
 });
 
-test('kit-check names a copy that differs and a copy that is missing, with the version and the fix', (t) => {
-  const root = repository(t);
-  sync(root);
-  write(root, 'scripts/kit/kit-bootstrap.mk', 'changed\n');
-  writeFileSync(path.join(root, '.github/workflows/release.yml'), '');
-  assert.deepEqual(check(root), [
-    'scripts/kit/kit-bootstrap.mk: differs from node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk of @polyspec/kit 0.1.0. Fix: make kit-sync',
-    '.github/workflows/release.yml: differs from node_modules/@polyspec/kit/workflows/release.yml of @polyspec/kit 0.1.0. Fix: make kit-sync',
-  ]);
-  const missing = repository(t);
-  assert.deepEqual(check(missing), [
-    'scripts/kit/kit-bootstrap.mk: the copy of @polyspec/kit 0.1.0 is missing. Fix: make kit-sync',
-    '.github/workflows/release.yml: the copy of @polyspec/kit 0.1.0 is missing. Fix: make kit-sync',
-  ]);
-});
-
 // scripts/kit/ of a repository holds the copies of kit only (K133): a file there that the package no longer declares, such
-// as scripts/kit/bootstrap/bootstrap-npm.mts after 0.0.39, is removed by kit-sync and named by kit-check.
-test('kit-sync removes a file of scripts/kit that is no copy, and kit-check names it (K133)', (t) => {
+// as scripts/kit/bootstrap/bootstrap-npm.mts after 0.0.39, is removed by kit-sync.
+test('kit-sync removes a file of scripts/kit that is no copy (K133)', (t) => {
   const root = repository(t);
   sync(root);
   write(root, 'scripts/kit/bootstrap/bootstrap-npm.mts', 'old\n');
-  assert.deepEqual(check(root), ['scripts/kit/bootstrap/bootstrap-npm.mts is no copy of @polyspec/kit 0.1.0; scripts/kit holds the copies of kit only. Fix: make kit-sync, which removes it']);
   assert.deepEqual(sync(root), ['removed scripts/kit/bootstrap/bootstrap-npm.mts']);
   assert.equal(existsSync(path.join(root, 'scripts/kit/bootstrap/bootstrap-npm.mts')), false);
   assert.equal(existsSync(path.join(root, 'scripts/kit/bootstrap')), false, 'the emptied directory is removed');
-  assert.deepEqual(check(root), []);
   assert.deepEqual(sync(root), []);
-});
-
-test('kit-check compares the copies with the installed package of any version, and fails on a missing install (K267)', (t) => {
-  const root = repository(t, { installed: '0.0.9' });
-  sync(root);
-  assert.deepEqual(check(root), [], 'a linked or other installed version is checked by its content');
-  assert.deepEqual(check(repository(t, { installed: null })), ['node_modules/@polyspec/kit is not installed. Fix: make install-packages']);
-  const unlocked = repository(t);
-  rmSync(path.join(unlocked, 'package-lock.json'));
-  assert.deepEqual(check(unlocked), ['package-lock.json is missing; it locks @polyspec/kit. Fix: run make install-packages and commit package-lock.json']);
 });
 
 test('kit itself is the source of the copies: its check reads its configuration only', (t) => {
@@ -130,7 +102,7 @@ test('the commands run in the repository of their working directory and print th
   assert.equal(again.stdout, '[kit-sync] unchanged: @polyspec/kit 0.1.0\n');
   const checked = spawnSync(process.execPath, [KIT_CHECK], { cwd: root, encoding: 'utf8' });
   assert.equal(checked.status, 0, checked.stderr);
-  assert.equal(checked.stdout, '[kit-check] the configuration matches its schemas and the copies match @polyspec/kit 0.1.0\n');
+  assert.equal(checked.stdout, '[kit-check] the configuration matches its schemas\n');
   const refused = spawnSync(process.execPath, [KIT_SYNC, '--tag', 'v0.1.0'], { cwd: root, encoding: 'utf8' });
   assert.equal(refused.status, 2, refused.stdout);
   assert.equal(refused.stderr, '[kit-sync] kit-sync takes no argument: it writes the copies of the installed package. Usage: node scripts/kit/kit-sync.mts\n');
@@ -273,20 +245,6 @@ test('kit-sync removes the lint configurations that kit no longer copies, and th
   const manifest: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../package.json'), 'utf8'));
   const copies = isJsonObject(manifest) && isJsonObject(manifest.kit) && isJsonObject(manifest.kit.copies) ? Object.keys(manifest.kit.copies) : [];
   assert.deepEqual(copies.filter(file => (RETIRED_COPIES as readonly string[]).includes(file)), [], 'kit.copies names no retired copy');
-});
-
-// K514-1: a lint configuration that an earlier kit copied and that kit now reads from its package is named by kit-check in a
-// consumer, with kit-sync as its fix, so a stale copy that an editor would still read does not stay in silence.
-test('kit-check names each lint configuration that kit no longer copies, and passes after kit-sync (K514-1)', (t) => {
-  const root = repository(t);
-  sync(root);
-  write(root, 'ruff.toml', 'an old copy\n');
-  write(root, 'config/api-extractor.kit.json', 'an old copy\n');
-  const found = check(root);
-  assert.ok(found.some(line => line.startsWith('ruff.toml: ') && line.includes('make kit-sync')), found.join('\n'));
-  assert.ok(found.some(line => line.startsWith('config/api-extractor.kit.json: ') && line.includes('make kit-sync')), found.join('\n'));
-  sync(root);
-  assert.deepEqual(check(root).filter(line => line.includes('no longer copies')), []);
 });
 
 // K514-2: the owner rules that kit ships own no file that kit no longer copies, so a consumer after kit-sync passes owner-validate.

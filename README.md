@@ -34,7 +34,7 @@ byte-for-byte copies of the files that `kit.copies` of its `package.json` lists;
 make install-tools TOOLS=npm   # install the npm of packageManager and mise with the copied bootstrap (online)
 make install-packages          # npm ci with that npm, @polyspec/kit included (online)
 make kit-sync                  # write the copies of the installed package, the version of package-lock.json (offline)
-make kit-check                 # compare the package with package-lock.json, the copies with the package and the configuration with the schemas (offline)
+make kit-check                 # check the configuration against the schemas (offline)
 ```
 
 A repository adopts kit with the kit checkout beside it: its Makefile includes `../kit/scripts/kit/kit-bootstrap.mk`, which runs

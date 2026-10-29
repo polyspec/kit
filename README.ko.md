@@ -1,5 +1,5 @@
 <!-- doc-id: readme -->
-<!-- source-sha256: f5de8e758b40997ee8020567b2a699826141c7b37d0e9f2106a6ec191a6f3111 -->
+<!-- source-sha256: e5cc1ec3377341a9da27c6a0a9415141f1d5727e6d52c1d88784ee33c580f7e3 -->
 # polyspec/kit
 
 모든 polyspec 저장소가 공유하는 도구입니다. 저장소는 이를 package `@polyspec/kit`으로 설치하고, 그 `package.json`의 `kit.copies`가 나열하는
@@ -33,7 +33,7 @@
 make install-tools TOOLS=npm   # install the npm of packageManager and mise with the copied bootstrap (online)
 make install-packages          # npm ci with that npm, @polyspec/kit included (online)
 make kit-sync                  # write the copies of the installed package, the version of package-lock.json (offline)
-make kit-check                 # compare the package with package-lock.json, the copies with the package and the configuration with the schemas (offline)
+make kit-check                 # check the configuration against the schemas (offline)
 ```
 
 저장소는 옆의 kit checkout과 함께 kit을 도입합니다: 그 Makefile은 그 checkout의 source를 실행하는 `../kit/scripts/kit/kit-bootstrap.mk`를

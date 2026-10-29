@@ -61,7 +61,7 @@ their callers, and the link document of the principles. Point 1 is a rule of the
 
 ## Current package bootstrap (K671)
 
-Consumers include the bootstrap of the installed `@polyspec/kit` package. Native npm installs the locked package before the first Make invocation. Shared principles, editor and Claude settings, and release/gates workflows are regular copies managed by kit-sync and checked by kit-check. A sibling source checkout is optional and can be connected through native `npm link ../kit`. This supersedes the sibling bootstrap and tracked shared links recorded below.
+Consumers include the bootstrap of the installed `@polyspec/kit` package. Native npm installs the locked package before the first Make invocation. Shared principles, editor and Claude settings, and release/gates workflows are regular copies written by kit-sync. A sibling source checkout is optional and can be connected through native `npm link ../kit`. This supersedes the sibling bootstrap and tracked shared links recorded below.
 
 ## What K614 did
 
@@ -76,7 +76,7 @@ local development checkout:
 - `PRINCIPLES.md`, its twin, `.editorconfig` and `.claude/settings.json` are tracked symbolic links to the files of `../kit`.
 - The two workflows stay plain files of each repository, since GitHub follows no symbolic link, and kit-check no longer compares
   them.
-- `config/layout.kit.yml` and the three manifest schemas that it names stay copies, which kit-check compares: alint 0.18.2 refuses
+- `config/layout.kit.yml` and the three manifest schemas that it names stay copies that kit-sync writes: alint 0.18.2 refuses
   every way to read them from kit. An `extends:` outside the repository fails with "`extends:` target … resolves to … which is
   outside the lint root", a symbolic link to the file fails with the same error, and a second `--config` fails with "`--config`
   may be given at most once".
