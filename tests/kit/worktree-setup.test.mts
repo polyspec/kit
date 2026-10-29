@@ -456,28 +456,39 @@ test('worktree-setup gives the worktree the git-ignored go.work and go.work.sum 
   assert.equal(git(folder, 'status', '--porcelain'), '', 'the ignored go.work leaves the worktree with no change');
 });
 
-// K622: Composer archive inputs are copied independently; installed dependency state stays native-manager-owned.
-test('worktree-setup links the var/composer-artifacts of the main checkout as independent immutable archive inputs (K622)', (t) => {
+// K622, K780: the release archive directories that config/release-assets.json declares are written only by release-assets fetch of
+// the main checkout, and Composer and the builds only read them, so a worktree links each outermost one to the main checkout's, as it
+// runs the main checkout's tools (K756).
+test('worktree-setup links each declared release asset directory to the main checkout (K622, K780)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  const asset = (name: string, directory: string, unpack?: string) => ({ name, version: '0.0.1', url: `https://example.invalid/v{version}/${name}-{version}.zip`, sha256: '0'.repeat(64), directory, ...(unpack === undefined ? {} : { unpack }) });
   put(main, {
     '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    'config/release-assets.json': JSON.stringify({ schema: 1, assets: [asset('ext', 'var/products', 'var/products/ext'), asset('php', 'var/products/php'), asset('orm', 'var/composer-artifacts'), asset('absent', 'var/absent')] }),
     'Makefile': 'link-state-check:\n\ttrue\n',
     '.gitignore': 'node_modules/\n/var/\n',
   });
   linkKit(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  put(main, { 'var/composer-artifacts/polyspec-orm-0.0.1.zip': 'zip\n' });
-  const folder = setupWorktree(main, { name: 'artifacts', id: 'K622', type: 'fix' }, { print: () => {} });
-  const link = path.join(folder, 'var/composer-artifacts');
-  assert.ok(lstatSync(link).isDirectory() && !lstatSync(link).isSymbolicLink(), 'archive inputs are copied without a directory link');
-  assert.notEqual(realpathSync(link), realpathSync(path.join(main, 'var/composer-artifacts')));
-  assert.equal(readFileSync(path.join(link, 'polyspec-orm-0.0.1.zip'), 'utf8'), 'zip\n');
-  assert.equal(setupWorktree(main, { name: 'artifacts', id: 'K622', type: 'fix' }, { print: () => {} }), folder, 'a second run converges');
-  assert.ok(!lstatSync(link).isSymbolicLink());
+  put(main, { 'var/products/php/php-0.0.1.zip': 'php zip\n', 'var/composer-artifacts/orm-0.0.1.zip': 'orm zip\n' });
+  const check = (folder: string) => {
+    for (const directory of ['var/products', 'var/composer-artifacts']) {
+      const link = path.join(folder, directory);
+      assert.ok(lstatSync(link).isSymbolicLink(), `${directory} is one directory link`);
+      assert.equal(realpathSync(link), realpathSync(path.join(main, directory)));
+    }
+    assert.equal(readFileSync(path.join(folder, 'var/products/php/php-0.0.1.zip'), 'utf8'), 'php zip\n', 'a nested declared directory is reached through its parent link');
+    assert.equal(existsSync(path.join(folder, 'var/absent')), false, 'a directory that the main checkout has not fetched gets no link');
+    assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
+  };
+  const folder = setupWorktree(main, { name: 'artifacts', id: 'K780', type: 'fix' }, { print: () => {} });
+  check(folder);
+  assert.equal(setupWorktree(main, { name: 'artifacts', id: 'K780', type: 'fix' }, { print: () => {} }), folder, 'a second run converges');
+  check(folder);
 });
 
 

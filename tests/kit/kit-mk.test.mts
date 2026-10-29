@@ -160,6 +160,21 @@ test('a worktree runs the var/tools of the main checkout and installs no tool (K
   assert.match(install.stderr, new RegExp(`${worktree} is a worktree that runs the tools of the main checkout ${main} and installs none`));
 });
 
+// K780: the release archive directories of a worktree link to those of the main checkout, so a fetch in a worktree would write into
+// the main checkout; release-assets-fetch runs only there.
+test('a worktree refuses release-assets-fetch (K780)', (t) => {
+  const main = realpathSync(tree(t, { 'Makefile': `KIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\n`, 'mise.toml': '[tools]\n' }));
+  const git = (cwd: string, ...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
+  assert.equal(git(main, 'add', '.').status, 0);
+  assert.equal(git(main, 'commit', '--quiet', '-m', 'base').status, 0);
+  const worktree = `${main}-row`;
+  t.after(() => rmSync(worktree, { recursive: true, force: true }));
+  assert.equal(git(main, 'worktree', 'add', '--quiet', '-b', 'fix/row-K780', worktree).status, 0);
+  const fetch = spawnSync('make', ['--no-print-directory', 'release-assets-fetch'], { cwd: worktree, encoding: 'utf8' });
+  assert.equal(fetch.status, 2, fetch.stdout);
+  assert.match(fetch.stderr, new RegExp(`${worktree} is a worktree whose release archive directories link to those of the main checkout ${main}`));
+});
+
 test('kit-test is a target of the Makefile of kit, not of kit.mk', () => {
   assert.equal(recipes.some(line => line.includes('tests/kit')), false, 'kit.mk runs tests/kit');
   const dry = spawnSync('make', ['-n', '--no-print-directory', 'kit-test'], { cwd: ROOT, encoding: 'utf8' });

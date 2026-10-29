@@ -427,8 +427,13 @@ release-backend: ## Download the build backend of the wheel packages into var/to
 # (scripts/kit/release-assets.mts). The fetch is an install step; a Makefile reads the version of an entry with
 # `$(shell node $(KIT)/release-assets.$(KIT_EXT) version <name>)`.
 .PHONY: release-assets-fetch
-release-assets-fetch: ## Download the archives of config/release-assets.json that var/ lacks, with their sha256 checked, and extract those that declare unpack; ONLINE
+release-assets-fetch: ## Download the archives of config/release-assets.json that var/ lacks, with their sha256 checked, and extract those that declare unpack; a worktree links them to the main checkout's and fetches none (K780); ONLINE
+ifneq ($(KIT_WORKTREE),)
+	@echo "[release-assets-fetch] $(CURDIR) is a worktree whose release archive directories link to those of the main checkout $(KIT_MAIN_CHECKOUT); run make release-assets-fetch there (K780)" >&2
+	@exit 1
+else
 	$(ONLINE) $(NODE) $(KIT)/release-assets.$(KIT_EXT) fetch
+endif
 
 # --- python-venv: a virtual environment of the checkout Python, made by the uv of the checkout as uv makes it
 # (scripts/kit/python-venv.mts); an existing venv of the checkout Python is kept.

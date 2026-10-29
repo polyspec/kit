@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 68aa8acee0a17492c12732126dd5ffb8c25411cf8f3b390be790101ae52a9285 -->
+<!-- source-sha256: 34c04bf73e0780a1b395ee91583931ecf2c9865f49eecf224dd2293f35cf113c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- worktree-setup은 var/composer-artifacts를 복사하는 대신 config/release-assets.json의 release archive directory마다 main checkout의 directory로 가는 directory link 하나를 만들고, worktree는 make release-assets-fetch를 거부한다. (K780)
 
 - worktree-setup은 추적되는 잠긴 uv project마다 uv workspace dir에 UV_PROJECT_ENVIRONMENT 또는 .venv를 붙인 환경을 준비하고, worktree가 main checkout에서 실행하는 .mise/locks의 pypi: 도구 환경은 준비하지 않는다. (K781)
 

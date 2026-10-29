@@ -121,8 +121,9 @@ test('version prints the version that the entry declares once, and the command l
   for (const argv of [[], ['version'], ['fetch', 'codec-php'], ['unpack']]) assert.equal(await main(argv, out), 2, argv.join(' '));
 });
 
+// The recipe of the main checkout: KIT_WORKTREE= keeps a run of the test in a worktree from the refusal of K780.
 test('make release-assets-fetch runs the fetch online', () => {
-  const dry = spawnSync('make', ['-n', '--no-print-directory', ...KIT_MAKE, 'release-assets-fetch', 'ONLINE=online-wrapper'], { encoding: 'utf8' });
+  const dry = spawnSync('make', ['-n', '--no-print-directory', ...KIT_MAKE, 'release-assets-fetch', 'ONLINE=online-wrapper', 'KIT_WORKTREE='], { encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
   assert.equal(dry.stdout.trim(), `online-wrapper ${process.execPath} ${tool(import.meta.resolve('../../scripts/kit/release-assets.mts'))} fetch`);
 });

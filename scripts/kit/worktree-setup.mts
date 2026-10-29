@@ -6,7 +6,7 @@
 // links and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
-import { constants, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
@@ -24,6 +24,7 @@ import { composerVendor } from './composer-vendor.mts';
 import { composerCommand, composerEnvironment } from './install-composer-project.mts';
 import { pylockOf, uvInstallCommand } from './uv-install.mts';
 import { MISE_LOCKS } from './toolchain-lock.mts';
+import { CONFIG as RELEASE_ASSETS, releaseAssets } from './release-assets.mts';
 
 // A name of a worktree: a slug of lower case letters, digits and hyphens; an id: the letters, digits, dots and hyphens of a row.
 const NAME = /^[a-z][a-z0-9-]*$/;
@@ -183,14 +184,36 @@ export function prepareWorktreeComposer({ main, folder, project = '.', composer 
   for (const text of linkFolders(providedFolders(target, checkoutProviders(checkouts, 'composer'), { vendorDir: vendor }))) print(text);
 }
 
-// Immutable archive inputs are copied with native filesystem cloning when supported; installed package records are never copied.
-const COMPOSER_ARTIFACTS = 'var/composer-artifacts';
-function prepareArtifacts(main: string, folder: string): void {
-  const source = path.join(main, COMPOSER_ARTIFACTS);
-  if (!existsSync(source)) return;
-  const target = path.join(folder, COMPOSER_ARTIFACTS);
-  if (lstatSync(target, { throwIfNoEntry: false })?.isSymbolicLink()) rmSync(target);
-  cpSync(source, target, { recursive: true, mode: constants.COPYFILE_FICLONE });
+/**
+ * The release archive directories of `main` that config/release-assets.json declares, each `directory` and `unpack`, without one that
+ * lies inside another (K780).
+ */
+function releaseAssetFolders(main: string): string[] {
+  if (!existsSync(path.join(main, RELEASE_ASSETS))) return [];
+  const folders = [...new Set(releaseAssets(main).flatMap(asset => [path.dirname(asset.destination), ...(asset.unpack === undefined ? [] : [asset.unpack])]))];
+  return folders.filter(folder => !folders.some(other => folder.startsWith(`${other}/`))).sort();
+}
+
+/**
+ * Makes each release archive directory of the worktree one directory link to that of the main checkout (K622, K780): release-assets
+ * fetch of the main checkout writes them, Composer and the builds only read them, and the worktree runs the main checkout's tools (K756).
+ */
+function linkReleaseAssets(main: string, folder: string, print: (text: string) => void): void {
+  for (const relative of releaseAssetFolders(main)) {
+    const source = path.join(main, relative);
+    if (!existsSync(source)) {
+      print(`[worktree-setup] ${relative} is not fetched in the main checkout; the worktree gets none`);
+      continue;
+    }
+    const target = path.join(folder, relative);
+    const wanted = path.relative(path.dirname(target), source);
+    const entry = lstatSync(target, { throwIfNoEntry: false });
+    if (entry?.isSymbolicLink() && readlinkSync(target) === wanted) continue;
+    if (entry !== undefined) throw new Error(`${target} exists and is no link to ${source}; remove it, and worktree-setup links the release archives of the main checkout`);
+    mkdirSync(path.dirname(target), { recursive: true });
+    symlinkSync(wanted, target, 'dir');
+    print(`[worktree-setup] linked ${relative} to the main checkout's`);
+  }
 }
 
 /**
@@ -260,7 +283,7 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     const uvEnvironment = uv === undefined ? toolsEnvironment(main, env) : env;
     for (const venv of pythonEnvironments(main, manifests, uvCommand, uvEnvironment)) prepareWorktreePython({ main, folder, venv, uv: uvCommand, env: uvEnvironment, print });
   }
-  prepareArtifacts(main, folder);
+  linkReleaseAssets(main, folder, print);
   const composerProjectsPresent = git(folder, 'ls-files', '--', 'composer.json', '*/composer.json').trim() !== '';
   if (composerProjectsPresent) {
     const command = composer ?? composerCommand(main, 'worktree dependencies');

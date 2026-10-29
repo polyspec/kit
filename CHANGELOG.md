@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- worktree-setup makes each release archive directory of config/release-assets.json one directory link to that of the main checkout, in place of the copy of var/composer-artifacts, and a worktree refuses make release-assets-fetch. (K780)
+
 - worktree-setup prepares the environment of each tracked locked uv project, at uv workspace dir with UV_PROJECT_ENVIRONMENT or .venv, and no environment of the pypi: tools under .mise/locks, which a worktree runs from the main checkout. (K781)
 
 - push-gate does not count a branch whose worktree has uncommitted changes as merged, so a row that another session just started no longer refuses every push. (K782)
