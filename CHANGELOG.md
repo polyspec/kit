@@ -5,16 +5,15 @@
 
 ## Unreleased
 
+## 0.0.75
+
+- Release Kit 0.0.75 with K855, K857, K858, K875, K877, K883, K885, K886 and K887 from main HEAD; the cut of K884 was never published (K889).
 - make release-assets-fetch runs in a worktree as in any checkout: the refusal of K780, which held only while no worktree ran make install, is deleted, and worktree-setup links each declared archive and unpack directory that the main checkout holds instead of their parent directories, so a download or an unpack in a worktree replaces the worktree's own link, never the main checkout's file (K887).
 - parity-check reads the Python public symbols from the source package: the .py files under the entry that git does not ignore, named from the src folder beside the nearest pyproject.toml, else its folder, by the python3 of PATH; the read of the installed file list (RECORD) of a non-editable environment and the refusal of an editable install are deleted, so a repository installs its Python package as its ecosystem does; a tracked module that the build backend excludes is now public, so a module that is not public is git-ignored or private by its _ name, and a symlinked or empty source package is an error (K855).
 - divergence-check runs php for the polyfill guards from the PATH of the tools environment, as the autoload step of lint-php does, and its tests run in the CI shard that installs php and the PHP parser, so the CI of kit passes again after K883 (K886).
 - A Composer project of kit, php-lint or phpunit, installs with Composer started in the checkout root and its --working-dir naming the project, so the mise shim of Composer reads the mise.toml of the checkout and not the untrusted one of a linked kit checkout that holds the project (K885).
 - A worktree is a checkout of its own: KIT_TOOLS is the checkout's own var/tools, make install and make install-tools run in a worktree, and make worktree-setup creates the worktree and runs make install, online, then make link-state-check there, instead of preparing npm, Composer, uv and Go offline from the main checkout and rebuilding its packages. The main checkout's var/tools and locks are unchanged by a worktree. make worktree-link-state is gone: with no rebuild it was make worktree-setup. A worktree without node_modules first gets npm ci of the npm that packageManager names, and the installed kit gets the link of install-link to the kit checkout beside it one step early, so a Makefile that includes kit from node_modules runs the live kit; a worktree made before this release runs make install once (K858).
 - worktree-setup installs no packages and builds nothing itself: the npm, Composer, uv and Go preparation and the link rebuild are deleted, and make install of the worktree does both (K857).
-
-## 0.0.75
-
-- Release Kit 0.0.75 with K875, K877 and K883 (K884).
 - A Red line of a done commit states the command and its exit status, `Red: <command> exit <n>`, with no sha: land rebases the branch, so a sha named a commit that main never holds; `at <sha>` is still accepted (K875).
 - make documents-stamp stamps only the Korean twins that PATHS names, since a stamp says that the twin matches its source; with no PATHS it stamps nothing and lists each twin whose source moved with the make documents-stamp PATHS=<twin> to run after re-translating it, and land stamps only the twins whose marker conflicted (K877).
 - divergence-check accepts the function_exists polyfill guard that lint-php accepts since K873, a top-level namespaced if (!function_exists('<name>')) whose body only declares that name, and takes the guard lines from AutoloadFiles.php, the one definition of that shape; a function_exists branch inside a function or one that chooses behaviour, and extension_loaded, stay findings (K883).

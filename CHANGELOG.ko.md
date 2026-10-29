@@ -1,21 +1,20 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a6f897bdb3bfb85ac6a258732cfc265150a8f20d4cb35c8fe9b2ab0546d013a3 -->
+<!-- source-sha256: f34267b55c0daeae3d2d1ac8f2e3d2db5085ebad5f966e5184a1eae3a0e83e0e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.75
+
+- main HEAD에서 K855, K857, K858, K875, K877, K883, K885, K886, K887과 함께 Kit 0.0.75를 릴리즈합니다. K884의 cut은 공개되지 않았습니다 (K889).
 - make release-assets-fetch는 다른 checkout처럼 worktree에서도 실행됩니다. 어떤 worktree도 make install을 실행하지 않는 동안에만 유효했던 K780의 거부를 삭제했으며, worktree-setup은 상위 directory 대신 main checkout이 가진 선언된 archive와 unpack directory를 하나씩 link하므로 worktree의 download나 unpack은 worktree 자신의 link를 바꿀 뿐 main checkout의 파일은 바꾸지 않습니다 (K887).
 - parity-check는 Python public symbol을 source package에서 읽는다: entry 아래에서 git이 무시하지 않는 .py 파일을, 가장 가까운 pyproject.toml 옆의 src 폴더, 없으면 그 폴더에서의 이름으로, PATH의 python3로 읽는다. non-editable 환경의 설치 file 목록(RECORD) 읽기와 editable 설치 거부는 삭제되어, repository는 Python package를 그 ecosystem 방식대로 설치한다. build backend가 제외하는 tracked 모듈도 이제 public이므로 public이 아닌 모듈은 git이 무시하거나 _ 이름으로 private이며, symlink이거나 빈 source package는 오류다 (K855).
 - divergence-check는 lint-php의 autoload 단계처럼 tools 환경의 PATH에서 polyfill 가드용 php를 실행하고, 그 테스트는 php와 PHP parser를 설치하는 CI shard에서 실행되므로 K883 이후 실패하던 kit의 CI가 다시 통과합니다 (K886).
 - Composer는 checkout root에서 시작해 kit의 Composer 프로젝트(php-lint, phpunit)를 --working-dir로 지정해 설치합니다. 그래서 Composer의 mise shim은 checkout의 mise.toml만 읽고, 프로젝트가 들어 있는 link된 kit checkout의 신뢰되지 않은 mise.toml은 읽지 않습니다 (K885).
 - worktree는 그 자체로 checkout입니다. KIT_TOOLS는 checkout 자신의 var/tools이고, make install과 make install-tools가 worktree에서 실행되며, make worktree-setup은 main checkout에서 npm, Composer, uv, Go를 offline으로 준비하고 package를 rebuild하는 대신 worktree를 만들어 거기서 온라인으로 make install을, 그다음 make link-state-check를 실행합니다. worktree는 main checkout의 var/tools와 lock을 바꾸지 않습니다. make worktree-link-state는 없어졌습니다. rebuild가 없으면 make worktree-setup과 같기 때문입니다. node_modules가 없는 worktree는 먼저 packageManager가 지정한 npm으로 npm ci를 실행하고, 설치된 kit은 install-link가 주는 옆 kit checkout으로 가는 link를 한 단계 먼저 받으므로, node_modules에서 kit을 include하는 Makefile은 live kit을 실행합니다. 이 릴리즈 전에 만든 worktree는 make install을 한 번 실행합니다 (K858).
 - worktree-setup은 package를 직접 설치하거나 build하지 않습니다. npm, Composer, uv, Go 준비와 link rebuild를 삭제했으며, 둘 다 worktree의 make install이 합니다 (K857).
-
-## 0.0.75
-
-- K875, K877, K883을 담아 Kit 0.0.75를 릴리즈합니다 (K884).
 - done commit의 Red 줄은 sha 없이 명령과 그 exit status, `Red: <command> exit <n>`을 기술합니다. land가 branch를 rebase하므로 sha는 main이 갖지 않는 commit을 가리켰습니다. `at <sha>`도 계속 받습니다 (K875).
 - make documents-stamp는 PATHS가 지정한 한국어 twin만 stamp합니다. stamp는 twin이 원문과 일치한다는 뜻이기 때문입니다. PATHS가 없으면 아무것도 stamp하지 않고, 원문이 바뀐 twin마다 다시 번역한 뒤 실행할 make documents-stamp PATHS=<twin>을 나열합니다. land는 marker가 충돌한 twin만 stamp합니다 (K877).
 - divergence-check는 K873부터 lint-php가 받는 function_exists polyfill 가드, 즉 본문이 그 이름만 선언하는 namespace 안 최상위 if (!function_exists('<name>'))을 받고, 가드가 있는 줄을 그 형태의 유일한 정의인 AutoloadFiles.php에서 받아 옵니다. 함수 안의 function_exists 분기나 동작을 고르는 분기, 그리고 extension_loaded는 계속 finding입니다 (K883).
