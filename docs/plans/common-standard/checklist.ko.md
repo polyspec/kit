@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 975b02a871db1e5f3bab8ab6788c471dc77954f49c5efe159d3d6c418ae36e01 -->
+<!-- source-sha256: 8d7610b8417a1301c8f79084fa48794cf59eff1678f62fb38280e9e0ef74ac97 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -778,4 +778,4 @@
 | K822 | platform-bootstrap의 Windows runner에서 Git Bash make로 mise shim을 실행함 | .github/workflows/platform-bootstrap.yml, tests/kit/bootstrap-platform.test.mts | `node --test tests/kit/bootstrap-platform.test.mts` | [o] |
 | K823 | Kit 0.0.72 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K824 | package manager로만 설치하는 CI에서 link와 link-state-check를 실행하지 않음 | workflows/gates.yml, scripts/kit/kit.mk, .github/workflows/ci.yml | `node --test tests/kit/gates-workflow.test.mts tests/kit/check-rules.test.mts` | [o] |
-| K825 | release, tag 생성, FINAL_RUN의 checklist 상태 거부를 삭제함 | scripts/kit/release.mts, scripts/kit/ci-only.mts, docs/operations/release.md | `node --test tests/kit/release.test.mts tests/kit/ci-only.test.mts` | [~] |
+| K825 | release, tag 생성, FINAL_RUN의 checklist 상태 거부를 삭제함 | scripts/kit/release.mts, scripts/kit/ci-only.mts, docs/operations/release.md | `node --test tests/kit/release-tag.test.mts tests/kit/ci-only.test.mts tests/kit/release.test.mts` | [o] |

@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4030f56157db82c7e8a29ba78134e05e5e33fbae00311350c86de01698a4bd2a -->
+<!-- source-sha256: a47b6ce5cf41f41970c8d22558720bd6fb9f0d451009b64b38e305ddda135d84 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,8 +8,9 @@
 
 ## 0.0.72
 
+- release, tag 생성, FINAL_RUN은 checklist row가 [~]나 [v]인 commit을 더 이상 거부하지 않습니다. row 상태는 기록이고, release는 tag된 commit의 CI가 증명합니다 (K825).
 - CI는 package manager로만 설치합니다. gates workflow, kit-gates, kit-gates-parity, kit의 CI는 make link, link-state-check, package-link toolchain을 실행하지 않고, link와 그 검사는 개발 환경의 일입니다 (K824). 소비자 단계: 자체 CI에 있는 make link나 link-state-check 단계를 지웁니다.
-- K820, K821, K822를 담아 Kit 0.0.72를 릴리즈합니다 (K823).
+- K820, K821, K822, K824, K825를 담아 Kit 0.0.72를 릴리즈합니다 (K823).
 - K788의 소비자 단계: config/parity.json의 Python 선언은 각 심볼을 entry 기준 이름이 아니라 polyspec.<package>.app.App 같은 import 경로로 적습니다 (K823).
 - platform-bootstrap의 Windows runner가 Git Bash make로 mise의 go shim을 실행해, K820의 PATH를 kit CI에서 증명합니다 (K822).
 - worktree-setup은 worktree의 Composer 프로젝트를 일반 composer install처럼 Composer 자체 캐시와 네트워크로 설치하고, Composer보다 먼저 go.work를 준비합니다 (K821).

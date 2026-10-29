@@ -8,7 +8,9 @@
 ## 0.0.72
 
 - CI installs with the package managers only: the gates workflow, kit-gates, kit-gates-parity and the CI of kit run no make link, no link-state-check and no package-link toolchain; links and their check belong to development (K824). Consumer step: drop any make link or link-state-check step from your own CI.
-- Release Kit 0.0.72 with K820, K821 and K822 (K823).
+- Release Kit 0.0.72 with K820, K821, K822, K824 and K825 (K823).
+- Release, tag creation and FINAL_RUN no longer refuse a commit whose checklist rows are in [~] or [v]; a row state is a record, and the CI of the tagged commit proves a release (K825).
+- Release Kit 0.0.72 with K820, K821, K822, K824 and K825 (K823).
 - Consumer step of K788: Python declarations in config/parity.json name each symbol by its import path, such as polyspec.<package>.app.App, not by a name relative to the entry (K823).
 - The Windows runner of platform-bootstrap runs the go shim of mise through Git Bash make, so kit CI proves the PATH of K820 (K822).
 - worktree-setup installs the Composer projects of a worktree as plain composer install does, with Composer's own cache and network, and prepares go.work before Composer (K821).

@@ -113,19 +113,6 @@ test('a commit of main whose checks succeeded is verified, and the check runs ar
   assert.ok(lines.some(line => line.includes(`reading the check runs of ${box.commit}`)), lines.join('\n'));
 });
 
-test('a release tag reads the checklist configuration of origin main and refuses a verification item', (t) => {
-  const box = releaseSandbox(t, { mutate(root) {
-    for (const file of ['docs/plans/work/checklist.md', 'docs/plans/work/checklist.ko.md']) {
-      const checklist = readFileSync(path.join(root, file), 'utf8');
-      writeFileSync(path.join(root, file), checklist.replace('| [o] |', '| [v] |'));
-    }
-  } });
-  const config = readJson<Record<string, unknown>>(box.root, 'config/checklist.json');
-  writeJson(box.root, 'config/checklist.json', { ...config, idPattern: 'K[0-9]+' });
-  stop(() => release.createTag(context(box), 'v0.0.2'), /release refused while checklist items await verification: .*T1 .* \[v\]/);
-  assert.equal(git(box.root, 'tag', '--list', 'v0.0.2'), '');
-});
-
 test('a release tag is annotated: a lightweight tag fails and names the tag and its kind, an annotated tag passes', (t) => {
   const box = releaseSandbox(t);
   git(box.root, 'tag', 'v0.0.1', box.commit);
