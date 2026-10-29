@@ -593,6 +593,25 @@ test('a chore commit that stages a Makefile is refused, and a chore that stages 
   assert.deepEqual(indexItemFindings(root, CONFIG, 'chore(plan): Note (#K1)').filter(entry => entry.rule === 'commit-type'), [], 'a document may be committed as chore');
 });
 
+// K449, K791: a Markdown document is a document in every folder, and a release commit stages the locks of every package manager,
+// uv.lock among them; a lock outside a release commit is still code, and so is a script beside the document.
+test('a chore commit may stage a Markdown document under a code folder, and a release commit uv.lock (K449, K791)', (t) => {
+  const { root, git } = repository(t, ['feat(core): Start (#K1)'], ['K1']);
+  const types = (message: string) => indexItemFindings(root, CONFIG, message).filter(entry => entry.rule === 'commit-type');
+  put(root, { 'packages/php/README.md': 'r\n', 'packages/php/README.ko.md': 'r\n', 'packages/python/uv.lock': 'version = 1\n' });
+  git('add', '-A');
+  assert.deepEqual(types('chore(release): Release 0.0.2 (#K1)'), [], 'a document and a lock may be staged with the release');
+  git('reset', '-q');
+  git('add', 'packages/python/uv.lock');
+  assert.equal(types('chore(deps): Lock (#K1)').length, 1, 'a lock outside a release commit is code');
+  git('reset', '-q');
+  put(root, { 'packages/php/run.mts': 'export {};\n' });
+  git('add', 'packages/php/README.md', 'packages/php/run.mts');
+  const found = types('docs(plan): Note (#K1)');
+  assert.equal(found.length, 1, found.map(entry => entry.message).join('\n'));
+  assert.doesNotMatch(found[0]?.message ?? '', /README/);
+});
+
 // K497: a commit on a branch is refused when its index holds a row with an ID that main holds with another task, unless the ID is
 // the row of the branch itself; the finding names the ID, the task on main and the next free ID. main itself is the reference.
 test('row-id: a commit on a branch refuses a row whose ID main holds with another task (K497)', (t) => {

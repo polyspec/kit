@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b8b6e9dcd884df86a22cb539ca95e67f8af6ce1f4dcb3bd845bbd48d84dce941 -->
+<!-- source-sha256: 01abc9b18c846ae6c425897555b118627d94f80dade406ac54f91de5a0694638 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K449의 commit-type 검사는 어느 폴더에서든 Markdown 문서를 문서로 읽고, release commit은 다른 lock과 함께 uv.lock을 stage할 수 있다. (K791)
 
 - release manifest 검사는 저장소 자체 package의 tag version만 확인하고, K777의 polyspec release asset URL을 포함한 다른 모든 의존성의 형식은 package manager가 해석한다. (K785)
 

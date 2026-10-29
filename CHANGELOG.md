@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The commit-type check of K449 reads a Markdown document as a document in every folder, and a release commit may stage uv.lock beside the other locks. (K791)
+
 - The release manifest check keeps only the tag version of the repository own packages; the form of every other dependency, including the polyspec release asset URL of K777, is the package manager's to resolve. (K785)
 
 - layout-check owns the S10 rule that a PHP library requires no application framework; dependency-policy-check no longer checks it. (K783)
