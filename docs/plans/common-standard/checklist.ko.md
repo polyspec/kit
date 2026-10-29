@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: d0215202e63e5accdb0dafe9119f06f94080ba2e6c0aa8d806a3efd07e02bf21 -->
+<!-- source-sha256: c2a05c94467b8b4916c692192a063f77f2f1320b50882c9209f5efdbbfb2d55a -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -725,3 +725,4 @@
 | K767 | link이 npm 패키지 폴더를 쓴 뒤 npm rebuild가 링크된 package.json으로 그 bin 링크를 쓴다 | scripts/kit/npm-install.mts, scripts/kit/link.mts, scripts/kit/worktree-setup.mts | `node --test tests/source/installed-hook-real.test.mts` | [o] |
 | K769 | uv-install은 pylock.toml로 잠긴 project를 자체 설치처럼 uv pip install -r로 설치한 뒤 링크한다 | scripts/kit/uv-install.mts, tests/source/uv-link-real.test.mts | `node --test --test-name-pattern=K769 tests/source/uv-link-real.test.mts` | [o] |
 | K770 | K753부터 K769까지를 배포하기 위해 Kit 0.0.65를 준비한다 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.65` | [o] |
+| K771 | 0.0.65 candidate의 전체 CI가 실패한 test를 K755, K760, K761, K762, K765에 맞춘다 | tests/kit/test-output.test.mts, tests/kit/kit-bootstrap.test.mts, tests/source/consumer-layout.test.mts, tests/source/release-workflow.test.mts, tests/source/link-composer-real.test.mts, PRINCIPLES.md | `node --test tests/kit/isolation.test.mts tests/kit/kit-bootstrap.test.mts tests/kit/gates-workflow.test.mts` | [ ] |
