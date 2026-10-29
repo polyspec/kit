@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: b17ee30a2e7861a4f7be9f915539e4dfb29a8f386dfa97fe99341918179bd08a -->
+<!-- source-sha256: 2b2599cd7cdf4a9e468c9988df16b11e310165eff600c4b8efe0b40b646b415c -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -703,7 +703,7 @@
 | K744 | clean bootstrap과 runtime link 수정 배포를 위해 Kit 0.0.63을 준비한다 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-coverage`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.63` | [o] |
 | K745 | 독립 CI 계획, native runner 준비와 선택 parity를 수정한다 | scripts/kit/ci-setup.mts scripts/kit/schema/ci.schema.json workflows/gates.yml tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts | `node --test tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts` | [o] |
 | K746 | 잠근 설치 provider로 test 소유권 이전을 검증한다 (issue 12) | scripts/kit/plan.mts scripts/kit/check-commits.mts package.json tests/kit/plan.test.mts tests/kit/commits.test.mts tests/kit/provider-tests.test.mts | `node --test tests/kit/plan.test.mts tests/kit/commits.test.mts tests/kit/provider-tests.test.mts` | [o] |
-| K747 | native Playwright case를 표준 reporter로 실행한다 (issue 13) | scripts/kit/run-tests.mts scripts/kit/playwright-reporter.mts scripts/kit/test-progress.mts scripts/kit/test-selection.mts package.json package-lock.json tests/kit/playwright-reporter.test.mts tests/kit/run-tests.test.mts tests/kit/test-selection.test.mts | `node --test tests/kit/playwright-reporter.test.mts tests/kit/run-tests.test.mts tests/kit/test-selection.test.mts` | [ ] |
+| K747 | native Playwright case를 표준 reporter로 실행한다 (issue 13) | scripts/kit/run-tests.mts scripts/kit/playwright-reporter.mts scripts/kit/test-progress.mts scripts/kit/test-selection.mts package.json package-lock.json tests/kit/playwright-reporter.test.mts tests/kit/run-tests.test.mts tests/kit/test-selection.test.mts | `node --test tests/kit/playwright-reporter.test.mts tests/kit/run-tests.test.mts tests/kit/test-selection.test.mts` | [~] |
 | K748 | tag에서 version을 얻는 Composer archive와 native proof를 지원한다 (issue 16) | scripts/kit/release.mts scripts/kit/release-consumer.mts tests/kit/release.test.mts tests/kit/release-consumer.test.mts tests/kit/release-consumer-sandbox.mts | `node --test tests/kit/release.test.mts tests/kit/release-consumer.test.mts` | [ ] |
 | K749 | CI를 통과한 확정 candidate를 단일 release 명령으로 배포한다 (issue 17) | scripts/kit/release-run.mts tests/kit/release-run.test.mts Makefile scripts/kit/kit.mk config/rebuild.json | `node --test tests/kit/release-run.test.mts` | [o] |
 | K750 | 선택 설치에서 선언한 Rust toolchain component를 모두 설치한다 | scripts/kit/install-rust.mts tests/kit/install-rust.test.mts tests/kit/install-tools.test.mts | `node --test tests/kit/install-rust.test.mts` | [o] |
