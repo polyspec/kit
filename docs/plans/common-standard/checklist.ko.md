@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: c72faacbe5928d43de9dd9ff75a285a7ccd4f362b1d642d20279c98e2e1a5d1b -->
+<!-- source-sha256: 758f1190483f725e877771cdfb33d3493269dcc8044fd6865b78a83f51d98c9b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -773,3 +773,4 @@
 | K817 | Kit 0.0.70 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K818 | 본문의 marker 예시가 아니라 doc-id 줄 다음의 marker 줄만 stamp함 | scripts/kit/documents-stamp.mts | `node --test tests/kit/documents-stamp.test.mts` | [o] |
 | K819 | Kit 0.0.71 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
+| K820 | Windows에서 mise 도구를 shim이 아니라 mise which가 가리키는 실행 파일로 시작한다 | scripts/kit/kit.mk, tests/kit/kit-mk.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-mk.test.mts` | [ ] |
