@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 3950d00b91f1ef173c40c706014f9bbddfbd58d92de3371dd86d54813431c309 -->
+<!-- source-sha256: 6f0a3dbe1ce5b44c1a6b72bd11eeac3a90db81941fed3b8bdc8cfb8851f89420 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -730,4 +730,4 @@
 | K773 | link-state-check는 저장소 밖 경로로 형제 패키지를 연결하는 추적 매니페스트를 발견으로 보고한다 | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts | `node --test --test-name-pattern=K773 tests/kit/link-state-check.test.mts` | [o] |
 | K774 | release 대상과 dependency review는 저장소가 추적하는 go.work로 실행하고, 추적하는 것이 없을 때만 GOWORK를 끈다 | scripts/kit/kit.mk, tests/kit/link.test.mts | `node --test --test-name-pattern=K774 tests/kit/link.test.mts` | [o] |
 | K775 | K772부터 K774까지를 배포하기 위해 Kit 0.0.66을 준비한다 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.66` | [o] |
-| K776 | K773 link-state-check 픽스처는 다른 저장소 이름을 쓰지 않는다 | tests/kit/link-state-check.test.mts | `node --test tests/kit/isolation.test.mts` | [ ] |
+| K776 | K773 link-state-check 픽스처는 다른 저장소 이름을 쓰지 않는다 | tests/kit/link-state-check.test.mts | `node --test tests/kit/isolation.test.mts` | [~] |
