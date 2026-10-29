@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: e1a631d02527f8e210624ecc426ab972a8cc78a36881f152b26c2e973e96f997 -->
+<!-- source-sha256: d2a8c605cc64cc7bb7e7770af949ee1e541f7b92b9216b179d85a74a2b09bada -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -745,3 +745,4 @@
 | K787 | 테스트하던 동작과 함께 테스트를 지우는 commit은 지운 파일을 Removed-With로 밝힌다 | scripts/kit/check-commits.mts tests/kit/plan.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K787 tests/kit/plan.test.mts` | [o] |
 | K788 | wheel은 pyproject build-system.requires로 uv build가 만든다. kit의 build backend pin과 설치를 지운다 | scripts/kit/release-wheel.mts scripts/kit/release-backend.mts config/toolchain.json | `node --test tests/kit/release-wheel.test.mts` | [ ] |
 | K789 | Python 설치와 lock은 uv가 직접 한다. wheel-dependencies와 python-lock을 지운다 | scripts/kit/wheel-dependencies.mts scripts/kit/python-lock.mts scripts/kit/release-consumer.mts | `node --test tests/kit/release-consumer.test.mts` | [ ] |
+| K790 | PHP library 테스트는 Composer autoload와 제자리 composer install로 실행한다. php-library-autoload와 설치 staging을 지운다 | scripts/kit/php-library-autoload.mts scripts/kit/install-composer-project.mts scripts/kit/run-tests.mts | `node --test tests/kit/run-tests.test.mts` | [ ] |
