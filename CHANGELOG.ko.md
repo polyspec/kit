@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9491c2c62c89254cca9fb81cf7aac350c07e294854227b3120597f83b4ed9f19 -->
+<!-- source-sha256: cd10b09fe7494477af420466804cb296bbe6868635d4585d3647dc109b0b75ab -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- make link은 링크된 npm 패키지의 node_modules/.bin 링크를 링크된 package.json으로 쓰므로 polyspec-kit-hook 같은 bin이 checkout의 source를 실행한다. (K767)
 
 - worktree-setup은 오프라인 설치 뒤 npm처럼 설치된 Composer provider 폴더를 각각 checkout으로 링크한다. (K766)
 

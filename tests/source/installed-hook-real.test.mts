@@ -45,8 +45,8 @@ describe('installed kit bootstrap and hook bin (K671-1)', () => {
       writeFileSync(path.join(consumer, 'package-lock.json'), JSON.stringify(lock));
       // Seed the existing exact registry graph, then let npm read the archive and generate its bin metadata itself.
       run(NPM, ['install', '--offline', '--allow-remote=root', '--ignore-scripts', '--no-audit', '--no-fund', archive], consumer);
-      // The source consumer installs the release, then its kit folder becomes one plain link to the checkout (K761); the bin link of the
-      // install reads through it.
+      // The source consumer installs the release, then its kit folder becomes one plain link to the checkout (K761), and its bin link
+      // names the checkout's bin (K767).
       if (kind === 'source') linkFolders([{ ecosystem: 'npm', name: '@polyspec/kit', folder: path.join(consumer, 'node_modules/@polyspec/kit'), target: source }]);
       assert.equal(existsSync(path.join(path.dirname(consumer), 'kit')), false);
       mkdirSync(path.join(consumer, '.claude'));
@@ -79,11 +79,13 @@ describe('installed kit bootstrap and hook bin (K671-1)', () => {
       assert.match(result.refusal, /refuse:/);
       assert.match(result.settings, /node_modules\/\.bin\/polyspec-kit-hook/);
       assert.doesNotMatch(result.settings, /scripts\/kit\/claude-hook|dist\/claude-hook|\.\.\/kit/);
+      // KIT is the real path of the included kit (K762): the checkout through the source link, the installed dist of the packed kit.
       assert.equal(result.bootstrap, result.kind === 'source'
-        ? 'node_modules/@polyspec/kit/scripts/kit|mts' : 'node_modules/@polyspec/kit/dist|mjs');
-      // The bin link is the one of the installed release; in the source consumer it reads the checkout through the folder link (K761).
-      assert.ok(result.target.endsWith('/dist/claude-hook.mjs'), result.target);
-      if (result.kind === 'source') assert.ok(result.target.startsWith(path.join(directory, 'provider')), result.target);
+        ? `${path.join(directory, 'provider/scripts/kit')}|mts` : `${path.join(directory, 'packed-consumer/node_modules/@polyspec/kit/dist')}|mjs`);
+      // The packed consumer runs the bin of the release; the source consumer runs the source bin of the checkout, which link writes from
+      // the linked package.json (K767).
+      if (result.kind === 'source') assert.equal(result.target, path.join(realpathSync(directory), 'provider/scripts/kit/claude-hook.mts'));
+      else assert.ok(result.target.endsWith('/dist/claude-hook.mjs'), result.target);
     }
     assert.equal(observations[0]?.settings, observations[1]?.settings);
   });

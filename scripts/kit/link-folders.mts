@@ -10,7 +10,7 @@
 //
 // Each installed package is exactly one directory symlink, the user's rule (K591); no kit uv run writes through it, since every uv
 // install of kit removes the links first (K539).
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
@@ -266,12 +266,38 @@ export function hasPythonPackages(provider: Provider): boolean {
 const linksTo = (folder: string, target: string): boolean => lstatSync(folder).isSymbolicLink() && existsSync(folder) && realpathSync(folder) === realpathSync(target);
 
 /**
+ * The node_modules/.bin links of the linked npm package `item` (K767), as npm writes them: <bin>/<name> -> ../<package>/<path> for each
+ * entry of the "bin" of the linked package.json, a string naming the package's own name, with the target executable. The install wrote
+ * them from the release, whose bin can name a path that the checkout lacks; returns a line for each link it changed.
+ */
+function linkBins(item: ProvidedFolder): string[] {
+  const manifest = readJsonObject(item.target, 'package.json');
+  const bin = typeof manifest.bin === 'string' ? { [item.name.split('/').pop() ?? item.name]: manifest.bin } : isJsonObject(manifest.bin) ? manifest.bin : {};
+  const folder = path.join(path.dirname(item.folder), ...item.name.split('/').slice(1).map(() => '..'), '.bin');
+  const lines: string[] = [];
+  for (const [name, file] of Object.entries(bin)) {
+    if (typeof file !== 'string') continue;
+    const link = path.join(folder, name);
+    const target = path.join('..', item.name, path.normalize(file));
+    const executable = path.join(item.target, file);
+    if (existsSync(executable)) chmodSync(executable, statSync(executable).mode | 0o111);
+    if (lstatSync(link, { throwIfNoEntry: false })?.isSymbolicLink() && readlinkSync(link) === target) continue;
+    rmSync(link, { force: true });
+    mkdirSync(folder, { recursive: true });
+    symlinkSync(target, link);
+    lines.push(`npm ${item.name}: ${link} linked to ${target}`);
+  }
+  return lines;
+}
+
+/**
  * Replaces each provided folder that is not a link to its target with that one directory link (K591, K761); returns a line for each
  * folder it changed. A folder that does not exist yet, as a package that ADD names (K485), gets its parent and the link.
  */
 export function linkFolders(folders: readonly ProvidedFolder[]): string[] {
   const lines: string[] = [];
   for (const item of folders) {
+    if (item.ecosystem === 'npm') lines.push(...linkBins(item));
     // A link to the right folder stays, unless it is absolute, which is made relative (K326-3).
     if (present(item.folder) && linksTo(item.folder, item.target) && !path.isAbsolute(readlinkSync(item.folder))) continue;
     const was = !present(item.folder) ? 'missing' : lstatSync(item.folder).isSymbolicLink() ? 'a link elsewhere' : 'a copy';

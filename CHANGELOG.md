@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- make link writes the node_modules/.bin links of each linked npm package from the linked package.json, so a bin such as polyspec-kit-hook runs the checkout's source. (K767)
+
 - worktree-setup links each installed Composer provider folder to its checkout after its offline install, as for npm. (K766)
 
 - make link and uv-install make each installed Python polyspec package folder one directory symlink to its checkout, as for npm and Composer; no editable build runs, so linking needs no build backend. (K765)
