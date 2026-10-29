@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- uv-install installs a project locked by pylock.toml and no uv.lock with uv pip install -r, as its own install does, so worktree-setup prepares such a project. (K769)
+
 - make link writes the node_modules/.bin links of each linked npm package from the linked package.json, so a bin such as polyspec-kit-hook runs the checkout's source. (K767)
 
 - worktree-setup links each installed Composer provider folder to its checkout after its offline install, as for npm. (K766)

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 41d5ffbe99e8f17c116f5de9a93d8eb65baab00d5e2a12aeda6e05debfdb75d4 -->
+<!-- source-sha256: 72d503596a0fcf610feb5468b34d5ab31b6dff571e1f2d0371e8c9e9f3c11e2c -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -723,4 +723,4 @@
 | K765 | 설치된 Python polyspec 패키지 폴더는 각각 checkout으로 가는 디렉터리 심링크 하나이며 editable build는 없다(사용자 규칙) | scripts/kit/uv-install.mts, tests/source/uv-link-real.test.mts | `node --test --test-name-pattern=K765 tests/source/uv-link-real.test.mts` | [o] |
 | K766 | worktree-setup은 npm처럼 설치된 Composer provider 폴더를 각각 checkout으로 링크한다 | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test --test-name-pattern=K766 tests/kit/worktree-setup.test.mts` | [o] |
 | K767 | link이 npm 패키지 폴더를 쓴 뒤 npm rebuild가 링크된 package.json으로 그 bin 링크를 쓴다 | scripts/kit/npm-install.mts, scripts/kit/link.mts, scripts/kit/worktree-setup.mts | `node --test tests/source/installed-hook-real.test.mts` | [o] |
-| K769 | uv-install은 pylock.toml로 잠긴 project를 자체 설치처럼 uv pip install -r로 설치한 뒤 링크한다 | scripts/kit/uv-install.mts, tests/source/uv-link-real.test.mts | `node --test --test-name-pattern=K769 tests/source/uv-link-real.test.mts` | [~] |
+| K769 | uv-install은 pylock.toml로 잠긴 project를 자체 설치처럼 uv pip install -r로 설치한 뒤 링크한다 | scripts/kit/uv-install.mts, tests/source/uv-link-real.test.mts | `node --test --test-name-pattern=K769 tests/source/uv-link-real.test.mts` | [o] |

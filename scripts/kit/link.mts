@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
-import { uvLink } from './uv-install.mts';
+import { pylockOf, uvLink } from './uv-install.mts';
 import { rebuild } from './link-build.mts';
 import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
@@ -240,17 +240,6 @@ function syncPython(uv: Tool, target: { venv: string; workspace: string }, print
 }
 
 
-
-
-/**
- * The PEP 751 lock of the workspace `workspace`, of a project that has no uv.lock: pylock.toml, else the first pylock.<name>.toml
- * in sorted order; undefined when there is none.
- */
-function pylockOf(workspace: string): string | undefined {
-  const names = readdirSync(workspace).filter(name => /^pylock(\.[A-Za-z0-9_-]+)?\.toml$/.test(name)).sort();
-  const name = names.includes('pylock.toml') ? 'pylock.toml' : names[0];
-  return name === undefined ? undefined : path.join(workspace, name);
-}
 
 
 /**

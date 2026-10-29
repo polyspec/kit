@@ -78,3 +78,17 @@ test('K765, K539: the installer removes the links before uv writes, so the check
   assert.ok(existsSync(path.join(checkout, 'src/polyspec_provider/__init__.py')), 'uv deleted nothing through the link');
   assert.equal(realpathSync(path.join(site, 'polyspec_provider')), path.join(checkout, 'src/polyspec_provider'));
 });
+
+test('K769: the installer installs a project locked by pylock.toml and no uv.lock as its own install does, then links', { timeout: 120_000 }, (t) => {
+  const { app, checkout, env, site, uv } = consumer(t);
+  const exported = spawnSync(uv, ['export', '--frozen', '--format', 'pylock.toml', '--output-file', 'pylock.toml'], { cwd: app, env, encoding: 'utf8' });
+  assert.equal(exported.status, 0, exported.stderr);
+  rmSync(path.join(app, 'uv.lock'));
+  rmSync(path.join(app, '.venv'), { recursive: true });
+  const venv = spawnSync(uv, ['venv', '--python', toolCommand(ROOT, 'python3'), '.venv'], { cwd: app, env, encoding: 'utf8' });
+  assert.equal(venv.status, 0, venv.stderr);
+  const lines: string[] = [];
+  assert.equal(uvInstallCommand([app, checkout], { ...env, UV: uv }, line => lines.push(line)), 0, lines.join(''));
+  assert.equal(realpathSync(path.join(site, 'polyspec_provider')), path.join(checkout, 'src/polyspec_provider'));
+  assert.equal(existsSync(path.join(app, 'uv.lock')), false, 'the installer writes no uv.lock');
+});

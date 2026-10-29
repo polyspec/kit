@@ -1,13 +1,23 @@
 // uv owns the locked installation; kit links each installed polyspec package folder to its checkout (K765, the user's rule of K591).
 // kit neither chooses installed versions nor rewrites manifests or distribution metadata: the release's dist-info stays the record.
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { checkoutProviders, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { siblingCheckouts, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
 
 const SYNC_FLAGS = new Set(['--no-install-project', '--all-groups']);
+
+/**
+ * The PEP 751 lock of the workspace `workspace`, of a project that has no uv.lock: pylock.toml, else the first pylock.<name>.toml
+ * in sorted order; undefined when there is none.
+ */
+export function pylockOf(workspace: string): string | undefined {
+  const names = readdirSync(workspace).filter(name => /^pylock(\.[A-Za-z0-9_-]+)?\.toml$/.test(name)).sort();
+  const name = names.includes('pylock.toml') ? 'pylock.toml' : names[0];
+  return name === undefined ? undefined : path.join(workspace, name);
+}
 
 type UvSourcesOptions = {
   directory: string; providers?: Iterable<Provider>; uv?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void;
@@ -30,8 +40,12 @@ function installSources({ directory, providers = [], uv = 'uv', env = process.en
     if (sync !== undefined) {
       // uv writes and deletes through a package link, so the links go before it installs (K539).
       for (const link of releaseEnvironmentLinks(workspace, venv)) print(`uv development: unlinked ${link}, so uv writes no provider checkout`);
-      print('uv development: synchronizing the native lock');
-      const output = run(uv, ['sync', '--locked', ...sync], { cwd: project, env });
+      // A project locked by a PEP 751 lock and no uv.lock installs it as its own install does (K769); uv sync reads only uv.lock.
+      const pylock = existsSync(path.join(workspace, 'uv.lock')) ? undefined : pylockOf(workspace);
+      print(`uv development: installing the native lock ${pylock === undefined ? 'uv.lock' : path.basename(pylock)}`);
+      const output = pylock === undefined
+        ? run(uv, ['sync', '--locked', ...sync], { cwd: project, env })
+        : run(uv, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '-r', pylock], { cwd: project, env });
       if (output.trim()) print(output.trim());
     }
     const folders = providedFolders(workspace, [...providers].filter(provider => provider.ecosystem === 'python'), { environment: venv });

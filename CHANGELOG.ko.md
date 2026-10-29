@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cd10b09fe7494477af420466804cb296bbe6868635d4585d3647dc109b0b75ab -->
+<!-- source-sha256: 6b8f96ea20d20e02b01e9486633490848ffb2ea3bc3bf16d8139285c21002a44 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- uv-install은 uv.lock 없이 pylock.toml로 잠긴 project를 자체 설치처럼 uv pip install -r로 설치하므로 worktree-setup이 그런 project를 준비한다. (K769)
 
 - make link은 링크된 npm 패키지의 node_modules/.bin 링크를 링크된 package.json으로 쓰므로 polyspec-kit-hook 같은 bin이 checkout의 source를 실행한다. (K767)
 
