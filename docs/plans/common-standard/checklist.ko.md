@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: d2a8c605cc64cc7bb7e7770af949ee1e541f7b92b9216b179d85a74a2b09bada -->
+<!-- source-sha256: e125cf126a994c45b0442305b07b8466a1d72dfe42d2b7827bf903c135f2d581 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -746,3 +746,4 @@
 | K788 | wheel은 pyproject build-system.requires로 uv build가 만든다. kit의 build backend pin과 설치를 지운다 | scripts/kit/release-wheel.mts scripts/kit/release-backend.mts config/toolchain.json | `node --test tests/kit/release-wheel.test.mts` | [ ] |
 | K789 | Python 설치와 lock은 uv가 직접 한다. wheel-dependencies와 python-lock을 지운다 | scripts/kit/wheel-dependencies.mts scripts/kit/python-lock.mts scripts/kit/release-consumer.mts | `node --test tests/kit/release-consumer.test.mts` | [ ] |
 | K790 | PHP library 테스트는 Composer autoload와 제자리 composer install로 실행한다. php-library-autoload와 설치 staging을 지운다 | scripts/kit/php-library-autoload.mts scripts/kit/install-composer-project.mts scripts/kit/run-tests.mts | `node --test tests/kit/run-tests.test.mts` | [ ] |
+| K791 | K449 commit-type 규칙은 어느 폴더에서든 Markdown 문서를 문서로 읽고, release commit은 uv.lock을 stage할 수 있다. 원인: orm 0.0.19 bump commit `chore(release): Release 0.0.19`가 문서인 packages/php/README.md와 lock인 packages/python/uv.lock 때문에 거부되었다 | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node --test --test-name-pattern=K449 tests/kit/commits.test.mts` | [ ] |
