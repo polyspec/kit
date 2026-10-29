@@ -23,21 +23,21 @@ export function worktreeOf(main: string, { name, id, type }: { name: string; id:
 }
 
 /**
- * The release archive directories of `main` that config/release-assets.json declares, each `directory` and `unpack`, without one that
- * lies inside another (K780).
+ * The release archives of `main` that config/release-assets.json declares, each file at its destination, and each `unpack` directory
+ * (K780, K887). Linking the parent directories instead would let a fetch or an unpack of the worktree replace what the main checkout
+ * holds.
  */
-function releaseAssetFolders(main: string): string[] {
+function releaseAssetPaths(main: string): string[] {
   if (!existsSync(path.join(main, RELEASE_ASSETS))) return [];
-  const folders = [...new Set(releaseAssets(main).flatMap(asset => [path.dirname(asset.destination), ...(asset.unpack === undefined ? [] : [asset.unpack])]))];
-  return folders.filter(folder => !folders.some(other => folder.startsWith(`${other}/`))).sort();
+  return [...new Set(releaseAssets(main).flatMap(asset => [asset.destination, ...(asset.unpack === undefined ? [] : [asset.unpack])]))].sort();
 }
 
 /**
- * Makes each release archive directory of the worktree one directory link to that of the main checkout (K622, K780): release-assets
- * fetch of the main checkout writes them, Composer and the builds only read them.
+ * Makes each release archive and unpacked directory of the worktree one link to that of the main checkout (K622, K780, K887): Composer
+ * and the builds read them; a fetch or an unpack in the worktree replaces its own link, never the main checkout's file.
  */
 function linkReleaseAssets(main: string, folder: string, print: (text: string) => void): void {
-  for (const relative of releaseAssetFolders(main)) {
+  for (const relative of releaseAssetPaths(main)) {
     const source = path.join(main, relative);
     if (!existsSync(source)) {
       print(`[worktree-setup] ${relative} is not fetched in the main checkout; the worktree gets none`);
@@ -46,10 +46,10 @@ function linkReleaseAssets(main: string, folder: string, print: (text: string) =
     const target = path.join(folder, relative);
     const wanted = path.relative(path.dirname(target), source);
     const entry = lstatSync(target, { throwIfNoEntry: false });
-    // A folder that the worktree already holds is its own.
+    // A path that the worktree already holds is its own.
     if (entry !== undefined) continue;
     mkdirSync(path.dirname(target), { recursive: true });
-    symlinkSync(wanted, target, 'dir');
+    symlinkSync(wanted, target, lstatSync(source).isDirectory() ? 'dir' : 'file');
     print(`[worktree-setup] linked ${relative} to the main checkout's`);
   }
 }

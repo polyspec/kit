@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bac54249147fd1a871612f03326027c3cc1967a43f5de9d687fe59ad94b3d43c -->
+<!-- source-sha256: a6f897bdb3bfb85ac6a258732cfc265150a8f20d4cb35c8fe9b2ab0546d013a3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make release-assets-fetch는 다른 checkout처럼 worktree에서도 실행됩니다. 어떤 worktree도 make install을 실행하지 않는 동안에만 유효했던 K780의 거부를 삭제했으며, worktree-setup은 상위 directory 대신 main checkout이 가진 선언된 archive와 unpack directory를 하나씩 link하므로 worktree의 download나 unpack은 worktree 자신의 link를 바꿀 뿐 main checkout의 파일은 바꾸지 않습니다 (K887).
 - parity-check는 Python public symbol을 source package에서 읽는다: entry 아래에서 git이 무시하지 않는 .py 파일을, 가장 가까운 pyproject.toml 옆의 src 폴더, 없으면 그 폴더에서의 이름으로, PATH의 python3로 읽는다. non-editable 환경의 설치 file 목록(RECORD) 읽기와 editable 설치 거부는 삭제되어, repository는 Python package를 그 ecosystem 방식대로 설치한다. build backend가 제외하는 tracked 모듈도 이제 public이므로 public이 아닌 모듈은 git이 무시하거나 _ 이름으로 private이며, symlink이거나 빈 source package는 오류다 (K855).
 - divergence-check는 lint-php의 autoload 단계처럼 tools 환경의 PATH에서 polyfill 가드용 php를 실행하고, 그 테스트는 php와 PHP parser를 설치하는 CI shard에서 실행되므로 K883 이후 실패하던 kit의 CI가 다시 통과합니다 (K886).
 - Composer는 checkout root에서 시작해 kit의 Composer 프로젝트(php-lint, phpunit)를 --working-dir로 지정해 설치합니다. 그래서 Composer의 mise shim은 checkout의 mise.toml만 읽고, 프로젝트가 들어 있는 link된 kit checkout의 신뢰되지 않은 mise.toml은 읽지 않습니다 (K885).

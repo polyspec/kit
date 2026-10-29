@@ -38,7 +38,7 @@ type Fetch = (url: string) => Promise<Response>;
 
 /**
  * Whether Git ignores `folder` of `root`: the folder or one of its ancestors, the shortest first. In a worktree a release archive
- * directory is a link to that of the main checkout (K780), and Git names no path beyond a symbolic link (K780-1).
+ * or an unpack directory is a link to that of the main checkout (K780), and Git names no path beyond a symbolic link (K780-1).
  */
 function ignored(root: string, folder: string): boolean {
   const parts = folder.split('/');

@@ -16,7 +16,7 @@ unexport CARGO_TARGET_DIR
 KIT_TOOLS := $(CURDIR)/var/tools
 KIT_GIT_COMMON := $(abspath $(shell git rev-parse --git-common-dir 2>/dev/null))
 KIT_MAIN_CHECKOUT := $(realpath $(patsubst %/.git,%,$(filter %/.git,$(KIT_GIT_COMMON))))
-# Set in a linked worktree, whose main checkout is another folder: release-assets-fetch refuses there (K780).
+# Set in a linked worktree, whose main checkout is another folder; a repository may read it.
 KIT_WORKTREE := $(if $(KIT_MAIN_CHECKOUT),$(filter-out $(realpath $(CURDIR)),$(KIT_MAIN_CHECKOUT)))
 export MISE_DATA_DIR := $(KIT_TOOLS)/mise
 export MISE_CACHE_DIR := $(KIT_TOOLS)/mise/cache
@@ -420,13 +420,8 @@ release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the
 # (scripts/kit/release-assets.mts). The fetch is an install step; a Makefile reads the version of an entry with
 # `$(shell node $(KIT)/release-assets.$(KIT_EXT) version <name>)`.
 .PHONY: release-assets-fetch
-release-assets-fetch: ## Download the archives of config/release-assets.json that var/ lacks, with their sha256 checked, and extract those that declare unpack; a worktree links them to the main checkout's and fetches none (K780); ONLINE
-ifneq ($(KIT_WORKTREE),)
-	@echo "[release-assets-fetch] $(CURDIR) is a worktree whose release archive directories link to those of the main checkout $(KIT_MAIN_CHECKOUT); run make release-assets-fetch there (K780)" >&2
-	@exit 1
-else
+release-assets-fetch: ## Download the archives of config/release-assets.json that var/ lacks, with their sha256 checked, and extract those that declare unpack; in a worktree it keeps the linked archives of the main checkout that hold their sha256, and a download or an unpack replaces the worktree's own link (K780, K887); ONLINE
 	$(ONLINE) $(NODE) $(KIT)/release-assets.$(KIT_EXT) fetch
-endif
 
 # --- python-venv: a virtual environment of the checkout Python, made by the uv of the checkout as uv makes it
 # (scripts/kit/python-venv.mts); an existing venv of the checkout Python is kept.
