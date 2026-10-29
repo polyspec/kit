@@ -1,12 +1,11 @@
-"""The public symbols of a Python distribution, for the language-parity check (scripts/kit/parity-symbols.mts).
+"""The public symbols of a Python source package, for the language-parity check (scripts/kit/parity-symbols.mts).
 
-    <project>/.venv/bin/python -I python.py <distribution> [--leaks]
+    python3 -I python.py [--leaks] <import root> <file list>
 
 Prints a JSON array of the public symbol ids, sorted, read with the standard library's ast. The modules are the .py files of
-the installed distribution, the file list (RECORD) of its non-editable install in the environment that the repository's own
-install made, which its build backend selected; the reader installs nothing, discovers no module itself, and imports or runs
-no product module. A distribution that is not installed fails with the error of importlib.metadata. A module is named by
-its path in the environment's site-packages, and a package by its __init__.py. A module or package whose name starts with _
+the file list, one path per line, the files of the source package that git does not ignore; the reader reads no environment or installed
+distribution, discovers no module itself, and imports or runs no product module. A module is named by its path from the
+import root, and a package by its __init__.py. A module or package whose name starts with _
 is private, except __init__. The public names of a module are its __all__ when it assigns one a list or tuple
 of strings, else the names that it defines (def, class, assignment) and that do not start with _; an imported name belongs
 to the module that defines it. The public methods of a public class are its def names that do not start with _. The ids are
@@ -21,7 +20,6 @@ import ast
 import contextlib
 import json
 import sys
-from importlib import metadata
 from pathlib import Path
 
 
@@ -30,29 +28,6 @@ def module_name(path, base):
     if parts[-1] == "__init__":
         parts.pop()
     return ".".join(parts)
-
-
-def installed_files(name):
-    """The site-packages folder of the distribution `name` and the .py files of its installed file list."""
-    distribution = metadata.distribution(name)
-    files = distribution.files
-    if files is None:
-        raise SystemExit(f"the distribution {name} has no installed file list (RECORD)")
-    if any(
-        file.name.startswith("__editable__") or file.suffix == ".pth" for file in files
-    ):
-        raise SystemExit(
-            f"the distribution {name} is an editable install, whose file list holds no module; install it non-editable"
-        )
-    base = Path(distribution.locate_file("")).resolve()
-    modules = sorted(
-        base / file
-        for file in files
-        if file.suffix == ".py"
-        and ".." not in file.parts
-        and not file.parts[0].endswith((".dist-info", ".data"))
-    )
-    return base, modules
 
 
 def private(path, base):
@@ -179,10 +154,16 @@ def leaks(path, base):
 
 def main():
     arguments = sys.argv[1:]
-    report = leaks if arguments[1:] == ["--leaks"] else symbols
-    if len(arguments) not in (1, 2) or (len(arguments) == 2 and report is symbols):
-        raise SystemExit("usage: python.py <distribution> [--leaks]")
-    base, files = installed_files(arguments[0])
+    report = symbols
+    if arguments[:1] == ["--leaks"]:
+        report = leaks
+        arguments = arguments[1:]
+    if len(arguments) != 2:
+        raise SystemExit("usage: python.py [--leaks] <import root> <file list>")
+    # absolute() keeps a symlink a symlink: the caller refuses one, and nothing here follows one.
+    base = Path(arguments[0]).absolute()
+    listed = Path(arguments[1]).read_text(encoding="utf-8").splitlines()
+    files = sorted(Path(file).absolute() for file in listed if file)
     print(
         json.dumps(
             sorted(

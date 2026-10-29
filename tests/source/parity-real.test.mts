@@ -14,7 +14,7 @@ import { installExtractor } from '../../scripts/kit/install-symbols.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { tree } from '../kit/tree.mts';
-import { installProject, sandboxMise, sandboxShims } from './real-tools.mts';
+import { sandboxMise, sandboxShims } from './real-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -29,6 +29,9 @@ function phpunitVendor() {
  * Gives the temporary tree root the go, the python3 and the Composer of the checkout as its shims: they run as the tools of
  * mise.toml, never those of PATH. Its mise wrapper names the installs of the checkout, which the go extractor builds with.
  */
+// The python extractor lists the source package with git, so a checkout of python symbols is a git repository.
+const gitInit = (root: string) => assert.equal(spawnSync('git', ['init', '--quiet'], { cwd: root, encoding: 'utf8' }).status, 0, `git init of ${root}`);
+
 const giveTools = (root: string) => {
   sandboxShims(root, ['go', 'python3', 'composer']);
   sandboxMise(root);
@@ -222,12 +225,12 @@ test('the python extractor reads the public symbols of a package with ast: __all
   const all = ['codec.Codec', 'codec.encode', 'codec.core.Codec', 'codec.core.Codec.decode', 'codec.core.LIMIT', 'codec.core.encode'];
   const root = tree(t, { ...files, 'config/parity.json': declaration(all) });
   giveTools(root);
-  installProject(path.join(root, 'python'));
+  gitInit(root);
   assert.deepEqual(lines(root), []);
   // codec.Codec of __all__ names the class that core defines; its methods are ids of core.
   const partial = tree(t, { ...files, 'config/parity.json': declaration(['codec.encode', 'codec.core.decode']) });
   giveTools(partial);
-  installProject(path.join(partial, 'python'));
+  gitInit(partial);
   assert.deepEqual(lines(partial), [
     'R1 python: codec.core.decode is no public symbol of python, as its python extractor reads python',
     'R11 python: codec.Codec is public, and no API unit declares it',

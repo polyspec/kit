@@ -214,14 +214,15 @@ process.exit(exit);
 // The stub of Python (`python3 <args> -m unittest -v <test>`), which writes its verbose results to standard error: a line
 // `<method> (<module>.<class>.<method>) ... ok` for each `PASS <method>` line of the test file, `FAIL` for a `FAIL` line.
 // With REQUIRE_SOURCE it reports nothing and exits with 3 unless CODEC_SOURCE is python/src and -B is its first argument. Run as
-// the python symbol extractor, the python of <project>/.venv (\`-I <kit>/symbols/python.py <distribution>\`, the [project].name of its pyproject.toml), it prints the
-// lines of symbols.txt of the project as a JSON array.
+// the python symbol extractor, the python3 of the mise shims (\`-I <kit>/symbols/python.py [--leaks] <import root> <file list>\`), it
+// prints the lines of symbols.txt of the import root as a JSON array.
 const PY_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
 if (args[0] === '-I' && args[1].endsWith('/symbols/python.py')) {
-  const listed = fs.readFileSync(require('path').join(process.argv[1], '../../../symbols.txt'), 'utf8').split('\\n').filter(Boolean);
-  console.log(JSON.stringify(args.includes('--leaks') ? listed.filter(line => line.startsWith('LEAK ')).map(line => line.slice(5)) : listed.filter(line => !line.startsWith('LEAK '))));
+  const leaks = args[2] === '--leaks';
+  const listed = fs.readFileSync(require('path').join(args[leaks ? 3 : 2], 'symbols.txt'), 'utf8').split('\\n').filter(Boolean);
+  console.log(JSON.stringify(leaks ? listed.filter(line => line.startsWith('LEAK ')).map(line => line.slice(5)) : listed.filter(line => !line.startsWith('LEAK '))));
   process.exit(0);
 }
 const file = args[args.length - 1];

@@ -1,10 +1,11 @@
 // The symbol extractors of the language-parity check (R1 and R11). An implementation that declares `symbols: { extractor,
 // entry }` or `entries` has its public API read by the standard tool of its ecosystem, never by a parser of kit, in the full
 // check; nothing is read from a saved snapshot. Each input gives public symbol ids, combined when `entries` is declared:
-//   python  scripts/kit/symbols/python.py, the standard library's ast, on the installed file list (RECORD) of the
-//           distribution that [project].name of the nearest pyproject.toml from <entry> up names, run by the python of the .venv
-//           beside that pyproject.toml, the environment that the repository's own install made for its
-//           uv project; kit creates and installs nothing; ids <module>.<name> and <module>.<class>.<method>
+//   python  scripts/kit/symbols/python.py, the standard library's ast, on the source package <entry>: the .py files under it
+//           that git does not ignore, named from the import root, the folder src beside the nearest pyproject.toml from <entry>
+//           up when that folder exists, else the folder of that pyproject.toml (the src and the flat layout of the Python
+//           Packaging User Guide); run by the python3 of the checkout, reading no environment or installed distribution;
+//           ids <module>.<name> and <module>.<class>.<method>
 //   go      var/tools/symbols-go/bin/kit-symbols-go (scripts/kit/symbols/go), golang.org/x/tools/go/packages, on a module
 //           directory; ids <import path>.<name> and <import path>.<type>.<method or field>; install-tools builds it when
 //           config/toolchain.json symbolExtractors names go
@@ -18,7 +19,7 @@
 //   ts      the API model of API Extractor (@microsoft/api-extractor) of a .d.ts entry point, such as the one that tsc emits,
 //           in the package of the nearest package.json; ids the canonical references, such as @scope/name!Codec#encode:member(1)
 // An extractor that cannot run, fails or prints no list of ids is a finding that names the implementation and the command.
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, lstatSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Extractor as ApiExtractor, ExtractorConfig } from '@microsoft/api-extractor';
@@ -27,9 +28,10 @@ import type { ApiItem } from '@microsoft/api-extractor-model';
 import { finding, symbolEntries } from './parity-declaration.mts';
 import type { Environment, Extractor, Finding, ParityModel, ParitySymbolEntry } from './parity-declaration.mts';
 import { execute } from './process.mts';
+import { git } from './git.mts';
+import { toolCommand } from './mise-tools.mts';
 import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
-import { isTable, readToml } from './toml.mts';
 import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import { present } from './present.mts';
@@ -56,29 +58,55 @@ function listed(root: string, command: string, args: string[], env: Environment)
 }
 
 /**
- * The uv project of the python symbols `entry` and its distribution: the nearest folder from `entry` up to the checkout that holds a
- * pyproject.toml, and the [project].name of that file; undefined when no folder holds one or it names no project.
+ * The source package of the python symbols `entry`: its import root, the folder src beside the nearest pyproject.toml from `entry`
+ * up to the checkout when that folder exists, else the folder of that pyproject.toml (the src and the flat layout of the Python
+ * Packaging User Guide), and the .py files under both `entry` and the import root that git does not ignore, so a generated module
+ * that the repository ignores is not public; an error when no folder holds a pyproject.toml, when a listed file is a symlink,
+ * which is reported and never followed, or when no file is listed.
  */
-function uvProject(root: string, entry: string): { project: string; distribution: string } | undefined {
+function pythonSource(root: string, entry: string): { base: string; files: string[] } | { error: string } {
   for (let project = path.posix.normalize(entry); ; project = path.posix.dirname(project)) {
-    const file = path.posix.join(project, 'pyproject.toml');
-    if (existsSync(path.join(root, file))) {
-      const table = readToml(readFileSync(path.join(root, file), 'utf8'), file).project;
-      return isTable(table) && typeof table.name === 'string' ? { project, distribution: table.name } : undefined;
+    if (existsSync(path.join(root, project, 'pyproject.toml'))) {
+      const src = path.posix.join(project, 'src');
+      const base = existsSync(path.join(root, src)) ? src : project;
+      let listedFiles: string;
+      try {
+        listedFiles = git(root, 'ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', entry);
+      } catch (error) {
+        return { error: `git cannot list the source package ${entry}: ${error instanceof Error ? error.message : String(error)}` };
+      }
+      const files = listedFiles.split('\0').filter(file => file.endsWith('.py') && (base === '.' || file.startsWith(`${base}/`)));
+      const linked = files.find(file => lstatSync(path.join(root, file)).isSymbolicLink());
+      if (linked !== undefined) return { error: `${linked} is a symlink; the python symbols read no symlink` };
+      if (files.length === 0) return { error: `${entry} holds no .py file under the import root ${base} that git does not ignore` };
+      return { base, files };
     }
-    if (project === '.' || project === '/') return undefined;
+    if (project === '.' || project === '/') return { error: `no pyproject.toml from ${entry} up to the checkout, whose folder or src folder is the import root of the source package` };
   }
 }
 
 /**
- * The public symbols of the Python `distribution` of the uv project `project`, read by the python of its environment
- * `project`/.venv, which the repository's own install made: the installed file list (RECORD) of its non-editable install holds
- * the modules that the build backend selected. The python of the environment runs directly, since uv run creates a missing
- * environment even with --no-sync; kit creates and installs nothing, and a missing environment or distribution fails with
- * the error of the start or of Python.
+ * The public symbols of the Python source package `entry`, read by the python3 of the checkout from the files that pythonSource
+ * lists, which it reads from a list file rather than its command line; no environment, install or distribution is read, and
+ * kit creates and installs nothing.
  */
-export function pythonListed(root: string, project: string, distribution: string, env: Environment, flags: string[] = []): Extracted {
-  return listed(root, path.join(root, project, '.venv', 'bin', 'python'), ['-I', path.join(SYMBOLS, 'python.py'), distribution, ...flags], env);
+export function pythonListed(root: string, entry: string, env: Environment, flags: string[] = []): Extracted {
+  const source = pythonSource(root, entry);
+  if ('error' in source) return { error: source.error };
+  let python: string;
+  try {
+    python = toolCommand(root, 'python3');
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : String(error) };
+  }
+  const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-symbols-'));
+  try {
+    const list = path.join(folder, 'files.txt');
+    writeFileSync(list, source.files.map(file => `${file}\n`).join(''));
+    return listed(root, python, ['-I', path.join(SYMBOLS, 'python.py'), ...flags, source.base, list], env);
+  } finally {
+    rmSync(folder, { recursive: true, force: true });
+  }
 }
 
 /** The directory of the nearest package.json at or above the directory of `file`, or undefined. */
@@ -244,12 +272,7 @@ const EXTRACTORS: Record<Extractor, (root: string, input: ParitySymbolEntry, env
     if (!existsSync(autoload)) return { error: `${path.relative(root, autoload)} does not exist; name php in symbolExtractors of config/toolchain.json and run make install-tools` };
     return withLeaks(listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env), () => listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry, '--leaks'], env));
   },
-  python: (root, { entry }, env) => {
-    const found = uvProject(root, entry);
-    if (found === undefined) return { error: `no pyproject.toml from ${entry} up to the checkout names a [project].name, the distribution whose installed modules are the public API` };
-    const { project, distribution } = found;
-    return withLeaks(pythonListed(root, project, distribution, env), () => pythonListed(root, project, distribution, env, ['--leaks']));
-  },
+  python: (root, { entry }, env) => withLeaks(pythonListed(root, entry, env), () => pythonListed(root, entry, env, ['--leaks'])),
   rust: (root, { entry, features }, env) => rustdoc(root, entry, env, features),
   ts: (root, { entry }) => apiModel(root, entry),
 };

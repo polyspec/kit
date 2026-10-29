@@ -262,9 +262,9 @@ test('Rust symbol entries combine crate APIs and run each declared feature selec
   assert.equal(nonRustFeatures.findings[0]?.rule, 'declaration');
 });
 
-// K803: the python extractor reads the installed file list of the distribution that [project].name of the pyproject.toml of
-// entry names, so a python input declares only its entry, as every other extractor does.
-test('the python symbols declare only the entry, and the distribution is the project name of its pyproject (K803)', TIMEOUT, (t) => {
+// K803, K855: the python extractor reads the source package of entry, named from the folder of the nearest pyproject.toml or
+// its src folder, so a python input declares only its entry, as every other extractor does.
+test('the python symbols declare only the entry, and an implementation without a pyproject.toml is refused (K803, K855)', TIMEOUT, (t) => {
   const declaration = (symbols: unknown) => check(t, { files: { 'python/src/codec/__init__.py': '' }, edit: config => {
     itemWhere(config.implementations, (implementation: { name: string }) => implementation.name === 'python').symbols = symbols;
     return config;
@@ -272,10 +272,10 @@ test('the python symbols declare only the entry, and the distribution is the pro
   assert.equal(declaration({ extractor: 'python', entry: 'python' }), 0);
   assert.equal(declaration({ extractor: 'python', entries: [{ entry: 'python' }] }), 0);
   assert.ok(declaration({ extractor: 'python', entry: 'python', distribution: 'codec' }) > 0, 'distribution is no field');
-  const unnamed = check(t, { files: { 'python/pyproject.toml': '[project]\nversion = "0.0.0"\n' } });
-  assert.ok(unnamed.findings.some(finding => /no pyproject\.toml from python up to the checkout names a \[project\]\.name/.test(finding.message)), JSON.stringify(unnamed.findings));
-  // A consumer names the package folder below its uv project, such as packages/python/src/<package>: the nearest
-  // pyproject.toml above it names the distribution.
+  const loose = check(t, { files: { 'python/pyproject.toml': null, 'python/src/codec/__init__.py': '' } });
+  assert.ok(loose.findings.some(finding => /implementation python: no root of python holds a pyproject\.toml/.test(finding.message)), JSON.stringify(loose.findings));
+  // A consumer names the package folder below its project, such as packages/python/src/<package>: the src folder beside the
+  // nearest pyproject.toml above it is the import root.
   assert.equal(declaration({ extractor: 'python', entry: 'python/src/codec' }), 0);
 });
 
@@ -531,9 +531,10 @@ test('R3: a binding whose runner cannot start fails, and a check of the declarat
   rmSync(path.join(root, 'var/tools/mise/shims/python3'));
   const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
   // A tool that the checkout lacks is the finding of its runs, naming the tool and its install, and no error ends the check
-  // (K393-2). The python extractor runs in the environment of the project, not with python3 of the checkout (K788).
-  assert.deepEqual(keys(missing), ['R3 codec python', 'R3 width python', 'R3 size python']);
+  // (K393-2). The python extractor runs with the python3 of the checkout too (K855), so it names the same missing tool.
+  assert.deepEqual(keys(missing), ['R1 - python', 'R3 codec python', 'R3 width python', 'R3 size python']);
   assert.match(findingAt(missing, 0).message, /python3 of the checkout is missing .*run make install/);
+  assert.match(findingAt(missing, 1).message, /python3 of the checkout is missing .*run make install/);
   // An extractor that install-tools did not build names the declaration and the install.
   const unbuilt = check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null, 'var/tools/symbols-php/vendor/autoload.php': null } }).findings;
   assert.deepEqual(keys(unbuilt), ['R1 - go', 'R1 - php']);

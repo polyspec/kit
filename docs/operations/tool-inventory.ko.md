@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 1dae6987009c891b460de98c2ce453ab5d3ceb2c248451b0dd548cfe06b3dcf0 -->
+<!-- source-sha256: 3188f83189dbc5c4b283f3c4dc46685ed2ea2cd7943a6da00cc2947cb34e32b2 -->
 
 # 도구 목록
 
@@ -1241,7 +1241,7 @@ implementation의 `symbols`는 `{ extractor, entry }`를 선언하며, `python`�
 | `go` | `var/tools/symbols-go/bin/kit-symbols-go`, `golang.org/x/tools/go/packages` v0.52.0 위의 kit 프로그램 | module directory | 각 internal이 아니고 test가 아닌 package의 export된 이름의 `<import path>.<name>`, `<import path>.<type>.<method or field>` |
 | `ts` | API Extractor 7.59.4(`@microsoft/api-extractor`, kit의 의존성)의 API model | 가장 가까운 `package.json`의 package에 있는, tsc 7이 내는 것 같은 `.d.ts` entry point. 그 package의 `tsconfig.json`으로, 없으면 ESNext library와 `@types` 없이 compile함 | `@scope/name!Codec#encode:member(1)` 같은 canonical reference |
 | `php` | nikic/php-parser 5.9.0 위의 `scripts/kit/symbols/php/extract.php` | source directory나 파일, 예를 들어 PHP extension의 `*.stub.php` | public 선언의 `Ns\Class`, `Ns\Class::method`, `Ns\Class::CONST`, `Ns\Class::$property`, `Ns\function`, `Ns\CONST`. docblock에 `@internal`(phpstan과 psalm이 읽는 대로 docblock 줄의 처음에 오는 tag)을 가진 class, function, constant, method, property는 public 선언이 아니고 그 tag를 가진 class는 member를 숨깁니다(K307) |
-| `python` | `scripts/kit/symbols/python.py`가 `distribution`이 가리키는 distribution의 설치 file 목록(RECORD, `importlib.metadata.files`)에 있는 `.py` 파일을 `ast`로 읽습니다. reader는 저장소 자신의 install이 만든 환경(`uv sync --frozen --no-editable` 같은 non-editable 설치) `<entry>/.venv`의 python으로 실행하므로 모듈은 build backend가 설치한 것이고, reader는 모듈을 탐색하지 않으며 kit은 아무것도 만들거나 설치하지 않습니다. 환경이나 distribution이 없으면 시작 오류나 Python의 오류로 실패하고, editable 설치는 거부합니다 | 저장소의 install이 `.venv`를 만든 uv project의 directory, `distribution`이 distribution 이름 | `__all__`, 없으면 `_`로 시작하지 않는 이름의 `<module>.<name>`과 `<module>.<class>.<method>`, 모듈 이름은 site-packages 안의 경로; build backend가 제외한 모듈은 설치되지 않으므로 public API가 아님 |
+| `python` | `scripts/kit/symbols/python.py`가 `entry` 아래에서 git이 무시하지 않는 `.py` 파일(`git ls-files --cached --others --exclude-standard`)을 `ast`로 읽으며, PATH의 `python3`로 실행합니다. import root는 `entry`에서 위로 가장 가까운 `pyproject.toml` 옆의 `src` 폴더 아래에 `entry`가 있으면 그 `src`, 아니면 그 `pyproject.toml`의 폴더입니다(Python Packaging User Guide의 src layout과 flat layout). 환경, 설치, distribution은 읽지 않으며 kit은 아무것도 만들거나 설치하지 않습니다(K855). `pyproject.toml`이 담지 않는 entry는 실패합니다 | `packages/python/src/<package>` 같은 source package의 package 폴더 | `__all__`, 없으면 `_`로 시작하지 않는 이름의 `<module>.<name>`과 `<module>.<class>.<method>`, 모듈 이름은 import root에서의 경로; 생성된 모듈처럼 git이 무시하는 모듈은 public이 아님 |
 | `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json`(format 61) | `Cargo.toml`, 그 library | root에서 닿는 각 public item(re-export 포함)의 `<crate>::<path>`와 그 public field, variant, inherent item, trait item |
 
 - repository는 `config/toolchain.json`의 `symbolExtractors`에 `go`와 `php`를 적습니다. 그러면 `make install-tools`가 go 프로그램을
