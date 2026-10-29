@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 792c0d4c4e7aa6096578433654e983abebe281646b60cc556d6ded31ca7a9b26 -->
+<!-- source-sha256: 324de3562aa3675293e56f3f1c82ab175d7593b42b1f8ea0034dd795b6b7ee8e -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -714,4 +714,4 @@
 | K755 | 같은 commit의 CI에서 이미 통과한 kit-check를 반복하는 release workflow 단계를 없앤다 | .github/workflows/release.yml workflows/release.yml tests/kit/kit-sync.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-sync.test.mts`; `make kit-check` | [o] |
 | K756 | kit-mk 테스트가 worktree가 실행하는 main checkout의 도구를 기대해서 worktree에서도 통과한다 | tests/kit/kit-mk.test.mts | `node --test tests/kit/kit-mk.test.mts` | [o] |
 | K757 | rules-check가 gates runtime matrix를 저장소의 runtime으로 읽고 runtime lint를 그 runtime에 대해서만 판정한다 | scripts/kit/check-rules.mts scripts/kit/ci-setup.mts tests/kit/check-rules.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/check-rules.test.mts tests/kit/ci-setup.test.mts` | [o] |
-| K758 | commit-deleted-test가 링크된 provider를 그 checkout으로 판단한다: npm 패키지가 sibling checkout 링크인 Provider-Test-Replacement는 그 checkout(name, version, providerTests, 테스트 파일)으로 검증하고, 릴리즈 복사본은 계속 package-lock.json으로 검증한다. | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node --test tests/kit/commits.test.mts` | [ ] |
+| K758 | commit-deleted-test가 링크된 provider를 그 checkout으로 판단한다: npm 패키지가 sibling checkout 링크인 Provider-Test-Replacement는 그 checkout(name, version, providerTests, 테스트 파일)으로 검증하고, 릴리즈 복사본은 계속 package-lock.json으로 검증한다. | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node --test tests/kit/commits.test.mts` | [~] |
