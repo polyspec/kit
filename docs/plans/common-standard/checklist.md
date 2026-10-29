@@ -779,3 +779,4 @@
 | K824 | Run no link and no link-state-check in CI, which installs with the package managers only | workflows/gates.yml, scripts/kit/kit.mk, .github/workflows/ci.yml | `node --test tests/kit/gates-workflow.test.mts tests/kit/check-rules.test.mts` | [o] |
 | K825 | Delete the checklist-state refusal of release, tag creation and FINAL_RUN | scripts/kit/release.mts, scripts/kit/ci-only.mts, docs/operations/release.md | `node --test tests/kit/release-tag.test.mts tests/kit/ci-only.test.mts tests/kit/release.test.mts` | [o] |
 | K826 | Keep the dev folder byte-identical when a uv install drops a linked Python package | tests/source/uv-link-real.test.mts | `node --test tests/source/uv-link-real.test.mts` | [o] |
+| K827 | The PHPUnit test listing of a run has the autoloader of the run, so the deadline prepend loads in it | scripts/kit/run-tests.mts, tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts` | [ ] |
