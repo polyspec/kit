@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1e9e5b5ee5b63ff486e9d766b4abf58d9464e589596988e14c2bdc317a9b48e7 -->
+<!-- source-sha256: 0523d1ad044d2bacbe4d7d8bd4c6d59c8637ca69d51b00c62d853f7dc9f59f60 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -722,4 +722,4 @@
 | K763 | Python link가 선택한 polyspec editable을 uv --no-deps로 설치해서, sibling을 release URL로 선언한 provider도 download가 필요 없다. 의존성 판단은 계속 uv pip check가 한다. | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node --test tests/kit/uv-install.test.mts` | [o] |
 | K765 | 설치된 Python polyspec 패키지 폴더는 각각 checkout으로 가는 디렉터리 심링크 하나이며 editable build는 없다(사용자 규칙) | scripts/kit/uv-install.mts, tests/source/uv-link-real.test.mts | `node --test --test-name-pattern=K765 tests/source/uv-link-real.test.mts` | [o] |
 | K766 | worktree-setup은 npm처럼 설치된 Composer provider 폴더를 각각 checkout으로 링크한다 | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test --test-name-pattern=K766 tests/kit/worktree-setup.test.mts` | [o] |
-| K767 | link이 npm 패키지 폴더를 쓴 뒤 npm rebuild가 링크된 package.json으로 그 bin 링크를 쓴다 | scripts/kit/npm-install.mts, scripts/kit/link.mts, scripts/kit/worktree-setup.mts | `node --test tests/source/installed-hook-real.test.mts` | [ ] |
+| K767 | link이 npm 패키지 폴더를 쓴 뒤 npm rebuild가 링크된 package.json으로 그 bin 링크를 쓴다 | scripts/kit/npm-install.mts, scripts/kit/link.mts, scripts/kit/worktree-setup.mts | `node --test tests/source/installed-hook-real.test.mts` | [~] |
