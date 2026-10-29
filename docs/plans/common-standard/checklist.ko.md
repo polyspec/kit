@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 298088c6663217700f12101e9abf64551c3a1aac3be782e6da9b45747fa8d226 -->
+<!-- source-sha256: 99b899ce23982d3367585a232d36885844f7c896e5333a76a9f9cc0c4b683785 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -718,4 +718,4 @@
 | K759 | Windows bootstrap이 PATH의 tar(Git Bash에서는 GNU tar) 대신 drive 경로와 zip을 읽는 Windows bsdtar(%SystemRoot%\System32\tar.exe)로 archive를 푼다. | scripts/kit/bootstrap/tool-wrappers.mts, scripts/kit/bootstrap/install-mise.mts, scripts/kit/bootstrap/install-npm.mts, tests/kit/install-mise.test.mts | `node --test tests/kit/install-mise.test.mts` | [o] |
 | K760 | go test -json이 benchmark의 pass event를 내지 않으므로, run-tests go가 benchmark를 결과 줄(출력함), 자식이 아닌 다음 benchmark의 시작, 또는 package의 끝에서 끝낸다. | scripts/kit/test-output.mts, tests/kit/test-output.test.mts | `node --test tests/kit/test-output.test.mts` | [o] |
 | K761 | make link가 설치된 npm·Composer polyspec 패키지 폴더를 각각 개발 checkout으로 가는 디렉터리 심링크 하나로 쓴다(사용자 규칙). npm link, npm link prefix와 cache, 전이 npm link 선택, Composer path repository 요구와 composer update는 없앤다. Go go.work와 Python editable install은 그대로 둔다. | scripts/kit/npm-install.mts, scripts/kit/composer-install.mts, scripts/kit/link.mts, scripts/kit/worktree-setup.mts, docs/operations/local-links.md and its Korean twin, tests | `node --test tests/kit/npm-install.test.mts tests/kit/link.test.mts` | [o] |
-| K762 | kit-bootstrap.mk가 make 시작 시 포함된 kit의 실제 경로로 KIT를 정하고 KIT와 KIT_EXT를 모든 재귀 make에 넘겨서, npm ci가 node_modules/@polyspec/kit을 바꿔도 링크된 consumer는 make 내내 sibling kit을 실행한다. | scripts/kit/kit-bootstrap.mk, tests/kit/kit-mk.test.mts | `node --test tests/kit/kit-mk.test.mts` | [ ] |
+| K762 | kit-bootstrap.mk가 make 시작 시 포함된 kit의 실제 경로로 KIT를 정하고 KIT와 KIT_EXT를 모든 재귀 make에 넘겨서, npm ci가 node_modules/@polyspec/kit을 바꿔도 링크된 consumer는 make 내내 sibling kit을 실행한다. | scripts/kit/kit-bootstrap.mk, tests/kit/kit-mk.test.mts | `node --test tests/kit/kit-mk.test.mts` | [~] |
