@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 5aacb75e8144073cd86f127f89432a46dbb85ff47a5bb19b2995f6d1f9c645a3 -->
+<!-- source-sha256: e87f5467f6cdf7a0432685f086c1e4956a4a454c70c41eb768bb326d00cbd21f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -782,3 +782,4 @@
 | K826 | uv 설치가 link된 Python 패키지를 뺄 때 dev 폴더를 바이트 단위로 그대로 둠 | tests/source/uv-link-real.test.mts | `node --test tests/source/uv-link-real.test.mts` | [o] |
 | K827 | run의 PHPUnit test 목록 실행이 run의 autoloader를 가져 deadline prepend가 그 안에서 load된다 | scripts/kit/run-tests.mts, tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts` | [v] |
 | K828 | 높은 load average에서도 run-tests suite의 모든 test가 끝나게 함 | tests/kit/run-tests.test.mts | `node --test tests/kit/run-tests.test.mts` | [ ] |
+| K830 | process test에 timeout을 두고 Windows tree cleanup test의 멈춤을 없앰 | tests/kit/process-group.test.mts, tests/kit/process.test.mts | `node --test tests/kit/process.test.mts tests/kit/process-group.test.mts` | [ ] |
