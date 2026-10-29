@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 5fc9187b87eb469846e87179ce88e0c9521afdfa035e9ea5d31e813f2b62101d -->
+<!-- source-sha256: b3af7cb4b179065d27c58ce16b85679571fb651caa8d3f32d78510b97188df8f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -754,3 +754,4 @@
 | K798 | release consumer와 lock proof 삭제 | scripts/kit/release-consumer.mts scripts/kit/release-run.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/release-run.test.mts` | [ ] |
 | K799 | kit-check의 공유 복사본 검사 삭제 | scripts/kit/kit-check.mts tests/kit/kit-check.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-check.test.mts` | [o] |
 | K800 | S10 library application 규칙 삭제 | scripts/kit/library-frameworks.mts tests/kit/library-frameworks.test.mts scripts/kit/kit.mk PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `make layout-check` | [o] |
+| K801 | main writer hook과 row clash 검사 삭제 | scripts/kit/git-hooks.mts scripts/kit/land.mts scripts/kit/row-ids.mts scripts/kit/check-commits.mts .githooks/reference-transaction CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/git-hooks.test.mts tests/kit/land.test.mts` | [ ] |
