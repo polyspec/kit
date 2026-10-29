@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1a23ad7337585c3c367fe15d9753ba025b83954feefff09a8cb728a3e15b8082 -->
+<!-- source-sha256: f221bcd047586202a2db2cb3b7247ad07667f3c26768fc0c0898c6e904a7cd06 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -763,3 +763,4 @@
 | K807 | land의 main baseline 실행과 unowned path 거부를 지운다 | scripts/kit/land.mts, tests/kit/land.test.mts | `node --test tests/kit/land.test.mts` | [ ] |
 | K808 | plan의 형식 거부를 지운다: 전이, id pattern, 추가 행, main의 새 행, staged와 body 검사 | scripts/kit/plan.mts, tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [ ] |
 | K809 | docs-check의 형식 거부를 지운다: 짝, revision stamp, twin 일치, plan folder, status table, doc-id, checklist 짝 | scripts/kit/check-documents.mts, tests/kit/documents.test.mts | `node --test tests/kit/documents.test.mts` | [ ] |
+| K810 | kit-check와 kit-sync의 형식 거부를 지운다: 고정 task 이름, runtime target, tracked symlink, lint 선택, retired 파일 | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [ ] |

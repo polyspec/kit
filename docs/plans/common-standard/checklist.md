@@ -762,3 +762,4 @@
 | K807 | Delete the land baseline run and the unowned path refusal | scripts/kit/land.mts, tests/kit/land.test.mts | `node --test tests/kit/land.test.mts` | [ ] |
 | K808 | Delete the form refusals of plan: transitions, id pattern, added rows, new row on main, staged and body checks | scripts/kit/plan.mts, tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [ ] |
 | K809 | Delete the form refusals of docs-check: pair, revision stamp, twin parity, plan folder, status table, doc-id and checklist pair | scripts/kit/check-documents.mts, tests/kit/documents.test.mts | `node --test tests/kit/documents.test.mts` | [ ] |
+| K810 | Delete the form refusals of kit-check and kit-sync: fixed task names, runtime targets, tracked symlink, lint selection and retired files | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [ ] |
