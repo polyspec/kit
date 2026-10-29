@@ -24,7 +24,7 @@ test('native uv Python worktree environments read worktree source and own their 
     writeFileSync(path.join(project, 'src/worktree_demo/__init__.py'), `value = ${value}\n`);
   }
   const uv = toolCommand(ROOT, 'uv');
-  const env = toolsEnvironment(ROOT, { ...process.env, UV_OFFLINE: '1', UV_NO_INDEX: '1', UV_FIND_LINKS: toolsPath(ROOT, 'wheels'), UV_CACHE_DIR: toolsPath(ROOT, 'mise', 'cache', 'uv'), PYTHONDONTWRITEBYTECODE: '1' });
+  const env = toolsEnvironment(ROOT, { ...process.env, UV_CACHE_DIR: toolsPath(ROOT, 'mise', 'cache', 'uv'), PYTHONDONTWRITEBYTECODE: '1' });
   const invoke = (args: string[]) => {
     const result = spawnSync(uv, args, { cwd: main, env, encoding: 'utf8' });
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
@@ -32,7 +32,7 @@ test('native uv Python worktree environments read worktree source and own their 
   const pyproject = '[project]\nname = "worktree-app"\nversion = "0.0.1"\ndependencies = ["kit-worktree-demo"]\n\n[tool.uv.sources]\nkit-worktree-demo = { workspace = true }\n\n[tool.uv.workspace]\nmembers = ["packages/demo"]\n';
   writeFileSync(path.join(main, 'pyproject.toml'), pyproject);
   writeFileSync(path.join(folder, 'pyproject.toml'), pyproject);
-  invoke(['lock', '--offline']);
+  invoke(['lock']);
   writeFileSync(path.join(folder, 'uv.lock'), readFileSync(path.join(main, 'uv.lock')));
   invoke(['venv', '--python', toolCommand(ROOT, 'python3'), '.venv']);
   invoke(['pip', 'install', '--python', path.join(main, '.venv/bin/python'), '--editable', path.join(main, 'packages/demo')]);

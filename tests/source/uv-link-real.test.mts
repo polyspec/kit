@@ -9,7 +9,6 @@ import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 import { uvInstallCommand, uvLink } from '../../scripts/kit/uv-install.mts';
 import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
-import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
 
@@ -27,11 +26,11 @@ function consumer(t: { after: (fn: () => void) => void }) {
     writeFileSync(path.join(folder, 'src', 'polyspec_provider', '__init__.py'), `value = "${value}"\n`);
   };
   packageSource(release, 'setuptools==84.0.0', '0.0.1', 'release');
-  // The checkout's backend is in no cache and no find-links folder: a build of it would fail offline.
+  // The checkout's backend is a setuptools that does not exist: a build of the checkout would fail.
   packageSource(checkout, 'setuptools==99.0.0', '0.0.2', 'checkout');
   for (const folder of [app, wheels]) mkdirSync(folder);
   const uv = toolCommand(ROOT, 'uv');
-  const env = toolsEnvironment(ROOT, { ...process.env, UV_CACHE_DIR: path.join(directory, 'cache'), UV_FIND_LINKS: toolsPath(ROOT, 'wheels'), UV_NO_INDEX: '1', UV_OFFLINE: '1', UV_PROJECT_ENVIRONMENT: '.venv', PYTHONDONTWRITEBYTECODE: '1' });
+  const env = toolsEnvironment(ROOT, { ...process.env, UV_CACHE_DIR: path.join(directory, 'cache'), UV_PROJECT_ENVIRONMENT: '.venv', PYTHONDONTWRITEBYTECODE: '1' });
   const run = (args: string[], cwd: string) => {
     const result = spawnSync(uv, args, { cwd, env, encoding: 'utf8' });
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);

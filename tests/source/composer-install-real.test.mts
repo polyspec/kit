@@ -1,7 +1,7 @@
 // Composer installs the released lock and autoload; the installed polyspec package is then one plain link to its checkout (K761).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { composerInstall } from '../../scripts/kit/composer-install.mts';
@@ -59,7 +59,7 @@ function composerTreeState(directory: string): Record<string, string> {
   return found;
 }
 
-test('K690: native Composer worktrees replace legacy projections with their own cached installation', { timeout: 30_000 }, (t) => {
+test('K690: native Composer worktrees install their own cached installation', { timeout: 30_000 }, (t) => {
   const root = tree(t);
   const main = path.join(root, 'main');
   const folder = path.join(root, 'worktree');
@@ -94,10 +94,6 @@ test('K690: native Composer worktrees replace legacy projections with their own 
   copyFileSync(path.join(main, 'composer.local.lock'), path.join(folder, 'composer.local.lock'));
   // A cached archive is the only remaining archive input, so offline worktree installation must use it.
   rmSync(path.join(archives, 'archive.zip'));
-  mkdirSync(path.join(folder, 'vendor-native/composer'), { recursive: true });
-  mkdirSync(path.join(folder, 'vendor-native/example'), { recursive: true });
-  for (const name of ['installed.json', 'installed.php']) copyFileSync(path.join(main, 'vendor-native/composer', name), path.join(folder, 'vendor-native/composer', name));
-  for (const name of ['local', 'shared', 'archive']) symlinkSync(path.join(main, 'vendor-native/example', name), path.join(folder, 'vendor-native/example', name));
   const mainBefore = composerTreeState(main);
   const providerBefore = composerTreeState(provider);
   const render = (directory: string) => {

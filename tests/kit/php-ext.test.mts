@@ -234,12 +234,6 @@ test('the extension build stages declared sources and accepts an explicit output
   release.notReleased = {};
   release.goModules = {};
   delete release.proof;
-  release.consumers = {
-    composer: {
-      directory: 'tests/consumer',
-      smoke: { 'polyspec/demo-php-ext': ['php', '-v'] },
-    },
-  };
   files['config/release.json'] = JSON.stringify(release);
   const originalConfig = readFileSync(path.join(FIXTURE, 'config.m4'), 'utf8');
   files['packages/php-ext/src/config.m4'] = originalConfig.replace(

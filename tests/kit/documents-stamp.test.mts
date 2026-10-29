@@ -9,13 +9,12 @@ import { pair, put, tree } from './tree.mts';
 
 const CONFIG = { schema: 1, include: ['**/*.md'] };
 
-test('a stale marker is replaced and a missing marker follows the doc-id line, so the pair passes', (t) => {
+test('a stale marker is replaced and a missing marker follows the doc-id line, so the pair stays current', (t) => {
   const root = tree(t, { ...pair('a.md', 'alpha', 'body\n'), ...pair('b.md', 'beta', 'other\n') });
   put(root, {
     'a.md': '<!-- doc-id: alpha -->\n# Title\n\nchanged\n',
     'b.ko.md': '<!-- doc-id: beta -->\n# Title\n\nother\n',
   });
-  assert.ok(check(root, CONFIG).findings.length > 0);
   const result = stampAll(root, CONFIG);
   assert.deepEqual(result, { changed: ['a.ko.md', 'b.ko.md'], failed: [] });
   assert.deepEqual(check(root, CONFIG).findings, []);

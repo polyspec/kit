@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: de43ed294bb872d3f8af65576d1d4c6d7edcd648ae52019cfd24563cae166a79 -->
+<!-- source-sha256: ab3708758be6efe3ee28321baccd81fd1ac4d56f074bdf4e628998ae13ee947b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- release wheel 빌드는 uv build의 .gitignore 없이 wheel만 출력 폴더에 복사하고, 실제 도구 테스트는 kit wheel 폴더 없이 uv처럼 네트워크로 Python 패키지를 빌드합니다. 삭제된 revision 검사, 레거시 Composer projection, consumers 필드의 테스트를 맞췄습니다 (K813).
 - toolchain-check 대상 테스트는 kit.mk가 정하는 node 경로를 읽으므로, main checkout의 도구를 쓰는 worktree에서도 통과합니다 (K792).
 - plan은 더 이상 형식을 거부하지 않습니다. item-state는 선언된 어느 상태든 받고, item-new는 어떤 ID든 받아 docs-check가 나중에 판단할 행을 쓰며, make commit은 빈 인덱스, main의 새 행, 없는 본문 파일을 git에 맡깁니다. 완료 상태는 커밋 여부와 관계없이 각 변경 기록에 ID가 담긴 줄을 요구합니다 (K808).
 - release는 version을 검사하지 않는다: `release-versions`, tag에 대한 각 manifest의 version, 자기 dependency의 정확한 version 검사를 지우며 package manager가 그것을 푼다. consumer 단계: 자기 workflow의 `make release-versions` 단계를 지운다 (K812).

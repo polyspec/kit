@@ -2,7 +2,7 @@
 // of the wheel metadata. uv build builds the wheel in an isolated environment with the build-system.requires of the package's
 // own pyproject.toml (PEP 517/518); kit pins and installs no build backend (K788). The Python of a build is the python3 of
 // mise.toml and uv is the uv of mise.toml (their shims, mise-tools.mts).
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { run, Stop } from './process.mts';
@@ -45,7 +45,10 @@ export function buildWheel({ root, env, commit, directory, output }: { root: str
     mkdirSync(source);
     run('tar', ['-xf', archive, '-C', source], { cwd: root, env });
     const epoch = run('git', ['show', '-s', '--format=%ct', commit], { cwd: root, env }).trim();
-    run(uv, ['build', '--wheel', '--python', python, '--out-dir', output, source], { cwd: folder, env: { ...env, SOURCE_DATE_EPOCH: epoch } });
+    // uv build writes a .gitignore into its output folder, so the wheel is built apart and only the wheel is copied into `output`.
+    const built = path.join(folder, 'dist');
+    run(uv, ['build', '--wheel', '--python', python, '--out-dir', built, source], { cwd: folder, env: { ...env, SOURCE_DATE_EPOCH: epoch } });
+    for (const name of readdirSync(built).filter(entry => entry.endsWith('.whl'))) copyFileSync(path.join(built, name), path.join(output, name));
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }

@@ -38,13 +38,13 @@ export function sandboxMise(root: string): void {
 }
 
 /**
- * Installs the uv project `project` as its repository's own install does, with the uv and the python3 of this checkout and
- * offline: uv lock, then uv sync --frozen, non-editable unless `editable`. The parity reader of a Python distribution reads
+ * Installs the uv project `project` as its repository's own install does, with the uv and the python3 of this checkout:
+ * uv lock, then uv sync --frozen, non-editable unless `editable`. The parity reader of a Python distribution reads
  * that environment and installs nothing.
  */
 export function installProject(project: string, { editable = false } = {}): void {
   const uv = toolCommand(ROOT, 'uv');
-  for (const args of [['lock', '--offline'], ['sync', '--frozen', '--offline', '--python', toolCommand(ROOT, 'python3'), ...(editable ? [] : ['--no-editable'])]]) {
+  for (const args of [['lock'], ['sync', '--frozen', '--python', toolCommand(ROOT, 'python3'), ...(editable ? [] : ['--no-editable'])]]) {
     const done = spawnSync(uv, [...args, '--project', project], { cwd: project, encoding: 'utf8', env: toolsEnvironment(ROOT) });
     assert.equal(done.status, 0, `uv ${args[0]} of ${project} failed: ${done.stderr}`);
   }
