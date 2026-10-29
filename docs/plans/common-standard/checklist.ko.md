@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 387a7877a407971352792953b770c21b5a9885d118d839e0a150279ac0c221e0 -->
+<!-- source-sha256: e58f25e22968f05315581a39820891c1232cd60837950802d7b596f01d5ce7d8 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -733,3 +733,4 @@
 | K776 | K773 link-state-check 픽스처는 다른 저장소 이름을 쓰지 않는다 | tests/kit/link-state-check.test.mts tests/kit/test-output.test.mts scripts/kit/link-state-check.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/isolation.test.mts` | [o] |
 | K777 | release의 manifest 검사는 polyspec package를 정확한 version의 GitHub release asset URL로 지정한 dependency를 받아들이고, 그 밖의 URL은 거부한다 | scripts/kit/release.mts, tests/kit/release.test.mts | `node --test --test-name-pattern="the problems of a manifest" tests/kit/release.test.mts` | [o] |
 | K778 | release-assets와 release-candidate-assets만 저장소가 추적하는 go.work로 실행하고, dependency review, dependency policy와 나머지 release 대상은 GOWORK를 끄고 실행한다 | scripts/kit/kit.mk, tests/kit/link.test.mts | `node --test --test-name-pattern="K343\|K774" tests/kit/link.test.mts` | [o] |
+| K779 | K774 go.work 테스트는 저장소를 initRepository로 만든다 | tests/kit/link.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/sandbox-repository.test.mts` | [ ] |
