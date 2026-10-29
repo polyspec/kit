@@ -171,7 +171,10 @@ export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs:
   let timer: NodeJS.Timeout | undefined;
   await Promise.race([closed, new Promise((resolve) => { timer = setTimeout(resolve, graceMs); })]);
   clearTimeout(timer);
-  signalGroup(pgid, 'SIGKILL', kill);
+  // SIGKILL cannot be caught, so the group ends; the caller's close is awaited so that no stopped process is still listed or
+  // unreaped when stopGroup returns (K754).
+  if (signalGroup(pgid, 'SIGKILL', kill) === 'ended') return;
+  await closed;
 }
 
 /** Observes parent loss without putting a deadline on a command; the caller releases the observation after completion. */

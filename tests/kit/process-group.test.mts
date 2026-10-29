@@ -72,6 +72,22 @@ test('Windows tree cleanup stops original descendants after root exit and repare
   assert.equal(remaining, 'sent', 'a surviving process is never reported as ended');
 });
 
+test('stopGroup returns only after a root that ignores SIGTERM has ended through SIGKILL (K754)', async () => {
+  const child = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); process.stdout.write('ready\\n'); setInterval(() => {}, 1000);"], { detached: true, stdio: ['ignore', 'pipe', 'inherit'] });
+  assert.ok(child.pid);
+  assert.ok(child.stdout, 'the root process reports that it ignores SIGTERM');
+  const lines = createInterface({ input: child.stdout });
+  const closed = once(child, 'close');
+  try {
+    await once(lines, 'line');
+    await stopGroup(child.pid, closed, 50);
+    assert.equal(processTable().some(entry => entry.pid === child.pid), false, 'the root process is gone when stopGroup returns');
+  } finally {
+    await stopGroup(child.pid, closed, 50);
+    lines.close();
+  }
+});
+
 test('stopGroup terminates a real root and descendant process tree', async () => {
   const source = `const { spawn } = require('node:child_process'); const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' }); process.stdout.write(JSON.stringify({ descendant: child.pid }) + '\\n'); process.on('SIGTERM', () => { child.kill('SIGTERM'); child.once('exit', () => process.exit(0)); }); setInterval(() => {}, 1000);`;
   const child = spawn(process.execPath, ['-e', source], { detached: true, stdio: ['ignore', 'pipe', 'inherit'] });

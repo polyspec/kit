@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 8b13a1f5ed50f58812ff983dccb9741fd9d6370717b613a92c44b6beb789955e -->
+<!-- source-sha256: 70b81aabc347dea44d7e4b17fdb8cb870759a5a4355479e21beb4b6c5130821b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -710,4 +710,4 @@
 | K751 | go.work의 모든 모듈을 go test 한 번으로 실행해서 빌드 전용 모듈이 빈 실행이 되지 않게 한다 (issue 5) | scripts/kit/runtime-targets.mts tests/kit/runtime-targets.test.mts | `node --test tests/kit/runtime-targets.test.mts` | [o] |
 | K752 | issue 5, 11, 12, 13, 16, 17, 18의 수정을 배포하기 위해 Kit 0.0.64를 준비한다 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-coverage`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.64` | [o] |
 | K753 | Playwright reporter를 rebuild 분류에 넣고 release-run 테스트의 remote를 initRepository로 만든다 | config/rebuild.json tests/kit/release-run.test.mts tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/rebuild-check.test.mts tests/kit/sandbox-repository.test.mts tests/kit/release-run.test.mts`; `make rebuild-check` | [o] |
-| K754 | stopGroup은 SIGKILL 뒤에도 멈춘 그룹이 끝난 뒤에만 반환한다 | scripts/kit/process-group.mts tests/kit/process-group.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/process-group.test.mts` | [~] |
+| K754 | stopGroup은 SIGKILL 뒤에도 멈춘 그룹이 끝난 뒤에만 반환한다 | scripts/kit/process-group.mts tests/kit/process-group.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/process-group.test.mts` | [o] |

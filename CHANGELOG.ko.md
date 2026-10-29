@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0538b109827554efc4d2be2f504ca2bd7f463a41d47e7390229d61ca3c760122 -->
+<!-- source-sha256: ecb31327c7ee6b6c51b84284a3a6126cb0336cba5752ee59a8c78cb2641b2a39 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- stopGroup은 SIGKILL이 필요했던 경우에도 멈춘 그룹이 끝난 뒤에만 반환한다. (K754)
 
 - Playwright reporter를 rebuild-check 분류에 넣고 release-run 테스트의 remote를 initRepository로 만든다. (K753)
 
