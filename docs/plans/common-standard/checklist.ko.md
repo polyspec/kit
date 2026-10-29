@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 22661fa46d559112a86fe51d0334e6c08f400baa689c571aeb3200e41d85b470 -->
+<!-- source-sha256: 46ea4bc4fc3ede89f3f620f91cdac61b32ceff4e061af45a020fead38d6b4705 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -741,5 +741,5 @@
 | K783 | layout-check가 PHP library는 application framework를 require하지 않는다는 S10 규칙을 맡는다 | scripts/kit/library-frameworks.mts scripts/kit/kit.mk scripts/kit/check-dependency-policy.mts tests/kit/library-frameworks.test.mts tests/kit/dependency-policy.test.mts tests/kit/check-rules.test.mts config/rebuild.json Makefile PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/library-frameworks.test.mts` | [o] |
 | K784 | dependency-policy-check와 그 mutation 검사를 지운다. lock 검증은 package manager가 한다 | scripts/kit/check-dependency-policy.mts scripts/kit/check-dependency-policy-mutation.mts scripts/kit/dependency-files.mts scripts/kit/kit.mk .github/workflows/ci.yml | `node --test tests/kit/gate-targets.test.mts` | [ ] |
 | K786 | dependency-review, dependency-state, version.mts, pin-python-dependency를 지운다. 낡거나 취약한 의존성은 package manager가 보고한다 | scripts/kit/dependency-review.mts scripts/kit/dependency-state.mts scripts/kit/version.mts scripts/kit/pin-python-dependency.mts scripts/kit/kit.mk | `node --test tests/kit/gate-targets.test.mts` | [ ] |
-| K785 | release manifest 검사는 저장소 자체 package의 tag version만 확인한다. 의존성 형식은 package manager의 일이다 | scripts/kit/release.mts tests/kit/release.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K785 tests/kit/release.test.mts` | [ ] |
+| K785 | release manifest 검사는 저장소 자체 package의 tag version만 확인한다. 의존성 형식은 package manager의 일이다 | scripts/kit/release.mts tests/kit/release.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K785 tests/kit/release.test.mts` | [~] |
 | K787 | 테스트하던 동작과 함께 테스트를 지우는 commit은 지운 파일을 Removed-With로 밝힌다 | scripts/kit/check-commits.mts tests/kit/plan.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K787 tests/kit/plan.test.mts` | [o] |
