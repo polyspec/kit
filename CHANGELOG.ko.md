@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 468f004943802f12b0ddcb0d8ead4929aa8758801280beb77efccffac5f6658c -->
+<!-- source-sha256: 922adaab80413f797fcdaf021b5183bb51bc2b142ff98907254073c2d07fd710 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 삭제된 테스트의 commit gate를 없앤다. 테스트 파일을 지우는 commit에 Replaced-By, Archived-To, Provider-Test-Replacement, Removed-With trailer가 필요 없다. (K797)
 - Kit 0.0.67 release를 준비한다. (K795)
 
 ## 0.0.67

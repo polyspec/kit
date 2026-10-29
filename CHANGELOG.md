@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The deleted-test commit gate is gone: a commit that deletes a test file needs no Replaced-By, Archived-To, Provider-Test-Replacement or Removed-With trailer. (K797)
 - Prepare the Kit 0.0.67 release. (K795)
 
 ## 0.0.67

@@ -20,9 +20,7 @@
 //              fails or that the Claude Code hook refuses (verification.mts)
 //   commit     ID=<id> TYPE=<type> SCOPE=<scope> SUBJECT=<subject> BODY_FILE=<file>
 //              commits the index with the message type(scope): Subject (#id), a blank line and the body of the file, its
-//              paragraphs wrapped at the width of the commit rules and its trailer lines kept; a deleted test may use
-//              `Provider-Test-Replacement: <deleted-path> -> npm:<package>@<version>#<provider-test-id>` for a test catalog
-//              declared by that locked provider; it refuses what the
+//              paragraphs wrapped at the width of the commit rules and its trailer lines kept; it refuses what the
 //              commit-msg hook would refuse, and git commit runs the hooks again
 //
 //   plan-split FROM=<slug> TO=<slug> IDS="<id> <id>" [TITLE= TITLE_KO=]

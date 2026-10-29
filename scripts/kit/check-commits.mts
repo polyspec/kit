@@ -13,10 +13,6 @@
 //                    that the commit adds is not a change, so a commit may add items and sub-items
 //   commit-changelog a commit that moves an item to the done state [o] also changes the changelog of the rules,
 //                    CHANGELOG.md and its Korean twin
-//   commit-deleted-test a commit that deletes a test file names a tracked replacement, a versioned test identity of a locked
-//                    provider or of a provider linked to its checkout (`Provider-Test-Replacement`), or archives the same file
-//                    contents at a reachable commit with `Archived-To: <sha>` while its checklist item is explicitly held (K339,
-//                    K647, K746, K758)
 //   commit-row       the id of the subject is an item of a checklist of docs/plans in the tree of the commit (the index for the hook);
 //                    the first commit of a repository passes
 //   row-id           on a branch, no row of the index holds an ID that main holds with another task, unless the ID is the row
@@ -40,11 +36,11 @@
 // read the checklists of the plan folders at each side of the change (checklist.mts). A merge commit keeps the message that Git writes and is not checked. Each finding is one line
 // `<commit>: <rule>: <message>`; the command exits with status 1 when there is one. The pre-push hook (push-gate.mts) reads the
 // message and identity findings of the commits that a push sends, through `logMessages` and `messageLines` (K510).
-import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
-import { BYPASSED, DONE, IMPOSSIBLE, loadConfig, PLANS, readChecklist, reachableStates, trackersOf, workingPlanFiles } from './checklist.mts';
+import { DONE, loadConfig, PLANS, readChecklist, reachableStates, trackersOf, workingPlanFiles } from './checklist.mts';
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
 import { clashMessage, rowClashes } from './row-ids.mts';
@@ -84,7 +80,7 @@ export type CommitMessage = { id: string; message: string; author?: string; comm
  * The two sides of a change: a reader of a checklist file before and after it, the paths it touches and the paths of the plan
  * files at both sides.
  */
-export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string; parent?: string | undefined; changedLines?: (file: string) => number[]; deleted?: string[]; tracked?: (file: string) => boolean };
+export type Change = { before: (file: string) => string; after: (file: string) => string; changed: string[]; plans: string[]; message?: string; changedLines?: (file: string) => number[] };
 
 
 // A footer that names an AI tool as a co-author or a session, or says that one generated the commit (K264).
@@ -168,7 +164,7 @@ export function messageFindings(message: string, config: CommitRules) {
   // A Red line holds a whole command of the Verification, which no wrap may split (K389, K624).
   lines.slice(2).forEach((line, index) => {
     const isRedLine = ['Red: ', 'Red-Gate: ', 'Red-Test: '].some(prefix => line.startsWith(prefix));
-    if (line.length > config.bodyMax && /\s/.test(line.trim()) && !isRedLine && !line.startsWith('Provider-Test-Replacement: ')) {
+    if (line.length > config.bodyMax && /\s/.test(line.trim()) && !isRedLine) {
       found.push({ rule: 'commit-width', message: `line ${index + 3} of the message has ${line.length} characters; expected at most ${config.bodyMax}; wrap the body` });
     }
   });
@@ -182,69 +178,6 @@ const plansAt = (root: string, rev: string) => (rev === '' ? git(root, 'ls-files
 // vitest, a *_test.go file, a test_*.py or *_test.py file and a *Test.php file. The Rust unit tests are read by changesATest (K370).
 const TEST_FILE = /(?:^|\/)tests?\/|\.(?:test|spec)\.[cm]?[jt]sx?$|_test\.go$|(?:^|\/)test_[^/]*\.py$|_test\.py$|Test\.php$/;
 const TEST_FILES = 'tests/, *.test.*, *_test.go, test_*.py, *Test.php, tests.rs, #[cfg(test)] or #[test] code of *.rs';
-
-const isObjectRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
-const objectRecord = (value: unknown): Record<string, unknown> | undefined => isObjectRecord(value) ? value : undefined;
-
-/** A provider replacement binds one removed local test to an installed provider's versioned test identity. */
-function providerTestReplacementFindings(root: string, message: string, deleted: readonly string[]): string[] {
-  const refs = [...message.matchAll(/^Provider-Test-Replacement: (\S+) -> npm:((?:@[^/\s]+\/)?[^@/\s]+)@(\d+\.\d+\.\d+)#([a-z0-9][a-z0-9._-]*)$/gm)]
-    .map(([, oldPath, packageName, version, id]) => ({ oldPath, packageName, version, id }));
-  if (refs.length === 0) return [];
-  const findings: string[] = [];
-  const byOldPath = new Map<string, typeof refs>();
-  for (const ref of refs) {
-    if (!byOldPath.has(ref.oldPath ?? '')) byOldPath.set(ref.oldPath ?? '', []);
-    byOldPath.get(ref.oldPath ?? '')?.push(ref);
-  }
-  for (const oldPath of deleted) {
-    const named = byOldPath.get(oldPath) ?? [];
-    if (named.length !== 1) {
-      findings.push(`${oldPath} needs exactly one Provider-Test-Replacement trailer naming its installed provider test`);
-      continue;
-    }
-    const ref = named[0];
-    if (!ref || !ref.packageName || !ref.version || !ref.id) continue;
-    const packageName = ref.packageName;
-    const version = ref.version;
-    const testId = ref.id;
-    const manifestPath = path.join(root, 'package.json');
-    const lockPath = path.join(root, 'package-lock.json');
-    const installedPath = path.join(root, 'node_modules', ...packageName.split('/'), 'package.json');
-    try {
-      const manifest = objectRecord(JSON.parse(readFileSync(manifestPath, 'utf8')));
-      const lock = objectRecord(JSON.parse(readFileSync(lockPath, 'utf8')));
-      const installed = objectRecord(JSON.parse(readFileSync(installedPath, 'utf8')));
-      if (!manifest || !lock || !installed) throw new Error('provider package metadata must be JSON objects');
-      const direct = [manifest.dependencies, manifest.devDependencies].some(value => objectRecord(value)?.[packageName] !== undefined);
-      const lockPackages = objectRecord(lock.packages);
-      const lockEntry = objectRecord(lockPackages?.[`node_modules/${packageName}`]);
-      // A provider linked to its sibling checkout is judged by that checkout, which is what runs; a copy by the lock (K758).
-      const linked = lstatSync(path.dirname(installedPath)).isSymbolicLink();
-      if (!direct || (!linked && (lock.lockfileVersion !== 3 || lockEntry?.version !== version || typeof lockEntry.resolved !== 'string' || !lockEntry.resolved.startsWith('https://') || typeof lockEntry.integrity !== 'string' || lockEntry.integrity === ''))) {
-        findings.push(`${packageName}@${version} is not an exact, integrity-locked direct npm provider`);
-        continue;
-      }
-      if (installed.name !== packageName || installed.version !== version) {
-        findings.push(`${packageName}@${version} is not the installed provider ${linked ? 'of the linked checkout' : 'locked by package-lock.json'}`);
-        continue;
-      }
-      const records = objectRecord(installed.kit)?.providerTests;
-      const matches = Array.isArray(records) ? records.map(objectRecord).filter((value): value is Record<string, unknown> => value !== undefined && value.id === testId) : [];
-      const record = matches.length === 1 ? matches[0] : undefined;
-      const validTest = typeof record?.path === 'string' && record.path.startsWith('tests/') && record.path.split('/').every(part => part !== '.' && part !== '..')
-        && typeof record.name === 'string' && record.name.trim() !== ''
-        && (!linked || existsSync(path.join(path.dirname(installedPath), record.path)));
-      if (!validTest) {
-        findings.push(`${packageName}@${version} declares no provider test identity ${testId} for ${oldPath}`);
-      }
-    } catch (error) {
-      findings.push(`${packageName}@${version} is not installed from the exact package-lock.json provider metadata: ${error instanceof Error ? error.message : String(error)}`);
-    }
-  }
-  for (const oldPath of byOldPath.keys()) if (!deleted.includes(oldPath)) findings.push(`Provider-Test-Replacement names ${oldPath}, which this commit does not delete`);
-  return findings;
-}
 
 /** Whether `file` is a test file of a runner that kit fixes. */
 export const isTestFile = (file: string) => TEST_FILE.test(file);
@@ -328,7 +261,7 @@ export function changesATest(file: string, after: (file: string) => string, chan
  * change, `changed` holds the paths that the change touches, and `message`, when given, is the message of the commit, whose
  * type fix needs a changed test file (K257).
  */
-export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, parent, changedLines = () => [], deleted = [], tracked = () => false }: Change) {
+export function itemFindings(root: string, config: CommitRules, { before, after, changed, plans, message, changedLines = () => [] }: Change) {
   const changes = [];
   const trackers = trackersOf(loadConfig(root), new Set(plans));
   for (const tracker of trackers) {
@@ -363,50 +296,8 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
   if (message !== undefined && message.startsWith('fix(') && stated === undefined && !changes.some(change => change.to === DONE) && !changed.some(file => changesATest(file, after, changedLines))) {
     found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or states No-Red: <reason> when no test can show it` });
   }
-  // A deletion either names its replacement (K339), archives the identical files at a reachable commit while its item is held, or names
-  // the deleted behaviour (K787).
-  const archived = message !== undefined && parent !== undefined && deleted.length > 0
-    && archivedTestDeletionAllowed(root, parent, before, after, trackers, message, deleted);
-  const providerReplacements = message === undefined ? [] : providerTestReplacementFindings(root, message, deleted);
-  for (const problem of providerReplacements) found.push({ rule: 'commit-deleted-test', message: problem });
-  const providerTrailerCount = message === undefined ? 0 : [...message.matchAll(/^Provider-Test-Replacement:/gm)].length;
-  const providerReferenceCount = message === undefined ? 0 : [...message.matchAll(/^Provider-Test-Replacement: (\S+) -> npm:(?:@[^/\s]+\/)?[^@/\s]+@\d+\.\d+\.\d+#[a-z0-9][a-z0-9._-]*$/gm)].length;
-  const allProviderReplaced = deleted.length > 0 && providerTrailerCount === providerReferenceCount && providerReferenceCount === deleted.length;
-  // K787, K793: a test deleted with the behaviour it tested names that behaviour's file, which the parent tracked and this commit deletes,
-  // and the deleted test itself names that file, so an unrelated file deleted alongside opens no gate.
-  const removedFiles = message === undefined ? [] : [...message.matchAll(/^Removed-With: (\S+)$/gm)].map(([, file = '']) => file).filter(file => !isTestFile(file) && before(file) !== '' && !tracked(file));
-  const removedWith = removedFiles.length > 0 && deleted.every(test => removedFiles.some(file => before(test).includes(path.basename(file))));
-  if (message !== undefined && deleted.length > 0 && !archived && !allProviderReplaced && !removedWith && ![...message.matchAll(/^Replaced-By: (\S+)$/gm)].some(([, file = '']) => isTestFile(file) && tracked(file))) {
-    found.push({ rule: 'commit-deleted-test', message: `the commit deletes the test file ${deleted.join(', ')} and its body names no replacement, verified archive or deleted behaviour; add Replaced-By: <tracked test path>, Archived-To: <commit sha> for an identical archive of a held item, or Removed-With: <non-test file that this commit deletes and the deleted test names> (${TEST_FILES})` });
-  }
   return found;
 }
-
-/** Whether `Archived-To` preserves every deleted test byte-for-byte at a reachable commit for a held checklist item. */
-function archivedTestDeletionAllowed(
-  root: string,
-  parent: string,
-  before: (file: string) => string,
-  after: (file: string) => string,
-  trackers: ReturnType<typeof trackersOf>,
-  message: string,
-  deleted: readonly string[],
-): boolean {
-  const archive = /^Archived-To: ([0-9a-f]{40})$/gm;
-  const revisions = [...message.matchAll(archive)].map(([, sha]) => sha).filter((sha): sha is string => sha !== undefined);
-  if (revisions.length === 0) return false;
-  const item = /\(#([A-Za-z0-9][A-Za-z0-9.-]*)\)$/.exec(message.split('\n')[0] ?? '')?.[1];
-  if (item === undefined || !trackers.some(tracker => readChecklist(after(tracker.path), tracker).items.some(row => row.id === item && (row.state === BYPASSED || row.state === IMPOSSIBLE)))) return false;
-
-  return revisions.some(revision => {
-    if (gitResult(root, 'cat-file', '-e', `${revision}^{commit}`).status !== 0) return false;
-    if (gitResult(root, 'merge-base', '--is-ancestor', revision, parent).status !== 0) return false;
-    return deleted.every(file => git(root, 'ls-tree', '-r', '--name-only', revision, '--', file).split('\n').includes(file) && fileAt(root, revision, file) === before(file));
-  });
-}
-
-// Whether `file` is a tracked file of the revision `rev` (`''` is the index): the exact path, not a pattern that the path names.
-const trackedAt = (root: string, rev: string, file: string) => (rev === '' ? git(root, 'ls-files', '--cached') : git(root, 'ls-tree', '-r', '--name-only', rev)).split('\n').includes(file);
 
 // The empty tree of git, the parent of a root commit (K370).
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904';
@@ -420,10 +311,7 @@ const commitItemFindings = (root: string, config: CommitRules, id: string, messa
     changed: git(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', '--root', id).split('\n').filter(Boolean),
     plans: [...(parent ? plansAt(root, parent) : []), ...plansAt(root, id)],
     message,
-    parent: parent ? git(root, 'rev-parse', parent).trim() : undefined,
     changedLines: file => changedLineNumbers(git(root, 'diff', '-U0', parent ?? EMPTY_TREE, id, '--', file)),
-    deleted: git(root, 'diff-tree', '--no-commit-id', '--name-only', '--no-renames', '--diff-filter=D', '-r', id).split('\n').filter(isTestFile),
-    tracked: file => trackedAt(root, id, file),
   });
 };
 
@@ -476,10 +364,7 @@ export function indexItemFindings(root: string, config: CommitRules, message: st
     changed: git(root, 'diff', '--cached', '--name-only', against).split('\n').filter(Boolean),
     plans: [...(base ? plansAt(root, base) : []), ...plansAt(root, '')],
     message,
-    parent: base,
     changedLines: file => changedLineNumbers(git(root, 'diff', '--cached', '-U0', against, '--', file)),
-    deleted: git(root, 'diff', '--cached', '--name-only', '--no-renames', '--diff-filter=D', against).split('\n').filter(isTestFile),
-    tracked: file => trackedAt(root, '', file),
   })];
   // The first commit of a repository has no HEAD, so it has no base and passes.
   if (base === undefined) return found;

@@ -10,7 +10,6 @@ import { wrapBody, commitItem, editItem, newItem, newPlan, setState, splitPlan, 
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
-import { COMMIT_RULES, indexItemFindings, rangeFindings } from '../../scripts/kit/check-commits.mts';
 import { put, tree } from './tree.mts';
 import { KIT_MAKEFILE } from './kit-tools.mts';
 
@@ -403,48 +402,7 @@ test('item-state refuses a bypassed or impossible state whose cause cites a rele
   assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause: 'a release', causeKo: '원인' }), /cites "release"/);
 });
 
-// K787: a test deleted with the behaviour it tested names the deleted file; a kept file, a test file or a file never tracked is no such name.
-test('a deleted test passes with Removed-With naming a non-test file that the parent tracked and the commit deletes (K787)', (t) => {
-  const root = plans(t, 'parser');
-  newItem(root, item('parser', 'T1'));
-  setState(root, { id: 'T1', state: '[~]' });
-  const repo = committed(t, 'T1');
-  put(repo, { 'tests/a.test.mts': "import '../src/a.mts';\n", 'src/a.mts': 'export {};\n', 'src/b.mts': 'export {};\n' });
-  stage(repo, '-A');
-  assert.equal(spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'Add a'], { cwd: repo }).status, 0);
-  rmSync(path.join(repo, 'tests/a.test.mts'));
-  rmSync(path.join(repo, 'src/a.mts'));
-  stage(repo, '-A');
-  const message = 'refactor(parser): Delete a (#T1)\n\nThe behaviour of a is gone.\n';
-  const rules = (trailer: string) => indexItemFindings(repo, COMMIT_RULES, `${message}${trailer}`).map(found => found.rule);
-  assert.deepEqual(rules('Removed-With: src/a.mts\n'), []);
-  assert.deepEqual(rules('Removed-With: src/b.mts\n'), ['commit-deleted-test'], 'a file the commit keeps');
-  assert.deepEqual(rules('Removed-With: tests/a.test.mts\n'), ['commit-deleted-test'], 'a test file');
-  assert.deepEqual(rules('Removed-With: src/never.mts\n'), ['commit-deleted-test'], 'a file the parent never tracked');
-});
-
-// K793: each deleted test names a Removed-With file itself, so an unrelated file deleted alongside opens no gate.
-test('a deleted test passes Removed-With only for a deleted file that the test itself names (K793)', (t) => {
-  const root = plans(t, 'parser');
-  newItem(root, item('parser', 'T1'));
-  setState(root, { id: 'T1', state: '[~]' });
-  const repo = committed(t, 'T1');
-  put(repo, {
-    'tests/a.test.mts': "import '../src/a.mts';\n", 'tests/c.test.mts': "const fixture = 'config/c.json';\n",
-    'src/a.mts': 'export {};\n', 'src/b.mts': 'export {};\n', 'config/c.json': '{}\n',
-  });
-  stage(repo, '-A');
-  assert.equal(spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'Add a'], { cwd: repo }).status, 0);
-  for (const file of ['tests/a.test.mts', 'tests/c.test.mts', 'src/a.mts', 'src/b.mts', 'config/c.json']) rmSync(path.join(repo, file));
-  stage(repo, '-A');
-  const message = 'refactor(parser): Delete a and c (#T1)\n\nThe behaviour of a and c is gone.\n';
-  const rules = (trailer: string) => indexItemFindings(repo, COMMIT_RULES, `${message}${trailer}`).map(found => found.rule);
-  assert.deepEqual(rules('Removed-With: src/b.mts\n'), ['commit-deleted-test'], 'a deleted file that no deleted test names');
-  assert.deepEqual(rules('Removed-With: src/a.mts\n'), ['commit-deleted-test'], 'a file that only one deleted test names');
-  assert.deepEqual(rules('Removed-With: src/a.mts\nRemoved-With: config/c.json\n'), []);
-});
-
-test('blocked and dropped refuse an excuse that cites no kit row, and a deleted test needs Replaced-By (K339)', (t) => {
+test('blocked and dropped refuse an excuse that cites no kit row (K339)', (t) => {
   const root = plans(t, 'parser');
   newItem(root, item('parser', 'T1'));
   newItem(root, item('parser', 'T2'));
@@ -457,145 +415,6 @@ test('blocked and dropped refuse an excuse that cites no kit row, and a deleted 
   assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause: 'the version tag v1.2.0', causeKo: '원인' }), /cites "version tag"/);
   setState(root, { id: 'T1', state: '[!]', cause: 'waits for the next release of K392-1', retry: 'K392-1 done', causeKo: '원인', retryKo: '나중' });
   setState(root, { id: 'T2', state: '[-]', cause: 'unrelated to K392-2', causeKo: '원인' });
-
-  const repo = committed(t, 'T1');
-  const runGit = (...args: string[]) => {
-    const run = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: repo, encoding: 'utf8' });
-    assert.equal(run.status, 0, run.stderr);
-    return run.stdout;
-  };
-  put(repo, { 'tests/a.test.mts': 'test;\n', 'tests/b.test.mts': 'test;\n', 'tests/c.test.mts': 'test;\n' });
-  runGit('add', '-A');
-  runGit('commit', '--quiet', '--no-verify', '-m', 'Add the tests');
-  const message = 'refactor(parser): Drop the old test (#T1)\n\nThe test of a is covered elsewhere.\n';
-  rmSync(path.join(repo, 'tests/a.test.mts'));
-  stage(repo, '-A');
-  assert.deepEqual(indexItemFindings(repo, COMMIT_RULES, message).map(found => found.rule), ['commit-deleted-test']);
-  assert.deepEqual(indexItemFindings(repo, COMMIT_RULES, `${message}Replaced-By: tests/missing.test.mts\n`).map(found => found.rule), ['commit-deleted-test']);
-  assert.deepEqual(indexItemFindings(repo, COMMIT_RULES, `${message}Replaced-By: tests/b.test.mts\n`), []);
-  runGit('commit', '--quiet', '--no-verify', '-m', message);
-  rmSync(path.join(repo, 'tests/b.test.mts'));
-  stage(repo, '-A');
-  runGit('commit', '--quiet', '--no-verify', '-m', 'refactor(parser): Drop the other test (#T1)\n\nThe test of b is covered elsewhere.\nReplaced-By: tests/c.test.mts\n');
-  assert.deepEqual(rangeFindings(repo, 'HEAD~1..HEAD', COMMIT_RULES), [], 'a deletion that names a tracked test passes');
-  assert.match(rangeFindings(repo, 'HEAD~2..HEAD~1', COMMIT_RULES).join('\n'), /: commit-deleted-test: /, 'a range refuses a deletion without Replaced-By');
-});
-
-test('K746: a deleted test may move to the exact test identity of a directly locked installed provider', (t) => {
-  const root = committed(t, 'T1');
-  const packageName = '@polyspec/test-provider';
-  const version = '1.2.3';
-  const packageFile = `node_modules/${packageName}/package.json`;
-  const provider = (id: string, name = 'provider test') => ({
-    name: packageName,
-    version,
-    kit: { providerTests: [{ id, path: 'tests/provider.test.mts', name }] },
-  });
-  const lock = {
-    name: 'fixture',
-    lockfileVersion: 3,
-    packages: {
-      '': { devDependencies: { [packageName]: version } },
-      [`node_modules/${packageName}`]: { version, resolved: `https://registry.npmjs.org/test-provider/-/test-provider-${version}.tgz`, integrity: 'sha512-YQ==' },
-    },
-  };
-  put(root, {
-    '.gitignore': 'node_modules/\n',
-    'tests/a.test.mts': "import test from 'node:test'; test('old runner', () => {});\n",
-    'package.json': JSON.stringify({ name: 'fixture', devDependencies: { [packageName]: version } }),
-    'package-lock.json': JSON.stringify(lock),
-  });
-  mkdirSync(path.dirname(path.join(root, packageFile)), { recursive: true });
-  writeFileSync(path.join(root, packageFile), JSON.stringify(provider('runner-go')));
-  stage(root, '-A');
-  const committedFiles = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'Add provider lock'], { cwd: root, encoding: 'utf8' });
-  assert.equal(committedFiles.status, 0, committedFiles.stderr);
-
-  const message = 'refactor(parser): Remove the local runner test (#T1)\n\nThe installed provider owns the runner and its test.\nProvider-Test-Replacement: tests/a.test.mts -> npm:@polyspec/test-provider@1.2.3#runner-go\n';
-  rmSync(path.join(root, 'tests/a.test.mts'));
-  stage(root, '-A');
-  assert.deepEqual(indexItemFindings(root, COMMIT_RULES, message), [], 'the lock and provider catalog bind the exact versioned test identity');
-  assert.deepEqual(indexItemFindings(root, COMMIT_RULES, message.replace('runner-go', 'missing-test')).map(found => found.rule), ['commit-deleted-test'], 'an undeclared test identity is rejected');
-  assert.deepEqual(indexItemFindings(root, COMMIT_RULES, message.replace('@1.2.3#', '@1.2.4#')).map(found => found.rule), ['commit-deleted-test'], 'an unlocked provider version is rejected');
-  assert.deepEqual(indexItemFindings(root, COMMIT_RULES, message.replace('@polyspec/test-provider', '@polyspec/unrelated-provider')).map(found => found.rule), ['commit-deleted-test'], 'an unrelated, undeclared provider is rejected');
-  writeFileSync(path.join(root, packageFile), JSON.stringify(provider('runner-go', '')));
-  assert.deepEqual(indexItemFindings(root, COMMIT_RULES, message).map(found => found.rule), ['commit-deleted-test'], 'an empty provider test identity is rejected');
-});
-
-test('K647: Archived-To requires a held row and an ancestor with identical deleted test files', (t) => {
-  const deletion = (state: '[!]' | '[-]' | '[~]', archiveContent = 'archived test\n', deletedContent = archiveContent, archiveBeforeFile = false) => {
-    const root = committed(t, 'T1', 'T2');
-    const runGit = (...args: string[]) => {
-      const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: root, encoding: 'utf8' });
-      assert.equal(result.status, 0, result.stderr);
-      return result.stdout.trim();
-    };
-    let archive: string;
-    if (archiveBeforeFile) {
-      archive = runGit('rev-parse', 'HEAD');
-      put(root, { 'tests/archived.test.mts': deletedContent });
-      runGit('add', '-A');
-      runGit('commit', '--quiet', '--no-verify', '-m', 'Add the test');
-    } else {
-      put(root, { 'tests/archived.test.mts': archiveContent });
-      runGit('add', '-A');
-      runGit('commit', '--quiet', '--no-verify', '-m', 'Archive the test');
-      archive = runGit('rev-parse', 'HEAD');
-      if (deletedContent !== archiveContent) {
-        put(root, { 'tests/archived.test.mts': deletedContent ?? '' });
-        runGit('add', '-A');
-        runGit('commit', '--quiet', '--no-verify', '-m', 'Change the test');
-      }
-    }
-    setState(root, { id: 'T1', state: '[~]' });
-    if (state === '[!]') setState(root, { id: 'T1', state, cause: 'waits for the next release of K392-1', retry: 'K392-1 done', causeKo: '원인', retryKo: '완료 후 재시도' });
-    if (state === '[-]') setState(root, { id: 'T1', state, cause: 'unrelated to K392-2', causeKo: '원인' });
-    rmSync(path.join(root, 'tests/archived.test.mts'));
-    stage(root, '-A');
-    return { root, archive };
-  };
-  const message = (archive: string) => `refactor(archive): Remove the test fixture (#T1)\n\nPreserve the source for the held task.\nArchived-To: ${archive}\n`;
-
-  const held = deletion('[!]');
-  assert.deepEqual(indexItemFindings(held.root, COMMIT_RULES, message(held.archive)), [], 'a held item can archive an identical test from an ancestor commit');
-
-  const impossible = deletion('[-]');
-  assert.deepEqual(indexItemFindings(impossible.root, COMMIT_RULES, message(impossible.archive)), [], 'an explicitly impossible item can archive the identical test');
-
-  const active = deletion('[~]');
-  assert.deepEqual(indexItemFindings(active.root, COMMIT_RULES, message(active.archive)).map(found => found.rule), ['commit-deleted-test'], 'an active item cannot authorize archive deletion');
-
-  const missing = deletion('[!]', 'archived test\n', 'archived test\n', true);
-  assert.deepEqual(indexItemFindings(missing.root, COMMIT_RULES, message(missing.archive)).map(found => found.rule), ['commit-deleted-test'], 'an archive without the deleted file is rejected');
-
-  const mismatch = deletion('[!]', 'old test\n', 'new test\n');
-  assert.deepEqual(indexItemFindings(mismatch.root, COMMIT_RULES, message(mismatch.archive)).map(found => found.rule), ['commit-deleted-test'], 'different archived contents are rejected');
-
-  const detached = committed(t, 'T1', 'T2');
-  const runGit = (...args: string[]) => {
-    const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: detached, encoding: 'utf8' });
-    assert.equal(result.status, 0, result.stderr);
-    return result.stdout.trim();
-  };
-  const branch = runGit('branch', '--show-current');
-  runGit('branch', 'archive-side');
-  put(detached, { 'tests/archived.test.mts': 'archived test\n' });
-  runGit('add', '-A');
-  runGit('commit', '--quiet', '--no-verify', '-m', 'Add current test');
-  runGit('checkout', 'archive-side');
-  put(detached, { 'tests/archived.test.mts': 'archived test\n' });
-  runGit('add', '-A');
-  runGit('commit', '--quiet', '--no-verify', '-m', 'Add detached archive');
-  const detachedArchive = runGit('rev-parse', 'HEAD');
-  runGit('checkout', branch);
-  setState(detached, { id: 'T1', state: '[~]' });
-  setState(detached, { id: 'T1', state: '[!]', cause: 'waits for the next release of K392-1', retry: 'K392-1 done', causeKo: '원인', retryKo: '완료 후 재시도' });
-  rmSync(path.join(detached, 'tests/archived.test.mts'));
-  stage(detached, '-A');
-  assert.deepEqual(indexItemFindings(detached, COMMIT_RULES, message(detachedArchive)).map(found => found.rule), ['commit-deleted-test'], 'an existing archive that is not reachable from the deletion parent is rejected');
-
-  const absent = deletion('[!]', undefined);
-  assert.deepEqual(indexItemFindings(absent.root, COMMIT_RULES, message('0'.repeat(40))).map(found => found.rule), ['commit-deleted-test'], 'a nonexistent archive commit is rejected');
 });
 
 // K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.
