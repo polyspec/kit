@@ -748,4 +748,4 @@
 | K791 | The K449 commit-type rule reads a Markdown document as a document in every folder, and a release commit may stage uv.lock. Cause: the orm 0.0.19 bump commit `chore(release): Release 0.0.19` was refused for packages/php/README.md and packages/python/uv.lock, which are a document and a lock | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node --test --test-name-pattern=K449 tests/kit/commits.test.mts` | [o] |
 | K792 | Toolchain check passes in a worktree | tests/kit/check-toolchain.test.mts | `node --test tests/kit/check-toolchain.test.mts` | [ ] |
 | K793 | Removed-With names a file the deleted test names | scripts/kit/check-commits.mts tests/kit/plan.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K793 tests/kit/plan.test.mts` | [o] |
-| K795 | Prepare Kit 0.0.67 to publish K780 to K793 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.67` | [ ] |
+| K795 | Prepare Kit 0.0.67 to publish K780 to K793 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.67` | [~] |
