@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 4eb105cfb1c0b8450f276390e37fed937cac1398a4115ef810e6819d0fad748f -->
+<!-- source-sha256: a01e9661129291ec5d16f932a937ddc13d594d1281aad0380141409ef6cc5ca3 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -733,6 +733,6 @@
 | K776 | K773 link-state-check 픽스처는 다른 저장소 이름을 쓰지 않는다 | tests/kit/link-state-check.test.mts tests/kit/test-output.test.mts scripts/kit/link-state-check.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/isolation.test.mts` | [o] |
 | K777 | release의 manifest 검사는 polyspec package를 정확한 version의 GitHub release asset URL로 지정한 dependency를 받아들이고, 그 밖의 URL은 거부한다 | scripts/kit/release.mts, tests/kit/release.test.mts | `node --test --test-name-pattern="the problems of a manifest" tests/kit/release.test.mts` | [o] |
 | K778 | release-assets와 release-candidate-assets만 저장소가 추적하는 go.work로 실행하고, dependency review, dependency policy와 나머지 release 대상은 GOWORK를 끄고 실행한다 | scripts/kit/kit.mk, tests/kit/link.test.mts | `node --test --test-name-pattern="K343\|K774" tests/kit/link.test.mts` | [o] |
-| K779 | K774 go.work 테스트는 저장소를 initRepository로 만든다 | tests/kit/link.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/sandbox-repository.test.mts` | [ ] |
+| K779 | K774 go.work 테스트는 저장소를 initRepository로 만든다 | tests/kit/link.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/sandbox-repository.test.mts` | [~] |
 | K780 | worktree는 추적되는 composer.json이 선언한 checkout 안의 Composer artifact repository마다 main checkout의 디렉터리로 link한다(issue 19) | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts, docs/operations/local-links.md | `node --test --test-name-pattern="K622\|K780" tests/kit/worktree-setup.test.mts` | [ ] |
 | K781 | worktree-setup은 .mise/의 도구 환경을 준비하지 않는다. worktree는 main checkout의 도구를 쓴다(issue 19) | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test --test-name-pattern=K781 tests/kit/worktree-setup.test.mts` | [ ] |
