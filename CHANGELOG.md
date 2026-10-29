@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A uv install that drops a linked Python package leaves the dev folder byte-identical: kit unlinks before every uv install (K539), and a real-uv case now pins the drop (K826).
+
 ## 0.0.72
 
 - CI installs with the package managers only: the gates workflow, kit-gates, kit-gates-parity and the CI of kit run no make link, no link-state-check and no package-link toolchain; links and their check belong to development (K824). Consumer step: drop any make link or link-state-check step from your own CI.

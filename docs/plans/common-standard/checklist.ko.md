@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f147878ae1aaa3738dc72984357e95b548b2ec1859dc8553c94d1d83721e66d6 -->
+<!-- source-sha256: a5cf41509120bdfaf48cf8e3abbf4ba87939fde05dc62f40667f096407a89a4a -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -779,4 +779,4 @@
 | K823 | Kit 0.0.72 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K824 | package manager로만 설치하는 CI에서 link와 link-state-check를 실행하지 않음 | workflows/gates.yml, scripts/kit/kit.mk, .github/workflows/ci.yml | `node --test tests/kit/gates-workflow.test.mts tests/kit/check-rules.test.mts` | [o] |
 | K825 | release, tag 생성, FINAL_RUN의 checklist 상태 거부를 삭제함 | scripts/kit/release.mts, scripts/kit/ci-only.mts, docs/operations/release.md | `node --test tests/kit/release-tag.test.mts tests/kit/ci-only.test.mts tests/kit/release.test.mts` | [o] |
-| K826 | uv 설치가 link된 Python 패키지를 뺄 때 dev 폴더를 바이트 단위로 그대로 둠 | tests/source/uv-link-real.test.mts | `node --test tests/source/uv-link-real.test.mts` | [~] |
+| K826 | uv 설치가 link된 Python 패키지를 뺄 때 dev 폴더를 바이트 단위로 그대로 둠 | tests/source/uv-link-real.test.mts | `node --test tests/source/uv-link-real.test.mts` | [o] |

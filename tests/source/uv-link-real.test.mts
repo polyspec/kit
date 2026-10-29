@@ -78,6 +78,24 @@ test('K765, K539: the installer removes the links before uv writes, so the check
   assert.equal(realpathSync(path.join(site, 'polyspec_provider')), path.join(checkout, 'src/polyspec_provider'));
 });
 
+// K826: a lock that drops a linked package makes uv delete the files that the package records; through a link those are the files of
+// the dev folder. The installer unlinks before uv writes (K539), so an edited dev folder stays byte-identical.
+test('K826: a uv install that drops a linked package leaves the edited dev folder byte-identical', { timeout: 120_000 }, (t) => {
+  const { app, checkout, env, provider, site, uv } = consumer(t);
+  uvLink({ directory: app, providers: [provider], uv, env });
+  writeFileSync(path.join(checkout, 'src/polyspec_provider/__init__.py'), 'value = "dev edit"\n');
+  writeFileSync(path.join(checkout, 'src/polyspec_provider/extra.py'), 'extra = 1\n');
+  const files = () => readdirSync(path.join(checkout, 'src/polyspec_provider')).sort().map(name => `${name}:${readFileSync(path.join(checkout, 'src/polyspec_provider', name), 'utf8')}`);
+  const before = files();
+  writeFileSync(path.join(app, 'pyproject.toml'), '[project]\nname = "consumer"\nversion = "0.0.0"\ndependencies = []\n[tool.uv]\npackage = false\n');
+  const locked = spawnSync(uv, ['lock'], { cwd: app, env, encoding: 'utf8' });
+  assert.equal(locked.status, 0, locked.stderr);
+  const lines: string[] = [];
+  assert.equal(uvInstallCommand([app, checkout], { ...env, UV: uv }, line => lines.push(line)), 0, lines.join(''));
+  assert.deepEqual(files(), before, 'uv deleted nothing in the dev folder');
+  assert.equal(existsSync(path.join(site, 'polyspec_provider')), false, 'the dropped package is gone from the environment');
+});
+
 test('K769: the installer installs a project locked by pylock.toml and no uv.lock as its own install does, then links', { timeout: 120_000 }, (t) => {
   const { app, checkout, env, site, uv } = consumer(t);
   const exported = spawnSync(uv, ['export', '--frozen', '--format', 'pylock.toml', '--output-file', 'pylock.toml'], { cwd: app, env, encoding: 'utf8' });

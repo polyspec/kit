@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a47b6ce5cf41f41970c8d22558720bd6fb9f0d451009b64b38e305ddda135d84 -->
+<!-- source-sha256: 4a5cdc45f933ab0d4c6660799ba975f62e99d384b03c5078bf7201539bd8a536 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- link된 Python 패키지를 빼는 uv 설치도 dev 폴더를 바이트 단위로 그대로 둡니다. kit은 모든 uv 설치 전에 link를 풀고(K539), 이제 실제 uv 케이스가 이 경우를 고정합니다 (K826).
 
 ## 0.0.72
 
