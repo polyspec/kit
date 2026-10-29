@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 0b6ccefd076735967e066f5f62f15017dfa344c4139cdd91243377422d6452e8 -->
+<!-- source-sha256: a1bdc831f76c051a7f0d103c1d9d27dc906bac854d45ec8f959300c459a8942b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -728,4 +728,4 @@
 | K771 | 0.0.65 candidate의 전체 CI가 실패한 test를 K755, K760, K761, K762, K765에 맞춘다 | tests/kit/test-output.test.mts, tests/kit/kit-bootstrap.test.mts, tests/source/consumer-layout.test.mts, tests/source/release-workflow.test.mts, tests/source/link-composer-real.test.mts, PRINCIPLES.md | `node --test tests/kit/isolation.test.mts tests/kit/kit-bootstrap.test.mts tests/kit/gates-workflow.test.mts` | [o] |
 | K772 | 배포본이 설치된 Python provider는 패키지 폴더가 없어도 그 폴더가 링크된다 | scripts/kit/link-folders.mts, tests/kit/uv-install.test.mts | `node --test --test-name-pattern=K772 tests/kit/uv-install.test.mts` | [o] |
 | K773 | link-state-check는 저장소 밖 경로로 형제 패키지를 연결하는 추적 매니페스트를 발견으로 보고한다 | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts | `node --test --test-name-pattern=K773 tests/kit/link-state-check.test.mts` | [o] |
-| K774 | release 대상과 dependency review는 저장소가 추적하는 go.work로 실행하고, 추적하는 것이 없을 때만 GOWORK를 끈다 | scripts/kit/kit.mk, tests/kit/link.test.mts | `node --test --test-name-pattern=K774 tests/kit/link.test.mts` | [~] |
+| K774 | release 대상과 dependency review는 저장소가 추적하는 go.work로 실행하고, 추적하는 것이 없을 때만 GOWORK를 끈다 | scripts/kit/kit.mk, tests/kit/link.test.mts | `node --test --test-name-pattern=K774 tests/kit/link.test.mts` | [o] |

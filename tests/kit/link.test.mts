@@ -710,6 +710,24 @@ test('a release target runs with GOWORK off, and a Go target keeps the GOWORK of
   assert.match(lines[2] ?? '', /record-fixture\.mts GOWORK=$/);
   assert.equal(existsSync(path.join(dir, 'var/link')), false, 'make writes no link file of its own');
 });
+test('K774: a release target runs with the go.work that the repository tracks; a go.work it does not track stays off', (t) => {
+  const dir = kitSandbox(t);
+  const log = path.join(dir, 'node.log');
+  put(dir, { 'bin/node': `#!/bin/sh\necho "$* GOWORK=$GOWORK" >> ${JSON.stringify(log)}\n`, 'go.work': 'go 1.25\n\nuse ./mod\n' });
+  chmodSync(path.join(dir, 'bin/node'), 0o755);
+  const { GOWORK: _inherited, ...base } = process.env;
+  const make = (...goals: string[]) => spawnSync('make', ['-C', dir, `NODE=${path.join(dir, 'bin/node')}`, ...goals], { encoding: 'utf8', env: { ...base, TAG: 'v0.0.1' } });
+  git(dir, 'init', '--quiet');
+  assert.equal(make('release-assets').status, 0);
+  git(dir, 'add', 'go.work');
+  assert.equal(make('release-assets').status, 0);
+  assert.equal(make('dependency-policy-check').status, 0);
+  const lines = readFileSync(log, 'utf8').trim().split('\n');
+  // A go.work that git does not track is one that link wrote, so the release runs without it.
+  assert.match(lines[0] ?? '', /assets v0\.0\.1 GOWORK=off$/);
+  assert.equal(lines[1], `${lines[1]?.split(' GOWORK=')[0]} GOWORK=${path.join(dir, 'go.work')}`);
+  assert.match(lines[2] ?? '', new RegExp(`check-dependency-policy\\.mts GOWORK=${path.join(dir, 'go.work').replaceAll('.', '\\.')}$`));
+});
 test('K205: each Go module gets a git-ignored go.work at its root that uses the module and the providers; unlink --project removes only its own', (t) => {
   const { consumer, env, log } = workspace(t);
   const requires = JSON.stringify({ Module: { Path: 'sub' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.3' }] });

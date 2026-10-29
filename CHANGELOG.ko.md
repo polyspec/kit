@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5603e0570ae8b1089d872704662d20aaa9248b5b1c93107f2b7980da531eec3b -->
+<!-- source-sha256: fc8498abe9db228399d46e25ea96fa57cbbda8ebcf483ef73bc9301b05947fd2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- release 대상과 dependency review는 저장소가 추적하는 go.work로 실행하고, 추적하는 것이 없을 때만 GOWORK를 끄므로 link가 쓰는 go.work는 계속 제외된다. (K774)
 
 - link-state-check는 저장소 밖 경로로 패키지를 연결하는 추적 composer.json, package.json, pyproject.toml을 발견으로 보고한다. (K773)
 
