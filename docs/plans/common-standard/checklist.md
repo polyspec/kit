@@ -769,3 +769,4 @@
 | K814 | Check a symlinked install entry as the link itself in layout-check | scripts/kit/generated-files.mts, tests/kit/generated-files.test.mts | `node --test tests/kit/generated-files.test.mts` | [o] |
 | K815 | The shared job of the gates workflow computes no commit range and passes no RANGE to kit-gates-static, which no target reads since K805 deleted commits-check | workflows/gates.yml tests/kit/gates-workflow.test.mts | `node --test tests/kit/gates-workflow.test.mts` | [o] |
 | K816 | Create the build folder of buildWheel before uv build writes into it | scripts/kit/release-wheel.mts | `node --test tests/kit/release-wheel.test.mts tests/kit/release.test.mts` | [o] |
+| K817 | Release Kit 0.0.70 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [ ] |
