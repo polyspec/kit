@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The K661-6 runner checkout cases of the link tests expect the manifest path finding of K773 in place of the lock-source finding that K831 deleted, and the checklist test derives the plan folders and their count from docs/plans/*/checklist.md instead of pinning three, so a new plan folder breaks no test (K876).
 - make lint-php accepts the polyfill guard in an autoload file: a namespaced `if (!function_exists('<name>'))` or `if (!defined('<name>'))` with no elseif or else, whose body is only the declaration of that name, as in the bootstrap files of symfony/polyfill-*; any other guard still fails (K873).
 - make toolchain-lock is `mise lock` in kit.mk for each platform of linux, macOS and Windows on x64 and arm64 that has the archive; it first locks and installs the uv and the python that mise.toml declares, as mise lists them, and names that Python as UV_PYTHON, so uv locks with neither the machine uv nor a managed Python of the home. scripts/kit/toolchain-lock.mts is gone. It runs the mise that the bootstrap installs: a checkout whose mise.lock pins no node runs make install-tools TOOLS=npm, make toolchain-lock, then make install-tools TOOLS=npm again (K836).
 - A release with a Composer package publishes packages.json beside its archives: one flat Composer repository that holds each Composer package of config/release.json at the release version, with the release asset URL of its zip and the sha1 of the zip, so a consumer reads it as a composer repository at releases/download/<tag>/packages.json and names only the tag (K871).

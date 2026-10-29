@@ -977,9 +977,11 @@ for (const nested of [false, true]) {
     assert.equal(writeWorkspaceHook(root, runner), undefined);
     assert.equal(existsSync(path.join(root, '.claude/settings.json')), false);
     assert.deepEqual(linkFindings(kit, runner), []);
-    put(kit, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
-    git(kit, 'add', 'Cargo.lock');
-    assert.ok(linkFindings(kit, runner).some(finding => finding.includes('polyspec-prov') && finding.includes('records no source')), 'the dependency release-record check remains active in a runner checkout');
+    // The runner environment skips only the workspace hook (K440); the manifest path check of K773 still runs (K876).
+    put(kit, { 'tools/package.json': JSON.stringify({ name: 'tools', private: true, dependencies: { '@polyspec/x': 'file:../../prov' } }) });
+    git(kit, 'add', 'tools/package.json');
+    assert.deepEqual(linkFindings(kit, runner).filter(finding => finding.includes('tools/package.json')).map(finding => finding.replace(/ outside.*$/, '')),
+      ['tools/package.json: @polyspec/x is linked by the path file:../../prov'], 'the dependency link check remains active in a runner checkout');
   });
 }
 
