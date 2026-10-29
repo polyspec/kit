@@ -255,6 +255,7 @@ test('worktree-setup gives each npm project and each Python environment of the m
     'tools/ts/node_modules/typescript/index.js': 'module.exports = 3;\n',
     'tests/other/package-lock.json': '{}\n',
     'py/pyproject.toml': '[project]\nname = "own"\n',
+    'py/uv.lock': 'version = 1\n',
     'pyproject.toml': '[project]\nname = "fixture"\nversion = "0.0.1"\n',
     'py/src/own/__init__.py': '',
     [`${venv}/pyvenv.cfg`]: 'home = /usr/bin\n',
@@ -300,6 +301,31 @@ test('worktree-setup gives each npm project and each Python environment of the m
   check(folder);
 });
 
+// K781: mise keeps the environment of a Python tool in a lock folder of the checkout; a worktree runs the tools of the main checkout
+// (K519, K756), so worktree-setup prepares no environment under .mise/ and runs no uv for it.
+test('worktree-setup leaves the tool environments of .mise/ to the main checkout (K781)', (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  const tool = '.mise/locks/pypi-vulture/2.16';
+  put(main, {
+    '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
+    [`${tool}/pyproject.toml`]: '[project]\nname = "vulture-tool"\nversion = "0.0.0"\n',
+    [`${tool}/uv.lock`]: 'version = 1\n',
+    [`${tool}/.venv/pyvenv.cfg`]: 'home = /usr/bin\n',
+    'Makefile': 'link-state-check:\n\ttrue\n',
+    '.gitignore': 'node_modules/\n.venv/\nvar/\n',
+  });
+  linkKit(main);
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const folder = setupWorktree(main, { name: 'tools', id: 'K781', type: 'fix' }, { print: () => {}, uv: stubUv(parent) });
+  assert.equal(existsSync(path.join(folder, tool, '.venv')), false, 'no environment is made for a tool of mise');
+  assert.equal(existsSync(path.join(folder, 'var/worktree-python')), false, 'no native uv environment is recorded');
+  assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
+});
+
 test('K550: native Composer creates executable worktree bin proxies and converges', t => {
   const { main, npm, composer } = nativeManagers(t);
   const options = { npm, composer, linkStateOnly: true, print: () => {} };
@@ -313,8 +339,7 @@ test('K550: native Composer creates executable worktree bin proxies and converge
 });
 
 // K555: a repository keeps its Python environment where its Makefile makes it, as crudui's var/python, the UV_PROJECT_ENVIRONMENT of its
-// uv workspace; each folder with a pyvenv.cfg among the ignored folders of the main checkout, outside node_modules and the tools, is an
-// environment of the worktree under the rule of K533, so its editable install names the worktree's sources.
+// uv workspace; the environment of each locked uv workspace that the main checkout has made is an environment of the worktree (K781).
 test('worktree-setup gives a worktree a Python environment of the main checkout wherever it lives (K555)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -324,6 +349,7 @@ test('worktree-setup gives a worktree a Python environment of the main checkout 
   put(main, {
     '../kit/scripts/kit/link.mts': 'const [, , command] = process.argv;\nif (command !== "rebuild") process.exit(2);\n',
     'pyproject.toml': '[tool.uv.workspace]\nmembers = ["packages/validator"]\n',
+    'uv.lock': 'version = 1\n',
     'packages/validator/pyproject.toml': '[project]\nname = "validator"\n',
     'packages/validator/src/validator/__init__.py': '',
     'var/python/pyvenv.cfg': 'home = /usr/bin\n',
@@ -336,7 +362,7 @@ test('worktree-setup gives a worktree a Python environment of the main checkout 
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
   const uv = stubUv(parent);
-  const folder = setupWorktree(main, { name: 'venv', id: 'T9', type: 'fix' }, { print: () => {}, uv });
+  const folder = setupWorktree(main, { name: 'venv', id: 'T9', type: 'fix' }, { print: () => {}, uv, env: { ...process.env, UV_PROJECT_ENVIRONMENT: 'var/python' } });
   assert.ok(lstatSync(path.join(folder, 'var/python')).isDirectory(), 'the environment at var/python is a folder of the worktree');
   assert.ok(existsSync(path.join(folder, 'var/python/native-sync.json')), 'uv fixture records the native locked sync');
   assert.equal(existsSync(path.join(folder, 'var/python/native-editables.json')), false, 'no editable transaction runs without a declared local provider');

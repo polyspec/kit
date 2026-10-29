@@ -22,7 +22,8 @@ import { checkoutProviders, linkFolders, providedFolders } from './link-folders.
 import { siblingCheckouts } from './link-providers.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand, composerEnvironment } from './install-composer-project.mts';
-import { uvInstallCommand } from './uv-install.mts';
+import { pylockOf, uvInstallCommand } from './uv-install.mts';
+import { MISE_LOCKS } from './toolchain-lock.mts';
 
 // A name of a worktree: a slug of lower case letters, digits and hyphens; an id: the letters, digits, dots and hyphens of a row.
 const NAME = /^[a-z][a-z0-9-]*$/;
@@ -71,32 +72,26 @@ function npmProjects(main: string, folder: string, print: (text: string) => void
   return [NODE_MODULES, ...nested];
 }
 
-// The ignored folders that hold no environment of the repository: the npm packages and the tools of the main checkout (K555).
-const NO_ENVIRONMENT = /^(?:.*\/)?node_modules$|^var\/tools$/;
-// How deep below an ignored folder an environment is looked for, as var/python or packages/python/.venv (K555).
-const ENVIRONMENT_DEPTH = 3;
+/** The tracked uv projects of `main`, without the pypi: tools of mise under MISE_LOCKS, which belong to kit (K167, K781). */
+function uvManifests(main: string): string[] {
+  return git(main, 'ls-files', '-z', '--', 'pyproject.toml', '*/pyproject.toml').split('\0').filter(file => file !== '' && !file.startsWith(MISE_LOCKS));
+}
 
 /**
- * The Python environments of the main checkout `main`, relative (K533, K555): each folder with a pyvenv.cfg among its ignored folders,
- * wherever the repository makes it, as the .venv of a project or the UV_PROJECT_ENVIRONMENT var/python of crudui, at most
- * ENVIRONMENT_DEPTH below an ignored folder; node_modules, the tools and the inside of an environment are not entered.
+ * The Python environments of the main checkout `main`, relative (K533, K555, K781): for each tracked uv project of `manifests`, the environment of its
+ * workspace as uv-install.mts finds it, `uv workspace dir` with UV_PROJECT_ENVIRONMENT or .venv, such as crudui's var/python, when the
+ * workspace holds a uv.lock or a PEP 751 lock and the main checkout has made the environment. The uv projects of the pypi: tools under
+ * MISE_LOCKS belong to kit (K167); a worktree runs the tools of the main checkout (K519, K756).
  */
-function pythonEnvironments(main: string): string[] {
-  const found: string[] = [];
-  const visit = (relative: string, depth: number) => {
-    if (NO_ENVIRONMENT.test(relative)) return;
-    if (existsSync(path.join(main, relative, 'pyvenv.cfg'))) {
-      found.push(relative);
-      return;
-    }
-    if (depth === 0) return;
-    for (const entry of readdirSync(path.join(main, relative), { withFileTypes: true })) {
-      if (entry.isDirectory()) visit(path.join(relative, entry.name), depth - 1);
-    }
-  };
-  const ignored = git(main, 'ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--directory').split('\0').filter(name => name.endsWith('/'));
-  for (const name of ignored) visit(name.slice(0, -1), ENVIRONMENT_DEPTH);
-  return found.sort();
+function pythonEnvironments(main: string, manifests: readonly string[], uv: string, env: NodeJS.ProcessEnv): string[] {
+  const found = new Set<string>();
+  for (const manifest of manifests) {
+    const workspace = run(uv, ['workspace', 'dir'], { cwd: path.join(main, path.dirname(manifest)), env }).trim();
+    if (!existsSync(path.join(workspace, 'uv.lock')) && pylockOf(workspace) === undefined) continue;
+    const venv = path.resolve(workspace, env.UV_PROJECT_ENVIRONMENT || '.venv');
+    if (existsSync(path.join(venv, 'pyvenv.cfg'))) found.add(path.relative(main, venv));
+  }
+  return [...found].sort();
 }
 
 /** The nearest tracked uv project that owns an environment's workspace. */
@@ -244,7 +239,7 @@ export function prepareWorktreeGo({ main, folder, go, env, print }: {
   }
 }
 
-export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer, npm, uv, go, linkStateOnly = false }: { print?: (text: string) => void; composer?: string; npm?: string; uv?: string; go?: string; linkStateOnly?: boolean } = {}): string {
+export function setupWorktree(root: string, row: { name: string; id: string; type: string }, { print = (text: string) => console.log(text), composer, npm, uv, go, env = process.env, linkStateOnly = false }: { print?: (text: string) => void; composer?: string; npm?: string; uv?: string; go?: string; env?: NodeJS.ProcessEnv; linkStateOnly?: boolean } = {}): string {
   const main = path.dirname(path.resolve(root, git(root, 'rev-parse', '--git-common-dir').trim()));
   const { folder, branch } = worktreeOf(main, row);
   const listed = git(main, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
@@ -259,7 +254,12 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     print(`[worktree-setup] ${folder} is the worktree of ${branch}; linking and checking it again`);
   }
   for (const modules of npmProjects(main, folder, print)) prepareWorktreeNpm({ main, folder, project: path.dirname(modules), ...(npm === undefined ? {} : { npm }), print });
-  for (const venv of pythonEnvironments(main)) prepareWorktreePython({ main, folder, venv, uv: uv ?? toolCommand(main, 'uv'), env: uv === undefined ? toolsEnvironment(main) : process.env, print });
+  const manifests = uvManifests(main);
+  if (manifests.length > 0) {
+    const uvCommand = uv ?? toolCommand(main, 'uv');
+    const uvEnvironment = uv === undefined ? toolsEnvironment(main, env) : env;
+    for (const venv of pythonEnvironments(main, manifests, uvCommand, uvEnvironment)) prepareWorktreePython({ main, folder, venv, uv: uvCommand, env: uvEnvironment, print });
+  }
   prepareArtifacts(main, folder);
   const composerProjectsPresent = git(folder, 'ls-files', '--', 'composer.json', '*/composer.json').trim() !== '';
   if (composerProjectsPresent) {

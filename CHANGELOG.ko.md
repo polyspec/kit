@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7a602d9a874addc5ac445ffb304fbe066551865d30bfcb229e4e333224a68486 -->
+<!-- source-sha256: 68aa8acee0a17492c12732126dd5ffb8c25411cf8f3b390be790101ae52a9285 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- worktree-setup은 추적되는 잠긴 uv project마다 uv workspace dir에 UV_PROJECT_ENVIRONMENT 또는 .venv를 붙인 환경을 준비하고, worktree가 main checkout에서 실행하는 .mise/locks의 pypi: 도구 환경은 준비하지 않는다. (K781)
 
 - push-gate는 worktree에 커밋하지 않은 변경이 있는 branch를 병합된 것으로 보지 않으므로, 다른 세션이 막 시작한 항목이 모든 push를 막지 않는다. (K782)
 

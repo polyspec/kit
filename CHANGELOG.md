@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- worktree-setup prepares the environment of each tracked locked uv project, at uv workspace dir with UV_PROJECT_ENVIRONMENT or .venv, and no environment of the pypi: tools under .mise/locks, which a worktree runs from the main checkout. (K781)
+
 - push-gate does not count a branch whose worktree has uncommitted changes as merged, so a row that another session just started no longer refuses every push. (K782)
 
 - Prepare the Kit 0.0.66 release. (K775)
