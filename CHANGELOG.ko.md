@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6b8f96ea20d20e02b01e9486633490848ffb2ea3bc3bf16d8139285c21002a44 -->
+<!-- source-sha256: e68987e8877f8a46027e0f33b55acc0114f77b43e2023ba731f264684e9263d5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Kit 0.0.65 release를 준비한다. (K770)
+
+## 0.0.65
 
 - uv-install은 uv.lock 없이 pylock.toml로 잠긴 project를 자체 설치처럼 uv pip install -r로 설치하므로 worktree-setup이 그런 project를 준비한다. (K769)
 
@@ -36,9 +40,9 @@
 
 - Playwright reporter를 rebuild-check 분류에 넣고 release-run 테스트의 remote를 initRepository로 만든다. (K753)
 
-- 단일 release CI 전에 Kit 0.0.64 candidate, native consumer lock과 dependency review를 준비한다. (K752)
-
 ## 0.0.64
+
+- 단일 release CI 전에 Kit 0.0.64 candidate, native consumer lock과 dependency review를 준비한다. (K752)
 
 - Composer archive version을 tag에서 가져오고 native package repository metadata로 consumer를 증명한다; source composer.json은 바뀌지 않는다. (K748)
 

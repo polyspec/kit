@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+- Prepare the Kit 0.0.65 release. (K770)
+
+## 0.0.65
+
 - uv-install installs a project locked by pylock.toml and no uv.lock with uv pip install -r, as its own install does, so worktree-setup prepares such a project. (K769)
 
 - make link writes the node_modules/.bin links of each linked npm package from the linked package.json, so a bin such as polyspec-kit-hook runs the checkout's source. (K767)
@@ -35,9 +39,9 @@
 
 - Classify the Playwright reporter for rebuild-check and create the release-run test remote through initRepository. (K753)
 
-- Prepare the Kit 0.0.64 candidate, native consumer lock and dependency review before its single release CI run. (K752)
-
 ## 0.0.64
+
+- Prepare the Kit 0.0.64 candidate, native consumer lock and dependency review before its single release CI run. (K752)
 
 - Take the Composer archive version from the tag and prove consumers with native package repository metadata; source composer.json stays unchanged. (K748)
 
