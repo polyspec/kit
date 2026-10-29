@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Delete the S10 rule that an application on a userland framework is its own Composer package, and its layout-check (library-frameworks.mts); a PHP library may require any package. (K800)
 - kit-check no longer compares the copies of kit with the installed package, nor checks that the package is installed and locked; it checks the configuration only. (K799)
 - The deleted-test commit gate is gone: a commit that deletes a test file needs no Replaced-By, Archived-To, Provider-Test-Replacement or Removed-With trailer. (K797)
 - Prepare the Kit 0.0.67 release. (K795)

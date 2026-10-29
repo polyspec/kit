@@ -238,11 +238,10 @@ tool lands, a standard binds the work as written here.
   are the PHPUnit files of every library run with the extension loaded and none of the sources of the library (its dependencies and
   autoload-dev are loaded, its own autoload is not, so the library has no guard against the extension), and those of `packages/php-ext` when it holds any; its
   parity implementation shares the tests of the libraries by this layout, with no relative path in a configuration.
-  The PHP library is library code only: an application on a userland framework, such as a PHP console application, is its own
-  Composer package that requires the library, since an internal class cannot extend a userland class. A Composer package of
+  A Composer package of
   type `project` is an application: it is outside the extension run and the S10 library checks, and `make test-php` runs its
   tests as its own package.
-  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`
+  Enforced by: `make lint-php-ext`, `make test-php-ext`
 - S11 Local links: during development each polyspec package's install folder (node_modules, vendor, site-packages) is one
   plain directory symlink to its checkout. No package-manager link step (npm link, Composer path repository, pip/uv editable)
   (K591, K761, K765).

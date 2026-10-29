@@ -55,7 +55,7 @@ KIT_TEST_FILES_5 := \
 KIT_TEST_FILES_6 := \
 	tests/kit/catch-check.test.mts tests/kit/ci-setup.test.mts tests/kit/claude-hook.test.mts tests/kit/commits.test.mts \
 	tests/kit/divergence-check.test.mts tests/kit/documents.test.mts tests/kit/gates-workflow.test.mts \
-	tests/kit/generated-files.test.mts tests/kit/git.test.mts tests/kit/kit-sync.test.mts tests/kit/library-frameworks.test.mts \
+	tests/kit/generated-files.test.mts tests/kit/git.test.mts tests/kit/kit-sync.test.mts \
 	tests/kit/linked-sources.test.mts tests/kit/lint-rust.test.mts tests/kit/lint-ts.test.mts \
 	tests/kit/project-hook.test.mts tests/kit/python-venv.test.mts tests/kit/release-assets.test.mts \
 	tests/kit/release-consumer.test.mts tests/kit/release-tools-path.test.mts tests/kit/run-command.test.mts \

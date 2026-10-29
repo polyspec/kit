@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: decade7854e1f5f27ddd762d470e4aa5e50f8fcd53faf96918a7d6b8a67909e4 -->
+<!-- source-sha256: 5fc9187b87eb469846e87179ce88e0c9521afdfa035e9ea5d31e813f2b62101d -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -753,4 +753,4 @@
 | K797 | 삭제된 테스트 gate 삭제 | scripts/kit/check-commits.mts scripts/kit/plan.mts tests/kit/plan.test.mts tests/kit/commits.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/plan.test.mts tests/kit/commits.test.mts` | [o] |
 | K798 | release consumer와 lock proof 삭제 | scripts/kit/release-consumer.mts scripts/kit/release-run.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/release-run.test.mts` | [ ] |
 | K799 | kit-check의 공유 복사본 검사 삭제 | scripts/kit/kit-check.mts tests/kit/kit-check.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-check.test.mts` | [o] |
-| K800 | S10 library application 규칙 삭제 | scripts/kit/library-frameworks.mts tests/kit/library-frameworks.test.mts scripts/kit/kit.mk PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `make layout-check` | [~] |
+| K800 | S10 library application 규칙 삭제 | scripts/kit/library-frameworks.mts tests/kit/library-frameworks.test.mts scripts/kit/kit.mk PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `make layout-check` | [o] |

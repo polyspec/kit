@@ -146,10 +146,6 @@
       "kind": "policy",
       "reason": "the generated-file rule of AGENTS.md: the segments it refuses and the exceptions that config/generated.json declares"
     },
-    "scripts/kit/library-frameworks.mts": {
-      "kind": "policy",
-      "reason": "the S10 rule that a PHP library requires no application framework, over the composer.json of each library"
-    },
     "scripts/kit/git-hooks.mts": {
       "kind": "record",
       "record": "docs/rebuild/git-hooks.md"

@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: acbffb28c08f54c80fedda4ec226df9a59d4347fdef1bafeebec660cd065c8b2 -->
+<!-- source-sha256: dc3f7c91f7ab21c4df5db958dfba97ae5a22d7e5a4ca87f24c1f42b5def41cac -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -217,10 +217,9 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   Reflection으로 library와 비교하되 이름마다 그것을 선언한 library와 비교하며, unit test는 extension을 load하고 library의 source는 하나도 load하지 않고
   (dependency와 autoload-dev는 load하고 library 자신의 autoload는 load하지 않으므로 library에는 extension에 대한 guard가 없다) 실행하는 모든
   library의 PHPUnit 파일과 (있다면) `packages/php-ext`의 것이다. parity implementation은 이 layout으로 library의 test를 공유하며,
-  설정에 상대 경로를 두지 않는다. PHP library는 library code뿐이다: PHP console application처럼 userland framework 위의
-  application은 그 library를 require하는 자기 Composer package이다. 내부 class는 userland class를 확장할 수 없기 때문이다. Composer type이 `project`인 package는 application이다. extension 실행과 S10 library
+  설정에 상대 경로를 두지 않는다. Composer type이 `project`인 package는 application이다. extension 실행과 S10 library
   검사 밖에 있으며, `make test-php`는 그 test를 자기 package로 실행한다.
-  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`
+  Enforced by: `make lint-php-ext`, `make test-php-ext`
 - S11 로컬 링크: 개발 중 각 polyspec 패키지의 설치 폴더(node_modules, vendor, site-packages)는 checkout으로 가는 평범한
   디렉터리 심링크 하나입니다. 패키지 매니저의 링크 단계(npm link, Composer path repository, pip/uv editable)는 쓰지 않습니다
   (K591, K761, K765).

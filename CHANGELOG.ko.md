@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fcb65aace528d758bae2c1ed7887221b6e5d92f4cfc2a309770cc1acce98753e -->
+<!-- source-sha256: a417db2baa6a5aa3824d4cf15a7e4caa4f2f5ab646ee51e191323ef2c45836b6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- userland framework 위의 application은 자기 Composer package여야 한다는 S10 규칙과 그 layout-check(library-frameworks.mts)를 지운다. PHP library는 어떤 package든 require할 수 있다. (K800)
 - kit-check는 kit 사본을 설치된 package와 비교하지 않고, package가 설치되고 lock되었는지도 검사하지 않는다. 설정만 검사한다. (K799)
 - wheel-dependencies, pylock.mts, make python-lock과 python-lock-check가 있는 python-lock, schema가 있는 config/dependency-policy.json, config/release.json의 consumers.wheel.polyspec를 지운다. release-consumer는 각 wheel lock을 hash를 검사하는 uv pip install -r <pylock>로 설치하고, 저장소는 uv lock이나 uv export로 Python을 lock한다. (K789)
 - 삭제된 테스트의 commit gate를 없앤다. 테스트 파일을 지우는 commit에 Replaced-By, Archived-To, Provider-Test-Replacement, Removed-With trailer가 필요 없다. (K797)
