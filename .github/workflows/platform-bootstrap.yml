@@ -62,6 +62,11 @@ jobs:
           test "$("$go_binary" version | cut -d' ' -f3)" = go1.27.3
           test "$(rustc --version | cut -d' ' -f2)" = 1.99.0
           test "$(cargo --version | cut -d' ' -f2)" = 1.99.0
+      - name: run a mise shim through Git Bash Make on Windows
+        if: matrix.runner == 'windows-2025'
+        shell: bash
+        run: |
+          printf 'include Makefile\nmise-shim-smoke:\n\t$(KIT_TOOLS)/mise/shims/go version\n' | make --no-print-directory -f - mise-shim-smoke | grep 'go1\.27\.3 windows/'
       - name: verify native Windows wrappers and Go
         if: matrix.runner == 'windows-2025'
         shell: pwsh

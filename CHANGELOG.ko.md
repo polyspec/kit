@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1397f5a44490be87f9ef778152b1a39707a7c5cfdbd34ce00397241969bd2672 -->
+<!-- source-sha256: 322b0cf7d241c701a97ef4017940934d54fccfec4f0e21126dd4e84c5bfae96f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- platform-bootstrap의 Windows runner가 Git Bash make로 mise의 go shim을 실행해, K820의 PATH를 kit CI에서 증명합니다 (K822).
 - worktree-setup은 worktree의 Composer 프로젝트를 일반 composer install처럼 Composer 자체 캐시와 네트워크로 설치하고, Composer보다 먼저 go.work를 준비합니다 (K821).
 - Windows에서 kit.mk가 mise binary의 디렉터리를 var/tools/bin 옆 PATH에 둔다. 그래서 mise shim이 "program not found"로 실패하지 않고 mise.exe를 시작한다 (K820).
 

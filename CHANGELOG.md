@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The Windows runner of platform-bootstrap runs the go shim of mise through Git Bash make, so kit CI proves the PATH of K820 (K822).
 - worktree-setup installs the Composer projects of a worktree as plain composer install does, with Composer's own cache and network, and prepares go.work before Composer (K821).
 - On Windows kit.mk puts the directory of the binary of mise on PATH beside var/tools/bin, so a shim of mise starts mise.exe instead of failing with "program not found" (K820).
 

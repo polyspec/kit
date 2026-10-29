@@ -53,5 +53,7 @@ test('the platform smoke installs pinned packages before SDK tools and requires 
   assert.match(workflow, /\.\\var\\tools\\bin\\node\.cmd \.\\var\\tools\\npm\\node_modules\\npm\\bin\\npm-cli\.js ci --ignore-scripts --allow-remote=root/);
   assert.match(workflow, /install pinned Kit dependencies[\s\S]*?install pinned Go and Rust toolchains/);
   assert.match(workflow, /verify Git Bash Make uses pinned Node\.js on Windows[\s\S]*?shell: bash[\s\S]*?run: make --no-print-directory kit-check/);
+  // K820: on Windows a mise shim run through Git Bash make reaches mise.exe by the PATH of kit.mk.
+  assert.match(workflow, /run a mise shim through Git Bash Make on Windows[\s\S]*?shell: bash[\s\S]*?\$\(KIT_TOOLS\)\/mise\/shims\/go version/);
   assert.match(workflow, /platform-bootstrap-passed:[\s\S]*?if: always\(\)[\s\S]*?needs: \[bootstrap\][\s\S]*?BOOTSTRAP_RESULT: \$\{\{ needs\.bootstrap\.result \}\}[\s\S]*?test "\$BOOTSTRAP_RESULT" = success/);
 });
