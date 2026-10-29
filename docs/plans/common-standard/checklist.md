@@ -752,3 +752,4 @@
 | K797 | Delete the deleted-test gate | scripts/kit/check-commits.mts scripts/kit/plan.mts tests/kit/plan.test.mts tests/kit/commits.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/plan.test.mts tests/kit/commits.test.mts` | [o] |
 | K798 | Delete the release consumer and its lock proof | scripts/kit/release-consumer.mts scripts/kit/release-run.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/release-run.test.mts` | [ ] |
 | K799 | Delete the shared copy check of kit-check | scripts/kit/kit-check.mts tests/kit/kit-check.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-check.test.mts` | [o] |
+| K800 | Delete the S10 library application rule | scripts/kit/library-frameworks.mts tests/kit/library-frameworks.test.mts scripts/kit/kit.mk PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `make layout-check` | [ ] |
