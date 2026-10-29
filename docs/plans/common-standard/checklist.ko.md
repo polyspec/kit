@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: e626da821859a933dde7026ce32fbdb1fb104d8c58d164ce71e0bb7f38f62724 -->
+<!-- source-sha256: 05a28bb69b955b525e71336845d7aeb8820b2aecf30f2809e36a00bf7c9976ad -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -751,7 +751,7 @@
 | K793 | Removed-With는 삭제된 테스트가 가리키는 파일을 명시 | scripts/kit/check-commits.mts tests/kit/plan.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K793 tests/kit/plan.test.mts` | [o] |
 | K795 | K780부터 K793까지 게시할 Kit 0.0.67 준비 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.67` | [o] |
 | K797 | 삭제된 테스트 gate 삭제 | scripts/kit/check-commits.mts scripts/kit/plan.mts tests/kit/plan.test.mts tests/kit/commits.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/plan.test.mts tests/kit/commits.test.mts` | [o] |
-| K798 | release consumer와 lock proof 삭제 | scripts/kit/release-consumer.mts scripts/kit/release-run.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/release-run.test.mts` | [ ] |
+| K798 | release consumer와 lock proof 삭제 | scripts/kit/release-consumer.mts scripts/kit/release-run.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/release-run.test.mts` | [~] |
 | K799 | kit-check의 공유 복사본 검사 삭제 | scripts/kit/kit-check.mts tests/kit/kit-check.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-check.test.mts` | [o] |
 | K800 | S10 library application 규칙 삭제 | scripts/kit/library-frameworks.mts tests/kit/library-frameworks.test.mts scripts/kit/kit.mk PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `make layout-check` | [o] |
 | K801 | main writer hook과 row clash 검사 삭제 | scripts/kit/git-hooks.mts scripts/kit/land.mts scripts/kit/row-ids.mts scripts/kit/check-commits.mts .githooks/reference-transaction CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/git-hooks.test.mts tests/kit/land.test.mts` | [o] |
