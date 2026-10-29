@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 95a6f5ab7a7404565a79f1d185550714a2a1dee02dd5f8cc7f990d71e13cb2e7 -->
+<!-- source-sha256: 21e12fd502f0c15a7cf7bc6e934ea78793b0aa91e8caeb1852d35f45d0ff5d3c -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -757,3 +757,4 @@
 | K801 | main writer hook과 row clash 검사 삭제 | scripts/kit/git-hooks.mts scripts/kit/land.mts scripts/kit/row-ids.mts scripts/kit/check-commits.mts .githooks/reference-transaction CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/git-hooks.test.mts tests/kit/land.test.mts` | [o] |
 | K802 | lint-rust는 cargo-fetch처럼 각 workspace의 clippy를 sibling checkout과 함께 cargo link로 실행한다(K448-5) | scripts/kit/lint-rust.mts scripts/kit/link.mts tests/kit/lint-rust.test.mts tests/kit/link.test.mts | `node --test tests/kit/lint-rust.test.mts tests/kit/link.test.mts` | [o] |
 | K803 | parity 기호의 python distribution을 entry의 pyproject에서 읽고 distribution 필드를 없앤다 | scripts/kit/parity-symbols.mts scripts/kit/parity-declaration.mts scripts/kit/schema/parity.schema.json CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/parity-api.test.mts` | [ ] |
+| K804 | push gate와 그 pre-push hook, CI check를 삭제한다 | scripts/kit/push-gate.mts scripts/kit/git-hooks.mts scripts/kit/checklist.mts scripts/kit/kit.mk scripts/kit/release.mts .github/workflows/ci.yml CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/git-hooks.test.mts` | [ ] |
