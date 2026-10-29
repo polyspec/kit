@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8b3e9ec0dae2e70a4e8a5bcb213a1fd8daceb327befa679d340372c5078d4faa -->
+<!-- source-sha256: 5cf5cf70d51ba3f495fd8188e201690cac781ca7620fb4f28184deee06a5f27d -->
 
 # 도구 목록
 
@@ -91,7 +91,7 @@ staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, comm
 | Node.js | `mise.toml`의 `node`(정확한 version), kit pin; `mise.lock`이 nodejs.org의 platform별 archive sha256을 가집니다. bootstrap이 npm보다 먼저 mise로 설치하고 `var/tools/bin/node`를 쓰며, npm의 wrapper와 kit.mk의 모든 recipe(`$(NODE)`)가 이를 실행합니다(K171) | bootstrap에서 mise로 설치 |
 | npm | `package.json`의 `packageManager`: `npm@X.Y.Z` 또는 `npm@X.Y.Z+sha512.<digest>` | 설치 |
 | Go | `mise.toml`의 `go`, `scripts/kit/toolchain-pins.json`의 kit pin과 같음; `mise.lock`이 platform별 archive의 sha256을 가짐; 모든 `go.mod`의 `go` 줄은 pin과 같아야 하며 `go mod edit -json`으로 읽음(K78) | mise로 설치 |
-| Rust | `rust-toolchain.toml`의 `channel`(정확한 version), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
+| Rust | 선언된 그대로의 `rust-toolchain.toml`의 `channel`, rustup이 판정함(K840), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
 | PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version`; install-tools는 `.php-version`의 PHP만 제공 | 탐색 후 wrapper(K283), 검증 |
 | Python | `mise.toml`의 `python`(정확한 version), 그 minor는 kit pin; `mise.lock`이 platform별 python-build-standalone build를 URL과 sha256으로 고정 | mise로 설치 |
 | mise | `config/toolchain.json`의 `mise`: 정확한 `version`과 platform별 archive `mise-v<version>-<os>-<arch>.tar.gz`의 `sha256` | bootstrap에서 설치 |

@@ -77,11 +77,9 @@ export function readNpmConfig(root: string, file: string, keys: string[], env: N
   }
 }
 
-/** The Rust release that the checkout declares: the channel of rust-toolchain.toml, as an exact release; undefined without the file. */
+/** The Rust release that the checkout declares: the channel of rust-toolchain.toml as it declares it, which rustup judges (K840); undefined without the file. */
 export function declaredRust(root: string): Declared | undefined {
   if (!existsSync(path.join(root, 'rust-toolchain.toml'))) return undefined;
-  // A TOML document is a table; toolchain, when present, is read as a table, and a channel of any other kind fails below.
   const channel = (readTomlFile(root, 'rust-toolchain.toml') as { toolchain?: { channel?: unknown } }).toolchain?.channel;
-  if (typeof channel !== 'string' || !/^\d+\.\d+\.\d+$/.test(channel)) throw new Error(`rust-toolchain.toml must declare toolchain.channel as <major>.<minor>.<patch>; it declares ${JSON.stringify(channel)}`);
-  return { version: channel, source: 'rust-toolchain.toml channel' };
+  return { version: typeof channel === 'string' ? channel : 'as rustup resolves it', source: 'rust-toolchain.toml channel' };
 }

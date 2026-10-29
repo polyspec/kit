@@ -1,6 +1,6 @@
 // Installs the Rust toolchains of the checkout with rustup, the one tool that a machine provides (AGENTS.md):
-//   - the channel, profile, components and targets of rust-toolchain.toml, passed explicitly to `rustup toolchain install
-//     --no-self-update`: rustup's active toolchain may already exist without a requested component such as clippy.
+//   - the channel, profile, components and targets that rust-toolchain.toml declares, passed explicitly to `rustup toolchain
+//     install --no-self-update`, which judges them; without a channel rustup installs the active toolchain (K840): rustup's active toolchain may already exist without a requested component such as clippy.
 //     rustup 1.28 no longer installs a missing toolchain as cargo first runs, so a cargo of CI failed with
 //     "toolchain '<channel>-<host>' is not installed" (K151). An installed toolchain is kept by rustup itself.
 //   - the Rust channels that config/toolchain.json exceptions declare, such as the nightly whose rustdoc JSON the parity check
@@ -25,24 +25,20 @@ function listed(root: string, need: string): string[] {
   return result.stdout.split('\n').map(line => line.trim().split(/\s+/)[0] ?? '').filter(Boolean);
 }
 
-/** Installs the exact channel and requested components of rust-toolchain.toml, including when the channel is already installed. */
+/** Installs the channel and the requested components that rust-toolchain.toml declares, including when the channel is already installed. */
 export function installRustToolchain({ root, print = () => {} }: { root: string; print?: (text: string) => void }) {
   const config = readTomlFile(root, 'rust-toolchain.toml');
-  if (!isTable(config.toolchain)) throw new Error('rust-toolchain.toml must declare toolchain as a TOML table');
-  const { channel, profile, components = [], targets = [] } = config.toolchain;
-  if (typeof channel !== 'string' || channel.length === 0) throw new Error(`rust-toolchain.toml must declare toolchain.channel as a nonempty string; it declares ${JSON.stringify(channel)}`);
-  if (profile !== undefined && typeof profile !== 'string') throw new Error(`rust-toolchain.toml toolchain.profile must be a string; it declares ${JSON.stringify(profile)}`);
-  if (!isStringArray(components)) throw new Error(`rust-toolchain.toml toolchain.components must be an array of strings; it declares ${JSON.stringify(components)}`);
-  if (!isStringArray(targets)) throw new Error(`rust-toolchain.toml toolchain.targets must be an array of strings; it declares ${JSON.stringify(targets)}`);
+  const { channel, profile, components, targets } = isTable(config.toolchain) ? config.toolchain : {};
   const args = ['toolchain', 'install', '--no-self-update'];
-  if (profile !== undefined) args.push('--profile', profile);
-  for (const component of components) args.push('--component', component);
-  for (const target of targets) args.push('--target', target);
-  args.push(channel);
+  if (typeof profile === 'string') args.push('--profile', profile);
+  // rustup takes a component or a target as a comma-separated list, so a string is passed as declared too.
+  for (const component of typeof components === 'string' ? [components] : isStringArray(components) ? components : []) args.push('--component', component);
+  for (const target of typeof targets === 'string' ? [targets] : isStringArray(targets) ? targets : []) args.push('--target', target);
+  if (typeof channel === 'string') args.push(channel);
   print(`rustup ${args.join(' ')}`);
   const result = spawnSync('rustup', args, { cwd: root, stdio: 'inherit' });
   const error: NodeJS.ErrnoException | undefined = result.error;
-  if (error?.code === 'ENOENT') throw missing('rust-toolchain.toml pins the Rust toolchain');
+  if (error?.code === 'ENOENT') throw missing('rust-toolchain.toml declares the Rust toolchain');
   if (result.error || result.status !== 0) throw new Error(`rustup ${args.join(' ')} failed: ${result.error?.message ?? `exit status ${result.status}`}`);
 }
 

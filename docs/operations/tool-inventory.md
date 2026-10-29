@@ -96,7 +96,7 @@ A repository may declare a downloaded tool of its own in `mise.toml` through the
 | Node.js | `node` of `mise.toml` (exact), at the kit pin; `mise.lock` holds the sha256 of each platform's archive of nodejs.org. The bootstrap installs it with mise before npm and writes `var/tools/bin/node`, which the wrappers of npm and every recipe of kit.mk (`$(NODE)`) run (K171) | install with mise, in the bootstrap |
 | npm | `packageManager` of `package.json`: `npm@X.Y.Z` or `npm@X.Y.Z+sha512.<digest>` | install |
 | Go | `go` of `mise.toml`, at the kit pin of `scripts/kit/toolchain-pins.json`; `mise.lock` holds the sha256 of each platform's archive; the `go` line of every `go.mod` must equal the pin, read by `go mod edit -json` (K78) | install with mise |
-| Rust | `channel` of `rust-toolchain.toml` (exact), read by smol-toml (`readToml`, K78, K73) | verify |
+| Rust | `channel` of `rust-toolchain.toml` as declared, which rustup judges (K840), read by smol-toml (`readToml`, K78, K73) | verify |
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version`; install-tools provides the PHP of `.php-version` only | discover and wrap (K283), verify |
 | Python | `python` of `mise.toml` (exact), whose minor is the kit pin; `mise.lock` pins the python-build-standalone build of each platform by its URL and sha256 | install with mise |
 | mise | `config/toolchain.json` `mise`: the exact `version` and the `sha256` of the archive `mise-v<version>-<os>-<arch>.tar.gz` of each platform | install in the bootstrap |

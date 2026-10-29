@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: ef7f095436ca3ac9d5e8ec573a78da71d364271789f107ca3ca1acd4797604cf -->
+<!-- source-sha256: 451d4c3033045707ff648f871bce0602f06f32c8140fd6b205611d3413359e90 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -792,4 +792,4 @@
 | K836 | toolchain-lock을 checkout의 shim을 PATH 앞에 둔 mise lock 명령 하나로 만들고 toolchain-lock.mts를 삭제 | scripts/kit/kit.mk, scripts/kit/toolchain-lock.mts, scripts/kit/toolchain-mise.mts, scripts/kit/kit-check.mts, scripts/kit/worktree-setup.mts, mise.lock, tests/kit/install-tools.test.mts, tests/kit/install-mise.test.mts, tests/kit/toolchain-lock.test.mts, tests/kit/toolchain-stubs.mts, Makefile, config/rebuild.json, docs, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/install-tools.test.mts tests/kit/install-mise.test.mts` | [ ] |
 | K837 | php-arginfo/5.0.0을 nikic/php-parser 5.0.0으로 고정하고 감사가 찾은 K831 잔재를 제거 | scripts/kit/php-arginfo/5.0.0/composer.json, scripts/kit/php-arginfo/5.0.0/composer.lock, scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/link-state-check.test.mts tests/kit/php-ext.test.mts` | [ ] |
 | K839 | kit이 실행하지 않는 mise.toml key를 모르는 도구나 http: 도구의 거부 없이 mise로 넘김 | scripts/kit/toolchain-mise.mts, tests/kit/toolchain-mise.test.mts, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-mise.test.mts` | [o] |
-| K840 | rust-toolchain.toml의 channel을 <major>.<minor>.<patch> 거부 없이 선언된 그대로 읽음 | scripts/kit/toolchain-files.mts, tests/kit/toolchain-files.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-files.test.mts` | [~] |
+| K840 | rust-toolchain.toml의 channel을 <major>.<minor>.<patch> 거부 없이 선언된 그대로 읽음 | scripts/kit/toolchain-files.mts, tests/kit/toolchain-files.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-files.test.mts` | [o] |

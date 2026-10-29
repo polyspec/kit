@@ -1,5 +1,5 @@
 <!-- doc-id: plan-kit-harness -->
-<!-- source-sha256: 7b11d06fc9ab2008564776edd6d12885faf3c6311c7cb9a2669a0fe52bbdf99b -->
+<!-- source-sha256: a1b067836ae4129baed3e1a46258d87dbfed7fdff4948b686f8c28feac7cec64 -->
 # 공통 규칙과 하네스로서의 kit
 
 [English](plan.md)

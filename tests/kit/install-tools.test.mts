@@ -188,7 +188,7 @@ test('a rust-toolchain.toml without rustup fails with the one prerequisite of th
   const { root, stubs } = checkout(t, '[tools]\n', TOOLCHAIN_FILES);
   const result = start(INSTALL_TOOLS, root, { ...stubs.env, PATH: [path.join(stubs.directory, 'bin'), path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) });
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /\[install-tools\] rust-toolchain\.toml pins the Rust toolchain, and rustup is missing; rustup is the one tool that the machine provides \(AGENTS\.md\): install it from https:\/\/rustup\.rs/);
+  assert.match(result.stderr, /\[install-tools\] rust-toolchain\.toml declares the Rust toolchain, and rustup is missing; rustup is the one tool that the machine provides \(AGENTS\.md\): install it from https:\/\/rustup\.rs/);
 });
 
 // A mise.lock that pins ruff for both platforms, and pypi:vulture with the digest of its uv lock when `graph` says so.

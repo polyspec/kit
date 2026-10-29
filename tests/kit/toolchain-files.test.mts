@@ -64,11 +64,13 @@ test('the Rust release is the channel of rust-toolchain.toml, read by smol-toml 
   assert.equal(declaredRust(toolchainCheckout(t, {})), undefined, 'without rust-toolchain.toml, Rust is not declared');
 });
 
-test('a channel that is no release fails with the file and the value', (t) => {
-  const stable = toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nchannel = "stable"\n' });
-  assert.throws(() => declaredRust(stable), /rust-toolchain\.toml must declare toolchain\.channel as <major>\.<minor>\.<patch>; it declares "stable"/);
-  const none = toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nprofile = "minimal"\n' });
-  assert.throws(() => declaredRust(none), /rust-toolchain\.toml must declare toolchain\.channel as <major>\.<minor>\.<patch>; it declares undefined/);
+test('the channel of rust-toolchain.toml is read as declared, and rustup judges it (K840)', (t) => {
+  assert.deepEqual(declaredRust(toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nchannel = "stable"\n' })), { version: 'stable', source: 'rust-toolchain.toml channel' });
+  assert.deepEqual(declaredRust(toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nchannel = "1.90"\n' })), { version: '1.90', source: 'rust-toolchain.toml channel' });
+  assert.deepEqual(declaredRust(toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain]\nprofile = "minimal"\n' })), { version: 'as rustup resolves it', source: 'rust-toolchain.toml channel' });
+});
+
+test('a rust-toolchain.toml that is no TOML fails with the file and the position', (t) => {
   const broken = toolchainCheckout(t, { 'rust-toolchain.toml': '[toolchain\n' });
   assert.throws(() => declaredRust(broken), /^Error: rust-toolchain\.toml line 1 column 11: Invalid TOML document/);
 });

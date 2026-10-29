@@ -39,7 +39,7 @@ export type Run = (command: string, args: string[]) => RunResult;
 export type ToolchainOptions = { root?: string; env?: NodeJS.ProcessEnv; run?: Run | undefined };
 
 // A declared tool as declaredToolchain of toolchain-declared.mts, declaredLintTools of toolchain-lint.mts, declaredMiseTools of
-// toolchain-mise.mts or declaredRust of toolchain-files.mts return it: an exact release, or minor releases.
+// toolchain-mise.mts or declaredRust of toolchain-files.mts return it: the release as declared, or minor releases.
 type DeclaredTool = { version?: string; minors?: string[]; source: string };
 const declaredTools = (root: string): Record<string, DeclaredTool | undefined> => ({ ...declaredToolchain(root), ...declaredLintTools(root), ...declaredMiseTools(root), rust: declaredRust(root) });
 
