@@ -37,7 +37,7 @@ jobs:
       - name: install packages
         run: make install-packages
       # install-tools installs the tools of mise.toml at the digests of mise.lock with the mise of the bootstrap (Go, Python,
-      # uv, ruff, alint, golangci-lint, deadcode, vulture, Composer), then the pythonBackend and the Composer projects, into
+      # uv, ruff, alint, golangci-lint, deadcode, vulture, Composer), then the Composer projects, into
       # var/tools; kit.mk puts their shims first on PATH in every recipe, so the tests run those tools, not the runner image's.
       - name: install tools
         run: make install-tools

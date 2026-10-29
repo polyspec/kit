@@ -12,10 +12,6 @@
       "darwin-arm64": "8228699f316dc17931beb86f7a1aac70e4685535430441492ff4e857c72535ad"
     }
   },
-  "pythonBackend": {
-    "requirement": "setuptools==84.0.0",
-    "sha256": "51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"
-  },
   "phpunit": {
     "version": "11.5.57"
   },

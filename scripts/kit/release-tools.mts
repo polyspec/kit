@@ -2,7 +2,7 @@
 // Installs the tools that the release of this repository needs (`make release-tools`), derived from config/release.json:
 //
 //   install-tools  a Composer package or consumer, a wheel or a Go module: install-tools installs the tools of mise.lock (the
-//                  Composer, the Python and the Go of mise.toml) and the build backend of the wheels into var/tools; npm, which
+//                  Composer, the Python, the uv and the Go of mise.toml) into var/tools; npm, which
 //                  an npm package needs, is the npm of the bootstrap, which installed the packages that this command runs from
 //   rust           a git-tag manifest of the proof: the channel of rust-toolchain.toml is installed with rustup, as make
 //                  install does, and check-toolchain checks rustc against it

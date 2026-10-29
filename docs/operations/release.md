@@ -55,9 +55,9 @@ draft by that id, never by its tag in the list of releases, which shows a new dr
 draft and fails the run, so a release that cannot be installed is never public.
 
 A package of kind `wheel` (a Python package with a `pyproject.toml`) is released as its PEP 427 wheel
-`<distribution>-<version>-py3-none-any.whl`, the file name pip parses. `release-assets` builds it from the tagged commit with the
-build backend that `pythonBackend` of config/toolchain.json, its one declaration, pins by its exact requirement and by the
-sha256 of its wheel; `make install-tools` and `make release-backend` download that wheel into `var/tools/wheels` with the digest checked, and no build reads the network. A
+`<distribution>-<version>-py3-none-any.whl`, the file name pip parses. `release-assets` builds it from the tagged commit with
+`uv build --wheel`, which installs the `[build-system].requires` of the package's own pyproject.toml into an isolated build
+environment; kit pins no build backend (K788). A
 wheel's `Requires-Dist` is a plain `name==version`, a direct reference to the release asset of a polyspec package with the sha256
 fragment, or a direct reference without a hash to a sibling (another wheel package of the same config/release.json) of the same
 release. The first two are held by the lock of the wheel (`consumers.wheel.lock`); a sibling never is. Any other form (a URL, a git

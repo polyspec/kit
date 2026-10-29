@@ -6,9 +6,6 @@
 //                the bootstrap installs; mise installs the tools of mise.toml at the digests of mise.lock (toolchain-mise.mts),
 //                Node.js first, in the bootstrap (K171)
 //   php          config/toolchain.json php (minor releases), else .php-version
-//   pythonBackend config/toolchain.json pythonBackend: the one declaration of the build backend of the Python wheels (K166),
-//                its requirement name==version and the sha256 of its wheel; install-tools installs it, and release-backend,
-//                release-assets and the wheel build read it here
 //   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
 //   symbolExtractors config/toolchain.json symbolExtractors: the symbol extractors of the parity check that install-tools builds
 // The tools of mise.toml, Node.js among them, are read by toolchain-mise.mts, Rust by toolchain-files.mts and the PHP lint by
@@ -39,7 +36,6 @@ export type DeclaredToolchain = {
   npm?: Declared & { sha512: string | undefined };
   php?: { minors: string[]; source: string };
   mise?: PlatformRelease;
-  pythonBackend?: { requirement: string; sha256: string; source: string };
   phpunit?: Declared & { manifest: string };
   symbolExtractors?: { extractors: InstalledExtractor[]; source: string };
 };
@@ -100,25 +96,6 @@ function phpunit(value: unknown): Declared & { manifest: string } {
   return { version: exact(file, 'the PHPUnit release', field(value, 'version')), manifest: PHPUNIT_MANIFEST, source: file };
 }
 
-// The build backend of the Python wheels: its exact requirement name==version and the sha256 of its wheel.
-function pythonBackend(value: unknown): { requirement: string; sha256: string; source: string } {
-  const file = 'config/toolchain.json pythonBackend';
-  const requirement = field(value, 'requirement');
-  const sha256 = field(value, 'sha256');
-  if (!matches(/^[A-Za-z0-9._-]+==\d+(\.\d+)*$/, requirement)) throw new Error(`${file} must record requirement as name==version; it records ${JSON.stringify(requirement)}`);
-  if (!matches(/^[0-9a-f]{64}$/, sha256)) throw new Error(`${file} must record sha256 as 64 lowercase hexadecimal digits; it records ${JSON.stringify(sha256)}`);
-  return { requirement, sha256, source: file };
-}
-
-/**
- * pythonBackend of config/toolchain.json of `root`, the one declaration of the build backend of the Python wheels, which
- * install-tools installs and release-backend and release-assets read; undefined when the file does not declare it.
- */
-export function declaredPythonBackend(root: string): DeclaredToolchain['pythonBackend'] {
-  const config = toolchainConfig(root);
-  return config.pythonBackend ? pythonBackend(config.pythonBackend) : undefined;
-}
-
 /** The declared toolchains of the checkout at `root`. */
 export function declaredToolchain(root: string): DeclaredToolchain {
   const config = toolchainConfig(root);
@@ -145,9 +122,6 @@ export function declaredToolchain(root: string): DeclaredToolchain {
     declared.php = { minors: [phpFile], source: '.php-version' };
   }
   if (config.mise) declared.mise = platformRelease('mise', config.mise);
-  if (config.pythonBackend) {
-    declared.pythonBackend = pythonBackend(config.pythonBackend);
-  }
   if (config.phpunit) declared.phpunit = phpunit(config.phpunit);
   if (config.symbolExtractors !== undefined) {
     const extractors = config.symbolExtractors;

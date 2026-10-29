@@ -14,7 +14,7 @@ import { installExtractor } from '../../scripts/kit/install-symbols.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { tree } from '../kit/tree.mts';
-import { sandboxMise, sandboxPythonProjectBackend, sandboxShims } from './real-tools.mts';
+import { installProject, sandboxMise, sandboxShims } from './real-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -207,7 +207,7 @@ const lines = (root: string) => checkParity(root, { execute: true, env: toolsEnv
 test('the python extractor reads the public symbols of a package with ast: __all__, public names and public methods (K75)', { timeout: 120_000 }, (t) => {
   const declaration = (symbols: string[]) => `${declared({
     schema: 1,
-    implementations: [{ name: 'python', runner: 'python', roots: ['python'], symbols: { extractor: 'python', entry: 'python/src/codec' } }],
+    implementations: [{ name: 'python', runner: 'python', roots: ['python'], symbols: { extractor: 'python', entry: 'python', distribution: 'codec' } }],
     units: [...symbols.map(symbol => ({ id: symbol.replaceAll('.', '-'), kind: 'api', symbols: [{ implementation: 'python', symbol }] })), trace([{ implementation: 'python', test: 'python/tests/test_trace.py', id: 'test_trace' }])],
   })}`;
   const files = {
@@ -222,14 +222,14 @@ test('the python extractor reads the public symbols of a package with ast: __all
   const all = ['codec.Codec', 'codec.encode', 'codec.core.Codec', 'codec.core.Codec.decode', 'codec.core.LIMIT', 'codec.core.encode'];
   const root = tree(t, { ...files, 'config/parity.json': declaration(all) });
   giveTools(root);
-  sandboxPythonProjectBackend(root);
+  installProject(path.join(root, 'python'));
   assert.deepEqual(lines(root), []);
   // codec.Codec of __all__ names the class that core defines; its methods are ids of core.
   const partial = tree(t, { ...files, 'config/parity.json': declaration(['codec.encode', 'codec.core.decode']) });
   giveTools(partial);
-  sandboxPythonProjectBackend(partial);
+  installProject(path.join(partial, 'python'));
   assert.deepEqual(lines(partial), [
-    'R1 python: codec.core.decode is no public symbol of python, as its python extractor reads python/src/codec',
+    'R1 python: codec.core.decode is no public symbol of python, as its python extractor reads python',
     'R11 python: codec.Codec is public, and no API unit declares it',
     'R11 python: codec.core.Codec is public, and no API unit declares it',
     'R11 python: codec.core.Codec.decode is public, and no API unit declares it',

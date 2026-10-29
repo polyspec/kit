@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: bbbcbd262e4dd69a9c1f7f79e491110cd52ede78641879a0c20275c884f7c027 -->
+<!-- source-sha256: df27ffc8723082292cc1bb833b7ed02d19694962f23f2cda91d83bb04656718f -->
 # 개발
 
 [English](AGENTS.md)
@@ -64,8 +64,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   cargo-deny, Composer, vulture)를 `mise.toml`에 선언하고, `make toolchain-lock`으로 그 digest를 `mise.lock`에 쓰며, `make install-tools`로 설치합니다. 이
   target은 bootstrap의 mise로 `mise install --locked`를 실행합니다. `pypi:` 도구의 uv lock은 mise.lock이 가리키는 sidecar folder
   `.mise/locks/<tool>/<version>`입니다: kit이 쓰는 lock data이며 mise의 문서대로 mise.lock과 함께 track하고, Git이 track하지
-  않으면 `make toolchain-check`가 실패합니다(K192). wheel을 배포하는 consumer는 config/toolchain.json에
-  `pythonBackend`도 선언합니다. vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. vendored dependency test는 go와 Composer를 실제 도구의
+  않으면 `make toolchain-check`가 실패합니다(K192). wheel은 uv build가 자기 pyproject.toml의 build-system.requires로
+  build하며, kit은 build backend를 고정하지 않습니다(K788). vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. vendored dependency test는 go와 Composer를 실제 도구의
   기록으로 답하는 stub으로 읽으며, 실제 도구를 실행하지 않습니다. kit 자신의 실제 도구 test는 `tests/source`에 있습니다.
   kit-sync가 vendor하지 않으며, 고정한 도구를 실행하는 source test에는 먼저 `make install-tools`가 필요하고, `make
   source-test`가 실행하며 CI는 `make kit-test` 뒤에 실행합니다.
@@ -88,7 +88,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   Enforced by: `make parity-declarations-check`
 - Own: 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
   case는 자기 timeout을 가집니다. 네트워크 조회는 kit.mk가 ONLINE으로 표시한 target(`install-tools`,
-  `release-tools`, `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch`,
+  `release-tools`, `release-assets`, `release-candidate-assets`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch`,
   `release-assets-fetch`)만 하고, 결과는 commit된 기록, var/tools의 설치, 또는 config/release-assets.json이 고정한 var/ 아래의 archive입니다.
   Enforced by: `make kit-test`
 - Own: dependency advisory는 갱신으로 고칩니다. npm audit, composer audit, cargo audit와 govulncheck가 오래되거나 취약한

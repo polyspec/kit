@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d1fd493bc220e78a651085ff5a725c5485d35abdb3cc6519f652d4721b64c21d -->
+<!-- source-sha256: d4f45ed875eb6c41dc21a70fa6b1aeaff84b3103d5617e2092151465560ec4aa -->
 
 # 도구 목록
 
@@ -39,7 +39,7 @@ export된 `runCommand`는 output이 닫힌 뒤에도 process group cleanup 완�
 checkout의 도구는 `mise.lock`을 쓰는 mise가 설치합니다(K127). `mise.toml`이 도구를 선언하고 `mise.lock`이 각 archive를
 mise bootstrap의 플랫폼인 linux-x64, linux-arm64, macos-arm64, macos-x64의 sha256으로 고정합니다. `make toolchain-lock`이 lock을 쓰고(`scripts/kit/toolchain-lock.mts`, `mise
 lock`), `make install-tools`가 그것을 설치한 뒤(`scripts/kit/install-tools.mts`, `mise install --locked`) mise가 설치하지 않는
-것을 설치합니다. PHP는 machine이 제공하며 `install-php.mts`가 탐색해 wrapper로 제공하고(K283, 아래), wheel backend(`pythonBackend`), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
+것을 설치합니다. PHP는 machine이 제공하며 `install-php.mts`가 탐색해 wrapper로 제공하고(K283, 아래), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
 설치하는(`install-rust.mts`) `rust-toolchain.toml`의 toolchain과 그 component(checkout에서 파일을 읽는
 `rustup toolchain install --no-self-update`; rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다)와 `exceptions`의
 Rust channel, symbol extractor입니다. `TOOLS` selector가 없으면 기존처럼 전체 도구를 설치합니다. `make install-tools TOOLS="go python"`은 해당 mise 도구와 선언된 prerequisite만 설치합니다. Selector는 `check-toolchain.mts`가 받는 정확한 이름입니다. `deadcode`, `govulncheck`, `golangciLint`는 Go도 설치하고, `vulture`는 Python과 uv를 설치하며, Python은 선언된 wheel backend를 설치합니다. PHP Composer 도구는 선언된 PHP wrapper와 Composer를 설치하고, Rust는 stable toolchain과 선언된 exception channel을 설치합니다. 알 수 없거나 비어 있거나 선언되지 않은 selector는 변경 전에 거부합니다. 선택 설치는 다른 기존 설치물을 지우지 않으며 symbol extractor나 PHP arginfo는 만들지 않습니다. 이들은 명시적 target이 있습니다. bootstrap의 `TOOLS=npm`은 그대로입니다.
@@ -111,7 +111,7 @@ staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, comm
 교체됩니다.
 
 `config/toolchain.json`의 형태는 `scripts/kit/schema/toolchain.schema.json`입니다. `schema`(1), `comment`, `php`(minor release
-목록), `mise`(`version`, platform별 archive의 `sha256`), `pythonBackend`, `phpunit`(`version`), `symbolExtractors`,
+목록), `mise`(`version`, platform별 archive의 `sha256`), `phpunit`(`version`), `symbolExtractors`,
 `exceptions`(아래)입니다. Node.js를 포함한 `mise.toml`의 도구는 여기에 key가 없습니다.
 `mise.toml`은 kit이 검사하는 도구만 선언하며(`toolchain-mise.mts`의 `MISE_TOOLS`), 각각 정확한 release로 선언합니다.
 `mise.lock`이 그중 하나라도 위와 같이 고정하지 않으면 `toolchain-check`가 실패합니다. Rust는 `rustup`이 읽는
@@ -1124,7 +1124,7 @@ developer도 어떤 released tag에든 실행할 수 있습니다. offline check
 - `make release-prepare`는 sibling release의 checkout처럼 저장소의 release가 release-tools 전에 필요로 하는 준비를 실행합니다:
   kit.mk는 이를 일이 없는 double-colon target으로 선언하고, 저장소는 Makefile에 `release-prepare::` 규칙을 더합니다(K132).
   vendor된 release workflow는 install-packages 다음에 이를 실행합니다.
-- `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에서 install-tools 이름을 유도합니다: npm package나 consumer에는 npm, composer에는 composer, wheel에는 python과 pythonBackend, Go module에는 go. git-tag proof는 Rust가 필요합니다: release-tools가 checkout에서 `rustup toolchain install --no-self-update`를 실행하면 rust-toolchain.toml의 channel을 읽고, 이어서 `check-toolchain rust`가 rustc를 그 channel과 비교합니다. rust-toolchain.toml이 없는 git-tag proof는 파일 이름과 함께 실패합니다.
+- `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에서 install-tools 이름을 유도합니다: npm package나 consumer에는 npm, composer에는 composer, wheel에는 python과 uv, Go module에는 go. git-tag proof는 Rust가 필요합니다: release-tools가 checkout에서 `rustup toolchain install --no-self-update`를 실행하면 rust-toolchain.toml의 channel을 읽고, 이어서 `check-toolchain rust`가 rustc를 그 channel과 비교합니다. rust-toolchain.toml이 없는 git-tag proof는 파일 이름과 함께 실패합니다.
 - `release-publish`는 release를 draft로 만듭니다. `release-publish`는 그 id를 `var/release/<tag>.json`에 기록합니다. `release-proof`와 `release-undraft`는 release 목록에서 tag로 찾지 않고 그 id로 draft를 읽습니다(`repos/O/R/releases/<id>`). 목록은 새 draft를 한동안 보여 주지 않고(0.0.38 run은 생성 3초 뒤에 실패했습니다), tag는 draft를 가리키지 않기 때문입니다. 기록이 없으면 `var/release/<tag>.json is missing; make release-publish writes it`로 실패합니다. `release-proof`는 각 자산을 id로 내려받고, `release-undraft`는 id로 release를 공개하며 공개된 release는 바꾸지 않습니다. wheel lock이 가리키는 다른 저장소의 release는 공개되어 있으므로 여전히 tag로 찾습니다. 이전 run의 draft는 교체하고, 공개된 release는 절대 교체하지 않습니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
 설치는 K5.4의 `installConsumers`입니다. 첫 실패 step에서 멈추고 통과한 step마다 `✔ <what>`을 출력합니다. 실패는 command와 그 status 및 error,
 또는 기대값과 실제 값을 적습니다.
@@ -1171,15 +1171,11 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
 아닌 문자의 각 연속을 `_`로 씁니다. 그래서 `0.0.1`의 `kit-fixture`는 pip이 파싱하는 `kit_fixture-0.0.1-py3-none-any.whl`입니다.
 
 - `release-assets`는 tag된 commit의 directory 복사본(`git archive`)에서 wheel을 만듭니다. 명령은
-  `var/tools/mise/shims/python3 -m pip wheel --no-deps --no-index --no-cache-dir --find-links var/tools/wheels -w <output> <source>`이며,
-  `SOURCE_DATE_EPOCH`는 commit의 시각입니다. `--no-index`로 directory가 유일한 source가 되므로 build는 network를 읽지 않습니다.
-- build backend는 tool pin이므로 그 유일한 선언인 `config/toolchain.json`의 `pythonBackend`에 고정합니다(K166; `config/release.json`의
-  `buildBackend`는 없어졌습니다). `requirement`는 backend의 정확한 requirement
-  (`setuptools==84.0.0`, pyproject의 `[build-system] requires`와 같아야 함)이고, `sha256`은 PyPI release의 그 wheel digest입니다.
-  wheel package나 wheel consumer가 있고 `pythonBackend`가 없는 config/release.json은 `make kit-check`와 release에서 고치는 방법과
-  함께 실패합니다. `make install-tools`와 `make release-backend`(ONLINE)는 digest를 적은 requirement 파일로
-  `pip download --no-deps --only-binary :all: --require-hashes`를 실행해 `var/tools/wheels`에 받습니다. `release-assets`는 build마다
-  파일의 digest를 확인하고 다르면 거부합니다. 다운로드는 wheel package의 유일한 network 단계이며 release 전에 실행합니다.
+  `var/tools/mise/shims/uv build --wheel --python var/tools/mise/shims/python3 --out-dir <output> <source>`이며,
+  `SOURCE_DATE_EPOCH`는 commit의 시각입니다. native build frontend인 uv build가 package 자신의 pyproject.toml의
+  `[build-system].requires`를 격리된 build 환경에 설치하므로(PEP 517/518) package가 build backend를 거기서 고정하고, kit은 아무것도
+  고정하거나 설치하지 않습니다(K788). uv의 cache에 requirement가 없으면 build가 index를 읽으므로 `release-assets`와
+  `release-candidate-assets`는 ONLINE입니다.
 - `release-assets`는 빌드한 wheel의 이름과 version을 확인합니다. `Requires-Dist` 줄의 형식은 uv와 pip가 해석합니다(K789).
   `release-versions`는 다른 archive manifest와 같이 pyproject.toml의 `[project]` `version`을 요구합니다.
 - `release-consumer`는 wheel을 `var/tools/mise/shims/python3`의 깨끗한 virtual environment에 설치합니다. 먼저 uv가 lock을 설치하고(K49), 그다음
@@ -1189,12 +1185,6 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
 
 ```json
 "consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" } } }
-```
-
-config/toolchain.json:
-
-```json
-"pythonBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
 ```
 
 ## Wheel dependencies (K49)
@@ -1418,7 +1408,7 @@ Implementation은 기존 `entry` 또는 `{ entry, features? }` 입력을 가진 
 
 Feature unit의 모든 requirement가 유효한 보류 checklist item으로 명시적으로 deferred되면 source binding은 유지하고 native case는 실행하지 않습니다(K715). 보고서는 이를 `HELD`로 표시하며 execution ledger에 통과 증거를 기록하지 않습니다. Active requirement와 deferred requirement가 섞인 unit은 조용히 보류하지 않고 거부합니다. Unit 없이 선언한 기존 deferred requirement도 지원합니다.
 
-implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parity-check`는 extractor를 실행해 `entry`의 public API를 그
+implementation의 `symbols`는 `{ extractor, entry }`를 선언하며, `python`은 `distribution`도 선언합니다. `parity-check`는 extractor를 실행해 `entry`의 public API를 그
 생태계의 표준 도구로 읽고, 그것이 주는 것으로 R1과 R11을 판정합니다. commit된 snapshot은 읽지 않으며,
 `parity-declarations-check`는 extractor를 실행하지 않습니다.
 
@@ -1427,7 +1417,7 @@ implementation의 `symbols`는 `{ extractor, entry }`를 선언합니다. `parit
 | `go` | `var/tools/symbols-go/bin/kit-symbols-go`, `golang.org/x/tools/go/packages` v0.52.0 위의 kit 프로그램 | module directory | 각 internal이 아니고 test가 아닌 package의 export된 이름의 `<import path>.<name>`, `<import path>.<type>.<method or field>` |
 | `ts` | API Extractor 7.59.4(`@microsoft/api-extractor`, kit의 의존성)의 API model | 가장 가까운 `package.json`의 package에 있는, tsc 7이 내는 것 같은 `.d.ts` entry point. 그 package의 `tsconfig.json`으로, 없으면 ESNext library와 `@types` 없이 compile함 | `@scope/name!Codec#encode:member(1)` 같은 canonical reference |
 | `php` | nikic/php-parser 5.9.0 위의 `scripts/kit/symbols/php/extract.php` | source directory나 파일, 예를 들어 PHP extension의 `*.stub.php` | public 선언의 `Ns\Class`, `Ns\Class::method`, `Ns\Class::CONST`, `Ns\Class::$property`, `Ns\function`, `Ns\CONST`. docblock에 `@internal`(phpstan과 psalm이 읽는 대로 docblock 줄의 처음에 오는 tag)을 가진 class, function, constant, method, property는 public 선언이 아니고 그 tag를 가진 class는 member를 숨깁니다(K307) |
-| `python` | `ast`로 정의를 읽는 `scripts/kit/symbols/python.py`가 `pyproject.toml`에서 선택한 모듈을 setuptools `build_py`에 묻고, kit은 검증한 `pythonBackend` wheel로 `uv --offline` 실행 | package directory나 module 파일 | `__all__`, 없으면 `_`로 시작하지 않는 이름의 `<module>.<name>`과 `<module>.<class>.<method>`; build backend에서 제외한 모듈은 public API가 아님 |
+| `python` | `scripts/kit/symbols/python.py`가 `distribution`이 가리키는 distribution의 설치 file 목록(RECORD, `importlib.metadata.files`)에 있는 `.py` 파일을 `ast`로 읽습니다. reader는 저장소 자신의 install이 만든 환경(`uv sync --frozen --no-editable` 같은 non-editable 설치) `<entry>/.venv`의 python으로 실행하므로 모듈은 build backend가 설치한 것이고, reader는 모듈을 탐색하지 않으며 kit은 아무것도 만들거나 설치하지 않습니다. 환경이나 distribution이 없으면 시작 오류나 Python의 오류로 실패하고, editable 설치는 거부합니다 | 저장소의 install이 `.venv`를 만든 uv project의 directory, `distribution`이 distribution 이름 | `__all__`, 없으면 `_`로 시작하지 않는 이름의 `<module>.<name>`과 `<module>.<class>.<method>`, 모듈 이름은 site-packages 안의 경로; build backend가 제외한 모듈은 설치되지 않으므로 public API가 아님 |
 | `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json`(format 61) | `Cargo.toml`, 그 library | root에서 닿는 각 public item(re-export 포함)의 `<crate>::<path>`와 그 public field, variant, inherent item, trait item |
 
 - repository는 `config/toolchain.json`의 `symbolExtractors`에 `go`와 `php`를 적습니다. 그러면 `make install-tools`가 go 프로그램을
@@ -1523,7 +1513,7 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
     { "name": "go", "runner": "go", "roots": ["packages/go"], "tests": ["packages/go/**/*_test.go"],
       "symbols": { "extractor": "go", "entry": "packages/go" }, "errors": { "file": "packages/go/codes.go", "pattern": "^\\tCode\\w+ = \"(\\w+)\"$" } },
     { "name": "python", "runner": "python", "roots": ["packages/python"], "tests": ["packages/python/tests/*.py"],
-      "symbols": { "extractor": "python", "entry": "packages/python/src/client" }, "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
+      "symbols": { "extractor": "python", "entry": "packages/python", "distribution": "client" }, "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
   ],
   "suites": ["tests/**/vectors.json"],
   "comparators": ["tests/conformance/check"],

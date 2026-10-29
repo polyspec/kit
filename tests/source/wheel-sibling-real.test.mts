@@ -17,7 +17,7 @@ import { makeVenv } from '../../scripts/kit/python-venv.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PYTHON = path.join(ROOT, 'var/tools/mise/shims/python3');
-const WHEELS = path.join(ROOT, 'var/tools/wheels');
+const UV = path.join(ROOT, 'var/tools/mise/shims/uv');
 const GEN = 'kit-gen';
 const VAL = 'kit-val';
 const VERSION = '0.0.1';
@@ -33,11 +33,11 @@ function source(folder: string, name: string, dependencies: string[] = []) {
   return dir;
 }
 
-/** Builds the wheel of the source tree `dir` into `output` with the checkout Python and the pinned backend, with no index. */
+/** Builds the wheel of the source tree `dir` into `output` with the checkout Python and uv build, which installs its build-system.requires. */
 function build(folder: string, dir: string, output: string, env: NodeJS.ProcessEnv) {
   mkdirSync(output, { recursive: true });
-  const result = spawnSync(PYTHON, ['-m', 'pip', 'wheel', '--no-deps', '--no-index', '--find-links', WHEELS, '--no-input', '--disable-pip-version-check', '-w', output, dir], { cwd: folder, env, encoding: 'utf8' });
-  assert.equal(result.status, 0, `pip wheel ${dir} failed: ${result.stderr}`);
+  const result = spawnSync(UV, ['build', '--wheel', '--python', PYTHON, '--out-dir', output, dir], { cwd: folder, env, encoding: 'utf8' });
+  assert.equal(result.status, 0, `uv build ${dir} failed: ${result.stderr}`);
 }
 
 /**

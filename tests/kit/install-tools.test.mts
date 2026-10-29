@@ -59,12 +59,11 @@ test('a second install-tools with var/tools/bin and the shims first on PATH is a
 });
 
 test('a mise install that fails stops install-tools with the error of mise, before any install of kit', (t) => {
-  const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'config/toolchain.json': JSON.stringify({ schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: 'b'.repeat(64) } }) });
+  const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n', { 'config/toolchain.json': JSON.stringify({ schema: 1 }) });
   const result = start(INSTALL_TOOLS, root, { ...stubs.env, STUB_MISE_FAILS: 'ruff@0.17.0 is not in the lockfile' });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /mise ERROR ruff@0\.17\.0 is not in the lockfile/);
   assert.match(result.stderr, /\[install-tools\] .*var\/tools\/bin\/mise install --locked ended with exit status 1/);
-  assert.doesNotMatch(result.stdout, /backend/, 'the backend is not installed');
 });
 
 test('install-tools selects only declared tools and rejects empty or unknown selectors before mutation', (t) => {

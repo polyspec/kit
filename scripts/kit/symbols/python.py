@@ -1,11 +1,13 @@
-"""The public symbols of a Python package, for the language-parity check (scripts/kit/parity-symbols.mts).
+"""The public symbols of a Python distribution, for the language-parity check (scripts/kit/parity-symbols.mts).
 
-    python3 -I python.py <package directory or module file>
+    <project>/.venv/bin/python -I python.py <distribution> [--leaks]
 
-Prints a JSON array of the public symbol ids, sorted, read with the standard library's ast. When a setuptools pyproject is
-present, setuptools build_py selects the source modules; no product module is imported or run. A module is named by its path
-from the parent of the entry, and a package by its __init__.py. A module or package whose name
-starts with _ is private, except __init__. The public names of a module are its __all__ when it assigns one a list or tuple
+Prints a JSON array of the public symbol ids, sorted, read with the standard library's ast. The modules are the .py files of
+the installed distribution, the file list (RECORD) of its non-editable install in the environment that the repository's own
+install made, which its build backend selected; the reader installs nothing, discovers no module itself, and imports or runs
+no product module. A distribution that is not installed fails with the error of importlib.metadata. A module is named by
+its path in the environment's site-packages, and a package by its __init__.py. A module or package whose name starts with _
+is private, except __init__. The public names of a module are its __all__ when it assigns one a list or tuple
 of strings, else the names that it defines (def, class, assignment) and that do not start with _; an imported name belongs
 to the module that defines it. The public methods of a public class are its def names that do not start with _. The ids are
 <module>.<name> and <module>.<class>.<method>.
@@ -18,9 +20,8 @@ public class, as "<id> names the private <name>". A string annotation is read as
 import ast
 import contextlib
 import json
-import os
 import sys
-import tomllib
+from importlib import metadata
 from pathlib import Path
 
 
@@ -31,53 +32,27 @@ def module_name(path, base):
     return ".".join(parts)
 
 
-def project_file(entry):
-    directory = entry if entry.is_dir() else entry.parent
-    for parent in (directory, *directory.parents):
-        candidate = parent / "pyproject.toml"
-        if candidate.is_file():
-            return candidate
-    return None
-
-
-def source_files(entry):
-    if not entry.is_dir():
-        return [entry]
-    manifest = project_file(entry)
-    if manifest is None:
-        return sorted(entry.rglob("*.py"))
-
-    config = tomllib.loads(manifest.read_text(encoding="utf-8"))
-    build_system = config.get("build-system", {})
-    backend = build_system.get("build-backend", "setuptools.build_meta:__legacy__")
-    if backend not in ("setuptools.build_meta", "setuptools.build_meta:__legacy__"):
+def installed_files(name):
+    """The site-packages folder of the distribution `name` and the .py files of its installed file list."""
+    distribution = metadata.distribution(name)
+    files = distribution.files
+    if files is None:
+        raise SystemExit(f"the distribution {name} has no installed file list (RECORD)")
+    if any(
+        file.name.startswith("__editable__") or file.suffix == ".pth" for file in files
+    ):
         raise SystemExit(
-            f"{manifest}: Python symbol discovery requires setuptools package metadata, "
-            f"but build-backend is {backend!r}"
+            f"the distribution {name} is an editable install, whose file list holds no module; install it non-editable"
         )
-
-    # Setuptools applies its declared package discovery and file mapping without importing the product package.
-    from setuptools.config.pyprojecttoml import apply_configuration
-    from setuptools.dist import Distribution
-
-    previous = Path.cwd()
-    try:
-        os.chdir(manifest.parent)
-        distribution = Distribution({"script_name": str(manifest)})
-        apply_configuration(distribution, manifest)
-        build_py = distribution.get_command_obj("build_py")
-        build_py.ensure_finalized()
-        candidates = [
-            Path(module_file).resolve()
-            for _, _, module_file in build_py.find_all_modules()
-        ]
-    finally:
-        os.chdir(previous)
-
-    root = entry.resolve()
-    return sorted(
-        {candidate for candidate in candidates if candidate.is_relative_to(root)}
+    base = Path(distribution.locate_file("")).resolve()
+    modules = sorted(
+        base / file
+        for file in files
+        if file.suffix == ".py"
+        and ".." not in file.parts
+        and not file.parts[0].endswith((".dist-info", ".data"))
     )
+    return base, modules
 
 
 def private(path, base):
@@ -203,39 +178,21 @@ def leaks(path, base):
 
 
 def main():
-    if len(sys.argv) == 3 and sys.argv[2] == "--leaks":
-        entry = Path(sys.argv[1]).resolve()
-        if not entry.exists():
-            raise SystemExit(f"{sys.argv[1]} does not exist")
-        base = entry.parent
-        files = source_files(entry)
-        print(
-            json.dumps(
-                sorted(
-                    leak
-                    for path in files
-                    if not private(path, base)
-                    for leak in leaks(path, base)
-                )
+    arguments = sys.argv[1:]
+    report = leaks if arguments[1:] == ["--leaks"] else symbols
+    if len(arguments) not in (1, 2) or (len(arguments) == 2 and report is symbols):
+        raise SystemExit("usage: python.py <distribution> [--leaks]")
+    base, files = installed_files(arguments[0])
+    print(
+        json.dumps(
+            sorted(
+                found
+                for path in files
+                if not private(path, base)
+                for found in report(path, base)
             )
         )
-        return
-    if len(sys.argv) != 2:
-        raise SystemExit(
-            "usage: python.py <package directory or module file> [--leaks]"
-        )
-    entry = Path(sys.argv[1]).resolve()
-    if not entry.exists():
-        raise SystemExit(f"{sys.argv[1]} does not exist")
-    base = entry.parent
-    files = source_files(entry)
-    found = [
-        symbol
-        for path in files
-        if not private(path, base)
-        for symbol in symbols(path, base)
-    ]
-    print(json.dumps(sorted(found)))
+    )
 
 
 main()

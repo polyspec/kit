@@ -36,7 +36,7 @@ repositories (lines).
 mise with `mise.lock` installs the tools of a checkout (K127). `mise.toml` declares them and `mise.lock` pins each archive by
 its sha256 for linux-x64, linux-arm64, macos-arm64 and macos-x64, the platforms of the bootstrap of mise; `make toolchain-lock` writes the lock (`scripts/kit/toolchain-lock.mts`, `mise lock`)
 and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise install --locked`), then installs what mise does
-not: PHP, which the machine provides and `install-php.mts` discovers and wraps (K283, below), the wheel backend (`pythonBackend`), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
+not: PHP, which the machine provides and `install-php.mts` discovers and wraps (K283, below), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
 (`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install --no-self-update`
 in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo first runs) and the Rust channels of
 `exceptions`, and the symbol extractors. With no `TOOLS` selectors this remains the full install. `make install-tools TOOLS="go python"`
@@ -116,7 +116,7 @@ A Composer project of `var/tools` (PHPUnit, the PHP lint) counts as installed on
 made under another PHP is replaced, not run.
 
 The shape of `config/toolchain.json` is `scripts/kit/schema/toolchain.schema.json`: `schema` (1), `comment`, `php` (list of
-minor releases), `mise` (`version`, `sha256` of each platform's archive), `pythonBackend`, `phpunit` (`version`),
+minor releases), `mise` (`version`, `sha256` of each platform's archive), `phpunit` (`version`),
 `symbolExtractors` and `exceptions` (below). A tool of `mise.toml`, Node.js among them, has no key there. `mise.toml` declares only the tools that kit checks (`MISE_TOOLS` of `toolchain-mise.mts`), each
 at an exact release, and `toolchain-check` fails while `mise.lock` does not pin one of them as above. Rust stays in its own
 file, which `rustup` reads; CI's `setup-node` reads the node of `mise.toml` only to start the bootstrap. A tool that is not declared is neither installed nor checked.
@@ -1228,7 +1228,7 @@ fails that run and the release stays a draft. A developer may run it for any rel
   sibling release: kit.mk declares it as a double-colon target with no work, and a repository adds a `release-prepare::` rule
   to its Makefile (K132). The vendored release workflow runs it after install-packages.
 - `make release-tools` (`scripts/kit/release-tools.mts`) derives the install-tools names from config/release.json: npm for an npm package or
-  consumer, composer, python and pythonBackend for a wheel, go for a Go module. A git-tag proof needs Rust: release-tools runs
+  consumer, composer, python and uv for a wheel, go for a Go module. A git-tag proof needs Rust: release-tools runs
   `rustup toolchain install --no-self-update` in the checkout, which reads the channel of rust-toolchain.toml, and then
   `check-toolchain rust` checks rustc against that channel. A git-tag proof without rust-toolchain.toml fails with the file name.
 - `release-publish` creates the release as a draft and records its id in `var/release/<tag>.json`. `release-proof` and
@@ -1289,16 +1289,11 @@ distribution escapes each run of characters other than word characters and dots 
 `kit_fixture-0.0.1-py3-none-any.whl`, the name pip parses.
 
 - `release-assets` builds the wheel from a copy of the directory at the tagged commit (`git archive`) with
-  `var/tools/mise/shims/python3 -m pip wheel --no-deps --no-index --no-cache-dir --find-links var/tools/wheels -w <output> <source>`,
-  with `SOURCE_DATE_EPOCH` set to the time of the commit. `--no-index` makes the directory the only source, so no build reads the network.
-- The build backend is pinned in `pythonBackend` of `config/toolchain.json`, its one declaration, since it is a tool pin
-  (K166; `buildBackend` of `config/release.json` is gone): `requirement` is the exact requirement of the backend
-  (`setuptools==84.0.0`, which the `[build-system] requires` of the pyproject must equal) and `sha256` is the digest of its wheel
-  from the PyPI release. A config/release.json with a wheel package or the wheel consumer and no `pythonBackend` fails
-  `make kit-check` and the release with the fix. `make install-tools` and `make release-backend` (ONLINE) download it with
-  `pip download --no-deps --only-binary :all: --require-hashes` into `var/tools/wheels` from a requirement file that holds the digest;
-  `release-assets` checks the digest of the file before each build and refuses another. The download is the one network step of a
-  wheel package, and it runs before a release.
+  `var/tools/mise/shims/uv build --wheel --python var/tools/mise/shims/python3 --out-dir <output> <source>`,
+  with `SOURCE_DATE_EPOCH` set to the time of the commit. uv build, the native build frontend, installs the
+  `[build-system].requires` of the package's own pyproject.toml into an isolated build environment (PEP 517/518), so the
+  package pins its build backend there; kit pins and installs none (K788). The build reads the index when uv's cache lacks a
+  requirement, so `release-assets` and `release-candidate-assets` are ONLINE.
 - `release-assets` checks the name and the version of the built wheel; the form of its `Requires-Dist` lines is uv's and pip's to
   resolve (K789). `release-versions` requires the `version` of `[project]` in the pyproject.toml, as for every archive manifest.
 - `release-consumer` installs a wheel into a clean virtual environment of `var/tools/mise/shims/python3`: first uv installs its lock
@@ -1308,12 +1303,6 @@ distribution escapes each run of characters other than word characters and dots 
 
 ```json
 "consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" } } }
-```
-
-config/toolchain.json:
-
-```json
-"pythonBackend": { "requirement": "setuptools==84.0.0", "sha256": "<sha256 of setuptools-84.0.0-py3-none-any.whl>" }
 ```
 
 ## Wheel dependencies (K49)
@@ -1569,7 +1558,7 @@ An implementation may declare either the existing `entry` or a nonempty `entries
 
 A feature unit whose requirements are all explicitly deferred by valid held checklist items retains its source bindings but runs no native cases (K715). The report names it `HELD`, and the execution ledger records no passing evidence for it. A unit mixing active and deferred requirements is rejected rather than silently held. Existing deferred requirements without a unit remain supported.
 
-`symbols` of an implementation declares `{ extractor, entry }`. `parity-check` runs the extractor, which reads the public API of
+`symbols` of an implementation declares `{ extractor, entry }`, and for `python` also `distribution`. `parity-check` runs the extractor, which reads the public API of
 `entry` with the standard tool of its ecosystem, and judges R1 and R11 on what it gives. Nothing is read from a committed
 snapshot, and `parity-declarations-check` runs no extractor.
 
@@ -1578,7 +1567,7 @@ snapshot, and `parity-declarations-check` runs no extractor.
 | `go` | `var/tools/symbols-go/bin/kit-symbols-go`, kit's program on `golang.org/x/tools/go/packages` v0.52.0 | a module directory | `<import path>.<name>`, `<import path>.<type>.<method or field>` of the exported names of each non-internal, non-test package |
 | `ts` | API Extractor 7.59.4 (`@microsoft/api-extractor`, a dependency of kit), its API model | a `.d.ts` entry point, such as the one that tsc 7 emits, in the package of the nearest `package.json`, compiled with that package's `tsconfig.json`, or without one with the library of ESNext and no `@types` | the canonical references, such as `@scope/name!Codec#encode:member(1)` |
 | `php` | `scripts/kit/symbols/php/extract.php` on nikic/php-parser 5.9.0 | a source directory or file, such as the `*.stub.php` of a PHP extension | `Ns\Class`, `Ns\Class::method`, `Ns\Class::CONST`, `Ns\Class::$property`, `Ns\function`, `Ns\CONST` of the public declarations; a class, function, constant, method or property whose docblock carries `@internal` (the tag opens a docblock line, as phpstan and psalm read it) is no public declaration, and a class that carries it hides its members (K307) |
-| `python` | `scripts/kit/symbols/python.py` reads definitions with `ast` and asks setuptools `build_py` for the modules selected by `pyproject.toml`; kit runs it with `uv --offline` and the verified `pythonBackend` wheel | a package directory or a module file | `<module>.<name>` of `__all__`, else of the names without `_`, and `<module>.<class>.<method>`; modules excluded by the build backend are not public |
+| `python` | `scripts/kit/symbols/python.py` reads with `ast` the `.py` files of the installed file list (RECORD, `importlib.metadata.files`) of the distribution that `distribution` names, run by the python of `<entry>/.venv`, the environment that the repository's own install made (non-editable, such as `uv sync --frozen --no-editable`); the modules are those that the build backend installed, the reader discovers none, and kit creates and installs nothing; a missing environment or distribution fails with the error of the start or of Python, and an editable install is refused | the directory of the uv project, whose `.venv` the repository's install made; `distribution` names the distribution | `<module>.<name>` of `__all__`, else of the names without `_`, and `<module>.<class>.<method>`, the module named by its path in site-packages; modules that the build backend excludes are not installed, so not public |
 | `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json` (format 61) | a `Cargo.toml`, its library | `<crate>::<path>` of each public item reachable from the root, re-exports included, with its public fields, variants, inherent items and trait items |
 
 - A repository names `go` and `php` in `symbolExtractors` of `config/toolchain.json`; `make install-tools` then builds the go
@@ -1682,7 +1671,7 @@ such as the other fields of an entry. An example is `^- code: (\w+)$|^  \w+: .*$
     { "name": "go", "runner": "go", "roots": ["packages/go"], "tests": ["packages/go/**/*_test.go"],
       "symbols": { "extractor": "go", "entry": "packages/go" }, "errors": { "file": "packages/go/codes.go", "pattern": "^\\tCode\\w+ = \"(\\w+)\"$" } },
     { "name": "python", "runner": "python", "roots": ["packages/python"], "tests": ["packages/python/tests/*.py"],
-      "symbols": { "extractor": "python", "entry": "packages/python/src/client" }, "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
+      "symbols": { "extractor": "python", "entry": "packages/python", "distribution": "client" }, "errors": { "file": "packages/python/codes.py", "pattern": "^\\w+ = \"(\\w+)\"$" } }
   ],
   "suites": ["tests/**/vectors.json"],
   "comparators": ["tests/conformance/check"],

@@ -71,8 +71,8 @@ and states only its own rules. The rules below are kit's own.
   govulncheck, cargo-audit, cargo-nextest, cargo-deny, Composer, vulture), writes their digests into `mise.lock` with
   `make toolchain-lock` and installs them with `make install-tools`, which runs `mise install --locked` with the mise of the bootstrap. The uv lock of a `pypi:` tool is the sidecar folder
   `.mise/locks/<tool>/<version>` that mise.lock names: kit-written lock data, tracked with mise.lock as mise's documentation
-  says, which `make toolchain-check` fails when Git does not track it (K192). A consumer that publishes a
-  wheel also declares `pythonBackend` in config/toolchain.json. A vendored test checks a consumer's declaration only against
+  says, which `make toolchain-check` fails when Git does not track it (K192). A wheel is built by uv build from the
+  build-system.requires of its own pyproject.toml; kit pins no build backend (K788). A vendored test checks a consumer's declaration only against
   this rule. The vendored dependency tests read go and Composer through stubs that answer from records of the real tools,
   never by running them. The kit's own tests of its real tools are in `tests/source`: kit-sync does not vendor
   them, a source test that runs a pinned tool needs `make install-tools` first, `make source-test` runs them, and CI runs
@@ -99,7 +99,7 @@ and states only its own rules. The rules below are kit's own.
 - Own: Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by
   the targets that kit.mk marks ONLINE (`install-tools`, `release-tools`,
-  `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch` and `release-assets-fetch`), and its
+  `release-assets`, `release-candidate-assets`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch` and `release-assets-fetch`), and its
   result is a committed record, an installation in var/tools or an archive under var/ that config/release-assets.json pins.
   Enforced by: `make kit-test`
 - Own: A dependency advisory is fixed by an update. npm audit, composer audit, cargo audit and govulncheck report

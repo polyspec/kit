@@ -9,8 +9,7 @@ import type { TestContext } from 'node:test';
 import { fixtureCheckout } from './checkout.mts';
 import { checkoutTools } from './checkout-stubs.mts';
 import { toolStubs } from './registry.mts';
-import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
-import { BACKEND_BYTES, BACKEND_FILE, PYTHON3_WHEEL_STUB } from './wheel-stubs.mts';
+import { PYTHON3_WHEEL_STUB, UV_WHEEL_STUB } from './wheel-stubs.mts';
 import type { WheelRequires } from './wheel-stubs.mts';
 import { readFixture } from './json-fixture.mts';
 import { readStub, readStubLines, STUB_CALL, TEXTS } from './stub-json.mts';
@@ -192,13 +191,10 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
   mkdirSync(path.join(root, 'packages/fixture-php/src'), { recursive: true });
   writeFileSync(path.join(root, 'packages/fixture-php/src/Engine.php'), '<?php\n');
   writeFileSync(path.join(root, 'CHANGELOG.md'), changelog);
-  // The build backend of the wheels is pythonBackend of config/toolchain.json (K166); the one of the sandbox is the stand-in of
-  // the wheel tests, so the declared sha256 is the digest of the stand-in.
-  writeJson(root, 'config/toolchain.json', { schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: sha256(BACKEND_BYTES) } });
   mutate(root);
   const bin = path.join(root, '.stubs/bin');
   mkdirSync(bin, { recursive: true });
-  for (const [name, source] of [['gh', GH_STUB], ['python3', PYTHON3_WHEEL_STUB]] as const) {
+  for (const [name, source] of [['gh', GH_STUB], ['python3', PYTHON3_WHEEL_STUB], ['uv', UV_WHEEL_STUB]] as const) {
     writeFileSync(path.join(bin, name), source);
     chmodSync(path.join(bin, name), 0o755);
   }
@@ -218,17 +214,17 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
   git(root, 'commit', '--quiet', '-m', 'release');
   const commit = git(root, 'rev-parse', 'HEAD');
   git(root, 'update-ref', 'refs/remotes/origin/main', commit);
-  // The Python of the checkout is var/tools/mise/shims/python3, the shim of mise: it runs the pip stub, and the build
-  // backend is the stand-in file in var/tools/wheels, which release-backend.mts writes from its pinned download.
-  const python = path.join(root, 'var/tools/mise/shims/python3');
-  mkdirSync(path.dirname(python), { recursive: true });
-  writeFileSync(python, `#!/bin/sh\nexec '${path.join(bin, 'python3')}' "$@"\n`);
-  chmodSync(python, 0o755);
-  mkdirSync(path.join(root, 'var/tools/wheels'), { recursive: true });
-  writeFileSync(path.join(root, 'var/tools/wheels', BACKEND_FILE), BACKEND_BYTES);
+  // The Python and the uv of the checkout are var/tools/mise/shims/python3 and uv, the shims of mise: they run the pip stub and
+  // the uv stub, whose build writes the wheel.
+  for (const name of ['python3', 'uv']) {
+    const shim = path.join(root, 'var/tools/mise/shims', name);
+    mkdirSync(path.dirname(shim), { recursive: true });
+    writeFileSync(shim, `#!/bin/sh\nexec '${path.join(bin, name)}' "$@"\n`);
+    chmodSync(shim, 0o755);
+  }
   const pythonLog = path.join(root, '.stubs/python.log');
   writeFileSync(pythonLog, '');
-  // The tools of the sandbox are the stubs: gh, npm and python3 here, and go and composer answering from their records
+  // The tools of the sandbox are the stubs: gh, npm, python3 and uv here, and go and composer answering from their records
   // (toolStubs), never a go or Composer of the machine, whose release differs between machines.
   const stubs = toolStubs();
   const env = { ...stubs, PATH: `${bin}${path.delimiter}${stubs.PATH}`, STUB_STATE: state, STUB_NPM_LOG: npmLog, STUB_NPM_MODE: '', STUB_PYTHON_LOG: pythonLog, STUB_WHEEL_REQUIRES_FILE: path.join(root, '.stubs/wheel-requires.json') };
@@ -255,9 +251,9 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
     },
     state: () => readStub(state, GH_STATE),
     npmCalls: () => readStubLines(npmLog, STUB_CALL),
-    /** The pip calls of the Python stub, each with its arguments, its directory and the requirements of a -r argument. */
+    /** The uv and pip calls of the Python stubs, each with its arguments, its directory and the requirements of a -r argument. */
     pipCalls: () => readStubLines(pythonLog, PIP_CALL),
-    /** Sets the Requires-Dist lines that the pip stub writes into the wheel it builds. */
+    /** Sets the Requires-Dist lines that the uv stub writes into the wheel it builds. */
     wheelRequires: (lines: WheelRequires) => writeFileSync(env.STUB_WHEEL_REQUIRES_FILE, JSON.stringify(lines)),
   };
   box.checkRuns([['push-gate', 'success'], ['ci-passed', 'success']]);

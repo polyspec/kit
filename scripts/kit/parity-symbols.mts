@@ -1,8 +1,9 @@
 // The symbol extractors of the language-parity check (R1 and R11). An implementation that declares `symbols: { extractor,
 // entry }` or `entries` has its public API read by the standard tool of its ecosystem, never by a parser of kit, in the full
 // check; nothing is read from a saved snapshot. Each input gives public symbol ids, combined when `entries` is declared:
-//   python  scripts/kit/symbols/python.py, the standard library's ast, run by the python3 of mise.toml -I on a package directory
-//           or a module file; ids <module>.<name> and <module>.<class>.<method>
+//   python  scripts/kit/symbols/python.py, the standard library's ast, on the installed file list (RECORD) of the declared
+//           distribution, run by the python of <entry>/.venv, the environment that the repository's own install made for its
+//           uv project; kit creates and installs nothing; ids <module>.<name> and <module>.<class>.<method>
 //   go      var/tools/symbols-go/bin/kit-symbols-go (scripts/kit/symbols/go), golang.org/x/tools/go/packages, on a module
 //           directory; ids <import path>.<name> and <import path>.<type>.<method or field>; install-tools builds it when
 //           config/toolchain.json symbolExtractors names go
@@ -16,18 +17,16 @@
 //   ts      the API model of API Extractor (@microsoft/api-extractor) of a .d.ts entry point, such as the one that tsc emits,
 //           in the package of the nearest package.json; ids the canonical references, such as @scope/name!Codec#encode:member(1)
 // An extractor that cannot run, fails or prints no list of ids is a finding that names the implementation and the command.
-import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Extractor as ApiExtractor, ExtractorConfig } from '@microsoft/api-extractor';
 import { ApiModel } from '@microsoft/api-extractor-model';
 import type { ApiItem } from '@microsoft/api-extractor-model';
-import { toolCommand } from './mise-tools.mts';
 import { finding, symbolEntries } from './parity-declaration.mts';
-import type { Environment, Extractor, Finding, ParityModel } from './parity-declaration.mts';
+import type { Environment, Extractor, Finding, ParityModel, ParitySymbolEntry } from './parity-declaration.mts';
 import { execute } from './process.mts';
 import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
-import { buildBackend, verifyBackend } from './release-wheel.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
 import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
@@ -54,40 +53,15 @@ function listed(root: string, command: string, args: string[], env: Environment)
   }
 }
 
-/** The nearest Python project manifest above a source entry, if it exists. */
-function pythonProject(entry: string): string | undefined {
-  let directory = entry;
-  if (!statSync(entry).isDirectory()) directory = path.dirname(entry);
-  for (;;) {
-    const manifest = path.join(directory, 'pyproject.toml');
-    if (existsSync(manifest)) return manifest;
-    const parent = path.dirname(directory);
-    if (parent === directory) return undefined;
-    directory = parent;
-  }
-}
-
-/** Runs the Python symbol reader with the pinned setuptools wheel when package discovery metadata is present. */
-export function pythonListed(root: string, entry: string, env: Environment, flags: string[] = []): Extracted {
-  let python: string;
-  try {
-    python = toolCommand(root, 'python3');
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
-  }
-  const script = path.join(SYMBOLS, 'python.py');
-  try {
-    if (pythonProject(path.resolve(root, entry)) === undefined) return listed(root, python, ['-I', script, entry, ...flags], env);
-    const backend = buildBackend(root);
-    if (!/^setuptools==/i.test(backend.requirement)) {
-      return { error: `Python package discovery needs setuptools, but config/toolchain.json declares ${backend.requirement}` };
-    }
-    const wheel = verifyBackend(root, backend.requirement, backend.sha256);
-    const uv = toolCommand(root, 'uv');
-    return listed(root, uv, ['run', '--offline', '--no-project', '--python', python, '--with', wheel, 'python', '-I', script, entry, ...flags], env);
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
-  }
+/**
+ * The public symbols of the Python `distribution` of the uv project `project`, read by the python of its environment
+ * `project`/.venv, which the repository's own install made: the installed file list (RECORD) of its non-editable install holds
+ * the modules that the build backend selected. The python of the environment runs directly, since uv run creates a missing
+ * environment even with --no-sync; kit creates and installs nothing, and a missing environment or distribution fails with
+ * the error of the start or of Python.
+ */
+export function pythonListed(root: string, project: string, distribution: string, env: Environment, flags: string[] = []): Extracted {
+  return listed(root, path.join(root, project, '.venv', 'bin', 'python'), ['-I', path.join(SYMBOLS, 'python.py'), distribution, ...flags], env);
 }
 
 /** The directory of the nearest package.json at or above the directory of `file`, or undefined. */
@@ -242,22 +216,23 @@ function withLeaks(symbols: Extracted, leaks: () => Extracted): Extracted {
 }
 
 // Each extractor: the public symbol ids of `entry` in the checkout `root`.
-const EXTRACTORS: Record<Extractor, (root: string, entry: string, env: Environment, features?: string[]) => Extracted> = {
-  go: (root, entry, env) => {
+const EXTRACTORS: Record<Extractor, (root: string, input: ParitySymbolEntry, env: Environment) => Extracted> = {
+  go: (root, { entry }, env) => {
     const command = path.join(symbolsPrefix(root, 'go'), 'bin', 'kit-symbols-go');
     if (!existsSync(command)) return { error: `${path.relative(root, command)} does not exist; name go in symbolExtractors of config/toolchain.json and run make install-tools` };
     return listed(root, command, [entry], env);
   },
-  php: (root, entry, env) => {
+  php: (root, { entry }, env) => {
     const autoload = path.join(symbolsPrefix(root, 'php'), 'vendor', 'autoload.php');
     if (!existsSync(autoload)) return { error: `${path.relative(root, autoload)} does not exist; name php in symbolExtractors of config/toolchain.json and run make install-tools` };
     return withLeaks(listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env), () => listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry, '--leaks'], env));
   },
-  python: (root, entry, env) => {
-    return withLeaks(pythonListed(root, entry, env), () => pythonListed(root, entry, env, ['--leaks']));
+  python: (root, { entry, distribution }, env) => {
+    if (distribution === undefined) return { error: `the python symbols of ${entry} name no distribution` };
+    return withLeaks(pythonListed(root, entry, distribution, env), () => pythonListed(root, entry, distribution, env, ['--leaks']));
   },
-  rust: (root, entry, env, features) => rustdoc(root, entry, env, features),
-  ts: (root, entry) => apiModel(root, entry),
+  rust: (root, { entry, features }, env) => rustdoc(root, entry, env, features),
+  ts: (root, { entry }) => apiModel(root, entry),
 };
 
 /**
@@ -279,10 +254,11 @@ export function extractSymbols(model: ParityModel, root: string, { env, say }: {
     const symbols: string[] = [];
     const perEntry = new Map<string, Set<string>>();
     let failed = false;
-    for (const { entry, features } of entries) {
+    for (const input of entries) {
+      const { entry, features } = input;
       const label = features === undefined ? entry : `${entry} (features: ${features.join(', ')})`;
       say(`extract the symbols of ${implementation.name}: ${extractor} ${label}`);
-      const extracted = EXTRACTORS[extractor](root, entry, env, features);
+      const extracted = EXTRACTORS[extractor](root, input, env);
       if (extracted.error !== undefined) {
         failed = true;
         findings.push(finding('R1', `the ${extractor} extractor of ${label} gives no symbols: ${extracted.error}`, { implementation: implementation.name, place: label }));

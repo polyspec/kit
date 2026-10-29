@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // Checks the configuration of a repository without a network (`make kit-check`): config/*.json against the schemas of kit, a
-// config/release.json with a wheel package or the wheel consumer against pythonBackend of config/toolchain.json, which the
-// wheels need, a repository that needs PHP against .php-version, the PHP that CI and the release workflow set up (K193), and no
+// repository that needs PHP against .php-version, the PHP that CI and the release workflow set up (K193), and no
 // recipe of the Makefile starts a tool of the checkout by its bare name (recipe-tools.mts, K171), no target of the Makefile
 // repeats a fixed task of kit.mk under another name and each runtime of packages/ has its targets (K246). Whether the copies
 // of kit match the installed package is npm's and kit-sync's business, not a check (K799).
@@ -12,7 +11,6 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readConfig, readConfigFindings, SCHEMAS } from './schema-validate.mts';
-import { backendFinding, type WheelUsers } from './release-wheel.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readNpmManifest } from './manifests.mts';
 import { PHPUNIT_MANIFEST, toolchainConfig } from './bootstrap/toolchain-declared.mts';
@@ -74,7 +72,7 @@ export function installedKit(root: string): { version: string; copies: { file: s
   return { version: installed.version ?? 'without a version', copies: copiesOf(installed) };
 }
 
-// The release configuration, whose wheels need pythonBackend of config/toolchain.json.
+// The release configuration, whose Composer packages and consumer need PHP.
 const RELEASE = 'config/release.json';
 
 // The file of the PHP minor release that CI and the release workflow set up (shivammathur/setup-php php-version-file).
@@ -118,10 +116,7 @@ export function checkConfig(root: string): string[] {
     for (const error of errors ?? []) found.push(`${error}. Rule: the schema ${schemaFile} of ${PACKAGE}`);
   }
   if (found.length) return found;
-  // A release whose configuration holds its schema needs the build backend that config/toolchain.json declares (K166).
-  const release = existsSync(path.join(root, RELEASE)) ? readConfig<WheelUsers & PhpUsers>(root, RELEASE, 'release.schema.json') : undefined;
-  const backend = release && backendFinding(root, release);
-  if (backend) found.push(backend);
+  const release = existsSync(path.join(root, RELEASE)) ? readConfig<PhpUsers>(root, RELEASE, 'release.schema.json') : undefined;
   // A repository that needs PHP declares the PHP that CI and the release set up (K193).
   const php = phpVersionFinding(root, release);
   if (php) found.push(php);

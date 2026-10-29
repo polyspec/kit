@@ -24,25 +24,6 @@
         "pattern": "^\\d+\\.\\d+$"
       }
     },
-    "pythonBackend": {
-      "description": "The build backend of the Python wheels: the exact requirement of the wheel, and its sha256 from the PyPI release. install-tools downloads it into var/tools/wheels with the digest checked.",
-      "type": "object",
-      "required": [
-        "requirement",
-        "sha256"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "requirement": {
-          "type": "string",
-          "pattern": "^[A-Za-z0-9._-]+==\\d+(\\.\\d+)*$"
-        },
-        "sha256": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$"
-        }
-      }
-    },
     "phpunit": {
       "description": "The PHPUnit release of the PHP tests of kit: install-tools installs the Composer project of config/phpunit (composer.json and composer.lock) into var/tools/phpunit with the Composer of mise.toml.",
       "type": "object",

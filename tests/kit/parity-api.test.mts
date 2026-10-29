@@ -5,7 +5,7 @@ import * as parity from './parity-support.mts';
 const {
   CASE_DIRECTORIES, CONFIG, ENV, FEATURE,
   FEATURE_FILES, FILES, INTERNAL, KIT_MAKE,
-  NODE_CODEC, PYTHON_BACKEND, TIMEOUT, TS_API,
+  NODE_CODEC, TIMEOUT, TS_API,
   binding, bindinglessCatches, caseDirectories, check,
   checkParity, chmodSync, coveragePartChange, emptyCatches,
   existsSync, feature, findingAt, initRepository,
@@ -199,7 +199,7 @@ test('an API unit without symbols fails the declaration and names the unit, and 
 
 test('the rust extractor runs the Rust nightly of the exception whose scope holds the crate, and names a missing one (K75)', TIMEOUT, (t) => {
   const exception = (channel: string, scope = '.') => ({ tool: 'rust', channel, scope, reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' });
-  const messages = (exceptions: unknown[]) => check(t, { files: { 'config/toolchain.json': JSON.stringify({ schema: 1, pythonBackend: PYTHON_BACKEND,
+  const messages = (exceptions: unknown[]) => check(t, { files: { 'config/toolchain.json': JSON.stringify({ schema: 1,
     requirements: { pattern: 'CX-[0-9]+' }, exceptions }) } }).findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`);
   assert.deepEqual(messages([exception('nightly-2026-10-01', 'rust')]), []);
   const [none] = messages([exception('nightly-2026-10-01', 'go')]);
@@ -260,6 +260,25 @@ test('Rust symbol entries combine crate APIs and run each declared feature selec
     return config;
   } }, { execute: false });
   assert.equal(nonRustFeatures.findings[0]?.rule, 'declaration');
+});
+
+// K788: the python extractor reads the installed file list of a distribution, so every python input names it, and no other
+// extractor takes one.
+test('the python symbols name the distribution of each input, and no other extractor takes one (K788)', TIMEOUT, (t) => {
+  const declaration = (name: string, symbols: unknown) => check(t, { edit: config => {
+    itemWhere(config.implementations, (implementation: { name: string }) => implementation.name === name).symbols = symbols;
+    return config;
+  } }, { execute: false }).findings.filter(finding => finding.rule === 'declaration').length;
+  assert.equal(declaration('python', { extractor: 'python', entry: 'python', distribution: 'codec' }), 0);
+  assert.equal(declaration('python', { extractor: 'python', entries: [{ entry: 'python', distribution: 'codec' }] }), 0);
+  for (const invalid of [
+    { extractor: 'python', entry: 'python' },
+    { extractor: 'python', entries: [{ entry: 'python' }] },
+    { extractor: 'python', entries: [{ entry: 'python', distribution: 'codec' }], distribution: 'codec' },
+    { extractor: 'python', entry: 'python', distribution: 'not a name' },
+  ]) assert.ok(declaration('python', invalid) > 0, JSON.stringify(invalid));
+  assert.ok(declaration('go', { extractor: 'go', entry: 'go', distribution: 'codec' }) > 0);
+  assert.ok(declaration('go', { extractor: 'go', entries: [{ entry: 'go', distribution: 'codec' }] }) > 0);
 });
 
 test('K719 scopes API symbols to a release package entry without narrowing shared APIs', TIMEOUT, (t) => {
@@ -515,11 +534,10 @@ test('R3: a binding whose runner cannot start fails, and a check of the declarat
   const root = repository(t);
   rmSync(path.join(root, 'var/tools/mise/shims/python3'));
   const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
-  // The python extractor, which the stub implementations use, cannot start either. A tool that the checkout lacks is the finding
-  // of its runs, naming the tool and its install, and no error ends the check (K393-2).
-  assert.deepEqual(keys(missing), ['R1 - python', 'R3 codec python', 'R3 width python', 'R3 size python']);
-  assert.match(findingAt(missing, 0).message, /the python extractor of python\/symbols\.txt gives no symbols: python3 of the checkout is missing .*run make install/);
-  assert.match(findingAt(missing, 1).message, /python3 of the checkout is missing .*run make install/);
+  // A tool that the checkout lacks is the finding of its runs, naming the tool and its install, and no error ends the check
+  // (K393-2). The python extractor runs in the environment of the project, not with python3 of the checkout (K788).
+  assert.deepEqual(keys(missing), ['R3 codec python', 'R3 width python', 'R3 size python']);
+  assert.match(findingAt(missing, 0).message, /python3 of the checkout is missing .*run make install/);
   // An extractor that install-tools did not build names the declaration and the install.
   const unbuilt = check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null, 'var/tools/symbols-php/vendor/autoload.php': null } }).findings;
   assert.deepEqual(keys(unbuilt), ['R1 - go', 'R1 - php']);

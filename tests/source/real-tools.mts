@@ -3,13 +3,11 @@
 // gets a script for each tool, as its own shim, that runs the binary that mise installed for this checkout.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
-import { readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
-import { buildBackend, verifyBackend } from '../../scripts/kit/release-wheel.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -39,16 +37,15 @@ export function sandboxMise(root: string): void {
   writeFileSync(path.join(bin, 'mise'), `#!/bin/sh\ncd '${ROOT}' && exec '${toolCommand(ROOT, 'mise')}' "$@"\n`, { mode: 0o755 });
 }
 
-/** Gives a temporary Python discovery fixture the pinned backend declaration, wheel and uv of this checkout. */
-export function sandboxPythonProjectBackend(root: string): void {
-  const backend = buildBackend(ROOT);
-  const source = verifyBackend(ROOT, backend.requirement, backend.sha256);
-  const wheel = path.join(toolsPath(root, 'wheels'), path.basename(source));
-  mkdirSync(path.dirname(wheel), { recursive: true });
-  copyFileSync(source, wheel);
-  const config = path.join(root, 'config/toolchain.json');
-  mkdirSync(path.dirname(config), { recursive: true });
-  const current = existsSync(config) ? readJsonObject(config) : { schema: 1 };
-  writeFileSync(config, `${JSON.stringify({ ...current, pythonBackend: backend }, null, 2)}\n`);
-  sandboxShims(root, ['uv']);
+/**
+ * Installs the uv project `project` as its repository's own install does, with the uv and the python3 of this checkout and
+ * offline: uv lock, then uv sync --frozen, non-editable unless `editable`. The parity reader of a Python distribution reads
+ * that environment and installs nothing.
+ */
+export function installProject(project: string, { editable = false } = {}): void {
+  const uv = toolCommand(ROOT, 'uv');
+  for (const args of [['lock', '--offline'], ['sync', '--frozen', '--offline', '--python', toolCommand(ROOT, 'python3'), ...(editable ? [] : ['--no-editable'])]]) {
+    const done = spawnSync(uv, [...args, '--project', project], { cwd: project, encoding: 'utf8', env: toolsEnvironment(ROOT) });
+    assert.equal(done.status, 0, `uv ${args[0]} of ${project} failed: ${done.stderr}`);
+  }
 }

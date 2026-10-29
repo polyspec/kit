@@ -23,10 +23,8 @@ import { known } from './known.mts';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { bindinglessCatches, emptyCatches } from '../../scripts/kit/catch-check.mts';
-import { BACKEND_BYTES, BACKEND_FILE } from './wheel-stubs.mts';
 
 const TIMEOUT = { timeout: 120_000 };
-const PYTHON_BACKEND = { requirement: 'setuptools==84.0.0', sha256: sha256(BACKEND_BYTES) };
 // A declaration config/parity.json that a case edits, also into a shape that breaks the schema on purpose: each type names
 // the fields that the cases read, and every value that a case replaces is unknown.
 type Entry = { [field: string]: unknown };
@@ -216,12 +214,13 @@ process.exit(exit);
 // The stub of Python (`python3 <args> -m unittest -v <test>`), which writes its verbose results to standard error: a line
 // `<method> (<module>.<class>.<method>) ... ok` for each `PASS <method>` line of the test file, `FAIL` for a `FAIL` line.
 // With REQUIRE_SOURCE it reports nothing and exits with 3 unless CODEC_SOURCE is python/src and -B is its first argument. Run as
-// the python symbol extractor (\`-I <kit>/symbols/python.py <entry>\`), it prints the lines of the entry file as a JSON array.
+// the python symbol extractor, the python of <project>/.venv (\`-I <kit>/symbols/python.py <distribution>\`), it prints the
+// lines of symbols.txt of the project as a JSON array.
 const PY_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const args = process.argv.slice(2);
 if (args[0] === '-I' && args[1].endsWith('/symbols/python.py')) {
-  const listed = fs.readFileSync(args[2], 'utf8').split('\\n').filter(Boolean);
+  const listed = fs.readFileSync(require('path').join(process.argv[1], '../../../symbols.txt'), 'utf8').split('\\n').filter(Boolean);
   console.log(JSON.stringify(args.includes('--leaks') ? listed.filter(line => line.startsWith('LEAK ')).map(line => line.slice(5)) : listed.filter(line => !line.startsWith('LEAK '))));
   process.exit(0);
 }
@@ -239,19 +238,6 @@ for (const line of fs.readFileSync(file, 'utf8').split('\\n')) {
   if (status) exit = Number(status[1]);
 }
 process.exit(exit);
-`;
-
-// The uv stand-in of this declaration fixture: package symbol extraction still receives the pinned backend wheel through the
-// normal uv command shape, then runs the Python shim with the requested extractor arguments.
-const UV_STUB = `#!/usr/bin/env node
-const path = require('node:path');
-const { spawnSync } = require('node:child_process');
-const args = process.argv.slice(2);
-const python = args.indexOf('python');
-if (args[0] !== 'run' || python < 0) { process.stderr.write('uv stub: unexpected arguments ' + JSON.stringify(args) + '\\n'); process.exit(2); }
-const result = spawnSync(path.join(process.cwd(), 'var/tools/mise/shims/python3'), args.slice(python + 1), { stdio: 'inherit' });
-if (result.error) { process.stderr.write(result.error.message + '\\n'); process.exit(1); }
-process.exit(result.status ?? 1);
 `;
 
 const STUBS = mkdtempSync(path.join(tmpdir(), 'kit-parity-stubs-'));
@@ -310,10 +296,9 @@ const FILES = {
   'go/symbols.txt': 'go/codec.go::Encode\n',
   'rust/symbols.txt': 'encode\n',
   // rustdoc JSON is unstable, so the rust extractor runs the Rust nightly that an exception declares.
-  'config/toolchain.json': JSON.stringify({ schema: 1, pythonBackend: PYTHON_BACKEND,
+  'config/toolchain.json': JSON.stringify({ schema: 1,
     requirements: { pattern: 'CX-[0-9]+' }, exceptions: [{ tool: 'rust', channel: 'nightly-2026-10-01', scope: '.', reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' }] }),
-  [`var/tools/wheels/${BACKEND_FILE}`]: BACKEND_BYTES,
-  'var/tools/mise/shims/uv': UV_STUB,
+  'python/.venv/bin/python': PY_STUB,
   'ts/package.json': '{ "name": "codec-ts", "version": "0.0.0" }\n',
   'ts/index.d.ts': TS_API('export declare const encode: () => number;'),
   'php/symbols.txt': 'php/src/Codec.php::Codec::encode\n',
@@ -333,7 +318,7 @@ const CONFIG = {
     { name: 'rust', runner: 'cargo', roots: ['rust'], tests: ['rust/tests/*.rs'], symbols: { extractor: 'rust', entry: 'rust/Cargo.toml' }, errors: { file: 'rust/src/codes.rs', pattern: '^pub const \\w+: &str = "(\\w+)";$' } },
     { name: 'ts', runner: 'node', roots: ['ts'], tests: ['ts/tests/*.mjs'], symbols: { extractor: 'ts', entry: 'ts/index.d.ts' }, errors: { file: 'ts/src/codes.ts', pattern: "^export const \\w+ = '(\\w+)';$" } },
     { name: 'php', runner: 'php', roots: ['php'], tests: ['php/tests/*.php'], symbols: { extractor: 'php', entry: 'php' }, errors: { file: 'php/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" } },
-    { name: 'python', runner: 'python', roots: ['python'], tests: ['python/tests/*.py'], symbols: { extractor: 'python', entry: 'python/symbols.txt' }, errors: { file: 'python/codes.py', pattern: '^\\w+ = "(\\w+)"$' } },
+    { name: 'python', runner: 'python', roots: ['python'], tests: ['python/tests/*.py'], symbols: { extractor: 'python', entry: 'python', distribution: 'codec' }, errors: { file: 'python/codes.py', pattern: '^\\w+ = "(\\w+)"$' } },
   ],
   suites: ['tests/vectors/*.json'],
   comparators: ['tests/compare'],
@@ -409,7 +394,7 @@ function repository(t: TestContext, { files = {}, edit = config => config }: Cha
   const root = tree(t, Object.fromEntries(Object.entries(all).filter(([, text]) => text !== null)));
   chmodSync(path.join(root, 'var/tools/mise/shims/python3'), 0o755);
   chmodSync(path.join(root, 'var/tools/mise/shims/composer'), 0o755);
-  chmodSync(path.join(root, 'var/tools/mise/shims/uv'), 0o755);
+  if (all['python/.venv/bin/python'] !== null) chmodSync(path.join(root, 'python/.venv/bin/python'), 0o755);
   if (all['var/tools/symbols-go/bin/kit-symbols-go'] !== null) chmodSync(path.join(root, 'var/tools/symbols-go/bin/kit-symbols-go'), 0o755);
   return root;
 }
@@ -939,12 +924,12 @@ function pythonEncodingFindings(t: TestContext, edit: (config: Declaration) => D
 
 
 export {
-  BACKEND_BYTES, BACKEND_FILE, CARGO_STUB, CASE_DIRECTORIES,
+  CARGO_STUB, CASE_DIRECTORIES,
   CONFIG, ENV, FEATURE, FEATURE_FILES,
   FILES, GO_STUB, GO_SYMBOLS_STUB, INTERNAL,
   KIT, KIT_MAKE, NODE_CODEC, PHP_STUB,
-  PYTHON_BACKEND, PY_STUB, STUBS, TIMEOUT,
-  TS_API, UV_STUB, VITEST_STUB, binding,
+  PY_STUB, STUBS, TIMEOUT,
+  TS_API, VITEST_STUB, binding,
   bindinglessCatches, caseDirectories, check, checkParity,
   checkedFiles, chmodSync, commandOf, coveragePartChange,
   emptyCatches, existsSync, feature, findingAt,

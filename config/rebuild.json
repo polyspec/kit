@@ -354,10 +354,6 @@
       "kind": "policy",
       "reason": "polyspec's pins of the release archives of its own repositories, which no registry serves, by version and sha256 under var/; the download is the fetch of Node.js and the extraction unzip"
     },
-    "scripts/kit/release-backend.mts": {
-      "kind": "ecosystem",
-      "tool": "pip download of the declared wheels"
-    },
     "scripts/kit/release-consumer-config.mts": {
       "kind": "policy",
       "reason": "release-please, changesets and semantic-release version and publish, but none proves a consumer install of every archive; their tag ordering goes to semver in K73"
@@ -492,7 +488,7 @@
     },
     "scripts/kit/symbols/python.py": {
       "kind": "ecosystem",
-      "tool": "ast of the Python standard library (K75)"
+      "tool": "ast of the Python standard library on the installed file list of importlib.metadata (K75, K788)"
     },
     "scripts/kit/bypass-check.mts": {
       "kind": "policy",

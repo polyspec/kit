@@ -5,8 +5,7 @@
 //
 // mise installs every tool of mise.toml at the release and digest of mise.lock (`mise install --locked`, by the wrapper
 // var/tools/bin/mise, which keeps mise and the builds of its tools under var/tools/mise); a tool that mise.lock does not pin
-// fails the install. Then kit installs what mise does not: the build backend of the Python wheels (config/toolchain.json
-// pythonBackend, by the sha256 of its wheel), the Composer projects of config/phpunit (phpunit) and config/php-lint, the Rust
+// fails the install. Then kit installs what mise does not: the Composer projects of config/phpunit (phpunit) and config/php-lint, the Rust
 // toolchain of rust-toolchain.toml with its components and the Rust channels of config/toolchain.json exceptions (install-rust.mts,
 // with rustup, which stays the toolchain manager of Rust), PHP's pinned arginfo parser when packages/php-ext is declared, and the symbol
 // extractors of symbolExtractors, which build with the Go and the Composer of mise. Each is installed only when it is declared, and an install of the release that is present changes
@@ -25,9 +24,7 @@ import { installPhpLint, PHP_LINT_WRAPPERS } from './install-php-lint.mts';
 import { installPhpunit, PHPUNIT_WRAPPERS } from './install-phpunit.mts';
 import { installRustChannels, installRustToolchain } from './install-rust.mts';
 import { installExtractor } from './install-symbols.mts';
-import { toolsEnvironment } from './mise-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { installBackend } from './release-backend.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
 import { declaredLintTools } from './toolchain-lint.mts';
 import { declaredMiseTools, MISE_TOOLS } from './toolchain-mise.mts';
@@ -41,7 +38,7 @@ const isInstallSelector = (tool: string): tool is InstallSelector => SELECTORS.s
 const isMiseSelector = (tool: InstallSelector): tool is keyof typeof MISE_TOOLS => Object.hasOwn(MISE_TOOLS, tool);
 
 function installSelection(root: string, selected: readonly string[] | undefined) {
-  if (selected === undefined) return { all: true, mise: [] as string[], php: true, phpunit: true, phpLint: true, pythonBackend: true, rust: true, arginfo: true, symbols: true };
+  if (selected === undefined) return { all: true, mise: [] as string[], php: true, phpunit: true, phpLint: true, rust: true, arginfo: true, symbols: true };
   if (selected.length === 0 || selected.some(tool => tool.trim() === '')) throw new Error(`TOOLS must name one or more declared tool selectors; choose ${SELECTORS.join(', ')}`);
   const selectors = selected.filter(isInstallSelector);
   const unknown = selected.filter(tool => !isInstallSelector(tool));
@@ -70,7 +67,6 @@ function installSelection(root: string, selected: readonly string[] | undefined)
   let php = selected.includes('php') || selected.includes('composer');
   let phpunit = selected.includes('phpunit');
   let phpLint = selected.includes('phpcs') || selected.includes('phpstan');
-  const pythonBackend = selected.includes('python');
   const rustSelected = selected.includes('rust');
   for (const tool of selectors) {
     if (isMiseSelector(tool)) mise.add(MISE_TOOLS[tool].key);
@@ -88,7 +84,7 @@ function installSelection(root: string, selected: readonly string[] | undefined)
     const tool = MISE_TOOLS[name];
     if (mise.has(tool.key) && !declaredMise[name]) throw new Error(`${name} is needed by the selected TOOLS, but mise.toml does not declare ${tool.key}`);
   }
-  return { all: false, mise: [...mise], php, phpunit, phpLint, pythonBackend, rust: rustSelected, arginfo: false, symbols: false };
+  return { all: false, mise: [...mise], php, phpunit, phpLint, rust: rustSelected, arginfo: false, symbols: false };
 }
 
 /** Installs the tools of mise.lock and the declared tools that mise does not install into var/tools of `root`. */
@@ -105,18 +101,16 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
   const exceptions = readExceptions(root);
   if (exceptions.findings.length > 0) throw new Error(exceptions.findings.join('\n'));
   const rustChannels = selection.rust ? [...new Set(exceptions.exceptions.filter(exception => exception.tool === 'rust').map(exception => exception.channel))] : [];
-  const { pythonBackend, phpunit, php, symbolExtractors } = declaredToolchain(root);
+  const { phpunit, php, symbolExtractors } = declaredToolchain(root);
   const { phpLint } = declaredLintTools(root);
   // var/tools/bin comes first on PATH, so a wrapper that kit no longer writes would shadow the shims of mise in this run too.
   if (selection.all) removeStaleWrappers(root, [MISE_WRAPPER, NODE_WRAPPER, ...Object.keys(NPM_WRAPPERS), ...(php ? PHP_WRAPPERS : []), ...(phpunit ? Object.keys(PHPUNIT_WRAPPERS) : []), ...(phpLint ? Object.keys(PHP_LINT_WRAPPERS) : [])], print);
   else removeStaleWrappers(root, [], print, selectedStaleWrappers(selection.mise));
   // The wrapper sets the environment of mise itself; the installs of kit that follow run the tools of mise.
   if (selection.all || selection.mise.length > 0) run(mise, ['install', '--locked', ...(selection.all ? [] : selection.mise)], { cwd: root, env: process.platform === 'win32' ? miseInstallEnvironment(root) : process.env }, print);
-  const env = toolsEnvironment(root);
   // The wrappers of php come before the installs that run Composer, so that Composer runs on the pinned PHP.
   if (selection.php && php) installPhp({ root, print });
   if (selection.arginfo && php && existsSync(path.join(root, 'packages/php-ext'))) installPhpArginfo({ root, print });
-  if (selection.pythonBackend && pythonBackend) installBackend({ root, env, requirement: pythonBackend.requirement, digests: [pythonBackend.sha256], source: pythonBackend.source, print });
   if (selection.phpunit && phpunit) installPhpunit({ root, declared: phpunit, print });
   if (selection.phpLint && phpLint) installPhpLint({ root, declared: phpLint, print });
   if (selection.rust && existsSync(path.join(root, 'rust-toolchain.toml'))) installRustToolchain({ root, print });

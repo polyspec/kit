@@ -1,33 +1,27 @@
-// Tests of the Python wheel package kind: the PEP 427 name, the build from the tagged commit with the pinned build backend,
-// the refusal of a Requires-Dist that is not a plain name==version, the version in pyproject.toml, the download of the
-// build backend (release-backend.mts) and the consumer install with --require-hashes (release-consumer.mts). The Python of
-// the sandbox is the pip stub of wheel-stubs.mts; no test reaches an index.
+// Tests of the Python wheel package kind: the PEP 427 name, the build from the tagged commit with uv build, the refusal of a
+// Requires-Dist that is not a plain name==version, the version in pyproject.toml and the consumer install with --require-hashes
+// (release-consumer.mts). The uv and the Python of the sandbox are the stubs of wheel-stubs.mts; no test reaches an index.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { sha256, fileDigest } from '../../scripts/kit/bootstrap/digest.mts';
+import { fileDigest } from '../../scripts/kit/bootstrap/digest.mts';
 import * as release from '../../scripts/kit/release.mts';
 import * as wheel from '../../scripts/kit/release-wheel.mts';
-import * as backend from '../../scripts/kit/release-backend.mts';
 import * as consumer from '../../scripts/kit/release-consumer.mts';
 import { Stop } from '../../scripts/kit/process.mts';
 import { readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
-import { BACKEND_BYTES, BACKEND_FILE } from './wheel-stubs.mts';
 import { GENERATOR_WHEEL, SIBLING_WHEEL, addSibling, generatorRequires, siblingLine } from './sibling-sandbox.mts';
 
 type Box = ReturnType<typeof releaseSandbox>;
 
 const stop = (fn: () => unknown, pattern: RegExp) => assert.throws(fn, error => error instanceof Stop && pattern.test(error.message), String(pattern));
-const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const WHEEL = 'kit_fixture-0.0.1-py3-none-any.whl';
 const PYPROJECT = 'packages/fixture-python/pyproject.toml';
-const BACKEND_SHA = sha256(BACKEND_BYTES);
 const context = (box: Box) => release.context(box.root, { env: box.env });
-const backendPath = (box: Box) => path.join(box.root, 'var/tools/wheels', BACKEND_FILE);
 const editPyproject = (root: string, change: (text: string) => string) => writeFileSync(path.join(root, PYPROJECT), change(readFileSync(path.join(root, PYPROJECT), 'utf8')));
 
 test('a wheel is named by PEP 427 and the archive names of the configuration hold it', (t) => {
@@ -36,7 +30,7 @@ test('a wheel is named by PEP 427 and the archive names of the configuration hol
   assert.ok(release.assetNames(release.loadConfig(box.root), '0.0.1').includes(WHEEL));
 });
 
-test('assets builds the wheel of the tagged commit offline with the pinned build backend', (t) => {
+test('assets builds the wheel of the tagged commit with uv build, which installs the build-system.requires of its pyproject', (t) => {
   const box = releaseSandbox(t);
   const tag = box.release('0.0.1');
   const names = release.assets(context(box), tag);
@@ -46,69 +40,23 @@ test('assets builds the wheel of the tagged commit offline with the pinned build
   const metadata = spawnSync('unzip', ['-p', file, '*.dist-info/METADATA'], { encoding: 'utf8' }).stdout;
   assert.match(metadata, /^Name: kit-fixture$/m);
   assert.match(metadata, /^Version: 0\.0\.1$/m);
-  const [build] = box.pipCalls().filter(call => call.args[2] === 'wheel');
-  assert.ok(build, 'pip wheel ran once');
-  for (const flag of ['--no-deps', '--no-index']) assert.ok(build.args.includes(flag), `${flag} is passed`);
-  const find = build.args.indexOf('--find-links');
-  assert.deepEqual(build.args.slice(find, find + 2), ['--find-links', path.join(box.root, 'var/tools/wheels')], 'the backend is the only index');
+  const builds = box.pipCalls().filter(call => call.args[0] === 'build');
+  const [build] = builds;
+  assert.ok(build && builds.length === 1, 'uv build ran once');
+  assert.deepEqual(build.args.slice(0, -1), ['build', '--wheel', '--python', path.join(box.root, 'var/tools/mise/shims/python3'), '--out-dir', path.join(box.root, `${release.ASSETS}.next-${process.pid}`)], 'the native build frontend, with the Python of the checkout');
   assert.ok(!build.args.at(-1)?.startsWith(box.root), 'the wheel is built from a copy of the tagged commit, not the working tree');
 });
 
-test('assets refuses a pyproject.toml whose project name differs from the configuration before it builds', (t) => {
+test('assets refuses a wheel whose project name differs from the configuration, by the archive that it builds', (t) => {
   const box = releaseSandbox(t, { mutate: (root: string) => editPyproject(root, text => text.replace('name = "kit-fixture"', 'name = "other-name"')) });
   const tag = box.release('0.0.1');
-  stop(() => release.assets(context(box), tag), /packages\/fixture-python\/pyproject\.toml: name other-name, config\/release\.json declares kit-fixture/);
-  assert.deepEqual(box.pipCalls(), []);
-});
-
-test('assets refuses a pyproject whose build backend is not the pinned requirement, before it builds', (t) => {
-  const box = releaseSandbox(t, { mutate: (root: string) => editPyproject(root, text => text.replace('setuptools==84.0.0', 'setuptools==83.0.0')) });
-  const tag = box.release('0.0.1');
-  stop(() => release.assets(context(box), tag), /build-system\.requires is \["setuptools==83\.0\.0"\], config\/toolchain\.json pythonBackend pins setuptools==84\.0\.0/);
-  assert.deepEqual(box.pipCalls(), []);
-});
-
-test('assets refuses a build backend file whose sha256 differs from the declaration, before it builds', (t) => {
-  const box = releaseSandbox(t);
-  const tag = box.release('0.0.1');
-  writeFileSync(backendPath(box), 'tampered');
-  stop(() => release.assets(context(box), tag), new RegExp(`${escaped(path.join('var/tools/wheels', BACKEND_FILE))} has the sha256 [0-9a-f]{64}, config/toolchain\\.json pythonBackend declares ${BACKEND_SHA}`));
-  assert.deepEqual(box.pipCalls(), []);
-});
-
-test('assets without the build backend file names the command that fetches it', (t) => {
-  const box = releaseSandbox(t);
-  const tag = box.release('0.0.1');
-  rmSync(backendPath(box));
-  stop(() => release.assets(context(box), tag), new RegExp(`${escaped(path.join('var/tools/wheels', BACKEND_FILE))} is missing; make release-backend fetches it`));
+  stop(() => release.assets(context(box), tag), /holds \[.*other_name-0\.0\.1-py3-none-any\.whl.*\], not the archives \[.*kit_fixture-0\.0\.1-py3-none-any\.whl/);
 });
 
 test('versions requires the version in pyproject.toml', (t) => {
   const box = releaseSandbox(t, { mutate: (root: string) => editPyproject(root, text => text.replace(/^version = .*\n/m, '')) });
   const tag = box.release('0.0.1');
   stop(() => release.versions(context(box), tag), /packages\/fixture-python\/pyproject\.toml: version none, the tag v0\.0\.1 is 0\.0\.1/);
-});
-
-test('release-backend downloads the pinned build backend with its hash and keeps it when the hash matches', (t) => {
-  const box = releaseSandbox(t);
-  rmSync(backendPath(box));
-  backend.fetchBackend(context(box));
-  const [download] = box.pipCalls().filter(call => call.args[2] === 'download');
-  assert.ok(download, 'pip download ran once');
-  for (const flag of ['--no-deps', '--require-hashes', '--only-binary']) assert.ok(download.args.includes(flag), `${flag} is passed`);
-  assert.equal(download.args[download.args.indexOf('--only-binary') + 1], ':all:');
-  assert.equal(download.args[download.args.indexOf('-d') + 1], path.join(box.root, 'var/tools/wheels'));
-  assert.ok(download && typeof download.requirements === 'string');
-  assert.equal(download.requirements.trim(), `setuptools==84.0.0 --hash=sha256:${BACKEND_SHA}`);
-  assert.equal(fileDigest(backendPath(box)), BACKEND_SHA);
-});
-
-test('release-backend removes a download whose sha256 differs from the declaration and names both', (t) => {
-  const box = releaseSandbox(t);
-  writeJson(box.root, 'config/toolchain.json', { schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: '0'.repeat(64) } });
-  rmSync(backendPath(box));
-  stop(() => backend.fetchBackend(context(box)), new RegExp(`has the sha256 ${BACKEND_SHA}, config/toolchain\\.json pythonBackend declares ${'0'.repeat(64)}`));
-  assert.equal(existsSync(backendPath(box)), false);
 });
 
 test('release-consumer installs the wheel with --no-index and --require-hashes in a clean venv and runs its smoke import', (t) => {
@@ -144,9 +92,9 @@ test('release-consumer stops when the smoke import of the wheel fails and names 
   stop(() => consumer.installConsumers(box.ctx(), '0.0.1', path.join(box.root, release.ASSETS)), /python -c import kit_fixture exited with 1: python stub: ModuleNotFoundError/);
 });
 
-test('config: a wheel package needs its consumer smoke and a pinned build backend; a Python git-tag is refused', (t) => {
+test('config: a wheel package needs its consumer smoke, and a Python git-tag is refused', (t) => {
   // The test edits the raw JSON into shapes that the schema refuses; the type names the fields that it edits.
-  type ConfigJson = { consumers?: { wheel?: release.WheelConsumer }; buildBackend?: unknown; packages: { kind: string }[]; proof: { gitTag: Record<'packages/fixture-rust/Cargo.toml', release.GitTagProof> } };
+  type ConfigJson = { consumers?: { wheel?: release.WheelConsumer }; packages: { kind: string }[]; proof: { gitTag: Record<'packages/fixture-rust/Cargo.toml', release.GitTagProof> } };
   const edit = (change: (config: ConfigJson) => unknown) => {
     const box = releaseSandbox(t);
     const config = readJson<ConfigJson>(box.root, 'config/release.json');
@@ -156,15 +104,6 @@ test('config: a wheel package needs its consumer smoke and a pinned build backen
   stop(() => release.loadConfig(edit(c => { delete c.consumers?.wheel; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
   // K109: a configuration without consumers is refused with the section that each package kind needs.
   stop(() => release.loadConfig(edit(c => { delete c.consumers; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
-  // K166: the build backend is pythonBackend of config/toolchain.json, its one declaration; a wheel package or the wheel
-  // consumer without it is refused with the fix, and buildBackend of config/release.json is gone.
-  const unpinned = (change: (config: ConfigJson) => unknown) => {
-    const box = edit(change);
-    writeJson(box.root, 'config/toolchain.json', { schema: 1 });
-    return box.root;
-  };
-  stop(() => release.loadConfig(unpinned(c => c)), /the wheel packages \[kit-fixture\] and the wheel consumer need the build backend of the wheels, pythonBackend of config\/toolchain\.json, which it does not declare\. Fix: declare pythonBackend .* in config\/toolchain\.json and run make install-tools/);
-  stop(() => release.loadConfig(edit(c => { c.buildBackend = { requirement: 'setuptools==84.0.0', sha256: BACKEND_SHA }; return c; }).root), /must NOT have additional properties .*buildBackend/);
   stop(() => release.loadConfig(edit(c => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].kind = 'python'; return c; }).root), /proof\.gitTag\.packages\/fixture-rust\/Cargo\.toml\.kind is "python", the allowed values are rust/);
 });
 
@@ -196,11 +135,6 @@ test('a Cargo manifest of a workspace reports the version that cargo resolves, i
 });
 
 test('the pyproject and Cargo manifests of a release are read as TOML, in every valid form (K114)', (t) => {
-  const pyproject = "[project]\nname = 'kit_fixture'\nversion = '0.0.1'\n\n[build-system]\nrequires = [\n  'flit_core==3.12.0', # not \"wheel==1.0\"\n]\n";
-  assert.deepEqual(wheel.sourceProblems({ file: 'pyproject.toml', text: pyproject, name: 'kit_fixture', requirement: 'flit_core==3.12.0' }), []);
-  const dotted = 'project.name = "kit_fixture"\nbuild-system.requires = ["flit_core==3.12.0"]\n';
-  assert.deepEqual(wheel.sourceProblems({ file: 'pyproject.toml', text: dotted, name: 'kit_fixture', requirement: 'flit_core==3.12.0' }), []);
-  assert.throws(() => wheel.sourceProblems({ file: 'pyproject.toml', text: '[project\n', name: 'x', requirement: 'y==1' }), /^Error: pyproject\.toml line 1 column \d+: Invalid TOML document/);
   const root = mkdtempSync(path.join(tmpdir(), 'kit-manifest-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   writeFileSync(path.join(root, 'Cargo.toml'), "[package]\nname = 'x'\nversion = '0.0.2'\n");

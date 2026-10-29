@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 59b4ddb0c2212629cac2d035314909e25fb1deeadb9ebc8e8a44b23c2f20a192 -->
+<!-- source-sha256: bff750f93c3c88bdafea522481bd176310ced3055c437c6eaa7594fea7a0602e -->
 # 릴리스
 
 [English](release.md)
@@ -46,9 +46,8 @@ tag를 push해도 같은 workflow가 시작됩니다. (3) `.github/workflows/rel
 kit은 `workflows/release.yml`을 package.json의 `kit.copies`로 모든 저장소의 `.github/workflows/release.yml`에 vendor합니다. 저장소는 이를 편집하지 않으며, `make kit-sync`가 다시 씁니다. workflow는 저장소가 `.php-version`을 선언하면 그 PHP를 설치하고, `make release-prepare`(저장소의 release가 Makefile의 `release-prepare::` 규칙으로 선언한 준비, 기본은 없음), `make release-tools`(config/release.json이 필요로 하는 tool), `make release-tools-path`(뒤따르는 단계가 설치된 tool로 실행되도록 `var/tools/bin`과 mise의 shim을 그 PATH에, mise의 환경을 그 환경에 올립니다), `make release-publish`(draft release, 그 id를 `var/release/<tag>.json`에 기록), `make release-proof TAG=<tag>`(draft의 증명)를 실행하고, 증명이 통과한 뒤에만 `make release-undraft TAG=<tag>`로 release를 공개합니다. 증명과 undraft는 새 draft를 한동안 보여 주지 않는 release 목록의 tag가 아니라 그 id로 draft를 읽습니다. 실패한 step은 release를 draft로 남기고 run을 실패시키므로, 설치할 수 없는 release는 공개되지 않습니다.
 
 kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`로 릴리스되며,
-이 파일 이름을 pip이 파싱합니다. `release-assets`는 tag된 commit에서 이 wheel을 만들고, build backend는 그 유일한 선언인
-config/toolchain.json의 `pythonBackend`가 정확한 requirement와 wheel의 sha256으로 고정합니다. `make install-tools`와 `make release-backend`는 그 wheel을 digest를 확인하며
-`var/tools/wheels`에 받고, 어떤 build도 network를 읽지 않습니다. wheel의 `Requires-Dist`는 plain `name==version`, polyspec package의 release asset을 sha256 fragment와 함께 직접 참조하는 형식, 또는 같은 release의 sibling(같은 config/release.json의 다른 wheel package)을 hash 없이 직접 참조하는 형식입니다.
+이 파일 이름을 pip이 파싱합니다. `release-assets`는 tag된 commit에서 `uv build --wheel`로 이 wheel을 만들며, uv build가 package 자신의
+pyproject.toml의 `[build-system].requires`를 격리된 build 환경에 설치합니다. kit은 build backend를 고정하지 않습니다(K788). wheel의 `Requires-Dist`는 plain `name==version`, polyspec package의 release asset을 sha256 fragment와 함께 직접 참조하는 형식, 또는 같은 release의 sibling(같은 config/release.json의 다른 wheel package)을 hash 없이 직접 참조하는 형식입니다.
 앞의 두 형식은 wheel의 lock(`consumers.wheel.lock`)이 담으며, sibling은 lock이 담지 않습니다. 다른 형식(URL, git source, 범위, marker)은 거부합니다. 같은 형식의 npm 또는
 Composer manifest를 거부하는 것과 같습니다(docs/operations/tool-inventory.ko.md, Sibling wheels). `release-consumer`는 깨끗한 virtual environment에 lock을 hash와 함께 설치하고, release의
 wheel들을 `--no-deps`로 함께 설치한 뒤 `pip check`를 실행하고, 그다음 smoke command를 실행합니다.

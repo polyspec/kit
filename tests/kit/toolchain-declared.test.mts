@@ -42,7 +42,6 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
     npm: { version: '12.2.0', sha512: DIGEST, source: 'packageManager of package.json' },
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
     mise: { version: '2026.10.8', sha256: mise.sha256, source: 'config/toolchain.json mise' },
-    pythonBackend: { requirement: 'setuptools==84.0.0', sha256: '51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670', source: 'config/toolchain.json pythonBackend' },
     phpunit: { version: '11.5.57', manifest: 'config/phpunit/composer.json', source: 'config/toolchain.json phpunit' },
     symbolExtractors: { extractors: ['go', 'php'], source: 'config/toolchain.json symbolExtractors' },
   });

@@ -64,7 +64,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   writeFileSync(path.join(consumer, 'mise.lock'), stringify({ lockfile_version: kitLock.lockfile_version, tools: { node: tools.node } }));
   // The bootstrap installs the mise that config/toolchain.json declares, then the node of mise.toml with it; the consumer
   // declares the mise of kit.
-  const toolchain = readFixture<{ pythonBackend: { requirement: string; sha256: string }; exceptions?: { tool: string; channel: string }[]; mise: unknown }>(ROOT, 'config/toolchain.json');
+  const toolchain = readFixture<{ exceptions?: { tool: string; channel: string }[]; mise: unknown }>(ROOT, 'config/toolchain.json');
   mkdirSync(path.join(consumer, 'config'), { recursive: true });
   writeFileSync(path.join(consumer, 'config/toolchain.json'), `${JSON.stringify({ schema: 1, mise: toolchain.mise }, null, 2)}\n`);
   // Its suite runs the gates of kit, as kit-check asks of every repository.

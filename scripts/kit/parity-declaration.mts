@@ -20,20 +20,22 @@ export type Runner = (typeof RUNNERS)[number];
 /** The extractor of the public symbols of an implementation (parity-symbols.mts). */
 export type Extractor = 'go' | 'php' | 'python' | 'rust' | 'ts';
 
-/** One explicitly selected symbol-extractor input, with Cargo features for Rust. */
+/** One explicitly selected symbol-extractor input, with Cargo features for Rust and the installed distribution for Python. */
 export interface ParitySymbolEntry {
   entry: string;
   features?: string[];
+  distribution?: string;
 }
 
 /** A legacy single input or the inputs whose public symbol inventories are combined. */
 export type ParitySymbols =
-  | { extractor: Extractor; entry: string; entries?: never }
+  | { extractor: Extractor; entry: string; distribution?: string; entries?: never }
   | { extractor: Extractor; entries: ParitySymbolEntry[]; entry?: never };
 
 /** The paths read by a symbol extractor, preserving the legacy singular entry form. */
 export function symbolEntries(symbols: ParitySymbols): ParitySymbolEntry[] {
-  return symbols.entry !== undefined ? [{ entry: symbols.entry }] : symbols.entries;
+  if (symbols.entry === undefined) return symbols.entries;
+  return [symbols.distribution === undefined ? { entry: symbols.entry } : { entry: symbols.entry, distribution: symbols.distribution }];
 }
 
 /** The declared inputs of a symbol extraction, including their feature selections. */

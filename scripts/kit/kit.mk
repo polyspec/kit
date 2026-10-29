@@ -359,7 +359,7 @@ commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HE
 	$(NODE) $(KIT)/check-commits.$(KIT_EXT) $(if $(RANGE),--range $(RANGE))
 # The steps of a release (scripts/kit/release.mts, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
-.PHONY: release-prepare release-tools release-tag release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend
+.PHONY: release-prepare release-tools release-tag release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags
 
 # Freeze the native candidate before CI, then publish the exact successful commit without another test run.
 .PHONY: release-candidate release
@@ -374,7 +374,7 @@ release: ## Publish VERSION at SHA after the successful CI run RUN; no version e
 release-prepare:: ## Prepare what the release of this repository needs before release-tools; a repository declares it with release-prepare::
 	@:
 
-release-tools: ## Install the tools that config/release.json needs for the release (npm, Composer, Python and its backend, Go) and check cargo when a git-tag proof needs it; ONLINE
+release-tools: ## Install the tools that config/release.json needs for the release (npm, Composer, Python and uv, Go) and check cargo when a git-tag proof needs it; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/release-tools.$(KIT_EXT)
 
 
@@ -397,13 +397,13 @@ release-versions: ## Require the version of TAG in every manifest, the Go module
 	@test -n "$$TAG" || { echo "release-versions: TAG is required, for example make release-versions TAG=v0.0.1"; exit 1; }
 	$(NODE) $(KIT)/release.$(KIT_EXT) versions "$$TAG"
 
-release-assets: ## Build the archive of every package of TAG into var/release/assets
+release-assets: ## Build the archive of every package of TAG into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }
-	$(NODE) $(KIT)/release.$(KIT_EXT) assets "$$TAG"
+	$(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) assets "$$TAG"
 
-release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION into var/release/assets
+release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$VERSION" || { echo "release-candidate-assets: VERSION is required, for example make release-candidate-assets VERSION=0.0.1"; exit 1; }
-	$(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
+	$(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
 
 release-publish: ## Create the GitHub Release of TAG as a draft with the notes and the archives of release-assets; a draft of an earlier run is replaced
 	@test -n "$$TAG" || { echo "release-publish: TAG is required, for example make release-publish TAG=v0.0.1"; exit 1; }
@@ -419,9 +419,6 @@ release-coverage: ## Require every package file of the checkout to be classified
 release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the commit of TAG; offline
 	@test -n "$$TAG" || { echo "release-go-tags: TAG is required, for example make release-go-tags TAG=v0.0.1"; exit 1; }
 	$(NODE) $(KIT)/release.$(KIT_EXT) go-tags "$$TAG"
-
-release-backend: ## Download the build backend of the wheel packages into var/tools/wheels with its sha256 checked; ONLINE
-	$(ONLINE) $(NODE) $(KIT)/release-backend.$(KIT_EXT)
 
 # --- release-assets: the release archives of other repositories that config/release-assets.json pins by version and sha256
 # (scripts/kit/release-assets.mts). The fetch is an install step; a Makefile reads the version of an entry with
@@ -495,7 +492,7 @@ unlink: ## Restore the selected native locked installation of PROJECT and remove
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
 # The release uses the released versions (K343), so its Go runs without the go.work of the links.
-release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof: export GOWORK := off
+release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-consumer release-consumer-lock release-proof: export GOWORK := off
 # The archive builds build the tree of the repository, so the go.work that it tracks, its own workspace and not a link, is their GOWORK;
 # naming it also hides the git-ignored go.work that link writes in each module (K774). A repository that tracks none builds with GOWORK
 # off.

@@ -33,8 +33,8 @@
 // var/release/<tag>.json; the notes are the section X.Y.Z, or one line that links the section when it is longer than
 // NOTES_LIMIT characters, the limit of a release body. `undraft`, and the release proof, read the draft by that id: the
 // list of releases shows a new draft only after a while, and its tag does not address it.
-// A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with the build
-// backend of pythonBackend of config/toolchain.json (release-wheel.mts); its dependencies are uv's to install from its lock of
+// A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with uv build,
+// which installs the build-system.requires of its pyproject.toml (release-wheel.mts); its dependencies are uv's to install from its lock of
 // consumers.wheel.lock (release-consumer.mts).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
@@ -48,7 +48,7 @@ import { headings } from './markdown.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { readNpmManifest, type ComposerManifest, type NpmManifest } from './manifests.mts';
 import { isTable, readToml } from './toml.mts';
-import { backendFinding, buildBackend, buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
+import { buildWheel, metadataProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { PACKAGE, copiesOf, runningKit, writtenByKit } from './kit-check.mts';
@@ -228,8 +228,6 @@ export function loadConfig(root: string): ReleaseConfig {
     const outputs = (config.packages.find(item => item.directory === directory)?.generated ?? []).map(item => item.output);
     for (const output of new Set(outputs)) if (outputs.filter(item => item === output).length > 1) problems.push(`${CONFIG}: generated output ${directory}/${output} is declared more than once`);
   }
-  const backend = backendFinding(root, config);
-  if (backend) problems.push(backend);
   const archived = new Set(config.packages.map(({ directory, kind }) => path.posix.join(directory, MANIFEST_OF[kind])));
   for (const [key, value] of Object.entries(config.manifests)) {
     if (value === 'archive' && !archived.has(key)) problems.push(`${CONFIG}: manifests.${key} is "archive" but no package of packages has that manifest`);
@@ -588,8 +586,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${path.posix.join(folder, MANIFEST_OF[kind])}`], at(ctx)));
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
     const file = path.posix.join(folder, MANIFEST_OF[kind]);
-    // sources holds the manifest of each package at its index.
-    if (kind === 'wheel') return sourceProblems({ file, text: present(sources[index], 'sources[index]'), name, requirement: buildBackend(root).requirement });
+    if (kind === 'wheel') return [];
     // sources holds the manifest of each package at its index.
     const manifest = parseManifest(kind, present(sources[index], 'sources[index]'), file);
     return [
@@ -617,7 +614,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
         // created holds one file, checked above, and names holds the archive name of each package at its index.
         renameSync(path.join(next, present(created[0], 'created[0]')), path.join(next, present(names[index], 'names[index]')));
       } else if (kind === 'wheel') {
-        buildWheel({ root, env: ctx.env, commit, directory: folder, output: next, buildBackend: buildBackend(root) });
+        buildWheel({ root, env: ctx.env, commit, directory: folder, output: next });
       } else {
         // Stored entries, the time of the commit and TZ=UTC give the zip of a tree the same bytes on every machine and at
         // every time. Files generated from the tagged snapshot are staged with fixed mode and mtime and appended by path;
