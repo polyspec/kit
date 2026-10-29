@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: c69c4c5b2796e75f5ddbbd1a5a30deeaa30442f2fbb95199133eccde3c9a3f4a -->
+<!-- source-sha256: 82d5e85cc4ec7d4297a4296214423c5cfb448976e53482cf0cefdf0ae0d5bc8e -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -787,4 +787,4 @@
 | K832 | 추적되는 go.work가 있는 repository에서 make test-go CASES=<pattern>은 module별 run처럼 그 pattern을 workspace go test 하나에 -run으로 넘긴다. 원인: goWorkspaceRuns가 cases를 받지 않아 flowmark의 make test-go CASES=TestToken이 선택 없이 모든 Go test를 돌리고, run-tests는 이를 CI 밖에서 거부한다 | scripts/kit/runtime-targets.mts, tests/kit/runtime-targets.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/runtime-targets.test.mts` | [v] |
 | K831 | tracked lock의 내용을 판정하는 link-state-check의 lock 출처 검사를 삭제 | scripts/kit/link-state-check.mts, scripts/kit/kit.mk, tests/kit/link-state-check.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/link-state-check.test.mts` | [o] |
 | K833 | install-php-arginfo가 lock을 자기 폴더 이름과 판정하는 nikic/php-parser release 비교를 삭제 | scripts/kit/install-php-arginfo.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/php-ext.test.mts` | [o] |
-| K834 | config/php-lint/composer.lock가 기록한 phpcs와 phpstan release를 형식 거부 없이 그대로 받음 | scripts/kit/toolchain-lint.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-lint.test.mts` | [ ] |
+| K834 | config/php-lint/composer.lock가 기록한 phpcs와 phpstan release를 형식 거부 없이 그대로 받음 | scripts/kit/toolchain-lint.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-lint.test.mts` | [~] |
