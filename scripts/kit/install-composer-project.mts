@@ -1,11 +1,13 @@
-// Installs a Composer project of kit (config/phpunit, config/php-lint) into its folder of var/tools, with the wrappers of
-// its commands in var/tools/bin. `composer install`, with the Composer of mise.toml (its shim, mise-tools.mts; mise.lock pins its
-// sha256), runs in the folder of the project and resolves its committed lock into the vendor directory var/tools/<folder>/vendor
-// (COMPOSER_VENDOR_DIR); an install over a vendor directory that already holds the lock does nothing, and Composer checks the
-// platform requirements of the lock under the PHP of var/tools/bin on each run. Each package is pinned by the commit reference of
-// its dist and source in the lock; the lock holds no digest of an archive (Packagist gives an empty shasum for a GitHub archive),
-// so Composer checks none (K258). Composer keeps its home and cache in var/tools/composer. A project runs the Composer plugins
-// that its composer.json allows only when `plugins` says so. The Composer of the machine is never used.
+// Installs a Composer project of kit (config/phpunit, config/php-lint) into its folder of var/tools, with the wrappers of its
+// commands in var/tools/bin. `composer install`, with the Composer of mise.toml (its shim, mise-tools.mts; mise.lock pins its
+// sha256), runs in the checkout root with Composer's --working-dir of the project, so the shim reads the mise.toml of the checkout
+// and not the one of a linked kit checkout that holds the project (K885), and resolves its committed lock into the vendor
+// directory var/tools/<folder>/vendor (COMPOSER_VENDOR_DIR); an install over a vendor directory that already holds the lock does
+// nothing, and Composer checks the platform requirements of the lock under the PHP of var/tools/bin on each run. Each package is
+// pinned by the commit reference of its dist and source in the lock; the lock holds no digest of an archive (Packagist gives an
+// empty shasum for a GitHub archive), so Composer checks none (K258). Composer keeps its home and cache in var/tools/composer. A
+// project runs the Composer plugins that its composer.json allows only when `plugins` says so. The Composer of the machine is
+// never used.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { quote, run, toolsPath, wrapperText, writeWrapper } from './bootstrap/tool-wrappers.mts';
@@ -30,6 +32,6 @@ export function installComposerProject({ root, label, folder, project, plugins, 
 }): void {
   const prefix = toolsPath(root, folder);
   const environment = { ...composerEnvironment(root), COMPOSER_VENDOR_DIR: path.join(prefix, 'vendor') };
-  run(composerCommand(root, label), ['install', '--no-interaction', '--no-progress', '--no-scripts', ...(plugins ? [] : ['--no-plugins']), '--prefer-dist'], { cwd: path.join(root, project), env: environment }, print);
+  run(composerCommand(root, label), ['install', `--working-dir=${path.join(root, project)}`, '--no-interaction', '--no-progress', '--no-scripts', ...(plugins ? [] : ['--no-plugins']), '--prefer-dist'], { cwd: root, env: environment }, print);
   for (const [name, command] of Object.entries(wrappers)) writeWrapper(root, name, wrapperText(`${comment} of this checkout`, `exec ${quote(path.join(prefix, command))} "$@"`), print);
 }

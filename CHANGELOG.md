@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A Composer project of kit, php-lint or phpunit, installs with Composer started in the checkout root and its --working-dir naming the project, so the mise shim of Composer reads the mise.toml of the checkout and not the untrusted one of a linked kit checkout that holds the project (K885).
 - A worktree is a checkout of its own: KIT_TOOLS is the checkout's own var/tools, make install and make install-tools run in a worktree, and make worktree-setup creates the worktree and runs make install, online, then make link-state-check there, instead of preparing npm, Composer, uv and Go offline from the main checkout and rebuilding its packages. The main checkout's var/tools and locks are unchanged by a worktree. make worktree-link-state is gone: with no rebuild it was make worktree-setup. A worktree without node_modules first gets npm ci of the npm that packageManager names, and the installed kit gets the link of install-link to the kit checkout beside it one step early, so a Makefile that includes kit from node_modules runs the live kit; a worktree made before this release runs make install once (K858).
 - worktree-setup installs no packages and builds nothing itself: the npm, Composer, uv and Go preparation and the link rebuild are deleted, and make install of the worktree does both (K857).
 
