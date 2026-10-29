@@ -341,7 +341,7 @@ ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has t
 
 # The steps of a release (scripts/kit/release.mts, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
 # directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
-.PHONY: release-prepare release-tools release-tag release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags
+.PHONY: release-prepare release-tools release-tag release-verify release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags
 
 # Freeze the native candidate before CI, then publish the exact successful commit without another test run.
 .PHONY: release-candidate release
@@ -374,10 +374,6 @@ release-tag: ## Create the annotated tag TAG at origin/main and push it, or pass
 release-verify: ## Require the commit of TAG on origin/main with its check runs succeeded; reads GITHUB_REPOSITORY
 	@test -n "$$TAG" || { echo "release-verify: TAG is required, for example make release-verify TAG=v0.0.1"; exit 1; }
 	$(NODE) $(KIT)/release.$(KIT_EXT) verify "$$TAG"
-
-release-versions: ## Require the version of TAG in every manifest, the Go module path and the change log section; offline
-	@test -n "$$TAG" || { echo "release-versions: TAG is required, for example make release-versions TAG=v0.0.1"; exit 1; }
-	$(NODE) $(KIT)/release.$(KIT_EXT) versions "$$TAG"
 
 release-assets: ## Build the archive of every package of TAG into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }
@@ -474,7 +470,7 @@ unlink: ## Restore the selected native locked installation of PROJECT and remove
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
 # The release uses the released versions (K343), so its Go runs without the go.work of the links.
-release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags: export GOWORK := off
+release-prepare release-tools release-verify release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags: export GOWORK := off
 # The archive builds build the tree of the repository, so the go.work that it tracks, its own workspace and not a link, is their GOWORK;
 # naming it also hides the git-ignored go.work that link writes in each module (K774). A repository that tracks none builds with GOWORK
 # off.

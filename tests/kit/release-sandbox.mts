@@ -138,7 +138,7 @@ if (mode === 'two') fs.writeFileSync(path.join(destination, 'extra.txt'), 'extra
 fs.rmSync(folder, { recursive: true, force: true });
 `;
 
-export const CHANGELOG = `# Changelog
+const CHANGELOG = `# Changelog
 
 ## Unreleased
 

@@ -3,7 +3,6 @@
 // through its make target:
 //
 //   node scripts/kit/release.mts verify TAG     the tagged commit is on origin/main and its checks concluded success
-//   node scripts/kit/release.mts versions TAG   every manifest of the tag has its version, CHANGELOG has its section
 //   node scripts/kit/release.mts assets TAG     build the archive of every package of the tag into var/release/assets
 //   node scripts/kit/release.mts publish TAG    create the GitHub Release of the tag as a draft, with its notes and archives
 //   node scripts/kit/release.mts undraft TAG    make the draft release of the tag public
@@ -18,17 +17,15 @@
 // `verify` resolves the tag to its commit, requires the commit to be an ancestor of origin/main, requires for a tag vX.Y.Z
 // the tag `<directory>/vX.Y.Z` of every Go module at the same commit (`go-tags`; a Go proxy reads a module from that tag
 // only) and reads the check runs of the commit from `gh api repos/<repository>/commits/<sha>/check-runs` (the repository of GITHUB_REPOSITORY): the latest run
-// of each configured check must be completed with the conclusion success. `versions` compares X.Y.Z with the version of
-// every manifest of `manifests` and requires the section `## X.Y.Z` in the change logs; for a Go module it requires the module
+// of each configured check must be completed with the conclusion success.
 //   TAG is `latest` for the newest root release tag reachable from HEAD.
-// path of the go.mod. `assets` builds one archive per package, named `<package>-<language>-<version>.<ext>` with `@scope/`
+// `assets` builds one archive per package, named `<package>-<language>-<version>.<ext>` with `@scope/`
 // written `scope-` and `vendor/` `vendor-` (`@scope/x` is `scope-x-npm-1.0.0.tgz`, `vendor/x` is `vendor-x-php-1.0.0.zip`):
 // `npm pack` of an npm package, whose output is renamed to that name, and a `git archive` zip of the directory of a Composer
 // package at the tagged commit, with stored entries, the time of the commit and TZ=UTC. Declared generated files are
 // appended from staged files with fixed mode and the same commit time, so a second run of the same tag writes the same
 // bytes without placing generated contents in argv. Each archive carries its unchanged manifest, except kit uses its
-// canonical source-to-dist prepack transformation. The manifest names every package of its scope by an exact version
-// (see manifestProblems). `publish` creates the draft
+// canonical source-to-dist prepack transformation. `publish` creates the draft
 // release of the tag through the API with the archives (github-release.mts createDraft) and records its id in
 // var/release/<tag>.json; the notes are the section X.Y.Z, or one line that links the section when it is longer than
 // NOTES_LIMIT characters, the limit of a release body. `undraft` reads the draft by that id: the
@@ -41,11 +38,9 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import semver from 'semver';
 import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, type GitHubRelease } from './github-release.mts';
-import { readCargoPackages, readGoMod } from './toolchain-files.mts';
 import { headings } from './markdown.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { type ComposerManifest, type NpmManifest } from './manifests.mts';
-import { isTable, readToml } from './toml.mts';
 import { buildWheel, metadataProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
@@ -337,32 +332,6 @@ export function verify(ctx: Context, tag: string): { commit: string; checks: str
   return { commit, checks: [...ctx.config.checks] };
 }
 
-/**
- * The version that a manifest file declares, or null without one. A composer.json may omit it: Composer takes the tag. A
- * Cargo.toml is read by `cargo metadata --no-deps`, so a member that inherits `version.workspace` has the version of its
- * workspace; a virtual workspace manifest, which is no package, declares the `[workspace.package]` version of its members.
- */
-export function manifestVersion(file: string): string | null {
-  const text = readFileSync(file, 'utf8');
-  const name = path.basename(file);
-  if (name === 'package.json' || name === 'composer.json') return parseManifest(name === 'package.json' ? 'npm' : 'composer', text, file).version ?? null;
-  if (name === 'VERSION') return text.trim() || null;
-  if (name === 'Cargo.toml') return cargoVersion(file, text);
-  if (name !== 'pyproject.toml') throw new Stop(`${name}: not a manifest of a release`);
-  const table = readToml(text, file).project;
-  return isTable(table) && typeof table.version === 'string' ? table.version : null;
-}
-
-/** The version of the Cargo manifest `file` (text `text`): its package's as cargo resolves it, or its workspace's. */
-function cargoVersion(file: string, text: string): string | null {
-  const manifest = path.resolve(file);
-  const own = readCargoPackages(path.dirname(manifest), 'Cargo.toml', process.env).find(entry => path.resolve(entry.manifest_path) === manifest);
-  if (own) return own.version;
-  const workspace = readToml(text, file).workspace;
-  const shared = isTable(workspace) ? workspace.package : undefined;
-  return isTable(shared) && typeof shared.version === 'string' ? shared.version : null;
-}
-
 /** The level-2 heading of the section `version` of the change log `text` of `file`, with the headings of the text. */
 function versionHeading(text: string, file: string, version: string) {
   const found = headings(text);
@@ -408,43 +377,6 @@ export function releaseNotes(ctx: Context, tag: string): string {
 }
 
 
-/** Every manifest of the tag declares its version and the change logs have the section of the version: the version. */
-export function versions(ctx: Context, tag: string): string {
-  const { root, config } = ctx;
-  const [directory, version] = parseTag(config, tag);
-  const problems: string[] = [];
-  if (directory === null) {
-    for (const [name] of Object.entries(config.manifests)) {
-      ctx.log(`[release] ${tag}: reading the version of ${name}`);
-      const declared = manifestVersion(path.join(root, name));
-      // A package that is released as an archive declares its version; Composer takes it from the tag for other manifests.
-      const missingOk = declared === null && path.basename(name) === 'composer.json';
-      if (declared !== version && !missingOk) problems.push(`${name}: version ${declared ?? 'none'}, the tag ${tag} is ${version}`);
-    }
-  }
-  for (const [module, expected] of Object.entries(config.goModules)) {
-    if (directory !== null && directory !== module) continue;
-    const file = `${module === '.' ? '' : `${module}/`}go.mod`;
-    if (!existsSync(path.join(root, file))) {
-      problems.push(`${file}: the file is missing for the tag ${tag}`);
-      continue;
-    }
-    // go mod edit -json reads the module directive as Go does.
-    const declared = readGoMod(root, file, ctx.env).Module.Path;
-    if (declared !== expected) problems.push(`${file}: module ${declared}, the tag ${tag} is ${expected}`);
-  }
-  for (const file of [config.changelog, ...config.changelogTranslations]) {
-    try {
-      changelogSection(root, file, version);
-    } catch (error) {
-      if (!(error instanceof Stop) && !missingFile(error)) throw error;
-      problems.push(`${error instanceof Stop ? error.message : `${file}: the file is missing`} for the tag ${tag}`);
-    }
-  }
-  if (problems.length) throw new Stop(problems.join('; '));
-  return version;
-}
-
 /**
  * <package>-<language>-<version>.<ext>: `@scope/name` is written `scope-name` and `vendor/name` `vendor-name`, the language
  * is `npm` for an npm package and `php` for a Composer package: `@scope/x` is `scope-x-npm-1.0.0.tgz` and `vendor/x` is
@@ -463,19 +395,6 @@ export function archiveName(kind: PackageKind, name: string, version: string): s
 /** The archive names of the packages at `version`, in the order of the configuration. */
 export function assetNames(config: Pick<ReleaseConfig, 'packages'>, version: string): string[] {
   return config.packages.map(({ kind, name }) => archiveName(kind, name, version));
-}
-
-/**
- * The problems of a manifest that an archive of `kind` carries at `version`: a dependency on a package of this repository names the
- * version of the tag, and a composer.json declares no other version. The form of every other dependency is the package manager's to
- * resolve (K785).
- */
-export function manifestProblems(config: Pick<ReleaseConfig, 'packages'>, kind: PackageKind, manifest: Manifest, version: string): string[] {
-  const ours = new Set(config.packages.filter(item => item.kind === kind).map(({ name }) => name));
-  const problems = (kind === 'npm' ? NPM_DEPENDENCY_FIELDS : COMPOSER_DEPENDENCY_FIELDS).flatMap(field => Object.entries(manifest[field] ?? {})
-    .filter(([name, spec]) => ours.has(name) && spec !== version).map(([name, spec]) => `${field} ${name}: ${spec}, not ${version}`));
-  if (kind === 'composer' && manifest.version !== undefined && manifest.version !== version) problems.push(`version: ${manifest.version}, not ${version}`);
-  return problems;
 }
 
 /** The manifest text that an archive carries: package/package.json of a tarball, composer.json at the root of a zip. */
@@ -531,9 +450,8 @@ function generatedArchiveFiles(ctx: Context, commit: string, folder: string, gen
 }
 
 /**
- * Builds the archive of every package of the tag into var/release/assets and returns their names. The manifests of the
- * tagged commit must pass manifestProblems before a package is packed, and each archive must carry the manifest of its
- * package at the commit byte for byte; kit alone uses its canonical prepack source-to-dist manifest. The directory is replaced as a whole.
+ * Builds the archive of every package of the tag into var/release/assets and returns their names. Each manifest of the
+ * tagged commit names its package, and each archive must carry the manifest of its package at the commit byte for byte; kit alone uses its canonical prepack source-to-dist manifest. The directory is replaced as a whole.
  */
 export function assets(ctx: Context, tag: string): string[] {
   const { config } = ctx;
@@ -562,10 +480,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
     if (kind === 'wheel') return [];
     // sources holds the manifest of each package at its index.
     const manifest = parseManifest(kind, present(sources[index], 'sources[index]'), file);
-    return [
-      ...(manifest.name === name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${name}`]),
-      ...manifestProblems(config, kind, manifest, version).map(problem => `${file}: ${problem}`),
-    ];
+    return manifest.name === name ? [] : [`${file}: name ${manifest.name ?? 'none'}, ${CONFIG} declares ${name}`];
   });
   if (problems.length) throw new Stop(`${reference}: the manifests of the commit ${commit} do not install outside the repository: ${problems.join('; ')}`);
   const mtime = new Date(Number(run('git', ['show', '-s', '--format=%ct', commit], at(ctx)).trim()) * 1000).toISOString();
@@ -628,10 +543,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
       const packed = packedManifest(ctx, path.join(next, present(names[index], 'names[index]')));
       const source = present(sources[index], 'sources[index]');
       const expected = kind === 'npm' && name === PACKAGE ? packedPackageManifest(source) : source;
-      return [
-        ...(packed === expected ? [] : [`${names[index]}: the packed ${file} differs from ${path.posix.join(folder, file)} of the commit ${commit}`]),
-        ...manifestProblems(config, kind, parseManifest(kind, packed, `${present(names[index], 'names[index]')}/${file}`), version).map(problem => `${names[index]}: ${problem}`),
-      ];
+      return packed === expected ? [] : [`${names[index]}: the packed ${file} differs from ${path.posix.join(folder, file)} of the commit ${commit}`];
     });
     if (failures.length) throw new Stop(`${reference}: the release assets do not install outside the repository: ${failures.join('; ')}`);
     if (existsSync(target)) renameSync(target, previous);
@@ -756,13 +668,13 @@ export function coverage(ctx: Context): string[] {
   return problems;
 }
 
-const USAGE = 'usage: node scripts/kit/release.mts tag|verify|versions|assets|publish|undraft|go-tags TAG | candidate-assets VERSION | coverage';
+const USAGE = 'usage: node scripts/kit/release.mts tag|verify|assets|publish|undraft|go-tags TAG | candidate-assets VERSION | coverage';
 
 /** Runs a step of the command line; the exit status. */
 export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
-  const tagged = mode !== undefined && ['tag', 'verify', 'versions', 'assets', 'publish', 'undraft', 'go-tags'].includes(mode);
+  const tagged = mode !== undefined && ['tag', 'verify', 'assets', 'publish', 'undraft', 'go-tags'].includes(mode);
   const candidate = mode === 'candidate-assets' && latest !== undefined && rest.length === 0;
   if (!(tagged && tag && rest.length === 0) && !candidate && !(mode === 'coverage' && tag === undefined)) {
     error(USAGE);
@@ -801,9 +713,6 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
         return 1;
       }
       print(`[release] ${tag}: every Go module has its tag at the commit of ${tag}`);
-    } else if (mode === 'versions') {
-      const version = versions(ctx, tag);
-      print(`[release] ${tag}: every manifest of the tag declares ${version} and ${ctx.config.changelog} has ## ${version}`);
     } else if (mode === 'assets') {
       const names = assets(ctx, tag);
       print(`[release] ${tag}: built ${names.length ? names.join(', ') : 'no archive (a Go module)'} in ${ASSETS}`);

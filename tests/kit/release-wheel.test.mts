@@ -2,8 +2,7 @@
 // Requires-Dist that is not a plain name==version, and the version in pyproject.toml. The uv and the Python of the sandbox are the stubs of wheel-stubs.mts; no test reaches an index.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
@@ -49,12 +48,6 @@ test('assets refuses a wheel whose project name differs from the configuration, 
   stop(() => release.assets(context(box), tag), /holds \[.*other_name-0\.0\.1-py3-none-any\.whl.*\], not the archives \[.*kit_fixture-0\.0\.1-py3-none-any\.whl/);
 });
 
-test('versions requires the version in pyproject.toml', (t) => {
-  const box = releaseSandbox(t, { mutate: (root: string) => editPyproject(root, text => text.replace(/^version = .*\n/m, '')) });
-  const tag = box.release('0.0.1');
-  stop(() => release.versions(context(box), tag), /packages\/fixture-python\/pyproject\.toml: version none, the tag v0\.0\.1 is 0\.0\.1/);
-});
-
 test('assets accepts a sibling of the same release named by its asset URL without a hash, and names both wheels', (t) => {
   const box = releaseSandbox(t, { mutate: addSibling });
   const tag = box.release('0.0.1');
@@ -63,32 +56,3 @@ test('assets accepts a sibling of the same release named by its asset URL withou
 });
 
 // cargo reads the version of a Cargo manifest: a member that inherits version.workspace has the version of its workspace.
-test('a Cargo manifest of a workspace reports the version that cargo resolves, inherited from the workspace', (t) => {
-  const root = mkdtempSync(path.join(tmpdir(), 'kit-cargo-version-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const files = {
-    'Cargo.toml': '[workspace]\nmembers = ["crates/a", "crates/b"]\nresolver = "2"\n\n[workspace.package]\nversion = "0.4.2"\n',
-    'crates/a/Cargo.toml': '[package]\nname = "a"\nversion.workspace = true\nedition = "2021"\n',
-    'crates/a/src/lib.rs': '',
-    'crates/b/Cargo.toml': '[package]\nname = "b"\nversion = "0.1.0"\nedition = "2021"\n',
-    'crates/b/src/lib.rs': '',
-  };
-  for (const [file, text] of Object.entries(files)) {
-    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
-    writeFileSync(path.join(root, file), text);
-  }
-  assert.equal(release.manifestVersion(path.join(root, 'crates/a/Cargo.toml')), '0.4.2');
-  assert.equal(release.manifestVersion(path.join(root, 'crates/b/Cargo.toml')), '0.1.0');
-  assert.equal(release.manifestVersion(path.join(root, 'Cargo.toml')), '0.4.2', 'the virtual manifest declares the version of its members');
-});
-
-test('the pyproject and Cargo manifests of a release are read as TOML, in every valid form (K114)', (t) => {
-  const root = mkdtempSync(path.join(tmpdir(), 'kit-manifest-'));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  writeFileSync(path.join(root, 'Cargo.toml'), "[package]\nname = 'x'\nversion = '0.0.2'\n");
-  mkdirSync(path.join(root, 'src'));
-  writeFileSync(path.join(root, 'src/lib.rs'), '');
-  assert.equal(release.manifestVersion(path.join(root, 'Cargo.toml')), '0.0.2');
-  writeFileSync(path.join(root, 'pyproject.toml'), 'project.version = "0.0.3"\n');
-  assert.equal(release.manifestVersion(path.join(root, 'pyproject.toml')), '0.0.3');
-});

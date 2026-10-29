@@ -1,4 +1,4 @@
-// Tests of the release tool (scripts/kit/release.mts): the configuration, the tag, verify, versions, the manifest rules,
+// Tests of the release tool (scripts/kit/release.mts): the configuration, the tag, verify, the manifest rules,
 // assets, publish and coverage. Each case works in a committed copy of the fixture (release-sandbox.mts) with stubs of
 // gh and npm on PATH; real git, tar and unzip run. No case reaches GitHub or a registry.
 import assert from 'node:assert/strict';
@@ -9,7 +9,7 @@ import test from 'node:test';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { Stop } from '../../scripts/kit/process.mts';
 import * as release from '../../scripts/kit/release.mts';
-import { CHANGELOG, git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
+import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { KIT_MAKE, tool } from './kit-tools.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
@@ -176,83 +176,6 @@ test('verify without the repository, with an unknown tag or with a failing gh st
   stop(() => release.verify(context(box), tag), /gh api --paginate repos\/example\/kit-fixture\/commits\/[0-9a-f]{40}\/check-runs\?per_page=100 .* exited with 1: HTTP 404/);
 });
 
-test('every manifest at the version and the change log section pass', (t) => {
-  const box = releaseSandbox(t);
-  const lines: string[] = [];
-  assert.equal(release.versions(context(box, { log: line => lines.push(line) }), 'v0.0.1'), '0.0.1');
-  assert.ok(lines.some(line => line.includes('reading the version of packages/fixture-rust/Cargo.toml')), lines.join('\n'));
-});
-
-test('a version mismatch names the file, the tag and both values for each manifest kind', (t) => {
-  const box = releaseSandbox(t);
-  edit(box.root, 'packages/fixture-lib/package.json', m => ({ ...m, version: '0.0.2' }));
-  writeFileSync(path.join(box.root, 'packages/fixture-rust/Cargo.toml'), '[package]\nname = "x"\nversion = "0.0.3"\n\n[dependencies]\nitoa = "=1.0.15"\n');
-  writeFileSync(path.join(box.root, 'packages/fixture-python/pyproject.toml'), '[project]\nname = "x"\n');
-  edit(box.root, 'package.json', m => ({ ...m, version: '0.0.4' }));
-  stop(() => release.versions(context(box), 'v0.0.1'), /^package\.json: version 0\.0\.4, the tag v0\.0\.1 is 0\.0\.1; packages\/fixture-lib\/package\.json: version 0\.0\.2, the tag v0\.0\.1 is 0\.0\.1; packages\/fixture-rust\/Cargo\.toml: version 0\.0\.3, the tag v0\.0\.1 is 0\.0\.1; packages\/fixture-python\/pyproject\.toml: version none, the tag v0\.0\.1 is 0\.0\.1$/);
-});
-
-test('a VERSION file is a manifest', (t) => {
-  const box = releaseSandbox(t, { mutate: (root: string) => {
-    writeFileSync(path.join(root, 'VERSION'), '0.0.1\n');
-    edit<ConfigJson>(root, 'config/release.json', c => ({ ...c, manifests: { ...c.manifests, VERSION: 'version' } }));
-  } });
-  assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
-  writeFileSync(path.join(box.root, 'VERSION'), '0.0.9\n');
-  stop(() => release.versions(context(box), 'v0.0.1'), /VERSION: version 0\.0\.9, the tag v0\.0\.1 is 0\.0\.1/);
-});
-
-test('a Composer source archive may derive its version from the tag, but an explicit mismatch fails', (t) => {
-  const box = releaseSandbox(t, { mutate: (root: string) => {
-    writeJson(root, 'composer.json', { name: 'polyspec/root', type: 'project' });
-    edit<ConfigJson>(root, 'config/release.json', c => ({ ...c, manifests: { ...c.manifests, 'composer.json': 'version' } }));
-  } });
-  assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
-  edit(box.root, 'packages/fixture-php/composer.json', ({ version: _version, ...rest }) => rest);
-  assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
-  edit(box.root, 'packages/fixture-php/composer.json', manifest => ({ ...manifest, version: '0.0.2' }));
-  stop(() => release.versions(context(box), 'v0.0.1'), /packages\/fixture-php\/composer\.json: version 0\.0\.2, the tag v0\.0\.1 is 0\.0\.1/);
-});
-
-test('a missing change log section, a section without an entry and a missing translation fail', (t) => {
-  const box = releaseSandbox(t);
-  stop(() => release.versions(context(box), 'v0.0.2'), /CHANGELOG\.md: no section ## 0\.0\.2 for the tag v0\.0\.2/);
-  writeFileSync(path.join(box.root, 'CHANGELOG.md'), '# Changelog\n\n## 0.0.1\n\n<a id="001"></a>\n\n## 0.0.0\n\n- Old.\n');
-  stop(() => release.versions(context(box), 'v0.0.1'), /CHANGELOG\.md: the section ## 0\.0\.1 has no entry for the tag v0\.0\.1/);
-  writeFileSync(path.join(box.root, 'CHANGELOG.md'), CHANGELOG);
-  edit<ConfigJson>(box.root, 'config/release.json', c => ({ ...c, changelogTranslations: ['CHANGELOG.ko.md'] }));
-  stop(() => release.versions(context(box), 'v0.0.1'), /CHANGELOG\.ko\.md: the file is missing for the tag v0\.0\.1/);
-  writeFileSync(path.join(box.root, 'CHANGELOG.ko.md'), '# Changelog\n\n## 0.0.1\n\n- Entry.\n');
-  assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
-  writeFileSync(path.join(box.root, 'CHANGELOG.ko.md'), '# Changelog\n\n## 0.0.2\n\n- Entry.\n');
-  stop(() => release.versions(context(box), 'v0.0.1'), /CHANGELOG\.ko\.md: no section ## 0\.0\.1 for the tag v0\.0\.1/);
-});
-
-test('a Go module tag requires the module path of its go.mod and the change log section, and no other manifest', (t) => {
-  const box = releaseSandbox(t);
-  edit(box.root, 'package.json', m => ({ ...m, version: '9.9.9' }));
-  assert.equal(release.versions(context(box), 'packages/fixture-go/v0.0.1'), '0.0.1');
-  writeFileSync(path.join(box.root, 'packages/fixture-go/go.mod'), 'module example.com/other\n\ngo 1.21\n');
-  stop(() => release.versions(context(box), 'packages/fixture-go/v0.0.1'), /packages\/fixture-go\/go\.mod: module example\.com\/other, the tag packages\/fixture-go\/v0\.0\.1 is example\.com\/kit-fixture-go/);
-  stop(() => release.versions(context(box), 'v0.0.1'), /packages\/fixture-go\/go\.mod: module example\.com\/other/);
-  // go mod edit -json reads the module path, so a quoted path is the path.
-  writeFileSync(path.join(box.root, 'packages/fixture-go/go.mod'), 'module "example.com/kit-fixture-go"\n\ngo 1.21\n');
-  assert.equal(release.versions(context(box), 'packages/fixture-go/v0.0.1'), '0.0.1');
-  rmSync(path.join(box.root, 'packages/fixture-go/go.mod'));
-  stop(() => release.versions(context(box), 'packages/fixture-go/v0.0.1'), /packages\/fixture-go\/go\.mod: the file is missing for the tag packages\/fixture-go\/v0\.0\.1/);
-});
-
-test('a Go module at the repository root is checked by the root tag', (t) => {
-  const box = releaseSandbox(t, { mutate: (root: string) => {
-    writeFileSync(path.join(root, 'go.mod'), 'module example.com/root\n\ngo 1.21\n');
-    edit<ConfigJson>(root, 'config/release.json', c => ({ ...c, goModules: { ...c.goModules, '.': 'example.com/root' } }));
-  } });
-  assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
-  stop(() => release.parseTag(release.loadConfig(box.root), './v0.0.1'), /\. is not a Go module directory/);
-  writeFileSync(path.join(box.root, 'go.mod'), 'module example.com/changed\n');
-  stop(() => release.versions(context(box), 'v0.0.1'), /go\.mod: module example\.com\/changed, the tag v0\.0\.1 is example\.com\/root/);
-});
-
 test('the section is the release notes without the anchor of the next section', (t) => {
   const box = releaseSandbox(t, { changelog: '# Changelog\n\n## 0.0.2\n\n- Two.\n\n<a id="001"></a>\n\n## 0.0.1\n\n- One.\n- Uno.\n\n<a id="000"></a>\n' });
   assert.equal(release.releaseNotes(context(box), 'v0.0.1'), '- One.\n- Uno.\n');
@@ -276,18 +199,6 @@ test('a section over the limit of GitHub becomes a link to the section, and a se
 });
 
 // K785: the form of a dependency is the package manager's to resolve; the release keeps only the tag version of its own packages.
-test('the problems of a manifest are only a dependency on an own package or a composer.json version other than the tag (K785)', (t) => {
-  const { config } = context(releaseSandbox(t));
-  const problems = (kind: release.PackageKind, manifest: release.Manifest) => release.manifestProblems(config, kind, manifest, '1.0.0');
-  assert.deepEqual(problems('npm', { name: 'a', dependencies: { 'fixture-lib': '1.0.0', semver: '^7.0.0', x: 'file:../x', y: 'git+https://example.com/y.git', z: 'https://example.com/z.tgz' }, peerDependencies: { react: '*' } }), []);
-  assert.deepEqual(problems('npm', { dependencies: { 'fixture-lib': '^1.0.0' }, devDependencies: { 'fixture-lib': 'workspace:*' } }), ['dependencies fixture-lib: ^1.0.0, not 1.0.0', 'devDependencies fixture-lib: workspace:*, not 1.0.0']);
-  const composer = { version: '1.0.0', require: { php: '>=8.2', 'polyspec/kit-fixture': '1.0.0', 'polyspec/other': '^1.0' }, 'require-dev': { 'polyspec/other': 'dev-main' } };
-  assert.deepEqual(problems('composer', composer), []);
-  assert.deepEqual(problems('composer', { require: {} }), []);
-  assert.deepEqual(problems('composer', { ...composer, version: '1.0.1' }), ['version: 1.0.1, not 1.0.0']);
-  assert.deepEqual(problems('composer', { ...composer, require: { 'polyspec/kit-fixture': '2.0.0' } }), ['require polyspec/kit-fixture: 2.0.0, not 1.0.0']);
-});
-
 test('assets builds one archive per package of the configuration', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
@@ -323,7 +234,6 @@ test('K712 builds candidate archives from committed HEAD without a release tag',
   const composerArchive = path.join(box.root, 'var/release/assets', 'polyspec-kit-fixture-php-0.0.1.zip');
   assert.equal(spawnSync('unzip', ['-p', composerArchive, 'src/native/shared.c'], { encoding: 'utf8' }).stdout, generatedSource);
   assert.deepEqual(box.npmCalls().map(call => path.basename(call.cwd)), ['fixture-lib', 'fixture-app']);
-  stop(() => release.candidateAssets(ctx, '0.0.2'), /HEAD candidate 0\.0\.2: the manifests of the commit .* do not install outside the repository/);
   stop(() => release.candidateAssets(ctx, 'v0.0.1'), /candidate version .* is not X\.Y\.Z/);
   assert.equal(git(box.root, 'tag', '--list'), '', 'candidate generation does not create or require a tag');
 });
@@ -498,15 +408,6 @@ test('a packed manifest that differs from the manifest of the commit fails asset
   assert.deepEqual(readdirSync(path.join(box.root, 'var/release')), [], 'and no temporary directory');
 });
 
-test('assets refuses a manifest whose dependency on an own package is not the tag version before it packs (K785)', (t) => {
-  const box = releaseSandbox(t);
-  edit(box.root, 'packages/fixture-app/package.json', m => ({ ...m, dependencies: { 'fixture-lib': 'workspace:*' } }));
-  git(box.root, 'commit', '--quiet', '-am', 'manifests');
-  const tag = box.tag('v0.0.1', git(box.root, 'rev-parse', 'HEAD'));
-  stop(() => release.assets(context(box), tag), /packages\/fixture-app\/package\.json: dependencies fixture-lib: workspace:\*, not 0\.0\.1$/);
-  assert.deepEqual(box.npmCalls(), [], 'no package is packed');
-});
-
 test('assets refuses a package whose manifest name differs from the configuration', (t) => {
   const box = releaseSandbox(t);
   edit(box.root, 'packages/fixture-lib/package.json', m => ({ ...m, name: 'renamed' }));
@@ -646,9 +547,6 @@ test('the command line runs each step, prints a line per step and exits with 1 o
   let result = cli(box, ['verify', tag]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, new RegExp(`\\[release\\] v0\\.0\\.1: the commit ${box.commit} is on origin/main and passed push-gate, ci-passed`));
-  result = cli(box, ['versions', tag]);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /\[release\] v0\.0\.1: every manifest of the tag declares 0\.0\.1 and CHANGELOG\.md has ## 0\.0\.1/);
   result = cli(box, ['assets', tag]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /\[release\] v0\.0\.1: built fixture-lib-npm-0\.0\.1\.tgz, fixture-app-npm-0\.0\.1\.tgz, polyspec-kit-fixture-php-0\.0\.1\.zip, kit_fixture-0\.0\.1-py3-none-any\.whl in var\/release\/assets/);
@@ -659,9 +557,6 @@ test('the command line runs each step, prints a line per step and exits with 1 o
   result = cli(box, ['coverage']);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /every package file is classified in config\/release\.json/);
-  result = cli(box, ['versions', 'v0.0.2']);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /\[release\] versions v0\.0\.2 failed: package\.json: version 0\.0\.1, the tag v0\.0\.2 is 0\.0\.2/);
   mkdirSync(path.join(box.root, 'stray'));
   writeFileSync(path.join(box.root, 'stray/composer.json'), '{}');
   result = cli(box, ['coverage']);
@@ -675,7 +570,7 @@ test('the command line refuses a missing mode, missing arguments and extra argum
   for (const args of [[], ['verify'], ['candidate-assets'], ['bogus', 'v0.0.1'], ['verify', 'v0.0.1', 'extra'], ['candidate-assets', '0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {
     const result = cli(box, args);
     assert.equal(result.status, 2, args.join(' '));
-    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts tag\|verify\|versions\|assets\|publish\|undraft\|go-tags TAG \| candidate-assets VERSION \| coverage/);
+    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts tag\|verify\|assets\|publish\|undraft\|go-tags TAG \| candidate-assets VERSION \| coverage/);
   }
 });
 
@@ -683,7 +578,7 @@ test('make runs each release step with the tag of the environment and fails with
   const box = releaseSandbox(t);
   box.release('0.0.1');
   const make = (...args: string[]) => spawnSync('make', [...KIT_MAKE, ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
-  for (const target of ['release-verify', 'release-versions', 'release-assets', 'release-publish', 'release-undraft']) {
+  for (const target of ['release-verify', 'release-assets', 'release-publish', 'release-undraft']) {
     const result = make(target);
     assert.equal(result.status, 2, target);
     assert.match(result.stdout + result.stderr, new RegExp(`${target}: TAG is required, for example make ${target} TAG=v0\\.0\\.1`));
@@ -693,11 +588,7 @@ test('make runs each release step with the tag of the environment and fails with
   assert.match(result.stdout + result.stderr, /release-candidate-assets: VERSION is required, for example make release-candidate-assets VERSION=0\.0\.1/);
   result = make('release-candidate-assets', 'VERSION=0.0.1');
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /candidate-assets "\$VERSION"/);
   assert.match(result.stdout, /\[release\] HEAD candidate 0\.0\.1: built fixture-lib-npm-0\.0\.1\.tgz/);
-  result = make('release-versions', 'TAG=v0.0.1');
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /versions "\$TAG"\n\[release\] v0\.0\.1: /);
   result = make('release-verify', 'TAG=v0.0.1');
   assert.equal(result.status, 0, result.stderr);
   result = make('release-coverage');

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { isMain, repositoryRoot } from './paths.mts';
-import { candidateAssets, context, createTag, versions, type CommandOptions, type Context } from './release.mts';
+import { candidateAssets, context, createTag, type CommandOptions, type Context } from './release.mts';
 import { repositoryParts } from './github-release.mts';
 import { run, Stop } from './process.mts';
 
@@ -44,7 +44,6 @@ function cleanCandidate(ctx: Context): string {
 /** Build the candidate archives of the committed candidate before CI runs. */
 export function prepare(ctx: Context, version: string): { sha: string; assets: string[] } {
   if (!VERSION.test(version)) throw new Stop(`version ${JSON.stringify(version)} is not X.Y.Z`);
-  versions(ctx, `v${version}`);
   const assets = candidateAssets(ctx, version);
   const sha = run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: ctx.root, env: ctx.env }).trim();
   return { sha, assets };
@@ -56,7 +55,6 @@ export function publish(ctx: Context, version: string, candidateSha: string, run
   if (!SHA.test(candidateSha)) throw new Stop(`candidate SHA ${JSON.stringify(candidateSha)} is not a full lowercase Git commit SHA`);
   if (!Number.isSafeInteger(runId) || runId < 1) throw new Stop(`CI run id ${runId} is not a positive integer`);
   const tag = `v${version}`;
-  versions(ctx, tag);
   const head = cleanCandidate(ctx);
   if (head !== candidateSha) throw new Stop(`HEAD is ${head}, not candidate ${candidateSha}; publish must tag the exact CI candidate`);
   run('git', ['fetch', '--no-tags', 'origin', 'refs/heads/main:refs/remotes/origin/main'], { cwd: ctx.root, env: ctx.env });

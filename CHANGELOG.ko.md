@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 482d187f770f8ee52bbfde987eb3c4615ecf7bd6179e03d38e552f8103d7f831 -->
+<!-- source-sha256: c77416906c564087be4d2cb699dde62265933a3a54992149bb40ef0310646e1a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- release는 version을 검사하지 않는다: `release-versions`, tag에 대한 각 manifest의 version, 자기 dependency의 정확한 version 검사를 지우며 package manager가 그것을 푼다. consumer 단계: 자기 workflow의 `make release-versions` 단계를 지운다 (K812).
 - worktree-setup은 이름, id, type의 형식, worktree 밖의 Composer manifest나 vendor, 자신이 만들지 않은 Python 환경, worktree가 이미 가진 release archive 폴더로 worktree를 거부하지 않으며, 옛 Composer projection을 지우지 않는다 (K811).
 - docs-check는 문서마다 따로 읽고 깨진 결과의 검사만 남긴다: 유일한 anchor, 닫힌 fence, link, private path, interpolation, checklist 읽기, status table cell, changelog 순서. 쌍 규칙은 지운다: `pair-missing`, `doc-id`, `revision`(source-sha256), anchor·fence·checklist·status table·changelog의 짝 일치, `plan-folder`, make commit과 pre-commit hook의 staged twin 검사 (K809).
 - kit-check는 kit schema에 대한 설정, PHP 저장소가 선언한 PHP, 도구 recipe만 읽는다. target 이름, runtime target, CHECK_TARGETS 묶음, tracked link, owner rule의 lint 선택, retired 파일은 저장소의 것이며 더 검사하지 않는다 (K810).
