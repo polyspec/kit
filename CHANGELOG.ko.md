@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- 추적되는 go.work가 있는 repository에서 `make test-go CASES=<pattern>`은 module별 run처럼 그 pattern을 workspace go test 하나에 `-run`으로 넘긴다. 이제 선택한 Go test의 local run이 선택 없는 run으로 거부되지 않는다(K832).
+
 ## 0.0.73
 
 - K826, K827, K830을 담아 Kit 0.0.73을 릴리즈합니다 (K829).

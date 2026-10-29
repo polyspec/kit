@@ -93,6 +93,12 @@ test('the Go workspace is the source of truth for every standard module test and
   assert.throws(() => goWorkspaceRuns(files, []), /go.work declares no modules/);
 });
 
+test('CASES selects the tests of the one workspace go test by -run, as it does in each module (K832)', () => {
+  const files = ['go.work', 'packages/go/go.mod', 'examples/go.mod'];
+  assert.deepEqual(goWorkspaceRuns(files, ['examples', 'packages/go'], 'TestToken|TestLock'), [{ cwd: '.', tool: 'go', args: ['-run', 'TestToken|TestLock', './examples/...', './packages/go/...'] }]);
+  assert.deepEqual(goWorkspaceRuns(files, ['examples', 'packages/go'], undefined), [{ cwd: '.', tool: 'go', args: ['./examples/...', './packages/go/...'] }]);
+});
+
 test('the infrastructure target discovers every tracked Node test and rejects an empty inventory (K739)', () => {
   const files = ['tests/a.test.mts', 'tests/darwin/mount.test.mts', 'tests/linux/fs.test.mts', 'tests/helper.mts'];
   assert.deepEqual(infrastructureRuns(files, 'darwin'), [{ cwd: '.', tool: 'node', args: ['tests/a.test.mts', 'tests/darwin/mount.test.mts'] }]);

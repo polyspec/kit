@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- `make test-go CASES=<pattern>` in a repository with a tracked go.work passes the pattern to its one workspace go test as `-run`, as the per-module runs do, so a local run of selected Go tests is no longer refused as unselected (K832).
+
 ## 0.0.73
 
 - Release Kit 0.0.73 with K826, K827 and K830 (K829).

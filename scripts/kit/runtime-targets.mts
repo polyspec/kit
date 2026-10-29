@@ -204,9 +204,10 @@ function goWorkspaceModules(files: readonly string[], directories: readonly stri
 }
 
 /** One go test of every go.work module from the root (K751): Go resolves the workspace, and a build-only module counts with the
- * suites of the others, so only a run in which no module has a test is empty. */
-export function goWorkspaceRuns(files: readonly string[], directories: readonly string[]): Run[] {
-  return [{ cwd: '.', tool: 'go', args: goWorkspaceModules(files, directories).map(module => (module === '.' ? './...' : `./${module}/...`)) }];
+ * suites of the others, so only a run in which no module has a test is empty. `cases` selects its tests by -run (K832). */
+export function goWorkspaceRuns(files: readonly string[], directories: readonly string[], cases?: string): Run[] {
+  const modules = goWorkspaceModules(files, directories).map(module => (module === '.' ? './...' : `./${module}/...`));
+  return [{ cwd: '.', tool: 'go', args: [...(cases === undefined ? [] : ['-run', cases]), ...modules] }];
 }
 
 /** Build commands for every module named by go.work, with no package or path filter. */
@@ -308,7 +309,7 @@ if (isMain(import.meta.url)) {
     else if (target === 'case-sensitive-smoke') runs = caseSensitiveSmokeRuns(files);
     else if (suite) runs = suiteRuns(files, target, vitest, venv);
     else if (target === 'go' && files.includes('go.work')) {
-      runs = goWorkspaceRuns(files, workspaceDirectories(root));
+      runs = goWorkspaceRuns(files, workspaceDirectories(root), process.env.CASES || undefined);
     } else runs = runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension, venv, listed, notes, read);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
