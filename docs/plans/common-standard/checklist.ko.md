@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: a22c65c1bfdd12b90c3742ca73db9370ec4f451759513441c561c532a9c09f66 -->
+<!-- source-sha256: 4093bb6245456648c1317f68106e0c514e727b10bf4609e146b886fb23750a69 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -791,5 +791,5 @@
 | K835 | mise.toml release를 선언된 그대로 받고 toolchain-lock과 toolchain-check의 mise.lock 검사를 삭제 | scripts/kit/toolchain-mise.mts, scripts/kit/check-toolchain.mts, scripts/kit/toolchain-lock.mts, tests/kit/toolchain-mise.test.mts, tests/source/python-real.test.mts, AGENTS.md, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, docs/rebuild/toolchain.md, docs/rebuild/toolchain.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-mise.test.mts` | [o] |
 | K836 | toolchain-lock을 checkout의 shim을 PATH 앞에 둔 mise lock 명령 하나로 만들고 toolchain-lock.mts를 삭제 | scripts/kit/kit.mk, scripts/kit/toolchain-lock.mts, scripts/kit/toolchain-mise.mts, scripts/kit/kit-check.mts, scripts/kit/worktree-setup.mts, mise.lock, tests/kit/install-tools.test.mts, tests/kit/install-mise.test.mts, tests/kit/toolchain-lock.test.mts, tests/kit/toolchain-stubs.mts, Makefile, config/rebuild.json, docs, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/install-tools.test.mts tests/kit/install-mise.test.mts` | [ ] |
 | K837 | php-arginfo/5.0.0을 nikic/php-parser 5.0.0으로 고정하고 감사가 찾은 K831 잔재를 제거 | scripts/kit/php-arginfo/5.0.0/composer.json, scripts/kit/php-arginfo/5.0.0/composer.lock, scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/link-state-check.test.mts tests/kit/php-ext.test.mts` | [ ] |
-| K839 | kit이 실행하지 않는 mise.toml key를 모르는 도구나 http: 도구의 거부 없이 mise로 넘김 | scripts/kit/toolchain-mise.mts, tests/kit/toolchain-mise.test.mts, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-mise.test.mts` | [ ] |
+| K839 | kit이 실행하지 않는 mise.toml key를 모르는 도구나 http: 도구의 거부 없이 mise로 넘김 | scripts/kit/toolchain-mise.mts, tests/kit/toolchain-mise.test.mts, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-mise.test.mts` | [~] |
 | K840 | rust-toolchain.toml의 channel을 <major>.<minor>.<patch> 거부 없이 선언된 그대로 읽음 | scripts/kit/toolchain-files.mts, tests/kit/toolchain-files.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-files.test.mts` | [ ] |
