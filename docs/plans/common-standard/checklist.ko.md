@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 25d3a5525fda153d8f4aeccb1cc97f7e8e3a170ee3f0e0a02e96fbaba53eb527 -->
+<!-- source-sha256: eae652f6e80f68a5f156a237ca4fb021297bd389958f886870bb8796ab3c2639 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -706,5 +706,5 @@
 | K747 | native Playwright case를 표준 reporter로 실행한다 (issue 13) | scripts/kit/run-tests.mts scripts/kit/playwright-reporter.mts scripts/kit/test-progress.mts scripts/kit/test-selection.mts package.json package-lock.json tests/kit/playwright-reporter.test.mts tests/kit/run-tests.test.mts tests/kit/test-selection.test.mts | `node --test tests/kit/playwright-reporter.test.mts tests/kit/run-tests.test.mts tests/kit/test-selection.test.mts` | [ ] |
 | K748 | tag에서 version을 얻는 Composer archive와 native proof를 지원한다 (issue 16) | scripts/kit/release.mts scripts/kit/release-consumer.mts tests/kit/release.test.mts tests/kit/release-consumer.test.mts tests/kit/release-consumer-sandbox.mts | `node --test tests/kit/release.test.mts tests/kit/release-consumer.test.mts` | [ ] |
 | K749 | CI를 통과한 확정 candidate를 단일 release 명령으로 배포한다 (issue 17) | scripts/kit/release-run.mts tests/kit/release-run.test.mts Makefile scripts/kit/kit.mk config/rebuild.json | `node --test tests/kit/release-run.test.mts` | [ ] |
-| K750 | 선택 설치에서 선언한 Rust toolchain component를 모두 설치한다 | scripts/kit/install-rust.mts tests/kit/install-rust.test.mts tests/kit/install-tools.test.mts | `node --test tests/kit/install-rust.test.mts` | [~] |
+| K750 | 선택 설치에서 선언한 Rust toolchain component를 모두 설치한다 | scripts/kit/install-rust.mts tests/kit/install-rust.test.mts tests/kit/install-tools.test.mts | `node --test tests/kit/install-rust.test.mts` | [o] |
 | K751 | go.work의 모든 모듈을 go test 한 번으로 실행해서 빌드 전용 모듈이 빈 실행이 되지 않게 한다 (issue 5) | scripts/kit/runtime-targets.mts tests/kit/runtime-targets.test.mts | `node --test tests/kit/runtime-targets.test.mts` | [o] |

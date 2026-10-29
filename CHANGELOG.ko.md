@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7945b56ac43fe90332aba127561a99cb6bf0c6f82cc3d218c41a9fc04aa96157 -->
+<!-- source-sha256: 9599b4caac9856b960d4a345bc046db17e9e57129d678412dd58c25b1c1ade5a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- rust-toolchain.toml의 channel, profile, components, targets를 rustup에 넘겨서, 이미 설치된 toolchain에도 빠진 component가 추가되게 한다. (K750)
 
 - test-go가 go.work의 모든 모듈을 go test 한 번으로 실행해서, 빌드 전용 모듈이 더 이상 빈 실행이 되지 않는다. (K751)
 

@@ -175,15 +175,14 @@ test('a declared Rust channel without rustup fails with the one prerequisite of 
 // A checkout whose rust-toolchain.toml pins the Rust toolchain with a component, as a Rust repository does.
 const TOOLCHAIN_FILES = { 'rust-toolchain.toml': '[toolchain]\nchannel = "1.99.0"\nprofile = "minimal"\ncomponents = ["clippy"]\n' };
 
-test('install-tools installs the toolchain of rust-toolchain.toml with rustup, which reads the file (K151)', (t) => {
-  // rustup 1.28 no longer installs that toolchain as cargo first runs; `rustup toolchain install` without a name installs the
-  // active toolchain, which the file names, with its profile and components.
+test('install-tools installs the exact channel, profile and components of rust-toolchain.toml (K151)', (t) => {
+  // Explicit components ensure an existing active toolchain is updated when it lacks a requested tool such as clippy.
   const { root, stubs } = checkout(t, '[tools]\n', TOOLCHAIN_FILES);
   writeFileSync(path.join(stubs.directory, 'bin', 'rustup'), RUSTUP, { mode: 0o755 });
   const result = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(stubs.calls(), ['mise install --locked', 'rustup toolchain install --no-self-update']);
-  assert.match(result.stdout, /^\[install-tools\] rustup toolchain install --no-self-update$/m);
+  assert.deepEqual(stubs.calls(), ['mise install --locked', 'rustup toolchain install --no-self-update --profile minimal --component clippy 1.99.0']);
+  assert.match(result.stdout, /^\[install-tools\] rustup toolchain install --no-self-update --profile minimal --component clippy 1\.99\.0$/m);
 });
 
 test('a rust-toolchain.toml without rustup fails with the one prerequisite of the machine (K151)', (t) => {
