@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The K858 test of kit-bootstrap creates its repository through initRepository, as sandbox-repository.test requires of every kit test (K893).
 - commit-fix-test of git commit --amend judges the commit that the amend makes with -m and -F too: the commit-msg check reads an amend from the options of the git commit that runs it, before its message, since git names an amend to the prepare-commit-msg hook only without -m or -F (K891).
 - make link leaves out a project whose installer has not run yet, in npm, Composer and Python, as a package that is not installed, instead of stopping make install when a sub-install links before the other projects are installed; it still creates no Python environment (K689-3), and link-state-check reports each declared provided package that no installed folder links, so a project that was never installed ends red at link-state-check (K888).
 

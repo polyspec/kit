@@ -8,6 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { initRepository } from './sandbox-repository.mts';
 import { assertWorkflowPackageBootstrap } from './workflow-package-bootstrap.mts';
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
@@ -88,7 +89,8 @@ test('make install runs the bootstrap of kit first, then the install steps that 
 test('make install-kit runs in a worktree with its own var/tools (K858)', (t) => {
   const root = repository(t);
   const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
-  for (const args of [['init', '--quiet', '--initial-branch=main'], ['add', '.'], ['commit', '--quiet', '-m', 'base']]) assert.equal(git(...args).status, 0);
+  initRepository(root, '--initial-branch=main');
+  for (const args of [['add', '.'], ['commit', '--quiet', '-m', 'base']]) assert.equal(git(...args).status, 0);
   const worktree = `${root}-row`;
   assert.equal(git('worktree', 'add', '--quiet', '-b', 'fix/row-K1', worktree).status, 0);
   const install = make(worktree, '-n', 'install-kit');
