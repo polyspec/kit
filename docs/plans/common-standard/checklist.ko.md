@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: a1bdc831f76c051a7f0d103c1d9d27dc906bac854d45ec8f959300c459a8942b -->
+<!-- source-sha256: 985fa16f476686f0d19ea078a7cf6dda8a61f01424049749a111f847876dbcb5 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -729,3 +729,4 @@
 | K772 | 배포본이 설치된 Python provider는 패키지 폴더가 없어도 그 폴더가 링크된다 | scripts/kit/link-folders.mts, tests/kit/uv-install.test.mts | `node --test --test-name-pattern=K772 tests/kit/uv-install.test.mts` | [o] |
 | K773 | link-state-check는 저장소 밖 경로로 형제 패키지를 연결하는 추적 매니페스트를 발견으로 보고한다 | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts | `node --test --test-name-pattern=K773 tests/kit/link-state-check.test.mts` | [o] |
 | K774 | release 대상과 dependency review는 저장소가 추적하는 go.work로 실행하고, 추적하는 것이 없을 때만 GOWORK를 끈다 | scripts/kit/kit.mk, tests/kit/link.test.mts | `node --test --test-name-pattern=K774 tests/kit/link.test.mts` | [o] |
+| K775 | K772부터 K774까지를 배포하기 위해 Kit 0.0.66을 준비한다 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.66` | [ ] |
