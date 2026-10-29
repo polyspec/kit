@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 6504067f80dbb79b4ad7ac80337b64914eb9312abd11735fa7cf7be01c2fb966 -->
+<!-- source-sha256: 71be6b6206d256157aa1ddb1575ebe3b3c7c0f012f58b2676932c7c2cf5ebbb3 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -726,3 +726,4 @@
 | K769 | uv-install은 pylock.toml로 잠긴 project를 자체 설치처럼 uv pip install -r로 설치한 뒤 링크한다 | scripts/kit/uv-install.mts, tests/source/uv-link-real.test.mts | `node --test --test-name-pattern=K769 tests/source/uv-link-real.test.mts` | [o] |
 | K770 | K753부터 K769까지를 배포하기 위해 Kit 0.0.65를 준비한다 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.65` | [o] |
 | K771 | 0.0.65 candidate의 전체 CI가 실패한 test를 K755, K760, K761, K762, K765에 맞춘다 | tests/kit/test-output.test.mts, tests/kit/kit-bootstrap.test.mts, tests/source/consumer-layout.test.mts, tests/source/release-workflow.test.mts, tests/source/link-composer-real.test.mts, PRINCIPLES.md | `node --test tests/kit/isolation.test.mts tests/kit/kit-bootstrap.test.mts tests/kit/gates-workflow.test.mts` | [o] |
+| K772 | 배포본이 설치된 Python provider는 패키지 폴더가 없어도 그 폴더가 링크된다 | scripts/kit/link-folders.mts, tests/kit/uv-install.test.mts | `node --test --test-name-pattern=K772 tests/kit/uv-install.test.mts` | [ ] |
