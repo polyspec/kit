@@ -28,7 +28,7 @@ test('every recipe of kit.mk runs its tool through KIT and KIT_EXT, and none nam
 test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT name', () => {
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'docs-check', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
+  assert.equal(dry.stdout.trim(), `${path.join(MAIN, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
 });
 
 test('Windows Make recipes use the Node.js selected by mise and its npm CLI, while npm-install gets the native wrapper', (t) => {
@@ -87,10 +87,10 @@ test('consumer kit.mk exposes the shared PHP arginfo and selective symbol instal
   ], { cwd: ROOT, encoding: 'utf8' });
   const arginfo = dry('kit-install-php-arginfo');
   assert.equal(arginfo.status, 0, arginfo.stderr);
-  assert.equal(arginfo.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-php-arginfo.mjs`);
+  assert.equal(arginfo.stdout.trim(), `${path.join(MAIN, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-php-arginfo.mjs`);
   const symbols = dry('kit-install-symbols', 'EXTRACTORS=go');
   assert.equal(symbols.status, 0, symbols.stderr);
-  assert.equal(symbols.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs go`);
+  assert.equal(symbols.stdout.trim(), `${path.join(MAIN, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs go`);
 });
 
 test('kit.mk accepts a parity declaration with no implementation targets and still rejects unreadable names', (t) => {
@@ -164,7 +164,7 @@ test('kit-test is a target of the Makefile of kit, not of kit.mk', () => {
   assert.equal(recipes.some(line => line.includes('tests/kit')), false, 'kit.mk runs tests/kit');
   const dry = spawnSync('make', ['-n', '--no-print-directory', 'kit-test'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.ok(dry.stdout.split('\n').includes(`${path.join(ROOT, 'var/tools/bin/node')} scripts/kit/run-tests.mts node -- tests/kit`), dry.stdout);
+  assert.ok(dry.stdout.split('\n').includes(`${path.join(MAIN, 'var/tools/bin/node')} scripts/kit/run-tests.mts node -- tests/kit`), dry.stdout);
 });
 
 /**

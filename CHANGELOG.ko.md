@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4456141f1d85b592b69933df9f1c75b6f438ed8e36308ca283e0a6091bd5fdf4 -->
+<!-- source-sha256: 55d40a8efbde833f31bda823c7e743ccf10dd4a051bd1f7cd1c78c66cb61b9f7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- kit-mk 테스트가 worktree가 실행하는 main checkout의 도구를 기대해서 worktree에서도 통과한다. (K756)
 
 - release workflow가 kit-check를 반복하지 않는다; release-verify가 요구하는 태그 commit의 통과한 CI run에 이미 들어 있다. (K755)
 

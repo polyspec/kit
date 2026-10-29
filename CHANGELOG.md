@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The kit-mk tests expect the main checkout tools that a worktree runs, so they pass in a worktree. (K756)
+
 - The release workflow no longer repeats kit-check; the passed CI run of the tagged commit, which release-verify requires, already holds it. (K755)
 
 - stopGroup returns only after the stopped group has ended, also when it needed SIGKILL. (K754)
