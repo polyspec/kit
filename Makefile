@@ -46,7 +46,7 @@ KIT_TEST_FILES_4 := \
 	tests/kit/toolchain-files.test.mts
 KIT_TEST_FILES_5 := \
 	tests/kit/cargo-downloads.test.mts tests/kit/catch-check-steps.test.mts tests/kit/composer-install.test.mts \
-	tests/kit/duplication-check.test.mts tests/kit/git-hooks.test.mts \
+	tests/kit/divergence-check.test.mts tests/kit/duplication-check.test.mts tests/kit/git-hooks.test.mts \
 	tests/kit/install-npm.test.mts tests/kit/install-packages.test.mts tests/kit/lint-php.test.mts \
 	tests/kit/npm-install.test.mts tests/kit/php-ext.test.mts tests/kit/plan.test.mts \
 	tests/kit/process-group.test.mts \
@@ -54,7 +54,7 @@ KIT_TEST_FILES_5 := \
 	tests/kit/schema.test.mts tests/kit/test-build-first.test.mts tests/kit/twin-merge.test.mts
 KIT_TEST_FILES_6 := \
 	tests/kit/catch-check.test.mts tests/kit/ci-setup.test.mts tests/kit/claude-hook.test.mts tests/kit/commits.test.mts \
-	tests/kit/divergence-check.test.mts tests/kit/documents.test.mts tests/kit/gates-workflow.test.mts \
+	tests/kit/documents.test.mts tests/kit/gates-workflow.test.mts \
 	tests/kit/generated-files.test.mts tests/kit/git.test.mts tests/kit/kit-sync.test.mts \
 	tests/kit/linked-sources.test.mts tests/kit/lint-rust.test.mts tests/kit/lint-ts.test.mts \
 	tests/kit/project-hook.test.mts tests/kit/python-venv.test.mts tests/kit/release-assets.test.mts \

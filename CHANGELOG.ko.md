@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 07af547383009bbd35061ff0255efd5f3d03496fc5e442fe9c9c378b75fb80eb -->
+<!-- source-sha256: d48f4836cee165ef443e1bb894d00bbf91ba30c5de5c556133f0a049088bb91f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- divergence-check는 lint-php의 autoload 단계처럼 tools 환경의 PATH에서 polyfill 가드용 php를 실행하고, 그 테스트는 php와 PHP parser를 설치하는 CI shard에서 실행되므로 K883 이후 실패하던 kit의 CI가 다시 통과합니다 (K886).
 - Composer는 checkout root에서 시작해 kit의 Composer 프로젝트(php-lint, phpunit)를 --working-dir로 지정해 설치합니다. 그래서 Composer의 mise shim은 checkout의 mise.toml만 읽고, 프로젝트가 들어 있는 link된 kit checkout의 신뢰되지 않은 mise.toml은 읽지 않습니다 (K885).
 - worktree는 그 자체로 checkout입니다. KIT_TOOLS는 checkout 자신의 var/tools이고, make install과 make install-tools가 worktree에서 실행되며, make worktree-setup은 main checkout에서 npm, Composer, uv, Go를 offline으로 준비하고 package를 rebuild하는 대신 worktree를 만들어 거기서 온라인으로 make install을, 그다음 make link-state-check를 실행합니다. worktree는 main checkout의 var/tools와 lock을 바꾸지 않습니다. make worktree-link-state는 없어졌습니다. rebuild가 없으면 make worktree-setup과 같기 때문입니다. node_modules가 없는 worktree는 먼저 packageManager가 지정한 npm으로 npm ci를 실행하고, 설치된 kit은 install-link가 주는 옆 kit checkout으로 가는 link를 한 단계 먼저 받으므로, node_modules에서 kit을 include하는 Makefile은 live kit을 실행합니다. 이 릴리즈 전에 만든 worktree는 make install을 한 번 실행합니다 (K858).
 - worktree-setup은 package를 직접 설치하거나 build하지 않습니다. npm, Composer, uv, Go 준비와 link rebuild를 삭제했으며, 둘 다 worktree의 make install이 합니다 (K857).

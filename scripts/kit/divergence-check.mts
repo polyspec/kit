@@ -27,7 +27,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
 import { SYMBOLS } from './install-symbols.mts';
 import { parserAutoloader } from './lint-php.mts';
-import { toolCommand } from './mise-tools.mts';
+import { toolsEnvironment } from './mise-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { errorCode } from './process.mts';
 
@@ -164,13 +164,14 @@ export const reasonKind = (reason: string): boolean => REASON_KINDS.some(kind =>
 
 /**
  * The number of polyfill guards on each `file:line` of the PHP `sources` (K883), read by AutoloadFiles.php of the PHP symbol
- * extractor, the one definition of the shape that lint-php also applies (K873), with the php and the nikic/php-parser of the
- * checkout `root`.
+ * extractor, the one definition of the shape that lint-php also applies (K873), with the php of the tools environment and the
+ * nikic/php-parser of the checkout `root`.
  */
 export function phpPolyfillGuards(sources: Record<string, string>, root: string = repositoryRoot()): Map<string, number> {
   const guards = new Map<string, number>();
   if (Object.keys(sources).length === 0) return guards;
-  const printed = execFileSync(toolCommand(root, 'php'), [path.join(SYMBOLS, 'php', 'autoload-files.php'), '--guards', parserAutoloader(root)], { cwd: root, input: JSON.stringify(sources), encoding: 'utf8' });
+  // php from the PATH of the tools environment of the checkout, as the autoload step of lint-php runs it (K886).
+  const printed = execFileSync('php', [path.join(SYMBOLS, 'php', 'autoload-files.php'), '--guards', parserAutoloader(root)], { cwd: root, env: toolsEnvironment(root), input: JSON.stringify(sources), encoding: 'utf8' });
   for (const line of printed.split('\n').filter(Boolean)) guards.set(line, (guards.get(line) ?? 0) + 1);
   return guards;
 }
