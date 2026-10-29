@@ -1,5 +1,5 @@
 <!-- doc-id: plan-kit-harness -->
-<!-- source-sha256: a1b067836ae4129baed3e1a46258d87dbfed7fdff4948b686f8c28feac7cec64 -->
+<!-- source-sha256: f5e553bbebe72f49bad26ac8f3be1c3036ed8104fb010edae3a6f69e7a8df501 -->
 # 공통 규칙과 하네스로서의 kit
 
 [English](plan.md)
@@ -64,7 +64,7 @@ kit은 package manager나 도구를 얇은 recipe로 호출할 수 있다(`mise 
    - kit-sync
    - `link`(link, check)와 `install-link`
    - `link-check`. 항목 6의 삭제 뒤에 폴더 동일성만 판정한다. 각 install 폴더가 link 선언(항목 8)대로 dev 폴더로 가는 symlink인지 확인한다. P30과 S11은 Enforced by를 `make link-check`로 바꾸고, 그 본문(`PRINCIPLES.md:147`, `:245`, 한국어 쌍 포함)도 같은 행에서 `link-check`를 이름으로 든다. 파일 내용도 버전도 읽지 않는다. `link-state-check`는 남은 폴더 검사와 겹치므로 여기에 합쳐져 삭제된다.
-   - `worktree-link-state`. `link-state-check` 대신 `link-check`를 호출한다(`kit.mk:444`, `worktree-setup.mts:258`).
+   - `worktree-setup`의 `link-state-check` 단계. `make link-state-check` 대신 `make link-check`를 실행한다(`worktree-setup.mts`. K858이 `make worktree-link-state`를 삭제한다).
    - `release-run` 인자의 형식 검증
    - `lint-rust --locked`. table.md의 lint-rust 행 (c)는 "passes cargo's flag; kit reads no lock"으로 고쳐 쓴다.
    - `bootstrap/tool-wrappers.mts`
@@ -83,7 +83,7 @@ kit은 package manager나 도구를 얇은 recipe로 호출할 수 있다(`mise 
    - 한국어 쌍과 함께 새 PRINCIPLES 규칙 항목이 다음을 말한다: "common rules are injected identically; Enforced by: `make kit-inject-check`". `PRINCIPLES.md:6-7`은 서문이라 이 줄을 담을 수 없다. `AGENTS.md:35-37`은 새 대상을 가리키도록 바꾼다.
 4. **멱등성(P17).** 한 트리에서 `make install`을 두 번 실행해도 어떤 파일도 바뀌면 안 된다. `bootstrap/verify-idempotent.mts`는 mtime과 inode를 비교한다(`:12-22`). 따라서 relink는 항상 변경으로 보고된다. 증명은 kit 코드가 아니라 `tests/kit` 아래의 테스트가 한다. 이 테스트는 fixture에서 `make install`을 두 번 실행하고 `var/tools`와 install 폴더의 내용을 비교한다. Red: 두 번째 설치가 `var/tools`의 파일을 다시 쓰는 fixture는 현재 트리에서 테스트에 실패한다. Green: 수정으로 테스트가 통과한다. lock은 제외한다. 그 내용은 package manager의 것이기 때문이다. P17의 Enforced by가 이 테스트를 이름으로 든다.
 5. **harness 부품마다 규칙에 이름을 붙인다.**
-   - 남기는 부품은 모두 규칙에 이름이 있다. Red: 어떤 규칙도 이름으로 지정하지 않은 남긴 부품은, `gates-workflow.test.mts`의 새 단언을 실패하게 한다. 이 단언은 순서 3의 `kit-gates` 전제 조건뿐 아니라 남긴 부품을 각각 이름으로 나열한다. Green: 각 부품이 이름으로 지정되면 통과한다. `owner-validate`, `install-link`, `catch-check`(P8 아래), release-run 인자 검사, `bootstrap/tool-wrappers.mts`, `worktree-link-state`, `uv-install`은 각각 kit AGENTS 규칙이나 Enforced-by 항목을 받는다. `gates-workflow.test.mts`의 단언은 owner-validate 규칙과 같은 행에 들어간다.
+   - 남기는 부품은 모두 규칙에 이름이 있다. Red: 어떤 규칙도 이름으로 지정하지 않은 남긴 부품은, `gates-workflow.test.mts`의 새 단언을 실패하게 한다. 이 단언은 순서 3의 `kit-gates` 전제 조건뿐 아니라 남긴 부품을 각각 이름으로 나열한다. Green: 각 부품이 이름으로 지정되면 통과한다. `owner-validate`, `install-link`, `catch-check`(P8 아래), release-run 인자 검사, `bootstrap/tool-wrappers.mts`, `worktree-setup`의 `link-state-check` 단계, `uv-install`은 각각 kit AGENTS 규칙이나 Enforced-by 항목을 받는다. `gates-workflow.test.mts`의 단언은 owner-validate 규칙과 같은 행에 들어간다.
    - `.php-version` 요구는 `AGENTS.md:93`(K283) 아래에 남는다. install-php는 이 파일을 선언된 PHP로 읽는다.
    - S4는 다음과 같이 고쳐 쓴다: "kit compares and pins no version or lock; format validation of arguments is allowed". 강제 수단은 `Enforced by: none`이며, 이유를 함께 적는다.
 6. **족쇄를 삭제한다.** 각 항목은 별도 행이다. 각 행은 자기 red 테스트(삭제되는 동작이 아직 있음을 보여 주는 것)와 green(행의 테스트가 항목을 뺀 뒤 통과하는 것)을 이름으로 든다.
