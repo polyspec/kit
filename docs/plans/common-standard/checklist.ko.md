@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: fae1a131d941cfbc95d11233e0dc9bcace036f24dc953f33b6c061d626c5d7f4 -->
+<!-- source-sha256: 940fd04dd7af03719d161a7d8471713906c9e424e15475a3a4e1436981dbcfc3 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -788,5 +788,5 @@
 | K831 | tracked lock의 내용을 판정하는 link-state-check의 lock 출처 검사를 삭제 | scripts/kit/link-state-check.mts, scripts/kit/kit.mk, tests/kit/link-state-check.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/link-state-check.test.mts` | [o] |
 | K833 | install-php-arginfo가 lock을 자기 폴더 이름과 판정하는 nikic/php-parser release 비교를 삭제 | scripts/kit/install-php-arginfo.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/php-ext.test.mts` | [o] |
 | K834 | config/php-lint/composer.lock가 기록한 phpcs와 phpstan release를 형식 거부 없이 그대로 받음 | scripts/kit/toolchain-lint.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-lint.test.mts` | [o] |
-| K835 | mise.toml release를 선언된 그대로 받고 toolchain-lock과 toolchain-check의 mise.lock 검사를 삭제 | scripts/kit/toolchain-mise.mts, scripts/kit/check-toolchain.mts, scripts/kit/toolchain-lock.mts, tests/kit/toolchain-mise.test.mts, tests/source/python-real.test.mts, AGENTS.md, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, docs/rebuild/toolchain.md, docs/rebuild/toolchain.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-mise.test.mts` | [ ] |
+| K835 | mise.toml release를 선언된 그대로 받고 toolchain-lock과 toolchain-check의 mise.lock 검사를 삭제 | scripts/kit/toolchain-mise.mts, scripts/kit/check-toolchain.mts, scripts/kit/toolchain-lock.mts, tests/kit/toolchain-mise.test.mts, tests/source/python-real.test.mts, AGENTS.md, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, docs/rebuild/toolchain.md, docs/rebuild/toolchain.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-mise.test.mts` | [~] |
 | K836 | toolchain-lock을 checkout의 shim을 PATH 앞에 둔 mise lock 명령 하나로 만들고 toolchain-lock.mts를 삭제 | scripts/kit/kit.mk, scripts/kit/toolchain-lock.mts, scripts/kit/toolchain-mise.mts, scripts/kit/kit-check.mts, scripts/kit/worktree-setup.mts, mise.lock, tests/kit/install-tools.test.mts, tests/kit/install-mise.test.mts, tests/kit/toolchain-lock.test.mts, tests/kit/toolchain-stubs.mts, Makefile, config/rebuild.json, docs, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/install-tools.test.mts tests/kit/install-mise.test.mts` | [ ] |
