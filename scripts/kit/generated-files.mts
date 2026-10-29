@@ -5,7 +5,7 @@
 // the same way, whatever its path. The pre-commit hook that `git-hooks install` writes runs `staged` through `make staged-generated-hook`.
 //
 //   node scripts/kit/generated-files.mts staged   fail while a staged path is generated or an executable object, and no exception of
-//                                                 the config allows it, or a staged Korean twin holds a stale source-sha256 (K382)
+//                                                 the config allows it
 //   node scripts/kit/generated-files.mts installs fail while an install directory of the checkout is not ignored by Git (K372): node_modules
 //                                                 beside each package.json, the vendor directory of each composer.json, .venv beside each
 //                                                 pyproject.toml and var at the root; `make layout-check` runs it
@@ -20,7 +20,6 @@ import { gitResult } from './git.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { matchesAny } from './glob.mts';
 import { readConfigFindings } from './schema-validate.mts';
-import { stagedTwinFindings } from './check-documents.mts';
 import { trackedFiles } from './tracked-files.mts';
 
 export const CONFIG = 'config/generated.json';
@@ -215,7 +214,7 @@ if (isMain(import.meta.url)) {
     else console.log('[generated-files] every install directory is ignored by Git');
   } else {
     const root = repositoryRoot();
-    const found = [...generatedFindings(stagedPaths(root), loadGeneratedConfig(root), 'unstage it', file => blobContent(root, ':', file)), ...stagedTwinFindings(root)];
+    const found = [...generatedFindings(stagedPaths(root), loadGeneratedConfig(root), 'unstage it', file => blobContent(root, ':', file))];
     for (const line of found) console.error(`[generated-files] ${line}`);
     if (found.length > 0) process.exitCode = 1;
     else console.log('[generated-files] no generated file is staged');

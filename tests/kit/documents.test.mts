@@ -7,12 +7,11 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { check, stagedTwinFindings } from '../../scripts/kit/check-documents.mts';
-import { commitItem } from '../../scripts/kit/plan.mts';
+import { check } from '../../scripts/kit/check-documents.mts';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { readStatusTable } from '../../scripts/kit/status-table.mts';
 import { changelogFindings, sections } from '../../scripts/kit/changelog.mts';
-import { korean, pair, put, tree } from './tree.mts';
+import { pair, put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
 const CONFIG = { schema: 1, include: ['**/*.md'] };
@@ -20,72 +19,30 @@ const run = (root: string, config: Parameters<typeof check>[1] = CONFIG): string
 const has = (findings: string[], text: string) => assert.ok(findings.some(line => line === text), `expected ${text}\nin\n${findings.join('\n')}`);
 const hasPart = (findings: string[], ...parts: string[]) => assert.ok(findings.some(line => parts.every(part => line.includes(part))), `expected ${parts.join(' ... ')}\nin\n${findings.join('\n')}`);
 
-test('a pair with the same doc-id, revision, anchors, fences and links passes', (t) => {
+test('a document with anchors, fences and links passes', (t) => {
   const body = '<a id="intro"></a>\nSee [other](other.md#title) and [site](https://example.org).\n\n```sh\nmake check\n```\n';
   const root = tree(t, { ...pair('a.md', 'alpha', body), ...pair('other.md', 'other') });
   assert.deepEqual(run(root), []);
 });
 
-test('pair-missing: a file without its twin fails in both directions', (t) => {
-  const { 'a.md': en, 'a.ko.md': ko } = pair('a.md', 'alpha');
-  assert.ok(en !== undefined && ko !== undefined);
-  const root = tree(t, { 'a.md': en, 'b.ko.md': ko });
-  const found = run(root);
-  has(found, 'a.md: pair-missing: the Korean twin a.ko.md does not exist; every English document has one');
-  has(found, 'b.ko.md: pair-missing: the English file b.md does not exist; every Korean document has an English original');
-});
-
 test('exclude and include select the documents', (t) => {
-  const root = tree(t, { 'docs/a.md': '# lone\n', 'fixtures/b.md': '# lone\n' });
+  const root = tree(t, { 'docs/a.md': '[x](missing.md)\n', 'fixtures/b.md': '[x](missing.md)\n' });
   assert.deepEqual(run(root, { schema: 1, include: ['docs/**'], exclude: ['docs/a.md'] }), []);
   assert.equal(run(root, { schema: 1, include: ['docs/**'] }).length, 1);
 });
 
-test('doc-id: a missing, different or repeated id fails', (t) => {
-  const files = pair('a.md', 'alpha');
-  const { 'a.md': en, 'a.ko.md': ko } = files;
-  assert.ok(en !== undefined && ko !== undefined);
-  const root = tree(t, { ...files, ...pair('b.md', 'alpha'), 'c.md': '# c\n', 'c.ko.md': '# c\n' });
-  const found = run(root);
-  has(found, 'b.md: doc-id: the doc-id alpha is also the doc-id of a.md; an id names one document');
-  hasPart(found, 'c.md: doc-id: the file has 0 doc-id markers');
-  put(root, { 'a.ko.md': ko.replace('doc-id: alpha', 'doc-id: beta') });
-  hasPart(run(root), 'a.ko.md: doc-id: the doc-id is beta; the English file a.md has alpha');
-  put(root, { 'a.md': en.replace('doc-id: alpha', 'doc-id: Bad_Id') });
-  hasPart(run(root), 'a.md: doc-id: the doc-id "Bad_Id" does not match');
-});
-
-test('doc-id and revision markers written in inline code or a fenced block are not markers', (t) => {
-  const body = 'Write `<!-- doc-id: x -->` and `<!-- source-sha256: y -->`.\n\n```\n<!-- doc-id: z -->\n```\n';
-  assert.deepEqual(run(tree(t, pair('a.md', 'alpha', body))), []);
-});
-
-test('revision: the Korean marker must equal the sha256 of the English file', (t) => {
-  const files = pair('a.md', 'alpha', 'text\n');
-  const { 'a.md': en, 'a.ko.md': ko } = files;
-  assert.ok(en !== undefined && ko !== undefined);
-  const root = tree(t, files);
-  assert.deepEqual(run(root), []);
-  put(root, { 'a.md': `${en}changed\n` });
-  hasPart(run(root), 'a.ko.md: revision: the source-sha256 is ', 'review the translation');
-  put(root, { 'a.ko.md': ko.replace(/<!-- source-sha256.*-->\n/, '') });
-  hasPart(run(root), 'a.ko.md: revision: the file has 0 source-sha256 markers');
-});
-
-test('sections: explicit anchors must be equal and unique', (t) => {
+test('sections: an explicit anchor appears once in its file; a twin may have other anchors (K809)', (t) => {
   const root = tree(t, pair('a.md', 'alpha', '<a id="one"></a>\n<a id="two"></a>\n', '<a id="one"></a>\n'));
-  hasPart(run(root), 'a.ko.md: sections: the section anchors are [one]', 'a.md has [one, two]');
+  assert.deepEqual(run(root), []);
   put(root, pair('a.md', 'alpha', '<a id="one"></a>\n<a id="one"></a>\n'));
   hasPart(run(root), 'a.md: sections: the section anchor one appears more than once');
 });
 
-test('fences: blocks must be equal, closed and keep their info string', (t) => {
+test('fences: every block closes; a twin may hold other blocks (K809)', (t) => {
   const en = '```sh\nmake check\n```\n\n~~~\nplain\n~~~\n';
   assert.deepEqual(run(tree(t, pair('a.md', 'alpha', en))), []);
   const body = (text: string) => tree(t, pair('a.md', 'alpha', en, text));
-  hasPart(run(body('```sh\nmake test\n```\n\n~~~\nplain\n~~~\n')), 'a.ko.md:', ': fences: the fenced code block 1 differs from a.md');
-  hasPart(run(body('```bash\nmake check\n```\n\n~~~\nplain\n~~~\n')), 'fences: the fenced code block 1 differs');
-  hasPart(run(body('```sh\nmake check\n```\n')), 'fences: the fenced code block 2 differs', 'the files have 1 and 2 blocks');
+  assert.deepEqual(run(body('```sh\nmake test\n```\n')), []);
   hasPart(run(body('```sh\nmake check\n')), 'a.ko.md:', 'fences: the fenced code block opened here never closes');
 });
 
@@ -186,29 +143,9 @@ test('checklist table: a document without task rows fails', (t) => {
   hasPart(run2(withChecklist(t, checklist(''))), 'checklist-empty: the checklist has no task whose ID matches');
 });
 
-test('checklist-pair: the Korean checklist has the same tasks and states', (t) => {
-  const en = checklist('| T1.1 | a | [o] |\n| T1.2 | b | [ ] |');
-  assert.deepEqual(run2(withChecklist(t, en, checklist('| T1.1 | 가 | [o] |\n| T1.2 | 나 | [ ] |'))), []);
-  hasPart(run2(withChecklist(t, en, checklist('| T1.1 | 가 | [o] |\n| T1.2 | 나 | [~] |'))), `${PLAN}/checklist.ko.md:`, 'checklist-pair: the state of T1.2 is [~]; docs/plans/p/checklist.md has [ ]');
-  hasPart(run2(withChecklist(t, en, checklist('| T1.1 | 가 | [o] |'))), `${PLAN}/checklist.ko.md: checklist-pair: the task IDs differ from docs/plans/p/checklist.md`);
-  const bypass = checklist('| T1.1 | a | [!] cause: blocked; retry: later |');
-  assert.deepEqual(run2(withChecklist(t, bypass, checklist('| T1.1 | 가 | [!] 원인: 막힘; 재시도: 나중 |'))), [], 'the cause text is translated, the state is compared');
-});
-
 test('checklist: a task ID may be followed by a code span', (t) => {
   const rows = '| T1.1 `parallel` | a | [o] |\n| T1.2 | b | [~] |';
   assert.deepEqual(run2(withChecklist(t, checklist(rows))).filter(line => line.includes('checklist-')), []);
-});
-
-test('plan-folder: a plan folder holds its four files, docs/plans holds plan folders only, and a repository holds a plan (K241)', (t) => {
-  const root = withChecklist(t, checklist('| T1 | a | [o] |'));
-  put(root, { 'docs/plans/p/notes.md': '# Notes\n', 'docs/plans/q/checklist.md': checklist('| T2 | b | [o] |'), 'docs/plans/loose.md': '# Loose\n' });
-  const found = run2(root);
-  hasPart(found, 'docs/plans/p/notes.md: plan-folder: a plan folder holds only plan.md, plan.ko.md, checklist.md, checklist.ko.md');
-  hasPart(found, 'docs/plans/q/plan.md: plan-folder: the plan q has no plan.md');
-  hasPart(found, 'docs/plans/loose.md: plan-folder: a file of docs/plans lies in the folder of its plan');
-  const empty = tree(t, pair('README.md', 'readme'));
-  hasPart(run2(empty), 'config/checklist.json: plan-folder: the repository holds no plan');
 });
 
 test('checklist-cross and checklist-place: an ID of two checklists, an orphan sub-item and items outside a plan fail (K241)', (t) => {
@@ -283,7 +220,7 @@ const FEATURES = { path: 'features.md', idPattern: '[a-z][a-z0-9-]*', cells: 4, 
 const table = (rows: string) => `| ID | Status | Note | Evidence |\n| --- | --- | --- | --- |\n${rows}\n`;
 const withTable = (t: TestContext, en: string, ko = en) => tree(t, pair('features.md', 'features', en, ko));
 
-test('status-table: declared cells and values pass and are equal in both languages', (t) => {
+test('status-table: declared cells and values pass', (t) => {
   const rows = '| parse | implemented | Parse | [g](g.md) |\n| print | planned | Print | [g](g.md) |';
   const root = tree(t, { ...pair('features.md', 'features', table(rows), table(rows.replaceAll('Parse', '파싱'))), ...pair('g.md', 'guide') });
   assert.deepEqual(run(root, { ...CONFIG, statusTables: [FEATURES] }), []);
@@ -303,7 +240,7 @@ test('status-table: a line that is only | has no first cell, so it is skipped as
   assert.deepEqual(rows.map(row => row.id), ['parse']);
 });
 
-test('status-table: a bad value, a missing evidence link, a wrong cell count, a repeated ID and a language mismatch fail', (t) => {
+test('status-table: a bad value, a missing evidence link, a wrong cell count, and a repeated ID fail', (t) => {
   const en = table('| parse | done | Parse | [g](g.md) |\n| print | planned | Print | none |\n| odd | planned | [g](g.md) |\n| parse | planned | Parse | [g](g.md) |');
   const root = tree(t, { ...pair('features.md', 'features', en), ...pair('g.md', 'guide') });
   const found = run(root, { ...CONFIG, statusTables: [FEATURES] });
@@ -311,13 +248,10 @@ test('status-table: a bad value, a missing evidence link, a wrong cell count, a 
   hasPart(found, 'status-table: the row print has "none" in cell 4; expected a match of');
   hasPart(found, 'status-table: the row odd has 3 cells; expected 4');
   hasPart(found, 'status-table: the row parse repeats the ID of line');
-  const good = '| parse | implemented | Parse | [g](g.md) |';
-  const mismatch = tree(t, { ...pair('features.md', 'features', table(good), table(good.replace('implemented', 'planned'))), ...pair('g.md', 'guide') });
-  hasPart(run(mismatch, { ...CONFIG, statusTables: [FEATURES] }), 'features.ko.md: status-table: the rows differ from features.md');
   hasPart(run(withTable(t, 'no table here\n'), { ...CONFIG, statusTables: [FEATURES] }), 'status-table: the table has no row');
 });
 
-test('changelog: Unreleased first, versions newest first, same sections in both languages', (t) => {
+test('changelog: Unreleased first, versions newest first', (t) => {
   const log = '# Changes\n\n## Unreleased\n\n## 1.2.0\n\n- x\n\n## 1.1.0\n';
   const config = { ...CONFIG, changelogs: ['CHANGELOG.md'] };
   assert.deepEqual(run(tree(t, pair('CHANGELOG.md', 'changelog', log.replace('# Changes\n\n', ''))), config), []);
@@ -327,8 +261,6 @@ test('changelog: Unreleased first, versions newest first, same sections in both 
   hasPart(found, 'changelog: the section ## 1.2.0 follows ## 1.1.0');
   hasPart(found, 'changelog: ## Unreleased appears 2 times');
   hasPart(found, 'changelog: the section ## next is neither ## Unreleased nor a released version');
-  const mismatch = pair('CHANGELOG.md', 'changelog', '## Unreleased\n\n## 1.0.0\n', '## Unreleased\n');
-  hasPart(run(tree(t, mismatch), config), 'CHANGELOG.ko.md:', 'changelog: the sections ## Unreleased differ');
 });
 
 test('changelog: the sections are the level-2 headings of the Markdown tree, not ## lines of comments or closing hashes (K130)', () => {
@@ -339,11 +271,11 @@ test('changelog: the sections are the level-2 headings of the Markdown tree, not
 });
 
 test('the command reads config/documents.json and exits with the findings', (t) => {
-  const root = tree(t, { ...pair('a.md', 'alpha'), 'b.md': '# lone\n', 'config/documents.json': JSON.stringify(CONFIG) });
+  const root = tree(t, { ...pair('a.md', 'alpha'), 'b.md': '[x](missing.md)\n', 'config/documents.json': JSON.stringify(CONFIG) });
   mkdirSync(path.join(root, 'scripts'), { recursive: true });
   const failed = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-documents.mts'))], { cwd: root, encoding: 'utf8' });
   assert.equal(failed.status, 1, failed.stdout + failed.stderr);
-  assert.match(failed.stderr, /\[check-documents\] b\.md: pair-missing: /);
+  assert.match(failed.stderr, /\[check-documents\] b\.md:1:1: link: /);
   put(root, { 'b.md': null });
   const passed = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-documents.mts'))], { cwd: root, encoding: 'utf8' });
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
@@ -373,28 +305,6 @@ test('link: a site reads the VitePress slug and the {#id} of a heading, a reposi
   const site = run(root, { ...CONFIG, siteLinks: true }).filter(line => line.includes('does not define'));
   assert.deepEqual(site, [], site.join('\n'));
 });
-
-test('a commit that leaves a Korean twin with a stale marker is refused by the pre-commit check and by make commit (K382)', (t) => {
-  const root = tree(t, { ...pair('CHANGELOG.md', 'changelog', '## Unreleased\n'), 'config/documents.json': JSON.stringify(CONFIG) });
-  const git = (...args: string[]) => {
-    const run = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: root, encoding: 'utf8' });
-    assert.equal(run.status, 0, run.stderr);
-  };
-  git('add', '-A');
-  git('commit', '--quiet', '--no-verify', '-m', 'base');
-  const changed = '<!-- doc-id: changelog -->\n# Title\n\n## Unreleased\n\nnew entry\n';
-  put(root, { 'CHANGELOG.md': changed, 'body.txt': 'The English changelog gained an entry, and its twin kept the old marker.\n' });
-  git('add', 'CHANGELOG.md');
-  const bodyFile = path.join(root, 'body.txt');
-  const commit = { id: 'K382', type: 'docs', scope: 'documents', subject: 'Refuse a stale Korean marker', bodyFile };
-  assert.throws(() => commitItem(root, commit), /CHANGELOG\.ko\.md: revision: .*make documents-stamp/);
-  const found = stagedTwinFindings(root);
-  hasPart(found, 'CHANGELOG.ko.md:', 'revision', 'make documents-stamp');
-  put(root, { 'CHANGELOG.ko.md': korean(changed) });
-  git('add', 'CHANGELOG.ko.md');
-  assert.deepEqual(stagedTwinFindings(root), []);
-});
-
 
 test('document checks report step starts, results and elapsed time without changing findings (K685)', (t) => {
   const root = tree(t, pair('a.md', 'alpha'));

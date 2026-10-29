@@ -45,7 +45,7 @@ import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './
 import type { FileFinding, Tracker } from './checklist.mts';
 import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
-import { privatePaths, stagedTwinFindings } from './check-documents.mts';
+import { privatePaths } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { withLandLock } from './land.mts';
 import { refreshLinked } from './linked-build.mts';
@@ -556,9 +556,6 @@ function commitStaged(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv, 
   if (!body) throw new Error(`the body file ${commit.bodyFile} is empty; write why the change is made there`);
   // The red of the row is a line of the body that its author writes, `Red: …` or `No-Red: <reason>` (K624).
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n`;
-  // A staged Korean twin with a stale source-sha256 is refused as the pre-commit check refuses it (K382).
-  const twins = stagedTwinFindings(root);
-  if (twins.length) throw new Error(twins.join('\n'));
   const findings = [...messageFindings(message), ...nextIdentityFindings(root), ...indexItemFindings(root, message)];
   if (findings.length) throw new Error(findings.map(finding => finding.message).join('\n'));
   // K603: a commit checks its message, its rows and its documents; no gate, build or type check runs.

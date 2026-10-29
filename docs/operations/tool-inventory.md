@@ -407,6 +407,9 @@ ordered-json. Which Markdown files are documents, its status tables and changelo
 `DOCS_CHECKS += <target>`: docs-check runs check-documents and then every target of DOCS_CHECKS, each whatever the status of
 the others, and fails naming those that failed (K419).
 
+K809 deleted the rules of a pair: `pair-missing`, `doc-id`, `revision`, the twin equality of anchors, fences, checklists,
+status tables and changelogs, and `plan-folder`. docs-check reads each document on its own; the rows below record the merge.
+
 Merged behaviors (the wider behavior is taken):
 
 | Concern | Implementations | Behavior in kit |

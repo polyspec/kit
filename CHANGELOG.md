@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- docs-check reads each document on its own and keeps only the checks of a broken result: unique anchors, closed fences, links, private paths, interpolation, the checklist reading, status table cells and changelog order. The pair rules are deleted: `pair-missing`, `doc-id`, `revision` (source-sha256), the twin equality of anchors, fences, checklists, status tables and changelogs, `plan-folder`, and the staged twin check of make commit and the pre-commit hook (K809).
 - kit-check reads only the configuration against the schemas of kit, the PHP that a PHP repository declares and the tool recipes. The names of the targets, the runtime targets, the CHECK_TARGETS suite, the tracked links, the lint selection of the owner rules and the retired files are the repository's own and no longer checked (K810).
 - Delete the K315 cause filter: item-state no longer refuses a bypassed or impossible cause that cites a release, a flake, an unrelated failure, the environment or a kit row. The tests that pinned it are deleted (K806).
 - land no longer runs a failing gate again on main as a baseline (K631): a gate that fails in the worktree refuses the branch. A path that no owner declares selects no gate instead of refusing the land (K807).

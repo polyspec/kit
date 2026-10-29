@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 179f57f8970ad3e63ba4480dcc18b5cfce1c18b4ae83fae997174172a00038fa -->
+<!-- source-sha256: 0feca1bdb637da3c606fb9108c70b9c2e5abf0605dcd1c56e1d7e9a4a33251d5 -->
 
 # 도구 목록
 
@@ -369,6 +369,9 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 (`scripts/kit/schema/documents.schema.json`)에 선언하고, 체크리스트는 `config/checklist.json`(K7.2)에 선언합니다. finding은 한 줄 `<file>:<line>:<column>: <rule>: <message>`입니다. 저장소는
 `DOCS_CHECKS += <target>`으로 자기 문서 검사를 `make docs-check`에 더합니다. docs-check는 check-documents를 실행한 뒤
 DOCS_CHECKS의 모든 target을 다른 것의 상태와 상관없이 실행하고, 실패한 target을 적어 실패합니다(K419).
+
+K809가 쌍의 규칙을 지웠습니다: `pair-missing`, `doc-id`, `revision`, anchor, fence, checklist, status table, changelog의 짝 일치,
+`plan-folder`. docs-check는 문서마다 따로 읽으며, 아래 행은 병합의 기록입니다.
 
 합친 동작(더 넓은 동작을 채택):
 
@@ -757,7 +760,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   지우고, 완전한 줄만 넘기고, log 쓰기 실패를 기록합니다. full run의 target log는 명령으로 시작하고 CI report의 log처럼
   `[report] make <target> exited with status N`으로 끝납니다(task K11-1).
 - 설정 파일이 없다는 메시지는 `check-commits`, `check-documents`, `owner-check`에서 파일의 용도를 적으며, 세 문장이 다릅니다.
-- K810이 이 검사와 K246, K534의 이름, runtime target, lint 선택, tracked link 검사를 지웠습니다. `kit-check`는 (K289) `make check`와 CI group이 실행하는 suite인 `CHECK_TARGETS`가 `kit-gates`의 모든 prerequisite에 단어나
+- `kit-check`는 (K289) `make check`와 CI group이 실행하는 suite인 `CHECK_TARGETS`가 `kit-gates`의 모든 prerequisite에 단어나
   prerequisite로 닿는지도 요구하므로, gates workflow가 실행하는 gate가 suite에서 빠지지 않습니다. 아래의 provider API와 binding phase
   partition이 완전하면 parity prerequisite를 대신 충족합니다. 언어의 lint와 PHP extension의 lint·test는 그 code를 가진 저장소에서만
   요구합니다. kit의 checkout은 gate의 source이므로 검사하지 않습니다.

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 78ba46407435735b85d6383c14a66bf947e82826878f586461ed52611afdca4b -->
+<!-- source-sha256: 77d15c945072b104525306367ceb49ed6cff19b816cd83b9fa3c1382e7adeba7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- docs-check는 문서마다 따로 읽고 깨진 결과의 검사만 남긴다: 유일한 anchor, 닫힌 fence, link, private path, interpolation, checklist 읽기, status table cell, changelog 순서. 쌍 규칙은 지운다: `pair-missing`, `doc-id`, `revision`(source-sha256), anchor·fence·checklist·status table·changelog의 짝 일치, `plan-folder`, make commit과 pre-commit hook의 staged twin 검사 (K809).
 - kit-check는 kit schema에 대한 설정, PHP 저장소가 선언한 PHP, 도구 recipe만 읽는다. target 이름, runtime target, CHECK_TARGETS 묶음, tracked link, owner rule의 lint 선택, retired 파일은 저장소의 것이며 더 검사하지 않는다 (K810).
 - K315 cause 필터를 삭제합니다: item-state는 릴리스, flake, 무관한 실패, 환경, kit 행을 인용한 bypass 또는 불가 원인을 더 이상 거부하지 않습니다. 이 필터를 고정하던 테스트도 삭제합니다(K806).
 - land는 실패한 gate를 baseline으로 main에서 다시 돌리지 않는다(K631): worktree에서 실패한 gate는 branch를 거부한다. 소유자가 없는 경로는 land를 거부하지 않고 gate를 고르지 않는다 (K807).
