@@ -139,6 +139,14 @@ test('every recipe runs with the environment of mise of the checkout, and with v
   assert.equal(env.PATH, [path.join(root, 'var/tools/bin'), path.join(root, 'var/tools/mise/shims'), '/usr/bin', '/bin'].join(path.delimiter));
 });
 
+test('on Windows the directory of the binary of mise is on PATH beside var/tools/bin, so a shim starts mise.exe (K820)', (t) => {
+  const root = realpathSync(tree(t, { 'Makefile': `KIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\nshow:\n\t@env\n` }));
+  const shown = spawnSync('make', ['--no-print-directory', 'show', 'OS=Windows_NT'], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: '/usr/bin:/bin' } });
+  assert.equal(shown.status, 0, shown.stderr);
+  const env = Object.fromEntries(shown.stdout.trim().split('\n').map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
+  assert.equal(env.PATH, [path.join(root, 'var/tools/bin'), path.join(root, 'var/tools/mise-release/mise/bin'), path.join(root, 'var/tools/mise/shims'), '/usr/bin', '/bin'].join(path.delimiter));
+});
+
 // K519: in a linked worktree every recipe runs the tools of the main checkout, and the worktree installs none of its own.
 test('a worktree runs the var/tools of the main checkout and installs no tool (K519)', (t) => {
   const main = realpathSync(tree(t, { 'Makefile': `KIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\nshow:\n\t@env\n`, 'mise.toml': '[tools]\n' }));

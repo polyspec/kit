@@ -6,6 +6,8 @@
 
 ## Unreleased
 
+- Windows에서 kit.mk가 mise binary의 디렉터리를 var/tools/bin 옆 PATH에 둔다. 그래서 mise shim이 "program not found"로 실패하지 않고 mise.exe를 시작한다 (K820).
+
 ## 0.0.71
 
 - K818을 담아 Kit 0.0.71을 릴리즈합니다 (K819).

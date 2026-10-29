@@ -32,7 +32,13 @@ export UV_PYTHON_DOWNLOADS := never
 export UV_NO_CONFIG := 1
 export UV_CACHE_DIR := $(KIT_TOOLS)/mise/cache/uv
 MISE_ENVIRONMENT := MISE_DATA_DIR MISE_CACHE_DIR MISE_STATE_DIR MISE_CONFIG_DIR MISE_GLOBAL_CONFIG_FILE MISE_GLOBAL_CONFIG_ROOT MISE_LOCKED MISE_AUTO_INSTALL UV_PYTHON_DOWNLOADS UV_NO_CONFIG UV_CACHE_DIR
+# On Windows a shim of mise starts mise.exe by its PATH name, and var/tools/bin holds only the batch wrapper mise.cmd, which
+# a native shim cannot start, so the directory of the binary of mise is on PATH beside it (K820).
+ifeq ($(OS),Windows_NT)
+export PATH := $(KIT_TOOLS)/bin:$(KIT_TOOLS)/mise-release/mise/bin:$(KIT_TOOLS)/mise/shims:$(PATH)
+else
 export PATH := $(KIT_TOOLS)/bin:$(KIT_TOOLS)/mise/shims:$(PATH)
+endif
 
 # A recipe starts the pinned tools of the checkout by absolute paths, never by bare names (K171). POSIX uses the native shell
 # wrappers. On Windows Make recipes run in Git Bash, which cannot execute a .cmd wrapper as a Bash command, so NODE is the

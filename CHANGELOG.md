@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- On Windows kit.mk puts the directory of the binary of mise on PATH beside var/tools/bin, so a shim of mise starts mise.exe instead of failing with "program not found" (K820).
+
 ## 0.0.71
 
 - Release Kit 0.0.71 with K818 (K819).
