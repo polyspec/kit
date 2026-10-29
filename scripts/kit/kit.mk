@@ -490,9 +490,11 @@ unlink: ## Restore the selected native locked installation of PROJECT and remove
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
 # The release, the dependency review and the dependency policy use the released versions (K343), so their Go runs without the go.work of the links.
-# The go.work that the repository tracks is its own workspace, not a link, so it stays their GOWORK; naming it also hides the git-ignored
-# go.work that link writes in each module (K774). A repository that tracks none runs with GOWORK off.
-release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof dependency-review dependency-policy-check: export GOWORK = $(if $(shell git ls-files go.work 2>/dev/null),$(CURDIR)/go.work,off)
+release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof dependency-review dependency-policy-check: export GOWORK := off
+# The archive builds build the tree of the repository, so the go.work that it tracks, its own workspace and not a link, is their GOWORK;
+# naming it also hides the git-ignored go.work that link writes in each module (K774). A repository that tracks none builds with GOWORK
+# off. The review and the policy keep GOWORK off: they read the lock of each module as it is released (K778).
+release-assets release-candidate-assets: export GOWORK = $(if $(shell git ls-files go.work 2>/dev/null),$(CURDIR)/go.work,off)
 
 
 # ---- Lint (K77) ------------------------------------------------------------------------------------------------------

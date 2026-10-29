@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Only release-assets and release-candidate-assets run with the go.work that the repository tracks; the dependency review, the dependency policy and the other release targets run with GOWORK off again, so they read the lock of each module as it is released. (K778)
+
 - The release check of a manifest accepts a dependency on a polyspec package named by its GitHub release asset URL at an exact version, and refuses every other URL. (K777)
 
 - Prepare the Kit 0.0.66 release. (K775)

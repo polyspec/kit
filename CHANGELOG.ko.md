@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e378982736535f488ff99b9547045333504edf3fdc58500ab8ad547d5c1b78e7 -->
+<!-- source-sha256: c88f75536509e151b214aadc8d4c6bd9df8d66796c53c3d47253b8846e58e99f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- release-assets와 release-candidate-assets만 저장소가 추적하는 go.work로 실행하고, dependency review, dependency policy와 나머지 release 대상은 다시 GOWORK를 끄고 실행하므로 각 module의 lock을 release된 그대로 읽는다. (K778)
 
 - release의 manifest 검사는 polyspec package를 정확한 version의 GitHub release asset URL로 지정한 dependency를 받아들이고, 그 밖의 URL은 거부한다. (K777)
 
