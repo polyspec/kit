@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a2c5a5d1c5054a25f99db2c5d6f8c9527b2ba8e87b645f29ad7143bd239c79a7 -->
+<!-- source-sha256: 6e7a3a2e610e2af4128685063717ef0d1b82763306729bd929e97047697f59de -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- PHP arginfo 설치는 더 이상 php-arginfo/<release> lock의 nikic/php-parser release를 gen_stub.php가 이름 붙인 release와 비교하지 않습니다. 폴더가 그 release로 선택되므로 그 비교는 폴더를 자기 이름과 비교했습니다 (K833).
 - link-state-check는 더 이상 tracked lock의 내용을 판정하지 않습니다. polyspec 패키지의 Cargo.lock 또는 package-lock.json 항목이 path나 link여도 finding이 아니며, lock은 그 package manager의 기록입니다 (K831).
 - 추적되는 go.work가 있는 repository에서 `make test-go CASES=<pattern>`은 module별 run처럼 그 pattern을 workspace go test 하나에 `-run`으로 넘긴다. 이제 선택한 Go test의 local run이 선택 없는 run으로 거부되지 않는다(K832).
 

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The PHP arginfo install no longer compares the nikic/php-parser release of the php-arginfo/<release> lock with the release that gen_stub.php names: the folder is chosen by that release, so the compare judged the folder against its own name (K833).
 - link-state-check no longer judges the content of tracked locks: a Cargo.lock or package-lock.json entry of a polyspec package by a path or a link is no finding, since the lock is its package manager's record (K831).
 - `make test-go CASES=<pattern>` in a repository with a tracked go.work passes the pattern to its one workspace go test as `-run`, as the per-module runs do, so a local run of selected Go tests is no longer refused as unselected (K832).
 
