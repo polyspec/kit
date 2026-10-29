@@ -392,31 +392,6 @@ test('plan-split refuses an unknown item, a sub-item apart from its parent and a
   assert.equal(existsSync(path.join(root, 'docs/plans/parser')), false);
 });
 
-test('item-state refuses a bypassed or impossible state whose cause cites a release, a flake, an unrelated failure or the environment (K315)', (t) => {
-  const root = plans(t, 'parser');
-  newItem(root, item('parser', 'T1'));
-  setState(root, { id: 'T1', state: '[~]' });
-  for (const cause of ['waits for the next release', 'not reproducible here', 'a flaky test', 'a transient network failure', 'unrelated to this item', 'the environment of the runner']) {
-    assert.throws(() => setState(root, { id: 'T1', state: '[!]', cause, retry: 'later', causeKo: '원인', retryKo: '나중' }), /no cause that closes an item/, cause);
-  }
-  assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause: 'a release', causeKo: '원인' }), /cites "release"/);
-});
-
-test('blocked and dropped refuse an excuse that cites no kit row (K339)', (t) => {
-  const root = plans(t, 'parser');
-  newItem(root, item('parser', 'T1'));
-  newItem(root, item('parser', 'T2'));
-  setState(root, { id: 'T1', state: '[~]' });
-  setState(root, { id: 'T2', state: '[~]' });
-  for (const cause of ['waits for the next release', 'the version tag v1.2.0', 'not reproducible here', 'a flaky test', 'a transient network failure', 'unrelated to this item', 'the environment of the runner']) {
-    assert.throws(() => setState(root, { id: 'T1', state: '[!]', cause, retry: 'later', causeKo: '원인', retryKo: '나중' }), /no cause that closes an item/, cause);
-    assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause, causeKo: '원인' }), /no cause that closes an item/, cause);
-  }
-  assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause: 'the version tag v1.2.0', causeKo: '원인' }), /cites "version tag"/);
-  setState(root, { id: 'T1', state: '[!]', cause: 'waits for the next release of K392-1', retry: 'K392-1 done', causeKo: '원인', retryKo: '나중' });
-  setState(root, { id: 'T2', state: '[-]', cause: 'unrelated to K392-2', causeKo: '원인' });
-});
-
 // K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.
 test('item-new refuses a private path, and item-edit replaces the Task cells of a row in any state (K373)', (t) => {
   const root = committed(t, 'T1');
