@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: b3af7cb4b179065d27c58ce16b85679571fb651caa8d3f32d78510b97188df8f -->
+<!-- source-sha256: 7c82f9dc4bd07fa2c9a86297f0a89ae30f8da9eb74b264f1c489e0e486bb18e6 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -755,3 +755,4 @@
 | K799 | kit-check의 공유 복사본 검사 삭제 | scripts/kit/kit-check.mts tests/kit/kit-check.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-check.test.mts` | [o] |
 | K800 | S10 library application 규칙 삭제 | scripts/kit/library-frameworks.mts tests/kit/library-frameworks.test.mts scripts/kit/kit.mk PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `make layout-check` | [o] |
 | K801 | main writer hook과 row clash 검사 삭제 | scripts/kit/git-hooks.mts scripts/kit/land.mts scripts/kit/row-ids.mts scripts/kit/check-commits.mts .githooks/reference-transaction CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/git-hooks.test.mts tests/kit/land.test.mts` | [ ] |
+| K802 | lint-rust는 cargo-fetch처럼 각 workspace의 clippy를 sibling checkout과 함께 cargo link로 실행한다(K448-5) | scripts/kit/lint-rust.mts tests/kit/lint-rust.test.mts | `node --test tests/kit/lint-rust.test.mts` | [ ] |
