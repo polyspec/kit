@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- plan no longer refuses forms: item-state takes any declared state, item-new takes any id and writes rows that docs-check judges afterwards, and make commit takes an empty index, a new row on main and a missing body file to git. The done state needs a line with the id in each changelog, committed or not (K808).
 - release no longer checks versions: `release-versions`, the version of each manifest against the tag and the exact version of an own dependency are deleted; the package managers resolve them. Consumer step: drop any `make release-versions` step of a workflow of its own (K812).
 - worktree-setup no longer refuses a worktree by the form of its name, id or type, a Composer manifest or vendor outside the worktree, a Python environment that it did not create, or a release archive folder that the worktree already holds; it no longer removes an old Composer projection (K811).
 - docs-check reads each document on its own and keeps only the checks of a broken result: unique anchors, closed fences, links, private paths, interpolation, the checklist reading, status table cells and changelog order. The pair rules are deleted: `pair-missing`, `doc-id`, `revision` (source-sha256), the twin equality of anchors, fences, checklists, status tables and changelogs, `plan-folder`, and the staged twin check of make commit and the pre-commit hook (K809).

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 8d5db925e151f7630b132de2950141f01345d9de0804e259b96617d9ddce9c3d -->
+<!-- source-sha256: 5c0bbb4cecabfea922967bb7b0aae2c595da0fcea33ffdd3cbe6df415f4e09fa -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -761,7 +761,7 @@
 | K805 | commit message의 형식과 순서 규칙을 삭제하고 AI 정책과 Red 줄만 남긴다 | scripts/kit/check-commits.mts scripts/kit/plan.mts scripts/kit/git-hooks.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/commits.test.mts` | [o] |
 | K806 | item-state의 K315 원인 필터(plan.mts의 EVASIVE_CAUSE)와 그 테스트를 삭제하여 release를 인용한 원인도 받아들인다 | scripts/kit/plan.mts tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [~] |
 | K807 | land의 main baseline 실행과 unowned path 거부를 지운다 | scripts/kit/land.mts, tests/kit/land.test.mts | `node --test tests/kit/land.test.mts` | [o] |
-| K808 | plan의 형식 거부를 지운다: 전이, id pattern, 추가 행, main의 새 행, staged와 body 검사 | scripts/kit/plan.mts, tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [ ] |
+| K808 | plan의 형식 거부를 지운다: 전이, id pattern, 추가 행, main의 새 행, staged와 body 검사 | scripts/kit/plan.mts, tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [o] |
 | K809 | docs-check의 형식 거부를 지운다: 짝, revision stamp, twin 일치, plan folder, status table, doc-id, checklist 짝 | scripts/kit/check-documents.mts, tests/kit/documents.test.mts | `node --test tests/kit/documents.test.mts` | [o] |
 | K810 | kit-check와 kit-sync의 형식 거부를 지운다: 고정 task 이름, runtime target, tracked symlink, lint 선택, retired 파일 | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [o] |
 | K811 | worktree-setup의 거부를 지운다: 이름 형식, 바깥 Composer, Python env 소유, release archive link | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test tests/kit/worktree-setup.test.mts` | [o] |

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c77416906c564087be4d2cb699dde62265933a3a54992149bb40ef0310646e1a -->
+<!-- source-sha256: 7cf38b0e245ed3ece5b0ed30d552a3c05d44b71286be488505607c5c027fa7b8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- plan은 더 이상 형식을 거부하지 않습니다. item-state는 선언된 어느 상태든 받고, item-new는 어떤 ID든 받아 docs-check가 나중에 판단할 행을 쓰며, make commit은 빈 인덱스, main의 새 행, 없는 본문 파일을 git에 맡깁니다. 완료 상태는 커밋 여부와 관계없이 각 변경 기록에 ID가 담긴 줄을 요구합니다 (K808).
 - release는 version을 검사하지 않는다: `release-versions`, tag에 대한 각 manifest의 version, 자기 dependency의 정확한 version 검사를 지우며 package manager가 그것을 푼다. consumer 단계: 자기 workflow의 `make release-versions` 단계를 지운다 (K812).
 - worktree-setup은 이름, id, type의 형식, worktree 밖의 Composer manifest나 vendor, 자신이 만들지 않은 Python 환경, worktree가 이미 가진 release archive 폴더로 worktree를 거부하지 않으며, 옛 Composer projection을 지우지 않는다 (K811).
 - docs-check는 문서마다 따로 읽고 깨진 결과의 검사만 남긴다: 유일한 anchor, 닫힌 fence, link, private path, interpolation, checklist 읽기, status table cell, changelog 순서. 쌍 규칙은 지운다: `pair-missing`, `doc-id`, `revision`(source-sha256), anchor·fence·checklist·status table·changelog의 짝 일치, `plan-folder`, make commit과 pre-commit hook의 staged twin 검사 (K809).

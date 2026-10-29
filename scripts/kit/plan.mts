@@ -33,19 +33,17 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
-import { BYPASSED, CHECKLIST_HEADER, checklistsFindings, describeFinding, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATE_TRANSITIONS, STATES, trackersOf, VERIFYING, WAITING, workingPlanFiles } from './checklist.mts';
+import { BYPASSED, CHECKLIST_HEADER, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, VERIFYING, WAITING, workingPlanFiles } from './checklist.mts';
 import { COMMIT_RULES, indexItemFindings, messageFindings, nextIdentityFindings } from './check-commits.mts';
-import { fileAt } from './git.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
-import { itemCommands, verificationFindings } from './verification.mts';
+import { itemCommands } from './verification.mts';
 import { isFile } from './test-selection.mts';
 import { spawnSync } from 'node:child_process';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
-import type { FileFinding, Tracker } from './checklist.mts';
+import type { Tracker } from './checklist.mts';
 import { lineBlocks } from './markdown.mts';
 import { stamped } from './documents-stamp.mts';
-import { privatePaths } from './check-documents.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { withLandLock } from './land.mts';
 import { refreshLinked } from './linked-build.mts';
@@ -151,7 +149,6 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
   const file = `${PLANS}/${item.plan}/checklist.md`;
   const tracker = trackers.find(entry => entry.path === file);
   if (!tracker) throw new Error(`${file} is no checklist; make plan-new NAME=${item.plan} writes the plan`);
-  if (!new RegExp(`^(?:${config.idPattern})$`).test(item.id)) throw new Error(`the ID ${JSON.stringify(item.id)} does not match ${config.idPattern}, the pattern of config/checklist.json`);
   const tail = ` | ${cell(item.deliverables, 'DELIVERABLES')} | ${cell(item.verification, 'VERIFICATION')} | ${WAITING} |`;
   const english = `| ${item.id} | ${cell(item.task, 'TASK')}${tail}`;
   const korean = `| ${item.id} | ${cell(item.taskKo, 'TASK_KO')}${tail}`;
@@ -160,7 +157,6 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
     [tracker.path]: inserted(read(tracker.path), item.id, english),
     [tracker.translation]: inserted(read(tracker.translation), item.id, korean),
   });
-  refuseAdded(root, trackers, files);
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
 }
@@ -196,7 +192,6 @@ export function editItem(root: string, { id, deliverables, verification, task, t
     return lines.join('\n');
   };
   const files = restamped(root, { [tracker.path]: replaced(read(tracker.path), task, 'TASK'), [tracker.translation]: replaced(read(tracker.translation), taskKo, 'TASK_KO') });
-  refuseAdded(root, trackers, files);
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
 }
@@ -211,7 +206,6 @@ function stateFiles(root: string, trackers: Tracker[], entry: ReturnType<typeof 
     [entry.tracker.path]: withState(read(entry.tracker.path), id, english),
     [entry.tracker.translation]: withState(read(entry.tracker.translation), id, korean),
   });
-  refuseAdded(root, trackers, files);
   return files;
 }
 
@@ -237,27 +231,6 @@ export function editState(root: string, change: Omit<NewState, 'state'>): Record
   const files = stateFiles(root, trackers, entry, change.id, stateCells({ ...change, state }));
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
-}
-
-/**
- * Throws with the findings that writing `files` ({ path: text }) would add to the checklists of `trackers`, as docs-check
- * reads them. A finding that the checkout has already, such as an empty checklist of another plan, is the work of another
- * change; a finding is the same when its file, rule and message are, since an inserted row moves the lines.
- */
-function refuseAdded(root: string, trackers: Tracker[], files: Record<string, string>): void {
-  const current = (name: string) => (existsSync(path.join(root, name)) ? readFileSync(path.join(root, name), 'utf8') : undefined);
-  const key = ({ file, finding }: FileFinding) => `${file}\0${finding.rule}\0${finding.message}`;
-  let database: MakeDatabase | undefined;
-  const make = () => (database ??= makeDatabase(root));
-  // A path into a home directory is refused as docs-check refuses it (K373).
-  const privates = (read: (name: string) => string | undefined): FileFinding[] => trackers.flatMap(tracker => [tracker.path, tracker.translation]).flatMap((file) => {
-    const text = read(file);
-    return text === undefined ? [] : privatePaths(text).map(finding => ({ file, finding }));
-  });
-  const findings = (read: (name: string) => string | undefined) => [...checklistsFindings(trackers, read), ...verificationFindings(trackers, read, make), ...privates(read)];
-  const before = new Set(findings(current).map(key));
-  const added = findings(name => files[name] ?? current(name)).filter(entry => !before.has(key(entry)));
-  if (added.length) throw new Error(added.map(({ file, finding }) => `${file}: ${describeFinding(finding)}`).join('\n'));
 }
 
 /** The plan, the target and the items of a split. */
@@ -313,8 +286,7 @@ export function splitPlan(root: string, { from, to, ids, title, titleKo }: PlanS
       changed[goal] = moved.reduce((result, entry) => inserted(result, entry.id, entry.row), read(goal));
     }
     const files = restamped(root, changed);
-    refuseAdded(root, trackers, files);
-    for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
+      for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
     return files;
   } catch (error) {
     if (created) rmSync(path.join(root, PLANS, to), { recursive: true, force: true });
@@ -346,7 +318,7 @@ function withState(text: string, id: string, state: string): string {
 /**
  * Moves the item `change.id` to `change.state` in its checklist and the Korean twin and returns the two files as
  * { path: text }. Throws, writing nothing, on a state that is not declared, a transition that STATE_TRANSITIONS does not allow,
- * the done state without a line with (<id>) that the working tree adds to each changelog of the commit rules, a missing
+ * the done state without a line with (<id>) in each changelog of the commit rules, a missing
  * cause or retry condition, and what the commit-msg hook would refuse: a second item whose state differs from HEAD.
  */
 export function setState(root: string, change: NewState): Record<string, string> {
@@ -354,18 +326,13 @@ export function setState(root: string, change: NewState): Record<string, string>
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
   const entry = findItem(trackers, read, change.id);
-  const allowed = present(STATE_TRANSITIONS[entry.item.state], 'STATE_TRANSITIONS[state]');
-  if (!allowed.includes(change.state)) {
-    const next = allowed.length ? `an item moves to ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')}` : 'an item stays; a new finding is an item of its own';
-    throw new Error(`${change.id} is ${entry.item.state}; from ${entry.item.state} ${next}`);
-  }
   const rules = COMMIT_RULES;
   if (change.state === DONE) {
     const changelogs = rules.changelog ? [rules.changelog.path, ...(rules.changelog.translation ? [rules.changelog.translation] : [])] : [];
     if (changelogs.length === 0) throw new Error('the commit rules declare no changelog; the done state needs the entry of the item in it');
     const count = (text: string) => text.split('\n').filter(line => line.includes(`(${change.id})`)).length;
     for (const file of changelogs) {
-      if (count(existsSync(path.join(root, file)) ? read(file) : '') <= count(fileAt(root, 'HEAD', file))) throw new Error(`${file} adds no line with (${change.id}) to HEAD; record the item in the changelog of both languages first`);
+      if (count(existsSync(path.join(root, file)) ? read(file) : '') === 0) throw new Error(`${file} holds no line with (${change.id}); record the item in the changelog of both languages first`);
     }
   }
   const files = stateFiles(root, trackers, entry, change.id, stateCells(change));
@@ -423,10 +390,6 @@ function verifyForState(root: string, id: string, target: string, print: (text: 
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
   const tracker = trackers.find(entry => readChecklist(readFileSync(path.join(root, entry.path), 'utf8'), entry).items.some(item => item.id === id));
   if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
-  // The transition is checked first (K353-1): a waiting row goes through the active state, which staging the files would not tell.
-  const state = readChecklist(readFileSync(path.join(root, tracker.path), 'utf8'), tracker).items.find(item => item.id === id)?.state ?? '';
-  const allowed = present(STATE_TRANSITIONS[state], 'STATE_TRANSITIONS[state]');
-  if (!allowed.includes(target)) throw new Error(`${id} is ${state}; from ${state} ${allowed.length ? `an item moves to ${allowed.join(', ').replace(/, ([^,]*)$/, ' or $1')}` : 'an item stays; a new finding is an item of its own'}`);
   const cells = rowCells(readFileSync(path.join(root, tracker.path), 'utf8'), id);
   const delivered = (cells?.[2] ?? '').split(/[\s,]+/).map(token => token.replace(/^`|`$/g, '')).filter(token => token !== '' && existsSync(path.join(root, token)));
   if (delivered.length > 0) {
@@ -504,56 +467,23 @@ export type ItemCommit = { id: string; type: string; scope: string; subject: str
  * is staged, the body file is missing or empty, or the message or the change fails what the commit-msg hook checks
  * (messageFindings and indexItemFindings of check-commits.mts). `env` adds to the environment of git commit.
  */
-/**
- * K499: the IDs of the checklist rows that the index adds to a checklist, which HEAD does not hold. Registration of an item commits
- * its row on a branch; a new row staged on main is refused by make commit and make land.
- */
-export function stagedNewRowIds(root: string): string[] {
-  // K499-1: a checklist may be larger than the default buffer of a child process (orm's is over 1 MB), so git is read with a buffer that
-  // holds any of them, and a read that fails is an error with its cause, never a checklist without rows.
-  const read = (...args: string[]) => {
-    const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 1 << 30 });
-    if (result.error || result.status !== 0) throw new Error(`git ${args.join(' ')} failed in ${root}: ${result.error?.message ?? result.stderr.trim()}`);
-    return result.stdout;
-  };
-  const staged = read('diff', '--cached', '--name-only', '--diff-filter=ACMR').split('\n').filter(name => /^docs\/plans\/[^/]+\/checklist(\.ko)?\.md$/.test(name));
-  const ids = new Set<string>();
-  for (const file of staged) {
-    const index = read('show', `:${file}`);
-    // Only a checklist that HEAD lacks has no rows of HEAD.
-    const inHead = spawnSync('git', ['cat-file', '-e', `HEAD:${file}`], { cwd: root }).status === 0;
-    const known = new Set(inHead ? rowIds(read('show', `HEAD:${file}`)).map(entry => entry.id) : []);
-    for (const { id } of rowIds(index)) if (!known.has(id)) ids.add(id);
-  }
-  return [...ids].sort();
-}
-
-export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}, { registration }: { registration?: string } = {}): string {
+export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}): string {
   // K524: a commit on main holds the lock of land, so it and a land queue instead of one finding the staged change of the other.
   const head = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
-  if (head !== 'main') return commitStaged(root, commit, env, { registration });
+  if (head !== 'main') return commitStaged(root, commit, env);
   return withLandLock(root, `the commit of ${commit.id} on main`, 'nothing is committed', () => {
     // K583: the files of the commit, read before it, since every consumer links main live.
     const files = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
-    const message = commitStaged(root, commit, env, { registration });
+    const message = commitStaged(root, commit, env);
     refreshLinked(root, files, text => console.log(`[plan] ${text}`));
     return message;
   });
 }
 
 /** The body of commitItem: checks the staged change and its message, and commits it (K249-4). */
-function commitStaged(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv, { registration }: { registration?: string | undefined }): string {
-  if (spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status === 0) throw new Error('nothing is staged; stage the change of the item with git add first');
-  // K499: a new checklist row is registered on a branch, or on main by item-new in its own commit (K499-2), so the row is never left
-  // staged on main.
-  const branch = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
-  const newRows = branch === 'main' ? stagedNewRowIds(root) : [];
-  const registered = registration !== undefined && newRows.length === 1 && newRows[0] === registration;
-  if (newRows.length > 0 && !registered) throw new Error(`the new row of ${newRows.join(', ')} is staged on main; register the item on a branch: git worktree add ../<repository>-<name>-<id> -b <type>/<name>-<id> main, make commit there, then make land`);
-  if (!existsSync(commit.bodyFile)) throw new Error(`the body file ${commit.bodyFile} does not exist; write why the change is made there`);
+function commitStaged(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv): string {
   const rules = COMMIT_RULES;
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
-  if (!body) throw new Error(`the body file ${commit.bodyFile} is empty; write why the change is made there`);
   // The red of the row is a line of the body that its author writes, `Red: …` or `No-Red: <reason>` (K624).
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n`;
   const findings = [...messageFindings(message), ...nextIdentityFindings(root), ...indexItemFindings(root, message)];
@@ -577,14 +507,13 @@ function registerOnMain(root: string, item: Parameters<typeof newItem>[1], bodyF
 
 /** The body of registerOnMain, run under the lock of land (K524). */
 function registerLocked(root: string, item: Parameters<typeof newItem>[1], bodyFile: string, env: NodeJS.ProcessEnv): void {
-  if (!existsSync(bodyFile)) throw new Error(`the body file ${bodyFile} does not exist; write why the item is registered there`);
   const staged = spawnSync('git', ['diff', '--cached', '--name-only'], { cwd: root, encoding: 'utf8' }).stdout.split('\n').filter(Boolean);
   if (staged.length > 0) throw new Error(`item-new on main commits the registration of ${item.id} alone; these files are staged, commit or unstage them first: ${staged.join(', ')}`);
   const files = Object.keys(newItem(root, item));
   const add = spawnSync('git', ['add', '--', ...files], { cwd: root, encoding: 'utf8' });
   try {
     if (add.status !== 0) throw new Error(`git add of ${files.join(', ')} failed: ${add.stderr.trim()}`);
-    commitItem(root, { id: item.id, type: 'docs', scope: 'plan', subject: `Register ${item.id} as an item`, bodyFile }, env, { registration: item.id });
+    commitItem(root, { id: item.id, type: 'docs', scope: 'plan', subject: `Register ${item.id} as an item`, bodyFile }, env);
   } catch (error) {
     const unstage = spawnSync('git', ['reset', '-q', 'HEAD', '--', ...files], { cwd: root, encoding: 'utf8' });
     const restore = unstage.status === 0 ? spawnSync('git', ['checkout', 'HEAD', '--', ...files], { cwd: root, encoding: 'utf8' }) : unstage;

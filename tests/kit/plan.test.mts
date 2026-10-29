@@ -1,12 +1,12 @@
 // Tests of the plan utilities (scripts/kit/plan.mts): each writes the files of a plan or a row of a checklist only when the
 // result passes the checks that the hooks and docs-check run on it (K249).
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { wrapBody, commitItem, editItem, newItem, newPlan, setState, splitPlan, stagedNewRowIds, testItem, verifyDone } from '../../scripts/kit/plan.mts';
+import { wrapBody, commitItem, editItem, newItem, newPlan, setState, splitPlan, testItem, verifyDone } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
@@ -78,14 +78,11 @@ test('item-new escapes a pipe of a cell, and refuses a line break (K249-1)', (t)
   assert.throws(() => newItem(root, item('parser', 'T2', { task: 'one\ntwo' })), /TASK holds a line break/);
 });
 
-test('item-new refuses an ID of another checklist, a sub-item without its parent, an ID off the pattern, an empty text and an unknown plan, and writes nothing (K249-1)', (t) => {
+test('item-new refuses an empty text and an unknown plan, and writes nothing (K249-1)', (t) => {
   const root = plans(t, 'parser', 'lexer');
   newItem(root, item('parser', 'T1'));
   const before = () => ['parser', 'lexer'].flatMap(name => ['checklist.md', 'checklist.ko.md'].map(file => readFileSync(path.join(root, `docs/plans/${name}/${file}`), 'utf8')));
   const kept = before();
-  assert.throws(() => newItem(root, item('lexer', 'T1')), /the item T1 is also an item of docs\/plans\/(?:parser|lexer)\/checklist.md/);
-  assert.throws(() => newItem(root, item('lexer', 'T5-1')), /the sub-item T5-1 has no parent T5 in its checklist/);
-  assert.throws(() => newItem(root, item('lexer', 'X1')), /the ID "X1" does not match T\[0-9\]/);
   assert.throws(() => newItem(root, item('lexer', 'T2', { taskKo: ' ' })), /TASK_KO is empty/);
   assert.throws(() => newItem(root, item('nothing', 'T2')), /docs\/plans\/nothing\/checklist.md is no checklist/);
   assert.deepEqual(before(), kept);
@@ -114,12 +111,7 @@ function commitState(root: string, message: string): void {
   }
 }
 
-test('K708-1 item-state keeps each working-tree transition on one allowed edge', (t) => {
-  const root = committed(t, 'T1');
-  assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /T1 is \[ \]; from \[ \] an item moves to \[~\] or \[-\]/);
-});
-
-test('item-state performs an allowed transition in both languages and refuses another (K249-2)', (t) => {
+test('item-state moves an item in both languages and refuses an unknown item and state (K249-2)', (t) => {
   const root = committed(t, 'T1');
   setState(root, { id: 'T1', state: '[~]' });
   assert.deepEqual([states(root, 'docs/plans/parser/checklist.md'), states(root, 'docs/plans/parser/checklist.ko.md')], [['[~] |'], ['[~] |']]);
@@ -127,25 +119,25 @@ test('item-state performs an allowed transition in both languages and refuses an
   setState(root, { id: 'T1', state: '[v]' });
   commitState(root, 'verification');
   assert.deepEqual(states(root, 'docs/plans/parser/checklist.md'), ['[v] |']);
-  assert.throws(() => setState(root, { id: 'T1', state: '[v]' }), /T1 is \[v\]; from \[v\] an item moves to \[~\] or \[o\]/);
   setState(root, { id: 'T1', state: '[~]' });
   assert.throws(() => setState(root, { id: 'T9', state: '[~]' }), /T9 is no item of a checklist/);
   assert.throws(() => setState(root, { id: 'T1', state: '[x]' }), /the state "\[x\]" is none of/);
 });
 
-test('item-state sets done only when the working tree adds the item to the changelog of both languages (K249-2)', (t) => {
+test('item-state sets done only when the changelog of both languages holds the item, committed or not (K249-2, K808)', (t) => {
   const root = committed(t, 'T1');
   setState(root, { id: 'T1', state: '[~]' });
   commitState(root, 'start');
   setState(root, { id: 'T1', state: '[v]' });
   commitState(root, 'verification');
   // The red of the Verification is recorded before the done state.
-  assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.md adds no line with \(T1\)/);
+  assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.md holds no line with \(T1\)/);
   writeFileSync(path.join(root, 'CHANGELOG.md'), `${CHANGELOG}- Parse (T1).\n`);
-  assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.ko.md adds no line with \(T1\)/);
+  assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.ko.md holds no line with \(T1\)/);
   writeFileSync(path.join(root, 'CHANGELOG.ko.md'), `${CHANGELOG}- 파싱 (T1).\n`);
+  commitState(root, 'changelog');
   setState(root, { id: 'T1', state: '[o]' });
-  assert.deepEqual(states(root, 'docs/plans/parser/checklist.md'), ['[o] |']);
+  assert.deepEqual(states(root, 'docs/plans/parser/checklist.md'), ['[o] |'], 'a line that HEAD already holds counts');
 });
 
 test('item-state may complete a unit-tested item directly from development without entering verification', (t) => {
@@ -188,12 +180,6 @@ test('item-new, item-edit and item-state write the marker of the new English tex
   writeFileSync(path.join(root, twin), text(twin).replace(/<!-- source-sha256: [^>]*? -->/, `<!-- source-sha256: ${wrong} -->`));
   newItem(root, item('parser', 'T3'));
   assert.equal(marker(), wrong);
-});
-
-test('item-new refuses an open item whose Verification cell runs a suite or names no command (K249-3)', (t) => {
-  const root = plans(t, 'parser');
-  assert.throws(() => newItem(root, item('parser', 'T1', { verification: '`node scripts/kit/run-tests.mts node -- tests`' })), /runs a whole runtime without a selection/);
-  assert.throws(() => newItem(root, item('parser', 'T1', { verification: 'a red test' })), /names no command in backticks/);
 });
 
 test('item-test runs the commands of the Verification cell in order and fails on the first that fails (K249-3)', (t) => {
@@ -260,14 +246,6 @@ test('verifyDone runs the Verification of the row and refuses a failing command 
   assert.throws(() => verifyDone(root, 'T9', quiet), /T9 is no item/);
 });
 
-// K353-1: the transition is refused before the files, and says where a waiting row goes.
-test('verifyDone refuses a waiting row for its transition before it looks at the files (K353-1)', (t) => {
-  const root = plans(t, 'parser');
-  newItem(root, item('parser', 'T1', { deliverables: '`a.mts`', verification: '`node -e "process.exit(0)"`' }));
-  writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
-  assert.throws(() => verifyDone(root, 'T1', () => {}), /T1 is \[ \]; from \[ \] an item moves to \[~\] or \[-\]/);
-});
-
 // K353-2: item-test runs a command in the root, so it judges the files that the command names from the root.
 test('item-test resolves a file of a Verification command from the root, where it runs the command (K353-2)', (t) => {
   const root = plans(t, 'parser');
@@ -290,25 +268,13 @@ test('the type check runs the typecheck script of the package when it has one, a
 });
 
 // K353: a Verification cell is edited by a utility, and the type check builds the workspace package it cannot find.
-test('item-edit replaces the Verification cell in both languages, through the checks of item-new, and not of a done item (K353)', (t) => {
+test('item-edit replaces the Verification cell in both languages, and not of a done item (K353)', (t) => {
   const root = plans(t, 'parser');
   newItem(root, item('parser', 'T1'));
   editItem(root, { id: 'T1', verification: '`node -e "process.exit(0)"`' });
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.md'), ['| T1 | Task T1 | `a.mts` | `node -e "process.exit(0)"` | [ ] |']);
   assert.deepEqual(rows(root, 'docs/plans/parser/checklist.ko.md'), ['| T1 | 작업 T1 | `a.mts` | `node -e "process.exit(0)"` | [ ] |']);
-  assert.throws(() => editItem(root, { id: 'T1', verification: '`node scripts/kit/run-tests.mts node -- tests`' }), /runs a whole runtime without a selection/);
-  assert.throws(() => editItem(root, { id: 'T1', verification: 'a red test' }), /names no command in backticks/);
   assert.throws(() => editItem(root, { id: 'T9', verification: '`node -e "1"`' }), /T9 is no item/);
-});
-
-// K376: an escaped pipe of a cell is read unescaped, so `A\|B` is the pipeline `go test -run A | B`, which hides the exit status of `go test`.
-test('item-new and item-edit refuse a Verification command that is a pipeline, and accept a quoted pipe (K376)', (t) => {
-  const root = plans(t, 'parser');
-  newItem(root, item('parser', 'T1'));
-  assert.throws(() => editItem(root, { id: 'T1', verification: '`go test -run A|B ./...`' }), /pipeline/);
-  assert.throws(() => newItem(root, item('parser', 'T2', { verification: '`node --test a.test.mts | tee out.txt`' })), /pipeline/);
-  editItem(root, { id: 'T1', verification: "`go test -run 'A|B' ./...`" });
-  assert.deepEqual(rows(root, 'docs/plans/parser/checklist.md'), ["| T1 | Task T1 | `a.mts` | `go test -run 'A\\|B' ./...` | [ ] |"]);
 });
 
 test('the type check builds the workspace package that tsc cannot find, once, and then passes (K353)', (t) => {
@@ -343,12 +309,11 @@ test('commit writes the message of an item: the subject, a blank line and the bo
   assert.match(message, /\n\nSecond paragraph\.\n\nCo-Authored-By: Some One <some\.one@example\.com>\nRefs: T1\n+$/);
 });
 
-test('commit refuses what the commit-msg hook refuses and an empty index, and commits nothing (K249-4)', (t) => {
+test('commit refuses what the commit-msg hook refuses, and commits nothing (K249-4)', (t) => {
   const root = committed(t, 'T1', 'T2');
   const body = path.join(root, 'body.txt');
   writeFileSync(body, 'Why.\n');
   const head = log(root);
-  assert.throws(() => commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse', bodyFile: body }, identity), /nothing is staged/);
   writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
   stage(root, 'a.mts');
   writeFileSync(body, 'Why.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n');
@@ -382,18 +347,14 @@ test('plan-split refuses an unknown item, a sub-item apart from its parent and a
   assert.equal(existsSync(path.join(root, 'docs/plans/parser')), false);
 });
 
-// K373: no utility writes what docs-check refuses, such as a path into a home directory, and the Task of a row is corrected by item-edit.
-test('item-new refuses a private path, and item-edit replaces the Task cells of a row in any state (K373)', (t) => {
+// K373: the Task of a row is corrected by item-edit.
+test('item-edit replaces the Task cells of a row in any state (K373)', (t) => {
   const root = committed(t, 'T1');
   const english = 'docs/plans/parser/checklist.md';
   const korean = 'docs/plans/parser/checklist.ko.md';
-  const kept = rows(root, english);
-  assert.throws(() => newItem(root, item('parser', 'T2', { task: 'Read /Users/someone/x.txt' })), /the path \/Users\/someone\/ into a home directory/);
-  assert.deepEqual(rows(root, english), kept, 'nothing is written');
   assert.throws(() => editItem(root, { id: 'T1', task: 'New task' }), /TASK and TASK_KO together/);
   editItem(root, { id: 'T1', task: 'New task', taskKo: '새 작업' });
   assert.deepEqual([rows(root, english)[0], rows(root, korean)[0]], ['| T1 | New task | `a.mts` | `node --test a.test.mts` | [ ] |', '| T1 | 새 작업 | `a.mts` | `node --test a.test.mts` | [ ] |']);
-  assert.throws(() => editItem(root, { id: 'T1', task: 'See /home/someone/y', taskKo: '보기' }), /the path \/home\/someone\/ into a home directory/);
   setState(root, { id: 'T1', state: '[~]' });
   commitState(root, 'start');
   setState(root, { id: 'T1', state: '[v]' });
@@ -458,44 +419,6 @@ test('item-edit rewrites the cause and the retry of a held item in both language
   assert.notEqual(retry.status, 0);
   assert.match(retry.stderr, /no retry condition/);
   assert.deepEqual(rows(root, english), after, 'a refused edit writes nothing');
-});
-
-// K499: registering an item never leaves main staged: a new checklist row staged on main is refused by make commit, which names the
-// branch route, and the same row committed on a branch is accepted.
-test('commit refuses a new checklist row staged on main and names the branch route, and accepts the same row on a branch (K499)', (t) => {
-  const root = committed(t, 'T1');
-  assert.equal(spawnSync('git', ['checkout', '-q', '-B', 'main'], { cwd: root }).status, 0);
-  newItem(root, item('parser', 'T2'));
-  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
-  const body = path.join(root, 'body.txt');
-  writeFileSync(body, 'Parse the input in the new item.\n');
-  const commit = { id: 'T2', type: 'docs', scope: 'plan', subject: 'Register T2 as an item', bodyFile: body };
-  assert.throws(() => commitItem(root, commit, identity), /new row of T2 is staged on main[\s\S]*git worktree add[\s\S]*make commit/);
-  assert.throws(() => commitItem(root, commit, identity, { registration: 'T3' }), /new row of T2 is staged on main/, 'a registration of another id is no pass');
-  assert.equal(spawnSync('git', ['diff', '--cached', '--quiet'], { cwd: root }).status, 1, 'the refused row stays staged, unchanged');
-  assert.equal(spawnSync('git', ['checkout', '-q', '-B', 'register-T2'], { cwd: root }).status, 0);
-  commitItem(root, commit, identity);
-  assert.equal(spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim(), 'register-T2');
-});
-
-// K499-1: the rows of HEAD are read whatever the size of the checklist: orm's checklist is over 1 MB, the default buffer of a child
-// process, so its rows looked new and a plain state change on main was refused as a new row.
-test('a state change of a checklist over one megabyte stages no new row on main (K499-1)', (t) => {
-  const root = committed(t, 'T1');
-  assert.equal(spawnSync('git', ['checkout', '-q', '-B', 'main'], { cwd: root }).status, 0);
-  const file = path.join(root, 'docs/plans/parser/checklist.md');
-  writeFileSync(file, `${readFileSync(file, 'utf8')}\n${'A paragraph that makes the checklist large. '.repeat(30000)}\n`);
-  for (const args of [['add', '-A'], ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'large']]) {
-    assert.equal(spawnSync('git', args, { cwd: root }).status, 0);
-  }
-  assert.ok(statSync(file).size > 1024 * 1024, 'the checklist is over one megabyte');
-  setState(root, { id: 'T1', state: '[~]' });
-  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
-  assert.deepEqual(stagedNewRowIds(root), [], 'the row of T1 is no new row');
-  // The commit of that state change on main goes through: make commit is not refused as staging a new row.
-  const body = path.join(root, 'body.txt');
-  writeFileSync(body, 'Start T1 on the large checklist.\n');
-  assert.doesNotThrow(() => commitItem(root, { id: 'T1', type: 'docs', scope: 'plan', subject: 'Start T1', bodyFile: body }, identity));
 });
 
 // K499-2: on main, item-new commits the registration of its row in one docs(plan) commit with the body of BODY_FILE, so a session
