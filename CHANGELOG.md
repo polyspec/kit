@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.72
+
+- Release Kit 0.0.72 with K820, K821 and K822 (K823).
+- Consumer step of K788: Python declarations in config/parity.json name each symbol by its import path, such as polyspec.<package>.app.App, not by a name relative to the entry (K823).
 - The Windows runner of platform-bootstrap runs the go shim of mise through Git Bash make, so kit CI proves the PATH of K820 (K822).
 - worktree-setup installs the Composer projects of a worktree as plain composer install does, with Composer's own cache and network, and prepares go.work before Composer (K821).
 - On Windows kit.mk puts the directory of the binary of mise on PATH beside var/tools/bin, so a shim of mise starts mise.exe instead of failing with "program not found" (K820).
