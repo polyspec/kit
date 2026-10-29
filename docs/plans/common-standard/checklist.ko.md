@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 974da05deecaad99964002cb4e8f1f11e605f03c786a68642e336a2fdcf2430f -->
+<!-- source-sha256: 553d29ea854129c49fff71eaf9b64c137fa291b29f26c474fe068bf5e7b66f55 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -758,3 +758,4 @@
 | K802 | lint-rust는 cargo-fetch처럼 각 workspace의 clippy를 sibling checkout과 함께 cargo link로 실행한다(K448-5) | scripts/kit/lint-rust.mts scripts/kit/link.mts tests/kit/lint-rust.test.mts tests/kit/link.test.mts | `node --test tests/kit/lint-rust.test.mts tests/kit/link.test.mts` | [o] |
 | K803 | parity 기호의 python distribution을 entry의 pyproject에서 읽고 distribution 필드를 없앤다 | scripts/kit/parity-symbols.mts scripts/kit/parity-declaration.mts scripts/kit/schema/parity.schema.json CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/parity-api.test.mts` | [ ] |
 | K804 | push gate와 그 pre-push hook, CI check를 삭제한다 | scripts/kit/push-gate.mts scripts/kit/git-hooks.mts scripts/kit/checklist.mts scripts/kit/kit.mk scripts/kit/release.mts .github/workflows/ci.yml CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/git-hooks.test.mts` | [ ] |
+| K805 | commit message의 형식과 순서 규칙을 삭제하고 AI 정책과 Red 줄만 남긴다 | scripts/kit/check-commits.mts scripts/kit/plan.mts scripts/kit/git-hooks.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/commits.test.mts` | [ ] |
