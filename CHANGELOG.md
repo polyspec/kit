@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Classify the Playwright reporter for rebuild-check and create the release-run test remote through initRepository. (K753)
+
 - Prepare the Kit 0.0.64 candidate, native consumer lock and dependency review before its single release CI run. (K752)
 
 ## 0.0.64

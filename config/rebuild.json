@@ -334,6 +334,10 @@
       "kind": "ecosystem",
       "tool": "@decimalturn/toml-patch rewrites the pin and keeps the text (K122)"
     },
+    "scripts/kit/playwright-reporter.mts": {
+      "kind": "ecosystem",
+      "tool": "Playwright Test reporter API"
+    },
     "scripts/kit/present.mts": {
       "kind": "policy",
       "reason": "polyspec's rule that code reads a value it knows to be there with what it expects, instead of asserting it away with ! or a type assertion (K156, K157)"

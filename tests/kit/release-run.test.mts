@@ -5,13 +5,14 @@ import path from 'node:path';
 import test from 'node:test';
 import { main, validateCandidateRun, type CandidateRun } from '../../scripts/kit/release-run.mts';
 import { git, releaseSandbox } from './release-sandbox.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const candidate = (overrides: Partial<CandidateRun> = {}): CandidateRun => ({ id: 91, path: '.github/workflows/ci.yml@refs/heads/main', head_sha: 'a'.repeat(40), event: 'push', status: 'completed', conclusion: 'success', head_branch: 'main', ...overrides });
 
 function publishBox(t: Parameters<typeof releaseSandbox>[0], run: CandidateRun) {
   const box = releaseSandbox(t);
   const remote = path.join(box.root, '.stubs/remote.git');
-  execFileSync('git', ['init', '--bare', remote], { cwd: box.root, stdio: 'ignore' });
+  initRepository(remote, '--bare');
   git(box.root, 'remote', 'add', 'origin', remote);
   git(box.root, 'push', 'origin', 'main');
   git(box.root, 'update-ref', 'refs/remotes/origin/main', box.commit);

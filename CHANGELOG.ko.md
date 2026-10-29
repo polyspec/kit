@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0a49fe7c9f53c9f4c8fb52d9fd5e0728068b7db1a64875deb304b50e9157fd87 -->
+<!-- source-sha256: 0538b109827554efc4d2be2f504ca2bd7f463a41d47e7390229d61ca3c760122 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Playwright reporter를 rebuild-check 분류에 넣고 release-run 테스트의 remote를 initRepository로 만든다. (K753)
 
 - 단일 release CI 전에 Kit 0.0.64 candidate, native consumer lock과 dependency review를 준비한다. (K752)
 
