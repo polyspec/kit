@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 8f73b6a1d509d8c566465db0336ff41b2d607bc64cb0628d8b71faf787396037 -->
+<!-- source-sha256: 571a78a3207cc2d6b961106cf2f6b62c5485dbb1fc1cdfb3b236f6105319c8eb -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -788,3 +788,4 @@
 | K831 | tracked lock의 내용을 판정하는 link-state-check의 lock 출처 검사를 삭제 | scripts/kit/link-state-check.mts, scripts/kit/kit.mk, tests/kit/link-state-check.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/link-state-check.test.mts` | [o] |
 | K833 | install-php-arginfo가 lock을 자기 폴더 이름과 판정하는 nikic/php-parser release 비교를 삭제 | scripts/kit/install-php-arginfo.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/php-ext.test.mts` | [o] |
 | K834 | config/php-lint/composer.lock가 기록한 phpcs와 phpstan release를 형식 거부 없이 그대로 받음 | scripts/kit/toolchain-lint.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-lint.test.mts` | [o] |
+| K835 | mise.toml release를 선언된 그대로 받고 toolchain-lock과 toolchain-check의 mise.lock 검사를 삭제 | scripts/kit/toolchain-mise.mts, scripts/kit/check-toolchain.mts, scripts/kit/toolchain-lock.mts, tests/kit/toolchain-mise.test.mts, tests/source/python-real.test.mts, AGENTS.md, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, docs/rebuild/toolchain.md, docs/rebuild/toolchain.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-mise.test.mts` | [ ] |
