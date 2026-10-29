@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The release workflow no longer repeats kit-check; the passed CI run of the tagged commit, which release-verify requires, already holds it. (K755)
+
 - stopGroup returns only after the stopped group has ended, also when it needed SIGKILL. (K754)
 
 - Classify the Playwright reporter for rebuild-check and create the release-run test remote through initRepository. (K753)

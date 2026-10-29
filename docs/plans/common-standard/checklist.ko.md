@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1a740505e2c18a12c578f3cd7fce99766f14de758b6ee9915d2d3e7e0efce13b -->
+<!-- source-sha256: 0d177007e71aedae715a785594077b496c0ab1e5ea0de3b84f9e7e1b1a64ebd2 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -711,4 +711,4 @@
 | K752 | issue 5, 11, 12, 13, 16, 17, 18의 수정을 배포하기 위해 Kit 0.0.64를 준비한다 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-coverage`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.64` | [o] |
 | K753 | Playwright reporter를 rebuild 분류에 넣고 release-run 테스트의 remote를 initRepository로 만든다 | config/rebuild.json tests/kit/release-run.test.mts tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/rebuild-check.test.mts tests/kit/sandbox-repository.test.mts tests/kit/release-run.test.mts`; `make rebuild-check` | [o] |
 | K754 | stopGroup은 SIGKILL 뒤에도 멈춘 그룹이 끝난 뒤에만 반환한다 | scripts/kit/process-group.mts tests/kit/process-group.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/process-group.test.mts` | [o] |
-| K755 | 같은 commit의 CI에서 이미 통과한 kit-check를 반복하는 release workflow 단계를 없앤다 | .github/workflows/release.yml workflows/release.yml tests/kit/kit-sync.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-sync.test.mts`; `make kit-check` | [~] |
+| K755 | 같은 commit의 CI에서 이미 통과한 kit-check를 반복하는 release workflow 단계를 없앤다 | .github/workflows/release.yml workflows/release.yml tests/kit/kit-sync.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-sync.test.mts`; `make kit-check` | [o] |

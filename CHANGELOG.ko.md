@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ecb31327c7ee6b6c51b84284a3a6126cb0336cba5752ee59a8c78cb2641b2a39 -->
+<!-- source-sha256: 4456141f1d85b592b69933df9f1c75b6f438ed8e36308ca283e0a6091bd5fdf4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- release workflow가 kit-check를 반복하지 않는다; release-verify가 요구하는 태그 commit의 통과한 CI run에 이미 들어 있다. (K755)
 
 - stopGroup은 SIGKILL이 필요했던 경우에도 멈춘 그룹이 끝난 뒤에만 반환한다. (K754)
 

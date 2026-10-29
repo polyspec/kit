@@ -200,7 +200,7 @@ test('kit-check names a wheel release without pythonBackend of config/toolchain.
 });
 
 // K193: the release workflow sets up the PHP of .php-version only, so a repository that needs PHP without it released with the
-// PHP of the runner; kit-check names it with the fix, and the release workflow runs kit-check before any release step.
+// PHP of the runner; kit-check names it with the fix in CI, whose passed run the release requires (K755).
 test('kit-check names a repository that needs PHP without .php-version: Composer packages, the Composer consumer, php of the toolchain', (t) => {
   const fixture = readFileSync(path.join(import.meta.dirname, 'fixture/config/release.json'), 'utf8');
   const backend = { schema: 1, pythonBackend: { requirement: 'setuptools==84.0.0', sha256: 'a'.repeat(64) } };
