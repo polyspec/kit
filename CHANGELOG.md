@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- make lint-php accepts the polyfill guard in an autoload file: a namespaced `if (!function_exists('<name>'))` or `if (!defined('<name>'))` with no elseif or else, whose body is only the declaration of that name, as in the bootstrap files of symfony/polyfill-*; any other guard still fails (K873).
 - make toolchain-lock is `mise lock` in kit.mk for each platform of linux, macOS and Windows on x64 and arm64 that has the archive; it first locks and installs the uv and the python that mise.toml declares, as mise lists them, and names that Python as UV_PYTHON, so uv locks with neither the machine uv nor a managed Python of the home. scripts/kit/toolchain-lock.mts is gone. It runs the mise that the bootstrap installs: a checkout whose mise.lock pins no node runs make install-tools TOOLS=npm, make toolchain-lock, then make install-tools TOOLS=npm again (K836).
 - A release with a Composer package publishes packages.json beside its archives: one flat Composer repository that holds each Composer package of config/release.json at the release version, with the release asset URL of its zip and the sha1 of the zip, so a consumer reads it as a composer repository at releases/download/<tag>/packages.json and names only the tag (K871).
 - The PHP arginfo project of PHP-Parser 5.0.0 requires nikic/php-parser 5.0.0 exactly, as the one of 5.6.1 does, so Composer refuses a lock whose parser does not satisfy that requirement, in place of the deleted compare (K833); the link-state-check tests drop the K696 case and a comment that K831 left (K837).

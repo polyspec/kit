@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6b33d2490d4f901c5f8eefc3a93ba2f0dc0a2d0bd069854e644cfffe0d989b51 -->
+<!-- source-sha256: 84e021606094f4463c47a4957a939ef97fc13ec1ce26a18170f91d4b6aaa0928 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make lint-php는 autoload 파일의 polyfill 가드를 허용합니다. symfony/polyfill-*의 bootstrap 파일처럼 elseif와 else가 없고 본문이 그 이름의 선언뿐인 namespace 안의 `if (!function_exists('<name>'))` 또는 `if (!defined('<name>'))`입니다. 그 밖의 가드는 여전히 실패합니다 (K873).
 - make toolchain-lock은 x64와 arm64의 linux, macOS, Windows 중 archive가 있는 각 platform에 대한 kit.mk의 `mise lock`입니다. 먼저 mise.toml이 선언한 uv와 python을 mise가 나열하는 대로 lock하고 설치한 뒤 그 Python을 UV_PYTHON으로 지정하므로, uv가 machine의 uv나 home의 managed Python으로 lock하지 않습니다. scripts/kit/toolchain-lock.mts는 없어졌습니다. bootstrap이 설치한 mise를 실행하므로, mise.lock이 node를 고정하지 않은 checkout은 make install-tools TOOLS=npm, make toolchain-lock, 다시 make install-tools TOOLS=npm을 실행합니다 (K836).
 - Composer package가 있는 release는 archive 옆에 packages.json을 게시합니다. config/release.json의 각 Composer package를 release version으로, 그 zip의 release asset URL과 zip의 sha1과 함께 담는 하나의 평면 Composer repository이므로, 소비자는 releases/download/<tag>/packages.json의 composer repository로 읽고 tag만 적습니다 (K871).
 - PHP-Parser 5.0.0의 PHP arginfo project는 5.6.1의 것처럼 nikic/php-parser 5.0.0을 정확히 요구하므로, 삭제된 비교(K833) 대신 Composer가 그 요구를 만족하지 않는 parser의 lock을 거부합니다. link-state-check test는 K696 사례와 K831이 남긴 주석을 버립니다 (K837).

@@ -14,8 +14,9 @@ use PhpParser\ParserFactory;
 /**
  * The statements that an autoload file of a Composer package may hold (S2): declarations of namespaced functions and
  * constants, with declare(strict_types=1), the namespace declaration, use imports and define() of a namespaced constant
- * name. A require or include, another statement, a class, interface, trait or enum, and a function or constant outside
- * a namespace are findings, and so is a file that does not parse.
+ * name, and the polyfill guard of such a declaration (K873). A require or include, another statement, a class,
+ * interface, trait or enum, and a function or constant outside a namespace are findings, and so is a file that does not
+ * parse.
  */
 final class AutoloadFiles
 {
@@ -38,7 +39,7 @@ final class AutoloadFiles
                 self::finding($file, $error->getStartLine(), $message, $findings);
                 continue;
             }
-            self::statements($tree, false, $file, $findings);
+            self::statements($tree, null, $file, $findings);
         }
         return $findings;
     }
@@ -50,20 +51,20 @@ final class AutoloadFiles
         $findings++;
     }
 
-    /** Checks the statements of one scope; `$namespaced` tells whether it is a namespace, not the global one. */
-    private static function statements(array $statements, bool $namespaced, string $file, int &$findings): void
+    /** Checks the statements of one scope; `$namespace` is its namespace name, null in the global one. */
+    private static function statements(array $statements, ?string $namespace, string $file, int &$findings): void
     {
         foreach ($statements as $statement) {
             // A namespace declaration without braces holds the statements after it as siblings: it is namespaced.
             if ($statement instanceof Node\Stmt\Namespace_) {
                 if ($statement->stmts === null) {
-                    $namespaced = $statement->name !== null;
+                    $namespace = $statement->name?->toString();
                 } else {
-                    self::statements($statement->stmts, $statement->name !== null, $file, $findings);
+                    self::statements($statement->stmts, $statement->name?->toString(), $file, $findings);
                 }
                 continue;
             }
-            $problem = self::problem($statement, $namespaced);
+            $problem = self::problem($statement, $namespace);
             if ($problem !== null) {
                 self::finding($file, $statement->getStartLine(), $problem . '; ' . self::SHAPE, $findings);
             }
@@ -71,8 +72,9 @@ final class AutoloadFiles
     }
 
     /** What `$statement` holds that an autoload file may not, in a namespaced scope or not; null if it is allowed. */
-    private static function problem(Node\Stmt $statement, bool $namespaced): ?string
+    private static function problem(Node\Stmt $statement, ?string $namespace): ?string
     {
+        $namespaced = $namespace !== null;
         if ((new NodeFinder())->findFirstInstanceOf($statement, Node\Expr\Include_::class) !== null) {
             return 'a require or include';
         }
@@ -93,17 +95,52 @@ final class AutoloadFiles
         if ($statement instanceof Node\Stmt\Expression && $namespaced && self::isNamespacedDefine($statement->expr)) {
             return null;
         }
+        if ($statement instanceof Node\Stmt\If_ && $namespaced && self::isPolyfillGuard($statement, $namespace)) {
+            return null;
+        }
         return $statement instanceof Node\Stmt\ClassLike ? 'a class, interface, trait or enum' : 'another statement';
     }
 
     /** Whether `$expr` is define() of a namespaced constant name: a string literal with a namespace separator. */
     private static function isNamespacedDefine(Node\Expr $expr): bool
     {
-        if (!$expr instanceof Node\Expr\FuncCall || !$expr->name instanceof Node\Name) {
+        return str_contains(self::calledName($expr, 'define') ?? '', '\\');
+    }
+
+    /**
+     * Whether `$if` is the polyfill guard of one declaration (K873): no elseif or else, a condition that is only
+     * !function_exists() or !defined() of a name, and a body that is only the declaration of that name in `$namespace`,
+     * a function for function_exists, a define() for defined.
+     */
+    private static function isPolyfillGuard(Node\Stmt\If_ $if, string $namespace): bool
+    {
+        if ($if->elseifs !== [] || $if->else !== null || count($if->stmts) !== 1) {
             return false;
         }
+        if (!$if->cond instanceof Node\Expr\BooleanNot) {
+            return false;
+        }
+        $declared = $if->stmts[0];
+        $function = self::calledName($if->cond->expr, 'function_exists');
+        if ($function !== null) {
+            return $declared instanceof Node\Stmt\Function_
+                && strtolower($function) === strtolower($namespace . '\\' . $declared->name->toString());
+        }
+        $constant = self::calledName($if->cond->expr, 'defined');
+        return $constant !== null && str_contains($constant, '\\') && $declared instanceof Node\Stmt\Expression
+            && self::calledName($declared->expr, 'define') === $constant;
+    }
+
+    /** The string literal that `$expr` passes to the function `$function`, without a leading separator, or null. */
+    private static function calledName(Node\Expr $expr, string $function): ?string
+    {
+        if (!$expr instanceof Node\Expr\FuncCall || !$expr->name instanceof Node\Name) {
+            return null;
+        }
+        if ($expr->name->toLowerString() !== $function) {
+            return null;
+        }
         $name = $expr->args[0]->value ?? null;
-        $defined = $name instanceof Node\Scalar\String_ ? ltrim($name->value, '\\') : '';
-        return $expr->name->toLowerString() === 'define' && str_contains($defined, '\\');
+        return $name instanceof Node\Scalar\String_ ? ltrim($name->value, '\\') : null;
     }
 }

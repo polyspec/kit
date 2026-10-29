@@ -158,6 +158,49 @@ test('an autoload files entry that is not only namespaced functions and constant
   assert.match(classOutput.join(''), /packages\/php\/src\/functions\.php:5:/);
 });
 
+// K873: the polyfill guard of symfony/polyfill-* bootstrap files: an if whose condition is only !function_exists or !defined of the
+// namespaced name that its body alone declares still only declares, so it passes; a guard around anything else, or naming another
+// name, fails.
+test('an autoload file passes with the polyfill guard of its own declaration and fails with any other guard (K873)', (t) => {
+  const guarded = `<?php
+
+declare(strict_types=1);
+
+namespace Polyspec\\OrderedJson;
+
+if (!\\defined('Polyspec\\OrderedJson\\MAX_DEPTH')) {
+    \\define('Polyspec\\OrderedJson\\MAX_DEPTH', 256);
+}
+
+if (!\\function_exists('Polyspec\\OrderedJson\\parse')) {
+    function parse(string $source): string
+    {
+        return $source;
+    }
+}
+
+if (!function_exists('\\Polyspec\\OrderedJson\\stringify')) {
+    function stringify(string $value): string
+    {
+        return $value;
+    }
+}
+`;
+  assert.deepEqual(lint(autoloadFile(t, guarded).root, () => {}), []);
+  for (const [text, line] of [
+    ["<?php\nnamespace Foo;\nif (!function_exists('Foo\\\\bar')) {\n    echo 1;\n}\n", 3],
+    ["<?php\nnamespace Foo;\nif (!function_exists('Foo\\\\bar')) {\n    function baz(): int { return 1; }\n}\n", 3],
+    ["<?php\nnamespace Foo;\nif (!defined('Foo\\\\A')) {\n    define('Foo\\\\B', 1);\n}\n", 3],
+    ["<?php\nnamespace Foo;\nif (!function_exists('Foo\\\\bar')) {\n    function bar(): int { return 1; }\n    function baz(): int { return 1; }\n}\n", 3],
+    ["<?php\nnamespace Foo;\nif (!function_exists('Foo\\\\bar')) {\n    function bar(): int { return 1; }\n} else {\n    echo 1;\n}\n", 3],
+    ["<?php\nif (!function_exists('bar')) {\n    function bar(): int { return 1; }\n}\n", 2],
+  ] as const) {
+    const output: string[] = [];
+    assert.deepEqual(lint(autoloadFile(t, text).root, chunk => output.push(chunk)), ['autoload files'], text);
+    assert.match(output.join(''), new RegExp(`packages/php/src/functions\\.php:${line}:`), text);
+  }
+});
+
 // K514: phpcs and PHPStan read the phpcs.xml.dist and phpstan.dist.neon of the kit package that runs, never a copy.
 test('phpcs and PHPStan read the configurations of the kit package, and a checkout without them lints (K514)', (t) => {
   const root = checkout(t).root;
