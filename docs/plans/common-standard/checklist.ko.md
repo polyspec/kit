@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: c13275ffa4ddfad6a38777b10dcf1de77ee32e409bfa3130bd7b74cf318e6cd7 -->
+<!-- source-sha256: e1a631d02527f8e210624ecc426ab972a8cc78a36881f152b26c2e973e96f997 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -744,3 +744,4 @@
 | K785 | release manifest 검사는 저장소 자체 package의 tag version만 확인한다. 의존성 형식은 package manager의 일이다 | scripts/kit/release.mts tests/kit/release.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K785 tests/kit/release.test.mts` | [o] |
 | K787 | 테스트하던 동작과 함께 테스트를 지우는 commit은 지운 파일을 Removed-With로 밝힌다 | scripts/kit/check-commits.mts tests/kit/plan.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K787 tests/kit/plan.test.mts` | [o] |
 | K788 | wheel은 pyproject build-system.requires로 uv build가 만든다. kit의 build backend pin과 설치를 지운다 | scripts/kit/release-wheel.mts scripts/kit/release-backend.mts config/toolchain.json | `node --test tests/kit/release-wheel.test.mts` | [ ] |
+| K789 | Python 설치와 lock은 uv가 직접 한다. wheel-dependencies와 python-lock을 지운다 | scripts/kit/wheel-dependencies.mts scripts/kit/python-lock.mts scripts/kit/release-consumer.mts | `node --test tests/kit/release-consumer.test.mts` | [ ] |
