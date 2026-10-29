@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 7e52f5462f4a4160bd964f8e9e5fdffbde8b7883590e45e6e9fe363b6d2938f1 -->
+<!-- source-sha256: f54170abf26cf5ed886663b8e275f01b5f354a9088ff60cfe21b7eb79fc088a4 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -767,3 +767,4 @@
 | K811 | worktree-setup의 거부를 지운다: 이름 형식, 바깥 Composer, Python env 소유, release archive link | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test tests/kit/worktree-setup.test.mts` | [o] |
 | K812 | release의 version 검사와 manifest 문제를 지운다. asset은 package manager가 만든다 | scripts/kit/release.mts, tests/kit/release.test.mts | `node --test tests/kit/release.test.mts` | [o] |
 | K813 | be257cb6 CI에서 실패한 테스트를 삭제 행에 맞춤 | scripts/kit/release-wheel.mts, tests/source/python-real.test.mts, tests/source/uv-link-real.test.mts, tests/source/worktree-python-real.test.mts, tests/source/real-tools.mts, tests/source/mise-trust-real.test.mts, tests/source/composer-install-real.test.mts, tests/kit/documents-stamp.test.mts, tests/kit/php-ext.test.mts | `node --test tests/kit/documents-stamp.test.mts tests/kit/php-ext.test.mts` | [ ] |
+| K813 | gates workflow의 shared job은 commit range를 계산하지 않고 kit-gates-static에 RANGE를 넘기지 않는다. K805가 commits-check를 삭제한 뒤로 어떤 target도 그것을 읽지 않는다 | workflows/gates.yml tests/kit/gates-workflow.test.mts | `node --test tests/kit/gates-workflow.test.mts` | [ ] |
