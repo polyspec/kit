@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dff34bcca947325d4fd354936f8142cb6220592115f98c7279999dcda145567e -->
+<!-- source-sha256: 7945b56ac43fe90332aba127561a99cb6bf0c6f82cc3d218c41a9fc04aa96157 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- test-go가 go.work의 모든 모듈을 go test 한 번으로 실행해서, 빌드 전용 모듈이 더 이상 빈 실행이 되지 않는다. (K751)
 
 - CI plan의 scalar output을 따옴표 없이 써서 복사된 workflow가 parity job을 고르게 하고, 선언 없는 단일 구현에는 parity job을 계획하지 않는다; gate runner를 고른다. (K745)
 

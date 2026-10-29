@@ -193,20 +193,25 @@ export function caseSensitiveSmokeRuns(files: readonly string[]): Run[] {
   return [{ cwd: '.', tool: 'node', args: [fixture] }];
 }
 
-/** Go modules selected by a tracked go.work, resolved by Go itself, including modules outside packages/. */
-export function goWorkspaceRuns(files: readonly string[], directories: readonly string[]): Run[] {
+/** The modules of a tracked go.work, each with a tracked go.mod, including modules outside packages/. */
+function goWorkspaceModules(files: readonly string[], directories: readonly string[]): string[] {
   const modules = new Set(directories.map(directory => path.posix.normalize(directory)));
   const tracked = new Set(files.filter(file => path.posix.basename(file) === 'go.mod').map(file => path.posix.dirname(file)));
   const missing = [...modules].filter(directory => !tracked.has(directory)).sort();
   if (missing.length) throw new Error(`go.work uses modules without a tracked go.mod: ${missing.join(', ')}`);
   if (modules.size === 0) throw new Error('go.work declares no modules');
-  return [...modules].sort().map(cwd => ({ cwd, tool: 'go', args: ['./...'] }));
+  return [...modules].sort();
+}
+
+/** One go test of every go.work module from the root (K751): Go resolves the workspace, and a build-only module counts with the
+ * suites of the others, so only a run in which no module has a test is empty. */
+export function goWorkspaceRuns(files: readonly string[], directories: readonly string[]): Run[] {
+  return [{ cwd: '.', tool: 'go', args: goWorkspaceModules(files, directories).map(module => (module === '.' ? './...' : `./${module}/...`)) }];
 }
 
 /** Build commands for every module named by go.work, with no package or path filter. */
 export function goWorkspaceBuilds(files: readonly string[], directories: readonly string[]): Build[] {
-  const runs = goWorkspaceRuns(files, directories);
-  return runs.map(({ cwd }) => ({ cwd, command: 'go', args: ['build', './...'] }));
+  return goWorkspaceModules(files, directories).map(cwd => ({ cwd, command: 'go', args: ['build', './...'] }));
 }
 
 function workspaceDirectories(root: string): string[] {

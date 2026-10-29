@@ -86,7 +86,8 @@ test('a suite runs the folder of each runtime under tests/<suite>/ of the root (
 test('the Go workspace is the source of truth for every standard module test and build (K739)', () => {
   const files = ['go.work', 'packages/go/go.mod', 'examples/go.mod', 'tests/conformance/go/go.mod'];
   const directories = ['examples', 'packages/go', 'tests/conformance/go'];
-  assert.deepEqual(goWorkspaceRuns(files, directories), directories.map(cwd => ({ cwd, tool: 'go', args: ['./...'] })));
+  assert.deepEqual(goWorkspaceRuns(files, directories), [{ cwd: '.', tool: 'go', args: ['./examples/...', './packages/go/...', './tests/conformance/go/...'] }]);
+  assert.deepEqual(goWorkspaceRuns(['go.work', 'go.mod'], ['.']), [{ cwd: '.', tool: 'go', args: ['./...'] }]);
   assert.deepEqual(goWorkspaceBuilds(files, directories), directories.map(cwd => ({ cwd, command: 'go', args: ['build', './...'] })));
   assert.throws(() => goWorkspaceRuns(files, ['packages/go', 'missing']), /without a tracked go.mod: missing/);
   assert.throws(() => goWorkspaceRuns(files, []), /go.work declares no modules/);

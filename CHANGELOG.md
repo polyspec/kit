@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Run test-go over every go.work module in one go test, so a build-only module is no longer an empty run. (K751)
+
 - Write scalar CI plan outputs bare so the copied workflow selects its parity jobs, and plan no parity job for one undeclared implementation; select the gate runner. (K745)
 
 - Prepare the Kit 0.0.63 candidate, native consumer lock and dependency review before release CI. (K744)
