@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: eb1f1e81d09fa685cc573d92bab5e8be2add439019d1eafb0c0e50ce3aea0425 -->
+<!-- source-sha256: 6745338067705acc3ffb1e0ba915fd6c1b85b78a89e0a70738445eafc9dd12be -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -794,3 +794,4 @@
 | K839 | kit이 실행하지 않는 mise.toml key를 모르는 도구나 http: 도구의 거부 없이 mise로 넘김 | scripts/kit/toolchain-mise.mts, tests/kit/toolchain-mise.test.mts, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-mise.test.mts` | [o] |
 | K840 | rust-toolchain.toml의 channel을 <major>.<minor>.<patch> 거부 없이 선언된 그대로 읽음 | scripts/kit/toolchain-files.mts, tests/kit/toolchain-files.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-files.test.mts` | [o] |
 | K880 | Kit 0.0.74 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [ ] |
+| K876 | 3342d8ef의 CI가 실패한 테스트를 맞춘다: tests/kit/link.test.mts의 K661-6 runner checkout 두 case는 K831이 삭제한 lock-source finding을 여전히 기대하고, tests/source/checklist-real.test.mts는 plan 폴더 세 개를 고정해 kit-harness plan이 그것을 깨뜨렸다. 이제 폴더와 개수를 docs/plans/*/checklist.md에서 얻는다 | `tests/kit/link.test.mts`, `tests/source/checklist-real.test.mts` | Red: CI of 3342d8ef fails these tests. Green: `node --test tests/kit/link.test.mts tests/source/checklist-real.test.mts` passes, and CI of the release candidate is green. | [ ] |
