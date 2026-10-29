@@ -4,7 +4,7 @@
 // ignored var/ is refused. The network is a stub of fetch that answers from a map; the zip is made by the zip of the machine.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -106,6 +106,25 @@ test('the configuration refuses a destination outside var/ or not ignored, a rep
   for (const [assets, finding] of refused) assert.throws(() => releaseAssets(repository(t, assets)), finding, JSON.stringify(assets));
   const unignored = tree(t, { '.gitignore': 'var/tools/\n', 'config/release-assets.json': JSON.stringify({ schema: 1, assets: [entry(bytes)] }) });
   assert.throws(() => releaseAssets(unignored), /codec-php: var\/composer-artifacts is not ignored by Git/);
+});
+
+// K780-1: in a worktree each release archive directory is a link to that of the main checkout (K780), and Git names no path beyond a
+// symbolic link; a declared folder is ignored when it or one of its ancestors is, so version and the other commands run there.
+test('version runs in a worktree whose release archive directory is a link (K780-1)', async (t) => {
+  const bytes = zipBytes(t);
+  const checkout = tree(t, {});
+  mkdirSync(path.join(checkout, 'var/products/ext'), { recursive: true });
+  const root = repository(t, [entry(bytes, { name: 'ext', directory: 'var/products', unpack: 'var/products/ext' }), entry(bytes, { name: 'php', directory: 'var/products/php' })]);
+  mkdirSync(path.join(root, 'var'));
+  symlinkSync(path.join(checkout, 'var/products'), path.join(root, 'var/products'), 'dir');
+  const printed: string[] = [];
+  const errors: string[] = [];
+  assert.equal(await main(['version', 'php'], { root, print: (text: string) => printed.push(text), error: (text: string) => errors.push(text) }), 0, errors.join('\n'));
+  assert.deepEqual(printed, ['0.0.14']);
+  const unignored = tree(t, { '.gitignore': 'var/tools/\n', 'config/release-assets.json': JSON.stringify({ schema: 1, assets: [entry(bytes, { directory: 'var/products' })] }) });
+  mkdirSync(path.join(unignored, 'var'));
+  symlinkSync(path.join(checkout, 'var/products'), path.join(unignored, 'var/products'), 'dir');
+  assert.throws(() => releaseAssets(unignored), /codec-php: var\/products is not ignored by Git/);
 });
 
 test('version prints the version that the entry declares once, and the command line refuses other arguments', async (t) => {

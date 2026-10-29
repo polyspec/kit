@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e585dab781319824e9a2316eb4a5527aecb2ccce2c9f43639da353aef9ed6153 -->
+<!-- source-sha256: 54ab367d9260cea5093f54c67982aa3beae12817ac43a770851243c28310b289 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- config/release-assets.json의 ignore 검사는 폴더나 그 상위 폴더 하나가 무시되면 받아들여, archive directory가 main checkout으로 link된 worktree에서도 release-assets가 실행된다. (K780-1)
 
 - 테스트하던 동작과 함께 테스트를 지우는 commit은 parent가 추적했고 이 commit이 지우는 테스트 아닌 파일을 Removed-With: <path>로 밝혀 deleted-test gate를 통과한다. (K787)
 

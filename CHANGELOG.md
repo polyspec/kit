@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The ignore check of config/release-assets.json accepts a folder when it or one of its ancestors is ignored, so release-assets runs in a worktree whose archive directories link to the main checkout. (K780-1)
+
 - A commit that deletes a test together with the behaviour it tested passes the deleted-test gate with Removed-With: <path>, naming the non-test file that the parent tracked and the commit deletes. (K787)
 
 - worktree-setup makes each release archive directory of config/release-assets.json one directory link to that of the main checkout, in place of the copy of var/composer-artifacts, and a worktree refuses make release-assets-fetch. (K780)

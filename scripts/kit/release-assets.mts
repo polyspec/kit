@@ -37,6 +37,15 @@ export type ReleaseAsset = { name: string; version: string; url: string; sha256:
 type Fetch = (url: string) => Promise<Response>;
 
 /**
+ * Whether Git ignores `folder` of `root`: the folder or one of its ancestors, the shortest first. In a worktree a release archive
+ * directory is a link to that of the main checkout (K780), and Git names no path beyond a symbolic link (K780-1).
+ */
+function ignored(root: string, folder: string): boolean {
+  const parts = folder.split('/');
+  return parts.some((_, index) => gitResult(root, 'check-ignore', '--quiet', '--no-index', parts.slice(0, index + 1).join('/')).status === 0);
+}
+
+/**
  * The entries of config/release-assets.json of `root`, each with its URL and destination. Stop with every finding: a
  * schema error, a name or a destination that two entries share, a placeholder other than `{version}`, and a directory
  * that Git does not ignore.
@@ -55,7 +64,7 @@ export function releaseAssets(root: string): ReleaseAsset[] {
     if (destinations.has(destination)) problems.push(`${CONFIG}: ${name}: the destination ${destination} is the destination of another entry`);
     if (/[{}]/.test(url)) problems.push(`${CONFIG}: ${name}: the url ${pattern} holds a placeholder other than {version}`);
     for (const folder of unpack === undefined ? [directory] : [directory, unpack]) {
-      if (gitResult(root, 'check-ignore', '--quiet', '--no-index', folder).status !== 0) problems.push(`${CONFIG}: ${name}: ${folder} is not ignored by Git; an archive and its extraction live under the ignored var/`);
+      if (!ignored(root, folder)) problems.push(`${CONFIG}: ${name}: ${folder} is not ignored by Git; an archive and its extraction live under the ignored var/`);
     }
     names.add(name);
     destinations.add(destination);
