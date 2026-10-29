@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8b2b847df7666549495221547959ad4739fc07c23a1c2138b52493e6f368847b -->
+<!-- source-sha256: adc239eb042698b18a0dd973eca18e3eabd00d19323db544770f67b5a4b2554e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- python parity symbols는 다시 entry만 선언한다. distribution은 entry에서 위로 가장 가까운 pyproject.toml의 [project].name이며 `distribution` field는 지운다 (K803).
 - PHP library 테스트를 Composer 자신의 autoload로 실행하고 Composer tool project를 그 자리에서 composer install로 설치합니다. php-library-autoload와 설치 staging을 삭제합니다. (K790) `run-tests --without-library`와 library source가 포함되지 않았는지 보던 실행 끝의 검사도 없어집니다. extension 실행은 package의 Composer project와 PHPUnit을 그대로 씁니다.
 - lint-rust는 cargo clippy를 sibling checkout과 함께 link cargo로 실행하므로, link된 consumer는 lock의 git tag가 아니라 sibling의 polyspec crate에 대해 Rust를 lint한다. cargo는 subcommand 앞의 --config를 clippy 같은 external subcommand에 넘기지 않으므로, link cargo는 --config option을 subcommand 뒤에 넘긴다. (K802)
 - wheel은 각 pyproject의 build-system.requires로 uv build가 만든다. pythonBackend, release-backend와 backend pin 검사를 지운다. python parity extractor는 config/parity.json의 새 `distribution` field가 가리키는 distribution의 설치 file 목록을, 저장소의 non-editable install이 만든 project 자신의 .venv의 python으로 읽으며 kit은 아무것도 설치하지 않는다. (K788)

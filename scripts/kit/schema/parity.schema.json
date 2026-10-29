@@ -48,7 +48,7 @@
             }
           },
           "symbols": {
-            "description": "The public API of the implementation, which parity-check reads with the extractor of its ecosystem (scripts/kit/parity-symbols.mts): go (golang.org/x/tools/go/packages on a module directory, built by install-tools when config/toolchain.json symbolExtractors names go), php (nikic/php-parser on a source directory or file, such as the *.stub.php of an extension, installed when symbolExtractors names php), python (the standard library's ast on the installed file list of the distribution that distribution names, run by the python of entry/.venv, the non-editable environment that the repository's own install made), rust (the rustdoc JSON of one or more Cargo.toml inputs, with the Rust nightly of config/toolchain.json exceptions whose scope holds each input) or ts (API Extractor on a .d.ts entry point in its npm package). Keep entry for one input; entries combines explicit inputs, with optional Rust features per input.",
+            "description": "The public API of the implementation, which parity-check reads with the extractor of its ecosystem (scripts/kit/parity-symbols.mts): go (golang.org/x/tools/go/packages on a module directory, built by install-tools when config/toolchain.json symbolExtractors names go), php (nikic/php-parser on a source directory or file, such as the *.stub.php of an extension, installed when symbolExtractors names php), python (the standard library's ast on the installed file list of the distribution that [project].name of entry/pyproject.toml names, run by the python of entry/.venv, the non-editable environment that the repository's own install made), rust (the rustdoc JSON of one or more Cargo.toml inputs, with the Rust nightly of config/toolchain.json exceptions whose scope holds each input) or ts (API Extractor on a .d.ts entry point in its npm package). Keep entry for one input; entries combines explicit inputs, with optional Rust features per input.",
             "type": "object",
             "required": ["extractor"],
             "oneOf": [
@@ -58,8 +58,7 @@
             "additionalProperties": false,
             "properties": {
               "extractor": { "type": "string", "enum": ["go", "php", "python", "rust", "ts"] },
-              "entry": { "description": "The path that the extractor reads, relative to the checkout; for python, the directory of the uv project.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
-              "distribution": { "description": "python only: the distribution of the uv project of entry whose installed modules are the public API.", "type": "string", "pattern": "^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$" },
+              "entry": { "description": "The path that the extractor reads, relative to the checkout; for python, a folder of the uv project, whose nearest pyproject.toml upward names the distribution.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
               "entries": {
                 "description": "Explicit extractor inputs whose public symbols are combined. Each entry is processed independently; errors are reported per entry.",
                 "type": "array",
@@ -71,8 +70,7 @@
                   "additionalProperties": false,
                   "properties": {
                     "entry": { "description": "A path that the extractor reads, relative to the checkout.", "type": "string", "pattern": "^(?!(?:.*[=:\\s])?[/~])(?!(?:.*[^\\w.-])?\\.\\.(?:/|$))" },
-                    "features": { "description": "Cargo features enabled for this Rust rustdoc input.", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]*$" } },
-                    "distribution": { "description": "python only: the distribution of the uv project of entry whose installed modules are the public API.", "type": "string", "pattern": "^[A-Za-z0-9]([A-Za-z0-9._-]*[A-Za-z0-9])?$" }
+                    "features": { "description": "Cargo features enabled for this Rust rustdoc input.", "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Za-z0-9_][A-Za-z0-9_-]*$" } }
                   }
                 }
               }
@@ -81,16 +79,6 @@
               {
                 "if": { "properties": { "extractor": { "const": "rust" } } },
                 "else": { "properties": { "entries": { "type": "array", "items": { "type": "object", "not": { "required": ["features"], "properties": { "features": true } } } } } }
-              },
-              {
-                "if": { "properties": { "extractor": { "const": "python" } } },
-                "then": {
-                  "oneOf": [
-                    { "required": ["entry", "distribution"], "properties": { "entry": true, "distribution": true } },
-                    { "required": ["entries"], "not": { "required": ["distribution"], "properties": { "distribution": true } }, "properties": { "entries": { "type": "array", "items": { "type": "object", "required": ["distribution"], "properties": { "distribution": true } } } } }
-                  ]
-                },
-                "else": { "not": { "required": ["distribution"], "properties": { "distribution": true } }, "properties": { "entries": { "type": "array", "items": { "type": "object", "not": { "required": ["distribution"], "properties": { "distribution": true } } } } } }
               }
             ]
           },

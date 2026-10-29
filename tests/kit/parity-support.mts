@@ -214,7 +214,7 @@ process.exit(exit);
 // The stub of Python (`python3 <args> -m unittest -v <test>`), which writes its verbose results to standard error: a line
 // `<method> (<module>.<class>.<method>) ... ok` for each `PASS <method>` line of the test file, `FAIL` for a `FAIL` line.
 // With REQUIRE_SOURCE it reports nothing and exits with 3 unless CODEC_SOURCE is python/src and -B is its first argument. Run as
-// the python symbol extractor, the python of <project>/.venv (\`-I <kit>/symbols/python.py <distribution>\`), it prints the
+// the python symbol extractor, the python of <project>/.venv (\`-I <kit>/symbols/python.py <distribution>\`, the [project].name of its pyproject.toml), it prints the
 // lines of symbols.txt of the project as a JSON array.
 const PY_STUB = `#!/usr/bin/env node
 const fs = require('fs');
@@ -318,7 +318,7 @@ const CONFIG = {
     { name: 'rust', runner: 'cargo', roots: ['rust'], tests: ['rust/tests/*.rs'], symbols: { extractor: 'rust', entry: 'rust/Cargo.toml' }, errors: { file: 'rust/src/codes.rs', pattern: '^pub const \\w+: &str = "(\\w+)";$' } },
     { name: 'ts', runner: 'node', roots: ['ts'], tests: ['ts/tests/*.mjs'], symbols: { extractor: 'ts', entry: 'ts/index.d.ts' }, errors: { file: 'ts/src/codes.ts', pattern: "^export const \\w+ = '(\\w+)';$" } },
     { name: 'php', runner: 'php', roots: ['php'], tests: ['php/tests/*.php'], symbols: { extractor: 'php', entry: 'php' }, errors: { file: 'php/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" } },
-    { name: 'python', runner: 'python', roots: ['python'], tests: ['python/tests/*.py'], symbols: { extractor: 'python', entry: 'python', distribution: 'codec' }, errors: { file: 'python/codes.py', pattern: '^\\w+ = "(\\w+)"$' } },
+    { name: 'python', runner: 'python', roots: ['python'], tests: ['python/tests/*.py'], symbols: { extractor: 'python', entry: 'python' }, errors: { file: 'python/codes.py', pattern: '^\\w+ = "(\\w+)"$' } },
   ],
   suites: ['tests/vectors/*.json'],
   comparators: ['tests/compare'],

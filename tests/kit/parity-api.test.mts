@@ -262,23 +262,21 @@ test('Rust symbol entries combine crate APIs and run each declared feature selec
   assert.equal(nonRustFeatures.findings[0]?.rule, 'declaration');
 });
 
-// K788: the python extractor reads the installed file list of a distribution, so every python input names it, and no other
-// extractor takes one.
-test('the python symbols name the distribution of each input, and no other extractor takes one (K788)', TIMEOUT, (t) => {
-  const declaration = (name: string, symbols: unknown) => check(t, { edit: config => {
-    itemWhere(config.implementations, (implementation: { name: string }) => implementation.name === name).symbols = symbols;
+// K803: the python extractor reads the installed file list of the distribution that [project].name of the pyproject.toml of
+// entry names, so a python input declares only its entry, as every other extractor does.
+test('the python symbols declare only the entry, and the distribution is the project name of its pyproject (K803)', TIMEOUT, (t) => {
+  const declaration = (symbols: unknown) => check(t, { files: { 'python/src/codec/__init__.py': '' }, edit: config => {
+    itemWhere(config.implementations, (implementation: { name: string }) => implementation.name === 'python').symbols = symbols;
     return config;
   } }, { execute: false }).findings.filter(finding => finding.rule === 'declaration').length;
-  assert.equal(declaration('python', { extractor: 'python', entry: 'python', distribution: 'codec' }), 0);
-  assert.equal(declaration('python', { extractor: 'python', entries: [{ entry: 'python', distribution: 'codec' }] }), 0);
-  for (const invalid of [
-    { extractor: 'python', entry: 'python' },
-    { extractor: 'python', entries: [{ entry: 'python' }] },
-    { extractor: 'python', entries: [{ entry: 'python', distribution: 'codec' }], distribution: 'codec' },
-    { extractor: 'python', entry: 'python', distribution: 'not a name' },
-  ]) assert.ok(declaration('python', invalid) > 0, JSON.stringify(invalid));
-  assert.ok(declaration('go', { extractor: 'go', entry: 'go', distribution: 'codec' }) > 0);
-  assert.ok(declaration('go', { extractor: 'go', entries: [{ entry: 'go', distribution: 'codec' }] }) > 0);
+  assert.equal(declaration({ extractor: 'python', entry: 'python' }), 0);
+  assert.equal(declaration({ extractor: 'python', entries: [{ entry: 'python' }] }), 0);
+  assert.ok(declaration({ extractor: 'python', entry: 'python', distribution: 'codec' }) > 0, 'distribution is no field');
+  const unnamed = check(t, { files: { 'python/pyproject.toml': '[project]\nversion = "0.0.0"\n' } });
+  assert.ok(unnamed.findings.some(finding => /no pyproject\.toml from python up to the checkout names a \[project\]\.name/.test(finding.message)), JSON.stringify(unnamed.findings));
+  // A consumer names the package folder below its uv project, such as packages/python/src/polyspec/template: the nearest
+  // pyproject.toml above it names the distribution.
+  assert.equal(declaration({ extractor: 'python', entry: 'python/src/codec' }), 0);
 });
 
 test('K719 scopes API symbols to a release package entry without narrowing shared APIs', TIMEOUT, (t) => {

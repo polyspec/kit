@@ -207,7 +207,7 @@ const lines = (root: string) => checkParity(root, { execute: true, env: toolsEnv
 test('the python extractor reads the public symbols of a package with ast: __all__, public names and public methods (K75)', { timeout: 120_000 }, (t) => {
   const declaration = (symbols: string[]) => `${declared({
     schema: 1,
-    implementations: [{ name: 'python', runner: 'python', roots: ['python'], symbols: { extractor: 'python', entry: 'python', distribution: 'codec' } }],
+    implementations: [{ name: 'python', runner: 'python', roots: ['python'], symbols: { extractor: 'python', entry: 'python' } }],
     units: [...symbols.map(symbol => ({ id: symbol.replaceAll('.', '-'), kind: 'api', symbols: [{ implementation: 'python', symbol }] })), trace([{ implementation: 'python', test: 'python/tests/test_trace.py', id: 'test_trace' }])],
   })}`;
   const files = {

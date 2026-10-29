@@ -1,8 +1,9 @@
 // The symbol extractors of the language-parity check (R1 and R11). An implementation that declares `symbols: { extractor,
 // entry }` or `entries` has its public API read by the standard tool of its ecosystem, never by a parser of kit, in the full
 // check; nothing is read from a saved snapshot. Each input gives public symbol ids, combined when `entries` is declared:
-//   python  scripts/kit/symbols/python.py, the standard library's ast, on the installed file list (RECORD) of the declared
-//           distribution, run by the python of <entry>/.venv, the environment that the repository's own install made for its
+//   python  scripts/kit/symbols/python.py, the standard library's ast, on the installed file list (RECORD) of the
+//           distribution that [project].name of the nearest pyproject.toml from <entry> up names, run by the python of the .venv
+//           beside that pyproject.toml, the environment that the repository's own install made for its
 //           uv project; kit creates and installs nothing; ids <module>.<name> and <module>.<class>.<method>
 //   go      var/tools/symbols-go/bin/kit-symbols-go (scripts/kit/symbols/go), golang.org/x/tools/go/packages, on a module
 //           directory; ids <import path>.<name> and <import path>.<type>.<method or field>; install-tools builds it when
@@ -17,7 +18,7 @@
 //   ts      the API model of API Extractor (@microsoft/api-extractor) of a .d.ts entry point, such as the one that tsc emits,
 //           in the package of the nearest package.json; ids the canonical references, such as @scope/name!Codec#encode:member(1)
 // An extractor that cannot run, fails or prints no list of ids is a finding that names the implementation and the command.
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Extractor as ApiExtractor, ExtractorConfig } from '@microsoft/api-extractor';
@@ -28,6 +29,7 @@ import type { Environment, Extractor, Finding, ParityModel, ParitySymbolEntry } 
 import { execute } from './process.mts';
 import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
+import { isTable, readToml } from './toml.mts';
 import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import { present } from './present.mts';
@@ -50,6 +52,21 @@ function listed(root: string, command: string, args: string[], env: Environment)
   } catch (error) {
     if (!(error instanceof ConfigError)) throw error;
     return { error: error.message };
+  }
+}
+
+/**
+ * The uv project of the python symbols `entry` and its distribution: the nearest folder from `entry` up to the checkout that holds a
+ * pyproject.toml, and the [project].name of that file; undefined when no folder holds one or it names no project.
+ */
+function uvProject(root: string, entry: string): { project: string; distribution: string } | undefined {
+  for (let project = path.posix.normalize(entry); ; project = path.posix.dirname(project)) {
+    const file = path.posix.join(project, 'pyproject.toml');
+    if (existsSync(path.join(root, file))) {
+      const table = readToml(readFileSync(path.join(root, file), 'utf8'), file).project;
+      return isTable(table) && typeof table.name === 'string' ? { project, distribution: table.name } : undefined;
+    }
+    if (project === '.' || project === '/') return undefined;
   }
 }
 
@@ -227,9 +244,11 @@ const EXTRACTORS: Record<Extractor, (root: string, input: ParitySymbolEntry, env
     if (!existsSync(autoload)) return { error: `${path.relative(root, autoload)} does not exist; name php in symbolExtractors of config/toolchain.json and run make install-tools` };
     return withLeaks(listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env), () => listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry, '--leaks'], env));
   },
-  python: (root, { entry, distribution }, env) => {
-    if (distribution === undefined) return { error: `the python symbols of ${entry} name no distribution` };
-    return withLeaks(pythonListed(root, entry, distribution, env), () => pythonListed(root, entry, distribution, env, ['--leaks']));
+  python: (root, { entry }, env) => {
+    const found = uvProject(root, entry);
+    if (found === undefined) return { error: `no pyproject.toml from ${entry} up to the checkout names a [project].name, the distribution whose installed modules are the public API` };
+    const { project, distribution } = found;
+    return withLeaks(pythonListed(root, project, distribution, env), () => pythonListed(root, project, distribution, env, ['--leaks']));
   },
   rust: (root, { entry, features }, env) => rustdoc(root, entry, env, features),
   ts: (root, { entry }) => apiModel(root, entry),
