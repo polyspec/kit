@@ -171,3 +171,10 @@ test('K515: kit runs no polyspec lock check and reads no config/polyspec.json', 
   assert.doesNotMatch(read('PRINCIPLES.md'), /config\/polyspec\.json/);
   assert.doesNotMatch(read('workflows/gates.yml'), /config\/polyspec\.json/);
 });
+
+// K815: K805 deleted commits-check, the one reader of RANGE, so the shared job computes no commit range and passes none.
+test('K815: the shared job computes no commit range and passes no RANGE', () => {
+  const shared = workflowJob(read('workflows/gates.yml'), 'shared').join('\n');
+  assert.doesNotMatch(shared, /commit range|RANGE=|\$range/);
+  assert.doesNotMatch(read('scripts/kit/kit.mk'), /\$\(RANGE\)|\$\$RANGE/);
+});
