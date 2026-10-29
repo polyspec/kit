@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ae525aa90395c9cce1cbc000630183eeda0e4128cb0064df9741d0932b16ad84 -->
+<!-- source-sha256: 8294dc15e5bf5a6e097bddccdaa052a31f5f476503dec1830f32a3cbe5d1a69b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- lint-rust는 cargo clippy를 sibling checkout과 함께 link cargo로 실행하므로, link된 consumer는 lock의 git tag가 아니라 sibling의 polyspec crate에 대해 Rust를 lint한다. cargo는 subcommand 앞의 --config를 clippy 같은 external subcommand에 넘기지 않으므로, link cargo는 --config option을 subcommand 뒤에 넘긴다. (K802)
 - wheel은 각 pyproject의 build-system.requires로 uv build가 만든다. pythonBackend, release-backend와 backend pin 검사를 지운다. python parity extractor는 config/parity.json의 새 `distribution` field가 가리키는 distribution의 설치 file 목록을, 저장소의 non-editable install이 만든 project 자신의 .venv의 python으로 읽으며 kit은 아무것도 설치하지 않는다. (K788)
 - K495의 reference-transaction hook, pre-commit hook의 pid 기록, KIT_MAIN_WRITER를 지운다. main은 git이 허락하는 어떤 fast-forward로도 움직인다. commit과 land의 row-id 충돌 검사(K497, row-ids.mts)를 지운다. row의 충돌은 git의 merge conflict다. 저장소는 추적하는 .githooks/reference-transaction을 git rm으로 지운다. (K801)
 - userland framework 위의 application은 자기 Composer package여야 한다는 S10 규칙과 그 layout-check(library-frameworks.mts)를 지운다. PHP library는 어떤 package든 require할 수 있다. (K800)

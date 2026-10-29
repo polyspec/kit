@@ -666,7 +666,10 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
       const metadata = run(tool.command, [...channel, ...config, 'metadata', '--format-version=1', ...graphArgs], { cwd: directory, env: tool.env });
       verifyCargoSources(metadata, expected);
     }
-    const outcome = execute(tool.command, [...channel, ...config, ...commandArgs], { cwd: directory, env: tool.env });
+    // The configuration follows the subcommand (K802): cargo passes a --config before it to no external subcommand, and cargo clippy runs
+    // cargo again, which would resolve the git tag of the lock instead of the sibling.
+    const [subcommand, ...options] = commandArgs;
+    const outcome = execute(tool.command, [...channel, ...(subcommand === undefined ? [] : [subcommand]), ...config, ...options], { cwd: directory, env: tool.env });
     if (outcome.error) throw new Error(`${tool.command} could not start: ${outcome.error.message}`);
     process.stdout.write(outcome.stdout);
     process.stderr.write(outcome.stderr);

@@ -1011,7 +1011,17 @@ test('link cargo --siblings runs cargo with the sibling crates patched and the a
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.match(log(), /cargo --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=.* fetch --locked$/m);
+  assert.match(log(), /^cargo fetch --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --locked$/m);
+});
+
+// K802: cargo passes a --config before the subcommand to no external subcommand, and clippy runs cargo again, so the patches and the lock
+// of the link follow the subcommand: cargo clippy compiles the sibling crate, not the git tag of the lock.
+test('link cargo --siblings passes the patches after the subcommand, which an external subcommand such as clippy takes (K802)', (t) => {
+  const { consumer, env, log } = workspace(t);
+  put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'clippy', '--workspace', '--', '-D', 'warnings'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(log(), /^cargo clippy --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --workspace -- -D warnings$/m);
 });
 
 // K489: cargo --siblings patches the crates of a sibling checkout that the consumer's lock names from git, and needs nothing from a checkout
@@ -1044,8 +1054,8 @@ test('link cargo --siblings fetches in the link lock with its native arguments a
   const before = readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8');
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
-  assert.match(log(), /fetch --locked/, 'the requested native arguments are preserved after metadata resolves the link graph');
-  assert.match(log(), /resolver\.lockfile-path=.*var\/link\/cargo\/root\/Cargo\.lock.* fetch --locked$/m);
+  assert.match(log(), /^cargo fetch .* --locked$/m, 'the requested native arguments are preserved after metadata resolves the link graph');
+  assert.match(log(), /^cargo fetch --config resolver\.lockfile-path=\S*var\/link\/cargo\/root\/Cargo\.lock\S* .*--locked$/m);
   assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), before, 'the tracked Cargo.lock is unchanged');
 });
 

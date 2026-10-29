@@ -3,7 +3,9 @@
 // folder of each Cargo workspace, a Cargo.toml with a [workspace] table, so every warning of rustc and clippy fails. The
 // lints of a workspace deny unsafe code and an allow attribute without its reason, and every package takes them
 // (config/cargo.schema.json, which make layout-check runs), so a package outside a workspace fails there. cargo runs the
-// toolchain that rust-toolchain.toml of the checkout pins; lint-steps.mts runs the steps.
+// toolchain that rust-toolchain.toml of the checkout pins; lint-steps.mts runs the steps. clippy runs through the cargo link with the
+// sibling checkouts, as make cargo-fetch does (K448-5, K802): in a linked checkout a polyspec git dependency compiles against the
+// sibling checkout, which the generated code of a consumer follows, not against its tag.
 //
 //   node scripts/kit/lint-rust.mts
 import path from 'node:path';
@@ -13,6 +15,7 @@ import { checkedFiles } from './tracked-files.mts';
 import { isTable } from './toml.mts';
 import { readTomlFile } from './toolchain-files.mts';
 import { kitPackageRoot } from './kit-files.mts';
+import { siblingTool } from './paths.mts';
 
 /**
  * The lints that deny a hidden error (P8, K334), after -D warnings: a must_use value that is dropped, a `let _` of a must_use or
@@ -41,7 +44,7 @@ export function lintSteps(root: string): LintStep[] {
   return [...files
     .filter(file => path.posix.basename(file) === 'Cargo.toml' && isTable(readTomlFile(root, file).workspace))
     .map(file => path.posix.dirname(file))
-    .map(folder => ({ label: `cargo clippy ${folder}`, command: 'cargo', args: ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS], cwd: folder, env: { CLIPPY_CONF_DIR: kitPackageRoot() } })), ...catchCheck];
+    .map(folder => ({ label: `cargo clippy ${folder}`, command: process.execPath, args: [siblingTool(import.meta.url, 'link'), 'cargo', '--siblings', '.', 'clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS], cwd: folder, env: { CLIPPY_CONF_DIR: kitPackageRoot() } })), ...catchCheck];
 }
 
 /** Runs the steps of `root` and returns the labels of those that failed; the output of each step goes through `print`. */
