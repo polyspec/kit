@@ -777,3 +777,4 @@
 | K822 | Run a mise shim through Git Bash make on the Windows runner of platform-bootstrap | .github/workflows/platform-bootstrap.yml, tests/kit/bootstrap-platform.test.mts | `node --test tests/kit/bootstrap-platform.test.mts` | [o] |
 | K823 | Release Kit 0.0.72 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K824 | Link the packages of the repository itself when link --siblings finds no sibling checkout | scripts/kit/link.mts, tests/kit/link.test.mts | `node --test tests/kit/link.test.mts` | [ ] |
+| K825 | Delete the checklist-state refusal of release, tag creation and FINAL_RUN | scripts/kit/release.mts, scripts/kit/ci-only.mts, docs/operations/release.md | `node --test tests/kit/release.test.mts tests/kit/ci-only.test.mts` | [ ] |

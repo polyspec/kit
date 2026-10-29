@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: e7a47f25a333cc1036f36d56494ed8ed6fa585031e23956b5f4e5b0bfcae6359 -->
+<!-- source-sha256: f33227981e7a8d6b622da429b0eb6ad31565ee8b7b3e2bb40650b1cab423c941 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -778,3 +778,4 @@
 | K822 | platform-bootstrap의 Windows runner에서 Git Bash make로 mise shim을 실행함 | .github/workflows/platform-bootstrap.yml, tests/kit/bootstrap-platform.test.mts | `node --test tests/kit/bootstrap-platform.test.mts` | [o] |
 | K823 | Kit 0.0.72 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K824 | link --siblings가 sibling checkout을 찾지 못해도 저장소 자신의 패키지를 링크함 | scripts/kit/link.mts, tests/kit/link.test.mts | `node --test tests/kit/link.test.mts` | [ ] |
+| K825 | release, tag 생성, FINAL_RUN의 checklist 상태 거부를 삭제함 | scripts/kit/release.mts, scripts/kit/ci-only.mts, docs/operations/release.md | `node --test tests/kit/release.test.mts tests/kit/ci-only.test.mts` | [ ] |
