@@ -782,3 +782,4 @@
 | K827 | The PHPUnit test listing of a run has the autoloader of the run, so the deadline prepend loads in it | scripts/kit/run-tests.mts, tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts` | [v] |
 | K828 | Make the run-tests suite finish every test under a high load average | tests/kit/run-tests.test.mts | `node --test tests/kit/run-tests.test.mts` | [ ] |
 | K830 | Bound the Windows process tests, so a hang fails by its limit and a hung real-process test by its name | .github/workflows/platform-bootstrap.yml, tests/kit/process-group.test.mts | `node --test tests/kit/bootstrap-platform.test.mts tests/kit/process-group.test.mts` | [o] |
+| K829 | Release Kit 0.0.73 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [ ] |

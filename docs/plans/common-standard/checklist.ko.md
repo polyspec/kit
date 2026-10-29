@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 45b2b68884dbb0178f662da79d8290cc40968f103badccb415ebfee1e5f42ee0 -->
+<!-- source-sha256: ecd6480ece2407d7c2b9ebb5d13e0f4884870ef230d79a954637ef53fd3e1bee -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -783,3 +783,4 @@
 | K827 | run의 PHPUnit test 목록 실행이 run의 autoloader를 가져 deadline prepend가 그 안에서 load된다 | scripts/kit/run-tests.mts, tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts` | [v] |
 | K828 | 높은 load average에서도 run-tests suite의 모든 test가 끝나게 함 | tests/kit/run-tests.test.mts | `node --test tests/kit/run-tests.test.mts` | [ ] |
 | K830 | Windows process test에 한도를 두어 멈춤은 그 한도로, 멈춘 실제 process test는 그 이름으로 실패하게 함 | .github/workflows/platform-bootstrap.yml, tests/kit/process-group.test.mts | `node --test tests/kit/bootstrap-platform.test.mts tests/kit/process-group.test.mts` | [o] |
+| K829 | Kit 0.0.73 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [ ] |
