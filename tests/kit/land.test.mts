@@ -127,15 +127,15 @@ test('make land fast-forwards and cleans up without invoking either build (K603)
   assert.equal(existsSync(buildCalls), false, 'land does not invoke make build in the branch or main checkout');
 });
 
-// K631-1 keeps K631's continuation policy while reporting both failures and the candidate's diagnostics honestly.
-test('land reports candidate diagnostics when both runs fail and refuses only a green main gate (K631-1)', async (t) => {
+// K807: a gate that fails in the worktree refuses the branch, whether or not it fails on main too; main is not run as a baseline.
+test('land refuses a branch whose gate fails, also while the gate fails on main (K807)', async (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
-  // findings-x prints one finding line per line of findings.txt and fails while that file is not empty; main is red with src/a.txt.
+  // findings-x fails while findings.txt is not empty; main is red with src/a.txt.
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/stdout: /" findings.txt; sed "s/^/stderr: /" findings.txt >&2; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
+    'Makefile': ['kit-gates: docs-check findings-x', 'docs-check:', '\ttrue', 'findings-x:', '\t@test ! -s findings.txt', 'build:', '\ttrue'].join('\n') + '\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**', 'findings.txt'], targets: ['findings-x'] }] }, null, 2) + '\n',
     '.gitignore': 'var/\n',
     'src/.keep': '',
@@ -143,43 +143,14 @@ test('land reports candidate diagnostics when both runs fail and refuses only a 
   });
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const printed: string[] = [];
-  const print = (text: string) => printed.push(text);
-  // A branch of the given name, from main in its own worktree, with `files` committed on it.
-  const branch = (name: string, files: Record<string, string>) => {
-    const folder = path.join(parent, `repo-${name}`);
-    git(main, 'worktree', 'add', '--quiet', folder, '-b', name, 'main');
-    put(folder, files);
-    git(folder, 'add', '-A');
-    git(folder, 'commit', '--quiet', '-m', name);
-  };
-
-  // A branch with a different finding still lands while findings-x is red on main.
-  branch('feat-a', { 'src/b.txt': 'b\n', 'findings.txt': 'src/b.txt\n' });
-  const branchA = git(main, 'rev-parse', 'feat-a');
-  await land(main, 'feat-a', { print });
-  assert.equal(git(main, 'rev-parse', 'main'), branchA, 'main fast-forwards to the branch');
-  assert.ok(printed.includes('findings-x fails on candidate and main; continuing under K631'), printed.join('\n'));
-  assert.ok(printed.includes('findings-x candidate stdout:\nstdout: src/b.txt\n'), printed.join('\n'));
-  assert.ok(printed.some(line => line.startsWith('findings-x candidate stderr:\n') && line.includes('stderr: src/b.txt')), printed.join('\n'));
-  assert.equal(printed.filter(line => line.startsWith('findings-x candidate stdout:\n')).length, 1);
-  assert.equal(printed.filter(line => line.startsWith('findings-x candidate stderr:\n')).length, 1);
-  assert.ok(!printed.some(line => line.includes('feat-a passes it')), printed.join('\n'));
-
-  // A branch that adds the finding src/c.txt while main is red: no line of the output is compared, so it lands too (K631).
-  branch('feat-b', { 'findings.txt': 'src/a.txt\nsrc/c.txt\n' });
-  const branchB = git(main, 'rev-parse', 'feat-b');
-  await land(main, 'feat-b', { print });
-  assert.equal(git(main, 'rev-parse', 'main'), branchB, 'a gate red on main is no refusal');
-
-  // main turns green; a branch that makes findings-x red is refused as before, since main passes the gate.
-  put(main, { 'findings.txt': '' });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'clear findings');
-  branch('feat-c', { 'findings.txt': 'src/d.txt\n' });
-  const mainC = git(main, 'rev-parse', 'main');
-  await assert.rejects(() => land(main, 'feat-c', { print }), /feat-c is refused: the gate findings-x exited 2; nothing is merged/);
-  assert.equal(git(main, 'rev-parse', 'main'), mainC, 'main is unchanged after the refusal of a gate green on main');
+  const folder = path.join(parent, 'repo-feat-a');
+  git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-a', 'main');
+  put(folder, { 'src/b.txt': 'b\n', 'unowned.bin': 'x' });
+  git(folder, 'add', '-A');
+  git(folder, 'commit', '--quiet', '-m', 'feat-a');
+  const before = git(main, 'rev-parse', 'main');
+  await assert.rejects(() => land(main, 'feat-a', { print: () => {} }), /feat-a is refused: the gate findings-x exited 2; nothing is merged/);
+  assert.equal(git(main, 'rev-parse', 'main'), before, 'main is unchanged');
 });
 
 test('land selects no gate that runs tests (K394-1)', async (t) => {

@@ -3,9 +3,8 @@
 // main and clean, the branch exists, and a worktree has the branch checked out (its gates run on its own tree and install); a branch
 // that main has left behind is rebased onto main in that worktree first, and a rebase that conflicts is refused (K495-1). It runs the static gates of kit-gates that the changed paths of the branch select through
 // config/owner-checks.json, always with docs-check. No test runs (K394-1): parity-check
-// and every test- target that the owners select are printed as not run. A gate that fails in the worktree is refused only when its
-// output has a line that main does not have: the same gate runs in the main checkout, and a line of the branch output that occurs
-// more often there than in the output on main is a new finding. A gate that fails on main too, with no new finding, goes on. On a refusal it prints the gate and its output and merges nothing. Then it merges
+// and every test- target that the owners select are printed as not run. A gate that fails in the worktree refuses the branch.
+// On a refusal it prints the gate and its output and merges nothing. Then it merges
 // fast-forward, removes the worktree when it
 // has no uncommitted change (an ignored install does not count) and deletes the branch. A branch that main already contains
 // skips the gates and the merge, and only what is left is removed. Before a worktree is removed, the make targets that WORKTREE_STOP
@@ -19,7 +18,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { kitGates } from './kit-gates.mts';
 import { git, gitResult } from './git.mts';
-import { DECLARATION, importGraph, makeDatabase, ownerDeclaration, select } from './owner-check.mts';
+import { importGraph, makeDatabase, ownerDeclaration, select } from './owner-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { expandMake } from './recipe-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -113,15 +112,14 @@ export const isTestGate = (gate: string) => gate === 'parity-check' || gate.star
 
 /**
  * The gates of kit-gates that the owners of `changed` select in the worktree `folder`, in the order of kit-gates, with the
- * ALWAYS_GATES. The test gates are not returned but in `excluded`, so no test target runs. Throws on a changed path that no
- * owner declares.
+ * ALWAYS_GATES. The test gates are not returned but in `excluded`, so no test target runs; a path that no owner declares selects
+ * no gate.
  */
 export function gatesOf(folder: string, changed: string[], installed: string = folder): { gates: string[]; excluded: string[]; reasons: string[] } {
   // K522: the owner rules as owner-validate reads them, the shipped ones of the checkout that holds node_modules included.
   const declaration = ownerDeclaration(folder, installed);
   const exists = (file: string) => existsSync(path.join(folder, file));
   const selection = select(declaration, changed, [], exists, importGraph(folder, trackedFiles(folder)));
-  if (selection.unowned.length) throw new Error(`${selection.unowned.join(', ')}: no owner in ${DECLARATION} owns the path; add a rule whose paths match it`);
   const kit = kitGates(folder);
   const wanted = new Set<string | undefined>([...selection.checks.map(check => check.target), ...ALWAYS_GATES]);
   for (const gate of ALWAYS_GATES) if (!kit.has(gate)) throw new Error(`${gate} is no gate of kit-gates in ${folder}`);
@@ -132,8 +130,6 @@ export function gatesOf(folder: string, changed: string[], installed: string = f
 // K495: the lock of a land, in the common git folder, which every worktree of the repository shares; how often a waiting land
 // looks at the lock, and for how long.
 export const LAND_LOCK = 'kit-land.lock';
-// Serializes gates that land compares on main, so they read one stable main tree.
-export const MAIN_BUILD_LOCK = 'kit-main-build.lock';
 const LOCK_POLL_MS = 2000;
 const LOCK_WAIT_MS = 60 * 60 * 1000;
 
@@ -434,14 +430,6 @@ async function gateBranch(root: string, folder: string, branch: string, print: (
     }
     print(`${gate} in ${folder}`);
     const candidate = await runGate(folder, gate, [], print);
-    // K631: a gate red on main does not block a branch when it is red there too; a branch owes only not to break a green gate.
-    // K631-1: report both failures truthfully and keep the candidate's diagnostics visible; no output line is compared.
-    if (candidate.result.status !== 0 && (await mainRun(root, gate, [], print, sleep)).result.status !== 0) {
-      print(`${gate} fails on candidate and main; continuing under K631`);
-      print(`${gate} candidate stdout:\n${candidate.result.stdout}`);
-      print(`${gate} candidate stderr:\n${candidate.result.stderr}`);
-      continue;
-    }
     if (candidate.result.status !== 0) {
       print(`${gate} failed in ${folder}:\n${candidate.result.stdout}${candidate.result.stderr}`);
       throw new Error(`${branch} is refused: the gate ${gate} ${endOf(candidate)}; nothing is merged`);
@@ -449,16 +437,6 @@ async function gateBranch(root: string, folder: string, branch: string, print: (
     print(`${gate} passed`);
   }
   return { gated, gates };
-}
-
-/** The run of `gate` with `args` in the main checkout `root`, under the main gate lock. */
-async function mainRun(root: string, gate: string, args: string[], print: (text: string) => void, sleep: (ms: number) => void): Promise<GateRun> {
-  const release = takeLandLock(root, 'main', print, sleep, { name: `the run of ${gate} on main`, outcome: 'nothing is merged' }, MAIN_BUILD_LOCK);
-  try {
-    return await runGate(root, gate, args, print);
-  } finally {
-    release();
-  }
 }
 
 /** Removes the worktree `folder` of the landed `branch`, after stopping its servers with `stop`, and deletes the branch. */

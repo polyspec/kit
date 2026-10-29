@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: ae9913824cf4086d05ef2f29a34333dbabbc06930c98f46441bf329b33ac00c8 -->
+<!-- source-sha256: 9a2f0483ab17a38f2f313d2b51018c31eb66c056579fd8b69525fd857b7ff109 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -760,7 +760,7 @@
 | K804 | push gate와 그 pre-push hook, CI check를 삭제한다 | scripts/kit/push-gate.mts scripts/kit/git-hooks.mts scripts/kit/checklist.mts scripts/kit/kit.mk scripts/kit/release.mts .github/workflows/ci.yml CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/git-hooks.test.mts` | [o] |
 | K805 | commit message의 형식과 순서 규칙을 삭제하고 AI 정책과 Red 줄만 남긴다 | scripts/kit/check-commits.mts scripts/kit/plan.mts scripts/kit/git-hooks.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/commits.test.mts` | [o] |
 | K806 | item-state의 K315 원인 필터(plan.mts의 EVASIVE_CAUSE)와 그 테스트를 삭제하여 release를 인용한 원인도 받아들인다 | scripts/kit/plan.mts tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [~] |
-| K807 | land의 main baseline 실행과 unowned path 거부를 지운다 | scripts/kit/land.mts, tests/kit/land.test.mts | `node --test tests/kit/land.test.mts` | [~] |
+| K807 | land의 main baseline 실행과 unowned path 거부를 지운다 | scripts/kit/land.mts, tests/kit/land.test.mts | `node --test tests/kit/land.test.mts` | [o] |
 | K808 | plan의 형식 거부를 지운다: 전이, id pattern, 추가 행, main의 새 행, staged와 body 검사 | scripts/kit/plan.mts, tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [ ] |
 | K809 | docs-check의 형식 거부를 지운다: 짝, revision stamp, twin 일치, plan folder, status table, doc-id, checklist 짝 | scripts/kit/check-documents.mts, tests/kit/documents.test.mts | `node --test tests/kit/documents.test.mts` | [ ] |
 | K810 | kit-check와 kit-sync의 형식 거부를 지운다: 고정 task 이름, runtime target, tracked symlink, lint 선택, retired 파일 | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [ ] |
