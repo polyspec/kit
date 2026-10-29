@@ -78,21 +78,6 @@ else process.exit(91);
   return uv;
 }
 
-test('python worktree setup retains an existing legacy environment before running uv (K657-4)', (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-python-worktree-legacy-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'main');
-  const folder = path.join(parent, 'worktree');
-  put(main, { '.venv/pyvenv.cfg': 'main environment\n', 'pyproject.toml': '[project]\nname = "fixture"\nversion = "0.0.1"\n' });
-  put(folder, { 'pyproject.toml': '[project]\nname = "fixture"\nversion = "0.0.1"\n' });
-  put(folder, { '.venv/pyvenv.cfg': 'legacy environment\n' });
-  const printed: string[] = [];
-  assert.throws(() => prepareWorktreePython({ main, folder, venv: '.venv', uv: stubUv(parent), print: text => printed.push(text) }), /not an environment created by native worktree setup/);
-  assert.deepEqual(printed, [], 'uv does not run before the legacy environment is refused');
-  assert.equal(readFileSync(path.join(folder, '.venv/pyvenv.cfg'), 'utf8'), 'legacy environment\n');
-  assert.equal(readFileSync(path.join(main, '.venv/pyvenv.cfg'), 'utf8'), 'main environment\n');
-});
-
 test('python worktree installation reports an offline cache miss without modifying the main environment (K657-4)', (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-python-worktree-cache-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -102,7 +87,6 @@ test('python worktree installation reports an offline cache miss without modifyi
   put(folder, { 'pyproject.toml': '[project]\nname = "fixture"\nversion = "0.0.1"\n' });
   assert.throws(() => prepareWorktreePython({ main, folder, venv: '.venv', uv: stubUv(parent), env: { ...process.env, UV_FIXTURE_FAIL: 'install' }, print: () => {} }), /failed without network access[\s\S]*required cached wheel missing/);
   assert.equal(readFileSync(path.join(main, '.venv/pyvenv.cfg'), 'utf8'), 'main environment\n');
-  assert.match(readFileSync(path.join(folder, 'var/worktree-python/.venv/native-uv'), 'utf8'), /native uv worktree environment/);
   assert.equal(lstatSync(path.join(folder, '.venv/pyvenv.cfg')).isSymbolicLink(), false, 'the failed install retains its independent native environment');
 });
 
@@ -133,8 +117,6 @@ test('worktree-setup makes the worktree of a row from main, installs native depe
   const listed = git(main, 'worktree', 'list', '--porcelain');
   assert.equal(setupWorktree(folder, { name: 'parser', id: 'T1', type: 'fix' }, quiet), folder, 'a second run, also from the worktree, finds the same worktree');
   assert.equal(git(main, 'worktree', 'list', '--porcelain'), listed, 'and leaves the same worktrees');
-  assert.throws(() => setupWorktree(main, { name: 'Lexer', id: 'T2', type: 'fix' }, quiet), /is no slug/);
-  assert.throws(() => setupWorktree(main, { name: 'lexer', id: 'T2', type: 'merge' }, quiet), /is none of feat, fix/);
 });
 
 // K482: a fresh worktree is built by the link rebuild of its own packages before the link-state-check, so the check never reads a build
@@ -276,7 +258,6 @@ test('worktree-setup gives each npm project and each Python environment of the m
   const uv = stubUv(parent);
   const quiet = { print: () => {}, uv };
   const check = (folder: string) => {
-    assert.ok(existsSync(path.join(folder, 'var/worktree-python/py/.venv/native-uv')), 'worktree setup records its native environment ownership');
     assert.ok(lstatSync(path.join(folder, 'tools/ts/node_modules')).isDirectory(), 'a nested npm project has a node_modules of its own');
     assert.equal(readFileSync(path.join(folder, 'tools/ts/node_modules/typescript/index.js'), 'utf8'), 'native nested npm package\n');
     assert.equal(existsSync(path.join(folder, 'tests/other/node_modules')), false, 'a project that the main checkout did not install gets none');

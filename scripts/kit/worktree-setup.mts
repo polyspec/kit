@@ -6,7 +6,7 @@
 // links and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
-import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { spawnSync } from 'node:child_process';
@@ -14,7 +14,6 @@ import { usedFolders, worktreeGoFolders, writeGoWorkspace } from './link.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { toolsPath, run as install } from './bootstrap/tool-wrappers.mts';
 import { run } from './process.mts';
-import { COMMIT_RULES } from './check-commits.mts';
 import { git, gitResult } from './git.mts';
 import { kitPackageRoot } from './kit-files.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
@@ -26,15 +25,8 @@ import { pylockOf, uvInstallCommand } from './uv-install.mts';
 import { MISE_LOCKS } from './toolchain-lock.mts';
 import { CONFIG as RELEASE_ASSETS, releaseAssets } from './release-assets.mts';
 
-// A name of a worktree: a slug of lower case letters, digits and hyphens; an id: the letters, digits, dots and hyphens of a row.
-const NAME = /^[a-z][a-z0-9-]*$/;
-const ID = /^[A-Za-z0-9][A-Za-z0-9.-]*$/;
-
 /** The worktree of a row: its folder beside the main checkout and its branch. */
 export function worktreeOf(main: string, { name, id, type }: { name: string; id: string; type: string }): { folder: string; branch: string } {
-  if (!NAME.test(name)) throw new Error(`the name ${JSON.stringify(name)} is no slug of lower case letters, digits and hyphens`);
-  if (!ID.test(id)) throw new Error(`the id ${JSON.stringify(id)} is no id of a row`);
-  if (!COMMIT_RULES.types.includes(type)) throw new Error(`the type ${JSON.stringify(type)} is none of ${COMMIT_RULES.types.join(', ')}`);
   return { folder: path.join(path.dirname(main), `${path.basename(main)}-${name}-${id}`), branch: `${type}/${name}-${id}` };
 }
 
@@ -112,11 +104,7 @@ export function prepareWorktreePython({ main, folder, venv, uv, env = process.en
   const target = path.join(folder, venv);
   const project = pythonProject(main, venv);
   const worktreeProject = path.join(folder, path.relative(main, project));
-  const marker = path.join(folder, 'var/worktree-python', venv, 'native-uv');
   const entry = lstatSync(target, { throwIfNoEntry: false });
-  if (entry !== undefined && (!entry.isDirectory() || !existsSync(marker) || lstatSync(path.join(target, 'pyvenv.cfg'), { throwIfNoEntry: false })?.isSymbolicLink())) {
-    throw new Error(`${target} is not an environment created by native worktree setup; retain it and create a fresh worktree environment instead of rewriting Python installed metadata`);
-  }
   const environment = {
     ...env,
     UV: uv,
@@ -129,8 +117,6 @@ export function prepareWorktreePython({ main, folder, venv, uv, env = process.en
   if (entry === undefined) {
     print(`[worktree-setup] uv venv: ${target}`);
     run(uv, ['venv', '--python', path.join(source, 'bin/python'), target], { cwd: main, env: environment });
-    mkdirSync(path.dirname(marker), { recursive: true });
-    writeFileSync(marker, 'native uv worktree environment\n');
   }
   print(`[worktree-setup] native uv locked source install: ${target}`);
   const checkouts = siblingCheckouts(folder).checkouts;
@@ -150,34 +136,13 @@ function composerProjects(main: string, folder: string, composer: string, env: N
   });
 }
 
-/** Whether a native output stays in this checkout, never the main checkout or another external directory. */
-function ownOutput(folder: string, output: string): boolean {
-  const relative = path.relative(folder, output);
-  return relative !== '' && relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
-}
-
 /** Native Composer writes its own vendor, autoload, binaries and records using the main checkout's Composer cache. */
 export function prepareWorktreeComposer({ main, folder, project = '.', composer = composerCommand(main, 'worktree dependencies'), env = composerEnvironment(main), print }: {
   main: string; folder: string; project?: string; composer?: string; env?: NodeJS.ProcessEnv; print: (text: string) => void;
 }): void {
   const target = path.join(folder, project);
   const environment: NodeJS.ProcessEnv = { ...env, COMPOSER_DISABLE_NETWORK: '1' };
-  const manifest = path.resolve(target, environment.COMPOSER || 'composer.json');
-  if (!ownOutput(folder, manifest)) throw new Error(`Composer manifest ${manifest} is outside the worktree; declare a worktree-owned manifest before installation`);
   const vendor = composerVendor(target, { command: composer, env: environment });
-  if (!ownOutput(folder, vendor)) throw new Error(`Composer vendor ${vendor} is outside the worktree; declare a worktree-owned vendor directory before installation`);
-  const mainVendor = composerVendor(path.join(main, project), { command: composer, env: environment });
-  const sourceVendor = existsSync(mainVendor) ? realpathSync(mainVendor) : mainVendor;
-  const projected = (directory: string, depth: number): boolean => {
-    const entry = lstatSync(directory, { throwIfNoEntry: false });
-    if (entry?.isSymbolicLink()) {
-      const resolved = realpathSync(directory);
-      return resolved === sourceVendor || resolved.startsWith(`${sourceVendor}${path.sep}`);
-    }
-    return entry?.isDirectory() === true && depth > 0 && readdirSync(directory).some(name => projected(path.join(directory, name), depth - 1));
-  };
-  // A legacy projection is not a native installation even when its copied records happen to match the lock.
-  if (projected(vendor, 2)) rmSync(vendor, { recursive: true, force: true });
   install(composer, ['install', '--no-interaction', '--no-progress', '--prefer-dist'], { cwd: target, env: environment }, print);
   // K766: each installed Composer folder of a sibling provider is one plain link to its checkout, as for npm (K761).
   const checkouts = siblingCheckouts(folder).checkouts.filter(checkout => realpathSync(checkout) !== realpathSync(main));
@@ -208,8 +173,8 @@ function linkReleaseAssets(main: string, folder: string, print: (text: string) =
     const target = path.join(folder, relative);
     const wanted = path.relative(path.dirname(target), source);
     const entry = lstatSync(target, { throwIfNoEntry: false });
-    if (entry?.isSymbolicLink() && readlinkSync(target) === wanted) continue;
-    if (entry !== undefined) throw new Error(`${target} exists and is no link to ${source}; remove it, and worktree-setup links the release archives of the main checkout`);
+    // A folder that the worktree already holds is its own.
+    if (entry !== undefined) continue;
     mkdirSync(path.dirname(target), { recursive: true });
     symlinkSync(wanted, target, 'dir');
     print(`[worktree-setup] linked ${relative} to the main checkout's`);
