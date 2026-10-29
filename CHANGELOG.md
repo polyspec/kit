@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Prepare the Kit 0.0.64 candidate, native consumer lock and dependency review before its single release CI run. (K752)
+
 ## 0.0.64
 
 - Take the Composer archive version from the tag and prove consumers with native package repository metadata; source composer.json stays unchanged. (K748)

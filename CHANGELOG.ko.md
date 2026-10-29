@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0702f68e6d8d151b7bb32b1c9e1b54ceba63758d326723afd887517db7f7acdc -->
+<!-- source-sha256: 0a49fe7c9f53c9f4c8fb52d9fd5e0728068b7db1a64875deb304b50e9157fd87 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 단일 release CI 전에 Kit 0.0.64 candidate, native consumer lock과 dependency review를 준비한다. (K752)
 
 ## 0.0.64
 
