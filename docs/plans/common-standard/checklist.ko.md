@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 189c73951e471437665a2828f21fcc0b31128320fba6256fb42dbc47c111b1ec -->
+<!-- source-sha256: 8199d9d5e8314373f2084d02674d255ee5a0f3b24655b6625be8762cbde1646f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -715,4 +715,4 @@
 | K756 | kit-mk 테스트가 worktree가 실행하는 main checkout의 도구를 기대해서 worktree에서도 통과한다 | tests/kit/kit-mk.test.mts | `node --test tests/kit/kit-mk.test.mts` | [o] |
 | K757 | rules-check가 gates runtime matrix를 저장소의 runtime으로 읽고 runtime lint를 그 runtime에 대해서만 판정한다 | scripts/kit/check-rules.mts scripts/kit/ci-setup.mts tests/kit/check-rules.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/check-rules.test.mts tests/kit/ci-setup.test.mts` | [o] |
 | K758 | commit-deleted-test가 링크된 provider를 그 checkout으로 판단한다: npm 패키지가 sibling checkout 링크인 Provider-Test-Replacement는 그 checkout(name, version, providerTests, 테스트 파일)으로 검증하고, 릴리즈 복사본은 계속 package-lock.json으로 검증한다. | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node --test tests/kit/commits.test.mts` | [o] |
-| K759 | Windows bootstrap이 PATH의 tar(Git Bash에서는 GNU tar) 대신 drive 경로와 zip을 읽는 Windows bsdtar(%SystemRoot%\System32\tar.exe)로 archive를 푼다. | scripts/kit/bootstrap/tool-wrappers.mts, scripts/kit/bootstrap/install-mise.mts, scripts/kit/bootstrap/install-npm.mts, tests/kit/install-mise.test.mts | `node --test tests/kit/install-mise.test.mts` | [ ] |
+| K759 | Windows bootstrap이 PATH의 tar(Git Bash에서는 GNU tar) 대신 drive 경로와 zip을 읽는 Windows bsdtar(%SystemRoot%\System32\tar.exe)로 archive를 푼다. | scripts/kit/bootstrap/tool-wrappers.mts, scripts/kit/bootstrap/install-mise.mts, scripts/kit/bootstrap/install-npm.mts, tests/kit/install-mise.test.mts | `node --test tests/kit/install-mise.test.mts` | [~] |
