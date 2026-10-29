@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 74219159f8d02f38f47bc4d12c0e5405a4067c5c21f8590ad8fe3551983da981 -->
+<!-- source-sha256: ee3ea38673b84f603dfdbfe017d64131f13607bd176369e5deb74d5f342a5e95 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -769,4 +769,4 @@
 | K813 | be257cb6 CI에서 실패한 테스트를 삭제 행에 맞춤 | scripts/kit/release-wheel.mts, tests/source/python-real.test.mts, tests/source/uv-link-real.test.mts, tests/source/worktree-python-real.test.mts, tests/source/real-tools.mts, tests/source/mise-trust-real.test.mts, tests/source/composer-install-real.test.mts, tests/kit/documents-stamp.test.mts, tests/kit/php-ext.test.mts | `node --test tests/kit/documents-stamp.test.mts tests/kit/php-ext.test.mts` | [o] |
 | K814 | layout-check에서 symlink인 install 항목을 링크 자체로 검사 | scripts/kit/generated-files.mts, tests/kit/generated-files.test.mts | `node --test tests/kit/generated-files.test.mts` | [o] |
 | K815 | gates workflow의 shared job은 commit range를 계산하지 않고 kit-gates-static에 RANGE를 넘기지 않는다. K805가 commits-check를 삭제한 뒤로 어떤 target도 그것을 읽지 않는다 | workflows/gates.yml tests/kit/gates-workflow.test.mts | `node --test tests/kit/gates-workflow.test.mts` | [o] |
-| K816 | uv build가 쓰기 전에 buildWheel의 빌드 폴더를 만듦 | scripts/kit/release-wheel.mts | `node --test tests/kit/release-wheel.test.mts tests/kit/release.test.mts` | [ ] |
+| K816 | uv build가 쓰기 전에 buildWheel의 빌드 폴더를 만듦 | scripts/kit/release-wheel.mts | `node --test tests/kit/release-wheel.test.mts tests/kit/release.test.mts` | [~] |
