@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 // The tracked Git hooks of a checkout. Git runs the hooks of `core.hooksPath`; a checkout sets it to `.githooks`, which
 // holds the hooks that config/checklist.json lists. The hooks `pre-commit`, `pre-merge-commit`, `pre-push`, `commit-msg`,
-// `prepare-commit-msg` and `reference-transaction` belong to kit: `pre-commit` refuses a staged generated path through
+// and `prepare-commit-msg` belong to kit: `pre-commit` refuses a staged generated path through
 // `make staged-generated-hook`, then runs the gates of land on the staged tree of a commit on main through `make commit-gates-hook`
-// (K404-1) and records that the commit passed them; `pre-merge-commit` refuses a merge commit on main through `make merge-commit-hook`
-// (K404-1); `pre-push` runs the push gate through `make push-gate-hook`, `commit-msg` runs the message checks of make commit on every
+// (K404-1); `pre-merge-commit` refuses a merge commit on main through `make merge-commit-hook`
+// (K404-1); `pre-push` runs the push gate through `make push-gate-hook`, and `commit-msg` runs the message checks of make commit on every
 // commit, an amend included, through `make commit-msg-hook`, `prepare-commit-msg` records an amend for that check through
-// `make prepare-commit-msg-hook` (K380-2), and `reference-transaction` refuses a move of main that neither make land nor a commit
-// whose pre-commit hook passed makes (K495); each has the content of its constant, so every checkout holds the same file. The other hooks belong to the repository. make hooks
+// `make prepare-commit-msg-hook` (K380-2); each has the content of its constant, so every checkout holds the same file. The other hooks belong to the repository. make hooks
 // also declares the merges of the changelogs and checklists (K354): a union, and the driver kit-twin for their Korean twins.
 //
 //   node scripts/kit/git-hooks.mts install   set core.hooksPath, write pre-push when it differs, make each listed hook
@@ -27,46 +26,14 @@ export const PRE_MERGE_COMMIT = `${HOOKS_PATH}/pre-merge-commit`;
 export const PRE_COMMIT = `${HOOKS_PATH}/pre-commit`;
 export const COMMIT_MSG = `${HOOKS_PATH}/commit-msg`;
 export const PREPARE_COMMIT_MSG = `${HOOKS_PATH}/prepare-commit-msg`;
-export const REFERENCE_TRANSACTION = `${HOOKS_PATH}/reference-transaction`;
-// The record of a commit whose pre-commit hook passed, in the git folder of its worktree: the pid of the git that commits (K495).
-export const MAIN_COMMIT = 'kit-main-commit';
 export const PRE_COMMIT_CONTENT = `#!/bin/sh
 # The pre-commit hook. Git runs it before each commit. The generated-file check refuses a staged path with a generated segment
 # (AGENTS.md "Generated files") that config/generated.json does not declare an exception, and names the path. No gate runs on a
-# commit (K603). The hook records the pid of the git that commits, which lets the reference-transaction hook pass this commit on main
-# (K495). Written by \`make hooks\`; do not edit it. It
+# commit (K603). Written by \`make hooks\`; do not edit it. It
 # calls the make targets of the checks, which stay across the versions of kit.
 cd "$(git rev-parse --show-toplevel)" || exit 1
 make --no-print-directory staged-generated-hook || exit 1
 make --no-print-directory commit-gates-hook || exit 1
-printf '%s\\n' "$PPID" > "$(git rev-parse --git-path ${MAIN_COMMIT})"
-`;
-export const REFERENCE_TRANSACTION_CONTENT = `#!/bin/sh
-# The reference-transaction hook (K495). Git runs it for each transaction of refs, with its state as the argument and the updates as
-# "<old> <new> <ref>" lines on standard input. main moves only through make land, which sets KIT_MAIN_WRITER, and through a commit
-# whose pre-commit hook passed, which records the pid of its git in ${MAIN_COMMIT} of the git folder; in the prepared state any other
-# move of refs/heads/main (git merge, git reset, git update-ref, a commit with --no-verify) is refused. The creation of main and an
-# update that keeps its value pass: pack-refs writes main into packed-refs with its value, then deletes its loose ref while
-# packed-refs holds that value. Written by \`make hooks\`; do not edit it.
-# git runs the hook in the states preparing, prepared, committed and aborted, and one commit runs several transactions (HEAD, then
-# main, then AUTO_MERGE), so the record is removed only by the committed transaction that moved main.
-record="$(git rev-parse --git-path ${MAIN_COMMIT})"
-if [ "$1" = committed ]; then
-  grep -q ' refs/heads/main$' && [ -f "$record" ] && [ "$(cat "$record")" = "$PPID" ] && rm -f "$record"
-  exit 0
-fi
-[ "$1" = prepared ] || exit 0
-[ -n "$KIT_MAIN_WRITER" ] && exit 0
-[ -f "$record" ] && [ "$(cat "$record")" = "$PPID" ] && exit 0
-current="$(git rev-parse -q --verify refs/heads/main)"
-packed="$(git rev-parse --git-common-dir)/packed-refs"
-while read -r old new ref; do
-  [ "$ref" = refs/heads/main ] && [ -n "$current" ] && [ "$new" != "$current" ] || continue
-  case "$new" in *[!0]*) ;; *) grep -qx "$old refs/heads/main" "$packed" 2>/dev/null && continue ;; esac
-  echo "[hooks] main moves only through make land or a commit whose pre-commit hook passed (K495): $ref $old -> $new is refused; land the branch with make land" >&2
-  exit 1
-done
-exit 0
 `;
 export const PRE_MERGE_COMMIT_CONTENT = `#!/bin/sh
 # The pre-merge-commit hook. Git runs it before it creates a merge commit. It refuses a merge commit on main, since main moves only by
@@ -105,7 +72,6 @@ const KIT_HOOKS = [
   { file: PRE_PUSH, content: PRE_PUSH_CONTENT },
   { file: COMMIT_MSG, content: COMMIT_MSG_CONTENT },
   { file: PREPARE_COMMIT_MSG, content: PREPARE_COMMIT_MSG_CONTENT },
-  { file: REFERENCE_TRANSACTION, content: REFERENCE_TRANSACTION_CONTENT },
 ];
 
 // The merges of the files that every row changes (K354): the lines of a changelog and the rows of a checklist are independent, so

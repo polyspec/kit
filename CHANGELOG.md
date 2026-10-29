@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Delete the reference-transaction hook of K495, the pid record of the pre-commit hook and KIT_MAIN_WRITER: main moves by any fast-forward, as git allows. Delete the row-id clash check of commit and land (K497, row-ids.mts); a clash of rows is git's merge conflict. A repository removes its tracked .githooks/reference-transaction with git rm. (K801)
 - Delete the S10 rule that an application on a userland framework is its own Composer package, and its layout-check (library-frameworks.mts); a PHP library may require any package. (K800)
 - kit-check no longer compares the copies of kit with the installed package, nor checks that the package is installed and locked; it checks the configuration only. (K799)
 - The deleted-test commit gate is gone: a commit that deletes a test file needs no Replaced-By, Archived-To, Provider-Test-Replacement or Removed-With trailer. (K797)

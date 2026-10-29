@@ -26,7 +26,7 @@ test('install sets core.hooksPath and writes the executable pre-push hook; check
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-merge-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.githooks\/prepare-commit-msg written\n\[git-hooks\] \.githooks\/reference-transaction written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/pre-merge-commit written\n\[git-hooks\] \.githooks\/pre-push written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.githooks\/prepare-commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks pre-push are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
   assert.equal(readFileSync(path.join(work, PRE_PUSH), 'utf8'), PRE_PUSH_CONTENT);
   assert.equal(statSync(path.join(work, PRE_PUSH)).mode & 0o777, 0o755);
@@ -130,8 +130,10 @@ test('the pre-push hook calls the make target push-gate-hook and names no tool p
   assert.match(PRE_PUSH_CONTENT, /^exec make --no-print-directory push-gate-hook$/m);
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(import.meta.dirname, '../../scripts/kit/kit.mk'), 'push-gate-hook', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  // kit.mk starts the tool with the node of the checkout by its absolute path (K171); make names the directory by its real path.
-  assert.equal(dry.stdout.trim(), `${path.join(realpathSync(process.cwd()), 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/push-gate.mjs hook`);
+  // kit.mk starts the tool with the node of the main checkout by its absolute path (K171, K519), which is the checkout itself outside a
+  // linked worktree; make names the directory by its real path.
+  const common = path.resolve(spawnSync('git', ['rev-parse', '--git-common-dir'], { encoding: 'utf8' }).stdout.trim());
+  assert.equal(dry.stdout.trim(), `${path.join(realpathSync(path.dirname(common)), 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/push-gate.mjs hook`);
 });
 
 // K380: kit owns the commit-msg hook, which runs the message checks of make commit on every commit, an amend included.
@@ -433,8 +435,8 @@ test('the pre-merge-commit hook refuses a merge commit on main and passes a fast
   const onBranch = run2('merge', '--no-ff', '--quiet', '-m', 'feat(hooks): Merge main into the branch (#T1-1)', 'main');
   assert.equal(onBranch.status, 0, `a merge commit on another branch passes: ${onBranch.stderr}`);
   git(work, 'checkout', '--quiet', 'main');
-  // A fast-forward of main is the merge of make land, which sets KIT_MAIN_WRITER for the reference-transaction hook (K495).
-  const forward = run(work, 'git', [...identity, 'merge', '--ff-only', '--quiet', 'fix/merge-T1-1'], { env: { ...process.env, KIT_MAIN_WRITER: 'land' } });
+  // A fast-forward of main is the merge of make land.
+  const forward = run(work, 'git', [...identity, 'merge', '--ff-only', '--quiet', 'fix/merge-T1-1']);
   assert.equal(forward.status, 0, `a fast-forward of main by make land passes: ${forward.stderr}`);
 });
 
@@ -446,41 +448,3 @@ test('the pre-merge-commit hook that make hooks writes calls the make target mer
   assert.match(hook, /^exec make --no-print-directory merge-commit-hook$/m);
 });
 
-// K495: main moves only through make land, which sets KIT_MAIN_WRITER, and through a commit whose pre-commit hook passed. The
-// reference-transaction hook that make hooks writes refuses a fast-forward, an update-ref and a commit with --no-verify on main, and
-// lets a commit on main or on a branch, a pack of the refs and a move under KIT_MAIN_WRITER pass.
-test('the reference-transaction hook refuses a move of main outside make land and a hooked commit (K495)', (t) => {
-  const { work } = prepared(t, { files: { 'config/owner-checks.json': OWNERS } });
-  assert.equal(hooks(work).status, 0);
-  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
-  const run2 = (...args: string[]) => run(work, 'git', [...identity, ...args]);
-  const change = (name: string, subject: string) => {
-    writeFileSync(path.join(work, name), `${name}\n`);
-    git(work, 'add', name);
-    const made = run2('commit', '--quiet', '-m', `${subject}\n\nThe body names the change.\n`);
-    assert.equal(made.status, 0, made.stderr);
-  };
-  change('a.txt', 'feat(hooks): Add the first file (#T1-1)');
-  git(work, 'checkout', '--quiet', '-b', 'fix/move-T1-1');
-  change('b.txt', 'feat(hooks): Add the branch file (#T1-1)');
-  git(work, 'checkout', '--quiet', 'main');
-  const head = git(work, 'rev-parse', 'main');
-
-  const forward = run2('merge', '--ff-only', '--quiet', 'fix/move-T1-1');
-  assert.notEqual(forward.status, 0, 'a fast-forward of main outside make land is refused');
-  assert.match(forward.stderr, /make land/, 'the refusal names make land');
-  assert.equal(git(work, 'rev-parse', 'main'), head);
-  const updated = run2('update-ref', 'refs/heads/main', 'fix/move-T1-1');
-  assert.notEqual(updated.status, 0, 'an update-ref of main is refused');
-  assert.equal(git(work, 'rev-parse', 'main'), head);
-  writeFileSync(path.join(work, 'c.txt'), 'c\n');
-  git(work, 'add', 'c.txt');
-  const skipped = run2('commit', '--quiet', '--no-verify', '-m', 'feat(hooks): Skip the hooks (#T1-1)\n\nThe body names the change.\n');
-  assert.notEqual(skipped.status, 0, 'a commit on main that skips its pre-commit hook is refused');
-  assert.equal(git(work, 'rev-parse', 'main'), head);
-
-  assert.equal(run2('pack-refs', '--all').status, 0, 'a pack of the refs keeps main and passes');
-  const writer = run(work, 'git', [...identity, 'merge', '--ff-only', '--quiet', 'fix/move-T1-1'], { env: { ...process.env, KIT_MAIN_WRITER: 'land' } });
-  assert.equal(writer.status, 0, `make land moves main: ${writer.stderr}`);
-  assert.equal(git(work, 'rev-parse', 'main'), git(work, 'rev-parse', 'fix/move-T1-1'));
-});

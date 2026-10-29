@@ -43,7 +43,6 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { DONE, loadConfig, PLANS, readChecklist, reachableStates, trackersOf, workingPlanFiles } from './checklist.mts';
 import { fileAt, git, gitResult } from './git.mts';
 import { HANGUL } from './language-check.mts';
-import { clashMessage, rowClashes } from './row-ids.mts';
 import { blobContent, CONFIG as GENERATED_CONFIG, generatedFindings } from './generated-files.mts';
 import type { GeneratedConfig } from './generated-files.mts';
 import { CONFIG as DOCUMENTS_CONFIG, twinFindings } from './check-documents.mts';
@@ -368,10 +367,7 @@ export function indexItemFindings(root: string, config: CommitRules, message: st
   })];
   // The first commit of a repository has no HEAD, so it has no base and passes.
   if (base === undefined) return found;
-  // K497: on a branch, a row of the index whose ID main holds with another task is refused.
-  const branch = gitResult(root, 'symbolic-ref', '--quiet', '--short', 'HEAD').stdout.trim();
-  const ids: CommitFinding[] = branch === '' ? [] : rowClashes(root, '', branch).map(clash => ({ rule: 'row-id', message: clashMessage(clash) }));
-  return [...found, ...rowFindings(root, message, ''), ...ids];
+  return [...found, ...rowFindings(root, message, '')];
 }
 
 /** The file of the amend record of `root`, which the git directory of its worktree holds (K380-2). */

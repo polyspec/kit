@@ -490,57 +490,6 @@ test('land rebases a branch behind main in its worktree and lands it, and refuse
   assert.equal(git(folder, 'status', '--porcelain'), '', 'the aborted rebase leaves the worktree clean');
 });
 
-// K497: land refuses a branch whose checklist holds a row with an ID that main holds with another task, unless the ID is the row of
-// the branch itself (TYPE/NAME-ID); the refusal names the ID, the task on main and the next ID that main and no branch holds. A row
-// that main lacks, a state change and a change of the branch's own row pass.
-test('land refuses a row whose ID main holds with another task, naming the next free ID (K497)', async (t) => {
-  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-ids-')));
-  t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
-  initRepository(main, '--initial-branch=main');
-  const header = '<!-- doc-id: checklist-work -->\n# Execution checklist\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n';
-  const row = (id: string, task: string, state = '[ ]') => `| ${id} | ${task} | \`src/a.ts\` | \`make test\` | ${state} |\n`;
-  put(main, {
-    'Makefile': 'kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nbuild:\n\ttrue\n',
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['**'], targets: ['docs-check'] }] }, null, 2) + '\n',
-    'config/checklist.json': '{ "schema": 1, "hooks": ["pre-push"], "idPattern": "T[0-9]+(?:[.-][0-9]+)*" }\n',
-    'docs/plans/work/checklist.md': `${header}${row('T1', 'Write the parser', '[o]')}${row('T5', 'Print the union on main')}`,
-  });
-  git(main, 'add', '-A');
-  git(main, 'commit', '--quiet', '-m', 'base');
-  const branchWith = (name: string, text: string) => {
-    const folder = path.join(parent, name.replace('/', '-'));
-    git(main, 'worktree', 'add', '--quiet', folder, '-b', name, 'main');
-    put(folder, { 'docs/plans/work/checklist.md': text });
-    git(folder, 'add', '-A');
-    git(folder, 'commit', '--quiet', '-m', name);
-    return git(main, 'rev-parse', name);
-  };
-  const quiet = { print: () => {} };
-
-  // Another branch registers T5 with its own task, as a rebase resolved by hand would leave it.
-  branchWith('fix/other-T9', `${header}${row('T1', 'Write the parser', '[o]')}${row('T5', 'Link the composer shim')}`);
-  const before = git(main, 'rev-parse', 'main');
-  await assert.rejects(() => land(main, 'fix/other-T9', quiet), (error: Error) => {
-    assert.match(error.message, /T5/);
-    assert.match(error.message, /Print the union on main/, 'the refusal names the task that main holds');
-    assert.match(error.message, /T6/, 'the refusal names the next free ID');
-    return true;
-  });
-  assert.equal(git(main, 'rev-parse', 'main'), before, 'nothing is merged');
-
-  // The branch of T5 itself restates its task; a branch adds a row that main lacks; a branch changes a state: each lands.
-  const own = branchWith('fix/edit-T5', `${header}${row('T1', 'Write the parser', '[o]')}${row('T5', 'Print the union of two types on main')}`);
-  await land(main, 'fix/edit-T5', quiet);
-  assert.equal(git(main, 'rev-parse', 'main'), own);
-  const added = branchWith('fix/new-T7', `${header}${row('T1', 'Write the parser', '[o]')}${row('T5', 'Print the union of two types on main')}${row('T7', 'Add a row')}`);
-  await land(main, 'fix/new-T7', quiet);
-  assert.equal(git(main, 'rev-parse', 'main'), added);
-  const state = branchWith('fix/state-T7', `${header}${row('T1', 'Write the parser', '[o]')}${row('T5', 'Print the union of two types on main', '[~]')}${row('T7', 'Add a row')}`);
-  await land(main, 'fix/state-T7', quiet);
-  assert.equal(git(main, 'rev-parse', 'main'), state);
-});
-
 test('K516: land called from a detached worktree lands into the main checkout (K516)', async (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));

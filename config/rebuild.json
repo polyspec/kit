@@ -610,10 +610,6 @@
       "kind": "policy",
       "reason": "the one symlink of each installed polyspec package to its development folder (K591), the user's rule of 0.0.x"
     },
-    "scripts/kit/row-ids.mts": {
-      "kind": "policy",
-      "reason": "the rule of K497 that a row ID is unique across main and the branches, which no tool of git checks"
-    },
     "scripts/kit/uv-install.mts": {
       "kind": "ecosystem",
       "tool": "uv sync --locked installs the lock and uv pip check verifies the installed environment; the link of each installed polyspec package folder is the user's rule of K591 (K765)"

@@ -164,8 +164,7 @@
           ".githooks/pre-merge-commit",
           ".githooks/pre-push",
           ".githooks/commit-msg",
-          ".githooks/prepare-commit-msg",
-          ".githooks/reference-transaction"
+          ".githooks/prepare-commit-msg"
         ],
         "targets": [
           "hooks-check"

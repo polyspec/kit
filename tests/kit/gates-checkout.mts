@@ -33,7 +33,7 @@ export function git(cwd: string, ...args: string[]) {
  */
 export function commitIndex(cwd: string, message: string) {
   const args = ['-c', 'user.name=test', '-c', 'user.email=test@example.com', 'commit', '--quiet', '--no-verify', '-m', message];
-  const result = run(cwd, 'git', args, { env: { ...process.env, KIT_MAIN_WRITER: 'fixture' } });
+  const result = run(cwd, 'git', args);
   if (result.status !== 0) throw new Error(`git ${args.join(' ')} failed in ${cwd}: ${result.stderr}`);
   return git(cwd, 'rev-parse', 'HEAD');
 }

@@ -12,8 +12,7 @@
 // skips the gates and the merge, and only what is left is removed. Before a worktree is removed, the make targets that WORKTREE_STOP
 // names in its Makefile stop its servers (K441); a stop that fails keeps the worktree. A lock in the common git folder covers the
 // check that main is still the commit that the gates ran on and the merge (K495, K571); the gates of independent branches run at the
-// same time, and a land whose main moved rebases and runs them again; land merges with KIT_MAIN_WRITER set, which the
-// reference-transaction hook of make hooks requires of a move of main (K495).
+// same time, and a land whose main moved rebases and runs them again.
 //
 //   node scripts/kit/land.mts <branch>
 import { spawnSync } from 'node:child_process';
@@ -24,7 +23,6 @@ import { git, gitResult } from './git.mts';
 import { DECLARATION, importGraph, makeDatabase, ownerDeclaration, select } from './owner-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { expandMake } from './recipe-tools.mts';
-import { clashMessage, rowClashes } from './row-ids.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { runCommand, failureOf, type RunCommandResult } from './run-command.mts';
 import { watchParent } from './process-group.mts';
@@ -132,12 +130,11 @@ export function gatesOf(folder: string, changed: string[], installed: string = f
   return { gates: selected.filter(gate => !isTestGate(gate)), excluded: selected.filter(isTestGate), reasons: selection.reasons };
 }
 
-// K495: the lock of a land, in the common git folder, which every worktree of the repository shares; the variable that lets the
-// reference-transaction hook of make hooks pass the merge of land; how often a waiting land looks at the lock, and for how long.
+// K495: the lock of a land, in the common git folder, which every worktree of the repository shares; how often a waiting land
+// looks at the lock, and for how long.
 export const LAND_LOCK = 'kit-land.lock';
 // Serializes gates that land compares on main, so they read one stable main tree.
 export const MAIN_BUILD_LOCK = 'kit-main-build.lock';
-export const MAIN_WRITER = 'KIT_MAIN_WRITER';
 const LOCK_POLL_MS = 2000;
 const LOCK_WAIT_MS = 60 * 60 * 1000;
 
@@ -348,7 +345,7 @@ async function landBranch(root: string, branch: string, print: (text: string) =>
         requireCleanMain(root);
         // K495: main must still be the commit the gates ran on.
         if (git(root, 'rev-parse', 'main').trim() === gated) {
-          const result = await runOperation('git', root, ['merge', '--ff-only', branch], print, { ...process.env, [MAIN_WRITER]: 'land' });
+          const result = await runOperation('git', root, ['merge', '--ff-only', branch], print);
           if (result.error) throw new Error(`git merge --ff-only ${branch} could not start in ${root}: ${result.error.message}`);
           if (result.status !== 0) throw new Error(`git merge --ff-only ${branch} exited with ${result.status}: ${result.stderr.trim()}; nothing is merged`);
           merged = true;
@@ -424,9 +421,6 @@ async function gateBranch(root: string, folder: string, branch: string, print: (
   // K495-1: a branch that main has left behind, as the land this one waited for leaves it, is rebased here; the gates below run on
   // the rebased commits, so nothing is merged that they did not see.
   if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) await rebaseOnMain(folder, branch, print);
-  // K497: a row of the rebased branch whose ID main holds with another task is refused before any gate runs.
-  const clashes = rowClashes(root, branch, branch);
-  if (clashes.length > 0) throw new Error(`${branch} is refused; nothing is merged:\n${clashes.map(clashMessage).join('\n')}`);
   const gated = git(root, 'rev-parse', 'main').trim();
   const changed = git(root, 'diff', '--name-only', `main...${branch}`).split('\n').filter(line => line !== '');
   const { gates, excluded, reasons } = gatesOf(folder, changed);

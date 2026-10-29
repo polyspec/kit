@@ -549,64 +549,6 @@ test('a chore commit may stage a Markdown document under a code folder, and a re
   assert.doesNotMatch(found[0]?.message ?? '', /README/);
 });
 
-// K497: a commit on a branch is refused when its index holds a row with an ID that main holds with another task, unless the ID is
-// the row of the branch itself; the finding names the ID, the task on main and the next free ID. main itself is the reference.
-test('row-id: a commit on a branch refuses a row whose ID main holds with another task (K497)', (t) => {
-  const ROWS = { schema: 1, hooks: ['pre-push'], idPattern: 'T[0-9]+' };
-  const root = tree(t, {});
-  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
-  const rows = (pairs: Array<[string, string]>) => `# Plan\n\n| ID | Task | State |\n|---|---|---|\n${pairs.map(([id, task]) => `| ${id} | ${task} | [ ] |`).join('\n')}\n`;
-  git('symbolic-ref', 'HEAD', 'refs/heads/main');
-  put(root, { 'config/checklist.json': JSON.stringify(ROWS), [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union on main']]) });
-  git('add', '-A');
-  assert.equal(git('commit', '-q', '-m', 'feat(core): Start (#T1)').status, 0);
-  const stage = (branch: string, pairs: Array<[string, string]>) => {
-    assert.equal(git('checkout', '-q', '-B', branch, 'main').status, 0);
-    put(root, { [PLAN]: rows(pairs) });
-    git('add', '-A');
-  };
-  stage('fix/other-T9', [['T1', 'Write the parser'], ['T5', 'Link the composer shim']]);
-  const clash = indexItemFindings(root, CONFIG, 'docs(plan): Register T5 (#T5)').filter(found => found.rule === 'row-id');
-  assert.equal(clash.length, 1, JSON.stringify(clash));
-  assert.match(clash[0]?.message ?? '', /T5/);
-  assert.match(clash[0]?.message ?? '', /Print the union on main/);
-  assert.match(clash[0]?.message ?? '', /T6/);
-  stage('fix/edit-T5', [['T1', 'Write the parser'], ['T5', 'Print the union of two types']]);
-  assert.deepEqual(indexItemFindings(root, CONFIG, 'docs(plan): Restate T5 (#T5)').filter(found => found.rule === 'row-id'), [], 'the branch of T5 restates its own row');
-  git('reset', '-q', '--hard');
-  assert.equal(git('checkout', '-q', 'main').status, 0);
-  put(root, { [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union of two types']]) });
-  git('add', '-A');
-  assert.deepEqual(indexItemFindings(root, CONFIG, 'docs(plan): Restate T5 (#T5)').filter(found => found.rule === 'row-id'), [], 'main is the reference');
-});
-
-// K497-1: only a row that the branch adds or changes is compared with main. A branch that forked before main restated a row holds the
-// old task of that row, which the branch never touched; that is no clash.
-test('row-id: a row that only main changed after the branch forked is no clash (K497-1)', (t) => {
-  const ROWS = { schema: 1, hooks: ['pre-push'], idPattern: 'T[0-9]+' };
-  const root = tree(t, {});
-  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
-  const rows = (pairs: Array<[string, string]>) => `# Plan\n\n| ID | Task | State |\n|---|---|---|\n${pairs.map(([id, task]) => `| ${id} | ${task} | [ ] |`).join('\n')}\n`;
-  git('symbolic-ref', 'HEAD', 'refs/heads/main');
-  put(root, { 'config/checklist.json': JSON.stringify(ROWS), [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union']]) });
-  git('add', '-A');
-  assert.equal(git('commit', '-q', '-m', 'feat(core): Start (#T1)').status, 0);
-  assert.equal(git('branch', 'fix/other-T7').status, 0);
-  // main restates T5 after the branch forked.
-  put(root, { [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union of two types']]) });
-  git('add', '-A');
-  assert.equal(git('commit', '-q', '-m', 'docs(plan): Restate T5 (#T5)').status, 0);
-  // The branch adds its own row T7 and keeps the T5 that it forked with.
-  assert.equal(git('checkout', '-q', 'fix/other-T7').status, 0);
-  put(root, { [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Print the union'], ['T7', 'Add the reader']]) });
-  git('add', '-A');
-  assert.deepEqual(indexItemFindings(root, CONFIG, 'docs(plan): Register T7 (#T7)').filter(found => found.rule === 'row-id'), [], 'T5 is unchanged by the branch');
-  // A row that the branch itself changes is still compared with main.
-  put(root, { [PLAN]: rows([['T1', 'Write the parser'], ['T5', 'Link the composer shim'], ['T7', 'Add the reader']]) });
-  git('add', '-A');
-  assert.equal(indexItemFindings(root, CONFIG, 'docs(plan): Register T7 (#T7)').filter(found => found.rule === 'row-id').length, 1, 'a T5 that the branch changes clashes');
-});
-
 // K642: land merges the tip of a branch, and docs-check judges the stamps of its tree; a rebase that leaves a middle commit with a
 // stale stamp of a Korean twin, which a later commit stamps again, is no finding, while a stale stamp at the tip still is.
 test('commits-check judges the stamp of a Korean twin on the tip of its range only (K642)', (t) => {
