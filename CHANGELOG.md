@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- run-tests go ends a benchmark at its result line, which it prints, or at the next benchmark or its package, since go test -json emits no pass event for a benchmark. (K760)
+
 - The Windows bootstrap unpacks with the bsdtar of Windows, so it works under Git Bash, whose GNU tar reads `D:` as a remote host. (K759)
 
 - commit-deleted-test judges a provider linked to its sibling checkout by that checkout, and a copy by the lock. (K758)

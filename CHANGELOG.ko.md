@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 508d224951d7f621123c1ece12bef1143119da3e07482d60e0abde9d54d3c973 -->
+<!-- source-sha256: 8075fbbb5f00ee58cb0f4eade65c5a1af2419e9f044997800a4e4f31b2e32735 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- go test -json이 benchmark의 pass event를 내지 않으므로, run-tests go가 benchmark를 결과 줄(출력함), 다음 benchmark 또는 package의 끝에서 끝낸다. (K760)
 
 - Windows bootstrap이 Windows bsdtar로 archive를 풀어서, `D:`를 원격 host로 읽는 GNU tar의 Git Bash에서도 동작한다. (K759)
 

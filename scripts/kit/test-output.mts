@@ -35,12 +35,27 @@ type GoEvent = { Action?: string; Package?: string; Test?: string; Output?: stri
  * it) and its name (the test name that go reports). The output of a test is passed to the sink only when it fails. The
  * compiler output of a package that does not build arrives as `build-output` events and its end as a `build-fail` event:
  * both reach the sink as lines and the error lines are added to `build`. A package with no test cases is a neutral group; named
- * skipped tests remain skips.
+ * skipped tests remain skips. go test -json emits no pass event for a benchmark (K760): a benchmark passes at its result line,
+ * which reaches the sink as a line, when the next benchmark that is not its child starts, or when its package ends.
  */
 export function goEvents(sink: Sink, build: string[] = []): (line: string) => unknown {
   const output = new Map<string | undefined, string>();
   // The test cases that each package started; a package that started none passed nothing.
   const started = new Map<string | undefined, number>();
+  // The benchmarks of each package that started and have not ended, oldest first; benchmarks run one at a time.
+  const benchmarks = new Map<string | undefined, TestRef[]>();
+  const endBenchmarks = (pkg: string | undefined, keep: (open: TestRef) => boolean, outcome: 'pass' | 'fail') => {
+    const open = benchmarks.get(pkg) ?? [];
+    for (const benchmark of open.filter(entry => !keep(entry)).reverse()) {
+      output.delete(benchmark.id);
+      if (outcome === 'pass') sink.pass(benchmark);
+      else sink.fail(benchmark, 0, 'its package failed before the benchmark printed its result');
+    }
+    benchmarks.set(pkg, open.filter(keep));
+  };
+  const forget = (pkg: string | undefined, name: string) => benchmarks.set(pkg, (benchmarks.get(pkg) ?? []).filter(entry => entry.name !== name));
+  // The benchmarks that passed at their result line; a later outcome event of one, should go emit it, is not counted twice.
+  const resulted = new Set<string>();
   return line => {
     // GoEvent is the format of test2json, the writer of go test -json; a line that is no event is output of its own.
     let event: GoEvent;
@@ -62,19 +77,35 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
     // A go test event names its package; test2json writes Package on every event of a test or a package.
     const test: TestRef = { id: present(id, 'the package of a go test event'), name: present(event.Test ?? event.Package, 'the package of a go test event') };
     const group = !event.Test;
+    if (resulted.has(test.id) && ['pass', 'fail', 'skip'].includes(event.Action ?? '')) return undefined;
     switch (event.Action) {
-      case 'start': started.set(event.Package, 0); return sink.start(test, { group: true });
+      case 'start': started.set(event.Package, 0); benchmarks.set(event.Package, []); return sink.start(test, { group: true });
       case 'run':
         if (group) return undefined;
         started.set(event.Package, (started.get(event.Package) ?? 0) + 1);
+        if (test.name.startsWith('Benchmark')) {
+          endBenchmarks(event.Package, open => test.name.startsWith(`${open.name}/`), 'pass');
+          benchmarks.get(event.Package)?.push(test);
+        }
         return sink.start(test);
       case 'output': {
         // test2json writes Output on every output event.
         if (group) { if (!/^(?:ok|PASS|FAIL|\?)\s/.test(present(event.Output, 'event.Output'))) sink.raw(present(event.Output, 'event.Output')); return; }
-        output.set(id, (output.get(id) ?? '') + event.Output);
+        const text = present(event.Output, 'event.Output');
+        // The result line of a benchmark: its name, with -GOMAXPROCS when that is not 1, the iterations and the ns/op.
+        if (test.name.startsWith('Benchmark') && new RegExp(`^${RegExp.escape(test.name)}(?:-\\d+)?\\s+\\d+\\s.*\\bns/op\\b`).test(text)) {
+          sink.line(text.trimEnd());
+          forget(event.Package, test.name);
+          output.delete(id);
+          resulted.add(test.id);
+          return sink.pass(test);
+        }
+        output.set(id, (output.get(id) ?? '') + text);
         return;
       }
       case 'pass':
+        if (group) endBenchmarks(event.Package, () => false, 'pass');
+        else forget(event.Package, test.name);
         output.delete(id);
         if (group && !started.get(event.Package)) {
           if (started.has(event.Package)) {
@@ -86,6 +117,7 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
         // test2json writes Elapsed on every pass event.
         return sink.pass(test, present(event.Elapsed, 'event.Elapsed') * 1000);
       case 'skip': {
+        if (!group) forget(event.Package, test.name);
         output.delete(id);
         if (group && started.has(event.Package) && !started.get(event.Package)) {
           sink.pass(test);
@@ -94,6 +126,8 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
         return sink.skip(test);
       }
       case 'fail': {
+        if (group) endBenchmarks(event.Package, () => false, 'fail');
+        else forget(event.Package, test.name);
         const text = (output.get(id) ?? '').split('\n').filter(entry => !/^\s*(?:=== RUN|--- FAIL|=== (?:PAUSE|CONT))/.test(entry)).join('\n');
         output.delete(id);
         return sink.fail(test, (event.Elapsed ?? 0) * 1000, text);

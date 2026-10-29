@@ -161,6 +161,34 @@ test('goEvents treats no-test packages as groups while preserving named skips, e
 
 // The lines that cargo test of a database target prints when a case's database is missing: the case database
 // prints its step between the name of the test and its result, so the result FAILED stands alone on its line (K229).
+test('goEvents ends a benchmark at its result line, at the next benchmark that is not its child, or with its package (K760)', () => {
+  // go test -json emits run and output events for a benchmark, but no pass event (flowmark, go1.27.3).
+  const lines: string[] = [];
+  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+  const feed = goEvents(toProgress(progress));
+  const pkg = 'flowmark/writepath';
+  for (const event of [
+    { Action: 'start', Package: pkg },
+    { Action: 'run', Package: pkg, Test: 'BenchmarkWrite' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkWrite', Output: '=== RUN   BenchmarkWrite\n' },
+    { Action: 'run', Package: pkg, Test: 'BenchmarkWrite/notes=0' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkWrite/notes=0', Output: '=== RUN   BenchmarkWrite/notes=0\n' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkWrite/notes=0', Output: 'BenchmarkWrite/notes=0-11 \t       1\t  59735625 ns/op\t  1024 B/op\t  12 allocs/op\n' },
+    { Action: 'run', Package: pkg, Test: 'BenchmarkWrite/notes=1' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkWrite/notes=1', Output: 'BenchmarkWrite/notes=1 \t       1\t  61000000 ns/op\n' },
+    { Action: 'run', Package: pkg, Test: 'BenchmarkRead' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkRead', Output: '=== RUN   BenchmarkRead\n' },
+    { Action: 'run', Package: pkg, Test: 'BenchmarkTail' },
+    { Action: 'pass', Package: pkg, Elapsed: 100 },
+  ]) feed(JSON.stringify(event));
+  const result = progress.close('go test', { exitCode: 0, build: [] });
+  const text = lines.join('');
+  assert.equal(result.ok, true, text);
+  assert.deepEqual([result.passed, result.failed, result.timedOut], [5, 0, 0], text);
+  assert.doesNotMatch(text, /did not finish/);
+  assert.match(text, /BenchmarkWrite\/notes=0-11 \t +1\t +59735625 ns\/op/);
+});
+
 test('cargoEvents reads the result of a test whose output lies between its name and its result (K229)', () => {
   const outcomes: string[] = [];
   const record = (kind: string) => (test: TestRef) => { outcomes.push(`${test.name} ${kind}`); };
