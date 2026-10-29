@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0044ea644ae8913f476fa502aaa9d944fcb4bd2943eff5e152c8abcebd5eb190 -->
+<!-- source-sha256: 049966df0772dde215ec56a2cfe2e4eb7ac67674bb6971072b61c8de2c09399f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- npm ci가 링크된 kit 폴더를 릴리즈 복사본으로 바꾼 뒤에도 링크된 consumer는 make install 내내 sibling kit을 실행한다. (K762)
 
 - make link가 설치된 npm·Composer polyspec 패키지를 각각 checkout으로 가는 디렉터리 심링크 하나로 쓰고 npm link나 composer update를 실행하지 않는다. link-check는 링크된 provider가 읽는 polyspec 패키지도 판단한다. (K761)
 

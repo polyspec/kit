@@ -31,7 +31,7 @@ export function packedPackageManifest(source: string): string {
 export function packedFiles(root: string): Record<string, string> {
   const read = (file: string) => readFileSync(path.join(root, file), 'utf8');
   const manifest = packedPackageManifest(read('package.json'));
-  const kitLine = swap('scripts/kit/kit-bootstrap.mk', read('scripts/kit/kit-bootstrap.mk'), /^KIT := \$\(KIT_BOOTSTRAP\)$/m, 'KIT := $(KIT_BOOTSTRAP:%/scripts/kit=%/dist)');
+  const kitLine = swap('scripts/kit/kit-bootstrap.mk', read('scripts/kit/kit-bootstrap.mk'), /^KIT := \$\(realpath \$\(KIT_BOOTSTRAP\)\)$/m, 'KIT := $(realpath $(KIT_BOOTSTRAP:%/scripts/kit=%/dist))');
   const bootstrap = swap('scripts/kit/kit-bootstrap.mk', kitLine, /^KIT_EXT := mts$/m, 'KIT_EXT := mjs');
   const settings = read('claude/settings.json');
   return { 'package.json': manifest, 'scripts/kit/kit-bootstrap.mk': bootstrap, 'claude/settings.json': settings };

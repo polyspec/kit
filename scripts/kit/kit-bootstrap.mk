@@ -1,13 +1,17 @@
 # A consumer includes node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk from its installed package.
-# A native npm link may connect that package to a local checkout; no sibling checkout path is required.
+# During development that package is a plain directory symlink to the kit checkout (K761); no sibling checkout path is required.
 # Source installs use scripts/kit/*.mts, while prepack selects dist/*.mjs for packed installs.
 # make install-tools TOOLS=npm installs the declared npm into var/tools, then make install-packages installs the lock.
 
 # The folder of this installed bootstrap, whether npm resolves it to a linked source or a packed package.
 KIT_BOOTSTRAP := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 # Native npm source links resolve outside node_modules, where Node strips types; packed installs select dist in prepack.
-KIT := $(KIT_BOOTSTRAP)
+# KIT is the real path of the included kit, read once when make starts (K762): npm ci of make install puts the packed release copy
+# where a link was, and every recursive make of the same run gets KIT and KIT_EXT on its command line, which overrides the copy's
+# own assignments, so the whole run includes and runs the kit that the link named.
+KIT := $(realpath $(KIT_BOOTSTRAP))
 KIT_EXT := mts
+MAKE := $(MAKE) KIT=$(KIT) KIT_EXT=$(KIT_EXT)
 ONLINE ?=
 
 include $(KIT)/kit.mk

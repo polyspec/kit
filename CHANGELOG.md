@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A linked consumer runs the sibling kit for the whole make install, also after npm ci replaces the linked kit folder with the release copy. (K762)
+
 - make link writes each installed npm and Composer polyspec package as one plain directory symlink to its checkout, with no npm link or composer update; link-check judges the polyspec packages a linked provider loads. (K761)
 
 - run-tests go ends a benchmark at its result line, which it prints, or at the next benchmark or its package, since go test -json emits no pass event for a benchmark. (K760)

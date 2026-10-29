@@ -257,3 +257,20 @@ test('K676 kit recipes do not inherit another checkout Cargo target directory', 
   assert.doesNotMatch(shown.stdout, /^CARGO_TARGET_DIR=/m);
   assert.ok(shown.stdout.split('\n').includes(`CARGO_HOME=${home}`), shown.stdout);
 });
+
+test('a linked consumer runs the sibling kit for the whole make even after npm ci replaces node_modules/@polyspec/kit (K762)', (t) => {
+  // npm ci of make install puts the packed release copy where the link was; the recursive makes after it must still include and
+  // run the kit that the link named (hyper, template).
+  const root = tree(t, {
+    'kit/scripts/kit/kit.mk': 'show:\n\t@echo "$(KIT)|$(KIT_EXT)"\n',
+    'copy/scripts/kit/kit-bootstrap.mk': 'KIT_BOOTSTRAP := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))\nKIT := $(KIT_BOOTSTRAP)\nKIT_EXT := mjs\ninclude $(KIT)/kit.mk\n',
+    'copy/scripts/kit/kit.mk': 'show:\n\t@echo copy\n',
+    'app/Makefile': 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\nswap:\n\trm node_modules/@polyspec/kit && cp -R ../copy node_modules/@polyspec/kit\n\t@$(MAKE) --no-print-directory show\n',
+  });
+  copyFileSync(path.join(ROOT, 'scripts/kit/kit-bootstrap.mk'), path.join(root, 'kit/scripts/kit/kit-bootstrap.mk'));
+  mkdirSync(path.join(root, 'app/node_modules/@polyspec'), { recursive: true });
+  symlinkSync('../../../kit', path.join(root, 'app/node_modules/@polyspec/kit'));
+  const result = spawnSync('make', ['--no-print-directory', 'swap'], { cwd: path.join(root, 'app'), encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(result.stdout.trim().split('\n').at(-1), `${realpathSync(path.join(root, 'kit/scripts/kit'))}|mts`);
+});
