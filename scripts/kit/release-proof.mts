@@ -7,16 +7,14 @@
 //
 // For a tag vX.Y.Z it proves, one line `✔ <what>` for each step, and stops at the first step that fails:
 //   1. The GitHub Release of TAG, a draft included, lists exactly the archives that config/release.json declares for the version.
-//   2. Each polyspec archive that a wheel lock names (consumers.wheel.lock) is the release asset of its version in its repository
-//      (consumers.wheel.polyspec): the release lists the file, and the sha256 of the downloaded file is the one the lock holds.
-//   3. The release assets, downloaded into a temporary directory, are checked and install together: each wheel's file has the
-//      sha256 that the release lists, and each sibling that a wheel requires is an asset of the release (its URL, the asset URL
-//      of the tag, is checked before the release builds). Then they install in clean npm, Composer and Python projects
-//      (release-consumer.mts installConsumers, with the committed manifests and locks of the checkout) and the smoke command of
-//      each package passes. Run it in a checkout of the tag, whose consumer projects name the archives of the version.
-//   4. Each manifest with the mode `git-tag` installs from the tag: a Rust crate as a git dependency of a temporary crate, and
+//   2. The release assets, downloaded into a temporary directory, are checked and install together: each wheel's file has the
+//      sha256 that the release lists. Then they install in clean npm, Composer and Python projects (release-consumer.mts
+//      installConsumers, with the committed manifests and locks of the checkout; uv installs each wheel lock and verifies its
+//      hashes) and the smoke command of each package passes. Run it in a checkout of the tag, whose consumer projects name the
+//      archives of the version.
+//   3. Each manifest with the mode `git-tag` installs from the tag: a Rust crate as a git dependency of a temporary crate, and
 //      the declared smoke command runs in that crate. A Python package is a `wheel` package: its wheel is an archive of step 2.
-//   5. Each Go module has its tag on the remote (`git ls-remote`) and `go list -m <module>@<tag>` resolves it with
+//   4. Each Go module has its tag on the remote (`git ls-remote`) and `go list -m <module>@<tag>` resolves it with
 //      GOFLAGS=-mod=mod and GOPROXY=direct.
 // A tag `<Go module directory>/vX.Y.Z` releases that module alone: the release holds no archive and only step 4 runs for it.
 // Every command of a step comes from config/release.json: `consumers` (smoke commands of the archives) and `proof.gitTag`.
@@ -26,17 +24,13 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
 import { assetNames, context, latestTag, parseTag, recordedRelease, stepFailure, type CommandOptions } from './release.mts';
-import { downloadAsset, releaseOf, type GitHubRelease } from './github-release.mts';
+import { downloadAsset, type GitHubRelease } from './github-release.mts';
 import { run, Stop } from './process.mts';
 import { installConsumers, type ReleaseContext } from './release-consumer.mts';
 import { toolCommand } from './mise-tools.mts';
-import { readPylock, type PylockPackage } from './pylock.mts';
 import { fileDigest } from './bootstrap/digest.mts';
-import { wheelMetadata, wheelName } from './release-wheel.mts';
-import { lockProblems, repositoryOf, siblingLinks, siblingsOf, wheelLocks } from './wheel-dependencies.mts';
+import { wheelName } from './release-wheel.mts';
 
-/** A Requires-Dist of a sibling as wheel-dependencies.mts siblingLinks returns it. */
-type SiblingLink = { name: string; url: string };
 type Step = (text: string) => void;
 
 /** Step 1: the names of the assets of the GitHub Release (a draft included) equal the archives of the tag. */
@@ -54,46 +48,9 @@ function proveAssets(ctx: ReleaseContext, tag: string, version: string, director
   return release;
 }
 
-/**
- * Step 2: each polyspec archive that a wheel lock names is downloaded from the release of its version in the repository that
- * consumers.wheel.polyspec declares, and its sha256 must be the one the lock holds (the fragment of the Requires-Dist is the same
- * sha256, checked offline by release-assets).
- */
-function proveDependencies(ctx: ReleaseContext, folder: string, step: Step) {
-  const { root, env, config } = ctx;
-  for (const { file, text } of wheelLocks(root, config) as { file: string; text: string }[]) {
-    const problems = lockProblems(text, file);
-    if (problems.length) throw new Stop(problems.join('; '));
-    for (const entry of readPylock(text, file).packages.filter((item): item is PylockPackage & { kind: 'archive' } => item.kind === 'archive')) {
-      const wheel = config.consumers?.wheel;
-      if (wheel === undefined) throw new Error(`config/release.json: consumers.wheel is missing; ${file} is the lock of a wheel package`);
-      const repository = repositoryOf(wheel.polyspec, entry.name);
-      if (repository === null) throw new Stop(`${file} names the archive of ${entry.name}, which consumers.wheel.polyspec does not declare`);
-      const [archive] = entry.files;
-      if (typeof archive.url !== 'string') throw new Error(`${file}: the archive of ${entry.name} has no url, which lockProblems refuses first`);
-      const asset = path.posix.basename(archive.url);
-      const release = releaseOf({ cwd: root, env }, repository, `v${entry.version}`);
-      if (!release) throw new Stop(`the release v${entry.version} of ${repository} does not exist; ${file} names its asset ${asset}`);
-      const found = release.assets.find(item => item.name === asset);
-      if (!found) throw new Stop(`the release v${entry.version} of ${repository} lists no ${asset}; ${file} names it`);
-      const target = path.join(folder, 'dependencies', asset);
-      mkdirSync(path.dirname(target), { recursive: true });
-      downloadAsset({ cwd: root, env }, repository, found.id, target);
-      const actual = fileDigest(target);
-      if (actual !== archive.sha256) throw new Stop(`${asset} of ${repository} v${entry.version} has the sha256 ${actual}, ${file} holds ${archive.sha256} for ${entry.name}`);
-      step(`polyspec ${entry.name} ${entry.version}: ${asset} of ${repository} has the sha256 that ${file} holds`);
-    }
-  }
-}
-
-/**
- * Step 3, the wheels of the release, each downloaded file checked before it is installed: its sha256 is the one that the release
- * lists, and each sibling in its METADATA is an asset that the release lists. The URL of a sibling is checked before the release
- * builds (wheel-dependencies.mts: `<repositoryUrl>/releases/download/v<version>/<file>`, the asset URL of the tag); the proof
- * reads the draft, whose assets GitHub lists under an untagged- URL until the draft is published, so it compares no URL.
- */
+/** Step 2, the wheels of the release, each downloaded file checked before it is installed: its sha256 is the one that the release lists. */
 function proveWheels(ctx: ReleaseContext, tag: string, version: string, assets: string, release: GitHubRelease, step: Step) {
-  const { config, root, env } = ctx;
+  const { config } = ctx;
   for (const { name } of config.packages.filter(item => item.kind === 'wheel')) {
     const file = wheelName(name, version);
     const listed = release.assets.find(item => item.name === file);
@@ -101,16 +58,10 @@ function proveWheels(ctx: ReleaseContext, tag: string, version: string, assets: 
     const actual = fileDigest(path.join(assets, file));
     if (actual !== digest) throw new Stop(`the release ${tag} lists ${file} with the sha256 ${digest ?? 'none'}, the downloaded file has ${actual}`);
     step(`${file}: the sha256 of the downloaded file is the one the release lists`);
-    for (const link of siblingLinks(wheelMetadata(root, path.join(assets, file), env).requiresDist, siblingsOf(config, name)) as SiblingLink[]) {
-      const sibling = wheelName(link.name, version);
-      const published = release.assets.find(item => item.name === sibling);
-      if (!published) throw new Stop(`${file} requires ${link.name} at ${link.url}, the release ${tag} lists no ${sibling}`);
-      step(`${file}: its Requires-Dist of ${link.name} is the asset ${sibling} of the release, ${link.url}`);
-    }
   }
 }
 
-/** Step 3: download the assets of the release into `folder/assets`, check the wheels and install the assets in clean consumer projects. */
+/** Step 2: download the assets of the release into `folder/assets`, check the wheels and install the assets in clean consumer projects. */
 function proveInstall(ctx: ReleaseContext, tag: string, version: string, folder: string, release: GitHubRelease, step: Step) {
   const assets = path.join(folder, 'assets');
   mkdirSync(assets, { recursive: true });
@@ -168,7 +119,6 @@ export function prove(ctx: ReleaseContext, tag: string, step: Step) {
   try {
     const release = proveAssets(ctx, tag, version, directory, step);
     if (directory === null) {
-      proveDependencies(ctx, folder, step);
       proveInstall(ctx, tag, version, folder, release, step);
       proveGitTag(ctx, tag, folder, step);
     } else {

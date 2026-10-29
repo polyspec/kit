@@ -134,7 +134,7 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 |---|---|
 | the `node`, the `go` and the minor of the `python` of `mise.toml`, `channel` of `rust-toolchain.toml`, and `php` | the pin |
 | `engines.node` of every `package.json` | `>=` the Node.js pin |
-| `require.php` of every `composer.json`; `config.platform.php` of one beside a `composer.lock` | `>=` the PHP pin; the pin or a patch release of it (`8.4.1`), the form that dependency-policy requires |
+| `require.php` of every `composer.json`; `config.platform.php` of one beside a `composer.lock` | `>=` the PHP pin; the pin or a patch release of it (`8.4.1`) |
 | `project.requires-python` of every `pyproject.toml` with a project table (smol-toml) | `>=` the Python pin |
 | `go` of every `go.mod` (`go mod edit -json`) | the Go pin, with no `toolchain` line, which the go command drops when it equals the `go` line |
 | `rust-version` of every Cargo package (`cargo metadata --no-deps`, workspace inheritance included) | the Rust pin |
@@ -1131,7 +1131,7 @@ package of the type `php-ext`, which Composer does not install). The manifest fi
 `config/release-assets.json`: the release zip of each, which must hold its sha256 (`make release-assets-fetch` downloads it),
 lies in the `artifacts` repository of the project beside the zips of the tag, so the project requires a polyspec dependency
 at its version and installs it from its released archive, as a consumer does, instead of declaring it in an inline package
-repository. It is the counterpart of `wheel.polyspec`. The lock keeps the shasum of such a zip, which no run builds again,
+repository. The lock keeps the shasum of such a zip, which no run builds again,
 and `make release-tools` downloads the zips when the list is set.
 
 ### Procedure
@@ -1301,16 +1301,15 @@ distribution escapes each run of characters other than word characters and dots 
   `pip download --no-deps --only-binary :all: --require-hashes` into `var/tools/wheels` from a requirement file that holds the digest;
   `release-assets` checks the digest of the file before each build and refuses another. The download is the one network step of a
   wheel package, and it runs before a release.
-- `release-assets` checks each `Requires-Dist` of a wheel against its lock (K49): a plain `name==version`, a polyspec release
-  reference or a sibling of the release (K52); any other form fails with the line and its form. `release-versions` requires the `version` of
-  `[project]` in the pyproject.toml, as for every archive manifest.
-- `release-consumer` installs a wheel into a clean virtual environment of `var/tools/mise/shims/python3`: first its lock (K49), then the
-  wheel with `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`, the
+- `release-assets` checks the name and the version of the built wheel; the form of its `Requires-Dist` lines is uv's and pip's to
+  resolve (K789). `release-versions` requires the `version` of `[project]` in the pyproject.toml, as for every archive manifest.
+- `release-consumer` installs a wheel into a clean virtual environment of `var/tools/mise/shims/python3`: first uv installs its lock
+  (K49), then the wheel with `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`, the
   requirement file naming the wheel of the run with the sha256 of its file. Then `pip check` must pass, the version that `pip show`
   prints is checked and the smoke command of `consumers.wheel` runs.
 
 ```json
-"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" }, "polyspec": {} } }
+"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" } } }
 ```
 
 config/toolchain.json:
@@ -1321,56 +1320,18 @@ config/toolchain.json:
 
 ## Wheel dependencies (K49)
 
-A wheel's `Requires-Dist` takes one of three forms: a registry pin, a polyspec reference and a sibling (K52, below). A registry
-package is pinned as `name==version`. A polyspec package is a PEP 508 direct reference to its release asset, with the sha256 of that
-asset as the fragment:
+Each wheel package declares one PEP 751 lock of its dependencies in `consumers.wheel.lock` (`pylock.toml` or `pylock.<name>.toml`),
+written by uv (`uv export --format pylock.toml`). kit does not read the lock and does not judge the `Requires-Dist` lines of a wheel:
+that is the package manager's job (K789). `release-consumer install` hands each lock to uv once, into the venv of `makeVenv`:
 
-    name @ https://github.com/polyspec/<repo>/releases/download/v<version>/<file>#sha256=<hex>
+    var/tools/mise/shims/uv pip install --python <venv>/bin/python -r <pylock>
 
-`<file>` is the PEP 427 name of the wheel of `name` at `<version>`, and the name and the version in the URL are the requirement's.
-The repository comes from `consumers.wheel.polyspec` of config/release.json, a map from the distribution name to its repository URL,
-never from the name. Every other form (another host, a git URL, a branch, an extra, a range or a marker) is refused, and the refusal
-names the requirement. A name that `consumers.wheel.polyspec` does not declare is refused too.
+uv reads one PEP 751 lock per command and checks the sha256 of every file that it installs against the lock. The wheel follows with
+`--no-index --require-hashes --no-deps`, then `pip --python <venv>/bin/python check` must exit 0 (an incomplete lock fails there), then
+the smoke command runs. The install reaches PyPI and the release assets, so it runs online only, in `release-proof`.
 
-Each wheel package declares one PEP 751 lock in `consumers.wheel.lock` (`pylock.toml` or `pylock.<name>.toml`). The lock is a superset:
-it holds every dependency, transitive ones included. A registry package has the version and the sha256 of its files; a polyspec
-package is an `archive` entry with the same URL and sha256 as its reference. `release-assets` checks these offline, from the tagged
-commit: the lock is read by the K36 reader; a source other than registry or archive is refused; each `Requires-Dist` is in the lock with
-the same version (registry) or the same URL and sha256 (polyspec); the fragment equals the sha256 of the lock; each archive is a release
-asset of its declared repository at its version. Nothing here reads the network.
-
-`release-consumer install` renders the lock with `lockRequirements` (`scripts/kit/wheel-dependencies.mts`) into a requirement file of
-hashes: `name==version --hash=sha256:…` for each file of a registry package and `name @ <url> --hash=sha256:…` for each archive. The
-pip of the checkout installs it into the venv of `makeVenv`:
-
-    var/tools/mise/shims/python3 -m pip --python <venv>/bin/python install --no-input --disable-pip-version-check --require-hashes --no-deps --only-binary :all: -r <dependencies>
-
-The wheel follows with `--no-index --require-hashes --no-deps`, then `pip --python <venv>/bin/python check` must exit 0 (an incomplete
-lock fails there), then the smoke command runs. pip's own reading of `pylock.toml` is not used (see the findings). The install reaches
-PyPI and the release assets, so it runs online only, in `release-proof`. `release-proof` step 2 downloads each polyspec archive from the
-release of its version in its declared repository, and its sha256 must equal the sha256 that the lock holds.
-
-Findings, measured with pip 26.2.1 and the pinned Python 3.14.8 (`tests/source/wheel-dependencies-real.test.mts` repeats the cases):
-
-- `pip install -r pylock.toml` reads the lock as a requirement source and prints `WARNING: Using pylock.toml as a requirements source is
-  an experimental feature. It may be removed/changed in a future release without prior warning.` The lock is therefore rendered.
-- `pip --python <venv>/bin/python check` works in a venv that has no pip. A missing dependency prints `kit-app 0.0.1 requires six, which
-  is not installed.` and exits 1; a version mismatch prints `kit-app 0.0.1 has requirement kit-reg==1.0.0, but you have kit-reg 0.0.1.`
-  and exits 1; a complete install prints `No broken requirements found.` and exits 0.
-- Local copy (the case of consumer, which installs dependency wheels from downloaded files): the dependency wheels installed from local
-  files with the same bytes (`--require-hashes --no-deps`), then the wheel with `--no-deps`, then `pip check`, printed
-  `No broken requirements found.` and exited 0. `pip check` compares versions only, so it does not reject a direct-URL requirement
-  that a local file satisfies.
-- The resolver is not used by the install (`--no-deps`). Resolving the wheel with its dependencies reads each direct-URL requirement
-  before it accepts an installed copy. For a `file:` URL of the same version it printed `Processing .../kit_lib-0.0.1-py3-none-any.whl`
-  and `kit-lib is already installed with the same version as the provided wheel. Use --force-reinstall to force an installation of
-  the wheel.` and exited 0. For a remote URL it fetches first (`Collecting kit-lib @ https://...`); a URL that does not answer fails with
-  `ERROR: HTTP error 404 while getting https://...`. A consumer that resolves dependencies therefore downloads each polyspec archive.
-
-The tests: `tests/kit/wheel-dependencies.test.mts` (the forms, the refusals with their messages, the lock form, the rendered
-requirements), `tests/kit/release-wheel.test.mts` (the same checks through `release-assets`, the consumer declaration),
-`tests/kit/release-proof.test.mts` (the digest of each polyspec archive), and `tests/source/wheel-dependencies-real.test.mts` (the real
-pip: the GREEN install of a wheel with a registry and a polyspec dependency, the incomplete lock, the local copy and the resolver).
+The tests: `tests/kit/release-wheel.test.mts` and `tests/kit/release-consumer.test.mts` (the uv command of the lock, stubbed), and
+`tests/kit/release-proof.test.mts` (the step of the proof).
 
 ## Sibling wheels (K52)
 
@@ -1379,34 +1340,22 @@ reference to the sibling's asset of the same release, without a hash fragment:
 
     name @ <repositoryUrl>/releases/download/v<version>/<file>
 
-The reference is accepted only when every condition holds: `name` is a sibling; the URL is under `<repositoryUrl>/releases/download/v<version>/`
-of config/release.json; `<version>` is the version of the release that is checked; and `<file>` is `wheelName(name, version)`, the PEP 427
-name of the sibling's wheel. Each failure has its own message, and the refusals are: a sibling with a `#sha256` fragment, a sibling named
-`name==version`, a sibling at another version, a sibling URL under another repository, a file that is not the wheel name of its version,
-and a lock of the wheel that holds a sibling (the lock never holds one, whatever its form). Every other polyspec reference still needs its
-sha256 fragment (K49).
-
-The siblings are derived from `packages` (`siblingsOf`, scripts/kit/wheel-dependencies.mts): the other wheel packages of the configuration,
-not a second declaration. Reason: the wheel packages of one config/release.json are released by one tag from one repository, so a second
-list of them could only disagree with `packages`. `consumers.wheel.polyspec` names repositories of other repositories, so it refuses a
-wheel package of this configuration (`consumers.wheel.polyspec.<name> names the wheel package <name> of this repository`).
+kit does not check the form of the reference; pip resolves it when a consumer installs the wheel with its dependencies (K789).
 
 A sibling's sha256 is known only after the release builds it: SOURCE_DATE_EPOCH is the time of the release commit, so the sha256 of a
 wheel is not in the tree before the build. For this reason the lock of the wheel never holds a sibling, and the reference has no hash.
 
-`release-proof` step 3 proves the sibling online, from the release that GitHub publishes (scripts/kit/release-proof.mts, `proveWheels`):
-1. the file of each wheel of the release, downloaded, has the sha256 that GitHub lists for its asset (the `digest` of the release
-   listing, `sha256:<hex>`); a release that lists no digest for a wheel fails the proof;
-2. each sibling that a wheel's METADATA names is exactly the URL of the published asset of that sibling (`browser_download_url`),
-   and the release lists that asset.
+`release-proof` step 2 checks the wheels online, from the release that GitHub publishes (scripts/kit/release-proof.mts, `proveWheels`):
+the file of each wheel of the release, downloaded, has the sha256 that GitHub lists for its asset (the `digest` of the release listing,
+`sha256:<hex>`); a release that lists no digest for a wheel fails the proof.
 
 Then the wheels of the release install together in one `pip install --no-index --require-hashes --no-deps` command from their files
 (`installWheelFiles` of release-consumer.mts, which already installs every wheel package of the configuration together). `pip check`
 passes and each smoke command runs. The archives keep their own checks: the digest check is added for wheels, because a release that
 was published before the listing carried a digest must still prove.
 
-A consumer installs a sibling as it installs any polyspec wheel (K49): its own lock names the sibling as an `archive` entry with its URL and
-its sha256, which is the hash of the published asset. The lock of the wheel that requires the sibling does not name it.
+A consumer installs a sibling as it installs any polyspec wheel: its own lock, written by uv, names the sibling as an `archive` entry with
+its URL and its sha256, which is the hash of the published asset. The lock of the wheel that requires the sibling does not name it.
 
 Findings for the sibling reference, measured with the pip of the checkout (`var/tools/python-build`, pip 26.2.1, Python 3.14.8) on two
 hand-built wheels whose `kit-gen` requires `kit-val @ <URL>` (`tests/source/wheel-sibling-real.test.mts` repeats the file case):
@@ -1423,13 +1372,11 @@ hand-built wheels whose `kit-gen` requires `kit-val @ <URL>` (`tests/source/whee
 - An installed copy from a local file does not satisfy the reference: after `kit-val` was installed from its file, a resolution of `kit-gen`
   with dependencies fetched the URL again.
 
-The consequence is the design above: the proof installs with `--no-deps` from the local files, and it proves that the reference equals the
-published URL, so a consumer that resolves dependencies fetches the asset that the release publishes.
+The consequence is the design above: the proof installs with `--no-deps` from the local files.
 
-The tests: `tests/kit/wheel-sibling.test.mts` (the sibling forms and refusals, the lock, the consumer declaration, `siblingLinks`),
-`tests/kit/release-wheel.test.mts` (the same refusals through `release-assets`), `tests/kit/release-proof.test.mts` (the wheel digest, the
-sibling URL, one install of the wheels), and `tests/source/wheel-sibling-real.test.mts` (the real pip: the `--no-deps` install with pip
-check, and the resolution that reads the reference and not the local wheel).
+The tests: `tests/kit/release-wheel.test.mts` (both wheels built), `tests/kit/release-proof.test.mts` (the wheel digest, one install of the
+wheels), and `tests/source/wheel-sibling-real.test.mts` (the real pip: the `--no-deps` install with pip check, and the resolution that
+reads the reference and not the local wheel).
 
 ## Language parity (K33)
 
@@ -1761,40 +1708,12 @@ such as the other fields of an entry. An example is `^- code: (\w+)$|^  \w+: .*$
 }
 ```
 
-## Python locks: PEP 751 pylock.toml (K36)
-
-kit reads a Python lock only in the standard format of PEP 751 (status Final, resolution 31 March 2025),
-`pylock.toml` or `pylock.<name>.toml`, named in `pythonLocks` of `config/dependency-policy.json`. uv.lock is not read: it is
-uv's own format, and a repository that releases a wheel needs a lock that every installer reads.
-
-Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml --frozen --no-emit-project -o <lock>` and
-`pip lock`. uv installs from the file with hash checks; pip refuses a `vcs` entry in it. Both set `created-by`.
-
-### Rules
-
-- The file is read by `scripts/kit/pylock.mts` (`readPylock`) through smol-toml (`scripts/kit/toml.mts`), which reads all of
-  TOML; a text that is not valid TOML fails with the file, the line and the column.
-- `lock-version` is `"1.0"`.
-- Every `sdist`, `wheels` and `archive` file carries a `sha256`.
-- A `vcs` package (git) is pinned by its `commit-id`, which must be 40 hexadecimal digits.
-- `created-by` is required.
-- A consumer that adopts this release adds each lock to `pythonLocks` of `config/dependency-policy.json` as an object with its
-  `source` (K54): `{ "lock": "<pylock.toml>", "source": { "requirements": "<file>", "constraints": "<file>" } }`. The field is
-  required, with no compatibility path.
-
-### Limitations
-
-- The reader supports the lock writers' subset only; a lock that another writer produces with a construct outside it fails
-  until the reader reads it.
-- A `directory` package is refused.
-
-## uv and the Python lock writer (K54)
+## uv (K54)
 
 `uv` is a tool of `mise.toml`: mise installs the exact release at the sha256 of `mise.lock`, and its shim
-`var/tools/mise/shims/uv` runs it (K127). `make python-lock` (ONLINE) writes each Python lock of `pythonLocks` with that uv, and `make
-python-lock-check` (offline) compares each lock with its sources. The reason for the pin is that a lock written by an undeclared
-uv of PATH depends on the machine: `pip lock` (pip 26.2.1) is experimental and locked only the running platform (cryptography
-got only the macOS arm64 wheel), while uv's universal resolution writes the files of every platform with their markers and hashes.
+`var/tools/mise/shims/uv` runs it (K127). kit writes and checks no Python lock of its own (K789): a repository locks with `uv lock`
+(uv.lock) or `uv export --format pylock.toml` and installs with `uv sync --locked` or `uv pip install -r <pylock>`, and uv checks the
+lock and its hashes.
 
 ### uv: the install and its state
 
@@ -1803,135 +1722,6 @@ got only the macOS arm64 wheel), while uv's universal resolution writes the file
 - **State under `var/tools`, never the home:** the environment of mise of the checkout (kit.mk, `miseEnvironment`) sets
   `UV_CACHE_DIR=var/tools/mise/cache/uv`, `UV_PYTHON_DOWNLOADS=never` (uv downloads no interpreter) and `UV_NO_CONFIG=1` (no
   `uv.toml` of the home or of the system is read), and `toolsEnvironment` adds `UV_PYTHON`, the python3 of mise.
-
-### Measured uv behaviour (uv 0.12.11, aarch64-apple-darwin, the Python 3.14.8 virtual environment of install-tools)
-
-| Case | Result |
-|---|---|
-| The output name | `-o` must be `pylock.toml` or `pylock.<name>.toml` with no dot in `<name>`; `-o lock.toml` exits 2 with that rule. |
-| The header | The first comment names the whole command line, the `-o` path and the source paths included, so the writer runs in a temporary directory with the source names. |
-| Files written | Online with a cold cache: the lock and nothing else in the working directory. |
-| Cache | Under `UV_CACHE_DIR` only: `interpreter-v4`, `sdists-v9`, `simple-v24`, `wheels-v6`, `archive-v0` (with a URL constraint), `.lock`, `CACHEDIR.TAG`, `.gitignore`; 904K for the six-package set below. |
-| Offline, cold cache (`--offline`) | Exit 1, "unsatisfiable"; no file is written. |
-| Offline, warm cache (`--offline`, the cache of the online run) | Exit 0; the body of the lock is byte-identical to the online lock, only the header line that names `--offline` differs. |
-| No Python on PATH (`env -i PATH=/bin`), cold cache | Exit 0: `--universal` needs no interpreter. |
-| A marker requirement `colorama==0.4.6; sys_platform == "win32"` | The package carries `marker = "sys_platform == 'win32'"`. |
-| A constraint `certifi @ <wheel URL>#sha256=<digest>` | The package is `archive = { url, hashes = { sha256 } }`, not a registry entry; the digest is the fragment's. |
-| Platforms | `charset-normalizer==3.5.2` has 86 wheel files; every one of the 97 files of the set has a sha256 (`--generate-hashes`). |
-| A `pyproject.toml` as the requirements, copied into the temporary directory under its name | uv reads `[project].dependencies` there; the project itself is not emitted, so the lock holds only its dependencies. In place was not measured under a lock name (the first attempt used `out-a.toml`, which uv refuses); the copy works, so the writer copies. |
-| `--no-index --find-links <dir>`, a relative or an absolute `<dir>` | Each local wheel is `wheels = [{ url = "file:///<realpath>/<wheel>", hashes = { sha256 } }]`: uv writes the realpath, not the relative input. The header names `--no-index` and omits `--find-links`, so no checkout path is in the header. |
-| `path = "<relative to the lock>"` (PEP 751) | `uv pip install --dry-run --no-index -r pylock.toml` and pip 26.2.1 `install --dry-run --no-index -r pylock.toml` read the path relative to the lock directory: uv from two working directories, pip from the lock directory (measured on the two wheels of the set). |
-| The lower bound of `--universal` | Without `--python-version`, uv takes the lower Python bound of the universal resolution from an interpreter that it finds, not from `requires-python` (measured: with Python 3.11 on PATH it resolved for 3.11 and noted that a dependency requires 3.14). The writer therefore passes `--python-version` with the minor of the `python` of `mise.toml`, and a `mise.toml` without one is refused before uv runs. |
-| A `dependencies` entry in `[project].dynamic` | Not measured with uv: the writer and the check refuse it before uv runs. |
-
-The six-package set is `requests==2.34.2` with `certifi==2026.7.22`, `charset-normalizer==3.5.2`, `idna==3.20`,
-`urllib3==2.8.0` and, for the marker, `colorama==0.4.6`; every package is pinned, so no run chooses a version.
-
-### Declaration of a lock
-
-`config/dependency-policy.json` names each lock in `pythonLocks`, and its `source` names the files that the lock is written from
-(`scripts/kit/schema/dependency-policy.schema.json`):
-
-```json
-"pythonLocks": [
-  {
-    "lock": "packages/app-python/pylock.toml",
-    "source": {
-      "requirements": "packages/app-python/pyproject.toml",
-      "constraints": "packages/app-python/constraints.txt",
-      "findLinks": "packages/app-python/wheels"
-    }
-  }
-]
-```
-
-- `requirements`: the direct requirements, in one of two forms.
-  - A requirements file, one per line: `name`, `name==version`, a range such as `name>=2.30,<3` or `name~=2.34`, or `name @ url`.
-    A marker after `;` is kept by uv and not read for the pin, and extras are not read for the pin. An option or any other form
-    fails with its line.
-  - A `pyproject.toml`: its static `[project].dependencies` are the direct requirements. A wheel package names its own pyproject,
-    so its requirements have one copy. A pyproject that lists `dependencies` in `[project].dynamic` is refused, because the
-    requirements are then not in the file. The reader of kit reads single-line strings only, so a pyproject with a multi-line
-    string fails with its line.
-- `constraints`: a constraints file that pins every package, transitive ones too, one per line: `name==version`, or
-  `name @ https://...#sha256=<digest>` for a polyspec archive. Anything else (a range, a marker, an option, a hash) fails with its line.
-- `findLinks` (optional): a directory of the checkout, relative to the root, with the local wheels. The writer then runs uv with
-  `--no-index --find-links <directory>` and reads no index. A path outside the checkout, or a directory that does not exist, fails.
-  The directory lies inside the package of the lock (the directory of the lock): the lock names each local wheel by a path
-  relative to the lock, and that path may not leave the package. The writer refuses a findLinks outside it before uv runs, and
-  `python-lock-check` refuses a local path that leaves it (`..`), naming the package and the file.
-
-```text
-# packages/app-python/pyproject.toml
-[project]
-name = "app"
-version = "0.0.0"
-dependencies = ["requests==2.34.2", "colorama==0.4.6; sys_platform == 'win32'"]
-
-# packages/app-python/constraints.txt
-requests==2.34.2
-certifi==2026.7.22
-charset-normalizer==3.5.2
-colorama==0.4.6
-idna==3.20
-urllib3==2.8.0
-```
-
-### Writer (`make python-lock`, ONLINE unless findLinks is declared)
-
-`scripts/kit/python-lock.mts write` runs `var/tools/mise/shims/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
---generate-hashes --format pylock.toml -o pylock.toml` (`<python>` is the minor of the `python` of `mise.toml`) in a directory of `var/tools` (`python-lock-<random>`) that holds the two sources under their
-own names. A `pyproject.toml` is copied under its name, and uv reads it there (measured below), so the pyproject does not have to
-stay in the checkout for uv. With findLinks it appends `--no-index --find-links <directory>`. The source is read and parsed first,
-so a malformed source stops before uv runs.
-
-uv writes a local wheel as `url = "file:///<checkout path>/<wheel>"`. The writer replaces each such URL with a `path` relative to the
-lock's directory (`path = "../links/<wheel>"`, PEP 751), and refuses any other file URL, so the lock holds no machine path. The
-written lock is checked against the sources (the same check as `python-lock-check`), then renamed to its place; a refused run leaves
-the lock it had and removes its directory. An unpinned transitive package is refused with its name: uv resolves it to a registry
-release, the check finds it in the lock and not in the constraints.
-
-A source that is the `pyproject.toml` of a wheel package of `config/release.json` may require a sibling by the URL of its asset of
-the release (Sibling wheels), which exists only once the release publishes it. The writer leaves each requirement that
-`siblingLinks` of wheel-dependencies.mts classifies as a sibling link out of the resolution: it writes their names to `siblings.txt`
-in its directory, appends `--excludes siblings.txt` and prints each one; the check leaves them out of the comparison, since the
-lock of a wheel never holds a sibling. Any other requirement, a URL that names no sibling too, is resolved and checked (K190).
-
-### Check (`make python-lock-check`, offline)
-
-It never resolves. It fails, naming the file and the package with its fix, when:
-
-- a lock package has no pin in the constraints (a transitive one included), or a pin has no package in the lock;
-- a lock package is at another version than its pin, or is a git or directory package (the lock holds registry files and archives);
-- a constraint is not `name==version` or a direct reference with `#sha256`, or a line is an option or a hash (pip-requirements-js
-  reads the requirement and constraint lines by PEP 508 and pip's file syntax);
-- a requirement has no pin, or its specifier is not satisfied by the pinned version (`satisfies` of @renovatebot/pep440);
-- a `pyproject.toml` source lists `dependencies` in `[project].dynamic`, or has no `[project]` table;
-- a registry file has no sha256, a lock is not PEP 751 1.0 or does not read (`readPylock`);
-- a local file of the lock (its `path`, relative to the lock) is missing, is an absolute path, or does not hold the sha256 of the lock:
-  the check reads the file, so the wheels of a findLinks lock must be in the checkout;
-- an archive's URL or sha256 differs from its constraint;
-- a source or the lock is missing.
-
-Each case has a test that fails for it (`tests/kit/python-lock-check.test.mts`), and the writer's cases are in
-`tests/kit/python-lock-write.test.mts` (a stub uv). `tests/source/python-lock-real.test.mts` runs the real uv with no network: the
-wheels are the pinned setuptools wheel of `var/tools/wheels` and a pure-Python wheel built with the pinned Python from a source tree,
-both in a directory of the test under `var/`. The test writes a lock of a pyproject with findLinks, the offline check passes on it,
-a version drift (`0.0.1` to `0.0.2`) fails with `tinylib`, and a constraint set without `setuptools` fails with `setuptools`. The
-fixture policy of `tests/kit/fixture` declares sources that exist and agree with its lock, and a test runs the check on that fixture.
-
-### Limitations
-
-- The check reads the local files of a findLinks lock, so a checkout without its wheels fails the check until they are downloaded.
-- The check reads only `[project].dependencies` of a pyproject. uv also reads `[tool.uv]` (indexes, sources) when it writes the
-  lock; a source that uv resolves to git or a directory fails the check, and an extra index is not seen by the check.
-- The reader of kit reads single-line strings only, so a pyproject with a multi-line string fails with its line (the reader names
-  it; it is not silently skipped).
-- The check cannot compare a registry file's sha256 with the registry without the network, so a drift of one hex digit of a
-  registry hash passes it; uv checks each hash when it installs from the lock.
-- The writer needs the network (PyPI through uv) unless findLinks is declared.
-- A requirement's extras and markers do not change which packages are pinned: every package of the lock must be in the constraints,
-  whatever the marker.
 
 ## Editor tools (K80)
 

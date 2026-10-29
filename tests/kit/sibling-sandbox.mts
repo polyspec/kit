@@ -8,13 +8,12 @@ import { readJson, writeJson } from './release-sandbox.mts';
 import type { WheelRequires } from './wheel-stubs.mts';
 import type { ReleaseConfig } from '../../scripts/kit/release.mts';
 
-export const REPOSITORY = 'https://example.com/polyspec/kit-fixture';
+const REPOSITORY = 'https://example.com/polyspec/kit-fixture';
 const GENERATOR = 'kit-fixture';
 export const GENERATOR_WHEEL = 'kit_fixture-0.0.1-py3-none-any.whl';
-export const SIBLING = 'kit-fixture-validator';
+const SIBLING = 'kit-fixture-validator';
 export const SIBLING_WHEEL = 'kit_fixture_validator-0.0.1-py3-none-any.whl';
-export const SIBLING_URL = `${REPOSITORY}/releases/download/v0.0.1/${SIBLING_WHEEL}`;
-export const GENERATOR_LOCK = 'packages/fixture-python/pylock.wheel.toml';
+const SIBLING_URL = `${REPOSITORY}/releases/download/v0.0.1/${SIBLING_WHEEL}`;
 const SIBLING_LOCK = 'packages/fixture-validator/pylock.wheel.toml';
 // The Requires-Dist lines of the generator: its registry pin and the sibling line given by the test.
 export const generatorRequires = (...lines: string[]): WheelRequires => ({ [GENERATOR]: ['ruff==0.16.10', ...lines], [SIBLING]: [] });

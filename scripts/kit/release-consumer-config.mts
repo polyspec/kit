@@ -6,10 +6,10 @@
 //                                                      project installs to the command that checks it; `polyspec` of the
 //                                                      Composer project names the entries of config/release-assets.json
 //                                                      whose zips its artifact repository holds
-//   consumers.wheel = { smoke, lock, polyspec }        the wheels, installed into a virtual environment: `smoke` maps each
+//   consumers.wheel = { smoke, lock }                  the wheels, installed into a virtual environment: `smoke` maps each
 //                                                      wheel package to the command that checks it in the installed venv;
-//                                                      `lock` maps each wheel package to its PEP 751 lock of dependencies;
-//                                                      `polyspec` maps each polyspec distribution to its repository URL
+//                                                      `lock` maps each wheel package to its PEP 751 lock of dependencies,
+//                                                      which uv installs
 //   proof.gitTag = { <manifest>: { kind, name, smoke } }  how the release proof installs a manifest that a tag releases
 //                                                      through git (`git-tag` in `manifests`): kind rust, with its Cargo.toml
 import { isJsonObject } from './bootstrap/files.mts';
@@ -23,13 +23,13 @@ export const GIT_TAG_KINDS: Record<string, string> = { rust: 'Cargo.toml' };
 
 /**
  * A consumer of config/release.json as release.schema.json declares it: `directory` and `smoke` for npm and Composer,
- * `smoke`, `lock` and `polyspec` for the wheels.
+ * `smoke` and `lock` for the wheels; `polyspec` of the Composer consumer.
  */
 export type ConsumerSection = {
   directory?: string;
   smoke: Record<string, unknown>;
   lock?: Record<string, unknown>;
-  polyspec?: Record<string, unknown> | string[];
+  polyspec?: string[];
 };
 
 /**
@@ -43,10 +43,9 @@ export type ConsumerConfig = {
 
 const command = (value: unknown): boolean => Array.isArray(value) && value.length > 0 && value.every(item => typeof item === 'string' && item !== '');
 
-const REPOSITORY = /^https:\/\/github\.com\/polyspec\/[A-Za-z0-9._-]+$/;
 const LOCK_FILE = /(?:^|\/)pylock(?:\.[A-Za-z0-9._-]+)?\.toml$/;
 
-/** The problems of the lock and polyspec maps of the wheel consumer: one lock for each wheel package, one repository for each polyspec distribution. */
+/** The problems of the lock map of the wheel consumer: one PEP 751 lock for each wheel package. */
 function wheelProblems(consumer: ConsumerSection, names: string[], problems: string[]): void {
   if (typeof consumer.lock !== 'object' || consumer.lock === null || Array.isArray(consumer.lock)) {
     problems.push('consumers.wheel.lock needs one entry per wheel package, an object from a package name to its lock file');
@@ -56,18 +55,6 @@ function wheelProblems(consumer: ConsumerSection, names: string[], problems: str
       if (typeof file !== 'string' || !LOCK_FILE.test(file)) problems.push(`consumers.wheel.lock.${name} is ${JSON.stringify(file ?? null)}, the lock of a wheel is pylock.toml or pylock.<name>.toml`);
     }
     for (const name of Object.keys(consumer.lock)) if (!names.includes(name)) problems.push(`consumers.wheel.lock.${name} is not a wheel package of packages [${names.join(', ')}]`);
-  }
-  if (typeof consumer.polyspec !== 'object' || consumer.polyspec === null || Array.isArray(consumer.polyspec)) {
-    problems.push('consumers.wheel.polyspec needs an object from each polyspec distribution name to its repository URL');
-  } else {
-    for (const [name, url] of Object.entries(consumer.polyspec)) {
-      if (names.includes(name)) {
-        problems.push(`consumers.wheel.polyspec.${name} names the wheel package ${name} of this repository; a sibling of the release needs no declaration`);
-        continue;
-      }
-      if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name)) problems.push(`consumers.wheel.polyspec.${name} needs a distribution name`);
-      if (typeof url !== 'string' || !REPOSITORY.test(url)) problems.push(`consumers.wheel.polyspec.${name} is ${JSON.stringify(url)}, the repository of a polyspec package is https://github.com/polyspec/<repo>`);
-    }
   }
 }
 

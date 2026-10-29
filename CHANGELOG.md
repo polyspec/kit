@@ -12,6 +12,8 @@
 
 - Removed-With passes a deleted test only when the test itself names the deleted file, so an unrelated file deleted alongside opens no gate. (K793)
 - The commit-type check of K449 reads a Markdown document as a document in every folder, and a release commit may stage uv.lock beside the other locks. (K791)
+- Delete wheel-dependencies, pylock.mts, python-lock with make python-lock and python-lock-check, config/dependency-policy.json with its schema, and consumers.wheel.polyspec of config/release.json; release-consumer installs each wheel lock with uv pip install -r <pylock>, which checks its hashes, and a repository locks Python with uv lock or uv export. (K789)
+
 - Delete dependency-review, dependency-state, version.mts, pin-python-dependency and composer-provider-entries with their records; npm, composer, uv, cargo audit and govulncheck report outdated and vulnerable dependencies. (K786)
 
 - Delete dependency-policy-check and dependency-policy-mutation-check; npm ci, composer install and uv sync --locked verify the locks. (K784)

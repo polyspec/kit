@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e46d8b46aea2f1a5c3d182240366870ecb448477826bda37e9cbf7bb3cae44e0 -->
+<!-- source-sha256: 7252b97a6ad146c544701a614ee4c7d3a942c346ec329c967fcfb028e21fa7ae -->
 
 # 도구 목록
 
@@ -130,7 +130,7 @@ Go와 Python을 그 pin으로 선언해야 합니다:
 |---|---|
 | `mise.toml`의 `node`, `go`와 `python`의 minor, `rust-toolchain.toml`의 `channel`, `php` | pin |
 | 모든 `package.json`의 `engines.node` | Node.js pin 이상(`>=`) |
-| 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin 또는 그 patch release(`8.4.1`), dependency-policy가 요구하는 형식 |
+| 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin 또는 그 patch release(`8.4.1`) |
 | project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(smol-toml) | Python pin 이상(`>=`) |
 | 모든 `go.mod`의 `go`(`go mod edit -json`) | Go pin, `toolchain` 줄 없음(go 명령은 `go` 줄과 같은 `toolchain` 줄을 지움) |
 | 모든 Cargo package의 `rust-version`(`cargo metadata --no-deps`, workspace 상속 포함) | Rust pin |
@@ -1033,7 +1033,7 @@ crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔�
 `composer.polyspec`(선택, K140)는 Composer project의 polyspec 의존성을 `config/release-assets.json`의 entry 이름으로 적습니다: 각각의
 release zip은 sha256을 지녀야 하며(`make release-assets-fetch`가 내려받습니다), tag의 zip 옆에서 project의 `artifacts` repository에
 놓입니다. 그래서 project는 polyspec 의존성을 inline package repository로 선언하지 않고 그 version으로 require하여, consumer처럼
-release된 archive에서 설치합니다. `wheel.polyspec`의 대응입니다. lock은 어떤 실행도 다시 만들지 않는 그 zip의 shasum을 유지하며,
+release된 archive에서 설치합니다. lock은 어떤 실행도 다시 만들지 않는 그 zip의 shasum을 유지하며,
 목록이 있으면 `make release-tools`가 zip을 내려받습니다.
 
 ### 절차
@@ -1181,16 +1181,15 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
   함께 실패합니다. `make install-tools`와 `make release-backend`(ONLINE)는 digest를 적은 requirement 파일로
   `pip download --no-deps --only-binary :all: --require-hashes`를 실행해 `var/tools/wheels`에 받습니다. `release-assets`는 build마다
   파일의 digest를 확인하고 다르면 거부합니다. 다운로드는 wheel package의 유일한 network 단계이며 release 전에 실행합니다.
-- `release-assets`는 wheel의 각 `Requires-Dist`를 그 lock과 대조합니다(K49): plain `name==version`, polyspec release 참조 또는 같은
-  release의 sibling(K52)만 받으며, 다른 형식은 줄과 형식을 적어 실패합니다. `release-versions`는 다른 archive manifest와 같이 pyproject.toml의 `[project]`
-  `version`을 요구합니다.
-- `release-consumer`는 wheel을 `var/tools/mise/shims/python3`의 깨끗한 virtual environment에 설치합니다. 먼저 lock(K49), 그다음
+- `release-assets`는 빌드한 wheel의 이름과 version을 확인합니다. `Requires-Dist` 줄의 형식은 uv와 pip가 해석합니다(K789).
+  `release-versions`는 다른 archive manifest와 같이 pyproject.toml의 `[project]` `version`을 요구합니다.
+- `release-consumer`는 wheel을 `var/tools/mise/shims/python3`의 깨끗한 virtual environment에 설치합니다. 먼저 uv가 lock을 설치하고(K49), 그다음
   `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`로 wheel을 설치합니다.
   requirement 파일은 이번 실행의 wheel을 그 파일의 sha256으로 적습니다. 그다음 `pip check`가 통과해야 하며, `pip show`가 출력하는
   version을 확인하고 `consumers.wheel`의 smoke command를 실행합니다.
 
 ```json
-"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" }, "polyspec": {} } }
+"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" } } }
 ```
 
 config/toolchain.json:
@@ -1201,55 +1200,18 @@ config/toolchain.json:
 
 ## Wheel dependencies (K49)
 
-wheel의 `Requires-Dist`는 세 형식 중 하나입니다: registry 고정, polyspec 참조, 그리고 sibling(K52, 아래)입니다. registry package는
-`name==version`으로 고정합니다. polyspec package는 release asset의 PEP 508 직접 참조이며, fragment로 그 asset의 sha256을 붙입니다:
+wheel package마다 dependency의 PEP 751 lock 하나를 `consumers.wheel.lock`(`pylock.toml` 또는 `pylock.<name>.toml`)으로 선언하며, lock은
+uv가 씁니다(`uv export --format pylock.toml`). kit은 lock을 읽지 않고 wheel의 `Requires-Dist` 줄도 판단하지 않습니다. 그것은 package
+manager의 일입니다(K789). `release-consumer install`은 각 lock을 uv에 한 번 넘겨 `makeVenv`의 venv에 설치합니다:
 
-    name @ https://github.com/polyspec/<repo>/releases/download/v<version>/<file>#sha256=<hex>
+    var/tools/mise/shims/uv pip install --python <venv>/bin/python -r <pylock>
 
-`<file>`은 `<version>`의 `name` wheel의 PEP 427 이름이고, URL의 name과 version은 requirement의 것과 같아야 합니다. 저장소는 이름에서
-추정하지 않고 config/release.json의 `consumers.wheel.polyspec`(distribution 이름에서 저장소 URL로 가는 map)에서 가져옵니다. 다른 모든
-형식(다른 host, git URL, branch, extra, 범위, marker)은 거부하며, 거부 문구는 requirement를 적습니다. `consumers.wheel.polyspec`이
-선언하지 않은 이름도 거부합니다.
+uv는 명령마다 PEP 751 lock 하나를 읽고, 설치하는 모든 파일의 sha256을 lock과 대조합니다. 이어서 wheel을 `--no-index --require-hashes
+--no-deps`로 설치하고, `pip --python <venv>/bin/python check`가 0으로 끝나야 합니다(불완전한 lock은 여기서 실패합니다). 그다음 smoke
+command를 실행합니다. 설치는 PyPI와 release asset에 닿으므로 `release-proof`에서만 온라인으로 실행합니다.
 
-wheel package마다 PEP 751 lock 하나를 `consumers.wheel.lock`(`pylock.toml` 또는 `pylock.<name>.toml`)으로 선언합니다. lock은 superset이며
-transitive dependency를 포함한 모든 dependency를 담습니다. registry package는 version과 파일의 sha256을 가지고, polyspec package는 참조와
-같은 URL과 sha256을 가진 `archive` 항목입니다. `release-assets`는 tag된 commit에서 오프라인으로 검사합니다: lock은 K36 reader가 읽고,
-registry와 archive가 아닌 source는 거부하며, 각 `Requires-Dist`는 같은 version(registry) 또는 같은 URL과 sha256(polyspec)으로 lock에
-있어야 하고, fragment는 lock의 sha256과 같아야 하며, 각 archive는 선언된 저장소의 그 version release asset이어야 합니다. 여기서는 network를
-읽지 않습니다.
-
-`release-consumer install`은 `lockRequirements`(`scripts/kit/wheel-dependencies.mts`)로 lock을 hash가 든 requirement 파일로 바꾸고,
-checkout의 pip가 `makeVenv`의 venv에 설치합니다: registry 파일마다 `name==version --hash=sha256:…`, archive마다 `name @ <url>
---hash=sha256:…`입니다.
-
-    var/tools/mise/shims/python3 -m pip --python <venv>/bin/python install --no-input --disable-pip-version-check --require-hashes --no-deps --only-binary :all: -r <dependencies>
-
-이어서 wheel을 `--no-index --require-hashes --no-deps`로 설치하고, `pip --python <venv>/bin/python check`가 0으로 끝나야 합니다(불완전한
-lock은 여기서 실패합니다). 그다음 smoke command를 실행합니다. pip 자체의 `pylock.toml` 읽기는 쓰지 않습니다(발견 사항 참조). 설치는 PyPI와
-release asset에 닿으므로 `release-proof`에서만 온라인으로 실행합니다. `release-proof`의 2단계는 각 polyspec archive를 선언된 저장소의 그
-version release에서 내려받고, sha256이 lock이 담은 sha256과 같아야 합니다.
-
-발견 사항, pip 26.2.1과 고정된 Python 3.14.8로 측정했습니다(`tests/source/wheel-dependencies-real.test.mts`가 이 사례를 반복합니다):
-
-- `pip install -r pylock.toml`은 lock을 requirement source로 읽고 `WARNING: Using pylock.toml as a requirements source is an experimental
-  feature. It may be removed/changed in a future release without prior warning.`를 출력합니다. 그래서 lock을 requirement로 바꿉니다.
-- `pip --python <venv>/bin/python check`는 pip가 없는 venv에서 동작합니다. dependency가 없으면 `kit-app 0.0.1 requires six, which is not
-  installed.`를 출력하고 1로 끝나며, version이 다르면 `kit-app 0.0.1 has requirement kit-reg==1.0.0, but you have kit-reg 0.0.1.`를 출력하고
-  1로 끝납니다. 완전한 설치는 `No broken requirements found.`를 출력하고 0으로 끝납니다.
-- 로컬 복사(consumer가 내려받은 파일로 dependency wheel을 설치하는 경우): 같은 바이트의 로컬 파일로 dependency wheel을 설치하고
-  (`--require-hashes --no-deps`), 이어서 wheel을 `--no-deps`로 설치한 뒤 `pip check`를 실행했더니 `No broken requirements found.`를
-  출력하고 0으로 끝났습니다. `pip check`는 version만 비교하므로 로컬 파일이 만족하는 직접 URL requirement를 거부하지 않습니다.
-- resolver는 설치에 쓰지 않습니다(`--no-deps`). dependency와 함께 resolve하면 pip는 설치된 복사본을 받아들이기 전에 직접 URL requirement를
-  읽습니다. 같은 version의 `file:` URL에는 `Processing .../kit_lib-0.0.1-py3-none-any.whl`을 출력하고,
-  `kit-lib is already installed with the same version as the provided wheel. Use --force-reinstall to force an installation of the wheel.`를
-  출력한 뒤 0으로 끝났습니다. 원격 URL에는 먼저 가져오며(`Collecting kit-lib @ https://...`), 응답하지 않는 URL은
-  `ERROR: HTTP error 404 while getting https://...`로 실패합니다. 따라서 dependency를 resolve하는 consumer는 polyspec archive를 다시
-  내려받습니다.
-
-테스트: `tests/kit/wheel-dependencies.test.mts`(형식, 문구와 함께 거부하는 사례, lock 형식, 렌더링된 requirement),
-`tests/kit/release-wheel.test.mts`(`release-assets`를 거치는 같은 검사, consumer 선언), `tests/kit/release-proof.test.mts`(polyspec archive의
-digest), `tests/source/wheel-dependencies-real.test.mts`(실제 pip: registry와 polyspec dependency를 가진 wheel의 GREEN 설치, 불완전한 lock,
-로컬 복사, resolver)입니다.
+테스트: `tests/kit/release-wheel.test.mts`와 `tests/kit/release-consumer.test.mts`(stub으로 확인하는 lock의 uv 명령),
+`tests/kit/release-proof.test.mts`(proof의 단계)입니다.
 
 ## Sibling wheels (K52)
 
@@ -1258,32 +1220,21 @@ sibling은 같은 config/release.json의 다른 wheel package입니다. wheel의
 
     name @ <repositoryUrl>/releases/download/v<version>/<file>
 
-참조는 모든 조건이 맞을 때만 받습니다: `name`이 sibling이고, URL이 config/release.json의 `<repositoryUrl>/releases/download/v<version>/`
-아래에 있으며, `<version>`이 검사하는 release의 version이고, `<file>`이 `wheelName(name, version)`, 즉 sibling wheel의 PEP 427 이름입니다.
-실패마다 고유한 문구가 있으며, 거부 사례는 다음과 같습니다: `#sha256` fragment를 가진 sibling, `name==version`으로 적은 sibling, 다른
-version의 sibling, 다른 저장소 아래의 sibling URL, version의 wheel 이름이 아닌 파일, 그리고 sibling을 담은 wheel의 lock(형식과 무관하게
-lock은 sibling을 담지 않습니다). 다른 모든 polyspec 참조는 여전히 sha256 fragment가 필요합니다(K49).
-
-sibling은 `packages`에서 유도합니다(`siblingsOf`, scripts/kit/wheel-dependencies.mts): 설정의 다른 wheel package이며, 두 번째 선언이
-아닙니다. 이유: 한 config/release.json의 wheel package들은 한 저장소에서 한 tag로 함께 릴리스되므로, 두 번째 목록은 `packages`와
-어긋날 수만 있습니다. `consumers.wheel.polyspec`은 다른 저장소의 저장소를 적으므로, 이 설정의 wheel package를 거부합니다
-(`consumers.wheel.polyspec.<name> names the wheel package <name> of this repository`).
+kit은 참조의 형식을 검사하지 않습니다. consumer가 dependency와 함께 wheel을 설치할 때 pip가 참조를 해석합니다(K789).
 
 sibling의 sha256은 release가 빌드한 뒤에야 알 수 있습니다. SOURCE_DATE_EPOCH가 release commit의 시각이므로, wheel의 sha256은 빌드
 전에는 tree에 없습니다. 그래서 wheel의 lock은 sibling을 담지 않으며, 참조에는 hash가 없습니다.
 
-`release-proof` 3단계는 GitHub가 게시한 release에서 sibling을 온라인으로 증명합니다(scripts/kit/release-proof.mts, `proveWheels`):
-1. release의 각 wheel 파일을 내려받은 뒤, 그 sha256이 GitHub가 그 asset에 나열한 sha256과 같아야 합니다(release listing의 `digest`,
-   `sha256:<hex>`). 어떤 wheel의 digest를 나열하지 않으면 proof가 실패합니다.
-2. wheel의 METADATA가 이름 붙인 각 sibling은 그 sibling의 게시된 asset URL(`browser_download_url`)과 정확히 같아야 하며, release가 그
-   asset을 나열해야 합니다.
+`release-proof` 2단계는 GitHub가 게시한 release에서 wheel을 온라인으로 확인합니다(scripts/kit/release-proof.mts, `proveWheels`):
+release의 각 wheel 파일을 내려받은 뒤, 그 sha256이 GitHub가 그 asset에 나열한 sha256과 같아야 합니다(release listing의 `digest`,
+`sha256:<hex>`). 어떤 wheel의 digest를 나열하지 않으면 proof가 실패합니다.
 
 그다음 release의 wheel들은 한 번의 `pip install --no-index --require-hashes --no-deps` 명령으로 파일에서 함께 설치합니다
 (release-consumer.mjs의 `installWheelFiles`, 이미 설정의 모든 wheel package를 함께 설치합니다). `pip check`가 통과하고 smoke command가
 실행됩니다. archive는 자체 검사를 유지합니다. digest 검사는 wheel에만 추가하는데, digest를 나열하기 전에 게시된 release도 증명되어야
 하기 때문입니다.
 
-consumer는 sibling을 polyspec wheel과 같이 설치합니다(K49): 자기 lock이 sibling을 URL과 sha256을 가진 `archive` 항목으로 적으며,
+consumer는 sibling을 polyspec wheel과 같이 설치합니다: uv가 쓴 자기 lock이 sibling을 URL과 sha256을 가진 `archive` 항목으로 적으며,
 이 sha256은 게시된 asset의 hash입니다. sibling을 요구하는 wheel의 lock은 sibling을 적지 않습니다.
 
 sibling 참조에 대한 발견 사항은 checkout의 pip(`var/tools/python-build`, pip 26.2.1, Python 3.14.8)로 측정했습니다. 두 wheel은 손으로
@@ -1301,12 +1252,10 @@ sibling 참조에 대한 발견 사항은 checkout의 pip(`var/tools/python-buil
 - 로컬 파일에서 설치된 복사본은 참조를 만족하지 않습니다. `kit-val`을 파일에서 설치한 뒤 dependency와 함께 `kit-gen`을 resolve하면 pip는
   URL을 다시 내려받았습니다.
 
-이 결과가 위 설계의 근거입니다. proof는 로컬 파일에서 `--no-deps`로 설치하고, 참조가 게시된 URL과 같음을 증명합니다. 그래서 dependency를
-resolve하는 consumer도 release가 게시한 asset을 내려받습니다.
+이 결과가 위 설계의 근거입니다. proof는 로컬 파일에서 `--no-deps`로 설치합니다.
 
-테스트: `tests/kit/wheel-sibling.test.mts`(sibling 형식과 거부, lock, consumer 선언, `siblingLinks`),
-`tests/kit/release-wheel.test.mts`(같은 거부를 `release-assets`로), `tests/kit/release-proof.test.mts`(wheel digest, sibling URL, wheel의 한
-번 설치), `tests/source/wheel-sibling-real.test.mts`(실제 pip: pip check가 있는 `--no-deps` 설치, 참조를 읽고 로컬 wheel은 읽지 않는 resolve).
+테스트: `tests/kit/release-wheel.test.mts`(두 wheel의 빌드), `tests/kit/release-proof.test.mts`(wheel digest, wheel의 한 번 설치),
+`tests/source/wheel-sibling-real.test.mts`(실제 pip: pip check가 있는 `--no-deps` 설치, 참조를 읽고 로컬 wheel은 읽지 않는 resolve).
 
 ## Language parity (K33)
 
@@ -1599,37 +1548,12 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
 }
 ```
 
-## Python lock: PEP 751 pylock.toml (K36)
-
-kit은 Python lock을 PEP 751의 표준 형식(상태 Final, resolution 2025년 3월 31일)인 `pylock.toml` 또는 `pylock.<name>.toml`로만 읽으며,
-이 파일은 `config/dependency-policy.json`의 `pythonLocks`에 적습니다. uv.lock은 읽지 않습니다. uv 고유의 형식이고, wheel을 배포하는 저장소에는
-모든 installer가 읽는 lock이 필요합니다.
-
-쓰는 도구는 uv 0.12.11과 pip 26.2.1로 측정했습니다: `uv export --format pylock.toml --frozen --no-emit-project -o <lock>`과 `pip lock`.
-uv는 이 파일로 hash를 확인하며 설치하고, pip는 이 파일의 `vcs` 항목을 거부합니다. 두 도구 모두 `created-by`를 씁니다.
-
-### 규칙
-
-- 파일은 `scripts/kit/pylock.mts`(`readPylock`)가 smol-toml(`scripts/kit/toml.mts`)로 읽으며, smol-toml은 TOML 전체를 읽습니다.
-  올바른 TOML이 아닌 텍스트는 파일, 줄, 열과 함께 실패합니다.
-- `lock-version`은 `"1.0"`입니다.
-- 모든 `sdist`, `wheels`, `archive` 파일은 `sha256`을 가집니다.
-- `vcs` package(git)는 `commit-id`로 고정하며, 값은 40자리 16진수여야 합니다.
-- `created-by`는 필수입니다.
-- 이 릴리스를 도입하는 소비자는 각 lock을 `config/dependency-policy.json`의 `pythonLocks`에 `source`를 가진 object로 추가합니다(K54): `{ "lock": "<pylock.toml>", "source": { "requirements": "<file>", "constraints": "<file>" } }`. 이 필드는 필수이며 호환 경로는 없습니다.
-
-### 한계
-
-- reader는 lock을 쓰는 도구의 부분집합만 읽습니다. 그 밖의 구문을 쓰는 다른 도구의 lock은 reader가 읽도록 확장될 때까지 실패합니다.
-- `directory` package는 거부합니다.
-
-## uv와 Python lock writer (K54)
+## uv (K54)
 
 `uv`는 `mise.toml`의 도구입니다. mise가 정확한 release를 `mise.lock`의 sha256으로 설치하고, shim
-`var/tools/mise/shims/uv`가 그것을 실행합니다(K127). `make python-lock`(ONLINE)은 그 uv로
-`pythonLocks`의 각 Python lock을 쓰고, `make python-lock-check`(offline)은 각 lock을 source와 비교합니다. 고정하는 이유는, PATH의 선언되지 않은
-uv로 쓴 lock이 기계에 따라 달라지기 때문입니다. `pip lock`(pip 26.2.1)은 experimental이며 실행 중인 platform 하나만 lock했습니다(cryptography가
-macOS arm64 wheel 하나만 받음). uv의 universal resolution은 모든 platform의 파일을 marker와 hash와 함께 씁니다.
+`var/tools/mise/shims/uv`가 그것을 실행합니다(K127). kit은 자기 Python lock을 쓰거나 검사하지 않습니다(K789). 저장소는 `uv lock`(uv.lock)
+또는 `uv export --format pylock.toml`로 lock하고 `uv sync --locked` 또는 `uv pip install -r <pylock>`으로 설치하며, uv가 lock과 그 hash를
+검사합니다.
 
 ### uv: 설치와 state
 
@@ -1638,132 +1562,6 @@ macOS arm64 wheel 하나만 받음). uv의 universal resolution은 모든 platfo
 - **state는 `var/tools` 아래, home에는 쓰지 않음:** checkout의 mise 환경(kit.mk, `miseEnvironment`)이
   `UV_CACHE_DIR=var/tools/mise/cache/uv`, `UV_PYTHON_DOWNLOADS=never`(uv는 interpreter를 내려받지 않음), `UV_NO_CONFIG=1`(home이나
   system의 `uv.toml`을 읽지 않음)을 설정하고, `toolsEnvironment`가 mise의 python3인 `UV_PYTHON`을 더합니다.
-
-### 측정한 uv 동작 (uv 0.12.11, aarch64-apple-darwin, install-tools의 Python 3.14.8 virtual environment)
-
-| 경우 | 결과 |
-|---|---|
-| 출력 이름 | `-o`는 `pylock.toml` 또는 `<name>`에 점이 없는 `pylock.<name>.toml`이어야 합니다. `-o lock.toml`은 그 규칙으로 exit 2입니다. |
-| header | 첫 주석은 `-o` 경로와 source 경로를 포함한 명령 줄 전체를 적습니다. 그래서 writer는 source 이름으로 임시 directory에서 실행합니다. |
-| 쓰는 파일 | cache가 비어 있는 online 실행은 lock 하나만 씁니다. working directory의 다른 파일은 없습니다. |
-| cache | `UV_CACHE_DIR` 아래에만 있습니다: `interpreter-v4`, `sdists-v9`, `simple-v24`, `wheels-v6`, `archive-v0`(URL constraint가 있을 때), `.lock`, `CACHEDIR.TAG`, `.gitignore`. 아래 여섯 package 집합은 904K입니다. |
-| offline, cache 비어 있음(`--offline`) | exit 1, "unsatisfiable"이며 파일을 쓰지 않습니다. |
-| offline, cache 있음(online 실행의 cache) | exit 0입니다. lock의 본문은 online과 byte 단위로 같고, `--offline`을 적은 header 줄만 다릅니다. |
-| PATH에 Python 없음(`env -i PATH=/bin`), cache 비어 있음 | exit 0입니다. `--universal`은 interpreter가 필요 없습니다. |
-| marker 요구 `colorama==0.4.6; sys_platform == "win32"` | 해당 package가 `marker = "sys_platform == 'win32'"`를 가집니다. |
-| constraint `certifi @ <wheel URL>#sha256=<digest>` | 해당 package는 registry 항목이 아니라 `archive = { url, hashes = { sha256 } }`입니다. digest는 fragment의 값입니다. |
-| platform | `charset-normalizer==3.5.2`는 wheel 파일이 86개입니다. 집합의 97개 파일은 모두 sha256을 가집니다(`--generate-hashes`). |
-| `pyproject.toml`을 requirements로 쓰고 임시 directory에 그 이름으로 복사 | uv는 거기서 `[project].dependencies`를 읽습니다. project 자신은 출력되지 않으므로 lock에는 의존성만 있습니다. lock 이름 아래 제자리 실행은 측정하지 않았습니다(첫 시도는 uv가 거부하는 `out-a.toml`을 썼습니다). 복사는 동작하므로 writer는 복사합니다. |
-| `--no-index --find-links <dir>`, `<dir>`은 상대 또는 절대 경로 | local wheel마다 `wheels = [{ url = "file:///<realpath>/<wheel>", hashes = { sha256 } }]`입니다. uv는 상대 입력이 아니라 realpath를 적습니다. header에는 `--no-index`가 있고 `--find-links`는 없으므로 header에 checkout 경로가 없습니다. |
-| `path = "<lock 기준 상대 경로>"`(PEP 751) | `uv pip install --dry-run --no-index -r pylock.toml`과 pip 26.2.1의 `install --dry-run --no-index -r pylock.toml`은 lock의 directory 기준으로 path를 읽습니다. uv는 두 working directory에서, pip은 lock directory에서 측정했습니다(집합의 wheel 두 개). |
-| `--universal`의 하한 | `--python-version`이 없으면 uv는 universal resolution의 Python 하한을 `requires-python`이 아니라 찾은 interpreter에서 정합니다(측정함: PATH에 Python 3.11이 있으면 3.11로 풀고 의존성 하나가 3.14를 요구한다고 알렸습니다). 그래서 writer는 `mise.toml`의 `python`의 minor를 `--python-version`으로 넘기고, 그것이 없는 `mise.toml`은 uv 실행 전에 거부합니다. |
-| `[project].dynamic`의 `dependencies` 항목 | uv로는 측정하지 않았습니다. writer와 검사는 uv 실행 전에 거부합니다. |
-
-여섯 package 집합은 `requests==2.34.2`, `certifi==2026.7.22`, `charset-normalizer==3.5.2`, `idna==3.20`, `urllib3==2.8.0`, 그리고 marker를 위한
-`colorama==0.4.6`입니다. 모든 package가 고정되어 있어 어떤 실행도 version을 고르지 않습니다.
-
-### lock 선언
-
-`config/dependency-policy.json`은 `pythonLocks`에서 lock마다 항목을 두며, 그 `source`는 lock을 쓰는 파일을 적습니다
-(`scripts/kit/schema/dependency-policy.schema.json`):
-
-```json
-"pythonLocks": [
-  {
-    "lock": "packages/app-python/pylock.toml",
-    "source": {
-      "requirements": "packages/app-python/pyproject.toml",
-      "constraints": "packages/app-python/constraints.txt",
-      "findLinks": "packages/app-python/wheels"
-    }
-  }
-]
-```
-
-- `requirements`: 직접 요구사항이며, 두 형태 중 하나입니다.
-  - requirements 파일, 한 줄에 하나: `name`, `name==version`, `name>=2.30,<3` 또는 `name~=2.34` 같은 범위, 또는 `name @ url`.
-    `;` 뒤의 marker는 uv가 유지하며 pin을 읽지 않고, extra도 pin을 읽지 않습니다. option이나 다른 형태는 그 줄과 함께 실패합니다.
-  - `pyproject.toml`: 정적 `[project].dependencies`가 직접 요구사항입니다. wheel package는 자기 pyproject를 가리키므로 요구사항의
-    사본이 하나뿐입니다. `[project].dynamic`에 `dependencies`가 있는 pyproject는 거부합니다. 요구사항이 파일에 없기 때문입니다.
-    kit의 reader는 한 줄 문자열만 읽으므로, 여러 줄 문자열이 있는 pyproject는 그 줄과 함께 실패합니다.
-- `constraints`: 모든 package를 고정하는 constraints 파일입니다(전이 의존성 포함). 한 줄에 하나씩 `name==version` 또는
-  polyspec archive의 `name @ https://...#sha256=<digest>`입니다. 그 밖의 형태(범위, marker, option, hash)는 그 줄과 함께 실패합니다.
-- `findLinks`(선택): checkout 안의 directory이며 root 기준 상대 경로이고 local wheel을 담습니다. writer는 uv를
-  `--no-index --find-links <directory>`로 실행하여 index를 읽지 않습니다. checkout 밖의 경로나 없는 directory는 실패합니다.
-  directory는 lock의 package(lock의 directory) 안에 있습니다. lock은 local wheel마다 lock 기준 상대 경로를 적고, 그 경로는
-  package를 벗어날 수 없습니다. writer는 package 밖의 findLinks를 uv 실행 전에 거부하고, `python-lock-check`는 package를
-  벗어나는(`..`) local 경로를 package와 file을 밝히며 거부합니다.
-
-```text
-# packages/app-python/pyproject.toml
-[project]
-name = "app"
-version = "0.0.0"
-dependencies = ["requests==2.34.2", "colorama==0.4.6; sys_platform == 'win32'"]
-
-# packages/app-python/constraints.txt
-requests==2.34.2
-certifi==2026.7.22
-charset-normalizer==3.5.2
-colorama==0.4.6
-idna==3.20
-urllib3==2.8.0
-```
-
-### writer (`make python-lock`, findLinks를 선언하지 않으면 ONLINE)
-
-`scripts/kit/python-lock.mts write`는 `var/tools/mise/shims/uv pip compile <requirements> -c <constraints> --universal --python-version <python>
---generate-hashes --format pylock.toml -o pylock.toml`(`<python>`은 `mise.toml`의 `python`의 minor)을 `var/tools`의 directory(`python-lock-<random>`)에서 실행합니다. 이 directory에는 두 source가
-각자의 이름으로 있습니다. `pyproject.toml`은 그 이름으로 복사되며, uv는 거기서 읽습니다(아래 측정). 그래서 uv를 위해 pyproject가
-checkout에 그대로 있을 필요는 없습니다. findLinks가 있으면 `--no-index --find-links <directory>`를 덧붙입니다. source는 먼저 읽고
-파싱하므로, 잘못된 source는 uv 실행 전에 멈춥니다.
-
-uv는 local wheel을 `url = "file:///<checkout 경로>/<wheel>"`로 적습니다. writer는 이 URL을 lock의 directory 기준 상대 `path`
-(`path = "../links/<wheel>"`, PEP 751)로 바꾸고, 그 밖의 file URL은 거부하므로 lock에는 기계 경로가 남지 않습니다. 쓰인 lock은
-sources와 대조한 뒤(`python-lock-check`와 같은 검사) 제자리로 이름이 바뀝니다. 거부된 실행은 이전 lock을 그대로 두고 directory를
-지웁니다. 전이 의존성이 고정되지 않았으면 writer는 그 package 이름과 함께 거부합니다. uv가 registry release로 해석했지만 constraints에는
-없고, 검사가 그것을 lock에서 찾기 때문입니다.
-
-`config/release.json`의 wheel package의 `pyproject.toml`인 source는 sibling을 release asset의 URL로 요구할 수 있습니다(Sibling
-wheels). 그 asset은 release가 publish한 뒤에야 존재합니다. writer는 wheel-dependencies.mts의 `siblingLinks`가 sibling link로
-분류하는 requirement를 resolution에서 뺍니다: 그 이름을 directory의 `siblings.txt`에 쓰고, `--excludes siblings.txt`를 덧붙이고,
-각각을 출력합니다. 검사도 비교에서 그것을 뺍니다. wheel의 lock은 sibling을 담지 않기 때문입니다. 그 밖의 requirement는,
-sibling을 가리키지 않는 URL도, 전처럼 해석되고 검사됩니다 (K190).
-
-### 검사 (`make python-lock-check`, offline)
-
-resolve하지 않습니다. 다음 경우 파일과 package 이름, 그리고 고치는 방법을 적고 실패합니다.
-
-- lock의 package에 constraints의 pin이 없거나(전이 의존성 포함), pin에 대응하는 lock package가 없습니다.
-- lock package의 version이 pin과 다르거나, git 또는 directory package입니다(lock은 registry 파일과 archive만 담습니다).
-- constraint가 `name==version`이나 `#sha256`이 붙은 직접 참조가 아니거나, 줄이 option 또는 hash입니다(requirement와 constraint
-  줄은 pip-requirements-js가 PEP 508과 pip의 파일 문법으로 읽습니다).
-- requirement에 pin이 없거나, 고정된 version이 그 specifier를 만족하지 않습니다(@renovatebot/pep440의 `satisfies`).
-- `pyproject.toml` source가 `[project].dynamic`에 `dependencies`를 나열하거나 `[project]` table이 없습니다.
-- registry 파일에 sha256이 없거나, lock이 PEP 751 1.0이 아니거나 읽히지 않습니다(`readPylock`).
-- lock의 local 파일(lock 기준 상대 `path`)이 없거나, 절대 경로이거나, lock의 sha256을 갖지 않습니다. 검사는 파일을 읽으므로
-  findLinks lock의 wheel은 checkout에 있어야 합니다.
-- archive의 URL이나 sha256이 constraint와 다릅니다.
-- source 또는 lock이 없습니다.
-
-각 경우에는 그 경우에서만 실패하는 test가 있습니다(`tests/kit/python-lock-check.test.mts`). writer의 경우는
-`tests/kit/python-lock-write.test.mts`에 있으며 uv는 stub입니다. `tests/source/python-lock-real.test.mts`는 network 없이 실제 uv를
-실행합니다. wheel은 `var/tools/wheels`의 고정된 setuptools wheel과, 고정된 Python으로 source tree에서 만든 순수 Python wheel이며,
-둘 다 test의 directory(`var/` 아래)에 있습니다. 이 test는 findLinks로 pyproject의 lock을 쓰고, offline 검사가 그 lock을 통과시키며,
-version drift(`0.0.1`에서 `0.0.2`)는 `tinylib`과 함께, `setuptools`가 빠진 constraints는 `setuptools`와 함께 실패하는지 봅니다.
-`tests/kit/fixture`의 fixture policy는 존재하고 lock과 일치하는 source를 선언하며, test가 그 fixture에서 검사를 실행합니다.
-
-### 한계
-
-- findLinks lock의 local 파일을 검사가 읽으므로, wheel이 없는 checkout은 내려받기 전까지 검사에 실패합니다.
-- 검사는 pyproject의 `[project].dependencies`만 읽습니다. uv는 lock을 쓸 때 `[tool.uv]`(index, source)도 읽습니다. uv가 git이나
-  directory로 해석하는 source는 검사에 실패하며, 추가 index는 검사가 보지 않습니다.
-- kit의 reader는 한 줄 문자열만 읽으므로, 여러 줄 문자열이 있는 pyproject는 그 줄과 함께 실패합니다(reader가 이름을 적으며, 조용히
-  건너뛰지 않습니다).
-- 검사는 registry 파일의 sha256을 network 없이 registry와 비교할 수 없으므로, registry hash의 16진수 한 자리 차이는 통과합니다. uv는
-  lock으로 설치할 때 각 hash를 확인합니다.
-- findLinks를 선언하지 않으면 writer는 network(uv를 통한 PyPI)가 필요합니다.
-- requirement의 extra와 marker는 고정되는 package를 바꾸지 않습니다. lock의 모든 package는 marker와 관계없이 constraints에 있어야 합니다.
 
 ## Editor tools (K80)
 

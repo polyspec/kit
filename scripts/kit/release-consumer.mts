@@ -18,15 +18,15 @@
 // repository by name and version only: no `integrity` for an npm entry and an empty `shasum` for a Composer entry. A lock
 // changes only with a version or a dependency, and `lock` runs on the release commit before the tag is pushed.
 // `lock` resolves version ranges, so it is the one step that reads a registry; no check runs it.
-// A `wheel` package is installed into a clean virtual environment of the python3 of mise.toml: its dependencies from the lock of
-// consumers.wheel.lock (`pip install --require-hashes --no-deps --only-binary :all:`, the online step of the proof), then the wheels
-// of all wheel packages in one command from their files (`pip install --no-index --require-hashes --no-deps`, each named with the
-// sha256 of its file), then `pip check`, which fails on a lock that lacks a dependency. The command names every wheel of the release,
-// so a sibling (a wheel of the same release) is installed from its file: with --no-deps pip never reads a sibling's URL.
+// A `wheel` package is installed into a clean virtual environment of the python3 of mise.toml: uv installs each PEP 751 lock of
+// consumers.wheel.lock natively (`uv pip install -r <pylock>`, which verifies the hashes of the lock; the online step of the
+// proof), then the wheels of all wheel packages in one command from their files (`pip install --no-index --require-hashes
+// --no-deps`, each named with the sha256 of its file), then `pip check`, which fails on a lock that lacks a dependency. The command
+// names every wheel of the release, so a sibling (a wheel of the same release) is installed from its file: with --no-deps pip never
+// reads a sibling's URL.
 // The Composer project also holds the release zip of each polyspec dependency that consumers.composer.polyspec names by its
 // entry of config/release-assets.json (make release-assets-fetch downloads it); its native package metadata points to that zip, so
-// a dependency of the release is installed from its released archive, as a consumer installs it, the counterpart of the
-// polyspec archives of a wheel lock (consumers.wheel.polyspec).
+// a dependency of the release is installed from its released archive, as a consumer installs it.
 // A Go module tag releases no archive and has nothing to install. Each failure names the expected and the actual value.
 //   TAG is `latest` for the newest root release tag reachable from HEAD.
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -37,11 +37,11 @@ import { ASSETS, archiveName, assetNames, context, latestTag, parseTag, stepFail
 import type { ConsumerProject, Context, ReleaseConfig, WheelConsumer } from './release.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { wheelName } from './release-wheel.mts';
-import { lockRequirements, wheelLocks } from './wheel-dependencies.mts';
 import { toolCommand } from './mise-tools.mts';
 import { makeVenv } from './python-venv.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 import { run, Stop } from './process.mts';
+import { present } from './present.mts';
 import { CONSUMER_KINDS, WHEEL_KIND } from './release-consumer-config.mts';
 import { fetchedAsset, releaseAsset } from './release-assets.mts';
 import { readComposerLock, readComposerLockFile, readComposerManifest, readComposerManifestFile, readNpmLock, readNpmLockFile, readNpmManifest, readNpmManifestFile } from './manifests.mts';
@@ -267,14 +267,13 @@ export function installConsumers(ctx: ReleaseContext, version: string, directory
 
 /**
  * Installs the wheels of `names` at `version` from `directory` into a clean virtual environment of `folder` made by the Python
- * of `root`. `requirements` is the requirement file of the dependencies (lockRequirements), installed first with hashes, no
- * dependency of their own and only binary files. Then the wheels: `pip install --no-index --require-hashes --no-deps`, each file
+ * of `root`. `locks` are the PEP 751 locks of the dependencies, each installed first by uv with the hashes it holds. Then the wheels: `pip install --no-index --require-hashes --no-deps`, each file
  * named with the sha256 of its file. Each package must show `version`, its smoke command runs in the environment, and `pip check` must
  * pass in it. Returns the number of packages.
  */
-export function installWheelFiles({ root, env, folder, version, directory, names, smoke, requirements = '', step = () => {} }: {
+export function installWheelFiles({ root, env, folder, version, directory, names, smoke, locks = [], step = () => {} }: {
   root: string; env: NodeJS.ProcessEnv; folder: string; version: string; directory: string; names: string[]; smoke: Record<string, string[]>;
-  requirements?: string; step?: (text: string) => void;
+  locks?: string[]; step?: (text: string) => void;
 }) {
   if (names.length === 0) return 0;
   const project = path.join(folder, WHEEL_KIND);
@@ -291,11 +290,10 @@ export function installWheelFiles({ root, env, folder, version, directory, names
   const python = path.join(bin, 'python');
   const checkoutPython = toolCommand(root, 'python3');
   const venvEnv = { ...env, PATH: `${bin}${path.delimiter}${env.PATH}`, VIRTUAL_ENV: venv };
-  if (requirements !== '') {
-    const dependencies = path.join(project, 'dependencies.txt');
-    writeFileSync(dependencies, requirements);
-    run(checkoutPython, ['-m', 'pip', '--python', python, 'install', '--no-input', '--disable-pip-version-check', '--require-hashes', '--no-deps', '--only-binary', ':all:', '-r', dependencies], { cwd: project, env });
-    step(`wheel dependencies pip install of ${requirements.split('\n').filter(Boolean).length} requirements`);
+  // uv reads one PEP 751 lock per command.
+  for (const lock of locks) {
+    run(toolCommand(root, 'uv'), ['pip', 'install', '--python', python, '-r', lock], { cwd: project, env });
+    step(`wheel dependencies uv pip install -r ${path.basename(lock)}`);
   }
   const requirementsFile = path.join(project, 'requirements.txt');
   writeFileSync(requirementsFile, names.map((name) => {
@@ -320,10 +318,11 @@ export function installWheelFiles({ root, env, folder, version, directory, names
 function installWheels(ctx: ReleaseContext, version: string, directory: string, folder: string, env: NodeJS.ProcessEnv, step: (text: string) => void) {
   const names = ctx.config.packages.filter(item => item.kind === WHEEL_KIND).map(({ name }) => name);
   if (names.length === 0) return 0;
-  const requirements = wheelLocks(ctx.root, ctx.config).map(({ file, text }: { file: string; text: string }) => lockRequirements(text, file)).join('');
   const wheel = ctx.config.consumers?.[WHEEL_KIND];
   if (wheel === undefined) throw new Error(`config/release.json: consumers.${WHEEL_KIND} is missing; the packages [${names.join(', ')}] are of kind ${WHEEL_KIND}`);
-  return installWheelFiles({ root: ctx.root, env, folder, version, directory, names, smoke: wheel.smoke, requirements, step });
+  // consumerConfigProblems requires a lock of each wheel package.
+  const locks = names.map(name => path.join(ctx.root, present(wheel.lock[name], 'wheel.lock[name]')));
+  return installWheelFiles({ root: ctx.root, env, folder, version, directory, names, smoke: wheel.smoke, locks, step });
 }
 
 /** The lock `file` of `kind` without the hashes of the archives of this repository, which each run builds again. */

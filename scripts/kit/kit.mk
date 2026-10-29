@@ -590,12 +590,3 @@ $(foreach implementation,$(KIT_PARITY_IMPLEMENTATIONS),$(eval $(call KIT_PARITY_
 
 parity-declarations-check: ## Check the parity rules of config/parity.json that need no run: symbols, bindings, tests, error codes, lists, documents; UNITS="<id>..." reports only the findings of the named units, their schema findings included, and of config/parity.json itself (K400, K400-1); RULES="<rule>..." reports only the findings of the named rules, by id or name, and of config/parity.json itself (K414); IDS="<requirement>..." reports only the findings that name one of the requirement ids, and of config/parity.json itself (K414-1); offline
 	$(NODE) $(KIT)/parity.$(KIT_EXT) --declarations $(foreach unit,$(UNITS),--unit $(unit)) $(foreach rule,$(RULES),--rule $(rule)) $(foreach id,$(IDS),--id $(id))
-
-# --- python-lock: the PEP 751 locks of config/dependency-policy.json (pythonLocks), each with its requirements and a constraints file
-# that pins every package. The writer resolves with the uv of mise.toml (make install-tools); the check never resolves.
-.PHONY: python-lock python-lock-check
-python-lock: ## Write every Python lock of pythonLocks with the uv of mise.toml from its requirements and constraints; ONLINE
-	$(ONLINE) $(NODE) $(KIT)/python-lock.$(KIT_EXT) write
-
-python-lock-check: ## Check every Python lock of pythonLocks against its requirements and constraints, with no network; offline
-	$(NODE) $(KIT)/python-lock.$(KIT_EXT) check

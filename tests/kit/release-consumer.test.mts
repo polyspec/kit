@@ -139,7 +139,7 @@ test('install runs npm ci and composer install in clean projects outside the rep
     "npm fixture-app 0.0.1: node -e require('fixture-app/package.json')",
     'composer install of 1 packages from tests/release-consumer/composer',
     "composer polyspec/kit-fixture 0.0.1: node -e require('./vendor/composer/installed.json')",
-    'wheel dependencies pip install of 1 requirements',
+    'wheel dependencies uv pip install -r pylock.wheel.toml',
     'wheel pip install of 1 packages',
     'wheel pip check passed',
     "wheel kit-fixture 0.0.1: python -c import kit_fixture",
@@ -348,7 +348,7 @@ test('the consumer tests leave no temporary entry of the npm stub in TMPDIR', (t
   assert.deepEqual(readdirSync(directory).filter(entry => entry.startsWith('stub-npm-')), []);
 });
 
-// The counterpart of consumers.wheel.polyspec for Composer (K140): inline package metadata points at the polyspec dependency's
+// K140: inline package metadata points at the polyspec dependency's
 // unchanged release zip and derives its version from config/release-assets.json.
 test('the Composer consumer gets native package metadata for each configured released dependency', (t) => {
   const box = consumerSandbox(t);

@@ -13,7 +13,6 @@ const SCHEMAS: Record<string, string> = {
   'installed.json': 'composer-lock.schema.json',
   'knip.json': 'knip.schema.json',
   'checklist.json': 'checklist.schema.json',
-  'dependency-policy.json': 'dependency-policy.schema.json',
   'documents.json': 'documents.schema.json',
   'owner-checks.json': 'owner-checks.schema.json',
   'parity.json': 'parity.schema.json',

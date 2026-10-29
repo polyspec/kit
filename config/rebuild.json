@@ -338,17 +338,9 @@
       "kind": "policy",
       "reason": "the push gate over polyspec's checklist trackers"
     },
-    "scripts/kit/pylock.mts": {
-      "kind": "ecosystem",
-      "tool": "smol-toml reads the PEP 751 locks through toml.mts (K73)"
-    },
     "scripts/kit/pyproject-dependencies.mts": {
       "kind": "policy",
       "reason": "lists the dependency arrays of a pyproject.toml for link, and resolves the include-group tables of [dependency-groups] as the reference implementation of PEP 735 does; no npm package reads dependency groups (K177)"
-    },
-    "scripts/kit/python-lock.mts": {
-      "kind": "ecosystem",
-      "tool": "pip-requirements-js reads the PEP 508 requirements (K73); the pin policy on top is kit's rule"
     },
     "scripts/kit/python-venv.mts": {
       "kind": "ecosystem",
@@ -485,10 +477,6 @@
     "scripts/kit/vitest-reporter.mts": {
       "kind": "ecosystem",
       "tool": "vitest reporter API"
-    },
-    "scripts/kit/wheel-dependencies.mts": {
-      "kind": "ecosystem",
-      "tool": "pip install --dry-run --report reads the Requires-Dist of a wheel (K123) and pip-requirements-js their PEP 508 form (K73)"
     },
     "scripts/kit/install-php.mts": {
       "kind": "policy",

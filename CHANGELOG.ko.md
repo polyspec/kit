@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 393926d1e82161e2c359721ebeec1e6baade54ff1b728ec04f502248d3afd8af -->
+<!-- source-sha256: f1136d7080364f3dbbc35d029053e946b20223ff26005f1f9a3dd68ef91b2619 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- wheel-dependencies, pylock.mts, make python-lock과 python-lock-check가 있는 python-lock, schema가 있는 config/dependency-policy.json, config/release.json의 consumers.wheel.polyspec를 지운다. release-consumer는 각 wheel lock을 hash를 검사하는 uv pip install -r <pylock>로 설치하고, 저장소는 uv lock이나 uv export로 Python을 lock한다. (K789)
 - 삭제된 테스트의 commit gate를 없앤다. 테스트 파일을 지우는 commit에 Replaced-By, Archived-To, Provider-Test-Replacement, Removed-With trailer가 필요 없다. (K797)
 - Kit 0.0.67 release를 준비한다. (K795)
 

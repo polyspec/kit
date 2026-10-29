@@ -98,7 +98,7 @@ and states only its own rules. The rules below are kit's own.
   Enforced by: `make parity-declarations-check`
 - Own: Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by
-  the targets that kit.mk marks ONLINE (`python-lock`, `install-tools`, `release-tools`,
+  the targets that kit.mk marks ONLINE (`install-tools`, `release-tools`,
   `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch` and `release-assets-fetch`), and its
   result is a committed record, an installation in var/tools or an archive under var/ that config/release-assets.json pins.
   Enforced by: `make kit-test`

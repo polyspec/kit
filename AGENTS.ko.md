@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: f834b697dce61d8fabbdac27c6f52e7298e3e0509051a10e01ab03d8de35b314 -->
+<!-- source-sha256: bbbcbd262e4dd69a9c1f7f79e491110cd52ede78641879a0c20275c884f7c027 -->
 # 개발
 
 [English](AGENTS.md)
@@ -87,8 +87,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/operations/tool-inventory.md, Language parity).
   Enforced by: `make parity-declarations-check`
 - Own: 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
-  case는 자기 timeout을 가집니다. 네트워크 조회는 kit.mk가 ONLINE으로 표시한 target(`python-lock`,
-  `install-tools`, `release-tools`, `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch`,
+  case는 자기 timeout을 가집니다. 네트워크 조회는 kit.mk가 ONLINE으로 표시한 target(`install-tools`,
+  `release-tools`, `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch`,
   `release-assets-fetch`)만 하고, 결과는 commit된 기록, var/tools의 설치, 또는 config/release-assets.json이 고정한 var/ 아래의 archive입니다.
   Enforced by: `make kit-test`
 - Own: dependency advisory는 갱신으로 고칩니다. npm audit, composer audit, cargo audit와 govulncheck가 오래되거나 취약한

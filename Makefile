@@ -32,7 +32,7 @@ KIT_TEST_FILES_2 := \
 KIT_TEST_FILES_3 := \
 	tests/kit/ci-only.test.mts tests/kit/documents-stamp.test.mts tests/kit/install-symbols.test.mts \
 	tests/kit/kit-tools.test.mts tests/kit/markdown.test.mts tests/kit/parity-requirements.test.mts \
-	tests/kit/python-lock-check.test.mts tests/kit/python-lock.test.mts tests/kit/recipe-tools.test.mts \
+	tests/kit/recipe-tools.test.mts \
 	tests/kit/release-tag.test.mts tests/kit/run-tests.test.mts \
 	tests/kit/stubs.test.mts tests/kit/suppression-check.test.mts tests/kit/test-output.test.mts \
 	tests/kit/toolchain-mise.test.mts
@@ -43,13 +43,13 @@ KIT_TEST_FILES_4 := \
 	tests/kit/language-check.test.mts tests/kit/link-state-check.test.mts tests/kit/lint-go.test.mts \
 	tests/kit/registry.test.mts tests/kit/release.test.mts \
 	tests/kit/sandbox-cleanup.test.mts tests/kit/test-gap-start.test.mts tests/kit/test-markers.test.mts \
-	tests/kit/toolchain-files.test.mts tests/kit/wheel-dependencies.test.mts tests/kit/wheel-sibling.test.mts
+	tests/kit/toolchain-files.test.mts
 KIT_TEST_FILES_5 := \
 	tests/kit/cargo-downloads.test.mts tests/kit/catch-check-steps.test.mts tests/kit/composer-install.test.mts \
 	tests/kit/duplication-check.test.mts tests/kit/git-hooks.test.mts \
 	tests/kit/install-npm.test.mts tests/kit/install-packages.test.mts tests/kit/lint-php.test.mts \
 	tests/kit/npm-install.test.mts tests/kit/php-ext.test.mts tests/kit/plan.test.mts \
-	tests/kit/process-group.test.mts tests/kit/python-lock-write.test.mts tests/kit/release-proof.test.mts \
+	tests/kit/process-group.test.mts tests/kit/release-proof.test.mts \
 	tests/kit/release-wheel.test.mts tests/kit/retained-branches.test.mts tests/kit/sandbox-repository.test.mts \
 	tests/kit/schema.test.mts tests/kit/test-build-first.test.mts tests/kit/twin-merge.test.mts
 KIT_TEST_FILES_6 := \
@@ -69,7 +69,7 @@ SOURCE_TEST_FILES_php := tests/source/composer-install-real.test.mts tests/sourc
 SOURCE_TEST_FILES_php-ext := tests/source/php-library-real.test.mts
 SOURCE_TEST_FILES_rust := tests/source/link-cargo-real.test.mts tests/source/lint-rust-real.test.mts
 SOURCE_TEST_FILES_go := tests/source/go-worktree-real.test.mts tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
-SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-lock-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-dependencies-real.test.mts tests/source/wheel-metadata-real.test.mts tests/source/wheel-sibling-real.test.mts tests/source/worktree-python-real.test.mts
+SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts tests/source/wheel-sibling-real.test.mts tests/source/worktree-python-real.test.mts
 SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
 SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts tests/source/parity-real.test.mts
 SOURCE_TEST_FILES_common-3 := tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/installed-hook-real.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts

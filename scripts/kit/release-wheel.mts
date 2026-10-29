@@ -82,7 +82,7 @@ export function sourceProblems({ file, text, name, requirement }: { file: string
 /** The metadata of a wheel that the release reads: its name, its version and its Requires-Dist lines. */
 export type WheelMetadata = { name: string; version: string; requiresDist: string[] };
 
-/** The problems of the metadata of a wheel of `name` at `version`: its name and its version. Dependencies: wheel-dependencies.mts. */
+/** The problems of the metadata of a wheel of `name` at `version`: its name and its version; its dependencies are uv's to resolve. */
 export function metadataProblems(metadata: WheelMetadata, name: string, version: string): string[] {
   const problems: string[] = [];
   if (metadata.name !== name) problems.push(`Name ${metadata.name}, config/release.json declares ${name}`);

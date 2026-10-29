@@ -3,17 +3,16 @@
 // (release-consumer-sandbox.mts); git runs for real against the sandbox, which stands in for the remote of the repository URL.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import * as release from '../../scripts/kit/release.mts';
-import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { Stop } from '../../scripts/kit/process.mts';
 import * as proof from '../../scripts/kit/release-proof.mts';
 import { git, readJson, writeJson } from './release-sandbox.mts';
 import type { ComposerManifest } from '../../scripts/kit/manifests.mts';
 import { consumerSandbox } from './release-consumer-sandbox.mts';
-import { GENERATOR_WHEEL, REPOSITORY, SIBLING, SIBLING_URL, SIBLING_WHEEL, generatorRequires, siblingLine, siblingMutate } from './sibling-sandbox.mts';
+import { GENERATOR_WHEEL, SIBLING_WHEEL, generatorRequires, siblingLine, siblingMutate } from './sibling-sandbox.mts';
 import { KIT_MAKE } from './kit-tools.mts';
 import { known } from './known.mts';
 type Box = ReturnType<typeof consumerSandbox>;
@@ -57,7 +56,7 @@ test('a released tag is proven in four steps and each step runs the commands of 
     "npm fixture-app 0.0.1: node -e require('fixture-app/package.json')",
     'composer install of 1 packages from tests/release-consumer/composer',
     "composer polyspec/kit-fixture 0.0.1: node -e require('./vendor/composer/installed.json')",
-    'wheel dependencies pip install of 1 requirements',
+    'wheel dependencies uv pip install -r pylock.wheel.toml',
     'wheel pip install of 1 packages',
     'wheel pip check passed',
     'wheel kit-fixture 0.0.1: python -c import kit_fixture',
@@ -75,11 +74,9 @@ test('a released tag is proven in four steps and each step runs the commands of 
   assert.deepEqual(venvCall.args.slice(0, 4), ['venv', '--quiet', '--python', path.join(box.root, 'var/tools/mise/shims/python3')]);
   const venv = venvCall.args[4];
   assert.ok(venv !== undefined);
-  const [dependencies, install] = box.calls('checkout-python3').filter((call: Call) => call.args.includes('--require-hashes'));
-  assert.ok(dependencies && install);
-  assert.deepEqual(dependencies.args.slice(0, 5), ['-m', 'pip', '--python', path.join(venv, 'bin', 'python'), 'install']);
-  assert.ok(dependencies.args.includes('--no-deps') && dependencies.args.includes('--only-binary'), 'the dependencies install with no dependency of their own and binary files only');
-  assert.equal(dependencies.requirements, 'ruff==0.16.10 --hash=sha256:' + '1'.repeat(64) + '\n', 'the lock of the wheel is installed first');
+  assert.ok(box.calls('checkout-uv').some((call: Call) => call.args.join(' ') === `pip install --python ${path.join(venv, 'bin', 'python')} -r ${path.join(box.root, 'packages/fixture-python/pylock.wheel.toml')}`), 'uv installs the lock of the wheel natively first');
+  const [install] = box.calls('checkout-python3').filter((call: Call) => call.args.includes('--require-hashes'));
+  assert.ok(install);
   assert.ok(install.args.includes('--no-index'), 'the wheel itself is installed from its file, with no index');
   assert.ok(box.calls('checkout-python3').some((call: Call) => call.args.at(-1) === 'check'), 'pip check runs in the venv');
   const python = box.calls('python').at(-1);
@@ -242,56 +239,9 @@ test('make release-proof takes the tag of the environment', (t) => {
   assert.match(result.stdout, /✔ v0\.0\.1 is proven from outside the repository/);
 });
 
-test('the proof downloads each polyspec archive of a wheel lock and names a digest that differs from the lock', (t) => {
-  const bytes = 'kit-lib release asset stand-in\n';
-  const file = 'kit_lib-0.0.1-py3-none-any.whl';
-  const repo = 'https://github.com/polyspec/kit-lib';
-  const url = `${repo}/releases/download/v0.0.1/${file}`;
-  const digest = sha256(bytes);
-  const lockWith = (sha: string) => (root: string) => {
-    const config = readJson<release.ReleaseConfig>(root, 'config/release.json');
-    writeJson(root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers?.wheel, polyspec: { 'kit-lib': repo } } } });
-    const lock = readFileSync(path.join(root, 'packages/fixture-python/pylock.wheel.toml'), 'utf8');
-    writeFileSync(path.join(root, 'packages/fixture-python/pylock.wheel.toml'), `${lock}\n[[packages]]\nname = "kit-lib"\nversion = "0.0.1"\narchive = { url = "${url}", hashes = { sha256 = "${sha}" } }\n`);
-  };
-  const box = locked(t, { mutate: lockWith(digest) });
-  const source = path.join(box.root, 'stand-in');
-  mkdirSync(source);
-  writeFileSync(path.join(source, file), bytes);
-  box.stub({ dependencies: [{ repo: 'polyspec/kit-lib', tag: 'v0.0.1', file, source }] });
-  const steps = prove(box);
-  assert.ok(steps.includes(`polyspec kit-lib 0.0.1: ${file} of ${repo} has the sha256 that packages/fixture-python/pylock.wheel.toml holds`), steps.join('\n'));
-  assert.ok(box.calls('gh').some((call: Call) => call.args.at(-1) === 'repos/polyspec/kit-lib/releases/assets/1000'), 'the polyspec asset is downloaded from its own repository');
-
-  const wrong = locked(t, { mutate: lockWith('2'.repeat(64)) });
-  const wrongSource = path.join(wrong.root, 'stand-in');
-  mkdirSync(wrongSource);
-  writeFileSync(path.join(wrongSource, file), bytes);
-  wrong.stub({ dependencies: [{ repo: 'polyspec/kit-lib', tag: 'v0.0.1', file, source: wrongSource }] });
-  stop(() => prove(wrong), new RegExp(`${file} of ${repo} v0\\.0\\.1 has the sha256 ${digest}, packages/fixture-python/pylock\\.wheel\\.toml holds ${'2'.repeat(64)} for kit-lib`));
-});
-
-test('the proof names an archive of a wheel lock that has no url, such as one named by its path (K101)', (t) => {
-  // release assets refuses the lock too, so the checkout of the proof gets it after the release is built.
-  const box = locked(t);
-  const config = readJson<release.ReleaseConfig>(box.root, 'config/release.json');
-  writeJson(box.root, 'config/release.json', { ...config, consumers: { ...config.consumers, wheel: { ...config.consumers?.wheel, polyspec: { 'kit-lib': 'https://github.com/polyspec/kit-lib' } } } });
-  const lockFile = path.join(box.root, 'packages/fixture-python/pylock.wheel.toml');
-  writeFileSync(lockFile, `${readFileSync(lockFile, 'utf8')}\n[[packages]]\nname = "kit-lib"\nversion = "0.0.1"\narchive = { path = "dist/kit_lib-0.0.1-py3-none-any.whl", hashes = { sha256 = "${'3'.repeat(64)}" } }\n`);
-  stop(() => prove(box), /^packages\/fixture-python\/pylock\.wheel\.toml: kit-lib 0\.0\.1 is an archive with no url; a consumer installs a polyspec archive from the URL of its release asset$/);
-  assert.equal(box.calls('gh').some((call: Call) => call.args.at(-1)?.startsWith('repos/polyspec/kit-lib/') ?? false), false, 'no asset is read for a lock that the proof refuses');
-});
-
-test('the proof checks that the release lists each sibling of a wheel, and installs the wheels together from their files', (t) => {
+test('the proof installs the wheels of a release together from their files', (t) => {
   const box = locked(t, { mutate: siblingMutate(generatorRequires(siblingLine())) });
-  // The proof reads the draft, and GitHub lists the assets of a draft under an untagged- URL until the draft is published,
-  // so the proof compares no URL; the URL of a sibling is the asset URL of the tag, checked before the release builds.
-  const state = box.state();
-  const { published } = state.release;
-  assert.ok(published);
-  box.stub({ release: { ...state.release, published: { ...published, [SIBLING_WHEEL]: { ...published[SIBLING_WHEEL], url: `${REPOSITORY}/releases/download/untagged-37c2cd0bbcec69adfcd2/${SIBLING_WHEEL}` } } } });
   const steps = prove(box);
-  assert.ok(steps.includes(`${GENERATOR_WHEEL}: its Requires-Dist of ${SIBLING} is the asset ${SIBLING_WHEEL} of the release, ${SIBLING_URL}`), steps.join('\n'));
   assert.ok(steps.includes(`${GENERATOR_WHEEL}: the sha256 of the downloaded file is the one the release lists`), steps.join('\n'));
   // The install of the wheels reads their requirements file (-r); the dry runs that read the metadata of each wheel do not.
   const install = box.calls('checkout-python3').find((call: Call) => call.args.includes('--no-index') && call.args.includes('-r'));

@@ -5,7 +5,8 @@
 //             registry package; `ci` installs the tarballs of the lock into node_modules
 //   composer  `update --no-install` writes a lock of the artifact zips with a shasum; `install` writes vendor/composer/installed.json
 //   gh        `api .../releases` lists state.release (its tag, draft and names); `api .../releases/assets/<id>` writes the archive
-//   uv        `venv --python PY DIR` (var/tools/mise/shims/uv) writes DIR/bin/python with its home in var/tools/mise
+//   uv        `venv --python PY DIR` (var/tools/mise/shims/uv) writes DIR/bin/python with its home in var/tools/mise;
+//             `pip install --python PY -r LOCK` installs a wheel lock
 //   python3   var/tools/mise/shims/python3 answers its version and runs `-m pip --python DIR/bin/python`; DIR/bin/python answers the
 //             smoke command
 //   cargo, go answer from the state
@@ -151,11 +152,8 @@ if (args[0] === 'update' && args.includes('--no-install')) {
 } else finish(1, 'composer stub: unexpected arguments ' + JSON.stringify(args));
 `;
 
-// The state's `dependencies` are the releases of other repositories: each { repo, tag, file, source } lists its one file with the
-// id 1000 + its index, and its download reads the file in source.
 const GH = `${PRELUDE}
 if (mode === 'fail') finish(1, 'gh stub: api failed');
-const listed = args.find(arg => arg.startsWith('repos/') && arg.endsWith('/releases'));
 // The release of the tag, a draft included, as the API returns it by its id: its assets carry the ids that the download names.
 const own = () => ({ id: 7, tag_name: state.release.tag, draft: state.release.draft, assets: state.release.names.map((name, index) => ({ id: index + 1, name, url: state.release.published?.[name]?.url ?? 'https://example.com/polyspec/kit-fixture/releases/download/' + state.release.tag + '/' + name, digest: state.release.published?.[name]?.digest ?? null })) });
 if (args[0] === 'api' && args.some(arg => /^repos\\/[^/]+\\/[^/]+\\/releases\\/\\d+$/.test(arg))) {
@@ -164,21 +162,13 @@ if (args[0] === 'api' && args.some(arg => /^repos\\/[^/]+\\/[^/]+\\/releases\\/\
   console.log(JSON.stringify(own()));
   finish();
 } else if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
-  const other = (state.dependencies ?? []).find(item => listed === 'repos/' + item.repo + '/releases');
-  // The release of the tag, a draft included: its assets carry the ids that the download names.
-  if (other) console.log(JSON.stringify({ id: 8, tag_name: other.tag, draft: false, assets: [{ id: 1000 + state.dependencies.indexOf(other), name: other.file, url: 'https://example.com/' + other.repo + '/releases/download/' + other.tag + '/' + other.file, digest: null }] }));
   // A draft that was just created may be missing from the list for a while (listed: false).
-  else if (state.release.listed !== false) console.log(JSON.stringify(own()));
+  if (state.release.listed !== false) console.log(JSON.stringify(own()));
   finish();
 } else if (args[0] === 'api' && args.some(arg => arg.includes('/releases/assets/'))) {
   const id = Number(args.at(-1).split('/').pop());
-  if (id >= 1000) {
-    const other = state.dependencies[id - 1000];
-    fs.writeSync(1, fs.readFileSync(path.join(other.source, other.file)));
-  } else {
-    const name = state.release.names[id - 1];
-    fs.writeSync(1, fs.readFileSync(path.join(state.release.source, name)));
-  }
+  const name = state.release.names[id - 1];
+  fs.writeSync(1, fs.readFileSync(path.join(state.release.source, name)));
   finish();
 } else finish(1, 'gh stub: unexpected arguments ' + JSON.stringify(args));
 `;
@@ -193,7 +183,7 @@ finish(mode === 'smoke-fail' ? 1 : 0, mode === 'smoke-fail' ? 'python stub: Modu
 `;
 
 // The uv of the checkout, var/tools/mise/shims/uv: it makes the venv with its home in var/tools/mise, as uv venv makes it from
-// the Python that uv installed.
+// the Python that uv installed, and answers `pip install --python PY -r LOCK`, the install of a wheel lock.
 const UV = `${PRELUDE}
 const CHECKOUT_BIN = path.join(process.cwd(), 'var/tools/mise/installs/python/${CHECKOUT_VERSION}/bin');
 if (args[0] === 'venv' && args[2] === '--python') {
@@ -202,7 +192,8 @@ if (args[0] === 'venv' && args[2] === '--python') {
   fs.writeFileSync(path.join(directory, 'bin', 'python'), state.venvPython, { mode: 0o755 });
   fs.writeFileSync(path.join(directory, 'pyvenv.cfg'), 'home = ' + CHECKOUT_BIN + '\\n');
   finish(mode === 'venv-fail' ? 1 : 0, mode === 'venv-fail' ? 'uv stub: venv failed' : '');
-} else finish(1, 'uv stub: unexpected arguments ' + JSON.stringify(args));
+} else if (args[0] === 'pip' && args[1] === 'install' && args[2] === '--python' && args[4] === '-r') finish();
+else finish(1, 'uv stub: unexpected arguments ' + JSON.stringify(args));
 `;
 
 // The checkout Python, var/tools/mise/shims/python3: it answers its version and runs pip with --python into a venv. The venv's pip

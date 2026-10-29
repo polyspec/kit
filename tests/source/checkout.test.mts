@@ -1,6 +1,6 @@
 // The parts of var/ that a sandbox takes from the checkout (K91). Other source tests write under var/ while a sandbox copies
-// it: python-lock-real.test.mts keeps its run in var/python-lock-real-<pid>, and uv writes its cache under var/tools/mise/cache. A
-// copy of all of var/ met a file that such a run removed (ENOENT under var/python-lock-real-<pid>/tmp/pip-build-env-*).
+// it: a real test keeps its run in var/<test>-<pid>, and uv writes its cache under var/tools/mise/cache. A copy of all of var/
+// met a file that such a run removed (ENOENT under var/<test>-<pid>/tmp/pip-build-env-*).
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -21,7 +21,7 @@ test('a sandbox takes the installed tools of var/tools and neither the caches of
   assert.equal(installedTool('var/tools'), true);
   assert.equal(installedTool('var/tools/mise/cache'), false);
   assert.equal(installedTool('var/tools/mise/cache/uv/archive-v0/x/a.py'), false);
-  assert.equal(installedTool('var/python-lock-real-83112/tmp/pip-build-env-x/overlay'), false);
+  assert.equal(installedTool('var/wheel-real-83112/tmp/pip-build-env-x/overlay'), false);
   assert.equal(installedTool('var/kit-test.log'), false);
 });
 

@@ -34,8 +34,8 @@
 // NOTES_LIMIT characters, the limit of a release body. `undraft`, and the release proof, read the draft by that id: the
 // list of releases shows a new draft only after a while, and its tag does not address it.
 // A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with the build
-// backend of pythonBackend of config/toolchain.json (release-wheel.mts); each of its Requires-Dist lines is a registry pin or a polyspec release asset that
-// its lock of consumers.wheel.lock holds (wheel-dependencies.mts).
+// backend of pythonBackend of config/toolchain.json (release-wheel.mts); its dependencies are uv's to install from its lock of
+// consumers.wheel.lock (release-consumer.mts).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -49,7 +49,6 @@ import { writeJson } from './bootstrap/files.mts';
 import { readNpmManifest, type ComposerManifest, type NpmManifest } from './manifests.mts';
 import { isTable, readToml } from './toml.mts';
 import { backendFinding, buildBackend, buildWheel, metadataProblems, sourceProblems, wheelMetadata, wheelName } from './release-wheel.mts';
-import { lockProblems, siblingsOf, wheelDependencyProblems } from './wheel-dependencies.mts';
 import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
 import { PACKAGE, copiesOf, runningKit, writtenByKit } from './kit-check.mts';
@@ -109,11 +108,10 @@ export interface ConsumerProject {
   polyspec?: string[];
 }
 
-/** The consumer of the wheels: the smoke command and the lock file of each wheel package, the polyspec repositories. */
+/** The consumer of the wheels: the smoke command and the PEP 751 lock file of each wheel package. */
 export interface WheelConsumer {
   smoke: Record<string, string[]>;
   lock: Record<string, string>;
-  polyspec: Record<string, string>;
 }
 
 /** An entry of proof.gitTag: how the release proof installs a manifest of the mode git-tag. */
@@ -588,12 +586,10 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
   const target = path.join(root, ASSETS);
   const names = assetNames(config, version);
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${path.posix.join(folder, MANIFEST_OF[kind])}`], at(ctx)));
-  // The lock of each wheel package is read from the source commit, as its manifest is.
-  const locks = config.packages.map(({ kind, name }) => (kind === 'wheel' ? { file: wheelLock(config, name), text: run('git', ['show', `${commit}:${wheelLock(config, name)}`], at(ctx)) } : null));
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
     const file = path.posix.join(folder, MANIFEST_OF[kind]);
-    // sources and locks hold the manifest and the lock of each package at its index.
-    if (kind === 'wheel') return [...sourceProblems({ file, text: present(sources[index], 'sources[index]'), name, requirement: buildBackend(root).requirement }), ...lockProblems(present(locks[index], 'locks[index]').text, present(locks[index], 'locks[index]').file)];
+    // sources holds the manifest of each package at its index.
+    if (kind === 'wheel') return sourceProblems({ file, text: present(sources[index], 'sources[index]'), name, requirement: buildBackend(root).requirement });
     // sources holds the manifest of each package at its index.
     const manifest = parseManifest(kind, present(sources[index], 'sources[index]'), file);
     return [
@@ -655,11 +651,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
       if (kind === 'wheel') {
         // names holds the archive name of each package at its index.
         const metadata = wheelMetadata(root, path.join(next, present(names[index], 'names[index]')), ctx.env);
-        return [
-          ...metadataProblems(metadata, name, version),
-          // locks holds the lock of each wheel package at its index.
-          ...wheelDependencyProblems({ requiresDist: metadata.requiresDist, name, version, polyspec: wheelConsumer(config).polyspec, siblings: siblingsOf(config, name), repositoryUrl: config.repositoryUrl, lockFile: present(locks[index], 'locks[index]').file, lockText: present(locks[index], 'locks[index]').text }),
-        ].map(problem => `${names[index]}: ${problem}`);
+        return metadataProblems(metadata, name, version).map(problem => `${names[index]}: ${problem}`);
       }
       const file = MANIFEST_OF[kind];
       // names holds the archive name of each package at its index.
@@ -706,21 +698,6 @@ export function candidateAssets(ctx: Context, version: string): string[] {
   const retry = `make release-candidate-assets VERSION=${version}`;
   requireArchiveTools(ctx, retry);
   return assetsFromCommit(ctx, `HEAD candidate ${version}`, commit, version);
-}
-
-/** The lock file of the wheel package `name` in consumers.wheel.lock. */
-function wheelLock(config: ReleaseConfig, name: string): string {
-  const file = wheelConsumer(config).lock[name];
-  // consumerConfigProblems requires a lock of each wheel package.
-  if (file === undefined) throw new Error(`${CONFIG}: consumers.wheel.lock has no lock of the wheel package ${name}`);
-  return file;
-}
-
-/** consumers.wheel of the configuration, which a wheel package needs. */
-function wheelConsumer(config: ReleaseConfig): WheelConsumer {
-  // consumerConfigProblems requires consumers.wheel for a wheel package, so loadConfig refuses a configuration without it.
-  if (!config.consumers?.wheel) throw new Error(`${CONFIG}: consumers.wheel is missing; the wheel packages of packages need it`);
-  return config.consumers.wheel;
 }
 
 /** The record of the draft release that publish created for `tag`, relative to the checkout: `{ "id": <id> }`. */

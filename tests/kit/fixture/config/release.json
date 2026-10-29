@@ -80,8 +80,7 @@
       },
       "lock": {
         "kit-fixture": "packages/fixture-python/pylock.wheel.toml"
-      },
-      "polyspec": {}
+      }
     }
   },
   "proof": {
