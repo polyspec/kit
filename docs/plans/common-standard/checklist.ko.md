@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: e660b3006a7f3f06bdde41b5b31ed90f1928a4287a85e66f8675eda82f089d13 -->
+<!-- source-sha256: 1989573dbbbd0b7040b75dd0d9665fc1d74a50fdbd1c8c9d8718b81237e325a3 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -750,3 +750,4 @@
 | K792 | 워크트리에서 툴체인 검사 통과 | tests/kit/check-toolchain.test.mts | `node --test tests/kit/check-toolchain.test.mts` | [ ] |
 | K793 | Removed-With는 삭제된 테스트가 가리키는 파일을 명시 | scripts/kit/check-commits.mts tests/kit/plan.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K793 tests/kit/plan.test.mts` | [o] |
 | K795 | K780부터 K793까지 게시할 Kit 0.0.67 준비 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.67` | [o] |
+| K797 | 삭제된 테스트 gate 삭제 | scripts/kit/check-commits.mts scripts/kit/plan.mts tests/kit/plan.test.mts tests/kit/commits.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/plan.test.mts tests/kit/commits.test.mts` | [ ] |
