@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { initRepository } from './sandbox-repository.mts';
-import { linkFindings, lockSourceFindings } from '../../scripts/kit/link-state-check.mts';
+import { linkFindings } from '../../scripts/kit/link-state-check.mts';
 import { put, tree } from './tree.mts';
 
 /** Commits every file of `root` (K453 tests: the build inputs of a provider are its tracked files). */
@@ -20,9 +20,8 @@ function commitAll(root: string, message: string) {
 }
 
 
-// K507: npm and Cargo locks record release sources; Composer development locks may record native path repositories.
+// K831: a tracked lock is the record of its package manager, so no lock entry is a finding, whatever its source.
 const CARGO_PATH_LOCK = 'version = 4\n\n[[package]]\nname = "app"\nversion = "0.0.0"\ndependencies = [\n "polyspec-fixture-package",\n]\n\n[[package]]\nname = "polyspec-fixture-package"\nversion = "0.0.9"\ndependencies = [\n "serde",\n]\n';
-const CARGO_RELEASE_LOCK = CARGO_PATH_LOCK.replace('version = "0.0.9"\n', 'version = "0.0.9"\nsource = "git+https://github.com/polyspec/fixture-package?tag=v0.0.9#1f822e564e575d3958df8025cf911279c1f2a83b"\n');
 
 function lockFindings(t: TestContext, files: Record<string, string>, file: string) {
   const root = tree(t, { 'Cargo.toml': '[package]\nname = "app"\nversion = "0.0.0"\n', '.gitignore': 'var/\n', ...files });
@@ -30,21 +29,10 @@ function lockFindings(t: TestContext, files: Record<string, string>, file: strin
   return linkFindings(root, process.env).filter(finding => finding.startsWith(`${file}:`));
 }
 
-test('a tracked Cargo.lock that records a polyspec package with no source is a finding naming the file, the package and its release source (K507)', (t) => {
-  const found = lockFindings(t, { 'Cargo.lock': CARGO_PATH_LOCK }, 'Cargo.lock');
-  assert.equal(found.length, 1, found.join('\n'));
-  assert.match(found[0] ?? '', /polyspec-fixture-package.*release source.*git\+https:\/\/github\.com\/polyspec\/fixture-package\?tag=v0\.0\.9/);
-});
-
-test('a tracked Cargo.lock with the release source of its polyspec package passes (K507)', (t) => {
-  assert.deepEqual(lockFindings(t, { 'Cargo.lock': CARGO_RELEASE_LOCK }, 'Cargo.lock'), []);
-});
-
-test('a tracked package-lock.json that links a polyspec package is a finding, and one that names its release passes (K507)', (t) => {
-  const linked = JSON.stringify({ name: 'app', lockfileVersion: 3, packages: { '': {}, 'node_modules/@polyspec/x': { version: '0.0.1', link: true, resolved: 'packages/x' } } });
-  const released = JSON.stringify({ name: 'app', lockfileVersion: 3, packages: { '': {}, 'node_modules/@polyspec/x': { version: '0.0.1', resolved: 'https://github.com/polyspec/x/releases/download/v0.0.1/x.tgz' } } });
-  assert.equal(lockFindings(t, { 'package-lock.json': linked }, 'package-lock.json').length, 1);
-  assert.deepEqual(lockFindings(t, { 'package-lock.json': released }, 'package-lock.json'), []);
+test('a tracked lock that records a polyspec package by a path or a link is no finding (K831)', (t) => {
+  const linked = JSON.stringify({ name: 'app', lockfileVersion: 3, packages: { '': {}, 'node_modules/@polyspec/x': { version: '0.0.1', link: true, resolved: 'packages/x' }, 'node_modules/@polyspec/y': { version: '0.0.1', resolved: 'file:../y' } } });
+  assert.deepEqual(lockFindings(t, { 'Cargo.lock': CARGO_PATH_LOCK }, 'Cargo.lock'), []);
+  assert.deepEqual(lockFindings(t, { 'package-lock.json': linked }, 'package-lock.json'), []);
 });
 
 test('a tracked composer.lock accepts external polyspec path packages in packages and packages-dev, and release archives (K696)', (t) => {
@@ -127,20 +115,6 @@ test('a provided package folder that is a copy is a finding, and its link to the
   symlinkSync(path.join(provider, 'packages/php'), path.join(consumer, 'examples/board/vendor/polyspec/z'));
   assert.deepEqual(linkFindings(consumer).filter(line => line.includes('polyspec/z')), [], 'the link to the provider passes');
 });
-
-// K448 (K507): a tracked lock keeps the release record of each polyspec package that a sibling checkout provides; a file: entry that
-// names the release tarball is that record, and the repository's own packages (its workspace members, its in-repo path
-// repositories) are never findings, whatever their version.
-test('a release tarball entry and the repository own packages are no lock-source finding (K448)', () => {
-  const npmLock = (entries: Record<string, unknown>) => JSON.stringify({ name: 'c', lockfileVersion: 3, packages: { '': {}, ...entries } });
-  assert.deepEqual(lockSourceFindings('tests/release-consumer/npm/package-lock.json', npmLock({ 'node_modules/@polyspec/kit': { version: '0.0.54', resolved: 'file:polyspec-kit-npm-0.0.54.tgz' } })), [], 'the release tarball is the release record');
-  assert.equal(lockSourceFindings('package-lock.json', npmLock({ 'node_modules/@polyspec/kit': { version: '0.0.54', resolved: 'file:../kit' } })).length, 1, 'a file: folder of a provided package is a finding');
-  const own = new Set(['@polyspec/fixture-build', 'polyspec/fixture-server']);
-  assert.deepEqual(lockSourceFindings('package-lock.json', npmLock({ 'node_modules/@polyspec/fixture-build': { link: true, resolved: 'packages/build' } }), own), [], 'an own workspace member is no finding');
-  const composerLock = JSON.stringify({ packages: [{ name: 'polyspec/fixture-server', version: '0.0.18', dist: { type: 'path', url: 'packages/server/php' } }] });
-  assert.deepEqual(lockSourceFindings('composer.lock', composerLock, own), [], 'an own in-repo path repository is no finding');
-});
-
 
 // K773: a tracked manifest that links a polyspec package by a path outside the repository links it a second way besides the folder link.
 test('a tracked manifest path outside the repository is a finding in Composer, npm and uv, and an in-repo path, an archive and a package outside the scope pass (K773)', (t) => {

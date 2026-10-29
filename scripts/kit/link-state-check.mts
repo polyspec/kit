@@ -137,59 +137,7 @@ function workspaceHookFindings(root: string, env: NodeJS.ProcessEnv): string[] {
 }
 
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
-// K507: npm and Cargo locks record release sources; their own repository members may use paths.
-// Composer development locks may record native path repositories. folderLinkFindings checks the installed source links.
-const LOCK_FILES = ['Cargo.lock', 'package-lock.json', 'composer.lock'];
 const CARGO_POLYSPEC = /^polyspec[-_.]/i;
-
-/** The release tarball of an npm package, as a release publishes it: polyspec-<name>-npm-<version>.tgz. */
-const RELEASE_TARBALL = /^file:(?:.*\/)?polyspec-[\w.-]+-npm-[^/]+\.tgz$/;
-
-/** The findings of one tracked lock `file` with its text; `members` names the packages of the repository itself, which are never findings. */
-export function lockSourceFindings(file: string, text: string, members: ReadonlySet<string> = new Set()): string[] {
-  const base = path.posix.basename(file);
-  if (base === 'Cargo.lock') {
-    const packages = readToml(text, file).package;
-    return (Array.isArray(packages) ? packages : []).flatMap((item: unknown) => {
-      if (!isTable(item) || typeof item.name !== 'string' || typeof item.version !== 'string' || !CARGO_POLYSPEC.test(item.name) || members.has(item.name) || typeof item.source === 'string') return [];
-      const short = item.name.replace(CARGO_POLYSPEC, '');
-      return [`${file}: ${item.name} ${item.version} records no source, which is a path package; the tracked lock names its release source, git+https://github.com/polyspec/${short}?tag=v${item.version}#<commit> (the local link resolves the sibling at fetch time)`];
-    });
-  }
-  const parsed: unknown = JSON.parse(text);
-  if (!isJsonObject(parsed)) return [];
-  if (base === 'package-lock.json') {
-    const packages = isJsonObject(parsed.packages) ? parsed.packages : {};
-    return Object.entries(packages).flatMap(([key, entry]) => {
-      const name = key.replace(/^.*node_modules\//, '');
-      if (key === '' || !isJsonObject(entry) || !name.startsWith('@polyspec/') || members.has(name)) return [];
-      const resolved = typeof entry.resolved === 'string' ? entry.resolved : undefined;
-      if (entry.link !== true && resolved !== undefined && (!resolved.startsWith('file:') || RELEASE_TARBALL.test(resolved))) return [];
-      const short = name.replace('@polyspec/', '');
-      return [`${file}: ${name} ${String(entry.version)} is a link or a path, not its release; the tracked lock names its release tarball, https://github.com/polyspec/${short}/releases/download/v${String(entry.version)}/<tarball>`];
-    });
-  }
-  return [];
-}
-
-/** The names of the packages that the repository of `root` provides itself: each tracked package.json, composer.json and Cargo.toml. */
-function ownNames(root: string): Set<string> {
-  return new Set(trackedManifests(root, ['package.json', 'composer.json', 'Cargo.toml']).flatMap((item) => {
-    const text = readFileSync(path.join(root, item), 'utf8');
-    if (item.endsWith('Cargo.toml')) {
-      const pkg = readToml(text, item).package;
-      return isTable(pkg) && typeof pkg.name === 'string' ? [pkg.name] : [];
-    }
-    const manifest: unknown = JSON.parse(text);
-    return isJsonObject(manifest) && typeof manifest.name === 'string' ? [manifest.name] : [];
-  }));
-}
-
-/** The findings of every tracked lock of LOCK_FILES (K507). */
-function trackedLockFindings(root: string): string[] {
-  const members = ownNames(root);
-  return trackedManifests(root, LOCK_FILES).flatMap(file => lockSourceFindings(file, readFileSync(path.join(root, file), 'utf8'), members));
-}
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
 const NPM_PATH = /^(?:file|link):/;
@@ -270,12 +218,12 @@ function folderLinkFindings(root: string, folders: readonly string[]): string[] 
 }
 
 /**
- * The findings of the links of `root`, sorted: K507's release record of the tracked locks, K773's paths of the tracked manifests, the folder of each provided package (a link to
+ * The findings of the links of `root`, sorted: K773's paths of the tracked manifests, the folder of each provided package (a link to
  * its provider, never a copy), the workspace links, go.work and the hook of the checkout.
  */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const folders = manifestFolders(root);
-  return [...trackedLockFindings(root), ...trackedManifestPathFindings(root), ...folderLinkFindings(root, folders), ...workspaceHookFindings(root, env), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
+  return [...trackedManifestPathFindings(root), ...folderLinkFindings(root, folders), ...workspaceHookFindings(root, env), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
 }
 
 if (isMain(import.meta.url)) {

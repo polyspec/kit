@@ -233,7 +233,7 @@ kit-ci-verify-gates: ## Fail unless every gate partition of the selected full or
 
 
 .PHONY: link-state-check
-link-state-check: ## Fail while an installed package folder that a sibling checkout provides is a copy or links elsewhere, a tracked lock records a provided polyspec package as a path or a link (K507), or a workspace link, go.work, the hook, the trust or a merged worktree is wrong; no version is judged (K448, S4); offline
+link-state-check: ## Fail while an installed package folder that a sibling checkout provides is a copy or links elsewhere, or a workspace link, go.work, the hook, the trust or a merged worktree is wrong; no version is judged (K448, S4); offline
 	$(NODE) $(KIT)/link-state-check.$(KIT_EXT)
 
 .PHONY: suppression-check
