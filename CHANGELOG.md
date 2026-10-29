@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- documents-stamp writes only the marker line after the doc-id line; a source-sha256 marker shown as an example in the body stays unchanged (K818).
+
 ## 0.0.70
 
 - Release Kit 0.0.70: the shackles are deleted and the harness stays (K817).

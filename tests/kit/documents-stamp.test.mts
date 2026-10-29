@@ -36,3 +36,10 @@ test('a Korean file without a doc-id line fails and is not changed; a marker in 
   const text = '<!-- doc-id: x -->\n```\n<!-- source-sha256: old -->\n```\n';
   assert.equal(stamped(text, 'new'), '<!-- doc-id: x -->\n<!-- source-sha256: new -->\n```\n<!-- source-sha256: old -->\n```\n');
 });
+
+test('the stamp writes only the marker line after the doc-id line; a marker example in the body stays byte-identical (K818)', () => {
+  const body = '# Title\n\nWrite `<!-- source-sha256: <sha> -->` after the doc-id line:\n\n<!-- source-sha256: example -->\n';
+  const current = `<!-- doc-id: x -->\n<!-- source-sha256: new -->\n${body}`;
+  assert.equal(stamped(`<!-- doc-id: x -->\n${body}`, 'new'), current);
+  assert.equal(stamped(`<!-- doc-id: x -->\n<!-- source-sha256: old -->\n${body}`, 'new'), current);
+});

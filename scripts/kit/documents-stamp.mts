@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Writes the revision marker of the Korean documents (`make documents-stamp`): in every pair that config/documents.json
-// selects, the Korean file gets `<!-- source-sha256: <sha256 of the English file> -->`, which replaces its marker or, when
-// it has none, follows its `<!-- doc-id: ... -->` line. Run it after the Korean text matches the English text; the checker
+// selects, the Korean file gets `<!-- source-sha256: <sha256 of the English file> -->`, on the line after its `<!-- doc-id: ... -->`
+// line, replacing the marker there. Run it after the Korean text matches the English text; the checker
 // (`make docs-check`) compares the marker, so a stamp on an unreviewed translation hides a missing translation.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -11,9 +11,8 @@ import { writeAtomic } from './bootstrap/files.mts';
 import { proseLines } from './markdown.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readConfig } from './schema-validate.mts';
-import { present } from './present.mts';
 
-const REVISION = /<!-- source-sha256: [^>]*? -->/;
+const MARKER_LINE = /^<!-- source-sha256: [^>]*? -->$/;
 const DOC_ID = /<!-- doc-id: [^>]*? -->/;
 
 /** The fields of config/documents.json that select the pairs. */
@@ -28,20 +27,14 @@ interface ProseLine {
   text: string;
 }
 
-/** The text of a Korean document with the marker `<!-- source-sha256: ${sha} -->`, or null when it has no doc-id line. */
+/** The text of a Korean document whose line after the doc-id line is the marker `<!-- source-sha256: ${sha} -->`, or null
+ * when it has no doc-id line; no other line changes, so a marker shown as an example in the body stays. */
 export function stamped(text: string, sha: string): string | null {
-  const marker = `<!-- source-sha256: ${sha} -->`;
-  const lines = text.split('\n');
-  const prose = proseLines(text);
-  const existing = prose.find((entry: ProseLine) => REVISION.test(entry.text));
-  if (existing) {
-    // existing is a line of text, so lines holds it.
-    lines[existing.line - 1] = present(lines[existing.line - 1], 'lines[existing.line - 1]').replace(REVISION, marker);
-    return lines.join('\n');
-  }
-  const id = prose.find((entry: ProseLine) => DOC_ID.test(entry.text));
+  const id = proseLines(text).find((entry: ProseLine) => DOC_ID.test(entry.text));
   if (!id) return null;
-  lines.splice(id.line, 0, marker);
+  const lines = text.split('\n');
+  // id.line is the 1-based number of the doc-id line, so lines[id.line] is the line after it.
+  lines.splice(id.line, MARKER_LINE.test(lines[id.line] ?? '') ? 1 : 0, `<!-- source-sha256: ${sha} -->`);
   return lines.join('\n');
 }
 

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5e0305bddf69ea3a71c3d4934a374b86dec3b95ac2d00257545c7e7cfa50588b -->
+<!-- source-sha256: 75a953aac3096d18edf5188bb2aba2279d0fd582b05d39a2771abb96dd40c8b2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- documents-stamp는 doc-id 줄 다음의 marker 줄만 씁니다. 본문에 예시로 보인 source-sha256 marker는 그대로 둡니다 (K818).
 
 ## 0.0.70
 
