@@ -188,12 +188,13 @@ test('the arguments of the runner are read before the arguments of the tool', ()
   assert.deepEqual(parseArguments(['phpunit', '--php-extension', 'base.so', '--php-extension', 'ext.so', 't'], '/repo').phpExtensions, ['/repo/base.so', '/repo/ext.so']);
   assert.equal(parseArguments(['go', './...'], '/repo').args[0], './...');
   assert.deepEqual(parseArguments(['python', '--cwd', 'pkg', 'tests'], '/repo').args, ['tests']);
+  assert.deepEqual(parseArguments(['playwright', '--cwd', 'pkg', '--', 'tests/e2e/login.spec.ts'], '/repo').args, ['tests/e2e/login.spec.ts']);
   const recorded = parseArguments(['go', '--results', '.results/go.json', '--inputs', 'pkg', '--inputs', 'schema/a.dbs', './...'], '/repo');
   assert.deepEqual([recorded.results, recorded.inputs, recorded.args], ['/repo/.results/go.json', ['pkg', 'schema/a.dbs'], ['./...']]);
   assert.deepEqual(parseArguments(['go', '--results', 'r.json', '--cwd', 'pkg'], '/repo').inputs, ['pkg']);
   assert.throws(() => parseArguments(['go', '--inputs', 'pkg'], '/repo'), /--inputs needs --results/);
   for (const bad of [[], ['ruby'], ['go', '--results'], ['node', '--timeout', '0'], ['node', '--timeout', 'x'], ['node', '--php-extension', 'x'], ['node', '--cwd']]) {
-    assert.throws(() => parseArguments(bad, '/repo'), /Usage: node scripts\/kit\/run-tests\.mts <node\|vitest\|go\|cargo\|phpunit\|python>/, JSON.stringify(bad));
+    assert.throws(() => parseArguments(bad, '/repo'), /Usage: node scripts\/kit\/run-tests\.mts <node\|vitest\|playwright\|go\|cargo\|phpunit\|python>/, JSON.stringify(bad));
   }
 });
 
@@ -231,6 +232,13 @@ test('each tool starts with its progress and timeout arguments and no limit on a
   assert.ok(node.args.some(arg => arg.startsWith('--import=file://') && arg.endsWith('scripts/kit/test-exit-deadline.mts?ms=7000')));
   const vitest = toolCommand({ tool: 'vitest', timeoutSeconds: 7, cwd: '/r', args: [] }, '/r');
   assert.deepEqual(vitest.args.slice(0, 4), ['/r/node_modules/vitest/vitest.mjs', 'run', '--testTimeout=7000', '--hookTimeout=7000']);
+  const playwrightRoot = tree(t, { 'node_modules/@playwright/test/cli.js': '' });
+  const playwright = toolCommand({ tool: 'playwright', timeoutSeconds: 7, cwd: playwrightRoot, args: ['--config', 'tests/e2e/playwright.config.ts', 'tests/e2e/login.spec.ts'] }, playwrightRoot);
+  assert.equal(playwright.command, process.execPath);
+  assert.deepEqual(playwright.args, [path.join(playwrightRoot, 'node_modules/@playwright/test/cli.js'), 'test', '--timeout=7000', '--config', 'tests/e2e/playwright.config.ts', 'tests/e2e/login.spec.ts', `--reporter=${path.join(path.dirname(tool(import.meta.resolve('../../scripts/kit/run-tests.mts'))), 'playwright-reporter.mts')}`]);
+  const packageRoot = tree(t, { 'node_modules/playwright/cli.js': '', 'app/node_modules/@playwright/test/cli.js': '' });
+  assert.equal(toolCommand({ tool: 'playwright', timeoutSeconds: 7, cwd: path.join(packageRoot, 'app'), args: [] }, packageRoot).args[0], path.join(packageRoot, 'app/node_modules/@playwright/test/cli.js'));
+  assert.throws(() => toolCommand({ tool: 'playwright', timeoutSeconds: 7, cwd: '/r', args: [] }, '/r'), /project-local Playwright CLI does not exist; run make install/);
   assert.deepEqual(toolCommand({ tool: 'go', timeoutSeconds: 7, cwd: '/r', args: ['./...'] }, shims), { command: path.join(shims, 'var/tools/mise/shims/go'), args: ['test', '-json', '-count=1', '-timeout=0', './...'], build: ['test', '-exec=true', './...'] });
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').args, ['test', '-p', 'x', '--', '--test-threads=1', '--nocapture']);
   assert.deepEqual(toolCommand({ tool: 'cargo', timeoutSeconds: 7, cwd: '/r', args: ['-p', 'x', '--', '--nocapture'] }, '/r').build, ['test', '--no-run', '-p', 'x']);

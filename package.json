@@ -69,6 +69,7 @@
   },
   "packageManager": "npm@12.2.0+sha512.66c2632a94e796649738b2d7894d710c2cc2e1696893823066687f6b0d8a52e5f2b54eeaeaa32ffdc513ecca1e49ff794a5c2ec3f9515d879f1b3182b291cf35",
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@types/node": "26.6.5",
     "@vscode/test-electron": "3.1.0",
     "typescript": "7.0.2"
@@ -207,10 +208,14 @@
     "unist-util-visit": "5.2.0"
   },
   "peerDependencies": {
+    "@playwright/test": "1.64.1",
     "@vscode/test-electron": "^3.1.0"
   },
   "peerDependenciesMeta": {
     "@vscode/test-electron": {
+      "optional": true
+    },
+    "@playwright/test": {
       "optional": true
     }
   }

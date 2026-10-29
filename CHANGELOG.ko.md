@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 99d456889b20a0b077bfbd3ddcabd58f72abea7107fe6ae3a365fecc8d68677f -->
+<!-- source-sha256: ab8d87525fba61d2bcc149d451cf3d69d16566176e462ec483255ac73dd2474b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- run-tests가 project-local CLI와 kit reporter로 Playwright Test의 각 case를 실행한다. (K747)
 
 - 성공한 CI run의 정확한 commit을 두 번째 version·test 주기 없이 게시하는 make release-candidate와 make release를 추가한다. (K749)
 

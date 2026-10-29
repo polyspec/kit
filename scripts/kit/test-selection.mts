@@ -41,6 +41,7 @@ const VALUED: Record<string, readonly string[]> = {
   cargo: ['-p', '--package', '--features', '-F', '--manifest-path', '--target', '--target-dir', '--profile', '-j', '--jobs', '--color', '--message-format', '--config', '-Z', '--exclude'],
   phpunit: ['-c', '--configuration', '--bootstrap', '--testsuite', '--group', '--exclude-group', '--log-junit', '--cache-directory', '--coverage-clover', '--colors', '-d'],
   python: ['-s', '--start-directory', '-p', '--pattern', '-t', '--top-level-directory'],
+  playwright: ['-c', '--config', '--project', '--grep', '-g', '--grep-invert', '--test-list', '--workers', '--timeout', '--global-timeout', '--output', '--reporter', '--shard', '--update-snapshots', '--max-failures'],
 };
 
 // The options that select tests by name or by target, each taking a value.
@@ -51,6 +52,7 @@ const FILTERS: Record<string, readonly string[]> = {
   cargo: ['--test', '--bench', '--example', '--bin'],
   phpunit: ['--filter'],
   python: ['-k'],
+  playwright: ['-g', '--grep', '--test-list'],
 };
 
 /** The positional arguments of `args`: neither an option nor the value of a valued option or a filter. */
@@ -93,6 +95,8 @@ export function selects(tool: string, args: readonly string[], isFileAt: (file: 
       return words.length > 0;
     case 'python':
       return words.some(word => word !== 'discover') || (words.includes('discover') && exactPythonDiscoveryPattern(command));
+    case 'playwright':
+      return words.some(word => !['test', 'list'].includes(word));
     default:
       return false;
   }

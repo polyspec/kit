@@ -130,6 +130,13 @@ export function createProgress({ write, heartbeatMs = 5000, timeoutMs, onTimeout
       }
       for (const detail of String(message ?? '').split('\n').filter(Boolean)) write(`           ${detail}\n`);
     },
+    timedOut(id: string, durationMs?: number, message?: string): void {
+      counts.timedOut++;
+      const elapsedMs = finish(id, durationMs, 'fail');
+      cases[cases.length - 1] = { id, status: 'timeout', elapsedMs };
+      line(`⏱ ${id} (${compactSeconds(elapsedMs)})`);
+      for (const detail of String(message ?? '').split('\n').filter(Boolean)) write(`           ${detail}\n`);
+    },
     skip(id: string): unknown {
       skipped.push(id);
       if (groups.has(id)) { groups.delete(id); return line(`○ ${id} skipped`); }

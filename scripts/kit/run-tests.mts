@@ -16,9 +16,9 @@
 // symbolic links are accepted as the tool that made it left them: `make python-venv DIR=<directory>` (python-venv.mts) makes such
 // an environment with `uv venv`.
 //
-// Tools: node (node --test), vitest, go (go test), cargo (cargo test), phpunit and python (python3 -m unittest, through
-// runners/python.py, which gives each test its own timeout, K371). node and
-// vitest stop a test at its timeout themselves; for go, cargo, phpunit and python this runner stops the tool when a test
+// Tools: node (node --test), vitest, playwright (Playwright Test), go (go test), cargo (cargo test), phpunit and python
+// (python3 -m unittest, through runners/python.py, which gives each test its own timeout, K371). node, vitest and playwright
+// stop a test at its timeout themselves; for go, cargo, phpunit and python this runner stops the tool when a test
 // outlives it. Every interval without a test event is bounded by the same timeout (K371-1): before the first test, between
 // tests and after the last one, the gap watch of test-gap.mts stops the tool and names the last event. No tool has a time
 // limit on a whole run, a package or a file.
@@ -55,7 +55,7 @@ import { libraryTestRun, type LibraryRun } from './php-library-autoload.mts';
 import { ciRefusal } from './ci-only.mts';
 import { isFile, runnerWords, selects } from './test-selection.mts';
 
-const TOOLS: readonly string[] = ['node', 'vitest', 'go', 'cargo', 'phpunit', 'python'];
+const TOOLS: readonly string[] = ['node', 'vitest', 'playwright', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>]... [--venv <directory>] [--module <name>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
 const DEFAULT_TIMEOUT_SECONDS = 30;
 // The runner of the python tests (K371): unittest with the timeout of each test and the elapsed time of each, standard library only.
@@ -94,6 +94,7 @@ type Counts = { ran: number; skipped: number; [key: string]: unknown };
 const INSTALL: Record<string, (options: { cwd: string; root: string }) => string> = {
   node: () => 'run make install-tools TOOLS=npm, which installs the Node.js of mise.toml',
   vitest: () => 'run make install',
+  playwright: () => 'run make install, which installs the project-local Playwright package',
   go: () => 'declare go in mise.toml and run make install-tools, which installs it into var/tools/mise',
   cargo: () => 'install rustup and run make install, which installs the toolchain of rust-toolchain.toml',
   phpunit: ({ cwd, root }) => `run composer install in ${path.relative(root, cwd) || '.'}`,
@@ -153,6 +154,27 @@ function checkoutFile(file: string): string {
   return file;
 }
 
+/** The Playwright CLI installed in this checkout or its test project; never resolve one from the machine. */
+function playwrightCli(root: string, cwd: string): string | undefined {
+  const relative = path.relative(root, cwd);
+  const inside = relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
+  const directories = [cwd];
+  if (inside) {
+    let directory = cwd;
+    while (directory !== root) {
+      directory = path.dirname(directory);
+      directories.push(directory);
+    }
+  }
+  for (const directory of directories) {
+    for (const packagePath of ['node_modules/@playwright/test/cli.js', 'node_modules/playwright/cli.js']) {
+      const cli = path.join(directory, packagePath);
+      if (existsSync(cli)) return cli;
+    }
+  }
+  return undefined;
+}
+
 /** The command of a tool with its progress and timeout arguments. */
 // K452-1: each --php-extension is loaded by the PHP of the run before PHPUnit starts. One that does not load (a build for another
 // PHP or PHP API) returns a problem that names its .so path, what PHP reports, and the running PHP, so a run never tests the
@@ -182,6 +204,11 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
       // The runner starts the entry of the vitest package with its own node, so vitest runs on the declared Node.js and not on
       // the node that the shebang of node_modules/.bin/vitest finds on PATH.
       return { command: process.execPath, args: [path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', `--testTimeout=${milliseconds}`, `--hookTimeout=${milliseconds}`, `--reporter=${siblingTool(import.meta.url, 'vitest-reporter')}`, ...args] };
+    case 'playwright': {
+      const cli = playwrightCli(root, cwd);
+      if (cli === undefined) throw new Error(`the project-local Playwright CLI does not exist; ${present(INSTALL.playwright, 'INSTALL.playwright')({ cwd, root })}`);
+      return { command: process.execPath, args: [cli, 'test', `--timeout=${milliseconds}`, ...args, `--reporter=${siblingTool(import.meta.url, 'playwright-reporter')}`] };
+    }
     case 'go':
       // go test has no limit per test; this runner applies it. -timeout=0 removes the limit of go test on a whole test
       // binary, a package.

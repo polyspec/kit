@@ -22,3 +22,14 @@ test('Python unittest discovery accepts an exact filename pattern as a scoped se
   assert.equal(selects('python', ['discover', '--pattern=test_files.py'], noFile), true);
   assert.equal(selects('python', ['polyspec.test_files'], noFile), true);
 });
+
+test('Playwright accepts an explicit test path or grep filter but not an unfiltered or list-only run (K747)', () => {
+  assert.equal(selects('playwright', ['test', '--config', 'tests/e2e/playwright.config.ts', 'tests/e2e/login.spec.ts'], noFile), true);
+  assert.equal(selects('playwright', ['test', '-g', 'logs in', '--config=tests/e2e/playwright.config.ts'], noFile), true);
+  assert.equal(selects('playwright', ['test', '--grep=logs in'], noFile), true);
+  assert.equal(selects('playwright', ['test', '--test-list', 'tests/e2e/selected-tests.txt'], noFile), true);
+  assert.equal(selects('playwright', ['test', '--config', 'tests/e2e/playwright.config.ts'], noFile), false);
+  assert.equal(selects('playwright', ['test', '--list', 'tests/e2e/login.spec.ts'], noFile), true);
+  assert.equal(selects('playwright', ['test', '--list'], noFile), false);
+  assert.equal(selects('playwright', ['test', '--grep-invert', 'slow'], noFile), false);
+});
