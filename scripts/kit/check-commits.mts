@@ -13,8 +13,9 @@
 //                    that the commit adds is not a change, so a commit may add items and sub-items
 //   commit-changelog a commit that moves an item to the done state [o] also changes the changelog of the rules,
 //                    CHANGELOG.md and its Korean twin
-//   commit-deleted-test a commit that deletes a test file names a tracked replacement, or archives the same file contents at a
-//                    reachable commit with `Archived-To: <sha>` while its checklist item is explicitly held (K339, K647)
+//   commit-deleted-test a commit that deletes a test file names a tracked replacement, a versioned test identity of a locked
+//                    provider (`Provider-Test-Replacement`), or archives the same file contents at a reachable commit with
+//                    `Archived-To: <sha>` while its checklist item is explicitly held (K339, K647, K746)
 //   commit-row       the id of the subject is an item of a checklist of docs/plans in the tree of the commit (the index for the hook);
 //                    the first commit of a repository passes
 //   row-id           on a branch, no row of the index holds an ID that main holds with another task, unless the ID is the row
@@ -38,7 +39,7 @@
 // read the checklists of the plan folders at each side of the change (checklist.mts). A merge commit keeps the message that Git writes and is not checked. Each finding is one line
 // `<commit>: <rule>: <message>`; the command exits with status 1 when there is one. The pre-push hook (push-gate.mts) reads the
 // message and identity findings of the commits that a push sends, through `logMessages` and `messageLines` (K510).
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -117,7 +118,8 @@ export function identityFindings(ident: string, role: 'author' | 'committer', de
 /** The red that `message` states (K624): `red` for a Red line (Red-Gate and Red-Test of earlier commits included), `no-red` for a
  * No-Red line with a reason, or undefined. */
 export function statedRed(message: string): 'red' | 'no-red' | undefined {
-  if (/^Red(?:-Gate|-Test)?: \S.* exit [1-9]\d* at [0-9a-f]{7,40}$/m.test(message)) return 'red';
+  const continued = message.replace(/\\\r?\n[ \t]*/g, ' ');
+  if (/^Red(?:-Gate|-Test)?: \S.* exit [1-9]\d* at [0-9a-f]{7,40}$/m.test(continued)) return 'red';
   if (/^No-Red: \S/m.test(message)) return 'no-red';
   return undefined;
 }
@@ -164,7 +166,8 @@ export function messageFindings(message: string, config: CommitRules) {
   if (footer !== -1) found.push({ rule: 'commit-ai-footer', message: `line ${footer + 1} of the message is the footer of an AI tool; git holds no co-author or session trailer of one (K264). Fix: remove the line` });
   // A Red line holds a whole command of the Verification, which no wrap may split (K389, K624).
   lines.slice(2).forEach((line, index) => {
-    if (line.length > config.bodyMax && /\s/.test(line.trim()) && !/^Red(?:-Gate|-Test)?: /.test(line)) {
+    const isRedLine = ['Red: ', 'Red-Gate: ', 'Red-Test: '].some(prefix => line.startsWith(prefix));
+    if (line.length > config.bodyMax && /\s/.test(line.trim()) && !isRedLine && !line.startsWith('Provider-Test-Replacement: ')) {
       found.push({ rule: 'commit-width', message: `line ${index + 3} of the message has ${line.length} characters; expected at most ${config.bodyMax}; wrap the body` });
     }
   });
@@ -178,6 +181,66 @@ const plansAt = (root: string, rev: string) => (rev === '' ? git(root, 'ls-files
 // vitest, a *_test.go file, a test_*.py or *_test.py file and a *Test.php file. The Rust unit tests are read by changesATest (K370).
 const TEST_FILE = /(?:^|\/)tests?\/|\.(?:test|spec)\.[cm]?[jt]sx?$|_test\.go$|(?:^|\/)test_[^/]*\.py$|_test\.py$|Test\.php$/;
 const TEST_FILES = 'tests/, *.test.*, *_test.go, test_*.py, *Test.php, tests.rs, #[cfg(test)] or #[test] code of *.rs';
+
+const isObjectRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+const objectRecord = (value: unknown): Record<string, unknown> | undefined => isObjectRecord(value) ? value : undefined;
+
+/** A provider replacement binds one removed local test to an installed provider's versioned test identity. */
+function providerTestReplacementFindings(root: string, message: string, deleted: readonly string[]): string[] {
+  const refs = [...message.matchAll(/^Provider-Test-Replacement: (\S+) -> npm:((?:@[^/\s]+\/)?[^@/\s]+)@(\d+\.\d+\.\d+)#([a-z0-9][a-z0-9._-]*)$/gm)]
+    .map(([, oldPath, packageName, version, id]) => ({ oldPath, packageName, version, id }));
+  if (refs.length === 0) return [];
+  const findings: string[] = [];
+  const byOldPath = new Map<string, typeof refs>();
+  for (const ref of refs) {
+    if (!byOldPath.has(ref.oldPath ?? '')) byOldPath.set(ref.oldPath ?? '', []);
+    byOldPath.get(ref.oldPath ?? '')?.push(ref);
+  }
+  for (const oldPath of deleted) {
+    const named = byOldPath.get(oldPath) ?? [];
+    if (named.length !== 1) {
+      findings.push(`${oldPath} needs exactly one Provider-Test-Replacement trailer naming its installed provider test`);
+      continue;
+    }
+    const ref = named[0];
+    if (!ref || !ref.packageName || !ref.version || !ref.id) continue;
+    const packageName = ref.packageName;
+    const version = ref.version;
+    const testId = ref.id;
+    const manifestPath = path.join(root, 'package.json');
+    const lockPath = path.join(root, 'package-lock.json');
+    const installedPath = path.join(root, 'node_modules', ...packageName.split('/'), 'package.json');
+    try {
+      const manifest = objectRecord(JSON.parse(readFileSync(manifestPath, 'utf8')));
+      const lock = objectRecord(JSON.parse(readFileSync(lockPath, 'utf8')));
+      const installed = objectRecord(JSON.parse(readFileSync(installedPath, 'utf8')));
+      if (!manifest || !lock || !installed) throw new Error('provider package metadata must be JSON objects');
+      const direct = [manifest.dependencies, manifest.devDependencies].some(value => objectRecord(value)?.[packageName] !== undefined);
+      const lockPackages = objectRecord(lock.packages);
+      const lockEntry = objectRecord(lockPackages?.[`node_modules/${packageName}`]);
+      if (!direct || lock.lockfileVersion !== 3 || lockEntry?.version !== version || typeof lockEntry.resolved !== 'string' || !lockEntry.resolved.startsWith('https://') || typeof lockEntry.integrity !== 'string' || lockEntry.integrity === '') {
+        findings.push(`${packageName}@${version} is not an exact, integrity-locked direct npm provider`);
+        continue;
+      }
+      if (lstatSync(path.dirname(installedPath)).isSymbolicLink() || installed.name !== packageName || installed.version !== version) {
+        findings.push(`${packageName}@${version} is not the installed provider locked by package-lock.json`);
+        continue;
+      }
+      const records = objectRecord(installed.kit)?.providerTests;
+      const matches = Array.isArray(records) ? records.map(objectRecord).filter((value): value is Record<string, unknown> => value !== undefined && value.id === testId) : [];
+      const record = matches.length === 1 ? matches[0] : undefined;
+      const validTest = typeof record?.path === 'string' && record.path.startsWith('tests/') && record.path.split('/').every(part => part !== '.' && part !== '..')
+        && typeof record.name === 'string' && record.name.trim() !== '';
+      if (!validTest) {
+        findings.push(`${packageName}@${version} declares no provider test identity ${testId} for ${oldPath}`);
+      }
+    } catch (error) {
+      findings.push(`${packageName}@${version} is not installed from the exact package-lock.json provider metadata: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  for (const oldPath of byOldPath.keys()) if (!deleted.includes(oldPath)) findings.push(`Provider-Test-Replacement names ${oldPath}, which this commit does not delete`);
+  return findings;
+}
 
 /** Whether `file` is a test file of a runner that kit fixes. */
 export const isTestFile = (file: string) => TEST_FILE.test(file);
@@ -299,7 +362,12 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
   // A deletion either names its replacement (K339), or archives the identical files at a reachable commit while its item is held.
   const archived = message !== undefined && parent !== undefined && deleted.length > 0
     && archivedTestDeletionAllowed(root, parent, before, after, trackers, message, deleted);
-  if (message !== undefined && deleted.length > 0 && !archived && ![...message.matchAll(/^Replaced-By: (\S+)$/gm)].some(([, file = '']) => isTestFile(file) && tracked(file))) {
+  const providerReplacements = message === undefined ? [] : providerTestReplacementFindings(root, message, deleted);
+  for (const problem of providerReplacements) found.push({ rule: 'commit-deleted-test', message: problem });
+  const providerTrailerCount = message === undefined ? 0 : [...message.matchAll(/^Provider-Test-Replacement:/gm)].length;
+  const providerReferenceCount = message === undefined ? 0 : [...message.matchAll(/^Provider-Test-Replacement: (\S+) -> npm:(?:@[^/\s]+\/)?[^@/\s]+@\d+\.\d+\.\d+#[a-z0-9][a-z0-9._-]*$/gm)].length;
+  const allProviderReplaced = deleted.length > 0 && providerTrailerCount === providerReferenceCount && providerReferenceCount === deleted.length;
+  if (message !== undefined && deleted.length > 0 && !archived && !allProviderReplaced && ![...message.matchAll(/^Replaced-By: (\S+)$/gm)].some(([, file = '']) => isTestFile(file) && tracked(file))) {
     found.push({ rule: 'commit-deleted-test', message: `the commit deletes the test file ${deleted.join(', ')} and its body names no replacement or verified archive; add Replaced-By: <tracked test path>, or Archived-To: <commit sha> for an identical archive of a held item (${TEST_FILES})` });
   }
   return found;

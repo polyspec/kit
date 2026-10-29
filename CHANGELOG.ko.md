@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9599b4caac9856b960d4a345bc046db17e9e57129d678412dd58c25b1c1ade5a -->
+<!-- source-sha256: 9d1464a205b9d15038e814235198dd007dde21cb346c2839d6f8790f8640694a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 삭제된 테스트가 Provider-Test-Replacement로 lock되고 설치된 provider 테스트를 가리키면 받아들인다; 검증되지 않은 참조는 여전히 거부한다. (K746)
 
 - rust-toolchain.toml의 channel, profile, components, targets를 rustup에 넘겨서, 이미 설치된 toolchain에도 빠진 component가 추가되게 한다. (K750)
 

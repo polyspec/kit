@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Accept a deleted test that names a locked, installed provider test with Provider-Test-Replacement; unverified references are still refused. (K746)
+
 - Pass the channel, profile, components and targets of rust-toolchain.toml to rustup, so an installed toolchain gains a missing component. (K750)
 
 - Run test-go over every go.work module in one go test, so a build-only module is no longer an empty run. (K751)

@@ -3,7 +3,7 @@
 // and the configuration.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -164,6 +164,37 @@ test('the commits of a range are checked and each finding names the commit', (t)
   assert.deepEqual(rangeFindings(root, 'HEAD', CONFIG), [], 'HEAD alone is the last commit');
   assert.throws(() => rangeFindings(root, 'nonsense', CONFIG), /the range "nonsense" is not <base>\.\.<head>/);
   assert.throws(() => rangeFindings(root, 'nothere..HEAD', CONFIG), /the range nothere\.\.HEAD does not resolve in this checkout: .*; fetch its commits/);
+});
+
+test('a committed provider migration is checked against its lock and installed test catalog (K746)', (t) => {
+  const { root, git } = repository(t, ['feat(core): Start (#K1)'], ['K1']);
+  const name = '@polyspec/test-provider';
+  const version = '1.2.3';
+  put(root, {
+    '.gitignore': 'node_modules/\n',
+    'tests/a.test.mts': "import test from 'node:test'; test('old runner', () => {});\n",
+    'package.json': JSON.stringify({ name: 'consumer', devDependencies: { [name]: version } }),
+    'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: {
+      '': { devDependencies: { [name]: version } },
+      [`node_modules/${name}`]: { version, resolved: `https://registry.npmjs.org/test-provider/-/test-provider-${version}.tgz`, integrity: 'sha512-YQ==' },
+    } }),
+  });
+  const installed = path.join(root, 'node_modules', name);
+  mkdirSync(installed, { recursive: true });
+  writeFileSync(path.join(installed, 'package.json'), JSON.stringify({
+    name,
+    version,
+    kit: { providerTests: [{ id: 'runner', path: 'tests/provider.test.mts', name: 'the installed provider runner test' }] },
+  }));
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '-m', 'feat(core): Install provider metadata (#K1)').status, 0);
+
+  rmSync(path.join(root, 'tests/a.test.mts'));
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '-m', 'feat(core): Move runner ownership (#K1)\n\nProvider-Test-Replacement: tests/a.test.mts -> npm:@polyspec/test-provider@1.2.3#runner').status, 0);
+  assert.deepEqual(rangeFindings(root, 'HEAD~1..HEAD', CONFIG), [], 'the provider replacement is verified from the exact installed package version');
+  writeFileSync(path.join(installed, 'package.json'), JSON.stringify({ name, version, kit: { providerTests: [] } }));
+  assert.match(rangeFindings(root, 'HEAD~1..HEAD', CONFIG).join('\n'), /commit-deleted-test: .*declares no provider test identity/);
 });
 
 // K402: make land checks RANGE=main..<branch>, and the branch of a row whose id holds a dot (P10), such as fix/name-T2.60, holds one.
@@ -335,6 +366,9 @@ test('commit-red: a commit that moves a row to done states its red or why it has
   assert.match(red('feat(core): Finish S1 (#S1)\n\nNo-Red: \n').join('\n'), /: commit-red: /, 'a No-Red line names its reason');
   assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed: node --test a.test.mts exit 1 at 0123abc\n'), []);
   assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed-Test: node --test a.test.mts exit 1 at 0123abc\n'), [], 'the Red-Test line of an earlier commit counts');
+  assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed-Test: node scripts/kit/run-tests.mts node -- \\\n  --test-name-pattern=K746 tests/kit/commits.test.mts exit 1 at 0123abc\n'), [], 'a continued Red-Test keeps the exact command and evidence');
+  assert.match(red('feat(core): Finish S1 (#S1)\n\nRed-Test: node --test a.test.mts \\\n  at 0123abc\n').join('\n'), /: commit-red: /, 'a continuation without an exit status is not Red evidence');
+  assert.match(red('feat(core): Finish S1 (#S1)\n\nRed-Test: node --test a.test.mts exit 1 at unknown\n').join('\n'), /: commit-red: /, 'a continuation without a commit SHA is not Red evidence');
   assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nNo-Red: the row deletes a script\n'), []);
   const fix = tracked(t, [
     ['docs(plan): Add the tasks (#S1)', { [PLAN]: plan([['S1', '[ ]']]), 'src/a.ts': 'export const a = 1;\n' }],

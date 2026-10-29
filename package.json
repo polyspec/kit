@@ -74,6 +74,28 @@
     "typescript": "7.0.2"
   },
   "kit": {
+    "providerTests": [
+      {
+        "id": "go-workspace-runner",
+        "path": "tests/kit/runtime-targets.test.mts",
+        "name": "the Go workspace is the source of truth for every standard module test and build (K739)"
+      },
+      {
+        "id": "infrastructure-test-runner",
+        "path": "tests/kit/runtime-targets.test.mts",
+        "name": "the infrastructure target discovers every tracked Node test and rejects an empty inventory (K739)"
+      },
+      {
+        "id": "case-sensitive-resource-cleanup",
+        "path": "tests/kit/runtime-targets.test.mts",
+        "name": "a failed disk-image detach retains its resources and preserves the action failure (K739)"
+      },
+      {
+        "id": "case-sensitive-resource-provisioning",
+        "path": "tests/kit/runtime-targets.test.mts",
+        "name": "case-sensitive directory uses the platform provisioner and restores the named environment"
+      }
+    ],
     "copies": {
       "PRINCIPLES.md": "PRINCIPLES.md",
       "PRINCIPLES.ko.md": "PRINCIPLES.ko.md",

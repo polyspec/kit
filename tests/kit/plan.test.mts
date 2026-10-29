@@ -440,6 +440,47 @@ test('blocked and dropped refuse an excuse that cites no kit row, and a deleted 
   assert.match(rangeFindings(repo, 'HEAD~2..HEAD~1', COMMIT_RULES).join('\n'), /: commit-deleted-test: /, 'a range refuses a deletion without Replaced-By');
 });
 
+test('K746: a deleted test may move to the exact test identity of a directly locked installed provider', (t) => {
+  const root = committed(t, 'T1');
+  const packageName = '@polyspec/test-provider';
+  const version = '1.2.3';
+  const packageFile = `node_modules/${packageName}/package.json`;
+  const provider = (id: string, name = 'provider test') => ({
+    name: packageName,
+    version,
+    kit: { providerTests: [{ id, path: 'tests/provider.test.mts', name }] },
+  });
+  const lock = {
+    name: 'fixture',
+    lockfileVersion: 3,
+    packages: {
+      '': { devDependencies: { [packageName]: version } },
+      [`node_modules/${packageName}`]: { version, resolved: `https://registry.npmjs.org/test-provider/-/test-provider-${version}.tgz`, integrity: 'sha512-YQ==' },
+    },
+  };
+  put(root, {
+    '.gitignore': 'node_modules/\n',
+    'tests/a.test.mts': "import test from 'node:test'; test('old runner', () => {});\n",
+    'package.json': JSON.stringify({ name: 'fixture', devDependencies: { [packageName]: version } }),
+    'package-lock.json': JSON.stringify(lock),
+  });
+  mkdirSync(path.dirname(path.join(root, packageFile)), { recursive: true });
+  writeFileSync(path.join(root, packageFile), JSON.stringify(provider('runner-go')));
+  stage(root, '-A');
+  const committedFiles = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'Add provider lock'], { cwd: root, encoding: 'utf8' });
+  assert.equal(committedFiles.status, 0, committedFiles.stderr);
+
+  const message = 'refactor(parser): Remove the local runner test (#T1)\n\nThe installed provider owns the runner and its test.\nProvider-Test-Replacement: tests/a.test.mts -> npm:@polyspec/test-provider@1.2.3#runner-go\n';
+  rmSync(path.join(root, 'tests/a.test.mts'));
+  stage(root, '-A');
+  assert.deepEqual(indexItemFindings(root, COMMIT_RULES, message), [], 'the lock and provider catalog bind the exact versioned test identity');
+  assert.deepEqual(indexItemFindings(root, COMMIT_RULES, message.replace('runner-go', 'missing-test')).map(found => found.rule), ['commit-deleted-test'], 'an undeclared test identity is rejected');
+  assert.deepEqual(indexItemFindings(root, COMMIT_RULES, message.replace('@1.2.3#', '@1.2.4#')).map(found => found.rule), ['commit-deleted-test'], 'an unlocked provider version is rejected');
+  assert.deepEqual(indexItemFindings(root, COMMIT_RULES, message.replace('@polyspec/test-provider', '@polyspec/unrelated-provider')).map(found => found.rule), ['commit-deleted-test'], 'an unrelated, undeclared provider is rejected');
+  writeFileSync(path.join(root, packageFile), JSON.stringify(provider('runner-go', '')));
+  assert.deepEqual(indexItemFindings(root, COMMIT_RULES, message).map(found => found.rule), ['commit-deleted-test'], 'an empty provider test identity is rejected');
+});
+
 test('K647: Archived-To requires a held row and an ancestor with identical deleted test files', (t) => {
   const deletion = (state: '[!]' | '[-]' | '[~]', archiveContent = 'archived test\n', deletedContent = archiveContent, archiveBeforeFile = false) => {
     const root = committed(t, 'T1', 'T2');
