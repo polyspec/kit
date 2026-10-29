@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c4e0dce8d90d59e797280493013f941c1ddc19c6a549929e76fdc1480f7100c2 -->
+<!-- source-sha256: 9491c2c62c89254cca9fb81cf7aac350c07e294854227b3120597f83b4ed9f19 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- worktree-setup은 오프라인 설치 뒤 npm처럼 설치된 Composer provider 폴더를 각각 checkout으로 링크한다. (K766)
 
 - make link과 uv-install은 npm·Composer처럼 설치된 Python polyspec 패키지 폴더를 각각 checkout으로 가는 디렉터리 심링크 하나로 만든다. editable build를 하지 않으므로 링크에 build backend가 필요 없다. (K765)
 

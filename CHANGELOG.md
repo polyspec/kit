@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- worktree-setup links each installed Composer provider folder to its checkout after its offline install, as for npm. (K766)
+
 - make link and uv-install make each installed Python polyspec package folder one directory symlink to its checkout, as for npm and Composer; no editable build runs, so linking needs no build backend. (K765)
 
 - make link links each Python provider with uv pip install --no-deps, so a provider that declares a sibling by its release URL links offline; uv pip check judges the dependencies. (K763)

@@ -383,6 +383,20 @@ test('K598: the installed folder of a source provider becomes one plain link aft
   assert.equal(readFileSync(path.join(main, 'package.json'), 'utf8'), '{"name":"fixture","dependencies":{"@polyspec/x":"1.0.0"}}');
 });
 
+test('K766: the installed Composer folder of a source provider becomes one plain link after offline install', t => {
+  const { main, npm, composer } = nativeManagers(t);
+  const provider = path.join(path.dirname(main), 'prov');
+  initRepository(provider, '--initial-branch=main');
+  put(provider, { 'composer.json': '{"name":"fixture/lib"}' });
+  git(provider, 'remote', 'add', 'origin', 'https://github.com/polyspec/prov.git');
+  git(provider, 'add', 'composer.json');
+  git(provider, 'commit', '--quiet', '-m', 'provider');
+  const folder = setupWorktree(main, { name: 'composer-provider', id: 'K766', type: 'fix' }, { npm, composer, linkStateOnly: true, print: () => {} });
+  const installed = path.join(folder, 'vendor/fixture/lib');
+  assert.equal(readlinkSync(installed), path.relative(path.dirname(installed), provider));
+  assert.equal(readFileSync(path.join(main, 'vendor/fixture/lib/value'), 'utf8'), 'main Composer installation');
+});
+
 // K615: link writes a git-ignored go.work beside each go.mod of the main checkout, whose relative uses reach the sibling checkouts;
 // a worktree is a sibling of the main checkout, so the same file at the same place reaches the same checkouts. Without it the
 // worktree's Go build reads a release of the sibling module from the module cache. A tracked go.work is the worktree's own.

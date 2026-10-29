@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 14b1a5feddfbb2767b7d9493d766c524a3746288f79f307763166150bd6693ce -->
+<!-- source-sha256: bc207243559e9e9a0409373eae97f9e8aac62628a126713232b7e1917a5db744 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -721,4 +721,4 @@
 | K762 | kit-bootstrap.mk가 make 시작 시 포함된 kit의 실제 경로로 KIT를 정하고 KIT와 KIT_EXT를 모든 재귀 make에 넘겨서, npm ci가 node_modules/@polyspec/kit을 바꿔도 링크된 consumer는 make 내내 sibling kit을 실행한다. | scripts/kit/kit-bootstrap.mk, tests/kit/kit-mk.test.mts | `node --test tests/kit/kit-mk.test.mts` | [o] |
 | K763 | Python link가 선택한 polyspec editable을 uv --no-deps로 설치해서, sibling을 release URL로 선언한 provider도 download가 필요 없다. 의존성 판단은 계속 uv pip check가 한다. | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node --test tests/kit/uv-install.test.mts` | [o] |
 | K765 | 설치된 Python polyspec 패키지 폴더는 각각 checkout으로 가는 디렉터리 심링크 하나이며 editable build는 없다(사용자 규칙) | scripts/kit/uv-install.mts, tests/source/uv-link-real.test.mts | `node --test --test-name-pattern=K765 tests/source/uv-link-real.test.mts` | [o] |
-| K766 | worktree-setup은 npm처럼 설치된 Composer provider 폴더를 각각 checkout으로 링크한다 | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test --test-name-pattern=K766 tests/kit/worktree-setup.test.mts` | [~] |
+| K766 | worktree-setup은 npm처럼 설치된 Composer provider 폴더를 각각 checkout으로 링크한다 | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test --test-name-pattern=K766 tests/kit/worktree-setup.test.mts` | [o] |

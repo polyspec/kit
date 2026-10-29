@@ -183,6 +183,9 @@ export function prepareWorktreeComposer({ main, folder, project = '.', composer 
   // A legacy projection is not a native installation even when its copied records happen to match the lock.
   if (projected(vendor, 2)) rmSync(vendor, { recursive: true, force: true });
   install(composer, ['install', '--no-interaction', '--no-progress', '--prefer-dist'], { cwd: target, env: environment }, print);
+  // K766: each installed Composer folder of a sibling provider is one plain link to its checkout, as for npm (K761).
+  const checkouts = siblingCheckouts(folder).checkouts.filter(checkout => realpathSync(checkout) !== realpathSync(main));
+  for (const text of linkFolders(providedFolders(target, checkoutProviders(checkouts, 'composer'), { vendorDir: vendor }))) print(text);
 }
 
 // Immutable archive inputs are copied with native filesystem cloning when supported; installed package records are never copied.
