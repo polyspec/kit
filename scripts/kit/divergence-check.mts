@@ -7,14 +7,16 @@
 //      process.platform, runtime.GOOS, runtime.GOARCH, cfg!, #[cfg(...)], os.name); a statement that only asserts its environment,
 //      with no branch, declares it and is none (K543);
 //   2. the code of an implementation branches on extension_loaded, or on function_exists for a function declared by an
-//      implementation (the PHP library reading whether its extension is loaded, or defining a function only when the extension
-//      does not), also in the sources that a build generates before the gate and Git ignores (K329). Undeclared functions are
-//      ecosystem capabilities, whether their names are global or namespaced;
+//      implementation (the PHP library reading whether its extension is loaded, or choosing what to do by it), also in the
+//      sources that a build generates before the gate and Git ignores (K329). Undeclared functions are ecosystem capabilities,
+//      whether their names are global or namespaced. The polyfill guard of a declaration, which only declares the function or
+//      constant where the extension did not (K873), is none; AutoloadFiles.php defines that shape for both checks (K883);
 //   3. a run of an implementation is narrowed by a flag (--exclude-group);
 //   4. contracts/features.json declares an implementation partial or unsupported;
 //   5. a configuration exception carries a reason that names no kind that kit defines (REASON_KINDS), in config/duplication.json,
 //      and in the tools and internal tests of config/parity.json.
 // The skipped and narrowed tests are the markers of test-markers-check; the vendored tools and tests of kit are left out.
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parse as parseJavaScript, type MemberExpression } from 'acorn';
@@ -23,6 +25,9 @@ import { isTestFile } from './check-commits.mts';
 import { implementationFolders } from './parity-declaration.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
+import { SYMBOLS } from './install-symbols.mts';
+import { parserAutoloader } from './lint-php.mts';
+import { toolCommand } from './mise-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { errorCode } from './process.mts';
 
@@ -157,10 +162,31 @@ const lineOf = (text: string, needle: string) => Math.max(1, text.split('\n').fi
 /** A reason is of a kind that kit defines when it begins with the kind and a colon. */
 export const reasonKind = (reason: string): boolean => REASON_KINDS.some(kind => reason.startsWith(`${kind}:`));
 
+/**
+ * The number of polyfill guards on each `file:line` of the PHP `sources` (K883), read by AutoloadFiles.php of the PHP symbol
+ * extractor, the one definition of the shape that lint-php also applies (K873), with the php and the nikic/php-parser of the
+ * checkout `root`.
+ */
+export function phpPolyfillGuards(sources: Record<string, string>, root: string = repositoryRoot()): Map<string, number> {
+  const guards = new Map<string, number>();
+  if (Object.keys(sources).length === 0) return guards;
+  const printed = execFileSync(toolCommand(root, 'php'), [path.join(SYMBOLS, 'php', 'autoload-files.php'), '--guards', parserAutoloader(root)], { cwd: root, input: JSON.stringify(sources), encoding: 'utf8' });
+  for (const line of printed.split('\n').filter(Boolean)) guards.set(line, (guards.get(line) ?? 0) + 1);
+  return guards;
+}
+
 /** The findings of the checked `files` of a repository; `read` gives the text of a file. */
 export function divergenceFindings(files: readonly string[], read: (file: string) => string | undefined): string[] {
   const roots = implementationRoots(files, read);
   const phpFunctions = phpFunctionDeclarations(files, roots, read);
+  const probed: Record<string, string> = {};
+  for (const file of files) {
+    const text = file.endsWith('.php') && !isTestFile(file) && !KIT_OWN.test(file) && roots.some(root => within(root, file)) ? read(file) : undefined;
+    if (text !== undefined && lines(text).some(({ code }) => functionProbeFindings(code, phpFunctions) && !/\bextension_loaded\s*\(/.test(code))) probed[file] = text;
+  }
+  const guarded = phpPolyfillGuards(probed);
+  // A guard leaves out its own probe only: a line whose function_exists probes outnumber its guards stays a finding.
+  const unguarded = (file: string, number: number, code: string) => [...code.matchAll(/\bfunction_exists\s*\(/g)].length > (guarded.get(`${file}:${number}`) ?? 0);
   const found: string[] = [];
   for (const file of files) {
     if (KIT_OWN.test(file)) continue;
@@ -177,7 +203,7 @@ export function divergenceFindings(files: readonly string[], read: (file: string
       for (const { number, code } of sourceLines) {
         const assertion = assertionLines.get(number) ?? code;
         if (isTestFile(file) && ENVIRONMENT.test(code) && !assertsEnvironment(assertion) && !machineMetadataLines.has(number) && !javascriptMetadataLines.has(number)) found.push(`${file}:${number}: a test branches on the implementation, the runtime or the platform (${ENVIRONMENT.exec(code)?.[0]}), so it asserts something else in another implementation`);
-        else if (!isTestFile(file) && (/\bextension_loaded\s*\(/.test(code) || functionProbeFindings(code, phpFunctions))) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\s*\(/.exec(code)?.[1]?.replace(/\s+/g, '')}), so the library and its extension coexist through a guard of the run time`);
+        else if (!isTestFile(file) && (/\bextension_loaded\s*\(/.test(code) || (functionProbeFindings(code, phpFunctions) && unguarded(file, number, code)))) found.push(`${file}:${number}: the code of an implementation branches on the presence of another implementation (${/\b(extension_loaded|function_exists)\s*\(/.exec(code)?.[1]?.replace(/\s+/g, '')}), so the library and its extension coexist through a guard of the run time`);
       }
     }
     if (/(?:\.mk|\/Makefile|^Makefile|\.mts|\.mjs|\.sh|\.ya?ml)$/.test(file) || file.startsWith('.githooks/')) {

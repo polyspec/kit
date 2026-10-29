@@ -44,6 +44,46 @@ final class AutoloadFiles
         return $findings;
     }
 
+    /**
+     * Prints `file:line` for each polyfill guard of `$sources`, a map of a file name to its text (K883): the one
+     * definition of the shape (isPolyfillGuard), which divergence-check asks for the guard lines that it leaves out.
+     * A text that does not parse holds none.
+     */
+    public static function guards(array $sources): void
+    {
+        $parser = (new ParserFactory())->createForNewestSupportedVersion();
+        foreach ($sources as $file => $text) {
+            try {
+                $tree = $parser->parse((string) $text) ?? [];
+            } catch (Error) {
+                continue;
+            }
+            foreach (self::guardLines($tree, null) as $line) {
+                echo "{$file}:{$line}\n";
+            }
+        }
+    }
+
+    /** The lines of the conditions of the polyfill guards among `$statements` of the namespace `$namespace`. */
+    private static function guardLines(array $statements, ?string $namespace): array
+    {
+        $lines = [];
+        foreach ($statements as $statement) {
+            if ($statement instanceof Node\Stmt\Namespace_) {
+                if ($statement->stmts === null) {
+                    $namespace = $statement->name?->toString();
+                } else {
+                    $lines = [...$lines, ...self::guardLines($statement->stmts, $statement->name?->toString())];
+                }
+            } elseif ($statement instanceof Node\Stmt\If_ && $namespace !== null) {
+                if (self::isPolyfillGuard($statement, $namespace)) {
+                    $lines[] = $statement->cond->getStartLine();
+                }
+            }
+        }
+        return $lines;
+    }
+
     /** Prints a finding for `$file` at `$line` and counts it in `$findings`. */
     private static function finding(string $file, int $line, string $message, int &$findings): void
     {

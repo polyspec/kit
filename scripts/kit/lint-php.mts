@@ -40,7 +40,7 @@ function autoloadFilesOf(root: string, folder: string): string[] {
  * The autoloader of nikic/php-parser, which reads the autoload files: the PHP symbol extractor installed into var/tools, or the
  * one of kit's own checkout (kit-install-symbols-php, K412), which a consumer does not have; throws when neither is installed.
  */
-function parserAutoloader(root: string): string {
+export function parserAutoloader(root: string): string {
   const installed = path.join(symbolsPrefix(root, 'php'), 'vendor', 'autoload.php');
   const own = path.join(SYMBOLS, 'php', 'vendor', 'autoload.php');
   const found = [installed, own].find(file => existsSync(file));

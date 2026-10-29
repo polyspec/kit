@@ -59,17 +59,23 @@ test('the tools and tests of kit itself are left out (K315)', () => {
   assert.deepEqual(run({ 'tests/kit/a.test.mts': "process.platform; extension_loaded('x')", 'config/parity.json': PARITY }), []);
 });
 
-test('a guard of the library that defines a function only when the extension does not is a finding, also in a generated source that Git ignores (K329)', (t) => {
-  assert.deepEqual(run({ 'config/parity.json': PARITY, 'packages/php/src/Machine.php': "<?php\nnamespace Acme;\nif (!function_exists('Acme\\initial')) {\n    function initial() {}\n}\n" }), [
-    'packages/php/src/Machine.php:3: the code of an implementation branches on the presence of another implementation (function_exists), so the library and its extension coexist through a guard of the run time',
-  ]);
+// K883: the polyfill guard of K873, an if whose condition is only !function_exists or !defined of the name that its body alone declares,
+// still only declares, so the library and its extension coexist by the declaration that runs first; AutoloadFiles.php defines that shape
+// for both checks. A probe that chooses behaviour, one inside a function, and extension_loaded stay findings, also in a generated source.
+test('the polyfill guard of a declaration is no finding, and a probe that chooses behaviour still is, also in a generated source (K329, K883)', (t) => {
+  const finding = (file: string, line: number) => `${file}:${line}: the code of an implementation branches on the presence of another implementation (function_exists), so the library and its extension coexist through a guard of the run time`;
+  assert.deepEqual(run({ 'config/parity.json': PARITY, 'packages/php/src/OrderedJson.php': "<?php\nnamespace Acme;\nif (!\\defined('Acme\\MAX')) {\n    \\define('Acme\\MAX', 1);\n}\nif (!\\function_exists('Acme\\initial')) {\n    function initial() {}\n}\n" }), []);
+  assert.deepEqual(run({
+    'config/parity.json': PARITY,
+    'packages/php/src/Machine.php': "<?php\nnamespace Acme;\nfunction initial() {}\nfunction run() {\n    if (function_exists('Acme\\initial')) { return 1; }\n    return 2;\n}\nif (!function_exists('Acme\\initial')) {\n    echo 1;\n}\nfunction load() {\n    if (!function_exists('Acme\\later')) {\n        function later() {}\n    }\n}\nif (!function_exists('Acme\\initial')) { function initial() {} } if (function_exists('Acme\\initial')) { echo 1; }\n",
+  }), [12, 16, 5, 8].map(line => finding('packages/php/src/Machine.php', line)));
   const root = tree(t, { 'config/parity.json': PARITY, '.gitignore': 'packages/php/src/generated/\n' });
   mkdirSync(path.join(root, 'packages/php/src/generated'), { recursive: true });
-  writeFileSync(path.join(root, 'packages/php/src/generated/Gen.php'), "<?php\nnamespace Acme;\nif (!function_exists('Acme\\x')) {\n    function x() {}\n}\n");
+  writeFileSync(path.join(root, 'packages/php/src/generated/Gen.php'), "<?php\nnamespace Acme;\nfunction x() {}\nif (function_exists('Acme\\x')) {\n    x();\n}\nif (extension_loaded('acme')) {\n    x();\n}\n");
   const read = (file: string) => (existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), 'utf8') : undefined);
   const files = checkedSources(root, ['config/parity.json'], read);
   assert.deepEqual(files, ['config/parity.json', 'packages/php/src/generated/Gen.php']);
-  assert.equal(divergenceFindings(files, read).length, 1);
+  assert.deepEqual(divergenceFindings(files, read), [finding('packages/php/src/generated/Gen.php', 4), finding('packages/php/src/generated/Gen.php', 7).replace('(function_exists)', '(extension_loaded)')]);
 });
 
 test('K644: global and external PHP capability probes are allowed', () => {

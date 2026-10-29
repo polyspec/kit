@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c84f110c19394c0bcf15b3c152cb953344324c657114393c2013d11919a8c143 -->
+<!-- source-sha256: f485f2b6eb18bc7c1acb7031b003ca279832aa8f0e3d121be9d869ef2bfa0871 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,6 +8,7 @@
 
 - done commit의 Red 줄은 sha 없이 명령과 그 exit status, `Red: <command> exit <n>`을 기술합니다. land가 branch를 rebase하므로 sha는 main이 갖지 않는 commit을 가리켰습니다. `at <sha>`도 계속 받습니다 (K875).
 - make documents-stamp는 PATHS가 지정한 한국어 twin만 stamp합니다. stamp는 twin이 원문과 일치한다는 뜻이기 때문입니다. PATHS가 없으면 아무것도 stamp하지 않고, 원문이 바뀐 twin마다 다시 번역한 뒤 실행할 make documents-stamp PATHS=<twin>을 나열합니다. land는 marker가 충돌한 twin만 stamp합니다 (K877).
+- divergence-check는 K873부터 lint-php가 받는 function_exists polyfill 가드, 즉 본문이 그 이름만 선언하는 namespace 안 최상위 if (!function_exists('<name>'))을 받고, 가드가 있는 줄을 그 형태의 유일한 정의인 AutoloadFiles.php에서 받아 옵니다. 함수 안의 function_exists 분기나 동작을 고르는 분기, 그리고 extension_loaded는 계속 finding입니다 (K883).
 
 ## 0.0.74
 
