@@ -11,9 +11,9 @@
 //   cargoDeny     cargo-deny (aqua:EmbarkStudios/cargo-deny of the registry of mise), the native binary of each platform
 //   composer      http:composer, with the url of composer.phar and its checksum from getcomposer.org
 //   vulture       pypi:vulture, whose wheel and dependencies mise.lock pins with uv (.mise/locks)
-// A release is taken as mise.toml declares it. A key of another tool is refused, so mise installs nothing that kit does not
-// check. The TOML is read by readTomlFile (smol-toml). mise.lock is mise's record: `mise install --locked` checks it, and kit
-// does not judge it (K835).
+// A release is taken as mise.toml declares it. A key of another tool, a repository's own http: tool among them, passes
+// through to mise, which judges its configuration; kit checks the tools above only (K839). The TOML is read by readTomlFile
+// (smol-toml). mise.lock is mise's record: `mise install --locked` checks it, and kit does not judge it (K835).
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { Declared } from './bootstrap/toolchain-declared.mts';
@@ -65,15 +65,6 @@ function toolsTable(root: string): Record<string, unknown> | undefined {
   return tools;
 }
 
-/** Why the declaration `value` of the http tool `key` is no declaration of a repository, or undefined when it is one. */
-function httpToolProblem(key: string, value: unknown): string | undefined {
-  if (!key.startsWith('http:')) return 'is no http tool';
-  if (!isTable(value)) return 'must be a table with the version and the url of the download';
-  if (typeof value.version !== 'string' || value.version === '') return 'must declare the version of the download';
-  if (typeof value.url !== 'string' || !/^https:\/\/\S+$/.test(value.url)) return 'must declare the https url of the download, which mise.lock pins by sha256';
-  return undefined;
-}
-
 /** The tools of mise.toml of `root`, each with its release and `mise.toml tools.<key>`; an absent mise.toml declares none. */
 export function declaredMiseTools(root: string): Partial<Record<MiseTool, Declared>> {
   const tools = toolsTable(root) ?? {};
@@ -81,11 +72,8 @@ export function declaredMiseTools(root: string): Partial<Record<MiseTool, Declar
   const declared: Partial<Record<MiseTool, Declared>> = {};
   for (const [key, value] of Object.entries(tools)) {
     const name = names[key];
-    // A repository declares its own downloaded tool through the http backend (K327): the key, an https url and a version;
-    // mise.lock pins its sha256 of every platform, so it is no tool that kit checks the release of.
-    if (!name && httpToolProblem(key, value) === undefined) continue;
-    if (!name && key.startsWith('http:')) throw new Error(`mise.toml tools.${key}: ${httpToolProblem(key, value)}`);
-    if (!name) throw new Error(`mise.toml tools declares ${key}, which kit does not check; the tools are ${Object.values(MISE_TOOLS).map(tool => tool.key).join(', ')}`);
+    // Another key, a repository's own http: tool among them (K327), is a tool of mise that kit does not run (K839).
+    if (!name) continue;
     // The key declares the tool; its release is shown as declared: a string, the first of a list, or as mise resolves it.
     const release = isTable(value) ? value.version : value;
     const first: unknown = Array.isArray(release) ? release[0] : release;

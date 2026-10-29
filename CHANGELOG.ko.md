@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b129f6ccfef090bc89335a48041c629623b6f56a01fc5b4b836810ef5ed375a6 -->
+<!-- source-sha256: 066e7094e024415523a4b475f95b6db435ce9ca17362af66bb08666481a1d46b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit은 더 이상 자신이 실행하지 않는 도구의 mise.toml key나, https url과 version이 없는 http: 도구를 거부하지 않습니다. mise가 자기 설정을 판정하고, kit은 자신이 실행하는 도구만 검사합니다 (K839).
 - kit은 mise.toml의 release를 선언된 그대로 받고 더 이상 mise.lock을 판정하지 않습니다. exact-release 거부, make toolchain-lock의 lock digest 검사, make toolchain-check의 sidecar 검사가 없어졌으며, `mise install --locked`가 lock과 sidecar를 스스로 검사합니다 (K835).
 - PHP lint 도구는 config/php-lint/composer.lock이 기록한 phpcs와 phpstan release를 기록된 그대로 받습니다. kit은 더 이상 release가 <major>.<minor>.<patch>가 아닌 lock을 거부하지 않습니다 (K834).
 - PHP arginfo 설치는 더 이상 php-arginfo/<release> lock의 nikic/php-parser release를 gen_stub.php가 이름 붙인 release와 비교하지 않습니다. 폴더가 그 release로 선택되므로 그 비교는 폴더를 자기 이름과 비교했습니다 (K833).

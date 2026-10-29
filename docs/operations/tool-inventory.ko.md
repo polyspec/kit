@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 47463e3a2a8541b15d66a2abf0ece4c48c38359254b50e1a4ed15edd7e4d246c -->
+<!-- source-sha256: 8b3e9ec0dae2e70a4e8a5bcb213a1fd8daceb327befa679d340372c5078d4faa -->
 
 # 도구 목록
 
@@ -82,7 +82,7 @@ Composer release archive는 generated header를 stub/output 경로로 선언합�
 staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, commit timestamp를 고정합니다. `zip`이 없으면
 `make release-assets`가 먼저 설치 안내와 함께 실패하며, Ubuntu release workflow는 asset build 전에 runner의 `zip` 제공 여부를 확인합니다.
 
-저장소는 `mise.toml`에 http backend로 자기 도구를 선언할 수 있다(K327). 예: `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`. key는 `http:`로 시작하고, version을 선언하며, url은 https이다. `mise.lock`이 lock의 모든 platform에 대해 그 sha256을 pin하고, mise가 `mise install --locked`에서 digest를 검사한다. kit이 검사하지 않는 다른 backend의 도구는 여전히 거부한다.
+저장소는 `mise.toml`에 http backend로 자기 도구를 선언할 수 있다(K327). 예: `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`. `mise.lock`이 lock의 모든 platform에 대해 그 sha256을 pin하고, mise가 `mise install --locked`에서 digest를 검사한다. kit이 실행하지 않는 key는 모두 mise로 넘어가며 mise가 판정한다(K839).
 
 ### 선언
 

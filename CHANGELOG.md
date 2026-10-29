@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- kit no longer refuses a mise.toml key of a tool that it does not run, nor an http: tool without an https url and a version: mise judges its own configuration, and kit checks the tools that it runs only (K839).
 - kit takes the releases of mise.toml as declared and no longer judges mise.lock: the exact-release refusal, the lock-digest check of make toolchain-lock and the sidecar check of make toolchain-check are gone, since `mise install --locked` checks the lock and its sidecars itself (K835).
 - The PHP lint tools take the phpcs and phpstan releases that config/php-lint/composer.lock records as it records them; kit no longer refuses a lock whose release is not <major>.<minor>.<patch> (K834).
 - The PHP arginfo install no longer compares the nikic/php-parser release of the php-arginfo/<release> lock with the release that gen_stub.php names: the folder is chosen by that release, so the compare judged the folder against its own name (K833).

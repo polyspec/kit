@@ -1,5 +1,5 @@
 // Tests of scripts/kit/toolchain-mise.mts (K127): the tools of mise.toml are read with their releases as declared and the key
-// that declares them, and a key of a tool that kit does not check is refused. mise.lock is mise's record, which kit does not judge (K835).
+// that declares them; a key of another tool passes through to mise, which judges its config (K839). mise.lock is mise's record, which kit does not judge (K835).
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { declaredMiseTools } from '../../scripts/kit/toolchain-mise.mts';
@@ -31,8 +31,8 @@ test('the tools of mise.toml are read with their releases and the declaring key;
   assert.deepEqual(declaredMiseTools(toolchainCheckout(t)), {});
 });
 
-test('a tool that kit does not check is refused with the key, and a release is taken as declared (K835)', (t) => {
-  assert.throws(() => declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\ndeno = "2.6.0"\n' })), /mise\.toml tools declares deno, which kit does not check; the tools are node, go, python, /);
+test('a key of another tool passes through to mise, and a release is taken as declared (K835, K839)', (t) => {
+  assert.deepEqual(declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\ndeno = "2.6.0"\n"http:pie" = "1.2.3"\n"http:x" = { url = "http://example.invalid/x" }\n' })), {});
   assert.deepEqual(declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\nnode = "26"\ngo = "1.27"\n"pypi:vulture" = "latest"\n' })), {
     node: { version: '26', source: 'mise.toml tools.node' },
     go: { version: '1.27', source: 'mise.toml tools.go' },
@@ -45,11 +45,7 @@ test('a tool that kit does not check is refused with the key, and a release is t
   });
 });
 
-test('a repository declares an http tool with a version and an https url (K327)', (t) => {
+test('a repository declares an http tool of its own, which mise installs and kit passes through (K327, K839)', (t) => {
   const http = '"http:pie" = { version = "1.2.3", url = "https://example.invalid/pie-{{version}}.phar" }\n';
-  const checkout = (extra: string) => toolchainCheckout(t, { 'mise.toml': `${MISE_TOML}${extra}` });
-  assert.deepEqual(Object.keys(declaredMiseTools(checkout(http))), ['go', 'python', 'ruff', 'govulncheck', 'cargoAudit', 'cargoNextest', 'cargoDeny', 'vulture']);
-  assert.throws(() => declaredMiseTools(checkout('"http:pie" = "1.2.3"\n')), /mise\.toml tools\.http:pie: must be a table with the version and the url of the download/);
-  assert.throws(() => declaredMiseTools(checkout('"http:pie" = { version = "1.2.3", url = "http://example.invalid/pie" }\n')), /must declare the https url of the download/);
-  assert.throws(() => declaredMiseTools(checkout('"http:pie" = { url = "https://example.invalid/pie" }\n')), /must declare the version of the download/);
+  assert.deepEqual(Object.keys(declaredMiseTools(toolchainCheckout(t, { 'mise.toml': `${MISE_TOML}${http}` }))), ['go', 'python', 'ruff', 'govulncheck', 'cargoAudit', 'cargoNextest', 'cargoDeny', 'vulture']);
 });

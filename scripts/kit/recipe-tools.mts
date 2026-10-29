@@ -2,7 +2,8 @@
 // recipe line without shell syntax on the PATH that make started with, not on the PATH that kit.mk exports, so a bare `node`
 // ran the node of the machine. kit.mk names each tool that its recipes start by a variable of its absolute path (NODE, NPM,
 // ALINT); a repository's own recipes use them, or another absolute path. The tools of the checkout are the wrappers that
-// the bootstrap and install-tools write into var/tools/bin and the commands of the tools of mise.toml.
+// the bootstrap and install-tools write into var/tools/bin and the commands of the tools of mise.toml that kit runs
+// (MISE_TOOLS); a repository's other mise tools pass through to mise (K839), so a bare name of one of them is not found here.
 //
 // The recipes are read from the database that GNU make prints (makeDatabase of owner-check.mts), as written, before make
 // expands them, and split into words by the quoting rules of the POSIX shell with shell-quote, so an operator inside quotes

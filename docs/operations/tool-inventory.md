@@ -87,7 +87,7 @@ then append the staged file with Info-ZIP (`zip`) using stored entries, mode 064
 fails early with installation guidance when `zip` is missing. The Ubuntu release workflow checks that its runner provides `zip`
 before building assets.
 
-A repository may declare a downloaded tool of its own in `mise.toml` through the http backend (K327), such as `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`: the key starts with `http:`, the version is declared, and the url is https. `mise.lock` pins its sha256 for every platform of the lock, and mise checks the digest at `mise install --locked`. A tool of another backend that kit does not check is still refused.
+A repository may declare a downloaded tool of its own in `mise.toml` through the http backend (K327), such as `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`: `mise.lock` pins its sha256 for every platform of the lock, and mise checks the digest at `mise install --locked`. Any key that kit does not run passes through to mise, which judges it (K839).
 
 ### Declarations
 
