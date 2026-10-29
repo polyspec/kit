@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The release manifest check keeps only the tag version of the repository own packages; the form of every other dependency, including the polyspec release asset URL of K777, is the package manager's to resolve. (K785)
+
 - layout-check owns the S10 rule that a PHP library requires no application framework; dependency-policy-check no longer checks it. (K783)
 
 - The ignore check of config/release-assets.json accepts a folder when it or one of its ancestors is ignored, so release-assets runs in a worktree whose archive directories link to the main checkout. (K780-1)

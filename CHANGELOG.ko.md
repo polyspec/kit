@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6a6a61e45d9eea923f203e989efbd88e2f6c6f22cda144a591e535518703d44b -->
+<!-- source-sha256: b8b6e9dcd884df86a22cb539ca95e67f8af6ce1f4dcb3bd845bbd48d84dce941 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- release manifest 검사는 저장소 자체 package의 tag version만 확인하고, K777의 polyspec release asset URL을 포함한 다른 모든 의존성의 형식은 package manager가 해석한다. (K785)
 
 - PHP library가 application framework를 require하지 않는다는 S10 규칙은 layout-check가 맡고, dependency-policy-check는 더 이상 검사하지 않는다. (K783)
 

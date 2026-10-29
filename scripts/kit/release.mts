@@ -157,7 +157,7 @@ export interface Context {
 }
 
 /** A parsed manifest, package.json (NpmManifest) or composer.json (ComposerManifest), in the fields that the release reads. */
-export type Manifest = { name?: string; version?: string; overrides?: Record<string, unknown>; repositories?: { type?: string; url?: string }[] } & Partial<Record<typeof NPM_DEPENDENCY_FIELDS[number] | typeof COMPOSER_DEPENDENCY_FIELDS[number], Record<string, string>>>;
+export type Manifest = { name?: string; version?: string } & Partial<Record<typeof NPM_DEPENDENCY_FIELDS[number] | typeof COMPOSER_DEPENDENCY_FIELDS[number], Record<string, string>>>;
 
 /** The manifest `text` of a package of `kind` (npm or composer), named `file` in an error, against its schema. */
 const parseManifest = (kind: 'npm' | 'composer', text: string, file: string): Manifest =>
@@ -496,57 +496,16 @@ export function assetNames(config: Pick<ReleaseConfig, 'packages'>, version: str
   return config.packages.map(({ kind, name }) => archiveName(kind, name, version));
 }
 
-const SOURCE_FORMS: [RegExp, string][] = [
-  [/^(?:file|link|workspace|portal):/, 'a path of the repository'],
-  [/^(?:git(?:\+[a-z]+)?:|github:|gitlab:|bitbucket:|ssh:|git@)|\.git(?:#|$)/, 'a git source'],
-  [/^[a-z][a-z0-9+.-]*:\/\//i, 'a URL'],
-  [/@dev\b|^dev-|-dev$/, 'a development version'],
-];
-
-/** A polyspec package at 0.0.x is released only as a GitHub release asset, so a dependency on one names that asset at its exact version (K777). */
-const POLYSPEC_RELEASE_ASSET = /^https:\/\/github\.com\/polyspec\/[^/]+\/releases\/download\/v\d+\.\d+\.\d+\/[^/]+$/;
-
-/** The form of a dependency spec that is not an exact version. */
-function specForm(spec: string): string {
-  if (POLYSPEC_RELEASE_ASSET.test(spec)) return 'a polyspec release asset';
-  for (const [pattern, form] of SOURCE_FORMS) if (pattern.test(spec)) return form;
-  return EXACT_VERSION.test(spec) ? 'another version' : 'a range';
-}
-
-/** The scopes of the packages of `kind`: `@scope/` of an npm package, `vendor/` of a Composer package. */
-function scopesOf(config: Pick<ReleaseConfig, 'packages'>, kind: PackageKind): Set<string> {
-  return new Set(config.packages.filter(item => item.kind === kind).map(({ name }) => name.slice(0, name.indexOf('/') + 1)).filter(Boolean));
-}
-
 /**
- * The problems of a manifest that an archive of `kind` carries at `version`. A consumer installs the archives together
- * without the repository, so a dependency is a registry version or the release asset of a polyspec package: no path, other URL,
- * git source or development version. A dependency on a
- * package of a scope of this repository is one exact version, and the version of a package of this repository is the
- * version of the tag. A package.json declares no `overrides`; a composer.json declares the version of the tag and no
- * `repositories`.
+ * The problems of a manifest that an archive of `kind` carries at `version`: a dependency on a package of this repository names the
+ * version of the tag, and a composer.json declares no other version. The form of every other dependency is the package manager's to
+ * resolve (K785).
  */
 export function manifestProblems(config: Pick<ReleaseConfig, 'packages'>, kind: PackageKind, manifest: Manifest, version: string): string[] {
-  const problems: string[] = [];
   const ours = new Set(config.packages.filter(item => item.kind === kind).map(({ name }) => name));
-  const scopes = scopesOf(config, kind);
-  const fields = kind === 'npm' ? NPM_DEPENDENCY_FIELDS : COMPOSER_DEPENDENCY_FIELDS;
-  for (const field of fields) {
-    for (const [name, spec] of Object.entries(manifest[field] ?? {})) {
-      const form = specForm(spec);
-      // A release asset is the exact version of a package of another repository; a package of this repository is the version of the tag.
-      if (form === 'a polyspec release asset' && !ours.has(name)) continue;
-      const sourced = form !== 'a range' && form !== 'another version' && form !== 'a polyspec release asset';
-      const ofScope = [...scopes].some(scope => name.startsWith(scope));
-      if (sourced) problems.push(`${field} ${name}: ${spec} is ${form}, not a registry version`);
-      else if (ours.has(name) ? spec !== version : ofScope && !EXACT_VERSION.test(spec)) problems.push(`${field} ${name}: ${spec} is ${form}, not ${ours.has(name) ? version : 'an exact version'}`);
-    }
-  }
-  if (kind === 'npm' && 'overrides' in manifest) problems.push(`overrides: ${JSON.stringify(manifest.overrides)}; a published package.json resolves only by name and version`);
-  if (kind === 'composer') {
-    if (manifest.version !== undefined && manifest.version !== version) problems.push(`version: ${manifest.version}, not ${version}`);
-    if ('repositories' in manifest) problems.push(`repositories: ${JSON.stringify(manifest.repositories)}; a release zip declares none`);
-  }
+  const problems = (kind === 'npm' ? NPM_DEPENDENCY_FIELDS : COMPOSER_DEPENDENCY_FIELDS).flatMap(field => Object.entries(manifest[field] ?? {})
+    .filter(([name, spec]) => ours.has(name) && spec !== version).map(([name, spec]) => `${field} ${name}: ${spec}, not ${version}`));
+  if (kind === 'composer' && manifest.version !== undefined && manifest.version !== version) problems.push(`version: ${manifest.version}, not ${version}`);
   return problems;
 }
 

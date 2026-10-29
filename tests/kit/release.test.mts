@@ -275,36 +275,17 @@ test('a section over the limit of GitHub becomes a link to the section, and a se
   assert.match(release.releaseNotes(context(box), 'packages/fixture-go/v0.0.1'), /blob\/packages\/fixture-go\/v0\.0\.1\/CHANGELOG\.md#001\)\.\n$/, 'the anchor of a heading without an id is the version without dots');
 });
 
-test('the problems of a manifest name the field, the dependency and the form of the spec', (t) => {
+// K785: the form of a dependency is the package manager's to resolve; the release keeps only the tag version of its own packages.
+test('the problems of a manifest are only a dependency on an own package or a composer.json version other than the tag (K785)', (t) => {
   const { config } = context(releaseSandbox(t));
   const problems = (kind: release.PackageKind, manifest: release.Manifest) => release.manifestProblems(config, kind, manifest, '1.0.0');
-  assert.deepEqual(problems('npm', { name: 'a', dependencies: { 'fixture-lib': '1.0.0', semver: '^7.0.0' }, peerDependencies: { react: '*' } }), []);
-  assert.deepEqual(problems('npm', { dependencies: { 'fixture-lib': '^1.0.0' } }), ['dependencies fixture-lib: ^1.0.0 is a range, not 1.0.0']);
-  assert.deepEqual(problems('npm', { dependencies: { 'fixture-lib': '1.0.1' } }), ['dependencies fixture-lib: 1.0.1 is another version, not 1.0.0']);
-  assert.deepEqual(problems('npm', { devDependencies: { 'fixture-lib': 'workspace:*' } }), ['devDependencies fixture-lib: workspace:* is a path of the repository, not a registry version']);
-  assert.deepEqual(problems('npm', { optionalDependencies: { x: 'file:../x' } }), ['optionalDependencies x: file:../x is a path of the repository, not a registry version']);
-  assert.deepEqual(problems('npm', { dependencies: { x: 'git+https://example.com/x.git' } }), ['dependencies x: git+https://example.com/x.git is a git source, not a registry version']);
-  assert.deepEqual(problems('npm', { dependencies: { x: 'github:a/b' } }), ['dependencies x: github:a/b is a git source, not a registry version']);
-  assert.deepEqual(problems('npm', { dependencies: { x: 'https://example.com/x.tgz' } }), ['dependencies x: https://example.com/x.tgz is a URL, not a registry version']);
-  // A polyspec package at 0.0.x is released as a GitHub release asset, so a dependency on one is that asset's URL (K777).
-  const asset = 'https://github.com/polyspec/p/releases/download/v0.0.10/polyspec-p-npm-0.0.10.tgz';
-  assert.deepEqual(problems('npm', { dependencies: { '@polyspec/p': asset } }), []);
-  assert.deepEqual(problems('npm', { dependencies: { x: 'https://github.com/polyspec/p/releases/download/latest/x.tgz' } }),
-    ['dependencies x: https://github.com/polyspec/p/releases/download/latest/x.tgz is a URL, not a registry version']);
-  assert.deepEqual(problems('npm', { dependencies: { x: 'https://github.com/other/x/releases/download/v0.0.1/x.tgz' } }),
-    ['dependencies x: https://github.com/other/x/releases/download/v0.0.1/x.tgz is a URL, not a registry version']);
-  assert.deepEqual(problems('npm', { dependencies: { 'fixture-lib': asset } }), [`dependencies fixture-lib: ${asset} is a polyspec release asset, not 1.0.0`]);
-  assert.deepEqual(problems('npm', { dependencies: { x: '1.0.0-dev' } }), ['dependencies x: 1.0.0-dev is a development version, not a registry version']);
-  assert.deepEqual(problems('npm', { overrides: { a: '1' } }), ['overrides: {"a":"1"}; a published package.json resolves only by name and version']);
-  const composer = { version: '1.0.0', require: { php: '>=8.2', 'polyspec/kit-fixture': '1.0.0', 'polyspec/other': '1.2.3' } };
+  assert.deepEqual(problems('npm', { name: 'a', dependencies: { 'fixture-lib': '1.0.0', semver: '^7.0.0', x: 'file:../x', y: 'git+https://example.com/y.git', z: 'https://example.com/z.tgz' }, peerDependencies: { react: '*' } }), []);
+  assert.deepEqual(problems('npm', { dependencies: { 'fixture-lib': '^1.0.0' }, devDependencies: { 'fixture-lib': 'workspace:*' } }), ['dependencies fixture-lib: ^1.0.0, not 1.0.0', 'devDependencies fixture-lib: workspace:*, not 1.0.0']);
+  const composer = { version: '1.0.0', require: { php: '>=8.2', 'polyspec/kit-fixture': '1.0.0', 'polyspec/other': '^1.0' }, 'require-dev': { 'polyspec/other': 'dev-main' } };
   assert.deepEqual(problems('composer', composer), []);
-  assert.deepEqual(problems('composer', { ...composer, version: '1.0.1' }), ['version: 1.0.1, not 1.0.0']);
   assert.deepEqual(problems('composer', { require: {} }), []);
-  assert.deepEqual(problems('composer', { version: '2.0.0', require: {} }), ['version: 2.0.0, not 1.0.0']);
-  assert.deepEqual(problems('composer', { ...composer, repositories: [{ type: 'path', url: '../x' }] }), ['repositories: [{"type":"path","url":"../x"}]; a release zip declares none']);
-  assert.deepEqual(problems('composer', { ...composer, require: { 'polyspec/other': '^1.0' } }), ['require polyspec/other: ^1.0 is a range, not an exact version']);
-  assert.deepEqual(problems('composer', { ...composer, 'require-dev': { 'polyspec/other': 'dev-main' } }), ['require-dev polyspec/other: dev-main is a development version, not a registry version']);
-  assert.deepEqual(problems('composer', { ...composer, require: { 'polyspec/kit-fixture': '2.0.0' } }), ['require polyspec/kit-fixture: 2.0.0 is another version, not 1.0.0']);
+  assert.deepEqual(problems('composer', { ...composer, version: '1.0.1' }), ['version: 1.0.1, not 1.0.0']);
+  assert.deepEqual(problems('composer', { ...composer, require: { 'polyspec/kit-fixture': '2.0.0' } }), ['require polyspec/kit-fixture: 2.0.0, not 1.0.0']);
 });
 
 test('assets builds one archive per package of the configuration', (t) => {
@@ -517,13 +498,12 @@ test('a packed manifest that differs from the manifest of the commit fails asset
   assert.deepEqual(readdirSync(path.join(box.root, 'var/release')), [], 'and no temporary directory');
 });
 
-test('assets refuses a manifest that does not install outside the repository before it packs', (t) => {
+test('assets refuses a manifest whose dependency on an own package is not the tag version before it packs (K785)', (t) => {
   const box = releaseSandbox(t);
   edit(box.root, 'packages/fixture-app/package.json', m => ({ ...m, dependencies: { 'fixture-lib': 'workspace:*' } }));
-  edit(box.root, 'packages/fixture-php/composer.json', m => ({ ...m, repositories: [{ type: 'path', url: '../x' }] }));
   git(box.root, 'commit', '--quiet', '-am', 'manifests');
   const tag = box.tag('v0.0.1', git(box.root, 'rev-parse', 'HEAD'));
-  stop(() => release.assets(context(box), tag), /packages\/fixture-app\/package\.json: dependencies fixture-lib: workspace:\* is a path of the repository, not a registry version; packages\/fixture-php\/composer\.json: repositories: /);
+  stop(() => release.assets(context(box), tag), /packages\/fixture-app\/package\.json: dependencies fixture-lib: workspace:\*, not 0\.0\.1$/);
   assert.deepEqual(box.npmCalls(), [], 'no package is packed');
 });
 
