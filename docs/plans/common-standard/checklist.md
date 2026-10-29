@@ -776,3 +776,4 @@
 | K821 | Install the Composer projects of a worktree with plain composer install and its own cache, and set up Go before Composer | scripts/kit/worktree-setup.mts | `node --test tests/kit/worktree-setup.test.mts` | [o] |
 | K822 | Run a mise shim through Git Bash make on the Windows runner of platform-bootstrap | .github/workflows/platform-bootstrap.yml, tests/kit/bootstrap-platform.test.mts | `node --test tests/kit/bootstrap-platform.test.mts` | [o] |
 | K823 | Release Kit 0.0.72 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
+| K824 | Link the packages of the repository itself when link --siblings finds no sibling checkout | scripts/kit/link.mts, tests/kit/link.test.mts | `node --test tests/kit/link.test.mts` | [ ] |

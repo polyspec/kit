@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 26e49c50dae582c0ba0c878295553e197e3e8ba0b3c75a09bc5d82b1ca1374a1 -->
+<!-- source-sha256: e7a47f25a333cc1036f36d56494ed8ed6fa585031e23956b5f4e5b0bfcae6359 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -777,3 +777,4 @@
 | K821 | worktree의 Composer 프로젝트를 Composer 자체 캐시로 일반 composer install해 설치하고, Go를 Composer보다 먼저 준비함 | scripts/kit/worktree-setup.mts | `node --test tests/kit/worktree-setup.test.mts` | [o] |
 | K822 | platform-bootstrap의 Windows runner에서 Git Bash make로 mise shim을 실행함 | .github/workflows/platform-bootstrap.yml, tests/kit/bootstrap-platform.test.mts | `node --test tests/kit/bootstrap-platform.test.mts` | [o] |
 | K823 | Kit 0.0.72 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
+| K824 | link --siblings가 sibling checkout을 찾지 못해도 저장소 자신의 패키지를 링크함 | scripts/kit/link.mts, tests/kit/link.test.mts | `node --test tests/kit/link.test.mts` | [ ] |
