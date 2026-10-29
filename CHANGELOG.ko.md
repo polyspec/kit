@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 55d40a8efbde833f31bda823c7e743ccf10dd4a051bd1f7cd1c78c66cb61b9f7 -->
+<!-- source-sha256: 6027d6b669d8979bf10f019564f78ec1f9bfe25e8510e0ed6c86d73754955f72 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- rules-check가 `${{ matrix.runtime }}`를 쓰는 gates 단계를 runtime마다 한 번의 실행으로 읽어서 consumer의 runtime lint 규칙이 도달된다. (K757)
 
 - kit-mk 테스트가 worktree가 실행하는 main checkout의 도구를 기대해서 worktree에서도 통과한다. (K756)
 

@@ -17,7 +17,7 @@ import { TOOLS as CHECK_TOOLS } from './check-toolchain.mts';
 import { isJsonObject } from './bootstrap/files.mts';
 
 export const CI_CONFIG = 'config/ci.json';
-const RUNTIMES = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
+export const RUNTIMES = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
 type Runtime = (typeof RUNTIMES)[number];
 type CIJob = 'shared' | 'parity' | Runtime;
 const CI_JOBS = ['shared', 'parity', ...RUNTIMES] as const satisfies readonly CIJob[];

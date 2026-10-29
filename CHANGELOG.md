@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- rules-check reads a gates step that names `${{ matrix.runtime }}` as one run for each runtime, so the runtime lint rules of a consumer are reached. (K757)
+
 - The kit-mk tests expect the main checkout tools that a worktree runs, so they pass in a worktree. (K756)
 
 - The release workflow no longer repeats kit-check; the passed CI run of the tagged commit, which release-verify requires, already holds it. (K755)

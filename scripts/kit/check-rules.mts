@@ -19,6 +19,7 @@ import { lineBlocks } from './markdown.mts';
 import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
 import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
+import { RUNTIMES } from './ci-setup.mts';
 import { CONFIG, DONE, IMPOSSIBLE, loadConfig, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 
 /** A rule of a document: its first line and the text of its `Enforced by:` line, or null. */
@@ -154,9 +155,14 @@ const plannedOf = (enforced: string) => [...enforced.matchAll(/\bplanned (\S+?)(
 /** The words of the commands of `text`, a recipe or a script, line by line. */
 const commandsOf = (text: string) => text.split('\n').flatMap(line => commandParts(line)).filter(words => words.length > 0);
 
+/** The expression of the runtime of the gates matrix. */
+const MATRIX_RUNTIME = /\$\{\{\s*matrix\.runtime\s*\}\}/g;
+
 /**
- * The shell lines of the steps of the workflow `text`: the value of each `run:`, on its line or in the block below it. An
- * expression `${{ … }}`, which GitHub replaces before the shell reads the line, is one word.
+ * The shell lines of the steps of the workflow `text`: the value of each `run:`, on its line or in the block below it. A line
+ * that names `${{ matrix.runtime }}` runs once for each runtime the gates job can hold, since discover fills that matrix
+ * with the runtimes of the repository (K757). Any other expression `${{ … }}`, which GitHub replaces before the shell reads the
+ * line, is one word.
  */
 function workflowLines(text: string): string[] {
   const lines = text.split('\n');
@@ -174,7 +180,9 @@ function workflowLines(text: string): string[] {
       result.push(next.trim());
     }
   });
-  return result.map(line => line.replace(/\$\{\{[^}]*\}\}/g, 'GITHUB_EXPRESSION'));
+  return result
+    .flatMap(line => (line.search(MATRIX_RUNTIME) >= 0 ? RUNTIMES.map(runtime => line.replaceAll(MATRIX_RUNTIME, runtime)) : [line]))
+    .map(line => line.replace(/\$\{\{[^}]*\}\}/g, 'GITHUB_EXPRESSION'));
 }
 
 /** The make targets and the paths that the points that cannot be skipped reach in `root`. */

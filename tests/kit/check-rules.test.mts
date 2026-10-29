@@ -201,6 +201,18 @@ test('a target is expanded for each set of variables it is called with, so every
   assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
 });
 
+test('a step that names ${{ matrix.runtime }} reaches the target of every runtime of the gates matrix (K757)', (t) => {
+  const makefile = 'kit-gates-runtime-go: lint-go\nkit-gates-runtime-rust: lint-rust\nlint-go:\n\t@echo go\nlint-rust:\n\t@echo rust\n';
+  const agents = rules('- Own: Go lints.\n  Enforced by: `make lint-go`', '- Own: Rust lints.\n  Enforced by: `make lint-rust`');
+  const root = tree(t, {
+    Makefile: makefile,
+    '.github/workflows/gates.yml': 'name: gates\non: push\njobs:\n  runtime:\n    runs-on: ubuntu-24.04\n    strategy:\n      matrix:\n        runtime: ${{ fromJson(needs.discover.outputs.runtimes) }}\n    steps:\n      - run: make -k kit-gates-runtime-${{ matrix.runtime }}\n',
+    'AGENTS.md': agents,
+    'AGENTS.ko.md': agents,
+  });
+  assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
+});
+
 // K359: the working guidelines of the owner are rules of PRINCIPLES.md, each with its Enforced by line in the same rule, and the
 // Korean twin holds the same rule ids. Each phrase is a short part of the rule it belongs to.
 const GUIDELINE_RULES: Array<[id: string, phrase: string]> = [
