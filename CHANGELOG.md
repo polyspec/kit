@@ -5,13 +5,12 @@
 
 ## Unreleased
 
+## 0.0.75
+
+- Release Kit 0.0.75 with K855, K857, K858, K875, K877, K883, K885, K886, K887, K888, K891 and K893 from main HEAD; the cuts of K884 and K889 were never published (K894).
 - The K858 test of kit-bootstrap creates its repository through initRepository, as sandbox-repository.test requires of every kit test (K893).
 - commit-fix-test of git commit --amend judges the commit that the amend makes with -m and -F too: the commit-msg check reads an amend from the options of the git commit that runs it, before its message, since git names an amend to the prepare-commit-msg hook only without -m or -F (K891).
 - make link leaves out a project whose installer has not run yet, in npm, Composer and Python, as a package that is not installed, instead of stopping make install when a sub-install links before the other projects are installed; it still creates no Python environment (K689-3), and link-state-check reports each declared provided package that no installed folder links, so a project that was never installed ends red at link-state-check (K888).
-
-## 0.0.75
-
-- Release Kit 0.0.75 with K855, K857, K858, K875, K877, K883, K885, K886 and K887 from main HEAD; the cut of K884 was never published (K889).
 - make release-assets-fetch runs in a worktree as in any checkout: the refusal of K780, which held only while no worktree ran make install, is deleted, and worktree-setup links each declared archive and unpack directory that the main checkout holds instead of their parent directories, so a download or an unpack in a worktree replaces the worktree's own link, never the main checkout's file (K887).
 - parity-check reads the Python public symbols from the source package: the .py files under the entry that git does not ignore, named from the src folder beside the nearest pyproject.toml, else its folder, by the python3 of PATH; the read of the installed file list (RECORD) of a non-editable environment and the refusal of an editable install are deleted, so a repository installs its Python package as its ecosystem does; a tracked module that the build backend excludes is now public, so a module that is not public is git-ignored or private by its _ name, and a symlinked or empty source package is an error (K855).
 - divergence-check runs php for the polyfill guards from the PATH of the tools environment, as the autoload step of lint-php does, and its tests run in the CI shard that installs php and the PHP parser, so the CI of kit passes again after K883 (K886).

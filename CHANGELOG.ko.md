@@ -1,18 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 529f3da7d0b323fd23d5f2a7fe6ea04bb922fea84a6c65f47337153b6df9972e -->
+<!-- source-sha256: dcdb4458058483c1f82751a3012e00913908de97ccb36d6922e5d54935b9c0da -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.75
+
+- main HEAD에서 K855, K857, K858, K875, K877, K883, K885, K886, K887, K888, K891, K893과 함께 Kit 0.0.75를 릴리즈합니다. K884와 K889의 cut은 공개되지 않았습니다 (K894).
 - kit-bootstrap의 K858 test는 sandbox-repository.test가 모든 kit test에 요구하는 대로 repository를 initRepository로 만듭니다 (K893).
 - git commit --amend의 commit-fix-test는 -m과 -F에서도 amend가 만드는 commit을 판단합니다. git은 -m이나 -F가 없을 때만 prepare-commit-msg hook에 amend를 알리므로, commit-msg 검사는 자신을 실행한 git commit의 message 앞 option에서 amend를 읽습니다 (K891).
 - make link은 installer가 아직 실행되지 않은 project를 npm, Composer, Python에서 설치되지 않은 package처럼 빼며, 다른 project가 설치되기 전에 sub-install이 link할 때 make install을 멈추지 않습니다. 여전히 Python environment를 만들지 않으며(K689-3), link-state-check는 설치된 folder가 link하지 않는 선언된 제공 package마다 보고하므로 설치되지 않은 project는 link-state-check에서 실패로 끝납니다 (K888).
-
-## 0.0.75
-
-- main HEAD에서 K855, K857, K858, K875, K877, K883, K885, K886, K887과 함께 Kit 0.0.75를 릴리즈합니다. K884의 cut은 공개되지 않았습니다 (K889).
 - make release-assets-fetch는 다른 checkout처럼 worktree에서도 실행됩니다. 어떤 worktree도 make install을 실행하지 않는 동안에만 유효했던 K780의 거부를 삭제했으며, worktree-setup은 상위 directory 대신 main checkout이 가진 선언된 archive와 unpack directory를 하나씩 link하므로 worktree의 download나 unpack은 worktree 자신의 link를 바꿀 뿐 main checkout의 파일은 바꾸지 않습니다 (K887).
 - parity-check는 Python public symbol을 source package에서 읽는다: entry 아래에서 git이 무시하지 않는 .py 파일을, 가장 가까운 pyproject.toml 옆의 src 폴더, 없으면 그 폴더에서의 이름으로, PATH의 python3로 읽는다. non-editable 환경의 설치 file 목록(RECORD) 읽기와 editable 설치 거부는 삭제되어, repository는 Python package를 그 ecosystem 방식대로 설치한다. build backend가 제외하는 tracked 모듈도 이제 public이므로 public이 아닌 모듈은 git이 무시하거나 _ 이름으로 private이며, symlink이거나 빈 source package는 오류다 (K855).
 - divergence-check는 lint-php의 autoload 단계처럼 tools 환경의 PATH에서 polyfill 가드용 php를 실행하고, 그 테스트는 php와 PHP parser를 설치하는 CI shard에서 실행되므로 K883 이후 실패하던 kit의 CI가 다시 통과합니다 (K886).
