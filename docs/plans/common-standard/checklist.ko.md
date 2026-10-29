@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 635ab42dfdcb84f60fc187ded62c665349401724808412ccc0ffed6f62af5136 -->
+<!-- source-sha256: f6906dd6b8bce07cbc864b8e1770a9b5886cbb1e9a0a3daee2eed9de3e230d64 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -776,3 +776,4 @@
 | K820 | Windows에서 mise 도구를 shim이 아니라 mise which가 가리키는 실행 파일로 시작한다 | scripts/kit/kit.mk, tests/kit/kit-mk.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/kit-mk.test.mts` | [v] |
 | K821 | worktree의 Composer 프로젝트를 Composer 자체 캐시로 일반 composer install해 설치하고, Go를 Composer보다 먼저 준비함 | scripts/kit/worktree-setup.mts | `node --test tests/kit/worktree-setup.test.mts` | [o] |
 | K822 | platform-bootstrap의 Windows runner에서 Git Bash make로 mise shim을 실행함 | .github/workflows/platform-bootstrap.yml, tests/kit/bootstrap-platform.test.mts | `node --test tests/kit/bootstrap-platform.test.mts` | [o] |
+| K823 | Kit 0.0.72 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [ ] |
