@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6027d6b669d8979bf10f019564f78ec1f9bfe25e8510e0ed6c86d73754955f72 -->
+<!-- source-sha256: 51c9bfce221637cdfb71ab4883ca70ea74efa08751a9587bced8bf7456031a6d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- commit-deleted-test가 sibling checkout에 링크된 provider는 그 checkout으로, 복사본은 lock으로 판단한다. (K758)
 
 - rules-check가 `${{ matrix.runtime }}`를 쓰는 gates 단계를 runtime마다 한 번의 실행으로 읽어서 consumer의 runtime lint 규칙이 도달된다. (K757)
 

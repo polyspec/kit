@@ -14,8 +14,9 @@
 //   commit-changelog a commit that moves an item to the done state [o] also changes the changelog of the rules,
 //                    CHANGELOG.md and its Korean twin
 //   commit-deleted-test a commit that deletes a test file names a tracked replacement, a versioned test identity of a locked
-//                    provider (`Provider-Test-Replacement`), or archives the same file contents at a reachable commit with
-//                    `Archived-To: <sha>` while its checklist item is explicitly held (K339, K647, K746)
+//                    provider or of a provider linked to its checkout (`Provider-Test-Replacement`), or archives the same file
+//                    contents at a reachable commit with `Archived-To: <sha>` while its checklist item is explicitly held (K339,
+//                    K647, K746, K758)
 //   commit-row       the id of the subject is an item of a checklist of docs/plans in the tree of the commit (the index for the hook);
 //                    the first commit of a repository passes
 //   row-id           on a branch, no row of the index holds an ID that main holds with another task, unless the ID is the row
@@ -218,19 +219,22 @@ function providerTestReplacementFindings(root: string, message: string, deleted:
       const direct = [manifest.dependencies, manifest.devDependencies].some(value => objectRecord(value)?.[packageName] !== undefined);
       const lockPackages = objectRecord(lock.packages);
       const lockEntry = objectRecord(lockPackages?.[`node_modules/${packageName}`]);
-      if (!direct || lock.lockfileVersion !== 3 || lockEntry?.version !== version || typeof lockEntry.resolved !== 'string' || !lockEntry.resolved.startsWith('https://') || typeof lockEntry.integrity !== 'string' || lockEntry.integrity === '') {
+      // A provider linked to its sibling checkout is judged by that checkout, which is what runs; a copy by the lock (K758).
+      const linked = lstatSync(path.dirname(installedPath)).isSymbolicLink();
+      if (!direct || (!linked && (lock.lockfileVersion !== 3 || lockEntry?.version !== version || typeof lockEntry.resolved !== 'string' || !lockEntry.resolved.startsWith('https://') || typeof lockEntry.integrity !== 'string' || lockEntry.integrity === ''))) {
         findings.push(`${packageName}@${version} is not an exact, integrity-locked direct npm provider`);
         continue;
       }
-      if (lstatSync(path.dirname(installedPath)).isSymbolicLink() || installed.name !== packageName || installed.version !== version) {
-        findings.push(`${packageName}@${version} is not the installed provider locked by package-lock.json`);
+      if (installed.name !== packageName || installed.version !== version) {
+        findings.push(`${packageName}@${version} is not the installed provider ${linked ? 'of the linked checkout' : 'locked by package-lock.json'}`);
         continue;
       }
       const records = objectRecord(installed.kit)?.providerTests;
       const matches = Array.isArray(records) ? records.map(objectRecord).filter((value): value is Record<string, unknown> => value !== undefined && value.id === testId) : [];
       const record = matches.length === 1 ? matches[0] : undefined;
       const validTest = typeof record?.path === 'string' && record.path.startsWith('tests/') && record.path.split('/').every(part => part !== '.' && part !== '..')
-        && typeof record.name === 'string' && record.name.trim() !== '';
+        && typeof record.name === 'string' && record.name.trim() !== ''
+        && (!linked || existsSync(path.join(path.dirname(installedPath), record.path)));
       if (!validTest) {
         findings.push(`${packageName}@${version} declares no provider test identity ${testId} for ${oldPath}`);
       }

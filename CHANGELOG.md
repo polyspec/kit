@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- commit-deleted-test judges a provider linked to its sibling checkout by that checkout, and a copy by the lock. (K758)
+
 - rules-check reads a gates step that names `${{ matrix.runtime }}` as one run for each runtime, so the runtime lint rules of a consumer are reached. (K757)
 
 - The kit-mk tests expect the main checkout tools that a worktree runs, so they pass in a worktree. (K756)

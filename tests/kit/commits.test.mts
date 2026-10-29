@@ -3,7 +3,7 @@
 // and the configuration.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -195,6 +195,38 @@ test('a committed provider migration is checked against its lock and installed t
   assert.deepEqual(rangeFindings(root, 'HEAD~1..HEAD', CONFIG), [], 'the provider replacement is verified from the exact installed package version');
   writeFileSync(path.join(installed, 'package.json'), JSON.stringify({ name, version, kit: { providerTests: [] } }));
   assert.match(rangeFindings(root, 'HEAD~1..HEAD', CONFIG).join('\n'), /commit-deleted-test: .*declares no provider test identity/);
+});
+
+test('a provider linked to its sibling checkout is judged by that checkout, not by the lock (K758)', (t) => {
+  const { root, git } = repository(t, ['feat(core): Start (#K1)'], ['K1']);
+  const name = '@polyspec/test-provider';
+  const locked = '1.2.3';
+  const linked = '1.2.4';
+  const catalog = { providerTests: [{ id: 'runner', path: 'tests/provider.test.mts', name: 'the linked provider runner test' }] };
+  const checkout = tree(t, {
+    'package.json': JSON.stringify({ name, version: linked, kit: catalog }),
+    'tests/provider.test.mts': "import test from 'node:test'; test('the linked provider runner test', () => {});\n",
+  });
+  put(root, {
+    '.gitignore': 'node_modules/\n',
+    'tests/a.test.mts': "import test from 'node:test'; test('old runner', () => {});\n",
+    'package.json': JSON.stringify({ name: 'consumer', devDependencies: { [name]: locked } }),
+    'package-lock.json': JSON.stringify({ lockfileVersion: 3, packages: {
+      '': { devDependencies: { [name]: locked } },
+      [`node_modules/${name}`]: { version: locked, resolved: `https://registry.npmjs.org/test-provider/-/test-provider-${locked}.tgz`, integrity: 'sha512-YQ==' },
+    } }),
+  });
+  mkdirSync(path.join(root, 'node_modules/@polyspec'), { recursive: true });
+  symlinkSync(checkout, path.join(root, 'node_modules', name));
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '-m', 'feat(core): Link the provider (#K1)').status, 0);
+
+  rmSync(path.join(root, 'tests/a.test.mts'));
+  git('add', '-A');
+  assert.equal(git('commit', '-q', '-m', `feat(core): Move runner ownership (#K1)\n\nProvider-Test-Replacement: tests/a.test.mts -> npm:${name}@${linked}#runner`).status, 0);
+  assert.deepEqual(rangeFindings(root, 'HEAD~1..HEAD', CONFIG), [], 'the linked checkout holds the named version, test identity and test file');
+  rmSync(path.join(checkout, 'tests/provider.test.mts'));
+  assert.match(rangeFindings(root, 'HEAD~1..HEAD', CONFIG).join('\n'), /commit-deleted-test: .*declares no provider test identity runner/);
 });
 
 // K402: make land checks RANGE=main..<branch>, and the branch of a row whose id holds a dot (P10), such as fix/name-T2.60, holds one.
