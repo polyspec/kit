@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 710f6d3b6a00c1e98486860e40e74be1e2b4d4f10872538a74611d7e9ce2d994 -->
+<!-- source-sha256: d0ad9d13393b9b9aeab14792a4b7584be94a38d30db78c87b5596f1a36c3b3cf -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -765,3 +765,4 @@
 | K809 | docs-check의 형식 거부를 지운다: 짝, revision stamp, twin 일치, plan folder, status table, doc-id, checklist 짝 | scripts/kit/check-documents.mts, tests/kit/documents.test.mts | `node --test tests/kit/documents.test.mts` | [ ] |
 | K810 | kit-check와 kit-sync의 형식 거부를 지운다: 고정 task 이름, runtime target, tracked symlink, lint 선택, retired 파일 | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [ ] |
 | K811 | worktree-setup의 거부를 지운다: 이름 형식, 바깥 Composer, Python env 소유, release archive link | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test tests/kit/worktree-setup.test.mts` | [ ] |
+| K812 | release의 version 검사와 manifest 문제를 지운다. asset은 package manager가 만든다 | scripts/kit/release.mts, tests/kit/release.test.mts | `node --test tests/kit/release.test.mts` | [ ] |
