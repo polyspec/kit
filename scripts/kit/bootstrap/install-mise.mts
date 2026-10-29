@@ -11,7 +11,7 @@ import { writeAtomic } from './files.mts';
 import path from 'node:path';
 import { fileDigest } from './digest.mts';
 import { installOnce } from './install-tool.mts';
-import { bootstrapEnvironment, commandPath, printedRelease, run, toolsPath, toolsRoot, writeNativeWrapper } from './tool-wrappers.mts';
+import { archiveTar, bootstrapEnvironment, commandPath, printedRelease, run, toolsPath, toolsRoot, writeNativeWrapper } from './tool-wrappers.mts';
 
 // The asset of the mise archive of each platform key (process.platform-process.arch) that the declaration may name.
 export const MISE_ASSETS: Readonly<Record<string, string>> = {
@@ -154,7 +154,7 @@ export function installMise({ root, declared, platform = misePlatform(), print =
         rmSync(archive, { force: true });
         throw new Error(`${url} has the sha256 ${actual}; config/toolchain.json mise declares ${sha256} for ${platform}`);
       }
-      run('tar', [extension === 'zip' ? '-xf' : '-xzf', archive, '-C', next], { cwd: root, env: environment }, print);
+      run(archiveTar(), [extension === 'zip' ? '-xf' : '-xzf', archive, '-C', next], { cwd: root, env: environment }, print);
       rmSync(archive, { force: true });
     },
   });

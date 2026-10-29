@@ -16,7 +16,7 @@ import type { TestContext } from 'node:test';
 import { KIT } from './kit-tools.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { miseEnvironment, TOOLS_GO_MOD, trustConfig } from '../../scripts/kit/bootstrap/install-mise.mts';
-import { toolsPath, toolsRoot } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
+import { archiveTar, toolsPath, toolsRoot } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { lintCommands } from '../../scripts/kit/lint-steps.mts';
 import { toolchainStubs } from './toolchain-stubs.mts';
 import { tree } from './tree.mts';
@@ -230,4 +230,11 @@ test('trustConfig leaves exactly the trust of the checkout mise.toml (K397)', (t
   const entries = readdirSync(trusted);
   assert.deepEqual(entries, [`${path.basename(root)}-trust`]);
   assert.equal(readlinkSync(path.join(trusted, entries[0] ?? '')), root, 'the one trust is the folder of the checkout mise.toml');
+});
+
+test('the Windows bootstrap extracts with the bsdtar of Windows, which reads drive paths and zip files, not the GNU tar of Git Bash (K759)', () => {
+  assert.equal(archiveTar('win32', { SystemRoot: 'C:\\Windows' }), 'C:\\Windows\\System32\\tar.exe');
+  assert.equal(archiveTar('win32', {}), 'C:\\Windows\\System32\\tar.exe');
+  assert.equal(archiveTar('darwin', { SystemRoot: 'C:\\Windows' }), 'tar');
+  assert.equal(archiveTar('linux', {}), 'tar');
 });

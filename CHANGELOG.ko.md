@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 51c9bfce221637cdfb71ab4883ca70ea74efa08751a9587bced8bf7456031a6d -->
+<!-- source-sha256: 508d224951d7f621123c1ece12bef1143119da3e07482d60e0abde9d54d3c973 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Windows bootstrap이 Windows bsdtar로 archive를 풀어서, `D:`를 원격 host로 읽는 GNU tar의 Git Bash에서도 동작한다. (K759)
 
 - commit-deleted-test가 sibling checkout에 링크된 provider는 그 checkout으로, 복사본은 lock으로 판단한다. (K758)
 

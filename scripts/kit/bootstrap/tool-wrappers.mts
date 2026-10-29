@@ -76,6 +76,14 @@ export function bootstrapEnvironment(root: string, extra: NodeJS.ProcessEnv = {}
   return { ...process.env, PATH, ...extra };
 }
 
+/**
+ * The tar that unpacks the archives of the bootstrap. On Windows it is the bsdtar of the system, which reads a drive path
+ * and a zip file; the tar of PATH under Git Bash is GNU tar, which takes `D:` for a remote host and reads no zip (K759).
+ */
+export function archiveTar(platform: NodeJS.Platform = process.platform, environment: NodeJS.ProcessEnv = process.env): string {
+  return platform === 'win32' ? path.win32.join(environment.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+}
+
 /** Runs `command` with its output on the output of this process, after printing it; throws when it does not end with status 0. */
 export function run(command: string, args: readonly string[], options: SpawnSyncOptions, print: (text: string) => unknown): void {
   print(`${command} ${args.join(' ')}`);

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The Windows bootstrap unpacks with the bsdtar of Windows, so it works under Git Bash, whose GNU tar reads `D:` as a remote host. (K759)
+
 - commit-deleted-test judges a provider linked to its sibling checkout by that checkout, and a copy by the lock. (K758)
 
 - rules-check reads a gates step that names `${{ matrix.runtime }}` as one run for each runtime, so the runtime lint rules of a consumer are reached. (K757)

@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { installOnce } from './install-tool.mts';
-import { bootstrapEnvironment, run, toolsPath, writeNativeWrapper } from './tool-wrappers.mts';
+import { archiveTar, bootstrapEnvironment, run, toolsPath, writeNativeWrapper } from './tool-wrappers.mts';
 import { fileDigest } from './digest.mts';
 import { readJsonObject } from './files.mts';
 
@@ -30,14 +30,14 @@ function unpackVerified({ root, next, version, sha512, print }: { root: string; 
   run('curl', ['--fail', '--silent', '--show-error', '--location', '--output', tarball, url], { cwd: root, env: bootstrapEnvironment(root) }, print);
   const actual = fileDigest(tarball, 'sha512');
   if (actual !== sha512) throw new Error(`npm ${version} tarball ${url} has the sha512 ${actual}; packageManager of package.json declares ${sha512}`);
-  const listing = spawnSync('tar', ['-tvf', tarball], { encoding: 'utf8' });
+  const listing = spawnSync(archiveTar(), ['-tvf', tarball], { encoding: 'utf8' });
   if (listing.status !== 0) throw new Error(`tar -tvf ${tarball} ended with exit status ${listing.status}: ${listing.stderr.trim()}`);
   // tar -tv starts the line of a file with - and the one of a directory with d.
   const links = listing.stdout.split('\n').filter(line => line && !/^[-d]/.test(line));
   if (links.length > 0) throw new Error(`the npm ${version} tarball holds a link or a special file; expected files and directories only: ${links[0]}`);
   const directory = path.join(next, 'node_modules/npm');
   mkdirSync(directory, { recursive: true });
-  run('tar', ['-x', '-f', tarball, '-C', directory, '--strip-components', '1'], { cwd: root }, print);
+  run(archiveTar(), ['-x', '-f', tarball, '-C', directory, '--strip-components', '1'], { cwd: root }, print);
   writeFileSync(path.join(directory, MARKER), `${sha512}\n`);
   rmSync(scratch, { recursive: true, force: true });
 }
