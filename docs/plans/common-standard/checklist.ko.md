@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 2114ac9df22bbf669a5f58edb8f18b6cecb6fbc02e4b10fa1146f6d383aa289e -->
+<!-- source-sha256: 7e52f5462f4a4160bd964f8e9e5fdffbde8b7883590e45e6e9fe363b6d2938f1 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -766,3 +766,4 @@
 | K810 | kit-check와 kit-sync의 형식 거부를 지운다: 고정 task 이름, runtime target, tracked symlink, lint 선택, retired 파일 | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [o] |
 | K811 | worktree-setup의 거부를 지운다: 이름 형식, 바깥 Composer, Python env 소유, release archive link | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test tests/kit/worktree-setup.test.mts` | [o] |
 | K812 | release의 version 검사와 manifest 문제를 지운다. asset은 package manager가 만든다 | scripts/kit/release.mts, tests/kit/release.test.mts | `node --test tests/kit/release.test.mts` | [o] |
+| K813 | be257cb6 CI에서 실패한 테스트를 삭제 행에 맞춤 | scripts/kit/release-wheel.mts, tests/source/python-real.test.mts, tests/source/uv-link-real.test.mts, tests/source/worktree-python-real.test.mts, tests/source/real-tools.mts, tests/source/mise-trust-real.test.mts, tests/source/composer-install-real.test.mts, tests/kit/documents-stamp.test.mts, tests/kit/php-ext.test.mts | `node --test tests/kit/documents-stamp.test.mts tests/kit/php-ext.test.mts` | [ ] |
