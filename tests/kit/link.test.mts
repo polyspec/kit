@@ -1124,7 +1124,7 @@ test('composer-install takes the checkouts after DIR and runs the install with t
 // K448: the link is the folder. Each installed polyspec package folder that a sibling checkout provides becomes a direct symlink to
 // the provider's package folder, a copy is removed, and no package manager runs: no composer.link.json, no npm, no Composer, so no
 // version, constraint or provider version is read.
-test('link writes the npm and Composer folders as plain links with no package manager (K761)', (t) => {
+test('link writes the npm, Composer and Python folders as plain links with no package manager link step (K761, K765)', (t) => {
   const { provider, consumer, env, log } = workspace(t);
   put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }) });
   git(consumer, 'add', '-A');
@@ -1139,7 +1139,7 @@ test('link writes the npm and Composer folders as plain links with no package ma
   assert.equal(lstatSync(npm).isSymbolicLink(), true, 'node_modules/@polyspec/x is one symlink (K591)');
   assert.equal(npmTarget(npm), realpathSync(path.join(provider, 'packages/ts')));
   assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no Composer link manifest is written');
-  assert.doesNotMatch(log(), /^npm link |^composer update /m, 'no package manager re-resolves the consumer (K761)');
+  assert.doesNotMatch(log(), /^npm link |^composer update |--editable/m, 'no package manager link step re-resolves the consumer (K761, K765)');
 });
 
 // K447: link covers every tracked Composer project of the checkout, not only the root: a project below the root with its own lock (hyper
@@ -1219,91 +1219,27 @@ test('K529: check and link reject a missing declared package; link installs noth
 // K643: uv installs a path dependency editable: site-packages then holds no folder of the package, only its dist-info whose
 // direct_url.json (PEP 610) names the source folder. Such an install of the provider's folder is linked natively; one of another
 // folder is a finding in link and in check.
-test('K643: a python package installed editable from its provider is linked, and one installed editable from elsewhere is a finding (K643)', (t) => {
-  const { provider, consumer, env } = workspace(t);
-  const first = linkLines([consumer], env);
-  assert.equal(first.ok, true, first.text);
-  const site = path.join(consumer, 'python/.venv/lib/python3.14/site-packages');
-  rmSync(path.join(site, 'polyspec_z'), { recursive: true, force: true });
-  const record = (folder: string) => put(site, { 'polyspec_z-0.0.1.dist-info/direct_url.json': JSON.stringify({ url: pathToFileURL(folder).href, dir_info: { editable: true } }) });
-  record(path.join(provider, 'packages/python'));
-  const linked = linkLines([consumer], env, true);
-  assert.equal(linked.ok, true, linked.text);
-  assert.doesNotMatch(linked.text, /polyspec_z.*no installed folder/i);
-  const elsewhere = mkdtempSync(path.join(tmpdir(), 'kit-editable-'));
-  t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
-  record(elsewhere);
-  const found = linkLines([consumer], env, true);
-  assert.equal(found.ok, false, found.text);
-  assert.match(found.text, /NOT linked\s+python\s+polyspec[-_]z: installed editable from .*kit-editable-.*, not from .*packages\/python/i);
-  const repaired = linkLines([consumer], env);
-  assert.equal(repaired.ok, true, repaired.text);
-  const metadata: unknown = JSON.parse(readFileSync(path.join(site, 'polyspec_z-0.0.1.dist-info/direct_url.json'), 'utf8'));
-  assert.deepEqual(metadata, { url: pathToFileURL(path.join(provider, 'packages/python')).href, dir_info: { editable: true } });
-  assert.equal(linkLines([consumer], env, true).ok, true);
-
-});
-
-// K590: a workspace member has no lock of its own: npm installs an npm workspace member's packages into the node_modules of the root
-// whose package-lock.json installs it, and the root composer.json installs a Composer package through its path repository into the
-// root's vendor. link takes the member's installed folders from that owner; a package that the owner lacks stays a finding of the member.
-test('K590: link takes the installed folders of a workspace member with no lock from the project whose lock installs it (K590)', (t) => {
-  const { consumer, env } = workspace(t);
-  const manifest = readJsonObject(path.join(consumer, 'package.json'));
-  put(consumer, {
-    'package.json': JSON.stringify({ ...manifest, workspaces: ['packages/app'] }),
-    'packages/app/package.json': JSON.stringify({ name: '@cons/app', dependencies: { '@polyspec/x': '0.0.1' } }),
-    'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }, { type: 'path', url: 'packages/srv' }], require: { 'polyspec/y': '0.0.1', 'cons/srv': '0.0.1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }),
-    'packages/srv/composer.json': JSON.stringify({ name: 'cons/srv', require: { 'polyspec/y': '0.0.1' } }),
-  });
-  git(consumer, 'add', '-A');
-  git(consumer, 'commit', '--quiet', '-m', 'workspace members');
-  const linked = linkLines([consumer], env);
-  assert.equal(linked.ok, true, linked.text);
-  assert.doesNotMatch(linked.text, /no installed folder/);
-  // Native mutation may install the member too; remove that local install to exercise its root owner.
-  rmSync(path.join(consumer, 'packages/app/node_modules'), { recursive: true, force: true });
-  const checked = linkLines([consumer], env, true);
-  assert.equal(checked.ok, true, checked.text);
-  // The owner lacks the package: the member is named.
-  rmSync(path.join(consumer, 'node_modules/@polyspec/x'), { recursive: true, force: true });
-  const missing = linkLines([consumer], env, true);
-  assert.equal(missing.ok, false, missing.text);
-  assert.match(missing.text, /NOT linked\s+npm\s+@polyspec\/x: no installed folder in packages\/app/);
-});
-
-test('K657-3: Python links use native editable installation and check refuses legacy links without invoking uv', (t) => {
+test('K765: a Python package folder becomes one link to its checkout, with no uv install, and check judges the link without uv', (t) => {
   const { provider, consumer, env, log } = workspace(t);
   const source = path.join(provider, 'packages/python/src/polyspec_z');
   const site = path.join(consumer, 'python/.venv/lib/python3.14/site-packages');
   put(provider, { 'packages/python/src/polyspec_z/__init__.py': 'VALUE = 1\n' });
   put(consumer, { 'python/.venv/lib/python3.14/site-packages/polyspec_z/__init__.py': 'VALUE = 0\n' });
-  const installed = linkLines([consumer], env);
-  assert.equal(installed.ok, true, installed.text);
-  assert.equal(log().split('\n').filter(line => line.startsWith('uv sync ')).length, 0, 'source-only linking never reconciles the release lock');
-  const installs = log().split('\n').filter(line => line.startsWith('uv pip install '));
-  assert.deepEqual(installs, [`uv pip install --offline --python ${path.join(consumer, 'python/.venv/bin/python')} --reinstall-package polyspec-z --editable ${path.join(provider, 'packages/python')}[extra] --reinstall-package polyspec-w --editable ${path.join(provider, 'packages/w')}`], 'all selected providers and explicit extras share one native editable transaction');
-  assert.doesNotMatch(installs[0] ?? '', /(?:^| )--no-deps(?: |$)/);
+  const linked = linkLines([consumer], env);
+  assert.equal(linked.ok, true, linked.text);
+  assert.ok(lstatSync(path.join(site, 'polyspec_z')).isSymbolicLink());
+  assert.equal(realpathSync(path.join(site, 'polyspec_z')), realpathSync(source));
+  assert.deepEqual(log().split('\n').filter(line => /^uv (sync|pip install) /.test(line)), [], 'the link neither syncs nor builds');
   assert.match(log(), /uv pip check --python/);
-  assert.match(log(), /uv pip list --python .*--format json/);
-  assert.doesNotMatch(log(), /uv pip list --editable/);
-  assert.equal(existsSync(path.join(site, 'polyspec_z')), false);
-  const record = path.join(site, 'polyspec_z-0.0.1.dist-info/direct_url.json');
-  const metadata: unknown = JSON.parse(readFileSync(record, 'utf8'));
-  assert.deepEqual(metadata, { url: pathToFileURL(path.join(provider, 'packages/python')).href, dir_info: { editable: true } });
-  const dependencyMetadata: unknown = JSON.parse(readFileSync(path.join(site, 'polyspec_w-0.0.1.dist-info/direct_url.json'), 'utf8'));
-  assert.deepEqual(dependencyMetadata, { url: pathToFileURL(path.join(provider, 'packages/w')).href, dir_info: { editable: true } });
   const uvLog = () => log().split('\n').filter(line => line.startsWith('uv ')).join('\n');
   const before = uvLog();
   assert.equal(linkLines([consumer], env, true).ok, true);
   assert.equal(uvLog(), before, 'check invokes no uv command');
-  rmSync(path.dirname(record), { recursive: true });
-  symlinkSync(source, path.join(site, 'polyspec_z'));
-  const legacy = linkLines([consumer], env, true);
-  assert.equal(legacy.ok, false);
-  assert.match(legacy.text, /legacy package link requires a fresh native editable environment/);
-  assert.equal(uvLog(), before, 'legacy check also invokes no uv command');
-  assert.throws(() => linkLines([consumer], env), /legacy Python package links require migration/);
+  rmSync(path.join(site, 'polyspec_z'));
+  put(consumer, { 'python/.venv/lib/python3.14/site-packages/polyspec_z/__init__.py': 'VALUE = 0\n' });
+  const copy = linkLines([consumer], env, true);
+  assert.equal(copy.ok, false);
+  assert.match(copy.text, /NOT linked\s+python\s+.*polyspec_z.* is a copy, not a link/);
   assert.equal(readFileSync(path.join(source, '__init__.py'), 'utf8'), 'VALUE = 1\n');
 });
 

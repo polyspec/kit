@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 20b204d4b6ce750b353c02c3ef4603497ff03cd11f0395f33a7feac033e80301 -->
+<!-- source-sha256: c4e0dce8d90d59e797280493013f941c1ddc19c6a549929e76fdc1480f7100c2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- make link과 uv-install은 npm·Composer처럼 설치된 Python polyspec 패키지 폴더를 각각 checkout으로 가는 디렉터리 심링크 하나로 만든다. editable build를 하지 않으므로 링크에 build backend가 필요 없다. (K765)
 
 - make link은 각 Python provider를 uv pip install --no-deps로 링크하므로, sibling을 릴리즈 URL로 선언한 provider도 오프라인으로 링크된다. 의존성은 uv pip check가 판단한다. (K763)
 

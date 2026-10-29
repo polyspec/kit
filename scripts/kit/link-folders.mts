@@ -13,7 +13,6 @@
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { readToml } from './toml.mts';
 import { errorCode } from './process.mts';
@@ -164,29 +163,6 @@ function sitePackages(project: string, environment: string | undefined): string[
   const lib = path.join(path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment), 'lib');
   if (!existsSync(lib)) return [];
   return readdirSync(lib).map(name => path.join(lib, name, 'site-packages')).filter(folder => existsSync(folder));
-}
-
-/**
- * The folder that the Python distribution `name` of the environment of `project` is installed editable from, as the direct_url.json
- * of its dist-info records it (PEP 610: dir_info.editable with a file: url), or undefined when the environment holds no editable
- * install of it. uv installs a path dependency editable: site-packages then holds no package folder of it, only the record of its
- * source folder, which the native link of the ecosystem is (K643).
- */
-export function editableFolder(project: string, name: string, environment: string | undefined = process.env.UV_PROJECT_ENVIRONMENT): string | undefined {
-  const normal = (text: string) => text.toLowerCase().replace(/[-_.]+/g, '_');
-  for (const site of sitePackages(project, environment)) {
-    for (const entry of readdirSync(site)) {
-      // A dist-info is <name>-<version>.dist-info, and its name holds no hyphen (the binary distribution format).
-      if (!entry.endsWith('.dist-info') || normal(entry.slice(0, entry.indexOf('-'))) !== normal(name)) continue;
-      const file = path.join(site, entry, 'direct_url.json');
-      if (!existsSync(file)) continue;
-      const record = readJsonObject(file);
-      if (!isJsonObject(record.dir_info) || record.dir_info.editable !== true) continue;
-      if (typeof record.url !== 'string' || !record.url.startsWith('file:')) throw new Error(`${file}: an editable install of ${name} without a file: url`);
-      return fileURLToPath(record.url);
-    }
-  }
-  return undefined;
 }
 
 /**

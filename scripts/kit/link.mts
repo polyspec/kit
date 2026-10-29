@@ -1,8 +1,8 @@
 // The local links of 0.0.x development (docs/operations/local-links.md, K201, K205, K448). The checkouts that the arguments name are the
 // providers (link-providers.mts): each installed package folder of a consumer that a provider gives is replaced by a direct relative
 // symlink to the provider's package folder (K761): during development the installed folder is a plain directory symlink to the
-// development checkout, and a release uses the installed copy. No package manager re-resolves the consumer; Python installs editable
-// (K643). kit itself only links, it never builds (link-build.mts rebuilds):
+// development checkout, and a release uses the installed copy. No package manager re-resolves the consumer, Python's
+// included (K765). kit itself only links, it never builds (link-build.mts rebuilds):
 //   npm       node_modules/<name> of each tracked project, one directory symlink;
 //   Composer  <vendor-dir>/<vendor>/<package> of each tracked project, the vendor-dir of its composer.json, one directory symlink;
 //   Python    each package of the site-packages of a project's .venv, one link per package of a namespace;
@@ -24,9 +24,9 @@ import { fileURLToPath } from 'node:url';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
-import { legacyPythonLinks, uvEditable } from './uv-install.mts';
+import { uvLink } from './uv-install.mts';
 import { rebuild } from './link-build.mts';
-import { composerVendorDir, editableFolder, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, releaseEnvironmentLinks } from './link-folders.mts';
+import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolsRoot } from './bootstrap/tool-wrappers.mts';
@@ -212,7 +212,7 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
 }
 
 
-// --- Python: uv interprets the application source/workspace declarations and owns editable metadata.
+// --- Python: uv installs the lock and owns the distribution metadata; kit links the installed package folders (K765).
 
 /** The environment of the pyproject `file`: uv's project environment of its workspace root, which uv sync creates when it is missing. */
 function installTarget(uv: Tool, file: string): { venv: string; workspace: string } {
@@ -450,32 +450,25 @@ function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly 
     const pythonManifest = path.join(project, 'pyproject.toml');
     if (folderEcosystems.includes('python') && !work.check && existsSync(pythonManifest) && declaredPython(pythonManifest).length > 0) {
       const uv = consumerTool(consumer.top, 'uv', work.env);
-      uvEditable({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
+      uvLink({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
     }
     // A path member uses its parent installer's vendor and selected manifest, not a separate member installation (K590).
     const localProviders = [...work.found.values()].filter(provider => provider.ecosystem !== 'composer' || composerOwners.length === 0);
     const folders = providedFolders(project, localProviders, { vendorDir: composerOwners.length === 0 ? composerVendorDir(project, work.env) : undefined });
-    // K761: each installed npm and Composer folder of a provided package is one plain directory symlink to its checkout; no package
-    // manager re-resolves the consumer. A declared package with no installed folder is reported below (K529).
-    if (!work.check) for (const text of linkFolders(folders.filter(folder => folder.ecosystem !== 'python'))) work.print(text);
+    // K761, K765: each installed npm, Composer and Python folder of a provided package is one plain directory symlink to its checkout;
+    // no package manager re-resolves the consumer. A declared package with no installed folder is reported below (K529).
+    if (!work.check) for (const text of linkFolders(folders)) work.print(text);
     // K529: a polyspec package that the manifests of the project declare, and that a provider of the run provides, has an installed folder.
     const missing = declaredWithoutFolder(work, consumer, project, [...folders, ...ownerFolders(work, consumer, project, folderEcosystems)], folderEcosystems);
     for (const name of missing) line(work, 'NOT linked', name.ecosystem, `${name.name}: no installed folder in ${path.relative(consumer.top, project) || '.'}; install the project first`);
     if (missing.length > 0) work.failed = true;
-    // K643: a Python package installed editable is linked natively when its record names the folder of its provider.
-    const elsewhere = folderEcosystems.includes('python') ? editableElsewhere(work, consumer, project) : [];
-    for (const finding of elsewhere) line(work, 'NOT linked', 'python', finding);
-    if (elsewhere.length > 0) work.failed = true;
     if (work.check) {
-      const legacy = folderEcosystems.includes('python') ? legacyPythonLinks(project, work.found.values(), work.env) : [];
-      for (const folder of legacy) line(work, 'NOT linked', 'python', `${path.relative(consumer.top, folder)}: legacy package link requires a fresh native editable environment`);
-      if (legacy.length > 0) work.failed = true;
       const findings = [...folderFindings(consumer.top, folders), ...providerDependencyFindings(consumer.top, folders, work.found.values())];
       for (const finding of findings) line(work, 'NOT linked', finding.split(' ')[0] ?? '', finding.slice(finding.indexOf(' ') + 1));
       if (findings.length > 0) work.failed = true;
       continue;
     }
-    for (const item of folders.filter(folder => folder.ecosystem !== 'python')) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
+    for (const item of folders) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
   }
 }
 
@@ -526,25 +519,7 @@ function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, f
     // no package path installs no folder (K529).
     if (provider === undefined || provider.repository === repositoryOf(consumer.top)) return false;
     if (ecosystem === 'python' && !hasPythonPackages(provider)) return false;
-    // K643: an editable install of a python package has no folder; editableElsewhere judges where it points.
-    if (ecosystem === 'python' && editableFolder(project, name) !== undefined) return false;
     return !folders.some(folder => folder.ecosystem === ecosystem && (folder.name === name || folder.name.startsWith(`${name} `)));
-  });
-}
-
-/**
- * The findings of the provided Python packages that `project` declares and that its environment holds installed editable from
- * another folder than their provider's (K643); an editable install of the provider's folder is linked.
- */
-function editableElsewhere(work: Run, consumer: Consumer, project: string): string[] {
-  const file = path.join(project, MANIFESTS.python);
-  if (!existsSync(file)) return [];
-  return declaredPython(file).flatMap((name) => {
-    const provider = work.found.get(providerKey('python', name));
-    if (provider === undefined || provider.repository === repositoryOf(consumer.top)) return [];
-    const editable = editableFolder(project, name);
-    if (editable === undefined || (existsSync(editable) && realpathSync(editable) === realpathSync(provider.folder))) return [];
-    return [`${name}: installed editable from ${editable}, not from ${provider.folder}; install it from the sibling checkout`];
   });
 }
 
@@ -587,7 +562,7 @@ export function unlink({ directories, print, env = process.env, project = false 
         if (typeof target === 'string') { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
         if (!existsSync(path.join(target.workspace, 'uv.lock'))) {
           // A project locked by a PEP 751 lock and no uv.lock (K401-1) gets the locked releases of its linked packages installed over
-          // their editables; a linked package that the lock does not hold has no locked release to restore.
+          // their links; a linked package that the lock does not hold has no locked release to restore.
           const lock = pylockOf(target.workspace);
           if (lock === undefined) { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
           const { pins, missing } = pylockReleases(lock, declaredPython(file));
