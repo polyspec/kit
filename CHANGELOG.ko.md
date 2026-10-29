@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 75a953aac3096d18edf5188bb2aba2279d0fd582b05d39a2771abb96dd40c8b2 -->
+<!-- source-sha256: 392aef214239f87df301ff5776b0a2ea28bf830274b5ce8c63ce62281e7d7344 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.71
+
+- K818을 담아 Kit 0.0.71을 릴리즈합니다 (K819).
 - documents-stamp는 doc-id 줄 다음의 marker 줄만 씁니다. 본문에 예시로 보인 source-sha256 marker는 그대로 둡니다 (K818).
 
 ## 0.0.70

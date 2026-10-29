@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+## 0.0.71
+
+- Release Kit 0.0.71 with K818 (K819).
 - documents-stamp writes only the marker line after the doc-id line; a source-sha256 marker shown as an example in the body stays unchanged (K818).
 
 ## 0.0.70
