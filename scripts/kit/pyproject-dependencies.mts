@@ -1,7 +1,6 @@
 // The dependency arrays of a pyproject.toml, read from its parsed document, the tables of either TOML reader of kit:
 // `dependencies` of [project], each extra of [project.optional-dependencies] and each group of [dependency-groups]
-// (PEP 735), whose `{ include-group = "…" }` tables are resolved as PEP 735 specifies. scripts/kit/dependency-state.mts
-// reviews the requirements, and scripts/kit/pin-python-dependency.mts pins them in place (K177).
+// (PEP 735), whose `{ include-group = "…" }` tables are resolved as PEP 735 specifies; link reads the polyspec names of them (K177).
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import { parsePipRequirementsLine } from 'pip-requirements-js';
 

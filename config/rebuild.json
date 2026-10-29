@@ -134,14 +134,6 @@
       "kind": "ecosystem",
       "tool": "composer config vendor-dir, run with the Composer of the checkout in the folder of the composer.json, gives the vendor directory by Composer's own rule (K163, K184)"
     },
-    "scripts/kit/dependency-review.mts": {
-      "kind": "ecosystem",
-      "tool": "npm, composer, go and cargo report the releases and advisories, and govulncheck its findings as SARIF (K124)"
-    },
-    "scripts/kit/dependency-state.mts": {
-      "kind": "ecosystem",
-      "tool": "smol-toml reads the pyproject manifests through toml.mts (K73); the locks are JSON or are read by their ecosystem tools"
-    },
     "scripts/kit/documents-stamp.mts": {
       "kind": "policy",
       "reason": "writes the revision marker of polyspec's translation pairs"
@@ -326,10 +318,6 @@
       "kind": "ecosystem",
       "tool": "node:path and process.cwd"
     },
-    "scripts/kit/pin-python-dependency.mts": {
-      "kind": "ecosystem",
-      "tool": "@decimalturn/toml-patch rewrites the pin and keeps the text (K122)"
-    },
     "scripts/kit/playwright-reporter.mts": {
       "kind": "ecosystem",
       "tool": "Playwright Test reporter API"
@@ -356,7 +344,7 @@
     },
     "scripts/kit/pyproject-dependencies.mts": {
       "kind": "policy",
-      "reason": "lists the dependency arrays of a pyproject.toml for dependency-state and pin-python-dependency, and resolves the include-group tables of [dependency-groups] as the reference implementation of PEP 735 does; no npm package reads dependency groups (K177)"
+      "reason": "lists the dependency arrays of a pyproject.toml for link, and resolves the include-group tables of [dependency-groups] as the reference implementation of PEP 735 does; no npm package reads dependency groups (K177)"
     },
     "scripts/kit/python-lock.mts": {
       "kind": "ecosystem",
@@ -494,10 +482,6 @@
       "kind": "ecosystem",
       "tool": "git ls-files"
     },
-    "scripts/kit/version.mts": {
-      "kind": "ecosystem",
-      "tool": "semver for npm and Go and @renovatebot/pep440 for PyPI compare the versions (K73); kit compares no Composer versions"
-    },
     "scripts/kit/vitest-reporter.mts": {
       "kind": "ecosystem",
       "tool": "vitest reporter API"
@@ -557,10 +541,6 @@
     "scripts/kit/link-state-check.mts": {
       "kind": "policy",
       "reason": "the rule of P30 that a development consumer links each 0.0.x provider and never copies it (K305-1); it reads the links that npm and Composer make"
-    },
-    "scripts/kit/linked-package.mts": {
-      "kind": "policy",
-      "reason": "the rule of P30 and K328 that a linked polyspec package is judged by its link, not by the registry"
     },
     "scripts/kit/npm-install.mts": {
       "kind": "ecosystem",

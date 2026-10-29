@@ -1,4 +1,4 @@
-// The stub registries of the dependency tests (tests/kit/registry.mts). The go and composer stubs answer go mod edit and
+// The stub tools of the tests (tests/kit/registry.mts). The go and composer stubs answer go mod edit and
 // composer validate from the records of the real tools (tests/kit/tool-records.json), never by running a tool, so a vendored
 // test needs neither go nor Composer; tests/source/tool-records-real.test.mts proves the records against the pinned tools.
 import assert from 'node:assert/strict';

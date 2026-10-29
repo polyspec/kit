@@ -29,7 +29,7 @@ export function trackedFiles(root: string = repositoryRoot()): string[] {
     .sort();
 }
 
-/** The files that the dependency reviews and the release coverage read: `trackedFiles` except the kit fixture and the installed and output directories. */
+/** The files that the checks and the release coverage read: `trackedFiles` except the kit fixture and the installed and output directories. */
 export const checkedFiles = (root: string): string[] => trackedFiles(root).filter(file => !file.startsWith(KIT_FIXTURE) && !INSTALLED.test(file));
 
 /** The paths under `root` that Git ignores, a directory with a trailing `/`. */

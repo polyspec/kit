@@ -1,10 +1,10 @@
-// Stub registries for the tests of the dependency tools: `npm`, `composer`, `curl` and `go` on PATH answer from a JSON file
-// (`registry.json` of the directory), so a test or the record of a fixture needs no network. The stubs log their calls.
+// Stub tools for the tests: `npm`, `composer`, `curl` and `go` on PATH, so a test needs no network and starts no real tool.
+// The stubs refuse every command that no test needs.
 // The commands that read only files of the checkout, go mod edit and composer validate, are answered from the records of
 // tests/kit/tool-records.json: what the pinned go and Composer printed for the same arguments and files (K127). A stub never
 // runs the real tool, so a vendored test needs neither; a request without a record fails, names itself, and is added to
 // STUB_TOOL_MISSES when that names a file, which record-tools.mts reads to write the records.
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { checkoutStubs } from './checkout-stubs.mts';
@@ -29,97 +29,29 @@ const answer = (tool, args, files, shown) => {
 `;
 
 const NPM_STUB = `#!/usr/bin/env node
-const { appendFileSync, readFileSync } = require('node:fs');
-const args = process.argv.slice(2);
-appendFileSync(process.env.STUB_LOG, 'npm ' + args.join(' ') + '\\n');
-const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
-if (args[0] === 'view' && args[2] === 'deprecated') {
-  // npm view <name>@<version> deprecated prints the deprecation message, or nothing for a release in good standing.
-  console.log((registry.deprecated ?? {})[args[1]] ?? '');
-} else if (args[0] === 'view') {
-  const versions = registry.npm[args[1]];
-  if (!versions) { console.error('404 ' + args[1]); process.exit(1); }
-  console.log(JSON.stringify([{ 'dist-tags': { latest: versions[versions.length - 1] }, versions }]));
-} else if (args[0] === 'audit' && registry.npmAuditText !== undefined) {
-  process.stdout.write(registry.npmAuditText);
-} else if (args[0] === 'audit') {
-  console.log(JSON.stringify(registry.npmAudit ?? { vulnerabilities: {} }));
-  process.exit(Object.keys(registry.npmAudit?.vulnerabilities ?? {}).length ? 1 : 0);
-} else if (args[0] === 'outdated') {
-  const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
-  const out = {};
-  for (const [name, versions] of Object.entries(registry.npm)) {
-    const current = lock.packages['node_modules/' + name]?.version;
-    const latest = versions[versions.length - 1];
-    if (current && current !== latest) out[name] = { current, wanted: current, latest };
-  }
-  console.log(JSON.stringify(out));
-  process.exit(Object.keys(out).length ? 1 : 0);
-} else {
-  console.error('npm stub: unsupported ' + args.join(' '));
-  process.exit(2);
-}
+console.error('npm stub: unsupported ' + process.argv.slice(2).join(' '));
+process.exit(2);
 `;
 
+// Commands such as composer validate read the composer.json and the composer.lock of the working directory: their record answers.
 const COMPOSER_STUB = `#!/usr/bin/env node
-const { appendFileSync, readFileSync } = require('node:fs');
+const { existsSync, readFileSync } = require('node:fs');
 ${TOOL_ANSWER}
-const path = require('node:path');
 const args = process.argv.slice(2);
-const directory = path.basename(process.cwd());
-appendFileSync(process.env.STUB_LOG, 'composer ' + args.join(' ') + (process.env.COMPOSER ? ' [COMPOSER=' + process.env.COMPOSER + ']' : '') + '\\n');
-const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
-if (args[0] === 'outdated') {
-  const manifest = JSON.parse(readFileSync('composer.json', 'utf8'));
-  const lock = JSON.parse(readFileSync('composer.lock', 'utf8'));
-  const locked = new Map([...lock.packages, ...(lock['packages-dev'] ?? [])].map(item => [item.name, item.version]));
-  const list = [];
-  // --direct lists the requirements of the root composer.json; without it composer outdated lists every locked package.
-  const names = args.includes('--direct') ? Object.keys({ ...manifest.require, ...(manifest['require-dev'] ?? {}) }) : [...locked.keys()];
-  for (const name of names) {
-    if (!locked.has(name)) continue;
-    const latest = registry.composer[directory]?.[name] ?? locked.get(name);
-    // composer outdated reports up-to-date when the latest release is the locked one (ShowCommand::getUpdateStatus).
-    list.push({ name, version: locked.get(name), latest, 'latest-status': latest === locked.get(name) ? 'up-to-date' : 'update-possible' });
-  }
-  console.log(JSON.stringify({ locked: list }));
-} else if (args[0] === 'audit') {
-  const report = registry.composerAudit?.[directory] ?? { advisories: [], abandoned: [] };
-  console.log(JSON.stringify(report));
-  process.exit(Array.isArray(report.advisories) ? 0 : 1);
-} else {
-  // Other commands (validate) read the composer.json and the composer.lock of the working directory: their record answers.
-  const read = file => (require('node:fs').existsSync(file) ? readFileSync(file, 'utf8') : null);
-  answer('composer', args, { 'composer.json': read('composer.json'), 'composer.lock': read('composer.lock') }, args);
-}
+const read = file => (existsSync(file) ? readFileSync(file, 'utf8') : null);
+answer('composer', args, { 'composer.json': read('composer.json'), 'composer.lock': read('composer.lock') }, args);
 `;
 
 const CURL_STUB = `#!/usr/bin/env node
-const { appendFileSync, readFileSync } = require('node:fs');
-const url = process.argv.slice(2).at(-1);
-appendFileSync(process.env.STUB_LOG, 'curl ' + process.argv.slice(2).join(' ') + '\\n');
-const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
-const packagist = /^https:\\/\\/repo\\.packagist\\.org\\/p2\\/(.+)\\.json$/.exec(url);
-if (packagist) {
-  // Packagist's metadata of a package: each release with its PHP requirement, as the platform check of the review reads it.
-  const versions = registry.packagist?.[packagist[1]];
-  if (!versions) { console.error('404 ' + url); process.exit(22); }
-  console.log(JSON.stringify({ packages: { [packagist[1]]: versions.map(version => ({ version, require: { php: registry.packagistPhp?.[packagist[1]] ?? '>=8.0.0' } })) } }));
-  process.exit(0);
-}
-const match = /^https:\\/\\/pypi\\.org\\/pypi\\/([^/]+)(?:\\/([^/]+))?\\/json$/.exec(url);
-const [, name, version] = match ?? [];
-const releases = registry.pypi?.[name];
-if (!releases || (version !== undefined && !releases[version])) { console.error('404 ' + url); process.exit(22); }
-if (version === undefined) console.log(JSON.stringify({ info: { version: Object.keys(releases).at(-1) }, releases }));
-else console.log(JSON.stringify({ info: { version }, vulnerabilities: registry.pypiVulnerabilities?.[name]?.[version] ?? [] }));
+console.error('curl stub: unsupported ' + process.argv.slice(2).join(' '));
+process.exit(22);
 `;
 
-// go mod edit and go work edit read a file and query nothing: their records answer, unlogged, as for composer validate. go env
+// go mod edit and go work edit read a file and query nothing: their records answer, as for composer validate. go env
 // GOWORK answers by the rule of the go command, which the record of no file can hold: the go.work that GOWORK names, or the
 // first go.work of the working directory and its parents.
 const GO_STUB = `#!/usr/bin/env node
-const { appendFileSync, readFileSync } = require('node:fs');
+const { readFileSync } = require('node:fs');
 ${TOOL_ANSWER}
 const args = process.argv.slice(2);
 if ((args[0] === 'mod' || args[0] === 'work') && args[1] === 'edit') {
@@ -137,25 +69,12 @@ if (args[0] === 'env' && args[1] === 'GOWORK' && args.length === 2) {
   console.log(found);
   process.exit(0);
 }
-appendFileSync(process.env.STUB_LOG, 'go ' + args.join(' ') + '\\n');
-const registry = JSON.parse(readFileSync(process.env.STUB_REGISTRY, 'utf8'));
-if (args[0] === 'list' && args[1] === '-m' && args[2] === '-versions') {
-  const module = args[args.length - 1];
-  const versions = registry.go?.[module];
-  if (!versions) { console.error('go: module ' + module + ' not found'); process.exit(1); }
-  console.log(JSON.stringify({ Path: module, Versions: versions }));
-} else if (args[0] === 'list' && args[1] === '-e') {
-  // go list -e -f <format> <pattern>...: every pattern names a buildable package, printed as the pattern.
-  console.log(args.slice(4).join('\\n'));
-} else {
-  console.error('go stub: unsupported ' + args.join(' '));
-  process.exit(2);
-}
+console.error('go stub: unsupported ' + args.join(' '));
+process.exit(2);
 `;
 
 /**
- * A directory with the stub commands on PATH and a registry file. Returns { env, calls, registry(data) } and removes
- * the directory with `t.after`. With `checkout`, the stubs of npm, composer and go are also the wrappers of that checkout in
+ * A directory with the stub commands on PATH. Returns { env } and removes the directory with `t.after`. With `checkout`, the stubs of npm, composer and go are also the wrappers of that checkout in
  * var/tools/bin, which kit starts before PATH (K393-1); PATH is unchanged.
  */
 export function stubRegistries(t: { after: (cleanup: () => void) => unknown }, checkout?: string) {
@@ -168,20 +87,11 @@ export function stubRegistries(t: { after: (cleanup: () => void) => unknown }, c
     chmodSync(path.join(bin, name), 0o755);
   }
   if (checkout !== undefined) checkoutStubs(checkout, bin, ['npm', 'composer', 'go']);
-  const log = path.join(directory, 'calls.log');
-  writeFileSync(log, '');
-  const registryFile = path.join(directory, 'registry.json');
-  writeFileSync(registryFile, JSON.stringify({ npm: {}, composer: {}, pypi: {} }));
-  const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_LOG: log, STUB_REGISTRY: registryFile, STUB_TOOL_RECORDS: TOOL_RECORDS };
-  return {
-    env,
-    calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean),
-    registry: (data: unknown) => writeFileSync(registryFile, JSON.stringify(data)),
-  };
+  const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`, STUB_TOOL_RECORDS: TOOL_RECORDS };
+  return { env };
 }
 
-// The stubs of a process that a test runs without its own registries, such as the gate: an empty registry, removed when the
-// process exits.
+// The stubs of a process that a test runs without its own stubs, such as the gate, removed when the process exits.
 let processStubs: NodeJS.ProcessEnv | undefined;
 const exitCleanups: (() => unknown)[] = [];
 let exitHooked = false;
@@ -194,7 +104,7 @@ function atProcessExit(cleanup: () => unknown): void {
 }
 
 /**
- * The environment of the stubs with an empty registry, made once for this process: the gate runs go mod edit and composer
+ * The environment of the stubs, made once for this process: the gate runs go mod edit and composer
  * validate, which the stubs answer from the records, so a gate of the fixture runs neither go nor Composer. With `checkout`,
  * the stubs are made for that checkout too (K393-1), and are not cached.
  */
@@ -204,12 +114,3 @@ export function toolStubs(checkout?: string): NodeJS.ProcessEnv {
   processStubs = stubRegistries({ after: atProcessExit }).env;
   return processStubs;
 }
-
-/** What the stub registries answer for the fixture of tests/kit/fixture: every dependency is at its latest stable release. */
-export const FIXTURE_REGISTRY = {
-  npm: { 'is-number': ['7.0.0'], semver: ['7.6.0'] },
-  composer: { 'fixture-php': { 'psr/log': '3.0.2' } },
-  composerAudit: { 'fixture-php': { advisories: [], abandoned: [] } },
-  pypi: { setuptools: { '84.0.0': [{}] }, ruff: { '0.16.10': [{}] }, click: { '8.1.7': [{}] } },
-  go: { 'github.com/google/uuid': ['v1.5.0', 'v1.6.0'] },
-};

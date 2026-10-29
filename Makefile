@@ -5,7 +5,7 @@ include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
 
-.PHONY: kit-test kit-fixture-record kit-tool-record source-test install-packages kit-install-symbols-php kit-install-php-arginfo kit-install-symbols install kit-build
+.PHONY: kit-test kit-tool-record source-test install-packages kit-install-symbols-php kit-install-php-arginfo kit-install-symbols install kit-build
 
 # The suite of kit, which CI runs (.github/workflows/ci.yml); locally only the tests that own a change run
 # (node scripts/kit/run-tests.mts node -- <test file>).
@@ -15,7 +15,7 @@ CHECK_TARGETS := typecheck kit-test source-test rebuild-check duplication-check
 KIT_TEST_SHARDS := 1 2 3 4 5 6 7
 KIT_TEST_FILES_1 := \
 	tests/kit/bootstrap-platform.test.mts \
-	tests/kit/check-toolchain.test.mts tests/kit/checklist.test.mts tests/kit/dependency-state.test.mts \
+	tests/kit/check-toolchain.test.mts tests/kit/checklist.test.mts \
 	tests/kit/gate-targets.test.mts tests/kit/install-composer-project.test.mts tests/kit/install-mise.test.mts \
 	tests/kit/install-vscode.test.mts tests/kit/isolation.test.mts tests/kit/lint-python.test.mts \
 	tests/kit/parity.test.mts tests/kit/paths.test.mts tests/kit/php-platform.test.mts \
@@ -30,24 +30,23 @@ KIT_TEST_FILES_2 := \
 	tests/kit/release-tools.test.mts tests/kit/test-selection.test.mts tests/kit/text-absent.test.mts \
 	tests/kit/toolchain-exceptions.test.mts tests/kit/uv-install.test.mts
 KIT_TEST_FILES_3 := \
-	tests/kit/ci-only.test.mts tests/kit/dependency-advisory.test.mts tests/kit/dependency-cargo.test.mts \
-	tests/kit/dependency-policy.test.mts tests/kit/documents-stamp.test.mts tests/kit/install-symbols.test.mts \
+	tests/kit/ci-only.test.mts tests/kit/documents-stamp.test.mts tests/kit/install-symbols.test.mts \
 	tests/kit/kit-tools.test.mts tests/kit/markdown.test.mts tests/kit/parity-requirements.test.mts \
 	tests/kit/python-lock-check.test.mts tests/kit/python-lock.test.mts tests/kit/recipe-tools.test.mts \
 	tests/kit/release-tag.test.mts tests/kit/run-tests.test.mts \
 	tests/kit/stubs.test.mts tests/kit/suppression-check.test.mts tests/kit/test-output.test.mts \
-	tests/kit/toolchain-mise.test.mts tests/kit/version.test.mts
+	tests/kit/toolchain-mise.test.mts
 KIT_TEST_FILES_4 := \
-	tests/kit/dependency-review.test.mts tests/kit/dependency-toolchain.test.mts tests/kit/holder-lock.test.mts \
+	tests/kit/holder-lock.test.mts \
 	tests/kit/install-tools.test.mts tests/kit/kit-assets.test.mts tests/kit/kit-bootstrap.test.mts \
 	tests/kit/kit-check.test.mts tests/kit/kit-files.test.mts tests/kit/land.test.mts \
 	tests/kit/language-check.test.mts tests/kit/link-state-check.test.mts tests/kit/lint-go.test.mts \
-	tests/kit/pin-python-dependency.test.mts tests/kit/registry.test.mts tests/kit/release.test.mts \
+	tests/kit/registry.test.mts tests/kit/release.test.mts \
 	tests/kit/sandbox-cleanup.test.mts tests/kit/test-gap-start.test.mts tests/kit/test-markers.test.mts \
 	tests/kit/toolchain-files.test.mts tests/kit/wheel-dependencies.test.mts tests/kit/wheel-sibling.test.mts
 KIT_TEST_FILES_5 := \
 	tests/kit/cargo-downloads.test.mts tests/kit/catch-check-steps.test.mts tests/kit/composer-install.test.mts \
-	tests/kit/dependency-go.test.mts tests/kit/duplication-check.test.mts tests/kit/git-hooks.test.mts \
+	tests/kit/duplication-check.test.mts tests/kit/git-hooks.test.mts \
 	tests/kit/install-npm.test.mts tests/kit/install-packages.test.mts tests/kit/lint-php.test.mts \
 	tests/kit/npm-install.test.mts tests/kit/php-ext.test.mts tests/kit/plan.test.mts \
 	tests/kit/process-group.test.mts tests/kit/python-lock-write.test.mts tests/kit/release-proof.test.mts \
@@ -69,7 +68,7 @@ SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-rea
 SOURCE_TEST_FILES_php := tests/source/composer-install-real.test.mts tests/source/link-composer-real.test.mts tests/source/lint-php-real.test.mts tests/source/symbols-php-real.test.mts
 SOURCE_TEST_FILES_php-ext := tests/source/php-library-real.test.mts
 SOURCE_TEST_FILES_rust := tests/source/link-cargo-real.test.mts tests/source/lint-rust-real.test.mts
-SOURCE_TEST_FILES_go := tests/source/go-worktree-real.test.mts tests/source/govulncheck-packages-real.test.mts tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
+SOURCE_TEST_FILES_go := tests/source/go-worktree-real.test.mts tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
 SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-lock-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-dependencies-real.test.mts tests/source/wheel-metadata-real.test.mts tests/source/wheel-sibling-real.test.mts tests/source/worktree-python-real.test.mts
 SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
 SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts tests/source/parity-real.test.mts
@@ -108,9 +107,6 @@ source-test-group: ## Run one declared source-test group; CI supplies GROUP=ts|p
 	@case " $(SOURCE_TEST_GROUPS) " in *" $(GROUP) "*) ;; *) echo "source-test-group: unknown or empty GROUP='$(GROUP)'; choose one of $(SOURCE_TEST_GROUPS)" >&2; exit 2;; esac
 	@test -n "$(SOURCE_TEST_FILES_$(GROUP))" || { echo "source-test-group: GROUP=$(GROUP) has no declared test files" >&2; exit 2; }
 	$(NODE) scripts/kit/run-tests.mts node -- $(SOURCE_TEST_FILES_$(GROUP))
-
-kit-fixture-record: ## Write the review record of tests/kit/fixture with the stub registries
-	$(NODE) tests/kit/record-fixture.mts
 
 kit-tool-record: ## Write tests/kit/tool-records.json, what the pinned go and Composer print for the requests of the stubs; offline after make install-tools
 	$(NODE) tests/kit/record-tools.mts

@@ -174,7 +174,6 @@
     ]
   },
   "dependencies": {
-    "@decimalturn/toml-patch": "3.3.1",
     "@mdit-vue/shared": "3.0.2",
     "@microsoft/api-extractor": "7.60.0",
     "@microsoft/api-extractor-model": "7.33.15",

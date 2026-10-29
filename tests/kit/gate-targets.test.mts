@@ -78,15 +78,6 @@ test('a make invocation sets core.hooksPath in a checkout that tracks the pre-pu
   assert.equal(git(directory, 'config', 'core.hooksPath'), '.githooks');
 });
 
-test('the dependency review target runs the review with the flags that the variables name', (t) => {
-  const directory = repository(t);
-  // make leaves the spaces of an empty $(if) in a printed recipe line, so the lines are compared with single spaces and no edge spaces.
-  const lines = (...args: string[]) => commands(directory, ...args).map(line => line.trim().replace(/\s+/g, ' '));
-  assert.deepEqual(lines('dependency-review'), ['$(NODE) scripts/kit/dependency-review.mts']);
-  assert.deepEqual(lines('dependency-review', 'RECORD=1'), ['$(NODE) scripts/kit/dependency-review.mts --record']);
-  assert.deepEqual(lines('dependency-review', 'UPDATE=1', 'RECORD=1'), ['$(NODE) scripts/kit/dependency-review.mts --record --update']);
-});
-
 test('kit.mk runs the rebuild check and the rules check in every repository that includes it (K248)', (t) => {
   const directory = repository(t);
   assert.deepEqual(commands(directory, 'rebuild-check'), ['$(NODE) scripts/kit/rebuild-check.mts']);

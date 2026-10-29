@@ -16,11 +16,11 @@ test('the schemas accept the configuration of the fixture', (t) => {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-config-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   mkdirSync(path.join(root, 'scripts/kit/schema'), { recursive: true });
-  for (const name of ['dependency-policy', 'dependency-review']) {
+  for (const name of ['dependency-policy']) {
     cpSync(path.join(HERE, '../../scripts/kit/schema', `${name}.schema.json`), path.join(root, 'scripts/kit/schema', `${name}.schema.json`));
   }
   mkdirSync(path.join(root, 'config'), { recursive: true });
-  for (const name of ['dependency-policy', 'dependency-review']) cpSync(path.join(FIXTURE, 'config', `${name}.json`), path.join(root, 'config', `${name}.json`));
+  for (const name of ['dependency-policy']) cpSync(path.join(FIXTURE, 'config', `${name}.json`), path.join(root, 'config', `${name}.json`));
   assert.deepEqual(checkConfig(root), []);
   const policy = path.join(root, 'config/dependency-policy.json');
   writeFileSync(policy, JSON.stringify({ schema: 2, composerPlatforms: [], pythonManifests: [], pythonLocks: [], npmLocks: [], exceptions: [], extra: true }));

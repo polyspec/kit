@@ -1,7 +1,6 @@
-// The JSON files of a fixture as the tests read and edit them: each file is read through the schema of kit that describes
+// The JSON files of a fixture as the tests read them: each file is read through the schema of kit that describes
 // it (readConfig of scripts/kit/schema-validate.mts, K158), as the tools read it, and a test names the type of the fields
-// that it reads or edits. A file without a schema of kit is no fixture JSON of this helper.
-import { writeFileSync } from 'node:fs';
+// that it reads. A file without a schema of kit is no fixture JSON of this helper.
 import path from 'node:path';
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 
@@ -15,7 +14,6 @@ const SCHEMAS: Record<string, string> = {
   'knip.json': 'knip.schema.json',
   'checklist.json': 'checklist.schema.json',
   'dependency-policy.json': 'dependency-policy.schema.json',
-  'dependency-review.json': 'dependency-review.schema.json',
   'documents.json': 'documents.schema.json',
   'owner-checks.json': 'owner-checks.schema.json',
   'parity.json': 'parity.schema.json',
@@ -36,10 +34,3 @@ function schemaOf(file: string): string {
 
 /** The JSON file `file` of `root` as Data, the fields of it that the test reads, validated against its schema. */
 export const readFixture = <Data,>(root: string, file: string): Data => readConfig<Data>(root, file, schemaOf(file));
-
-/** Applies `change` to the JSON file `file` of `root`, read as readFixture reads it, and writes it back. */
-export function editFixture<Data>(root: string, file: string, change: (data: Data) => void): void {
-  const data = readFixture<Data>(root, file);
-  change(data);
-  writeFileSync(path.join(root, file), `${JSON.stringify(data, null, 2)}\n`);
-}

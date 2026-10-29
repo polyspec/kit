@@ -10,7 +10,6 @@ byte-for-byte copies of the files that `kit.copies` of its `package.json` lists;
 | Concern | Tools (`scripts/kit/`) | Make targets (`scripts/kit/kit.mk`) |
 |---|---|---|
 | Vendoring | `kit-sync.mts`, `kit-check.mts` | `kit-sync`, `kit-check` |
-| Dependencies | `dependency-state.mts`, `dependency-review.mts`, `pin-python-dependency.mts` | `dependency-review RECORD=1 UPDATE=1` |
 | Toolchains | the bootstrap (`bootstrap/bootstrap.mts`: the npm of packageManager and mise), `install-tools.mts` (`mise install --locked` of `mise.toml` and `mise.lock`, then the wheel backend, the Composer projects and the Rust channels of `install-rust.mts`), `toolchain-lock.mts`, `mise-tools.mts`, `toolchain-mise.mts`, `check-toolchain.mts`, `check-cargo-downloads.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock`, `toolchain-check`, `cargo-downloads-check`, `cargo-downloads-fetch` |
 | Folder layout | the alint of `mise.toml` runs `config/layout.yml` over the common rules of `config/layout.kit.yml` | `layout-check` |
 | Lint | `lint-python.mts`, `lint-php.mts`, `lint-rust.mts`, `lint-go.mts`, `lint-ts.mts`, with the copied configuration (docs/operations/tool-inventory.md, Lint configuration) and the ruff, vulture, golangci-lint and deadcode of `mise.toml` and the PHP lint of `install-php-lint.mts` | `lint-python`, `lint-php`, `lint-rust`, `lint-go`, `lint-ts` |

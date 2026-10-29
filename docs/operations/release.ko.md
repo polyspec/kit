@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 869dacf1eaa489db7666cdf8c3f6587fe0441f4cce400eabf6a2ba7c85b41170 -->
+<!-- source-sha256: a7124beeb38dd0d58006eaa9f40b755cedf06a24e3e3d251ef16a33209b7ed05 -->
 # 릴리스
 
 [English](release.md)
@@ -11,7 +11,7 @@ package-lock의 `@polyspec/kit`을 갱신하고 `make install-packages`와 `make
 
 소비자는 `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include합니다. 깨끗한 checkout에서 공유 workflow는 `packageManager`에 선언된 정확한 npm version으로 native `npm ci --ignore-scripts`를 먼저 실행하고 기존 tool 설치와 package 설치 target을 실행합니다. 옆의 kit checkout을 clone하지 않습니다. 로컬의 `npm link ../kit`은 같은 설치 package path에서 source bootstrap을 사용하며 kit 자체는 자기 source Makefile을 사용합니다.
 
-Kit의 native npm prepack은 source export와 hook bin을 build된 dist path로 바꿉니다. Asset gate는 tag의 kit manifest에 같은 canonical producer 변환을 적용한 뒤 모든 byte를 비교하며 다른 package manifest는 byte-exact를 유지합니다. 기존 packed-consumer 검사는 단일 native pack으로 그 gate를 실행하고 생성된 archive를 설치합니다. Native consumer lock은 개발 lock과 다른 호환 전이 version을 해석할 수 있으므로 두 개의 정확한 locked graph를 모두 advisory review에 포함합니다.
+Kit의 native npm prepack은 source export와 hook bin을 build된 dist path로 바꿉니다. Asset gate는 tag의 kit manifest에 같은 canonical producer 변환을 적용한 뒤 모든 byte를 비교하며 다른 package manifest는 byte-exact를 유지합니다. 기존 packed-consumer 검사는 단일 native pack으로 그 gate를 실행하고 생성된 archive를 설치합니다. Native consumer lock은 개발 lock과 다른 호환 전이 version을 해석할 수 있으므로 npm audit가 두 개의 정확한 locked graph를 모두 검사합니다.
 
 Release와 tag 생성은 `[~]` 또는 `[v]` 상태인 checklist item이 있으면 거부합니다. `[v]`는 구현이 commit되었고 선언한 unit test가 통과했음을 기록합니다. 이 commit의 push는 허용하지만 verification을 완료하고 item을 `[o]`로 옮길 때까지 release를 막습니다. verification이 실패하면 item을 `[~]`로 되돌립니다.
 item-state 명령은 working-tree의 각 전이가 허용된 한 단계인지 확인합니다. commit은 결과 checklist state를 기록하므로, 각 중간 state를 별도 commit으로 만들지 않고 허용된 전이 경로를 거친 최종 state를 기록할 수 있습니다.
@@ -29,8 +29,7 @@ candidate command는 tracked 변경과 ignore되지 않은 untracked 파일이 �
 command를 다시 실행합니다. candidate archive 이름을 대상으로 `make release-consumer-lock TAG=vX.Y.Z`(ONLINE)와 consumer proof를 실행한 뒤
 `tests/release-consumer/*/`에 기록된 manifest와 lock을 CI 및 tag 생성 전에 commit합니다
 (docs/operations/tool-inventory.md, Consumer install of the release archives, 1단계와 2단계). 버전 변경은 package-manager lock을
-다시 쓰므로, 릴리스 commit은 `make dependency-review RECORD=1`(ONLINE)이 해당 lock에 대해 쓴 `config/dependency-review.json`도 담습니다.
-`composer.lock`의 content-hash가 `version`을 포함하므로, composer.json의 버전 변경도 그 directory에서 `composer update --lock`으로 다시
+다시 씁니다. `composer.lock`의 content-hash가 `version`을 포함하므로, composer.json의 버전 변경은 그 directory에서 `composer update --lock`으로 다시
 lock합니다. proof는 lock으로 archive를 설치하므로 lock이 없는 commit은 tag를 만들 수 없습니다. 이 commit은
 `main`에 들어가고 CI가 success로 끝나야 실제 tag를 만듭니다. 이후 `make release-assets TAG=vX.Y.Z`로 그 tag의 공식 asset을 빌드합니다.
 이 경로는 실제 tag를 요구하고 읽으며 publication의 유일한 source입니다. (2) release workflow를 tag와 함께 dispatch합니다

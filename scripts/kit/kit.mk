@@ -495,11 +495,11 @@ cargo-fetch: ## Fetch the Cargo crates of the project DIR in place of cargo fetc
 unlink: ## Restore the selected native locked installation of PROJECT and remove generated go.work files; application source declarations remain; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
-# The release and the dependency review use the released versions (K343), so their Go runs without the go.work of the links.
-release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof dependency-review: export GOWORK := off
+# The release uses the released versions (K343), so its Go runs without the go.work of the links.
+release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof: export GOWORK := off
 # The archive builds build the tree of the repository, so the go.work that it tracks, its own workspace and not a link, is their GOWORK;
 # naming it also hides the git-ignored go.work that link writes in each module (K774). A repository that tracks none builds with GOWORK
-# off. The review keeps GOWORK off: it reads the lock of each module as it is released (K778).
+# off.
 release-assets release-candidate-assets: export GOWORK = $(if $(shell git ls-files go.work 2>/dev/null),$(CURDIR)/go.work,off)
 
 
@@ -543,16 +543,6 @@ release-consumer-lock: ## Write the consumer manifests and locks of TAG from the
 release-proof: ## Prove the released TAG from outside the checkout: release assets, consumer installs, git-tag installs, Go modules; ONLINE
 	@test -n "$$TAG" || { echo "release-proof: TAG is required, for example make release-proof TAG=v0.0.1"; exit 1; }
 	$(ONLINE) $(NODE) $(KIT)/release-proof.$(KIT_EXT) "$$TAG"
-
-# --- dependencies: the review asks the registries.
-.PHONY: dependency-review composer-provider-entries
-# K435: TARGETS names the versions of one batch, so that every checkout takes the same pin and records the same snapshot.
-dependency-review: ## Ask the registries for newer stable releases and advisories; RECORD=1 records the review, UPDATE=1 updates first; TARGETS=<file> with UPDATE=1 takes the named versions of its JSON file (dependency-targets.schema.json) in place of the latest stable releases, and RECORD=1 then records its snapshot moment; ONLINE
-	$(ONLINE) $(NODE) $(KIT)/dependency-review.$(KIT_EXT) $(if $(RECORD),--record) $(if $(UPDATE),--update) $(if $(TARGETS),--targets $(TARGETS))
-
-# K439: the metadata of a provided polyspec package in each tracked composer.lock, without the review or the updates.
-composer-provider-entries: ## Removed metadata rewriting; fails with migration guidance to application-owned native Composer installation
-	$(NODE) $(KIT)/dependency-review.$(KIT_EXT) --provider-entries
 
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.
 # Without UNITS the check is a full run, which runs only in CI (ci-only.mts). The guard runs while make reads the makefiles,

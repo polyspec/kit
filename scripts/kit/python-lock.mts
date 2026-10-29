@@ -27,7 +27,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { satisfies } from '@renovatebot/pep440';
 import { parsePipRequirementsFile, parsePipRequirementsLine, RequirementsSyntaxError, type Requirement as PipRequirement, type RequirementWithLocation } from 'pip-requirements-js';
-import { POLICY } from './dependency-state.mts';
 import { readPylock, type PylockFile, type PylockPackage } from './pylock.mts';
 import { isStringArray, isTable, readToml, type TomlTable } from './toml.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -39,6 +38,7 @@ import { present } from './present.mts';
 import { CONFIG as RELEASE_CONFIG, type ReleaseConfig } from './release.mts';
 import { siblingLinks, siblingsOf } from './wheel-dependencies.mts';
 
+const POLICY = 'config/dependency-policy.json';
 const RELEASE = /^\d+(?:\.\d+)*$/;
 const ARCHIVE_URL = /^(\S+?)#sha256=([0-9a-f]{64})$/;
 const FILE_URL = /url = "(file:[^"]*)"/g;

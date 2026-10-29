@@ -98,15 +98,13 @@ and states only its own rules. The rules below are kit's own.
   Enforced by: `make parity-declarations-check`
 - Own: Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by
-  the targets that kit.mk marks ONLINE (`dependency-review`, `python-lock`, `install-tools`, `release-tools`,
+  the targets that kit.mk marks ONLINE (`python-lock`, `install-tools`, `release-tools`,
   `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch` and `release-assets-fetch`), and its
   result is a committed record, an installation in var/tools or an archive under var/ that config/release-assets.json pins.
   Enforced by: `make kit-test`
-- Own: A dependency advisory is fixed by an update. One that no release fixes is accepted only by an entry of
-  `advisoryExceptions`
-  in `config/dependency-policy.json` with its reason and removal condition, which the review prints as accepted;
-  it is never hidden. kit reviews its own `package-lock.json` (docs/operations/tool-inventory.md, Accepted advisories).
-  Enforced by: `tests/kit/dependency-advisory.test.mts`
+- Own: A dependency advisory is fixed by an update. npm audit, composer audit, cargo audit and govulncheck report
+  outdated and vulnerable dependencies; kit compares no versions and keeps no record of them.
+  Enforced by: none, the native audit tools report the advisories and the update is a judgement of review.
 - Own: Write comments, documents and commit messages in direct language: name the action and its object.
   Enforced by: none, direct wording is a judgement of review.
 

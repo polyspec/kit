@@ -47,8 +47,8 @@ test('a configuration that kit no longer reads is a finding (K243)', (t) => {
 });
 
 test('the rules of a makefile name their targets, and no recipe line, variable or special target is one (K246)', () => {
-  const text = '.PHONY: build\nNODE := node\nbuild test: ## Run\n\tcp a: b\nbuild: kit-build\nkit-build:\ninstall-packages dependency-review: export X := 1\nA ?= b:c\n';
-  assert.deepEqual(ruleTargets(text), ['build', 'test', 'build', 'kit-build', 'install-packages', 'dependency-review']);
+  const text = '.PHONY: build\nNODE := node\nbuild test: ## Run\n\tcp a: b\nbuild: kit-build\nkit-build:\ninstall-packages publish: export X := 1\nA ?= b:c\n';
+  assert.deepEqual(ruleTargets(text), ['build', 'test', 'build', 'kit-build', 'install-packages', 'publish']);
 });
 
 // K617: a repository holds no copy of kit-bootstrap.mk since K614, so the fixed tasks that it defines, such as install, are read

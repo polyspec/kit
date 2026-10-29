@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 5519d9c9563f65f99e04f78af65f052d96308f0c4dfae9ef5250b210d9e234a2 -->
+<!-- source-sha256: f834b697dce61d8fabbdac27c6f52e7298e3e0509051a10e01ab03d8de35b314 -->
 # 개발
 
 [English](AGENTS.md)
@@ -87,14 +87,13 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/operations/tool-inventory.md, Language parity).
   Enforced by: `make parity-declarations-check`
 - Own: 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
-  case는 자기 timeout을 가집니다. 네트워크 조회는 kit.mk가 ONLINE으로 표시한 target(`dependency-review`, `python-lock`,
+  case는 자기 timeout을 가집니다. 네트워크 조회는 kit.mk가 ONLINE으로 표시한 target(`python-lock`,
   `install-tools`, `release-tools`, `release-backend`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch`,
   `release-assets-fetch`)만 하고, 결과는 commit된 기록, var/tools의 설치, 또는 config/release-assets.json이 고정한 var/ 아래의 archive입니다.
   Enforced by: `make kit-test`
-- Own: dependency advisory는 갱신으로 고칩니다. 어떤 release도 고치지 않는 advisory는 `config/dependency-policy.json`의
-  `advisoryExceptions` 항목이 이유와 제거 조건과 함께 받아들일 때만 받아들이며, review가 받아들였다고 출력합니다. 숨기지
-  않습니다. kit은 자기 `package-lock.json`을 review합니다(docs/operations/tool-inventory.md, Accepted advisories).
-  Enforced by: `tests/kit/dependency-advisory.test.mts`
+- Own: dependency advisory는 갱신으로 고칩니다. npm audit, composer audit, cargo audit와 govulncheck가 오래되거나 취약한
+  dependency를 보고하며, kit은 version을 비교하지 않고 그 기록도 두지 않습니다.
+  Enforced by: none, native audit 도구가 advisory를 보고하고 갱신은 review의 판단입니다.
 - Own: 주석, 문서, commit message는 동작과 그 대상을 밝히는 직접적인 표현으로 씁니다.
   Enforced by: none, 직접적인 문장은 review의 판단입니다.
 

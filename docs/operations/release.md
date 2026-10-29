@@ -14,7 +14,7 @@ Consumers include `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`. On 
 Release and tag creation refuse checklist items in `[~]` or `[v]`. `[v]` records a committed implementation whose declared unit tests passed; it permits pushing that commit but blocks release until verification is complete and the item moves to `[o]`. A failed verification returns the item to `[~]`.
 The item-state command checks each working-tree move against one allowed edge. A commit records the resulting checklist state, so its change may follow any reachable path through those edges without putting each intermediate state in a separate commit.
 
-Kit's native npm prepack maps its source exports and hook bin to built dist paths. The asset gate applies the same canonical producer transformation to the tagged kit manifest and compares every resulting byte; other package manifests remain byte-exact. The existing packed-consumer test runs that gate with its single native pack and installs the resulting archive. The native consumer lock can resolve compatible transitive versions differently from the development lock, so both exact locked graphs are included in advisory review.
+Kit's native npm prepack maps its source exports and hook bin to built dist paths. The asset gate applies the same canonical producer transformation to the tagged kit manifest and compares every resulting byte; other package manifests remain byte-exact. The existing packed-consumer test runs that gate with its single native pack and installs the resulting archive. The native consumer lock can resolve compatible transitive versions differently from the development lock, so npm audit checks both exact locked graphs.
 
 The public module subpaths include `glob`, `parity-declaration`, `land`, `parity`, `checklist` and `php-extension`, alongside the existing tool modules. A source checkout resolves each subpath to `scripts/kit/<name>.mts`; a packed consumer resolves the same subpath to `dist/<name>.mjs`. The packed-consumer test imports each public subpath from the installed archive and compares its exported names with the source module.
 
@@ -29,9 +29,8 @@ the candidate command from a clean tracked tree with no non-ignored untracked fi
 build inputs outside their package directories. Commit source changes and rerun the candidate command when this check refuses.
 `make release-consumer-lock TAG=vX.Y.Z` (ONLINE) and the consumer proof against those candidate archive names, then commit the
 manifests and locks it writes in `tests/release-consumer/*/` before CI and tag creation (docs/operations/tool-inventory.md,
-Consumer install of the release archives, steps 1 and 2). The version change rewrites package-manager locks, so the release commit
-also carries `config/dependency-review.json` that `make dependency-review RECORD=1` (ONLINE) writes for it. A version change
-of a composer.json likewise re-locks it with `composer update --lock` in its directory, since the content-hash of
+Consumer install of the release archives, steps 1 and 2). The version change rewrites package-manager locks. A version change
+of a composer.json re-locks it with `composer update --lock` in its directory, since the content-hash of
 `composer.lock` covers `version`. The proof installs the archives from those locks,
 so a commit without them cannot be tagged. The commit lands on `main` and its CI concludes success; only then can the real tag be
 created on that commit. Build official assets from that tag with `make release-assets TAG=vX.Y.Z`; this path requires and reads the

@@ -38,8 +38,6 @@ The link tool replaces each installed npm and Composer folder of a polyspec pack
 
 Composer's generated autoload names `vendor/<vendor>/<package>/src`, which reads the checkout through the link. Source edits are visible immediately; a new class map entry of a provider still needs its owner's `composer dump-autoload` when the provider changes its autoload rules.
 
-Dependency review updates also leave Composer metadata to native commands. The retired `composer-provider-entries` command fails with migration guidance; it does not repair a stale release lock using development source metadata. Prepare the application-owned development declarations and run native Composer instead.
-
 | Ecosystem | Native source connection |
 |---|---|
 | npm | `node_modules/<name>` is one relative directory symlink to its provider, written after `npm ci` |

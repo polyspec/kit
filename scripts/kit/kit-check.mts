@@ -107,9 +107,6 @@ export function phpVersionFinding(root: string, release: PhpUsers | undefined): 
   return `${PHP_VERSION} is missing, but ${users.join(' and ')} need PHP; CI and the release workflow set up the PHP of ${PHP_VERSION}, and without it the release runs the PHP of the runner. Fix: declare ${PHP_VERSION} with the PHP minor release, such as ${minor}`;
 }
 
-// The configurations that a command writes, and the command, which is the fix of a file that breaks its schema.
-const WRITTEN: Record<string, string> = { 'config/dependency-review.json': 'make dependency-review RECORD=1' };
-
 /**
  * The findings of the configuration of `root` against the schemas of the package: each config/<name>.json that the repository
  * has must validate against its schema <name>.schema.json; an error names the file, the location and the rule.
@@ -123,8 +120,7 @@ export function checkConfig(root: string): string[] {
     if (!existsSync(path.join(root, config))) continue;
     // The check needs the errors of the schema only, so the value stays unknown.
     const { errors } = readConfigFindings<unknown>(root, config, schemaFile);
-    const fix = WRITTEN[config] ? `. Fix: ${WRITTEN[config]}` : '';
-    for (const error of errors ?? []) found.push(`${error}. Rule: the schema ${schemaFile} of ${PACKAGE}${fix}`);
+    for (const error of errors ?? []) found.push(`${error}. Rule: the schema ${schemaFile} of ${PACKAGE}`);
   }
   if (found.length) return found;
   // A release whose configuration holds its schema needs the build backend that config/toolchain.json declares (K166).

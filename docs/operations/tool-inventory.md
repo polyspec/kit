@@ -21,7 +21,7 @@ repositories (lines).
 | target-report, ci-targets | 100, 52 | 73, 47 | none | `ci_run.py` | none | template |
 | ci-passed | 36 | 39 | none | `ci_run.py` | `scripts/check/ci-passed.mts` 32 | template |
 | install-tools | 189 | none | none | `toolchains.py` | none | template |
-| dependency state, review, gate | in kit since v0.0.2 | 317, 288, 185 | none | none | none | crudui, merged with kit |
+| dependency state, review, gate | in kit since v0.0.2 | 317, 288, 185 | none | none | none | removed (K784, K786): npm, composer, uv, cargo audit and govulncheck report outdated and vulnerable dependencies |
 | github-ruleset | 182 | none | 164 | none | none | removed (0.x has no ruleset) |
 
 ## Decisions
@@ -86,27 +86,6 @@ Composer release archives declare generated headers by stub and output path. Rel
 then append the staged file with Info-ZIP (`zip`) using stored entries, mode 0644 and the commit timestamp; `make release-assets`
 fails early with installation guidance when `zip` is missing. The Ubuntu release workflow checks that its runner provides `zip`
 before building assets.
-
-### Go advisories (K53)
-
-`make dependency-review` asks govulncheck for the advisories of each Go lock (a `go.sum`, beside its `go.mod`), run in the
-module directory of the lock. The query names the packages of that module instead of `./...`. The reason: `./...` walks every
-directory below the module, and the Go that mise installs under `var/tools` is one of them; govulncheck refuses it
-(`outside main module`), so every RECORD run failed. `./...` cannot exclude a directory, so a module that contains `var/`
-would walk it whatever the working directory.
-
-- `goPackagePatterns` (`dependency-state.mts`) names the directory of each tracked or new `.go` file of the module, under the
-  rules of `./...`: a directory whose name begins with `.` or `_`, `testdata` and `vendor` are skipped, and so is a directory
-  below a nested module (a `go.mod` of its own). `checkedFiles` excludes `var/`, `node_modules` and `.tools`, so no directory
-  of an install or an output is named.
-- `goPackages` (`dependency-review.mts`) runs `go list -e` on those patterns and keeps the import paths of the packages with a
-  buildable file. `./...` skips a directory whose files a build constraint excludes (a `//go:build ignore` generator, for
-  one), and govulncheck refuses such a pattern, so the query drops it the same way. A module with no buildable package has no
-  advisory, since no code of it calls a vulnerable function.
-- One advisory result is kept per lock, as before. A lock maps to its module by the directory of its `go.sum`.
-- Limits: a package of a `replace` directive that points outside the module directory is not named, so it is not scanned from
-  that module, as `./...` did not scan it. A Go package under a directory named `var`, `node_modules` or `.tools` is not
-  scanned, as no kit check reads those directories.
 
 A repository may declare a downloaded tool of its own in `mise.toml` through the http backend (K327), such as `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`: the key starts with `http:`, the version is declared, and the url is https. `mise.lock` pins its sha256 for every platform of the lock, and `make toolchain-check` names the platform whose sha256 is missing; mise checks the digest at `mise install --locked`. A tool of another backend that kit does not check is still refused.
 
@@ -256,8 +235,7 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
   repository that install-packages needs runs the node of the checkout (K185).
 - A consumer's package-lock pins `@polyspec/kit` by the URL of its release asset, which npm 12 installs only with
   `allow-remote=root`. `kit-bootstrap.mk` exports `npm_config_allow_remote=root`, which npm reads as that setting, to the
-  recipes of `install-packages` and `dependency-review` only, so the npm ci of the install and the npm install, npm audit fix
-  and npm dedupe of `dependency-review UPDATE=1` read one setting (K189).
+  recipe of `install-packages` only, so the npm ci of the install reads it (K189).
 ## Layout check (K76)
 
 S5 (folders), the location part of S7 (test placement) and the TypeScript rule of S9 are checked by
@@ -822,21 +800,19 @@ The check also leaves out the S10 stub of a PHP extension, `packages/php-ext/src
 | Module | Holds | Replaces | Users |
 |---|---|---|---|
 | `paths.mts` | `repositoryRoot()`, the top level of the Git work tree of the working directory (K144), `isMain(import.meta.url)` | the root path that 22 modules computed and the `process.argv[1] === ...` test of 21 | every command and module with a default root |
-| `process.mts` | `execute`, `run`, `Stop` | `run` of release, `run` of dependency-review, the `spawnSync` calls with `encoding` and `maxBuffer` | release, dependency-review, check-toolchain, check-cargo-downloads, git |
+| `process.mts` | `execute`, `run`, `Stop` | `run` of release, the `spawnSync` calls with `encoding` and `maxBuffer` | release, check-toolchain, check-cargo-downloads, git |
 | `git.mts` | `git`, `gitResult` | the `git` helper of full-run, push-gate, owner-check, kit-sync, tracked-files and target-report, and the direct `git` calls of git-hooks, check-commits, push-gate | those modules |
-| `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | `readJson` of dependency-state, about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, kit-sync, target-report, tool-wrappers, git-hooks and pin-python-dependency | those modules |
-| `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of dependency-state and install-composer (gone in K127), the sha512 of install-npm | those modules |
+| `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, kit-sync, target-report, tool-wrappers and git-hooks | those modules |
+| `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of install-composer (gone in K127), the sha512 of install-npm | those modules |
 | `time.mts` | `now`, `seconds`, `compactSeconds` | `now` of ci-targets and full-run, `seconds` of full-run and target-report (`1.2 s`), `seconds` of test-progress and test-hooks (`1.2s`) | those modules |
-| `version.mts` | `isPrerelease`, `older`, `stableDescending` by ecosystem: semver for npm and Go, @renovatebot/pep440 for PyPI; a Composer release is outdated when it is not the latest, the rule of `latest-status` of composer outdated (K73) | `compare` of changelog, the version order of dependency-state, the sort of `highestStableRelease` of dependency-review; the unused `highestStable` is removed; changelog and the release tag order use semver directly | dependency-review |
 | `findings.mts` | `finding` | `finding` of status-table and changelog | status-table, changelog |
 | `markdown.mts` | `lineBlocks`, `headings` | `cells` of checklist and `rowCells` of status-table, which read every line that starts with `|` (K130: the rows and list items of the tree), and the `## ` lines of `changelog.sections` and of the release notes (K130: the headings of the tree). Its fences, prose, links and anchors read the syntax tree of mdast-util-from-markdown with GFM and YAML front matter, and heading anchors are the slugs of github-slugger and of @mdit-vue/shared (VitePress) (K120) | checklist, status-table, changelog |
 | `schema-validate.mts` | `SCHEMAS`, `readConfig`, `readJsonFile`, `parseJson`, `readConfigFindings`, `SchemaError`: the JSON boundary of kit (K158). Every JSON that a tool reads, a file or the output of a command, is validated by the strict Ajv2020 against a schema file of `scripts/kit/schema` and has the type `T` that its caller names only once ajv's type guard `ajv.compile<T>(schema)` accepts it; data that breaks the schema throws a `SchemaError` whose lines name the file or the command and the JSON Pointer of each error of ajv. A check that reports those lines as findings reads with `readConfigFindings`. `scripts/kit/kit-check.mts` is the example caller: `lockedVersion` and `installedKit` read package-lock.json and the installed package.json through `manifests.mts`, and `checkConfig` reports the errors of each config/<name>.json. The bootstrap, which runs before ajv is installed, reads a JSON object with `readJsonObject` of `bootstrap/files.mts` and checks each field itself | the read-and-validate code of `loadConfig` in checklist and in release, and every `JSON.parse(...) as T` and `readJson(...) as T` of scripts/kit (K158) | every tool that reads JSON |
-| `manifests.mts` | `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` with their readers, each validated against its schema (`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`) | the local shapes of package.json, package-lock.json, composer.json and composer.lock in dependency-state, toolchain-floors, release, release-consumer, kit-check and owner-check (K158) | those modules |
-| `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | `reviewedFiles` of dependency-state and `EXCLUDED` of release | dependency-state, release |
+| `manifests.mts` | `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` with their readers, each validated against its schema (`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`) | the local shapes of package.json, package-lock.json, composer.json and composer.lock in toolchain-floors, release, release-consumer, kit-check and owner-check (K158) | those modules |
+| `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | `EXCLUDED` of release | release, the lint and check tools |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
 | `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, alint, cargo-audit and govulncheck that the release installers and the probes of check-toolchain each held; since K127 mise installs those tools and only the probes and the bootstrap read them | check-toolchain, the bootstrap |
-| `dependency-state.mts` | `UPDATE` | the constant of dependency-review | dependency-review |
-| `pyproject-dependencies.mts` | `dependencyArrays`, the `dependencies` of `[project]`, each extra and each group of `[dependency-groups]`; `dependencyGroups`, each group with its `{ include-group }` tables resolved as the reference implementation of PEP 735 does (K177) | the walk of the dependency arrays of pin-python-dependency, and the read of the extras alone in dependency-state, which missed the dependency groups | dependency-state, pin-python-dependency |
+| `pyproject-dependencies.mts` | `dependencyArrays`, the `dependencies` of `[project]`, each extra and each group of `[dependency-groups]`; `dependencyGroups`, each group with its `{ include-group }` tables resolved as the reference implementation of PEP 735 does (K177) | the read of the extras alone, which missed the dependency groups | link |
 
 Other duplicates removed:
 
@@ -850,10 +826,9 @@ Behaviors that differ between the copies and were merged (the wider or safer one
 
 - A failed git command reports `git <arguments> exited with <status>: <standard error>` everywhere; `check-commits` names the
   git command in the message about a range that does not resolve.
-- A failed command of `dependency-review` reports the whole standard error, where it reported the last three lines.
 - A target name for `ci-targets` starts with a letter or a digit, as it did for `full-run`; `ci-targets` accepted `-x`, which
   make reads as an option.
-- `dependency-review` and `release` coverage skip `node_modules`, `var` and `.tools` as well as the kit fixture.
+- `release` coverage skips `node_modules`, `var` and `.tools` as well as the kit fixture.
 - The fence scan of a changelog closes a fence by the rule of `scanFences` (the closing fence is as long as the opening one).
 - install-cargo-audit and install-govulncheck ran their build through `tool-wrappers.run`, which prints the command before it
   runs and names the missing command; mise builds both since K127.
@@ -929,7 +904,6 @@ Left as it is, with the reason:
   own failure fails the job. If an earlier locked setup fails, preparation was skipped and cleanup is not entered. A prepare
   target may export variables for later workflow steps through the runner's native `GITHUB_ENV`; Kit adds no environment
   protocol. With no `contexts` entry, the workflow's gate sequence is unchanged.
-- The npm range functions stay in dependency-state: they implement npm's rules, not a general order of versions.
 
 ## Python lint (K8.4)
 
@@ -941,9 +915,8 @@ ruff keeps its cache in `var/ruff` by `cache-dir` of `ruff.toml`, ruff's own set
 repository; it wrote `.ruff_cache` at the root before, which layout S5 refuses (K147).
 Every step runs after a failure of an earlier one. A missing tool fails with its fix.
 
-The ruff pin is not in a pyproject.toml: a library that releases a wheel keeps its `Requires-Dist` free of ruff, and the
-dependency review reads the `ruff` of `mise.toml` as a PyPI dependency; a newer ruff is set by hand in `mise.toml` and locked
-with `make toolchain-lock`.
+The ruff pin is not in a pyproject.toml: a library that releases a wheel keeps its `Requires-Dist` free of ruff; a newer ruff
+is set by hand in `mise.toml` and locked with `make toolchain-lock`.
 
 ## Lint configuration (K77)
 
@@ -1122,42 +1095,7 @@ TypeScript lint resolves its declared dependency packages with Node's native pac
   ruff rule covers them.
 - The reason of a vulture whitelist entry and of an `exclude` path is a comment that review checks; no tool reads it.
 - The moderate advisory GHSA-hp3w-g68c-fv3c (npm advisory 1241202) of sprintf-js 1.0.3, which API Extractor pulls in through
-  @rushstack/ts-command-line and argparse 1.0.10, covers every release of sprintf-js. kit's own dependency policy accepts it
-  (Accepted advisories, K77).
-
-## Native Composer update ownership (K681)
-
-`make dependency-review UPDATE=1` executes its planned native commands without changing Composer lock entries before or after them. Composer owns dependency resolution, platform requirements, package versions and the selected manifest's lock. The command inherits `COMPOSER` when the application explicitly selects a development manifest. The application owns its compatible requirements and path/VCS repository declarations; kit does not convert VCS repositories to guessed sibling paths, generate a scratch manifest or invent provider versions. A failed native resolution remains a failure rather than being repaired by rewriting lock metadata.
-
-`make composer-provider-entries` and `dependency-review --provider-entries` are retired entry points that fail before mutation with migration guidance. Declare local sources in the application and use `COMPOSER=<application-owned manifest> make composer-install DIR=<project>` for native development installation, or run Composer's native update for the intended packages. Released installation continues to use the released manifest and lock. Advisory review retains its lock fingerprints and security checks; retirement does not waive any advisory.
-
-## Accepted advisories (K77)
-
-An advisory that no release fixes failed the dependency review, and the only way past it was to hide it. An entry of
-`advisoryExceptions` of `config/dependency-policy.json` accepts one advisory of one package of one lock, with its `reason` and
-its `removalCondition`; `advisory` is the identifier that the review records (npm audit names an advisory by its number).
-
-Package managers select dependency versions. A newer release alone does not fail the review. The review fails on unresolved advisories, stale advisory exceptions or incomplete queries; an incomplete query never replaces its record. The package managers verify the locks: npm ci, composer install and uv sync --locked fail on a lock that differs from its manifest (K784).
-
-- `make dependency-review` no longer fails on an accepted advisory; it prints it as accepted,
-  with its reason and removal condition, and the review record keeps it. An advisory without an entry fails it as before.
-- An entry whose advisory the review of its lock did not find is stale and fails it.
-
-For npm advisories, `nodePath` records the affected installed path reported by native `npm audit`; its version comes from that exact entry of the lock. If audit gives no path, or that path has no locked version, the review retains the advisory range without guessing a top-level version. Review findings include the path. Advisory exceptions remain scoped to lock, package and advisory identifier: an accepted identifier covers all matching copies; path-specific exceptions are not supported.
-
-The online npm review passes native `--offline=false` explicitly: inherited npm offline mode otherwise returns a successful zero-vulnerability report without reaching the advisory endpoint. A native error payload, including one mixed with an empty `vulnerabilities` object, is an incomplete query and never replaces the committed review. A genuine vulnerability response may exit 1 and is still a complete review.
-
-- `make dependency-review UPDATE=1` updates no package for an accepted advisory.
-- kit reviews its own `package-lock.json` (`config/dependency-policy.json`, `config/dependency-review.json`). A removed advisory leaves no permanent exception: the current review must still name each accepted advisory.
-
-A Composer monorepo has one development composer.json at the root, which `composerPlatforms` names and which requires its
-published packages through `path` repositories, and one root lock; a published package commits no lock and no vendor/ (K168).
-The first-party requirements of the root are its `require` and `require-dev` and the `require` of each package that a path
-repository provides, which the root lock records as a path dist entry; their versions are those of the root lock. The review
-runs `composer outdated --locked --all --format=json` once in the directory of each root and keeps those packages:
-`--direct` counted the requirements of the root alone, so a requirement of a published package, such as symfony/console,
-dropped out of the review. A library that only a third-party package requires is not reviewed. `UPDATE=1` raises a requirement of a
-published package with `composer require --no-update` in its directory and `composer update --with-dependencies` at the root.
+  @rushstack/ts-command-line and argparse 1.0.10, covers every release of sprintf-js; npm audit reports it.
 
 ## Consumer install of the release archives (K5.4)
 
@@ -1825,7 +1763,7 @@ such as the other fields of an entry. An example is `^- code: (\w+)$|^  \w+: .*$
 
 ## Python locks: PEP 751 pylock.toml (K36)
 
-The dependency review reads a Python lock only in the standard format of PEP 751 (status Final, resolution 31 March 2025),
+kit reads a Python lock only in the standard format of PEP 751 (status Final, resolution 31 March 2025),
 `pylock.toml` or `pylock.<name>.toml`, named in `pythonLocks` of `config/dependency-policy.json`. uv.lock is not read: it is
 uv's own format, and a repository that releases a wheel needs a lock that every installer reads.
 
@@ -1837,18 +1775,9 @@ Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml
 - The file is read by `scripts/kit/pylock.mts` (`readPylock`) through smol-toml (`scripts/kit/toml.mts`), which reads all of
   TOML; a text that is not valid TOML fails with the file, the line and the column.
 - `lock-version` is `"1.0"`.
-- Each lock's sha256 is recorded in `config/dependency-review.json`, as a lock of any other ecosystem is.
-- A registry package (`sdist` or `wheels`) is a dependency of the lock: its name and version are recorded, its latest stable
-  release is queried from PyPI, and its advisories are read from the PyPI release JSON (`vulnerabilities`) of its locked
-  version. Every `sdist`, `wheels` and `archive` file carries a `sha256`.
-- A `vcs` package (git) is pinned by its `commit-id`, which must be 40 hexadecimal digits. The record holds its URL,
-  `requested-revision` and `commit-id`. A git package is
-  not queried for advisories or releases.
-- A package with no source table, or a `directory` package, is not reviewed: a consumer exports the lock with
-  `--no-emit-project`, so a local package has no release to review.
-- `created-by` is required. The fix of an outdated release or an advisory names the tool that wrote the lock: for uv,
-  `uv lock --upgrade-package <name>` then the export again; for pip, `pip lock`. A lock with another or no `created-by`
-  gets a fix that names the missing tool. The review never rewrites a lock itself (`UPDATE=1` skips these packages).
+- Every `sdist`, `wheels` and `archive` file carries a `sha256`.
+- A `vcs` package (git) is pinned by its `commit-id`, which must be 40 hexadecimal digits.
+- `created-by` is required.
 - A consumer that adopts this release adds each lock to `pythonLocks` of `config/dependency-policy.json` as an object with its
   `source` (K54): `{ "lock": "<pylock.toml>", "source": { "requirements": "<file>", "constraints": "<file>" } }`. The field is
   required, with no compatibility path.
@@ -1857,7 +1786,7 @@ Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml
 
 - The reader supports the lock writers' subset only; a lock that another writer produces with a construct outside it fails
   until the reader reads it.
-- A `directory` package is refused, not reviewed.
+- A `directory` package is refused.
 
 ## uv and the Python lock writer (K54)
 
@@ -1999,7 +1928,7 @@ fixture policy of `tests/kit/fixture` declares sources that exist and agree with
 - The reader of kit reads single-line strings only, so a pyproject with a multi-line string fails with its line (the reader names
   it; it is not silently skipped).
 - The check cannot compare a registry file's sha256 with the registry without the network, so a drift of one hex digit of a
-  registry hash passes it; the dependency review records the lock's sha256 (K36).
+  registry hash passes it; uv checks each hash when it installs from the lock.
 - The writer needs the network (PyPI through uv) unless findLinks is declared.
 - A requirement's extras and markers do not change which packages are pinned: every package of the lock must be in the constraints,
   whatever the marker.
