@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 65692106d8ab83c3d26028d9b3f621c77f8f63bfe419f77b8cccf13dd3930b6f -->
+<!-- source-sha256: 6e4f145103e1c7fb198b61fc75cc41aae9ba35650c23f86ffc711d63532c948d -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -786,4 +786,4 @@
 | K829 | Kit 0.0.73 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K832 | 추적되는 go.work가 있는 repository에서 make test-go CASES=<pattern>은 module별 run처럼 그 pattern을 workspace go test 하나에 -run으로 넘긴다. 원인: goWorkspaceRuns가 cases를 받지 않아 flowmark의 make test-go CASES=TestToken이 선택 없이 모든 Go test를 돌리고, run-tests는 이를 CI 밖에서 거부한다 | scripts/kit/runtime-targets.mts, tests/kit/runtime-targets.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/runtime-targets.test.mts` | [v] |
 | K831 | tracked lock의 내용을 판정하는 link-state-check의 lock 출처 검사를 삭제 | scripts/kit/link-state-check.mts, scripts/kit/kit.mk, tests/kit/link-state-check.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/link-state-check.test.mts` | [o] |
-| K833 | install-php-arginfo가 lock을 자기 폴더 이름과 판정하는 nikic/php-parser release 비교를 삭제 | scripts/kit/install-php-arginfo.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/php-ext.test.mts` | [ ] |
+| K833 | install-php-arginfo가 lock을 자기 폴더 이름과 판정하는 nikic/php-parser release 비교를 삭제 | scripts/kit/install-php-arginfo.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/php-ext.test.mts` | [~] |
