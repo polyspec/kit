@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 38665af399df689c29fe680121c0d6a034c6caae6d610face9ff8742d27ed45b -->
+<!-- source-sha256: eb1f1e81d09fa685cc573d92bab5e8be2add439019d1eafb0c0e50ce3aea0425 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -793,3 +793,4 @@
 | K837 | php-arginfo/5.0.0을 nikic/php-parser 5.0.0으로 고정하고 감사가 찾은 K831 잔재를 제거 | scripts/kit/php-arginfo/5.0.0/composer.json, scripts/kit/php-arginfo/5.0.0/composer.lock, scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/link-state-check.test.mts tests/kit/php-ext.test.mts` | [o] |
 | K839 | kit이 실행하지 않는 mise.toml key를 모르는 도구나 http: 도구의 거부 없이 mise로 넘김 | scripts/kit/toolchain-mise.mts, tests/kit/toolchain-mise.test.mts, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-mise.test.mts` | [o] |
 | K840 | rust-toolchain.toml의 channel을 <major>.<minor>.<patch> 거부 없이 선언된 그대로 읽음 | scripts/kit/toolchain-files.mts, tests/kit/toolchain-files.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-files.test.mts` | [o] |
+| K880 | Kit 0.0.74 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [ ] |
