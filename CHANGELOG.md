@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- layout-check owns the S10 rule that a PHP library requires no application framework; dependency-policy-check no longer checks it. (K783)
+
 - The ignore check of config/release-assets.json accepts a folder when it or one of its ancestors is ignored, so release-assets runs in a worktree whose archive directories link to the main checkout. (K780-1)
 
 - A commit that deletes a test together with the behaviour it tested passes the deleted-test gate with Removed-With: <path>, naming the non-test file that the parent tracked and the commit deletes. (K787)

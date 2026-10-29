@@ -260,11 +260,11 @@ test('the working guidelines are stated in PRINCIPLES.md, each in its own rule w
 });
 
 // K359-1: a rule names the check that a done item built, not the item: P24 names the commit-row rule of commits-check (K424) and
-// S10 the check of dependency-policy-check (K425), so the principles of kit pass the check of the rules.
+// S10 the library check of layout-check (K425, K783), so the principles of kit pass the check of the rules.
 test('the principles of kit name the checks that their done items built, and pass the check of the rules (K359-1)', () => {
   const rules = ruleTexts(readFileSync(new URL('../../PRINCIPLES.md', import.meta.url), 'utf8'));
   assert.match(rules.get('P24') ?? '', /^  Enforced by: .*`make commits-check`/m);
-  assert.match(rules.get('S10') ?? '', /^  Enforced by: .*`make dependency-policy-check`/m);
+  assert.match(rules.get('S10') ?? '', /^  Enforced by: .*`make layout-check`/m);
   assert.deepEqual(checkRules(fileURLToPath(new URL('../..', import.meta.url)), ['PRINCIPLES.md']).findings, []);
 });
 

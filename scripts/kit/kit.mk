@@ -111,10 +111,11 @@ toolchain-check: ## Check that the running tools are the declared versions; TOOL
 # alint (mise.toml, installed by install-tools) checks the tree against config/layout.yml, which extends
 # the common rules of kit in the vendored config/layout.kit.yml with the map of the repository.
 .PHONY: layout-check
-layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of mise.toml, and that Git ignores each install directory (K372), and that no tracked file is generated (K426); offline
+layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of mise.toml, and that Git ignores each install directory (K372), and that no tracked file is generated (K426), and that no PHP library requires an application framework (S10, K783); offline
 	@test -x $(ALINT) || { echo "layout-check: $(ALINT) is missing; run make install-tools"; exit 1; }
 	$(ALINT) check --config config/layout.yml --color never --compact .
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) installs
+	$(NODE) $(KIT)/library-frameworks.$(KIT_EXT)
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) tracked
 # ---- The gates: Git hooks and push gate --------------------------------------------------------------------------------
 # scripts/kit/git-hooks.mts and push-gate.mts read config/checklist.json. The full suite runs only in CI, as the targets of

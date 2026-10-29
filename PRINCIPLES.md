@@ -242,7 +242,7 @@ tool lands, a standard binds the work as written here.
   Composer package that requires the library, since an internal class cannot extend a userland class. A Composer package of
   type `project` is an application: it is outside the extension run and the S10 library checks, and `make test-php` runs its
   tests as its own package.
-  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`, `make dependency-policy-check`
+  Enforced by: `make lint-php-ext`, `make test-php-ext`, `make layout-check`
 - S11 Local links: during development each polyspec package's install folder (node_modules, vendor, site-packages) is one
   plain directory symlink to its checkout. No package-manager link step (npm link, Composer path repository, pip/uv editable)
   (K591, K761, K765).

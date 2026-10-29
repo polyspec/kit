@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 54ab367d9260cea5093f54c67982aa3beae12817ac43a770851243c28310b289 -->
+<!-- source-sha256: 6a6a61e45d9eea923f203e989efbd88e2f6c6f22cda144a591e535518703d44b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- PHP library가 application framework를 require하지 않는다는 S10 규칙은 layout-check가 맡고, dependency-policy-check는 더 이상 검사하지 않는다. (K783)
 
 - config/release-assets.json의 ignore 검사는 폴더나 그 상위 폴더 하나가 무시되면 받아들여, archive directory가 main checkout으로 link된 worktree에서도 release-assets가 실행된다. (K780-1)
 

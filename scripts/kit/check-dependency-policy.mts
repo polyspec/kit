@@ -15,8 +15,6 @@ import { execute } from './process.mts';
 import { ConfigError, readConfigFindings } from './schema-validate.mts';
 import { readComposerManifest, readComposerManifestFile, readNpmManifest } from './manifests.mts';
 import type { DependencyPolicy } from './dependency-state.mts';
-import { checkedFiles } from './tracked-files.mts';
-import { libraryFolders } from './php-extension.mts';
 
 export const RULES = {
   record: 'every audited lock has a review record of its current contents',
@@ -28,7 +26,6 @@ export const RULES = {
   pythonLock: 'each Python lock that the policy names is a PEP 751 pylock.toml with lock-version 1.0 and created-by, every registry file has a sha256, every git package is pinned by a full commit and no package is a local directory',
   npmLock: 'each npm lock that the policy names records the dependencies of every npm manifest that it resolves',
   rootRemote: 'each remote tarball that an npm lock resolves has a matching dependency name and URL, either in a root or workspace dependency spec or in a root override for that direct dependency, as allow-remote=root permits root and workspace edges only',
-  libraryApplication: 'a PHP library of S10 requires no application framework in require, since an application on a userland framework is its own Composer package that requires the library (S10)',
 };
 export const REVIEW = 'make dependency-review RECORD=1';
 
@@ -61,8 +58,6 @@ type Policy = DependencyPolicy & {
 
 
 // The application frameworks that a PHP library of S10 may not require in require: an internal class cannot extend a userland class.
-const APPLICATION_FRAMEWORKS = ['symfony/console', 'symfony/framework-bundle', 'symfony/http-kernel', 'laravel/framework', 'laminas/laminas-mvc'];
-
 
 // A remote tarball of an npm lock: an http(s) URL of a .tgz that is not on registry.npmjs.org, the registry of npm. No helper
 // of kit names the registry of a lock, so the host is the only test.
@@ -147,17 +142,6 @@ export function check(root: string, { composer = 'composer' }: { composer?: stri
   for (const manifestPath of published) {
     const failure = composerValidation(composer, ['--no-check-lock', '--no-check-publish', '--no-interaction'], path.join(root, path.posix.dirname(manifestPath)));
     if (failure) add('composerPackage', manifestPath, `composer validate failed: ${failure}`, `fix ${manifestPath}`);
-  }
-
-  // A PHP library of S10 is library code only (K425): its require names no application framework, and its application is a package beside it.
-  // An application on a userland framework is no library (K433): libraryFolders leaves it out.
-  const tracked = checkedFiles(root);
-  for (const folder of libraryFolders(tracked, file => (tracked.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined))) {
-    const manifestPath = path.posix.join(folder, 'composer.json');
-    const manifest = readComposerManifest(root, manifestPath);
-    for (const name of APPLICATION_FRAMEWORKS.filter(item => manifest.require?.[item] !== undefined)) {
-      add('libraryApplication', manifestPath, `requires ${name} in require`, `move the application on ${name} into its own Composer package that requires ${folder}, and remove ${name} from require of ${manifestPath}`);
-    }
   }
 
   for (const { directory, manifest: manifestPath, lock } of state.manifests) {

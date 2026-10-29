@@ -211,22 +211,6 @@ test('importing the mutation check runs nothing and prints nothing', (t) => {
   assert.equal(result.stderr, '');
 });
 
-// K425: a PHP library of S10 is library code only, so a framework of an application in its require fails, and the application is a package beside it.
-test('a PHP library of S10 that requires an application framework in require fails, and an application package beside it passes (K425)', (t) => {
-  const root = fixture(t);
-  const rule = /Rule: a PHP library of S10 requires no application framework/;
-  const manifest = (name: string, require: Record<string, string>, requireDev: Record<string, string> = {}) => JSON.stringify({ name, type: 'library', license: 'proprietary', require: { php: '>=8.2', ...require }, 'require-dev': requireDev });
-  mkdirSync(path.join(root, 'packages/php'), { recursive: true });
-  const library = path.join(root, 'packages/php/composer.json');
-  writeFileSync(library, manifest('polyspec/kit-fixture', { 'symfony/console': '^7.0' }));
-  assert.match(gate(root).stderr, /^\[dependency-policy\] packages\/php\/composer\.json: requires symfony\/console in require\. Rule: a PHP library of S10 requires no application framework/m);
-  writeFileSync(library, manifest('polyspec/kit-fixture', {}, { 'symfony/console': '^7.0' }));
-  assert.doesNotMatch(gate(root).stderr, rule, 'the framework in require-dev is no finding');
-  mkdirSync(path.join(root, 'packages/cli'), { recursive: true });
-  writeFileSync(path.join(root, 'packages/cli/composer.json'), manifest('polyspec/kit-cli', { 'polyspec/kit-fixture': '*', 'symfony/console': '^7.0' }));
-  assert.doesNotMatch(gate(root).stderr, rule, 'an application package beside the library is no finding');
-});
-
 // K427: allow-remote=root takes only the URLs that a package.json of the lock root names, so a remote tarball that the lock resolves
 // for a package reached only through another package fails the gate, and the root that names its URL passes.
 test('a remote tarball that a lock resolves for a package the root does not name fails, and a root that names its URL passes (K427)', (t) => {
