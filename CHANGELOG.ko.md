@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b68f62e033d96418d9f0f9f1024a7ac64947342ee171aad41b8d38c82881498c -->
+<!-- source-sha256: 8046b9d354ecb4e03ba920d5480e7b9ab094b3631cd218bec8f2b62081b1a208 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.73
+
+- K826, K827, K830을 담아 Kit 0.0.73을 릴리즈합니다 (K829).
 - platform-bootstrap의 Windows process 단계에 10분 한도를, 실제 process를 시작하는 process-group test에 60초 timeout을 두어 멈춤이 job을 붙잡지 않고 그 한도로 실패합니다 (K830).
 
 - run의 PHPUnit test 목록 실행(runtime-targets, K390-1)이 run의 autoloader를 deadline prepend에 넘긴다. 그래서 더는 "the PHPUnit Composer autoloader is missing"으로 끝나지 않는다 (K827).
