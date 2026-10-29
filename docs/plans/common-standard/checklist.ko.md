@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 6ce9114b4b0ac8e4a988a7d8971f68a3d9892894461ced8fc95d3d8ba6556798 -->
+<!-- source-sha256: 775e7dca61dde590253203097a3407d418c4320031708cdcbaa453ce2a338b20 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -756,3 +756,4 @@
 | K800 | S10 library application 규칙 삭제 | scripts/kit/library-frameworks.mts tests/kit/library-frameworks.test.mts scripts/kit/kit.mk PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `make layout-check` | [o] |
 | K801 | main writer hook과 row clash 검사 삭제 | scripts/kit/git-hooks.mts scripts/kit/land.mts scripts/kit/row-ids.mts scripts/kit/check-commits.mts .githooks/reference-transaction CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/git-hooks.test.mts tests/kit/land.test.mts` | [o] |
 | K802 | lint-rust는 cargo-fetch처럼 각 workspace의 clippy를 sibling checkout과 함께 cargo link로 실행한다(K448-5) | scripts/kit/lint-rust.mts tests/kit/lint-rust.test.mts | `node --test tests/kit/lint-rust.test.mts` | [ ] |
+| K803 | parity 기호의 python distribution을 entry의 pyproject에서 읽고 distribution 필드를 없앤다 | scripts/kit/parity-symbols.mts scripts/kit/parity-declaration.mts scripts/kit/schema/parity.schema.json CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/parity-api.test.mts` | [ ] |
