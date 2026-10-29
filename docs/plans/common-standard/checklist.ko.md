@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f307ae99b187404026ff554b82236283eac6c5cc65f67f6680bae83f945fe5f4 -->
+<!-- source-sha256: 0c1160d0e06fc53656c38bd1eafb9b9b6e87311ad928f2ab4b5e77fe3ab3d00b -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -709,4 +709,4 @@
 | K750 | 선택 설치에서 선언한 Rust toolchain component를 모두 설치한다 | scripts/kit/install-rust.mts tests/kit/install-rust.test.mts tests/kit/install-tools.test.mts | `node --test tests/kit/install-rust.test.mts` | [o] |
 | K751 | go.work의 모든 모듈을 go test 한 번으로 실행해서 빌드 전용 모듈이 빈 실행이 되지 않게 한다 (issue 5) | scripts/kit/runtime-targets.mts tests/kit/runtime-targets.test.mts | `node --test tests/kit/runtime-targets.test.mts` | [o] |
 | K752 | issue 5, 11, 12, 13, 16, 17, 18의 수정을 배포하기 위해 Kit 0.0.64를 준비한다 | package.json package-lock.json tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `make release-coverage`; `make dependency-policy-check`; `make release-consumer TAG=v0.0.64` | [o] |
-| K753 | Playwright reporter를 rebuild 분류에 넣고 release-run 테스트의 remote를 initRepository로 만든다 | config/rebuild.json tests/kit/release-run.test.mts tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/rebuild-check.test.mts tests/kit/sandbox-repository.test.mts tests/kit/release-run.test.mts`; `make rebuild-check` | [ ] |
+| K753 | Playwright reporter를 rebuild 분류에 넣고 release-run 테스트의 remote를 initRepository로 만든다 | config/rebuild.json tests/kit/release-run.test.mts tests/release-consumer/npm/package.json tests/release-consumer/npm/package-lock.json config/dependency-review.json CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/rebuild-check.test.mts tests/kit/sandbox-repository.test.mts tests/kit/release-run.test.mts`; `make rebuild-check` | [~] |
