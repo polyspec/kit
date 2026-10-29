@@ -729,4 +729,4 @@
 | K773 | link-state-check reports a tracked manifest that links a sibling package by a path outside the repository | scripts/kit/link-state-check.mts, tests/kit/link-state-check.test.mts | `node --test --test-name-pattern=K773 tests/kit/link-state-check.test.mts` | [o] |
 | K774 | A release target and the dependency review run with the go.work that the repository tracks, and with GOWORK off only when it tracks none | scripts/kit/kit.mk, tests/kit/link.test.mts | `node --test --test-name-pattern=K774 tests/kit/link.test.mts` | [o] |
 | K775 | Prepare Kit 0.0.66 to publish K772 to K774 | package.json package-lock.json CHANGELOG.md CHANGELOG.ko.md | `make release-versions TAG=v0.0.66` | [o] |
-| K776 | K773 link-state-check fixtures name no other repository | tests/kit/link-state-check.test.mts | `node --test tests/kit/isolation.test.mts` | [~] |
+| K776 | K773 link-state-check fixtures name no other repository | tests/kit/link-state-check.test.mts tests/kit/test-output.test.mts scripts/kit/link-state-check.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/isolation.test.mts` | [o] |

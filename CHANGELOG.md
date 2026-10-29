@@ -9,6 +9,8 @@
 
 ## 0.0.66
 
+- The link-state-check and go benchmark test fixtures name no repository or package beyond the case. (K776)
+
 - A release target and the dependency review run with the go.work that the repository tracks; GOWORK is off only when it tracks none, so the go.work files that link writes stay excluded. (K774)
 
 - link-state-check reports a tracked composer.json, package.json or pyproject.toml that links a package by a path outside the repository. (K773)

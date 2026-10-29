@@ -198,18 +198,18 @@ const NPM_PATH = /^(?:file|link):/;
 const ARCHIVE = /\.(?:tgz|tar\.gz|zip|whl)$/;
 
 /** The path `target` of the tracked manifest `file` in `root`, when it exists. */
-function located(file: string, target: string, root?: string): string | undefined {
-  const full = root === undefined ? undefined : path.resolve(root, path.dirname(file), target);
-  return full !== undefined && existsSync(full) ? full : undefined;
+function located(file: string, target: string, root: string): string | undefined {
+  const full = path.resolve(root, path.dirname(file), target);
+  return existsSync(full) ? full : undefined;
 }
 
 /**
  * Whether the path `target` of the tracked manifest `file` leaves the repository of `root`. A target that exists is judged by its
  * real path, so an in-repo path through a link out of the repository leaves it too; the text judges the rest.
  */
-function outside(file: string, target: string, root?: string): boolean {
+function outside(file: string, target: string, root: string): boolean {
   const full = located(file, target, root);
-  if (root !== undefined && full !== undefined) {
+  if (full !== undefined) {
     const relative = path.relative(realpathSync(root), realpathSync(full));
     return relative.startsWith('..') || path.isAbsolute(relative);
   }
@@ -217,7 +217,7 @@ function outside(file: string, target: string, root?: string): boolean {
 }
 
 /** Whether the Composer path repository `target` of `file` is a polyspec package by the name of its composer.json; a missing one may be. */
-function polyspecRepository(file: string, target: string, root?: string): boolean {
+function polyspecRepository(file: string, target: string, root: string): boolean {
   const full = located(file, target, root);
   if (full === undefined) return true;
   const manifest = path.join(full, 'composer.json');
@@ -230,7 +230,7 @@ function polyspecRepository(file: string, target: string, root?: string): boolea
  * links by a path, a Composer path repository, an npm file:/link: dependency or a uv source path. A sibling is linked only by the folder
  * link of make link (docs/operations/local-links.md); a path inside the repository, an own member, and a release archive pass.
  */
-export function manifestPathFindings(file: string, text: string, root?: string): string[] {
+function manifestPathFindings(file: string, text: string, root: string): string[] {
   const finding = (name: string, target: string) => `${file}: ${name} is linked by the path ${target} outside the repository; a sibling is linked only by the folder link of make link (docs/operations/local-links.md)`;
   const linked = (target: string) => !ARCHIVE.test(target) && outside(file, target, root);
   if (path.posix.basename(file) === 'pyproject.toml') {

@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 42ad0ada2c4272b792786d2ff731e1399bbae4e10e16cf192f69cd1f730117ab -->
+<!-- source-sha256: db5006c71bc20daa826fc9a22b5f68546c898d9442add8da1a27bbaf5a8b0061 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,8 @@
 - Kit 0.0.66 release를 준비한다. (K775)
 
 ## 0.0.66
+
+- link-state-check와 go benchmark 테스트 픽스처는 사례에 필요한 것 외에 저장소나 패키지 이름을 쓰지 않는다. (K776)
 
 - release 대상과 dependency review는 저장소가 추적하는 go.work로 실행하고, 추적하는 것이 없을 때만 GOWORK를 끄므로 link가 쓰는 go.work는 계속 제외된다. (K774)
 

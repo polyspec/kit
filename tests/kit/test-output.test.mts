@@ -166,7 +166,7 @@ test('goEvents ends a benchmark at its result line, at the next benchmark that i
   const lines: string[] = [];
   const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
   const feed = goEvents(toProgress(progress));
-  const pkg = 'example/writepath';
+  const pkg = 'p';
   for (const event of [
     { Action: 'start', Package: pkg },
     { Action: 'run', Package: pkg, Test: 'BenchmarkWrite' },
