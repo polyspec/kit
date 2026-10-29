@@ -3,7 +3,7 @@
 // a plain copy among links is a finding. Composer runs as a stub that answers `vendor` to `config vendor-dir`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -128,7 +128,11 @@ test('a declared provider that no installed folder links is a finding in npm and
     'packages/db/package.json': JSON.stringify({ name: 'cons-db', dependencies: { '@polyspec/n': '0.0.1' } }),
     '.gitignore': '.venv/\nnode_modules/\n',
   });
-  assert.deepEqual(linkFindings(consumer).filter(line => / (polyspec-p|@polyspec\/n): /.test(line)), [
+  // The fixture uv answers uv workspace dir with the project, as uv does for a project of no workspace.
+  put(workspace, { 'uv': '#!/bin/sh\nif [ "$1 $2" = "workspace dir" ]; then pwd; fi\n' });
+  chmodSync(path.join(workspace, 'uv'), 0o755);
+  const env = { ...process.env, UV: path.join(workspace, 'uv') };
+  assert.deepEqual(linkFindings(consumer, env).filter(line => / (polyspec-p|@polyspec\/n): /.test(line)), [
     'npm @polyspec/n: no installed folder of packages/db links it; Fix: make install',
     'python polyspec-p: no installed folder of packages/python links it; Fix: make install',
   ], 'projects that were never installed end red');
@@ -136,7 +140,41 @@ test('a declared provider that no installed folder links is a finding in npm and
   const site = path.join(consumer, 'packages/python/.venv/lib/python3.14/site-packages');
   mkdirSync(site, { recursive: true });
   symlinkSync(path.join(provider, 'packages/python/src/polyspec_p'), path.join(site, 'polyspec_p'));
-  assert.deepEqual(linkFindings(consumer).filter(python), [], 'the link to the provider passes');
+  assert.deepEqual(linkFindings(consumer, env).filter(python), [], 'the link to the provider passes');
+});
+
+// K890: the environment of a uv workspace member is that of its workspace root, which uv installs and link links.
+test('a uv workspace member whose provider is linked in the environment of the workspace root is no finding (K890)', (t) => {
+  const workspace = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-workspace-')));
+  t.after(() => rmSync(workspace, { recursive: true, force: true }));
+  const repository = (name: string, files: Record<string, string>) => {
+    const folder = path.join(workspace, name);
+    mkdirSync(folder, { recursive: true });
+    initRepository(folder);
+    put(folder, files);
+    commitAll(folder, 'base');
+    assert.equal(spawnSync('git', ['-C', folder, 'remote', 'add', 'origin', `https://github.com/polyspec/${name}.git`]).status, 0);
+    return folder;
+  };
+  const provider = repository('prepo', { 'packages/python/pyproject.toml': '[project]\nname = "polyspec-p"\nversion = "0.0.1"\n', 'packages/python/src/polyspec_p/__init__.py': '' });
+  const consumer = repository('cons', {
+    'pyproject.toml': '[project]\nname = "cons"\nversion = "0.0.0"\n\n[tool.uv.workspace]\nmembers = ["member"]\n',
+    'member/pyproject.toml': '[project]\nname = "cons-member"\nversion = "0.0.0"\ndependencies = ["polyspec-p"]\n',
+    '.gitignore': '.venv/\nuv\n',
+  });
+  // The fixture uv answers uv workspace dir with the workspace root, as uv does for a member.
+  put(consumer, { 'uv': `#!/bin/sh\nif [ "$1 $2" = "workspace dir" ]; then echo '${consumer}'; fi\n`, '.venv/pyvenv.cfg': 'fixture\n' });
+  chmodSync(path.join(consumer, 'uv'), 0o755);
+  const site = path.join(consumer, '.venv/lib/python3.14/site-packages');
+  mkdirSync(site, { recursive: true });
+  symlinkSync(path.join(provider, 'packages/python/src/polyspec_p'), path.join(site, 'polyspec_p'));
+  const env = { ...process.env, UV: path.join(consumer, 'uv') };
+  assert.deepEqual(linkFindings(consumer, env).filter(line => line.includes('polyspec-p')), []);
+  // An environment of the member's own folder, which uv does not use for a member, changes nothing.
+  put(consumer, { 'member/.venv/pyvenv.cfg': 'stray\n' });
+  assert.deepEqual(linkFindings(consumer, env).filter(line => line.includes('polyspec-p')), [], 'the member is judged in the environment of the root');
+  rmSync(path.join(site, 'polyspec_p'));
+  assert.deepEqual(linkFindings(consumer, env).filter(line => line.includes('polyspec-p')), ['python polyspec-p: no installed folder of member links it; Fix: make install'], 'the unlinked member stays a finding');
 });
 
 // K773: a tracked manifest that links a polyspec package by a path outside the repository links it a second way besides the folder link.

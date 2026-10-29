@@ -160,7 +160,7 @@ export function releaseEnvironmentLinks(project: string, environment: string | u
 }
 
 /** The environment folder of the Python project `project`: `environment` (UV_PROJECT_ENVIRONMENT), else .venv. */
-export function pythonEnvironment(project: string, environment = process.env.UV_PROJECT_ENVIRONMENT): string {
+function pythonEnvironment(project: string, environment = process.env.UV_PROJECT_ENVIRONMENT): string {
   return path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment);
 }
 

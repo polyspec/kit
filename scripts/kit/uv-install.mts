@@ -19,6 +19,17 @@ export function pylockOf(workspace: string): string | undefined {
   return name === undefined ? undefined : path.join(workspace, name);
 }
 
+/**
+ * The environment of the Python project `project` and its uv workspace (K890): uv's project environment, UV_PROJECT_ENVIRONMENT
+ * (relative to the workspace root, as uv reads it) or .venv of the workspace root. The link, its checks and the install read this one,
+ * so a workspace member is judged in the environment that uv installs and the link links.
+ */
+export function projectEnvironment(project: string, uv: string, env: NodeJS.ProcessEnv): { venv: string; workspace: string } {
+  const workspace = run(uv, ['workspace', 'dir'], { cwd: project, env }).trim();
+  if (!path.isAbsolute(workspace)) throw new Error('uv workspace dir returned no absolute project root');
+  return { venv: path.resolve(workspace, env.UV_PROJECT_ENVIRONMENT || '.venv'), workspace };
+}
+
 type UvSourcesOptions = {
   directory: string; providers?: Iterable<Provider>; uv?: string; env?: NodeJS.ProcessEnv; print?: (text: string) => void;
 };
@@ -30,9 +41,7 @@ type UvSourcesOptions = {
  */
 function installSources({ directory, providers = [], uv = 'uv', env = process.env, print = () => {} }: UvSourcesOptions, sync?: readonly string[]): string[] {
   const project = path.resolve(directory);
-  const workspace = run(uv, ['workspace', 'dir'], { cwd: project, env }).trim();
-  if (!path.isAbsolute(workspace)) throw new Error('uv workspace dir returned no absolute project root');
-  const venv = path.resolve(workspace, env.UV_PROJECT_ENVIRONMENT || '.venv');
+  const { venv, workspace } = projectEnvironment(project, uv, env);
   // K888: a project without its environment is not installed yet. The link creates none (K689-3) and leaves it out, as a package that
   // is not installed; link-state-check reports each declared provider that stays unlinked.
   if (sync === undefined && !existsSync(path.join(venv, 'pyvenv.cfg'))) {

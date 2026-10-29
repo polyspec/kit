@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dcdb4458058483c1f82751a3012e00913908de97ccb36d6922e5d54935b9c0da -->
+<!-- source-sha256: 13dd5f29ece6f30e79fe3dbbfb61f1e128d640c639525f1c8d0993dd41ec39bf -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Python project의 link, link-state-check, 설치는 하나의 environment, 즉 uv의 것인 uv workspace root의 environment(그 기준의 UV_PROJECT_ENVIRONMENT, 없으면 거기의 .venv)를 읽으므로, provider가 root environment에 link된 uv workspace member는 finding이 아닙니다. uv가 읽지 않는 VENV는 없어졌습니다 (K890).
 
 ## 0.0.75
 

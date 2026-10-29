@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- The link of a Python project, link-state-check and the install read one environment, uv's: that of the uv workspace root, UV_PROJECT_ENVIRONMENT relative to it or .venv there, so a uv workspace member whose provider is linked in the root environment is no finding; VENV, which uv does not read, is gone (K890).
+
 ## 0.0.75
 
 - Release Kit 0.0.75 with K855, K857, K858, K875, K877, K883, K885, K886, K887, K888, K891 and K893 from main HEAD; the cuts of K884 and K889 were never published (K894).

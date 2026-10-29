@@ -24,9 +24,9 @@ import { fileURLToPath } from 'node:url';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
-import { pylockOf, uvLink } from './uv-install.mts';
+import { projectEnvironment, pylockOf, uvLink } from './uv-install.mts';
 import { rebuild } from './link-build.mts';
-import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, pythonEnvironment, releaseEnvironmentLinks } from './link-folders.mts';
+import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -214,17 +214,10 @@ function composerProjects(consumer: Consumer, composer: Tool): { project: string
 
 // --- Python: uv installs the lock and owns the distribution metadata; kit links the installed package folders (K765).
 
-/** The environment of the pyproject `file`: uv's project environment of its workspace root, which uv sync creates when it is missing. */
-function installTarget(uv: Tool, file: string): { venv: string; workspace: string } {
-  const workspace = run(uv.command, ['workspace', 'dir'], { cwd: path.dirname(file), env: uv.env }).trim();
-  const venv = uv.env.VENV ? path.resolve(uv.env.VENV) : path.resolve(workspace, uv.env.UV_PROJECT_ENVIRONMENT ?? '.venv');
-  return { venv, workspace };
-}
-
 /** The environment of the pyproject `file` and its uv workspace, or why there is none. */
 function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string } | string {
-  const target = installTarget(uv, file);
-  if (!existsSync(path.join(target.venv, 'pyvenv.cfg'))) return `no environment in ${target.workspace}: run the repository's install, or give VENV or UV_PROJECT_ENVIRONMENT`;
+  const target = projectEnvironment(path.dirname(file), uv.command, uv.env);
+  if (!existsSync(path.join(target.venv, 'pyvenv.cfg'))) return `no environment in ${target.workspace}: run the repository's install, or give UV_PROJECT_ENVIRONMENT`;
   return target;
 }
 
@@ -431,11 +424,42 @@ function linkedProjects(consumer: Consumer, ecosystems: readonly FolderEcosystem
   return [...new Set([consumer.scope, ...ecosystems.flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))])].sort();
 }
 
+/**
+ * The environment of the Python project `project` of `top` (K890): that of its uv workspace (projectEnvironment), the one rule of the
+ * link, its checks and the install, for a project that declares a polyspec package that `found` provides in Python. A checkout without
+ * uv has installed none, so it reads the path that uv would make there. Undefined otherwise, so a run with no such package runs no uv;
+ * the answer of a project is kept for the run.
+ */
+export function pythonEnvironmentOf(top: string, project: string, found: ReadonlyMap<string, Provider>, env: NodeJS.ProcessEnv): string | undefined {
+  const manifest = path.join(project, MANIFESTS.python);
+  if (!existsSync(manifest) || !declaredPython(manifest).some(name => found.get(providerKey('python', name)) !== undefined)) return undefined;
+  const key = `${top}\0${project}\0${env.UV_PROJECT_ENVIRONMENT ?? ''}`;
+  if (!ENVIRONMENTS.has(key)) {
+    let uv: Tool | undefined;
+    try {
+      uv = consumerTool(top, 'uv', env);
+    } catch (error) {
+      // The message of toolCommand for a missing uv of the checkout (K393-1).
+      if (!(error instanceof Error) || !error.message.startsWith('uv of the checkout is missing')) throw error;
+    }
+    ENVIRONMENTS.set(key, uv === undefined ? path.resolve(project, env.UV_PROJECT_ENVIRONMENT || '.venv') : projectEnvironment(project, uv.command, uv.env).venv);
+  }
+  return ENVIRONMENTS.get(key);
+}
+
+/** The environments that pythonEnvironmentOf found, by checkout, project and UV_PROJECT_ENVIRONMENT. */
+const ENVIRONMENTS = new Map<string, string>();
+
+/** The environment of the Python project `project` of the run (pythonEnvironmentOf); undefined without Python among `ecosystems`. */
+function pythonVenv(work: Run, consumer: Consumer, project: string, ecosystems: readonly FolderEcosystem[]): string | undefined {
+  return ecosystems.includes('python') ? pythonEnvironmentOf(consumer.top, project, work.found, work.env) : undefined;
+}
+
 /** The installed folders of `project` that a provider of the run provides; a path member uses its parent installer's vendor (K590). */
 function projectFolders(work: Run, consumer: Consumer, project: string, ecosystems: readonly FolderEcosystem[]): ProvidedFolder[] {
   const composerOwners = ecosystems.includes('composer') ? owners(consumer, project, 'composer') : [];
   const localProviders = [...work.found.values()].filter(provider => provider.ecosystem !== 'composer' || composerOwners.length === 0);
-  return providedFolders(project, localProviders, { vendorDir: composerOwners.length === 0 ? composerVendorDir(project, work.env) : undefined });
+  return providedFolders(project, localProviders, { vendorDir: composerOwners.length === 0 ? composerVendorDir(project, work.env) : undefined, environment: pythonVenv(work, consumer, project, ecosystems) });
 }
 
 /**
@@ -517,7 +541,10 @@ function owners(consumer: Consumer, project: string, ecosystem: 'npm' | 'compose
  * folder of the Composer project or of its path owner, the environment of the Python project.
  */
 function installed(work: Run, consumer: Consumer, project: string, ecosystem: Ecosystem): boolean {
-  if (ecosystem === 'python') return existsSync(path.join(pythonEnvironment(project, work.env.UV_PROJECT_ENVIRONMENT), 'pyvenv.cfg'));
+  if (ecosystem === 'python') {
+    const venv = pythonVenv(work, consumer, project, ['python']);
+    return venv !== undefined && existsSync(path.join(venv, 'pyvenv.cfg'));
+  }
   if (ecosystem !== 'npm' && ecosystem !== 'composer') return true;
   return [project, ...owners(consumer, project, ecosystem)].some(folder => existsSync(ecosystem === 'npm' ? path.join(folder, 'node_modules') : path.resolve(folder, composerVendorDir(folder, work.env) ?? 'vendor')));
 }

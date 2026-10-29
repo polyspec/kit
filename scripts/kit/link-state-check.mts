@@ -16,7 +16,7 @@
 // checkout (K773).
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
-import { declaredUnlinked, isKitHookEntry, kitHookCheckout, kitNodeRunnable, trackedWorkspaceFolders, workspaceHookEntry, workspaceSettings } from './link.mts';
+import { declaredUnlinked, isKitHookEntry, kitHookCheckout, kitNodeRunnable, pythonEnvironmentOf, trackedWorkspaceFolders, workspaceHookEntry, workspaceSettings } from './link.mts';
 import { type Provider, providers, siblingCheckouts, type Tool, trackedManifests, workspaceOf } from './link-providers.mts';
 import { composerVendorDir, folderFindings, providedFolders } from './link-folders.mts';
 import { isTable, readToml } from './toml.mts';
@@ -210,10 +210,11 @@ function trackedManifestPathFindings(root: string): string[] {
  * K448: the findings of the installed package folders of `root` that a sibling checkout provides: a folder that is a copy, or that
  * links elsewhere than to its provider. Nothing about a version is judged.
  */
-function folderLinkFindings(root: string, folders: readonly string[], provided: ReadonlyMap<string, Provider>): string[] {
+function folderLinkFindings(root: string, folders: readonly string[], provided: ReadonlyMap<string, Provider>, env: NodeJS.ProcessEnv): string[] {
   return folders.flatMap((folder) => {
     const project = path.join(root, folder);
-    return folderFindings(root, providedFolders(project, provided.values(), { vendorDir: composerVendorDir(project, process.env) }));
+    // K890: a Python folder is judged in the environment that link links, that of the uv workspace.
+    return folderFindings(root, providedFolders(project, provided.values(), { vendorDir: composerVendorDir(project, process.env), environment: pythonEnvironmentOf(root, project, provided, env) }));
   });
 }
 
@@ -224,7 +225,7 @@ function folderLinkFindings(root: string, folders: readonly string[], provided: 
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const folders = manifestFolders(root);
   const provided = providers(siblingCheckouts(root).checkouts, undefined, root, root);
-  return [...trackedManifestPathFindings(root), ...folderLinkFindings(root, folders, provided), ...declaredUnlinked(root, provided, env), ...workspaceHookFindings(root, env), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
+  return [...trackedManifestPathFindings(root), ...folderLinkFindings(root, folders, provided, env), ...declaredUnlinked(root, provided, env), ...workspaceHookFindings(root, env), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
 }
 
 if (isMain(import.meta.url)) {
