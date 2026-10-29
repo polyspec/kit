@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: b47d5ea8e81b8953befed840efd5e2d1923449590ee3582a3ac52ffd5c153002 -->
+<!-- source-sha256: 58db7d03e020202fc4e33ec2fc629bdb803c2997c103655ea12a7488ddc76925 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -707,3 +707,4 @@
 | K748 | tag에서 version을 얻는 Composer archive와 native proof를 지원한다 (issue 16) | scripts/kit/release.mts scripts/kit/release-consumer.mts tests/kit/release.test.mts tests/kit/release-consumer.test.mts tests/kit/release-consumer-sandbox.mts | `node --test tests/kit/release.test.mts tests/kit/release-consumer.test.mts` | [ ] |
 | K749 | CI를 통과한 확정 candidate를 단일 release 명령으로 배포한다 (issue 17) | scripts/kit/release-run.mts tests/kit/release-run.test.mts Makefile scripts/kit/kit.mk config/rebuild.json | `node --test tests/kit/release-run.test.mts` | [ ] |
 | K750 | 선택 설치에서 선언한 Rust toolchain component를 모두 설치한다 | scripts/kit/install-rust.mts tests/kit/install-rust.test.mts tests/kit/install-tools.test.mts | `node --test tests/kit/install-rust.test.mts` | [ ] |
+| K751 | go.work의 모든 모듈을 go test 한 번으로 실행해서 빌드 전용 모듈이 빈 실행이 되지 않게 한다 (issue 5) | scripts/kit/runtime-targets.mts tests/kit/runtime-targets.test.mts | `node --test tests/kit/runtime-targets.test.mts` | [ ] |
