@@ -445,11 +445,11 @@ export function versions(ctx: Context, tag: string): string {
   const [directory, version] = parseTag(config, tag);
   const problems: string[] = [];
   if (directory === null) {
-    for (const [name, mode] of Object.entries(config.manifests)) {
+    for (const [name] of Object.entries(config.manifests)) {
       ctx.log(`[release] ${tag}: reading the version of ${name}`);
       const declared = manifestVersion(path.join(root, name));
       // A package that is released as an archive declares its version; Composer takes it from the tag for other manifests.
-      const missingOk = declared === null && path.basename(name) === 'composer.json' && mode !== 'archive';
+      const missingOk = declared === null && path.basename(name) === 'composer.json';
       if (declared !== version && !missingOk) problems.push(`${name}: version ${declared ?? 'none'}, the tag ${tag} is ${version}`);
     }
   }
@@ -537,7 +537,7 @@ export function manifestProblems(config: Pick<ReleaseConfig, 'packages'>, kind: 
   }
   if (kind === 'npm' && 'overrides' in manifest) problems.push(`overrides: ${JSON.stringify(manifest.overrides)}; a published package.json resolves only by name and version`);
   if (kind === 'composer') {
-    if (manifest.version !== version) problems.push(`version: ${manifest.version ?? 'none'}, not ${version}`);
+    if (manifest.version !== undefined && manifest.version !== version) problems.push(`version: ${manifest.version}, not ${version}`);
     if ('repositories' in manifest) problems.push(`repositories: ${JSON.stringify(manifest.repositories)}; a release zip declares none`);
   }
   return problems;

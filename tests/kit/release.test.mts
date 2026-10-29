@@ -202,14 +202,16 @@ test('a VERSION file is a manifest', (t) => {
   stop(() => release.versions(context(box), 'v0.0.1'), /VERSION: version 0\.0\.9, the tag v0\.0\.1 is 0\.0\.1/);
 });
 
-test('a composer.json of an archive declares the version, any other may leave it to the tag', (t) => {
+test('a Composer source archive may derive its version from the tag, but an explicit mismatch fails', (t) => {
   const box = releaseSandbox(t, { mutate: (root: string) => {
     writeJson(root, 'composer.json', { name: 'polyspec/root', type: 'project' });
     edit<ConfigJson>(root, 'config/release.json', c => ({ ...c, manifests: { ...c.manifests, 'composer.json': 'version' } }));
   } });
   assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
   edit(box.root, 'packages/fixture-php/composer.json', ({ version: _version, ...rest }) => rest);
-  stop(() => release.versions(context(box), 'v0.0.1'), /packages\/fixture-php\/composer\.json: version none, the tag v0\.0\.1 is 0\.0\.1/);
+  assert.equal(release.versions(context(box), 'v0.0.1'), '0.0.1');
+  edit(box.root, 'packages/fixture-php/composer.json', manifest => ({ ...manifest, version: '0.0.2' }));
+  stop(() => release.versions(context(box), 'v0.0.1'), /packages\/fixture-php\/composer\.json: version 0\.0\.2, the tag v0\.0\.1 is 0\.0\.1/);
 });
 
 test('a missing change log section, a section without an entry and a missing translation fail', (t) => {
@@ -289,7 +291,8 @@ test('the problems of a manifest name the field, the dependency and the form of 
   const composer = { version: '1.0.0', require: { php: '>=8.2', 'polyspec/kit-fixture': '1.0.0', 'polyspec/other': '1.2.3' } };
   assert.deepEqual(problems('composer', composer), []);
   assert.deepEqual(problems('composer', { ...composer, version: '1.0.1' }), ['version: 1.0.1, not 1.0.0']);
-  assert.deepEqual(problems('composer', { require: {} }), ['version: none, not 1.0.0']);
+  assert.deepEqual(problems('composer', { require: {} }), []);
+  assert.deepEqual(problems('composer', { version: '2.0.0', require: {} }), ['version: 2.0.0, not 1.0.0']);
   assert.deepEqual(problems('composer', { ...composer, repositories: [{ type: 'path', url: '../x' }] }), ['repositories: [{"type":"path","url":"../x"}]; a release zip declares none']);
   assert.deepEqual(problems('composer', { ...composer, require: { 'polyspec/other': '^1.0' } }), ['require polyspec/other: ^1.0 is a range, not an exact version']);
   assert.deepEqual(problems('composer', { ...composer, 'require-dev': { 'polyspec/other': 'dev-main' } }), ['require-dev polyspec/other: dev-main is a development version, not a registry version']);

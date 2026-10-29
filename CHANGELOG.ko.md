@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ab8d87525fba61d2bcc149d451cf3d69d16566176e462ec483255ac73dd2474b -->
+<!-- source-sha256: dafb3a83c7779d5863a929a6db952675356b7e38b686b47e01ca833064c426eb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Composer archive version을 tag에서 가져오고 native package repository metadata로 consumer를 증명한다; source composer.json은 바뀌지 않는다. (K748)
 
 - run-tests가 project-local CLI와 kit reporter로 Playwright Test의 각 case를 실행한다. (K747)
 

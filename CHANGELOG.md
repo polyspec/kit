@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Take the Composer archive version from the tag and prove consumers with native package repository metadata; source composer.json stays unchanged. (K748)
+
 - Run Playwright Test through run-tests with the project-local CLI and a kit reporter for each case. (K747)
 
 - Add make release-candidate and make release, which publish the exact commit of a successful CI run without a second version or test cycle. (K749)

@@ -81,7 +81,11 @@ test('lock writes the manifests and locks of the archives of the tag, without th
   assert.deepEqual(readJson(box.root, `${NPM}/package.json`), { name: 'kit-fixture-consumer', private: true, dependencies: { 'fixture-lib': 'file:fixture-lib-npm-0.0.1.tgz', 'fixture-app': 'file:fixture-app-npm-0.0.1.tgz' } });
   const composer = readJson<ComposerManifest>(box.root, `${COMPOSER}/composer.json`);
   assert.deepEqual(composer.require, { 'polyspec/kit-fixture': '0.0.1' });
-  assert.deepEqual(composer.repositories, [{ type: 'artifact', url: 'artifacts' }, { 'packagist.org': false }]);
+  assert.deepEqual(composer.repositories, [{ type: 'package', package: {
+    name: 'polyspec/kit-fixture', description: 'Fixture of the kit tests of the dependency tools.', version: '0.0.1', type: 'library', license: 'proprietary',
+    require: { php: '>=8.2', 'psr/log': '^3.0' }, config: { platform: { php: '8.2.0' } },
+    dist: { type: 'zip', url: 'artifacts/polyspec-kit-fixture-php-0.0.1.zip' },
+  } }, { 'packagist.org': false }]);
   const lock = readJson<NpmLock>(box.root, `${NPM}/package-lock.json`).packages;
   assert.deepEqual([lock?.['node_modules/fixture-lib']?.integrity, lock?.['node_modules/fixture-app']?.integrity], [undefined, undefined], 'the archives are built in the run that uses them');
   assert.equal(lock?.['node_modules/fixture-lib']?.resolved, 'file:fixture-lib-npm-0.0.1.tgz');
@@ -191,7 +195,7 @@ test('install names each difference of the manifests and locks from the archives
   stop(install.bind(null, box), /node_modules\/fixture-app is 0\.0\.0 resolved file:fixture-app-npm-0\.0\.1\.tgz, expected 0\.0\.1 resolved file:fixture-app-npm-0\.0\.1\.tgz/);
   stop(install.bind(null, box), /require\.polyspec\/kit-fixture is "0\.0\.0", expected "0\.0\.1"/);
   stop(install.bind(null, box), /polyspec\/kit-fixture is 0\.0\.1 from artifacts\/polyspec-kit-fixture-php-0\.0\.0\.zip, expected 0\.0\.1 from artifacts\/polyspec-kit-fixture-php-0\.0\.1\.zip/);
-  stop(install.bind(null, box), /repositories lacks \{ "type": "artifact", "url": "artifacts" \}/);
+  stop(install.bind(null, box), /repositories do not contain the native package metadata for the tagged archives/);
   stop(install.bind(null, box), /Fix: make release-consumer-lock TAG=v0\.0\.1 writes them/);
   assert.deepEqual(box.calls('npm').slice(-1).map((call: { args: string[] }) => call.args[0]), ['install'], 'no install ran');
 });
@@ -301,7 +305,7 @@ test('the real npm ci and composer install install the archives of a tag from th
   const box = releaseSandbox(t, {
     mutate(root: string) {
       edit(root, 'packages/fixture-lib/package.json', ({ dependencies: _dependencies, ...manifest }) => manifest);
-      edit(root, 'packages/fixture-php/composer.json', ({ require: _require, config: _config, ...manifest }) => manifest);
+      edit(root, 'packages/fixture-php/composer.json', ({ require: _require, config: _config, version: _version, ...manifest }) => manifest);
       // The wheel needs the Python of the machine, which this case does not run: the case covers npm and Composer only.
       edit<ConfigJson>(root, 'config/release.json', ({ consumers: { wheel: _wheel, ...consumers }, packages, manifests, ...config }) => ({
         ...config,
@@ -322,6 +326,7 @@ test('the real npm ci and composer install install the archives of a tag from th
   const env = { ...process.env, GITHUB_REPOSITORY: 'example/kit-fixture' };
   const ctx = release.context(box.root, { env });
   assert.equal(release.assets(ctx, tag).length, 3);
+  assert.equal(spawnSync('unzip', ['-p', path.join(box.root, release.ASSETS, 'polyspec-kit-fixture-php-0.0.1.zip'), 'composer.json'], { encoding: 'utf8' }).stdout, readFileSync(path.join(box.root, 'packages/fixture-php/composer.json'), 'utf8'), 'the source manifest stays byte-for-byte in the release archive');
   consumer.lockConsumers(ctx, tag);
   assert.equal(readJson<NpmLock>(box.root, `${NPM}/package-lock.json`).packages?.['node_modules/fixture-app']?.resolved, 'file:fixture-app-npm-0.0.1.tgz');
   assert.equal(readJson<ComposerLock>(box.root, `${COMPOSER}/composer.lock`).packages?.[0]?.dist?.url, 'artifacts/polyspec-kit-fixture-php-0.0.1.zip');
@@ -343,21 +348,31 @@ test('the consumer tests leave no temporary entry of the npm stub in TMPDIR', (t
   assert.deepEqual(readdirSync(directory).filter(entry => entry.startsWith('stub-npm-')), []);
 });
 
-// The counterpart of consumers.wheel.polyspec for Composer (K140): a polyspec dependency of the consumer is installed from its
-// release zip in the artifact repository of the project, not from an inline package repository.
-test('the Composer consumer holds the release zip of each entry of config/release-assets.json that consumers.composer.polyspec names', (t) => {
+// The counterpart of consumers.wheel.polyspec for Composer (K140): inline package metadata points at the polyspec dependency's
+// unchanged release zip and derives its version from config/release-assets.json.
+test('the Composer consumer gets native package metadata for each configured released dependency', (t) => {
   const box = consumerSandbox(t);
-  const zip = Buffer.from('the release zip of polyspec/codec 0.0.14');
+  const packageDir = path.join(box.root, 'var/release-assets/codec');
+  mkdirSync(packageDir, { recursive: true });
+  writeFileSync(path.join(packageDir, 'composer.json'), JSON.stringify({ name: 'polyspec/codec', type: 'library', require: { php: '>=8.2' } }));
+  const zip = path.join(box.root, 'var/release-assets/codec.zip');
+  const archived = spawnSync('zip', ['-q', '-r', zip, '.'], { cwd: packageDir, encoding: 'utf8' });
+  assert.equal(archived.status, 0, archived.stderr);
+  const bytes = readFileSync(zip);
   writeFileSync(path.join(box.root, '.gitignore'), `${existsSync(path.join(box.root, '.gitignore')) ? readFileSync(path.join(box.root, '.gitignore'), 'utf8') : ''}var/\n`);
-  writeJson(box.root, 'config/release-assets.json', { schema: 1, assets: [{ name: 'codec-php', version: '0.0.14', url: 'https://github.com/polyspec/codec/releases/download/v{version}/polyspec-codec-php-{version}.zip', sha256: sha256(zip), directory: 'var/composer-artifacts' }] });
+  writeJson(box.root, 'config/release-assets.json', { schema: 1, assets: [{ name: 'codec-php', version: '0.0.14', url: 'https://github.com/polyspec/codec/releases/download/v{version}/polyspec-codec-php-{version}.zip', sha256: sha256(bytes), directory: 'var/composer-artifacts' }] });
   edit<ConfigJson>(box.root, 'config/release.json', config => ({ ...config, consumers: { ...config.consumers, composer: { ...config.consumers.composer, polyspec: ['codec-php'] } } }));
   edit(box.root, `${COMPOSER}/composer.json`, manifest => ({ ...manifest, require: { ...manifest.require, 'polyspec/codec': '0.0.14' } }));
   stop(() => box.lock(), /var\/composer-artifacts\/polyspec-codec-php-0\.0\.14\.zip does not hold the archive codec-php 0\.0\.14 .*; run make release-assets-fetch/);
   mkdirSync(path.join(box.root, 'var/composer-artifacts'), { recursive: true });
-  writeFileSync(path.join(box.root, 'var/composer-artifacts/polyspec-codec-php-0.0.14.zip'), zip);
+  writeFileSync(path.join(box.root, 'var/composer-artifacts/polyspec-codec-php-0.0.14.zip'), bytes);
   box.lock();
   const lock = readJson<ComposerLock>(box.root, `${COMPOSER}/composer.lock`);
   assert.deepEqual(lock.packages?.find(entry => entry.name === 'polyspec/codec')?.dist, { type: 'zip', url: 'artifacts/polyspec-codec-php-0.0.14.zip', shasum: 'sha1-own' }, 'the lock keeps the shasum of a dependency, which no run builds again');
+  const composer = readJson<ComposerManifest>(box.root, `${COMPOSER}/composer.json`);
+  assert.deepEqual(composer.repositories?.find(repository => repository.type === 'package' && repository.package?.name === 'polyspec/codec')?.package, {
+    name: 'polyspec/codec', type: 'library', require: { php: '>=8.2' }, version: '0.0.14', dist: { type: 'zip', url: 'artifacts/polyspec-codec-php-0.0.14.zip' },
+  });
   assert.equal(install(box), 4);
   edit<ConfigJson>(box.root, 'config/release.json', config => ({ ...config, consumers: { ...config.consumers, composer: { ...config.consumers.composer, polyspec: [] } } }));
   assert.match(checkConfig(box.root).join('\n'), /config\/release\.json: \/consumers\/composer\/polyspec must NOT have fewer than 1 items/);

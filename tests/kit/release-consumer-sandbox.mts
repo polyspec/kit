@@ -134,9 +134,9 @@ if (mode === 'fail') finish(1, 'composer stub: ' + args[0] + ' failed');
 const manifest = readJson('composer.json');
 if (args[0] === 'update' && args.includes('--no-install')) {
   const packages = Object.entries(manifest.require ?? {}).map(([name, version]) => {
-    const archive = fs.readdirSync('artifacts').find(file => file.startsWith(name.replace('/', '-') + '-php-'));
-    if (!archive) finish(1, 'composer stub: no zip of ' + name + ' in artifacts');
-    return { name, version, dist: { type: 'zip', url: 'artifacts/' + archive, shasum: 'sha1-own' } };
+    const entry = (manifest.repositories ?? []).find(repository => repository.type === 'package' && repository.package?.name === name)?.package;
+    if (!entry || entry.version !== version || !entry.dist?.url || !fs.existsSync(entry.dist.url)) finish(1, 'composer stub: no exact package metadata and zip for ' + name);
+    return { name, version: entry.version, dist: { type: entry.dist.type, url: entry.dist.url, shasum: 'sha1-own' } };
   });
   fs.writeFileSync('composer.lock', JSON.stringify({ packages, 'packages-dev': [], 'plugin-api-version': '2.9.0' }, null, 4));
   finish();

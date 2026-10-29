@@ -9,7 +9,8 @@
 // The consumers are data in config/release.json (`consumers`, schema scripts/kit/schema/release.schema.json): the directory
 // of the committed manifest and lock of each kind and, for each installed package, its smoke command. The npm project names
 // each installed package by `file:<archive>` and the Composer project requires it at the version of the tag from an
-// `artifacts` repository of the zips with Packagist disabled, so a package of this repository comes only from its archive.
+// native `package` repository entries made from each archive's composer.json, the exact tag version and its `artifacts` dist
+// path, with Packagist disabled, so a package of this repository comes only from its archive. The source composer.json stays byte-for-byte unchanged.
 // A package that a lock pins from a registry is downloaded as the lock pins it: that is installation, not a registry query,
 // so `install` removes the offline settings of npm and Composer (npm_config_offline, COMPOSER_DISABLE_NETWORK) from the
 // environment of the project. The caches and COMPOSER_HOME are empty directories of the run; a scope of this repository
@@ -22,9 +23,9 @@
 // of all wheel packages in one command from their files (`pip install --no-index --require-hashes --no-deps`, each named with the
 // sha256 of its file), then `pip check`, which fails on a lock that lacks a dependency. The command names every wheel of the release,
 // so a sibling (a wheel of the same release) is installed from its file: with --no-deps pip never reads a sibling's URL.
-// The Composer project also holds, in its artifact repository, the release zip of each polyspec dependency that
-// consumers.composer.polyspec names by its entry of config/release-assets.json (make release-assets-fetch downloads it), so a
-// dependency of the release is installed from its released archive, as a consumer installs it, the counterpart of the
+// The Composer project also holds the release zip of each polyspec dependency that consumers.composer.polyspec names by its
+// entry of config/release-assets.json (make release-assets-fetch downloads it); its native package metadata points to that zip, so
+// a dependency of the release is installed from its released archive, as a consumer installs it, the counterpart of the
 // polyspec archives of a wheel lock (consumers.wheel.polyspec).
 // A Go module tag releases no archive and has nothing to install. Each failure names the expected and the actual value.
 //   TAG is `latest` for the newest root release tag reachable from HEAD.
@@ -42,7 +43,7 @@ import { makeVenv } from './python-venv.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 import { run, Stop } from './process.mts';
 import { CONSUMER_KINDS, WHEEL_KIND } from './release-consumer-config.mts';
-import { fetchedAsset } from './release-assets.mts';
+import { fetchedAsset, releaseAsset } from './release-assets.mts';
 import { readComposerLock, readComposerLockFile, readComposerManifest, readComposerManifestFile, readNpmLock, readNpmLockFile, readNpmManifest, readNpmManifestFile } from './manifests.mts';
 
 // A registry address that refuses every connection: port 9 of the loopback address.
@@ -104,6 +105,29 @@ function environment(env: NodeJS.ProcessEnv, folder: string) {
   return { ...clean, npm_config_cache: path.join(folder, 'npm-cache'), COMPOSER_HOME: path.join(folder, 'composer-home'), COMPOSER_CACHE_DIR: path.join(folder, 'composer-cache'), PIP_CACHE_DIR: path.join(folder, 'pip-cache') };
 }
 
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** A Composer package repository entry whose version and dist come from the exact tagged release. */
+function composerPackage(ctx: ReleaseContext, expectedName: string | undefined, version: string, archive: string): Record<string, unknown> {
+  const text = run('unzip', ['-p', archive, 'composer.json'], { cwd: ctx.root, env: ctx.env });
+  let parsed: unknown;
+  try { parsed = JSON.parse(text); } catch (error) {
+    throw new Stop(`${path.basename(archive)}: its composer.json is invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (!isRecord(parsed)) throw new Stop(`${path.basename(archive)}: its composer.json is not an object`);
+  const source = parsed;
+  if (typeof source.name !== 'string' || (expectedName !== undefined && source.name !== expectedName)) throw new Stop(`${path.basename(archive)}: composer.json names ${JSON.stringify(source.name)}, expected ${expectedName ?? 'a package name'}`);
+  if (source.version !== undefined && source.version !== version) throw new Stop(`${path.basename(archive)}: composer.json version ${JSON.stringify(source.version)}, expected ${version}`);
+  return { ...source, version, dist: { type: 'zip', url: `${ARTIFACTS}/${path.basename(archive)}` } };
+}
+
+/** Native Composer package-repository metadata for the tagged archives and configured released dependencies. */
+function composerRepositories(ctx: ReleaseContext, consumer: Consumer, packages: ArchivePackage[], version: string) {
+  const own = packages.map(({ name, file }) => composerPackage(ctx, name, version, path.join(ctx.root, ASSETS, file)));
+  const dependencies = (consumer.polyspec ?? []).map(name => composerPackage(ctx, undefined, releaseAsset(ctx.root, name).version, fetchedAsset(ctx.root, name)));
+  return [...[...own, ...dependencies].map(packageInfo => ({ type: 'package', package: packageInfo })), { 'packagist.org': false }];
+}
+
 /** The scopes of the npm packages of this repository, each pointed at the unreachable registry. */
 const registryArguments = (config: ReleaseConfig) => [...new Set(config.packages.filter(item => item.kind === 'npm' && item.name.startsWith('@')).map(({ name }) => name.slice(0, name.indexOf('/'))))].sort().map(scope => `--${scope}:registry=${UNREACHABLE}`);
 
@@ -132,7 +156,7 @@ function manifestFor(ctx: ReleaseContext, kind: ConsumerKind, consumer: Consumer
     return { ...manifest, dependencies: installed(manifest.dependencies) };
   }
   const manifest = readComposerManifestFile(file);
-  return { ...manifest, require: installed(manifest.require) };
+  return { ...manifest, repositories: composerRepositories(ctx, consumer, packages, version), require: installed(manifest.require) };
 }
 
 /** The consumer manifest and lock must name the archives of the tag; each difference names the expected and the actual value. */
@@ -162,7 +186,8 @@ function staleProblems(ctx: ReleaseContext, kind: ConsumerKind, consumer: Consum
     const entry = [...entries, ...devEntries].find(item => item.name === name);
     if (entry?.version !== version || entry?.dist?.url !== `${ARTIFACTS}/${file}`) problems.push(`${lockFile}: ${name} is ${entry ? `${entry.version} from ${entry.dist?.url}` : 'missing'}, expected ${version} from ${ARTIFACTS}/${file}`);
   }
-  if (!(manifest.repositories ?? []).some(item => item.type === 'artifact' && item.url === ARTIFACTS)) problems.push(`${manifestFile}: repositories lacks { "type": "artifact", "url": "${ARTIFACTS}" }`);
+  const expectedRepositories = composerRepositories(ctx, consumer, packages, version);
+  if (JSON.stringify(manifest.repositories ?? []) !== JSON.stringify(expectedRepositories)) problems.push(`${manifestFile}: repositories do not contain the native package metadata for the tagged archives`);
   return problems;
 }
 
