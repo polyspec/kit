@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f86aee2504a544b4852bbf7429b72995ae6cc059712ece275268e3c63ef7da33 -->
+<!-- source-sha256: bebe7451ba2bcec9b4214c34b782d96bb9ce889fc4d9aa7e1db19dfa38c300ea -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -713,4 +713,4 @@
 | K754 | stopGroup은 SIGKILL 뒤에도 멈춘 그룹이 끝난 뒤에만 반환한다 | scripts/kit/process-group.mts tests/kit/process-group.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/process-group.test.mts` | [o] |
 | K755 | 같은 commit의 CI에서 이미 통과한 kit-check를 반복하는 release workflow 단계를 없앤다 | .github/workflows/release.yml workflows/release.yml tests/kit/kit-sync.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/kit-sync.test.mts`; `make kit-check` | [o] |
 | K756 | kit-mk 테스트가 worktree가 실행하는 main checkout의 도구를 기대해서 worktree에서도 통과한다 | tests/kit/kit-mk.test.mts | `node --test tests/kit/kit-mk.test.mts` | [o] |
-| K757 | rules-check가 gates runtime matrix를 저장소의 runtime으로 읽고 runtime lint를 그 runtime에 대해서만 판정한다 | scripts/kit/check-rules.mts scripts/kit/ci-setup.mts tests/kit/check-rules.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/check-rules.test.mts tests/kit/ci-setup.test.mts` | [ ] |
+| K757 | rules-check가 gates runtime matrix를 저장소의 runtime으로 읽고 runtime lint를 그 runtime에 대해서만 판정한다 | scripts/kit/check-rules.mts scripts/kit/ci-setup.mts tests/kit/check-rules.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/check-rules.test.mts tests/kit/ci-setup.test.mts` | [~] |
