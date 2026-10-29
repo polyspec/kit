@@ -5,7 +5,7 @@
 // provider's node_modules, which a node run with --preserve-symlinks resolves from the consumer's node_modules (K558).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -78,4 +78,25 @@ test('every provided package folder is one directory symlink to its checkout\'s 
   assert.equal(linkFolders(folders).length, 1, 'only the copy changes');
   for (const item of folders) assert.ok(lstatSync(item.folder).isSymbolicLink(), `${item.name} is one symlink`);
   assert.deepEqual(folderFindings(root, folders), []);
+});
+
+// K872: the mode of a bin belongs to its provider, as its tracked mode or its build; link writes the node_modules/.bin link of the
+// consumer and no file of the provider checkout, which a consumer container may mount read-only. A chmod by the owner ignores the
+// write bits of the file and its folder, so the fixture reads the change time and the mode of each bin instead.
+test('link writes the bin links of a linked npm package and leaves the mode of each provider bin as it is (K872)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-folders-bin-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const bin = { 'x-run': 'bin/run.mjs', 'x-plain': 'bin/plain.mjs' };
+  put(root, { 'prov/packages/x/package.json': JSON.stringify({ name: '@polyspec/x', bin }), 'prov/packages/x/bin/run.mjs': '#!/usr/bin/env node\n',
+    'prov/packages/x/bin/plain.mjs': '#!/usr/bin/env node\n' });
+  const target = path.join(root, 'prov/packages/x');
+  chmodSync(path.join(target, 'bin/run.mjs'), 0o755);
+  chmodSync(path.join(target, 'bin/plain.mjs'), 0o644);
+  const before = Object.values(bin).map(file => statSync(path.join(target, file), { bigint: true }));
+  const folder = path.join(root, 'cons/node_modules/@polyspec/x');
+  linkFolders([{ ecosystem: 'npm', name: '@polyspec/x', folder, target }]);
+  for (const [name, file] of Object.entries(bin)) assert.equal(readlinkSync(path.join(root, 'cons/node_modules/.bin', name)), path.join('..', '@polyspec/x', file));
+  const after = Object.values(bin).map(file => statSync(path.join(target, file), { bigint: true }));
+  assert.deepEqual(after.map(stat => [stat.mode & 0o777n, stat.ctimeNs]), before.map(stat => [stat.mode & 0o777n, stat.ctimeNs]),
+    'each provider bin keeps its mode and its change time');
 });

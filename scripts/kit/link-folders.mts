@@ -10,7 +10,7 @@
 //
 // Each installed package is exactly one directory symlink, the user's rule (K591); no kit uv run writes through it, since every uv
 // install of kit removes the links first (K539).
-import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
@@ -276,9 +276,11 @@ export function hasPythonPackages(provider: Provider): boolean {
 const linksTo = (folder: string, target: string): boolean => lstatSync(folder).isSymbolicLink() && existsSync(folder) && realpathSync(folder) === realpathSync(target);
 
 /**
- * The node_modules/.bin links of the linked npm package `item` (K767), as npm writes them: <bin>/<name> -> ../<package>/<path> for each
- * entry of the "bin" of the linked package.json, a string naming the package's own name, with the target executable. The install wrote
- * them from the release, whose bin can name a path that the checkout lacks; returns a line for each link it changed.
+ * The node_modules/.bin links of the linked npm package `item` (K767), at the paths where npm writes them: <bin>/<name> ->
+ * ../<package>/<path> for each entry of the "bin" of the linked package.json, a string naming the package's own name. The install
+ * wrote them from the release, whose bin can name a path that the checkout lacks; returns a line for each link it changed. Unlike the
+ * bin links of npm, it sets no execute bit on a target: the mode of a bin belongs to its provider, as its tracked mode or its build,
+ * and no file of the provider checkout is written, which may be mounted read-only (K872).
  */
 function linkBins(item: ProvidedFolder): string[] {
   const manifest = readJsonObject(item.target, 'package.json');
@@ -289,8 +291,6 @@ function linkBins(item: ProvidedFolder): string[] {
     if (typeof file !== 'string') continue;
     const link = path.join(folder, name);
     const target = path.join('..', item.name, path.normalize(file));
-    const executable = path.join(item.target, file);
-    if (existsSync(executable)) chmodSync(executable, statSync(executable).mode | 0o111);
     if (lstatSync(link, { throwIfNoEntry: false })?.isSymbolicLink() && readlinkSync(link) === target) continue;
     rmSync(link, { force: true });
     mkdirSync(folder, { recursive: true });
