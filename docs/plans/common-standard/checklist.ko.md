@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: e4ed4727f91044867a32911b3528e09479490b7f3fdb7b65369808e2ed426d3b -->
+<!-- source-sha256: 33fd6f5b38f7226864195a34cea854c7beec6f5d4ec095e7fb5fde6837fc5e5c -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -720,4 +720,4 @@
 | K761 | make link가 설치된 npm·Composer polyspec 패키지 폴더를 각각 개발 checkout으로 가는 디렉터리 심링크 하나로 쓴다(사용자 규칙). npm link, npm link prefix와 cache, 전이 npm link 선택, Composer path repository 요구와 composer update는 없앤다. Go go.work와 Python editable install은 그대로 둔다. | scripts/kit/npm-install.mts, scripts/kit/composer-install.mts, scripts/kit/link.mts, scripts/kit/worktree-setup.mts, docs/operations/local-links.md and its Korean twin, tests | `node --test tests/kit/npm-install.test.mts tests/kit/link.test.mts` | [o] |
 | K762 | kit-bootstrap.mk가 make 시작 시 포함된 kit의 실제 경로로 KIT를 정하고 KIT와 KIT_EXT를 모든 재귀 make에 넘겨서, npm ci가 node_modules/@polyspec/kit을 바꿔도 링크된 consumer는 make 내내 sibling kit을 실행한다. | scripts/kit/kit-bootstrap.mk, tests/kit/kit-mk.test.mts | `node --test tests/kit/kit-mk.test.mts` | [o] |
 | K763 | Python link가 선택한 polyspec editable을 uv --no-deps로 설치해서, sibling을 release URL로 선언한 provider도 download가 필요 없다. 의존성 판단은 계속 uv pip check가 한다. | scripts/kit/uv-install.mts, tests/kit/uv-install.test.mts, tests/source/uv-editable-real.test.mts | `node --test tests/kit/uv-install.test.mts` | [o] |
-| K765 | 편집 가능한 uv 링크는 각 provider의 선언된 빌드 백엔드를 그 checkout의 var/tools/wheels에서 찾는다 | scripts/kit/uv-install.mts, tests/source/uv-editable-real.test.mts | `node --test --test-name-pattern=K765 tests/source/uv-editable-real.test.mts` | [ ] |
+| K765 | 설치된 Python polyspec 패키지 폴더는 각각 checkout으로 가는 디렉터리 심링크 하나이며 editable build는 없다(사용자 규칙) | scripts/kit/uv-install.mts, tests/source/uv-link-real.test.mts | `node --test --test-name-pattern=K765 tests/source/uv-link-real.test.mts` | [~] |
