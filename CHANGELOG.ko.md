@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d94b461e640130dab73603fa30f6ddf4b7457451b9746e8fbd3ce77744de7a19 -->
+<!-- source-sha256: c2a217880572409f1f81868235ec79b2641124b0ea23a0e7dbd1c1d6b1b70c76 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -12,6 +12,7 @@
 
 - K875, K877, K883을 담아 Kit 0.0.75를 릴리즈합니다 (K884).
 - worktree는 그 자체로 checkout입니다. KIT_TOOLS는 checkout 자신의 var/tools이고, make install과 make install-tools가 worktree에서 실행되며, make worktree-setup은 main checkout에서 npm, Composer, uv, Go를 offline으로 준비하고 package를 rebuild하는 대신 worktree를 만들어 거기서 온라인으로 make install을, 그다음 make link-state-check를 실행합니다. worktree는 main checkout의 var/tools와 lock을 바꾸지 않습니다. make worktree-link-state는 없어졌습니다. rebuild가 없으면 make worktree-setup과 같기 때문입니다. node_modules가 없는 worktree는 먼저 packageManager가 지정한 npm으로 npm ci를 실행하므로, node_modules에서 kit을 include하는 Makefile도 실행됩니다. 이 릴리즈 전에 만든 worktree는 make install을 한 번 실행합니다 (K858).
+- worktree는 그 자체로 checkout입니다. KIT_TOOLS는 checkout 자신의 var/tools이고, make install과 make install-tools가 worktree에서 실행되며, make worktree-setup은 main checkout에서 npm, Composer, uv, Go를 offline으로 준비하고 package를 rebuild하는 대신 worktree를 만들어 거기서 온라인으로 make install을, 그다음 make link-state-check를 실행합니다. worktree는 main checkout의 var/tools와 lock을 바꾸지 않습니다. make worktree-link-state는 없어졌습니다. rebuild가 없으면 make worktree-setup과 같기 때문입니다. node_modules가 없는 worktree는 먼저 packageManager가 지정한 npm으로 npm ci를 실행하고, 설치된 kit은 install-link가 주는 옆 kit checkout으로 가는 link를 한 단계 먼저 받으므로, node_modules에서 kit을 include하는 Makefile은 live kit을 실행합니다. 이 릴리즈 전에 만든 worktree는 make install을 한 번 실행합니다 (K858).
 - worktree-setup은 package를 직접 설치하거나 build하지 않습니다. npm, Composer, uv, Go 준비와 link rebuild를 삭제했으며, 둘 다 worktree의 make install이 합니다 (K857).
 - done commit의 Red 줄은 sha 없이 명령과 그 exit status, `Red: <command> exit <n>`을 기술합니다. land가 branch를 rebase하므로 sha는 main이 갖지 않는 commit을 가리켰습니다. `at <sha>`도 계속 받습니다 (K875).
 - make documents-stamp는 PATHS가 지정한 한국어 twin만 stamp합니다. stamp는 twin이 원문과 일치한다는 뜻이기 때문입니다. PATHS가 없으면 아무것도 stamp하지 않고, 원문이 바뀐 twin마다 다시 번역한 뒤 실행할 make documents-stamp PATHS=<twin>을 나열합니다. land는 marker가 충돌한 twin만 stamp합니다 (K877).

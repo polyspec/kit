@@ -1,7 +1,7 @@
 // Tests of scripts/kit/worktree-setup.mts (K348, K858): the worktree of a row is made from main beside the main checkout, and make install
 // and make link-state-check run in it, so it installs its own tools, packages and links; a second run converges.
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -17,10 +17,10 @@ const git = (cwd: string, ...args: string[]) => {
 };
 
 /** A main checkout under a fresh folder with `files` committed on main; removed with `t.after`. */
-function repository(t: TestContext, files: Record<string, string>): string {
+function repository(t: TestContext, files: Record<string, string>, name = 'repo'): string {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-worktree-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
-  const main = path.join(parent, 'repo');
+  const main = path.join(parent, name);
   initRepository(main, '--initial-branch=main');
   put(main, files);
   git(main, 'add', '-A');
@@ -66,6 +66,34 @@ test('worktree-setup runs npm ci of the npm that packageManager names in a workt
   assert.deepEqual([flags.split(/\s+/).includes('s'), level], [false, '1'], 'make install runs as a make of its own, without the -s and the level of the calling make');
   setupWorktree(main, { name: 'consumer', id: 'T4', type: 'fix' }, { print: () => {}, env });
   assert.equal(readFileSync(path.join(folder, 'calls.txt'), 'utf8').split('\n').length, 2, 'a worktree with node_modules gets no second npm ci');
+});
+
+test('worktree-setup links the installed kit to the polyspec kit checkout beside it before make install, as install-link does, and leaves a release copy with none (K858)', (t) => {
+  // npm ci installs the release copy of the lock, whose make install refuses; the live kit checkout beside the consumer passes.
+  const consumer = (name: string) => repository(t, {
+    'Makefile': 'include node_modules/@polyspec/kit/kit.mk\n',
+    'package.json': JSON.stringify({ name: 'consumer', packageManager: 'npm@12.2.0' }),
+    'package-lock.json': '{}\n',
+    '.gitignore': '/node_modules/\n/var/\n',
+  }, name);
+  const npm = (parent: string) => {
+    put(path.join(parent, 'bin'), { 'npm': '#!/bin/sh\nmkdir -p node_modules/@polyspec/kit\nprintf \'{"name":"@polyspec/kit"}\' > node_modules/@polyspec/kit/package.json\nprintf \'install:\\n\\texit 7\\nlink-state-check:\\n\\ttrue\\n\' > node_modules/@polyspec/kit/kit.mk\n' });
+    chmodSync(path.join(parent, 'bin', 'npm'), 0o755);
+    return { ...process.env, PATH: [path.join(parent, 'bin'), process.env.PATH].join(path.delimiter) };
+  };
+  const linked = consumer('linked');
+  const parent = path.dirname(linked);
+  const kit = path.join(parent, 'kit');
+  initRepository(kit, '--initial-branch=main');
+  put(kit, { 'package.json': JSON.stringify({ name: '@polyspec/kit' }), 'kit.mk': 'install:\n\ttrue\nlink-state-check:\n\ttrue\n' });
+  git(kit, 'add', '-A');
+  git(kit, 'commit', '--quiet', '-m', 'base');
+  git(kit, 'remote', 'add', 'origin', 'https://github.com/polyspec/kit.git');
+  const folder = setupWorktree(linked, { name: 'live', id: 'T5', type: 'fix' }, { print: () => {}, env: npm(parent) });
+  assert.equal(realpathSync(path.join(folder, 'node_modules/@polyspec/kit')), realpathSync(kit), 'make install ran the kit checkout');
+  assert.equal(path.isAbsolute(readlinkSync(path.join(folder, 'node_modules/@polyspec/kit'))), false, 'a relative link, as install-link makes');
+  const alone = consumer('alone');
+  assert.throws(() => setupWorktree(alone, { name: 'release', id: 'T6', type: 'fix' }, { print: () => {}, env: npm(path.dirname(alone)) }), /make --no-print-directory install ended with exit status 2/, 'with no kit checkout beside it the release copy runs');
 });
 
 test('worktree-setup fails with the target whose make fails, and refuses a folder that is no worktree of the branch (K858)', (t) => {

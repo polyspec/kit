@@ -10,6 +10,9 @@ import { existsSync, lstatSync, mkdirSync, symlinkSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { git, gitResult } from './git.mts';
+import { PACKAGE as KIT_PACKAGE } from './kit-check.mts';
+import { linkFolders, providedFolders } from './link-folders.mts';
+import { providerKey, providers, siblingCheckouts } from './link-providers.mts';
 import { readNpmManifestFile } from './manifests.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { CONFIG as RELEASE_ASSETS, releaseAssets } from './release-assets.mts';
@@ -94,6 +97,11 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
       run('npm', ['exec', '--yes', `--package=${packageManager.split('+')[0]}`, '--', 'npm', 'ci', '--ignore-scripts', '--allow-remote=root'], folder, own);
     }
   }
+  // make reads that include before make install links the packages, so the installed kit gets its link one step early: the provider
+  // that install-link resolves (siblingCheckouts and providers, link-providers.mts) and its link (linkFolders), kit alone. With no
+  // polyspec checkout beside the worktree nothing is linked, and the installed release runs.
+  const kit = providers(siblingCheckouts(folder).checkouts, undefined, folder, folder).get(providerKey('npm', KIT_PACKAGE));
+  for (const line of kit === undefined ? [] : linkFolders(providedFolders(folder, [kit]))) print(`[worktree-setup] ${line}`);
   for (const target of ['install', 'link-state-check']) {
     print(`[worktree-setup] make ${target} in ${folder}`);
     run('make', ['--no-print-directory', target], folder, own);

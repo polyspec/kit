@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 550ae54f5c368c09d34e7dcf477a72215c95b089a7006b6126698d55b6c82a9d -->
+<!-- source-sha256: 20fb6c06e55e50d7f89491dfa650191423385869d7b6c9ef63197fdb6b7c02ef -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -63,7 +63,7 @@ Source 개발 계약은 배포된 dependency와 같은 version의 source 수정,
 ## Worktree
 
 - worktree branch는 `main`에서 만든 `<type>/<name>-<id>`이고(P10) `make land`로 `main`에 들어갑니다. worktree는 그 자체로 checkout이며 `var/tools`, dependency tree와 link가 모두 자기 것입니다(K858).
-- `make worktree-setup`은 worktree를 만들고 다른 checkout처럼 거기서 온라인으로 `make install`을 실행합니다. `make install`은 `mise.toml`과 `mise.lock`의 도구를 자기 `var/tools`에, lock의 package, 저장소의 단계, link를 설치합니다. 그다음 `make link-state-check`를 실행합니다. `node_modules`가 없는 worktree는 gates workflow의 clean checkout처럼 먼저 `packageManager`가 지정한 npm으로 `npm ci --ignore-scripts`를 실행하므로, `node_modules`에서 kit을 include하는 Makefile도 실행됩니다. main checkout의 `var/tools`와 lock은 바뀌지 않습니다. `make install`과 `make install-tools`도 worktree에서 바로 실행됩니다. K858 전에 만든 worktree는 자기 도구를 갖도록 `make install`을 한 번 실행합니다.
+- `make worktree-setup`은 worktree를 만들고 다른 checkout처럼 거기서 온라인으로 `make install`을 실행합니다. `make install`은 `mise.toml`과 `mise.lock`의 도구를 자기 `var/tools`에, lock의 package, 저장소의 단계, link를 설치합니다. 그다음 `make link-state-check`를 실행합니다. `node_modules`가 없는 worktree는 gates workflow의 clean checkout처럼 먼저 `packageManager`가 지정한 npm으로 `npm ci --ignore-scripts`를 실행하므로, 설치된 kit은 `make install-link`가 주는 link, 곧 worktree 옆 polyspec kit checkout으로 가는 link를 한 단계 먼저 받으므로, `node_modules`에서 kit을 include하는 Makefile은 live kit을 실행합니다. 옆에 kit checkout이 없으면 설치된 릴리즈가 실행됩니다. main checkout의 `var/tools`와 lock은 바뀌지 않습니다. `make install`과 `make install-tools`도 worktree에서 바로 실행됩니다. K858 전에 만든 worktree는 자기 도구를 갖도록 `make install`을 한 번 실행합니다.
 - worktree-setup은 `make install` 실행 전에 `config/release-assets.json`이 선언한 release archive directory마다, 예를 들어 `var/composer-artifacts`나 `var/products`를, main checkout의 directory로 가는 directory link 하나로 만듭니다. 이 directory는 main checkout의 `make release-assets-fetch`가 쓰고 Composer와 build는 읽기만 하며, worktree는 `make release-assets-fetch`를 거부합니다(K780). 설치된 vendor tree를 link하거나 metadata를 합성하지 않습니다(K690). Python environment는 link된 package가 worktree source를 실행해야 하므로 main environment로 가는 단일 directory link일 수 없습니다. make timestamp stamp는 새 checkout을 건너 이어질 수 없으며 거기서 유효해야 하는 stamp는 내용으로 판단합니다.
 - `make land`는 branch를 `main`에 fast-forward로 merge합니다(K495). 두 번째 land는 첫 번째의 lock을 기다리고, `main`보다 뒤처진 branch는 그 worktree에서 rebase됩니다.
 - worktree와 branch는 branch가 `main`에 merge되면 바로 지웁니다. `make land`는 land한 branch를 지우고, `main`이 포함한 branch의 다른 깨끗한 worktree 중 process가 없는 것도 모두 지웁니다. process가 아직 실행 중인 worktree는 다음 land까지 남습니다(K626).
