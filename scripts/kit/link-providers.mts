@@ -37,10 +37,10 @@ export type Ecosystem = 'npm' | 'composer' | 'python' | 'go';
 export const MANIFESTS: Readonly<Record<Ecosystem, string>> = { npm: 'package.json', composer: 'composer.json', python: 'pyproject.toml', go: 'go.mod' };
 
 /**
- * The folders whose manifests are neither a provided package nor a linked consumer project: tests (the release-consumer
- * projects among them), examples, benchmarks, documents, the tool projects of config/ and .mise, and fixtures.
+ * The folders whose manifests are neither a provided package nor a linked consumer project: tests, examples, benchmarks,
+ * documents, the tool projects of config/ and .mise, and fixtures.
  */
-export const EXCLUDED = /(^|\/)(tests?|examples|benchmarks|docs|config|\.mise|[^/]*fixtures?|release-consumer)\//;
+export const EXCLUDED = /(^|\/)(tests?|examples|benchmarks|docs|config|\.mise|[^/]*fixtures?)\//;
 
 /** A command of a tool and the environment that it runs in. */
 export type Tool = { command: string; env: NodeJS.ProcessEnv };

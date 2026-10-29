@@ -46,8 +46,6 @@ rules:
       - "!tests/kit"
       # The tests of kit itself that run the real tools of var/tools (make source-test); kit vendors only tests/kit.
       - "!tests/source"
-      # The consumer project in which the release of kit installs its archive and runs the smoke command (config/release.json).
-      - "!tests/release-consumer"
 
   # kit builds its package into dist/ with tsconfig.build.json (make kit-build); the other root files are the common ones.
   - id: layout-root-files

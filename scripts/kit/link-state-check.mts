@@ -138,8 +138,7 @@ function workspaceHookFindings(root: string, env: NodeJS.ProcessEnv): string[] {
 
 /** The findings of the links of `root`, sorted; none while nothing is linked. */
 // K507: npm and Cargo locks record release sources; their own repository members may use paths.
-// Composer development locks may record native path repositories. folderLinkFindings checks the installed source links;
-// release-consumer validates the archive URLs of release consumer locks.
+// Composer development locks may record native path repositories. folderLinkFindings checks the installed source links.
 const LOCK_FILES = ['Cargo.lock', 'package-lock.json', 'composer.lock'];
 const CARGO_POLYSPEC = /^polyspec[-_.]/i;
 

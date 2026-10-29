@@ -174,7 +174,7 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 - Python (K64, K127): mise installs the exact python-build-standalone build that `mise.lock` pins by its URL and sha256 into
   `var/tools/mise/installs`, and the shim `var/tools/mise/shims/python3` runs it. uv installs no Python
   (`UV_PYTHON_DOWNLOADS=never`), and the uv of kit runs on the Python of mise (`UV_PYTHON`). The Python of mise is externally
-  managed for pip as before, so pip installs only into a venv of it. `check-toolchain`, run-tests and release-proof run that
+  managed for pip as before, so pip installs only into a venv of it. `check-toolchain` and run-tests run that
   shim, never the Python of PATH. A package whose tests import its own installed dependencies runs them with
   `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg`
   names as its `home` a directory under `var/tools/mise` (read through links); it refuses any other environment before the
@@ -182,9 +182,6 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
   var/tools/mise/shims/python3 <directory>`. The symbolic links of the environment are the behavior of the tool that made it and are accepted as it made them
   (K63): `uv venv` links `bin/python` to the interpreter and `bin/python3` and `bin/python3.14` to `bin/python`, and run-tests
   runs such an environment without copying, removing or rewriting a link.
-- Wheel proof (K46): `release-consumer` makes the venv of a wheel with `makeVenv` (`uv venv`, no pip) and installs the wheel with
-  the pip of the checkout, `var/tools/mise/shims/python3 -m pip --python <venv>/bin/python install`, which reads the version with
-  `show`. The venv has no pip of its own, and no python3 of PATH runs.
 - Python venv (K44, K64): `make python-venv DIR=<directory>` (`scripts/kit/python-venv.mts`) makes a virtual environment of the
   checkout Python with `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>` and leaves it as uv makes it, its
   links included. The run is idempotent: an existing `<directory>` that is already a venv of the checkout Python (run-tests'
@@ -700,10 +697,7 @@ Dropped behaviors:
   in two lists are findings (orm, wider). A file that kit writes is not released and needs no entry (K167): a copy of
   `kit.copies` of the package that runs, found by Node's self-reference of `@polyspec/kit/package.json` (make kit-sync), the
   Composer project of PHPUnit, `config/phpunit/composer.json` (make install-tools), and the lock tree of mise under
-  `.mise/locks/` (make toolchain-lock). A `file:` dependency of a package.json names a folder of the repository, except in the
-  npm consumer project that `consumers.npm.directory` declares, whose `file:` dependencies are the archives of the packages of
-  its `smoke`, `file:<name>-npm-<version>.tgz` (K129). The rule reads `config/release.json`, so it lives here and not in alint,
-  which reads no declaration.
+  `.mise/locks/` (make toolchain-lock).
 
 ### Dropped behaviors
 
@@ -714,7 +708,8 @@ Dropped behaviors:
 - crudui and orm ran `make build`, `make typescript-build` or `scripts/package-dist.mjs` inside the release tool: dropped. The
   build of a package is a prerequisite that the repository adds to its own `release-assets` recipe, so the tool names no build.
 - crudui `RELEASE_COMMIT` (assets before the tag exists) and the install of the archives as a consumer (template
-  `release-consumer`, crudui `release-install`, hyper and orm `release-install`) is merged in "Consumer install of the release archives (K5.4)".
+  `release-consumer`, crudui `release-install`, hyper and orm `release-install`): dropped; installing a release is the work of
+  the package manager of the consumer (K798).
 - orm output under `.runtime/release` and `assets.txt`: the output is `var/release/assets` in every repository.
 - Not release steps and not merged: template `check-clean-release.mjs` (a full matrix in a clean worktree) and hyper
   `publish.mjs` (installed copies for development).
@@ -1092,96 +1087,6 @@ TypeScript lint resolves its declared dependency packages with Node's native pac
 - The moderate advisory GHSA-hp3w-g68c-fv3c (npm advisory 1241202) of sprintf-js 1.0.3, which API Extractor pulls in through
   @rushstack/ts-command-line and argparse 1.0.10, covers every release of sprintf-js; npm audit reports it.
 
-## Consumer install of the release archives (K5.4)
-
-`scripts/kit/release-consumer.mts install TAG` installs all archives of a tag together in clean consumer projects outside the
-repository and runs a smoke command for each package; `lock TAG` writes the manifests and locks of those projects. Files:
-`scripts/kit/release-consumer.mts`, `scripts/kit/release-consumer-config.mts` (the rules of the configuration, called by
-`release.mts` `loadConfig`), the section `consumers` of `schema/release.schema.json`, and the make targets `release-consumer` and
-`release-consumer-lock`. The base is template for the install and the lock, with the archive rule of crudui, the manifest rule of
-crudui and ordered-json and the smoke checks of all five.
-
-### `consumers` of `config/release.json`
-
-```json
-"consumers": {
-  "npm": {
-    "directory": "tests/release-consumer/npm",
-    "smoke": { "@scope/lib": ["node", "-e", "require('@scope/lib/package.json')"] }
-  },
-  "composer": {
-    "directory": "tests/release-consumer/composer",
-    "smoke": { "vendor/lib": ["php", "-r", "require 'vendor/autoload.php';"] }
-  }
-}
-```
-
-`directory` holds the committed manifest (`package.json`, `composer.json`) and lock (`package-lock.json`, `composer.lock`) of the
-project. `smoke` maps each package that the project installs to its command, an array of strings that runs without a shell in
-the installed project. Every package of `packages` of a kind needs the project of that kind when `consumers` exists; a smoke key
-is a package of that kind. A package that is not a key is copied into the project and not installed (for example a Composer
-package of the type `php-ext`, which Composer does not install). The manifest files are in `notReleased` of the repository.
-
-`composer.polyspec` (optional, K140) names the polyspec dependencies of the Composer project, each by its entry of
-`config/release-assets.json`: the release zip of each, which must hold its sha256 (`make release-assets-fetch` downloads it),
-lies in the `artifacts` repository of the project beside the zips of the tag, so the project requires a polyspec dependency
-at its version and installs it from its released archive, as a consumer does, instead of declaring it in an inline package
-repository. The lock keeps the shasum of such a zip, which no run builds again,
-and `make release-tools` downloads the zips when the list is set.
-
-### Procedure
-
-1. `make release-assets TAG=vX.Y.Z` builds the archives. `make release-consumer-lock TAG=vX.Y.Z` (ONLINE) copies each project
-   into a temporary directory outside the repository with all archives of its kind, sets each installed package in the manifest
-   (`"file:<archive>"` for npm, the version for Composer), runs `npm install --package-lock-only` or `composer update
-   --no-install`, removes the hashes of the archives from the lock and writes the manifest and the lock back atomically. The
-   archives are built in the run that installs them, so an npm entry has no `integrity` and a Composer entry an empty `shasum`;
-   a registry package keeps both. A second run writes the same bytes. Run it on the release commit before the tag is pushed
-   (a local tag is enough for `release-assets`).
-2. `make release-consumer TAG=vX.Y.Z` requires `var/release/assets` to hold exactly the archives of the version, requires the
-   manifest and the lock to name them (`dependencies.<name>` is `file:<archive>`, the lock entry has the version and the same
-   `resolved`; `require.<name>` is the version, the lock entry has the version and the url `artifacts/<archive>`, and the
-   manifest has the `artifact` repository `artifacts`), copies the project into a new temporary directory outside the
-   repository, runs `npm ci` or `composer install`, requires every installed package at the version of the tag and runs its
-   smoke command in the project. A difference names the expected and the actual value and the command that fixes it.
-3. The environment has empty `npm_config_cache`, `COMPOSER_HOME` and `COMPOSER_CACHE_DIR` in the temporary directory, no
-   `npm_config_offline`, `COMPOSER_DISABLE_NETWORK`, `COMPOSER` or `COMPOSER_VENDOR_DIR`, and each npm scope of this repository
-   points at the unreachable registry `http://127.0.0.1:9/`. A package that a lock pins from a registry is downloaded with its
-   version and integrity: that is installation, not a registry query, so the install is no offline check. Only `lock` resolves
-   ranges. A Go module tag has no archive and nothing to install.
-
-### Merged behaviors
-
-| Behavior | Source | Merged form |
-|---|---|---|
-| Install in a temporary directory outside the repository with empty npm and Composer caches | template, crudui, hyper, ordered-json, orm | kept; the directory must be outside the checkout, checked by real path |
-| npm project: `file:<archive>` dependencies, committed lock, `npm ci` with the scope of the repository at an unreachable registry | all | kept; the scopes are read from the names of `packages` |
-| Composer project: `artifact` repository, Packagist disabled, committed lock, `composer install` | all | kept; the directory of the zips is `artifacts` (template) |
-| An archive of the repository is locked by name and version only: no `integrity`, an empty `shasum` | all | kept; found by the archive name in `resolved` and in the url |
-| The offline settings of the recipes are removed for the install | crudui, hyper, ordered-json, orm (environment); template (`--offline=false`) | the environment variables are removed |
-| `--ignore-scripts --no-audit --no-fund` and `--no-plugins --no-scripts` | template, crudui, orm | kept; `--fetch-retries=0` (crudui, hyper) too, so an unreachable registry fails at once |
-| The installed version of every package equals the version of the tag | crudui, template | kept for every smoke key, npm from `node_modules` and Composer from `installed.json` |
-| `lock` writes the manifests for the version of the tree | crudui, ordered-json | kept; the committed manifest keeps its other fields |
-| A smoke command per package: a module load, a class load, a build | template, orm, ordered-json, hyper | the command comes from the configuration |
-| A manifest or lock that names other archives fails and names the lock command | template, hyper, ordered-json | kept, with the expected and the actual value of each difference |
-| A Go module tag installs nothing | crudui | kept |
-
-### Dropped behaviors
-
-| Behavior | Source | Reason |
-|---|---|---|
-| Building the archives inside the install (`packTree`, `buildAssets`, `git stash create` of the working tree) | template, crudui, hyper, ordered-json, orm | `release.mts assets` builds the archives of a tag; the install reads `var/release/assets`, so a check never installs an archive that no release builds |
-| Downloading the release archives of other repositories into the project | orm, hyper | kit names no repository; a dependency of another repository is pinned in the lock by URL, integrity or shasum, and the install downloads it as any registry package |
-| `--allow-remote` settings of npm for a URL dependency | hyper | a workaround of one npm release (npm/cli#9818); no repository setting is merged, so a lock with a remote tarball needs an npm that accepts it |
-| `--workspaces=false` | crudui | the project is outside every workspace |
-| The sample application that the project builds, and `composer show --available` of a `php-ext` package | hyper, template | a smoke command runs in the installed project and reads no file of the repository; a check of such a package belongs to the package |
-| The Python test class `InstallFromAssets` and `install_fixtures.py` | ordered-json | replaced by the Node tool |
-
-### Limitations
-
-- `smoke` does not have to list every package: a package without a key is copied and not installed or checked.
-- The locks hold the dependencies that the archives declared when `lock` ran; a changed dependency needs `lock` again.
-
 ## Release archives of other repositories (K140)
 
 A repository that uses a release archive of another polyspec repository, such as the php and php-ext zips of a template
@@ -1207,76 +1112,23 @@ release or the Composer zips of orm and ordered-json, pins it in `config/release
   `<destination>.next-<pid>` and a rename. An entry with `unpack` is a zip that `unzip` extracts into a temporary directory
   beside `unpack`, which replaces it with a rename; the file `.release-asset.sha256` in it records the archive, so the same
   archive is not extracted again.
-- `consumers.composer.polyspec` of `config/release.json` names entries whose zips the Composer consumer project holds (Consumer
-  install of the release archives).
 - `tests/kit/release-assets.test.mts` runs the tool with a stub of fetch and a zip of the machine's `zip`.
 
-## Release proof (K5.5)
-
-`scripts/kit/release-proof.mts TAG` (`make release-proof TAG=vX.Y.Z`, ONLINE) proves a released tag from outside the
-repository. The release workflow (`workflows/release.yml`) runs it on the draft after `release-publish` in the same job; a failed proof
-fails that run and the release stays a draft. A developer may run it for any released tag. It is no offline check.
-
-### Release workflow, tools and draft (K38)
+## Release workflow, tools and draft (K38)
 
 - `workflows/release.yml` is the source of the copy `.github/workflows/release.yml` (`kit.copies` of package.json): `make kit-sync`
   writes it from the installed package.
 - `make release-prepare` runs the preparation that a repository's release needs before release-tools, such as the checkout of a
   sibling release: kit.mk declares it as a double-colon target with no work, and a repository adds a `release-prepare::` rule
   to its Makefile (K132). The vendored release workflow runs it after install-packages.
-- `make release-tools` (`scripts/kit/release-tools.mts`) derives the install-tools names from config/release.json: npm for an npm package or
-  consumer, composer, python and uv for a wheel, go for a Go module. A git-tag proof needs Rust: release-tools runs
-  `rustup toolchain install --no-self-update` in the checkout, which reads the channel of rust-toolchain.toml, and then
-  `check-toolchain rust` checks rustc against that channel. A git-tag proof without rust-toolchain.toml fails with the file name.
-- `release-publish` creates the release as a draft and records its id in `var/release/<tag>.json`. `release-proof` and
-  `release-undraft` read the draft by that id (`repos/O/R/releases/<id>`), never by searching the list of releases for its tag: the
-  list shows a new draft only after a while (the 0.0.38 run failed three seconds after the create), and the tag does not address
-  a draft. A missing record fails with `var/release/<tag>.json is missing; make release-publish writes it`. `release-proof`
-  downloads each asset by its id; `release-undraft` makes the release public by its id and changes nothing for a public release.
-  The release of another repository that a wheel lock names is public and is still found by its tag. A draft of an
-  earlier run is replaced; a public release is never replaced. No tool of the five
-repositories had a counterpart; the install of the archives is `installConsumers` of K5.4. It stops at the first failed step and
-prints `✔ <what>` for each step that passed. A failure names the command with its status and error, or the expected and the
-actual value.
-
-For a tag `vX.Y.Z`:
-
-1. `gh release view TAG --repo HOST/OWNER/REPO --json assets` (from `repositoryUrl`) lists exactly the archives that
-   `packages` declares for the version; the failure names the missing and the unexpected names.
-2. `gh release download` writes the assets into a temporary directory; `installConsumers` installs them in clean npm and
-   Composer projects with the committed manifests and locks of the checkout and runs the smoke commands of `consumers` (run it
-   in a checkout of the tag, whose consumer projects name the archives of the version).
-3. Each manifest with the mode `git-tag` installs from the tag in a temporary directory, with the command of
-   `proof.gitTag`: a Rust crate as the git dependency `<name> = { git = "<repositoryUrl>", tag = "TAG" }` of a temporary crate
-   with its own target directory and the smoke command (for example `cargo check`) in that crate. A Python package is not a
-   git-tag manifest: it is a `wheel` package whose wheel is an archive of step 2 (K29).
-4. Each Go module of `goModules` has the tag `<directory>/vX.Y.Z` (the module at the root `vX.Y.Z`) on the remote
-   (`git ls-remote --tags <repositoryUrl>`) and `go list -m <module>@vX.Y.Z` with `GOFLAGS=-mod=mod`, `GOPROXY=direct` and an empty
-   `GOPATH` prints `<module> vX.Y.Z`.
-
-A tag `<directory>/vX.Y.Z` releases that Go module alone: the release must list no archive and only step 4 runs for that module.
-
-### `proof` of `config/release.json`
-
-```json
-"proof": {
-  "gitTag": {
-    "rust/Cargo.toml": { "kind": "rust", "name": "name", "smoke": ["cargo", "check"] }
-  }
-}
-```
-
-Every manifest with the mode `git-tag` in `manifests` needs an entry when `proof` exists, and `release-proof` fails without one.
-`kind` is `rust` for a `Cargo.toml`; a `pyproject.toml` with `kind` `python` is refused. `smoke` is an array of strings that runs without a
-shell. The smoke commands of the archives are `consumers` of K5.4.
-
-### Limitations
-
-- The proof stops at the first failed step.
-- The Rust step uses the `CARGO_HOME` of the machine for the registry crates that the crate needs; only the crate and its target
-  directory are new. The Go step uses a new `GOPATH`, so it downloads the module.
-- The install of the archives reads the manifests and locks of the checkout; a checkout of another version fails at the first
-  difference, naming `make release-consumer-lock`.
+- `make release-tools` (`scripts/kit/release-tools.mts`) runs install-tools when config/release.json has a Composer package, a
+  wheel or a Go module; npm, which an npm package needs, is the npm of the bootstrap.
+- `release-publish` creates the release as a draft and records its id in `var/release/<tag>.json`. `release-undraft` reads the
+  draft by that id (`repos/O/R/releases/<id>`), never by searching the list of releases for its tag: the list shows a new draft
+  only after a while (the 0.0.38 run failed three seconds after the create), and the tag does not address a draft. A missing
+  record fails with `var/release/<tag>.json is missing; make release-publish writes it`. `release-undraft` makes the release
+  public by its id and changes nothing for a public release. A draft of an earlier run is replaced; a public release is never
+  replaced.
 
 ## Wheel packages (K29)
 
@@ -1293,30 +1145,6 @@ distribution escapes each run of characters other than word characters and dots 
   requirement, so `release-assets` and `release-candidate-assets` are ONLINE.
 - `release-assets` checks the name and the version of the built wheel; the form of its `Requires-Dist` lines is uv's and pip's to
   resolve (K789). `release-versions` requires the `version` of `[project]` in the pyproject.toml, as for every archive manifest.
-- `release-consumer` installs a wheel into a clean virtual environment of `var/tools/mise/shims/python3`: first uv installs its lock
-  (K49), then the wheel with `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`, the
-  requirement file naming the wheel of the run with the sha256 of its file. Then `pip check` must pass, the version that `pip show`
-  prints is checked and the smoke command of `consumers.wheel` runs.
-
-```json
-"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" } } }
-```
-
-## Wheel dependencies (K49)
-
-Each wheel package declares one PEP 751 lock of its dependencies in `consumers.wheel.lock` (`pylock.toml` or `pylock.<name>.toml`),
-written by uv (`uv export --format pylock.toml`). kit does not read the lock and does not judge the `Requires-Dist` lines of a wheel:
-that is the package manager's job (K789). `release-consumer install` hands each lock to uv once, into the venv of `makeVenv`:
-
-    var/tools/mise/shims/uv pip install --python <venv>/bin/python -r <pylock>
-
-uv reads one PEP 751 lock per command and checks the sha256 of every file that it installs against the lock. The wheel follows with
-`--no-index --require-hashes --no-deps`, then `pip --python <venv>/bin/python check` must exit 0 (an incomplete lock fails there), then
-the smoke command runs. The install reaches PyPI and the release assets, so it runs online only, in `release-proof`.
-
-The tests: `tests/kit/release-wheel.test.mts` and `tests/kit/release-consumer.test.mts` (the uv command of the lock, stubbed), and
-`tests/kit/release-proof.test.mts` (the step of the proof).
-
 ## Sibling wheels (K52)
 
 A sibling is another wheel package of the same config/release.json. A wheel's `Requires-Dist` may name a sibling by a direct
@@ -1326,41 +1154,10 @@ reference to the sibling's asset of the same release, without a hash fragment:
 
 kit does not check the form of the reference; pip resolves it when a consumer installs the wheel with its dependencies (K789).
 
-A sibling's sha256 is known only after the release builds it: SOURCE_DATE_EPOCH is the time of the release commit, so the sha256 of a
-wheel is not in the tree before the build. For this reason the lock of the wheel never holds a sibling, and the reference has no hash.
-
-`release-proof` step 2 checks the wheels online, from the release that GitHub publishes (scripts/kit/release-proof.mts, `proveWheels`):
-the file of each wheel of the release, downloaded, has the sha256 that GitHub lists for its asset (the `digest` of the release listing,
-`sha256:<hex>`); a release that lists no digest for a wheel fails the proof.
-
-Then the wheels of the release install together in one `pip install --no-index --require-hashes --no-deps` command from their files
-(`installWheelFiles` of release-consumer.mts, which already installs every wheel package of the configuration together). `pip check`
-passes and each smoke command runs. The archives keep their own checks: the digest check is added for wheels, because a release that
-was published before the listing carried a digest must still prove.
-
 A consumer installs a sibling as it installs any polyspec wheel: its own lock, written by uv, names the sibling as an `archive` entry with
-its URL and its sha256, which is the hash of the published asset. The lock of the wheel that requires the sibling does not name it.
+its URL and its sha256, which is the hash of the published asset.
 
-Findings for the sibling reference, measured with the pip of the checkout (`var/tools/python-build`, pip 26.2.1, Python 3.14.8) on two
-hand-built wheels whose `kit-gen` requires `kit-val @ <URL>` (`tests/source/wheel-sibling-real.test.mts` repeats the file case):
-
-- `pip install --no-deps` of both wheels from their local files, with the hashes, installs them and `pip check` prints
-  `No broken requirements found.` and exits 0. pip never reads `Requires-Dist` with `--no-deps`.
-- With dependencies resolved and `kit-val` also given as a local file in the same command, pip does not take the local file for the
-  reference. It prints `Collecting kit-val @ <URL>` and fetches the URL; when the URL serves the same bytes, pip prints
-  `ERROR: Cannot install kit-val 0.0.1 (from <local file>) and kit-gen==0.0.1 because these package versions have conflicting
-  dependencies` and exits 1. The local file and the reference are two candidates, and the resolver reports a conflict, not a choice.
-- With dependencies resolved and `kit-val` not given, pip fetches the URL and installs from what it downloads (exit 0 when the URL serves
-  the file). When the URL does not answer, the fetch fails with `connection-failed` after its retries (exit 1). When the reference names a
-  file that does not exist, pip prints `Processing <path> (from kit-gen==0.0.1)` and fails with `No such file or directory` (exit 1).
-- An installed copy from a local file does not satisfy the reference: after `kit-val` was installed from its file, a resolution of `kit-gen`
-  with dependencies fetched the URL again.
-
-The consequence is the design above: the proof installs with `--no-deps` from the local files.
-
-The tests: `tests/kit/release-wheel.test.mts` (both wheels built), `tests/kit/release-proof.test.mts` (the wheel digest, one install of the
-wheels), and `tests/source/wheel-sibling-real.test.mts` (the real pip: the `--no-deps` install with pip check, and the resolution that
-reads the reference and not the local wheel).
+The tests: `tests/kit/release-wheel.test.mts` (both wheels built).
 
 ## Language parity (K33)
 
@@ -1369,7 +1166,7 @@ the implementations, which is the one source of the language set of the reposito
 to every implementation (S6). A feature unit may name an owner only through a `coverage-part` of an existing
 `contracts/features.json` coverage owner, or a `release-package` of `config/release.json`; Kit derives the applicable implementation
 from that declared part or package directory. A release owner names its source explicitly as `archive`, `go-module` or `git-tag`, then
-resolves the exact package name from `packages`, `goModules` or `proof.gitTag`. The feature test must belong to that part or package, and each requirement it cites must
+resolves the exact package name from `packages`, `goModules` or the `[package].name` of a `git-tag` Cargo.toml of `manifests`. The feature test must belong to that part or package, and each requirement it cites must
 explicitly name the owner. Suites and API units cannot be owner-scoped. There is no free-form profile, implementation allow-list,
 exclusion, admit list or native-only symbol, and the declaration holds no state such as done or planned: the checker takes its facts
 from the tree.
@@ -1613,7 +1410,7 @@ a vector file is a declaration finding. A single-file suite keeps the text match
 | `comparators` | the directories of the checks that compare the outputs of several implementations |
 | `tools` | `root` and `reason` of each directory of tooling outside the shared implementation set, printed on every run; R6 accepts a test there and R3 and R5 do not judge it; optional `units` name tool-owned requirements and exact native selectors without adding implementation bindings; each test must exist under the root, contain its selector and name every cited requirement. Parity validates the trace but does not run these tests; the tool package's existing owner check runs them |
 | `testPatterns` | for each `runner`, the `globs` of its test files across the repository |
-| `units` | `id`, `kind` (`suite`, `feature` or `api`) and `requirements`. A feature may have `owner`: `{kind: "coverage-part", feature, part}` from `contracts/features.json`, or `{kind: "release-package", artifact, package}` from `config/release.json` (`artifact` is `archive`, `go-module` or `git-tag` and selects `packages`, `goModules` or `proof.gitTag`); the owner source determines its one applicable implementation. Suites and API units cannot have an owner; an unscoped unit applies to all implementations. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, a matched file a declaration finding, and each case directory holds `case.json`, see Requirements of a case; a go binding reports such a name as nested subtests), the optional `caseFile` of a directory suite and `bindings` (`implementation`, `test`, `symbol`, optional `args` appended to runner arguments, and optional argv `command` replacing the whole invocation; the two cannot be combined, see Feature units). An API unit has `symbols` entries, one per implementation. Each entry declares either its existing `symbol` string or a nonempty, unique `symbols` list of exact public names belonging to the same API concept. It declares exactly one form. R1 verifies every listed name exists in that implementation; R11 requires every extracted public name to appear in an API unit. Existing scalar declarations keep their meaning. |
+| `units` | `id`, `kind` (`suite`, `feature` or `api`) and `requirements`. A feature may have `owner`: `{kind: "coverage-part", feature, part}` from `contracts/features.json`, or `{kind: "release-package", artifact, package}` from `config/release.json` (`artifact` is `archive`, `go-module` or `git-tag` and selects `packages`, `goModules` or the `[package].name` of a `git-tag` Cargo.toml of `manifests`); the owner source determines its one applicable implementation. Suites and API units cannot have an owner; an unscoped unit applies to all implementations. A suite has `file`, `cases` (for a vector file a path of `$` followed by `.<key>` and `[*]` steps and an optional last `.~` step, which selects the keys of an object as the case names; for a directory a glob relative to it whose `/` steps each match one directory level, each matched directory one case named by its path relative to the directory, such as `*/*` over `<group>/<case>/`, a matched file a declaration finding, and each case directory holds `case.json`, see Requirements of a case; a go binding reports such a name as nested subtests), the optional `caseFile` of a directory suite and `bindings` (`implementation`, `test`, `symbol`, optional `args` appended to runner arguments, and optional argv `command` replacing the whole invocation; the two cannot be combined, see Feature units). An API unit has `symbols` entries, one per implementation. Each entry declares either its existing `symbol` string or a nonempty, unique `symbols` list of exact public names belonging to the same API concept. It declares exactly one form. R1 verifies every listed name exists in that implementation; R11 requires every extracted public name to appear in an API unit. Existing scalar declarations keep their meaning. |
 | `errors` | `catalog` (`file`, `pattern`) |
 | `languageLists` | `file` and `pattern` (its first group holds the list; the words of the group are the names) |
 | `documents` | `globs` and `nouns`, the words that a count precedes (`languages`, `언어`) |

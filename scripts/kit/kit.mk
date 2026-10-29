@@ -363,7 +363,7 @@ commits-check: ## Check the commit messages of RANGE (<base>..<head>, default HE
 
 # Freeze the native candidate before CI, then publish the exact successful commit without another test run.
 .PHONY: release-candidate release
-release-candidate: ## Prepare VERSION archives and native consumer locks before CI
+release-candidate: ## Prepare the VERSION archives of the committed candidate before CI
 	$(NODE) $(KIT)/release-run.$(KIT_EXT) prepare "$(VERSION)"
 
 release: ## Publish VERSION at SHA after the successful CI run RUN; no version edits or tests
@@ -409,7 +409,7 @@ release-publish: ## Create the GitHub Release of TAG as a draft with the notes a
 	@test -n "$$TAG" || { echo "release-publish: TAG is required, for example make release-publish TAG=v0.0.1"; exit 1; }
 	$(NODE) $(KIT)/release.$(KIT_EXT) publish "$$TAG"
 
-release-undraft: ## Make the draft release of TAG public; run only after release-proof of TAG passed
+release-undraft: ## Make the draft release of TAG public
 	@test -n "$$TAG" || { echo "release-undraft: TAG is required, for example make release-undraft TAG=v0.0.1"; exit 1; }
 	$(NODE) $(KIT)/release.$(KIT_EXT) undraft "$$TAG"
 
@@ -492,7 +492,7 @@ unlink: ## Restore the selected native locked installation of PROJECT and remove
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
 # The release uses the released versions (K343), so its Go runs without the go.work of the links.
-release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-consumer release-consumer-lock release-proof: export GOWORK := off
+release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags: export GOWORK := off
 # The archive builds build the tree of the repository, so the go.work that it tracks, its own workspace and not a link, is their GOWORK;
 # naming it also hides the git-ignored go.work that link writes in each module (K774). A repository that tracks none builds with GOWORK
 # off.
@@ -518,28 +518,6 @@ lint-go: ## Lint the Go of the checkout: golangci-lint with .golangci.yml, and d
 
 lint-ts: ## Lint the TypeScript of the checkout: oxlint type-aware, knip, and API Extractor in each package with an api-extractor.json; offline
 	$(NODE) $(KIT)/lint-ts.$(KIT_EXT)
-# ---- Consumer install of the release archives (K5.4) ------------------------------------------------------------
-# ---- Consumer install and proof of a release (K5.4, K5.5) ------------------------------------------------------------
-# scripts/kit/release-consumer.mts installs the archives of TAG from var/release/assets (make release-assets) in clean npm and
-# Composer projects outside the checkout, from the manifests and locks that config/release.json `consumers` names, and runs a
-# smoke command for each package. A lock pins registry packages by version and integrity, so the install downloads them: that is
-# installation, and the target is no offline check. release-consumer-lock resolves versions and runs ONLINE.
-# scripts/kit/release-proof.mts proves a released TAG from outside the repository (GitHub Release, consumer installs, git-tag
-# installs, Go modules); the release workflow of workflows/release.yml runs it on the draft after release-publish, and a developer may run it.
-.PHONY: release-consumer release-consumer-lock release-proof
-
-release-consumer: ## Install the archives of TAG in var/release/assets in clean npm and Composer projects and run the smoke commands
-	@test -n "$$TAG" || { echo "release-consumer: TAG is required, for example make release-consumer TAG=v0.0.1"; exit 1; }
-	$(NODE) $(KIT)/release-consumer.$(KIT_EXT) install "$$TAG"
-
-release-consumer-lock: ## Write the consumer manifests and locks of TAG from the archives in var/release/assets; ONLINE
-	@test -n "$$TAG" || { echo "release-consumer-lock: TAG is required, for example make release-consumer-lock TAG=v0.0.1"; exit 1; }
-	$(ONLINE) $(NODE) $(KIT)/release-consumer.$(KIT_EXT) lock "$$TAG"
-
-release-proof: ## Prove the released TAG from outside the checkout: release assets, consumer installs, git-tag installs, Go modules; ONLINE
-	@test -n "$$TAG" || { echo "release-proof: TAG is required, for example make release-proof TAG=v0.0.1"; exit 1; }
-	$(ONLINE) $(NODE) $(KIT)/release-proof.$(KIT_EXT) "$$TAG"
-
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.
 # Without UNITS the check is a full run, which runs only in CI (ci-only.mts). The guard runs while make reads the makefiles,
 # so no prerequisite that a repository adds to parity-check builds before it; kit-gates runs it in full, so kit-gates runs only in CI.

@@ -7,7 +7,7 @@
 export type WheelRequires = string[] | Record<string, string[]>;
 
 // The functions of the uv and pip stubs, as source text for a stub script that has fs, path and execFileSync in scope.
-export const PIP_FUNCTIONS = `
+const PIP_FUNCTIONS = `
 function buildWheel(output, source) {
   const text = fs.readFileSync(path.join(source, 'pyproject.toml'), 'utf8');
   const name = /^name = "(.*)"$/m.exec(text)[1];

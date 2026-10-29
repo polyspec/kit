@@ -16,7 +16,7 @@ byte-for-byte copies of the files that `kit.copies` of its `package.json` lists;
 | Gates | `push-gate.mts`, `git-hooks.mts`, `generated-files.mts`, `holder-lock.mts`, `checklist.mts`, `ci-only.mts` (the full suite runs only in CI), `claude-hook.mts` (the vendored Claude Code hook) | `hooks`, `hooks-check`, `staged-generated-hook`, `push-gate-commit` |
 | Documents and commits | `check-documents.mts`, `documents-stamp.mts`, `check-commits.mts`, `owner-check.mts` | `docs-check`, `documents-stamp`, `commits-check`, `owner-check`, `owner-validate` |
 | Tests and CI | `run-tests.mts`, `ci-targets.mts`, `ci-passed.mts`, `target-report.mts` | `ci-targets`, `ci-summary`, `ci-passed` |
-| Release | `release.mts`, `release-consumer.mts`, `release-proof.mts`, `release-assets.mts` | `release-assets-fetch`, `release-tools`, `release-verify`, `release-versions`, `release-assets`, `release-publish`, `release-undraft`, `release-coverage`, `release-go-tags`, `release-consumer`, `release-consumer-lock`, `release-proof` |
+| Release | `release.mts`, `release-assets.mts` | `release-assets-fetch`, `release-tools`, `release-verify`, `release-versions`, `release-assets`, `release-publish`, `release-undraft`, `release-coverage`, `release-go-tags` |
 
 `docs/operations/tool-inventory.md` records which implementations each tool replaced and which behaviors it took or dropped.
 

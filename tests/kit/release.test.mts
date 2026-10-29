@@ -18,7 +18,7 @@ import { known } from './known.mts';
 const REPOSITORY = 'example/kit-fixture';
 type Box = ReturnType<typeof releaseSandbox>;
 // config/release.json as the fixture holds it, which a test also edits into shapes that the schema refuses.
-type ConfigJson = Omit<release.ReleaseConfig, 'schema' | 'consumers'> & { schema: number; consumers: { npm: release.ConsumerProject; composer: release.ConsumerProject; wheel?: release.WheelConsumer } };
+type ConfigJson = Omit<release.ReleaseConfig, 'schema'> & { schema: number };
 // A manifest of the fixture, package.json or composer.json, which a test edits.
 type ManifestJson = Record<string, unknown>;
 const context = (box: Box, extra: { config?: release.ReleaseConfig; log?: (text: string) => void } = {}) => release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, ...extra });
@@ -554,7 +554,7 @@ test('publish creates the release with the notes and the archives', (t) => {
   assert.deepEqual(state.created, { tag, name: tag, draft: 'true' });
   assert.deepEqual(state.uploads, names.map(name => ({ name, input: path.join(target, name), type: 'Content-Type: application/octet-stream' })));
   assert.deepEqual(state.byId?.['42']?.assets.map(asset => asset.name), names, 'each archive is uploaded to the release of its id');
-  assert.deepEqual(readJson(box.root, 'var/release/v0.0.1.json'), { id: 42 }, 'the id of the draft is recorded for the proof and undraft');
+  assert.deepEqual(readJson(box.root, 'var/release/v0.0.1.json'), { id: 42 }, 'the id of the draft is recorded for undraft');
   assert.equal(state.notes, '- The first entry of 0.0.1.\n- The second entry of 0.0.1.\n');
   assert.ok(lines.some(line => line.includes('creating the draft GitHub Release with 4 archives')), lines.join('\n'));
 });
@@ -624,22 +624,6 @@ test('coverage takes the files that kit writes as not released, and still names 
     writeFileSync(path.join(box.root, file), '{}\n');
   }
   assert.deepEqual(release.coverage(context(box)), owned.map(file => `${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in config/release.json`));
-});
-
-test('coverage allows a file: dependency on an archive only in the npm consumer project, and elsewhere only on a folder of the repository (K129)', (t) => {
-  const box = releaseSandbox(t);
-  const consumer = { name: 'kit-fixture-consumer', private: true, dependencies: { 'fixture-lib': 'file:fixture-lib-npm-0.0.1.tgz', 'fixture-app': 'file:fixture-app-npm-0.0.1.tgz' } };
-  writeFileSync(path.join(box.root, 'tests/release-consumer/npm/package.json'), JSON.stringify(consumer));
-  assert.deepEqual(release.coverage(context(box)), [], 'the consumer project installs the archives of its packages');
-  const app = readJson<NpmManifest>(box.root, 'packages/fixture-app/package.json');
-  writeFileSync(path.join(box.root, 'packages/fixture-app/package.json'), JSON.stringify({ ...app, devDependencies: { 'fixture-lib': 'file:fixture-lib-npm-0.0.1.tgz', near: 'file:../fixture-lib', outside: 'file:../../../outside' } }));
-  writeFileSync(path.join(box.root, 'tests/release-consumer/npm/package.json'), JSON.stringify({ ...consumer, dependencies: { ...consumer.dependencies, other: 'file:other-npm-0.0.1.tgz', 'fixture-lib': 'file:../../../packages/fixture-lib' } }));
-  assert.deepEqual(release.coverage(context(box)), [
-    'packages/fixture-app/package.json: devDependencies.fixture-lib is "file:fixture-lib-npm-0.0.1.tgz", which names no folder of the repository; a file: dependency names a folder of the repository, and only the npm consumer project tests/release-consumer/npm of config/release.json names archives',
-    'packages/fixture-app/package.json: devDependencies.outside is "file:../../../outside", which names no folder of the repository; a file: dependency names a folder of the repository, and only the npm consumer project tests/release-consumer/npm of config/release.json names archives',
-    'tests/release-consumer/npm/package.json: dependencies.fixture-lib is "file:../../../packages/fixture-lib"; the npm consumer project of config/release.json names the archive of a package of its smoke, file:<name>-npm-<version>.tgz',
-    'tests/release-consumer/npm/package.json: dependencies.other is "file:other-npm-0.0.1.tgz"; the npm consumer project of config/release.json names the archive of a package of its smoke, file:<name>-npm-<version>.tgz',
-  ]);
 });
 
 test('coverage skips node_modules, var, .tools and the vendored fixture, and reads new files that Git does not ignore', (t) => {
@@ -734,7 +718,6 @@ test('the archive names of a repository with scoped packages differ by language 
     edit<ConfigJson>(root, 'config/release.json', c => ({
       ...c,
       packages: c.packages.map(p => (p.kind === 'npm' && p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p.kind === 'composer' ? { ...p, name: 'polyspec/fixture-app' } : p)),
-      consumers: { ...c.consumers, npm: { ...c.consumers.npm, smoke: { 'fixture-lib': c.consumers.npm.smoke['fixture-lib'], '@polyspec/fixture-app': c.consumers.npm.smoke['fixture-app'] } }, composer: { ...c.consumers.composer, smoke: { 'polyspec/fixture-app': c.consumers.composer.smoke['polyspec/kit-fixture'] } } },
     }));
   } });
   const { config } = context(box);
@@ -747,7 +730,6 @@ test('the output of npm pack is renamed to the archive name', (t) => {
     edit<ConfigJson>(root, 'config/release.json', c => ({
       ...c,
       packages: c.packages.map(p => (p.name === 'fixture-app' ? { ...p, name: '@polyspec/fixture-app' } : p)),
-      consumers: { ...c.consumers, npm: { ...c.consumers.npm, smoke: { 'fixture-lib': c.consumers.npm.smoke['fixture-lib'], '@polyspec/fixture-app': c.consumers.npm.smoke['fixture-app'] } } },
     }));
   } });
   const ctx = context(box);

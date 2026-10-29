@@ -417,8 +417,8 @@ export function link({ checkouts, directories, check, print, env = process.env, 
   return !work.failed;
 }
 
-// The tracked projects that the folder link leaves as they are: the tests, the fixtures and the release consumer (K447).
-const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?|release-consumer)\//;
+// The tracked projects that the folder link leaves as they are: the tests and the fixtures (K447).
+const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?)\//;
 
 /** The vendor folder that the composer.json of `project` names in config.vendor-dir, read from the file, else vendor. */
 

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 179eb299cd9d31a1e8b2104653365d29dcb566e145614fdc0103fe0754235baf -->
+<!-- source-sha256: 9ede16b834a76166c373ea4055d29dd8b9d205a2f588096de35f6e8476b60dae -->
 
 # 도구 목록
 
@@ -163,8 +163,7 @@ Go와 Python을 그 pin으로 선언해야 합니다:
   Composer consumer, 또는 `config/toolchain.json`의 `php`)는 CI와 release workflow가 설치하는 PHP(`php-version-file`)인
   `.php-version`을 선언합니다. release workflow가 어떤 release 단계보다 먼저 실행하는 `make kit-check`는 그것이 없으면 실패합니다.
   그렇지 않으면 release가 runner의 PHP로 실행되었기 때문입니다(K193).
-- Python (K64, K127): mise가 `mise.lock`이 URL과 sha256으로 고정한 정확한 python-build-standalone build를 `var/tools/mise/installs`에 설치하고, shim `var/tools/mise/shims/python3`이 그것을 실행합니다. uv는 Python을 설치하지 않으며(`UV_PYTHON_DOWNLOADS=never`), kit의 uv는 mise의 Python(`UV_PYTHON`)으로 실행됩니다. mise의 Python도 pip에게는 externally managed이므로 pip는 그 Python의 venv에만 설치합니다. `check-toolchain`, run-tests, release-proof는 PATH의 Python이 아니라 그 shim을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/mise` 아래의 directory일 때만(link를 따라 읽음) `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44) 또는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`라는 고침과 함께 거부합니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv`는 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
-- Wheel proof (K46): `release-consumer`는 wheel의 venv를 `makeVenv`로 만듭니다(`uv venv`, pip 없음). wheel은 checkout의 pip로 설치합니다: `var/tools/mise/shims/python3 -m pip --python <venv>/bin/python install`, version은 `show`로 읽습니다. venv에는 자기 pip이 없고, PATH의 python3은 실행되지 않습니다.
+- Python (K64, K127): mise가 `mise.lock`이 URL과 sha256으로 고정한 정확한 python-build-standalone build를 `var/tools/mise/installs`에 설치하고, shim `var/tools/mise/shims/python3`이 그것을 실행합니다. uv는 Python을 설치하지 않으며(`UV_PYTHON_DOWNLOADS=never`), kit의 uv는 mise의 Python(`UV_PYTHON`)으로 실행됩니다. mise의 Python도 pip에게는 externally managed이므로 pip는 그 Python의 venv에만 설치합니다. `check-toolchain`과 run-tests는 PATH의 Python이 아니라 그 shim을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/mise` 아래의 directory일 때만(link를 따라 읽음) `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44) 또는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`라는 고침과 함께 거부합니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv`는 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
 - Python venv (K44, K64): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mts`)는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`로 checkout Python의 virtual environment를 만들고, uv가 만든 그대로 link까지 둡니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 실패한 실행은 그것이 만든 directory를 지웁니다.
 - ruff와 vulture(K127): ruff는 mise가 `mise.lock`의 sha256으로 설치하는 GitHub release archive이고, vulture는 mise가 `.mise/locks`의 uv lock으로 환경을 제자리에서 build하는 `pypi:` 도구이므로, 그 console script는 존재하는 interpreter를 가리킵니다.
 - 검증: crudui의 도구 목록과 메시지(선언한 파일, 실행 중인 version, 기대 version, 해결 방법), minor release로 비교하는 PHP와
@@ -633,9 +632,6 @@ go.mod의 module path에 연결합니다.
   kit이 쓰는 file은 릴리스되지 않으며 항목이 필요 없습니다(K167): Node의 `@polyspec/kit/package.json` self-reference로 찾은 실행 중인
   package의 `kit.copies` 사본(make kit-sync), PHPUnit의 Composer project `config/phpunit/composer.json`(make install-tools),
   `.mise/locks/` 아래 mise의 lock tree(make toolchain-lock)입니다.
-  package.json의 `file:` dependency는 레포의 folder를 가리킵니다. 단 `consumers.npm.directory`가 선언한 npm consumer project의 `file:`
-  dependency는 그 `smoke` package의 archive, `file:<name>-npm-<version>.tgz`입니다(K129). 이 규칙은 `config/release.json`을 읽으므로
-  선언을 읽지 않는 alint가 아니라 여기에 있습니다.
 
 ### 버린 동작
 
@@ -646,7 +642,7 @@ go.mod의 module path에 연결합니다.
 - crudui와 orm은 release 도구 안에서 `make build`, `make typescript-build`, `scripts/package-dist.mjs`를 실행했습니다. 버렸습니다. package의 build는
   저장소가 자기 `release-assets` recipe에 붙이는 선행 단계이므로 도구는 build를 알지 못합니다.
 - crudui `RELEASE_COMMIT`(tag가 생기기 전의 assets)은 합치지 않습니다. archive를 소비자처럼 설치하는 일(template `release-consumer`, crudui
-  `release-install`, hyper와 orm `release-install`)은 "Release archive의 consumer 설치 (K5.4)"에서 합쳤습니다.
+  `release-install`, hyper와 orm `release-install`)도 버렸습니다. release를 설치하는 일은 consumer의 package manager가 합니다(K798).
 - orm의 `.runtime/release` 출력과 `assets.txt`: 출력은 모든 저장소에서 `var/release/assets`입니다.
 - release 단계가 아니어서 합치지 않음: template `check-clean-release.mjs`(clean worktree에서 전체 matrix)와 hyper `publish.mjs`(개발용 설치본).
 - ordered-json `release.py`는 Node 도구로 대체합니다.
@@ -1001,89 +997,6 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
 - API Extractor가 @rushstack/ts-command-line과 argparse 1.0.10을 거쳐 가져오는 sprintf-js 1.0.3의 moderate advisory
   GHSA-hp3w-g68c-fv3c(npm advisory 1241202)는 sprintf-js의 모든 release에 해당하며, npm audit가 이를 보고합니다.
 
-## Release archive의 consumer 설치 (K5.4)
-
-`scripts/kit/release-consumer.mts install TAG`는 한 tag의 모든 archive를 저장소 밖의 깨끗한 consumer project에 함께 설치하고 package마다
-smoke command를 실행합니다. `lock TAG`는 그 project의 manifest와 lock을 씁니다. 파일은 `scripts/kit/release-consumer.mts`,
-`scripts/kit/release-consumer-config.mts`(설정 규칙이며 `release.mts`의 `loadConfig`가 호출), `schema/release.schema.json`의 section `consumers`,
-make target `release-consumer`와 `release-consumer-lock`입니다. 설치와 lock은 template을 base로 하고, archive 규칙은 crudui, manifest 규칙은
-crudui와 ordered-json, smoke 검사는 다섯 저장소 모두에서 가져왔습니다.
-
-### `config/release.json`의 `consumers`
-
-```json
-"consumers": {
-  "npm": {
-    "directory": "tests/release-consumer/npm",
-    "smoke": { "@scope/lib": ["node", "-e", "require('@scope/lib/package.json')"] }
-  },
-  "composer": {
-    "directory": "tests/release-consumer/composer",
-    "smoke": { "vendor/lib": ["php", "-r", "require 'vendor/autoload.php';"] }
-  }
-}
-```
-
-`directory`는 project의 commit된 manifest(`package.json`, `composer.json`)와 lock(`package-lock.json`, `composer.lock`)을 담습니다. `smoke`는 project가
-설치하는 package마다 설치된 project에서 shell 없이 실행하는 command(문자열 배열)를 대응시킵니다. `consumers`가 있으면 `packages`에 해당 종류의 package가
-있는 모든 종류에 project가 필요하고, smoke key는 그 종류의 package여야 합니다. key가 아닌 package는 project에 복사만 하고 설치하지 않습니다
-(예: Composer가 설치하지 않는 type `php-ext`의 Composer package). manifest 파일은 저장소의 `notReleased`에 둡니다.
-
-`composer.polyspec`(선택, K140)는 Composer project의 polyspec 의존성을 `config/release-assets.json`의 entry 이름으로 적습니다: 각각의
-release zip은 sha256을 지녀야 하며(`make release-assets-fetch`가 내려받습니다), tag의 zip 옆에서 project의 `artifacts` repository에
-놓입니다. 그래서 project는 polyspec 의존성을 inline package repository로 선언하지 않고 그 version으로 require하여, consumer처럼
-release된 archive에서 설치합니다. lock은 어떤 실행도 다시 만들지 않는 그 zip의 shasum을 유지하며,
-목록이 있으면 `make release-tools`가 zip을 내려받습니다.
-
-### 절차
-
-1. `make release-assets TAG=vX.Y.Z`가 archive를 만듭니다. `make release-consumer-lock TAG=vX.Y.Z`(ONLINE)는 각 project를 저장소 밖의 임시 directory에 그 종류의
-   모든 archive와 함께 복사하고, 설치할 package를 manifest에 적고(npm은 `"file:<archive>"`, Composer는 version), `npm install --package-lock-only` 또는
-   `composer update --no-install`을 실행한 뒤 lock에서 archive의 hash를 지우고 manifest와 lock을 atomic하게 다시 씁니다. archive는 그것을 설치하는 실행에서
-   만들므로 npm entry에는 `integrity`가, Composer entry에는 `shasum`이 비어 있고, registry package는 둘 다 유지합니다. 두 번째 실행은 같은 byte를 씁니다.
-   tag를 push하기 전의 release commit에서 실행합니다(`release-assets`에는 local tag면 충분합니다).
-2. `make release-consumer TAG=vX.Y.Z`는 `var/release/assets`가 그 version의 archive만 정확히 담을 것, manifest와 lock이 그 archive를 이름으로 가리킬 것
-   (`dependencies.<name>`이 `file:<archive>`이고 lock entry의 version과 `resolved`가 같음; `require.<name>`이 version이고 lock entry의 version과 url이
-   `artifacts/<archive>`이며 manifest에 `artifact` repository `artifacts`가 있음)을 요구합니다. 그런 다음 project를 저장소 밖의 새 임시 directory에 복사하고
-   `npm ci` 또는 `composer install`을 실행하며, 설치된 모든 package가 tag의 version일 것을 요구하고 project에서 smoke command를 실행합니다. 차이는
-   기대값과 실제 값, 그리고 고치는 command를 적습니다.
-3. 환경에는 임시 directory 안의 빈 `npm_config_cache`, `COMPOSER_HOME`, `COMPOSER_CACHE_DIR`가 있고 `npm_config_offline`, `COMPOSER_DISABLE_NETWORK`,
-   `COMPOSER`, `COMPOSER_VENDOR_DIR`는 없으며, 이 저장소의 각 npm scope는 닿지 않는 registry `http://127.0.0.1:9/`를 가리킵니다. lock이 registry에서 고정한
-   package는 version과 integrity로 download합니다. 이것은 registry 조회가 아니라 설치이므로 이 설치는 offline check가 아닙니다. 범위를 해석하는 것은 `lock`뿐입니다.
-   Go module tag는 archive가 없어 설치할 것이 없습니다.
-
-### 합친 동작
-
-| 동작 | 출처 | 합친 형태 |
-|---|---|---|
-| 비어 있는 npm과 Composer cache로 저장소 밖의 임시 directory에 설치 | template, crudui, hyper, ordered-json, orm | 유지; directory가 checkout 밖임을 real path로 확인 |
-| npm project: `file:<archive>` dependency, commit된 lock, 이 저장소의 scope를 닿지 않는 registry로 두고 `npm ci` | 전부 | 유지; scope는 `packages`의 이름에서 읽음 |
-| Composer project: `artifact` repository, Packagist 끔, commit된 lock, `composer install` | 전부 | 유지; zip directory는 `artifacts`(template) |
-| 이 저장소의 archive는 이름과 version만으로 lock: `integrity` 없음, `shasum` 빈 값 | 전부 | 유지; `resolved`와 url의 archive 이름으로 찾음 |
-| 설치할 때 recipe의 offline 설정 제거 | crudui, hyper, ordered-json, orm(환경); template(`--offline=false`) | 환경 변수를 제거 |
-| `--ignore-scripts --no-audit --no-fund`와 `--no-plugins --no-scripts` | template, crudui, orm | 유지; `--fetch-retries=0`(crudui, hyper)도 넣어 닿지 않는 registry에서 바로 실패 |
-| 설치된 모든 package의 version이 tag의 version | crudui, template | 모든 smoke key에 대해 유지; npm은 `node_modules`, Composer는 `installed.json`에서 읽음 |
-| `lock`이 tree의 version에 맞는 manifest를 씀 | crudui, ordered-json | 유지; commit된 manifest의 다른 field는 그대로 둠 |
-| package마다 smoke command: module load, class load, build | template, orm, ordered-json, hyper | command는 설정에서 옴 |
-| 다른 archive를 가리키는 manifest나 lock은 lock command를 적고 실패 | template, hyper, ordered-json | 유지; 차이마다 기대값과 실제 값을 적음 |
-| Go module tag는 아무것도 설치하지 않음 | crudui | 유지 |
-
-### 버린 동작
-
-| 동작 | 출처 | 이유 |
-|---|---|---|
-| 설치 안에서 archive를 만듦(`packTree`, `buildAssets`, working tree의 `git stash create`) | template, crudui, hyper, ordered-json, orm | `release.mts assets`가 tag의 archive를 만들고, 설치는 `var/release/assets`를 읽으므로 어떤 release도 만들지 않는 archive를 check가 설치하는 일이 없음 |
-| 다른 저장소의 release archive를 project로 download | orm, hyper | kit은 저장소 이름을 모름; 다른 저장소의 dependency는 lock에 URL, integrity, shasum으로 고정되고 설치는 이를 registry package처럼 download함 |
-| URL dependency를 위한 npm `--allow-remote` 설정 | hyper | npm 한 release의 우회(npm/cli#9818); 저장소 설정을 합치지 않으므로 remote tarball이 있는 lock은 이를 받아들이는 npm이 필요 |
-| `--workspaces=false` | crudui | project는 어떤 workspace 밖에 있음 |
-| project가 build하는 sample application과 `php-ext` package의 `composer show --available` | hyper, template | smoke command는 설치된 project에서 실행되며 저장소의 파일을 읽지 않음; 그런 package의 검사는 package 자신에 속함 |
-| Python test class `InstallFromAssets`와 `install_fixtures.py` | ordered-json | Node 도구로 대체 |
-
-### 한계
-
-- `smoke`가 모든 package를 나열할 필요는 없습니다: key가 없는 package는 복사만 하고 설치하거나 검사하지 않습니다.
-- lock은 `lock`을 실행한 때 archive가 선언한 dependency를 담으므로, dependency가 바뀌면 `lock`을 다시 실행해야 합니다.
-
 ## 다른 repository의 release archive (K140)
 
 다른 polyspec repository의 release archive(예: template release의 php와 php-ext zip, orm과 ordered-json의 Composer zip)를 쓰는
@@ -1108,61 +1021,21 @@ repository는 자기 downloader 대신 `config/release-assets.json`(schema `scri
   다르면 거부하며 그때는 아무것도 쓰지 않고, `<destination>.next-<pid>`와 rename으로 씁니다. `unpack`이 있는 entry는 zip이며,
   `unzip`이 `unpack` 옆의 임시 directory에 풀고 rename으로 그것을 바꿉니다. 그 안의 `.release-asset.sha256`가 archive를 기록하므로
   같은 archive는 다시 풀지 않습니다.
-- `config/release.json`의 `consumers.composer.polyspec`는 Composer consumer project가 담는 zip의 entry를 적습니다(release archive의
-  consumer 설치).
 - `tests/kit/release-assets.test.mts`는 fetch의 stub과 machine의 `zip`이 만든 zip으로 도구를 실행합니다.
 
-## Release proof (K5.5)
-
-`scripts/kit/release-proof.mts TAG`(`make release-proof TAG=vX.Y.Z`, ONLINE)는 release된 tag를 저장소 밖에서 증명합니다. release가 존재한 뒤에
-release workflow(`workflows/release.yml`)가 `release-publish` 뒤 같은 job에서 draft에 대해 실행합니다. 증명이 실패하면 그 run이 실패하고 release는 draft로 남습니다.
-developer도 어떤 released tag에든 실행할 수 있습니다. offline check가 아닙니다.
-
-### Release workflow, tool과 draft (K38)
+## Release workflow, tool과 draft (K38)
 
 - `workflows/release.yml`은 사본 `.github/workflows/release.yml`의 원본입니다(package.json의 `kit.copies`). `make kit-sync`가 설치된 package에서 이를 씁니다.
 - `make release-prepare`는 sibling release의 checkout처럼 저장소의 release가 release-tools 전에 필요로 하는 준비를 실행합니다:
   kit.mk는 이를 일이 없는 double-colon target으로 선언하고, 저장소는 Makefile에 `release-prepare::` 규칙을 더합니다(K132).
   vendor된 release workflow는 install-packages 다음에 이를 실행합니다.
-- `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에서 install-tools 이름을 유도합니다: npm package나 consumer에는 npm, composer에는 composer, wheel에는 python과 uv, Go module에는 go. git-tag proof는 Rust가 필요합니다: release-tools가 checkout에서 `rustup toolchain install --no-self-update`를 실행하면 rust-toolchain.toml의 channel을 읽고, 이어서 `check-toolchain rust`가 rustc를 그 channel과 비교합니다. rust-toolchain.toml이 없는 git-tag proof는 파일 이름과 함께 실패합니다.
-- `release-publish`는 release를 draft로 만듭니다. `release-publish`는 그 id를 `var/release/<tag>.json`에 기록합니다. `release-proof`와 `release-undraft`는 release 목록에서 tag로 찾지 않고 그 id로 draft를 읽습니다(`repos/O/R/releases/<id>`). 목록은 새 draft를 한동안 보여 주지 않고(0.0.38 run은 생성 3초 뒤에 실패했습니다), tag는 draft를 가리키지 않기 때문입니다. 기록이 없으면 `var/release/<tag>.json is missing; make release-publish writes it`로 실패합니다. `release-proof`는 각 자산을 id로 내려받고, `release-undraft`는 id로 release를 공개하며 공개된 release는 바꾸지 않습니다. wheel lock이 가리키는 다른 저장소의 release는 공개되어 있으므로 여전히 tag로 찾습니다. 이전 run의 draft는 교체하고, 공개된 release는 절대 교체하지 않습니다. 다섯 저장소의 어떤 도구에도 대응하는 것이 없었습니다. archive의
-설치는 K5.4의 `installConsumers`입니다. 첫 실패 step에서 멈추고 통과한 step마다 `✔ <what>`을 출력합니다. 실패는 command와 그 status 및 error,
-또는 기대값과 실제 값을 적습니다.
-
-tag `vX.Y.Z`에 대해:
-
-1. `gh release view TAG --repo HOST/OWNER/REPO --json assets`(`repositoryUrl`에서 만듦)가 `packages`가 그 version에 선언한 archive를 정확히 나열합니다.
-   실패는 없는 이름과 예상하지 못한 이름을 적습니다.
-2. `gh release download`가 asset을 임시 directory에 쓰고, `installConsumers`가 checkout의 commit된 manifest와 lock으로 깨끗한 npm과 Composer project에
-   설치한 뒤 `consumers`의 smoke command를 실행합니다(consumer project가 그 version의 archive를 가리키는 tag의 checkout에서 실행).
-3. `git-tag` mode의 각 manifest를 `proof.gitTag`의 command로 임시 directory에서 tag로 설치합니다. Rust crate는 임시 crate의 git dependency
-   `<name> = { git = "<repositoryUrl>", tag = "TAG" }`로 두고, 자신의 target directory를 쓰는 그 crate에서 smoke command(예: `cargo check`)를
-   실행합니다. Python package는 git-tag manifest가 아닙니다. `wheel` package이며 그 wheel은 2단계의 archive입니다(K29).
-4. `goModules`의 각 Go module은 remote(`git ls-remote --tags <repositoryUrl>`)에 tag `<directory>/vX.Y.Z`(root의 module은 `vX.Y.Z`)가 있고,
-   `GOFLAGS=-mod=mod`, `GOPROXY=direct`, 빈 `GOPATH`로 실행한 `go list -m <module>@vX.Y.Z`가 `<module> vX.Y.Z`를 출력합니다.
-
-tag `<directory>/vX.Y.Z`는 그 Go module만 release하므로 release에는 archive가 없어야 하고, 그 module에 대해 4단계만 실행합니다.
-
-### `config/release.json`의 `proof`
-
-```json
-"proof": {
-  "gitTag": {
-    "rust/Cargo.toml": { "kind": "rust", "name": "name", "smoke": ["cargo", "check"] }
-  }
-}
-```
-
-`proof`가 있으면 `manifests`에서 mode가 `git-tag`인 모든 manifest에 entry가 필요하고, entry가 없으면 `release-proof`가 실패합니다. `kind`는
-`Cargo.toml`이면 `rust`입니다. `pyproject.toml`에 `kind` `python`을 쓰면 거부합니다. `smoke`는 shell 없이 실행하는 문자열 배열입니다. archive의 smoke command는 K5.4의
-`consumers`입니다.
-
-### 한계
-
-- proof는 첫 실패 step에서 멈춥니다.
-- Rust step은 crate가 필요로 하는 registry crate에 이 machine의 `CARGO_HOME`을 쓰고, 새로 만드는 것은 crate와 그 target directory뿐입니다. Go step은 새
-  `GOPATH`를 쓰므로 module을 download합니다.
-- archive 설치는 checkout의 manifest와 lock을 읽으므로 다른 version의 checkout은 첫 차이에서 `make release-consumer-lock`을 적고 실패합니다.
+- `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에 Composer package, wheel 또는 Go module이 있으면
+  install-tools를 실행합니다. npm package에 필요한 npm은 bootstrap의 npm입니다.
+- `release-publish`는 release를 draft로 만들고 그 id를 `var/release/<tag>.json`에 기록합니다. `release-undraft`는 release 목록에서
+  tag로 찾지 않고 그 id로 draft를 읽습니다(`repos/O/R/releases/<id>`). 목록은 새 draft를 한동안 보여 주지 않고(0.0.38 run은 생성 3초
+  뒤에 실패했습니다), tag는 draft를 가리키지 않기 때문입니다. 기록이 없으면 `var/release/<tag>.json is missing; make release-publish
+  writes it`로 실패합니다. `release-undraft`는 id로 release를 공개하며 공개된 release는 바꾸지 않습니다. 이전 run의 draft는 교체하고,
+  공개된 release는 절대 교체하지 않습니다.
 
 ## Wheel package (K29)
 
@@ -1178,30 +1051,6 @@ kind `wheel` package는 `packages`에 directory와 project 이름(`name`)으로 
   `release-candidate-assets`는 ONLINE입니다.
 - `release-assets`는 빌드한 wheel의 이름과 version을 확인합니다. `Requires-Dist` 줄의 형식은 uv와 pip가 해석합니다(K789).
   `release-versions`는 다른 archive manifest와 같이 pyproject.toml의 `[project]` `version`을 요구합니다.
-- `release-consumer`는 wheel을 `var/tools/mise/shims/python3`의 깨끗한 virtual environment에 설치합니다. 먼저 uv가 lock을 설치하고(K49), 그다음
-  `pip install --no-input --disable-pip-version-check --no-index --require-hashes --no-deps -r <requirements>`로 wheel을 설치합니다.
-  requirement 파일은 이번 실행의 wheel을 그 파일의 sha256으로 적습니다. 그다음 `pip check`가 통과해야 하며, `pip show`가 출력하는
-  version을 확인하고 `consumers.wheel`의 smoke command를 실행합니다.
-
-```json
-"consumers": { "wheel": { "smoke": { "kit-fixture": ["python", "-c", "import kit_fixture"] }, "lock": { "kit-fixture": "packages/fixture-python/pylock.wheel.toml" } } }
-```
-
-## Wheel dependencies (K49)
-
-wheel package마다 dependency의 PEP 751 lock 하나를 `consumers.wheel.lock`(`pylock.toml` 또는 `pylock.<name>.toml`)으로 선언하며, lock은
-uv가 씁니다(`uv export --format pylock.toml`). kit은 lock을 읽지 않고 wheel의 `Requires-Dist` 줄도 판단하지 않습니다. 그것은 package
-manager의 일입니다(K789). `release-consumer install`은 각 lock을 uv에 한 번 넘겨 `makeVenv`의 venv에 설치합니다:
-
-    var/tools/mise/shims/uv pip install --python <venv>/bin/python -r <pylock>
-
-uv는 명령마다 PEP 751 lock 하나를 읽고, 설치하는 모든 파일의 sha256을 lock과 대조합니다. 이어서 wheel을 `--no-index --require-hashes
---no-deps`로 설치하고, `pip --python <venv>/bin/python check`가 0으로 끝나야 합니다(불완전한 lock은 여기서 실패합니다). 그다음 smoke
-command를 실행합니다. 설치는 PyPI와 release asset에 닿으므로 `release-proof`에서만 온라인으로 실행합니다.
-
-테스트: `tests/kit/release-wheel.test.mts`와 `tests/kit/release-consumer.test.mts`(stub으로 확인하는 lock의 uv 명령),
-`tests/kit/release-proof.test.mts`(proof의 단계)입니다.
-
 ## Sibling wheels (K52)
 
 sibling은 같은 config/release.json의 다른 wheel package입니다. wheel의 `Requires-Dist`는 같은 release의 sibling asset을 hash fragment
@@ -1211,46 +1060,16 @@ sibling은 같은 config/release.json의 다른 wheel package입니다. wheel의
 
 kit은 참조의 형식을 검사하지 않습니다. consumer가 dependency와 함께 wheel을 설치할 때 pip가 참조를 해석합니다(K789).
 
-sibling의 sha256은 release가 빌드한 뒤에야 알 수 있습니다. SOURCE_DATE_EPOCH가 release commit의 시각이므로, wheel의 sha256은 빌드
-전에는 tree에 없습니다. 그래서 wheel의 lock은 sibling을 담지 않으며, 참조에는 hash가 없습니다.
-
-`release-proof` 2단계는 GitHub가 게시한 release에서 wheel을 온라인으로 확인합니다(scripts/kit/release-proof.mts, `proveWheels`):
-release의 각 wheel 파일을 내려받은 뒤, 그 sha256이 GitHub가 그 asset에 나열한 sha256과 같아야 합니다(release listing의 `digest`,
-`sha256:<hex>`). 어떤 wheel의 digest를 나열하지 않으면 proof가 실패합니다.
-
-그다음 release의 wheel들은 한 번의 `pip install --no-index --require-hashes --no-deps` 명령으로 파일에서 함께 설치합니다
-(release-consumer.mjs의 `installWheelFiles`, 이미 설정의 모든 wheel package를 함께 설치합니다). `pip check`가 통과하고 smoke command가
-실행됩니다. archive는 자체 검사를 유지합니다. digest 검사는 wheel에만 추가하는데, digest를 나열하기 전에 게시된 release도 증명되어야
-하기 때문입니다.
-
 consumer는 sibling을 polyspec wheel과 같이 설치합니다: uv가 쓴 자기 lock이 sibling을 URL과 sha256을 가진 `archive` 항목으로 적으며,
-이 sha256은 게시된 asset의 hash입니다. sibling을 요구하는 wheel의 lock은 sibling을 적지 않습니다.
+이 sha256은 게시된 asset의 hash입니다.
 
-sibling 참조에 대한 발견 사항은 checkout의 pip(`var/tools/python-build`, pip 26.2.1, Python 3.14.8)로 측정했습니다. 두 wheel은 손으로
-만들었고, `kit-gen`은 `kit-val @ <URL>`을 요구합니다(`tests/source/wheel-sibling-real.test.mts`가 파일 사례를 반복합니다):
-
-- hash와 함께 두 wheel을 로컬 파일에서 `--no-deps`로 설치하면 설치되고, `pip check`가 `No broken requirements found.`를 출력하며
-  0으로 끝납니다. `--no-deps`에서 pip는 `Requires-Dist`를 읽지 않습니다.
-- dependency를 resolve하고 같은 명령에 `kit-val`을 로컬 파일로도 주면, pip는 참조에 대해 로컬 파일을 취하지 않습니다. `Collecting
-  kit-val @ <URL>`을 출력하고 URL을 내려받으며, URL이 같은 바이트를 주면 `ERROR: Cannot install kit-val 0.0.1 (from <local file>) and
-  kit-gen==0.0.1 because these package versions have conflicting dependencies`를 출력하고 1로 끝납니다. 로컬 파일과 참조는 두 후보이며,
-  resolver는 선택하지 않고 충돌을 보고합니다.
-- dependency를 resolve하고 `kit-val`을 주지 않으면, pip는 URL을 내려받아 그 파일로 설치합니다(URL이 파일을 주면 0으로 끝남). URL이 응답하지
-  않으면 `connection-failed`로 재시도 뒤 실패합니다(1로 끝남). 참조가 없는 파일을 가리키면 pip는 `Processing <path> (from
-  kit-gen==0.0.1)`을 출력하고 `No such file or directory`로 실패합니다(1로 끝남).
-- 로컬 파일에서 설치된 복사본은 참조를 만족하지 않습니다. `kit-val`을 파일에서 설치한 뒤 dependency와 함께 `kit-gen`을 resolve하면 pip는
-  URL을 다시 내려받았습니다.
-
-이 결과가 위 설계의 근거입니다. proof는 로컬 파일에서 `--no-deps`로 설치합니다.
-
-테스트: `tests/kit/release-wheel.test.mts`(두 wheel의 빌드), `tests/kit/release-proof.test.mts`(wheel digest, wheel의 한 번 설치),
-`tests/source/wheel-sibling-real.test.mts`(실제 pip: pip check가 있는 `--no-deps` 설치, 참조를 읽고 로컬 wheel은 읽지 않는 resolve).
+테스트: `tests/kit/release-wheel.test.mts`(두 wheel의 빌드).
 
 ## Language parity (K33)
 
 `scripts/kit/parity.mts`는 repository의 모든 implementation이 적용되는 shared unit을 갖추는지 검사합니다. `config/parity.json`은
 implementation(repository의 language 집합의 유일한 원천)과 unit을 선언합니다. scope가 없는 unit은 모든 implementation에 적용합니다(S6).
-feature unit은 기존 `contracts/features.json` coverage part 또는 `config/release.json`의 archive package, `goModules` module, `proof.gitTag` crate에서 owner를 도출할 수 있습니다. release owner는 `artifact`로 source 유형을 명시하고 source의 package 이름을 정확히 가리킵니다. component나 artifact에만 해당하는 requirement가 owner scope 대상이며, requirement가 owner를 주어로 명시하고 native test가 그 requirement를 이름으로 인용해야 합니다. 공유 client requirement와 SQL 규칙은 계속 모든 implementation에 적용됩니다. 임의 profile, implementation 허용 목록, exclusion, native-only symbol은 scope가 아니며, 완료나 예정 같은 상태도 선언에 담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
+feature unit은 기존 `contracts/features.json` coverage part 또는 `config/release.json`의 archive package, `goModules` module, `manifests`의 `git-tag` Cargo.toml(이름은 그 `[package].name`)에서 owner를 도출할 수 있습니다. release owner는 `artifact`로 source 유형을 명시하고 source의 package 이름을 정확히 가리킵니다. component나 artifact에만 해당하는 requirement가 owner scope 대상이며, requirement가 owner를 주어로 명시하고 native test가 그 requirement를 이름으로 인용해야 합니다. 공유 client requirement와 SQL 규칙은 계속 모든 implementation에 적용됩니다. 임의 profile, implementation 허용 목록, exclusion, native-only symbol은 scope가 아니며, 완료나 예정 같은 상태도 선언에 담지 않습니다. 검사기는 모든 사실을 tree에서 가져옵니다.
 
 - 각 implementation에서 각 suite와 feature의 binding을 직접 실행하고, 실행과 각 실행이 보고한 case와 test id의 ledger를 memory에
   둡니다. 저장된 report는 읽지 않습니다.

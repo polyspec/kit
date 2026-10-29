@@ -1,19 +1,15 @@
 // Tests of the Python wheel package kind: the PEP 427 name, the build from the tagged commit with uv build, the refusal of a
-// Requires-Dist that is not a plain name==version, the version in pyproject.toml and the consumer install with --require-hashes
-// (release-consumer.mts). The uv and the Python of the sandbox are the stubs of wheel-stubs.mts; no test reaches an index.
+// Requires-Dist that is not a plain name==version, and the version in pyproject.toml. The uv and the Python of the sandbox are the stubs of wheel-stubs.mts; no test reaches an index.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { fileDigest } from '../../scripts/kit/bootstrap/digest.mts';
 import * as release from '../../scripts/kit/release.mts';
 import * as wheel from '../../scripts/kit/release-wheel.mts';
-import * as consumer from '../../scripts/kit/release-consumer.mts';
 import { Stop } from '../../scripts/kit/process.mts';
-import { readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
-import { consumerSandbox } from './release-consumer-sandbox.mts';
+import { releaseSandbox } from './release-sandbox.mts';
 import { GENERATOR_WHEEL, SIBLING_WHEEL, addSibling, generatorRequires, siblingLine } from './sibling-sandbox.mts';
 
 type Box = ReturnType<typeof releaseSandbox>;
@@ -57,54 +53,6 @@ test('versions requires the version in pyproject.toml', (t) => {
   const box = releaseSandbox(t, { mutate: (root: string) => editPyproject(root, text => text.replace(/^version = .*\n/m, '')) });
   const tag = box.release('0.0.1');
   stop(() => release.versions(context(box), tag), /packages\/fixture-python\/pyproject\.toml: version none, the tag v0\.0\.1 is 0\.0\.1/);
-});
-
-test('release-consumer installs the wheel with --no-index and --require-hashes in a clean venv and runs its smoke import', (t) => {
-  const box = consumerSandbox(t);
-  box.lock();
-  assert.equal(consumer.installConsumers(box.ctx(), '0.0.1', path.join(box.root, release.ASSETS)), 4);
-  const [venvCall] = box.calls('checkout-uv').filter(call => call.args[0] === 'venv');
-  assert.ok(venvCall);
-  assert.deepEqual(venvCall.args.slice(0, 4), ['venv', '--quiet', '--python', path.join(box.root, 'var/tools/mise/shims/python3')], 'the venv is made through makeVenv: uv venv from the checkout Python, with no pip');
-  const venv = venvCall.args[4];
-  assert.ok(venv !== undefined);
-  assert.ok(box.calls('checkout-uv').some(call => call.args.join(' ') === `pip install --python ${path.join(venv, 'bin', 'python')} -r ${path.join(box.root, 'packages/fixture-python/pylock.wheel.toml')}`), 'uv installs the lock of the wheel natively first');
-  assert.ok(box.calls('checkout-python3').some(call => call.args.at(-1) === 'check'), 'pip check runs in the venv');
-  const install = box.calls('checkout-python3').find(call => call.args.includes('--no-index'));
-  assert.ok(install, 'pip install ran');
-  assert.deepEqual(install.args.slice(0, 9), ['-m', 'pip', '--python', path.join(venv, 'bin', 'python'), 'install', '--no-input', '--disable-pip-version-check', '--no-index', '--require-hashes']);
-  assert.ok(install.args.includes('--no-deps'));
-  assert.equal(install.requirements, `${path.join(box.root, release.ASSETS, WHEEL)} --hash=sha256:${fileDigest(path.join(box.root, release.ASSETS, WHEEL))}\n`);
-  assert.ok(box.calls('python').some(call => call.args.join(' ') === '-c import kit_fixture'), 'the smoke import ran');
-});
-
-test('release-consumer names an installed wheel whose version differs from the tag', (t) => {
-  const box = consumerSandbox(t);
-  box.lock();
-  box.stub({ version: '9.9.9' });
-  stop(() => consumer.installConsumers(box.ctx(), '0.0.1', path.join(box.root, release.ASSETS)), /wheel installed kit-fixture 9\.9\.9, expected 0\.0\.1/);
-});
-
-test('release-consumer stops when the smoke import of the wheel fails and names the command', (t) => {
-  const box = consumerSandbox(t);
-  box.lock();
-  box.stub({ modes: { python: 'smoke-fail' } });
-  stop(() => consumer.installConsumers(box.ctx(), '0.0.1', path.join(box.root, release.ASSETS)), /python -c import kit_fixture exited with 1: python stub: ModuleNotFoundError/);
-});
-
-test('config: a wheel package needs its consumer smoke, and a Python git-tag is refused', (t) => {
-  // The test edits the raw JSON into shapes that the schema refuses; the type names the fields that it edits.
-  type ConfigJson = { consumers?: { wheel?: release.WheelConsumer }; packages: { kind: string }[]; proof: { gitTag: Record<'packages/fixture-rust/Cargo.toml', release.GitTagProof> } };
-  const edit = (change: (config: ConfigJson) => unknown) => {
-    const box = releaseSandbox(t);
-    const config = readJson<ConfigJson>(box.root, 'config/release.json');
-    writeJson(box.root, 'config/release.json', change(structuredClone(config)));
-    return box;
-  };
-  stop(() => release.loadConfig(edit(c => { delete c.consumers?.wheel; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
-  // K109: a configuration without consumers is refused with the section that each package kind needs.
-  stop(() => release.loadConfig(edit(c => { delete c.consumers; return c; }).root), /consumers\.wheel is missing; the wheel packages \[kit-fixture\] need a consumer project that installs them/);
-  stop(() => release.loadConfig(edit(c => { c.proof.gitTag['packages/fixture-rust/Cargo.toml'].kind = 'python'; return c; }).root), /proof\.gitTag\.packages\/fixture-rust\/Cargo\.toml\.kind is "python", the allowed values are rust/);
 });
 
 test('assets accepts a sibling of the same release named by its asset URL without a hash, and names both wheels', (t) => {

@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: df27ffc8723082292cc1bb833b7ed02d19694962f23f2cda91d83bb04656718f -->
+<!-- source-sha256: 1599c1b5825c2470ae4323aaac67c71e361aef6430f0af2b68c34a38e39df80d -->
 # 개발
 
 [English](AGENTS.md)
@@ -88,7 +88,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   Enforced by: `make parity-declarations-check`
 - Own: 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
   case는 자기 timeout을 가집니다. 네트워크 조회는 kit.mk가 ONLINE으로 표시한 target(`install-tools`,
-  `release-tools`, `release-assets`, `release-candidate-assets`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch`,
+  `release-tools`, `release-assets`, `release-candidate-assets`, `cargo-downloads-fetch`,
   `release-assets-fetch`)만 하고, 결과는 commit된 기록, var/tools의 설치, 또는 config/release-assets.json이 고정한 var/ 아래의 archive입니다.
   Enforced by: `make kit-test`
 - Own: dependency advisory는 갱신으로 고칩니다. npm audit, composer audit, cargo audit와 govulncheck가 오래되거나 취약한
@@ -111,10 +111,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 kit은 `main` commit의 annotated tag `vX.Y.Z`로 릴리스한다. 절차는
 [docs/operations/release.ko.md](docs/operations/release.ko.md)이다.
 
-- Own: 릴리스 tag는 annotated이고, CI가 성공으로 끝났으며 consumer lock과 그 lock의 review를 가진 `main` commit 위에 있고,
-  공개된 tag는 옮기지 않는다.
+- Own: 릴리스 tag는 annotated이고, CI가 성공으로 끝난 `main` commit 위에 있으며, 공개된 tag는 옮기지 않는다.
   Enforced by: `make release-verify`
-- Own: 릴리스는 그 proof가 consumer project에서 설치한 뒤에만 공개된다. 실패한 step은 draft로 남긴다.
-  Enforced by: `make release-proof`, `make release-undraft`
+- Own: 릴리스는 archive와 함께 draft로 만들고 마지막에 공개한다. 실패한 step은 draft로 남긴다.
+  Enforced by: `make release-publish`, `make release-undraft`
 - Own: 모든 저장소는 vendor된 `workflows/release.yml`로 릴리스하며 그것을 편집하지 않는다.
   Enforced by: `make kit-check`

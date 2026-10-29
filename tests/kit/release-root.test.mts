@@ -7,8 +7,6 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { assetNames, context, coverage, loadConfig } from '../../scripts/kit/release.mts';
 import { tree } from './tree.mts';
-import { readFixture } from './json-fixture.mts';
-import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
@@ -16,10 +14,9 @@ test('a package at the repository root is declared with the directory . and its 
   const config = {
     schema: 1, repositoryUrl: 'https://example.com/polyspec/root', changelog: 'CHANGELOG.md',
     packages: [{ kind: 'npm', directory: '.', name: '@polyspec/root' }],
-    manifests: { 'package.json': 'archive' }, notReleased: { 'tests/consumer/package.json': 'the consumer project' }, goModules: {},
-    consumers: { npm: { directory: 'tests/consumer', smoke: { '@polyspec/root': ['node', '--version'] } } },
+    manifests: { 'package.json': 'archive' }, notReleased: {}, goModules: {},
   };
-  const root = tree(t, { 'config/release.json': JSON.stringify(config), 'package.json': JSON.stringify({ name: '@polyspec/root', version: '1.0.0' }), 'CHANGELOG.md': '# Changelog\n', 'tests/consumer/package.json': JSON.stringify({ name: 'consumer', private: true }) });
+  const root = tree(t, { 'config/release.json': JSON.stringify(config), 'package.json': JSON.stringify({ name: '@polyspec/root', version: '1.0.0' }), 'CHANGELOG.md': '# Changelog\n' });
   const loaded = loadConfig(root);
   assert.deepEqual(loaded.packages, config.packages);
   assert.deepEqual(coverage(context(root)), []);
@@ -31,18 +28,4 @@ test('the release configuration of kit declares the package @polyspec/kit at its
   assert.equal(config.manifests['package.json'], 'archive');
   assert.deepEqual(assetNames(config, '1.2.3'), ['polyspec-kit-npm-1.2.3.tgz']);
   assert.deepEqual(coverage(context(ROOT, { config })), []);
-});
-
-test('the release of kit installs the package in a consumer project and smokes its export', () => {
-  const config = loadConfig(ROOT);
-  const npm = config.consumers?.npm;
-  assert.ok(npm, 'config/release.json of kit declares no npm consumer');
-  assert.equal(npm.directory, 'tests/release-consumer/npm');
-  assert.deepEqual(Object.keys(npm.smoke), ['@polyspec/kit']);
-  const manifest = readFixture<NpmManifest>(ROOT, `${npm.directory}/package.json`);
-  // The consumer declares the Node.js floor of the pin, as every package.json does (toolchain-check), and the archive of
-  // the version of package.json that make release-consumer-lock names for the smoke.
-  const { version } = readFixture<NpmManifest>(ROOT, 'package.json');
-  assert.ok(version);
-  assert.deepEqual(manifest, { name: 'kit-release-consumer', private: true, engines: { node: '>=26.12.0' }, dependencies: { '@polyspec/kit': `file:${assetNames(config, version)[0]}` } });
 });

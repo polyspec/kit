@@ -282,9 +282,7 @@ test('the python symbols declare only the entry, and the distribution is the pro
 test('K719 scopes API symbols to a release package entry without narrowing shared APIs', TIMEOUT, (t) => {
   const files = {
     'docs/spec/rust-builder.md': '# Rust builder API\n\n- **INT-100** Rust native model generation exposes the builder crate API.\n',
-    'config/release.json': JSON.stringify({ packages: [], proof: { gitTag: {
-      'rust/build/Cargo.toml': { kind: 'rust', name: 'polyspec-orm-build', smoke: ['cargo', 'check'] },
-    } } }),
+    'config/release.json': JSON.stringify({ packages: [], manifests: { 'rust/build/Cargo.toml': 'git-tag' } }),
     'rust/build/Cargo.toml': '[package]\nname = "polyspec-orm-build"\n',
     'rust/build/symbols.txt': 'Builder\n',
     'rust/tests/coverage_model_generation.rs': '#[test]\nfn coverage_model_generation_check() {}\n// INT-100\nPASS coverage_model_generation_check\n',
@@ -1305,7 +1303,7 @@ test('K566: a release-package owner resolves its implementation from config/rele
 test('K566: release owners resolve Go modules and Rust git-tag crates from their declared artifacts', TIMEOUT, (t) => {
   const files = {
     'docs/spec/owner-scope.md': '# Native package owners\n\n- **RX-4** The example/go package exports its ORM client from its module path.\n- **RX-5** The example-rust package exposes its ORM client from its crate root.\n',
-    'config/release.json': JSON.stringify({ packages: [], goModules: { go: 'example/go' }, proof: { gitTag: { 'rust/Cargo.toml': { kind: 'rust', name: 'example-rust', smoke: ['cargo', 'check'] } } } }),
+    'config/release.json': JSON.stringify({ packages: [], goModules: { go: 'example/go' }, manifests: { 'rust/Cargo.toml': 'git-tag' } }),
     'go/go.mod': 'module example/go\n',
     'go/orm/roundtrip_test.go': 'package orm\nfunc TestRoundtrip(t *testing.T) {}\n// RX-4\n',
     'rust/Cargo.toml': '[package]\nname = "example-rust"\n',
@@ -1320,7 +1318,7 @@ test('K566: release owners resolve Go modules and Rust git-tag crates from their
     return config;
   } }, { execute: false });
   assert.deepEqual(findings, []);
-  const crossArtifactSameName = check(t, { files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'example-rust', directory: 'python' }], goModules: { go: 'example/go' }, proof: { gitTag: { 'rust/Cargo.toml': { name: 'example-rust' } } } }) }, edit: config => {
+  const crossArtifactSameName = check(t, { files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'example-rust', directory: 'python' }], goModules: { go: 'example/go' }, manifests: { 'rust/Cargo.toml': 'git-tag' } }) }, edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
     config.units.push(
       { id: 'go-native-package', kind: 'feature', requirements: ['RX-4'], owner: { kind: 'release-package', artifact: 'go-module', package: 'example/go' }, bindings: [{ implementation: 'go', test: 'go/orm/roundtrip_test.go', id: 'TestRoundtrip' }] },

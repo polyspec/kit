@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: adc239eb042698b18a0dd973eca18e3eabd00d19323db544770f67b5a4b2554e -->
+<!-- source-sha256: 0ba064a8049d7c8609ea03ccf44d79a168ee04c49f6b8bacff1db6e1eb4b170e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 릴리스의 consumer 설치와 proof를 삭제합니다(release-consumer.mts, release-consumer-config.mts, release-proof.mts, `make release-consumer`, `release-consumer-lock`, `release-proof`). config/release.json의 `consumers`와 `proof` 절, release-run prepare의 lock 단계, release-coverage의 file: dependency 형식 검사도 삭제합니다. 릴리스 설치는 consumer의 package manager가 합니다. release-tools는 install-tools만 실행합니다. git-tag parity owner는 `manifests`의 `git-tag` Cargo.toml이며 그 `[package].name`으로 이름을 정합니다. 저장소는 config/release.json에서 `consumers`와 `proof`를, 그리고 tests/release-consumer project를 지웁니다. (K798)
 - python parity symbols는 다시 entry만 선언한다. distribution은 entry에서 위로 가장 가까운 pyproject.toml의 [project].name이며 `distribution` field는 지운다 (K803).
 - PHP library 테스트를 Composer 자신의 autoload로 실행하고 Composer tool project를 그 자리에서 composer install로 설치합니다. php-library-autoload와 설치 staging을 삭제합니다. (K790) `run-tests --without-library`와 library source가 포함되지 않았는지 보던 실행 끝의 검사도 없어집니다. extension 실행은 package의 Composer project와 PHPUnit을 그대로 씁니다.
 - lint-rust는 cargo clippy를 sibling checkout과 함께 link cargo로 실행하므로, link된 consumer는 lock의 git tag가 아니라 sibling의 polyspec crate에 대해 Rust를 lint한다. cargo는 subcommand 앞의 --config를 clippy 같은 external subcommand에 넘기지 않으므로, link cargo는 --config option을 subcommand 뒤에 넘긴다. (K802)

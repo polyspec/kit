@@ -1,8 +1,7 @@
 // The release workflow source of kit (workflows/release.yml), which kit-sync vendors to every consumer as
 // .github/workflows/release.yml. The order is fixed: the tools of the repository are installed first; the release is created
-// as a draft; the draft is proved; the release is made public only after the proof passed. The steps after release-tools
-// run on the tools it installed, and the Composer proof runs on the PHP of .php-version, which make kit-check requires of a
-// repository that needs PHP (K193). kit does not vendor workflows/, so
+// as a draft with its archives and then made public. The steps after release-tools run on the tools it installed, and on the
+// PHP of .php-version, which make kit-check requires of a repository that needs PHP (K193). kit does not vendor workflows/, so
 // only the kit runs this case.
 import assert from 'node:assert/strict';
 import { assertWorkflowPackageBootstrap } from '../kit/workflow-package-bootstrap.mts';
@@ -39,12 +38,10 @@ test('the release workflow installs the tools of the repository before it verifi
   assert.ok(tools.line < step('make release-verify', /^make release-verify$/).line, 'release-tools runs before release-verify');
 });
 
-test('the release workflow creates the release as a draft, proves it, and makes it public only after the proof', () => {
+test('the release workflow creates the release as a draft and makes it public last', () => {
   const publish = step('make release-publish', /^make release-publish$/);
-  const proof = step('make release-proof', /^make release-proof TAG="\$TAG"$/);
   const undraft = step('make release-undraft', /^make release-undraft TAG="\$TAG"$/);
-  assert.ok(publish.line < proof.line, `release-proof (line ${proof.line}) runs after release-publish (line ${publish.line})`);
-  assert.ok(proof.line < undraft.line, `release-undraft (line ${undraft.line}) runs after release-proof (line ${proof.line})`);
+  assert.ok(publish.line < undraft.line, `release-undraft (line ${undraft.line}) runs after release-publish (line ${publish.line})`);
   const last = runs.at(-1);
   assert.ok(last, 'the workflow runs no step');
   assert.equal(last.command, undraft.command, 'release-undraft is the last step');

@@ -99,7 +99,7 @@ and states only its own rules. The rules below are kit's own.
 - Own: Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by
   the targets that kit.mk marks ONLINE (`install-tools`, `release-tools`,
-  `release-assets`, `release-candidate-assets`, `release-consumer-lock`, `release-proof`, `cargo-downloads-fetch` and `release-assets-fetch`), and its
+  `release-assets`, `release-candidate-assets`, `cargo-downloads-fetch` and `release-assets-fetch`), and its
   result is a committed record, an installation in var/tools or an archive under var/ that config/release-assets.json pins.
   Enforced by: `make kit-test`
 - Own: A dependency advisory is fixed by an update. npm audit, composer audit, cargo audit and govulncheck report
@@ -124,10 +124,9 @@ and states only its own rules. The rules below are kit's own.
 kit is released by the annotated tag `vX.Y.Z` of a commit of `main`; the procedure is
 [docs/operations/release.md](docs/operations/release.md).
 
-- Own: A release tag is annotated, lies on a commit of `main` whose CI concluded success and that carries the consumer locks and
-  the review of its lock, and a published tag is never moved.
+- Own: A release tag is annotated, lies on a commit of `main` whose CI concluded success, and a published tag is never moved.
   Enforced by: `make release-verify`
-- Own: A release is public only after its proof installs it from a consumer project; a failed step leaves it a draft.
-  Enforced by: `make release-proof`, `make release-undraft`
+- Own: A release is created as a draft with its archives and made public last; a failed step leaves it a draft.
+  Enforced by: `make release-publish`, `make release-undraft`
 - Own: Every repository releases through the vendored `workflows/release.yml`, which it never edits.
   Enforced by: `make kit-check`

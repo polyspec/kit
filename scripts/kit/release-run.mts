@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 import { isMain, repositoryRoot } from './paths.mts';
-import { ASSETS, candidateAssets, context, createTag, versions, type CommandOptions, type Context } from './release.mts';
-import { installConsumers, lockConsumers } from './release-consumer.mts';
+import { candidateAssets, context, createTag, versions, type CommandOptions, type Context } from './release.mts';
 import { repositoryParts } from './github-release.mts';
 import { run, Stop } from './process.mts';
-import path from 'node:path';
 
 export type CandidateRun = { id: number; path: string; head_sha: string; event: string; status: string; conclusion: string | null; head_branch: string };
 
@@ -43,18 +41,13 @@ function cleanCandidate(ctx: Context): string {
   return run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: ctx.root, env: ctx.env }).trim();
 }
 
-/** Build candidate archives, update native consumer locks, then prove the committed candidate before CI runs. */
-export function prepare(ctx: Context, version: string): { phase: 'locks'; files: string[] } | { phase: 'ready'; sha: string; assets: string[]; installed: number } {
+/** Build the candidate archives of the committed candidate before CI runs. */
+export function prepare(ctx: Context, version: string): { sha: string; assets: string[] } {
   if (!VERSION.test(version)) throw new Stop(`version ${JSON.stringify(version)} is not X.Y.Z`);
-  const tag = `v${version}`;
-  versions(ctx, tag);
+  versions(ctx, `v${version}`);
   const assets = candidateAssets(ctx, version);
-  const locked = lockConsumers(ctx, tag, text => ctx.log(`[release-run] ${tag}: ${text}`));
-  const dirty = run('git', ['status', '--porcelain', '--untracked-files=all'], { cwd: ctx.root, env: ctx.env }).trim();
-  if (dirty) return { phase: 'locks', files: locked };
-  const installed = installConsumers(ctx, version, path.join(ctx.root, ASSETS), text => ctx.log(`[release-run] v${version}: ${text}`));
   const sha = run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], { cwd: ctx.root, env: ctx.env }).trim();
-  return { phase: 'ready', sha, assets, installed };
+  return { sha, assets };
 }
 
 /** Validate CI, then push the annotated tag at that same main commit to start the existing release workflow. */
@@ -86,8 +79,7 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
     try {
       const ctx = context(root, { env, log: print });
       const result = prepare(ctx, version);
-      if (result.phase === 'locks') print(`[release-run] v${version}: wrote consumer manifests and locks [${result.files.join(', ')}]; commit them and rerun release-run prepare before the sole CI`);
-      else print(`[release-run] v${version}: prepared candidate ${result.sha}, ${result.assets.length} assets and installed ${result.installed} consumer packages; push this exact commit to trigger the sole CI`);
+      print(`[release-run] v${version}: prepared candidate ${result.sha} and ${result.assets.length} assets; push this exact commit to trigger the sole CI`);
       return 0;
     } catch (failure) {
       error(`[release-run] ${mode} ${version} failed: ${failure instanceof Error ? failure.message : String(failure)}`);

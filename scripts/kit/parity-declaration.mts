@@ -8,6 +8,7 @@ import { matchesAny } from './glob.mts';
 import { ConfigError, parseJson, readConfigFindings, SchemaError } from './schema-validate.mts';
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import { present } from './present.mts';
+import { isTable, readToml } from './toml.mts';
 import { errorCode } from './process.mts';
 
 export const DECLARATION = 'config/parity.json';
@@ -782,11 +783,12 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
       if (scope.artifact === 'go-module' && isJsonObject(releaseOwners.goModules)) {
         for (const [directory, name] of Object.entries(releaseOwners.goModules)) if (name === scope.package) candidates.push({ name, directory });
       }
-      const proof = isJsonObject(releaseOwners.proof) ? releaseOwners.proof : undefined;
-      const gitTag = proof && isJsonObject(proof.gitTag) ? proof.gitTag : undefined;
-      if (scope.artifact === 'git-tag') {
-        for (const [manifest, entry] of Object.entries(gitTag ?? {})) {
-          if (isJsonObject(entry) && entry.name === scope.package) candidates.push({ name: entry.name, directory: path.posix.dirname(manifest) });
+      // A git-tag package is a Cargo.toml of `manifests` with the mode git-tag; its name is the name of [package] of that file.
+      if (scope.artifact === 'git-tag' && isJsonObject(releaseOwners.manifests)) {
+        for (const [manifest, mode] of Object.entries(releaseOwners.manifests)) {
+          if (mode !== 'git-tag' || path.posix.basename(manifest) !== 'Cargo.toml' || !files.has(manifest)) continue;
+          const table = readToml(readFileSync(path.join(root, manifest), 'utf8'), manifest).package;
+          if (isTable(table) && table.name === scope.package) candidates.push({ name: scope.package, directory: path.posix.dirname(manifest) });
         }
       }
       if (candidates.length !== 1) {

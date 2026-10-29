@@ -13,7 +13,6 @@ import { fileURLToPath } from 'node:url';
 import { builtCopy, commitSandbox, installedLockEntries, kitConsumer, NPM, packedKit, primeCache, run, runtimePackage } from './checkout.mts';
 import { readFixture } from '../kit/json-fixture.mts';
 import type { NpmManifest } from '../../scripts/kit/manifests.mts';
-import type { ReleaseConfig } from '../../scripts/kit/release.mts';
 import { declaredMiseTools } from '../../scripts/kit/toolchain-mise.mts';
 import { parse, stringify } from 'smol-toml';
 import { known } from '../kit/known.mts';
@@ -103,12 +102,6 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
     // KIT is the real path of the kit checkout beside the consumer (K762).
     assert.ok(result.stdout.includes(`${path.join(realpathSync(path.join(work, 'kit')), 'scripts/kit')}/`), `make ${target.join(' ')} runs the sources of the kit checkout beside the consumer`);
   }
-  // The smoke command of the release of kit (consumers.npm of config/release.json) runs in the consumer.
-  const release = readFixture<ReleaseConfig>(ROOT, 'config/release.json');
-  const [command, ...args] = release.consumers?.npm?.smoke['@polyspec/kit'] ?? [];
-  assert.ok(command, 'config/release.json names no smoke command of @polyspec/kit');
-  const smoked = spawnSync(command, args, { cwd: consumer, env, encoding: 'utf8' });
-  assert.equal(smoked.status, 0, `the smoke command of @polyspec/kit: ${smoked.stdout}${smoked.stderr}`);
   assert.match(make('kit-sync').stdout, new RegExp(`\\[kit-sync\\] unchanged: @polyspec/kit ${packed.version.replaceAll('.', '\\.')}`));
   assert.equal(run('git', ['status', '--porcelain', '-uall'], consumer), '', 'the bootstrap and the gate targets changed the tracked files of the consumer');
 });

@@ -20,8 +20,7 @@ test('mise.toml declares the Python of the kit and mise.lock pins its build', ()
   assert.deepEqual(miseLockFindings(ROOT).filter(line => line.includes(' python ')), [], 'mise.lock pins the build of each platform by its sha256');
 });
 
-test('the fixture wheel is built with the real Python and uv build, and installs into a clean venv with --require-hashes', { timeout: 900000 }, async (t) => {
-  const { installWheelFiles } = await import('../../scripts/kit/release-consumer.mts');
+test('the fixture wheel is built with the real Python and uv build', { timeout: 900000 }, (t) => {
   const python = path.join(ROOT, 'var/tools/mise/shims/python3');
   assert.ok(existsSync(python), `${path.relative(ROOT, python)} is missing; make install-tools installs the python of mise.toml`);
   const commit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
@@ -33,8 +32,4 @@ test('the fixture wheel is built with the real Python and uv build, and installs
   mkdirSync(output);
   buildWheel({ root: ROOT, env, commit, directory: FIXTURE, output });
   assert.deepEqual(readdirSync(output), [wheelName('kit-fixture', '0.0.0')]);
-  const steps: string[] = [];
-  const count = installWheelFiles({ root: ROOT, env, folder, version: '0.0.0', directory: output, names: ['kit-fixture'], smoke: { 'kit-fixture': ['python', '-c', 'import kit_fixture'] }, step: (text: string) => steps.push(text) });
-  assert.equal(count, 1);
-  assert.deepEqual(steps, ['wheel pip install of 1 packages', 'wheel pip check passed', 'wheel kit-fixture 0.0.0: python -c import kit_fixture']);
 });

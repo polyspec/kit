@@ -6,7 +6,7 @@
 //   node scripts/kit/release.mts versions TAG   every manifest of the tag has its version, CHANGELOG has its section
 //   node scripts/kit/release.mts assets TAG     build the archive of every package of the tag into var/release/assets
 //   node scripts/kit/release.mts publish TAG    create the GitHub Release of the tag as a draft, with its notes and archives
-//   node scripts/kit/release.mts undraft TAG    make the draft release of the tag public; after the proof of the draft passed
+//   node scripts/kit/release.mts undraft TAG    make the draft release of the tag public
 //   node scripts/kit/release.mts go-tags TAG    every Go module has its tag <directory>/vX.Y.Z at the commit of TAG
 //   node scripts/kit/release.mts coverage       every package file of the checkout is classified in config/release.json
 //
@@ -31,22 +31,20 @@
 // (see manifestProblems). `publish` creates the draft
 // release of the tag through the API with the archives (github-release.mts createDraft) and records its id in
 // var/release/<tag>.json; the notes are the section X.Y.Z, or one line that links the section when it is longer than
-// NOTES_LIMIT characters, the limit of a release body. `undraft`, and the release proof, read the draft by that id: the
+// NOTES_LIMIT characters, the limit of a release body. `undraft` reads the draft by that id: the
 // list of releases shows a new draft only after a while, and its tag does not address it.
 // A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with uv build,
-// which installs the build-system.requires of its pyproject.toml (release-wheel.mts); its dependencies are uv's to install from its lock of
-// consumers.wheel.lock (release-consumer.mts).
+// which installs the build-system.requires of its pyproject.toml (release-wheel.mts).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import semver from 'semver';
 import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, type GitHubRelease } from './github-release.mts';
-import { consumerConfigProblems } from './release-consumer-config.mts';
 import { readCargoPackages, readGoMod } from './toolchain-files.mts';
 import { headings } from './markdown.mts';
 import { writeJson } from './bootstrap/files.mts';
-import { readNpmManifest, type ComposerManifest, type NpmManifest } from './manifests.mts';
+import { type ComposerManifest, type NpmManifest } from './manifests.mts';
 import { isTable, readToml } from './toml.mts';
 import { buildWheel, metadataProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
@@ -100,27 +98,6 @@ export type ReleaseGeneratedArtifact = {
   output: string;
 };
 
-/** The consumer project of the npm or the Composer archives: its directory and the smoke command of each package. */
-export interface ConsumerProject {
-  directory: string;
-  smoke: Record<string, string[]>;
-  /** The entries of config/release-assets.json whose zips the Composer project holds (consumers.composer.polyspec). */
-  polyspec?: string[];
-}
-
-/** The consumer of the wheels: the smoke command and the PEP 751 lock file of each wheel package. */
-export interface WheelConsumer {
-  smoke: Record<string, string[]>;
-  lock: Record<string, string>;
-}
-
-/** An entry of proof.gitTag: how the release proof installs a manifest of the mode git-tag. */
-export interface GitTagProof {
-  kind: string;
-  name: string;
-  smoke: string[];
-}
-
 /** config/release.json after loadConfig: the schema and the checks of loadConfig hold every value to its form. */
 export interface ReleaseConfig {
   schema: 1;
@@ -132,8 +109,6 @@ export interface ReleaseConfig {
   manifests: Record<string, string>;
   notReleased: Record<string, string>;
   goModules: Record<string, string>;
-  consumers?: { npm?: ConsumerProject; composer?: ConsumerProject; wheel?: WheelConsumer };
-  proof?: { gitTag: Record<string, GitTagProof> };
 }
 
 /** config/release.json as the schema admits it: the values of the maps are not checked yet, two lists may be absent. */
@@ -233,7 +208,6 @@ export function loadConfig(root: string): ReleaseConfig {
     if (value === 'archive' && !archived.has(key)) problems.push(`${CONFIG}: manifests.${key} is "archive" but no package of packages has that manifest`);
   }
   if (new Set(assetNames(config, '1.0.0')).size !== config.packages.length) problems.push(`${CONFIG}: two packages have the same archive name`);
-  problems.push(...consumerConfigProblems(config).map(problem => `${CONFIG}: ${problem}`));
   if (problems.length) throw new Stop(problems.join('; '));
   return { ...config, checks: config.checks ?? DEFAULT_CHECKS, changelogTranslations: config.changelogTranslations ?? [], manifests, notReleased, goModules };
 }
@@ -246,8 +220,7 @@ export function context(root: string, { config = loadConfig(root), env = process
 }
 
 /** The newest root release tag reachable from HEAD, which resolves the argument `latest` of the release
- * commands: no release task names a version in its retry, and `make release-consumer TAG=latest` verifies the
- * release that the tree carries. */
+ * commands: no release task names a version in its retry. */
 export function latestTag(ctx: Context): string {
   const list = run('git', ['tag', '--merged', 'HEAD', '--list', 'v[0-9]*'], at(ctx));
   // A release tag is vX.Y.Z; the pattern v[0-9]* also lists tags such as v1.2 or v1.2.3-rc1, which name no release.
@@ -742,7 +715,7 @@ export function publish(ctx: Context, tag: string): string[] {
 }
 
 /**
- * Makes the draft release of the tag public; run only after release-proof passed. A release that is already public stays so.
+ * Makes the draft release of the tag public. A release that is already public stays so.
  * Returns true when this call made it public.
  */
 export function undraft(ctx: Context, tag: string): boolean {
@@ -779,45 +752,6 @@ export function coverage(ctx: Context): string[] {
   const kitFile = writtenByKit(copiesOf(runningKit()));
   for (const file of files) {
     if (!where.has(file) && !kitFile(file)) problems.push(`${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in ${CONFIG}`);
-  }
-  problems.push(...fileDependencyProblems(root, config, files.filter(file => path.posix.basename(file) === 'package.json')));
-  return problems;
-}
-
-const NPM_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'] as const;
-
-/**
- * The problems of the file: dependencies of the package.json files `manifests`: the npm consumer project of `config`
- * (consumers.npm.directory) names the archive of a package of its smoke, file:<name>-npm-<version>.tgz, which it installs;
- * every other manifest names a folder of the repository.
- */
-function fileDependencyProblems(root: string, config: ReleaseConfig, manifests: string[]): string[] {
-  const consumer = config.consumers?.npm;
-  const archives = new Map(Object.keys(consumer?.smoke ?? {}).map((name) => {
-    // The archive name holds the version once, at the \0 that stands for it.
-    const [before, after] = archiveName('npm', name, '\0').split('\0');
-    if (before === undefined || after === undefined) throw new Error(`the npm archive name of ${name} holds no version`);
-    return [name, new RegExp(`^file:${RegExp.escape(before)}\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?${RegExp.escape(after)}$`)];
-  }));
-  const problems: string[] = [];
-  for (const manifest of manifests) {
-    const directory = path.posix.dirname(manifest);
-    const declared = readNpmManifest(root, manifest);
-    for (const field of NPM_FIELDS) {
-      for (const [name, spec] of Object.entries(declared[field] ?? {})) {
-        if (!spec.startsWith('file:')) continue;
-        const shown = `${manifest}: ${field}.${name} is ${JSON.stringify(spec)}`;
-        if (consumer && directory === consumer.directory) {
-          if (!archives.get(name)?.test(spec)) problems.push(`${shown}; the npm consumer project of ${CONFIG} names the archive of a package of its smoke, file:<name>-npm-<version>.tgz`);
-          continue;
-        }
-        const target = path.posix.normalize(path.posix.join(directory, spec.slice('file:'.length)));
-        const inside = !path.posix.isAbsolute(target) && target !== '..' && !target.startsWith('../');
-        if (!inside || !statSync(path.join(root, target), { throwIfNoEntry: false })?.isDirectory()) {
-          problems.push(`${shown}, which names no folder of the repository; a file: dependency names a folder of the repository, and only the npm consumer project${consumer ? ` ${consumer.directory}` : ''} of ${CONFIG} names archives`);
-        }
-      }
-    }
   }
   return problems;
 }

@@ -1,5 +1,5 @@
 <!-- doc-id: readme -->
-<!-- source-sha256: e5cc1ec3377341a9da27c6a0a9415141f1d5727e6d52c1d88784ee33c580f7e3 -->
+<!-- source-sha256: d2bfe36866a7d94f6c7516737eff048f58158abf97d0e63d081f9a4a12843b33 -->
 # polyspec/kit
 
 모든 polyspec 저장소가 공유하는 도구입니다. 저장소는 이를 package `@polyspec/kit`으로 설치하고, 그 `package.json`의 `kit.copies`가 나열하는
@@ -16,7 +16,7 @@
 | Gate | `push-gate.mts`, `git-hooks.mts`, `generated-files.mts`, `holder-lock.mts`, `checklist.mts`, `ci-only.mts` (full suite는 CI에서만 실행), `claude-hook.mts` (vendor되는 Claude Code hook) | `hooks`, `hooks-check`, `staged-generated-hook`, `push-gate-commit` |
 | 문서와 commit | `check-documents.mts`, `documents-stamp.mts`, `check-commits.mts`, `owner-check.mts` | `docs-check`, `documents-stamp`, `commits-check`, `owner-check`, `owner-validate` |
 | 테스트와 CI | `run-tests.mts`, `ci-targets.mts`, `ci-passed.mts`, `target-report.mts` | `ci-targets`, `ci-summary`, `ci-passed` |
-| Release | `release.mts`, `release-consumer.mts`, `release-proof.mts`, `release-assets.mts` | `release-assets-fetch`, `release-tools`, `release-verify`, `release-versions`, `release-assets`, `release-publish`, `release-undraft`, `release-coverage`, `release-go-tags`, `release-consumer`, `release-consumer-lock`, `release-proof` |
+| Release | `release.mts`, `release-assets.mts` | `release-assets-fetch`, `release-tools`, `release-verify`, `release-versions`, `release-assets`, `release-publish`, `release-undraft`, `release-coverage`, `release-go-tags` |
 
 `docs/operations/tool-inventory.ko.md`는 각 도구가 어떤 구현들을 대체했고 어떤 동작을 가져오거나 버렸는지 기록합니다.
 
