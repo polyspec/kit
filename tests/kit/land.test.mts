@@ -570,7 +570,8 @@ test('land resolves a rebase conflict that is only the source-sha256 line of a K
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
   // documents-stamp writes the sha256 of README.md into the marker of README.ko.md, as the stamp of kit does.
-  const stamp = 'documents-stamp:\n\t@sum=$$(shasum -a 256 README.md | cut -d" " -f1); sed -i.bak "s/source-sha256: [0-9a-f]*/source-sha256: $$sum/" README.ko.md && rm -f README.ko.md.bak';
+  // It stamps only the twins of PATHS (K877), so the land must name the conflicted twin.
+  const stamp = 'documents-stamp:\n\t@test "$(PATHS)" = README.ko.md\n\t@sum=$$(shasum -a 256 README.md | cut -d" " -f1); sed -i.bak "s/source-sha256: [0-9a-f]*/source-sha256: $$sum/" $(PATHS) && rm -f $(PATHS).bak';
   put(main, {
     'Makefile': ['kit-gates: docs-check commits-check', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', stamp, ''].join('\n'),
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['README.md', 'README.ko.md', 'Makefile'], targets: ['docs-check'] }] }, null, 2) + '\n',
@@ -580,7 +581,7 @@ test('land resolves a rebase conflict that is only the source-sha256 line of a K
   });
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const stamped = (folder: string) => spawnSync('make', ['--no-print-directory', 'documents-stamp'], { cwd: folder, encoding: 'utf8' }).status;
+  const stamped = (folder: string) => spawnSync('make', ['--no-print-directory', 'documents-stamp', 'PATHS=README.ko.md'], { cwd: folder, encoding: 'utf8' }).status;
   const folder = path.join(parent, 'repo-x');
   git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-x', 'main');
   put(folder, { 'README.md': 'one\n\ntwo\n\nthree, changed by the branch\n' });

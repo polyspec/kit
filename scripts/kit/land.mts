@@ -248,7 +248,7 @@ async function rebaseOnMain(folder: string, branch: string, print: (text: string
   // K634: a conflict that is only the source-sha256 line of Korean twins keeps one line, is stamped again and the rebase continues.
   for (let conflicts = conflictsOf(folder); rebased.status !== 0 && conflicts.length > 0 && conflicts.every(file => onlyRevisionConflict(path.join(folder, file))); conflicts = conflictsOf(folder)) {
     for (const file of conflicts) writeFileSync(path.join(folder, file), keepOneRevision(readFileSync(path.join(folder, file), 'utf8')));
-    const stamp = await runMake(folder, ['--no-print-directory', 'documents-stamp'], print);
+    const stamp = await runMake(folder, ['--no-print-directory', 'documents-stamp', `PATHS=${conflicts.join(' ')}`], print);
     if (stamp.status !== 0) break;
     git(folder, 'add', '-u');
     print(`resolved the source-sha256 line of ${conflicts.join(', ')} and stamped it again`);

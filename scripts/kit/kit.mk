@@ -337,8 +337,8 @@ commit: ## Commit the index for the item ID as TYPE(SCOPE): SUBJECT (#ID) with t
 
 .PHONY: documents-stamp
 
-documents-stamp: ## Write the source-sha256 of each English document into its Korean twin; run it after the translation matches
-	$(NODE) $(KIT)/documents-stamp.$(KIT_EXT)
+documents-stamp: ## Write the source-sha256 of each English document into the Korean twins that PATHS names, after their translation matches; with no PATHS list the twins whose source moved (K877); offline
+	$(NODE) $(KIT)/documents-stamp.$(KIT_EXT) $(PATHS)
 
 .PHONY: owner-check owner-validate
 

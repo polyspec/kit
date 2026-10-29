@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// Writes the revision marker of the Korean documents (`make documents-stamp`): in every pair that config/documents.json
-// selects, the Korean file gets `<!-- source-sha256: <sha256 of the English file> -->`, on the line after its `<!-- doc-id: ... -->`
-// line, replacing the marker there. Run it after the Korean text matches the English text; the checker
-// (`make docs-check`) compares the marker, so a stamp on an unreviewed translation hides a missing translation.
+// Writes the revision marker of the Korean documents (`make documents-stamp PATHS=<twin>...`): each named Korean twin of a pair that
+// config/documents.json selects gets `<!-- source-sha256: <sha256 of the English file> -->`, on the line after its
+// `<!-- doc-id: ... -->` line, replacing the marker there. A stamp says that the twin matches its source, so only the twins re-translated
+// are named (K877); with no PATHS nothing is stamped, and each twin whose source moved is listed with the command that stamps it.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { CONFIG, documentsOf } from './check-documents.mts';
@@ -38,12 +38,19 @@ export function stamped(text: string, sha: string): string | null {
   return lines.join('\n');
 }
 
-/** Stamps every Korean document of the pairs; returns the stamped files and a line for each file that failed. */
-export function stampAll(root: string, config: DocumentsConfig): { changed: string[]; failed: string[] } {
+/**
+ * Stamps the Korean twins of the pairs that `paths` names (K877); with no `paths` it stamps none. Returns the stamped twins, the twins
+ * whose source moved and that it did not stamp, and a line for each file that failed.
+ */
+export function stampAll(root: string, config: DocumentsConfig, paths?: readonly string[]): { changed: string[]; moved: string[]; failed: string[] } {
   const changed: string[] = [];
+  const moved: string[] = [];
   const failed: string[] = [];
+  const twins = documentsOf(root, config).map(english => english.replace(/\.md$/, '.ko.md'));
+  for (const named of paths ?? []) if (!twins.includes(named)) failed.push(`${named} is no Korean twin of ${CONFIG}`);
   for (const english of documentsOf(root, config)) {
     const korean = english.replace(/\.md$/, '.ko.md');
+    if (paths !== undefined && !paths.includes(korean)) continue;
     // documentsOf names the English file of every tracked document of a pair, and a pair has both files (check-documents
     // pair-missing).
     if (!existsSync(path.join(root, english))) {
@@ -57,12 +64,13 @@ export function stampAll(root: string, config: DocumentsConfig): { changed: stri
     const before = readFileSync(path.join(root, korean), 'utf8');
     const after = stamped(before, sha256(readFileSync(path.join(root, english))));
     if (after === null) failed.push(`${korean} has no <!-- doc-id: ... --> line; add the doc-id of the English file first`);
+    else if (after !== before && paths === undefined) moved.push(korean);
     else if (after !== before) {
       writeAtomic(path.join(root, korean), after);
       changed.push(korean);
     }
   }
-  return { changed, failed };
+  return { changed, moved, failed };
 }
 
 if (isMain(import.meta.url)) {
@@ -70,9 +78,11 @@ if (isMain(import.meta.url)) {
     console.error(`[documents-stamp] ${CONFIG} does not exist`);
     process.exit(1);
   }
-  const { changed, failed } = stampAll(repositoryRoot(), readConfig<DocumentsConfig>(repositoryRoot(), CONFIG, 'documents.schema.json'));
+  const paths = process.argv.slice(2);
+  const { changed, moved, failed } = stampAll(repositoryRoot(), readConfig<DocumentsConfig>(repositoryRoot(), CONFIG, 'documents.schema.json'), paths.length > 0 ? paths : undefined);
   for (const file of changed) console.log(`[documents-stamp] stamped ${file}`);
+  for (const file of moved) console.log(`[documents-stamp] ${file}: its source moved; after re-translating it, run make documents-stamp PATHS=${file}`);
   for (const line of failed) console.error(`[documents-stamp] ${line}`);
-  console.log(`[documents-stamp] ${changed.length} stamped, ${failed.length} failed`);
+  console.log(`[documents-stamp] ${changed.length} stamped, ${moved.length} moved and not named, ${failed.length} failed`);
   if (failed.length) process.exit(1);
 }
