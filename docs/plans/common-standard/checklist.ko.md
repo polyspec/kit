@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: f221bcd047586202a2db2cb3b7247ad07667f3c26768fc0c0898c6e904a7cd06 -->
+<!-- source-sha256: 710f6d3b6a00c1e98486860e40e74be1e2b4d4f10872538a74611d7e9ce2d994 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -764,3 +764,4 @@
 | K808 | plan의 형식 거부를 지운다: 전이, id pattern, 추가 행, main의 새 행, staged와 body 검사 | scripts/kit/plan.mts, tests/kit/plan.test.mts | `node --test tests/kit/plan.test.mts` | [ ] |
 | K809 | docs-check의 형식 거부를 지운다: 짝, revision stamp, twin 일치, plan folder, status table, doc-id, checklist 짝 | scripts/kit/check-documents.mts, tests/kit/documents.test.mts | `node --test tests/kit/documents.test.mts` | [ ] |
 | K810 | kit-check와 kit-sync의 형식 거부를 지운다: 고정 task 이름, runtime target, tracked symlink, lint 선택, retired 파일 | scripts/kit/kit-check.mts, tests/kit/kit-check.test.mts | `node --test tests/kit/kit-check.test.mts` | [ ] |
+| K811 | worktree-setup의 거부를 지운다: 이름 형식, 바깥 Composer, Python env 소유, release archive link | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test tests/kit/worktree-setup.test.mts` | [ ] |
