@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+## 0.0.64
+
 - Take the Composer archive version from the tag and prove consumers with native package repository metadata; source composer.json stays unchanged. (K748)
 
 - Run Playwright Test through run-tests with the project-local CLI and a kit reporter for each case. (K747)
@@ -19,9 +21,9 @@
 
 - Write scalar CI plan outputs bare so the copied workflow selects its parity jobs, and plan no parity job for one undeclared implementation; select the gate runner. (K745)
 
-- Prepare the Kit 0.0.63 candidate, native consumer lock and dependency review before release CI. (K744)
-
 ## 0.0.63
+
+- Prepare the Kit 0.0.63 candidate, native consumer lock and dependency review before release CI. (K744)
 
 - Scope native source linking to each runtime CI job while preserving full parity preparation and strict installed-source verification. (K743)
 

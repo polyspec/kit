@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dafb3a83c7779d5863a929a6db952675356b7e38b686b47e01ca833064c426eb -->
+<!-- source-sha256: 0702f68e6d8d151b7bb32b1c9e1b54ceba63758d326723afd887517db7f7acdc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.64
 
 - Composer archive version을 tag에서 가져오고 native package repository metadata로 consumer를 증명한다; source composer.json은 바뀌지 않는다. (K748)
 
@@ -20,9 +22,9 @@
 
 - CI plan의 scalar output을 따옴표 없이 써서 복사된 workflow가 parity job을 고르게 하고, 선언 없는 단일 구현에는 parity job을 계획하지 않는다; gate runner를 고른다. (K745)
 
-- release CI 전에 Kit 0.0.63 candidate, native consumer lock과 dependency review를 준비한다. (K744)
-
 ## 0.0.63
+
+- release CI 전에 Kit 0.0.63 candidate, native consumer lock과 dependency review를 준비한다. (K744)
 
 - 전체 parity 준비와 엄격한 설치 source 검증을 유지하면서 native source linking 범위를 각 runtime CI job에 맞춘다. (K743)
 
