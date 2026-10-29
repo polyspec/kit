@@ -1,18 +1,18 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c88f75536509e151b214aadc8d4c6bd9df8d66796c53c3d47253b8846e58e99f -->
+<!-- source-sha256: 4b09dc04c69791138c0262c3d36cb554c5fe8c7749a8fcb4e2f6ccd716533184 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- release-assets와 release-candidate-assets만 저장소가 추적하는 go.work로 실행하고, dependency review, dependency policy와 나머지 release 대상은 다시 GOWORK를 끄고 실행하므로 각 module의 lock을 release된 그대로 읽는다. (K778)
-
-- release의 manifest 검사는 polyspec package를 정확한 version의 GitHub release asset URL로 지정한 dependency를 받아들이고, 그 밖의 URL은 거부한다. (K777)
-
 - Kit 0.0.66 release를 준비한다. (K775)
 
 ## 0.0.66
+
+- release-assets와 release-candidate-assets만 저장소가 추적하는 go.work로 실행하고, dependency review, dependency policy와 나머지 release 대상은 다시 GOWORK를 끄고 실행하므로 각 module의 lock을 release된 그대로 읽는다. (K778)
+
+- release의 manifest 검사는 polyspec package를 정확한 version의 GitHub release asset URL로 지정한 dependency를 받아들이고, 그 밖의 URL은 거부한다. (K777)
 
 - link-state-check와 go benchmark 테스트 픽스처는 사례에 필요한 것 외에 저장소나 패키지 이름을 쓰지 않는다. (K776)
 
