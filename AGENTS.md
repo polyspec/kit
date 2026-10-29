@@ -104,9 +104,9 @@ and states only its own rules. The rules below are kit's own.
   Enforced by: `make kit-test`
 - Own: A dependency advisory is fixed by an update. One that no release fixes is accepted only by an entry of
   `advisoryExceptions`
-  in `config/dependency-policy.json` with its reason and removal condition, which the review and the gate print as accepted;
+  in `config/dependency-policy.json` with its reason and removal condition, which the review prints as accepted;
   it is never hidden. kit reviews its own `package-lock.json` (docs/operations/tool-inventory.md, Accepted advisories).
-  Enforced by: `make dependency-policy-check`
+  Enforced by: `tests/kit/dependency-advisory.test.mts`
 - Own: Write comments, documents and commit messages in direct language: name the action and its object.
   Enforced by: none, direct wording is a judgement of review.
 
@@ -128,7 +128,7 @@ kit is released by the annotated tag `vX.Y.Z` of a commit of `main`; the procedu
 
 - Own: A release tag is annotated, lies on a commit of `main` whose CI concluded success and that carries the consumer locks and
   the review of its lock, and a published tag is never moved.
-  Enforced by: `make release-verify`, `make dependency-policy-check`
+  Enforced by: `make release-verify`
 - Own: A release is public only after its proof installs it from a consumer project; a failed step leaves it a draft.
   Enforced by: `make release-proof`, `make release-undraft`
 - Own: Every repository releases through the vendored `workflows/release.yml`, which it never edits.

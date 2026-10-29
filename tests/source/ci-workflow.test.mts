@@ -90,13 +90,6 @@ test('the checks job uses the complete locked toolchain before fetching Rust cra
   assert.match(jobText('checks'), /- name: fetch Rust crates\n        if: \$\{\{ !cancelled\(\) \}\}\n        run: make cargo-downloads-fetch/);
 });
 
-test('the CI workflow checks the dependencies of kit as each consumer does: the gate and its mutation check (K169)', () => {
-  const checkRuns = jobRuns('checks');
-  const tools = checkRuns.indexOf('make install-tools');
-  assert.ok(checkRuns.indexOf('make dependency-policy-check') > tools, 'a step runs make dependency-policy-check after install-tools');
-  assert.ok(checkRuns.indexOf('make dependency-policy-mutation-check') > tools, 'a step runs make dependency-policy-mutation-check after install-tools');
-});
-
 test('the CI workflow checks the classes of config/rebuild.json and the owner rules of config/owner-checks.json (K182)', () => {
   // Without them in CI, four tools of scripts/kit went without a class from K156 and config/knip-entries.json without an
   // owner from K173 while every run passed.

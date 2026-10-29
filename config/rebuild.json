@@ -58,14 +58,6 @@
       "kind": "record",
       "record": "docs/rebuild/check-commits.md"
     },
-    "scripts/kit/check-dependency-policy-mutation.mts": {
-      "kind": "policy",
-      "reason": "the mutation gate of polyspec's dependency policy: it proves that the policy check fails on each planted violation; no ecosystem tool checks a policy of ours"
-    },
-    "scripts/kit/check-dependency-policy.mts": {
-      "kind": "policy",
-      "reason": "the gate of polyspec's dependency policy over the review records and the locks; it compares versions through version.mts, which K73 replaces"
-    },
     "scripts/kit/check-documents.mts": {
       "kind": "policy",
       "reason": "polyspec's document rules: translation pairs, revisions, relative links and anchors, site interpolation; its Markdown reading is markdown.mts"
@@ -629,10 +621,6 @@
     "scripts/kit/twin-merge.mts": {
       "kind": "policy",
       "reason": "the union merge of a Korean twin with its revision marker (K354), run through git's merge driver interface; the union and the marker are polyspec's rule"
-    },
-    "scripts/kit/dependency-files.mts": {
-      "kind": "policy",
-      "reason": "the rule of K459 that a change to a dependency manifest or lock of any ecosystem selects the dependency gate; the list of manifests and locks is polyspec's rule"
     },
     "scripts/kit/worktree-setup.mts": {
       "kind": "policy",

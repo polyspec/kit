@@ -702,8 +702,7 @@ Dropped behaviors:
   `version` unless it is an `archive` manifest (hyper accepts the omission everywhere, template and ordered-json require the
   version everywhere; an archive must declare it because an artifact repository reads it). The release commit that sets the
   version of a composer.json re-locks it with `composer update --lock` in its directory: the content-hash of `composer.lock`
-  covers `version`, and `make dependency-policy-check` fails the lock that the version change outdated (`composerLock`,
-  K180); every composer.json is in that check (K181).
+  covers `version` (K180).
 - Change log section: heading, entry required, the anchor lines of the next section removed (template, hyper, ordered-json);
   the link of a long section uses the `<a id>` line above the heading, else the version without its dots (hyper,
   ordered-json); the notes limit is 125000 characters (all).
@@ -823,20 +822,20 @@ The check also leaves out the S10 stub of a PHP extension, `packages/php-ext/src
 | Module | Holds | Replaces | Users |
 |---|---|---|---|
 | `paths.mts` | `repositoryRoot()`, the top level of the Git work tree of the working directory (K144), `isMain(import.meta.url)` | the root path that 22 modules computed and the `process.argv[1] === ...` test of 21 | every command and module with a default root |
-| `process.mts` | `execute`, `run`, `Stop` | `run` of release, `run` of dependency-review, the `spawnSync` calls with `encoding` and `maxBuffer` | release, dependency-review, check-toolchain, check-cargo-downloads, check-dependency-policy, git |
+| `process.mts` | `execute`, `run`, `Stop` | `run` of release, `run` of dependency-review, the `spawnSync` calls with `encoding` and `maxBuffer` | release, dependency-review, check-toolchain, check-cargo-downloads, git |
 | `git.mts` | `git`, `gitResult` | the `git` helper of full-run, push-gate, owner-check, kit-sync, tracked-files and target-report, and the direct `git` calls of git-hooks, check-commits, push-gate | those modules |
 | `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | `readJson` of dependency-state, about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, kit-sync, target-report, tool-wrappers, git-hooks and pin-python-dependency | those modules |
 | `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of dependency-state and install-composer (gone in K127), the sha512 of install-npm | those modules |
 | `time.mts` | `now`, `seconds`, `compactSeconds` | `now` of ci-targets and full-run, `seconds` of full-run and target-report (`1.2 s`), `seconds` of test-progress and test-hooks (`1.2s`) | those modules |
-| `version.mts` | `isPrerelease`, `older`, `stableDescending` by ecosystem: semver for npm and Go, @renovatebot/pep440 for PyPI; a Composer release is outdated when it is not the latest, the rule of `latest-status` of composer outdated (K73) | `compare` of changelog, the version order of dependency-state, the sort of `highestStableRelease` of dependency-review; the unused `highestStable` is removed; changelog and the release tag order use semver directly | dependency-review, check-dependency-policy |
+| `version.mts` | `isPrerelease`, `older`, `stableDescending` by ecosystem: semver for npm and Go, @renovatebot/pep440 for PyPI; a Composer release is outdated when it is not the latest, the rule of `latest-status` of composer outdated (K73) | `compare` of changelog, the version order of dependency-state, the sort of `highestStableRelease` of dependency-review; the unused `highestStable` is removed; changelog and the release tag order use semver directly | dependency-review |
 | `findings.mts` | `finding` | `finding` of status-table and changelog | status-table, changelog |
 | `markdown.mts` | `lineBlocks`, `headings` | `cells` of checklist and `rowCells` of status-table, which read every line that starts with `|` (K130: the rows and list items of the tree), and the `## ` lines of `changelog.sections` and of the release notes (K130: the headings of the tree). Its fences, prose, links and anchors read the syntax tree of mdast-util-from-markdown with GFM and YAML front matter, and heading anchors are the slugs of github-slugger and of @mdit-vue/shared (VitePress) (K120) | checklist, status-table, changelog |
 | `schema-validate.mts` | `SCHEMAS`, `readConfig`, `readJsonFile`, `parseJson`, `readConfigFindings`, `SchemaError`: the JSON boundary of kit (K158). Every JSON that a tool reads, a file or the output of a command, is validated by the strict Ajv2020 against a schema file of `scripts/kit/schema` and has the type `T` that its caller names only once ajv's type guard `ajv.compile<T>(schema)` accepts it; data that breaks the schema throws a `SchemaError` whose lines name the file or the command and the JSON Pointer of each error of ajv. A check that reports those lines as findings reads with `readConfigFindings`. `scripts/kit/kit-check.mts` is the example caller: `lockedVersion` and `installedKit` read package-lock.json and the installed package.json through `manifests.mts`, and `checkConfig` reports the errors of each config/<name>.json. The bootstrap, which runs before ajv is installed, reads a JSON object with `readJsonObject` of `bootstrap/files.mts` and checks each field itself | the read-and-validate code of `loadConfig` in checklist and in release, and every `JSON.parse(...) as T` and `readJson(...) as T` of scripts/kit (K158) | every tool that reads JSON |
-| `manifests.mts` | `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` with their readers, each validated against its schema (`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`) | the local shapes of package.json, package-lock.json, composer.json and composer.lock in dependency-state, check-dependency-policy, toolchain-floors, release, release-consumer, kit-check and owner-check (K158) | those modules |
+| `manifests.mts` | `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` with their readers, each validated against its schema (`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`) | the local shapes of package.json, package-lock.json, composer.json and composer.lock in dependency-state, toolchain-floors, release, release-consumer, kit-check and owner-check (K158) | those modules |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | `reviewedFiles` of dependency-state and `EXCLUDED` of release | dependency-state, release |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
 | `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, alint, cargo-audit and govulncheck that the release installers and the probes of check-toolchain each held; since K127 mise installs those tools and only the probes and the bootstrap read them | check-toolchain, the bootstrap |
-| `dependency-state.mts` | `UPDATE` | the same constant in check-dependency-policy and dependency-review | those modules |
+| `dependency-state.mts` | `UPDATE` | the constant of dependency-review | dependency-review |
 | `pyproject-dependencies.mts` | `dependencyArrays`, the `dependencies` of `[project]`, each extra and each group of `[dependency-groups]`; `dependencyGroups`, each group with its `{ include-group }` tables resolved as the reference implementation of PEP 735 does (K177) | the walk of the dependency arrays of pin-python-dependency, and the read of the extras alone in dependency-state, which missed the dependency groups | dependency-state, pin-python-dependency |
 
 Other duplicates removed:
@@ -844,7 +843,6 @@ Other duplicates removed:
 - `toolchainVersions` existed twice (target-report and check-toolchain). The record of `ci-targets` now takes the releases
   of node, npm, go, rust, php and composer from `check-toolchain.toolchainVersions`, which prints `22.1.0` where target-report
   printed `v22.1.0`.
-- The two `composer validate` calls of check-dependency-policy share one function.
 - `cargoAuditCommand`, `govulncheckCommand` and the path of the probe in check-toolchain were three spellings of one path;
   since K127 each is the shim of mise that `toolCommand` of `mise-tools.mts` names.
 
@@ -1131,24 +1129,23 @@ TypeScript lint resolves its declared dependency packages with Node's native pac
 
 `make dependency-review UPDATE=1` executes its planned native commands without changing Composer lock entries before or after them. Composer owns dependency resolution, platform requirements, package versions and the selected manifest's lock. The command inherits `COMPOSER` when the application explicitly selects a development manifest. The application owns its compatible requirements and path/VCS repository declarations; kit does not convert VCS repositories to guessed sibling paths, generate a scratch manifest or invent provider versions. A failed native resolution remains a failure rather than being repaired by rewriting lock metadata.
 
-`make composer-provider-entries` and `dependency-review --provider-entries` are retired entry points that fail before mutation with migration guidance. Declare local sources in the application and use `COMPOSER=<application-owned manifest> make composer-install DIR=<project>` for native development installation, or run Composer's native update for the intended packages. Released installation continues to use the released manifest and lock. Advisory review and the offline gate retain their existing lock fingerprints and security checks; retirement does not waive any advisory.
+`make composer-provider-entries` and `dependency-review --provider-entries` are retired entry points that fail before mutation with migration guidance. Declare local sources in the application and use `COMPOSER=<application-owned manifest> make composer-install DIR=<project>` for native development installation, or run Composer's native update for the intended packages. Released installation continues to use the released manifest and lock. Advisory review retains its lock fingerprints and security checks; retirement does not waive any advisory.
 
 ## Accepted advisories (K77)
 
-An advisory that no release fixes failed every dependency gate, and the only way past it was to hide it. An entry of
+An advisory that no release fixes failed the dependency review, and the only way past it was to hide it. An entry of
 `advisoryExceptions` of `config/dependency-policy.json` accepts one advisory of one package of one lock, with its `reason` and
 its `removalCondition`; `advisory` is the identifier that the review records (npm audit names an advisory by its number).
 
-Package managers select dependency versions. A newer release alone does not fail the review or gate. The review fails on unresolved advisories, stale advisory exceptions or incomplete queries; an incomplete query never replaces its record. The offline gate checks that every audited lock matches its reviewed contents and rejects unaccepted recorded advisories. It queries no registry.
+Package managers select dependency versions. A newer release alone does not fail the review. The review fails on unresolved advisories, stale advisory exceptions or incomplete queries; an incomplete query never replaces its record. The package managers verify the locks: npm ci, composer install and uv sync --locked fail on a lock that differs from its manifest (K784).
 
-- `make dependency-review` and `make dependency-policy-check` no longer fail on an accepted advisory; each prints it as accepted,
-  with its reason and removal condition, and the review record keeps it. An advisory without an entry fails both as before.
-- An entry whose advisory the review of its lock did not find is stale and fails both.
-  An entry without its reason or removal condition fails the gate and accepts nothing.
+- `make dependency-review` no longer fails on an accepted advisory; it prints it as accepted,
+  with its reason and removal condition, and the review record keeps it. An advisory without an entry fails it as before.
+- An entry whose advisory the review of its lock did not find is stale and fails it.
 
-For npm advisories, `nodePath` records the affected installed path reported by native `npm audit`; its version comes from that exact entry of the lock. If audit gives no path, or that path has no locked version, the review retains the advisory range without guessing a top-level version. Review and offline gate findings include the path. Advisory exceptions remain scoped to lock, package and advisory identifier: an accepted identifier covers all matching copies; path-specific exceptions are not supported.
+For npm advisories, `nodePath` records the affected installed path reported by native `npm audit`; its version comes from that exact entry of the lock. If audit gives no path, or that path has no locked version, the review retains the advisory range without guessing a top-level version. Review findings include the path. Advisory exceptions remain scoped to lock, package and advisory identifier: an accepted identifier covers all matching copies; path-specific exceptions are not supported.
 
-The online npm review passes native `--offline=false` explicitly: inherited npm offline mode otherwise returns a successful zero-vulnerability report without reaching the advisory endpoint. A native error payload, including one mixed with an empty `vulnerabilities` object, is an incomplete query and never replaces the committed review. A genuine vulnerability response may exit 1 and is still a complete review whose recorded advisories fail the offline gate.
+The online npm review passes native `--offline=false` explicitly: inherited npm offline mode otherwise returns a successful zero-vulnerability report without reaching the advisory endpoint. A native error payload, including one mixed with an empty `vulnerabilities` object, is an incomplete query and never replaces the committed review. A genuine vulnerability response may exit 1 and is still a complete review.
 
 - `make dependency-review UPDATE=1` updates no package for an accepted advisory.
 - kit reviews its own `package-lock.json` (`config/dependency-policy.json`, `config/dependency-review.json`). A removed advisory leaves no permanent exception: the current review must still name each accepted advisory.
@@ -1159,23 +1156,8 @@ The first-party requirements of the root are its `require` and `require-dev` and
 repository provides, which the root lock records as a path dist entry; their versions are those of the root lock. The review
 runs `composer outdated --locked --all --format=json` once in the directory of each root and keeps those packages:
 `--direct` counted the requirements of the root alone, so a requirement of a published package, such as symfony/console,
-dropped out of the review. A library that only a third-party package requires is not reviewed. The platform and lock checks
-apply to the root, and a published manifest is validated with `--no-check-lock`. `UPDATE=1` raises a requirement of a
+dropped out of the review. A library that only a third-party package requires is not reviewed. `UPDATE=1` raises a requirement of a
 published package with `composer require --no-update` in its directory and `composer update --with-dependencies` at the root.
-
-`make dependency-policy-check` checks every Composer manifest of the checkout (K181): each tracked or new composer.json is
-named by `composerPlatforms`, which runs `composer validate --strict` on it and its lock, or is a published package that a
-path repository of such a manifest provides, which runs `composer validate --no-check-lock`. Any other composer.json fails
-with the rule `composerCoverage` and the entry to add, so a lock that its manifest outdated, such as after a version bump
-without `composer update --lock`, cannot escape the check by not being listed. Not checked: a manifest that kit writes (the
-copies of `make kit-sync` and `config/phpunit/composer.json`), the Composer project of the symbol extractor that kit ships,
-and the Composer consumer project of `config/release.json` (`consumers.composer.directory`), which
-`make release-consumer-lock` resolves from the release archives.
-
-A repository has one PHP platform (K282): every entry of `composerPlatforms` and every `config.platform.php` of a Composer
-manifest of the checkout (except the manifests that kit writes) names the same PHP, and a repository that pins `.php-version`
-names its minor with the patch 1, which PHPUnit 13 needs (`8.4` gives `8.4.1`). A manifest that differs fails with the rule
-`platform` and the value to set.
 
 ## Consumer install of the release archives (K5.4)
 
@@ -1843,7 +1825,7 @@ such as the other fields of an entry. An example is `^- code: (\w+)$|^  \w+: .*$
 
 ## Python locks: PEP 751 pylock.toml (K36)
 
-The dependency gate reads a Python lock only in the standard format of PEP 751 (status Final, resolution 31 March 2025),
+The dependency review reads a Python lock only in the standard format of PEP 751 (status Final, resolution 31 March 2025),
 `pylock.toml` or `pylock.<name>.toml`, named in `pythonLocks` of `config/dependency-policy.json`. uv.lock is not read: it is
 uv's own format, and a repository that releases a wheel needs a lock that every installer reads.
 
@@ -1854,15 +1836,15 @@ Writers measured with uv 0.12.11 and pip 26.2.1: `uv export --format pylock.toml
 
 - The file is read by `scripts/kit/pylock.mts` (`readPylock`) through smol-toml (`scripts/kit/toml.mts`), which reads all of
   TOML; a text that is not valid TOML fails with the file, the line and the column.
-- `lock-version` is `"1.0"`; another version fails the gate.
+- `lock-version` is `"1.0"`.
 - Each lock's sha256 is recorded in `config/dependency-review.json`, as a lock of any other ecosystem is.
 - A registry package (`sdist` or `wheels`) is a dependency of the lock: its name and version are recorded, its latest stable
   release is queried from PyPI, and its advisories are read from the PyPI release JSON (`vulnerabilities`) of its locked
-  version. Every `sdist`, `wheels` and `archive` file carries a `sha256`, and the gate fails when one does not.
+  version. Every `sdist`, `wheels` and `archive` file carries a `sha256`.
 - A `vcs` package (git) is pinned by its `commit-id`, which must be 40 hexadecimal digits. The record holds its URL,
-  `requested-revision` and `commit-id`, and the gate fails when the lock and the record name another commit. A git package is
+  `requested-revision` and `commit-id`. A git package is
   not queried for advisories or releases.
-- A package with no source table, or a `directory` package, fails the gate: a consumer exports the lock with
+- A package with no source table, or a `directory` package, is not reviewed: a consumer exports the lock with
   `--no-emit-project`, so a local package has no release to review.
 - `created-by` is required. The fix of an outdated release or an advisory names the tool that wrote the lock: for uv,
   `uv lock --upgrade-package <name>` then the export again; for pip, `pip lock`. A lock with another or no `created-by`
@@ -2017,7 +1999,7 @@ fixture policy of `tests/kit/fixture` declares sources that exist and agree with
 - The reader of kit reads single-line strings only, so a pyproject with a multi-line string fails with its line (the reader names
   it; it is not silently skipped).
 - The check cannot compare a registry file's sha256 with the registry without the network, so a drift of one hex digit of a
-  registry hash passes it; the dependency review records the lock's sha256 and the gate fails on that change (K36).
+  registry hash passes it; the dependency review records the lock's sha256 (K36).
 - The writer needs the network (PyPI through uv) unless findLinks is declared.
 - A requirement's extras and markers do not change which packages are pinned: every package of the lock must be in the constraints,
   whatever the marker.

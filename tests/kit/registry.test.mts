@@ -7,8 +7,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { fixtureCheckout, gate } from './checkout.mts';
-import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
+import { stubRegistries } from './registry.mts';
 import { readStubLines } from './stub-json.mts';
 import { TOOL_REQUEST } from './record-tools.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
@@ -48,17 +47,3 @@ test('the go stub answers go mod edit of the fixture from the record of the real
   assert.equal(parseJson<{ Module: { Path: string } }>(go.stdout, 'go-mod.schema.json', 'go mod edit -json').Module.Path, 'example.com/kit-fixture-go');
 });
 
-// A vendored test runs in every consumer, and a consumer may install no Go and no Composer: the stubs stand in for them, so
-// the gate of the fixture, which reads its go.mod with go mod edit and checks its Composer manifest with composer validate,
-// passes with neither on PATH (K127).
-test('the gate of the fixture passes with the stubs and no go and no composer on PATH', (t) => {
-  const root = fixtureCheckout(t);
-  const stub = stubRegistries(t, root);
-  stub.registry(FIXTURE_REGISTRY);
-  const bin = stub.env.PATH?.split(path.delimiter)[0];
-  assert.ok(bin, 'the stub environment has no PATH');
-  const env = { ...stub.env, PATH: [bin, path.dirname(process.execPath), '/usr/bin', '/bin'].join(path.delimiter) };
-  for (const command of ['go', 'composer']) assert.equal(spawnSync('sh', ['-c', `command -v ${command}`], { env, encoding: 'utf8' }).stdout.trim(), path.join(bin, command), `${command} of PATH is the stub alone`);
-  const result = gate(root, env);
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-});

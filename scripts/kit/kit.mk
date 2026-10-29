@@ -209,13 +209,13 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by. commits-check reads RANGE from the run.
-kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check parity-check commits-check link-state-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check commits-check link-state-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
 # entry point above; these targets are only the disjoint workflow partitions. Toolchain probes are checked with their selected
 # TOOLS in the owning job, while the parity job checks every implementation in one run.
 .PHONY: kit-gates-static kit-gates-parity kit-gates-runtime-ts kit-gates-runtime-php kit-gates-runtime-python kit-gates-runtime-go kit-gates-runtime-rust kit-gates-runtime-php-ext
-kit-gates-static: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check dependency-policy-check parity-declarations-check commits-check bypass-check suppression-check divergence-check ## Run shared gates and the common toolchain probes
+kit-gates-static: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check commits-check bypass-check suppression-check divergence-check ## Run shared gates and the common toolchain probes
 kit-gates-parity: link-state-check parity-check ## Run package-link validation and the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate
 kit-gates-runtime-php: lint-php ## Run the PHP gate
@@ -495,11 +495,11 @@ cargo-fetch: ## Fetch the Cargo crates of the project DIR in place of cargo fetc
 unlink: ## Restore the selected native locked installation of PROJECT and remove generated go.work files; application source declarations remain; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
-# The release, the dependency review and the dependency policy use the released versions (K343), so their Go runs without the go.work of the links.
-release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof dependency-review dependency-policy-check: export GOWORK := off
+# The release and the dependency review use the released versions (K343), so their Go runs without the go.work of the links.
+release-prepare release-tools release-verify release-versions release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags release-backend release-consumer release-consumer-lock release-proof dependency-review: export GOWORK := off
 # The archive builds build the tree of the repository, so the go.work that it tracks, its own workspace and not a link, is their GOWORK;
 # naming it also hides the git-ignored go.work that link writes in each module (K774). A repository that tracks none builds with GOWORK
-# off. The review and the policy keep GOWORK off: they read the lock of each module as it is released (K778).
+# off. The review keeps GOWORK off: it reads the lock of each module as it is released (K778).
 release-assets release-candidate-assets: export GOWORK = $(if $(shell git ls-files go.work 2>/dev/null),$(CURDIR)/go.work,off)
 
 
@@ -544,14 +544,8 @@ release-proof: ## Prove the released TAG from outside the checkout: release asse
 	@test -n "$$TAG" || { echo "release-proof: TAG is required, for example make release-proof TAG=v0.0.1"; exit 1; }
 	$(ONLINE) $(NODE) $(KIT)/release-proof.$(KIT_EXT) "$$TAG"
 
-# --- dependencies: the gate reads the manifests, the locks and the review record; the review asks the registries.
-.PHONY: dependency-policy-check dependency-policy-mutation-check dependency-review composer-provider-entries
-dependency-policy-check: ## Check the manifests and locks against config/dependency-policy.json and the review record; PACKAGES=<name>[,<name>...] reports and fails only on the findings of those packages (K493); offline
-	$(NODE) $(KIT)/check-dependency-policy.$(KIT_EXT) $(if $(filter command line,$(origin PACKAGES)),--packages $(PACKAGES))
-
-dependency-policy-mutation-check: ## Check that the dependency gate rejects each known mutation of the checkout; offline
-	$(NODE) $(KIT)/check-dependency-policy-mutation.$(KIT_EXT)
-
+# --- dependencies: the review asks the registries.
+.PHONY: dependency-review composer-provider-entries
 # K435: TARGETS names the versions of one batch, so that every checkout takes the same pin and records the same snapshot.
 dependency-review: ## Ask the registries for newer stable releases and advisories; RECORD=1 records the review, UPDATE=1 updates first; TARGETS=<file> with UPDATE=1 takes the named versions of its JSON file (dependency-targets.schema.json) in place of the latest stable releases, and RECORD=1 then records its snapshot moment; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/dependency-review.$(KIT_EXT) $(if $(RECORD),--record) $(if $(UPDATE),--update) $(if $(TARGETS),--targets $(TARGETS))

@@ -1,5 +1,5 @@
 // Helpers of the dependency tests: a copy of tests/kit/fixture as a Git repository of a temporary directory, in which
-// the tools of kit run (kit-tools.mts) and read that checkout, and the commands that run the gate and the review in it.
+// the tools of kit run (kit-tools.mts) and read that checkout, and the command that runs the review in it.
 import { spawnSync } from 'node:child_process';
 import type { TestContext } from 'node:test';
 import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url';
 import { removeSandbox } from './sandbox-cleanup.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { tool } from './kit-tools.mts';
-import { toolStubs } from './registry.mts';
 import { readStubLines, STUB_CALL } from './stub-json.mts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -29,8 +28,6 @@ export function fixtureCheckout(t: Pick<TestContext, 'after'>) {
   return directory;
 }
 
-// The gate runs with the stubs of go and composer unless a test gives its own registries (registry.mts).
-export const gate = (root: string, env: NodeJS.ProcessEnv = toolStubs(root), args: string[] = []) => spawnSync(process.execPath, [tool(import.meta.resolve("../../scripts/kit/check-dependency-policy.mts")), ...args], { cwd: root, encoding: 'utf8', env });
 export const review = (root: string, args: string[], env?: NodeJS.ProcessEnv) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/dependency-review.mts')), ...args], { cwd: root, encoding: 'utf8', env });
 
 /** The JSON report of `cargo audit --json`, as far as the stub reads it. */

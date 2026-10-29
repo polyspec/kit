@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: d79b3b4a5860c3be63f4edbd066cccd927a300d4e0f3177644fe97eb2a1f41ba -->
+<!-- source-sha256: 869dacf1eaa489db7666cdf8c3f6587fe0441f4cce400eabf6a2ba7c85b41170 -->
 # 릴리스
 
 [English](release.md)
@@ -30,9 +30,8 @@ command를 다시 실행합니다. candidate archive 이름을 대상으로 `mak
 `tests/release-consumer/*/`에 기록된 manifest와 lock을 CI 및 tag 생성 전에 commit합니다
 (docs/operations/tool-inventory.md, Consumer install of the release archives, 1단계와 2단계). 버전 변경은 package-manager lock을
 다시 쓰므로, 릴리스 commit은 `make dependency-review RECORD=1`(ONLINE)이 해당 lock에 대해 쓴 `config/dependency-review.json`도 담습니다.
-CI는 review와 다른 lock을 실패시키는 `make dependency-policy-check`를 실행합니다(K169). composer.json의 버전 변경도 그 directory에서
-`composer update --lock`으로 다시 lock합니다. `composer.lock`의 content-hash가 `version`을 포함하므로, 검사는 그 변경이 낡게 만든 lock을
-실패시킵니다(`composerLock`, K180, K181). proof는 lock으로 archive를 설치하므로 lock이 없는 commit은 tag를 만들 수 없습니다. 이 commit은
+`composer.lock`의 content-hash가 `version`을 포함하므로, composer.json의 버전 변경도 그 directory에서 `composer update --lock`으로 다시
+lock합니다. proof는 lock으로 archive를 설치하므로 lock이 없는 commit은 tag를 만들 수 없습니다. 이 commit은
 `main`에 들어가고 CI가 success로 끝나야 실제 tag를 만듭니다. 이후 `make release-assets TAG=vX.Y.Z`로 그 tag의 공식 asset을 빌드합니다.
 이 경로는 실제 tag를 요구하고 읽으며 publication의 유일한 source입니다. (2) release workflow를 tag와 함께 dispatch합니다
 (`gh workflow run release.yml -f tag=vX.Y.Z`, 또는

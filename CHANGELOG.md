@@ -11,8 +11,11 @@
 
 - Removed-With passes a deleted test only when the test itself names the deleted file, so an unrelated file deleted alongside opens no gate. (K793)
 - The commit-type check of K449 reads a Markdown document as a document in every folder, and a release commit may stage uv.lock beside the other locks. (K791)
+- Delete dependency-policy-check and dependency-policy-mutation-check; npm ci, composer install and uv sync --locked verify the locks. (K784)
 
 - The release manifest check keeps only the tag version of the repository own packages; the form of every other dependency, including the polyspec release asset URL of K777, is the package manager's to resolve. (K785)
+
+- worktree-setup prepares the environment of each tracked locked uv project, at uv workspace dir with UV_PROJECT_ENVIRONMENT or .venv, and no environment of the pypi: tools under .mise/locks, which a worktree runs from the main checkout. (K781)
 
 - layout-check owns the S10 rule that a PHP library requires no application framework; dependency-policy-check no longer checks it. (K783)
 

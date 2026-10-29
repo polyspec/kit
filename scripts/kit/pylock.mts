@@ -3,7 +3,7 @@
 //
 // `readPylock` returns the lock version, the writer named by `created-by` (null when absent) and each package with its source:
 // `registry` (sdist and wheels, each with its sha256 or null), `archive` (one URL file), `vcs` (git with its requested revision
-// and commit), `directory` (a local path) or `none` (no source table). The gate judges the hashes, the commit and the sources.
+// and commit), `directory` (a local path) or `none` (no source table).
 // PEP 751 makes each of these fields a string; a value of another type fails with the field and the package.
 import { isTable, readToml, type TomlTable, type TomlValue } from './toml.mts';
 

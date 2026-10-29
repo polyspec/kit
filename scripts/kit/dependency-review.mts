@@ -8,7 +8,7 @@
 //   node scripts/kit/dependency-review.mts [--root <checkout>] [--record] [--update] [--targets <file>]
 //
 // --record writes what it reviewed to config/dependency-review.json: the time, the sha256 and the advisories of every
-// lock, and the locked and latest stable version of every registry dependency. The offline gate reads only the reviewed locks and advisories.
+// lock, and the locked and latest stable version of every registry dependency.
 // --update first raises every newer dependency without an exception to its latest stable release, keeping the range
 // operator of its manifest, and updates the packages with an advisory; `npm dedupe` then installs one version of each
 // npm package that one version satisfies, since an install for one workspace keeps the release of the root; then it
@@ -593,7 +593,7 @@ export function review(root: string, targets?: Targets) {
   }
   const record = {
     schema: 1,
-    comment: 'Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries; make dependency-policy-check compares the checkout with it without a network.',
+    comment: 'Written by make dependency-review RECORD=1 (scripts/kit/dependency-review.mts) from the registries.',
     reviewed: targets?.snapshot ?? new Date().toISOString(),
     // advisories answers every lock of the state.
     locks: state.locks.map(lock => ({ lock, sha256: fileDigest(path.join(root, lock)), advisories: (present(audits.get(lock), 'audits.get(lock)').advisories ?? []).map(({ package: name, version, range, nodePath, id, severity, title, url }) => ({ package: name, ...(nodePath === undefined ? {} : { nodePath }), ...(version !== undefined ? { version } : { range }), id, severity, title, ...(url ? { url } : {}) })) })),

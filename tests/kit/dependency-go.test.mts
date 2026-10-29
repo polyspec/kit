@@ -9,10 +9,10 @@ import test from 'node:test';
 import { isJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { goRequirements } from '../../scripts/kit/dependency-state.mts';
 import { goAdvisories, updatePlan } from '../../scripts/kit/dependency-review.mts';
-import { fixtureCheckout as fixture, gate, govulncheckCalls, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
+import { fixtureCheckout as fixture, govulncheckCalls, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries, toolStubs } from './registry.mts';
 import { readFixture } from './json-fixture.mts';
-import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
+import type { ReviewRecord } from '../../scripts/kit/dependency-state.mts';
 
 // A SARIF report of govulncheck (-format sarif) of the shape that govulncheck 1.1.4 writes: one rule per vulnerability that
 // the scan found, and one result each; a result whose code calls the vulnerable function has a code flow that ends in it.
@@ -58,7 +58,7 @@ test('the SARIF report of govulncheck gives an advisory for each vulnerability t
   assert.deepEqual(goAdvisories({ version: '2.1.0', runs: [{ tool: { driver: { name: 'govulncheck', rules: [] } }, results: [] }] }), []);
 });
 
-test('the review reports a newer stable release of a Go module and the gate reads the record', (t) => {
+test('the review reports a newer stable release of a Go module', (t) => {
   const root = fixture(t);
   installCargoAuditStub(root);
   installGovulncheckStub(root);
@@ -67,22 +67,6 @@ test('the review reports a newer stable release of a Go module and the gate read
   const result = review(root, [], stub.env);
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.match(result.stdout, /^\[dependency-review\] packages\/fixture-go\/go\.mod github\.com\/google\/uuid v1\.6\.0 < v1\.7\.0: a newer stable release exists\. Fix: make dependency-review UPDATE=1\.$/m);
-  assert.equal(gate(root).status, 0);
-});
-
-test('under go.work a module that requires only workspace members needs no go.sum, and an external requirement needs one', (t) => {
-  const root = fixture(t);
-  const write = (file: string, text: string) => { mkdirSync(path.dirname(path.join(root, file)), { recursive: true }); writeFileSync(path.join(root, file), text); };
-  // A sibling module that requires only another module of the workspace, without a go.sum.
-  write('go.work', 'go 1.21\n\nuse (\n\t./packages/fixture-go\n\t./packages/sibling\n)\n');
-  write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire example.com/kit-fixture-go v0.0.0\n');
-  write('packages/sibling/sibling.go', 'package sibling\n');
-  const passed = gate(root);
-  assert.equal(passed.status, 0, passed.stdout + passed.stderr);
-  write('packages/sibling/go.mod', 'module example.com/sibling\n\ngo 1.21\n\nrequire (\n\texample.com/kit-fixture-go v0.0.0\n\tgithub.com/google/uuid v1.6.0\n)\n');
-  const failed = gate(root);
-  assert.notEqual(failed.status, 0, failed.stdout + failed.stderr);
-  assert.match(failed.stderr, /packages\/sibling\/go\.mod requires modules and packages\/sibling\/go\.sum is missing/);
 });
 
 test('a Go module without a stable release is an error of its query, not a module at its latest release', (t) => {

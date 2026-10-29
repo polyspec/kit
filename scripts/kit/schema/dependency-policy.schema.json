@@ -176,7 +176,7 @@
       }
     },
     "advisoryExceptions": {
-      "description": "Each advisory of a package of a lock that no release fixes, accepted with its reason until its removal condition holds. make dependency-review and make dependency-policy-check print an accepted advisory with its reason and fail on an exception whose advisory the review of its lock did not find.",
+      "description": "Each advisory of a package of a lock that no release fixes, accepted with its reason until its removal condition holds. make dependency-review prints an accepted advisory with its reason and fails on an exception whose advisory the review of its lock did not find.",
       "type": "array",
       "items": {
         "type": "object",

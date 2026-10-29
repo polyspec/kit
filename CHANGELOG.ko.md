@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d2c26961f049ad89b3fc4e8b76efed125581b2d3e6da0dbd6dcb2a829f0a81e9 -->
+<!-- source-sha256: 468f004943802f12b0ddcb0d8ead4929aa8758801280beb77efccffac5f6658c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -12,8 +12,11 @@
 
 - Removed-With는 삭제된 테스트가 그 삭제된 파일을 직접 가리킬 때만 통과시키므로, 함께 지운 무관한 파일로는 gate가 열리지 않는다. (K793)
 - K449의 commit-type 검사는 어느 폴더에서든 Markdown 문서를 문서로 읽고, release commit은 다른 lock과 함께 uv.lock을 stage할 수 있다. (K791)
+- dependency-policy-check와 dependency-policy-mutation-check를 지운다. lock은 npm ci, composer install, uv sync --locked가 검증한다. (K784)
 
 - release manifest 검사는 저장소 자체 package의 tag version만 확인하고, K777의 polyspec release asset URL을 포함한 다른 모든 의존성의 형식은 package manager가 해석한다. (K785)
+
+- worktree-setup은 추적되는 잠긴 uv project마다 uv workspace dir에 UV_PROJECT_ENVIRONMENT 또는 .venv를 붙인 환경을 준비하고, worktree가 main checkout에서 실행하는 .mise/locks의 pypi: 도구 환경은 준비하지 않는다. (K781)
 
 - PHP library가 application framework를 require하지 않는다는 S10 규칙은 layout-check가 맡고, dependency-policy-check는 더 이상 검사하지 않는다. (K783)
 

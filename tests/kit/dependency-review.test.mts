@@ -13,7 +13,7 @@ import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { highestStableRelease, runUpdateSteps, targetRelease, TARGET_RELEASE_ECOSYSTEMS, updatePlan } from '../../scripts/kit/dependency-review.mts';
 import { TOOLCHAIN } from '../../scripts/kit/dependency-state.mts';
 import type { Dependency } from '../../scripts/kit/dependency-state.mts';
-import { fixtureCheckout as fixture, gate, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
+import { fixtureCheckout as fixture, installCargoAuditStub, installGovulncheckStub, review } from './checkout.mts';
 import { FIXTURE_REGISTRY, stubRegistries } from './registry.mts';
 import { editFixture } from './json-fixture.mts';
 import { put } from './tree.mts';
@@ -38,14 +38,13 @@ test('the latest PyPI release is the highest PEP 440 release with files, a post-
 });
 
 // A checkout without config/dependency-policy.json is told so by name, not by a stack trace of the read (K146).
-test('the review and the gate name a missing policy file instead of failing with a stack trace (K146)', (t) => {
+test('the review names a missing policy file instead of failing with a stack trace (K146)', (t) => {
   const root = fixture(t);
   rmSync(path.join(root, 'config/dependency-policy.json'));
-  for (const result of [review(root, []), gate(root)]) {
-    assert.equal(result.status, 1, result.stderr);
-    assert.match(result.stderr, /config\/dependency-policy\.json is missing/);
-    assert.doesNotMatch(result.stderr, /^\s+at /m);
-  }
+  const result = review(root, []);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /config\/dependency-policy\.json is missing/);
+  assert.doesNotMatch(result.stderr, /^\s+at /m);
 });
 
 // K168: a Composer monorepo has one development composer.json at the root, which requires its published packages through

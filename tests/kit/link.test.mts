@@ -701,16 +701,16 @@ test('a release target runs with GOWORK off, and a Go target keeps the GOWORK of
   const { GOWORK: _inherited, ...base } = process.env;
   const make = (...goals: string[]) => spawnSync('make', ['-C', dir, `NODE=${path.join(dir, 'bin/node')}`, ...goals], { encoding: 'utf8', env: { ...base, TAG: 'v0.0.1' } });
   assert.equal(make('release-assets').status, 0);
-  assert.equal(make('dependency-policy-check').status, 0);
+  assert.equal(make('dependency-review').status, 0);
   assert.equal(make('kit-fixture-record').status, 0);
   const lines = readFileSync(log, 'utf8').trim().split('\n');
   assert.match(lines[0] ?? '', /assets v0\.0\.1 GOWORK=off$/);
-  // The policy reads the released modules as the review does (K343).
-  assert.match(lines[1] ?? '', /check-dependency-policy\.mts GOWORK=off$/);
+  // The review reads the released modules (K343).
+  assert.match(lines[1] ?? '', /dependency-review\.mts GOWORK=off$/);
   assert.match(lines[2] ?? '', /record-fixture\.mts GOWORK=$/);
   assert.equal(existsSync(path.join(dir, 'var/link')), false, 'make writes no link file of its own');
 });
-test('K774, K778: an archive build runs with the go.work that the repository tracks, the dependency policy with GOWORK off; a go.work it does not track stays off', (t) => {
+test('K774, K778: an archive build runs with the go.work that the repository tracks, the dependency review with GOWORK off; a go.work it does not track stays off', (t) => {
   const dir = kitSandbox(t);
   const log = path.join(dir, 'node.log');
   put(dir, { 'bin/node': `#!/bin/sh\necho "$* GOWORK=$GOWORK" >> ${JSON.stringify(log)}\n`, 'go.work': 'go 1.25\n\nuse ./mod\n' });
@@ -721,13 +721,13 @@ test('K774, K778: an archive build runs with the go.work that the repository tra
   assert.equal(make('release-assets').status, 0);
   git(dir, 'add', 'go.work');
   assert.equal(make('release-assets').status, 0);
-  assert.equal(make('dependency-policy-check').status, 0);
+  assert.equal(make('dependency-review').status, 0);
   const lines = readFileSync(log, 'utf8').trim().split('\n');
   // A go.work that git does not track is one that link wrote, so the release runs without it.
   assert.match(lines[0] ?? '', /assets v0\.0\.1 GOWORK=off$/);
   assert.equal(lines[1], `${lines[1]?.split(' GOWORK=')[0]} GOWORK=${path.join(dir, 'go.work')}`);
-  // The policy reads the lock of each module as it is released, so the workspace of the repository is not its GOWORK (K778).
-  assert.match(lines[2] ?? '', /check-dependency-policy\.mts GOWORK=off$/);
+  // The review reads the lock of each module as it is released, so the workspace of the repository is not its GOWORK (K778).
+  assert.match(lines[2] ?? '', /dependency-review\.mts GOWORK=off$/);
 });
 test('K205: each Go module gets a git-ignored go.work at its root that uses the module and the providers; unlink --project removes only its own', (t) => {
   const { consumer, env, log } = workspace(t);

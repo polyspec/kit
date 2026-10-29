@@ -61,15 +61,6 @@ jobs:
       - name: layout check
         if: ${{ !cancelled() }}
         run: make layout-check
-      # kit checks its own dependencies as each consumer does (K169): the manifests and locks against
-      # config/dependency-policy.json and the review record config/dependency-review.json, offline, and that the gate rejects
-      # each known mutation of the checkout. A dependency change without make dependency-review RECORD=1 fails here.
-      - name: dependency policy check
-        if: ${{ !cancelled() }}
-        run: make dependency-policy-check
-      - name: dependency policy mutation check
-        if: ${{ !cancelled() }}
-        run: make dependency-policy-mutation-check
       # jscpd, which npm ci installs, fails while a piece of code exists twice outside config/duplication.json (K126, K248-3).
       - name: duplication check
         if: ${{ !cancelled() }}

@@ -78,12 +78,10 @@ test('a make invocation sets core.hooksPath in a checkout that tracks the pre-pu
   assert.equal(git(directory, 'config', 'core.hooksPath'), '.githooks');
 });
 
-test('the dependency targets run the gate, its mutation check and the review with the flags that the variables name', (t) => {
+test('the dependency review target runs the review with the flags that the variables name', (t) => {
   const directory = repository(t);
   // make leaves the spaces of an empty $(if) in a printed recipe line, so the lines are compared with single spaces and no edge spaces.
   const lines = (...args: string[]) => commands(directory, ...args).map(line => line.trim().replace(/\s+/g, ' '));
-  assert.deepEqual(lines('dependency-policy-check'), ['$(NODE) scripts/kit/check-dependency-policy.mts']);
-  assert.deepEqual(lines('dependency-policy-mutation-check'), ['$(NODE) scripts/kit/check-dependency-policy-mutation.mts']);
   assert.deepEqual(lines('dependency-review'), ['$(NODE) scripts/kit/dependency-review.mts']);
   assert.deepEqual(lines('dependency-review', 'RECORD=1'), ['$(NODE) scripts/kit/dependency-review.mts --record']);
   assert.deepEqual(lines('dependency-review', 'UPDATE=1', 'RECORD=1'), ['$(NODE) scripts/kit/dependency-review.mts --record --update']);

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 889793d84e8c5f40a2ff713fb0c6a7aeed9db0f98f2e313e2aca901375c06f27 -->
+<!-- source-sha256: 1e2598e08bdfab7b0b5353ab1bd6fe583b7e2c95496f846ce6c1611a1986899c -->
 
 # 도구 목록
 
@@ -635,8 +635,7 @@ go.mod의 module path에 연결합니다.
   `changelogTranslations`). composer.json은 `archive` manifest가 아니면 `version`을 생략할 수 있습니다(hyper는 어디서나 생략을 허용하고
   template과 ordered-json은 어디서나 version을 요구합니다. artifact repository가 version을 읽으므로 archive는 선언해야 합니다).
   composer.json의 version을 정하는 릴리스 commit은 그 directory에서 `composer update --lock`으로 다시 lock합니다: `composer.lock`의
-  content-hash가 `version`을 포함하고, `make dependency-policy-check`는 버전 변경이 낡게 만든 lock을 실패시킵니다(`composerLock`,
-  K180); 모든 composer.json이 그 검사에 듭니다(K181).
+  content-hash가 `version`을 포함합니다(K180).
 - changelog section: heading, entry 필수, 다음 section의 anchor 줄 제거(template, hyper, ordered-json); 긴 section의 link는 heading 위의
   `<a id>` 줄을 쓰고 없으면 점을 뺀 version을 씁니다(hyper, ordered-json); notes 한도는 125000자입니다(모두).
 - manifest 규칙(`manifestProblems`)은 규칙의 합집합입니다: npm의 모든 dependency field(`dependencies`, `devDependencies`,
@@ -741,20 +740,20 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 | Module | 담는 것 | 대체한 것 | 사용처 |
 |---|---|---|---|
 | `paths.mts` | working directory가 속한 Git work tree의 top level인 `repositoryRoot()`(K144), `isMain(import.meta.url)` | 22개 module이 계산하던 root 경로와 21곳의 `process.argv[1] === ...` 검사 | 기본 root를 쓰는 모든 command와 module |
-| `process.mts` | `execute`, `run`, `Stop` | release의 `run`, dependency-review의 `run`, `encoding`과 `maxBuffer`를 적은 `spawnSync` 호출 | release, dependency-review, check-toolchain, check-cargo-downloads, check-dependency-policy, git |
+| `process.mts` | `execute`, `run`, `Stop` | release의 `run`, dependency-review의 `run`, `encoding`과 `maxBuffer`를 적은 `spawnSync` 호출 | release, dependency-review, check-toolchain, check-cargo-downloads, git |
 | `git.mts` | `git`, `gitResult` | full-run, push-gate, owner-check, kit-sync, tracked-files, target-report의 `git` helper와 git-hooks, check-commits, push-gate의 직접 `git` 호출 | 위 module들 |
 | `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | dependency-state의 `readJson`, 약 25곳의 `JSON.parse(readFileSync(...))`, full-run, kit-sync, target-report, tool-wrappers, git-hooks, pin-python-dependency의 임시 파일과 rename 쓰기 | 위 module들 |
 | `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | check-documents와 kit-check의 `sha256`, dependency-state와 install-composer(K127에서 사라짐)의 `digest`, install-npm의 sha512 | 위 module들 |
 | `time.mts` | `now`, `seconds`, `compactSeconds` | ci-targets와 full-run의 `now`, full-run과 target-report의 `seconds`(`1.2 s`), test-progress와 test-hooks의 `seconds`(`1.2s`) | 위 module들 |
-| `version.mts` | 생태계별 `isPrerelease`, `older`, `stableDescending`: npm과 Go는 semver, PyPI는 @renovatebot/pep440; Composer release는 최신이 아니면 오래된 것이며, 이는 composer outdated의 `latest-status` 규칙입니다(K73) | changelog의 `compare`, dependency-state의 version 순서, dependency-review의 `highestStableRelease` 정렬; 쓰이지 않던 `highestStable`은 없앰; changelog와 release tag 순서는 semver를 직접 씀 | dependency-review, check-dependency-policy |
+| `version.mts` | 생태계별 `isPrerelease`, `older`, `stableDescending`: npm과 Go는 semver, PyPI는 @renovatebot/pep440; Composer release는 최신이 아니면 오래된 것이며, 이는 composer outdated의 `latest-status` 규칙입니다(K73) | changelog의 `compare`, dependency-state의 version 순서, dependency-review의 `highestStableRelease` 정렬; 쓰이지 않던 `highestStable`은 없앰; changelog와 release tag 순서는 semver를 직접 씀 | dependency-review |
 | `findings.mts` | `finding` | status-table과 changelog의 `finding` | status-table, changelog |
 | `markdown.mts` | `lineBlocks`, `headings` | `|`로 시작하는 모든 줄을 읽던 checklist의 `cells`와 status-table의 `rowCells`(K130: tree의 행과 list item), `changelog.sections`와 release notes의 `## ` 줄(K130: tree의 heading). fence, 산문, link, anchor는 GFM과 YAML front matter를 켠 mdast-util-from-markdown의 syntax tree에서 읽고, heading anchor는 github-slugger와 @mdit-vue/shared(VitePress)의 slug임(K120) | checklist, status-table, changelog |
 | `schema-validate.mts` | `SCHEMAS`, `readConfig`, `readJsonFile`, `parseJson`, `readConfigFindings`, `SchemaError`: kit의 JSON 경계(K158). 도구가 읽는 모든 JSON(파일이나 command의 출력)은 strict Ajv2020이 `scripts/kit/schema`의 schema 파일로 검증하며, ajv의 type guard `ajv.compile<T>(schema)`가 받아들인 뒤에야 호출자가 정한 type `T`를 가집니다. schema를 어기는 data는 `SchemaError`를 던지고, 그 각 줄은 파일이나 command와 ajv error의 JSON Pointer를 밝힙니다. 그 줄을 finding으로 보고하는 check는 `readConfigFindings`로 읽습니다. 예시 호출자는 `scripts/kit/kit-check.mts`입니다: `lockedVersion`과 `installedKit`는 `manifests.mts`로 package-lock.json과 설치된 package.json을 읽고, `checkConfig`는 각 config/<name>.json의 error를 보고합니다. ajv가 설치되기 전에 도는 bootstrap은 `bootstrap/files.mts`의 `readJsonObject`로 JSON object를 읽고 각 field를 스스로 검사합니다 | checklist와 release의 `loadConfig`에 있던 읽기와 검증 코드, scripts/kit의 모든 `JSON.parse(...) as T`와 `readJson(...) as T`(K158) | JSON을 읽는 모든 도구 |
-| `manifests.mts` | 각자의 schema(`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`)로 검증하는 reader와 함께 `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` | dependency-state, check-dependency-policy, toolchain-floors, release, release-consumer, kit-check, owner-check에 있던 package.json, package-lock.json, composer.json, composer.lock의 지역 shape(K158) | 위 module들 |
+| `manifests.mts` | 각자의 schema(`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`)로 검증하는 reader와 함께 `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` | dependency-state, toolchain-floors, release, release-consumer, kit-check, owner-check에 있던 package.json, package-lock.json, composer.json, composer.lock의 지역 shape(K158) | 위 module들 |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | dependency-state의 `reviewedFiles`와 release의 `EXCLUDED` | dependency-state, release |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
 | `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | release installer와 check-toolchain의 probe가 각자 가진 ruff, uv, alint, cargo-audit, govulncheck의 version 인자와 pattern. K127 이후 그 도구는 mise가 설치하고, probe와 bootstrap만 읽음 | check-toolchain, bootstrap |
-| `dependency-state.mts` | `UPDATE` | check-dependency-policy와 dependency-review의 같은 상수 | 위 module들 |
+| `dependency-state.mts` | `UPDATE` | dependency-review의 상수 | dependency-review |
 | `pyproject-dependencies.mts` | `dependencyArrays`: `[project]`의 `dependencies`, 각 extra, `[dependency-groups]`의 각 group; `dependencyGroups`: PEP 735의 reference implementation처럼 `{ include-group }` table을 푼 각 group(K177) | pin-python-dependency의 dependency array 순회와, dependency group을 빠뜨린 dependency-state의 extra만의 읽기 | dependency-state, pin-python-dependency |
 
 그 밖에 없앤 중복:
@@ -762,7 +761,6 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 - `toolchainVersions`가 둘(target-report, check-toolchain) 있었습니다. 이제 `ci-targets`의 record는 node, npm, go, rust, php,
   composer의 release를 `check-toolchain.toolchainVersions`에서 가져오며, target-report가 `v22.1.0`으로 출력하던 것이 `22.1.0`으로
   출력됩니다.
-- check-dependency-policy의 `composer validate` 호출 두 곳이 함수 하나를 공유합니다.
 - `cargoAuditCommand`, `govulncheckCommand`, check-toolchain probe의 경로는 같은 경로의 세 가지 표기였습니다. K127 이후
   각각은 `mise-tools.mts`의 `toolCommand`가 가리키는 mise의 shim입니다.
 
@@ -1033,24 +1031,23 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
 
 `make dependency-review UPDATE=1`은 계획한 native 명령을 실행하며 그 전후에 Composer lock entry를 바꾸지 않습니다. Dependency 해석, platform requirement, package version과 선택한 manifest의 lock은 Composer가 관리합니다. 앱이 개발 manifest를 명시적으로 선택하면 명령은 `COMPOSER`를 상속합니다. 호환 requirement와 path/VCS repository 선언은 앱 소유이며 kit은 VCS repository를 추정한 sibling path로 바꾸거나 scratch manifest를 생성하거나 provider version을 만들지 않습니다. Native 해석 실패는 lock metadata 보정으로 통과시키지 않고 실패로 유지합니다.
 
-`make composer-provider-entries`와 `dependency-review --provider-entries`는 폐기된 진입점이며 변경 전에 전환 안내와 함께 실패합니다. 앱에 로컬 source를 선언하고 native 개발 설치에는 `COMPOSER=<application-owned manifest> make composer-install DIR=<project>`를 사용하거나 원하는 package에 Composer의 native update를 실행합니다. 배포 설치는 계속 배포 manifest와 lock을 사용합니다. Advisory review와 offline gate는 기존 lock fingerprint와 보안 검사를 유지하며 진입점 폐기는 advisory를 면제하지 않습니다.
+`make composer-provider-entries`와 `dependency-review --provider-entries`는 폐기된 진입점이며 변경 전에 전환 안내와 함께 실패합니다. 앱에 로컬 source를 선언하고 native 개발 설치에는 `COMPOSER=<application-owned manifest> make composer-install DIR=<project>`를 사용하거나 원하는 package에 Composer의 native update를 실행합니다. 배포 설치는 계속 배포 manifest와 lock을 사용합니다. Advisory review는 lock fingerprint와 보안 검사를 유지하며 진입점 폐기는 advisory를 면제하지 않습니다.
 
 ## 받아들인 advisory (K77)
 
-어떤 release도 고치지 않는 advisory는 모든 dependency gate를 실패시켰고, 통과하는 길은 숨기는 것뿐이었습니다.
+어떤 release도 고치지 않는 advisory는 dependency review를 실패시켰고, 통과하는 길은 숨기는 것뿐이었습니다.
 `config/dependency-policy.json`의 `advisoryExceptions` 항목은 한 lock의 한 package의 advisory 하나를 `reason`과
 `removalCondition`과 함께 받아들입니다. `advisory`는 review가 기록하는 식별자입니다(npm audit는 advisory를 번호로 부릅니다).
 
-Dependency version은 package manager가 선택합니다. 새 release가 있다는 이유만으로 review나 gate가 실패하지 않습니다. Review는 해결되지 않은 advisory, stale advisory exception, 불완전한 조회에서 실패하며, 조회가 불완전하면 record를 교체하지 않습니다. Offline gate는 audit 대상 lock의 내용이 review 당시와 같은지 확인하고 허용되지 않은 기록된 advisory를 거부합니다. Registry에 조회하지 않습니다.
+Dependency version은 package manager가 선택합니다. 새 release가 있다는 이유만으로 review가 실패하지 않습니다. Review는 해결되지 않은 advisory, stale advisory exception, 불완전한 조회에서 실패하며, 조회가 불완전하면 record를 교체하지 않습니다. Lock은 package manager가 검증합니다: npm ci, composer install, uv sync --locked는 manifest와 다른 lock에서 실패합니다(K784).
 
-- `make dependency-review`와 `make dependency-policy-check`는 받아들인 advisory에서 실패하지 않고, 각각 그 advisory를 이유와
-  제거 조건과 함께 받아들였다고 출력하며, review 기록은 그 advisory를 유지합니다. 항목이 없는 advisory는 전처럼 둘 다 실패시킵니다.
-- lock의 review가 찾지 못한 advisory를 적은 항목은 stale이며 둘 다 실패시킵니다. 이유나 제거 조건이
-  없는 항목은 gate를 실패시키고 아무것도 받아들이지 않습니다.
+- `make dependency-review`는 받아들인 advisory에서 실패하지 않고, 그 advisory를 이유와
+  제거 조건과 함께 받아들였다고 출력하며, review 기록은 그 advisory를 유지합니다. 항목이 없는 advisory는 전처럼 review를 실패시킵니다.
+- lock의 review가 찾지 못한 advisory를 적은 항목은 stale이며 review를 실패시킵니다.
 
-npm advisory의 `nodePath`는 native `npm audit`가 보고한 영향받는 설치 path이며 version은 lock의 정확히 그 entry에서 읽는다. Audit가 path를 주지 않거나 해당 path의 locked version이 없으면 top-level version을 추측하지 않고 advisory range를 유지한다. Review와 offline gate finding은 path를 포함한다. Advisory exception의 범위는 lock, package와 advisory identifier이며 허용된 identifier는 일치하는 모든 copy에 적용된다. Path별 exception은 지원하지 않는다.
+npm advisory의 `nodePath`는 native `npm audit`가 보고한 영향받는 설치 path이며 version은 lock의 정확히 그 entry에서 읽는다. Audit가 path를 주지 않거나 해당 path의 locked version이 없으면 top-level version을 추측하지 않고 advisory range를 유지한다. Review finding은 path를 포함한다. Advisory exception의 범위는 lock, package와 advisory identifier이며 허용된 identifier는 일치하는 모든 copy에 적용된다. Path별 exception은 지원하지 않는다.
 
-Online npm review는 native `--offline=false`를 명시한다. 상속된 npm offline mode는 advisory endpoint에 도달하지 않고 성공한 zero-vulnerability report를 반환할 수 있기 때문이다. 빈 `vulnerabilities` object와 섞인 경우를 포함한 native error payload는 불완전한 query이며 committed review를 덮지 않는다. 실제 취약점 응답의 exit 1은 완전한 review로 기록되며 기록된 advisory는 offline gate에서 실패한다.
+Online npm review는 native `--offline=false`를 명시한다. 상속된 npm offline mode는 advisory endpoint에 도달하지 않고 성공한 zero-vulnerability report를 반환할 수 있기 때문이다. 빈 `vulnerabilities` object와 섞인 경우를 포함한 native error payload는 불완전한 query이며 committed review를 덮지 않는다. 실제 취약점 응답의 exit 1은 완전한 review로 기록된다.
 
 - `make dependency-review UPDATE=1`은 받아들인 advisory 때문에 package를 갱신하지 않습니다.
 - kit은 자기 `package-lock.json`을 review합니다(`config/dependency-policy.json`, `config/dependency-review.json`). 제거된 advisory의 exception은 영구히 남지 않으며 현재 review가 허용한 advisory를 계속 이름 붙여야 합니다.
@@ -1060,21 +1057,8 @@ require함)와 root lock 하나를 두고, published package는 lock도 vendor/�
 그 `require`와 `require-dev`, 그리고 path repository가 제공하는 각 package의 `require`이며, root lock은 그 package를 path dist 항목으로
 기록합니다. version은 root lock의 것입니다. review는 각 root의 directory에서 `composer outdated --locked --all --format=json`을 한 번
 실행하고 그 package만 남깁니다: `--direct`는 root의 requirement만 세었으므로 published package의 requirement(symfony/console 등)가
-review에서 빠졌습니다. third-party package만 require하는 library는 review하지 않습니다. platform과 lock 검사는 root에 적용되고,
-published manifest는 `--no-check-lock`으로 검증합니다. `UPDATE=1`은 published package의 requirement를 그 directory의
+review에서 빠졌습니다. third-party package만 require하는 library는 review하지 않습니다. `UPDATE=1`은 published package의 requirement를 그 directory의
 `composer require --no-update`와 root의 `composer update --with-dependencies`로 올립니다.
-
-`make dependency-policy-check`는 checkout의 모든 Composer manifest를 검사합니다(K181): 추적되거나 새로 생긴 각 composer.json은
-`composerPlatforms`가 지정하여 그것과 그 lock에 `composer validate --strict`를 실행하거나, 그런 manifest의 path repository가
-제공하는 published package여서 `composer validate --no-check-lock`을 실행합니다. 그 밖의 composer.json은 rule
-`composerCoverage`와 더할 항목과 함께 실패하므로, manifest가 낡게 만든 lock(`composer update --lock` 없는 version 변경 뒤 등)이
-목록에 없다는 이유로 검사를 벗어날 수 없습니다. 검사하지 않는 것: kit이 쓰는 manifest(`make kit-sync`의 사본과
-`config/phpunit/composer.json`), kit이 배포하는 symbol extractor의 Composer project, `config/release.json`의 Composer consumer
-project(`consumers.composer.directory`)이며, 마지막은 `make release-consumer-lock`이 release archive로 resolve합니다.
-
-저장소의 PHP platform은 하나입니다(K282). `composerPlatforms`의 모든 항목과 checkout의 Composer manifest의 모든
-`config.platform.php`(kit이 쓰는 manifest 제외)가 같은 PHP를 가리키고, `.php-version`을 고정한 저장소는 그 minor에 PHPUnit 13이
-요구하는 patch 1을 붙인 값을 씁니다(`8.4`이면 `8.4.1`). 다른 manifest는 규칙 `platform`과 설정할 값과 함께 실패합니다.
 
 ## Release archive의 consumer 설치 (K5.4)
 
@@ -1675,7 +1659,7 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
 
 ## Python lock: PEP 751 pylock.toml (K36)
 
-의존성 gate는 Python lock을 PEP 751의 표준 형식(상태 Final, resolution 2025년 3월 31일)인 `pylock.toml` 또는 `pylock.<name>.toml`로만 읽으며,
+의존성 review는 Python lock을 PEP 751의 표준 형식(상태 Final, resolution 2025년 3월 31일)인 `pylock.toml` 또는 `pylock.<name>.toml`로만 읽으며,
 이 파일은 `config/dependency-policy.json`의 `pythonLocks`에 적습니다. uv.lock은 읽지 않습니다. uv 고유의 형식이고, wheel을 배포하는 저장소에는
 모든 installer가 읽는 lock이 필요합니다.
 
@@ -1686,13 +1670,13 @@ uv는 이 파일로 hash를 확인하며 설치하고, pip는 이 파일의 `vcs
 
 - 파일은 `scripts/kit/pylock.mts`(`readPylock`)가 smol-toml(`scripts/kit/toml.mts`)로 읽으며, smol-toml은 TOML 전체를 읽습니다.
   올바른 TOML이 아닌 텍스트는 파일, 줄, 열과 함께 실패합니다.
-- `lock-version`은 `"1.0"`이어야 하며, 다른 값이면 gate가 실패합니다.
+- `lock-version`은 `"1.0"`입니다.
 - 각 lock의 sha256은 다른 생태계의 lock과 같이 `config/dependency-review.json`에 기록합니다.
 - registry package(`sdist` 또는 `wheels`)는 lock의 의존성입니다. 이름과 버전을 기록하고, 최신 stable release를 PyPI에 질의하며, 고정된 버전의
-  advisory를 PyPI release JSON(`vulnerabilities`)에서 읽습니다. 모든 `sdist`, `wheels`, `archive` 파일은 `sha256`을 가져야 하며, 없으면 gate가 실패합니다.
-- `vcs` package(git)는 `commit-id`로 고정하며, 값은 40자리 16진수여야 합니다. 기록에는 URL, `requested-revision`, `commit-id`를 둡니다. lock과 기록이
-  다른 commit을 가리키면 gate가 실패합니다. git package는 advisory나 release를 질의하지 않습니다.
-- source table이 없는 package나 `directory` package는 gate가 실패시킵니다. 소비자는 `--no-emit-project`로 lock을 내보내므로 로컬 package에는 검토할 release가 없습니다.
+  advisory를 PyPI release JSON(`vulnerabilities`)에서 읽습니다. 모든 `sdist`, `wheels`, `archive` 파일은 `sha256`을 가집니다.
+- `vcs` package(git)는 `commit-id`로 고정하며, 값은 40자리 16진수여야 합니다. 기록에는 URL, `requested-revision`, `commit-id`를 둡니다.
+  git package는 advisory나 release를 질의하지 않습니다.
+- source table이 없는 package나 `directory` package는 검토하지 않습니다. 소비자는 `--no-emit-project`로 lock을 내보내므로 로컬 package에는 검토할 release가 없습니다.
 - `created-by`는 필수입니다. 오래된 release나 advisory의 fix는 lock을 쓴 도구를 이름으로 지정합니다. uv는 `uv lock --upgrade-package <name>` 뒤에 export를 다시 실행하고,
   pip는 `pip lock`입니다. 다른 값이거나 없는 `created-by`의 lock은 빠진 도구를 이름으로 지정하는 fix를 받습니다. 검토는 lock을 직접 다시 쓰지 않으며(`UPDATE=1`은 이 package를 건너뜁니다).
 - 이 릴리스를 도입하는 소비자는 각 lock을 `config/dependency-policy.json`의 `pythonLocks`에 `source`를 가진 object로 추가합니다(K54): `{ "lock": "<pylock.toml>", "source": { "requirements": "<file>", "constraints": "<file>" } }`. 이 필드는 필수이며 호환 경로는 없습니다.
@@ -1840,7 +1824,7 @@ version drift(`0.0.1`에서 `0.0.2`)는 `tinylib`과 함께, `setuptools`가 빠
 - kit의 reader는 한 줄 문자열만 읽으므로, 여러 줄 문자열이 있는 pyproject는 그 줄과 함께 실패합니다(reader가 이름을 적으며, 조용히
   건너뛰지 않습니다).
 - 검사는 registry 파일의 sha256을 network 없이 registry와 비교할 수 없으므로, registry hash의 16진수 한 자리 차이는 통과합니다. dependency
-  review는 lock의 sha256을 기록하고 그 변경에서 gate가 실패합니다(K36).
+  review는 lock의 sha256을 기록합니다(K36).
 - findLinks를 선언하지 않으면 writer는 network(uv를 통한 PyPI)가 필요합니다.
 - requirement의 extra와 marker는 고정되는 package를 바꾸지 않습니다. lock의 모든 package는 marker와 관계없이 constraints에 있어야 합니다.
 

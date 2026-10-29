@@ -1,6 +1,5 @@
-// The dependency state of a checkout as its files record it, read without a network. The gate
-// scripts/kit/check-dependency-policy.mts compares it with the review record config/dependency-review.json; the developer
-// command scripts/kit/dependency-review.mts compares it with the registries and writes that record.
+// The dependency state of a checkout as its files record it, read without a network. The developer command
+// scripts/kit/dependency-review.mts compares it with the registries and writes the review record config/dependency-review.json.
 //
 // Scope: a registry dependency is an entry of `dependencies` or `devDependencies` of the root package.json or of a
 // workspace package.json, of `require` or `require-dev` of a Composer manifest that config/dependency-policy.json
@@ -50,6 +49,23 @@ export type DependencyPolicy = {
   pythonManifests: string[];
   taggedNpmPackages?: TaggedRelease[];
   advisoryExceptions?: Record<string, unknown>[];
+};
+
+/** An advisory that the review found for a package of a lock. */
+export type Advisory = { package: string; nodePath?: string; version?: string; range?: string; id: string; severity: string; title: string; url?: string };
+/** A git package of a lock as the review recorded it: its URL, requested revision and commit. */
+type ReviewedPin = { lock: string; package: string; url: string; requestedRevision: string; commitId: string };
+/**
+ * The review record config/dependency-review.json (schema scripts/kit/schema/dependency-review.schema.json), in the fields
+ * that the tests read.
+ */
+export type ReviewRecord = {
+  schema: number;
+  comment: string;
+  reviewed: string;
+  locks: { lock: string; sha256: string; advisories?: Advisory[] }[];
+  dependencies: { ecosystem: string; manifest: string; package: string; version: string; latest: string }[];
+  vcs: ReviewedPin[];
 };
 
 /** The known locked version or native advisory range, with its affected installed node when audit names one. */

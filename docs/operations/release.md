@@ -30,10 +30,9 @@ build inputs outside their package directories. Commit source changes and rerun 
 `make release-consumer-lock TAG=vX.Y.Z` (ONLINE) and the consumer proof against those candidate archive names, then commit the
 manifests and locks it writes in `tests/release-consumer/*/` before CI and tag creation (docs/operations/tool-inventory.md,
 Consumer install of the release archives, steps 1 and 2). The version change rewrites package-manager locks, so the release commit
-also carries `config/dependency-review.json` that `make dependency-review RECORD=1` (ONLINE) writes for it; CI runs
-`make dependency-policy-check`, which fails a lock that differs from the review (K169). A version change of a composer.json
-likewise re-locks it with `composer update --lock` in its directory, since the content-hash of `composer.lock` covers `version`;
-the check fails the lock that the change outdated (`composerLock`, K180, K181). The proof installs the archives from those locks,
+also carries `config/dependency-review.json` that `make dependency-review RECORD=1` (ONLINE) writes for it. A version change
+of a composer.json likewise re-locks it with `composer update --lock` in its directory, since the content-hash of
+`composer.lock` covers `version`. The proof installs the archives from those locks,
 so a commit without them cannot be tagged. The commit lands on `main` and its CI concludes success; only then can the real tag be
 created on that commit. Build official assets from that tag with `make release-assets TAG=vX.Y.Z`; this path requires and reads the
 actual tag and remains the only source for publication. (2) The release workflow is dispatched with the tag

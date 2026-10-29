@@ -198,7 +198,7 @@ tool lands, a standard binds the work as written here.
   `test_*.py`); a repository may add files but never narrow the set, and a file named like a test is run by a binding.
   Enforced by: `make parity-declarations-check`
 - S4 Versions: kit enforces no version or pin; each package manager and its lock decide.
-  Enforced by: `make toolchain-check`, `make dependency-policy-check`
+  Enforced by: `make toolchain-check`
 - S5 Folders: every monorepo has the same root folders (`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`,
   `examples/`, `benchmarks/`, `config/`). Runtime ports of the main spec live in `packages/<runtime>/`, other components in
   `packages/<component>/` and their ports in `packages/<component>/<runtime>/`; folder names carry no repository prefix. A
@@ -221,7 +221,7 @@ tool lands, a standard binds the work as written here.
   Enforced by: `make layout-check`, `make parity-declarations-check`
 - S8 Reporting oddities is the second bullet of "Responsibility"; no tool can enforce it. What S8 adds: every exception,
   profile and rebuild record carries its reason, in the place where it is declared.
-  Enforced by: `make rebuild-check`, `make dependency-policy-check`
+  Enforced by: `make rebuild-check`
 - S9 Cross-language orchestration and checks, kit included, are written in TypeScript, checked by `tsc` with
   `erasableSyntaxOnly`. Exceptions: a harness that drives one language's implementation is a test of that language; a
   language-specific static check is a plugin of that ecosystem's analyzer; a symbol extractor runs that ecosystem's tool.

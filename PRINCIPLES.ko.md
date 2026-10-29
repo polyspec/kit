@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 63eefad3215935d4fc2b6fb2153480f46c0c1c899094f0806bef2fdbf370c685 -->
+<!-- source-sha256: acbffb28c08f54c80fedda4ec226df9a59d4347fdef1bafeebec660cd065c8b2 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -187,7 +187,7 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   repository는 파일을 더할 수만 있고 좁힐 수 없으며, test처럼 이름 붙은 파일은 binding이 실행합니다.
   Enforced by: `make parity-declarations-check`
 - S4 버전: kit은 버전도 pin도 강제하지 않습니다. 각 package manager와 그 lock이 정합니다.
-  Enforced by: `make toolchain-check`, `make dependency-policy-check`
+  Enforced by: `make toolchain-check`
 - S5 폴더: 모든 monorepo는 같은 root 폴더(`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`, `examples/`,
   `benchmarks/`, `config/`)를 가집니다. 주 spec의 runtime port는 `packages/<runtime>/`, 다른 component는
   `packages/<component>/`, 그 port는 `packages/<component>/<runtime>/`에 두며, 폴더 이름에 repository prefix를 붙이지
@@ -202,7 +202,7 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   Enforced by: `make layout-check`, `make parity-declarations-check`
 - S8 이상한 점의 보고는 "책임"의 두 번째 항목이며, 어떤 tool도 이를 강제할 수 없습니다. S8이 더하는 것: 모든 예외,
   profile, rebuild 기록은 선언된 자리에 이유를 가집니다.
-  Enforced by: `make rebuild-check`, `make dependency-policy-check`
+  Enforced by: `make rebuild-check`
 - S9 kit을 포함한 언어 간 orchestration과 check는 TypeScript로 쓰고, `tsc`가 `erasableSyntaxOnly`로 검사합니다. 예외: 한
   언어의 구현을 구동하는 harness는 그 언어의 test이고, 언어별 정적 check는 그 생태계 analyzer의 plugin이며, symbol
   추출기는 그 생태계의 tool을 돌립니다.

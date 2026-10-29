@@ -1,20 +1,10 @@
 // Tests of the behaviors that the dependency tools take from the implementations they replace: npm range satisfaction and
-// duplicate detection, the packages of an npm workspace and a tagged package, the Composer platform and the exact pin of a
-// Python requirement. Each runs on a copy of tests/kit/fixture, so no test uses the network.
+// duplicate detection, the packages of an npm workspace and the exact pin of a Python requirement. No test uses the network.
 import assert from 'node:assert/strict';
-import path from 'node:path';
-import { fileDigest } from '../../scripts/kit/bootstrap/digest.mts';
-import type { ReviewRecord } from '../../scripts/kit/check-dependency-policy.mts';
 import test from 'node:test';
 import { npmDuplicates, npmManifests, npmSatisfies, pythonRequirements } from '../../scripts/kit/dependency-state.mts';
 import { tree } from './tree.mts';
-import { fixtureCheckout as fixture, gate } from './checkout.mts';
-import { editFixture } from './json-fixture.mts';
 import { known } from './known.mts';
-
-// Data names the fields of the fixture file that a test edits.
-const edit = editFixture;
-const findings = (result: { stderr: string }) => result.stderr.split('\n').filter(line => line.startsWith('[dependency-policy] ') && !line.includes(' finding'));
 
 test('an npm version satisfies a range by the rules of npm', () => {
   assert.equal(npmSatisfies('1.2.3', '^1.0.0'), true);
@@ -40,69 +30,6 @@ test('a package installed at two versions that one version satisfies is reported
   const lines = npmDuplicates(lock);
   assert.equal(lines.length, 1, lines.join('\n'));
   assert.match(known(lines[0], 'lines[0]'), /shared/); // The length is asserted above.
-});
-
-// Native resolution and installation belong to npm-install.test.mts and composer-install.test.mts.
-// These cases prevent the offline security gate from reintroducing package-manager version or link rules (S4).
-function recordCurrentNpmLock(root: string) {
-  edit<ReviewRecord>(root, 'config/dependency-review.json', record => {
-    const lock = record.locks.find(item => item.lock === 'package-lock.json');
-    assert.ok(lock);
-    lock.sha256 = fileDigest(path.join(root, 'package-lock.json'));
-  });
-}
-
-test('the security gate leaves workspace version selection to npm (K661-7)', (t) => {
-  const root = fixture(t);
-  edit(root, 'packages/fixture-lib/package.json', (manifest: { version: string }) => { manifest.version = '0.0.1'; });
-  const result = gate(root);
-  assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(findings(result), []);
-});
-
-test('the security gate does not equate a package version with its Git tag (K661-7)', (t) => {
-  const root = fixture(t);
-  edit(root, 'external/tagged/js/package.json', (manifest: { version: string }) => { manifest.version = '9.9.9'; });
-  const result = gate(root);
-  assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(findings(result), []);
-});
-
-test('the security gate accepts a reviewed npm copy while rejecting its unreviewed lock (K661-7)', (t) => {
-  const root = fixture(t);
-  edit(root, 'package-lock.json', (lock: { packages: Record<string, { version: string; resolved: string }> }) => {
-    lock.packages['node_modules/tagged-lib'] = { version: '1.2.3', resolved: 'file:external/tagged/js' };
-  });
-  const changed = gate(root);
-  assert.equal(changed.status, 1, changed.stderr);
-  assert.match(changed.stderr, /package-lock\.json: the lock changed after its review/);
-  recordCurrentNpmLock(root);
-  const reviewed = gate(root);
-  assert.equal(reviewed.status, 0, reviewed.stderr);
-  assert.deepEqual(findings(reviewed), []);
-});
-
-test('the security gate leaves file dependency path resolution to npm and keeps review freshness (K661-7)', (t) => {
-  const root = fixture(t);
-  for (const spec of ['file:../fixture-lib', 'file:../other']) {
-    edit(root, 'packages/fixture-app/package.json', (manifest: { dependencies: Record<string, string> }) => { manifest.dependencies['fixture-lib'] = spec; });
-    edit(root, 'package-lock.json', (lock: { packages: { 'packages/fixture-app': { dependencies: Record<string, string> } } }) => { lock.packages['packages/fixture-app'].dependencies['fixture-lib'] = spec; });
-    const changed = gate(root);
-    assert.equal(changed.status, 1, changed.stderr);
-    assert.match(changed.stderr, /package-lock\.json: the lock changed after its review/);
-    recordCurrentNpmLock(root);
-    const reviewed = gate(root);
-    assert.equal(reviewed.status, 0, reviewed.stderr);
-    assert.deepEqual(findings(reviewed), []);
-  }
-});
-
-test('the security gate leaves the manifest platform choice to Composer (K661-7)', (t) => {
-  const root = fixture(t);
-  edit(root, 'packages/fixture-php/composer.json', (manifest: { config: { platform: { php: string } } }) => { manifest.config.platform.php = '8.1.0'; });
-  const result = gate(root);
-  assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(findings(result), []);
 });
 
 test('a Python requirement is pinned exactly, in the build system and in each extra', () => {

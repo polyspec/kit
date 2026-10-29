@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 8c8c36f8a3755529c277a577dcdc1c2816f0985b35074e0a044b5c48b9b54c4b -->
+<!-- source-sha256: 5519d9c9563f65f99e04f78af65f052d96308f0c4dfae9ef5250b210d9e234a2 -->
 # 개발
 
 [English](AGENTS.md)
@@ -92,9 +92,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   `release-assets-fetch`)만 하고, 결과는 commit된 기록, var/tools의 설치, 또는 config/release-assets.json이 고정한 var/ 아래의 archive입니다.
   Enforced by: `make kit-test`
 - Own: dependency advisory는 갱신으로 고칩니다. 어떤 release도 고치지 않는 advisory는 `config/dependency-policy.json`의
-  `advisoryExceptions` 항목이 이유와 제거 조건과 함께 받아들일 때만 받아들이며, review와 gate가 받아들였다고 출력합니다. 숨기지
+  `advisoryExceptions` 항목이 이유와 제거 조건과 함께 받아들일 때만 받아들이며, review가 받아들였다고 출력합니다. 숨기지
   않습니다. kit은 자기 `package-lock.json`을 review합니다(docs/operations/tool-inventory.md, Accepted advisories).
-  Enforced by: `make dependency-policy-check`
+  Enforced by: `tests/kit/dependency-advisory.test.mts`
 - Own: 주석, 문서, commit message는 동작과 그 대상을 밝히는 직접적인 표현으로 씁니다.
   Enforced by: none, 직접적인 문장은 review의 판단입니다.
 
@@ -114,7 +114,7 @@ kit은 `main` commit의 annotated tag `vX.Y.Z`로 릴리스한다. 절차는
 
 - Own: 릴리스 tag는 annotated이고, CI가 성공으로 끝났으며 consumer lock과 그 lock의 review를 가진 `main` commit 위에 있고,
   공개된 tag는 옮기지 않는다.
-  Enforced by: `make release-verify`, `make dependency-policy-check`
+  Enforced by: `make release-verify`
 - Own: 릴리스는 그 proof가 consumer project에서 설치한 뒤에만 공개된다. 실패한 step은 draft로 남긴다.
   Enforced by: `make release-proof`, `make release-undraft`
 - Own: 모든 저장소는 vendor된 `workflows/release.yml`로 릴리스하며 그것을 편집하지 않는다.

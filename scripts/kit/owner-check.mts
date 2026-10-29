@@ -34,7 +34,6 @@ import { present } from './present.mts';
 import { moduleImports, moduleReferences, parseModule, resolveRelative } from './module-imports.mts';
 import { expandMake } from './recipe-tools.mts';
 import { INSTALLED } from './kit-check.mts';
-import { DEPENDENCY_FILE_GLOBS, DEPENDENCY_GATE } from './dependency-files.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
 
@@ -309,8 +308,7 @@ function importerErrors(rule: CompiledRule, rules: CompiledRule[], label: string
  * path that no rule owns is unowned.
  */
 export function select(declaration: OwnerDeclaration, changed: string[], order: string[] = [], exists: Exists = () => true, importers: Importers = noImporters) {
-  // K459: the dependency manifests and locks select the dependency gate whatever the declaration owns, after its own rules.
-  const rules = compile({ ...declaration, owners: [...declaration.owners, { paths: DEPENDENCY_FILE_GLOBS, targets: [DEPENDENCY_GATE] }] });
+  const rules = compile(declaration);
   const checks = new Map<string, Check>();
   const selected = new Set(declaration.always ?? []);
   const variables = new Map<string, Record<string, string[]>>();
