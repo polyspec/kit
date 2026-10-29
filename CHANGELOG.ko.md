@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- run의 PHPUnit test 목록 실행(runtime-targets, K390-1)이 run의 autoloader를 deadline prepend에 넘긴다. 그래서 더는 "the PHPUnit Composer autoloader is missing"으로 끝나지 않는다 (K827).
 - link된 Python 패키지를 빼는 uv 설치도 dev 폴더를 바이트 단위로 그대로 둡니다. kit은 모든 uv 설치 전에 link를 풀고(K539), 이제 실제 uv 케이스가 이 경우를 고정합니다 (K826).
 
 ## 0.0.72

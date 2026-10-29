@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The PHPUnit test listing of a run (runtime-targets, K390-1) passes the autoloader of the run to the deadline prepend, so it no longer ends with "the PHPUnit Composer autoloader is missing" (K827).
 - A uv install that drops a linked Python package leaves the dev folder byte-identical: kit unlinks before every uv install (K539), and a real-uv case now pins the drop (K826).
 
 ## 0.0.72

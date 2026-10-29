@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { parseArguments, probeExtensions, PYTHON_START, run, toolCommand } from '../../scripts/kit/run-tests.mts';
+import { listedTests, parseArguments, probeExtensions, PYTHON_START, run, toolCommand } from '../../scripts/kit/run-tests.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress } from '../../scripts/kit/test-output.mts';
 import { inputsDigest } from '../../scripts/kit/tracked-files.mts';
 import { createProgress } from '../../scripts/kit/test-progress.mts';
@@ -278,6 +278,23 @@ test('PHPUnit uses its configured per-test deadline extension unless --timeout i
   const explicit = toolCommand({ tool: 'phpunit', timeoutSeconds: 9, timeoutExplicit: true, cwd: p, args: ['tests/SmallTest.php'] }, root);
   assert.equal(explicit.command, path.join(root, 'vendor/bin/phpunit'));
   assert.doesNotMatch(explicit.args.join(' '), /DeadlineExtension|auto_prepend_file/);
+});
+
+// K827: the listing starts the command of the run, deadline prepend included, so it has the autoloader that the run has.
+test('the PHPUnit listing of a run passes the autoloader of the run to the deadline prepend (K827)', (t) => {
+  const php = '#!/bin/sh\nif [ -f "$KIT_PHPUNIT_AUTOLOAD" ]; then echo \' - Small::case\'; exit 0; fi\necho \'phpunit-deadline-prepend.php: the PHPUnit Composer autoloader is missing\' >&2\nexit 2\n';
+  const root = tree(t, {
+    'composer.json': '{"config":{"vendor-dir":"vendor"}}\n',
+    'p/composer.json': '{}\n',
+    'vendor/bin/phpunit': '',
+    'vendor/autoload.php': '',
+    'var/tools/bin/php': php,
+  });
+  chmodSync(path.join(root, 'var/tools/bin/php'), 0o755);
+  composerStub(root);
+  const env = { ...process.env };
+  delete env.KIT_PHPUNIT_AUTOLOAD;
+  assert.deepEqual(listedTests(['phpunit', '--cwd', path.join(root, 'p'), '--', 'tests/SmallTest.php'], root, env), ['Small::case']);
 });
 
 // A PHP extension run starts the PHP of the checkout, the wrapper of var/tools/bin that install-tools writes, never the php of PATH (K393).

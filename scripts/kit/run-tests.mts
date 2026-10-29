@@ -245,14 +245,28 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
 }
 
 /**
+ * The autoloader that the deadline prepend of a PHPUnit run loads (K738): the autoload.php that Composer gives the project
+ * of --cwd, for a run with native deadlines; none for another tool or an explicit --timeout.
+ */
+function phpunitAutoload(options: Pick<RunOptions, 'tool' | 'timeoutExplicit' | 'cwd'>, root: string): { KIT_PHPUNIT_AUTOLOAD?: string } {
+  if (options.tool !== 'phpunit' || options.timeoutExplicit) return {};
+  const autoload = packageVendorFile(root, path.relative(root, options.cwd) || '.', 'autoload.php');
+  return autoload === undefined ? {} : { KIT_PHPUNIT_AUTOLOAD: path.resolve(root, autoload) };
+}
+
+/**
  * The tests that the run of `argv` (the arguments of run-tests) selects, as PHPUnit lists them: the command of the run with
  * --list-tests added, so the library and the extension are the run's own (K390-1). PHPUnit prints each test as ` - Class::method`.
  */
 export function listedTests(argv: string[], root = repositoryRoot(), callerEnv: NodeJS.ProcessEnv = process.env): string[] {
   const options = parseArguments(argv, root);
   const { command, args } = toolCommand({ ...options, args: [...options.args, '--list-tests'] }, root);
-  // The tool of the checkout starts with the mise of the checkout, as a run in make does (K411).
-  const result = spawnSync(command, args, { cwd: options.cwd, env: toolsEnvironment(root, callerEnv), encoding: 'utf8' });
+  // The tool of the checkout starts with the mise of the checkout, as a run in make does (K411), and with the autoloader
+  // of the run, which its deadline prepend loads (K827).
+  const env = toolsEnvironment(root, callerEnv);
+  delete env.KIT_PHPUNIT_AUTOLOAD;
+  Object.assign(env, phpunitAutoload(options, root));
+  const result = spawnSync(command, args, { cwd: options.cwd, env, encoding: 'utf8' });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`phpunit --list-tests in ${path.relative(root, options.cwd) || '.'} ended with ${result.status}: ${result.stderr.trim()}`);
   return result.stdout.split('\n').flatMap(line => /^\s*-\s+(\S.*)$/.exec(line)?.[1] ?? []);
@@ -317,13 +331,10 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // The reporters run in the --cwd directory, so they take the repository root from TEST_ROOT.
   // The runner and its tool start with the mise of the checkout, so a run outside make, in a shell without its MISE_* variables,
   // trusts the mise.toml of the checkout and finds its tools; the variables that the run sets itself come after (K411).
-  const phpunitAutoload = options.tool === 'phpunit' && !options.timeoutExplicit
-    ? packageVendorFile(root, path.relative(root, options.cwd) || '.', 'autoload.php')
-    : undefined;
-  const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(phpunitAutoload === undefined ? {} : { KIT_PHPUNIT_AUTOLOAD: path.resolve(root, phpunitAutoload) }), ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
+  const env: NodeJS.ProcessEnv = { ...toolsEnvironment(root, process.env), KIT_TEST_RESULT: resultFile, [TEST_ROOT]: root, ...(python ? { PYTHONUNBUFFERED: '1', NO_COLOR: '1', PYTHON_COLORS: '0' } : {}), ...(reporter ? { [TEST_EVENTS]: String(TEST_EVENTS_FD) } : {}) };
   delete env.KIT_PHPUNIT_AUTOLOAD;
   delete env.KIT_TEST_EVENTS;
-  if (phpunitAutoload !== undefined) env.KIT_PHPUNIT_AUTOLOAD = path.resolve(root, phpunitAutoload);
+  Object.assign(env, phpunitAutoload(options, root));
   if (reporter) env[TEST_EVENTS] = String(TEST_EVENTS_FD);
   // Native Cargo resolves its workspace target unless the caller supplied an explicit CLI target argument (K676).
   if (cargo) delete env.CARGO_TARGET_DIR;
