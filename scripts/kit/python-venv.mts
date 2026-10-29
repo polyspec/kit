@@ -29,8 +29,8 @@ function inside(file: string, directory: string): boolean {
 
 /**
  * Why the virtual environment `venv` may not run the python tests of `root`, or undefined when it may: its pyvenv.cfg names as
- * its home a directory of var/tools/mise, where mise installs the Python of mise.toml, or of the installs of the main checkout that
- * the mise of a worktree reads (K387, K387-1). Its symbolic links are not checked: they are the behavior of the tool that made it.
+ * its home a directory of var/tools/mise, where mise installs the Python of mise.toml
+ * (K387, K387-1, K858). Its symbolic links are not checked: they are the behavior of the tool that made it.
  */
 export function venvProblem(venv: string, root: string = repositoryRoot()): string | undefined {
   const config = path.join(venv, 'pyvenv.cfg');

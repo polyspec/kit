@@ -67,8 +67,8 @@ SOURCE_TEST_GROUPS := ts php rust go python common-1 common-2 common-3
 SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts tests/source/symbols-ts-real.test.mts
 SOURCE_TEST_FILES_php := tests/source/composer-install-real.test.mts tests/source/link-composer-real.test.mts tests/source/lint-php-real.test.mts tests/source/symbols-php-real.test.mts
 SOURCE_TEST_FILES_rust := tests/source/link-cargo-real.test.mts tests/source/lint-rust-real.test.mts
-SOURCE_TEST_FILES_go := tests/source/go-worktree-real.test.mts tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
-SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts tests/source/worktree-python-real.test.mts
+SOURCE_TEST_FILES_go := tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
+SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts
 SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
 SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts tests/source/parity-real.test.mts
 SOURCE_TEST_FILES_common-3 := tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/installed-hook-real.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
@@ -141,12 +141,7 @@ kit-install: install-kit ## The install step of kit after its bootstrap: the pac
 	$(MAKE) --no-print-directory kit-install-symbols-php
 	$(MAKE) --no-print-directory kit-install-php-arginfo
 
-install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order; a worktree installs nothing (K519); ONLINE
-ifneq ($(KIT_WORKTREE),)
-	@echo "[install-kit] $(CURDIR) is a worktree, which installs nothing: it runs the tools of the main checkout $(KIT_MAIN_CHECKOUT), and make worktree-setup links its node_modules to the main checkout's (K519)" >&2
-	@exit 1
-else
+install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order, in the checkout's own var/tools, a worktree's too (K858); ONLINE
 	$(MAKE) --no-print-directory install-tools TOOLS=npm
 	$(MAKE) --no-print-directory install-packages
 	$(MAKE) --no-print-directory install-tools
-endif

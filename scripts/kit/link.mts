@@ -29,11 +29,11 @@ import { rebuild } from './link-build.mts';
 import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
-import { toolsRoot } from './bootstrap/tool-wrappers.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, siblingTool } from './paths.mts';
 import { kitPackageRoot } from './kit-files.mts';
 import { errorCode, execute, run } from './process.mts';
+import { git } from './git.mts';
 import { acquireHolderLock } from './holder-lock.mts';
 import { cargoMetadataArguments, verifyCargoSources } from './cargo-source.mts';
 import { manifestPolyspecNames, normalizeName } from './pyproject-dependencies.mts';
@@ -321,7 +321,8 @@ export function usedFolders(go: Tool, file: string): string[] {
 
 /** Resolves main-checkout workspace modules to the corresponding source folders of `top`, retaining external providers. */
 export function worktreeGoFolders(top: string, folders: readonly string[]): string[] {
-  const main = toolsRoot(top);
+  // The main checkout of `top`, an interim lookup until the link declaration of K869 replaces it.
+  const main = path.dirname(path.resolve(top, git(top, 'rev-parse', '--git-common-dir').trim()));
   return folders.map(folder => {
     const relative = path.relative(main, folder);
     return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative) ? path.join(top, relative) : folder;

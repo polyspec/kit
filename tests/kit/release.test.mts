@@ -21,10 +21,8 @@ import { parseJson } from '../../scripts/kit/schema-validate.mts';
 import { known } from './known.mts';
 
 const REPOSITORY = 'example/kit-fixture';
-// The main checkout, whose tools a worktree runs (K519): the real Composer of the K871 consumer.
-const COMMON_DIR = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: import.meta.dirname, encoding: 'utf8' });
-if (COMMON_DIR.status !== 0) throw new Error(`git rev-parse --git-common-dir in ${import.meta.dirname} exited with ${COMMON_DIR.status}: ${COMMON_DIR.stderr}`);
-const MAIN_CHECKOUT = path.dirname(COMMON_DIR.stdout.trim());
+// This checkout, which installs its own tools, a worktree too (K858): the real Composer of the K871 consumer.
+const CHECKOUT = path.join(import.meta.dirname, '..', '..');
 type Box = ReturnType<typeof releaseSandbox>;
 // config/release.json as the fixture holds it, which a test also edits into shapes that the schema refuses.
 type ConfigJson = Omit<release.ReleaseConfig, 'schema'> & { schema: number };
@@ -263,9 +261,9 @@ test('K871: candidate assets hold packages.json, a flat Composer repository that
     require: { 'polyspec/kit-fixture': '0.0.1' },
     config: { platform: { php: '8.2.0' } },
   }));
-  const env = { ...toolsEnvironment(MAIN_CHECKOUT), COMPOSER: 'composer.json', COMPOSER_HOME: path.join(consumer, '.composer'), COMPOSER_DISABLE_NETWORK: '1' };
-  const update = spawnSync(toolCommand(MAIN_CHECKOUT, 'composer'), ['update', '--no-install', '--no-interaction', '--no-plugins', '--no-scripts', '--no-audit'], { cwd: consumer, env, encoding: 'utf8' });
-  assert.equal(update.error, undefined, `the Composer of ${MAIN_CHECKOUT} did not start: ${update.error?.message}; run make install-tools there`);
+  const env = { ...toolsEnvironment(CHECKOUT), COMPOSER: 'composer.json', COMPOSER_HOME: path.join(consumer, '.composer'), COMPOSER_DISABLE_NETWORK: '1' };
+  const update = spawnSync(toolCommand(CHECKOUT, 'composer'), ['update', '--no-install', '--no-interaction', '--no-plugins', '--no-scripts', '--no-audit'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(update.error, undefined, `the Composer of ${CHECKOUT} did not start: ${update.error?.message}; run make install-tools there`);
   assert.equal(update.status, 0, update.stdout + update.stderr);
   const locked = readComposerLockFile(path.join(consumer, 'composer.lock')).packages ?? [];
   assert.deepEqual(locked.map(({ name, version, dist: lockedDist }) => ({ name, version, dist: lockedDist })), [{ name: 'polyspec/kit-fixture', version: '0.0.1', dist }]);

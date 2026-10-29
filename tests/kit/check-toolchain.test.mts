@@ -3,7 +3,7 @@
 // var/tools/mise/shims, so a test sets the running version of each tool.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -172,8 +172,8 @@ test('the make target toolchain-check passes the tools to the check', () => {
   const root = path.join(path.dirname(new URL(import.meta.url).pathname), '../..');
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'toolchain-check', 'TOOLS=npm go'], { cwd: root, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  // A worktree runs the tools of the main checkout, so the node path is the one kit.mk resolves, not the root of this checkout (K792).
-  assert.match(dry.stdout.trim(), /^\/\S+\/var\/tools\/bin\/node scripts\/kit\/check-toolchain\.mts npm go$/);
+  // The node of this checkout's own var/tools, a worktree's too (K792, K858).
+  assert.equal(dry.stdout.trim(), `${path.join(realpathSync(root), 'var/tools/bin/node')} scripts/kit/check-toolchain.mts npm go`);
 });
 
 test('a repository with a PHP extension needs the installed pinned arginfo generator and parser, and toolchain-check names make install-tools (K303, K560)', (t) => {

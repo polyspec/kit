@@ -9,10 +9,10 @@ import path from 'node:path';
 import { miseEnvironment } from './bootstrap/install-mise.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
 
-/** The directory of the shims of mise, relative to the root of the checkout whose tools run (the main checkout, K519); for messages. */
+/** The directory of the shims of mise, relative to the root of the checkout; for messages. */
 export const SHIMS = 'var/tools/mise/shims';
 
-/** The shims of mise that the checkout `root` runs, those of the var/tools of its main checkout (toolsPath, K519), or one shim in them. */
+/** The shims of mise that the checkout `root` runs, those of its own var/tools (toolsPath, K858), or one shim in them. */
 export const shimsPath = (root: string, ...name: string[]): string => toolsPath(root, 'mise', 'shims', ...name);
 
 /**

@@ -9,14 +9,13 @@ import { declaredRust, goWorkFile, readGoMod } from '../../scripts/kit/toolchain
 import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { miseWhere } from '../../scripts/kit/bootstrap/install-mise.mts';
-import { toolsRoot } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
 const GO_ENV = { ...process.env, GOTOOLCHAIN: 'local' };
 
 // The go of a checkout is the shim of mise in var/tools/mise/shims (K393-1). These tests read a go.mod with the real go, so the shim
-// runs the Go installed by mise in the main checkout, resolved by mise itself; a PATH shim must not read the test checkout's config.
+// runs the Go installed by mise in the checkout, resolved by mise itself; a PATH shim must not read the test checkout's config.
 function goShim(root: string) {
-  const real = path.join(miseWhere(toolsRoot(repositoryRoot()), 'go'), 'bin/go');
+  const real = path.join(miseWhere(repositoryRoot(), 'go'), 'bin/go');
   mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
   const shim = path.join(root, 'var/tools/mise/shims/go');
   writeFileSync(shim, `#!/bin/sh\nexec '${real}' "$@"\n`);
@@ -25,7 +24,7 @@ function goShim(root: string) {
 }
 
 test('go workspace discovery uses the checkout mise environment when the caller has none (K476)', () => {
-  const root = toolsRoot(repositoryRoot());
+  const root = repositoryRoot();
   const environment = { PATH: process.env.PATH ?? '' };
   const workspace = goWorkFile(root, 'scripts/kit/symbols/go', environment);
   assert.ok(workspace === null || path.isAbsolute(workspace), `unexpected go env GOWORK output ${JSON.stringify(workspace)}`);

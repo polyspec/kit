@@ -11,13 +11,12 @@ unexport CARGO_TARGET_DIR
 
 # The tools of mise.toml (K127) run from the shims of mise, var/tools/mise/shims, which need the environment of mise of the
 # checkout (miseEnvironment of scripts/kit/bootstrap/install-mise.mts): every recipe runs with it, and with var/tools/bin
-# (npm, npx, mise and the wrappers of the Composer projects) and the shims first on PATH. var/tools is that of the main checkout
-# of the repository (KIT_TOOLS, K519): a linked worktree runs the tools that the main checkout installed, its data dir, installs
-# and shims, and keeps only its own mise.toml; outside a repository it is the checkout's own.
+# (npm, npx, mise and the wrappers of the Composer projects) and the shims first on PATH. var/tools is the checkout's own
+# (KIT_TOOLS, K858): a linked worktree installs its tools with its own make install.
+KIT_TOOLS := $(CURDIR)/var/tools
 KIT_GIT_COMMON := $(abspath $(shell git rev-parse --git-common-dir 2>/dev/null))
 KIT_MAIN_CHECKOUT := $(realpath $(patsubst %/.git,%,$(filter %/.git,$(KIT_GIT_COMMON))))
-KIT_TOOLS := $(or $(KIT_MAIN_CHECKOUT),$(CURDIR))/var/tools
-# Set in a linked worktree, whose main checkout is another folder: it installs no tool (install-tools refuses, install-kit skips it).
+# Set in a linked worktree, whose main checkout is another folder: release-assets-fetch refuses there (K780).
 KIT_WORKTREE := $(if $(KIT_MAIN_CHECKOUT),$(filter-out $(realpath $(CURDIR)),$(KIT_MAIN_CHECKOUT)))
 export MISE_DATA_DIR := $(KIT_TOOLS)/mise
 export MISE_CACHE_DIR := $(KIT_TOOLS)/mise/cache
@@ -96,10 +95,7 @@ cargo-downloads-fetch: ## Download the crates of every Cargo.lock
 # TOOLS=npm is the first step of a checkout, before npm ci installs the packages that the other tools import, so it runs the
 # bootstrap installer of $(KIT)/bootstrap, which imports only Node.js built-ins.
 install-tools: ## Install all locked tools or selected toolchain names from check-toolchain; TOOLS=npm runs the bootstrap; ONLINE
-ifneq ($(KIT_WORKTREE),)
-	@echo "[install-tools] $(CURDIR) is a worktree that runs the tools of the main checkout $(KIT_MAIN_CHECKOUT) and installs none; run make install-tools there (K519)" >&2
-	@exit 1
-else ifeq ($(TOOLS),npm)
+ifeq ($(TOOLS),npm)
 	$(ONLINE) $(BOOTSTRAP_NODE) $(KIT)/bootstrap/bootstrap.$(KIT_EXT)
 else
 	$(ONLINE) $(NODE) $(KIT)/install-tools.$(KIT_EXT) $(TOOLS)
@@ -453,12 +449,8 @@ link-check: ## List each installed package folder that a checkout of CHECKOUTS, 
 	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
 
 .PHONY: worktree-setup
-worktree-setup: ## Create or reuse the row worktree from main, prepare native npm/Composer/uv dependencies offline with shared caches and reused tools, then rebuild its packages and check link-state-check (K690); offline
+worktree-setup: ## Create or reuse the row worktree from main, run make install in it, which installs its own tools, packages and links, then make link-state-check (K858); ONLINE
 	$(ONLINE) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix)
-
-.PHONY: worktree-link-state
-worktree-link-state: ## Prepare native offline worktree dependencies with shared caches and reused tools, then run link-state-check without rebuilding product packages (K690); offline
-	$(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix) --link-state-only
 
 # WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of
 # orm). land runs it, with make in the worktree, before it removes the worktree; a failing stop keeps the worktree.

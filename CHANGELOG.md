@@ -5,9 +5,12 @@
 
 ## Unreleased
 
+
+
 ## 0.0.75
 
 - Release Kit 0.0.75 with K875, K877 and K883 (K884).
+- A worktree is a checkout of its own: KIT_TOOLS is the checkout's own var/tools, make install and make install-tools run in a worktree, and make worktree-setup creates the worktree and runs make install, online, then make link-state-check there, instead of preparing npm, Composer, uv and Go offline from the main checkout and rebuilding its packages. The main checkout's var/tools and locks are unchanged by a worktree. make worktree-link-state is gone: with no rebuild it was make worktree-setup. A worktree without node_modules first gets npm ci of the npm that packageManager names, so a Makefile that includes kit from node_modules can run; a worktree made before this release runs make install once (K858).
 - A Red line of a done commit states the command and its exit status, `Red: <command> exit <n>`, with no sha: land rebases the branch, so a sha named a commit that main never holds; `at <sha>` is still accepted (K875).
 - make documents-stamp stamps only the Korean twins that PATHS names, since a stamp says that the twin matches its source; with no PATHS it stamps nothing and lists each twin whose source moved with the make documents-stamp PATHS=<twin> to run after re-translating it, and land stamps only the twins whose marker conflicted (K877).
 - divergence-check accepts the function_exists polyfill guard that lint-php accepts since K873, a top-level namespaced if (!function_exists('<name>')) whose body only declares that name, and takes the guard lines from AutoloadFiles.php, the one definition of that shape; a function_exists branch inside a function or one that chooses behaviour, and extension_loaded, stay findings (K883).

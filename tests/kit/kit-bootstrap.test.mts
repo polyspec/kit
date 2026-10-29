@@ -84,6 +84,19 @@ test('make install runs the bootstrap of kit first, then the install steps that 
   assert.ok(lines.indexOf('echo demo-install') > kit, `the steps of the repository follow the bootstrap:\n${lines.join('\n')}`);
 });
 
+// K858: a linked worktree runs make install itself and installs its own tools, so its install names no file of the main checkout.
+test('make install-kit runs in a worktree with its own var/tools (K858)', (t) => {
+  const root = repository(t);
+  const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8' });
+  for (const args of [['init', '--quiet', '--initial-branch=main'], ['add', '.'], ['commit', '--quiet', '-m', 'base']]) assert.equal(git(...args).status, 0);
+  const worktree = `${root}-row`;
+  assert.equal(git('worktree', 'add', '--quiet', '-b', 'fix/row-K1', worktree).status, 0);
+  const install = make(worktree, '-n', 'install-kit');
+  assert.equal(install.status, 0, install.stderr);
+  assert.match(install.stdout, /install-tools TOOLS=npm/);
+  assert.doesNotMatch(install.stdout, new RegExp(`${realpathSync(root)}/`), 'the install names no file of the main checkout');
+});
+
 test('install-packages runs the targets that INSTALL_PACKAGES_EXTRA names after its npm ci, in order, with the npm of var/tools and the allow-remote setting (K428)', (t) => {
   // A tools project outside the workspaces of the repository installs its own lock in a target of the repository.
   const root = repository(t, 'INSTALL_PACKAGES_EXTRA := first-extra second-extra\n.PHONY: first-extra second-extra\nfirst-extra:\n\t$(NPM) extra-one\nsecond-extra:\n\t$(NPM) extra-two\n');

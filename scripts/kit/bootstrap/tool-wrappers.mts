@@ -9,33 +9,7 @@ import { writeAtomic } from './files.mts';
 
 export const TOOLS = 'var/tools';
 
-const toolsRoots = new Map<string, string>();
-
-/**
- * The checkout whose var/tools the checkout `root` runs (K519): the main checkout of its repository, so a linked worktree runs the
- * tools that the main checkout installed and installs none of its own; `root` itself in the main checkout, outside a repository and
- * for a folder that does not exist, which is no worktree. A git that fails for another reason than a folder outside a repository
- * throws.
- */
-export function toolsRoot(root: string): string {
-  const known = toolsRoots.get(root);
-  if (known !== undefined) return known;
-  if (!existsSync(root)) return root;
-  const result = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd: root, encoding: 'utf8' });
-  if (result.error) throw new Error(`git could not start in ${root}: ${result.error.message}`);
-  let found = root;
-  if (result.status === 0) {
-    const common = path.resolve(root, result.stdout.trim());
-    // A repository whose git folder is not <checkout>/.git, such as a bare one, has no main checkout whose tools it could run.
-    if (path.basename(common) === '.git') found = path.dirname(common);
-  } else if (!/not a git repository/.test(result.stderr)) {
-    throw new Error(`git rev-parse --git-common-dir failed in ${root}: ${result.stderr.trim()}`);
-  }
-  toolsRoots.set(root, found);
-  return found;
-}
-
-export const toolsPath = (root: string, ...parts: string[]): string => path.join(toolsRoot(root), TOOLS, ...parts);
+export const toolsPath = (root: string, ...parts: string[]): string => path.join(root, TOOLS, ...parts);
 
 /** The native command file name written in var/tools/bin for a Windows checkout. */
 export const commandPath = (root: string, name: string, platform = process.platform): string => toolsPath(root, 'bin', `${name}${platform === 'win32' ? '.cmd' : ''}`);

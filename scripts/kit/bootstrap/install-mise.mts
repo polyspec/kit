@@ -11,7 +11,7 @@ import { writeAtomic } from './files.mts';
 import path from 'node:path';
 import { fileDigest } from './digest.mts';
 import { installOnce } from './install-tool.mts';
-import { archiveTar, bootstrapEnvironment, commandPath, printedRelease, run, toolsPath, toolsRoot, writeNativeWrapper } from './tool-wrappers.mts';
+import { archiveTar, bootstrapEnvironment, commandPath, printedRelease, run, toolsPath, writeNativeWrapper } from './tool-wrappers.mts';
 
 // The asset of the mise archive of each platform key (process.platform-process.arch) that the declaration may name.
 export const MISE_ASSETS: Readonly<Record<string, string>> = {
@@ -55,8 +55,7 @@ export function removeForeignTrusts(root: string): void {
 export function foreignTrusts(root: string): { name: string; target: string }[] {
   const directory = toolsPath(root, 'mise', 'state', 'trusted-configs');
   if (!existsSync(directory)) return [];
-  // K532: a linked worktree runs the trust store of its main checkout (K519), whose trust of the main checkout is its own.
-  const own = new Set([root, toolsRoot(root)].flatMap(checkout => [path.resolve(checkout), realpathSync(checkout)]));
+  const own = new Set([path.resolve(root), realpathSync(root)]);
   const found: { name: string; target: string }[] = [];
   for (const name of readdirSync(directory)) {
     const entry = path.join(directory, name);
@@ -76,9 +75,7 @@ export const miseArchiveUrl = (version: string, asset: string, extension = 'tar.
  * mise.lock pins and no install on its own (a
  * missing tool is an error until make install-tools), and no uv that downloads a Python or reads a uv.toml of the home or the
  * system; uv keeps its cache in var/tools/mise. A tool that mise runs from uv gets the Python of mise from mise; the uv of a check gets it from UV_PYTHON
- * (toolsEnvironment of mise-tools.mts). var/tools is that of the main checkout (toolsPath, K519): a linked worktree runs the data,
- * the installs and the shims that the main checkout installed and keeps only its own mise.toml as the global configuration, which
- * mise reads without a trust, so a uv tool such as vulture, whose install mise keys by its data dir, is the one of the main checkout.
+ * (toolsEnvironment of mise-tools.mts). var/tools is the checkout's own, a linked worktree's too (toolsPath, K858).
  */
 export function miseEnvironment(root: string): Record<string, string> {
   return {

@@ -14,8 +14,6 @@ import { put, tree } from './tree.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const KIT_MK = path.join(ROOT, 'scripts/kit/kit.mk');
-const COMMON_DIR = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
-const MAIN = path.dirname(path.resolve(ROOT, COMMON_DIR));
 const recipes = readFileSync(KIT_MK, 'utf8').split('\n').filter(line => line.startsWith('\t')).map(line => line.replaceAll('$$(', '$('));
 
 test('every recipe of kit.mk runs its tool through KIT and KIT_EXT, and none names scripts/kit', () => {
@@ -28,7 +26,7 @@ test('every recipe of kit.mk runs its tool through KIT and KIT_EXT, and none nam
 test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT name', () => {
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'docs-check', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), `${path.join(MAIN, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
+  assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
 });
 
 test('Windows Make recipes use the Node.js selected by mise and its npm CLI, while npm-install gets the native wrapper', (t) => {
@@ -87,10 +85,10 @@ test('consumer kit.mk exposes the shared PHP arginfo and selective symbol instal
   ], { cwd: ROOT, encoding: 'utf8' });
   const arginfo = dry('kit-install-php-arginfo');
   assert.equal(arginfo.status, 0, arginfo.stderr);
-  assert.equal(arginfo.stdout.trim(), `${path.join(MAIN, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-php-arginfo.mjs`);
+  assert.equal(arginfo.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-php-arginfo.mjs`);
   const symbols = dry('kit-install-symbols', 'EXTRACTORS=go');
   assert.equal(symbols.status, 0, symbols.stderr);
-  assert.equal(symbols.stdout.trim(), `${path.join(MAIN, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs go`);
+  assert.equal(symbols.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs go`);
 });
 
 test('kit.mk accepts a parity declaration with no implementation targets and still rejects unreadable names', (t) => {
@@ -113,12 +111,6 @@ test('link-check names the sibling checkouts when CHECKOUTS is empty, as link do
   assert.match(dryRun('link-check', 'CHECKOUTS=a b'), / a b$/);
   assert.match(dryRun('link', 'CHECKOUTS=a b'), / a b$/);
   assert.match(dryRun('link', 'RUNTIME=ts', 'CHECKOUTS=a b'), /link\.mjs link --runtime ts a b$/);
-});
-
-test('worktree-link-state invokes the explicit link-only worktree path (K619)', () => {
-  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'worktree-link-state', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', 'NAME=links', 'ID=K619'], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(dry.status, 0, dry.stderr);
-  assert.equal(dry.stdout.trim(), `${path.join(MAIN, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/worktree-setup.mjs links K619 fix --link-state-only`);
 });
 
 test('kit.mk stops while KIT or KIT_EXT is unset', () => {
@@ -147,8 +139,8 @@ test('on Windows the directory of the binary of mise is on PATH beside var/tools
   assert.equal(env.PATH, [path.join(root, 'var/tools/bin'), path.join(root, 'var/tools/mise-release/mise/bin'), path.join(root, 'var/tools/mise/shims'), '/usr/bin', '/bin'].join(path.delimiter));
 });
 
-// K519: in a linked worktree every recipe runs the tools of the main checkout, and the worktree installs none of its own.
-test('a worktree runs the var/tools of the main checkout and installs no tool (K519)', (t) => {
+// K858: a linked worktree runs and installs its own var/tools; its make install leaves the tools and locks of the main checkout alone.
+test('a worktree runs and installs the var/tools of its own checkout, not the main one (K858)', (t) => {
   const main = realpathSync(tree(t, { 'Makefile': `KIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\nshow:\n\t@env\n`, 'mise.toml': '[tools]\n' }));
   const git = (cwd: string, ...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
   assert.equal(git(main, 'add', '.').status, 0);
@@ -160,12 +152,13 @@ test('a worktree runs the var/tools of the main checkout and installs no tool (K
   assert.equal(shown.status, 0, shown.stderr);
   const env = Object.fromEntries(shown.stdout.trim().split('\n').map(line => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]));
   for (const [name, value] of Object.entries(miseEnvironment(worktree))) assert.equal(env[name], value, name);
-  assert.equal(env.MISE_DATA_DIR, path.join(main, 'var/tools/mise'));
-  assert.equal(env.MISE_GLOBAL_CONFIG_FILE, path.join(worktree, 'mise.toml'));
-  assert.equal(env.PATH, [path.join(main, 'var/tools/bin'), path.join(main, 'var/tools/mise/shims'), '/usr/bin', '/bin'].join(path.delimiter));
-  const install = spawnSync('make', ['--no-print-directory', 'install-tools'], { cwd: worktree, encoding: 'utf8' });
-  assert.equal(install.status, 2, install.stdout);
-  assert.match(install.stderr, new RegExp(`${worktree} is a worktree that runs the tools of the main checkout ${main} and installs none`));
+  assert.equal(env.MISE_DATA_DIR, path.join(worktree, 'var/tools/mise'));
+  assert.equal(env.PATH, [path.join(worktree, 'var/tools/bin'), path.join(worktree, 'var/tools/mise/shims'), '/usr/bin', '/bin'].join(path.delimiter));
+  for (const goal of [[], ['TOOLS=npm']]) {
+    const install = spawnSync('make', ['-n', '--no-print-directory', 'install-tools', ...goal], { cwd: worktree, encoding: 'utf8' });
+    assert.equal(install.status, 0, install.stderr);
+    assert.doesNotMatch(install.stdout, new RegExp(`${main}/`), 'the install names no file of the main checkout');
+  }
 });
 
 // K780: the release archive directories of a worktree link to those of the main checkout, so a fetch in a worktree would write into
@@ -187,7 +180,7 @@ test('kit-test is a target of the Makefile of kit, not of kit.mk', () => {
   assert.equal(recipes.some(line => line.includes('tests/kit')), false, 'kit.mk runs tests/kit');
   const dry = spawnSync('make', ['-n', '--no-print-directory', 'kit-test'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.ok(dry.stdout.split('\n').includes(`${path.join(MAIN, 'var/tools/bin/node')} scripts/kit/run-tests.mts node -- tests/kit`), dry.stdout);
+  assert.ok(dry.stdout.split('\n').includes(`${path.join(ROOT, 'var/tools/bin/node')} scripts/kit/run-tests.mts node -- tests/kit`), dry.stdout);
 });
 
 /**

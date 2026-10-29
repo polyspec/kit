@@ -16,7 +16,7 @@ import type { TestContext } from 'node:test';
 import { KIT } from './kit-tools.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { miseEnvironment, TOOLS_GO_MOD, trustConfig } from '../../scripts/kit/bootstrap/install-mise.mts';
-import { archiveTar, toolsPath, toolsRoot } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
+import { archiveTar, toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { lintCommands } from '../../scripts/kit/lint-steps.mts';
 import { toolchainStubs } from './toolchain-stubs.mts';
 import { tree } from './tree.mts';
@@ -155,10 +155,8 @@ test('the mise of a checkout takes the checkout as the root of its global config
   assert.match(make, /^MISE_ENVIRONMENT := .*\bMISE_GLOBAL_CONFIG_ROOT\b/m);
 });
 
-// K519: a linked worktree runs the tools of the main checkout of its repository: the data dir, the installs, the state and the
-// shims are those of the main checkout, so a uv tool, whose install mise keys by its data dir, is found; only the global
-// configuration is the worktree's own mise.toml.
-test('the mise of a worktree is that of the main checkout, with the mise.toml of the worktree (K519)', (t) => {
+// K858: a linked worktree runs its own tools: the data dir, the installs, the state, the shims and the global configuration are its own.
+test('the mise of a worktree is its own (K858)', (t) => {
   const main = realpathSync(tree(t, { 'mise.toml': '[tools]\n', 'var/tools/mise/installs/node/26.12.0/bin/node': '' }));
   initRepository(main, '--initial-branch=main');
   spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '-m', 'base'], { cwd: main });
@@ -166,22 +164,16 @@ test('the mise of a worktree is that of the main checkout, with the mise.toml of
   t.after(() => rmSync(worktree, { recursive: true, force: true }));
   assert.equal(spawnSync('git', ['worktree', 'add', '--quiet', '-b', 'fix/row-K1', worktree], { cwd: main }).status, 0);
   const environment = miseEnvironment(worktree);
-  for (const [name, value] of Object.entries(miseEnvironment(main))) {
-    if (name === 'MISE_GLOBAL_CONFIG_FILE' || name === 'MISE_GLOBAL_CONFIG_ROOT') continue;
-    assert.equal(environment[name], value, `${name} of the worktree is that of the main checkout`);
-  }
-  assert.equal(environment.MISE_DATA_DIR, path.join(main, 'var/tools/mise'));
+  for (const [name, value] of Object.entries(environment)) assert.ok(!value.startsWith(`${main}/`), `${name} names the main checkout: ${value}`);
+  assert.equal(environment.MISE_DATA_DIR, path.join(worktree, 'var/tools/mise'));
   assert.equal(environment.MISE_GLOBAL_CONFIG_FILE, path.join(worktree, 'mise.toml'));
   assert.equal(environment.MISE_GLOBAL_CONFIG_ROOT, worktree);
   assert.equal('MISE_SHARED_INSTALL_DIRS' in environment, false, 'no second store');
 });
 
-// K519: the tools of a folder outside a repository, and of a folder that does not exist yet, are its own; a lint finds its tools in an
-// absolute folder of the main checkout as well as in a folder of the checkout.
-test('toolsRoot keeps a folder outside a repository and a missing one, and lintCommands takes an absolute tool folder (K519)', (t) => {
+// A lint finds its tools in an absolute folder of var/tools as well as in a folder of the checkout.
+test('toolsPath joins var/tools of the checkout, and lintCommands takes an absolute tool folder', (t) => {
   const outside = realpathSync(tree(t, { 'var/tools/bin/phpcs': '' }));
-  assert.equal(toolsRoot(outside), outside);
-  assert.equal(toolsRoot('/no/such/checkout'), '/no/such/checkout');
   assert.equal(toolsPath('/no/such/checkout', 'bin'), '/no/such/checkout/var/tools/bin');
   assert.deepEqual(lintCommands(outside, toolsPath(outside, 'bin'), ['phpcs'], 'install it'), { phpcs: path.join(outside, 'var/tools/bin/phpcs') });
   assert.deepEqual(lintCommands(outside, 'var/tools/bin', ['phpcs'], 'install it'), { phpcs: path.join(outside, 'var/tools/bin/phpcs') });

@@ -33,8 +33,8 @@ test('a venv from the Python of mise in var/tools/mise is accepted with its link
   assert.equal(readlinkSync(path.join(venv, 'bin/python3')), 'python', 'the link is kept as uv made it');
 });
 
-// K387-1: a worktree runs the Python that the main checkout installed (K387), so its venv names that Python as its home.
-test('a venv of a worktree from the Python of the shared installs of the main checkout is accepted (K387-1)', (t) => {
+// K858: a worktree runs the Python of its own var/tools, so its venv names that Python as its home, not the main checkout's.
+test('a venv of a worktree from its own Python is accepted, and one from the Python of the main checkout is refused (K387-1, K858)', (t) => {
   const { root: main } = venvTree(t);
   initRepository(main, '--initial-branch=main');
   spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '--quiet', '--allow-empty', '-m', 'base'], { cwd: main });
@@ -43,8 +43,11 @@ test('a venv of a worktree from the Python of the shared installs of the main ch
   assert.equal(spawnSync('git', ['worktree', 'add', '--quiet', '-b', 'fix/row-K1', worktree], { cwd: main }).status, 0);
   const venv = path.join(worktree, 'pkg/.venv');
   mkdirSync(venv, { recursive: true });
-  writeFileSync(path.join(venv, 'pyvenv.cfg'), `home = ${path.join(main, 'var/tools/mise/installs/python/3.14.8/bin')}\nversion_info = 3.14.8\n`);
+  mkdirSync(path.join(worktree, 'var/tools/mise/installs/python/3.14.8/bin'), { recursive: true });
+  writeFileSync(path.join(venv, 'pyvenv.cfg'), `home = ${path.join(worktree, 'var/tools/mise/installs/python/3.14.8/bin')}\nversion_info = 3.14.8\n`);
   assert.equal(venvProblem(venv, worktree), undefined);
+  writeFileSync(path.join(venv, 'pyvenv.cfg'), `home = ${path.join(main, 'var/tools/mise/installs/python/3.14.8/bin')}\nversion_info = 3.14.8\n`);
+  assert.match(venvProblem(venv, worktree) ?? '', /not from a Python of this checkout/);
   writeFileSync(path.join(venv, 'pyvenv.cfg'), 'home = /usr/bin\nversion_info = 3.14.8\n');
   assert.match(venvProblem(venv, worktree) ?? '', /was made from \/usr\/bin, not from a Python of this checkout/);
 });
