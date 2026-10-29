@@ -43,7 +43,7 @@ Composer가 생성한 autoload는 `vendor/<vendor>/<package>/src`를 가리키�
 |---|---|
 | npm | `node_modules/<name>`은 `npm ci` 뒤 쓴, provider로 가는 상대 디렉터리 심링크 하나입니다 |
 | Composer | `<vendor-dir>/<vendor>/<package>`는 `composer install` 뒤 쓴, provider로 가는 상대 디렉터리 심링크 하나이며 `COMPOSER`, `COMPOSER_VENDOR_DIR`를 따릅니다 |
-| Python | `<site-packages>/<package path>` -> provider source root 아래 같은 package path, namespace의 package마다 link 하나입니다. uv가 lock을 먼저 설치하고, uv는 link를 거쳐 쓰므로 모든 uv 쓰기 전에 이 link를 제거합니다(K539) |
+| Python | `<site-packages>/<package path>` -> provider source root 아래 같은 package path, namespace의 package마다 link 하나입니다. uv가 lock을 먼저 설치하고, uv는 link를 거쳐 쓰므로 모든 uv 쓰기 전에 이 link를 제거합니다(K539). environment가 없는 project는 아직 설치되지 않았으므로 `make link`는 그것을 빼고 environment를 만들지 않습니다(K689-3, K888) |
 | Go | 각 Go module에 git이 무시하는 `go.work`. module과 provider module의 `use` 줄을 가집니다 |
 | Rust | `link.mjs cargo <dir> <cargo args>`가 `--config` `[patch]` 항목과 `var/link/cargo` 아래 lock 사본으로 cargo 명령 하나를 실행합니다 |
 
@@ -54,7 +54,7 @@ Composer가 생성한 autoload는 `vendor/<vendor>/<package>/src`를 가리키�
 
 ## 검증
 
-`make link-state-check`(K305-1, P30)는 제공된 패키지의 설치된 npm·Composer·Python 패키지 폴더가 각각 checkout으로 가는 link인지 검사하고 workspace link, `go.work`, Claude Code hook을 검증합니다. link된 npm provider마다 그 provider가 실행 시 필요한 polyspec 패키지도 실제 경로를 거쳐 한 단계 판단합니다. 거기 있는 복사본은 그 패키지의 두 번째 instance여서 consumer와 provider 사이 `instanceof`가 실패합니다(K761). `make link-check`는 개발 보조로 불일치를 나열합니다. dependency 호환성은 각 native package manager가 판단합니다. release CI는 로컬 provider 탐색 대신 선언된 배포 dependency를 사용합니다.
+`make link-state-check`(K305-1, P30)는 제공된 패키지의 설치된 npm·Composer·Python 패키지 폴더가 각각 checkout으로 가는 link인지 검사하고 workspace link, `go.work`, Claude Code hook을 검증합니다. 추적된 project가 선언하고 다른 repository의 sibling checkout이 제공하는 npm, Composer, Python package에 그것을 link하는 설치된 folder가 없으면 finding입니다. `make link`는 installer가 아직 실행되지 않은 project(node_modules, vendor folder, environment가 없음)를 빼므로, 설치가 설치하지 않은 project는 통과하지 않습니다(K888). link된 npm provider마다 그 provider가 실행 시 필요한 polyspec 패키지도 실제 경로를 거쳐 한 단계 판단합니다. 거기 있는 복사본은 그 패키지의 두 번째 instance여서 consumer와 provider 사이 `instanceof`가 실패합니다(K761). `make link-check`는 개발 보조로 불일치를 나열합니다. dependency 호환성은 각 native package manager가 판단합니다. release CI는 로컬 provider 탐색 대신 선언된 배포 dependency를 사용합니다.
 
 Source 개발 계약은 배포된 dependency와 같은 version의 source 수정, release보다 앞선 source checkout, 배포 이력이 없는 새 provider를 포함합니다. Native package metadata는 유효해야 하며 release가 없다는 이유로 package manager의 metadata 요구를 생략하지 않습니다. 미배포 provider도 package manager의 정식 version metadata 또는 version 추론 규칙을 따르며 kit이 version을 만들어 주지 않습니다. 앱이 호환되는 개발 requirement와 local source를 선언하며 source 사용에 tag나 배포 archive는 필요하지 않습니다. Cargo의 exact-version requirement는 patch 선택을 막을 수 있으므로 wrapper는 native workspace metadata를 검사하고 필요한 개발 source 대신 release가 선택되면 거부합니다. 이 검사 전에 선언한 path patch를 사용해 복사한 lock에 이미 있는 sibling crate 이름만 대상으로 native `cargo update --offline`을 실행합니다. 이후 metadata와 요청 명령은 `var/link/cargo` 아래 생성된 lock을 사용하며 tracked manifest와 lock은 바뀌지 않고 다른 package의 전역 갱신도 요청하지 않습니다. Cargo source 검사는 `-p`로 선택한 package에만 한정되지 않고 workspace resolution을 대상으로 합니다.
 

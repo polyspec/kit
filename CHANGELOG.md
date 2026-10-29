@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- make link leaves out a project whose installer has not run yet, in npm, Composer and Python, as a package that is not installed, instead of stopping make install when a sub-install links before the other projects are installed; it still creates no Python environment (K689-3), and link-state-check reports each declared provided package that no installed folder links, so a project that was never installed ends red at link-state-check (K888).
+
 ## 0.0.75
 
 - Release Kit 0.0.75 with K855, K857, K858, K875, K877, K883, K885, K886 and K887 from main HEAD; the cut of K884 was never published (K889).

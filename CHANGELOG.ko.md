@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f34267b55c0daeae3d2d1ac8f2e3d2db5085ebad5f966e5184a1eae3a0e83e0e -->
+<!-- source-sha256: 9c2656b698cdc3488e8f6e7c7046a738d2625d8e541f8a3a335c731fd86281d8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- make link은 installer가 아직 실행되지 않은 project를 npm, Composer, Python에서 설치되지 않은 package처럼 빼며, 다른 project가 설치되기 전에 sub-install이 link할 때 make install을 멈추지 않습니다. 여전히 Python environment를 만들지 않으며(K689-3), link-state-check는 설치된 folder가 link하지 않는 선언된 제공 package마다 보고하므로 설치되지 않은 project는 link-state-check에서 실패로 끝납니다 (K888).
 
 ## 0.0.75
 

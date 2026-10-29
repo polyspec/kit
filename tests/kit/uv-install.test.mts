@@ -60,12 +60,20 @@ test('K765, K539: the installer removes the links before uv syncs, so uv writes 
   assert.match(lines.join(''), /linked sources: polyspec-new-unreleased/);
 });
 
-test('K689-3: the link never syncs the lock, and needs an existing environment', { timeout: 30_000 }, (t) => {
+test('K689-3: the link never syncs the lock', { timeout: 30_000 }, (t) => {
   const { root, uv, env, log } = fixture(t);
   uvLink({ directory: root, uv, env });
   assert.doesNotMatch(readFileSync(log, 'utf8'), /^sync /m);
+});
+
+test('K888: the link leaves out a project without its environment, as a project that is not installed', { timeout: 30_000 }, (t) => {
+  const { root, uv, env, log, provider } = fixture(t);
   rmSync(path.join(root, '.venv'), { recursive: true });
-  assert.throws(() => uvLink({ directory: root, uv, env }), /requires an existing native environment/);
+  const lines: string[] = [];
+  assert.deepEqual(uvLink({ directory: root, uv, env, providers: [provider], print: line => lines.push(line) }), []);
+  assert.match(lines.join('\n'), /no environment at .*\.venv; the project is not installed, so nothing is linked/);
+  assert.equal(existsSync(path.join(root, '.venv')), false, 'the link creates no environment');
+  assert.doesNotMatch(readFileSync(log, 'utf8'), /^(sync|pip) /m);
 });
 
 test('K772: the installer links a package folder that uv sync left missing, since the distribution is installed', { timeout: 30_000 }, (t) => {

@@ -159,8 +159,13 @@ export function releaseEnvironmentLinks(project: string, environment: string | u
   return removed;
 }
 
+/** The environment folder of the Python project `project`: `environment` (UV_PROJECT_ENVIRONMENT), else .venv. */
+export function pythonEnvironment(project: string, environment = process.env.UV_PROJECT_ENVIRONMENT): string {
+  return path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment);
+}
+
 function sitePackages(project: string, environment: string | undefined): string[] {
-  const lib = path.join(path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment), 'lib');
+  const lib = path.join(pythonEnvironment(project, environment), 'lib');
   if (!existsSync(lib)) return [];
   return readdirSync(lib).map(name => path.join(lib, name, 'site-packages')).filter(folder => existsSync(folder));
 }

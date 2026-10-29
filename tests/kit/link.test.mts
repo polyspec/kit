@@ -1224,13 +1224,19 @@ test('K529: link reads COMPOSER_VENDOR_DIR as the vendor folder before config.ve
   assert.equal(realpathSync(vendor), realpathSync(path.join(provider, 'packages/php')));
 });
 
-// K529 (c): check reports a missing install; mutation delegates the declared initial install to Composer.
-test('K529: check and link reject a missing declared package; link installs nothing, the install of the project does (K529, K761)', (t) => {
+// K529 (c), K888: link leaves out a project whose installer has not run yet, and link-state-check reports its declared package; once
+// the project is installed, a declared package with no folder fails check and link, which install nothing.
+test('K529, K888: a declared package of a project that is not installed is left out by link and reported by link-state-check; once installed, check and link reject it (K529, K761, K888)', (t) => {
   const { consumer, env } = workspace(t);
   put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/not-installed' } }) });
   put(consumer, { 'composer-vendor-dir': 'var/not-installed' });
   git(consumer, 'add', '-A');
   git(consumer, 'commit', '--quiet', '-m', 'declared but not installed');
+  const left = linkLines([consumer], env);
+  assert.equal(left.ok, true, left.text);
+  assert.doesNotMatch(left.text, /polyspec\/y/);
+  assert.deepEqual(linkFindings(consumer, env).filter(line => line.includes('polyspec/y')), ['composer polyspec/y: no installed folder of . links it; Fix: make install']);
+  mkdirSync(path.join(consumer, 'var/not-installed'), { recursive: true });
   const checked = linkLines([consumer], env, true);
   assert.equal(checked.ok, false, checked.text);
   assert.match(checked.text, /NOT linked\s+composer\s+polyspec\/y/);

@@ -33,8 +33,11 @@ function installSources({ directory, providers = [], uv = 'uv', env = process.en
   const workspace = run(uv, ['workspace', 'dir'], { cwd: project, env }).trim();
   if (!path.isAbsolute(workspace)) throw new Error('uv workspace dir returned no absolute project root');
   const venv = path.resolve(workspace, env.UV_PROJECT_ENVIRONMENT || '.venv');
+  // K888: a project without its environment is not installed yet. The link creates none (K689-3) and leaves it out, as a package that
+  // is not installed; link-state-check reports each declared provider that stays unlinked.
   if (sync === undefined && !existsSync(path.join(venv, 'pyvenv.cfg'))) {
-    throw new Error(`Python source linking requires an existing native environment at ${venv}; run the application's locked installer first`);
+    print(`uv development: no environment at ${venv}; the project is not installed, so nothing is linked`);
+    return [];
   }
   try {
     if (sync !== undefined) {

@@ -26,7 +26,7 @@ import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { pylockOf, uvLink } from './uv-install.mts';
 import { rebuild } from './link-build.mts';
-import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, releaseEnvironmentLinks } from './link-folders.mts';
+import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, pythonEnvironment, releaseEnvironmentLinks } from './link-folders.mts';
 import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -421,6 +421,39 @@ export function link({ checkouts, directories, check, print, env = process.env, 
 // The tracked projects that the folder link leaves as they are: the tests and the fixtures (K447).
 const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?)\//;
 
+type FolderEcosystem = 'npm' | 'composer' | 'python';
+
+/**
+ * K447: every tracked project of the consumer, a nested one below the root such as hyper's examples/board included, as link-state-check
+ * reads them; a test, a fixture or the release consumer keeps the install that it tests.
+ */
+function linkedProjects(consumer: Consumer, ecosystems: readonly FolderEcosystem[]): string[] {
+  return [...new Set([consumer.scope, ...ecosystems.flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))])].sort();
+}
+
+/** The installed folders of `project` that a provider of the run provides; a path member uses its parent installer's vendor (K590). */
+function projectFolders(work: Run, consumer: Consumer, project: string, ecosystems: readonly FolderEcosystem[]): ProvidedFolder[] {
+  const composerOwners = ecosystems.includes('composer') ? owners(consumer, project, 'composer') : [];
+  const localProviders = [...work.found.values()].filter(provider => provider.ecosystem !== 'composer' || composerOwners.length === 0);
+  return providedFolders(project, localProviders, { vendorDir: composerOwners.length === 0 ? composerVendorDir(project, work.env) : undefined });
+}
+
+/**
+ * K888: the provided packages that the tracked projects of `root` declare and that no installed folder holds, each as a finding of
+ * link-state-check: link leaves out a project whose installer has not run yet, so a project that make install never installed is
+ * reported here.
+ */
+export function declaredUnlinked(root: string, found: Map<string, Provider>, env: NodeJS.ProcessEnv): string[] {
+  const consumer = consumerOf(root);
+  const work: Run = { found, check: true, print: () => {}, failed: false, env };
+  const ecosystems: FolderEcosystem[] = ['npm', 'composer', 'python'];
+  return linkedProjects(consumer, ecosystems).flatMap((project) => {
+    const folders = [...projectFolders(work, consumer, project, ecosystems), ...ownerFolders(work, consumer, project, ecosystems)];
+    return declaredWithoutFolder(work, consumer, project, folders, ecosystems, true)
+      .map(({ ecosystem, name }) => `${ecosystem} ${name}: no installed folder of ${path.relative(consumer.top, project) || '.'} links it; Fix: make install`);
+  });
+}
+
 /** The vendor folder that the composer.json of `project` names in config.vendor-dir, read from the file, else vendor. */
 
 /**
@@ -430,26 +463,21 @@ const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?)\//;
  * Native installation runs before inspecting folders so a newly declared provider can be installed.
  */
 function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly Ecosystem[]) {
-  // K447: every tracked project of the consumer, a nested one below the root such as hyper's examples/board included, as link-state-check
-  // reads them; a test, a fixture or the release consumer keeps the install that it tests.
-  const folderEcosystems = ecosystems.filter((ecosystem): ecosystem is 'npm' | 'composer' | 'python' => ecosystem !== 'go');
+  const folderEcosystems = ecosystems.filter((ecosystem): ecosystem is FolderEcosystem => ecosystem !== 'go');
   if (folderEcosystems.length === 0) return;
-  const projects = new Set([consumer.scope, ...folderEcosystems.flatMap(ecosystem => consumer.manifests(ecosystem, true).filter(file => !UNLINKED.test(path.relative(consumer.top, file))).map(file => path.dirname(file)))]);
-  for (const project of [...projects].sort()) {
-    const composerOwners = folderEcosystems.includes('composer') ? owners(consumer, project, 'composer') : [];
+  for (const project of linkedProjects(consumer, folderEcosystems)) {
     const pythonManifest = path.join(project, 'pyproject.toml');
     if (folderEcosystems.includes('python') && !work.check && existsSync(pythonManifest) && declaredPython(pythonManifest).length > 0) {
       const uv = consumerTool(consumer.top, 'uv', work.env);
       uvLink({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
     }
-    // A path member uses its parent installer's vendor and selected manifest, not a separate member installation (K590).
-    const localProviders = [...work.found.values()].filter(provider => provider.ecosystem !== 'composer' || composerOwners.length === 0);
-    const folders = providedFolders(project, localProviders, { vendorDir: composerOwners.length === 0 ? composerVendorDir(project, work.env) : undefined });
+    const folders = projectFolders(work, consumer, project, folderEcosystems);
     // K761, K765: each installed npm, Composer and Python folder of a provided package is one plain directory symlink to its checkout;
     // no package manager re-resolves the consumer. A declared package with no installed folder is reported below (K529).
     if (!work.check) for (const text of linkFolders(folders)) work.print(text);
-    // K529: a polyspec package that the manifests of the project declare, and that a provider of the run provides, has an installed folder.
-    const missing = declaredWithoutFolder(work, consumer, project, [...folders, ...ownerFolders(work, consumer, project, folderEcosystems)], folderEcosystems);
+    // K529: a polyspec package that the manifests of an installed project declare, and that a provider of the run provides, has an
+    // installed folder; a project whose installer has not run yet is left out (K888).
+    const missing = declaredWithoutFolder(work, consumer, project, [...folders, ...ownerFolders(work, consumer, project, folderEcosystems)], folderEcosystems, false);
     for (const name of missing) line(work, 'NOT linked', name.ecosystem, `${name.name}: no installed folder in ${path.relative(consumer.top, project) || '.'}; install the project first`);
     if (missing.length > 0) work.failed = true;
     if (work.check) {
@@ -484,8 +512,18 @@ function owners(consumer: Consumer, project: string, ecosystem: 'npm' | 'compose
   return [];
 }
 
+/**
+ * Whether the installer of `ecosystem` has run for `project` (K888): node_modules of the npm project or of an owner above it, the vendor
+ * folder of the Composer project or of its path owner, the environment of the Python project.
+ */
+function installed(work: Run, consumer: Consumer, project: string, ecosystem: Ecosystem): boolean {
+  if (ecosystem === 'python') return existsSync(path.join(pythonEnvironment(project, work.env.UV_PROJECT_ENVIRONMENT), 'pyvenv.cfg'));
+  if (ecosystem !== 'npm' && ecosystem !== 'composer') return true;
+  return [project, ...owners(consumer, project, ecosystem)].some(folder => existsSync(ecosystem === 'npm' ? path.join(folder, 'node_modules') : path.resolve(folder, composerVendorDir(folder, work.env) ?? 'vendor')));
+}
+
 /** The installed folders of `ecosystem` that the owners of the workspace member `project` hold for it (K590). */
-function ownerFolders(work: Run, consumer: Consumer, project: string, ecosystems: readonly ('npm' | 'composer' | 'python')[]): ProvidedFolder[] {
+function ownerFolders(work: Run, consumer: Consumer, project: string, ecosystems: readonly FolderEcosystem[]): ProvidedFolder[] {
   return (['npm', 'composer'] as const).filter(ecosystem => ecosystems.includes(ecosystem)).flatMap(ecosystem => owners(consumer, project, ecosystem).flatMap(owner =>
     providedFolders(owner, work.found.values(), { vendorDir: composerVendorDir(owner, work.env) }).filter(folder => folder.ecosystem === ecosystem)));
 }
@@ -495,7 +533,7 @@ function ownerFolders(work: Run, consumer: Consumer, project: string, ecosystems
  * polyspec package with no folder is a finding, never a silent pass. A python member is installed as its package paths, so it is
  * installed when one of its folders is there.
  */
-function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, folders: readonly ProvidedFolder[], ecosystems: readonly ('npm' | 'composer' | 'python')[]): { ecosystem: Ecosystem; name: string }[] {
+function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, folders: readonly ProvidedFolder[], ecosystems: readonly FolderEcosystem[], uninstalled: boolean): { ecosystem: Ecosystem; name: string }[] {
   const declared: { ecosystem: Ecosystem; name: string }[] = [];
   const files: readonly (readonly [Ecosystem, string, (file: string) => string[]])[] = ([['composer', MANIFESTS.composer, declaredComposer], ['npm', MANIFESTS.npm, declaredNpm], ['python', MANIFESTS.python, declaredPython]] as const).filter(([ecosystem]) => ecosystems.includes(ecosystem));
   for (const [ecosystem, manifest, names] of files) {
@@ -509,6 +547,8 @@ function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, f
     // no package path installs no folder (K529).
     if (provider === undefined || provider.repository === repositoryOf(consumer.top)) return false;
     if (ecosystem === 'python' && !hasPythonPackages(provider)) return false;
+    // K888: a project whose installer has not run yet has no folder to link; link-state-check reports it once make install has run.
+    if (!uninstalled && !installed(work, consumer, project, ecosystem)) return false;
     return !folders.some(folder => folder.ecosystem === ecosystem && (folder.name === name || folder.name.startsWith(`${name} `)));
   });
 }

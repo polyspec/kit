@@ -108,6 +108,37 @@ test('a provided package folder that is a copy is a finding, and its link to the
   assert.deepEqual(linkFindings(consumer).filter(line => line.includes('polyspec/z')), [], 'the link to the provider passes');
 });
 
+// K888: link leaves out a Python project without its environment, so the declared provider that no installed folder links is a finding.
+test('a declared provider that no installed folder links is a finding in npm and Python, and its link passes (K888)', (t) => {
+  const workspace = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-python-')));
+  t.after(() => rmSync(workspace, { recursive: true, force: true }));
+  const repository = (name: string, files: Record<string, string>) => {
+    const folder = path.join(workspace, name);
+    mkdirSync(folder, { recursive: true });
+    initRepository(folder);
+    put(folder, files);
+    commitAll(folder, 'base');
+    assert.equal(spawnSync('git', ['-C', folder, 'remote', 'add', 'origin', `https://github.com/polyspec/${name}.git`]).status, 0);
+    return folder;
+  };
+  const provider = repository('prepo', { 'packages/python/pyproject.toml': '[project]\nname = "polyspec-p"\nversion = "0.0.1"\n', 'packages/python/src/polyspec_p/__init__.py': '' });
+  repository('nrepo', { 'packages/js/package.json': JSON.stringify({ name: '@polyspec/n', version: '0.0.1' }) });
+  const consumer = repository('cons', {
+    'packages/python/pyproject.toml': '[project]\nname = "cons"\nversion = "0.0.0"\ndependencies = ["polyspec-p"]\n',
+    'packages/db/package.json': JSON.stringify({ name: 'cons-db', dependencies: { '@polyspec/n': '0.0.1' } }),
+    '.gitignore': '.venv/\nnode_modules/\n',
+  });
+  assert.deepEqual(linkFindings(consumer).filter(line => / (polyspec-p|@polyspec\/n): /.test(line)), [
+    'npm @polyspec/n: no installed folder of packages/db links it; Fix: make install',
+    'python polyspec-p: no installed folder of packages/python links it; Fix: make install',
+  ], 'projects that were never installed end red');
+  const python = (line: string) => line.startsWith('python polyspec-p');
+  const site = path.join(consumer, 'packages/python/.venv/lib/python3.14/site-packages');
+  mkdirSync(site, { recursive: true });
+  symlinkSync(path.join(provider, 'packages/python/src/polyspec_p'), path.join(site, 'polyspec_p'));
+  assert.deepEqual(linkFindings(consumer).filter(python), [], 'the link to the provider passes');
+});
+
 // K773: a tracked manifest that links a polyspec package by a path outside the repository links it a second way besides the folder link.
 test('a tracked manifest path outside the repository is a finding in Composer, npm and uv, and an in-repo path, an archive and a package outside the scope pass (K773)', (t) => {
   const outer = tree(t, { 'composer.json': '{"name":"polyspec/a"}\n' });

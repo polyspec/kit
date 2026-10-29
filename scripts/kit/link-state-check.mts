@@ -8,14 +8,16 @@
 //             the composer.json of that name, and the record says it was installed from a path repository (dist type path), so a
 //             link over the install of a release archive is a finding (K318);
 //   Go        each `use` folder of go.work holds the go.mod of a module.
-// A plain copy among links is a finding, and a link that resolves to nothing is one. A checkout without a link passes: CI
-// installs the released packages. A finding names the ecosystem and the package. A tracked manifest that names a path outside
-// the repository (a Composer path repository, an npm file:/link: dependency, a uv source path) links a sibling by a second way
-// besides the folder link, so it is a finding in every checkout (K773).
+// A plain copy among links is a finding, and a link that resolves to nothing is one. A polyspec package that a tracked project declares
+// and a sibling checkout of another repository provides has an installed folder in npm, Composer and Python, since link leaves out a
+// project whose installer has not run yet (K888). A checkout without a link passes: CI installs the released packages. A finding names
+// the ecosystem and the package. A tracked manifest that names a path outside the repository (a Composer path repository, an npm
+// file:/link: dependency, a uv source path) links a sibling by a second way besides the folder link, so it is a finding in every
+// checkout (K773).
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
-import { isKitHookEntry, kitHookCheckout, kitNodeRunnable, trackedWorkspaceFolders, workspaceHookEntry, workspaceSettings } from './link.mts';
-import { providers, siblingCheckouts, type Tool, trackedManifests, workspaceOf } from './link-providers.mts';
+import { declaredUnlinked, isKitHookEntry, kitHookCheckout, kitNodeRunnable, trackedWorkspaceFolders, workspaceHookEntry, workspaceSettings } from './link.mts';
+import { type Provider, providers, siblingCheckouts, type Tool, trackedManifests, workspaceOf } from './link-providers.mts';
 import { composerVendorDir, folderFindings, providedFolders } from './link-folders.mts';
 import { isTable, readToml } from './toml.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
@@ -208,11 +210,10 @@ function trackedManifestPathFindings(root: string): string[] {
  * K448: the findings of the installed package folders of `root` that a sibling checkout provides: a folder that is a copy, or that
  * links elsewhere than to its provider. Nothing about a version is judged.
  */
-function folderLinkFindings(root: string, folders: readonly string[]): string[] {
-  const provided = [...providers(siblingCheckouts(root).checkouts, undefined, root, root).values()];
+function folderLinkFindings(root: string, folders: readonly string[], provided: ReadonlyMap<string, Provider>): string[] {
   return folders.flatMap((folder) => {
     const project = path.join(root, folder);
-    return folderFindings(root, providedFolders(project, provided, { vendorDir: composerVendorDir(project, process.env) }));
+    return folderFindings(root, providedFolders(project, provided.values(), { vendorDir: composerVendorDir(project, process.env) }));
   });
 }
 
@@ -222,7 +223,8 @@ function folderLinkFindings(root: string, folders: readonly string[]): string[] 
  */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const folders = manifestFolders(root);
-  return [...trackedManifestPathFindings(root), ...folderLinkFindings(root, folders), ...workspaceHookFindings(root, env), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
+  const provided = providers(siblingCheckouts(root).checkouts, undefined, root, root);
+  return [...trackedManifestPathFindings(root), ...folderLinkFindings(root, folders, provided), ...declaredUnlinked(root, provided, env), ...workspaceHookFindings(root, env), ...workspaceLinkFindings(root, folders), ...goFindings(root, env)].sort();
 }
 
 if (isMain(import.meta.url)) {
