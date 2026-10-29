@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- make link no longer changes the mode of an npm bin inside the linked provider checkout: it writes only the node_modules/.bin links, so it links a provider checkout that is mounted read-only; the mode of a bin belongs to its provider, as its tracked mode or its build (K872).
+
 ## 0.0.74
 
 - Release Kit 0.0.74 with K831, K832, K833, K834, K835, K836, K837, K839, K840, K871, K873 and K876 (K880).

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 30b4424df55f14f9bc3e40e4bae1dff78d6075a97385d1f32d323e860e6c050d -->
+<!-- source-sha256: d7cb568c4a4046660db78992fb1805b89fa25cd8faf0505ae164e414bd8e0f18 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- make link는 더 이상 연결된 provider checkout 안의 npm bin mode를 바꾸지 않습니다. node_modules/.bin link만 쓰므로 read-only로 mount된 provider checkout도 연결합니다. bin의 mode는 그 provider의 것, 곧 track된 mode나 그 build의 것입니다 (K872).
 
 ## 0.0.74
 
