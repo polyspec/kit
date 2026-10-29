@@ -3,8 +3,7 @@
 // (toolchain-mise.mts). Each entry names its release and the declaring file, so that an install and a check name the file:
 //   phpLint       config/php-lint/composer.lock, when the checkout declares PHP: the PHP lint of kit, whose release is the sha256 of the lock
 //   phpcs, phpstan config/php-lint/composer.lock: the releases of squizlabs/php_codesniffer and phpstan/phpstan that it locks
-// The PHP lint is declared when the checkout declares PHP and its lock is present. A lock without a release of a tool throws an error with the file and
-// the value.
+// The PHP lint is declared when the checkout declares PHP and its lock is present; a tool is the release that the lock records, as it records it.
 import path from 'node:path';
 import { fileDigest } from './bootstrap/digest.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
@@ -31,8 +30,7 @@ export function declaredLintTools(root: string): DeclaredLintTools {
     const packages = readComposerLock(root, lock).packages ?? [];
     for (const [tool, name] of [['phpcs', 'squizlabs/php_codesniffer'], ['phpstan', 'phpstan/phpstan']] as const) {
       const locked = packages.find(entry => entry.name === name)?.version;
-      if (!locked || !/^v?\d+\.\d+\.\d+$/.test(locked)) throw new Error(`${lock} must lock ${name} at a release <major>.<minor>.<patch>; it locks ${JSON.stringify(locked)}`);
-      declared[tool] = { version: locked.replace(/^v/, ''), source: lock };
+      if (locked) declared[tool] = { version: locked.replace(/^v/, ''), source: lock };
     }
   }
   return declared;
