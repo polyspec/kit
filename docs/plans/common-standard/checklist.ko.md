@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 01bbfb50fc43189878f0e6ae6fb45462d0aa73948ccbd84a749a707f235d221c -->
+<!-- source-sha256: 1035b0a788bc0362d40eb362b8eca4c74ab214efab749160412cf2534176c376 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -738,3 +738,4 @@
 | K781 | worktree-setup은 .mise/의 도구 환경을 준비하지 않는다. worktree는 main checkout의 도구를 쓴다(issue 19) | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test --test-name-pattern=K781 tests/kit/worktree-setup.test.mts` | [o] |
 | K782 | push-gate는 worktree에 커밋하지 않은 변경이 있는 branch를 병합된 것으로 보지 않는다 | scripts/kit/push-gate.mts tests/kit/push-gate.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K782 tests/kit/push-gate.test.mts` | [o] |
 | K783 | layout-check가 PHP library는 application framework를 require하지 않는다는 S10 규칙을 맡는다 | scripts/kit/library-frameworks.mts scripts/kit/kit.mk scripts/kit/check-dependency-policy.mts tests/kit/library-frameworks.test.mts tests/kit/dependency-policy.test.mts PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/library-frameworks.test.mts` | [ ] |
+| K784 | dependency-policy-check와 그 mutation 검사를 지운다. lock 검증은 package manager가 한다 | scripts/kit/check-dependency-policy.mts scripts/kit/check-dependency-policy-mutation.mts scripts/kit/dependency-files.mts scripts/kit/kit.mk .github/workflows/ci.yml | `node --test tests/kit/gate-targets.test.mts` | [ ] |
