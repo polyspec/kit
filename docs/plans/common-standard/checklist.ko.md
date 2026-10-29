@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1f55f9cb3860526c2c20457bb08a6abc983a6d134c7e4d0ff5b2d14b71f8f349 -->
+<!-- source-sha256: e0910f12fbd9c537c61c43bbbd5c97ca41c4738f464c5c16f510b1cda8750207 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -748,4 +748,4 @@
 | K790 | PHP library 테스트는 Composer autoload와 제자리 composer install로 실행한다. php-library-autoload와 설치 staging을 지운다 | scripts/kit/php-library-autoload.mts scripts/kit/install-composer-project.mts scripts/kit/run-tests.mts | `node --test tests/kit/run-tests.test.mts` | [ ] |
 | K791 | K449 commit-type 규칙은 어느 폴더에서든 Markdown 문서를 문서로 읽고, release commit은 uv.lock을 stage할 수 있다. 원인: orm 0.0.19 bump commit `chore(release): Release 0.0.19`가 문서인 packages/php/README.md와 lock인 packages/python/uv.lock 때문에 거부되었다 | scripts/kit/check-commits.mts, tests/kit/commits.test.mts | `node --test --test-name-pattern=K449 tests/kit/commits.test.mts` | [o] |
 | K792 | 워크트리에서 툴체인 검사 통과 | tests/kit/check-toolchain.test.mts | `node --test tests/kit/check-toolchain.test.mts` | [ ] |
-| K793 | Removed-With는 삭제된 테스트가 가리키는 파일을 명시 | scripts/kit/check-commits.mts tests/kit/plan.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K793 tests/kit/plan.test.mts` | [ ] |
+| K793 | Removed-With는 삭제된 테스트가 가리키는 파일을 명시 | scripts/kit/check-commits.mts tests/kit/plan.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K793 tests/kit/plan.test.mts` | [~] |
