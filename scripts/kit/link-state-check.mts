@@ -194,42 +194,68 @@ function trackedLockFindings(root: string): string[] {
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
 const NPM_PATH = /^(?:file|link):/;
+/** A release archive installs a release, not the folder of a checkout. */
+const ARCHIVE = /\.(?:tgz|tar\.gz|zip|whl)$/;
 
-/** Whether the path `target`, relative to the folder of the tracked manifest `file`, leaves the repository. */
-function outside(file: string, target: string): boolean {
-  return path.posix.isAbsolute(target) || path.posix.normalize(path.posix.join(path.posix.dirname(file), target)).startsWith('../');
+/** The path `target` of the tracked manifest `file` in `root`, when it exists. */
+function located(file: string, target: string, root?: string): string | undefined {
+  const full = root === undefined ? undefined : path.resolve(root, path.dirname(file), target);
+  return full !== undefined && existsSync(full) ? full : undefined;
 }
 
 /**
- * K773: the findings of one tracked manifest `file` with its text: each path outside the repository that it links a package by, a
- * Composer path repository, an npm file:/link: dependency or a uv source path. A sibling is linked only by the folder link of make link
- * (docs/operations/local-links.md); a path inside the repository, an own member, passes.
+ * Whether the path `target` of the tracked manifest `file` leaves the repository of `root`. A target that exists is judged by its
+ * real path, so an in-repo path through a link out of the repository leaves it too; the text judges the rest.
  */
-export function manifestPathFindings(file: string, text: string): string[] {
+function outside(file: string, target: string, root?: string): boolean {
+  const full = located(file, target, root);
+  if (root !== undefined && full !== undefined) {
+    const relative = path.relative(realpathSync(root), realpathSync(full));
+    return relative.startsWith('..') || path.isAbsolute(relative);
+  }
+  return path.posix.isAbsolute(target) || path.posix.normalize(path.posix.join(path.posix.dirname(file), target)).startsWith('../');
+}
+
+/** Whether the Composer path repository `target` of `file` is a polyspec package by the name of its composer.json; a missing one may be. */
+function polyspecRepository(file: string, target: string, root?: string): boolean {
+  const full = located(file, target, root);
+  if (full === undefined) return true;
+  const manifest = path.join(full, 'composer.json');
+  const parsed: unknown = existsSync(manifest) ? JSON.parse(readFileSync(manifest, 'utf8')) : undefined;
+  return isJsonObject(parsed) && typeof parsed.name === 'string' && parsed.name.startsWith('polyspec/');
+}
+
+/**
+ * K773: the findings of one tracked manifest `file` with its text: each polyspec package folder outside the repository of `root` that it
+ * links by a path, a Composer path repository, an npm file:/link: dependency or a uv source path. A sibling is linked only by the folder
+ * link of make link (docs/operations/local-links.md); a path inside the repository, an own member, and a release archive pass.
+ */
+export function manifestPathFindings(file: string, text: string, root?: string): string[] {
   const finding = (name: string, target: string) => `${file}: ${name} is linked by the path ${target} outside the repository; a sibling is linked only by the folder link of make link (docs/operations/local-links.md)`;
+  const linked = (target: string) => !ARCHIVE.test(target) && outside(file, target, root);
   if (path.posix.basename(file) === 'pyproject.toml') {
     const tool = readToml(text, file).tool;
     const uv = isTable(tool) ? tool.uv : undefined;
     const sources = isTable(uv) ? uv.sources : undefined;
     if (!isTable(sources)) return [];
-    return Object.entries(sources).flatMap(([name, value]) => (Array.isArray(value) ? value : [value])
-      .flatMap((item: unknown) => isTable(item) && typeof item.path === 'string' && outside(file, item.path) ? [finding(name, item.path)] : []));
+    return Object.entries(sources).flatMap(([name, value]) => CARGO_POLYSPEC.test(name) ? (Array.isArray(value) ? value : [value])
+      .flatMap((item: unknown) => isTable(item) && typeof item.path === 'string' && linked(item.path) ? [finding(name, item.path)] : []) : []);
   }
   const manifest: unknown = JSON.parse(text);
   if (!isJsonObject(manifest)) return [];
   if (path.posix.basename(file) === 'composer.json') {
     const repositories: unknown[] = Array.isArray(manifest.repositories) ? manifest.repositories : isJsonObject(manifest.repositories) ? Object.values(manifest.repositories) : [];
-    return repositories.flatMap(item => isJsonObject(item) && item.type === 'path' && typeof item.url === 'string' && outside(file, item.url) ? [finding('a path repository', item.url)] : []);
+    return repositories.flatMap(item => isJsonObject(item) && item.type === 'path' && typeof item.url === 'string' && linked(item.url) && polyspecRepository(file, item.url, root) ? [finding('a path repository', item.url)] : []);
   }
   return DEPENDENCY_FIELDS.flatMap((field) => {
     const dependencies = manifest[field];
-    return isJsonObject(dependencies) ? Object.entries(dependencies).flatMap(([name, spec]) => typeof spec === 'string' && NPM_PATH.test(spec) && outside(file, spec.replace(NPM_PATH, '')) ? [finding(name, spec)] : []) : [];
+    return isJsonObject(dependencies) ? Object.entries(dependencies).flatMap(([name, spec]) => name.startsWith('@polyspec/') && typeof spec === 'string' && NPM_PATH.test(spec) && linked(spec.replace(NPM_PATH, '')) ? [finding(name, spec)] : []) : [];
   });
 }
 
 /** The findings of every tracked composer.json, package.json and pyproject.toml (K773). */
 function trackedManifestPathFindings(root: string): string[] {
-  return trackedManifests(root, ['composer.json', 'package.json', 'pyproject.toml']).flatMap(file => manifestPathFindings(file, readFileSync(path.join(root, file), 'utf8')));
+  return trackedManifests(root, ['composer.json', 'package.json', 'pyproject.toml']).flatMap(file => manifestPathFindings(file, readFileSync(path.join(root, file), 'utf8'), root));
 }
 
 /**
