@@ -363,7 +363,8 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
   if (message !== undefined && message.startsWith('fix(') && stated === undefined && !changes.some(change => change.to === DONE) && !changed.some(file => changesATest(file, after, changedLines))) {
     found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or states No-Red: <reason> when no test can show it` });
   }
-  // A deletion either names its replacement (K339), or archives the identical files at a reachable commit while its item is held.
+  // A deletion either names its replacement (K339), archives the identical files at a reachable commit while its item is held, or names
+  // the deleted behaviour (K787).
   const archived = message !== undefined && parent !== undefined && deleted.length > 0
     && archivedTestDeletionAllowed(root, parent, before, after, trackers, message, deleted);
   const providerReplacements = message === undefined ? [] : providerTestReplacementFindings(root, message, deleted);
@@ -371,8 +372,10 @@ export function itemFindings(root: string, config: CommitRules, { before, after,
   const providerTrailerCount = message === undefined ? 0 : [...message.matchAll(/^Provider-Test-Replacement:/gm)].length;
   const providerReferenceCount = message === undefined ? 0 : [...message.matchAll(/^Provider-Test-Replacement: (\S+) -> npm:(?:@[^/\s]+\/)?[^@/\s]+@\d+\.\d+\.\d+#[a-z0-9][a-z0-9._-]*$/gm)].length;
   const allProviderReplaced = deleted.length > 0 && providerTrailerCount === providerReferenceCount && providerReferenceCount === deleted.length;
-  if (message !== undefined && deleted.length > 0 && !archived && !allProviderReplaced && ![...message.matchAll(/^Replaced-By: (\S+)$/gm)].some(([, file = '']) => isTestFile(file) && tracked(file))) {
-    found.push({ rule: 'commit-deleted-test', message: `the commit deletes the test file ${deleted.join(', ')} and its body names no replacement or verified archive; add Replaced-By: <tracked test path>, or Archived-To: <commit sha> for an identical archive of a held item (${TEST_FILES})` });
+  // K787: a test deleted with the behaviour it tested names that behaviour's file, which the parent tracked and this commit deletes.
+  const removedWith = message !== undefined && [...message.matchAll(/^Removed-With: (\S+)$/gm)].some(([, file = '']) => !isTestFile(file) && before(file) !== '' && !tracked(file));
+  if (message !== undefined && deleted.length > 0 && !archived && !allProviderReplaced && !removedWith && ![...message.matchAll(/^Replaced-By: (\S+)$/gm)].some(([, file = '']) => isTestFile(file) && tracked(file))) {
+    found.push({ rule: 'commit-deleted-test', message: `the commit deletes the test file ${deleted.join(', ')} and its body names no replacement, verified archive or deleted behaviour; add Replaced-By: <tracked test path>, Archived-To: <commit sha> for an identical archive of a held item, or Removed-With: <non-test file that this commit deletes> (${TEST_FILES})` });
   }
   return found;
 }

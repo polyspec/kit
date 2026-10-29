@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 34c04bf73e0780a1b395ee91583931ecf2c9865f49eecf224dd2293f35cf113c -->
+<!-- source-sha256: e585dab781319824e9a2316eb4a5527aecb2ccce2c9f43639da353aef9ed6153 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 테스트하던 동작과 함께 테스트를 지우는 commit은 parent가 추적했고 이 commit이 지우는 테스트 아닌 파일을 Removed-With: <path>로 밝혀 deleted-test gate를 통과한다. (K787)
 
 - worktree-setup은 var/composer-artifacts를 복사하는 대신 config/release-assets.json의 release archive directory마다 main checkout의 directory로 가는 directory link 하나를 만들고, worktree는 make release-assets-fetch를 거부한다. (K780)
 

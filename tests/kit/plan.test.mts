@@ -403,6 +403,26 @@ test('item-state refuses a bypassed or impossible state whose cause cites a rele
   assert.throws(() => setState(root, { id: 'T1', state: '[-]', cause: 'a release', causeKo: '원인' }), /cites "release"/);
 });
 
+// K787: a test deleted with the behaviour it tested names the deleted file; a kept file, a test file or a file never tracked is no such name.
+test('a deleted test passes with Removed-With naming a non-test file that the parent tracked and the commit deletes (K787)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1'));
+  setState(root, { id: 'T1', state: '[~]' });
+  const repo = committed(t, 'T1');
+  put(repo, { 'tests/a.test.mts': 'test;\n', 'src/a.mts': 'export {};\n', 'src/b.mts': 'export {};\n' });
+  stage(repo, '-A');
+  assert.equal(spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '--quiet', '--no-verify', '-m', 'Add a'], { cwd: repo }).status, 0);
+  rmSync(path.join(repo, 'tests/a.test.mts'));
+  rmSync(path.join(repo, 'src/a.mts'));
+  stage(repo, '-A');
+  const message = 'refactor(parser): Delete a (#T1)\n\nThe behaviour of a is gone.\n';
+  const rules = (trailer: string) => indexItemFindings(repo, COMMIT_RULES, `${message}${trailer}`).map(found => found.rule);
+  assert.deepEqual(rules('Removed-With: src/a.mts\n'), []);
+  assert.deepEqual(rules('Removed-With: src/b.mts\n'), ['commit-deleted-test'], 'a file the commit keeps');
+  assert.deepEqual(rules('Removed-With: tests/a.test.mts\n'), ['commit-deleted-test'], 'a test file');
+  assert.deepEqual(rules('Removed-With: src/never.mts\n'), ['commit-deleted-test'], 'a file the parent never tracked');
+});
+
 test('blocked and dropped refuse an excuse that cites no kit row, and a deleted test needs Replaced-By (K339)', (t) => {
   const root = plans(t, 'parser');
   newItem(root, item('parser', 'T1'));

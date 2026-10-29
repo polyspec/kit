@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 2bb8989c89af402f53f855bad7b099a69f08546cf6ed7f65a2ad7d7f48986acb -->
+<!-- source-sha256: 96c5e2aab5586f444bdf4c6c22ec0dad6451a8ccf6c4bebdca60fa56400fa4a9 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -742,4 +742,4 @@
 | K784 | dependency-policy-check와 그 mutation 검사를 지운다. lock 검증은 package manager가 한다 | scripts/kit/check-dependency-policy.mts scripts/kit/check-dependency-policy-mutation.mts scripts/kit/dependency-files.mts scripts/kit/kit.mk .github/workflows/ci.yml | `node --test tests/kit/gate-targets.test.mts` | [ ] |
 | K786 | dependency-review, dependency-state, version.mts, pin-python-dependency를 지운다. 낡거나 취약한 의존성은 package manager가 보고한다 | scripts/kit/dependency-review.mts scripts/kit/dependency-state.mts scripts/kit/version.mts scripts/kit/pin-python-dependency.mts scripts/kit/kit.mk | `node --test tests/kit/gate-targets.test.mts` | [ ] |
 | K785 | release manifest 검사는 저장소 자체 package의 tag version만 확인한다. 의존성 형식은 package manager의 일이다 | scripts/kit/release.mts tests/kit/release.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K785 tests/kit/release.test.mts` | [ ] |
-| K787 | 테스트하던 동작과 함께 테스트를 지우는 commit은 지운 파일을 Removed-With로 밝힌다 | scripts/kit/check-commits.mts tests/kit/plan.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K787 tests/kit/plan.test.mts` | [~] |
+| K787 | 테스트하던 동작과 함께 테스트를 지우는 commit은 지운 파일을 Removed-With로 밝힌다 | scripts/kit/check-commits.mts tests/kit/plan.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K787 tests/kit/plan.test.mts` | [o] |

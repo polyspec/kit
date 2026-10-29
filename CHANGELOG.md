@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A commit that deletes a test together with the behaviour it tested passes the deleted-test gate with Removed-With: <path>, naming the non-test file that the parent tracked and the commit deletes. (K787)
+
 - worktree-setup makes each release archive directory of config/release-assets.json one directory link to that of the main checkout, in place of the copy of var/composer-artifacts, and a worktree refuses make release-assets-fetch. (K780)
 
 - worktree-setup prepares the environment of each tracked locked uv project, at uv workspace dir with UV_PROJECT_ENVIRONMENT or .venv, and no environment of the pypi: tools under .mise/locks, which a worktree runs from the main checkout. (K781)
