@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Write scalar CI plan outputs bare so the copied workflow selects its parity jobs, and plan no parity job for one undeclared implementation; select the gate runner. (K745)
+
 - Prepare the Kit 0.0.63 candidate, native consumer lock and dependency review before release CI. (K744)
 
 ## 0.0.63

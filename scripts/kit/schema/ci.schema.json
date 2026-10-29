@@ -8,6 +8,7 @@
   "properties": {
     "schema": { "type": "integer", "const": 1 },
     "comment": { "type": "string" },
+    "runner": { "description": "The supported GitHub-hosted runner for gate jobs. The default is Ubuntu 24.04 x64; repositories may select Ubuntu 26.04 ARM when their native database tooling requires it.", "type": "string", "enum": ["ubuntu-24.04", "ubuntu-26.04-arm"] },
     "parityMode": { "description": "The parity path of the provider gates workflow. `full` (default) runs complete parity-check; `phases` runs the global API phase and one binding phase for every implementation in config/parity.json.", "type": "string", "enum": ["full", "phases"] },
     "setup": {
       "type": "object",

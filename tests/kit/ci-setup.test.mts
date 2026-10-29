@@ -10,7 +10,7 @@ import { ciPlan, ciSetupInvocations, gateResultsPass, GATE_REQUIRED_NEEDS, parit
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 
 const runtimes = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
-type FixtureConfig = { parityMode?: 'full' | 'phases'; setup: { shared: string[]; parity: string[]; runtimes: Record<string, string[]> }; tools?: Record<string, string[]>; contexts?: Record<string, { prepare?: string; cleanup?: string }> };
+type FixtureConfig = { parityMode?: 'full' | 'phases'; runner?: 'ubuntu-24.04' | 'ubuntu-26.04-arm'; setup: { shared: string[]; parity: string[]; runtimes: Record<string, string[]> }; tools?: Record<string, string[]>; contexts?: Record<string, { prepare?: string; cleanup?: string }> };
 const fixtureConfig = (root: string) => readConfig<FixtureConfig>(root, 'config/ci.json', 'ci.schema.json');
 
 function fixture(): string {
@@ -244,7 +244,7 @@ test('K734: phase mode plans one API job and the exact implementation matrix fro
     const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
     execFileSync(process.execPath, [script, '--plan'], { cwd: root, env: { ...process.env, GITHUB_OUTPUT: output } });
     const actionOutputs = readFileSync(output, 'utf8');
-    assert.match(actionOutputs, /^parity_mode="phases"$/m);
+    assert.match(actionOutputs, /^parity_mode=phases$/m);
     assert.match(actionOutputs, /^parity_matrix=\[{"implementation":"go-client"}\]$/m);
     assert.deepEqual(parityMatrixFindings(result.parityImplementations, result.parityMatrix), []);
     assert.ok(parityMatrixFindings(result.parityImplementations, [{ implementation: 'other' }]).some(finding => finding.includes('go-client 0 times; config/parity.json requires 1')));
@@ -280,6 +280,71 @@ test('K734: phase mode rejects missing provider recipes and duplicate declaratio
   }
 });
 
+test('K745: one discovered implementation without parity declaration selects no parity phase; multiple implementations still require a declaration', () => {
+  const root = fixture();
+  try {
+    execFileSync('git', ['rm', '-q', '-f', 'config/parity.json'], { cwd: root });
+    const noParity = ciPlan(root);
+    assert.equal(noParity.parityMode, 'none');
+    assert.deepEqual(noParity.parityImplementations, []);
+    assert.deepEqual(noParity.parityMatrix, []);
+    const output = path.join(root, 'github-output');
+    const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
+    execFileSync(process.execPath, [script, '--plan'], { cwd: root, env: { ...process.env, GITHUB_OUTPUT: output } });
+    assert.match(readFileSync(output, 'utf8'), /^parity_mode=none$/m);
+    assert.deepEqual(parityMatrixFindings([], []), []);
+    assert.equal(gateResultsPass('none', { discover: 'success', shared: 'success', parity: 'skipped', api: 'skipped', bindings: 'skipped', runtime: 'success' }, true), true);
+    assert.equal(gateResultsPass('none', { discover: 'success', shared: 'success', parity: 'success', api: 'skipped', bindings: 'skipped', runtime: 'success' }, true), false);
+
+    mkdirSync(path.join(root, 'packages/php'), { recursive: true });
+    writeFileSync(path.join(root, 'packages/php/Client.php'), '<?php\n');
+    execFileSync('git', ['add', 'packages/php/Client.php'], { cwd: root });
+    assert.throws(() => ciPlan(root), /config\/parity\.json does not exist, and packages\/ holds 2 implementations/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K745: runner selection defaults to Ubuntu 24.04 and can select the supported ARM runner', () => {
+  const root = fixture();
+  try {
+    const configFile = path.join(root, 'config/ci.json');
+    const config = fixtureConfig(root);
+    assert.equal(ciPlan(root).runner, 'ubuntu-24.04');
+    config.runner = 'ubuntu-26.04-arm';
+    writeFileSync(configFile, JSON.stringify(config));
+    const selected = ciPlan(root);
+    assert.equal(selected.runner, 'ubuntu-26.04-arm');
+    const output = path.join(root, 'github-output');
+    const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
+    execFileSync(process.execPath, [script, '--plan'], { cwd: root, env: { ...process.env, GITHUB_OUTPUT: output } });
+    assert.match(readFileSync(output, 'utf8'), /^runner=ubuntu-26\.04-arm$/m);
+    writeFileSync(configFile, JSON.stringify({ ...config, runner: 'ubuntu-26.04-x64' }));
+    assert.throws(() => ciPlan(root), /must be equal to one of the allowed values/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('K745: shared native parsers install their Go and Python toolchains even when runtime jobs also use them', () => {
+  const root = fixture();
+  try {
+    mkdirSync(path.join(root, 'tests'), { recursive: true });
+    writeFileSync(path.join(root, 'tests/test_markers.py'), 'def test_marker_parser():\n    pass\n');
+    writeFileSync(path.join(root, 'mise.toml'), '[tools]\ngo = "1.26.0"\npython = "3.13.0"\n');
+    const configFile = path.join(root, 'config/ci.json');
+    const config = fixtureConfig(root);
+    config.setup.runtimes.python = ['python-setup'];
+    writeFileSync(configFile, JSON.stringify(config));
+    writeFileSync(path.join(root, 'Makefile'), readFileSync(path.join(root, 'Makefile'), 'utf8').replace('.PHONY: shared-setup', '.PHONY: python-setup shared-setup').replace('shared-setup:\n', 'python-setup:\n\t@true\nshared-setup:\n'));
+    execFileSync('git', ['add', 'tests/test_markers.py', 'mise.toml'], { cwd: root });
+    execFileSync('git', ['add', 'config/ci.json', 'Makefile'], { cwd: root });
+    assert.deepEqual(ciPlan(root).commonTools, ['go', 'python']);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test('K734: final gate results require the selected parity branch and every provider job', () => {
   assert.deepEqual(GATE_REQUIRED_NEEDS, ['discover', 'shared', 'parity', 'parity-api', 'parity-bindings', 'runtime']);
   assert.equal(gateResultsPass('full', { discover: 'success', shared: 'success', parity: 'success', api: 'skipped', bindings: 'skipped', runtime: 'success' }, true), true);
@@ -304,6 +369,9 @@ test('K734: the final gate command returns failure for a missing selected phase 
   };
   assert.doesNotThrow(() => execFileSync(process.execPath, [script, '--verify-gates'], { env, stdio: 'pipe' }));
   assert.throws(() => execFileSync(process.execPath, [script, '--verify-gates'], { env: { ...env, KIT_CI_PARITY_BINDINGS_RESULT: 'skipped' }, stdio: 'pipe' }), /gate result aggregation failed/);
+  const noParity = { ...env, KIT_CI_PARITY_MODE: 'none', KIT_CI_PARITY_RESULT: 'skipped', KIT_CI_PARITY_API_RESULT: 'skipped', KIT_CI_PARITY_BINDINGS_RESULT: 'skipped' };
+  assert.doesNotThrow(() => execFileSync(process.execPath, [script, '--verify-gates'], { env: noParity, stdio: 'pipe' }));
+  assert.throws(() => execFileSync(process.execPath, [script, '--verify-gates'], { env: { ...noParity, KIT_CI_PARITY_API_RESULT: 'success' }, stdio: 'pipe' }), /gate result aggregation failed/);
 });
 
 test('K731: PHP extension jobs install their declared PHP and Composer tools and generate arginfo locally', () => {
@@ -376,7 +444,7 @@ test('K731: extra pinned tools follow the setup target that needs them and parit
     assert.ok(ts);
     assert.deepEqual(ts.checkTools, ['go']);
     assert.deepEqual(ts.installTools, ['go']);
-    assert.deepEqual(plan.commonTools, [], 'a tool owned by the TypeScript setup is not installed redundantly in shared gates');
+    assert.deepEqual(plan.commonTools, ['go'], 'the shared toolchain parser still receives Go although the TypeScript job also needs it');
     assert.deepEqual(plan.parityTools, ['go'], 'parity installs tools needed by runtime setup it repeats');
   } finally {
     rmSync(root, { recursive: true, force: true });

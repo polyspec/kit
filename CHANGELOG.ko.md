@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f8742af61822291cccdfeaabc1916ea012481e0b3261fa7aea00e5b587e4f5bf -->
+<!-- source-sha256: dff34bcca947325d4fd354936f8142cb6220592115f98c7279999dcda145567e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- CI plan의 scalar output을 따옴표 없이 써서 복사된 workflow가 parity job을 고르게 하고, 선언 없는 단일 구현에는 parity job을 계획하지 않는다; gate runner를 고른다. (K745)
 
 - release CI 전에 Kit 0.0.63 candidate, native consumer lock과 dependency review를 준비한다. (K744)
 

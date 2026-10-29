@@ -21,9 +21,12 @@ const RUNTIMES = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
 type Runtime = (typeof RUNTIMES)[number];
 type CIJob = 'shared' | 'parity' | Runtime;
 const CI_JOBS = ['shared', 'parity', ...RUNTIMES] as const satisfies readonly CIJob[];
-type ParityMode = 'full' | 'phases';
+type ConfigParityMode = 'full' | 'phases';
+type ParityMode = ConfigParityMode | 'none';
+type Runner = 'ubuntu-24.04' | 'ubuntu-26.04-arm';
 type CIConfig = {
-  parityMode?: ParityMode;
+  parityMode?: ConfigParityMode;
+  runner?: Runner;
   setup: { shared: string[]; parity: string[]; runtimes: Record<Runtime, string[]> };
   tools?: Partial<Record<CIJob, string[]>>;
   contexts?: Partial<Record<CIJob, { prepare: string; cleanup: string }>>;
@@ -31,6 +34,7 @@ type CIConfig = {
 type RuntimeJob = { runtime: Runtime | 'none'; checkTools: string[]; installTools: string[] };
 export type CIPlan = {
   sharedTargets: string[];
+  runner: Runner;
   parityMode: ParityMode;
   parityImplementations: string[];
   parityMatrix: { implementation: string }[];
@@ -55,6 +59,7 @@ export function parityBindingMatrix(implementations: readonly string[]): { imple
 
 /** Coverage findings for a planned binding matrix, useful to verify a workflow plan against its source declaration. */
 export function parityMatrixFindings(implementations: readonly string[], matrix: readonly { implementation: string }[]): string[] {
+  if (implementations.length === 0 && matrix.length === 0) return [];
   try {
     parityBindingMatrix(implementations);
   } catch (error) {
@@ -128,11 +133,11 @@ function pythonDirectories(root: string, files: readonly string[], folders: read
   return folders.filter(folder => path.posix.basename(folder) === 'python' && has(`${folder}/pyproject.toml`) && has(`${folder}/uv.lock`)).sort();
 }
 
-function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[]; files: string[]; folders: string[]; db: ReturnType<typeof makeDatabase> } {
+function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[]; files: string[]; folders: string[]; db: ReturnType<typeof makeDatabase>; parityMode: ParityMode; parityImplementations: string[] } {
   if (!existsSync(path.join(root, CI_CONFIG))) throw new Error(`${CI_CONFIG} is missing. Fix: declare shared, parity and runtime setup targets following docs/operations/tool-inventory.md (schema scripts/kit/schema/ci.schema.json)`);
   const config = readConfig<CIConfig>(root, CI_CONFIG, 'ci.schema.json');
   const db = makeDatabase(root);
-  const parityMode = config.parityMode ?? 'full';
+  let parityMode: ParityMode = config.parityMode ?? 'full';
   const setupEntries = [
     ['setup.shared', config.setup.shared], ['setup.parity', config.setup.parity],
     ...RUNTIMES.map(runtime => [`setup.runtimes.${runtime}`, config.setup.runtimes[runtime]] as [string, string[]]),
@@ -167,9 +172,17 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
   for (const runtime of RUNTIMES) {
     if (!runtimes.includes(runtime) && (config.tools?.[runtime]?.length ?? 0) > 0) throw new Error(`${CI_CONFIG}: tools.${runtime} selects tools for a runtime with no tracked package. Fix: move the tools to an active job or declare the runtime package`);
   }
-  const parity = readConfig<{ implementations: { name: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
-  const implementationNames = parity.implementations.map(({ name }) => name);
-  parityBindingMatrix(implementationNames);
+  const parityFile = path.join(root, 'config/parity.json');
+  let implementationNames: string[] = [];
+  if (!existsSync(parityFile)) {
+    const discovered = implementationFolders(files);
+    if (discovered.length > 1) throw new Error(`config/parity.json does not exist, and packages/ holds ${discovered.length} implementations (${discovered.join(', ')}); declare them and their units there (scripts/kit/schema/parity.schema.json)`);
+    parityMode = 'none';
+  } else {
+    const parity = readConfig<{ implementations: { name: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
+    implementationNames = parity.implementations.map(({ name }) => name);
+    parityBindingMatrix(implementationNames);
+  }
   if (parityMode === 'phases') {
     if (!db.targets.has('parity-api-check')) throw new Error(`config/ci.json selects parityMode phases, but parity-api-check is not a Make target. Fix: use the provider parity targets from kit.mk`);
     if (makeRecipe(db.targets.get('parity-api-check')?.recipe.trim()) !== '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api') throw new Error(`config/ci.json selects parityMode phases, but parity-api-check does not use the provider API recipe. Fix: use the provider target without replacing its recipe`);
@@ -180,7 +193,7 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
       if (makeRecipe(recipe) !== `$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation ${implementation}`) throw new Error(`${CI_CONFIG} selects phases, but ${target} is missing its provider binding recipe. Fix: use the generated provider target and add setup prerequisites without replacing its recipe`);
     }
   }
-  return { config, runtimes, files, folders, db };
+  return { config, runtimes, files, folders, db, parityMode, parityImplementations: implementationNames };
 }
 
 /** Make's database retains doubled dollars that were escaped through eval; compare the expanded provider recipe. */
@@ -210,9 +223,9 @@ function defaultSetup(root: string, runtime: Runtime, files: readonly string[], 
 }
 
 function plan(root: string): CIPlan {
-  const { config, runtimes, files, folders } = readAndValidate(root);
+  const { config, runtimes, files, folders, parityMode, parityImplementations } = readAndValidate(root);
   invocations(root, 'shared');
-  invocations(root, 'parity');
+  if (parityMode !== 'none') invocations(root, 'parity');
   for (const runtime of runtimes) invocations(root, 'runtime', runtime);
   const { declared, names } = toolchainNames(root);
   const activeOwners = new Set(runtimes.flatMap(runtime => runtimeTools[runtime]));
@@ -220,7 +233,9 @@ function plan(root: string): CIPlan {
     ...(config.tools?.parity ?? []),
     ...runtimes.flatMap(runtime => config.tools?.[runtime] ?? []),
   ]);
+  const sharedNativeTools = ['go', 'python'].filter(name => names.includes(name));
   const commonTools = [...new Set([
+    ...sharedNativeTools,
     ...names.filter(name => !['node', 'npm', 'mise'].includes(name) && !activeOwners.has(name) && !assignedElsewhere.has(name)),
     ...(config.tools?.shared ?? []),
   ])].sort();
@@ -229,7 +244,9 @@ function plan(root: string): CIPlan {
     checkTools: [...new Set([...runtimeTools[runtime], ...(config.tools?.[runtime] ?? [])])].filter(name => names.includes(name)),
     installTools: [...new Set([...runtimeTools[runtime], ...(config.tools?.[runtime] ?? [])])].filter(name => names.includes(name) && !['node', 'npm', 'mise'].includes(name)),
   }));
-  const parity = readConfig<{ implementations: { name: string; runner: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
+  const parity = existsSync(path.join(root, 'config/parity.json'))
+    ? readConfig<{ implementations: { name: string; runner: string }[] }>(root, 'config/parity.json', 'parity.schema.json')
+    : { implementations: [] };
   const parityTools = new Set(parity.implementations.flatMap(implementation => parityRunnerTools[implementation.runner] ?? []));
   for (const runtime of runtimes) for (const tool of config.tools?.[runtime] ?? []) parityTools.add(tool);
   for (const tool of config.tools?.parity ?? []) parityTools.add(tool);
@@ -242,9 +259,10 @@ function plan(root: string): CIPlan {
   const linkTools = declared.go === undefined ? [] : ['go'];
   return {
     sharedTargets: config.setup.shared,
-    parityMode: config.parityMode ?? 'full',
-    parityImplementations: parity.implementations.map(({ name }) => name),
-    parityMatrix: parityBindingMatrix(parity.implementations.map(({ name }) => name)),
+    runner: config.runner ?? 'ubuntu-24.04',
+    parityMode,
+    parityImplementations,
+    parityMatrix: parityImplementations.length ? parityBindingMatrix(parityImplementations) : [],
     parityTargets: config.setup.parity,
     parityRuntimes: runtimes,
     runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', checkTools: [], installTools: [] }],
@@ -295,6 +313,7 @@ function writePlan(root: string): void {
   }
   const outputs: Record<string, unknown> = {
     runtimes: result.runtimes,
+    runner: result.runner,
     parity_mode: result.parityMode,
     parity_matrix: result.parityMatrix,
     has_runtimes: result.runtimes.some(({ runtime }) => runtime !== 'none'),
@@ -305,7 +324,7 @@ function writePlan(root: string): void {
     php_dirs: result.phpDirs,
     python_dirs: result.pythonDirs,
   };
-  for (const [key, value] of Object.entries(outputs)) appendFileSync(output, `${key}=${JSON.stringify(value)}\n`);
+  for (const [key, value] of Object.entries(outputs)) appendFileSync(output, `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}\n`);
 }
 
 export const GATE_REQUIRED_NEEDS = ['discover', 'shared', 'parity', 'parity-api', 'parity-bindings', 'runtime'] as const;
@@ -314,7 +333,9 @@ export type GateResult = 'success' | 'failure' | 'cancelled' | 'skipped' | 'unkn
 /** Whether the provider workflow's final aggregate accepted exactly the selected parity path and all required partitions. */
 export function gateResultsPass(mode: ParityMode, results: { discover: GateResult; shared: GateResult; parity: GateResult; api: GateResult; bindings: GateResult; runtime: GateResult }, hasRuntimes: boolean): boolean {
   if (results.discover !== 'success' || results.shared !== 'success') return false;
-  if (mode === 'full') {
+  if (mode === 'none') {
+    if (results.parity !== 'skipped' || results.api !== 'skipped' || results.bindings !== 'skipped') return false;
+  } else if (mode === 'full') {
     if (results.parity !== 'success' || results.api !== 'skipped' || results.bindings !== 'skipped') return false;
   } else if (mode === 'phases') {
     if (results.parity !== 'skipped' || results.api !== 'success' || results.bindings !== 'success') return false;
@@ -324,7 +345,7 @@ export function gateResultsPass(mode: ParityMode, results: { discover: GateResul
 
 function verifyGateResults(): void {
   const mode = process.env.KIT_CI_PARITY_MODE;
-  if (mode !== 'full' && mode !== 'phases') throw new Error(`the parity mode is missing or unknown (${mode ?? 'unset'}); fix config/ci.json and rerun the gates`);
+  if (mode !== 'full' && mode !== 'phases' && mode !== 'none') throw new Error(`the parity mode is missing or unknown (${mode ?? 'unset'}); fix config/ci.json and rerun the gates`);
   const readResult = (name: string): GateResult => {
     const value = process.env[`KIT_CI_${name.toUpperCase()}_RESULT`];
     return value === 'success' || value === 'failure' || value === 'cancelled' || value === 'skipped' ? value : 'unknown';

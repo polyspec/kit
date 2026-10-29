@@ -45,6 +45,11 @@ test('the gates workflow partitions every kit-gates target across shared, parity
   assert.match(workflow, /run: make -k kit-gates-parity/);
   assert.match(workflow, /kit-gates-runtime-\$\{\{ matrix\.runtime \}\}/);
   assert.match(workflow, /run: make kit-ci-plan/, 'the tracked setup planner selects runtime jobs and pinned tools');
+  assert.match(workflow, /runner: \$\{\{ steps\.plan\.outputs\.runner \}\}/, 'gate runner selection comes from the validated CI plan');
+  assert.match(workflow, /^    runs-on: ubuntu-24\.04$/m, 'the planner runs on the supported default runner');
+  for (const name of ['shared', 'parity', 'parity-api', 'parity-bindings', 'runtime', 'required']) {
+    assert.match(workflowJob(workflow, name).join('\n'), /runs-on: \$\{\{ needs\.discover\.outputs\.runner \}\}/, `${name} uses the selected supported runner`);
+  }
   assert.match(workflow, /run: make kit-ci-setup GROUP=shared/);
   assert.match(workflow, /run: make kit-ci-setup GROUP=parity/);
   assert.match(workflow, /run: make kit-ci-setup GROUP=runtime RUNTIME=\$\{\{ matrix\.runtime \}\}/);
@@ -147,6 +152,15 @@ test('K734: the provider workflow selects exactly one parity path and aggregates
   assert.ok(required.some(line => line.includes('run: make kit-ci-verify-gates')));
   assert.ok(required.some(line => line.includes('KIT_CI_PARITY_API_RESULT: ${{ needs.parity-api.result }}')));
   assert.ok(required.some(line => line.includes('KIT_CI_PARITY_BINDINGS_RESULT: ${{ needs.parity-bindings.result }}')));
+});
+
+test('K745: no-parity discovery skips all parity jobs while the required job still aggregates them', () => {
+  const workflow = read('workflows/gates.yml');
+  assert.ok(workflowJob(workflow, 'parity').includes("    if: ${{ needs.discover.outputs.parity_mode == 'full' }}"));
+  assert.ok(workflowJob(workflow, 'parity-api').includes("    if: ${{ needs.discover.outputs.parity_mode == 'phases' }}"));
+  assert.ok(workflowJob(workflow, 'parity-bindings').includes("    if: ${{ needs.discover.outputs.parity_mode == 'phases' }}"));
+  assert.deepEqual(workflowNeeds(workflowJob(workflow, 'required'), 'required').sort(), [...GATE_REQUIRED_NEEDS].sort());
+  assert.ok(workflowJob(workflow, 'required').some(line => line.includes('run: make kit-ci-verify-gates')));
 });
 
 // K515: a tracked lock records the release of each polyspec package (K448, K507), so kit has no check that a tracked file names
