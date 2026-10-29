@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 571a78a3207cc2d6b961106cf2f6b62c5485dbb1fc1cdfb3b236f6105319c8eb -->
+<!-- source-sha256: fae1a131d941cfbc95d11233e0dc9bcace036f24dc953f33b6c061d626c5d7f4 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -789,3 +789,4 @@
 | K833 | install-php-arginfo가 lock을 자기 폴더 이름과 판정하는 nikic/php-parser release 비교를 삭제 | scripts/kit/install-php-arginfo.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/php-ext.test.mts` | [o] |
 | K834 | config/php-lint/composer.lock가 기록한 phpcs와 phpstan release를 형식 거부 없이 그대로 받음 | scripts/kit/toolchain-lint.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-lint.test.mts` | [o] |
 | K835 | mise.toml release를 선언된 그대로 받고 toolchain-lock과 toolchain-check의 mise.lock 검사를 삭제 | scripts/kit/toolchain-mise.mts, scripts/kit/check-toolchain.mts, scripts/kit/toolchain-lock.mts, tests/kit/toolchain-mise.test.mts, tests/source/python-real.test.mts, AGENTS.md, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, docs/rebuild/toolchain.md, docs/rebuild/toolchain.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-mise.test.mts` | [ ] |
+| K835 | worktree는 자체 release archive directory를 가진다: worktree-setup은 main이 sha256과 함께 가진 archive를 복사하고, release-assets-fetch는 worktree에서 실행되어 그곳에만 쓴다(issue 21) | scripts/kit/worktree-setup.mts, scripts/kit/release-assets.mts, scripts/kit/kit.mk, tests/kit/worktree-setup.test.mts, tests/kit/kit-mk.test.mts, tests/kit/release-assets.test.mts, docs/operations/local-links.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test --test-name-pattern=K835 tests/kit/worktree-setup.test.mts tests/kit/kit-mk.test.mts tests/kit/release-assets.test.mts` | [ ] |
