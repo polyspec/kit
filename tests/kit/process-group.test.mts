@@ -10,6 +10,9 @@ import { processTable, signalGroup, signalWindowsTree, stopGroup } from '../../s
 import type { Kill, ProcessEntry } from '../../scripts/kit/process-group.mts';
 import { terminateGroup } from '../../scripts/kit/run-tests.mts';
 
+// K830: a test that starts real processes fails by name within its timeout instead of holding a CI step until the job limit.
+const PROCESS_TIMEOUT = { timeout: 60_000 };
+
 /** A kill that fails with each code of `codes` in turn, then succeeds; it records each call. */
 function killing(...codes: string[]): { kill: Kill; calls: [number, NodeJS.Signals | number][] } {
   const calls: [number, NodeJS.Signals | number][] = [];
@@ -72,7 +75,7 @@ test('Windows tree cleanup stops original descendants after root exit and repare
   assert.equal(remaining, 'sent', 'a surviving process is never reported as ended');
 });
 
-test('stopGroup returns only after a root that ignores SIGTERM has ended through SIGKILL (K754)', async () => {
+test('stopGroup returns only after a root that ignores SIGTERM has ended through SIGKILL (K754)', PROCESS_TIMEOUT, async () => {
   const child = spawn(process.execPath, ['-e', "process.on('SIGTERM', () => {}); process.stdout.write('ready\\n'); setInterval(() => {}, 1000);"], { detached: true, stdio: ['ignore', 'pipe', 'inherit'] });
   assert.ok(child.pid);
   assert.ok(child.stdout, 'the root process reports that it ignores SIGTERM');
@@ -88,7 +91,7 @@ test('stopGroup returns only after a root that ignores SIGTERM has ended through
   }
 });
 
-test('stopGroup terminates a real root and descendant process tree', async () => {
+test('stopGroup terminates a real root and descendant process tree', PROCESS_TIMEOUT, async () => {
   const source = `const { spawn } = require('node:child_process'); const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' }); process.stdout.write(JSON.stringify({ descendant: child.pid }) + '\\n'); process.on('SIGTERM', () => { child.kill('SIGTERM'); child.once('exit', () => process.exit(0)); }); setInterval(() => {}, 1000);`;
   const child = spawn(process.execPath, ['-e', source], { detached: true, stdio: ['ignore', 'pipe', 'inherit'] });
   assert.ok(child.pid);

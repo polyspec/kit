@@ -781,4 +781,4 @@
 | K826 | Keep the dev folder byte-identical when a uv install drops a linked Python package | tests/source/uv-link-real.test.mts | `node --test tests/source/uv-link-real.test.mts` | [o] |
 | K827 | The PHPUnit test listing of a run has the autoloader of the run, so the deadline prepend loads in it | scripts/kit/run-tests.mts, tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts` | [v] |
 | K828 | Make the run-tests suite finish every test under a high load average | tests/kit/run-tests.test.mts | `node --test tests/kit/run-tests.test.mts` | [ ] |
-| K830 | Bound the process tests by a timeout and remove the hang of the Windows tree cleanup test | tests/kit/process-group.test.mts, tests/kit/process.test.mts | `node --test tests/kit/process.test.mts tests/kit/process-group.test.mts` | [~] |
+| K830 | Bound the Windows process tests, so a hang fails by its limit and a hung real-process test by its name | .github/workflows/platform-bootstrap.yml, tests/kit/process-group.test.mts | `node --test tests/kit/bootstrap-platform.test.mts tests/kit/process-group.test.mts` | [o] |

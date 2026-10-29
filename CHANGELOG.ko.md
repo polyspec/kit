@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4a5cdc45f933ab0d4c6660799ba975f62e99d384b03c5078bf7201539bd8a536 -->
+<!-- source-sha256: b68f62e033d96418d9f0f9f1024a7ac64947342ee171aad41b8d38c82881498c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- platform-bootstrap의 Windows process 단계에 10분 한도를, 실제 process를 시작하는 process-group test에 60초 timeout을 두어 멈춤이 job을 붙잡지 않고 그 한도로 실패합니다 (K830).
 
 - run의 PHPUnit test 목록 실행(runtime-targets, K390-1)이 run의 autoloader를 deadline prepend에 넘긴다. 그래서 더는 "the PHPUnit Composer autoloader is missing"으로 끝나지 않는다 (K827).
 - link된 Python 패키지를 빼는 uv 설치도 dev 폴더를 바이트 단위로 그대로 둡니다. kit은 모든 uv 설치 전에 link를 풀고(K539), 이제 실제 uv 케이스가 이 경우를 고정합니다 (K826).

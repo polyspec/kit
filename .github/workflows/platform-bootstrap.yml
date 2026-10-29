@@ -49,7 +49,9 @@ jobs:
         run: make case-sensitive-runner-smoke
       - name: install pinned Go and Rust toolchains
         run: node scripts/kit/install-tools.mts go rust
+      # K830: a hung process test fails this step by its limit instead of holding the job until the limit of GitHub.
       - name: verify the Windows .cmd process path
+        timeout-minutes: 10
         run: node --test tests/kit/process.test.mts tests/kit/process-group.test.mts
       - name: verify native wrappers and selected toolchains
         if: matrix.runner != 'windows-2025'
