@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Delete the K315 cause filter: item-state no longer refuses a bypassed or impossible cause that cites a release, a flake, an unrelated failure, the environment or a kit row. The tests that pinned it are deleted (K806).
 - land no longer runs a failing gate again on main as a baseline (K631): a gate that fails in the worktree refuses the branch. A path that no owner declares selects no gate instead of refusing the land (K807).
 - Keep only the commit rules that guard a result: the AI footer and identity, the Red line of a done row and the test of a fix. Delete the subject form, language, identity, row, type, state, changelog, generated and twin rules of a commit, `commits-check` with its range mode and CI step, config/commit-identity.json, the pre-merge-commit hook and the no-op commit-gates hook. Consumer step: `make hooks`, then `git rm .githooks/pre-merge-commit config/commit-identity.json` and drop any `commits-check` step of a workflow (K805).
 - Delete the push gate: push-gate.mts, the pre-push hook, `make push-gate-hook` and `push-gate-commit`, and the rule that config/checklist.json lists pre-push. A push is not checked; the message rules run at commit. release-verify checks `ci-passed` when config/release.json names no checks. A repository removes .githooks/pre-push with git rm, drops pre-push from `hooks` of config/checklist.json, and removes a CI job or a release check named push-gate. (K804)

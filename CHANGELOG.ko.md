@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 22f134ebe3193d916e0bfc28cfdcc407d3bf96c784009461a2011c0ae60c9a68 -->
+<!-- source-sha256: a291643ca8ffcd632bec2d478c675f922e4cf529f63965efd18b01ddea65a2c2 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K315 cause 필터를 삭제합니다: item-state는 릴리스, flake, 무관한 실패, 환경, kit 행을 인용한 bypass 또는 불가 원인을 더 이상 거부하지 않습니다. 이 필터를 고정하던 테스트도 삭제합니다(K806).
 - land는 실패한 gate를 baseline으로 main에서 다시 돌리지 않는다(K631): worktree에서 실패한 gate는 branch를 거부한다. 소유자가 없는 경로는 land를 거부하지 않고 gate를 고르지 않는다 (K807).
 - 결과를 지키는 commit 규칙만 남긴다: AI footer와 identity, done 행의 Red 줄, fix의 test. commit의 subject 형식, 언어, identity, 행, type, 상태, changelog, generated, twin 규칙과 range mode 및 CI 단계를 가진 `commits-check`, config/commit-identity.json, pre-merge-commit hook, 아무것도 하지 않는 commit-gates hook을 지운다. consumer 단계: `make hooks` 뒤 `git rm .githooks/pre-merge-commit config/commit-identity.json`, workflow의 `commits-check` 단계를 지운다 (K805).
 - push gate를 삭제합니다: push-gate.mts, pre-push hook, `make push-gate-hook`과 `push-gate-commit`, config/checklist.json이 pre-push를 나열해야 한다는 규칙. push는 검사하지 않고 message 규칙은 commit 때 실행합니다. config/release.json이 check를 적지 않으면 release-verify는 `ci-passed`를 검사합니다. 저장소는 .githooks/pre-push를 git rm으로 지우고, config/checklist.json의 `hooks`에서 pre-push를 빼고, push-gate라는 CI job이나 release check를 지웁니다. (K804)
