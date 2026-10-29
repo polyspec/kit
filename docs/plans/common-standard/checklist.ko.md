@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 553d29ea854129c49fff71eaf9b64c137fa291b29f26c474fe068bf5e7b66f55 -->
+<!-- source-sha256: 7964e46b476b8cc6f1c5496d30d713535edbcb06fee768b2f655e24bbaa95288 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -759,3 +759,4 @@
 | K803 | parity 기호의 python distribution을 entry의 pyproject에서 읽고 distribution 필드를 없앤다 | scripts/kit/parity-symbols.mts scripts/kit/parity-declaration.mts scripts/kit/schema/parity.schema.json CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/parity-api.test.mts` | [ ] |
 | K804 | push gate와 그 pre-push hook, CI check를 삭제한다 | scripts/kit/push-gate.mts scripts/kit/git-hooks.mts scripts/kit/checklist.mts scripts/kit/kit.mk scripts/kit/release.mts .github/workflows/ci.yml CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/git-hooks.test.mts` | [ ] |
 | K805 | commit message의 형식과 순서 규칙을 삭제하고 AI 정책과 Red 줄만 남긴다 | scripts/kit/check-commits.mts scripts/kit/plan.mts scripts/kit/git-hooks.mts scripts/kit/kit.mk CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/commits.test.mts` | [ ] |
+| K806 | item-state의 K315 원인 필터(plan.mts의 EVASIVE_CAUSE)와 그 테스트를 삭제하여 release를 인용한 원인도 받아들인다 | scripts/kit/plan.mts tests/kit/plan.test.mts | `var/tools/bin/node --test tests/kit/plan.test.mts` | [ ] |
