@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 414858e9410feffdb875f2a049ba27b2fab144cac74422cd2081e360681f7312 -->
+<!-- source-sha256: 0b6dbac73dcceef36260d450b17ce93dffd6b0bbdc688bd661e31ad4af95a626 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -795,4 +795,4 @@
 | K840 | rust-toolchain.toml의 channel을 <major>.<minor>.<patch> 거부 없이 선언된 그대로 읽음 | scripts/kit/toolchain-files.mts, tests/kit/toolchain-files.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/toolchain-files.test.mts` | [o] |
 | K880 | Kit 0.0.74 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K876 | 3342d8ef의 CI가 실패한 테스트를 맞춘다: tests/kit/link.test.mts의 K661-6 runner checkout 두 case는 K831이 삭제한 lock-source finding을 여전히 기대하고, tests/source/checklist-real.test.mts는 plan 폴더 세 개를 고정해 kit-harness plan이 그것을 깨뜨렸다. 이제 폴더와 개수를 docs/plans/*/checklist.md에서 얻는다 | `tests/kit/link.test.mts`, `tests/source/checklist-real.test.mts` | Red: CI of 3342d8ef fails these tests. Green: `node --test tests/kit/link.test.mts tests/source/checklist-real.test.mts` passes; the CI of the 0.0.74 release candidate runs the same tests. | [o] |
-| K881 | tests/kit/install-tools.test.mts의 K836 toolchain-lock test는 호출자의 환경으로 make를 실행하므로, CI가 설정한 UV_PYTHON이 stub mise에 닿아 release candidate 735bba12에서 uv만 있는 case가 실패한다(CI 40957799371). test는 호출자의 UV_PYTHON 없이 실행한다 | `tests/kit/install-tools.test.mts` | Red: `UV_PYTHON=/caller/python node --test tests/kit/install-tools.test.mts` fails on the current tree. Green: the same command passes. | [~] |
+| K881 | tests/kit/install-tools.test.mts의 K836 toolchain-lock test는 호출자의 환경으로 make를 실행하므로, run-tests가 설정한 UV_PYTHON(toolsEnvironment)이 stub mise에 닿아 release candidate 735bba12에서 uv만 있는 case가 실패한다(CI 40957799371). test는 호출자의 UV_PYTHON 없이 실행한다 | `tests/kit/install-tools.test.mts` | Red: `UV_PYTHON=/caller/python node --test tests/kit/install-tools.test.mts` fails on the current tree. Green: the same command passes. | [o] |

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The toolchain-lock tests run make without a UV_PYTHON of the caller, which run-tests sets for every test, so they see only the UV_PYTHON that the recipe names (K881).
 - make link no longer changes the mode of an npm bin inside the linked provider checkout: it writes only the node_modules/.bin links, so it links a provider checkout that is mounted read-only; the mode of a bin belongs to its provider, as its tracked mode or its build (K872).
 
 ## 0.0.74

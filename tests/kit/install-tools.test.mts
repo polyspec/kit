@@ -196,7 +196,8 @@ const lockRun = (t: TestContext, uv: boolean, python: boolean) => {
   const { root, stubs } = checkout(t, '[tools]\n');
   miseStub(root, { 'which python3': MISE_PYTHON, 'ls --global --json uv': listed(uv), 'ls --global --json python': listed(python) });
   const log = path.join(stubs.directory, 'env.log');
-  const make = spawnSync('make', ['--no-print-directory', '-f', path.join(KIT, 'kit.mk'), `KIT=${KIT}`, 'KIT_EXT=mts', 'toolchain-lock'], { cwd: root, env: { ...stubs.env, STUB_MISE_ENV_LOG: log }, encoding: 'utf8' });
+  // A UV_PYTHON of the caller, such as the one that run-tests sets (toolsEnvironment), would reach the stub; the recipe alone names it (K881).
+  const make = spawnSync('make', ['--no-print-directory', '-f', path.join(KIT, 'kit.mk'), `KIT=${KIT}`, 'KIT_EXT=mts', 'toolchain-lock'], { cwd: root, env: { ...stubs.env, STUB_MISE_ENV_LOG: log, UV_PYTHON: undefined }, encoding: 'utf8' });
   assert.equal(make.status, 0, `${make.stdout}${make.stderr}`);
   return { root, calls: readStubLines(log, MISE_CALL) };
 };

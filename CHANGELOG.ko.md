@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d7cb568c4a4046660db78992fb1805b89fa25cd8faf0505ae164e414bd8e0f18 -->
+<!-- source-sha256: 3a33cf94f6cc78ca96e6eec8e270fb856fecdd84111903389202fa5fd43759ea -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- toolchain-lock test는 run-tests가 모든 test에 설정하는 호출자의 UV_PYTHON 없이 make를 실행하므로 recipe가 지정한 UV_PYTHON만 봅니다 (K881).
 - make link는 더 이상 연결된 provider checkout 안의 npm bin mode를 바꾸지 않습니다. node_modules/.bin link만 쓰므로 read-only로 mount된 provider checkout도 연결합니다. bin의 mode는 그 provider의 것, 곧 track된 mode나 그 build의 것입니다 (K872).
 
 ## 0.0.74
