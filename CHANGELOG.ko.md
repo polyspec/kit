@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 508bc8886cfa05562368081f0d560b91e30a0d32bfb1c2a95266559445326072 -->
+<!-- source-sha256: c84f110c19394c0bcf15b3c152cb953344324c657114393c2013d11919a8c143 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- done commit의 Red 줄은 sha 없이 명령과 그 exit status, `Red: <command> exit <n>`을 기술합니다. land가 branch를 rebase하므로 sha는 main이 갖지 않는 commit을 가리켰습니다. `at <sha>`도 계속 받습니다 (K875).
 - make documents-stamp는 PATHS가 지정한 한국어 twin만 stamp합니다. stamp는 twin이 원문과 일치한다는 뜻이기 때문입니다. PATHS가 없으면 아무것도 stamp하지 않고, 원문이 바뀐 twin마다 다시 번역한 뒤 실행할 make documents-stamp PATHS=<twin>을 나열합니다. land는 marker가 충돌한 twin만 stamp합니다 (K877).
 
 ## 0.0.74

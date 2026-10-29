@@ -46,7 +46,7 @@ test('a message file loses its comment lines, and a merge commit is not checked'
   assert.equal(fileMessage('Merge branch x\n'), null);
 });
 
-// K624: the commit that moves a row to done states its red in its body, `Red: <command> exit <n> at <sha>` or `No-Red: <reason>`;
+// K624: the commit that moves a row to done states its red in its body, `Red: <command> exit <n>` or `No-Red: <reason>`;
 // only the line is checked.
 test('commit-red: a commit that moves a row to done states its red or why it has none (K624)', (t) => {
   const red = (message: string) => staged(t, { [PLAN]: plan([['S1', '[~]']]) }, { [PLAN]: plan([['S1', '[o]']]) }, message);
@@ -58,6 +58,15 @@ test('commit-red: a commit that moves a row to done states its red or why it has
   assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed-Test: node --test a.test.mts \\\n  at 0123abc\n'), ['commit-red'], 'a continuation without an exit status is not Red evidence');
   assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed-Test: node --test a.test.mts exit 1 at unknown\n'), ['commit-red'], 'a continuation without a commit SHA is not Red evidence');
   assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nNo-Red: the row deletes a script\n'), []);
+});
+
+// K875: land rebases a branch, so a sha of the red names a commit that main never holds; the command and its exit status stay true.
+test('commit-red takes a Red line with the command and its exit status and no sha (K875)', (t) => {
+  const red = (message: string) => staged(t, { [PLAN]: plan([['S1', '[~]']]) }, { [PLAN]: plan([['S1', '[o]']]) }, message);
+  assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed: node --test a.test.mts exit 1\n'), []);
+  assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed: node --test a.test.mts exit 1 at 0123abc\n'), [], 'a sha is still accepted');
+  assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed: node --test a.test.mts\n'), ['commit-red'], 'a line without an exit status is not Red evidence');
+  assert.deepEqual(red('feat(core): Finish S1 (#S1)\n\nRed: node --test a.test.mts exit 0\n'), ['commit-red'], 'a red exits with a failure');
 });
 
 test('commit-fix-test: a fix commit changes a test file of a runner of kit, or states its red (K257, K693)', (t) => {

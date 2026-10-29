@@ -3,7 +3,7 @@
 //
 //   commit-ai-footer   the message holds no co-author or session trailer of an AI tool (K264)
 //   commit-ai-identity no AI tool is the author or the committer (K265)
-//   commit-red         a commit that moves a row to done states Red: <command> exit <n> at <sha>, or No-Red: <reason> (K624)
+//   commit-red         a commit that moves a row to done states Red: <command> exit <n>, or No-Red: <reason> (K624, K875)
 //   commit-fix-test    a fix commit changes a test file, or states its red (K257)
 //
 //   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
@@ -47,10 +47,11 @@ export function identityFindings(ident: string, role: 'author' | 'committer'): C
 }
 
 /** The red that `message` states (K624): `red` for a Red line (Red-Gate and Red-Test of earlier commits included), `no-red` for a
- * No-Red line with a reason, or undefined. */
+ * No-Red line with a reason, or undefined. The command and its exit status stay true after land rebases the branch, so a sha of the
+ * red is optional (K875). */
 export function statedRed(message: string): 'red' | 'no-red' | undefined {
   const continued = message.replace(/\\\r?\n[ \t]*/g, ' ');
-  if (/^Red(?:-Gate|-Test)?: \S.* exit [1-9]\d* at [0-9a-f]{7,40}$/m.test(continued)) return 'red';
+  if (/^Red(?:-Gate|-Test)?: \S.* exit [1-9]\d*(?: at [0-9a-f]{7,40})?$/m.test(continued)) return 'red';
   if (/^No-Red: \S/m.test(message)) return 'no-red';
   return undefined;
 }
@@ -179,7 +180,7 @@ export function indexItemFindings(root: string, message: string, amend = false) 
   const stated = statedRed(message);
   if (stated !== undefined) return [];
   // The commit that moves a row to done states its red in its body (K624). Only the line is checked.
-  const found: CommitFinding[] = done.map(id => ({ rule: 'commit-red', message: `the commit moves ${id} to done and its body states no red; add a line Red: <command> exit <n> at <sha>, the failing run of its Verification before the change, or No-Red: <reason> for a change that no test can show` }));
+  const found: CommitFinding[] = done.map(id => ({ rule: 'commit-red', message: `the commit moves ${id} to done and its body states no red; add a line Red: <command> exit <n>, the failing run of its Verification before the change, or No-Red: <reason> for a change that no test can show` }));
   // A fix starts with a test that reproduces the defect, unless its body states why none can (K624).
   const changedLines = (file: string) => changedLineNumbers(git(root, 'diff', '--cached', '-U0', against, '--', file));
   if (message.startsWith('fix(') && done.length === 0 && !changed.some(file => changesATest(file, name => fileAt(root, '', name), changedLines))) {

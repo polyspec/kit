@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- A Red line of a done commit states the command and its exit status, `Red: <command> exit <n>`, with no sha: land rebases the branch, so a sha named a commit that main never holds; `at <sha>` is still accepted (K875).
 - make documents-stamp stamps only the Korean twins that PATHS names, since a stamp says that the twin matches its source; with no PATHS it stamps nothing and lists each twin whose source moved with the make documents-stamp PATHS=<twin> to run after re-translating it, and land stamps only the twins whose marker conflicted (K877).
 
 ## 0.0.74
