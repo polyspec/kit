@@ -152,7 +152,7 @@ test('K689: offline native uv source linking preserves the release URL lock and 
   assert.equal(readFileSync(path.join(app, 'uv.lock'), 'utf8'), lock);
 });
 
-test('K689-2: one native transaction resolves an unpublished local runtime dependency and cached external dependency', { timeout: 120_000 }, (t) => {
+test('K689-2, K763: one native transaction links an unpublished local runtime dependency over the locked external dependency', { timeout: 120_000 }, (t) => {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-runtime-graph-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const app = path.join(root, 'app');
@@ -178,10 +178,11 @@ test('K689-2: one native transaction resolves an unpublished local runtime depen
   success(['build', '--wheel', '--out-dir', wheels], release.folder);
   const wheel = path.join(wheels, readdirSync(wheels).find(file => file.endsWith('.whl')) ?? 'missing');
   const hash = createHash('sha256').update(readFileSync(wheel)).digest('hex');
-  const manifest = `[project]\nname = "app"\nversion = "0.0.0"\ndependencies = ["polyspec-beta @ ${pathToFileURL(wheel).href}#sha256=${hash}"]\n[tool.uv]\npackage = false\n`;
+  const manifest = `[project]\nname = "app"\nversion = "0.0.0"\ndependencies = ["polyspec-beta @ ${pathToFileURL(wheel).href}#sha256=${hash}", "setuptools==84.0.0"]\n[tool.uv]\npackage = false\n`;
   writeFileSync(path.join(app, 'pyproject.toml'), manifest);
   success(['venv', '--python', toolCommand(ROOT, 'python3'), '.venv']);
   success(['lock', '--no-sources']);
+  success(['sync', '--locked', '--no-sources']);
   const locked = readFileSync(path.join(app, 'uv.lock'), 'utf8');
   assert.deepEqual(uvEditable({ directory: app, providers: [beta, child], uv, env }).sort(), ['polyspec-beta', 'polyspec-unpublished-c']);
   const python = path.join(app, '.venv/bin/python');
@@ -232,4 +233,28 @@ test('K689-3: newly declared source links into an existing environment while the
   assert.match(errors.join(''), /native Python development installation failed/);
   assert.equal(readFileSync(path.join(app, 'uv.lock'), 'utf8'), locked);
   assert.equal(readFileSync(path.join(app, 'pyproject.toml'), 'utf8'), manifest);
+});
+
+test('K763: a linked provider that declares a sibling by release URL links offline, since the editables install with --no-deps', { timeout: 120_000 }, (t) => {
+  const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-uv-no-deps-real-')));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const provider = (name: string, dependencies: string) => {
+    const source = path.join(directory, name);
+    const module = name.replaceAll('-', '_');
+    mkdirSync(path.join(source, 'src', module), { recursive: true });
+    writeFileSync(path.join(source, 'pyproject.toml'), `[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n[project]\nname = "${name}"\nversion = "0.0.1"\ndependencies = [${dependencies}]\n`);
+    writeFileSync(path.join(source, 'src', module, '__init__.py'), 'value = 1\n');
+    return { ecosystem: 'python' as const, name, folder: source, repository: source, checkout: source };
+  };
+  // fsm: orm declares ordered-json by the URL of its release; the sibling checkout of ordered-json is linked too.
+  const orm = provider('polyspec-orm', '"polyspec-ordered-json @ https://example.invalid/polyspec_ordered_json-0.0.1-py3-none-any.whl"');
+  const json = provider('polyspec-ordered-json', '');
+  const app = path.join(directory, 'app');
+  mkdirSync(app);
+  writeFileSync(path.join(app, 'pyproject.toml'), '[project]\nname = "app"\nversion = "0.0.0"\ndependencies = ["polyspec-orm==0.0.1"]\n');
+  const uv = toolCommand(ROOT, 'uv');
+  const env = toolsEnvironment(ROOT, { ...process.env, UV_PROJECT_ENVIRONMENT: '.venv', UV_OFFLINE: '1', UV_NO_INDEX: '1', UV_FIND_LINKS: toolsPath(ROOT, 'wheels'), UV_CACHE_DIR: path.join(directory, 'cache'), PYTHONDONTWRITEBYTECODE: '1' });
+  const venv = spawnSync(uv, ['venv', '--python', toolCommand(ROOT, 'python3'), '.venv'], { cwd: app, env, encoding: 'utf8' });
+  assert.equal(venv.status, 0, venv.stdout + venv.stderr);
+  assert.deepEqual(uvEditable({ directory: app, providers: [orm, json], uv, env }).sort(), ['polyspec-ordered-json', 'polyspec-orm']);
 });

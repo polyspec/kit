@@ -65,7 +65,10 @@ function installSources({ directory, providers = [], uv = 'uv', env = process.en
     }
     if (local.length > 0) {
       print(`uv development: resolving editable sources together: ${local.map(provider => provider.name).join(', ')}`);
-      const linked = run(uv, ['pip', 'install', '--offline', '--python', python, ...local.flatMap(provider => {
+      // --no-deps (K763): the link connects the installed package to its checkout; the locked install already holds the third-party
+      // dependencies, and a provider that declares a sibling by its release URL would make uv download that release. uv pip check
+      // below judges the dependencies.
+      const linked = run(uv, ['pip', 'install', '--offline', '--no-deps', '--python', python, ...local.flatMap(provider => {
         const requested = extras.get(normalizeName(provider.name)) ?? [];
         return ['--reinstall-package', provider.name, '--editable', `${provider.folder}${requested.length ? `[${requested.join(',')}]` : ''}`];
       })], { cwd: project, env });

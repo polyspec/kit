@@ -30,7 +30,7 @@ test('K689: native source linking installs declared providers without syncing th
   assert.deepEqual(uvEditable({ directory: root, uv, env, providers: [provider, { ...provider, name: 'unused-sibling', folder: '/unused-sibling' }] }), ['polyspec-new-unreleased']);
   const linked = readFileSync(log, 'utf8').trim().split('\n').slice(3);
   assert.equal(linked[0], 'workspace dir');
-  assert.match(linked[1] ?? '', /^pip install --offline --python .* --reinstall-package polyspec-new-unreleased --editable /);
+  assert.match(linked[1] ?? '', /^pip install --offline --no-deps --python .* --reinstall-package polyspec-new-unreleased --editable /);
   assert.match(linked[2] ?? '', /^pip check --python /);
   assert.match(linked[3] ?? '', /^pip list --python .* --format json$/);
   assert.equal(linked.some(command => command.includes('unused-sibling')), false);
@@ -66,7 +66,7 @@ test('K689-1: every selected local provider must be present in the native instal
 });
 
 
-test('K689-2: source runtime providers share one native dependency-resolution transaction', { timeout: 30_000 }, (t) => {
+test('K689-2, K763: source runtime providers share one native transaction that leaves dependencies to the lock', { timeout: 30_000 }, (t) => {
   const { root, uv, env, log } = fixture(t);
   writeFileSync(path.join(root, 'pyproject.toml'), '[project]\nname = "app"\nversion = "0"\ndependencies = ["polyspec-new-unreleased[fast]"]\n');
   const beta = path.join(root, 'beta');
@@ -85,7 +85,7 @@ test('K689-2: source runtime providers share one native dependency-resolution tr
   assert.equal(installs.length, 1);
   assert.ok(installs[0]?.includes(`--editable ${beta}[fast]`));
   assert.ok(installs[0]?.includes(`--editable ${child}`));
-  assert.doesNotMatch(installs[0] ?? '', /--no-deps/);
+  assert.match(installs[0] ?? '', /--no-deps/);
 });
 
 

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 049966df0772dde215ec56a2cfe2e4eb7ac67674bb6971072b61c8de2c09399f -->
+<!-- source-sha256: 20b204d4b6ce750b353c02c3ef4603497ff03cd11f0395f33a7feac033e80301 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- make link은 각 Python provider를 uv pip install --no-deps로 링크하므로, sibling을 릴리즈 URL로 선언한 provider도 오프라인으로 링크된다. 의존성은 uv pip check가 판단한다. (K763)
 
 - npm ci가 링크된 kit 폴더를 릴리즈 복사본으로 바꾼 뒤에도 링크된 consumer는 make install 내내 sibling kit을 실행한다. (K762)
 

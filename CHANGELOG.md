@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- make link links each Python provider with uv pip install --no-deps, so a provider that declares a sibling by its release URL links offline; uv pip check judges the dependencies. (K763)
+
 - A linked consumer runs the sibling kit for the whole make install, also after npm ci replaces the linked kit folder with the release copy. (K762)
 
 - make link writes each installed npm and Composer polyspec package as one plain directory symlink to its checkout, with no npm link or composer update; link-check judges the polyspec packages a linked provider loads. (K761)
