@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: a3ea3c5e7301eb2ce58af4b2faf79a3b9b3815b196ea6a06d345cc1f4cd94a9c -->
+<!-- source-sha256: ba563b15878b275e6241763b7155b5ed2e5c056a8d4b6aa9bc9dba0b17a894a7 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -738,7 +738,7 @@
 | K780-1 | config/release-assets.json의 ignore 검사는 상위 폴더가 무시되는 폴더를 받아들여, archive directory가 link인 worktree에서도 통과한다 | scripts/kit/release-assets.mts, tests/kit/release-assets.test.mts | `node --test --test-name-pattern=K780-1 tests/kit/release-assets.test.mts` | [o] |
 | K781 | worktree-setup은 .mise/의 도구 환경을 준비하지 않는다. worktree는 main checkout의 도구를 쓴다(issue 19) | scripts/kit/worktree-setup.mts, tests/kit/worktree-setup.test.mts | `node --test --test-name-pattern=K781 tests/kit/worktree-setup.test.mts` | [o] |
 | K782 | push-gate는 worktree에 커밋하지 않은 변경이 있는 branch를 병합된 것으로 보지 않는다 | scripts/kit/push-gate.mts tests/kit/push-gate.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K782 tests/kit/push-gate.test.mts` | [o] |
-| K783 | layout-check가 PHP library는 application framework를 require하지 않는다는 S10 규칙을 맡는다 | scripts/kit/library-frameworks.mts scripts/kit/kit.mk scripts/kit/check-dependency-policy.mts tests/kit/library-frameworks.test.mts tests/kit/dependency-policy.test.mts PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/library-frameworks.test.mts` | [ ] |
+| K783 | layout-check가 PHP library는 application framework를 require하지 않는다는 S10 규칙을 맡는다 | scripts/kit/library-frameworks.mts scripts/kit/kit.mk scripts/kit/check-dependency-policy.mts tests/kit/library-frameworks.test.mts tests/kit/dependency-policy.test.mts PRINCIPLES.md PRINCIPLES.ko.md CHANGELOG.md CHANGELOG.ko.md | `node --test tests/kit/library-frameworks.test.mts` | [~] |
 | K784 | dependency-policy-check와 그 mutation 검사를 지운다. lock 검증은 package manager가 한다 | scripts/kit/check-dependency-policy.mts scripts/kit/check-dependency-policy-mutation.mts scripts/kit/dependency-files.mts scripts/kit/kit.mk .github/workflows/ci.yml | `node --test tests/kit/gate-targets.test.mts` | [ ] |
 | K786 | dependency-review, dependency-state, version.mts, pin-python-dependency를 지운다. 낡거나 취약한 의존성은 package manager가 보고한다 | scripts/kit/dependency-review.mts scripts/kit/dependency-state.mts scripts/kit/version.mts scripts/kit/pin-python-dependency.mts scripts/kit/kit.mk | `node --test tests/kit/gate-targets.test.mts` | [ ] |
 | K785 | release manifest 검사는 저장소 자체 package의 tag version만 확인한다. 의존성 형식은 package manager의 일이다 | scripts/kit/release.mts tests/kit/release.test.mts CHANGELOG.md CHANGELOG.ko.md | `node --test --test-name-pattern=K785 tests/kit/release.test.mts` | [ ] |
