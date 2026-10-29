@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: c89f36957b8a86474d501a824677d2d5b497718cb907d2146eaf27b370c9099e -->
+<!-- source-sha256: 37c5c41bb5d7ff141c7c6cdef816f9c219bd33928ca3ef2e47a2a45769163b3f -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -784,3 +784,4 @@
 | K828 | 높은 load average에서도 run-tests suite의 모든 test가 끝나게 함 | tests/kit/run-tests.test.mts | `node --test tests/kit/run-tests.test.mts` | [ ] |
 | K830 | Windows process test에 한도를 두어 멈춤은 그 한도로, 멈춘 실제 process test는 그 이름으로 실패하게 함 | .github/workflows/platform-bootstrap.yml, tests/kit/process-group.test.mts | `node --test tests/kit/bootstrap-platform.test.mts tests/kit/process-group.test.mts` | [o] |
 | K829 | Kit 0.0.73 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
+| K831 | 추적되는 go.work가 있는 repository에서 make test-go CASES=<pattern>은 module별 run처럼 그 pattern을 workspace go test 하나에 -run으로 넘긴다. 원인: goWorkspaceRuns가 cases를 받지 않아 flowmark의 make test-go CASES=TestToken이 선택 없이 모든 Go test를 돌리고, run-tests는 이를 CI 밖에서 거부한다 | scripts/kit/runtime-targets.mts, tests/kit/runtime-targets.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/runtime-targets.test.mts` | [ ] |
