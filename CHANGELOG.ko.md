@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7884515fd02ba19788ac4e92b57d71be119427c9b951c7e50e1d7891a5ba38fc -->
+<!-- source-sha256: 30b4424df55f14f9bc3e40e4bae1dff78d6075a97385d1f32d323e860e6c050d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.74
+
+- K831, K832, K833, K834, K835, K836, K837, K839, K840, K871, K873, K876을 담아 Kit 0.0.74를 릴리즈합니다 (K880).
 - link test의 K661-6 runner checkout 사례는 K831이 지운 lock-source finding 대신 K773의 manifest path finding을 기대하고, checklist test는 plan 폴더 세 개를 고정하지 않고 docs/plans/*/checklist.md에서 폴더와 개수를 얻으므로 새 plan 폴더가 test를 깨뜨리지 않습니다 (K876).
 - make lint-php는 autoload 파일의 polyfill 가드를 허용합니다. symfony/polyfill-*의 bootstrap 파일처럼 elseif와 else가 없고 본문이 그 이름의 선언뿐인 namespace 안의 `if (!function_exists('<name>'))` 또는 `if (!defined('<name>'))`입니다. 그 밖의 가드는 여전히 실패합니다 (K873).
 - make toolchain-lock은 x64와 arm64의 linux, macOS, Windows 중 archive가 있는 각 platform에 대한 kit.mk의 `mise lock`입니다. 먼저 mise.toml이 선언한 uv와 python을 mise가 나열하는 대로 lock하고 설치한 뒤 그 Python을 UV_PYTHON으로 지정하므로, uv가 machine의 uv나 home의 managed Python으로 lock하지 않습니다. scripts/kit/toolchain-lock.mts는 없어졌습니다. bootstrap이 설치한 mise를 실행하므로, mise.lock이 node를 고정하지 않은 checkout은 make install-tools TOOLS=npm, make toolchain-lock, 다시 make install-tools TOOLS=npm을 실행합니다 (K836).
