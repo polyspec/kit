@@ -1,21 +1,30 @@
 // Tests of the release tool (scripts/kit/release.mts): the configuration, the tag, verify, the manifest rules,
 // assets, publish and coverage. Each case works in a committed copy of the fixture (release-sandbox.mts) with stubs of
-// gh and npm on PATH; real git, tar and unzip run. No case reaches GitHub or a registry.
+// gh and npm on PATH; real git, tar and unzip run, and the K871 case runs the real Composer and PHP of the main checkout.
+// No case reaches GitHub or a registry.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { pathToFileURL } from 'node:url';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
+import { toolCommand, toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { Stop } from '../../scripts/kit/process.mts';
 import * as release from '../../scripts/kit/release.mts';
 import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { KIT_MAKE, tool } from './kit-tools.mts';
-import type { NpmManifest } from '../../scripts/kit/manifests.mts';
+import { readComposerLockFile, type NpmManifest } from '../../scripts/kit/manifests.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
 import { known } from './known.mts';
 
 const REPOSITORY = 'example/kit-fixture';
+// The main checkout, whose tools a worktree runs (K519): the real Composer of the K871 consumer.
+const COMMON_DIR = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: import.meta.dirname, encoding: 'utf8' });
+if (COMMON_DIR.status !== 0) throw new Error(`git rev-parse --git-common-dir in ${import.meta.dirname} exited with ${COMMON_DIR.status}: ${COMMON_DIR.stderr}`);
+const MAIN_CHECKOUT = path.dirname(COMMON_DIR.stdout.trim());
 type Box = ReturnType<typeof releaseSandbox>;
 // config/release.json as the fixture holds it, which a test also edits into shapes that the schema refuses.
 type ConfigJson = Omit<release.ReleaseConfig, 'schema'> & { schema: number };
@@ -191,7 +200,7 @@ test('assets builds one archive per package of the configuration', (t) => {
   const tag = box.tag('v0.0.1');
   const lines: string[] = [];
   const names = release.assets(context(box, { log: line => lines.push(line) }), tag);
-  assert.deepEqual(names, ['fixture-lib-npm-0.0.1.tgz', 'fixture-app-npm-0.0.1.tgz', 'polyspec-kit-fixture-php-0.0.1.zip', 'kit_fixture-0.0.1-py3-none-any.whl']);
+  assert.deepEqual(names, ['fixture-lib-npm-0.0.1.tgz', 'fixture-app-npm-0.0.1.tgz', 'polyspec-kit-fixture-php-0.0.1.zip', 'kit_fixture-0.0.1-py3-none-any.whl', 'packages.json']);
   const target = path.join(box.root, 'var/release/assets');
   assert.deepEqual(readdirSync(target).sort(), [...names].sort());
   assert.equal(lines.filter(line => line.includes('packing')).length, 4, lines.join('\n'));
@@ -216,13 +225,50 @@ test('K712 builds candidate archives from committed HEAD without a release tag',
   assert.equal(release.main(['candidate-assets', '0.0.1'], { root: box.root, env: ctx.env, print: line => output.push(line), error: line => output.push(line) }), 0, output.join('\n'));
   assert.ok(output.some(line => line.includes('built fixture-lib-npm-0.0.1.tgz')));
   assert.deepEqual(readdirSync(path.join(box.root, 'var/release/assets')).sort(), [
-    'fixture-app-npm-0.0.1.tgz', 'fixture-lib-npm-0.0.1.tgz', 'kit_fixture-0.0.1-py3-none-any.whl', 'polyspec-kit-fixture-php-0.0.1.zip',
+    'fixture-app-npm-0.0.1.tgz', 'fixture-lib-npm-0.0.1.tgz', 'kit_fixture-0.0.1-py3-none-any.whl', 'packages.json', 'polyspec-kit-fixture-php-0.0.1.zip',
   ]);
   const composerArchive = path.join(box.root, 'var/release/assets', 'polyspec-kit-fixture-php-0.0.1.zip');
   assert.equal(spawnSync('unzip', ['-p', composerArchive, 'src/native/shared.c'], { encoding: 'utf8' }).stdout, generatedSource);
   assert.deepEqual(box.npmCalls().map(call => path.basename(call.cwd)), ['fixture-lib', 'fixture-app']);
   stop(() => release.candidateAssets(ctx, 'v0.0.1'), /candidate version .* is not X\.Y\.Z/);
   assert.equal(git(box.root, 'tag', '--list'), '', 'candidate generation does not create or require a tag');
+});
+
+// K871: the release publishes packages.json, one flat Composer repository of its Composer packages beside the archives, since
+// GitHub release assets hold no folder. Each package is its composer.json of the commit at the release version, with a dist of
+// its release asset URL and the sha1 of its zip, so a consumer names only the tag in the URL of the repository and Composer reads
+// the metadata itself. A consumer with the real Composer of the checkout resolves the package through it.
+test('K871: candidate assets hold packages.json, a flat Composer repository that Composer resolves the release through', (t) => {
+  const box = releaseSandbox(t, { mutate(root) {
+    // The consumer below resolves with no registry, so the package requires only the platform.
+    edit(root, 'packages/fixture-php/composer.json', manifest => ({ ...manifest, require: { php: '>=8.2' } }));
+  } });
+  const output: string[] = [];
+  assert.equal(release.main(['candidate-assets', '0.0.1'], { root: box.root, env: context(box).env, print: line => output.push(line), error: line => output.push(line) }), 0, output.join('\n'));
+  const target = path.join(box.root, 'var/release/assets');
+  const zip = 'polyspec-kit-fixture-php-0.0.1.zip';
+  assert.ok(readdirSync(target).includes('packages.json'), readdirSync(target).join(', '));
+  const dist = { type: 'zip', url: `https://example.com/polyspec/kit-fixture/releases/download/v0.0.1/${zip}`, shasum: createHash('sha1').update(readFileSync(path.join(target, zip))).digest('hex') };
+  const manifest = readJson<ManifestJson>(box.root, 'packages/fixture-php/composer.json');
+  // packages.json and composer.lock are the formats of Composer, which no schema of kit describes.
+  assert.deepEqual(JSON.parse(readFileSync(path.join(target, 'packages.json'), 'utf8')), { packages: { 'polyspec/kit-fixture': { '0.0.1': { ...manifest, version: '0.0.1', dist } } } });
+  const consumer = mkdtempSync(path.join(tmpdir(), 'kit-packages-json-'));
+  t.after(() => rmSync(consumer, { recursive: true, force: true }));
+  const download = path.join(consumer, 'releases/download/v0.0.1');
+  mkdirSync(download, { recursive: true });
+  writeFileSync(path.join(download, 'packages.json'), readFileSync(path.join(target, 'packages.json')));
+  writeFileSync(path.join(consumer, 'composer.json'), JSON.stringify({
+    name: 'example/consumer', type: 'project', license: 'proprietary',
+    repositories: [{ type: 'composer', url: pathToFileURL(path.join(download, 'packages.json')).href }, { 'packagist.org': false }],
+    require: { 'polyspec/kit-fixture': '0.0.1' },
+    config: { platform: { php: '8.2.0' } },
+  }));
+  const env = { ...toolsEnvironment(MAIN_CHECKOUT), COMPOSER: 'composer.json', COMPOSER_HOME: path.join(consumer, '.composer'), COMPOSER_DISABLE_NETWORK: '1' };
+  const update = spawnSync(toolCommand(MAIN_CHECKOUT, 'composer'), ['update', '--no-install', '--no-interaction', '--no-plugins', '--no-scripts', '--no-audit'], { cwd: consumer, env, encoding: 'utf8' });
+  assert.equal(update.error, undefined, `the Composer of ${MAIN_CHECKOUT} did not start: ${update.error?.message}; run make install-tools there`);
+  assert.equal(update.status, 0, update.stdout + update.stderr);
+  const locked = readComposerLockFile(path.join(consumer, 'composer.lock')).packages ?? [];
+  assert.deepEqual(locked.map(({ name, version, dist: lockedDist }) => ({ name, version, dist: lockedDist })), [{ name: 'polyspec/kit-fixture', version: '0.0.1', dist }]);
 });
 
 test('K712 candidate archives refuse changed source inputs rather than packing worktree files', (t) => {
@@ -444,14 +490,14 @@ test('publish creates the release with the notes and the archives', (t) => {
   assert.deepEqual(state.byId?.['42']?.assets.map(asset => asset.name), names, 'each archive is uploaded to the release of its id');
   assert.deepEqual(readJson(box.root, 'var/release/v0.0.1.json'), { id: 42 }, 'the id of the draft is recorded for undraft');
   assert.equal(state.notes, '- The first entry of 0.0.1.\n- The second entry of 0.0.1.\n');
-  assert.ok(lines.some(line => line.includes('creating the draft GitHub Release with 4 archives')), lines.join('\n'));
+  assert.ok(lines.some(line => line.includes('creating the draft GitHub Release with 5 assets')), lines.join('\n'));
 });
 
 test('publish with a missing archive fails before any request', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
   box.checkRuns([]);
-  stop(() => release.publish(context(box), tag), /var\/release\/assets lacks \[fixture-lib-npm-0\.0\.1\.tgz, fixture-app-npm-0\.0\.1\.tgz, polyspec-kit-fixture-php-0\.0\.1\.zip, kit_fixture-0\.0\.1-py3-none-any\.whl\]; make release-assets builds them/);
+  stop(() => release.publish(context(box), tag), /var\/release\/assets lacks \[fixture-lib-npm-0\.0\.1\.tgz, fixture-app-npm-0\.0\.1\.tgz, polyspec-kit-fixture-php-0\.0\.1\.zip, kit_fixture-0\.0\.1-py3-none-any\.whl, packages\.json\]; make release-assets builds them/);
   assert.deepEqual(box.state().calls, []);
 });
 
@@ -536,7 +582,7 @@ test('the command line runs each step, prints a line per step and exits with 1 o
   assert.match(result.stdout, new RegExp(`\\[release\\] v0\\.0\\.1: the commit ${box.commit} is on origin/main and passed push-gate, ci-passed`));
   result = cli(box, ['assets', tag]);
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, /\[release\] v0\.0\.1: built fixture-lib-npm-0\.0\.1\.tgz, fixture-app-npm-0\.0\.1\.tgz, polyspec-kit-fixture-php-0\.0\.1\.zip, kit_fixture-0\.0\.1-py3-none-any\.whl in var\/release\/assets/);
+  assert.match(result.stdout, /\[release\] v0\.0\.1: built fixture-lib-npm-0\.0\.1\.tgz, fixture-app-npm-0\.0\.1\.tgz, polyspec-kit-fixture-php-0\.0\.1\.zip, kit_fixture-0\.0\.1-py3-none-any\.whl, packages\.json in var\/release\/assets/);
   box.checkRuns([]);
   result = cli(box, ['publish', tag]);
   assert.equal(result.status, 0, result.stderr);
@@ -612,7 +658,7 @@ test('the output of npm pack is renamed to the archive name', (t) => {
   } });
   const ctx = context(box);
   const names = release.assets(ctx, box.tag('v0.0.1'));
-  assert.deepEqual(names, ['fixture-lib-npm-0.0.1.tgz', 'polyspec-fixture-app-npm-0.0.1.tgz', 'polyspec-kit-fixture-php-0.0.1.zip', 'kit_fixture-0.0.1-py3-none-any.whl']);
+  assert.deepEqual(names, ['fixture-lib-npm-0.0.1.tgz', 'polyspec-fixture-app-npm-0.0.1.tgz', 'polyspec-kit-fixture-php-0.0.1.zip', 'kit_fixture-0.0.1-py3-none-any.whl', 'packages.json']);
   assert.deepEqual(readdirSync(path.join(box.root, 'var/release/assets')).sort(), [...names].sort(), 'no file keeps the name that npm pack gave');
   // names holds four archives.
   const [, app] = names;

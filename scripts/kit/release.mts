@@ -3,8 +3,9 @@
 // through its make target:
 //
 //   node scripts/kit/release.mts verify TAG     the tagged commit is on origin/main and its checks concluded success
-//   node scripts/kit/release.mts assets TAG     build the archive of every package of the tag into var/release/assets
-//   node scripts/kit/release.mts publish TAG    create the GitHub Release of the tag as a draft, with its notes and archives
+//   node scripts/kit/release.mts assets TAG     build the archive of every package of the tag, and packages.json of its
+//                                               Composer packages, into var/release/assets
+//   node scripts/kit/release.mts publish TAG    create the GitHub Release of the tag as a draft, with its notes and those files
 //   node scripts/kit/release.mts undraft TAG    make the draft release of the tag public
 //   node scripts/kit/release.mts go-tags TAG    every Go module has its tag <directory>/vX.Y.Z at the commit of TAG
 //   node scripts/kit/release.mts coverage       every package file of the checkout is classified in config/release.json
@@ -30,6 +31,10 @@
 // var/release/<tag>.json; the notes are the section X.Y.Z, or one line that links the section when it is longer than
 // NOTES_LIMIT characters, the limit of a release body. `undraft` reads the draft by that id: the
 // list of releases shows a new draft only after a while, and its tag does not address it.
+// A release with a Composer package also writes packages.json beside the archives (K871): one flat Composer repository, since
+// release assets hold no folder, that holds each Composer package under its name and version as its composer.json of the commit
+// with a dist of type zip, the URL of its release asset and the sha1 of the zip. A consumer reads it as a composer repository at
+// <repositoryUrl>/releases/download/<tag>/packages.json, so it names only the tag and Composer reads the metadata itself.
 // A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with uv build,
 // which installs the build-system.requires of its pyproject.toml (release-wheel.mts).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
@@ -39,6 +44,7 @@ import path from 'node:path';
 import semver from 'semver';
 import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, type GitHubRelease } from './github-release.mts';
 import { headings } from './markdown.mts';
+import { fileDigest } from './bootstrap/digest.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { type ComposerManifest, type NpmManifest } from './manifests.mts';
 import { buildWheel, metadataProblems, wheelMetadata, wheelName } from './release-wheel.mts';
@@ -55,6 +61,8 @@ import { installedGenStub } from './install-php-arginfo.mts';
 export const MAIN = 'origin/main';
 export const CONFIG = 'config/release.json';
 export const ASSETS = 'var/release/assets';
+/** The Composer repository of the Composer packages of a release, beside its archives (K871). */
+export const PACKAGES_JSON = 'packages.json';
 export const DEFAULT_CHECKS = ['ci-passed'];
 // GitHub refuses a release body over 125000 characters.
 export const NOTES_LIMIT = 125000;
@@ -378,6 +386,28 @@ export function assetNames(config: Pick<ReleaseConfig, 'packages'>, version: str
   return config.packages.map(({ kind, name }) => archiveName(kind, name, version));
 }
 
+/** The files of the release at `version`: the archives, and packages.json when a package is a Composer package (K871). */
+function releaseFiles(config: Pick<ReleaseConfig, 'packages'>, version: string): string[] {
+  return [...assetNames(config, version), ...(config.packages.some(({ kind }) => kind === 'composer') ? [PACKAGES_JSON] : [])];
+}
+
+/**
+ * packages.json of the release at `version` from the archives of `folder` (K871): each Composer package as its composer.json
+ * `sources[index]` at the version, with the dist of its release asset and the sha1 of its zip.
+ */
+function composerRepository(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string, folder: string, sources: string[]): string {
+  const names = assetNames(config, version);
+  const packages = Object.fromEntries(config.packages.flatMap(({ kind, name }, index) => {
+    if (kind !== 'composer') return [];
+    // names and sources hold the archive name and the manifest of each package at its index.
+    const archive = present(names[index], 'names[index]');
+    const manifest = parseJson<ComposerManifest>(present(sources[index], 'sources[index]'), 'composer-manifest.schema.json', `the composer.json of ${name}`);
+    const dist = { type: 'zip', url: `${config.repositoryUrl}/releases/download/v${version}/${archive}`, shasum: fileDigest(path.join(folder, archive), 'sha1') };
+    return [[name, { [version]: { ...manifest, version, dist } }]];
+  }));
+  return `${JSON.stringify({ packages }, null, 2)}\n`;
+}
+
 /** The manifest text that an archive carries: package/package.json of a tarball, composer.json at the root of a zip. */
 export function packedManifest(ctx: Context, file: string): string {
   return file.endsWith('.tgz') ? run('tar', ['-xzOf', file, 'package/package.json'], at(ctx)) : run('unzip', ['-p', file, 'composer.json'], at(ctx));
@@ -455,6 +485,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
   const { root, config } = ctx;
   const target = path.join(root, ASSETS);
   const names = assetNames(config, version);
+  const files = releaseFiles(config, version);
   const sources = config.packages.map(({ kind, directory: folder }) => run('git', ['show', `${commit}:${path.posix.join(folder, MANIFEST_OF[kind])}`], at(ctx)));
   const problems = config.packages.flatMap(({ kind, directory: folder, name }, index) => {
     const file = path.posix.join(folder, MANIFEST_OF[kind]);
@@ -527,6 +558,10 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
       return packed === expected ? [] : [`${names[index]}: the packed ${file} differs from ${path.posix.join(folder, file)} of the commit ${commit}`];
     });
     if (failures.length) throw new Stop(`${reference}: the release assets do not install outside the repository: ${failures.join('; ')}`);
+    if (files.includes(PACKAGES_JSON)) {
+      writeFileSync(path.join(next, PACKAGES_JSON), composerRepository(config, version, next, sources));
+      ctx.log(`[release] ${reference}: wrote ${PACKAGES_JSON}, the Composer repository of the release`);
+    }
     if (existsSync(target)) renameSync(target, previous);
     try {
       renameSync(next, target);
@@ -539,7 +574,7 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
     rmSync(next, { recursive: true, force: true });
     if (existsSync(previous) && !existsSync(target)) renameSync(previous, target);
   }
-  return names;
+  return files;
 }
 
 /** Checks the native archive helper before package construction. */
@@ -575,14 +610,14 @@ export function recordedRelease(ctx: Pick<Context, 'root' | 'env' | 'config'>, t
 }
 
 /**
- * Creates the GitHub Release of the tag as a draft, with the notes of releaseNotes and the archives of assets, and records its
+ * Creates the GitHub Release of the tag as a draft, with the notes of releaseNotes and the files of assets (the archives and packages.json), and records its
  * id (releaseRecord). A draft of an earlier run is replaced; a public release is never replaced.
  */
 export function publish(ctx: Context, tag: string): string[] {
   const { root, config } = ctx;
   const [directory, version] = parseTag(config, tag);
   const notes = releaseNotes(ctx, tag);
-  const names = directory === null ? assetNames(config, version) : [];
+  const names = directory === null ? releaseFiles(config, version) : [];
   const target = path.join(root, ASSETS);
   const missing = names.filter(name => !existsSync(path.join(target, name)));
   if (missing.length) throw new Stop(`${ASSETS} lacks [${missing.join(', ')}]; make release-assets builds them`);
@@ -596,7 +631,7 @@ export function publish(ctx: Context, tag: string): string[] {
   try {
     const notesFile = path.join(folder, 'notes.md');
     writeFileSync(notesFile, notes);
-    ctx.log(`[release] ${tag}: creating the draft GitHub Release with ${names.length} archives`);
+    ctx.log(`[release] ${tag}: creating the draft GitHub Release with ${names.length} assets`);
     const id = createDraft(at(ctx), config.repositoryUrl, tag, notesFile, names.map(name => path.join(target, name)));
     writeJson(path.join(root, releaseRecord(tag)), { id });
     ctx.log(`[release] ${tag}: the draft release ${id} is recorded in ${releaseRecord(tag)}`);

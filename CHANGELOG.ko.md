@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8d0158e2befe9bd364ec58ad803a649b1692c149f31855f737019b875a120b33 -->
+<!-- source-sha256: 9aab9c63d6cbf057ceb414f0c859784c4b7f75ee76b278152e79bfc1e98a02ad -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Composer package가 있는 release는 archive 옆에 packages.json을 게시합니다. config/release.json의 각 Composer package를 release version으로, 그 zip의 release asset URL과 zip의 sha1과 함께 담는 하나의 평면 Composer repository이므로, 소비자는 releases/download/<tag>/packages.json의 composer repository로 읽고 tag만 적습니다 (K871).
 - PHP-Parser 5.0.0의 PHP arginfo project는 5.6.1의 것처럼 nikic/php-parser 5.0.0을 정확히 요구하므로, 삭제된 비교(K833) 대신 Composer가 그 요구를 만족하지 않는 parser의 lock을 거부합니다. link-state-check test는 K696 사례와 K831이 남긴 주석을 버립니다 (K837).
 - kit은 rust-toolchain.toml의 channel을 `stable`이나 `1.90`을 포함해 선언된 그대로 읽습니다. rustup이 그것을 판정하며, kit은 더 이상 <major>.<minor>.<patch>가 아닌 channel도, make install-tools에서 channel이 없거나 필드 형식이 다른 rust-toolchain.toml도 거부하지 않고 선언된 것을 rustup에 넘깁니다 (K840).
 - kit은 더 이상 자신이 실행하지 않는 도구의 mise.toml key나, https url과 version이 없는 http: 도구를 거부하지 않습니다. mise가 자기 설정을 판정하고, kit은 자신이 실행하는 도구만 검사합니다 (K839).

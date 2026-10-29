@@ -55,7 +55,7 @@ test('assets accepts a sibling of the same release named by its asset URL withou
   const box = releaseSandbox(t, { mutate: addSibling });
   const tag = box.release('0.0.1');
   box.wheelRequires(generatorRequires(siblingLine()));
-  assert.deepEqual(release.assets(context(box), tag).sort(), ['fixture-app-npm-0.0.1.tgz', 'fixture-lib-npm-0.0.1.tgz', GENERATOR_WHEEL, SIBLING_WHEEL, 'polyspec-kit-fixture-php-0.0.1.zip'].sort());
+  assert.deepEqual(release.assets(context(box), tag).sort(), ['fixture-app-npm-0.0.1.tgz', 'fixture-lib-npm-0.0.1.tgz', GENERATOR_WHEEL, SIBLING_WHEEL, 'polyspec-kit-fixture-php-0.0.1.zip', 'packages.json'].sort());
 });
 
 // cargo reads the version of a Cargo manifest: a member that inherits version.workspace has the version of its workspace.

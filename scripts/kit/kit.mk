@@ -381,15 +381,15 @@ release-verify: ## Require the commit of TAG on origin/main with its check runs 
 	@test -n "$$TAG" || { echo "release-verify: TAG is required, for example make release-verify TAG=v0.0.1"; exit 1; }
 	$(NODE) $(KIT)/release.$(KIT_EXT) verify "$$TAG"
 
-release-assets: ## Build the archive of every package of TAG into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
+release-assets: ## Build the archive of every package of TAG, and packages.json of its Composer packages (K871), into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }
 	$(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) assets "$$TAG"
 
-release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
+release-candidate-assets: ## Build the archive of every package from committed HEAD for VERSION, and packages.json of its Composer packages (K871), into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$VERSION" || { echo "release-candidate-assets: VERSION is required, for example make release-candidate-assets VERSION=0.0.1"; exit 1; }
 	$(ONLINE) $(NODE) $(KIT)/release.$(KIT_EXT) candidate-assets "$$VERSION"
 
-release-publish: ## Create the GitHub Release of TAG as a draft with the notes and the archives of release-assets; a draft of an earlier run is replaced
+release-publish: ## Create the GitHub Release of TAG as a draft with the notes and the files of release-assets, the archives and packages.json; a draft of an earlier run is replaced
 	@test -n "$$TAG" || { echo "release-publish: TAG is required, for example make release-publish TAG=v0.0.1"; exit 1; }
 	$(NODE) $(KIT)/release.$(KIT_EXT) publish "$$TAG"
 

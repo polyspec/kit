@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 9469412387f53940b064d4bd7901934ad59fadd706f4bdbb84b19644378c0892 -->
+<!-- source-sha256: 9cb7da5778b4b660111e0e4e8a7f5d91b9322743432ff2dcf1fd24d5f641a62a -->
 # 릴리스
 
 [English](release.md)
@@ -44,3 +44,5 @@ kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel
 pyproject.toml의 `[build-system].requires`를 격리된 build 환경에 설치합니다. kit은 build backend를 고정하지 않습니다(K788). wheel의 `Requires-Dist`는 plain `name==version`, polyspec package의 release asset을 sha256 fragment와 함께 직접 참조하는 형식, 또는 같은 release의 sibling(같은 config/release.json의 다른 wheel package)을 hash 없이 직접 참조하는 형식입니다.
 consumer가 wheel을 설치할 때 uv와 pip가 이 형식을 해석합니다(docs/operations/tool-inventory.ko.md, Sibling wheels).
 Python package는 git tag로 릴리스하지 않습니다.
+
+`composer` kind의 package가 있는 release는 archive 옆에 `packages.json`도 게시합니다(K871). release asset은 폴더를 담지 않으므로 하나의 평면 Composer repository입니다. config/release.json의 각 Composer package를 그 이름과 version 아래에 commit의 composer.json으로 담고, URL이 그 zip의 release asset이고 shasum이 그 zip의 sha1인 type zip의 dist를 붙입니다. 소비자는 `{ "type": "composer", "url": "<repositoryUrl>/releases/download/vX.Y.Z/packages.json" }`를 선언합니다. Composer는 경로에 `.json`이 있는 URL을 그 파일 자체로 읽고 package metadata를 그 파일에서 읽으므로 소비자는 tag만 적습니다. `release-candidate-assets VERSION`의 packages.json은 release `vVERSION`의 asset URL을 적으며, 이 URL은 그 release가 게시된 뒤에만 존재합니다. Composer 도구는 이 형태를 쓰지 않습니다: Satis는 metadata-url을 위해 `p2/<vendor>/<name>.json`을 쓰고 dist URL을 위해 package를 다시 묶으며, `composer archive`는 repository를 쓰지 않습니다.
