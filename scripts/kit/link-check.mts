@@ -7,7 +7,7 @@
 //   - the go.work that link writes at each Go module uses exactly the module, its tracked workspace and the declared providers that it
 //     requires; with none, link wrote no go.work;
 //   - a polyspec package that a tracked project declares and a declared checkout provides has an installed folder (K888);
-//   - no tracked manifest links a sibling by a path out of the repository, a second declaration beside the file (K773);
+//   - no tracked manifest names a path out of the repository, whatever the package, which a clean clone cannot reproduce (K773, K902);
 //   - with a declaration, the workspace folder holds the Claude Code hook of the kit checkout (K440), and with --project the consumer
 //     holds the hook of the kit that links it (K498).
 // Nothing about a version is judged. A finding names the ecosystem and the package or the file.
@@ -41,8 +41,6 @@ function workspaceHookFindings(root: string, env: NodeJS.ProcessEnv): string[] {
   return found;
 }
 
-const CARGO_POLYSPEC = /^polyspec[-_.]/i;
-
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
 const NPM_PATH = /^(?:file|link):/;
 /** A release archive installs a release, not the folder of a checkout. */
@@ -67,40 +65,32 @@ function outside(file: string, target: string, root: string): boolean {
   return path.posix.isAbsolute(target) || path.posix.normalize(path.posix.join(path.posix.dirname(file), target)).startsWith('../');
 }
 
-/** Whether the Composer path repository `target` of `file` is a polyspec package by the name of its composer.json; a missing one may be. */
-function polyspecRepository(file: string, target: string, root: string): boolean {
-  const full = located(file, target, root);
-  if (full === undefined) return true;
-  const manifest = path.join(full, 'composer.json');
-  const parsed: unknown = existsSync(manifest) ? JSON.parse(readFileSync(manifest, 'utf8')) : undefined;
-  return isJsonObject(parsed) && typeof parsed.name === 'string' && parsed.name.startsWith('polyspec/');
-}
-
 /**
- * K773: the findings of one tracked manifest `file` with its text: each polyspec package folder outside the repository of `root` that it
- * links by a path, a Composer path repository, an npm file:/link: dependency or a uv source path. A sibling is linked only by the folder
- * link of make link (docs/operations/local-links.md); a path inside the repository, an own member, and a release archive pass.
+ * K773, K902: the findings of one tracked manifest `file` with its text: each folder outside the repository of `root` that it links by a
+ * path, a Composer path repository, an npm file:/link: dependency or a uv source path, whatever the package name, since a clean clone and
+ * CI cannot reproduce it. A sibling is linked only by the folder link of make link (docs/operations/local-links.md); a path inside the
+ * repository, an own member, and a release archive pass.
  */
 function manifestPathFindings(file: string, text: string, root: string): string[] {
-  const finding = (name: string, target: string) => `${file}: ${name} is linked by the path ${target} outside the repository; a sibling is linked only by the folder link of make link (docs/operations/local-links.md)`;
+  const finding = (name: string, target: string) => `${file}: ${name} is linked by the path ${target} outside the repository, which a clean clone cannot reproduce; fix: require a release, and link a polyspec checkout with .links and make link (docs/operations/local-links.md)`;
   const linked = (target: string) => !ARCHIVE.test(target) && outside(file, target, root);
   if (path.posix.basename(file) === 'pyproject.toml') {
     const tool = readToml(text, file).tool;
     const uv = isTable(tool) ? tool.uv : undefined;
     const sources = isTable(uv) ? uv.sources : undefined;
     if (!isTable(sources)) return [];
-    return Object.entries(sources).flatMap(([name, value]) => CARGO_POLYSPEC.test(name) ? (Array.isArray(value) ? value : [value])
-      .flatMap((item: unknown) => isTable(item) && typeof item.path === 'string' && linked(item.path) ? [finding(name, item.path)] : []) : []);
+    return Object.entries(sources).flatMap(([name, value]) => (Array.isArray(value) ? value : [value])
+      .flatMap((item: unknown) => isTable(item) && typeof item.path === 'string' && linked(item.path) ? [finding(name, item.path)] : []));
   }
   const manifest: unknown = JSON.parse(text);
   if (!isJsonObject(manifest)) return [];
   if (path.posix.basename(file) === 'composer.json') {
     const repositories: unknown[] = Array.isArray(manifest.repositories) ? manifest.repositories : isJsonObject(manifest.repositories) ? Object.values(manifest.repositories) : [];
-    return repositories.flatMap(item => isJsonObject(item) && item.type === 'path' && typeof item.url === 'string' && linked(item.url) && polyspecRepository(file, item.url, root) ? [finding('a path repository', item.url)] : []);
+    return repositories.flatMap(item => isJsonObject(item) && item.type === 'path' && typeof item.url === 'string' && linked(item.url) ? [finding('a path repository', item.url)] : []);
   }
   return DEPENDENCY_FIELDS.flatMap((field) => {
     const dependencies = manifest[field];
-    return isJsonObject(dependencies) ? Object.entries(dependencies).flatMap(([name, spec]) => name.startsWith('@polyspec/') && typeof spec === 'string' && NPM_PATH.test(spec) && linked(spec.replace(NPM_PATH, '')) ? [finding(name, spec)] : []) : [];
+    return isJsonObject(dependencies) ? Object.entries(dependencies).flatMap(([name, spec]) => typeof spec === 'string' && NPM_PATH.test(spec) && linked(spec.replace(NPM_PATH, '')) ? [finding(name, spec)] : []) : [];
   });
 }
 

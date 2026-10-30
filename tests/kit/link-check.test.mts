@@ -167,8 +167,8 @@ test('a uv workspace member whose provider is linked in the environment of the w
   assert.deepEqual(linkFindings(consumer, env).filter(line => line.includes('polyspec-p')), ['python polyspec-p: no installed folder of member links it; Fix: make install'], 'the unlinked member stays a finding');
 });
 
-// K773: a tracked manifest that links a polyspec package by a path outside the repository links it a second way besides the folder link.
-test('a tracked manifest path outside the repository is a finding in Composer, npm and uv, and an in-repo path, an archive and a package outside the scope pass (K773)', (t) => {
+// K773, K902: a tracked manifest that links a package by a path outside the repository names a dependency that a clean clone cannot reproduce.
+test('a tracked manifest path outside the repository is a finding in Composer, npm and uv, and an in-repo path and an archive pass (K773, K902)', (t) => {
   const outer = tree(t, { 'composer.json': '{"name":"polyspec/a"}\n' });
   const root = tree(t, { '.gitignore': 'var/\n', 'inner/composer.json': '{"name":"polyspec/b"}\n' });
   const away = path.relative(root, outer);
@@ -182,18 +182,39 @@ test('a tracked manifest path outside the repository is a finding in Composer, n
     `composer.json: a path repository is linked by the path ${away}`,
     `package.json: @polyspec/a is linked by the path file:${away}`,
     `package.json: @polyspec/e is linked by the path link:${away}`,
+    `package.json: d is linked by the path file:${away}`,
     `sub/pyproject.toml: polyspec-a is linked by the path ${below}`,
   ]);
 });
 
-test('a manifest path inside the repository that resolves through a link out of it is a finding, and one to a package outside the scope passes (K773)', (t) => {
+test('a manifest path inside the repository that resolves through a link out of it is a finding, whatever the package (K773, K902)', (t) => {
   const outer = tree(t, { 'a/composer.json': '{"name":"polyspec/a"}\n', 'b/composer.json': '{"name":"other/b"}\n' });
   const root = tree(t, { '.gitignore': 'var/\n', 'composer.json': JSON.stringify({ repositories: [{ type: 'path', url: 'var/link/a' }, { type: 'path', url: 'var/link/b' }] }) });
   mkdirSync(path.join(root, 'var'), { recursive: true });
   symlinkSync(outer, path.join(root, 'var/link'));
   commitAll(root, 'fixture');
   const found = linkFindings(root, process.env).filter(item => / is linked by the path /.test(item)).map(item => item.replace(/ outside.*$/, ''));
-  assert.deepEqual(found, ['composer.json: a path repository is linked by the path var/link/a']);
+  assert.deepEqual(found, ['composer.json: a path repository is linked by the path var/link/a', 'composer.json: a path repository is linked by the path var/link/b']);
+});
+
+// K902: a path out of the repository is a dependency that a clean clone and CI cannot reproduce, whatever the package name.
+test('a tracked manifest path outside the repository is a finding whatever the package name (K902)', (t) => {
+  const outer = tree(t, { 'composer.json': '{"name":"other/b"}\n' });
+  const root = tree(t, { '.gitignore': 'var/\n' });
+  const away = path.relative(root, outer);
+  const below = path.relative(path.join(root, 'sub'), outer);
+  put(root, {
+    'composer.json': JSON.stringify({ repositories: [{ type: 'path', url: away }] }),
+    'package.json': JSON.stringify({ dependencies: { other: `file:${away}` } }),
+    'sub/pyproject.toml': `[project]\nname = "s"\nversion = "0.0.0"\n\n[tool.uv.sources]\nother = { path = "${below}" }\n`,
+  });
+  commitAll(root, 'fixture');
+  const found = linkFindings(root, process.env).filter(item => / is linked by the path /.test(item)).map(item => item.replace(/ outside.*$/, ''));
+  assert.deepEqual(found, [
+    `composer.json: a path repository is linked by the path ${away}`,
+    `package.json: other is linked by the path file:${away}`,
+    `sub/pyproject.toml: other is linked by the path ${below}`,
+  ]);
 });
 
 // K869: the link declaration is a setting of the checkout, which Git ignores.
