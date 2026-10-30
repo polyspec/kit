@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 7738dcd4096d1fe37aaccc6f7d3118bf6fc7697d5cde12c323205ad5acf87c7a -->
+<!-- source-sha256: ffeef7c5d56d081ad5b72f629da8256ec25c3fcf92d8f081a08d1232e4883959 -->
 # 릴리스
 
 [English](release.md)

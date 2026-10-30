@@ -19,7 +19,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync,
 import path from 'node:path';
 import { packageVendorFile } from './composer-vendor.mts';
 import { isJsonObject } from './bootstrap/files.mts';
-import { acquireHolderLock, HolderLockRefused, holderRunning, removeDeadLock } from './holder-lock.mts';
+import { waitForHolderLock } from './holder-lock.mts';
 import { SYMBOLS } from './install-symbols.mts';
 import { spawnSync } from 'node:child_process';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
@@ -292,37 +292,9 @@ const GEN_STUB_LOCK = `${GEN_STUB}.lock`;
 const GEN_STUB_LOCK_POLL_MS = 500;
 const GEN_STUB_LOCK_WAIT_MS = 10 * 60 * 1000;
 
-/**
- * Takes the lock of the gen-stub folder and returns its release (K941). A lock that a running build holds is waited for, up to
- * GEN_STUB_LOCK_WAIT_MS; a lock whose holder has ended is removed with removeDeadLock, which another waiter may remove first.
- */
+/** Takes the lock of the gen-stub folder and returns its release; a running build is waited for (K941). */
 function takeGenStubLock(root: string): () => void {
-  const lock = path.join(root, GEN_STUB_LOCK);
-  const started = Date.now();
-  for (;;) {
-    try {
-      return acquireHolderLock(lock, { checkout: root, command: 'php-extension build' }).release;
-    } catch (error) {
-      if (!(error instanceof HolderLockRefused)) throw error;
-      if (Date.now() - started > GEN_STUB_LOCK_WAIT_MS) throw new Stop(`${lock} is still held: ${error.message}`);
-      if (holderRunning(error.record)) {
-        sleepFor(GEN_STUB_LOCK_POLL_MS);
-        continue;
-      }
-      try {
-        removeDeadLock(lock);
-      } catch (removal) {
-        // Another waiter removed the lock or holds its claim; the next take decides, until the deadline.
-        if (Date.now() - started > GEN_STUB_LOCK_WAIT_MS) throw removal;
-        sleepFor(GEN_STUB_LOCK_POLL_MS);
-      }
-    }
-  }
-}
-
-/** Blocks this process for `ms` milliseconds, as a waiting build has nothing else to do. */
-function sleepFor(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+  return waitForHolderLock(path.join(root, GEN_STUB_LOCK), { checkout: root, command: 'php-extension build', timeoutMs: GEN_STUB_LOCK_WAIT_MS, pollMs: GEN_STUB_LOCK_POLL_MS }).release;
 }
 
 function generateArginfo(root: string, source: string, stub: string): string {
@@ -335,6 +307,8 @@ function generateArginfo(root: string, source: string, stub: string): string {
   try {
     const folder = path.join(root, GEN_STUB);
     mkdirSync(folder, { recursive: true });
+    // The PHP-Parser directories that an earlier build fetched stay; a failed run removes only the ones it created (K941).
+    const before = new Set(readdirSync(folder));
     const generator = path.join(folder, 'gen_stub.php');
     const staged = `${generator}.${process.pid}`;
     copyFileSync(path.join(source, 'build', 'gen_stub.php'), staged);
@@ -343,8 +317,8 @@ function generateArginfo(root: string, source: string, stub: string): string {
     try {
       run(php, [generator, file], { cwd: source });
     } catch (error) {
-      // A failed run may leave a partial PHP-Parser behind, which every later build would trust; the next build starts from nothing.
-      rmSync(folder, { recursive: true, force: true });
+      // A failed run may leave a partial PHP-Parser behind, which every later build would trust; the next build fetches it again.
+      for (const name of readdirSync(folder)) if (!before.has(name) && name.startsWith('PHP-Parser-')) rmSync(path.join(folder, name), { recursive: true, force: true });
       throw error;
     }
   } finally {

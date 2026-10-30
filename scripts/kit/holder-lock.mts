@@ -232,6 +232,44 @@ export function acquireHolderLock(lock: string, { checkout = process.cwd(), comm
   return { lock, record, release };
 }
 
+/** Blocks this process for `ms` milliseconds; a waiting take has nothing else to do (K941). */
+function sleepFor(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/**
+ * Takes the lock as acquireHolderLock does, but waits for a running holder to release it (K941): it takes the lock again every
+ * `pollMs` until the lock is free, and throws HolderLockRefused with the record of the holder once `timeoutMs` has passed. A lock
+ * whose holder has ended is removed with removeDeadLock; another waiter may remove it first, and the next take then decides.
+ */
+export function waitForHolderLock(lock: string, { timeoutMs, pollMs = 500, checkout, command, releaseOnSignals }: {
+  timeoutMs: number;
+  pollMs?: number | undefined;
+  checkout?: string | undefined;
+  command?: string | undefined;
+  releaseOnSignals?: boolean | undefined;
+}): ReturnType<typeof acquireHolderLock> {
+  const started = Date.now();
+  for (;;) {
+    try {
+      return acquireHolderLock(lock, { checkout, command, releaseOnSignals });
+    } catch (error) {
+      if (!(error instanceof HolderLockRefused)) throw error;
+      if (Date.now() - started > timeoutMs) throw error;
+      if (holderRunning(error.record)) {
+        sleepFor(pollMs);
+        continue;
+      }
+      try {
+        removeDeadLock(lock);
+      } catch (removal) {
+        if (Date.now() - started > timeoutMs) throw removal;
+        sleepFor(pollMs);
+      }
+    }
+  }
+}
+
 /**
  * Removes a lock whose holder has ended and returns its record; a running holder is refused.
  *
