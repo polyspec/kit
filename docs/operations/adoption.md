@@ -10,8 +10,8 @@ This is the procedure of an agent or a person who works in a repository that tak
 
 1. `make kit-sync` copies the files of the installed kit (P30: the installed kit of a development checkout is a link to the local
    kit, so a landing of kit reaches the repository this way, with no relay).
-2. `node <kit checkout>/dist/link.mjs rebuild <repository>` rebuilds the providers that the repository consumes through links
-   ([local-links.md](local-links.md)).
+2. Each provider that the repository consumes through links is built by its own targets ([local-links.md](local-links.md)); link
+   builds nothing (K856).
 3. `make install-tools` installs the tools of `mise.toml`.
 4. Every gate of `kit-gates` runs. A gate that fails is the next item of the plan of the repository, with its own red and green.
 

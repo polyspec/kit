@@ -2,7 +2,7 @@
 // kit neither chooses installed versions nor rewrites manifests or distribution metadata: the release's dist-info stays the record.
 import path from 'node:path';
 import { existsSync, readdirSync } from 'node:fs';
-import { checkoutProviders, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
+import { checkoutProviders, incompleteDistributions, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
 import { siblingCheckouts, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
@@ -52,12 +52,14 @@ function installSources({ directory, providers = [], uv = 'uv', env = process.en
     if (sync !== undefined) {
       // uv writes and deletes through a package link, so the links go before it installs (K539).
       for (const link of releaseEnvironmentLinks(workspace, venv)) print(`uv development: unlinked ${link}, so uv writes no provider checkout`);
+      // K856: uv keeps an installed distribution as it is, so one whose package folder a removed link left missing is reinstalled.
+      const reinstall = incompleteDistributions(workspace, venv).flatMap(name => ['--reinstall-package', name]);
       // A project locked by a PEP 751 lock and no uv.lock installs it as its own install does (K769); uv sync reads only uv.lock.
       const pylock = existsSync(path.join(workspace, 'uv.lock')) ? undefined : pylockOf(workspace);
       print(`uv development: installing the native lock ${pylock === undefined ? 'uv.lock' : path.basename(pylock)}`);
       const output = pylock === undefined
-        ? run(uv, ['sync', '--locked', ...sync], { cwd: project, env })
-        : run(uv, ['pip', 'install', '--python', path.join(venv, 'bin/python'), '-r', pylock], { cwd: project, env });
+        ? run(uv, ['sync', '--locked', ...sync, ...reinstall], { cwd: project, env })
+        : run(uv, ['pip', 'install', '--python', path.join(venv, 'bin/python'), ...reinstall, '-r', pylock], { cwd: project, env });
       if (output.trim()) print(output.trim());
     }
     const folders = providedFolders(workspace, [...providers].filter(provider => provider.ecosystem === 'python'), { environment: venv });

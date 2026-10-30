@@ -8,7 +8,7 @@ import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdt
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { buildState, buildTargets } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, foreignEnvironment, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
@@ -411,28 +411,6 @@ test('providers take the packages of the work tree of the consumer as its own, a
   assert.equal(providers([provider, kit], undefined, consumer, consumer).get('npm:@polyspec/own')?.checkout, consumer, 'a main checkout reads its own packages without naming itself');
 });
 
-test('unlink restores the locked releases of a project locked with pylock.toml (K401-1)', (t) => {
-  const { consumer, provider, env, log } = workspace(t);
-  rmSync(path.join(consumer, 'python/uv.lock'));
-  put(consumer, {
-    'python/pylock.toml': 'lock-version = "1.0"\ncreated-by = "uv"\n\n[[packages]]\nname = "polyspec-z"\nversion = "0.0.1"\n\n[[packages]]\nname = "jsonschema"\nversion = "4.23.0"\n',
-  });
-  // This fixture begins with an existing native editable install. Source-link sync requires uv.lock;
-  // pylock.toml alone is supported here only for restoring its pinned releases.
-  const source = path.join(provider, 'packages/python');
-  const site = path.join(consumer, 'python/.venv/lib/python3.14/site-packages');
-  rmSync(path.join(site, 'polyspec_z'), { recursive: true, force: true });
-  put(site, { 'polyspec_z-0.0.1.dist-info/direct_url.json': JSON.stringify({ url: pathToFileURL(source).href, dir_info: { editable: true } }) });
-  put(consumer, { 'freeze.txt': `polyspec-z @ ${pathToFileURL(source).href}\njsonschema==4.23.0\n` });
-  assert.doesNotMatch(log(), /^uv sync --locked/m, 'the PEP 751 restore fixture starts installed, without a source-link sync');
-  const lines: string[] = [];
-  unlink({ directories: [consumer], print: text => lines.push(text), env });
-  assert.doesNotMatch(lines.join('\n'), /skipped/, lines.join('\n'));
-  const install = log().split('\n').filter(item => item.startsWith('uv pip install') && item.includes('--reinstall-package polyspec-z')).at(-1) ?? '';
-  assert.ok(install.includes(`--python ${path.join(consumer, 'python/.venv/bin/python')}`), install);
-  assert.ok(install.includes('polyspec-z==0.0.1'), install);
-});
-
 // K316-2: the link of every ecosystem is idempotent: a second run ends linked, with the state of the first.
 test('a second link run ends linked with the state of the first, in npm, Composer and Go (K316-2)', (t) => {
   const { provider, consumer, env } = workspace(t);
@@ -655,17 +633,6 @@ test('cargo copies the tracked lock afresh on every run and patches the URL that
   assert.match(log(), new RegExp(`patch\\."https://github\\.com/polyspec/prov"\\.polyspec-prov\\.path=${JSON.stringify(path.join(provider, 'rust')).replaceAll('.', '\\.')}`));
   rmSync(path.join(provider, 'config/release.json'));
   assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /config\/release\.json declares no repositoryUrl/);
-});
-
-test('unlink restores with each tool and reports each restore that it skips', (t) => {
-  const { consumer, env, log } = workspace(t);
-  rmSync(path.join(consumer, 'composer.lock'));
-  rmSync(path.join(consumer, 'python/uv.lock'));
-  const lines: string[] = [];
-  assert.equal(unlink({ directories: [consumer], print: text => lines.push(text), env }), false);
-  assert.match(log(), /npm ci\n/);
-  assert.match(lines.join('\n'), /skipped {4}composer .*: no composer\.lock/);
-  assert.match(lines.join('\n'), /skipped {4}python .*: no environment or no uv\.lock/);
 });
 
 /** A copy of the Makefile of kit and of its kit.mk, with the empty folders that the build of the Makefile copies. */
@@ -1276,24 +1243,20 @@ test('K765: a Python package folder becomes one link to its checkout, with no uv
 
 // K539: legacy package-folder links are removed before native sync can write through them.
 // The application keeps its declared editable source; restoring its lock must not change the provider checkout.
-test('unlink removes legacy package links before native sync and keeps declared editable sources safe (K539)', (t) => {
-  const { provider, consumer, env } = workspace(t);
+test('unlink removes the package links of an environment and leaves the provider checkout unchanged (K539, K856)', (t) => {
+  const { provider, consumer, env, log } = workspace(t);
   assert.equal(linkLines([consumer], env).ok, true);
   const source = path.join(provider, 'packages/python/src/polyspec_z/__init__.py');
   put(provider, { 'packages/python/src/polyspec_z/__init__.py': 'VALUE = "checkout"\n' });
   const site = path.join(consumer, 'python/.venv/lib/python3.14/site-packages');
   mkdirSync(site, { recursive: true });
   symlinkSync(path.dirname(source), path.join(site, 'polyspec_z'));
-  // A sync that reinstalls a package writes its files into the package folder of the environment, as uv does.
-  const uv = path.join(path.dirname(consumer), 'uv-writes');
-  writeFileSync(uv, `#!/bin/sh\ncase "$1" in sync) mkdir -p ${JSON.stringify(path.join(site, 'polyspec_z'))} && printf 'VALUE = "released"\\n' > ${JSON.stringify(path.join(site, 'polyspec_z/__init__.py'))};; esac\nexec ${JSON.stringify(env.UV)} "$@"\n`);
-  chmodSync(uv, 0o755);
+  const before = log();
   const lines: string[] = [];
-  unlink({ directories: [consumer], print: text => lines.push(text), env: { ...env, UV: uv } });
+  assert.equal(unlink({ directories: [consumer], print: text => lines.push(text), env }), true);
   assert.equal(readFileSync(source, 'utf8'), 'VALUE = "checkout"\n', 'the provider checkout keeps its tracked file');
-  assert.equal(existsSync(path.join(site, 'polyspec_z')), false, 'native editable sync replaces the legacy package folder');
-  const metadata: unknown = JSON.parse(readFileSync(path.join(site, 'polyspec_z-0.0.1.dist-info/direct_url.json'), 'utf8'));
-  assert.deepEqual(metadata, { url: pathToFileURL(path.join(provider, 'packages/python')).href, dir_info: { editable: true } });
+  assert.equal(existsSync(path.join(site, 'polyspec_z')), false, 'the package link is removed');
+  assert.doesNotMatch(log().slice(before.length), /^uv (sync|pip)/m, 'no package manager writes into the environment');
   assert.match(lines.join('\n'), /polyspec_z/, 'the removed link is named');
 });
 
@@ -1302,28 +1265,11 @@ test('K664-3 refuses a release selected instead of the sibling development sourc
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n', 'release/Cargo.toml': '[package]\nname="polyspec-prov"\nversion="0.0.1"\n' });
   const metadata = JSON.stringify({ packages: [{ id: 'opaque-release', name: 'polyspec-prov', manifest_path: path.join(consumer, 'release/Cargo.toml') }], resolve: { nodes: [{ id: 'opaque-release' }] } });
   stub(path.dirname(env.CARGO), path.join(consumer, 'cargo-source.log'), 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = update ]; then exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${metadata}'; exit 0; fi; done; echo executed >> ${JSON.stringify(path.join(consumer, 'executed'))}`);
-  assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /Cargo selected .*instead of development source/);
-  assert.match(readFileSync(path.join(consumer, 'cargo-source.log'), 'utf8'), / update --offline /, 'the native offline preflight is allowed before source validation');
+  assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /Cargo selected .*instead of development source .*; the requirement or git tag of polyspec-prov in the consumer Cargo\.toml does not match the provider version.*: a provider ahead of it is released first and then required/);
   assert.equal(existsSync(path.join(consumer, 'executed')), false);
   assert.equal(existsSync(path.join(consumer, 'var/link/cargo/root/execution.lock')), false);
   put(consumer, { 'Cargo.lock': 'version = 4\n' });
   assert.throws(() => cargo({ directory: consumer, args: ['check'], checkouts: current, env }), /Cargo selected .*instead of development source/, 'a new dependency missing from the tracked lock cannot silently select its release');
-});
-
-test('K664-3-1 updates only locked sibling crates offline before validating Cargo metadata', (t) => {
-  const { provider, consumer, env } = workspace(t);
-  const trackedLock = `version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\nsource = "git+https://github.com/polyspec/prov?tag=v0.0.1#abc"\n\n[[package]]\nname = "external-crate"\nversion = "2.3.4"\nsource = "git+https://github.com/example/external?tag=v2.3.4#def"\n`;
-  writeFileSync(path.join(consumer, 'Cargo.lock'), trackedLock);
-  const cargoLog = path.join(consumer, 'cargo-source.log');
-  const metadata = JSON.stringify({ packages: [{ id: 'provider', name: 'polyspec-prov', manifest_path: path.join(provider, 'rust/Cargo.toml') }], resolve: { nodes: [{ id: 'provider' }] } });
-  stub(path.dirname(env.CARGO), cargoLog, 'cargo', `mode=metadata\nlock=\nprevious=\nfor arg do\n  if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi\n  if [ "$arg" = update ]; then mode=update; fi\n  if [ "$previous" = --config ]; then case "$arg" in resolver.lockfile-path=*) lock=$(echo "$arg" | sed 's/^resolver.lockfile-path="//; s/"$//');; esac; fi\n  previous="$arg"\ndone\nif [ "$mode" = update ]; then\n  printf '%s\\n' 'version = 4' '' '[[package]]' 'name = "polyspec-prov"' 'version = "0.0.2"' '' '[[package]]' 'name = "external-crate"' 'version = "2.3.4"' 'source = "git+https://github.com/example/external?tag=v2.3.4#def"' > "$lock"\n  exit 0\nfi\nif [ "$mode" = metadata ]; then printf '%s' '${metadata}'; exit 0; fi\n`);
-  assert.equal(cargo({ directory: consumer, args: ['fetch', '--locked'], checkouts: current, env }), 0);
-  const calls = readFileSync(cargoLog, 'utf8').trim().split('\n').filter(line => !line.startsWith('cargo locate-project'));
-  assert.match(calls[0] ?? '', /update --offline polyspec-prov$/);
-  assert.doesNotMatch(calls[0] ?? '', /external-crate/);
-  assert.match(calls[1] ?? '', /metadata/);
-  assert.match(readFileSync(path.join(consumer, 'var/link/cargo/root/Cargo.lock'), 'utf8'), /name = "external-crate"[\s\S]*version = "2\.3\.4"[\s\S]*source = "git\+https:\/\/github\.com\/example\/external\?tag=v2\.3\.4#def"/);
-  assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), trackedLock, 'the tracked release lock remains byte-identical');
 });
 
 test('K664-3 refuses a concurrent holder before replacing the link lock', (t) => {
@@ -1377,4 +1323,47 @@ test('K676 Cargo drops only an inherited target directory and retains explicit n
   assert.ok(seen.split('\n').includes(`CARGO_HOME=${cargoHome}`), seen);
   assert.equal(caller.CARGO_TARGET_DIR, inherited, 'the caller environment is not mutated');
   assert.match(readFileSync(path.join(consumer, 'cargo-target.log'), 'utf8'), new RegExp(`cargo check --target-dir ${explicit}`));
+});
+
+// K856 (Decision 6 of the kit-harness plan): link does no package-manager work, and unlink only removes the links; make install restores
+// the locked installs afterwards.
+test('K856: unlink removes the links of the consumer and runs no package manager', (t) => {
+  const { consumer, env, log } = workspace(t);
+  const lines: string[] = [];
+  assert.equal(link({ checkouts: current, directories: [consumer], check: false, print: text => lines.push(text), env }), true, lines.join('\n'));
+  assert.ok(lstatSync(path.join(consumer, 'node_modules/@polyspec/x')).isSymbolicLink(), 'link made the npm folder a link');
+  symlinkSync('../../packages/own', path.join(consumer, 'node_modules/@polyspec/own'));
+  // A provider of another scope or none, as @soksak/sidecar-flowmark of polyspec/flowmark, is linked the same way.
+  mkdirSync(path.join(consumer, 'node_modules/@soksak'), { recursive: true });
+  symlinkSync(current[0] ?? '/', path.join(consumer, 'node_modules/@soksak/sidecar'));
+  symlinkSync(path.join(consumer, 'missing'), path.join(consumer, 'node_modules/plain'));
+  const before = log();
+  assert.equal(unlink({ directories: [consumer], print: text => lines.push(text), env }), true, lines.join('\n'));
+  assert.doesNotMatch(log().slice(before.length), /^(npm ci|composer install|uv (sync|pip))/m, 'unlink runs no install');
+  assert.equal(existsSync(path.join(consumer, 'node_modules/@polyspec/x')), false, 'the npm link is removed');
+  assert.ok(lstatSync(path.join(consumer, 'node_modules/@polyspec/own')).isSymbolicLink(), 'the npm link of a workspace package of the consumer stays');
+  assert.equal(existsSync(path.join(consumer, 'node_modules/@soksak/sidecar')), false, 'a link of another scope is removed');
+  assert.throws(() => lstatSync(path.join(consumer, 'node_modules/plain')), 'a dangling link without a scope is removed');
+});
+
+test('K856: link links a polyspec Go module whatever version the module requires', (t) => {
+  const { consumer, env } = workspace(t);
+  put(consumer, { 'go.mod.json': JSON.stringify({ Module: { Path: 'cons' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v1.2.0' }] }) });
+  const lines: string[] = [];
+  assert.equal(link({ checkouts: current, directories: [consumer], check: false, print: text => lines.push(text), env }), true, lines.join('\n'));
+  assert.doesNotMatch(lines.join('\n'), /not 0\.0\.x/);
+  assert.ok(existsSync(path.join(consumer, 'go.work')), 'the go.work of the module uses the provider');
+});
+
+test('K856: link cargo runs no cargo update, and link has no rebuild command', (t) => {
+  const { consumer, env } = workspace(t);
+  writeFileSync(path.join(consumer, 'Cargo.lock'), 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\nsource = "git+https://github.com/polyspec/prov?tag=v0.0.1#abc"\n');
+  const cargoLog = path.join(consumer, 'cargo-calls.log');
+  const metadata = JSON.stringify({ packages: [{ id: 'provider', name: 'polyspec-prov', manifest_path: path.join(path.dirname(consumer), 'prov/rust/Cargo.toml') }], resolve: { nodes: [{ id: 'provider' }] } });
+  stub(path.dirname(env.CARGO), cargoLog, 'cargo', `for arg in "$@"; do if [ "$arg" = locate-project ]; then echo "$PWD/Cargo.toml"; exit 0; fi; if [ "$arg" = metadata ]; then printf '%s' '${metadata}'; exit 0; fi; done`);
+  assert.equal(cargo({ directory: consumer, args: ['fetch'], checkouts: current, env }), 0);
+  assert.doesNotMatch(readFileSync(cargoLog, 'utf8'), / update /);
+  const rebuild = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'rebuild', consumer], { encoding: 'utf8' });
+  assert.notEqual(rebuild.status, 0);
+  assert.doesNotMatch(rebuild.stderr, /rebuild <repository>/, 'the usage names no rebuild command');
 });

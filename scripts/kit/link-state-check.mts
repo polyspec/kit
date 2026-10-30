@@ -73,7 +73,7 @@ function goFindings(root: string, env: NodeJS.ProcessEnv): string[] {
  * after it in the same recipe (K349), so a fresh vendor does not read the tracked locks while polyspec checkouts are present. The rule
  * holds only for an ecosystem in which the repository declares a polyspec dependency, which a link can link, and not for a recipe that
  * make install reaches, through a prerequisite or a $(MAKE) call, since install links last, after every install (K349-2, K360-2). The
- * unlink recipe, which restores the locks by design, and the files that kit copies are left out.
+ * unlink recipe, which only removes links, and the files that kit copies are left out.
  */
 
 const MANIFESTS = new Set(['package.json', 'composer.json', 'pyproject.toml', 'Cargo.toml']);

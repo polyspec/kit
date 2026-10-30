@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: 53e287fd3a4f75a1a0ddb61002200eb6b207950a717af3f7ff66652573645e78 -->
+<!-- source-sha256: c0363b06d0d5c2b622bb75f3222dfb1253a961cd85d2fa6248ef312eb07b5735 -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -11,8 +11,8 @@ kit을 쓰는 저장소에서 일하는 agent나 사람의 절차이며, 그 바
 
 1. `make kit-sync`가 설치된 kit의 파일을 복사한다(P30: 개발 checkout의 설치된 kit은 local kit으로 가는 link이므로 kit의 landing은
    중계 없이 이렇게 저장소에 닿는다).
-2. `node <kit checkout>/dist/link.mjs rebuild <repository>`가 저장소가 link로 쓰는 provider를 다시 build한다
-   ([local-links.ko.md](local-links.ko.md)).
+2. 저장소가 link로 쓰는 각 provider는 자기 target으로 build한다([local-links.ko.md](local-links.ko.md)); link는 아무것도
+   build하지 않는다(K856).
 3. `make install-tools`가 `mise.toml`의 도구를 설치한다.
 4. `kit-gates`의 모든 gate를 실행한다. 실패한 gate는 그 저장소 plan의 다음 item이며 자기 red와 green을 가진다.
 

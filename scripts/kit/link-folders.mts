@@ -159,6 +159,27 @@ export function releaseEnvironmentLinks(project: string, environment: string | u
   return removed;
 }
 
+/**
+ * The distributions of the environment of `project` (`environment` as in sitePackages) that miss a file of their RECORD inside
+ * site-packages, by the name of their dist-info, sorted: uv keeps an installed distribution as it is (K772), so a package folder whose
+ * link was removed stays missing until uv reinstalls the distribution (K856).
+ */
+export function incompleteDistributions(project: string, environment: string | undefined): string[] {
+  const names = new Set<string>();
+  for (const site of sitePackages(project, environment)) {
+    for (const entry of readdirSync(site).filter(name => name.endsWith('.dist-info'))) {
+      const record = path.join(site, entry, 'RECORD');
+      if (!existsSync(record)) continue;
+      const files = readFileSync(record, 'utf8').split('\n').flatMap(line => {
+        const file = line.startsWith('"') ? line.slice(1, line.indexOf('"', 1)) : line.split(',')[0] ?? '';
+        return file === '' || path.isAbsolute(file) || file.startsWith('..') ? [] : [file];
+      });
+      if (files.some(file => !present(path.join(site, file)))) names.add(entry.slice(0, entry.indexOf('-')));
+    }
+  }
+  return [...names].sort();
+}
+
 /** The environment folder of the Python project `project`: `environment` (UV_PROJECT_ENVIRONMENT), else .venv. */
 function pythonEnvironment(project: string, environment = process.env.UV_PROJECT_ENVIRONMENT): string {
   return path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment);

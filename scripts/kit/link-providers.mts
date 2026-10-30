@@ -175,12 +175,6 @@ export function siblingCheckouts(directory: string): { checkouts: string[]; skip
   return { checkouts: checkouts.sort(), skipped };
 }
 
-/**
- * Whether the main checkout `checkout` is a fork of forks/: its folder is named forks, and its pin is a version of the fork
- * itself, not a 0.0.x version of a polyspec package, so the pin rule of the links does not apply to it.
- */
-export const isForkCheckout = (checkout: string): boolean => path.basename(path.dirname(checkout)) === 'forks';
-
 /** The main checkouts that `directories` names; a worktree or a folder inside a checkout fails, since it is no provider. */
 export const mainCheckouts = (directories: readonly string[]): string[] => directories.map((directory) => {
   const checkout = realpathSync(directory);

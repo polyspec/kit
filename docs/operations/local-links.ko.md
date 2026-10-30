@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 9cd82d7179feafba47abc8425e5392ff82f206cd08937fcc44eff075c7c10e65 -->
+<!-- source-sha256: 872afc5fe8febbf92c1d81bf1bc81901f80ee67773b414b04c0a710c53dbb9e7 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -56,9 +56,9 @@ Composer가 생성한 autoload는 `vendor/<vendor>/<package>/src`를 가리키�
 
 `make link-state-check`(K305-1, P30)는 제공된 패키지의 설치된 npm·Composer·Python 패키지 폴더가 각각 checkout으로 가는 link인지 검사하고 workspace link, `go.work`, Claude Code hook을 검증합니다. 추적된 project가 선언하고 다른 repository의 sibling checkout이 제공하는 npm, Composer, Python package에 그것을 link하는 설치된 folder가 없으면 finding입니다. `make link`는 installer가 아직 실행되지 않은 project(node_modules, vendor folder, environment가 없음)를 빼므로, 설치가 설치하지 않은 project는 통과하지 않습니다(K888). link된 npm provider마다 그 provider가 실행 시 필요한 polyspec 패키지도 실제 경로를 거쳐 한 단계 판단합니다. 거기 있는 복사본은 그 패키지의 두 번째 instance여서 consumer와 provider 사이 `instanceof`가 실패합니다(K761). `make link-check`는 개발 보조로 불일치를 나열합니다. dependency 호환성은 각 native package manager가 판단합니다. release CI는 로컬 provider 탐색 대신 선언된 배포 dependency를 사용합니다.
 
-Source 개발 계약은 배포된 dependency와 같은 version의 source 수정, release보다 앞선 source checkout, 배포 이력이 없는 새 provider를 포함합니다. Native package metadata는 유효해야 하며 release가 없다는 이유로 package manager의 metadata 요구를 생략하지 않습니다. 미배포 provider도 package manager의 정식 version metadata 또는 version 추론 규칙을 따르며 kit이 version을 만들어 주지 않습니다. 앱이 호환되는 개발 requirement와 local source를 선언하며 source 사용에 tag나 배포 archive는 필요하지 않습니다. Cargo의 exact-version requirement는 patch 선택을 막을 수 있으므로 wrapper는 native workspace metadata를 검사하고 필요한 개발 source 대신 release가 선택되면 거부합니다. 이 검사 전에 선언한 path patch를 사용해 복사한 lock에 이미 있는 sibling crate 이름만 대상으로 native `cargo update --offline`을 실행합니다. 이후 metadata와 요청 명령은 `var/link/cargo` 아래 생성된 lock을 사용하며 tracked manifest와 lock은 바뀌지 않고 다른 package의 전역 갱신도 요청하지 않습니다. Cargo source 검사는 `-p`로 선택한 package에만 한정되지 않고 workspace resolution을 대상으로 합니다.
+Source 개발 계약은 배포된 dependency와 같은 version의 source 수정, release보다 앞선 source checkout, 배포 이력이 없는 새 provider를 포함합니다. Native package metadata는 유효해야 하며 release가 없다는 이유로 package manager의 metadata 요구를 생략하지 않습니다. 미배포 provider도 package manager의 정식 version metadata 또는 version 추론 규칙을 따르며 kit이 version을 만들어 주지 않습니다. 앱이 호환되는 개발 requirement와 local source를 선언하며 source 사용에 tag나 배포 archive는 필요하지 않습니다. Cargo의 exact-version requirement는 patch 선택을 막을 수 있으므로 wrapper는 native workspace metadata를 검사하고 필요한 개발 source 대신 release가 선택되면 거부합니다. metadata와 요청 명령은 `var/link/cargo` 아래 tracked lock의 복사본을 사용하며 그 복사본은 Cargo가 갱신하고 tracked manifest와 lock은 바뀌지 않습니다. Cargo에서 release보다 앞선 checkout은 이 계약의 한계입니다. 소비자의 requirement나 git tag보다 version이 높은 patch는 선택되지 않으며, 거부 메시지는 requirement보다 앞선 provider는 먼저 release한 뒤 요구하고, 뒤처진 provider는 그 checkout을 갱신하라고 알려 줍니다. Cargo source 검사는 `-p`로 선택한 package에만 한정되지 않고 workspace resolution을 대상으로 합니다.
 
-같은 선언 입력으로 두 번 실행하면 source 선택, manifest, lock, 설치 record가 같아야 하며 log와 timestamp는 이 상태에 포함하지 않습니다. Provider 코드 수정에 relink는 필요 없지만 compiled code에는 native build가 필요합니다. 명시적 `unlink`는 앱이 선택한 native lock 상태를 복원하고 생성한 Go workspace를 제거하며 앱이 소유한 local source 선언을 삭제하지 않으므로 복원 상태에도 link된 패키지 폴더가 있을 수 있습니다. Release 설치는 release 선언과 lock을 사용합니다.
+같은 선언 입력으로 두 번 실행하면 source 선택, manifest, lock, 설치 record가 같아야 하며 log와 timestamp는 이 상태에 포함하지 않습니다. Provider 코드 수정에 relink는 필요 없지만 compiled code에는 native build가 필요합니다. 명시적 `unlink`는 link와 생성한 Go workspace만 제거하고 package manager를 실행하지 않습니다. 그 뒤 `make install`이 앱이 선택한 native lock 상태를 복원하며(링크 제거로 패키지 폴더가 빠진 Python 배포본은 uv가 설치된 배포본을 그대로 두므로 다시 설치합니다), 앱이 소유한 local source 선언은 남으므로 복원 상태에도 link된 패키지 폴더가 있을 수 있습니다. Release 설치는 release 선언과 lock을 사용합니다.
 
 ## Worktree
 

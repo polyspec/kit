@@ -2,18 +2,20 @@
 // providers (link-providers.mts): each installed package folder of a consumer that a provider gives is replaced by a direct relative
 // symlink to the provider's package folder (K761): during development the installed folder is a plain directory symlink to the
 // development checkout, and a release uses the installed copy. No package manager re-resolves the consumer, Python's
-// included (K765). kit itself only links, it never builds (link-build.mts rebuilds):
+// included (K765). kit itself only links: it never builds and runs no package manager over the consumer (K856):
 //   npm       node_modules/<name> of each tracked project, one directory symlink;
 //   Composer  <vendor-dir>/<vendor>/<package> of each tracked project, the vendor-dir of its composer.json, one directory symlink;
 //   Python    each package of the site-packages of a project's .venv, one link per package of a namespace;
 //   Go        each go.mod of the consumer gets a git-ignored go.work that uses its module and the provider modules, which
-//             go reads by itself; unlink removes it;
+//             go reads by itself, whatever version the module requires (K856); unlink removes it;
 //   Rust      `cargo <dir> <args>` runs one cargo command with --config patches and a lock copy under var/link/cargo.
 // No environment variable declares anything: without checkouts nothing is linked, and the installs stay the locked releases.
 // A consumer is a directory: the top of a work tree stands for every tracked manifest of it, another directory for those
 // below it; with --project the folder is the consumer and its own manifest is read, tracked or not (K212). Each file that link writes
 // into the consumer is one that Git ignores there, and link writes nothing into .git (K512) (the links in the install folders, var/link, and each go.work).
-//   node link.mjs link|check [--project <dir>] [--siblings] <checkout>... | unlink [--project <dir>] | rebuild <repository>... |
+// unlink only removes the links and the files that link wrote; make install restores the locked installs, reinstalling each Python
+// distribution whose package folder a removed link left missing (K856).
+//   node link.mjs link|check [--project <dir>] [--siblings] <checkout>... | unlink [--project <dir>] |
 //                 packages <dir> python|npm | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
@@ -24,10 +26,9 @@ import { fileURLToPath } from 'node:url';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
 import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
-import { projectEnvironment, pylockOf, uvLink } from './uv-install.mts';
-import { rebuild } from './link-build.mts';
+import { projectEnvironment, uvLink } from './uv-install.mts';
 import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, releaseEnvironmentLinks } from './link-folders.mts';
-import { assertIgnored, type Ecosystem, EXCLUDED, goModule, isForkCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
+import { assertIgnored, type Ecosystem, EXCLUDED, goModule, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, siblingTool } from './paths.mts';
@@ -36,7 +37,7 @@ import { errorCode, execute, run } from './process.mts';
 import { git } from './git.mts';
 import { acquireHolderLock } from './holder-lock.mts';
 import { cargoMetadataArguments, verifyCargoSources } from './cargo-source.mts';
-import { manifestPolyspecNames, normalizeName } from './pyproject-dependencies.mts';
+import { manifestPolyspecNames } from './pyproject-dependencies.mts';
 
 type Print = (text: string) => void;
 type LinkRuntime = 'go' | 'php' | 'php-ext' | 'python' | 'rust' | 'ts';
@@ -48,9 +49,6 @@ const RUNTIME_ECOSYSTEMS: Readonly<Record<LinkRuntime, readonly Ecosystem[]>> = 
 const ALL_ECOSYSTEMS: readonly Ecosystem[] = ['npm', 'composer', 'python', 'go'];
 
 const isLinkRuntime = (value: string): value is LinkRuntime => Object.hasOwn(RUNTIME_ECOSYSTEMS, value);
-
-/** The pin rule of the links: only a package pinned at 0.0.x is linked (docs/operations/local-links.md). */
-const ZERO = /^v?0\.0\./;
 
 /**
  * The command `name` of the consumer `top`: the variable `variable` when the recipe gives it, else the tool of the checkout
@@ -132,9 +130,6 @@ function unlinkable(work: Run, ecosystem: Ecosystem, name: string, reason: strin
   work.failed = true;
 }
 
-/** The reason that the pin `version` is not linked, or undefined for a 0.0.x pin. */
-// A fork's pin is a version of the fork (K379), which the install records and checks, so the rule does not apply to a fork.
-const pinProblem = (version: string, provider: Provider): string | undefined => (isForkCheckout(provider.checkout) || ZERO.test(version) ? undefined : `pinned ${version}, not 0.0.x`);
 
 
 
@@ -225,38 +220,6 @@ function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string
 function releaseLinks(target: { venv: string; workspace: string }, print: Print): void {
   for (const link of releaseEnvironmentLinks(target.workspace, target.venv)) print(`  unlinked   python   ${link}, so uv writes no provider checkout`);
 }
-
-/** Restores the selected native locked environment, retaining application-owned source declarations. */
-function syncPython(uv: Tool, target: { venv: string; workspace: string }, print: Print, ...flags: string[]) {
-  releaseLinks(target, print);
-  run(uv.command, ['sync', '--locked', ...flags], { cwd: target.workspace, env: { ...uv.env, UV_PROJECT_ENVIRONMENT: target.venv } });
-}
-
-
-
-
-/**
- * The locked releases of the linked packages `names` in the PEP 751 lock `lock` (K401-1): each as the requirement `name==version`
- * with its name, and the names that the lock does not hold with a version.
- */
-function pylockReleases(lock: string, names: readonly string[]): { pins: { name: string; requirement: string }[]; missing: string[] } {
-  const packages = readTomlFile(lock).packages;
-  const held = new Map<string, { name: string; requirement: string }>();
-  for (const item of Array.isArray(packages) ? packages : []) {
-    if (isJsonObject(item) && typeof item.name === 'string' && typeof item.version === 'string') held.set(normalizeName(item.name), { name: item.name, requirement: `${item.name}==${item.version}` });
-  }
-  return {
-    pins: names.flatMap(name => held.get(normalizeName(name)) ?? []),
-    missing: names.filter(name => !held.has(normalizeName(name))),
-  };
-}
-
-
-
-
-
-
-
 
 /** The polyspec packages of the pyproject `file`: those that it names, whose releases its lock records (K507, K515). */
 function declaredPython(file: string): string[] {
@@ -353,9 +316,8 @@ function linkGo(work: Run, consumer: Consumer) {
     const requires = new Map<string, Provider>();
     for (const requirement of goModule(go, module, consumer.top).requires.filter(item => item.path.startsWith('github.com/polyspec/'))) {
       const provider = providerFor(work, consumer, 'go', requirement.path);
-      const problem = typeof provider === 'string' ? provider : pinProblem(requirement.version, provider);
-      if (problem) unlinkable(work, 'go', requirement.path, problem);
-      else if (typeof provider !== 'string') requires.set(requirement.path, provider);
+      if (typeof provider === 'string') unlinkable(work, 'go', requirement.path, provider);
+      else requires.set(requirement.path, provider);
     }
     // The modules of the tracked workspace that the go.work of this module uses besides its own module.
     const workspace = requires.size ? trackedWorkspaceFolders(go, consumer.top, directory, tracked).filter(folder => folder !== directory) : [];
@@ -589,26 +551,24 @@ export function packages(directory: string, ecosystem: 'python' | 'npm'): string
   return [...new Set(names)].sort();
 }
 
-/** Restores the locked installs of each directory with each tool's own install and removes var/link; false when one is skipped. */
+/**
+ * Removes the links of each directory (K856): the npm and Composer folders that are links out of the checkout, the package links of
+ * each Python environment and the files that link wrote. It installs nothing; make install restores the locked installs.
+ */
 export function unlink({ directories, print, env = process.env, project = false }: { directories: readonly string[]; print: Print; env?: NodeJS.ProcessEnv; project?: boolean }): boolean {
-  let restored = true;
-  const skip = (text: string) => { print(`  skipped    ${text}`); restored = false; };
   for (const consumer of directories.map(directory => consumerOf(directory, project))) {
     print(`== ${consumer.scope}`);
-    for (const folder of consumer.manifests('npm').map(file => path.dirname(file)).filter(item => existsSync(path.join(item, 'node_modules')))) {
-      if (!existsSync(path.join(folder, 'package-lock.json'))) { skip(`npm ${folder}: no package-lock.json; its workspace root restores it`); continue; }
-      const npm = consumerTool(consumer.top, 'npm', env);
-      run(npm.command, ['ci'], { cwd: folder, env: npm.env });
-      print(`  restored   npm      ${folder}`);
-    }
-    if (consumer.manifests('composer').length) {
-      const composer = consumerTool(consumer.top, 'composer', env);
-      for (const { project, vendor } of composerProjects(consumer, composer).filter(item => item.installed)) {
-        const folder = path.join(vendor, 'polyspec');
-        for (const item of existsSync(folder) ? readdirSync(folder) : []) if (lstatSync(path.join(folder, item)).isSymbolicLink()) rmSync(path.join(folder, item));
-        if (!existsSync(path.join(project, 'composer.lock'))) { skip(`composer ${project}: no composer.lock`); continue; }
-        run(composer.command, ['install', '--no-interaction'], { cwd: project, env: composer.env });
-        print(`  restored   composer ${project}`);
+    const own = realpathSync(consumer.top);
+    const outside = (entry: string) => !existsSync(entry) || !realpathSync(entry).startsWith(`${own}${path.sep}`);
+    const npmFolders = consumer.manifests('npm').map(file => path.join(path.dirname(file), 'node_modules'));
+    const composerFolders = consumer.manifests('composer').length ? composerProjects(consumer, consumerTool(consumer.top, 'composer', env)).filter(item => item.installed).map(item => item.vendor) : [];
+    // A package is <folder>/<name> or <folder>/<scope>/<name>: every link of those that resolves out of the checkout, or dangles, goes.
+    const entries = (folder: string) => (existsSync(folder) ? readdirSync(folder) : []).map(name => path.join(folder, name));
+    for (const folder of [...npmFolders, ...composerFolders]) {
+      for (const entry of entries(folder).flatMap(item => (lstatSync(item).isDirectory() ? [item, ...entries(item)] : [item]))) {
+        if (!lstatSync(entry).isSymbolicLink() || !outside(entry)) continue;
+        rmSync(entry);
+        print(`  unlinked   ${entry}`);
       }
     }
     const pythonFiles = consumer.manifests('python').filter(file => declaredPython(file).length);
@@ -616,31 +576,12 @@ export function unlink({ directories, print, env = process.env, project = false 
       const uv = consumerTool(consumer.top, 'uv', env);
       for (const file of pythonFiles) {
         const target = pythonTarget(uv, file);
-        if (typeof target === 'string') { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
-        if (!existsSync(path.join(target.workspace, 'uv.lock'))) {
-          // A project locked by a PEP 751 lock and no uv.lock (K401-1) gets the locked releases of its linked packages installed over
-          // their links; a linked package that the lock does not hold has no locked release to restore.
-          const lock = pylockOf(target.workspace);
-          if (lock === undefined) { skip(`python ${path.dirname(file)}: no environment or no uv.lock; run the repository's install`); continue; }
-          const { pins, missing } = pylockReleases(lock, declaredPython(file));
-          for (const name of missing) skip(`python ${path.dirname(file)}: ${name} is not held by ${path.basename(lock)}, not restorable`);
-          if (pins.length) {
-            releaseLinks(target, print);
-            run(uv.command, ['pip', 'install', '--python', path.join(target.venv, 'bin/python'), ...pins.map(pin => pin.requirement), ...pins.flatMap(pin => ['--reinstall-package', pin.name])], { cwd: target.workspace, env: uv.env });
-            print(`  restored   python   ${target.venv}`);
-          }
-          continue;
-        }
-        // The restore selects every group, as the consumer's install does (K238): uv reinstalls only the packages that a sync
-        // selects; --all-groups includes test dependencies and retains native sources declared by the application.
-        // --inexact keeps every other package (K237).
-        syncPython(uv, target, print, '--all-groups', '--inexact', ...declaredPython(file).flatMap(name => ['--reinstall-package', name]));
-        print(`  restored   python   ${target.venv}`);
+        if (typeof target !== 'string') releaseLinks(target, print);
       }
     }
     removeWritten(consumer);
   }
-  return restored;
+  return true;
 }
 
 /**
@@ -726,9 +667,6 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
         }
       }
     }
-    // Resolve only the sibling packages in the generated development lock. A release lock can pin an older, incompatible
-    // version, so metadata against a fresh copy would otherwise ignore the path patch and report the release as selected.
-    if (patched.length) run(tool.command, [...channel, ...config, 'update', '--offline', ...patched, ...manifestArgs], { cwd: directory, env: tool.env });
     // This validates the resolved workspace, including packages outside a caller's -p execution scope.
     if (checkouts.length && expected.size) {
       const metadata = run(tool.command, [...channel, ...config, 'metadata', '--format-version=1', ...graphArgs], { cwd: directory, env: tool.env });
@@ -945,9 +883,6 @@ if (isMain(import.meta.url)) {
       case 'unlink':
         if (!unlink({ directories, print, project: projectDirectory !== undefined })) process.exitCode = 1;
         break;
-      case 'rebuild':
-        for (const repository of rest) rebuild(workTreeOf(repository), print);
-        break;
       case 'providers': {
         // The npm providers of the checkouts that the arguments name, one line each: the name, a tab and the package folder, sorted by
         // name. They are read by the rules of link (the excluded paths, a package folder before its root, one provider per name), so a
@@ -979,7 +914,7 @@ if (isMain(import.meta.url)) {
         process.exitCode = cargo({ directory, args, checkouts });
         break;
       }
-      default: throw new Error('Usage: link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | rebuild <repository>... | packages <dir> python|npm | providers <checkout>... | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...');
+      default: throw new Error('Usage: link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | packages <dir> python|npm | providers <checkout>... | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

@@ -434,8 +434,8 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 # that provide the packages (scripts/kit/link.mts); PROJECT, when given, names the consumer whose manifests directly in it
 # are linked, else the whole tree of the checkout. Native package managers connect declared development sources;
 # application requirements remain their inputs and link invokes no product build target (K664); link-check
-# lists each provided folder that is a copy or links elsewhere; unlink restores the locked installs. link writes a git-ignored
-# go.work at each Go module, which go reads by itself; unlink removes it.
+# lists each provided folder that is a copy or links elsewhere; unlink only removes the links, and make install restores the locked
+# installs (K856). link writes a git-ignored go.work at each Go module, which go reads by itself; unlink removes it.
 .PHONY: link link-check unlink
 link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) link $(strip $(if $(PROJECT),--project $(PROJECT)) $(if $(RUNTIME),--runtime $(RUNTIME)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings))
@@ -475,8 +475,8 @@ uv-install: ## Install declared Python sources in DIR with one native uv sync --
 cargo-fetch: ## Fetch the Cargo crates of the project DIR in place of cargo fetch --locked: the polyspec crates that a sibling checkout provides are patched to their paths from the start, no git tag fetched (K448-5)
 	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) cargo --siblings $(DIR) fetch --locked
 
-unlink: ## Restore the selected native locked installation of PROJECT and remove generated go.work files; application source declarations remain; ONLINE
-	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
+unlink: ## Remove the links of PROJECT and the go.work files that link wrote; make install restores the locked installs, Python's included; offline
+	$(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
 # The release uses the released versions (K343), so its Go runs without the go.work of the links.
 release-prepare release-tools release-verify release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags: export GOWORK := off

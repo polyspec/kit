@@ -24,6 +24,6 @@ export function refreshLinked(root: string, files: readonly string[], print: (te
     rebuild(root, text => print(`${text.trim()} (${stale.join(', ')} stale after main moved)`));
   } catch (error) {
     // Main has moved; the failure of the build names it and its fix, keeping its cause.
-    throw new Error(`main moved, but the build of ${stale.join(', ')} failed, so the linked outputs are older than their sources; fix the build and run node <kit>/dist/link.mjs rebuild .`, { cause: error });
+    throw new Error(`main moved, but the build of ${stale.join(', ')} failed, so the linked outputs are older than their sources; fix the build and run make build in that checkout`, { cause: error });
   }
 }

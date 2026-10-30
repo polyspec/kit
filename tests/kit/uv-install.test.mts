@@ -85,3 +85,20 @@ test('K772: the installer links a package folder that uv sync left missing, sinc
   assert.equal(uvInstallCommand([root, checkout], { ...env, UV_FIXTURE_KEEP: 'yes' }, line => lines.push(line)), 0, lines.join(''));
   assert.equal(realpathSync(path.join(site, 'polyspec_new_unreleased')), path.join(checkout, 'src/polyspec_new_unreleased'));
 });
+
+// K856: unlink only removes the links, so a release consumer's package folder is missing while its dist-info stays; uv keeps an
+// installed distribution as it is, so make install reinstalls each distribution that misses a file of its RECORD.
+test('K856: the installer reinstalls a distribution whose package folder a removed link left missing', { timeout: 30_000 }, (t) => {
+  const { root, log, site, env } = fixture(t);
+  mkdirSync(path.join(site, 'polyspec_new_unreleased-0.0.1.dist-info'), { recursive: true });
+  writeFileSync(path.join(site, 'polyspec_new_unreleased-0.0.1.dist-info/RECORD'), 'polyspec_new_unreleased/__init__.py,,\npolyspec_new_unreleased-0.0.1.dist-info/RECORD,,\n../../../bin/tool,,\n');
+  rmSync(path.join(site, 'polyspec_new_unreleased'), { recursive: true });
+  const lines: string[] = [];
+  assert.equal(uvInstallCommand([root], { ...env, UV_FIXTURE_KEEP: 'yes' }, line => lines.push(line)), 0, lines.join(''));
+  assert.match(readFileSync(log, 'utf8'), /^sync --locked --reinstall-package polyspec_new_unreleased$/m);
+  mkdirSync(path.join(site, 'polyspec_new_unreleased'));
+  writeFileSync(path.join(site, 'polyspec_new_unreleased/__init__.py'), '');
+  rmSync(log);
+  assert.equal(uvInstallCommand([root], { ...env, UV_FIXTURE_KEEP: 'yes' }, line => lines.push(line)), 0, lines.join(''));
+  assert.match(readFileSync(log, 'utf8'), /^sync --locked$/m, 'a complete distribution is not reinstalled');
+});
