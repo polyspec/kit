@@ -16,7 +16,6 @@ toolchains that a repository does not install. This record covers those parts. M
 - `scripts/kit/bootstrap/install-tool.mts`
 - `scripts/kit/bootstrap/tool-wrappers.mts`
 - `scripts/kit/bootstrap/toolchain-declared.mts`
-- `scripts/kit/check-toolchain.mts`
 
 ## Requirement
 
@@ -24,7 +23,6 @@ toolchains that a repository does not install. This record covers those parts. M
 |---|---|
 | P1 | every downloaded tool is pinned to an exact release with the sha256 of each platform's archive, and the install refuses another archive |
 | P2 | the npm of `packageManager` (with its sha512) is installed before `npm ci`, since another npm can rewrite or refuse the lock (S4) |
-| P3 | the toolchains that a repository only verifies (Node.js, Rust, PHP) run at their declared versions, checked offline |
 | P4 | Go installs on a checkout that has no Go, at the pinned release, and the go directive of each `go.mod` agrees with it |
 | P5 | nothing outside the checkout changes: the tools, their caches and their configuration stay under `var/tools` |
 
@@ -63,13 +61,11 @@ The gaps that the measurement found, each with its decision:
 ## Why none fits
 
 P2 is a bootstrap: the pinned npm must exist before any package is installed by npm, and mise must exist before it installs
-anything, so the bootstrap installs both from their release files by digest. P3 compares the running tools with their
-declarations; mise installs tools and does not verify tools that it does not manage, so `check-toolchain.mts` stays: it runs
-each tool of `mise.toml` from its shim, verifies Node.js, Rust and PHP, requires `mise.lock` to pin every tool, and compares
-the go and python of `mise.toml` with the pins of kit.
+anything, so the bootstrap installs both from their release files by digest. No check of the running tools stays: a missing tool fails the target that runs
+it (K854).
 
 ## Retry condition
 
 Revisit P2 when npm or corepack installs the `packageManager` release with its digest, the install of mise when mise ships a
-locked package, P3 when mise verifies unmanaged tools against a declaration, and the exception of the `go:` tools when
+locked package, and the exception of the `go:` tools when
 `mise lock` records a checksum for them.

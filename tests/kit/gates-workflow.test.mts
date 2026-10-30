@@ -41,7 +41,7 @@ test('the gates workflow partitions every kit-gates target across shared, parity
     });
   assert.deepEqual([...partitions].sort(), [...gates].sort(), 'every original gate occurs once in the workflow partitions');
   const workflow = read('workflows/gates.yml');
-  assert.match(workflow, /run: make -k toolchain-check TOOLS="node npm mise \$COMMON_TOOLS" kit-gates-static/);
+  assert.match(workflow, /run: make -k kit-gates-static/);
   assert.match(workflow, /run: make -k kit-gates-parity/);
   assert.match(workflow, /kit-gates-runtime-\$\{\{ matrix\.runtime \}\}/);
   assert.match(workflow, /run: make kit-ci-plan/, 'the tracked setup planner selects runtime jobs and pinned tools');

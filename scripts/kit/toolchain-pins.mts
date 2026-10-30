@@ -1,6 +1,5 @@
 // The toolchain pins that kit ships (S4), read from toolchain-pins.json beside this module, so the package carries them to
-// every repository: Node.js, Go, Rust and TypeScript by release, Python and PHP by minor release. toolchain-floors.mts
-// compares the declarations and the manifest floors of a checkout with them. The pins are versions only: a checkout declares
+// every repository: Node.js, Go, Rust and TypeScript by release, Python and PHP by minor release. The pins are versions only: a checkout declares
 // the Go and Python that mise installs in its mise.toml, which must equal the pins, and mise.lock holds their digests.
 import SHIPPED from './toolchain-pins.json' with { type: 'json' };
 

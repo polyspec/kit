@@ -38,6 +38,9 @@ export const MISE_TOOLS = {
   vulture: { key: 'pypi:vulture', command: 'vulture' },
 } as const;
 
+/** The tool names that install-tools and ci-setup select from: the tools that kit installs itself, then the tools of mise.toml (K854). */
+export const TOOLS = ['node', 'npm', 'mise', 'rust', 'php', 'phpunit', 'phpcs', 'phpstan', 'go', 'python', 'uv', 'ruff', 'alint', 'golangciLint', 'deadcode', 'govulncheck', 'cargoAudit', 'cargoNextest', 'cargoDeny', 'composer', 'vulture'] as const satisfies readonly ('node' | 'npm' | 'mise' | 'rust' | 'php' | 'phpunit' | 'phpcs' | 'phpstan' | keyof typeof MISE_TOOLS)[];
+
 /** A tool of kit that mise installs. */
 export type MiseTool = keyof typeof MISE_TOOLS;
 

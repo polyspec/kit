@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e20ddca96bd1d0dcf10f7969dc17edf58361a74be2d98f47b8a18a26b2bbe03a -->
+<!-- source-sha256: 9256d6b993f1fc56b0de74a9c784de7957de1855587c4c0aaa0250c5555db92c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- toolchain-check를 check-toolchain.mts, toolchain-floors.mts의 .npmrc 검사와 함께 삭제했습니다. 도구가 없으면 그 도구를 실행하는 target이 실패하므로 make kit-gates, workflows/gates.yml의 shared와 runtime job, kit CI는 도구 검사를 실행하지 않습니다. install-tools TOOLS와 ci-setup이 고르는 도구 이름은 toolchain-mise.mts의 TOOLS이고, ci-targets의 record는 도구 release 없이 runner를 적습니다(K854).
 - kit은 패키지 설치를 감싸지 않습니다. make npm-install, make composer-install, make cargo-fetch를 스크립트와 함께 삭제했으며, 저장소는 package manager의 lock 설치를 실행한 뒤 make link를 실행합니다. config/ci.json의 setup.runtimes.<runtime>이 비어 있으면 저장소 자신의 make deps-<runtime>(ts는 deps-node, deps-go, deps-rust, php와 php-ext는 deps-php, deps-python)을 실행하고, 없으면 정의할 target 이름을 밝힙니다. 추적된 source가 없는 runtime은 아무것도 필요하지 않습니다(K859).
 - land가 브랜치의 완료된 커밋마다 부모와 비교해 diff 규칙 commit-red와 commit-fix-test를 판정하고 finding마다 sha를 밝힙니다(check-commits --range). commit-msg hook은 메시지 규칙만 맡으므로 amend를 추측하지 않습니다. prepare-commit-msg hook과 그 make target이 없어졌으므로 저장소는 자기 .githooks/prepare-commit-msg를 지우며, 지울 때까지 make hooks-check가 그것을 보고합니다 (K892).
 - make link-check는 추적되는 package.json, composer.json, pyproject.toml이 패키지 이름과 상관없이 저장소 밖 경로(npm file: 또는 link: 의존성, Composer path repository, uv source path)를 지정하면 보고합니다. 깨끗한 클론과 CI가 재현하지 못하기 때문이며, K773은 polyspec 이름만 판단했습니다 (K902).

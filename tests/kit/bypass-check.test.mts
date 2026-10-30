@@ -7,7 +7,7 @@ import { bypassFindings } from '../../scripts/kit/bypass-check.mts';
 import { KIT_MAKEFILE, tool } from './kit-tools.mts';
 import { tree } from './tree.mts';
 
-const GATES = ['kit-check', 'toolchain-check', 'docs-check'];
+const GATES = ['kit-check', 'layout-check', 'docs-check'];
 
 test('setting GITHUB_ACTIONS or CI outside a workflow is a finding, in a shell line, an object and an assignment (K308)', () => {
   assert.deepEqual(bypassFindings('tests/ci.test.mts', "const env = { ...process.env, GITHUB_ACTIONS: 'true' };\nprocess.env.CI = '1';\n", GATES), [
@@ -20,8 +20,8 @@ test('setting GITHUB_ACTIONS or CI outside a workflow is a finding, in a shell l
 });
 
 test('make -o, --old-file and --assume-old naming a gate of kit-gates is a finding, and a target that is no gate is not (K308)', () => {
-  assert.deepEqual(bypassFindings('Makefile', 'check:\n\tmake -o toolchain-check check-more\n\tmake --old-file=docs-check x\n\tmake --assume-old kit-check x\n\tmake -o generated build\n', GATES), [
-    'Makefile:2: make -o toolchain-check treats the gate toolchain-check as up to date and never runs it',
+  assert.deepEqual(bypassFindings('Makefile', 'check:\n\tmake -o layout-check check-more\n\tmake --old-file=docs-check x\n\tmake --assume-old kit-check x\n\tmake -o generated build\n', GATES), [
+    'Makefile:2: make -o layout-check treats the gate layout-check as up to date and never runs it',
     'Makefile:3: make --old-file=docs-check treats the gate docs-check as up to date and never runs it',
     'Makefile:4: make --assume-old kit-check treats the gate kit-check as up to date and never runs it',
   ]);

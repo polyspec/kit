@@ -70,7 +70,7 @@
       }
     },
     "exceptions": {
-      "description": "The declared exceptions to the pins of kit (S4): each names the pinned tool, the channel that its scope uses instead of the pin, the scope (\".\" or a directory of the checkout), the reason and the condition under which the pin is tried again. check-toolchain fails on an exception that nothing uses, except a Rust nightly, which parity reads.",
+      "description": "The declared exceptions to the pins of kit (S4): each names the pinned tool, the channel that its scope uses instead of the pin, the scope (\".\" or a directory of the checkout), the reason and the condition under which the pin is tried again.",
       "type": "array",
       "items": {
         "type": "object",

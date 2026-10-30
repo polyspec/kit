@@ -7,7 +7,6 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { toolchainEnvironment } from '../../scripts/kit/check-toolchain.mts';
 import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { versionStubs } from './toolchain-stubs.mts';
 import { parseJson } from '../../scripts/kit/schema-validate.mts';
@@ -43,7 +42,7 @@ test('a version stub answers go mod edit and ends under the environment of kit.m
   }
   const checkout = mkdtempSync(path.join(tmpdir(), 'kit-stubs-'));
   t.after(() => rmSync(checkout, { recursive: true, force: true }));
-  const env = toolchainEnvironment(checkout, stubs.env);
+  const env = toolsEnvironment(checkout, stubs.env);
   const child = spawn(path.join(stubs.directory, 'bin/go'), ['mod', 'edit', '-json', path.join(HERE, 'fixture/packages/fixture-go/go.mod')], { cwd: checkout, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = '';
   child.stdout.setEncoding('utf8').on('data', (text: string) => { stdout += text; });

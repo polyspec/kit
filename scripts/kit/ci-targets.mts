@@ -18,7 +18,6 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { acquireHolderLock } from './holder-lock.mts';
 import { now } from './time.mts';
-import { toolchainVersions } from './check-toolchain.mts';
 import { capLog, failureLines, logPath, render, reportWriter, runLogged, startReport, TARGET_NAME, targetPassed, treeId, warningLines } from './target-report.mts';
 import type { RunRecord, UnreadRecord } from './target-report.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -29,8 +28,6 @@ import { present } from './present.mts';
 import { ciRefusal } from './ci-only.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-targets.mts <report directory> <target>...  |  --summary <report directory>';
-// The toolchains whose releases the record of a run names.
-const REPORTED_TOOLS = ['node', 'npm', 'go', 'rust', 'php', 'composer'];
 
 /**
  * Runs `targets` with `make -k` and writes the report to `directory`. `output(text, stream)` receives the output of the
@@ -54,7 +51,7 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
     const record: RunRecord = {
       title: `make ci-targets ${targets.join(' ')}`,
       tree: treeId(root),
-      environment: { ...(environment ?? toolchainVersions(REPORTED_TOOLS, { root })), ...(env.ImageOS ? { runner: `${env.ImageOS} ${env.ImageVersion ?? ''}`.trim() } : {}) },
+      environment: { ...environment, ...(env.ImageOS ? { runner: `${env.ImageOS} ${env.ImageVersion ?? ''}`.trim() } : {}) },
       result: 'incomplete',
       started: now(),
       ended: null,

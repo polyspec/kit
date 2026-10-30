@@ -87,12 +87,12 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   문법이 없는 recipe 줄을 make가 시작할 때의 PATH에서 찾습니다. 그렇게 하지 않는 recipe는 `make kit-check`가 실패시킵니다. mise가 설치하지 않는 두 toolchain은 machine이나 CI runner가 제공합니다. `make install-tools`가
   rustup으로 `rust-toolchain.toml`의 toolchain을 그 component와 함께 설치하고(checkout에서 파일을 읽는 `rustup toolchain install`;
   rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다), config/toolchain.json `exceptions`가 선언한 Rust channel도
-  설치합니다. rustup이 없으면 그 설치 방법과 함께 실패하고, `make toolchain-check`는 설치되지 않은 toolchain을 이름으로
+  설치합니다. rustup이 없으면 그 설치 방법과 함께 실패하고, 설치되지 않은 toolchain은 cargo가 실행될 때 rustup이 이름으로
   알립니다. PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283):
   `make install-tools`가 `.php-version`의 release를 찾아(PATH의 해당 minor `php`, CI에서는 setup-php 단계; 없으면 apt의
   `php<minor>`; 없으면 Homebrew의 `opt/php@<minor>` keg) php, php-config, phpize의 exec wrapper를 var/tools/bin에 쓰고,
-  못 찾으면 시도한 목록과 함께 실패합니다. `make toolchain-check`가 이를 검증합니다.
-  Enforced by: `make toolchain-check`, `make kit-check`
+  못 찾으면 시도한 목록과 함께 실패합니다.
+  Enforced by: `tests/kit/install-rust.test.mts`, `tests/kit/install-tools.test.mts`, `tests/kit/install-php.test.mts`, `make kit-check`
 - Own: var/tools/bin의 도구는 설치된 파일을 이 checkout 설치의 environment(checkout의 mise data 폴더 같은)와 함께 절대 경로로
   실행하는 wrapper script이며, environment를 담지 못하는 symbolic link가 아닙니다. 한 checkout의 도구는 다른 checkout의 도구로
   실행되지 않습니다(`scripts/kit/bootstrap/tool-wrappers.mts`).

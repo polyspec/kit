@@ -106,10 +106,6 @@
       "kind": "policy",
       "reason": "the rule of PRINCIPLES.md that each item is verified by its own unit tests: one command per runtime that runs each package's runner with its name filter, and the suites only in CI (K244)"
     },
-    "scripts/kit/check-toolchain.mts": {
-      "kind": "record",
-      "record": "docs/rebuild/toolchain.md"
-    },
     "scripts/kit/checklist.mts": {
       "kind": "policy",
       "reason": "polyspec's checklists and trackers in Markdown tables; the table reading is markdown.mts"
@@ -425,10 +421,6 @@
     "scripts/kit/toolchain-files.mts": {
       "kind": "ecosystem",
       "tool": "go mod edit -json reads go.mod, cargo metadata the Cargo manifests, npm config get the .npmrc keys, and smol-toml through toml.mts the TOML manifests (K78)"
-    },
-    "scripts/kit/toolchain-floors.mts": {
-      "kind": "policy",
-      "reason": "the floors of the manifests must equal the pins (S4, K78); the manifests are read by their ecosystem tools through toolchain-files.mts"
     },
     "scripts/kit/toolchain-lint.mts": {
       "kind": "policy",

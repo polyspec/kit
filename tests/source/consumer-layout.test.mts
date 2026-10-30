@@ -96,7 +96,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   for (const [entry] of DEPENDENCIES) assert.ok(existsSync(path.join(consumer, entry, 'package.json')), `make install-packages did not install ${entry}`);
   // The lint tools of make lint-ts are dependencies of kit, installed with it and linked into node_modules/.bin.
   for (const tool of ['oxlint', 'tsgolint', 'knip', 'api-extractor']) assert.ok(existsSync(path.join(consumer, 'node_modules/.bin', tool)), `make install-packages did not install node_modules/.bin/${tool}`);
-  for (const target of [['kit-sync'], ['kit-check'], ['toolchain-check', 'TOOLS=node npm']]) {
+  for (const target of [['kit-sync'], ['kit-check']]) {
     const result = make(...target);
     assert.equal(result.status, 0, `make ${target.join(' ')}: ${result.stdout}${result.stderr}`);
     // KIT is the real path of the kit checkout beside the consumer (K762).

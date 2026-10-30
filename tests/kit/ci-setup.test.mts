@@ -411,7 +411,6 @@ test('K731: PHP extension jobs install their declared PHP and Composer tools and
     const plan = ciPlan(root);
     const extension = plan.runtimes.find(job => job.runtime === 'php-ext');
     assert.ok(extension, 'tracked PHP extension files select a PHP extension job');
-    assert.deepEqual(extension.checkTools, ['php', 'composer']);
     assert.deepEqual(extension.installTools, ['php', 'composer']);
     assert.equal(plan.parityTools.includes('phpunit'), false, 'the repository does not need Kit private PHPUnit when it provides its own Composer project');
     assert.deepEqual(ciSetupInvocations(root, 'runtime', 'php-ext'), [
@@ -453,7 +452,6 @@ test('K731: extra pinned tools follow the setup target that needs them and parit
     const plan = ciPlan(root);
     const ts = plan.runtimes.find(job => job.runtime === 'ts');
     assert.ok(ts);
-    assert.deepEqual(ts.checkTools, ['go']);
     assert.deepEqual(ts.installTools, ['go']);
     assert.deepEqual(plan.commonTools, ['go'], 'the shared toolchain parser still receives Go although the TypeScript job also needs it');
     assert.deepEqual(plan.parityTools, ['go'], 'parity installs tools needed by runtime setup it repeats');

@@ -16,7 +16,7 @@ KIT_TEST_SHARDS := 1 2 3 4 5 6 7
 KIT_TEST_FILES_1 := \
 	tests/kit/bootstrap-platform.test.mts \
 	tests/kit/install-idempotent.test.mts \
-	tests/kit/check-toolchain.test.mts tests/kit/checklist.test.mts \
+	tests/kit/checklist.test.mts \
 	tests/kit/gate-targets.test.mts tests/kit/install-mise.test.mts \
 	tests/kit/install-vscode.test.mts tests/kit/isolation.test.mts tests/kit/lint-python.test.mts \
 	tests/kit/parity.test.mts tests/kit/paths.test.mts tests/kit/php-platform.test.mts \
@@ -60,7 +60,7 @@ KIT_TEST_FILES_6 := \
 	tests/kit/linked-sources.test.mts tests/kit/lint-rust.test.mts tests/kit/lint-ts.test.mts \
 	tests/kit/project-hook.test.mts tests/kit/python-venv.test.mts tests/kit/release-assets.test.mts \
 	tests/kit/release-tools-path.test.mts tests/kit/run-command.test.mts \
-	tests/kit/toolchain-npmrc.test.mts tests/kit/tracked-files.test.mts tests/kit/verification.test.mts \
+	tests/kit/tracked-files.test.mts tests/kit/verification.test.mts \
 	tests/kit/worktree-setup.test.mts
 KIT_TEST_FILES_7 := tests/kit/install-composer-project.test.mts tests/kit/parity-api.test.mts tests/kit/runtime-targets.test.mts tests/kit/install-rust.test.mts tests/kit/provider-tests.test.mts tests/kit/release-run.test.mts tests/kit/playwright-reporter.test.mts
 

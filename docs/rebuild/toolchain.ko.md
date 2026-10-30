@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-toolchain -->
-<!-- source-sha256: 449ec700c08bab644de9510f87dd980a32c39ae8500a4570588225224286dee7 -->
+<!-- source-sha256: 2505bc6e592265cd447d6db7b636e1e79cbd038894e1bd6daf880200840fef37 -->
 # 재구현 기록: toolchain
 
 [English](toolchain.md)
@@ -16,7 +16,6 @@
 - `scripts/kit/bootstrap/install-tool.mts`
 - `scripts/kit/bootstrap/tool-wrappers.mts`
 - `scripts/kit/bootstrap/toolchain-declared.mts`
-- `scripts/kit/check-toolchain.mts`
 
 ## 요구사항
 
@@ -24,7 +23,6 @@
 |---|---|
 | P1 | 내려받는 도구는 모두 정확한 release와 platform별 archive의 sha256으로 고정되며, 설치는 다른 archive를 거부합니다 |
 | P2 | `packageManager`의 npm(sha512 포함)은 `npm ci` 전에 설치됩니다. 다른 npm은 lock을 다시 쓰거나 거부할 수 있기 때문입니다(S4) |
-| P3 | 저장소가 검증만 하는 toolchain(Node.js, Rust, PHP)은 선언된 version으로 실행되며, 이를 offline으로 확인합니다 |
 | P4 | Go가 없는 checkout에도 고정한 release의 Go가 설치되고, 모든 `go.mod`의 go directive는 그 release와 일치합니다 |
 | P5 | checkout 밖은 아무것도 바뀌지 않습니다. 도구와 그 cache, 설정은 `var/tools` 아래에 있습니다 |
 
@@ -63,13 +61,11 @@
 ## 맞는 도구가 없는 이유
 
 P2는 bootstrap입니다. 고정한 npm은 npm이 어떤 package를 설치하기 전에 있어야 하고, mise는 무엇이든 설치하기 전에 있어야
-하므로, bootstrap이 둘 다 release 파일에서 digest로 설치합니다. P3은 실행 중인 도구를 선언과 비교합니다. mise는 도구를
-설치할 뿐, 자신이 관리하지 않는 도구는 검증하지 않으므로 `check-toolchain.mts`가 남습니다. 이 도구는 `mise.toml`의 각
-도구를 shim으로 실행하고, Node.js, Rust, PHP를 검증하고, `mise.lock`이 모든 도구를 고정하는지 요구하며, `mise.toml`의 go와
-python을 kit의 pin과 비교합니다.
+하므로, bootstrap이 둘 다 release 파일에서 digest로 설치합니다. 실행 중인 도구를 검사하는 것은 남기지 않습니다. 도구가 없으면 그 도구를
+실행하는 target이 실패합니다(K854).
 
 ## 재시도 조건
 
 P2는 npm이나 corepack이 `packageManager`의 release를 digest와 함께 설치하게 되면, mise의 설치는 mise가 lock된 package를
-내놓으면, P3은 mise가 관리하지 않는 도구를 선언에 비추어 검증하게 되면, `go:` 도구의 예외는 `mise lock`이 그 checksum을
+내놓으면, `go:` 도구의 예외는 `mise lock`이 그 checksum을
 기록하게 되면 다시 검토합니다.

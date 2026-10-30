@@ -85,13 +85,12 @@ cargo-downloads-fetch: ## Download the crates of every Cargo.lock
 # Toolchains (K8.2, K127): the bootstrap (TOOLS=npm) installs the npm of packageManager and mise; install-tools installs every
 # tool of mise.toml at the digests of mise.lock with mise, then what mise does not install (the wheel backend, the Composer
 # projects, the symbol extractors); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside
-# the checkout changes. toolchain-check compares the running tools with the declarations and fails with the expected and the
-# running version.
-.PHONY: install-tools toolchain-lock toolchain-check
+# the checkout changes. A missing tool fails the target that runs it, so no target checks the installed tools (K854).
+.PHONY: install-tools toolchain-lock
 
 # TOOLS=npm is the first step of a checkout, before npm ci installs the packages that the other tools import, so it runs the
 # bootstrap installer of $(KIT)/bootstrap, which imports only Node.js built-ins.
-install-tools: ## Install all locked tools or selected toolchain names from check-toolchain; TOOLS=npm runs the bootstrap; ONLINE
+install-tools: ## Install all locked tools or selected tool names of toolchain-mise; TOOLS=npm runs the bootstrap; ONLINE
 ifeq ($(TOOLS),npm)
 	$(ONLINE) $(BOOTSTRAP_NODE) $(KIT)/bootstrap/bootstrap.$(KIT_EXT)
 else
@@ -118,9 +117,6 @@ toolchain-lock: ## Write mise.lock with mise lock: the digests of the tools of m
 	  *python) python="$$($(KIT_TOOLS)/bin/mise which python3)" || exit 1; UV_PYTHON="$$python" $(ONLINE) $(KIT_TOOLS)/bin/mise lock --global --platform $(TOOLCHAIN_LOCK_PLATFORMS);; \
 	  *) $(ONLINE) $(KIT_TOOLS)/bin/mise lock --global --platform $(TOOLCHAIN_LOCK_PLATFORMS);; \
 	esac
-
-toolchain-check: ## Check that the running tools are the declared versions; TOOLS limits the tools; offline
-	$(NODE) $(KIT)/check-toolchain.$(KIT_EXT) $(TOOLS)
 
 # ---- Folder layout (S5) ---------------------------------------------------------------------------------------------
 # alint (mise.toml, installed by install-tools) checks the tree against config/layout.yml, which extends
@@ -206,13 +202,13 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by.
-kit-gates: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+kit-gates: kit-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
-# entry point above; these targets are only the disjoint workflow partitions. Toolchain probes are checked with their selected
-# TOOLS in the owning job, while the parity job checks every implementation in one run.
+# entry point above; these targets are only the disjoint workflow partitions, and the parity job checks every implementation in
+# one run.
 .PHONY: kit-gates-static kit-gates-parity kit-gates-runtime-ts kit-gates-runtime-php kit-gates-runtime-python kit-gates-runtime-go kit-gates-runtime-rust kit-gates-runtime-php-ext
-kit-gates-static: kit-check toolchain-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check ## Run shared gates and the common toolchain probes
+kit-gates-static: kit-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check ## Run the shared gates
 kit-gates-parity: parity-check ## Run the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate
 kit-gates-runtime-php: lint-php ## Run the PHP gate

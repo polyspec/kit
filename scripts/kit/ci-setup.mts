@@ -10,10 +10,9 @@ import { makeDatabase } from './owner-check.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { implementationFolders } from './parity-declaration.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
-import { declaredMiseTools } from './toolchain-mise.mts';
+import { declaredMiseTools, TOOLS as CHECK_TOOLS } from './toolchain-mise.mts';
 import { declaredLintTools } from './toolchain-lint.mts';
 import { declaredRust } from './toolchain-files.mts';
-import { TOOLS as CHECK_TOOLS } from './check-toolchain.mts';
 import { isJsonObject } from './bootstrap/files.mts';
 
 export const CI_CONFIG = 'config/ci.json';
@@ -31,7 +30,7 @@ type CIConfig = {
   tools?: Partial<Record<CIJob, string[]>>;
   contexts?: Partial<Record<CIJob, { prepare: string; cleanup: string }>>;
 };
-type RuntimeJob = { runtime: Runtime | 'none'; checkTools: string[]; installTools: string[] };
+type RuntimeJob = { runtime: Runtime | 'none'; installTools: string[] };
 export type CIPlan = {
   sharedTargets: string[];
   runner: Runner;
@@ -163,7 +162,7 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
   const { names } = toolchainNames(root);
   for (const job of CI_JOBS) {
     for (const tool of config.tools?.[job] ?? []) {
-      if (!CHECK_TOOLS.includes(tool)) throw new Error(`${CI_CONFIG}: tools.${job} names unknown Kit tool ${tool}. Fix: choose one of ${CHECK_TOOLS.join(', ')}`);
+      if (!(CHECK_TOOLS as readonly string[]).includes(tool)) throw new Error(`${CI_CONFIG}: tools.${job} names unknown Kit tool ${tool}. Fix: choose one of ${CHECK_TOOLS.join(', ')}`);
       if (['node', 'npm', 'mise'].includes(tool)) throw new Error(`${CI_CONFIG}: tools.${job} names ${tool}, which the workflow already provisions. Fix: name an additional installable tool instead`);
       if (!names.includes(tool)) throw new Error(`${CI_CONFIG}: tools.${job} names ${tool}, which this checkout does not declare. Fix: declare and pin ${tool} in the toolchain files before selecting it`);
     }
@@ -224,7 +223,6 @@ function plan(root: string): CIPlan {
   ])].sort();
   const runtimeJobs = runtimes.map(runtime => ({
     runtime,
-    checkTools: [...new Set([...runtimeTools[runtime], ...(config.tools?.[runtime] ?? [])])].filter(name => names.includes(name)),
     installTools: [...new Set([...runtimeTools[runtime], ...(config.tools?.[runtime] ?? [])])].filter(name => names.includes(name) && !['node', 'npm', 'mise'].includes(name)),
   }));
   const parity = existsSync(path.join(root, 'config/parity.json'))
@@ -249,7 +247,7 @@ function plan(root: string): CIPlan {
     parityMatrix: parityImplementations.length ? parityBindingMatrix(parityImplementations) : [],
     parityTargets: config.setup.parity,
     parityRuntimes: runtimes,
-    runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', checkTools: [], installTools: [] }],
+    runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', installTools: [] }],
     commonTools: sharedTools,
     parityTools: [...parityTools].filter(name => names.includes(name)).sort(),
     extractors,

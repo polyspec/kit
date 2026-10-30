@@ -80,9 +80,7 @@ jobs:
         name: prepare shared CI context
         run: make kit-ci-context-prepare GROUP=shared
       - name: shared gates
-        env:
-          COMMON_TOOLS: ${{ join(fromJSON(needs.discover.outputs.common_tools), ' ') }}
-        run: make -k toolchain-check TOOLS="node npm mise $COMMON_TOOLS" kit-gates-static
+        run: make -k kit-gates-static
       - name: cleanup shared CI context
         if: ${{ always() && steps.context_prepare.outcome != 'skipped' }}
         run: make kit-ci-context-cleanup GROUP=shared
@@ -264,14 +262,7 @@ jobs:
         name: prepare runtime CI context
         run: make kit-ci-context-prepare GROUP=runtime RUNTIME=${{ matrix.runtime }}
       - name: runtime gate
-        env:
-          CHECK_TOOLS: ${{ join(matrix.checkTools, ' ') }}
-        run: |
-          if [ -n "$CHECK_TOOLS" ]; then
-            make -k toolchain-check TOOLS="$CHECK_TOOLS" kit-gates-runtime-${{ matrix.runtime }}
-          else
-            make -k kit-gates-runtime-${{ matrix.runtime }}
-          fi
+        run: make -k kit-gates-runtime-${{ matrix.runtime }}
       - name: cleanup runtime CI context
         if: ${{ always() && steps.context_prepare.outcome != 'skipped' }}
         run: make kit-ci-context-cleanup GROUP=runtime RUNTIME=${{ matrix.runtime }}

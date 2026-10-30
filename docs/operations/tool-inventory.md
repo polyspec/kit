@@ -40,7 +40,7 @@ not: PHP, which the machine provides and `install-php.mts` discovers and wraps (
 (`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install --no-self-update`
 in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo first runs) and the Rust channels of
 `exceptions`, and the symbol extractors. With no `TOOLS` selectors this remains the full install. `make install-tools TOOLS="go python"`
-installs only those mise tools and their declared prerequisites; selectors are exact names accepted by `check-toolchain.mts`.
+installs only those mise tools and their declared prerequisites; selectors are the exact names of `TOOLS` in `scripts/kit/toolchain-mise.mts`.
 `deadcode`, `govulncheck` and `golangciLint` also install Go, `vulture` installs Python and uv, Python installs the declared wheel
 backend, PHP composer tools install the declared PHP wrapper and Composer, and Rust installs its stable and declared exception
 channels. Unknown, empty and undeclared selectors fail before mutation. A selected install leaves other installed tools in place
@@ -53,11 +53,10 @@ kit.mk exports the environment of mise of the checkout to every recipe and puts 
 `var/tools/bin` holds only the wrappers that kit writes for the declarations of the checkout: mise, npm and npx of the
 bootstrap, php, php-config and phpize of the declared PHP, phpunit, phpcs and phpstan of the declared Composer projects. `make install-tools` removes every other file there
 before it installs, such as a wrapper of an older kit for a tool that now comes from mise, which would shadow its shim (K149).
-`scripts/kit/check-toolchain.mts` compares the running tools with the declarations: `scripts/kit/bootstrap/toolchain-declared.mts`
-reads those of the bootstrap and of the tools that mise does not install, `scripts/kit/toolchain-mise.mts` the tools of
+No target checks the installed tools: a missing tool fails the target that runs it (K854). `scripts/kit/bootstrap/toolchain-declared.mts`
+reads the declarations of the bootstrap and of the tools that mise does not install, `scripts/kit/toolchain-mise.mts` the tools of
 `mise.toml` and the digests of `mise.lock`, and `scripts/kit/toolchain-files.mts` Rust and the go.mod files with the tools of
-their ecosystems. Make targets: `install-tools` and `toolchain-lock` (online through `ONLINE`) and `toolchain-check` (offline,
-`TOOLS` limits the tools). Rust stays with rustup: `rust-toolchain.toml` with rustup is the Rust ecosystem's own toolchain
+their ecosystems. Make targets: `install-tools` and `toolchain-lock` (online through `ONLINE`). Rust stays with rustup: `rust-toolchain.toml` with rustup is the Rust ecosystem's own toolchain
 mechanism, and the rust backend of mise drives rustup itself, so a second layer would add nothing. The decision of each gap
 of mise is in docs/rebuild/toolchain.md.
 
@@ -80,7 +79,7 @@ command (`brew install php@<minor>` or `apt install php<minor>-cli`).
 A repository with `packages/php-ext` uses `make install-tools` to install the pinned PHP-Parser that its PHP `gen_stub.php` requires. A PHP library without an extension needs no arginfo generator or extension development tools. The shared `kit.mk` exposes `make kit-install-php-arginfo` for a consumer's extension fixture and `make kit-install-symbols EXTRACTORS="go"` or `EXTRACTORS="php"` for one declared parity extractor; install the corresponding pinned tools first with `make install-tools TOOLS="php composer"` or `TOOLS=go`. Both targets call the existing pinned installers, and `EXTRACTORS` must be present in `config/toolchain.json symbolExtractors`. Kit declares its own extension-fixture preparation with `make kit-install-php-arginfo`; `make install` and CI run that target explicitly.
 Kit stages that installed parser beside the matching generator under `var/tools/php-arginfo`; builds and `make php-ext-arginfo`
 run the generator offline in a temporary source copy, and `make php-ext-arginfo` publishes only to ignored `var/php-ext/arginfo`.
-`make toolchain-check` names a missing or stale installation and says to run `make install-tools` (K303, K560). The Composer
+A missing installation fails the build that runs the generator; `make install-tools` installs it (K303, K560, K854). The Composer
 project and lock for each parser release are under `scripts/kit/php-arginfo/<version>`, included in the kit distribution beside the tool.
 Composer release archives declare generated headers by stub and output path. Release assets generate them from the tagged stub,
 then append the staged file with Info-ZIP (`zip`) using stored entries, mode 0644 and the commit timestamp; `make release-assets`
@@ -104,8 +103,8 @@ A repository may declare a downloaded tool of its own in `mise.toml` through the
 | alint | `"github:asamarts/alint"` of `mise.toml` (`mise.lock` holds the sha256 of each archive); `make layout-check` runs it (K76) | install with mise |
 | Composer | `"http:composer"` of `mise.toml`, with the url of `composer.phar` and its `checksum` from getcomposer.org, which `mise.lock` records | install with mise |
 | cargo-audit | `"github:rustsec/rustsec" = { version, version_prefix = "cargo-audit/v" }` of `mise.toml`: the native binary of each platform, its sha256 in `mise.lock` | install with mise |
-| cargo-nextest | `"github:nextest-rs/nextest" = { version, version_prefix = "cargo-nextest-" }` of `mise.toml`: the native binary of each platform (the universal binary on macOS), its sha256 in `mise.lock`; check-toolchain reads `cargo-nextest --version` (K143) | install with mise |
-| cargo-deny | `cargo-deny` of `mise.toml` (the aqua backend of the registry of mise, `aqua:EmbarkStudios/cargo-deny`): the native binary of each platform, its sha256 in `mise.lock`; check-toolchain reads `cargo-deny --version` (K143) | install with mise |
+| cargo-nextest | `"github:nextest-rs/nextest" = { version, version_prefix = "cargo-nextest-" }` of `mise.toml`: the native binary of each platform (the universal binary on macOS), its sha256 in `mise.lock` | install with mise |
+| cargo-deny | `cargo-deny` of `mise.toml` (the aqua backend of the registry of mise, `aqua:EmbarkStudios/cargo-deny`): the native binary of each platform, its sha256 in `mise.lock` | install with mise |
 | govulncheck, deadcode | `"go:golang.org/x/vuln/cmd/govulncheck"`, `"go:golang.org/x/tools/cmd/deadcode"` of `mise.toml`, built by the `go:` backend; `mise.lock` records the release, and Go checks every module against `GOSUMDB` with `GOFLAGS=-mod=readonly` (the declared exception) | install with mise |
 | vulture | `"pypi:vulture"` of `mise.toml`: `mise.lock` holds the digest of the uv lock that mise writes under `.mise/locks`, a sidecar folder that the repository tracks with mise.lock, as mise's documentation says; `mise install --locked` of a checkout fails with "dependency sidecar … No such file or directory" without it (K192), so kit adds no check (K835) | install with mise |
 | PHPUnit | `config/toolchain.json` `phpunit` `{ version }`, with the Composer project of `config/phpunit` (`composer.json`, `composer.lock`); kit runs it for its own PHP tests only, and a consumer keeps its PHPUnit in its package `composer.json` | install with the Composer of `mise.toml` |
@@ -123,9 +122,7 @@ file, which `rustup` reads; CI's `setup-node` reads the node of `mise.toml` only
 ### Pins, floors and exceptions (K78)
 
 kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), which the build copies into `dist` beside
-`toolchain-pins.mts`: Node.js 26.12.0, Python 3.14, PHP 8.4, Go 1.27.3, Rust 1.99.0 and TypeScript 7.0.2. Whichever tools
-`toolchain-check` runs, it fails on each declaration and each manifest floor that is not the pin at the pin's precision
-(`toolchain-floors.mts`, over the files of `checkedFiles`, without the tool environments that mise writes in `.mise`). The
+`toolchain-pins.mts`: Node.js 26.12.0, Python 3.14, PHP 8.4, Go 1.27.3, Rust 1.99.0 and TypeScript 7.0.2. The
 pins hold versions only; the digests are those of `mise.lock`. Each pin has one source: kit ships the pins, and the
 `mise.toml` of every checkout, kit's included, must declare its Go and Python at them:
 
@@ -145,8 +142,6 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
   and so do an exception that lacks a field or names an unpinned tool, a channel of the wrong precision or a missing
   directory, and one that nothing uses (stale). A Rust `nightly-<yyyy-mm-dd>` is never stale: parity reads it for rustdoc
   JSON.
-- An `.npmrc` that sets `install-links=true` or `bin-links=false` fails (S1: our rules never block the links of npm). npm
-  reads each `.npmrc` in its directory, without the configuration of the user or of the environment.
 - TOML is read by smol-toml through `readToml` of `toml.mts`, the one TOML reader of kit (K73).
 - A version command ended by a signal is reported with the signal, for example `ended by signal SIGKILL`, not
   `exit status null` (K118).
@@ -159,8 +154,7 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
   `npx` start `npm-cli.js` and `npx-cli.js`. A changed digest of the same version reinstalls (hyper). A tarball with a link or a
   special file is refused (ordered-json). The bootstrap npm runs without `var/tools/bin` on `PATH` (template).
 - Go: the Go of `mise.toml`, at the kit pin, is installed by mise from the archive of the Go downloads at the sha256 of
-  `mise.lock`. No Go of the machine takes part, so a checkout without Go installs one; toolchain-check compares the `go` line of
-  each `go.mod` with the pin through `go mod edit -json` (K78). The archive install of kit and the `goArchives` digests of
+  `mise.lock`. No Go of the machine takes part, so a checkout without Go installs one. The archive install of kit and the `goArchives` digests of
   `toolchain-pins.json` are gone (K127).
 - Composer: hyper installs `composer.phar` verified by its SHA-256; template, crudui and orm only verify the running
   Composer. mise installs it from the `http:composer` entry of `mise.toml` with its declared checksum (K127).
@@ -174,7 +168,7 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 - Python (K64, K127): mise installs the exact python-build-standalone build that `mise.lock` pins by its URL and sha256 into
   `var/tools/mise/installs`, and the shim `var/tools/mise/shims/python3` runs it. uv installs no Python
   (`UV_PYTHON_DOWNLOADS=never`), and the uv of kit runs on the Python of mise (`UV_PYTHON`). The Python of mise is externally
-  managed for pip as before, so pip installs only into a venv of it. `check-toolchain` and run-tests run that
+  managed for pip as before, so pip installs only into a venv of it. run-tests runs that
   shim, never the Python of PATH. A package whose tests import its own installed dependencies runs them with
   `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg`
   names as its `home` a directory under `var/tools/mise` (read through links); it refuses any other environment before the
@@ -796,7 +790,7 @@ The check also leaves out the S10 stub of a PHP extension, `packages/php-ext/src
 | Module | Holds | Replaces | Users |
 |---|---|---|---|
 | `paths.mts` | `repositoryRoot()`, the top level of the Git work tree of the working directory (K144), `isMain(import.meta.url)` | the root path that 22 modules computed and the `process.argv[1] === ...` test of 21 | every command and module with a default root |
-| `process.mts` | `execute`, `run`, `Stop` | `run` of release, the `spawnSync` calls with `encoding` and `maxBuffer` | release, check-toolchain, check-cargo-downloads, git |
+| `process.mts` | `execute`, `run`, `Stop` | `run` of release, the `spawnSync` calls with `encoding` and `maxBuffer` | release, check-cargo-downloads, git |
 | `git.mts` | `git`, `gitResult` | the `git` helper of full-run, push-gate, owner-check, kit-sync, tracked-files and target-report, and the direct `git` calls of git-hooks, check-commits, push-gate | those modules |
 | `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, kit-sync, target-report, tool-wrappers and git-hooks | those modules |
 | `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of install-composer (gone in K127), the sha512 of install-npm | those modules |
@@ -807,14 +801,13 @@ The check also leaves out the S10 stub of a PHP extension, `packages/php-ext/src
 | `manifests.mts` | `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` with their readers, each validated against its schema (`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`) | the local shapes of package.json, package-lock.json, composer.json and composer.lock in toolchain-floors, release, release-consumer, kit-check and owner-check (K158) | those modules |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | `EXCLUDED` of release | release, the lint and check tools |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
-| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, alint, cargo-audit and govulncheck that the release installers and the probes of check-toolchain each held; since K127 mise installs those tools and only the probes and the bootstrap read them | check-toolchain, the bootstrap |
+| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, alint, cargo-audit and govulncheck that the release installers and the probes of check-toolchain each held; since K127 mise installs those tools and only the bootstrap reads them | the bootstrap |
 | `pyproject-dependencies.mts` | `dependencyArrays`, the `dependencies` of `[project]`, each extra and each group of `[dependency-groups]`; `dependencyGroups`, each group with its `{ include-group }` tables resolved as the reference implementation of PEP 735 does (K177) | the read of the extras alone, which missed the dependency groups | link |
 
 Other duplicates removed:
 
-- `toolchainVersions` existed twice (target-report and check-toolchain). The record of `ci-targets` now takes the releases
-  of node, npm, go, rust, php and composer from `check-toolchain.toolchainVersions`, which prints `22.1.0` where target-report
-  printed `v22.1.0`.
+- `toolchainVersions` existed twice (target-report and check-toolchain); both are gone, and the record of `ci-targets` names
+  the runner, since the tree that it records fixes the releases in `mise.lock` (K854).
 - `cargoAuditCommand`, `govulncheckCommand` and the path of the probe in check-toolchain were three spellings of one path;
   since K127 each is the shim of mise that `toolCommand` of `mise-tools.mts` names.
 
@@ -960,11 +953,10 @@ checks traceback preservation rather than PHP's explicit-constructor-argument pa
 The pinned Python 3.14.8 runtime was checked for both implicit `__context__` and the `from None` suppression flag.
 
 The make targets and the copies (`kit.copies`) are wired on the kit package. `toolchain-mise.mts` reads the lint tools of
-`mise.toml` and `toolchain-lint.mts` the PHP lint, after the bootstrap, and `make toolchain-check` probes each installed release:
-vulture, golangci-lint, deadcode (by `go version -m` of the binary that `mise which deadcode` names, since it prints no release
-and its shim is mise), and phpcs and PHPStan at the releases that `config/php-lint/composer.lock` holds, in a repository that
+`mise.toml` and `toolchain-lint.mts` the PHP lint, after the bootstrap, and `make install-tools` installs
+vulture, golangci-lint, deadcode, and phpcs and PHPStan at the releases that `config/php-lint/composer.lock` holds, in a repository that
 declares PHP (`php` of config/toolchain.json or `.php-version`): every repository holds the copy, and a tool that a repository
-does not declare is neither installed nor checked.
+does not declare is not installed.
 
 TypeScript lint resolves its declared dependency packages with Node's native package lookup from the installed kit provider. It runs each package's declared executable and exposes the native backend bin directory to oxlint. Linked source installations and packed installations use the same lookup; consumer root transitive bin links are not required.
 

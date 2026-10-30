@@ -10,7 +10,7 @@
 // with rustup, which stays the toolchain manager of Rust), PHP's pinned arginfo parser when packages/php-ext is declared, and the symbol
 // extractors of symbolExtractors, which build with the Go and the Composer of mise. Each is installed only when it is declared, and an install of the release that is present changes
 // nothing, so a second run installs nothing. The tools of the machine are never changed. Node.js is a tool of mise.toml, which
-// the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts finds the release of .php-version there and wraps it (K283). With no selectors the command installs all tools. A selector list from check-toolchain.mts installs only those pinned tools and their prerequisites, for example `make install-tools TOOLS="go python"`. Unknown, empty and undeclared selectors fail before the checkout is changed. `TOOLS=npm` remains the bootstrap. It prints a line for each
+// the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts finds the release of .php-version there and wraps it (K283). With no selectors the command installs all tools. A selector list of the tool names of toolchain-mise.mts installs only those pinned tools and their prerequisites, for example `make install-tools TOOLS="go python"`. Unknown, empty and undeclared selectors fail before the checkout is changed. `TOOLS=npm` remains the bootstrap. It prints a line for each
 // step and has no time limit.
 import { existsSync, lstatSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -27,9 +27,8 @@ import { installExtractor } from './install-symbols.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
 import { declaredLintTools } from './toolchain-lint.mts';
-import { declaredMiseTools, MISE_TOOLS } from './toolchain-mise.mts';
+import { declaredMiseTools, MISE_TOOLS, TOOLS as TOOLCHAIN_TOOLS } from './toolchain-mise.mts';
 import { declaredRust } from './toolchain-files.mts';
-import { TOOLS as TOOLCHAIN_TOOLS } from './check-toolchain.mts';
 
 type InstallSelector = Exclude<(typeof TOOLCHAIN_TOOLS)[number], 'npm' | 'mise'>;
 
@@ -97,7 +96,7 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
   // The trusted-configs of mise keep the trust of this checkout only: the entries of the home directory, of other checkouts and of removed worktrees go (K397).
   removeForeignTrusts(root);
-  // The Rust channels that the exceptions declare; a malformed exception fails here, as toolchain-check reports it.
+  // The Rust channels that the exceptions declare; a malformed exception fails here.
   const exceptions = readExceptions(root);
   if (exceptions.findings.length > 0) throw new Error(exceptions.findings.join('\n'));
   const rustChannels = selection.rust ? [...new Set(exceptions.exceptions.filter(exception => exception.tool === 'rust').map(exception => exception.channel))] : [];

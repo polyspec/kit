@@ -155,7 +155,7 @@ test('the PHP wrappers are removed when PHP is no longer declared (K283)', (t) =
   assert.deepEqual(readdirSync(bin), ['mise']);
 });
 
-test('toolchain-check refuses php-fpm and php-cgi from PATH, and install-php wraps php-fpm of the same prefix (K341)', (t) => {
+test('install-php wraps php-fpm of the same prefix as php (K341)', (t) => {
   const { root, directory, machine, bin } = sandbox(t, '8.4');
   const prefix = path.join(directory, 'prefix');
   fake(path.join(prefix, 'bin/php'), '8.4.12');
