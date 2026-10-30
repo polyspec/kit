@@ -480,8 +480,8 @@ export type ItemCommit = { id: string; type: string; scope: string; subject: str
 
 /**
  * Commits the index of `root` with the message of `commit` and returns the message. Throws, committing nothing, when nothing
- * is staged, the body file is missing or empty, or the message or the change fails what the commit-msg hook checks
- * (messageFindings and indexItemFindings of check-commits.mts). `env` adds to the environment of git commit.
+ * is staged, the body file is missing or empty, or the message fails the message rules of the commit-msg hook (messageFindings)
+ * or the index fails the diff rules against HEAD (indexItemFindings of check-commits.mts), exact here since make commit never amends. `env` adds to the environment of git commit.
  */
 export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}): string {
   // K524: a commit on main holds the lock of land, so it and a land queue instead of one finding the staged change of the other.

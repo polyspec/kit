@@ -6,13 +6,13 @@
 //   commit-red         a commit that moves a row to done states Red: <command> exit <n>, or No-Red: <reason> (K624, K875)
 //   commit-fix-test    a fix commit changes a test file, or states its red (K257)
 //
-//   node scripts/kit/check-commits.mts --message <file>           the message being committed (the commit-msg hook)
-//   node scripts/kit/check-commits.mts --prepare --source=<s> --sha=<sha>   the record of an amend, from the prepare-commit-msg hook (K380-2)
+//   node scripts/kit/check-commits.mts --message <file>           the message rules of the message being committed (the commit-msg hook)
+//   node scripts/kit/check-commits.mts --range <base>..<head>     the diff rules of each finished commit of the range (make land)
 //
-// The change is the index against HEAD, or against the parent of HEAD when the commit amends it (K380-2, K891). Each finding is one
-// line `<rule>: <message>`; the command exits with status 1 when there is one.
-import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+// The diff rules, commit-red and commit-fix-test, judge a finished commit against its parent (K892): an unfinished commit has no
+// change that is known, since an amend replaces HEAD and git names no amend to a hook. make commit, which never amends, judges the
+// index against HEAD. Each finding is one line `<rule>: <message>`; the command exits with status 1 when there is one.
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -164,77 +164,46 @@ const commitOf = (root: string, rev: string) => {
 };
 
 /**
- * The findings of the change being committed with `message` (K624, K257): the index against HEAD, or, for an amend (K380-2), against
- * the parent of HEAD, since the commit that the amend makes replaces HEAD. A root commit has no parent, so the empty tree.
+ * The findings of the diff rules (K624, K257) of the change from the commit `base` (undefined: the empty tree of a root commit) to
+ * `side`, a commit or `''` for the index, made with `message`.
  */
-export function indexItemFindings(root: string, message: string, amend = false) {
-  const base = commitOf(root, amend ? 'HEAD^' : 'HEAD');
+function changeFindings(root: string, message: string, base: string | undefined, side: string) {
   const against = base ?? EMPTY_TREE;
-  const changed = git(root, 'diff', '--cached', '--name-only', against).split('\n').filter(Boolean);
-  const plans = new Set([...(base ? plansAt(root, base) : []), ...plansAt(root, '')]);
+  const sides = side === '' ? ['--cached', against] : [against, side];
+  const changed = git(root, 'diff', '--name-only', ...sides).split('\n').filter(Boolean);
+  const plans = new Set([...(base ? plansAt(root, base) : []), ...plansAt(root, side)]);
   const done: string[] = [];
   for (const tracker of trackersOf(loadConfig(root), plans)) {
     const states = (text: string) => new Map(readChecklist(text, tracker).items.map(item => [item.id, item.state]));
     const old = states(base ? fileAt(root, base, tracker.path) : '');
-    for (const [id, state] of states(fileAt(root, '', tracker.path))) if (old.has(id) && old.get(id) !== state && state === DONE) done.push(id);
+    for (const [id, state] of states(fileAt(root, side, tracker.path))) if (old.has(id) && old.get(id) !== state && state === DONE) done.push(id);
   }
   const stated = statedRed(message);
   if (stated !== undefined) return [];
   // The commit that moves a row to done states its red in its body (K624). Only the line is checked.
   const found: CommitFinding[] = done.map(id => ({ rule: 'commit-red', message: `the commit moves ${id} to done and its body states no red; add a line Red: <command> exit <n>, the failing run of its Verification before the change, or No-Red: <reason> for a change that no test can show` }));
   // A fix starts with a test that reproduces the defect, unless its body states why none can (K624).
-  const changedLines = (file: string) => changedLineNumbers(git(root, 'diff', '--cached', '-U0', against, '--', file));
-  if (message.startsWith('fix(') && done.length === 0 && !changed.some(file => changesATest(file, name => fileAt(root, '', name), changedLines))) {
+  const changedLines = (file: string) => changedLineNumbers(git(root, 'diff', '-U0', ...sides, '--', file));
+  if (message.startsWith('fix(') && done.length === 0 && !changed.some(file => changesATest(file, name => fileAt(root, side, name), changedLines))) {
     found.push({ rule: 'commit-fix-test', message: `the fix commit changes no test file (${TEST_FILES}); a fix starts with a test that reproduces the defect, or states No-Red: <reason> when no test can show it` });
   }
   return found;
 }
 
-/** The file of the amend record of `root`, which the git directory of its worktree holds (K380-2). */
-const amendRecord = (root: string) => path.resolve(root, gitResult(root, 'rev-parse', '--git-path', 'kit-amend').stdout.trim());
+/** The findings of the diff rules of the index of `root` against HEAD, committed with `message` by make commit, which never amends. */
+export const indexItemFindings = (root: string, message: string) => changeFindings(root, message, commitOf(root, 'HEAD'), '');
 
 /**
- * Records an amend for the commit-msg check (K380-2), from the arguments that git gives the prepare-commit-msg hook: an amend gives the
- * commit `source` `commit` and the sha `HEAD`, and the record holds the sha that HEAD names. Any other commit removes the record.
+ * The findings of the diff rules of each commit of `range` (`<base>..<head>`) in `root`, oldest first, each judged against its parent
+ * (K892) and named by its short sha; a merge commit is left out.
  */
-export function recordAmend(root: string, source: string, sha: string) {
-  const file = amendRecord(root);
-  const head = commitOf(root, 'HEAD');
-  if (source === 'commit' && sha !== '' && head !== undefined && commitOf(root, sha) === head) writeFileSync(file, `${head}\n`);
-  else rmSync(file, { force: true });
-}
-
-/**
- * Whether the commit being made replaces HEAD (K380-2): the record that recordAmend wrote names the current HEAD. The record is removed
- * either way, so a record that names another HEAD is stale and ignored.
- */
-export function takeAmend(root: string) {
-  const file = amendRecord(root);
-  if (!existsSync(file)) return false;
-  const named = readFileSync(file, 'utf8').trim();
-  rmSync(file, { force: true });
-  return named !== '' && named === commitOf(root, 'HEAD');
-}
-
-/**
- * Whether the git commit that runs the commit-msg hook amends HEAD (K891), from the arguments of that git process, an ancestor of this
- * one: git gives the prepare-commit-msg hook the source `commit` only for --amend without -m or -F (K380-2), and no source names an
- * amend of git commit --amend -F. The nearest git process decides; ps joins its arguments with spaces, so only the arguments before
- * the first message option count, since the words of a message could read as --amend or an abbreviation of it that git accepts.
- */
-export function amendingCommit(pid = process.ppid): boolean {
-  for (let current = pid, depth = 0; current > 1 && depth < 10; depth++) {
-    const fields = /^\s*(\d+)\s+(.*)$/.exec(spawnSync('ps', ['-o', 'ppid=,command=', '-p', String(current)], { encoding: 'utf8' }).stdout.trim());
-    if (fields === null) return false;
-    const args = (fields[2] ?? '').split(/\s+/);
-    if (path.basename(args[0] ?? '') === 'git') {
-      const options = args.slice(args.indexOf('commit') + 1);
-      const message = options.findIndex(arg => /^(-[aeinoqsvz]*[mFCc]|--(message|file|reuse-message|reedit-message|template)(=|$))/.test(arg));
-      return args.includes('commit') && options.slice(0, message === -1 ? undefined : message).some(arg => /^--am(e|en|end)?$/.test(arg));
-    }
-    current = Number(fields[1]);
-  }
-  return false;
+export function rangeFindings(root: string, range: string): CommitFinding[] {
+  if (!range.includes('..') || range.includes('...')) throw new Error(`the range ${range} is not <base>..<head>`);
+  return git(root, 'rev-list', '--reverse', '--no-merges', range).split('\n').filter(Boolean).flatMap(sha => {
+    const message = git(root, 'log', '-1', '--format=%B', sha);
+    const short = sha.slice(0, 8);
+    return changeFindings(root, message, commitOf(root, `${sha}^`), sha).map(found => ({ rule: found.rule, message: `${short} ${message.split('\n')[0]}: ${found.message}` }));
+  });
 }
 
 /** The message of a commit-msg file: without the comment lines that Git removes; null for a merge commit. */
@@ -245,17 +214,18 @@ export function fileMessage(text: string) {
 
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
-  const { values } = parseArgs({ options: { message: { type: 'string' }, prepare: { type: 'boolean' }, source: { type: 'string' }, sha: { type: 'string' } } });
+  const { values } = parseArgs({ options: { message: { type: 'string' }, range: { type: 'string' } } });
   let findings: string[] = [];
+  let subject = 'the message being committed';
   try {
-    if (values.prepare) {
-      recordAmend(root, values.source ?? '', values.sha ?? '');
-      process.exit(0);
+    if (values.range !== undefined) {
+      subject = `the commits of ${values.range}`;
+      findings = rangeFindings(root, values.range).map(found => `${found.rule}: ${found.message}`);
+    } else {
+      if (values.message === undefined) throw new Error('Usage: node scripts/kit/check-commits.mts --message <file> | --range <base>..<head>');
+      const message = fileMessage(readFileSync(values.message, 'utf8'));
+      findings = message === null ? [] : [...messageFindings(message), ...nextIdentityFindings(root)].map(found => `${found.rule}: ${found.message}`);
     }
-    if (values.message === undefined) throw new Error('Usage: node scripts/kit/check-commits.mts --message <file> | --prepare --source=<s> --sha=<sha>');
-    const amend = takeAmend(root) || amendingCommit();
-    const message = fileMessage(readFileSync(values.message, 'utf8'));
-    findings = message === null ? [] : [...messageFindings(message), ...nextIdentityFindings(root), ...indexItemFindings(root, message, amend)].map(found => `${found.rule}: ${found.message}`);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     // The files and git fail with an Error.
@@ -264,7 +234,7 @@ if (isMain(import.meta.url)) {
   }
   for (const line of findings) console.error(`[check-commits] ${line}`);
   if (findings.length) {
-    console.error(`[check-commits] ${findings.length} findings in the message being committed (the commit rules of kit)`);
+    console.error(`[check-commits] ${findings.length} findings in ${subject} (the commit rules of kit)`);
     process.exit(1);
   }
 }

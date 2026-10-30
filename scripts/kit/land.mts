@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Lands a branch on main (K394): `make land BRANCH=<branch>`, run in the main checkout. It refuses unless the main checkout is on
 // main and clean, the branch exists, and a worktree has the branch checked out (its gates run on its own tree and install); a branch
-// that main has left behind is rebased onto main in that worktree first, and a rebase that conflicts is refused (K495-1). It runs the static gates of kit-gates that the changed paths of the branch select through
+// that main has left behind is rebased onto main in that worktree first, and a rebase that conflicts is refused (K495-1). It refuses
+// a commit of main..BRANCH that fails the diff rules of check-commits against its parent, naming its sha (K892). It runs the static gates of kit-gates that the changed paths of the branch select through
 // config/owner-checks.json, always with docs-check. No test runs (K394-1): parity-check
 // and every test- target that the owners select are printed as not run. A gate that fails in the worktree refuses the branch.
 // On a refusal it prints the gate and its output and merges nothing. Then it merges
@@ -26,6 +27,7 @@ import { runCommand, failureOf, type RunCommandResult } from './run-command.mts'
 import { watchParent } from './process-group.mts';
 import { compactSeconds } from './time.mts';
 import { refreshLinked } from './linked-build.mts';
+import { rangeFindings } from './check-commits.mts';
 import { RETAINED_BRANCHES_CONFIG, retainedBranch, retainedBranches } from './retained-branches.mts';
 
 // The gates that land whatever the changed paths: the documents and the commit messages of the branch.
@@ -416,6 +418,10 @@ async function gateBranch(root: string, folder: string, branch: string, print: (
   // the rebased commits, so nothing is merged that they did not see.
   if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) await rebaseOnMain(folder, branch, print);
   const gated = git(root, 'rev-parse', 'main').trim();
+  // K892: the diff rules judge each finished commit of the branch against its parent, which no amend changes any more.
+  const findings = rangeFindings(folder, `${gated}..${branch}`);
+  for (const found of findings) print(`${found.rule}: ${found.message}`);
+  if (findings.length) throw new Error(`${branch} is refused: its commits have ${findings.length} findings of the commit rules of kit; nothing is merged`);
   const changed = git(root, 'diff', '--name-only', `main...${branch}`).split('\n').filter(line => line !== '');
   const { gates, excluded, reasons } = gatesOf(folder, changed);
   for (const reason of reasons) print(reason);

@@ -1,10 +1,9 @@
 #!/usr/bin/env node
 // The tracked Git hooks of a checkout. Git runs the hooks of `core.hooksPath`; a checkout sets it to `.githooks`, which
-// holds the hooks that config/checklist.json lists. The hooks `pre-commit`, `commit-msg`,
-// and `prepare-commit-msg` belong to kit: `pre-commit` refuses a staged generated path through
-// `make staged-generated-hook`; `commit-msg` runs the message checks of make commit on every
-// commit, an amend included, through `make commit-msg-hook`, `prepare-commit-msg` records an amend for that check through
-// `make prepare-commit-msg-hook` (K380-2); each has the content of its constant, so every checkout holds the same file. The other hooks belong to the repository. make hooks
+// holds the hooks that config/checklist.json lists. The hooks `pre-commit` and `commit-msg` belong to kit: `pre-commit` refuses a
+// staged generated path through `make staged-generated-hook`; `commit-msg` runs the message rules of make commit on every commit,
+// an amend included, through `make commit-msg-hook`; each has the content of its constant, so every checkout holds the same file.
+// The other hooks belong to the repository; land judges the diff of each finished commit, so no hook records an amend (K892). make hooks
 // also declares the merges of the changelogs and checklists (K354): a union, and the driver kit-twin for their Korean twins.
 //
 //   node scripts/kit/git-hooks.mts install   set core.hooksPath, write the hooks of kit when they differ, make each listed hook
@@ -21,7 +20,6 @@ import { gitResult } from './git.mts';
 export const HOOKS_PATH = '.githooks';
 export const PRE_COMMIT = `${HOOKS_PATH}/pre-commit`;
 export const COMMIT_MSG = `${HOOKS_PATH}/commit-msg`;
-export const PREPARE_COMMIT_MSG = `${HOOKS_PATH}/prepare-commit-msg`;
 export const PRE_COMMIT_CONTENT = `#!/bin/sh
 # The pre-commit hook. Git runs it before each commit. The generated-file check refuses a staged path with a generated segment
 # (AGENTS.md "Generated files") that config/generated.json does not declare an exception, and names the path. No gate runs on a
@@ -37,20 +35,10 @@ export const COMMIT_MSG_CONTENT = `#!/bin/sh
 cd "$(git rev-parse --show-toplevel)" || exit 1
 exec make --no-print-directory commit-msg-hook MESSAGE="$1"
 `;
-export const PREPARE_COMMIT_MSG_CONTENT = `#!/bin/sh
-# The prepare-commit-msg hook. Git runs it before each commit with the file of the message, the source of the message and, for an
-# amend or a commit of another commit, the sha of that commit. The commit-msg check reads the index against the parent of an amended
-# commit, so the hook records the amend (K380-2). Written by \`make hooks\`; do not edit it. It calls the make target of the record,
-# which stays across the versions of kit.
-cd "$(git rev-parse --show-toplevel)" || exit 1
-exec make --no-print-directory prepare-commit-msg-hook SOURCE="$2" SHA="$3"
-`;
-
 /** The hooks that kit writes into every checkout, with their content. */
 const KIT_HOOKS = [
   { file: PRE_COMMIT, content: PRE_COMMIT_CONTENT },
   { file: COMMIT_MSG, content: COMMIT_MSG_CONTENT },
-  { file: PREPARE_COMMIT_MSG, content: PREPARE_COMMIT_MSG_CONTENT },
 ];
 
 // The merges of the files that every row changes (K354): the lines of a changelog and the rows of a checklist are independent, so
@@ -148,6 +136,11 @@ export function hooksIssue(root: string, hooks: string[] = loadConfig(root).hook
     if (readFileSync(path.join(root, file), 'utf8') !== content) {
       return `${file} differs from the hook of scripts/kit/git-hooks.mts; run make hooks and commit the file`;
     }
+  }
+  // K892: the prepare-commit-msg hook of an earlier kit runs a make target that kit no longer has, so git commit fails while it exists.
+  const earlier = path.join(root, HOOKS_PATH, 'prepare-commit-msg');
+  if (!hooks.includes('prepare-commit-msg') && existsSync(earlier) && readFileSync(earlier, 'utf8').includes('prepare-commit-msg-hook')) {
+    return `${HOOKS_PATH}/prepare-commit-msg is the hook of an earlier kit, whose make target kit no longer has (K892); fix: git rm ${HOOKS_PATH}/prepare-commit-msg and commit`;
   }
   return mergeIssue(root);
 }

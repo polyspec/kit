@@ -13,6 +13,9 @@ import { initRepository } from './sandbox-repository.mts';
 import { put, tree } from './tree.mts';
 import { errorCode } from '../../scripts/kit/process.mts';
 
+// The checklist declaration of every kit repository, which the commit rules of land read (K892).
+const CHECKLIST = { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: [], idPattern: '[A-Z][0-9]+' }) };
+
 const git = (cwd: string, ...args: string[]) => {
   const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
@@ -25,6 +28,7 @@ test('both land cleanup paths retain a declared backup branch and its worktree',
   const main = path.join(parent, 'repo');
   const folder = path.join(parent, 'repo-backup');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   put(main, { 'tracked.txt': 'base\n' });
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
@@ -51,6 +55,7 @@ test('make land merges a rebased branch only after the gates it touches pass, an
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   // lint-x fails on a file bad.txt under src; docs-check and commits-check are the other kit gates and pass.
   put(main, {
     'Makefile': 'kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttest ! -f src/bad.txt\nbuild:\n\ttrue\n',
@@ -104,6 +109,7 @@ test('make land fast-forwards and cleans up without invoking either build (K603)
   const main = path.join(parent, 'repo');
   const buildCalls = path.join(parent, 'build-calls');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   put(main, {
     'Makefile': `kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttest ! -f src/bad.txt\nbuild:\n\techo "$$(pwd)" >> '${buildCalls}'; exit 7\n`,
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
@@ -127,12 +133,49 @@ test('make land fast-forwards and cleans up without invoking either build (K603)
   assert.equal(existsSync(buildCalls), false, 'land does not invoke make build in the branch or main checkout');
 });
 
+// K892: land judges the diff rules of each finished commit of the branch against its parent, and names the sha of a finding.
+test('land refuses a branch whose fix commit changes no test and names its sha, and lands a branch of correct commits (K892)', async (t) => {
+  const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  const main = path.join(parent, 'repo');
+  initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
+  put(main, {
+    'Makefile': 'kit-gates: docs-check\ndocs-check:\n\ttrue\n',
+    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] }, null, 2) + '\n',
+    '.gitignore': 'var/\n',
+    'src/.keep': '',
+  });
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'base');
+  const branchOf = (name: string, files: Record<string, string>) => {
+    const folder = path.join(parent, `repo-${name}`);
+    git(main, 'worktree', 'add', '--quiet', folder, '-b', name, 'main');
+    put(folder, files);
+    git(folder, 'add', '-A');
+    git(folder, 'commit', '--quiet', '-m', 'fix(core): Keep the state (#S1)');
+    return folder;
+  };
+  branchOf('fix/untested', { 'src/a.txt': 'a\n' });
+  const sha = git(main, 'rev-parse', '--short=8', 'fix/untested');
+  const before = git(main, 'rev-parse', 'main');
+  const lines: string[] = [];
+  await assert.rejects(() => land(main, 'fix/untested', { print: text => lines.push(text) }), /fix\/untested is refused: its commits have 1 findings of the commit rules of kit; nothing is merged/);
+  assert.match(lines.join('\n'), new RegExp(`commit-fix-test: ${sha} fix\\(core\\): Keep the state \\(#S1\\): the fix commit changes no test file`));
+  assert.equal(git(main, 'rev-parse', 'main'), before, 'main is unchanged');
+  branchOf('fix/tested', { 'src/b.txt': 'b\n', 'tests/b.test.mts': '\n' });
+  const tested = git(main, 'rev-parse', 'fix/tested');
+  await land(main, 'fix/tested', { print: () => {} });
+  assert.equal(git(main, 'rev-parse', 'main'), tested, 'a branch of correct commits lands unchanged');
+});
+
 // K807: a gate that fails in the worktree refuses the branch, whether or not it fails on main too; main is not run as a baseline.
 test('land refuses a branch whose gate fails, also while the gate fails on main (K807)', async (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   // findings-x fails while findings.txt is not empty; main is red with src/a.txt.
   put(main, {
     'Makefile': ['kit-gates: docs-check findings-x', 'docs-check:', '\ttrue', 'findings-x:', '\t@test ! -s findings.txt', 'build:', '\ttrue'].join('\n') + '\n',
@@ -158,6 +201,7 @@ test('land selects no gate that runs tests (K394-1)', async (t) => {
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   // parity-check and test-x fail when run; the owner map selects both for src, so land must run neither.
   put(main, {
     'Makefile': ['kit-gates: docs-check commits-check parity-check test-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'parity-check:', '\tfalse', 'test-x:', '\tfalse', 'build:', '\ttrue'].join('\n') + '\n',
@@ -212,6 +256,7 @@ test('land merges while a process runs in the worktree, keeps it, and the next l
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   put(main, {
     'Makefile': 'kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttest ! -f src/bad.txt\nbuild:\n\ttrue\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
@@ -284,6 +329,7 @@ test('make land stops the servers of the worktree before it removes the worktree
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   // stop-servers kills the pid that server.pid of the worktree names, as the server-stop target of orm stops its servers.
   put(main, {
     'Makefile': 'WORKTREE_STOP := stop-servers\nkit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttrue\nstop-servers:\n\tkill "$$(cat server.pid)"\nbuild:\n\ttrue\n',
@@ -319,6 +365,7 @@ test('make land keeps the worktree and names the stop target when it fails (K441
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   put(main, {
     'Makefile': 'WORKTREE_STOP := stop-broken\nkit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\ttrue\nstop-broken:\n\t@echo "the servers do not stop" >&2; exit 3\nbuild:\n\ttrue\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
@@ -344,6 +391,7 @@ test('the land command refuses a gate that exits 2 with its exit status, not an 
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   // findings-x fails while findings.txt names a finding; main is green, so the branch that adds one is refused by its exit status.
   put(main, {
     'Makefile': ['kit-gates: docs-check commits-check findings-x', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', 'findings-x:', '\t@if [ -s findings.txt ]; then sed "s/^/finding: /" findings.txt; exit 1; fi', 'build:', '\ttrue'].join('\n') + '\n',
@@ -375,6 +423,7 @@ function lockFixture(t: { after: (fn: () => void) => void }, lint: (main: string
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   put(main, {
     'Makefile': `kit-gates: docs-check commits-check lint-x\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nlint-x:\n\t${lint(main)}\nbuild:\n\ttrue\n`,
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['lint-x'] }] }, null, 2) + '\n',
@@ -466,6 +515,7 @@ test('K516: land called from a detached worktree lands into the main checkout (K
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   put(main, {
     'Makefile': 'kit-gates: docs-check commits-check\ndocs-check:\n\ttrue\ncommits-check:\n\ttrue\nbuild:\n\ttrue\n',
     'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['src/**'], targets: ['docs-check'] }] }, null, 2) + '\n',
@@ -544,6 +594,7 @@ test('a land into kit that changes one of its sources builds no dist (K646)', as
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   const marker = path.join(parent, 'built');
   put(main, {
     'package.json': JSON.stringify({ name: '@polyspec/kit', version: '0.0.0' }),
@@ -569,6 +620,7 @@ test('land resolves a rebase conflict that is only the source-sha256 line of a K
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
+  put(main, CHECKLIST);
   // documents-stamp writes the sha256 of README.md into the marker of README.ko.md, as the stamp of kit does.
   // It stamps only the twins of PATHS (K877), so the land must name the conflicted twin.
   const stamp = 'documents-stamp:\n\t@test "$(PATHS)" = README.ko.md\n\t@sum=$$(shasum -a 256 README.md | cut -d" " -f1); sed -i.bak "s/source-sha256: [0-9a-f]*/source-sha256: $$sum/" $(PATHS) && rm -f $(PATHS).bak';

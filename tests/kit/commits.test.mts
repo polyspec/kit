@@ -157,9 +157,9 @@ test('the command checks a message file and exits with the findings', (t) => {
   assert.equal(command('--range', 'HEAD').status, 1);
 });
 
-// K891: git gives the prepare-commit-msg hook the source `commit` only for --amend without -m or -F (K380-2), so the amend of a fix
-// commit is judged as the whole commit that it makes in each form, by the git commit that runs the commit-msg hook.
-test('commit-fix-test judges the commit that git commit --amend makes, in each form, and still refuses a fix with no test (K891)', (t) => {
+// K892: the diff rules judge each finished commit of a range against its parent, so no amend is guessed: the commit-msg hook keeps the
+// message rules and accepts git commit -m x --amend and git commit -C HEAD alike, and the range names the commit that changes no test.
+test('K892: the hook keeps the message rules and the range judges the diff rules of each finished commit by its sha', (t) => {
   const root = tree(t, { 'config/checklist.json': JSON.stringify(CHECKLIST), [PLAN]: plan([['S1', '[ ]']]) });
   const check = tool(import.meta.resolve('../../scripts/kit/check-commits.mts'));
   put(root, { '.git/hooks/commit-msg': `#!/bin/sh\nexec '${process.execPath}' '${check}' --message "$1"\n` });
@@ -167,21 +167,23 @@ test('commit-fix-test judges the commit that git commit --amend makes, in each f
   const git = (...args: string[]) => spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, GIT_EDITOR: 'true' } });
   git('add', '-A');
   assert.equal(git('commit', '-q', '--no-verify', '-m', 'feat(core): Start (#S1)').status, 0);
+  const start = git('rev-parse', 'HEAD').stdout.trim();
   put(root, { 'machine_test.go': 'package machine\n', 'machine.go': 'package machine\n' });
   git('add', '-A');
-  const made = git('commit', '-q', '-m', 'fix(core): Keep the state (#S1)');
-  assert.equal(made.status, 0, made.stderr);
-  writeFileSync(path.join(root, 'MSG'), 'fix(core): Keep the state (#S1)\n');
-  for (const [index, form] of [['--amend', '-F', 'MSG'], ['--amend', '-m', 'fix(core): Keep the state (#S1)'], ['--amend', '--no-edit'], ['--amen', '-F', 'MSG']].entries()) {
-    put(root, { [PLAN]: plan([['S1', '[ ]']]) + `\n<!-- ${index} -->\n` });
-    git('add', PLAN);
-    const amended = git('commit', '-q', ...form);
-    assert.equal(amended.status, 0, `${form.join(' ')}: ${amended.stderr}`);
-  }
+  assert.equal(git('commit', '-q', '-m', 'fix(core): Keep the state (#S1)').status, 0);
+  put(root, { 'machine.go': 'package machine // amended\n' });
+  git('add', '-A');
+  const amended = git('commit', '-q', '-m', 'fix(core): Keep the state (#S1)', '--amend');
+  assert.equal(amended.status, 0, `git commit -m x --amend keeps the test of the fix: ${amended.stderr}`);
   put(root, { 'other.go': 'package machine\n' });
   git('add', '-A');
-  // A message whose words read as --amend makes a new commit, which is judged against HEAD.
-  const refused = git('commit', '-qm', 'fix(core): Keep the state after --amend (#S1)');
-  assert.equal(refused.status, 1);
-  assert.match(refused.stderr, /commit-fix-test: the fix commit changes no test file/);
+  const reused = git('commit', '-q', '-C', 'HEAD');
+  assert.equal(reused.status, 0, `the hook judges only the message: ${reused.stderr}`);
+  const range = spawnSync(process.execPath, [check, '--range', `${start}..HEAD`], { cwd: root, encoding: 'utf8' });
+  assert.equal(range.status, 1, range.stderr);
+  const sha = git('rev-parse', '--short=8', 'HEAD').stdout.trim();
+  const fix = git('rev-parse', '--short=8', 'HEAD^').stdout.trim();
+  assert.match(range.stderr, new RegExp(`commit-fix-test: ${sha} fix\\(core\\): Keep the state \\(#S1\\): the fix commit changes no test file`));
+  assert.doesNotMatch(range.stderr, new RegExp(fix), 'the amended fix commit holds its test');
+  assert.equal(spawnSync(process.execPath, [check, '--range', `${start}..HEAD^`], { cwd: root, encoding: 'utf8' }).status, 0, 'a range of correct commits passes');
 });

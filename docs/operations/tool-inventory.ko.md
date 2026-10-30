@@ -307,7 +307,7 @@ request, merge queue, ruleset이 없습니다.
 K241은 K6.1의 선언된 tracker를 대체했습니다. kit은 checklist를 `docs/plans/<plan>/checklist.md`로 찾고, 각각은 kit의 state 6개를
 가진 table이며, `idPattern`이 checklist의 유일한 선언입니다. orm의 list format은 제거되었습니다.
 
-`hooks`는 `.githooks`에서 추적하는 저장소의 hook 목록입니다. `pre-commit`, `commit-msg`, `prepare-commit-msg`는 kit의 hook으로, 항목 없이 `make hooks`가 씁니다. `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
+`hooks`는 `.githooks`에서 추적하는 저장소의 hook 목록입니다. `pre-commit`, `commit-msg`는 kit의 hook으로, 항목 없이 `make hooks`가 씁니다. `make hooks-check`는 make target이 없어진 이전 kit의 `prepare-commit-msg` hook을 보고하고 `git rm .githooks/prepare-commit-msg`를 고칠 방법으로 알려 줍니다(K892). `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
 행, `list`: `- [state] ID text` 항목이며 하위 항목은 들여 씁니다), `active`를 가지고, `translation`, `states`(목록 밖의 state는 오류),
 `column`(state가 있는 table 행의 0부터 센 cell, 없으면 마지막 cell)을 가질 수 있습니다. state는 cell이나 항목 앞의 `[x]`이고,
 cell이 `[`로 시작하지 않으면 cell 전체입니다.
@@ -556,8 +556,8 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
 
 `scripts/kit/check-commits.mts`는 orm의 `scripts/git/check.mjs`를 공유 git 위생 검사로 가져옵니다. template, crudui, hyper,
 ordered-json은 규칙에 같은 메시지 형식을 적었지만 검사는 없습니다. 모든 저장소에 같은 check-commits.mts의 상수 `COMMIT_RULES`는
-make commit이 쓰는 type과 body 폭입니다(K243). commit-msg hook은 AI footer와 identity, done 행의 Red 줄, fix의 test만 검사하며(K805),
-subject 형식은 make commit이 쓰는 안내입니다.
+make commit이 쓰는 type과 body 폭입니다(K243). commit-msg hook은 AI footer와 identity만 검사하고, done 행의 Red 줄과 fix의 test는 land가
+브랜치의 완료된 커밋마다 `check-commits --range <base>..<head>`로 판정하며(K892), subject 형식은 make commit이 쓰는 안내입니다.
 
 합친 동작:
 
@@ -745,8 +745,8 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 
 사본마다 달랐고 합친 동작(더 넓거나 안전한 쪽을 유지):
 
-- 실패한 git 명령은 어디서나 `git <인자> exited with <status>: <standard error>`로 보고하고, `check-commits`는 K805부터
-  range를 읽지 않습니다.
+- 실패한 git 명령은 어디서나 `git <인자> exited with <status>: <standard error>`로 보고하고, `check-commits --range`는
+  range의 커밋을 각 부모와 비교해 판정합니다(K892).
 - `ci-targets`의 target 이름은 `full-run`처럼 글자나 숫자로 시작합니다. `ci-targets`는 make가 option으로 읽는 `-x`도 받았습니다.
 - `release` coverage는 kit fixture뿐 아니라 `node_modules`, `var`, `.tools`도 건너뜁니다.
 - changelog의 fence 탐색은 `scanFences`의 규칙(닫는 fence는 여는 fence만큼 김)으로 fence를 닫습니다.

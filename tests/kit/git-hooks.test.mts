@@ -26,11 +26,27 @@ test('install sets core.hooksPath and writes the executable hooks of kit; check 
   assert.equal(check(work).status, 1);
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.githooks\/prepare-commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks are installed: core\.hooksPath is \.githooks/);
+  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks are installed: core\.hooksPath is \.githooks/);
   assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
   assert.equal(readFileSync(path.join(work, PRE_COMMIT), 'utf8'), PRE_COMMIT_CONTENT);
   assert.equal(statSync(path.join(work, PRE_COMMIT)).mode & 0o777, 0o755);
   assert.equal(check(work).status, 0);
+});
+
+// K892: land judges each finished commit, so kit has no prepare-commit-msg hook and no make target for one.
+test('install writes no prepare-commit-msg hook and kit has no prepare-commit-msg-hook target (K892)', (t) => {
+  const { work } = checkout(t);
+  assert.equal(hooks(work).status, 0);
+  assert.equal(existsSync(path.join(work, HOOKS_PATH, 'prepare-commit-msg')), false);
+  assert.doesNotMatch(readFileSync(path.join(import.meta.dirname, '../../scripts/kit/kit.mk'), 'utf8'), /^prepare-commit-msg-hook:/m);
+  // The hook of an earlier kit is a finding of the check that names its removal; a prepare-commit-msg hook of the repository's own is not.
+  const earlier = path.join(work, HOOKS_PATH, 'prepare-commit-msg');
+  writeFileSync(earlier, '#!/bin/sh\nexec make --no-print-directory prepare-commit-msg-hook SOURCE="$2" SHA="$3"\n', { mode: 0o755 });
+  const found = check(work);
+  assert.equal(found.status, 1);
+  assert.match(found.stdout + found.stderr, /\.githooks\/prepare-commit-msg is the hook of an earlier kit.*fix: git rm \.githooks\/prepare-commit-msg and commit/);
+  writeFileSync(earlier, '#!/bin/sh\necho own\n', { mode: 0o755 });
+  assert.equal(check(work).status, 0, 'a hook of the repository passes');
 });
 
 test('a second install changes nothing: no file is rewritten and no setting is touched', (t) => {
@@ -156,9 +172,9 @@ test('make hooks writes the commit-msg hook of kit, which refuses the footer of 
   assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused amend changes no commit');
 });
 
-// K380-2: an amend replaces HEAD, so the commit-msg check reads the index against the parent of the amended commit, which holds the
-// test of the fix; a plain commit is still checked against HEAD.
-test('an amend that restages a document of a fix commit with its test passes the commit-msg check (K380-2)', (t) => {
+// K380-2, K892: an amend that restages a document of a fix commit passes the commit-msg hook, which judges only the message; a plain
+// fix commit with no test passes it too, and the range check of land refuses it by its sha.
+test('the commit-msg hook judges the message and land the diff of each finished commit (K380-2, K892)', (t) => {
   const { work } = checkout(t);
   assert.equal(hooks(work).status, 0);
   const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
@@ -185,8 +201,11 @@ test('an amend that restages a document of a fix commit with its test passes the
   writeFileSync(path.join(work, 'src/tool.mts'), 'export const tool = 2;\n');
   git(work, 'add', 'src/tool.mts');
   const plain = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'fix(hooks): Change the tool (#T1-1)\n\nThe body names the change.\n']);
-  assert.equal(plain.status, 1, 'a plain fix commit that changes no test is refused');
-  assert.match(plain.stderr, /commit-fix-test/);
+  assert.equal(plain.status, 0, `the hook judges only the message: ${plain.stderr}`);
+  const range = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-commits.mts')), '--range', 'main..HEAD']);
+  assert.equal(range.status, 1, 'the range refuses the plain fix commit that changes no test');
+  assert.match(range.stderr, new RegExp(`commit-fix-test: ${git(work, 'rev-parse', '--short=8', 'HEAD')} fix\\(hooks\\): Change the tool`));
+  assert.doesNotMatch(range.stderr, new RegExp(git(work, 'rev-parse', '--short=8', 'HEAD^')), 'the amended fix commit holds its test');
 });
 
 // K446: work is done on main directly. The commit-msg hook accepts a commit while HEAD is main, as it accepts one on any branch; the
@@ -361,14 +380,6 @@ test('a rebase merges checklist rows by id, so a row that main closes is kept on
   assert.equal(en, `${head}${row('T1', '[o]')}\n${row('T2', '[ ]')}\n`);
   const ko = readFileSync(path.join(root, english.replace(/\.md$/, '.ko.md')), 'utf8');
   assert.equal(ko, korean(en, en.split('\n').slice(1).join('\n').replace('# P', '# 피')), 'the twin holds the same rows and the marker of the merged English');
-});
-
-// K380-3: the prepare-commit-msg hook only records an amend, so a plain commit prints nothing of it.
-test('the prepare-commit-msg hook prints nothing on a plain commit (K380-3)', (t) => {
-  const root = tree(t, { 'Makefile': KIT_MAKEFILE });
-  const prepared = spawnSync('make', ['--no-print-directory', 'prepare-commit-msg-hook', 'SOURCE=message', 'SHA='], { cwd: root, encoding: 'utf8' });
-  assert.equal(prepared.status, 0, prepared.stderr);
-  assert.equal(prepared.stdout, '', 'the hook prints nothing');
 });
 
 // K603: a commit runs no gate, the user's ruling of 2026-10-25: the gates run once, at land. A commit on main that adds a finding of
