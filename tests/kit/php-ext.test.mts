@@ -203,6 +203,31 @@ test('the arginfo comes from the gen_stub.php that phpize copies, whatever prefi
   assert.ok(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')));
 });
 
+// K941: gen_stub keeps the PHP-Parser it fetches in its own directory, which kit keeps once per checkout in var/php-ext/gen-stub,
+// so a second build in the same checkout fetches nothing; the first build fetches it with PHP's own gen_stub.php.
+test('a second build in the same checkout fetches no PHP-Parser, since gen_stub keeps it in var/php-ext/gen-stub (K941)', { timeout: 300000 }, (t) => {
+  const files = good();
+  delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
+  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
+  const build = (env: NodeJS.ProcessEnv) => spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8', env });
+  const first = build(process.env);
+  assert.equal(first.status, 0, `${first.stdout}\n${first.stderr}`);
+  // Every fetch of the second build calls wget or curl; both record the call and fail, so a fetch fails the build as well.
+  const bin = path.join(root, 'fake-bin');
+  mkdirSync(bin, { recursive: true });
+  const calls = path.join(root, 'fetch-calls.log');
+  for (const name of ['wget', 'curl']) {
+    writeFileSync(path.join(bin, name), `#!/bin/sh\necho "${name} $*" >> '${calls}'\nexit 1\n`);
+    chmodSync(path.join(bin, name), 0o755);
+  }
+  const second = build({ ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` });
+  assert.equal(second.status, 0, `${second.stdout}\n${second.stderr}`);
+  assert.equal(existsSync(calls) ? readFileSync(calls, 'utf8') : '', '', 'the second build calls no fetch');
+});
+
 test('the build generates arginfo from the stub in its temporary source when no header is tracked (K560)', (t) => {
   const files = good();
   delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
