@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c1bd122d555f11354549818af04fa30ee17acc33cfb365ad5aedfe0896b5aff6 -->
+<!-- source-sha256: 9c90c5d5173fb318b3e2c243a445f49cd02c341ee0e8c917fbe0554c95ef1ab6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- S12는 저장소의 CI가 공유 gate를 gates.yml로 한 번만 실행한다고 밝힙니다. 다른 workflow도 ci-targets나 ci-setup의 입력도 kit-gates의 prerequisite를 다시 지정하지 않으며, 각 소비자가 채택 행에서 중복을 지웁니다 (K870).
 - kit은 check-editor-boundaries 사본을 두지 않습니다. editor boundary 검사는 template 자신의 규칙이며 template이 scripts/check-editor-boundaries.mts와 그 설정을 갖습니다. kit은 scripts/kit/check-editor-boundaries.mts, 그 schema, test, 의존성 eslint-scope를 삭제합니다 (K867).
 - make test-php-ext는 PHP extension의 test를 config/parity.json이 그것에 선언한 폴더, 곧 그 구현의 root와 test를 공유하는 PHP 구현의 root에서 parity-check처럼 Composer type과 관계없이 실행합니다. packages/php-ext가 있는데 그 선언이 없는 저장소는 고칠 방법과 함께 실패합니다. fsm처럼 선언이 지정한 type project의 test bed는 test 없는 packages/php-ext 실행 대신 extension과 함께 실행됩니다 (K905).
 - kit은 package를 내려받지 않습니다(K865). make release-assets-fetch, config/release-assets.json schema와 함께 scripts/kit/release-assets.mts, main checkout의 var/(var/products, var/composer-artifacts)에서 오는 worktree-setup의 link를 삭제합니다. 개발에서 저장소는 package의 install folder를 개발 folder로 link하고, release는 Composer가 release의 composer type repository packages.json(K871)에서 가져오게 하므로, 소비자는 Composer artifact repository를 { "type": "composer", "url": "https://github.com/polyspec/<repo>/releases/download/<tag>/packages.json" }로 바꾸고 config/release-assets.json과 release-assets-fetch 호출을 지웁니다.

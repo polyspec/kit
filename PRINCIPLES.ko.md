@@ -226,3 +226,7 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   (K591, K761, K765).
   Enforced by: none, link는 개발 환경에만 있고 거기서 make link-check가 link 선언 .links에 맞춰 검사하며(K869), CI는 아무것도 link하지 않는다 (K824).
   kit의 K761 link test는 tool log에 npm link, composer update, editable 설치가 없음을 확인합니다
+- S12 저장소의 CI는 공유 gate를 kit이 주는 gates workflow(`gates.yml`, `make kit-gates`의 prerequisite)로 한 번만
+  실행합니다. 저장소의 다른 workflow도, ci-targets나 ci-setup이 읽는 입력도 kit-gates의 prerequisite를 다시 지정하지 않습니다.
+  kit 자신을 시험하는 kit의 ci.yml은 소비자 CI가 아닙니다(K870).
+  Enforced by: none, workflow는 저장소 자신의 파일이며 각 소비자가 채택 행에서 중복을 지운다

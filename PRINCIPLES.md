@@ -248,3 +248,7 @@ tool lands, a standard binds the work as written here.
   (K591, K761, K765).
   Enforced by: none, the links exist only in development, where make link-check checks them against the link declaration .links (K869), and CI links nothing (K824);
   the K761 link test of kit finds no npm link, composer update or editable install in the tool log
+- S12 A repository's CI runs the shared gates once, through the gates workflow that kit gives it (`gates.yml`, the
+  prerequisites of `make kit-gates`); no other workflow of the repository, and no input that ci-targets or ci-setup reads,
+  names a prerequisite of kit-gates again. kit's own ci.yml, which tests kit itself, is no consumer CI (K870).
+  Enforced by: none, a workflow is the repository's own file; each consumer removes its duplicates in its adoption row
