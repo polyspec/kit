@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dd9639b1d16a9f3e77b8c1e8f1f8cfe01a56b8dccbac59a18d71640a13ee6ac4 -->
+<!-- source-sha256: d1daf08c236a65feff667f7898928881fda5de8fe95216f4c5fc036634983af7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Kit 0.0.78을 공개했습니다. release run 41038654240이 483a9f5f의 annotated v0.0.78 tag를 polyspec-kit-npm-0.0.78.tgz와 함께 게시된 release로 만들었습니다 (K917).
 
 ## 0.0.78
 

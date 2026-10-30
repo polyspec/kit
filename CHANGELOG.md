@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Kit 0.0.78 is public: release run 41038654240 made the annotated v0.0.78 tag on 483a9f5f a published release with polyspec-kit-npm-0.0.78.tgz (K917).
+
 ## 0.0.78
 
 - Release Kit 0.0.78 with the kit-harness rows K909, K916 and K918 (K917).
