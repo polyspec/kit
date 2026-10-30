@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 00b93c7ffb42f6962189904697b3111ce84439214a91aa7f2269ab6f0d71183a -->
+<!-- source-sha256: b1cb53c1a05080500e7c864083316e67b6ef0b24d7a1be9f5dfcc137991ee50f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K941: arginfo 생성은 gen-stub 폴더 옆의 lock 하나를 잡으므로, 같은 checkout의 동시 build는 서로를 기다리고 gen_stub가 풀고 있는 PHP-Parser를 믿지 않습니다. 실패한 실행은 폴더를 지우므로 덜 풀린 parser가 남지 않습니다 (K941).
+- bootstrap은 mise를 sha256으로 설치하고 설치된 mise를 digest marker만으로 판정하며 version은 비교하지 않는다. 설치는 확인한 digest를 var/tools/mise-release/.sha256에 쓰고, marker가 선언된 digest를 담은 설치를 유지한다. kit은 자기 npm을 설치하지 않는다. mise.toml의 node와 npm은 mise가 설치하고 mise.lock에 lock되며, var/tools/bin/npm은 mise.toml의 npm:npm을 mise.toml의 node로 실행한다. package.json은 packageManager 대신 devEngines.packageManager를 선언하며, npm이 onFail error로 직접 강제한다. workflow와 worktree-setup은 그 version으로 npm exec를 실행한다. S4는 mise의 digest와 release heading 순서를 두 예외로 적는다. pin 뒤 첫 설치는 marker를 쓰려고 mise를 한 번 내려받는다 (K933, K938).
 - K941: arginfo generator는 checkout마다 한 폴더 `var/php-ext/gen-stub`에서 실행하므로 PHP의 gen_stub.php는 고정 PHP-Parser를 build마다가 아니라 checkout마다 한 번 내려받습니다. kit은 아무것도 고정하거나 해시하지 않습니다 (K941).
 - bootstrap은 mise를 sha256으로 설치하고 설치된 mise를 digest marker만으로 판정하며 version은 비교하지 않는다. 설치는 확인한 digest를 var/tools/mise-release/.sha256에 쓰고, marker가 선언된 digest를 담은 설치를 유지한다. kit은 자기 npm을 설치하지 않는다. mise.toml의 node와 npm은 mise가 설치하고 mise.lock에 lock되며, var/tools/bin/npm은 mise.toml의 npm:npm을 mise.toml의 node로 실행한다. package.json은 packageManager 대신 devEngines.packageManager를 선언하며, npm이 onFail error로 직접 강제한다. workflow와 worktree-setup은 그 version으로 npm exec를 실행한다. S4는 mise의 digest와 release heading 순서를 두 예외로 적는다. pin 뒤 첫 설치는 marker를 쓰려고 mise를 한 번 내려받는다 (K933, K938).
 - K941: release tag는 저장소의 최신 release tag보다 크지 않은 버전을 거부합니다(release-run tag, `make release-tag`). arginfo는 phpize 뒤에 phpize가 extension source의 `build/`로 복사한 gen_stub.php에서 만들므로, `php-config --prefix`에 lib/php/build가 없는 PHP(Ubuntu php-dev)도 build됩니다. S4는 `make install-kit`과 `make release-tag`를 명시합니다. Red: `node --test --test-name-pattern=K941 tests/kit/release-run.test.mts`는 v0.0.2 아래의 v0.0.1을 통과시켰고, `node --test --test-name-pattern=K941 tests/kit/php-ext.test.mts`는 `Could not open input file: /nonexistent/prefix/lib/php/build/gen_stub.php`로 실패했습니다. Green: 둘 다 통과합니다 (K941).

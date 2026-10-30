@@ -19,6 +19,7 @@ import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync,
 import path from 'node:path';
 import { packageVendorFile } from './composer-vendor.mts';
 import { isJsonObject } from './bootstrap/files.mts';
+import { acquireHolderLock, HolderLockRefused, holderRunning, removeDeadLock } from './holder-lock.mts';
 import { SYMBOLS } from './install-symbols.mts';
 import { spawnSync } from 'node:child_process';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
@@ -285,19 +286,70 @@ function isSource(entry: string): boolean {
  * so that config.m4 reads the version of the package from ../composer.json (K295). src/ is prepared by phpize; returns the
  * copy (`work`, to remove) and its src/ (`source`, where the build runs).
  */
+// The lock of the gen-stub folder (K941): one build at a time copies and runs the generator. It sits beside the folder, since a
+// failed run removes the folder, and a lock inside it would be removed under its holder.
+const GEN_STUB_LOCK = `${GEN_STUB}.lock`;
+const GEN_STUB_LOCK_POLL_MS = 500;
+const GEN_STUB_LOCK_WAIT_MS = 10 * 60 * 1000;
+
+/**
+ * Takes the lock of the gen-stub folder and returns its release (K941). A lock that a running build holds is waited for, up to
+ * GEN_STUB_LOCK_WAIT_MS; a lock whose holder has ended is removed with removeDeadLock, which another waiter may remove first.
+ */
+function takeGenStubLock(root: string): () => void {
+  const lock = path.join(root, GEN_STUB_LOCK);
+  const started = Date.now();
+  for (;;) {
+    try {
+      return acquireHolderLock(lock, { checkout: root, command: 'php-extension build' }).release;
+    } catch (error) {
+      if (!(error instanceof HolderLockRefused)) throw error;
+      if (Date.now() - started > GEN_STUB_LOCK_WAIT_MS) throw new Stop(`${lock} is still held: ${error.message}`);
+      if (holderRunning(error.record)) {
+        sleepFor(GEN_STUB_LOCK_POLL_MS);
+        continue;
+      }
+      try {
+        removeDeadLock(lock);
+      } catch (removal) {
+        // Another waiter removed the lock or holds its claim; the next take decides, until the deadline.
+        if (Date.now() - started > GEN_STUB_LOCK_WAIT_MS) throw removal;
+        sleepFor(GEN_STUB_LOCK_POLL_MS);
+      }
+    }
+  }
+}
+
+/** Blocks this process for `ms` milliseconds, as a waiting build has nothing else to do. */
+function sleepFor(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
 function generateArginfo(root: string, source: string, stub: string): string {
   const php = toolCommand(root, 'php');
   // phpize copies the gen_stub.php of the PHP into build/ of the source (K941), which names the PHP build directory by itself, so
   // php-config --prefix is not used. gen_stub keeps the PHP-Parser that it fetches for its own release in its own directory, so it
-  // runs from one folder per checkout: PHP's tool fetches its parser once, and a later build finds it there (K941).
-  const folder = path.join(root, GEN_STUB);
-  mkdirSync(folder, { recursive: true });
-  const generator = path.join(folder, 'gen_stub.php');
-  const staged = `${generator}.${process.pid}`;
-  copyFileSync(path.join(source, 'build', 'gen_stub.php'), staged);
-  renameSync(staged, generator);
-  const file = path.join(source, path.basename(stub));
-  run(php, [generator, file], { cwd: source });
+  // runs from one folder per checkout: PHP's tool fetches its parser once, and a later build finds it there (K941). Its check
+  // for that directory is not under gen_stub's own lock, so the folder is used under this build's lock (K941).
+  const release = takeGenStubLock(root);
+  try {
+    const folder = path.join(root, GEN_STUB);
+    mkdirSync(folder, { recursive: true });
+    const generator = path.join(folder, 'gen_stub.php');
+    const staged = `${generator}.${process.pid}`;
+    copyFileSync(path.join(source, 'build', 'gen_stub.php'), staged);
+    renameSync(staged, generator);
+    const file = path.join(source, path.basename(stub));
+    try {
+      run(php, [generator, file], { cwd: source });
+    } catch (error) {
+      // A failed run may leave a partial PHP-Parser behind, which every later build would trust; the next build starts from nothing.
+      rmSync(folder, { recursive: true, force: true });
+      throw error;
+    }
+  } finally {
+    release();
+  }
   return path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h'));
 }
 

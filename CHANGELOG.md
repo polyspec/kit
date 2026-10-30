@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K941: arginfo generation takes one lock beside the gen-stub folder, so concurrent builds of a checkout wait for each other and a parser that gen_stub is extracting is never trusted; a failed run removes the folder, so no partial parser stays (K941).
 - K941: the arginfo generator runs from one folder per checkout, var/php-ext/gen-stub, so PHP's gen_stub.php fetches its pinned PHP-Parser once per checkout instead of once per build; kit pins and hashes nothing (K941).
 - K941: the release tag of a version refuses a version that is not greater than the latest release tag of the repository (release-run tag, `make release-tag`), and the arginfo comes from the gen_stub.php that phpize copies into build/ of the extension source, after phpize, so a PHP whose php-config --prefix holds no lib/php/build builds (Ubuntu php-dev). S4 names `make install-kit` and `make release-tag`. Red: `node --test --test-name-pattern=K941 tests/kit/release-run.test.mts` passed v0.0.1 under v0.0.2 and `node --test --test-name-pattern=K941 tests/kit/php-ext.test.mts` failed with `Could not open input file: /nonexistent/prefix/lib/php/build/gen_stub.php`; green: both pass (K941).
 - K943: a running test is bounded by its own declared timeout, or by the file default when it declares none; the deadline watch of test-exit-deadline is off while a test runs, so a case that declares 60 s is no longer ended at the file's 30 s. Its guards: a test that never settles ends at its declared timeout, and a process that outlives its last test is still ended (K943).
