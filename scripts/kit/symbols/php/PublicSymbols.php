@@ -30,8 +30,21 @@ final class PublicSymbols extends NodeVisitorAbstract
     /** @var list<array{string, Node\Stmt\ClassLike}> public class-like declarations whose trait members are composed after parsing */
     private array $classLikes = [];
 
+    /** The namespace of the statements being visited, which a polyfill guard is read in (K897). */
+    private ?string $namespace = null;
+
+    /** Each file starts outside a namespace: one visitor reads every file of the entry (K897). */
+    public function beforeTraverse(array $nodes): null
+    {
+        $this->namespace = null;
+        return null;
+    }
+
     public function enterNode(Node $node): null
     {
+        if ($node instanceof Node\Stmt\Namespace_) {
+            $this->namespace = $node->name?->toString();
+        }
         if ($node instanceof Node\Stmt\Trait_ && $node->namespacedName !== null) {
             $this->traits[$node->namespacedName->toString()] = $node;
         }
@@ -56,6 +69,12 @@ final class PublicSymbols extends NodeVisitorAbstract
         } elseif ($node instanceof Node\Stmt\Const_) {
             foreach ($node->consts as $const) {
                 $this->symbols[] = $const->namespacedName->toString();
+            }
+        } elseif ($node instanceof Node\Stmt\If_ && $this->namespace !== null) {
+            // The define() of a polyfill guard (K873) declares a namespaced constant unless it is @internal (K897).
+            $constant = AutoloadFiles::guardedConstant($node, $this->namespace);
+            if ($constant !== null && !$this->internal($node->stmts[0])) {
+                $this->symbols[] = $constant;
             }
         }
         return null;

@@ -157,3 +157,39 @@ function fine(Open $open): Open { return $open; }
   ]);
   assert.deepEqual(symbolsOf(t, { 'src/A.php': '<?php\nnamespace A;\n\nclass Open {}\nfunction fine(Open $open): Open { return $open; }\n' }, ['--leaks']), []);
 });
+
+test('K897: the constant that a polyfill guard defines is a public symbol, and a define() under another condition is none', (t) => {
+  const source = `<?php
+namespace A;
+
+if (!\\defined('A\\MAX_DEPTH')) {
+    \\define('A\\MAX_DEPTH', 256);
+}
+
+if (PHP_OS_FAMILY === 'Darwin') {
+    \\define('A\\OTHER', 1);
+}
+
+if (!\\function_exists('A\\parse')) {
+    function parse(): void {}
+}
+`;
+  assert.deepEqual(symbolsOf(t, { 'src/A.php': source }), ['A\\MAX_DEPTH', 'A\\parse']);
+});
+
+test('K897: a file outside a namespace defines no guarded constant after a namespaced file, and @internal on the define() hides it', (t) => {
+  const namespaced = `<?php
+namespace A;
+
+if (!\\defined('A\\X')) {
+    /** @internal */
+    \\define('A\\X', 1);
+}
+`;
+  const global = `<?php
+if (!defined('G\\Z')) {
+    define('G\\Z', 1);
+}
+`;
+  assert.deepEqual(symbolsOf(t, { 'src/1.php': namespaced, 'src/2.php': global }), []);
+});

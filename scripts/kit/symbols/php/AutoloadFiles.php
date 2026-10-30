@@ -141,6 +141,16 @@ final class AutoloadFiles
         return $statement instanceof Node\Stmt\ClassLike ? 'a class, interface, trait or enum' : 'another statement';
     }
 
+    /** The constant that `$if` defines when it is the polyfill guard of a define() in `$namespace` (K897), or null. */
+    public static function guardedConstant(Node\Stmt\If_ $if, string $namespace): ?string
+    {
+        $declared = $if->stmts[0] ?? null;
+        if (!$declared instanceof Node\Stmt\Expression || !self::isPolyfillGuard($if, $namespace)) {
+            return null;
+        }
+        return self::calledName($declared->expr, 'define');
+    }
+
     /** Whether `$expr` is define() of a namespaced constant name: a string literal with a namespace separator. */
     private static function isNamespacedDefine(Node\Expr $expr): bool
     {

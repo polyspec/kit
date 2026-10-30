@@ -26,6 +26,8 @@ if ($argc !== 3 && !($argc === 4 && $argv[3] === '--leaks')) {
 require $argv[1];
 // The installed vendor/ holds php-parser only; the visitor is a source file of the extractor beside this one.
 require __DIR__ . '/PublicSymbols.php';
+// The one definition of the polyfill guard (K873), whose define() declares a constant (K897).
+require __DIR__ . '/AutoloadFiles.php';
 
 $entry = $argv[2];
 if (is_dir($entry)) {
