@@ -259,6 +259,18 @@ test("kit's owner rules: a change of scripts/kit/present.mts runs the tests that
   assert.ok(!result.tests.includes('tests/kit/glob.test.mts'), 'glob.mts imports no present.mts');
 });
 
+// K904: each rule test runs with a change of what it reads: the rules, the Makefile and the entry points that check-rules
+// reaches; every file of scripts/kit and tests/kit that isolation scans; every module of tests/kit that sandbox-repository scans.
+test("kit's owner rules: a change of what a rule test reads runs that test (K904)", () => {
+  const root = path.resolve(import.meta.dirname, '../..');
+  const declaration = readConfig<OwnerDeclaration>(root, 'config/owner-checks.json', 'owner-checks.schema.json');
+  const importers = importGraph(root, trackedFiles(root));
+  const selected = (file: string) => select(declaration, [file], [], () => true, importers).tests;
+  for (const file of ['PRINCIPLES.md', 'PRINCIPLES.ko.md', 'AGENTS.md', 'Makefile', 'scripts/kit/kit.mk', '.github/workflows/ci.yml', '.githooks/pre-commit']) assert.ok(selected(file).includes('tests/kit/check-rules.test.mts'), file);
+  for (const file of ['scripts/kit/kit.mk', 'scripts/kit/glob.mts', 'tests/kit/tree.mts', 'tests/kit/glob.test.mts']) assert.ok(selected(file).includes('tests/kit/isolation.test.mts'), file);
+  for (const file of ['tests/kit/tree.mts', 'tests/kit/glob.test.mts']) assert.ok(selected(file).includes('tests/kit/sandbox-repository.test.mts'), file);
+});
+
 test('the tests run through run-tests.mts or through the declared test target', () => {
   const selection = { checks: [], tests: ['tests/a.test.mjs', 'tests/b.test.mjs'] };
   const direct = commandsOf(selection, {});

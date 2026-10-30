@@ -1,14 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1f6f37247eb4f671c9ad369e13b9e6d72b46100e01d9fae9071e2790dc884d42 -->
+<!-- source-sha256: 70de0705ed8d974793487125f5789e795a46fbd8203947da794516bb13a7884e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- P17은 sleep과 polling loop를 거부하는 hook의 .claude/settings.json이 강제하고, 다른 조항은 모든 저장소가 가진 어떤 check도 닿지 않는 설계 판단임을 밝힙니다. owner check로서 규칙, Makefile, workflow, hook의 변경은 check-rules.test.mts를, scripts/kit이나 tests/kit 파일의 변경은 isolation.test.mts를, tests/kit module의 변경은 sandbox-repository.test.mts를 실행하므로, 전에는 CI만 돌리던 규칙 test가 변경과 함께 실행됩니다 (K904).
 - make uv-install은 SYNC의 flag를 --group dev, --project 같은 값까지 그대로 uv sync에 넘기며, link는 --project, --directory, --active가 고르는 environment에서 제거합니다. 따라서 저장소는 link를 거쳐 쓰는 raw uv sync 대신 이를 통해 uv를 실행합니다. flag 검증은 uv가 합니다(K850).
 - kit이 유지하는 모든 harness 조각은 규칙이 이름을 지정합니다. AGENTS.md는 make uv-install, install-link와 make worktree-setup, make owner-validate, tool-wrappers의 wrapper script, release-run을, P8은 catch-check를 지정하고, S4는 "kit은 버전도 lock도 비교하지 않고 pin하지 않으며 인자의 형식 검증은 허용된다"이고 Enforced by는 none입니다. gates-workflow.test.mts는 규칙이 지정하지 않은 유지 조각에서 실패합니다 (K853).
-- bootstrap 멱등 검사(verify-idempotent)는 설치된 각 파일의 시간과 inode 대신 내용(경로, 실제 경로, digest, 크기, mode)을 비교하므로, 두 번째 설치가 같은 바이트로 다시 쓴 파일은 변경이 아닙니다. P17은 tests/kit/install-idempotent.test.mts를 지정합니다 (K852).
+- bootstrap 멱등 검사(verify-idempotent)는 설치된 각 파일의 시간과 inode 대신 내용(경로, 실제 경로, digest, 크기, mode)을 비교하므로, 두 번째 설치가 같은 바이트로 다시 쓴 파일은 변경이 아닙니다 (K852).
 - kit의 golangci-lint 설정에서 gomoddirectives를 뺍니다. make lint-go는 go tool의 것인 replace, toolchain 줄, go.mod의 다른 directive를 더 이상 금지하지 않습니다 (K866).
 - make item-new는 checkout이나 main의 checklist가 이미 가진 ID를 거부합니다. check-commits처럼 main을 읽으므로, 다른 worktree가 main에 등록한 ID를 두 번째 worktree가 등록할 수 없습니다 (K868).
 - link는 package manager 일을 하지 않고 unlink는 link만 제거합니다. unlink는 checkout 밖으로 link된 npm과 Composer 폴더, 각 Python environment의 package link, link가 쓴 go.work 파일을 제거하며 npm ci, composer install, uv sync를 실행하지 않으므로 locked 설치는 make install이 복원하고, 링크 제거로 패키지 폴더가 빠진 Python 배포본은 uv-install이 다시 설치합니다. Go 0.0.x pin 규칙, link cargo의 cargo update --offline, link rebuild 명령은 없어졌고, 소비자 requirement보다 높은 Cargo patch는 맞지 않는 provider version을 알려 주며 거부합니다 (K856).

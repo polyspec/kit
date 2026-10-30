@@ -1333,7 +1333,7 @@ test('K856: unlink removes the links of the consumer and runs no package manager
   assert.equal(link({ checkouts: current, directories: [consumer], check: false, print: text => lines.push(text), env }), true, lines.join('\n'));
   assert.ok(lstatSync(path.join(consumer, 'node_modules/@polyspec/x')).isSymbolicLink(), 'link made the npm folder a link');
   symlinkSync('../../packages/own', path.join(consumer, 'node_modules/@polyspec/own'));
-  // A provider of another scope or none, as @soksak/sidecar-flowmark of polyspec/flowmark, is linked the same way.
+  // A provider of another scope or of none is linked the same way.
   mkdirSync(path.join(consumer, 'node_modules/@soksak'), { recursive: true });
   symlinkSync(current[0] ?? '/', path.join(consumer, 'node_modules/@soksak/sidecar'));
   symlinkSync(path.join(consumer, 'missing'), path.join(consumer, 'node_modules/plain'));

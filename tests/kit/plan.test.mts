@@ -12,6 +12,7 @@ import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
 import { put, tree } from './tree.mts';
 import { KIT_MAKEFILE } from './kit-tools.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const CONFIG = { 'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"T[0-9]+(?:[.-][0-9]+)*"}\n' };
 
@@ -60,7 +61,7 @@ test('item-new adds a waiting row to a checklist and its twin, a sub-item after 
 test('item-new refuses an ID that main or the checkout already holds, and a fresh ID passes (K868)', (t) => {
   const main = plans(t, 'parser', 'lexer');
   const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
-  git(main, 'init', '--quiet', '--initial-branch=main');
+  initRepository(main);
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'plans');
   const worktree = `${main}-row`;
