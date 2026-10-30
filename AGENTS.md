@@ -118,7 +118,7 @@ and states only its own rules. The rules below are kit's own.
   make recipe runs through `$(ONLINE)`, such as those of `install-tools` and `release-assets`, and its result is a committed
   record, an installation or a release archive of the repository itself; kit downloads no package of another repository
   (K865).
-  Enforced by: `make kit-test`
+  Enforced by: `make kit-test-shard`
 - Own: A dependency advisory is fixed by an update. npm audit, composer audit, cargo audit and govulncheck report
   outdated and vulnerable dependencies; kit compares no versions and keeps no record of them.
   Enforced by: none, the native audit tools report the advisories and the update is a judgement of review.

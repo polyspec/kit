@@ -105,7 +105,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   case는 자기 timeout을 가집니다. 네트워크 조회는 make recipe가 `$(ONLINE)`으로 실행하는 명령(예: `install-tools`와
   `release-assets`의 명령)만 하고, 결과는 commit된 기록, 설치, 또는 저장소 자신의
   release archive입니다. kit은 다른 저장소의 package를 내려받지 않습니다(K865).
-  Enforced by: `make kit-test`
+  Enforced by: `make kit-test-shard`
 - Own: dependency advisory는 갱신으로 고칩니다. npm audit, composer audit, cargo audit와 govulncheck가 오래되거나 취약한
   dependency를 보고하며, kit은 version을 비교하지 않고 그 기록도 두지 않습니다.
   Enforced by: none, native audit 도구가 advisory를 보고하고 갱신은 review의 판단입니다.

@@ -207,7 +207,7 @@ tool lands, a standard binds the work as written here.
   installed state of mise judged by that digest alone; and the order of the repository's own release headings in its change
   log and its release tags, newest first, which release takes its version from. Format validation of arguments is allowed.
   The npm of a checkout is the npm:npm of mise.toml, locked in mise.lock; kit installs no npm of its own (K938).
-  Enforced by: `make install-kit` (installed state of mise judged by its digest marker alone), `make release-tag` (a release is newer
+  Enforced by: `make install-tools` (installed state of mise judged by its digest marker alone, which the TOOLS=npm form of it runs), `make release-tag` (a release is newer
   than every release tag), `make docs-check` (change-log heading order); review refuses any other version comparison (K853).
 - S5 Folders: every monorepo has the same root folders (`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`,
   `examples/`, `benchmarks/`, `config/`). Runtime ports of the main spec live in `packages/<runtime>/`, other components in
