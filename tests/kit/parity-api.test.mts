@@ -539,7 +539,7 @@ test('R3: a binding whose runner cannot start fails, and a check of the declarat
   const unbuilt = check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null, 'var/tools/symbols-php/vendor/autoload.php': null } }).findings;
   assert.deepEqual(keys(unbuilt), ['R1 - go', 'R1 - php']);
   assert.match(findingAt(unbuilt, 1).message, /var\/tools\/symbols-php\/vendor\/autoload\.php does not exist; name php in symbolExtractors/);
-  assert.match(findingAt(unbuilt, 0).message, /var\/tools\/symbols-go\/bin\/kit-symbols-go does not exist; name go in symbolExtractors of config\/toolchain\.json and run make install-tools/);
+  assert.match(findingAt(unbuilt, 0).message, /var\/tools\/symbols-go\/bin\/kit-symbols-go does not exist; name go in symbolExtractors of config\/toolchain\.json and run make install, whose install-kit runs make kit-install-symbols/);
   const declarations = checkParity(root, { execute: false, env: ENV, say: () => {} });
   assert.deepEqual(declarations.findings, []);
   assert.deepEqual(declarations.ledger.runs, []);

@@ -7,7 +7,7 @@
 //                Node.js first, in the bootstrap (K171)
 //   php          config/toolchain.json php (minor releases), else .php-version as written
 //   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
-//   symbolExtractors config/toolchain.json symbolExtractors: the symbol extractors of the parity check that install-tools builds
+//   symbolExtractors config/toolchain.json symbolExtractors: the symbol extractors of the parity check that make kit-install-symbols builds
 // The tools of mise.toml, Node.js among them, are read by toolchain-mise.mts, Rust by toolchain-files.mts and the PHP lint by
 // toolchain-lint.mts, after the bootstrap. A tool is declared when its key is present (php also by .php-version); an
 // undeclared tool is absent from the result. A malformed declaration throws an error with the file, the expected form and
@@ -16,7 +16,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonList, isJsonObject, readJsonObject } from './files.mts';
 
-/** A symbol extractor of the parity check that install-tools builds (install-symbols.mts). */
+/** A symbol extractor of the parity check that make kit-install-symbols builds (install-symbols.mts). */
 export type InstalledExtractor = 'go' | 'php';
 const EXTRACTORS: readonly InstalledExtractor[] = ['go', 'php'];
 const isExtractor = (value: unknown): value is InstalledExtractor => EXTRACTORS.some(name => name === value);

@@ -263,7 +263,7 @@ test('the ts extractor reads the API model that API Extractor builds from the .d
   assert.deepEqual(lines(root), ['R11 ts: @demo/codec!Codec#decode:member(1) is public, and no API unit declares it']);
 });
 
-test('install-tools builds the go extractor, which reads the exported API of a module with go/packages (K75)', { timeout: 300_000 }, (t) => {
+test('make kit-install-symbols builds the go extractor, which reads the exported API of a module with go/packages (K75)', { timeout: 300_000 }, (t) => {
   const root = tree(t, {
     '.gitignore': 'var/\n',
     // The workspace of the consumer, which does not use the module of the extractor (K196).
@@ -290,8 +290,7 @@ test('install-tools builds the go extractor, which reads the exported API of a m
   const saved = process.env.GOWORK;
   process.env.GOWORK = path.join(realpathSync(root), 'go.work');
   t.after(() => { if (saved === undefined) delete process.env.GOWORK; else process.env.GOWORK = saved; });
-  assert.equal(installExtractor({ root, extractor: 'go' }).installed, true);
-  assert.equal(installExtractor({ root, extractor: 'go' }).installed, false, 'a second install of the same release builds nothing');
+  installExtractor({ root, extractor: 'go' });
   assert.deepEqual(lines(root), [
     'R11 go: example.com/codec.Codec.Encode is public, and no API unit declares it',
     'R11 go: example.com/codec.Codec.Strict is public, and no API unit declares it',
@@ -301,7 +300,7 @@ test('install-tools builds the go extractor, which reads the exported API of a m
   ]);
 });
 
-test('install-tools installs the php extractor, which reads the public API of sources and of a stub with php-parser (K75)', { timeout: 300_000 }, (t) => {
+test('make kit-install-symbols installs the php extractor, which reads the public API of sources and of a stub with php-parser (K75)', { timeout: 300_000 }, (t) => {
   const root = tree(t, {
     '.gitignore': 'var/\n',
     'php/src/Codec.php': "<?php\nnamespace Demo\\Codec;\n\nconst LIMIT = 3;\n\nfinal class Codec\n{\n    public const MODE = 1;\n    private const HIDDEN = 2;\n    public function __construct(public readonly string $name, private int $size = 0) {}\n    public function decode(): void {}\n    private function hidden(): void {}\n}\n",
@@ -325,7 +324,7 @@ test('install-tools installs the php extractor, which reads the public API of so
   symlinkSync(phpunitVendor(), path.join(root, 'php-ext/vendor'));
   // The Composer of this checkout installs php-parser, with its home and cache in the tree.
   giveTools(root);
-  assert.equal(installExtractor({ root, extractor: 'php' }).installed, true);
+  installExtractor({ root, extractor: 'php' });
   assert.deepEqual(lines(root), [
     'R11 php: Demo\\Codec\\Codec is public, and no API unit declares it',
     'R11 php: Demo\\Codec\\Codec::$name is public, and no API unit declares it',

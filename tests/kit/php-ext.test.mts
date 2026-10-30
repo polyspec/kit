@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { execute } from '../../scripts/kit/process.mts';
 import * as phpExtension from '../../scripts/kit/php-extension.mts';
@@ -324,26 +325,31 @@ test('a missing arginfo parser fails before gen_stub can invoke a network downlo
     cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
   });
   assert.equal(built.status, 1);
-  assert.match(built.stderr, /PHP-Parser-.* is missing; run make install-tools/);
+  assert.match(built.stderr, /PHP-Parser-.* is missing; run make kit-install-php-arginfo/);
   assert.equal(existsSync(marker), false, 'the generator and downloader were not started');
   assert.equal(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')), false, 'no partial module was published');
 });
 
-test('genStub discovers the generator in the PHP API build directory (K652)', (t) => {
+/** A checkout whose php-config names a PHP with the gen_stub.php of PHP-Parser `parser` in its API build directory. */
+function buildDirectoryGenStub(t: TestContext, parser: string) {
   const root = tree(t, { 'mise.toml': '' });
   const prefix = path.join(root, 'php');
   const extensions = path.join(prefix, 'lib/php/20240924');
-  const generator = path.join(extensions, 'build/gen_stub.php');
-  put(root, { 'php/lib/php/20240924/build/gen_stub.php': '<?php $version = "5.0.0";\n' });
+  put(root, { 'php/lib/php/20240924/build/gen_stub.php': `<?php $version = "${parser}";\n` });
   const config = path.join(root, 'var/tools/bin/php-config');
   mkdirSync(path.dirname(config), { recursive: true });
   writeFileSync(config, `#!/bin/sh\ncase "$1" in\n--prefix) printf '%s\\n' '${prefix}';;\n--extension-dir) printf '%s\\n' '${extensions}';;\n*) exit 97;;\nesac\n`);
   chmodSync(config, 0o755);
-  assert.equal(genStub(root).file, generator);
+  return root;
+}
+
+test('genStub discovers the generator in the PHP API build directory (K652)', (t) => {
+  const root = buildDirectoryGenStub(t, '5.0.0');
+  assert.equal(genStub(root).file, path.join(root, 'php/lib/php/20240924/build/gen_stub.php'));
   assert.equal(genStub(root).parser, '5.0.0');
 });
 
-test('install-tools stages the pinned PHP generator and parser atomically from locked Composer files (K560)', (t) => {
+test('make kit-install-php-arginfo stages the pinned PHP generator and parser atomically from locked Composer files (K560)', (t) => {
   const root = tree(t, { '.php-version': '8.4\n', 'mise.toml': '' });
   phpWrappers(root);
   rmSync(path.join(root, 'var/tools/php-arginfo'), { recursive: true, force: true });
@@ -361,7 +367,13 @@ test('install-tools stages the pinned PHP generator and parser atomically from l
   assert.equal(existsSync(path.join(target, 'vendor')), false, 'only generator inputs are installed');
   assert.equal(readFileSync(marker, 'utf8'), 'install\n');
   installPhpArginfo({ root });
-  assert.equal(readFileSync(marker, 'utf8'), 'install\n', 'a matching installation is kept');
+  assert.equal(readFileSync(marker, 'utf8'), 'install\ninstall\n', 'K861: each install runs the locked composer install again; Composer keeps its own cache');
+  assert.equal(existsSync(path.join(target, 'RELEASE')), false, 'K861: no RELEASE of kit is recorded');
+});
+
+test('a PHP-Parser release that kit holds no Composer project for fails with the remedy, not a bare ENOENT (K861)', (t) => {
+  const root = buildDirectoryGenStub(t, '0.0.1');
+  assert.throws(() => installPhpArginfo({ root }), /kit holds no locked Composer project for PHP-Parser 0\.0\.1, .*add scripts\/kit\/php-arginfo\/0\.0\.1 to kit/);
 });
 
 test('the declarations of the extension are compared with the library that declares each name (K293)', (t) => {
@@ -489,9 +501,9 @@ test('the compare of test-php-ext fails on a class, function or constant that th
   assert.equal(built.status, 0, built.stderr);
   assert.deepEqual(declarations(root), ['class Polyspec\\Native\\Extra: the extension registers it, and the PHP library declares none', 'constant Polyspec\\Native\\EXTRA: the extension registers it, and the PHP library declares none']);});
 
-// K637: the gen_stub.php of each PHP names the PHP-Parser release it runs with (PHP 8.4: 5.0.0, PHP 8.5: 5.6.1); install-tools stages that
+// K637: the gen_stub.php of each PHP names the PHP-Parser release it runs with (PHP 8.4: 5.0.0, PHP 8.5: 5.6.1); make kit-install-php-arginfo stages that
 // release from the locked Composer project of kit for it, so a repository that declares PHP 8.5 installs as one that declares 8.4.
-test('install-tools stages the PHP-Parser that the gen_stub.php of the declared PHP names (K637)', (t) => {
+test('make kit-install-php-arginfo stages the PHP-Parser that the gen_stub.php of the declared PHP names (K637)', (t) => {
   const root = tree(t, { '.php-version': '8.5\n', 'mise.toml': '' });
   const prefix = path.join(root, 'php85');
   put(root, { 'php85/lib/php/build/gen_stub.php': '<?php $version = "5.6.1";\n' });
@@ -507,6 +519,10 @@ test('install-tools stages the PHP-Parser that the gen_stub.php of the declared 
   const staged = path.join(root, 'var/tools/php-arginfo/PHP-Parser-5.6.1/lib/PhpParser/ParserFactory.php');
   assert.equal(readFileSync(staged, 'utf8'), '<?php // 5.6.1\n', 'the lock of PHP-Parser 5.6.1 is installed for PHP 8.5');
   assert.equal(installedGenStub(root).parser, '5.6.1');
+  // K861: kit compares no staged generator with the PHP's; the build takes the gen_stub.php of the PHP as it is.
+  put(root, { 'php85/lib/php/build/gen_stub.php': '<?php $version = "5.6.1"; // patched\n' });
+  const generator = installedGenStub(root);
+  assert.equal(readFileSync(generator.file, 'utf8'), '<?php $version = "5.6.1"; // patched\n');
 });
 
 // K639: link's sibling scan takes each Composer package name as one provider, so each locked PHP-Parser project of kit (K637) has its own

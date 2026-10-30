@@ -1,15 +1,14 @@
 // Tests of install-symbols.mts, the build of the symbol extractors of parity: the go extractor is built with the Go of
 // the checkout, the go of the install that `mise where go` prints in the checkout, never with a go of PATH nor with the shim
-// var/tools/mise/shims/go, which reads the mise.toml of the directory of the extractor sources (K199), and an installation
-// whose RELEASE cannot be read fails with the file instead of counting as not installed. go is a stub that writes the output
+// var/tools/mise/shims/go, which reads the mise.toml of the directory of the extractor sources (K199), and the extractor
+// is built again on each install, with no RELEASE of kit (K861). go is a stub that writes the output
 // binary, so no test builds Go.
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { extractorRelease, installDeclaredExtractors, installExtractor, SYMBOLS } from '../../scripts/kit/install-symbols.mts';
+import { installDeclared, installDeclaredExtractors, installExtractor, SYMBOLS } from '../../scripts/kit/install-symbols.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 
 // A go that logs its arguments and writes the file after -o, as go build writes the binary.
@@ -49,8 +48,7 @@ function checkout(t: TestContext, { pinned = true } = {}) {
 // and in the Go environment of mise, which changes no go.mod and keeps its caches in var/tools (K196).
 test('the go extractor is built with the go of mise.toml, not with the go of PATH, outside the workspace of the consumer', (t) => {
   const { root, calls } = checkout(t);
-  const result = installExtractor({ root, extractor: 'go' });
-  assert.ok(result.installed, 'the extractor was installed');
+  installExtractor({ root, extractor: 'go' });
   assert.deepEqual(calls().map(line => line.split(' -o ')[0]), ['go build -trimpath', `env GOWORK=off GOFLAGS=-mod=readonly -modcacherw GOPATH=${path.join(root, 'var/tools/mise/go')}`]);
   assert.ok(existsSync(path.join(root, 'var/tools/symbols-go/bin/kit-symbols-go')));
 });
@@ -60,7 +58,7 @@ test('the go extractor is built with the go of mise.toml, not with the go of PAT
 test('the go extractor builds in sources under a mise.toml that the checkout does not trust, where the shim of go fails', (t) => {
   const { root, calls } = checkout(t);
   assert.ok(!SYMBOLS.startsWith(`${root}${path.sep}`), 'the extractor sources lie outside the checkout, as in a linked kit');
-  assert.ok(installExtractor({ root, extractor: 'go' }).installed);
+  installExtractor({ root, extractor: 'go' });
   assert.equal(calls().filter(line => line.startsWith('go build')).length, 1);
 });
 
@@ -75,13 +73,27 @@ test('the shared symbols installer installs only explicitly requested declared e
     'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['go', 'php'] }),
   });
   const calls: string[] = [];
-  const result = installDeclaredExtractors({
+  installDeclaredExtractors({
     root,
     extractors: ['go'],
-    install: ({ extractor }) => { calls.push(extractor); return { installed: true, release: 'fixture' }; },
+    install: ({ extractor }) => { calls.push(extractor); },
   });
   assert.deepEqual(calls, ['go']);
-  assert.deepEqual(result, [{ installed: true, release: 'fixture' }]);
+});
+
+// K861: make kit-install-declared runs install-symbols --declared, which installs what the repository declares and nothing else.
+test('K861: --declared installs every declared extractor, and nothing without a declaration', (t) => {
+  const declared = toolchainCheckout(t, {
+    'mise.toml': '[tools]\ngo = "1.27.3"\n',
+    'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['go'] }),
+  });
+  const calls: string[] = [];
+  const install = ({ extractor }: Parameters<typeof installExtractor>[0]) => { calls.push(extractor); };
+  assert.deepEqual(installDeclared({ root: declared, install }), ['go']);
+  assert.deepEqual(calls, ['go']);
+  const bare = toolchainCheckout(t, { 'config/toolchain.json': JSON.stringify({ schema: 1 }) });
+  assert.deepEqual(installDeclared({ root: bare, install }), []);
+  assert.deepEqual(calls, ['go'], 'nothing is installed without a declaration');
 });
 
 test('the shared symbols installer rejects unknown, undeclared and unpinned extractors before installing any', (t) => {
@@ -90,31 +102,18 @@ test('the shared symbols installer rejects unknown, undeclared and unpinned extr
     'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['go', 'php'] }),
   });
   const calls: string[] = [];
-  const install = ({ extractor }: Parameters<typeof installExtractor>[0]) => { calls.push(extractor); return { installed: true, release: 'fixture' }; };
+  const install = ({ extractor }: Parameters<typeof installExtractor>[0]) => { calls.push(extractor); };
   assert.throws(() => installDeclaredExtractors({ root, extractors: ['python'], install }), /unknown symbol extractor python/);
   assert.throws(() => installDeclaredExtractors({ root, extractors: ['php'], install }), /needs http:composer in mise.toml/);
   assert.deepEqual(calls, []);
 });
 
-test('an installation whose RELEASE cannot be read fails with the file, and is not rebuilt as missing', (t) => {
+test('K861: each install builds the extractor again and records no RELEASE; the build tool keeps its own cache', (t) => {
   const { root, calls } = checkout(t);
-  // A RELEASE that is a directory reads with EISDIR, which is no missing installation.
-  mkdirSync(path.join(root, 'var/tools/symbols-go/RELEASE'), { recursive: true });
-  assert.throws(() => installExtractor({ root, extractor: 'go' }), /var\/tools\/symbols-go\/RELEASE cannot be read: EISDIR/);
-  assert.deepEqual(calls(), []);
+  installExtractor({ root, extractor: 'go' });
+  installExtractor({ root, extractor: 'go' });
+  assert.equal(calls().filter(line => line.startsWith('go build')).length, 2, 'a second install builds again');
+  assert.equal(existsSync(path.join(root, 'var/tools/symbols-go/RELEASE')), false, 'no RELEASE is recorded');
+  assert.ok(existsSync(path.join(root, 'var/tools/symbols-go/bin/kit-symbols-go')));
 });
 
-test('the release of an extractor is that of its files: the vendor/ of kit\'s PHP lint is none, another folder fails (K248-4-1)', (t) => {
-  const symbols = mkdtempSync(path.join(tmpdir(), 'kit-symbols-'));
-  t.after(() => rmSync(symbols, { recursive: true, force: true }));
-  mkdirSync(path.join(symbols, 'php'));
-  writeFileSync(path.join(symbols, 'php', 'extract.php'), '<?php\n');
-  const release = extractorRelease('php', symbols);
-  mkdirSync(path.join(symbols, 'php', 'vendor'));
-  writeFileSync(path.join(symbols, 'php', 'vendor', 'autoload.php'), '<?php\n');
-  assert.equal(extractorRelease('php', symbols), release, 'vendor/ changes no release');
-  writeFileSync(path.join(symbols, 'php', 'PublicSymbols.php'), '<?php\n');
-  assert.notEqual(extractorRelease('php', symbols), release, 'a source file changes the release');
-  mkdirSync(path.join(symbols, 'php', 'src'));
-  assert.throws(() => extractorRelease('php', symbols), /holds src, which is no source file/);
-});

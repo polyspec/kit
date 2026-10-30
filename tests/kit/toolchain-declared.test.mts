@@ -69,7 +69,7 @@ test('a declaration that is malformed or contradicts another fails with the file
   for (const [files, message] of cases) assert.throws(() => declaredToolchain(toolchainCheckout(t, files)), message);
 });
 
-test('declaredToolchain reads the symbol extractors that install-tools builds, and names a list of unknown ones (K75)', (t) => {
+test('declaredToolchain reads the symbol extractors that make kit-install-symbols builds, and names a list of unknown ones (K75)', (t) => {
   const declared = (value: unknown) => declaredToolchain(toolchainCheckout(t, { 'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: value }) }));
   assert.deepEqual(declared(['go']).symbolExtractors, { extractors: ['go'], source: 'config/toolchain.json symbolExtractors' });
   assert.throws(() => declared(['cobol']), /config\/toolchain\.json symbolExtractors is \["cobol"\]; expected a list of go, php/);

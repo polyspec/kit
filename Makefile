@@ -138,11 +138,12 @@ typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.j
 # that depend on install-kit, such as install: <repo>-install and <repo>-install: install-kit (K246-2). The step of kit itself
 # installs the packages of the PHP symbol extractor, which lint-php reads, so a fresh worktree of kit lints its PHP (K412).
 install: install-kit kit-install ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools, then the steps of the repository; ONLINE
-kit-install: install-kit ## The install step of kit after its bootstrap: the packages of the PHP symbol extractor (kit-install-symbols-php); ONLINE
+kit-install: install-kit ## The install step of kit after its bootstrap: the packages of the PHP symbol extractor (kit-install-symbols-php) and the arginfo generator of kit's extension fixture; ONLINE
 	$(MAKE) --no-print-directory kit-install-symbols-php
 	$(MAKE) --no-print-directory kit-install-php-arginfo
 
-install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order, in the checkout's own var/tools, a worktree's too (K858); ONLINE
+install-kit: ## Install the npm of packageManager, the packages of package-lock.json, the tools and the declared parity tools (K861), in that order, in the checkout's own var/tools, a worktree's too (K858); ONLINE
 	$(MAKE) --no-print-directory install-tools TOOLS=npm
 	$(MAKE) --no-print-directory install-packages
 	$(MAKE) --no-print-directory install-tools
+	$(MAKE) --no-print-directory kit-install-declared

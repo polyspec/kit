@@ -39,12 +39,12 @@ and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise ins
 not: PHP, which the machine provides and `install-php.mts` wraps as it is (K283, K862, below), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
 (`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install --no-self-update`
 in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo first runs) and the Rust channels of
-`exceptions`, and the symbol extractors. With no `TOOLS` selectors this remains the full install. `make install-tools TOOLS="go python"`
+`exceptions`; rustup judges what is installed (K861). With no `TOOLS` selectors this remains the full install. `make install-tools TOOLS="go python"`
 installs only those mise tools and their declared prerequisites; selectors are the exact names of `TOOLS` in `scripts/kit/toolchain-mise.mts`.
 `deadcode`, `govulncheck` and `golangciLint` also install Go, `vulture` installs Python and uv, Python installs the declared wheel
 backend, PHP composer tools install the declared PHP wrapper and Composer, and Rust installs its stable and declared exception
 channels. Unknown, empty and undeclared selectors fail before mutation. A selected install leaves other installed tools in place
-and does not build symbol extractors or PHP arginfo; those have explicit targets. The bootstrap selector `TOOLS=npm` is unchanged. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
+Neither the full nor a selected install builds symbol extractors or PHP arginfo; their explicit targets `kit-install-symbols` and `kit-install-php-arginfo` install them, and `install-kit` runs the same tools through `kit-install-declared` (`install-symbols --declared`, `kit-install-php-arginfo`) from the declarations of the repository (the `symbolExtractors` of `config/toolchain.json`, and `packages/php-ext`), so no repository copies the calls (K861). The bootstrap selector `TOOLS=npm` is unchanged. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
 `packageManager` and mise itself, by the sha256 of `config/toolchain.json` `mise`; `install-tool.mts` builds each of them beside
 its target, checks it there and renames it, so a second run changes nothing. mise keeps its data, cache, state and config,
 its installs and its shims in `var/tools/mise`, and the wrapper `var/tools/bin/mise` sets that environment; nothing outside the
@@ -76,10 +76,10 @@ as an exec wrapper with the absolute path, never a link, before the Composer ins
 missing. Kit judges no install: PHP itself refuses to load an extension built for another install. No php on PATH
 fails with `php is not on PATH`.
 
-A repository with `packages/php-ext` uses `make install-tools` to install the pinned PHP-Parser that its PHP `gen_stub.php` requires. A PHP library without an extension needs no arginfo generator or extension development tools. The shared `kit.mk` exposes `make kit-install-php-arginfo` for a consumer's extension fixture and `make kit-install-symbols EXTRACTORS="go"` or `EXTRACTORS="php"` for one declared parity extractor; install the corresponding pinned tools first with `make install-tools TOOLS="php composer"` or `TOOLS=go`. Both targets call the existing pinned installers, and `EXTRACTORS` must be present in `config/toolchain.json symbolExtractors`. Kit declares its own extension-fixture preparation with `make kit-install-php-arginfo`; `make install` and CI run that target explicitly.
-Kit stages that installed parser beside the matching generator under `var/tools/php-arginfo`; builds and `make php-ext-arginfo`
+For a repository with `packages/php-ext`, `install-kit` runs `make kit-install-php-arginfo` to install the pinned PHP-Parser that its PHP `gen_stub.php` requires (K861). A PHP library without an extension needs no arginfo generator or extension development tools. The shared `kit.mk` exposes `make kit-install-php-arginfo` for a consumer's extension fixture and `make kit-install-symbols EXTRACTORS="go"` or `EXTRACTORS="php"` for one declared parity extractor; install the corresponding pinned tools first with `make install-tools TOOLS="php composer"` or `TOOLS=go`. Both targets call the existing pinned installers, and `EXTRACTORS` must be present in `config/toolchain.json symbolExtractors`. Kit declares its own extension-fixture preparation with `make kit-install-php-arginfo`; `make install` and CI run that target explicitly.
+Kit stages that installed parser under `var/tools/php-arginfo` with a locked `composer install` on each run, and each build copies the `gen_stub.php` of the PHP as it is beside it, so kit compares no staged generator (K861); builds and `make php-ext-arginfo`
 run the generator offline in a temporary source copy, and `make php-ext-arginfo` publishes only to ignored `var/php-ext/arginfo`.
-A missing installation fails the build that runs the generator; `make install-tools` installs it (K303, K560, K854). The Composer
+A missing parser fails the build that runs the generator; `make kit-install-php-arginfo` installs it (K303, K560, K854, K861). The Composer
 project and lock for each parser release are under `scripts/kit/php-arginfo/<version>`, included in the kit distribution beside the tool.
 Composer release archives declare generated headers by stub and output path. Release assets generate them from the tagged stub,
 then append the staged file with Info-ZIP (`zip`) using stored entries, mode 0644 and the commit timestamp; `make release-assets`
@@ -1357,10 +1357,10 @@ snapshot, and `parity-declarations-check` runs no extractor.
 | `python` | `scripts/kit/symbols/python.py` reads with `ast` the `.py` files under `entry` that git does not ignore (`git ls-files --cached --others --exclude-standard`), run by the `python3` of PATH; the import root is the folder `src` beside the nearest `pyproject.toml` from `entry` up when `entry` lies under it, else the folder of that `pyproject.toml` (the src and the flat layout of the Python Packaging User Guide); no environment, install or distribution is read, and kit creates and installs nothing (K855); an entry that no `pyproject.toml` holds fails | the package folder of the source package, such as `packages/python/src/<package>` | `<module>.<name>` of `__all__`, else of the names without `_`, and `<module>.<class>.<method>`, the module named by its path from the import root; a module that git ignores, such as a generated one, is not public |
 | `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json` (format 61) | a `Cargo.toml`, its library | `<crate>::<path>` of each public item reachable from the root, re-exports included, with its public fields, variants, inherent items and trait items |
 
-- A repository names `go` and `php` in `symbolExtractors` of `config/toolchain.json`; `make install-tools` then builds the go
-  program into `var/tools/symbols-go` and installs the locked Composer project of the php extractor into
-  `var/tools/symbols-php` with the declared Composer (`install-symbols.mts`). The release of each is the sha256 of its source
-  files, so a kit release that changes it reinstalls it. `make kit-build` copies `scripts/kit/symbols` into `dist/symbols`.
+- A repository names `go` and `php` in `symbolExtractors` of `config/toolchain.json`; `install-kit` of `make install` then runs
+  `make kit-install-symbols`, which builds the go program into `var/tools/symbols-go` and installs the locked Composer project
+  of the php extractor into `var/tools/symbols-php` with the declared Composer (`install-symbols.mts`). Each install builds them
+  again, and go and Composer keep their own caches (K861). `make kit-build` copies `scripts/kit/symbols` into `dist/symbols`.
 - rustdoc JSON is unstable (rust-lang/rust#76578), so the rust extractor runs the Rust nightly of the `config/toolchain.json`
   `exceptions` entry with tool `rust` whose scope holds the crate, with `RUSTUP_AUTO_INSTALL=0`; its retry condition is
   "rustdoc JSON is stable". This is the only use of a nightly. `make install-tools` installs each Rust channel of the exceptions with

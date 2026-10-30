@@ -41,7 +41,8 @@ install-link: ## Link the packages to the checkouts of the link declaration (.li
 # that depend on install-kit, such as install: <repo>-install and <repo>-install: install-kit (K246-2).
 install: install-kit ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools, then the steps of the repository, then the links (K360-2); ONLINE
 	$(MAKE) --no-print-directory install-link
-install-kit: ## Install the npm of packageManager, the packages of package-lock.json and the tools, in that order, in the checkout's own var/tools, a worktree's too (K858); ONLINE
+install-kit: ## Install the npm of packageManager, the packages of package-lock.json, the tools and the declared parity tools (K861), in that order, in the checkout's own var/tools, a worktree's too (K858); ONLINE
 	$(MAKE) --no-print-directory install-tools TOOLS=npm
 	$(MAKE) --no-print-directory install-packages
 	$(MAKE) --no-print-directory install-tools
+	$(MAKE) --no-print-directory kit-install-declared

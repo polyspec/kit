@@ -91,6 +91,23 @@ test('consumer kit.mk exposes the shared PHP arginfo and selective symbol instal
   assert.equal(symbols.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs go`);
 });
 
+// K861: the parity tools are kit's, so install-kit installs them from the declarations of the repository, and no repository
+// copies the calls into its own make install.
+test('K861: install-kit installs the declared symbol extractors and, with packages/php-ext, the arginfo generator; without declarations neither', (t) => {
+  const bootstrap = path.join(ROOT, 'scripts/kit/kit-bootstrap.mk');
+  const makefile = `include ${bootstrap}\n`;
+  const dry = (root: string) => spawnSync('make', ['-n', '--no-print-directory', 'install-kit', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
+  const declared = tree(t, { Makefile: makefile, 'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['go', 'php'] }), 'packages/php-ext/src/config.m4': '' });
+  const both = dry(declared);
+  assert.equal(both.status, 0, both.stderr);
+  assert.match(both.stdout, /install-symbols\.mts --declared$/m, 'install-symbols installs the declared extractors');
+  assert.match(both.stdout, /install-php-arginfo\.mts$/m, 'the arginfo generator is installed for packages/php-ext');
+  const bare = tree(t, { Makefile: makefile, 'config/toolchain.json': JSON.stringify({ schema: 1 }) });
+  const none = dry(bare);
+  assert.equal(none.status, 0, none.stderr);
+  assert.doesNotMatch(none.stdout, /install-php-arginfo\.mts$/m, 'no arginfo generator without packages/php-ext');
+});
+
 test('kit.mk accepts a parity declaration with no implementation targets and still rejects unreadable names', (t) => {
   const root = tree(t, { 'config/parity.json': JSON.stringify({ implementations: [] }) });
   const args = ['--no-print-directory', '-n', '-f', KIT_MK, 'parity-api-check', `KIT=${path.join(ROOT, 'scripts/kit')}`, 'KIT_EXT=mts', `NODE=${process.execPath}`];

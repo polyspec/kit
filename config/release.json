@@ -22,10 +22,10 @@
   "notReleased": {
     "config/php-lint/composer.json": "the private Composer tool project that installs PHP lint dependencies, not a released package",
     "scripts/kit/catch-check-rust/Cargo.toml": "the private Rust source checker used by lint-rust; it is built from the tool cache and is not a released package",
-    "scripts/kit/symbols/go/go.mod": "the Go module of the go symbol extractor of parity, which install-tools builds and the package @polyspec/kit ships in dist/symbols",
-    "scripts/kit/symbols/php/composer.json": "the Composer project of the php symbol extractor of parity, which install-tools installs and the package @polyspec/kit ships in dist/symbols",
-    "scripts/kit/php-arginfo/5.0.0/composer.json": "the Composer project that installs the PHP-Parser release declared by PHP's gen_stub.php; install-tools stages it for offline extension arginfo generation and the project itself is not released",
-    "scripts/kit/php-arginfo/5.6.1/composer.json": "the Composer project that installs the PHP-Parser release declared by PHP's gen_stub.php; install-tools stages it for offline extension arginfo generation and the project itself is not released"
+    "scripts/kit/symbols/go/go.mod": "the Go module of the go symbol extractor of parity, which make kit-install-symbols builds and the package @polyspec/kit ships in dist/symbols",
+    "scripts/kit/symbols/php/composer.json": "the Composer project of the php symbol extractor of parity, which make kit-install-symbols installs and the package @polyspec/kit ships in dist/symbols",
+    "scripts/kit/php-arginfo/5.0.0/composer.json": "the Composer project that installs the PHP-Parser release declared by PHP's gen_stub.php; make kit-install-php-arginfo stages it for offline extension arginfo generation and the project itself is not released",
+    "scripts/kit/php-arginfo/5.6.1/composer.json": "the Composer project that installs the PHP-Parser release declared by PHP's gen_stub.php; make kit-install-php-arginfo stages it for offline extension arginfo generation and the project itself is not released"
   },
   "goModules": {}
 }

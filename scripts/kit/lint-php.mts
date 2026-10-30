@@ -44,7 +44,7 @@ export function parserAutoloader(root: string): string {
   const installed = path.join(symbolsPrefix(root, 'php'), 'vendor', 'autoload.php');
   const own = path.join(SYMBOLS, 'php', 'vendor', 'autoload.php');
   const found = [installed, own].find(file => existsSync(file));
-  if (found === undefined) throw new Error(`${path.relative(root, installed)} is missing; the autoload files of a Composer package are read with the nikic/php-parser of the PHP symbol extractor: name php in symbolExtractors of config/toolchain.json and run make install-tools`);
+  if (found === undefined) throw new Error(`${path.relative(root, installed)} is missing; the autoload files of a Composer package are read with the nikic/php-parser of the PHP symbol extractor: name php in symbolExtractors of config/toolchain.json and run make install, whose install-kit runs make kit-install-symbols (K861)`);
   return found;
 }
 

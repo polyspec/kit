@@ -42,7 +42,7 @@ x64와 arm64의 linux, macOS, Windows 중 archive가 있는 각 platform의 sha2
 것을 설치합니다. PHP는 machine이 제공하며 `install-php.mts`가 그대로 wrapper로 제공하고(K283, K862, 아래), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
 설치하는(`install-rust.mts`) `rust-toolchain.toml`의 toolchain과 그 component(checkout에서 파일을 읽는
 `rustup toolchain install --no-self-update`; rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다)와 `exceptions`의
-Rust channel, symbol extractor입니다. `TOOLS` selector가 없으면 기존처럼 전체 도구를 설치합니다. `make install-tools TOOLS="go python"`은 해당 mise 도구와 선언된 prerequisite만 설치합니다. Selector는 `scripts/kit/toolchain-mise.mts`의 `TOOLS`에 있는 정확한 이름입니다. `deadcode`, `govulncheck`, `golangciLint`는 Go도 설치하고, `vulture`는 Python과 uv를 설치하며, Python은 선언된 wheel backend를 설치합니다. PHP Composer 도구는 선언된 PHP wrapper와 Composer를 설치하고, Rust는 stable toolchain과 선언된 exception channel을 설치합니다. 알 수 없거나 비어 있거나 선언되지 않은 selector는 변경 전에 거부합니다. 선택 설치는 다른 기존 설치물을 지우지 않으며 symbol extractor나 PHP arginfo는 만들지 않습니다. 이들은 명시적 target이 있습니다. bootstrap의 `TOOLS=npm`은 그대로입니다.
+Rust channel입니다. 이미 설치된 것은 rustup이 판정합니다(K861). `TOOLS` selector가 없으면 기존처럼 전체 도구를 설치합니다. `make install-tools TOOLS="go python"`은 해당 mise 도구와 선언된 prerequisite만 설치합니다. Selector는 `scripts/kit/toolchain-mise.mts`의 `TOOLS`에 있는 정확한 이름입니다. `deadcode`, `govulncheck`, `golangciLint`는 Go도 설치하고, `vulture`는 Python과 uv를 설치하며, Python은 선언된 wheel backend를 설치합니다. PHP Composer 도구는 선언된 PHP wrapper와 Composer를 설치하고, Rust는 stable toolchain과 선언된 exception channel을 설치합니다. 알 수 없거나 비어 있거나 선언되지 않은 selector는 변경 전에 거부합니다. 선택 설치는 다른 기존 설치물을 지우지 않습니다. 전체 설치든 선택 설치든 symbol extractor나 PHP arginfo는 만들지 않으며, 명시적 target `kit-install-symbols`와 `kit-install-php-arginfo`가 이들을 설치합니다. `install-kit`이 `kit-install-declared`(`install-symbols --declared`, `kit-install-php-arginfo`)로 저장소의 선언(`config/toolchain.json`의 `symbolExtractors`와 `packages/php-ext`)을 읽어 같은 도구를 실행하므로, 어떤 저장소도 호출을 복사하지 않습니다(K861). bootstrap의 `TOOLS=npm`은 그대로입니다.
 bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)은 `packageManager`의 npm과, `config/toolchain.json`
 `mise`의 sha256으로 mise 자체를 설치합니다. `install-tool.mts`가 각각을 대상 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두
 번째 실행은 아무것도 바꾸지 않습니다. mise는 data, cache, state, config와 설치물, shim을 `var/tools/mise`에 두며, wrapper
@@ -73,10 +73,10 @@ PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862). `.php-version
 실패합니다. kit은 설치를 판정하지 않습니다. 다른 설치용으로 빌드된 extension은 PHP 자신이 로드를 거부합니다. PATH에 php가 없으면
 `php is not on PATH`로 실패합니다.
 
-`packages/php-ext`가 있는 저장소는 `make install-tools`에서 PHP `gen_stub.php`가 요구하는 고정 PHP-Parser를 설치합니다. extension이 없는 PHP library는 arginfo generator나 extension 개발 도구가 필요하지 않습니다. 공유 `kit.mk`는 consumer extension fixture에 `make kit-install-php-arginfo`를 제공하고, 선언된 parity extractor 하나를 `make kit-install-symbols EXTRACTORS="go"` 또는 `EXTRACTORS="php"`로 설치합니다. 먼저 대응하는 고정 도구를 `make install-tools TOOLS="php composer"` 또는 `TOOLS=go`로 설치해야 합니다. 두 target은 기존 pinned installer를 호출하며 `EXTRACTORS`는 `config/toolchain.json symbolExtractors`에 선언되어야 합니다. Kit 자체 extension fixture 준비도 `make kit-install-php-arginfo`를 사용하고, `make install`과 CI가 그 target을 명시적으로 실행합니다.
-Kit은 설치된 parser를 generator와 함께 `var/tools/php-arginfo`에 배치합니다. Build와 `make php-ext-arginfo`는 임시 source 사본에서
-generator를 offline 실행하고, `make php-ext-arginfo` 결과는 ignored `var/php-ext/arginfo`에만 씁니다. 설치가 없으면
-generator를 실행하는 build가 실패하며, `make install-tools`가 이를 설치합니다(K303, K560, K854). Parser Composer project와 lock은 kit distribution에 도구와
+`packages/php-ext`가 있는 저장소에서는 `install-kit`이 `make kit-install-php-arginfo`를 실행해 PHP `gen_stub.php`가 요구하는 고정 PHP-Parser를 설치합니다(K861). extension이 없는 PHP library는 arginfo generator나 extension 개발 도구가 필요하지 않습니다. 공유 `kit.mk`는 consumer extension fixture에 `make kit-install-php-arginfo`를 제공하고, 선언된 parity extractor 하나를 `make kit-install-symbols EXTRACTORS="go"` 또는 `EXTRACTORS="php"`로 설치합니다. 먼저 대응하는 고정 도구를 `make install-tools TOOLS="php composer"` 또는 `TOOLS=go`로 설치해야 합니다. 두 target은 기존 pinned installer를 호출하며 `EXTRACTORS`는 `config/toolchain.json symbolExtractors`에 선언되어야 합니다. Kit 자체 extension fixture 준비도 `make kit-install-php-arginfo`를 사용하고, `make install`과 CI가 그 target을 명시적으로 실행합니다.
+Kit은 실행할 때마다 잠긴 `composer install`로 설치한 parser를 `var/tools/php-arginfo`에 배치하고, 각 build는 PHP의 `gen_stub.php`를 그대로 그 옆에 복사하므로 kit은 staged generator를 비교하지 않습니다(K861). Build와 `make php-ext-arginfo`는 임시 source 사본에서
+generator를 offline 실행하고, `make php-ext-arginfo` 결과는 ignored `var/php-ext/arginfo`에만 씁니다. parser가 없으면
+generator를 실행하는 build가 실패하며, `make kit-install-php-arginfo`가 이를 설치합니다(K303, K560, K854, K861). Parser Composer project와 lock은 kit distribution에 도구와
 함께 포함된 release별 `scripts/kit/php-arginfo/<version>`입니다.
 Composer release archive는 generated header를 stub/output 경로로 선언합니다. Release asset은 tag의 stub에서 header를 만들고
 staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, commit timestamp를 고정합니다. `zip`이 없으면
@@ -1233,9 +1233,10 @@ implementation의 `symbols`는 `{ extractor, entry }`를 선언하며, `python`�
 | `python` | `scripts/kit/symbols/python.py`가 `entry` 아래에서 git이 무시하지 않는 `.py` 파일(`git ls-files --cached --others --exclude-standard`)을 `ast`로 읽으며, PATH의 `python3`로 실행합니다. import root는 `entry`에서 위로 가장 가까운 `pyproject.toml` 옆의 `src` 폴더 아래에 `entry`가 있으면 그 `src`, 아니면 그 `pyproject.toml`의 폴더입니다(Python Packaging User Guide의 src layout과 flat layout). 환경, 설치, distribution은 읽지 않으며 kit은 아무것도 만들거나 설치하지 않습니다(K855). `pyproject.toml`이 담지 않는 entry는 실패합니다 | `packages/python/src/<package>` 같은 source package의 package 폴더 | `__all__`, 없으면 `_`로 시작하지 않는 이름의 `<module>.<name>`과 `<module>.<class>.<method>`, 모듈 이름은 import root에서의 경로; 생성된 모듈처럼 git이 무시하는 모듈은 public이 아님 |
 | `rust` | `cargo +<nightly> rustdoc -- -Z unstable-options --output-format json`(format 61) | `Cargo.toml`, 그 library | root에서 닿는 각 public item(re-export 포함)의 `<crate>::<path>`와 그 public field, variant, inherent item, trait item |
 
-- repository는 `config/toolchain.json`의 `symbolExtractors`에 `go`와 `php`를 적습니다. 그러면 `make install-tools`가 go 프로그램을
-  `var/tools/symbols-go`에 build하고, php extractor의 lock된 Composer project를 선언된 Composer로 `var/tools/symbols-php`에
-  설치합니다(`install-symbols.mts`). 각각의 release는 source 파일의 sha256이므로, 그것을 바꾸는 kit release는 다시 설치합니다.
+- repository는 `config/toolchain.json`의 `symbolExtractors`에 `go`와 `php`를 적습니다. 그러면 `make install`의 `install-kit`이
+  `make kit-install-symbols`를 실행해 go 프로그램을 `var/tools/symbols-go`에 build하고, php extractor의 lock된 Composer project를
+  선언된 Composer로 `var/tools/symbols-php`에 설치합니다(`install-symbols.mts`). 설치할 때마다 다시 build하며, go와 Composer가
+  자기 cache를 둡니다(K861).
   `make kit-build`는 `scripts/kit/symbols`를 `dist/symbols`로 복사합니다.
 - rustdoc JSON은 불안정하므로(rust-lang/rust#76578), rust extractor는 `config/toolchain.json` `exceptions`에서 tool이 `rust`이고
   scope가 crate를 담는 항목의 Rust nightly를 `RUSTUP_AUTO_INSTALL=0`으로 실행합니다. 그 재시도 조건은 "rustdoc JSON is stable"이며,

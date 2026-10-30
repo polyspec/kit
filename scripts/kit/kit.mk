@@ -75,6 +75,14 @@ kit-install-php-arginfo: ## Install the declared PHP generator and its paired pa
 kit-install-symbols: ## Install selected declared symbol extractors with EXTRACTORS="go php"; their pinned tools must be installed first; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) $(EXTRACTORS)
 
+# The tools of the parity rules that every repository shares are kit's, so install-kit installs them from the declarations of the
+# repository through their targets (K861): the symbolExtractors of config/toolchain.json, and the arginfo generator of an
+# extension in packages/php-ext (S10). Reading a declaration judges nothing; each target's tool judges its install.
+.PHONY: kit-install-declared
+kit-install-declared: ## Install the declared symbol extractors (install-symbols --declared) and, with packages/php-ext, the arginfo generator through its target; ONLINE
+	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) --declared
+	@if [ -d packages/php-ext ]; then $(MAKE) --no-print-directory kit-install-php-arginfo; fi
+
 # --- cargo downloads: the crates of every Cargo.lock are downloaded before a check runs cargo offline.
 .PHONY: cargo-downloads-check cargo-downloads-fetch
 cargo-downloads-check: ## Check that the crates of every Cargo.lock are in the registry of CARGO_HOME; offline
@@ -83,8 +91,8 @@ cargo-downloads-check: ## Check that the crates of every Cargo.lock are in the r
 cargo-downloads-fetch: ## Download the crates of every Cargo.lock
 	$(ONLINE) $(NODE) $(KIT)/check-cargo-downloads.$(KIT_EXT) --fetch
 # Toolchains (K8.2, K127): the bootstrap (TOOLS=npm) installs the npm of packageManager and mise; install-tools installs every
-# tool of mise.toml at the digests of mise.lock with mise, then what mise does not install (the wheel backend, the Composer
-# projects, the symbol extractors); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside
+# tool of mise.toml at the digests of mise.lock with mise, then what mise does not install (the wheel backend and the Composer
+# projects; the symbol extractors and the arginfo generator have their own targets, K861); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside
 # the checkout changes. A missing tool fails the target that runs it, so no target checks the installed tools (K854).
 .PHONY: install-tools toolchain-lock
 

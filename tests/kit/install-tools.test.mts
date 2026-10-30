@@ -4,7 +4,7 @@
 // var/tools/bin/mise is a stub that logs its calls, so no test reaches a network.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readdirSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, renameSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -140,18 +140,29 @@ test('install-tools removes each file of var/tools/bin that no installer of kit 
 // A checkout whose config/toolchain.json declares the Rust nightly of rust/ as an exception.
 const NIGHTLY_EXCEPTION = { tool: 'rust', channel: 'nightly-2026-10-01', scope: 'rust', reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' };
 const NIGHTLY_FILES = { 'rust/Cargo.toml': '[package]\nname = "codec"\n', 'config/toolchain.json': JSON.stringify({ schema: 1, exceptions: [NIGHTLY_EXCEPTION] }) };
-// A rustup that logs its arguments and lists the channels of RUSTUP_INSTALLED as installed.
-const RUSTUP = '#!/bin/sh\necho "rustup $*" >> "$STUB_LOG"\nif [ "$1 $2" = "toolchain list" ]; then printf "%s\\n" $RUSTUP_INSTALLED; fi\n';
+// A rustup that logs its arguments.
+const RUSTUP = '#!/bin/sh\necho "rustup $*" >> "$STUB_LOG"\n';
 
-test('install-tools installs each Rust channel that an exception declares with rustup, and keeps an installed one', (t) => {
+test('K861: install-tools runs rustup toolchain install for each declared Rust channel, installed or not, and rustup keeps an installed one', (t) => {
   const { root, stubs } = checkout(t, '[tools]\n', NIGHTLY_FILES);
   writeFileSync(path.join(stubs.directory, 'bin', 'rustup'), RUSTUP, { mode: 0o755 });
-  const first = start(INSTALL_TOOLS, root, { ...stubs.env, RUSTUP_INSTALLED: 'stable-aarch64-apple-darwin' });
+  const first = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(first.status, 0, first.stderr);
-  assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')), ['rustup toolchain list', 'rustup toolchain install nightly-2026-10-01 --profile minimal']);
-  const kept = start(INSTALL_TOOLS, root, { ...stubs.env, RUSTUP_INSTALLED: 'nightly-2026-10-01-aarch64-apple-darwin' });
+  assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')), ['rustup toolchain install nightly-2026-10-01 --profile minimal']);
+  const kept = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(kept.status, 0, kept.stderr);
-  assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')).slice(2), ['rustup toolchain list'], 'an installed channel is kept');
+  assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')).slice(1), ['rustup toolchain install nightly-2026-10-01 --profile minimal'], 'kit judges no installed channel; rustup keeps it');
+});
+
+test('K861: install-tools installs no arginfo generator and no symbol extractor; their make targets are the one path', (t) => {
+  const composerToml = '[tools]\n"http:composer" = { version = "2.8.12", url = "https://getcomposer.org/download/2.8.12/composer.phar" }\n';
+  const { root, stubs } = checkout(t, composerToml, { '.php-version': '8.4\n', 'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['php'] }), 'packages/php-ext/config.m4': '' });
+  for (const name of ['php', 'php-config', 'phpize']) writeFileSync(path.join(stubs.directory, 'bin', name), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  mkdirSync(path.join(root, 'var/tools/mise/shims'), { recursive: true });
+  writeFileSync(path.join(root, 'var/tools/mise/shims/composer'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
+  const result = start(INSTALL_TOOLS, root, stubs.env);
+  assert.equal(result.status, 0, result.stderr);
+  for (const prefix of ['php-arginfo', 'symbols-php']) assert.equal(existsSync(path.join(root, 'var/tools', prefix)), false, `install-tools installs no var/tools/${prefix}`);
 });
 
 test('a declared Rust channel without rustup fails with the one prerequisite of the machine', (t) => {

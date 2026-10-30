@@ -7,11 +7,11 @@
 //           Packaging User Guide); run by the python3 of the checkout, reading no environment or installed distribution;
 //           ids <module>.<name> and <module>.<class>.<method>
 //   go      var/tools/symbols-go/bin/kit-symbols-go (scripts/kit/symbols/go), golang.org/x/tools/go/packages, on a module
-//           directory; ids <import path>.<name> and <import path>.<type>.<method or field>; install-tools builds it when
+//           directory; ids <import path>.<name> and <import path>.<type>.<method or field>; make kit-install-symbols builds it when
 //           config/toolchain.json symbolExtractors names go
 //   php     scripts/kit/symbols/php/extract.php, nikic/php-parser, on a source directory or file, such as the *.stub.php of a
 //           PHP extension; ids Ns\Class, Ns\Class::method, Ns\Class::CONST, Ns\Class::$property, Ns\function and Ns\CONST
-//           of the public declarations; install-tools installs php-parser when config/toolchain.json symbolExtractors names php
+//           of the public declarations; make kit-install-symbols installs php-parser when symbolExtractors names php
 //   rust    the JSON of rustdoc (cargo +<nightly> rustdoc -- [--features <features>] -Z unstable-options --output-format json)
 //           of each library Cargo.toml entry; rustdoc JSON is unstable (rust-lang/rust#76578), so the channel is the Rust nightly of
 //           config/toolchain.json exceptions whose scope holds the entry; ids <crate>::<path> of each public item reachable
@@ -264,12 +264,12 @@ function withLeaks(symbols: Extracted, leaks: () => Extracted): Extracted {
 const EXTRACTORS: Record<Extractor, (root: string, input: ParitySymbolEntry, env: Environment) => Extracted> = {
   go: (root, { entry }, env) => {
     const command = path.join(symbolsPrefix(root, 'go'), 'bin', 'kit-symbols-go');
-    if (!existsSync(command)) return { error: `${path.relative(root, command)} does not exist; name go in symbolExtractors of config/toolchain.json and run make install-tools` };
+    if (!existsSync(command)) return { error: `${path.relative(root, command)} does not exist; name go in symbolExtractors of config/toolchain.json and run make install, whose install-kit runs make kit-install-symbols (K861)` };
     return listed(root, command, [entry], env);
   },
   php: (root, { entry }, env) => {
     const autoload = path.join(symbolsPrefix(root, 'php'), 'vendor', 'autoload.php');
-    if (!existsSync(autoload)) return { error: `${path.relative(root, autoload)} does not exist; name php in symbolExtractors of config/toolchain.json and run make install-tools` };
+    if (!existsSync(autoload)) return { error: `${path.relative(root, autoload)} does not exist; name php in symbolExtractors of config/toolchain.json and run make install, whose install-kit runs make kit-install-symbols (K861)` };
     return withLeaks(listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry], env), () => listed(root, 'php', [path.join(SYMBOLS, 'php', 'extract.php'), autoload, entry, '--leaks'], env));
   },
   python: (root, { entry }, env) => withLeaks(pythonListed(root, entry, env), () => pythonListed(root, entry, env, ['--leaks'])),

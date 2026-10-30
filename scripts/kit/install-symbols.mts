@@ -9,14 +9,12 @@
 //        consumer does not list it (`go help environment`)
 //   php  the Composer project of scripts/kit/symbols/php, whose composer.lock pins nikic/php-parser, installed into vendor
 //        with the Composer of mise.toml as install-phpunit.mts installs PHPUnit
-// The release of an extractor is the sha256 of its source files, written to RELEASE beside the build, so a kit release that
-// changes an extractor rebuilds it and a second run installs nothing. Each build goes into a temporary directory beside the
-// target and is renamed into place (install-tool.mts); nothing is installed into the machine.
-import { copyFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+// Each install builds the extractor again, and go and Composer keep their own caches (K861); the build goes into a temporary
+// directory beside the target and is renamed into place (install-tool.mts); nothing is installed into the machine.
+import { copyFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { sha256 } from './bootstrap/digest.mts';
-import { installOnce } from './bootstrap/install-tool.mts';
+import { replaceInstall } from './bootstrap/install-tool.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { composerCommand, composerEnvironment } from './install-composer-project.mts';
 import { miseInstallEnvironment, miseWhere } from './bootstrap/install-mise.mts';
@@ -30,32 +28,6 @@ export const SYMBOLS = path.join(path.dirname(fileURLToPath(import.meta.url)), '
 
 /** The installation directory of the extractor `extractor` under `root`. */
 export const symbolsPrefix = (root: string, extractor: InstalledExtractor): string => toolsPath(root, `symbols-${extractor}`);
-
-/**
- * The release of the extractor `extractor`: the sha256 of the names and contents of its source files, the files of its folder.
- * The folder holds no other folder but vendor/, the packages that kit's Makefile installs there for its own PHP lint
- * (kit-install-symbols-php, K248-4), which are no source; another folder throws.
- */
-export function extractorRelease(extractor: InstalledExtractor, symbols = SYMBOLS): string {
-  const directory = path.join(symbols, extractor);
-  const entries = readdirSync(directory, { withFileTypes: true }).filter(entry => !(entry.isDirectory() && entry.name === 'vendor'));
-  const folders = entries.filter(entry => !entry.isFile()).map(entry => entry.name);
-  if (folders.length) throw new Error(`${directory} holds ${folders.join(', ')}, which is no source file; an extractor is the files of its folder`);
-  return sha256(entries.map(entry => entry.name).sort().map(file => `${file}\0${sha256(readFileSync(path.join(directory, file)))}\n`).join(''));
-}
-
-/** The release that an installation in `directory` records, or undefined when it has no RELEASE; another read error throws. */
-function installedRelease(directory: string): string | undefined {
-  const file = path.join(directory, 'RELEASE');
-  try {
-    return readFileSync(file, 'utf8');
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    // Only a missing file means that nothing is installed; any other error is a broken installation.
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
-    throw new Error(`${file} cannot be read: ${error.message}`, { cause: error });
-  }
-}
 
 const GO_MISSING = 'the go symbol extractor needs the Go of mise.toml; declare go in mise.toml and run make install-tools';
 
@@ -89,16 +61,11 @@ const BUILDS: Record<InstalledExtractor, (root: string, next: string, print: (te
   },
 };
 
-/** Installs the extractor `extractor` into var/tools of `root` unless its release is installed there. */
-export function installExtractor({ root, extractor, print = () => {} }: { root: string; extractor: InstalledExtractor; print?: (text: string) => void }) {
-  const release = extractorRelease(extractor);
-  return installOnce({
-    root, label: `the ${extractor} symbol extractor`, prefix: symbolsPrefix(root, extractor), recorded: release, installedRelease, print,
-    install: (next: string) => {
-      BUILDS[extractor](root, next, print);
-      writeFileSync(path.join(next, 'RELEASE'), release);
-    },
-  });
+/** Installs the extractor `extractor` into var/tools of `root`, built again on each install (K861). */
+export function installExtractor({ root, extractor, print = () => {} }: { root: string; extractor: InstalledExtractor; print?: (text: string) => void }): void {
+  const prefix = symbolsPrefix(root, extractor);
+  replaceInstall(prefix, next => BUILDS[extractor](root, next, print));
+  print(`the ${extractor} symbol extractor: installed in ${path.relative(root, prefix)}`);
 }
 
 /** Installs only the requested, declared extractors; their pinned runtime prerequisites must be declared before any build starts. */
@@ -128,12 +95,24 @@ export function installDeclaredExtractors({
     if (!mise.composer) throw new Error('the PHP symbol extractor needs http:composer in mise.toml; run make install-tools TOOLS=php composer');
     if (!toolchain.php) throw new Error('the PHP symbol extractor needs PHP declared by .php-version or config/toolchain.json php; run make install-tools TOOLS=php composer');
   }
-  return selected.map(extractor => install({ root, extractor, print }));
+  for (const extractor of selected) install({ root, extractor, print });
+}
+
+/**
+ * Installs every extractor that config/toolchain.json symbolExtractors declares, and nothing without one (`--declared`, for make
+ * kit-install-declared, K861); returns the declared extractors.
+ */
+export function installDeclared({ root = repositoryRoot(), print = () => {}, install = installExtractor }: { root?: string; print?: (text: string) => void; install?: typeof installExtractor } = {}): readonly string[] {
+  const extractors = declaredToolchain(root).symbolExtractors?.extractors ?? [];
+  if (extractors.length) installDeclaredExtractors({ root, extractors, print, install });
+  return extractors;
 }
 
 if (isMain(import.meta.url)) {
   try {
-    installDeclaredExtractors({ extractors: process.argv.slice(2), print: text => console.log(`[install-symbols] ${text}`) });
+    const print = (text: string) => console.log(`[install-symbols] ${text}`);
+    if (process.argv[2] === '--declared') installDeclared({ print });
+    else installDeclaredExtractors({ extractors: process.argv.slice(2), print });
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[install-symbols] ${error.message}`);
