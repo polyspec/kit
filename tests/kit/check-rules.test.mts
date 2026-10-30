@@ -200,7 +200,7 @@ test('a word of a run line that is not make reaches no target: prose that names 
 
 test('a target is expanded for each set of variables it is called with, so every call of one recipe is reached (K312)', (t) => {
   const root = tree(t, {
-    Makefile: 'ci-targets:\n\t@echo $(TARGETS)\nfirst:\n\t@echo first\nsecond:\n\t@echo second\n',
+    Makefile: 'ci-targets:\n\t$(MAKE) $(TARGETS)\nfirst:\n\t@echo first\nsecond:\n\t@echo second\n',
     '.github/workflows/ci.yml': 'name: ci\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: make ci-targets TARGETS="first"\n      - run: make ci-targets TARGETS="second"\n',
     'AGENTS.md': rules('- Own: First.\n  Enforced by: `make first`', '- Own: Second.\n  Enforced by: `make second`'),
     'AGENTS.ko.md': rules('- Own: First.\n  Enforced by: `make first`', '- Own: Second.\n  Enforced by: `make second`'),

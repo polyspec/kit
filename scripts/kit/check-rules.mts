@@ -162,6 +162,25 @@ const commandsOf = (text: string) => text.split('\n').flatMap(line => commandPar
 const MATRIX_RUNTIME = /\$\{\{\s*matrix\.runtime\s*\}\}/g;
 
 /**
+ * The values of each key of a `matrix:` block of the workflow whose value is a literal list, such as `shard: [1, 2]` (K941-1).
+ * A matrix declared by an expression has no literal values, so the steps that name it stay one line each.
+ */
+function literalMatrix(lines: readonly string[]): Map<string, string[]> {
+  const found = new Map<string, string[]>();
+  lines.forEach((line, index) => {
+    const head = /^(\s*)matrix:\s*$/.exec(line);
+    if (!head) return;
+    const indent = head[1]?.length ?? 0;
+    for (const next of lines.slice(index + 1)) {
+      if (next.trim() !== '' && next.length - next.trimStart().length <= indent) break;
+      const entry = /^\s+([a-z][a-z0-9_-]*):\s*\[([^\]]*)\]\s*$/.exec(next);
+      if (entry?.[1] !== undefined) found.set(entry[1], (entry[2] ?? '').split(',').map(value => value.trim()).filter(Boolean));
+    }
+  });
+  return found;
+}
+
+/**
  * The shell lines of the steps of the workflow `text`: the value of each `run:`, on its line or in the block below it. A line
  * that names `${{ matrix.runtime }}` runs once for each runtime the runtime job of the CI pipeline can hold, since its shared job fills that matrix
  * with the runtimes of the repository (K757). Any other expression `${{ … }}`, which GitHub replaces before the shell reads the
@@ -169,6 +188,7 @@ const MATRIX_RUNTIME = /\$\{\{\s*matrix\.runtime\s*\}\}/g;
  */
 function workflowLines(text: string): string[] {
   const lines = text.split('\n');
+  const literal = literalMatrix(lines);
   const result: string[] = [];
   lines.forEach((line, index) => {
     const run = /^(\s*)(?:- )?run:\s*(.*)$/.exec(line);
@@ -185,6 +205,7 @@ function workflowLines(text: string): string[] {
   });
   return result
     .flatMap(line => (line.search(MATRIX_RUNTIME) >= 0 ? RUNTIMES.map(runtime => line.replaceAll(MATRIX_RUNTIME, runtime)) : [line]))
+    .flatMap(line => [...literal].reduce<string[]>((variants, [key, values]) => (line.includes(`matrix.${key} `) || line.includes(`matrix.${key}}`) ? variants.flatMap(variant => values.map(value => variant.replace(new RegExp(`\\$\\{\\{\\s*matrix\\.${key}\\s*\\}\\}`, 'g'), value))) : variants), [line]))
     .map(line => line.replace(/\$\{\{[^}]*\}\}/g, 'GITHUB_EXPRESSION'));
 }
 
@@ -195,11 +216,11 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
   const queue: Array<{ target: string; variables: Map<string, string> }> = [];
   const enter = (words: readonly string[], variables: ReadonlyMap<string, string>) => {
     for (const word of words) if (word.includes('/') || /\.[a-z]+$/.test(word)) paths.add(word.replace(/^\.\//, '').replace(/\/$/, ''));
-    const [command, ...args] = words;
-    if (command === undefined || path.basename(command) !== 'make') {
-      for (const word of words) if (make.targets.has(word)) queue.push({ target: word, variables: new Map(variables) });
-      return;
-    }
+    // A command that is not make runs no target of the Makefile; a word of its text that names one is prose (K941-1). The shell
+    // builtin exec runs its command in place, so `exec make` is a make call.
+    const [first, ...rest] = words;
+    const [command, ...args] = first === 'exec' ? rest : words;
+    if (command === undefined || path.basename(command) !== 'make') return;
     const { targets: named, assignments } = makeArguments(args);
     for (const target of named) queue.push({ target, variables: new Map([...variables, ...assignments]) });
   };
