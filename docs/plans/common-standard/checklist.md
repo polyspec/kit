@@ -799,3 +799,4 @@
 | K884 | Release Kit 0.0.75 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K889 | Release Kit 0.0.75 from main HEAD with K855, K857, K858, K885, K886 and K887 besides K875, K877 and K883; K884 cut it without them and its CI 40965263643 failed, so no 0.0.75 was published | CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K894 | Release Kit 0.0.75 from main HEAD with K888, K891 and K893 besides the rows of K889; CI 40972329860 of the K889 cut failed in kit tests (5) on the K858 test that K893 fixes, and the release tags origin/main, so no 0.0.75 was published | CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
+| K898 | Release Kit 0.0.76 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [ ] |
