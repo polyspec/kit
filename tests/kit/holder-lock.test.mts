@@ -11,7 +11,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { acquireHolderLock, HolderLockRefused, holderRunning, processStart, procStart, readLockRecord, removeDeadLock } from '../../scripts/kit/holder-lock.mts';
+import { acquireHolderLock, HolderLockRefused, holderRunning, processStart, procStart, readLockRecord, removeDeadLock, waitForHolderLock } from '../../scripts/kit/holder-lock.mts';
 import type { CommandOutcome, Host } from '../../scripts/kit/holder-lock.mts';
 import type { RunPlace } from '../../scripts/kit/process.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -376,6 +376,49 @@ test('run is refused while another holder has the lock and runs nothing', { time
   assert.equal(existsSync(path.join(directory, 'ran')), false);
   assert.equal(tool(path.dirname(lock), 'run', lock).status, 1);
   assert.match(tool(path.dirname(lock), 'frobnicate', lock).stderr, /usage: node scripts\/kit\/holder-lock\.mts run <lock> -- <command>/);
+});
+
+// K941 (2): waitForHolderLock waits for a running holder, refuses after its timeout, and takes the lock of a holder that ended.
+test('waitForHolderLock takes the lock once the running holder that holds it releases it', { timeout: 30_000 }, async (t) => {
+  const directory = checkout(t);
+  const lock = path.join(directory, 'resource.lock');
+  // The holder releases the lock when it exits, one second after it takes the lock.
+  const code = `const { acquireHolderLock } = await import(${JSON.stringify(TOOL)}); acquireHolderLock(${JSON.stringify(lock)}, { checkout: '/work/checkout', command: 'short holder' }); process.stdout.write('held\\n'); setTimeout(() => {}, 1000);`;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', code], { cwd: tmpdir(), stdio: ['ignore', 'pipe', 'inherit'] });
+  const ended = new Promise(resolve => child.once('exit', resolve));
+  await new Promise<void>((resolve) => child.stdout.once('data', () => resolve()));
+  const { lock: taken, record, release } = waitForHolderLock(lock, { checkout: directory, command: 'waiter', timeoutMs: 20_000, pollMs: 50 });
+  await ended;
+  assert.equal(taken, lock);
+  assert.equal(record.pid, process.pid);
+  assert.equal(readLockRecord(lock).token, record.token);
+  release();
+  assert.equal(existsSync(lock), false);
+});
+
+test('waitForHolderLock refuses after its timeout, naming the running holder', { timeout: 20_000 }, async (t) => {
+  const directory = checkout(t);
+  const lock = path.join(directory, 'resource.lock');
+  const { child, ended } = await holdLock(t, lock);
+  assert.throws(() => waitForHolderLock(lock, { checkout: directory, command: 'waiter', timeoutMs: 300, pollMs: 50 }), new RegExp(`resource\\.lock is held by process ${child.pid} `));
+  child.stdin.end();
+  await ended;
+});
+
+test('waitForHolderLock takes the lock of a holder that was killed, without waiting for it', { timeout: 20_000 }, async (t) => {
+  const directory = checkout(t);
+  const lock = path.join(directory, 'resource.lock');
+  // The holder takes the lock and keeps running until it is killed, so it never releases the lock.
+  const code = `const { acquireHolderLock } = await import(${JSON.stringify(TOOL)}); acquireHolderLock(${JSON.stringify(lock)}, { checkout: '/work/checkout', command: 'killed holder' }); process.stdout.write('held\\n'); setInterval(() => {}, 1000);`;
+  const child = spawn(process.execPath, ['--input-type=module', '-e', code], { cwd: tmpdir(), stdio: ['ignore', 'pipe', 'inherit'] });
+  const ended = new Promise(resolve => child.once('exit', resolve));
+  await new Promise<void>((resolve) => child.stdout.once('data', () => resolve()));
+  child.kill('SIGKILL');
+  await ended;
+  assert.equal(existsSync(lock), true, 'the killed holder leaves its lock');
+  const taken = waitForHolderLock(lock, { checkout: directory, command: 'waiter', timeoutMs: 5_000, pollMs: 50 });
+  assert.equal(readLockRecord(lock).token, taken.record.token);
+  taken.release();
 });
 
 // Starts `count` racers that take the lock at once and returns the result of each: 'won' for the one that holds the lock,
