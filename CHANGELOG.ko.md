@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9c0224175349afefdb65bf8a81103e5f409ec93a9437ba018d6a8abdfa471500 -->
+<!-- source-sha256: 13e08d32a466bc32d95ca892ceed2c47a1ce008953949cb528c653b4e9f8458e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- Kit 0.0.80을 공개했다. release run 41088517118이 82ab25d1의 성공한 CI run 41083175026을 받아 그 commit에 annotated v0.0.80 tag를 만들고 polyspec-kit-npm-0.0.80.tgz와 함께 게시된 release를 만들었다 (K928).
 
 ## 0.0.80
 

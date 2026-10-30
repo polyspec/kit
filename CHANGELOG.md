@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Kit 0.0.80 is public: release run 41088517118 took the successful CI run 41083175026 of 82ab25d1, made the annotated v0.0.80 tag on that commit and a published release with polyspec-kit-npm-0.0.80.tgz (K928).
+
 ## 0.0.80
 
 - Kit 0.0.80 carries the release by run id with its version from the change log (K924), the Windows tree stop by process identity (K925, K925-1, K927) and the streamed output of pie-build (K926) (K928).
