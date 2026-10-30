@@ -3,7 +3,7 @@
 // link writes nothing into .git; the consumer's .gitignore ignores the file, and the check names it while Git does not ignore it.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
@@ -108,6 +108,25 @@ test('a consumer written by the link passes the check when the check runs under 
   const check = spawnSync(kitNode, [path.join(KIT, 'scripts/kit/link-check.mts'), '--project', project], { encoding: 'utf8' });
   const hookFindings = `${check.stdout}${check.stderr}`.split('\n').filter(line => line.includes('claude-hook'));
   assert.deepEqual(hookFindings, [], `the check under the toolchain node reports the written entry as differing: ${hookFindings.join(' | ')}`);
+});
+
+// K916: npm installs the kit with no var/tools, so an installed kit, whose real path lies inside node_modules, has no node to run
+// the hook: the link writes none and the check expects none. The kit checkout of this test keeps the hook.
+test('an installed kit writes no hook and expects none, and a kit checkout keeps it (K916)', (t) => {
+  const project = consumer(t);
+  const installed = path.join(path.dirname(project), 'node_modules', '@polyspec', 'kit');
+  mkdirSync(installed, { recursive: true });
+  assert.equal(writeProjectHook(project, installed), undefined);
+  assert.equal(existsSync(path.join(project, '.claude/settings.local.json')), false, 'the link writes no settings for an installed kit');
+  assert.deepEqual(projectHookFindings(project, installed), []);
+  assert.equal(writeProjectHook(project, KIT), path.join(project, '.claude/settings.local.json'));
+  assert.deepEqual(readJsonObject(project, '.claude/settings.local.json'), { hooks: { PreToolUse: [entry] } });
+  // A linked kit: node_modules/@polyspec/kit is a link to the kit checkout, whose real path holds the node, so the hook stays.
+  const linked = path.join(path.dirname(project), 'linked', 'node_modules', '@polyspec', 'kit');
+  mkdirSync(path.dirname(linked), { recursive: true });
+  symlinkSync(KIT, linked);
+  assert.equal(writeProjectHook(project, linked), path.join(project, '.claude/settings.local.json'));
+  assert.deepEqual(projectHookFindings(project, linked), []);
 });
 
 // K498-4, K869: the hook entry is written and checked when the consumer has no link declaration too (K506).

@@ -9,7 +9,7 @@
 //   - a polyspec package that a tracked project declares and a declared checkout provides has an installed folder (K888);
 //   - no tracked manifest names a path out of the repository, whatever the package, which a clean clone cannot reproduce (K773, K902);
 //   - with a declaration, the workspace folder holds the Claude Code hook of the kit checkout (K440), and with --project the consumer
-//     holds the hook of the kit that links it (K498).
+//     holds the hook of the kit that links it (K498), unless that kit is an installed package (K916).
 // Nothing about a version is judged. A finding names the ecosystem and the package or the file.
 //
 //   node link-check.mts [--project <dir>]

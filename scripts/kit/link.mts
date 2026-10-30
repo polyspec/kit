@@ -768,12 +768,18 @@ export const projectHookFile = (project: string): string => path.join(project, P
 const kitRoot = (): string => (path.basename(path.dirname(THIS_MODULE)) === 'dist' ? path.resolve(path.dirname(THIS_MODULE), '..') : path.resolve(path.dirname(THIS_MODULE), '../..'));
 
 /**
- * The Bash PreToolUse entry of the claude-hook of the running kit (K498): the node of that kit (its runnable var/tools/bin/node) and
+ * Whether the kit at `kit` is an installed package: its real path lies inside a node_modules folder (K916). npm installs the package
+ * with no var/tools, so it has no node to run the hook; a kit checkout, and a sibling checkout that a link makes the package, which
+ * Node resolves to the real path of that checkout, have one.
+ */
+export const kitIsInstalledPackage = (kit: string): boolean => realpathSync(kit).split(path.sep).includes('node_modules');
+
+/**
+ * The Bash PreToolUse entry of the claude-hook of the kit at `kit` (K498): the node of that kit (its runnable var/tools/bin/node) and
  * the claude-hook beside the link. It names no node of the process, so a link and a check run by different nodes build one entry
  * (K498-3). Throws while the node of the kit is missing or not executable.
  */
-function projectHookEntry() {
-  const kit = kitRoot();
+function projectHookEntry(kit: string) {
   if (!kitNodeRunnable(kit)) throw new Error(`${path.join(kit, KIT_NODE)} is missing or not executable, so the Claude Code hook cannot run; run make -C ${kit} install-tools`);
   const hook = path.join(path.dirname(THIS_MODULE), `claude-hook${THIS_MODULE.endsWith('.mts') ? '.mts' : '.mjs'}`);
   return { matcher: 'Bash', hooks: [{ type: 'command', command: `${quote(path.join(kit, KIT_NODE))} ${quote(hook)}` }] };
@@ -800,11 +806,15 @@ function hookFileIgnored(project: string): boolean {
   return spawnSync('git', ['-C', project, 'check-ignore', '-q', PROJECT_HOOK_FILE]).status === 0;
 }
 
-/** Writes the claude-hook of the running kit into the untracked settings of the consumer `project` (K498); returns the file. */
-export function writeProjectHook(project: string): string {
+/**
+ * Writes the claude-hook of the kit at `kit`, by default the running one, into the untracked settings of the consumer `project`
+ * (K498); returns the file. An installed kit writes nothing and returns undefined: it has no node to run the hook (K916).
+ */
+export function writeProjectHook(project: string, kit = kitRoot()): string | undefined {
+  if (kitIsInstalledPackage(kit)) return undefined;
   const file = projectHookFile(project);
   const settings = existsSync(file) ? readJsonObject(project, PROJECT_HOOK_FILE) : {};
-  const next = withProjectHook(settings, projectHookEntry());
+  const next = withProjectHook(settings, projectHookEntry(kit));
   if (!existsSync(file) || JSON.stringify(next) !== JSON.stringify(settings)) {
     mkdirSync(path.dirname(file), { recursive: true });
     writeAtomic(file, `${JSON.stringify(next, null, 2)}\n`);
@@ -812,14 +822,18 @@ export function writeProjectHook(project: string): string {
   return file;
 }
 
-/** The findings of the consumer `project` whose settings lack the claude-hook of the running kit (K498); fix: make link. */
-export function projectHookFindings(project: string): string[] {
+/**
+ * The findings of the consumer `project` whose settings lack the claude-hook of the kit at `kit`, by default the running one (K498);
+ * fix: make link. An installed kit expects no hook (K916).
+ */
+export function projectHookFindings(project: string, kit = kitRoot()): string[] {
+  if (kitIsInstalledPackage(kit)) return [];
   const file = projectHookFile(project);
   const settings = existsSync(file) ? readJsonObject(project, PROJECT_HOOK_FILE) : {};
   const hooks = isJsonObject(settings.hooks) ? settings.hooks : {};
   const present = (Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : []).filter(isClaudeHookEntry);
   if (present.length === 0) return [`${file}: no Bash PreToolUse hook runs the claude-hook of the kit that links it (K498); fix: make link`];
-  if (JSON.stringify(present) !== JSON.stringify([projectHookEntry()])) return [`${file}: the Bash PreToolUse hook of the claude-hook differs from the entry the link writes (K498); fix: make link`];
+  if (JSON.stringify(present) !== JSON.stringify([projectHookEntry(kit)])) return [`${file}: the Bash PreToolUse hook of the claude-hook differs from the entry the link writes (K498); fix: make link`];
   if (!hookFileIgnored(project)) return [`${file}: Git does not ignore the settings that the link writes (K512); fix: add the line /${PROJECT_HOOK_FILE} to the .gitignore of ${project}`];
   return [];
 }
@@ -844,7 +858,7 @@ if (isMain(import.meta.url)) {
     const withoutOptions = rest.filter((_, index) => (project === -1 || (index !== project && index !== project + 1)) && (runtimeIndex === -1 || (index !== runtimeIndex && index !== runtimeIndex + 1)));
     const directories = [projectDirectory ?? '.'];
     // K498, K506: a consumer named by --project gets the claude-hook of the running kit before the packages are linked, whatever
-    // their result.
+    // their result, unless the running kit is an installed package (K916).
     if (projectDirectory !== undefined && command === 'link') writeProjectHook(projectDirectory);
     switch (command) {
       case 'link': {
