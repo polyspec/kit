@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+## 0.0.76
+
+- Release Kit 0.0.76 with K890, K896 and K897 (K898).
 - The PHP symbol extractor reads the namespaced constant that a polyfill guard defines with define(), by the one definition of the guard that lint-php and divergence-check apply; a define() under another condition is still no public symbol (K897).
 - The shared job of the gates workflow installs the PHP symbol extractor when config/toolchain.json declares it, with PHP and Composer among its common tools, so divergence-check reads the polyfill guards there instead of failing on a missing var/tools/symbols-php (K896).
 - The link of a Python project, link-state-check and the install read one environment, uv's: that of the uv workspace root, UV_PROJECT_ENVIRONMENT relative to it or .venv there, so a uv workspace member whose provider is linked in the root environment is no finding; VENV, which uv does not read, is gone (K890).

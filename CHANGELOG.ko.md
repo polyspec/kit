@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bcebd1e50ec4f2723297d06aa60b84fc1ef9f079c2a2f38975fc2f4c9fafb706 -->
+<!-- source-sha256: 0df8c11f6330943528b958c1c025b5095ef76a2274d1b4ecc41277b0d4e2b8a3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.76
+
+- K890, K896, K897을 담아 Kit 0.0.76를 릴리즈합니다 (K898).
 - PHP 심볼 추출기는 polyfill 가드가 define()으로 정의하는 네임스페이스 상수를 lint-php와 divergence-check가 쓰는 가드의 한 정의로 읽습니다. 다른 조건 아래의 define()은 여전히 공개 심볼이 아닙니다 (K897).
 - gates 워크플로의 shared 잡은 config/toolchain.json이 PHP 심볼 추출기를 선언하면 공통 도구에 PHP와 Composer를 두고 그 추출기를 설치하므로, divergence-check가 var/tools/symbols-php가 없다며 실패하지 않고 거기서 polyfill 가드를 읽습니다 (K896).
 - Python project의 link, link-state-check, 설치는 하나의 environment, 즉 uv의 것인 uv workspace root의 environment(그 기준의 UV_PROJECT_ENVIRONMENT, 없으면 거기의 .venv)를 읽으므로, provider가 root environment에 link된 uv workspace member는 finding이 아닙니다. uv가 읽지 않는 VENV는 없어졌습니다 (K890).
