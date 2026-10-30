@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b471af90ece6d1ac4b1874126be1e99e711d5c3ab4d3d32f291b6e0d514f7d93 -->
+<!-- source-sha256: d03ec11700c2ffdbc2ea7bb13a9887b0909a5b04fcec848591688910b5931795 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make item-new는 checkout이나 main의 checklist가 이미 가진 ID를 거부합니다. check-commits처럼 main을 읽으므로, 다른 worktree가 main에 등록한 ID를 두 번째 worktree가 등록할 수 없습니다 (K868).
 - link는 package manager 일을 하지 않고 unlink는 link만 제거합니다. unlink는 checkout 밖으로 link된 npm과 Composer 폴더, 각 Python environment의 package link, link가 쓴 go.work 파일을 제거하며 npm ci, composer install, uv sync를 실행하지 않으므로 locked 설치는 make install이 복원하고, 링크 제거로 패키지 폴더가 빠진 Python 배포본은 uv-install이 다시 설치합니다. Go 0.0.x pin 규칙, link cargo의 cargo update --offline, link rebuild 명령은 없어졌고, 소비자 requirement보다 높은 Cargo patch는 맞지 않는 provider version을 알려 주며 거부합니다 (K856).
 - 사이트 렌더러가 평가하는 문서, 즉 config/documents.json의 interpolation 패턴의 문서는 코드 밖에서 끝 태그 없이 열리거나 시작 태그 없이 닫히는 HTML 요소(raw-tag)를 거부합니다. 코드 스팬 밖에 쓴 `deps-<runtime>`처럼 VitePress 빌드의 Vue 컴파일러가 실패하는 것입니다 (K895).
 - --php-extension이 붙은 run-tests의 PHPUnit 실행은 -d extension 대신 PHP_INI_SCAN_DIR이 PHP 자체 스캔 뒤에 더하는 ini 파일로 확장을 읽으므로, PHPUnit이 별도 프로세스로 돌리는 테스트도 확장을 읽습니다 (K900).

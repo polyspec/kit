@@ -134,12 +134,24 @@ function inserted(text: string, id: string, row: string): string {
   return lines.join('\n');
 }
 
+/**
+ * The checklists of the branch main of `root` that hold a row of `id` (K868): two worktrees can pick the same ID, so a registration
+ * reads main as check-commits does. None in a checkout without main.
+ */
+function mainHolders(root: string, config: ReturnType<typeof loadConfig>, id: string): string[] {
+  const listed = spawnSync('git', ['ls-tree', '-r', '--name-only', 'main', '--', PLANS], { cwd: root, encoding: 'utf8' });
+  if (listed.status !== 0) return [];
+  return trackersOf(config, listed.stdout.split('\n').filter(Boolean)).map(tracker => tracker.path)
+    .filter(file => rowIds(spawnSync('git', ['show', `main:${file}`], { cwd: root, encoding: 'utf8' }).stdout).some(entry => entry.id === id));
+}
+
 /** The new row of an item. */
 export type NewItem = { plan: string; id: string; task: string | undefined; taskKo: string | undefined; deliverables: string | undefined; verification: string | undefined };
 
 /**
  * Adds the waiting row of `item` to the checklist of its plan and to the Korean twin, and returns the two files as
- * { path: text }. Throws, writing nothing, when the plan has no checklist, the ID does not match the pattern, a text is empty
+ * { path: text }. Throws, writing nothing, when the plan has no checklist, a checklist of the checkout or of main holds the ID (K868), the ID does not
+ * match the pattern, a text is empty
  * or holds a line break, or the checklists with the row fail the checks of docs-check (an ID of two checklists, a
  * sub-item without its parent).
  */
@@ -149,6 +161,10 @@ export function newItem(root: string, item: NewItem): Record<string, string> {
   const file = `${PLANS}/${item.plan}/checklist.md`;
   const tracker = trackers.find(entry => entry.path === file);
   if (!tracker) throw new Error(`${file} is no checklist; make plan-new NAME=${item.plan} writes the plan`);
+  const own = trackers.find(entry => rowIds(readFileSync(path.join(root, entry.path), 'utf8')).some(row => row.id === item.id));
+  if (own !== undefined) throw new Error(`${item.id} is held by ${own.path}; choose a fresh ID`);
+  const [held] = mainHolders(root, config, item.id);
+  if (held !== undefined) throw new Error(`${item.id} is held by ${held} of main; choose a fresh ID`);
   const tail = ` | ${cell(item.deliverables, 'DELIVERABLES')} | ${cell(item.verification, 'VERIFICATION')} | ${WAITING} |`;
   const english = `| ${item.id} | ${cell(item.task, 'TASK')}${tail}`;
   const korean = `| ${item.id} | ${cell(item.taskKo, 'TASK_KO')}${tail}`;

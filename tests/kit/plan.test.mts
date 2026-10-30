@@ -56,6 +56,24 @@ test('item-new adds a waiting row to a checklist and its twin, a sub-item after 
   assert.equal(rows(root, 'docs/plans/parser/checklist.ko.md')[0], '| T1 | 작업 T1 | `a.mts` | `node --test a.test.mts` | [ ] |');
 });
 
+// K868: two worktrees can pick the same ID; item-new reads the checklists of main, so the second registration is refused there.
+test('item-new refuses an ID that main or the checkout already holds, and a fresh ID passes (K868)', (t) => {
+  const main = plans(t, 'parser', 'lexer');
+  const git = (cwd: string, ...args: string[]) => execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
+  git(main, 'init', '--quiet', '--initial-branch=main');
+  git(main, 'add', '-A');
+  git(main, 'commit', '--quiet', '-m', 'plans');
+  const worktree = `${main}-row`;
+  t.after(() => rmSync(worktree, { recursive: true, force: true }));
+  git(main, 'worktree', 'add', '--quiet', '-b', 'fix/row', worktree, 'main');
+  newItem(main, item('parser', 'T1'));
+  git(main, 'commit', '--quiet', '-am', 'T1');
+  assert.throws(() => newItem(worktree, item('lexer', 'T1')), /T1 is held by docs\/plans\/parser\/checklist\.md of main/);
+  newItem(worktree, item('lexer', 'T2'));
+  assert.throws(() => newItem(worktree, item('parser', 'T2')), /T2 is held by docs\/plans\/lexer\/checklist\.md;/);
+  assert.deepEqual(rows(worktree, 'docs/plans/lexer/checklist.md').map(row => row.split(' | ')[0]), ['| T2']);
+});
+
 // K457: make expands a dollar sign of a variable's value, so the texts of item-new and item-edit reach the tool as they are written.
 test('item-new and item-edit write each text through make as given, with its dollar signs, parentheses and quotes (K457)', (t) => {
   const root = plans(t, 'parser');
