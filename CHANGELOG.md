@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+## 0.0.80
+
+- Kit 0.0.80 carries the release by run id with its version from the change log (K924), the Windows tree stop by process identity (K925, K925-1, K927) and the streamed output of pie-build (K926) (K928).
 - On Windows a run reads the creation time of each process it spawns while that process runs, and the stop of its tree takes the root from that spawn, never from a table entry with its id: Node closes the handle of a child before its exit event, and a process that took the id of an exited root before the first snapshot of the stop was stopped as the root with taskkill /T (K927).
 - make pie-build streams PIE while it runs: the standard output and the standard error of PIE go to the standard error of pie-build as PIE writes them, so a build of phpize, configure and make shows each step instead of nothing until it ends, and the standard output holds only the lines binary and package (K926).
 - On Windows the process table carries each process's creation time, and the tree stop of a run tells a process by its id and creation time (K925): a child belongs to the process of its parent id created last at or before it. The tree stop followed ParentProcessId alone, which Windows keeps after the parent exits while it reuses process ids, so it sent taskkill to an older process whose exited parent had a reused id; a process that takes the id of an exited parent or descendant is no longer stopped as part of the tree (K925-1).
