@@ -10,6 +10,7 @@ import { isJsonList, isJsonObject } from './bootstrap/files.mts';
 import { present } from './present.mts';
 import { isTable, readToml } from './toml.mts';
 import { errorCode } from './process.mts';
+import { kitPackageRoot } from './kit-files.mts';
 
 export const DECLARATION = 'config/parity.json';
 
@@ -330,9 +331,10 @@ const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /**
  * The first path of `value` that leaves the checkout `root`: a word (the parts between =, : and whitespace) that starts with ~,
- * an absolute path outside `root`, or a path with a .. segment; or undefined. Non-file URI values are data, not runner paths;
- * file URLs are converted to paths and checked. The schema rejects paths written in the declaration, and this rejects one that
- * a reference brings in.
+ * an absolute path outside `root` and outside the kit package in use, or a path with a .. segment; or undefined. A linked
+ * repository runs the kit checkout beside it (kit-bootstrap.mk, KIT), so a tool of kit that a reference names lies there (K922).
+ * Non-file URI values are data, not runner paths; file URLs are converted to paths and checked. The schema rejects paths
+ * written in the declaration, and this rejects one that a reference brings in.
  */
 function leavingPath(value: string, root: string): string | undefined {
   const runnerValues = value.replace(/\b[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s]*/g, uri => {
@@ -344,7 +346,8 @@ function leavingPath(value: string, root: string): string | undefined {
       throw error;
     }
   });
-  return runnerValues.split(/[=:\s]/).find(word => word.startsWith('~') || (path.isAbsolute(word) && word !== root && !within(root, word)) || /(?:^|[^\w.-])\.\.(?:\/|$)/.test(word));
+  const kit = kitPackageRoot();
+  return runnerValues.split(/[=:\s]/).find(word => word.startsWith('~') || (path.isAbsolute(word) && word !== root && !within(root, word) && !within(kit, word)) || /(?:^|[^\w.-])\.\.(?:\/|$)/.test(word));
 }
 
 /**
@@ -365,7 +368,7 @@ function expand(value: string, env: Environment | undefined, where: string, fail
     return whole;
   });
   // The value of a reference is never printed, so the error names the value as declared.
-  if (referenced && leavingPath(expanded, root) !== undefined) fail(`${where} ${value} resolves to a path that leaves the repository; a runner path lies inside the checkout`);
+  if (referenced && leavingPath(expanded, root) !== undefined) fail(`${where} ${value} resolves to a path that leaves the repository; a runner path lies inside the checkout or the kit package in use`);
   return expanded;
 }
 

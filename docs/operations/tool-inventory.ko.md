@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 9469c61e9c7ca4056b2ea414508360d150d5cf87dec47408d1ba894eb021597f -->
+<!-- source-sha256: a6cfbfd4c136a4428d93709e09292ef269ffbaee6786b5ec37d391d13235d4fc -->
 
 # 도구 목록
 
@@ -1122,7 +1122,7 @@ native binding과 해당 requirement 검사를 실행합니다. 두 phase를 합
 | `declaration` | 선언에 다음 결함 중 하나가 있습니다. 이런 선언에는 다른 rule을 실행하지 않습니다. <br>- `scripts/kit/schema/parity.schema.json`을 어깁니다. <br>- 없는 파일이나 모르는 implementation을 적습니다. <br>- root가 repository 전체입니다. <br>- go 또는 cargo suite binding에 `symbol`이 없거나, go symbol이 `^Test\w*$`에 맞지 않습니다. <br>- feature binding에 `id`가 없거나 `symbol`이 있거나, suite binding에 `id`가 있거나, feature unit에 `file`이나 `cases`가 있습니다. <br>- case 이름이 반복되거나, 공백을 담거나, go binding이 있는 unit에서 `/`를 담습니다. <br>- `symbols`의 `entry`가 없습니다. <br>- pattern에 group이 없습니다. <br>- catalog pattern이 catalog의 줄을 읽지 못하거나, catalog 또는 생성물 pattern이 code를 하나도 읽지 못합니다. <br>- `support` glob이 그 implementation의 test 파일(그 runner의 규약, 그 `tests`, 그 runner의 `testPatterns`)도 test처럼 이름 붙은 파일도 하나도 고르지 않거나, 보조 파일이 그 implementation의 `roots` 밖에 있거나, Go 보조 파일이 `go test`가 실행하는 함수를 선언하거나, cargo 보조 파일이 test attribute를 담거나, binding의 test가 그 implementation의 `support`에 맞습니다. <br>- `command`, `args`, `env` 값, 또는 binding `command`의 단어가 `${NAME}`이 아닌 `${` 형식을 담습니다(K223). <br>- binding의 `command`가 비었거나 `args`의 pattern이 거부하는 단어를 담습니다(S3). <br>- env가 `PYTHONPATH`를 설정하거나, 경로 field나 `args`, `env` 값의 단어가 절대 경로이거나 `~`로 시작하거나 `..` segment를 담습니다(S3). |
 | R1 missing-implementation | API unit이 한 implementation의 symbol을 선언하지 않거나, 선언한 symbol 중 하나라도 그 implementation의 extractor가 주는 public symbol이 아닙니다. 또는 implementation의 extractor가 symbol을 주지 못합니다: 프로그램이나 nightly가 없거나, 실패하거나, 목록을 출력하지 않습니다. |
 | R2 missing-binding | suite 또는 feature unit에 적용되는 implementation의 binding이 없습니다. owner가 없는 unit에는 모든 implementation이 적용되고, owner가 있는 feature에는 Kit이 선언된 owner에서 도출한 implementation이 적용됩니다. |
-| R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었거나 checkout 밖 경로로 풀림), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. feature binding은 각 실행에서 `id`가 정확히 한 번 통과해야 하며, Cargo는 그 `id`를 exact libtest filter로 실행하고 file runner는 전체 파일을 실행합니다. Cargo filter가 0개를 찾으면 미실행이고, binding id 밖의 test가 보고되어도 R3입니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. 한 실행이 case를 두 번 보고하면 finding은 `reported twice in run <n>` 부분으로 그 case를 적습니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
+| R3 not-executed | binding이 시작하지 못하거나(program이 없거나, 그 implementation의 environment 참조가 설정되지 않았거나 비었거나 checkout과 사용 중인 kit 패키지 밖 경로로 풀림), 0이 아닌 status로 끝나거나, 통과한 case가 suite 파일의 case와 정확히 같지 않습니다. feature binding은 각 실행에서 `id`가 정확히 한 번 통과해야 하며, Cargo는 그 `id`를 exact libtest filter로 실행하고 file runner는 전체 파일을 실행합니다. Cargo filter가 0개를 찾으면 미실행이고, binding id 밖의 test가 보고되어도 R3입니다. 각 binding은 두 번 실행되므로, 두 번째 실행의 exit status, case, 결과가 첫 번째와 다른 것도 R3입니다. finding은 실패, skip, 누락, 초과 case와 두 실행의 차이를 나열합니다. 한 실행이 case를 두 번 보고하면 finding은 `reported twice in run <n>` 부분으로 그 case를 적습니다. build되지 않는 Go package는 compiler 출력을 덧붙입니다. |
 | R4 undeclared-suite | `suites` glob의 파일이 어떤 suite unit의 파일도 아니고 어떤 case directory 안에도 있지 않습니다. |
 | R5 undeclared-test | implementation의 test 파일(그 root 안에서 그 runner의 규약이나 `testPatterns`가 고르는 파일, 또는 그 `tests` glob의 파일) 중 그 `support` 파일이 아닌 것이 그 implementation의 어떤 binding의 test도 아닙니다. 또는 그 root 안의 파일이 test처럼 이름 붙었고(`*_test.*`, `test_*.*`, `*Test.*`, `*.test.*`, `*.spec.*`), 어떤 규약도 고르지 않으며, 어떤 binding도 실행하지 않습니다. 또는 node, php, python implementation의 보조 파일이 `parity-check`가 실행할 때 case를 보고합니다. |
 | R6 misplaced-test | binding의 test가 그 implementation의 `roots` 밖이고, 그것이 `shares`하는 implementation의 root(root `packages/php-ext`의 implementation은 선언 없이 PHP library인 root `packages/php`와 `packages/<component>/php`의 implementation을 공유한다, S10) 밖이며, `comparators` 밖에 있습니다. 또는 하나 이상의 runner의 규약이나 `testPatterns`가 고르는 파일로서 그 runner들의 implementation의 `support` 파일이 아닌 것이, 그 runner들의 모든 implementation의 root 밖이고 `comparators` 밖이며 `tools` root 밖에 있습니다. vendored `scripts/kit`과 `tests/kit`은 kit 자신의 것이어서 검사하지 않습니다. |
@@ -1167,7 +1167,8 @@ package를 설치된 그대로 test하므로 이름이 `PYTHONPATH`인 `env`도 
 
 `command`, `args`, `env` 값은 이웃 repository의 checkout이나 Makefile이 build하는 library처럼 실행 environment를 `${NAME}`으로
 참조할 수 있습니다. `parity-declarations-check`는 environment를 읽지 않고 `${NAME}`이 아닌 `${` 형식에서만 실패합니다. 그래서 기본값
-형식은 없고, 중괄호 없는 `$NAME`은 그냥 글입니다. `parity-check`는 binding을 실행할 때 각 참조를 NAME의 값으로 바꿉니다. NAME이
+형식은 없고, 중괄호 없는 `$NAME`은 그냥 글입니다. `parity-check`는 binding을 실행할 때 각 참조를 NAME의 값으로 바꿉니다. 값은 checkout 안이나, link된 저장소가 자기 밖에서
+`$(KIT)`로 닿는 사용 중인 kit 패키지 안의 경로를 가리킬 수 있습니다(K922). NAME이
 설정되지 않았거나 비었으면 그 implementation의 모든 binding이 그 값과 NAME을 적은, 시작하지 못하는 R3 finding이고, 다른 rule은
 계속 실행됩니다. 단계 줄은 command와 argument를 선언한 그대로, 값이 아니라 참조로 출력합니다.
 

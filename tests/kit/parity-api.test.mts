@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as parity from './parity-support.mts';
+import { kitPackageRoot } from '../../scripts/kit/kit-files.mts';
 const {
   CASE_DIRECTORIES, CONFIG, ENV, FEATURE,
   FEATURE_FILES, FILES, INTERNAL, KIT_MAKE,
@@ -850,6 +851,21 @@ test('URI-valued environment references are not split into runner paths, while a
     }, '/repo'), error => error === unexpected);
   } finally {
     Object.defineProperty(globalThis, 'URL', { configurable: true, writable: true, value: NativeURL });
+  }
+});
+
+test('a reference may resolve into the kit package in use, which a linked repository reaches outside itself, and nowhere else outside the repository (K922)', TIMEOUT, () => {
+  // A linked repository runs the kit checkout beside it (kit-bootstrap.mk KIT := $(realpath ...)), so $(KIT)/<tool> lies outside it.
+  const kit = kitPackageRoot();
+  const repo = path.join(path.dirname(kit), 'consumer-of-kit');
+  const implementation: ParityImplementation = { name: 'ts', runner: 'node', roots: ['ts'], command: 'node', args: ['--test-reporter=${NODE_REPORTER}'] };
+  const reporter = path.join(kit, 'scripts/kit/parity-node-reporter.mts');
+  assert.deepEqual(resolveReferences(implementation, { NODE_REPORTER: reporter }, repo).errors, []);
+  assert.deepEqual(resolveReferences(implementation, { NODE_REPORTER: `file://${reporter}` }, repo).errors, []);
+  for (const outside of [path.join(path.dirname(kit), 'elsewhere/reporter.mjs'), `${kit}-copy/reporter.mjs`, path.join(kit, '../outside.mjs'), `${kit}/../outside.mjs`]) {
+    const refused = resolveReferences(implementation, { NODE_REPORTER: outside }, repo).errors;
+    assert.equal(refused.length, 1, outside);
+    assert.match(refused[0] ?? '', /path that leaves the repository/, outside);
   }
 });
 
