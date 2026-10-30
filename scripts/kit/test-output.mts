@@ -36,10 +36,27 @@ type GoEvent = { Action?: string; Package?: string; Test?: string; Output?: stri
  * compiler output of a package that does not build arrives as `build-output` events and its end as a `build-fail` event:
  * both reach the sink as lines and the error lines are added to `build`. A package with no test cases is a neutral group; named
  * skipped tests remain skips. go test -json emits no pass event for a benchmark (K760): a benchmark passes at its result line,
- * which reaches the sink as a line, when the next benchmark that is not its child starts, or when its package ends.
+ * which reaches the sink as a line, when the next benchmark that is not its child starts, or when its package ends. An output
+ * event holds a portion of the output, not a line: testing writes the name of a benchmark result line and its results in two
+ * writes, and test2json sends a name that it reads without the line end as its own event, so a reader that wakes between the
+ * two writes splits the line (K919). The output of a benchmark that ends without a result line reaches the sink as lines.
+ * Neither these lines nor the text of a failure hold the lines of its runs or the line of its bare name, which go prints for
+ * a benchmark with sub-benchmarks.
  */
 export function goEvents(sink: Sink, build: string[] = []): (line: string) => unknown {
   const output = new Map<string | undefined, string>();
+  // The output of each test after its last line end, which a later output event of the test continues.
+  const partial = new Map<string | undefined, string>();
+  // The output of a test: its lines and its unfinished line, which it no longer keeps.
+  const take = (id: string | undefined): string => {
+    const text = (output.get(id) ?? '') + (partial.get(id) ?? '');
+    output.delete(id);
+    partial.delete(id);
+    return text;
+  };
+  // The output of a benchmark that ended without a result line, except the lines of its runs and of its bare name.
+  const unmatched = (benchmark: TestRef): string[] => take(benchmark.id).split('\n')
+    .filter(entry => entry.trim() && entry.trim() !== benchmark.name && !/^\s*=== (?:RUN|PAUSE|CONT)/.test(entry)).map(entry => entry.trimEnd());
   // The test cases that each package started; a package that started none passed nothing.
   const started = new Map<string | undefined, number>();
   // The benchmarks of each package that started and have not ended, oldest first; benchmarks run one at a time.
@@ -47,9 +64,11 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
   const endBenchmarks = (pkg: string | undefined, keep: (open: TestRef) => boolean, outcome: 'pass' | 'fail') => {
     const open = benchmarks.get(pkg) ?? [];
     for (const benchmark of open.filter(entry => !keep(entry)).reverse()) {
-      output.delete(benchmark.id);
-      if (outcome === 'pass') sink.pass(benchmark);
-      else sink.fail(benchmark, 0, 'its package failed before the benchmark printed its result');
+      const text = unmatched(benchmark);
+      if (outcome === 'pass') {
+        for (const entry of text) sink.line(entry);
+        sink.pass(benchmark);
+      } else sink.fail(benchmark, 0, ['its package failed before the benchmark printed its result', ...text].join('\n'));
     }
     benchmarks.set(pkg, open.filter(keep));
   };
@@ -91,12 +110,14 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
       case 'output': {
         // test2json writes Output on every output event.
         if (group) { if (!/^(?:ok|PASS|FAIL|\?)\s/.test(present(event.Output, 'event.Output'))) sink.raw(present(event.Output, 'event.Output')); return; }
-        const text = present(event.Output, 'event.Output');
+        const text = (partial.get(id) ?? '') + present(event.Output, 'event.Output');
+        partial.delete(id);
+        if (!text.endsWith('\n')) { partial.set(id, text); return; }
         // The result line of a benchmark: its name, with -GOMAXPROCS when that is not 1, the iterations and the ns/op.
         if (test.name.startsWith('Benchmark') && new RegExp(`^${RegExp.escape(test.name)}(?:-\\d+)?\\s+\\d+\\s.*\\bns/op\\b`).test(text)) {
           sink.line(text.trimEnd());
           forget(event.Package, test.name);
-          output.delete(id);
+          take(id);
           resulted.add(test.id);
           return sink.pass(test);
         }
@@ -106,7 +127,8 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
       case 'pass':
         if (group) endBenchmarks(event.Package, () => false, 'pass');
         else forget(event.Package, test.name);
-        output.delete(id);
+        if (test.name.startsWith('Benchmark')) for (const entry of unmatched(test)) sink.line(entry);
+        else take(id);
         if (group && !started.get(event.Package)) {
           if (started.has(event.Package)) {
             sink.pass(test);
@@ -118,7 +140,7 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
         return sink.pass(test, present(event.Elapsed, 'event.Elapsed') * 1000);
       case 'skip': {
         if (!group) forget(event.Package, test.name);
-        output.delete(id);
+        take(id);
         if (group && started.has(event.Package) && !started.get(event.Package)) {
           sink.pass(test);
           return sink.line(`○ ${id}: package has no test files`);
@@ -128,8 +150,7 @@ export function goEvents(sink: Sink, build: string[] = []): (line: string) => un
       case 'fail': {
         if (group) endBenchmarks(event.Package, () => false, 'fail');
         else forget(event.Package, test.name);
-        const text = (output.get(id) ?? '').split('\n').filter(entry => !/^\s*(?:=== RUN|--- FAIL|=== (?:PAUSE|CONT))/.test(entry)).join('\n');
-        output.delete(id);
+        const text = take(id).split('\n').filter(entry => !/^\s*(?:=== RUN|--- FAIL|=== (?:PAUSE|CONT))/.test(entry)).join('\n');
         return sink.fail(test, (event.Elapsed ?? 0) * 1000, text);
       }
       default: return undefined;

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2ea697d01d805f7aa682c68a2996790c2d4eac17d550c1d2378fef08de49f4c7 -->
+<!-- source-sha256: 2d4d4a161672cc94fb3424d58b09589814aa0fff6dedbf29a44d534895a0bf24 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Go 러너는 test2json이 이름과 결과로 나눠 두 output 이벤트로 보내는 벤치마크 결과 줄을 읽습니다. test2json의 reader가 testing의 두 쓰기 사이에 깨어나면 이렇게 나뉘며, 이 때문에 Windows 러너에서 결과 줄이 사라졌습니다. 결과 줄 없이 끝난 벤치마크는 출력을 버리지 않고 출력하며, 플랫폼 워크플로는 각 플랫폼에서 실제 Go 벤치마크를 러너로 실행합니다 (K919).
 - make install-tools TOOLS=pie는 mise.toml의 http:pie를 PHP와 함께 설치하고, make pie-build PACKAGES PACKAGE VERSION은 릴리스 packages.json의 php-ext package를 빈 var/pie/<vendor/name>에서 PIE로 빌드해 PIE가 installed.json에 기록한 binary와 package 폴더를 출력합니다. 유지된 PIE working directory는 이전 버전의 repository를 먼저 썼고, hyper와 crudui는 recipe의 자기 사본에서 이를 우회했습니다 (K915).
 - Kit 0.0.78을 공개했습니다. release run 41038654240이 483a9f5f의 annotated v0.0.78 tag를 polyspec-kit-npm-0.0.78.tgz와 함께 게시된 release로 만들었습니다 (K917).
 - 저장소마다 CI 파이프라인 하나: kit은 workflows/ci-pipeline.yml(on: workflow_call)을 저장소 자신의 ci.yml이 호출하는 .github/workflows/ci-pipeline.yml로 복사하고, kit-sync는 gates workflow를 지웁니다. shared job이 먼저 계획하고 공유 게이트를 돌리며(다른 job의 runner를 이름하는 plan을 쓰므로 ubuntu-24.04에서 돕니다), parity와 runtime job은 그것을 needs로 해 병렬로 돌고, required job은 실패하거나 취소된 job이 있으면 실패합니다. 각 job은 자기 그룹의 kit 게이트와 config/ci.json이 그 job에 선언한 타깃(targets.shared, targets.parity, targets.runtimes.<runtime>)을 context 안에서 make ci-targets로 돌리고 보고서를 kit-report-<job>으로 올립니다. targets.runtimes가 이름한 runtime은 plan에 들어갑니다. rules-check는 그 타깃을 파이프라인으로 도달한 것으로 읽습니다. make kit-ci-verify-gates는 지웁니다 (K910).

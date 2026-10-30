@@ -189,6 +189,53 @@ test('goEvents ends a benchmark at its result line, at the next benchmark that i
   assert.match(text, /BenchmarkWrite\/notes=0-11 \t +1\t +59735625 ns\/op/);
 });
 
+test('goEvents reads a benchmark result line that test2json splits into two output events, and keeps unmatched benchmark output (K919)', () => {
+  // testing writes the benchmark name and its tab, then the results, in two writes; test2json sends a name that it reads
+  // without the line end as its own event, so a reader that wakes between the writes splits the line
+  // (cmd/internal/test2json, testdata/benchshort.json).
+  const lines: string[] = [];
+  const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, resultFile: '' });
+  const feed = goEvents(toProgress(progress));
+  const pkg = 'p';
+  for (const event of [
+    { Action: 'start', Package: pkg },
+    { Action: 'run', Package: pkg, Test: 'BenchmarkShardInsert' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkShardInsert', Output: '=== RUN   BenchmarkShardInsert\n' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkShardInsert', Output: 'BenchmarkShardInsert\n' },
+    { Action: 'run', Package: pkg, Test: 'BenchmarkShardInsert/flat' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkShardInsert/flat', Output: '=== RUN   BenchmarkShardInsert/flat\n' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkShardInsert/flat', Output: 'BenchmarkShardInsert/flat-4         \t' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkShardInsert/flat', Output: '      16\t  67777667 ns/op\n' },
+    { Action: 'run', Package: pkg, Test: 'BenchmarkShardOpen' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkShardOpen', Output: '=== RUN   BenchmarkShardOpen\n' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkShardOpen', Output: 'BenchmarkShardOpen-4 \t' },
+    { Action: 'output', Package: pkg, Test: 'BenchmarkShardOpen', Output: 'no result in this form\n' },
+    { Action: 'pass', Package: pkg, Elapsed: 100 },
+  ]) feed(JSON.stringify(event));
+  const result = progress.close('go test', { exitCode: 0, build: [] });
+  const text = lines.join('');
+  assert.equal(result.ok, true, text);
+  assert.match(text, /BenchmarkShardInsert\/flat-4 +\t +16\t +67777667 ns\/op/);
+  assert.match(text, /BenchmarkShardOpen-4 \tno result in this form/);
+  // go prints the bare name of a benchmark with sub-benchmarks; it is no output to show.
+  assert.doesNotMatch(text, /^(?:\[[^\]]*\] )?BenchmarkShardInsert\s*$/m, text);
+  assert.doesNotMatch(text, /=== RUN/, text);
+});
+
+test('goEvents gives a benchmark whose package failed before its result its output without the lines of its runs (K919)', () => {
+  const failures: string[] = [];
+  const sink = { ...counting(), fail: (_test: TestRef, _ms?: number, text?: string) => { failures.push(text ?? ''); } };
+  const feed = goEvents(sink);
+  for (const event of [
+    { Action: 'start', Package: 'p' },
+    { Action: 'run', Package: 'p', Test: 'BenchmarkX' },
+    { Action: 'output', Package: 'p', Test: 'BenchmarkX', Output: '=== RUN   BenchmarkX\n' },
+    { Action: 'output', Package: 'p', Test: 'BenchmarkX', Output: 'BenchmarkX-4 \t' },
+    { Action: 'fail', Package: 'p', Elapsed: 1 },
+  ]) feed(JSON.stringify(event));
+  assert.deepEqual(failures.slice(0, 1), ['its package failed before the benchmark printed its result\nBenchmarkX-4 \t'.trimEnd()]);
+});
+
 test('cargoEvents reads the result of a test whose output lies between its name and its result (K229)', () => {
   const outcomes: string[] = [];
   const record = (kind: string) => (test: TestRef) => { outcomes.push(`${test.name} ${kind}`); };
