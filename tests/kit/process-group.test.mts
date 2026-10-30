@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import { descendantsOf, fileTime, processTable, signalGroup, signalWindowsTree, stopGroup, watchRoot } from '../../scripts/kit/process-group.mts';
 import type { Kill, ProcessEntry, SpawnedRoot } from '../../scripts/kit/process-group.mts';
 import { terminateGroup } from '../../scripts/kit/run-tests.mts';
@@ -138,7 +138,7 @@ test('the Windows tree stop of an exited root stops its orphans and no older pro
 
 /** What the spawner knows of a root that has exited: spawned after `since`, with the creation time `started` read while it ran. */
 function exited(since: number, started?: bigint): SpawnedRoot {
-  return { since, exited: true, started, readError: undefined, read: Promise.resolve() };
+  return { since, exited: true, started, read: Promise.resolve() };
 }
 
 /** A table seam that answers each call with the next snapshot, and the last one from then on. */
@@ -214,7 +214,7 @@ test('a process created between the spawn and the creation of the root is no des
   assert.deepEqual(calls, [21]);
 });
 
-test('watchRoot keeps a creation time read while the root runs, drops one read after its exit and keeps a failed read (K927)', async () => {
+test('watchRoot keeps a creation time read while the root runs, drops one read after its exit and reports a failed read (K927)', async () => {
   const running = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 200)'], { stdio: 'ignore' });
   const kept = watchRoot(running, Date.now(), () => Promise.resolve(42n));
   await kept.read;
@@ -231,10 +231,20 @@ test('watchRoot keeps a creation time read while the root runs, drops one read a
   assert.equal(late.started, undefined, 'a time read after the exit may be that of another process');
 
   const failing = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' });
-  const failed = watchRoot(failing, Date.now(), () => Promise.reject(new Error('no CIM')));
-  await failed.read;
+  const written = mock.method(process.stderr, 'write', () => true);
+  try {
+    const failed = watchRoot(failing, Date.now(), () => Promise.reject(new Error('no CIM')));
+    await failed.read;
+    assert.equal(failed.started, undefined);
+    assert.match(String(written.mock.calls[0]?.arguments[0]), /no CIM; the tree stop of \d+ bounds its root by the time before its spawn/);
+  } finally {
+    written.mock.restore();
+  }
   await once(failing, 'exit');
-  assert.throws(() => signalWindowsTree(failing.pid ?? 0, 0, { table: () => [] }, failed), /no CIM/);
+  const orphan: ProcessEntry = { pid: 21, ppid: failing.pid ?? 0, pgid: 21, started: fileTime(Date.now() + 1_000) };
+  const calls: number[] = [];
+  signalWindowsTree(failing.pid ?? 0, 'SIGTERM', { table: () => [orphan], terminate: (pid) => { calls.push(pid); } }, { since: Date.now(), exited: true, started: undefined, read: Promise.resolve() });
+  assert.deepEqual(calls, [21], 'a root whose read failed still has its orphans stopped');
 });
 
 test('stopGroup returns only after a root that ignores SIGTERM has ended through SIGKILL (K754)', PROCESS_TIMEOUT, async () => {

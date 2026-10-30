@@ -23,13 +23,13 @@ function isUnknownArray(value: unknown): value is unknown[] {
  * What the spawner of a root knows of it (K927). Node closes the process handle of a child before its exit event, and Windows may
  * then give its id to another process; while the child runs, its handle keeps the id, so a table entry with that id is the root.
  * `exited` turns true at the exit event, and `started` is the creation time of the root, read on Windows while it runs; a root
- * that ended before the read is bounded by `since`, the time taken before the spawn, before which no descendant was created.
+ * that ended before the read, or whose read failed, is bounded by `since`, the time taken before the spawn, before which no
+ * descendant was created. The read only narrows that bound, so its failure stops no tree: it is written to stderr.
  */
 export interface SpawnedRoot {
   readonly since: number;
   exited: boolean;
   started: bigint | undefined;
-  readError: Error | undefined;
   /** Settles when the read of the creation time has ended; at once outside Windows. */
   read: Promise<void>;
 }
@@ -40,13 +40,15 @@ export interface SpawnedRoot {
  * groups need no creation time; the tests inject it.
  */
 export function watchRoot(child: ChildProcess, since: number, readStart: ((pid: number) => Promise<bigint | undefined>) | undefined = process.platform === 'win32' ? readCreationTime : undefined): SpawnedRoot {
-  const root: SpawnedRoot = { since, exited: false, started: undefined, readError: undefined, read: Promise.resolve() };
+  const root: SpawnedRoot = { since, exited: false, started: undefined, read: Promise.resolve() };
   child.once('exit', () => { root.exited = true; });
   if (readStart !== undefined && child.pid !== undefined) {
     // A time read after the exit event may be that of another process with the id, so it is kept only while the root runs.
     root.read = readStart(child.pid).then(
       (started) => { if (!root.exited) root.started = started; },
-      (error: unknown) => { root.readError = error instanceof Error ? error : new Error(String(error)); },
+      (error: unknown) => {
+        process.stderr.write(`[process-group] ${error instanceof Error ? error.message : String(error)}; the tree stop of ${child.pid} bounds its root by the time before its spawn\n`);
+      },
     );
   }
   return root;
@@ -135,10 +137,9 @@ function identity(entry: ProcessEntry): string {
 /**
  * The root in `entries` and its creation time. Without `spawned`, the root is the entry of its id. With it, the entry is the root
  * only while the root runs; the creation time is that of the entry, else the one read while it ran, else the time taken before
- * its spawn. A failed read of that time is the error of the stop.
+ * its spawn.
  */
 function rootOf(root: number, entries: readonly ProcessEntry[], spawned: SpawnedRoot | undefined): { rootEntry: ProcessEntry | undefined; rootStarted: bigint | undefined } {
-  if (spawned?.readError) throw spawned.readError;
   const rootEntry = spawned?.exited ? undefined : entries.find(entry => entry.pid === root);
   if (typeof rootEntry?.started === 'bigint') return { rootEntry, rootStarted: rootEntry.started };
   return { rootEntry, rootStarted: spawned === undefined ? undefined : spawned.started ?? fileTime(spawned.since) };
