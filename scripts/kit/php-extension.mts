@@ -30,7 +30,6 @@ import { git } from './git.mts';
 export const LIBRARY = 'packages/php';
 export const EXTENSION = 'packages/php-ext';
 const OUTPUT = 'var/php-ext';
-const RELEASE_CONFIG = 'config/release.json';
 
 /** The names of the extension of the repository `repository`: its Composer package, its extension and its stub. */
 export function extensionNames(repository: string): { composer: string; extension: string; stub: string; arginfo: string } {
@@ -310,27 +309,27 @@ function safeRelativePath(value: string): boolean {
 function stageSourceCopies(root: string, source: string, copies: readonly SourceCopy[]): void {
   const tracked = new Set(git(root, 'ls-files', '--cached', '-z').split('\0').filter(Boolean));
   for (const item of copies) {
-    if (!safeRelativePath(item.source)) throw new Stop(`${RELEASE_CONFIG}: source-copy source ${JSON.stringify(item.source)} is not a repository-relative path`);
-    if (!safeRelativePath(item.output)) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${JSON.stringify(item.output)} is not a package-relative path`);
-    if (!tracked.has(item.source)) throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} is not a tracked source file`);
-    if (!item.output.startsWith('src/')) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} must be below src/ for the PHP extension build`);
+    if (!safeRelativePath(item.source)) throw new Stop(`--source-copy: source ${JSON.stringify(item.source)} is not a repository-relative path`);
+    if (!safeRelativePath(item.output)) throw new Stop(`--source-copy: output ${JSON.stringify(item.output)} is not a package-relative path`);
+    if (!tracked.has(item.source)) throw new Stop(`--source-copy: ${item.source} is not a tracked source file`);
+    if (!item.output.startsWith('src/')) throw new Stop(`--source-copy: output ${item.output} must be below src/ for the PHP extension build`);
     const input = path.join(root, item.source);
     const stat = lstatSync(input, { throwIfNoEntry: false });
-    if (stat === undefined) throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} is missing from the working tree`);
-    if (!stat.isFile() || stat.isSymbolicLink()) throw new Stop(`${RELEASE_CONFIG}: source-copy ${item.source} must be a regular tracked file, not a link or directory`);
+    if (stat === undefined) throw new Stop(`--source-copy: ${item.source} is missing from the working tree`);
+    if (!stat.isFile() || stat.isSymbolicLink()) throw new Stop(`--source-copy: ${item.source} must be a regular tracked file, not a link or directory`);
     const relative = item.output.slice('src/'.length);
-    if (relative.startsWith('~') || path.win32.parse(relative).root !== '' || relative.includes('\\')) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} must be a package-relative path below src/`);
+    if (relative.startsWith('~') || path.win32.parse(relative).root !== '' || relative.includes('\\')) throw new Stop(`--source-copy: output ${item.output} must be a package-relative path below src/`);
     const destination = path.resolve(source, relative);
-    if (!destination.startsWith(`${path.resolve(source)}${path.sep}`)) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} escapes the temporary PHP extension source`);
+    if (!destination.startsWith(`${path.resolve(source)}${path.sep}`)) throw new Stop(`--source-copy: output ${item.output} escapes the temporary PHP extension source`);
     let directory = path.resolve(source);
     for (const part of path.posix.dirname(relative).split('/').filter(Boolean)) {
       directory = path.join(directory, part);
       if (existsSync(directory)) {
         const parent = lstatSync(directory);
-        if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} crosses a non-directory or symbolic link`);
+        if (!parent.isDirectory() || parent.isSymbolicLink()) throw new Stop(`--source-copy: output ${item.output} crosses a non-directory or symbolic link`);
       } else mkdirSync(directory);
     }
-    if (existsSync(destination)) throw new Stop(`${RELEASE_CONFIG}: source-copy output ${item.output} collides with a file already in ${EXTENSION}/src`);
+    if (existsSync(destination)) throw new Stop(`--source-copy: output ${item.output} collides with a file already in ${EXTENSION}/src`);
     copyFileSync(input, destination);
   }
 }
