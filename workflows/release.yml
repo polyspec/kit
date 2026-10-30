@@ -14,7 +14,7 @@
 #                    appends TAG and VERSION to GITHUB_ENV; a tag pushed with the token of the run starts no run
 #   checkout of the tag, then the bootstrap, npm and the packages of the tagged commit again
 #   release-prepare  the preparation that the release of the repository declares with release-prepare:: (none by default)
-#   release-tools    installs the tools that config/release.json needs for the packages of this repository, and install-tools when a package declares a make entry
+#   release-tools    installs the tools that config/release.json needs for the packages of this repository; a make entry adds none
 #   release-tools-path puts var/tools/bin on the PATH of the steps that follow, through GITHUB_PATH
 #   release-assets  builds the archive of every package, and packages.json of the Composer packages, into var/release/assets
 #   release-publish creates the GitHub Release of the tag as a draft, with its notes and those files

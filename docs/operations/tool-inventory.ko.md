@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: f66680e0be87097e75d82d4067eb7879c494d989670e42ae93ec101018ab5c48 -->
+<!-- source-sha256: ba50afb4724b0a6f1dec4285da3bef30548c62e2b4fa1fc8c836ac82183a9860 -->
 
 # 도구 목록
 
@@ -1018,7 +1018,7 @@ link하며(make install-link, docs/operations/local-links.md) 아무것도 내�
   vendor된 release workflow는 install-packages 다음에 이를 실행합니다.
 - `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에 Composer package, wheel 또는 Go module이 있으면
   install-tools를 실행합니다. npm package에 필요한 npm은 bootstrap의 npm입니다. packages/php-ext가 있으면 install-kit처럼,
-  또는 패키지가 make entry(K930)를 선언하면 install-tools를 실행합니다. kit은 target이 PHP를 필요로 하는지 알 수 없으므로 모든 make entry에 tool을 설치합니다.
+  make entry(K930)는 단계를 더하지 않습니다. target이 PHP를 필요로 하는 저장소는 `release-prepare::` 규칙에서 `make install-tools TOOLS="php"`로 설치합니다.
 - `release-publish`는 release를 draft로 만들고 그 id를 `var/release/<tag>.json`에 기록합니다. `release-undraft`는 release 목록에서
   tag로 찾지 않고 그 id로 draft를 읽습니다(`repos/O/R/releases/<id>`). 목록은 새 draft를 한동안 보여 주지 않고(0.0.38 run은 생성 3초
   뒤에 실패했습니다), tag는 draft를 가리키지 않기 때문입니다. 기록이 없으면 `var/release/<tag>.json is missing; make release-publish

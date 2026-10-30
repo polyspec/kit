@@ -13,7 +13,7 @@
       "items": { "type": "string", "minLength": 1 }
     },
     "tracked": {
-      "description": "Generated sources that a consumer installs as the tagged tree itself, such as a Go module or a Rust crate: each glob of repository paths is tracked in Git, and its reason says why (P34). Read by picomatch with dot: true.",
+      "description": "Generated sources that a consumer installs as the tagged tree itself, such as a Go module or a Rust crate: each glob of repository paths is tracked in Git, and its reason says why; the directory of each glob must hold a go.mod or a Cargo.toml (P34). Read by picomatch with dot: true.",
       "type": "array",
       "items": {
         "type": "object",

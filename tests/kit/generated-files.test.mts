@@ -69,6 +69,16 @@ test('K930 a generated path that config/generated.json tracks is accepted, and a
   assert.ok(!refused.stderr.includes('build/gomod/go.mod'), 'the tracked path of the config is accepted');
 });
 
+test('K930 a tracked entry outside a directory that holds go.mod or Cargo.toml is refused, naming the path and the rule (P34)', (t) => {
+  const config = JSON.stringify({ schema: 1, paths: ['build/**'], exceptions: [], tracked: [{ path: 'build/tools/**', reason: 'not a tagged tree' }] });
+  const { work } = prepared(t, { files: { 'config/generated.json': config } });
+  stage(work, 'build/tools/x');
+  const refused = check(work);
+  assert.equal(refused.status, 1, refused.stderr);
+  assert.ok(refused.stderr.includes('build/tools/**'), refused.stderr);
+  assert.ok(refused.stderr.includes('go.mod or Cargo.toml'), refused.stderr);
+});
+
 test('the pre-commit hook that git-hooks install writes calls the make target staged-generated-hook and names no tool path', (t) => {
   const { work } = prepared(t, { files: { 'config/generated.json': GENERATED_CONFIG } });
   const hook = readFileSync(path.join(work, '.githooks/pre-commit'), 'utf8');

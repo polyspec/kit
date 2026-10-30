@@ -26,10 +26,11 @@ test('release-tools runs install-tools for a Composer package, a wheel and a Go 
   assert.equal(needsInstallTools({ packages: [{ kind: 'npm' }], goModules: {} }), false);
 });
 
-test('K930 releaseSteps installs install-tools when a package declares a make entry', () => {
+test('K930 a make entry adds no step to releaseSteps', () => {
+  // kit installs nothing for a make entry: a repository whose target needs the PHP installs it in its release-prepare rule.
   assert.deepEqual(releaseSteps({ packages: [{ kind: 'npm' }], goModules: {} }), []);
-  assert.deepEqual(releaseSteps({ packages: [{ kind: 'npm', generated: [{ kind: 'make', target: 'gen', outputs: ['src/a.h'] }] }], goModules: {} }), ['install-tools']);
-  assert.deepEqual(releaseSteps({ packages: [{ kind: 'composer', generated: [{ kind: 'make', target: 'gen', outputs: ['src/a.h'] }] }], goModules: {} }), ['install-tools']);
+  assert.deepEqual(releaseSteps({ packages: [{ kind: 'npm', generated: [{ kind: 'make', target: 'gen', outputs: ['src/a.h'] }] }], goModules: {} }), []);
+  assert.deepEqual(releaseSteps({ packages: [{ kind: 'composer', generated: [{ kind: 'make', target: 'gen', outputs: ['src/a.h'] }] }], goModules: {} }), ['install-tools'], 'the Composer package needs install-tools for itself');
 });
 
 test('release-tools reads config/release.json of the repository it runs in, not of the checkout of its module (K71-2)', (t) => {

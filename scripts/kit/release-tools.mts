@@ -2,8 +2,8 @@
 // Installs the tools that the release of this repository needs (`make release-tools`), derived from config/release.json: a
 // Composer package, a wheel or a Go module needs the tools of mise.lock (the Composer, the Python, the uv and the Go of
 // mise.toml), which install-tools installs into var/tools; npm, which an npm package needs, is the npm of the bootstrap, which
-// installed the packages that this command runs from. releaseSteps installs install-tools when a package declares a make entry (K930):
-// kit cannot know whether the target of the repository needs the PHP of mise.lock, so every make entry gets the tools.
+// installed the packages that this command runs from. A make entry adds no step (K930): a repository whose make target needs the PHP
+// installs it in its release-prepare rule, with make install-tools TOOLS="php", which release.yml runs before this command.
 //
 // A step that fails stops the command with its output and the fix. Nothing is listed by hand: the configuration of a repository
 // decides the tools.
@@ -21,10 +21,10 @@ export type ToolsConfig = {
 /** The output of a step: `print` receives the stdout of the command and `error` its stderr. */
 type Output = { print: (text: string) => void; error: (text: string) => void };
 
-/** Whether the configuration needs the tools of install-tools: a Composer package, a wheel, a Go module, or a make entry (K930). */
+/** Whether the configuration needs the tools of install-tools: a Composer package, a wheel or a Go module. */
 export function needsInstallTools(config: ToolsConfig): boolean {
   const kinds = new Set(config.packages.map(({ kind }) => kind));
-  return kinds.has('composer') || kinds.has('wheel') || Object.keys(config.goModules).length > 0 || config.packages.some(({ generated }) => (generated?.length ?? 0) > 0);
+  return kinds.has('composer') || kinds.has('wheel') || Object.keys(config.goModules).length > 0;
 }
 
 /** The tools of the release, in order: install-tools when the configuration needs the tools of mise.lock (K930). */

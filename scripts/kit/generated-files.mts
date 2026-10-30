@@ -140,10 +140,34 @@ export function trackedFindings(root: string, config: GeneratedConfig): string[]
     return read;
   };
   return [
+    ...trackedRuleFindings(root, config),
     ...generatedOffenders(files, config).map(file => `${file} is a generated file (AGENTS.md "Generated files"); untrack it, or declare it in ${CONFIG}`),
     ...executableOffenders(files, config, head).map(({ file, format }) => `${file} is an executable object (${format}), whatever its path; untrack it, or declare it an exception in ${CONFIG}`),
     ...files.filter(file => !matchesAny(config.exceptions, file) && hasGeneratedHeader(head(file))).map(file => `${file} has a generated-file header (Code generated ... DO NOT EDIT); untrack it, or declare it an exception in ${CONFIG}`),
   ];
+}
+
+/** The files that make a directory a tagged-tree module (P34): a go.mod or a Cargo.toml. */
+const MODULE_FILES = ['go.mod', 'Cargo.toml'];
+
+/** The directory of a glob: the literal path before its first glob character, without the last segment; '' for the root. */
+function globDirectory(glob: string): string {
+  const literal = glob.split(/[*?[{]/)[0] ?? '';
+  return literal.includes('/') ? literal.slice(0, literal.lastIndexOf('/')) : '';
+}
+
+/**
+ * The findings of the tracked entries of config/generated.json (P34): a tracked generated source is a tagged tree that consumers
+ * install, so the directory of each entry, or one of its parents, must hold a go.mod or a Cargo.toml that Git tracks.
+ */
+export function trackedRuleFindings(root: string, config: GeneratedConfig): string[] {
+  const files = new Set(trackedFiles(root));
+  return (config.tracked ?? []).flatMap(({ path: glob }) => {
+    const parts = globDirectory(glob).split('/').filter(Boolean);
+    const holders = ['', ...parts.map((_, index) => parts.slice(0, index + 1).join('/'))];
+    const accepted = holders.some(dir => MODULE_FILES.some(name => files.has(dir === '' ? name : `${dir}/${name}`)));
+    return accepted ? [] : [`${CONFIG}: tracked ${glob} is not under a directory that holds go.mod or Cargo.toml; a tracked generated source is a tagged tree that consumers install (P34)`];
+  });
 }
 
 /** The configuration of the checkout `root`; throws with every finding when it breaks the schema, and when it is missing. */
@@ -218,7 +242,8 @@ if (isMain(import.meta.url)) {
     else console.log('[generated-files] every install directory is ignored by Git');
   } else {
     const root = repositoryRoot();
-    const found = [...generatedFindings(stagedPaths(root), loadGeneratedConfig(root), 'unstage it', file => blobContent(root, ':', file))];
+    const config = loadGeneratedConfig(root);
+    const found = [...trackedRuleFindings(root, config), ...generatedFindings(stagedPaths(root), config, 'unstage it', file => blobContent(root, ':', file))];
     for (const line of found) console.error(`[generated-files] ${line}`);
     if (found.length > 0) process.exitCode = 1;
     else console.log('[generated-files] no generated file is staged');
