@@ -208,7 +208,7 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
   const npmLog = path.join(root, '.stubs/npm.log');
   writeFileSync(npmLog, '');
   // The stubs and the run output are outside the files that Git tracks, so the tagged commit holds the repository only.
-  writeFileSync(path.join(root, '.gitignore'), '.stubs/\nvar/\n');
+  writeFileSync(path.join(root, '.gitignore'), '.stubs/\nvar/\nnode_modules/\n');
   git(root, 'checkout', '--quiet', '-B', 'main');
   git(root, 'add', '-A');
   git(root, 'commit', '--quiet', '-m', 'release');
