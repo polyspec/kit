@@ -74,7 +74,7 @@ jobs:
             # devEngines runs outside the checkout with --prefix (K938-1).
             root="$PWD"
             version="$(node -p 'require("./package.json").devEngines.packageManager.version')"
-            (cd "$RUNNER_TEMP" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
+            (cd "${RUNNER_TEMP:?RUNNER_TEMP is not set}" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
           fi
       - name: install npm
         run: make install-tools TOOLS=npm
@@ -92,7 +92,7 @@ jobs:
             # devEngines runs outside the checkout with --prefix (K938-1).
             root="$PWD"
             version="$(node -p 'require("./package.json").devEngines.packageManager.version')"
-            (cd "$RUNNER_TEMP" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
+            (cd "${RUNNER_TEMP:?RUNNER_TEMP is not set}" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
           fi
       - name: install npm of the tag
         run: make install-tools TOOLS=npm

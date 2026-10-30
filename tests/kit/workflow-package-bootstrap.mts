@@ -14,6 +14,8 @@ export function assertWorkflowPackageBootstrap(workflow: string, t: TestContext)
   assert.ok(position < workflow.search(/^        run: make /m), 'package bootstrap precedes the first Make invocation');
   assert.doesNotMatch(workflow, /git clone|make -C \.\.\/kit|kit_tag|sibling checkouts/);
   const script = (match[1] ?? '').split('\n').map(line => line.replace(/^          /, '')).join('\n');
+  // K938-1: the outer npm runs in RUNNER_TEMP, and an unset RUNNER_TEMP stops the step instead of running in the checkout.
+  assert.match(script, /cd "\$\{RUNNER_TEMP:\?RUNNER_TEMP is not set\}" &&/, 'the bootstrap step runs npm in RUNNER_TEMP, and fails when it is not set');
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-workflow-bootstrap-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = path.join(root, 'bin');

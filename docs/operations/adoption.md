@@ -51,20 +51,26 @@ A repository takes its npm from `mise.toml`, locked in `mise.lock`, and declares
    sidecar (K192). Never edit them by hand.
 4. Workflows: each line that reads `packageManager` reads `devEngines.packageManager.version` instead. The npm of `npm exec`
    runs outside the checkout, since the npm of the machine refuses to run in a folder whose devEngines names another version
-   (EBADDEVENGINES), so the line is `cd "$RUNNER_TEMP" && npm exec --yes --package="npm@<version>" -- npm --prefix "$GITHUB_WORKSPACE" ci --ignore-scripts --allow-remote=root`.
+   (EBADDEVENGINES), so the step runs the same block as the bootstrap step of `workflows/release.yml`:
+
+   ```sh
+   root="$PWD"
+   version="$(node -p 'require("./package.json").devEngines.packageManager.version')"
+   (cd "${RUNNER_TEMP:?RUNNER_TEMP is not set}" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
+   ```
 5. A checkout without `node_modules` has no kit to include. A worktree is made by `make worktree-setup NAME=<name> ID=<id>`, which
    runs the npm ci above, then `make install` and `make link-check` in it (K858). It refuses, before it runs npm or make, a
    `package.json` that declares no devEngines npm (K938-1). A plain clone runs the same npm ci from outside the checkout first.
 
-The sequence of a first adoption, as run on a fixture consumer (K938-1):
+The sequence of a first adoption (K938-1):
 
-- `package.json` and `mise.toml` (steps 1 and 2), then the npm ci of step 4 with `--prefix`: exit 0.
-- `make install-tools TOOLS=npm`: exit 2 at this first run, after mise is installed; mise.lock does not pin node and npm:npm yet, so
+- `package.json` and `mise.toml` (steps 1 and 2), then the npm ci of step 4 with `--prefix`.
+- `make install-tools TOOLS=npm`: the first run stops after mise is installed; mise.lock does not pin node and npm:npm yet, so
   the bootstrap names `make toolchain-lock`. This is expected and needs no fix.
-- `make toolchain-lock`: exit 0, writes `mise.lock` and the sidecar. It needs `var/tools/bin/mise` of the bootstrap and the kit
+- `make toolchain-lock` writes `mise.lock` and the sidecar. It needs `var/tools/bin/mise` of the bootstrap and the kit
   inside `node_modules`, since its recipes run through the include of kit.
-- `make install-tools TOOLS=npm`: exit 0.
-- `make install`: exit 0.
+- `make install-tools TOOLS=npm` installs the node and npm:npm that the lock pins.
+- `make install` installs the rest.
 
 Then commit `package.json`, `mise.toml`, `mise.lock`, `.mise/locks/npm-npm/<version>/` and the workflow lines in one change.
 
