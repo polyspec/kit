@@ -400,7 +400,7 @@ function filesUnder(dir: string, prefix = ''): string[] {
  * changed, untracked or outside-linked path (K939): the target installs nothing of its own, so the kit that its Makefile includes is
  * the one the checkout installs (P34). Each declared output is deleted before its target runs, so a stale output of an earlier run is never
  * packed. A declared output that the commit tracks fails the pack, and each declared output must exist after its target. The outputs are
- * staged under staging at their package-relative paths, then deleted from the checkout, which keeps it as it was.
+ * staged under staging at their package-relative paths, then deleted from the checkout, so a declared path that the checkout held before the pack is removed by it.
  */
 function madeFiles(ctx: Context, commit: string, folder: string, makes: ReleaseGeneratedArtifact[], staging: string): { output: string; file: string }[] {
   const tracked = run('git', ['ls-tree', '-r', '--name-only', commit, folder], at(ctx)).split('\n').filter(Boolean);
@@ -419,6 +419,11 @@ function madeFiles(ctx: Context, commit: string, folder: string, makes: ReleaseG
       const result = execute('make', ['-C', root, target], { cwd: root, env: toolsEnvironment(root, ctx.env) });
       if (result.error) throw new Stop(`make could not start for ${target}: ${result.error.message}`);
       if (result.status !== 0) throw new Stop(`make ${target} failed at ${commit} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
+      // A byproduct of the target, changed or untracked and not declared, would enter the checkout unpacked; the declared outputs of
+      // every make entry of the package are excluded, since each is a path the target writes by declaration.
+      const declared = makes.flatMap(item => item.outputs.map(output => path.posix.join(folder, output)));
+      const byproducts = checkoutChanges(ctx, commit).filter(file => !declared.some(output => file === output || file.startsWith(`${output}/`)));
+      if (byproducts.length) throw new Stop(`make ${target} left changed or untracked paths: ${byproducts.join(', ')}; remove them or declare them as outputs`);
       for (const output of outputs) {
         const written = path.join(root, folder, output);
         if (!existsSync(written)) throw new Stop(`make ${target} did not write ${path.posix.join(folder, output)} at ${commit}`);
@@ -464,6 +469,13 @@ export function assets(ctx: Context, tag: string): string[] {
   return assetsFromCommit(ctx, tag, commit, version);
 }
 
+/** The tracked paths that differ from `commit` and the untracked paths of the checkout, sorted (K939). */
+function checkoutChanges(ctx: Context, commit: string): string[] {
+  const changed = run('git', ['diff', '--name-only', commit], at(ctx)).trim().split('\n').filter(Boolean);
+  const untracked = run('git', ['ls-files', '--others', '--exclude-standard'], at(ctx)).trim().split('\n').filter(Boolean);
+  return [...new Set([...changed, ...untracked])].sort();
+}
+
 /**
  * Refuses a checkout that does not hold the commit it packs (K939, P34): HEAD is not `commit`, a tracked or untracked path differs from
  * it, or a dependency of the checkout is linked from outside it. npm pack and the make entries read the checkout, so the pack must
@@ -472,9 +484,7 @@ export function assets(ctx: Context, tag: string): string[] {
 function requireCheckout(ctx: Context, reference: string, commit: string, retry: string): void {
   const head = run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], at(ctx)).trim();
   if (head !== commit) throw new Stop(`${reference}: HEAD ${head} is not ${commit}, the commit that is packed; check out ${commit}, then run ${retry}`);
-  const changed = run('git', ['diff', '--name-only', commit], at(ctx)).trim().split('\n').filter(Boolean);
-  const untracked = run('git', ['ls-files', '--others', '--exclude-standard'], at(ctx)).trim().split('\n').filter(Boolean);
-  const sourceChanges = [...new Set([...changed, ...untracked])].sort();
+  const sourceChanges = checkoutChanges(ctx, commit);
   if (sourceChanges.length) throw new Stop(`${reference} packs the committed tree ${commit}, but the checkout holds changed or untracked paths: ${sourceChanges.join(', ')}; commit or remove them, then run ${retry}`);
   const links = linksOutsideCheckout(ctx.root, ctx.env).map(link => path.relative(ctx.root, link));
   if (links.length) throw new Stop(`${reference}: a dependency linked from outside the checkout: ${links.join(', ')}; remove those links, then run ${retry}`);
