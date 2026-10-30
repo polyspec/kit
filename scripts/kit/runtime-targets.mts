@@ -11,7 +11,7 @@
 //   make build, make test, make lint      the target of each runtime that packages/ holds
 //
 // The PHP extension of packages/php-ext has targets of its own (php-extension.mts, S10): its unit tests run on PHPUnit with
-// the extension that build-php-ext published loaded.
+// the extension that build-php-ext published loaded, in the folders that config/parity.json declares for it (K905).
 //
 // A unit test stays where the runner of its ecosystem finds it (S1): beside the code in Go, in src or tests of a crate, in the
 // tests of a package elsewhere. The integration and conformance suites cross packages, so they live at the root, where a run
@@ -23,9 +23,10 @@ import path from 'node:path';
 import { isJsonObject } from './bootstrap/files.mts';
 import { isTestFile } from './check-commits.mts';
 import { ciRefusal } from './ci-only.mts';
-import { implementationFolders } from './parity-declaration.mts';
+import { DECLARATION as PARITY, implementationFolders, sharedRoots, type ParityConfig } from './parity-declaration.mts';
+import { parseJson } from './schema-validate.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
-import { extensionNames, isApplication, repositoryOf } from './php-extension.mts';
+import { extensionNames, repositoryOf } from './php-extension.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { listedTests } from './run-tests.mts';
 import { toolCommand } from './mise-tools.mts';
@@ -51,15 +52,20 @@ type Reader = (file: string) => string | undefined;
 const noFile: Reader = () => undefined;
 
 /**
- * The folders whose PHPUnit files test the PHP extension `folder` (S10 ruling 8): every PHP library of the repository,
- * packages/php or packages/<component>/php, and the extension itself when it holds tests of its own; the extension alone when
- * no library holds a test.
+ * The folders whose PHPUnit files test the PHP extension `folder`, as config/parity.json declares them (K905): the roots of the
+ * implementation whose roots hold `folder` and the roots whose tests it shares (sharedRoots, the PHP implementations by S10), as
+ * parity-check reads them, each that holds a test file. Without that declaration it throws with the fix.
  */
 export function phpExtensionFolders(files: readonly string[], folder: string, read: Reader = noFile): string[] {
-  const libraries = [...new Set(files.flatMap(file => /^(packages\/(?:[^/]+\/)?php)\//.exec(file)?.[1] ?? []))].filter(place => !isApplication(read(`${place}/composer.json`))).sort();
-  const holds = (place: string) => files.some(file => file.startsWith(`${place}/`) && isTestFile(file));
-  const places = [...libraries, folder].filter(place => holds(place));
-  return places.length ? places : [folder];
+  const text = read(PARITY);
+  const declared = text === undefined ? [] : parseJson<ParityConfig>(text, 'parity.schema.json', PARITY).implementations;
+  const implementations = new Map(declared.map(entry => [entry.name, entry]));
+  const extension = declared.find(entry => entry.roots.includes(folder));
+  if (extension === undefined) throw new Error(`${PARITY} declares no implementation with the root ${folder}; declare the extension and the PHP implementations whose tests it runs there`);
+  const places = [...new Set([...sharedRoots(extension, implementations), ...extension.roots])].sort();
+  const tested = places.filter(place => files.some(file => file.startsWith(`${place}/`) && isTestFile(file)));
+  if (tested.length === 0) throw new Error(`${places.join(', ')}, which ${PARITY} declares for ${folder}, hold no test file; add the tests of the extension there`);
+  return tested;
 }
 
 /**
@@ -302,7 +308,7 @@ if (isMain(import.meta.url)) {
     const extension = target === 'php-ext' ? builtExtension(root, files) : undefined;
     // The selection of CASES in a PHP library is PHPUnit's own listing of the run.
     const listed: Listed = run => listedTests([run.tool, '--cwd', run.cwd, ...(run.options ?? []), '--', ...run.args], root);
-    // The PHP packages of an application (K433) are read from the checkout, so that the extension run leaves them out.
+    // The parity declaration of the extension run (K905) is read from the checkout.
     const read = (file: string) => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined);
     if (caseSensitiveEnv !== undefined && target !== 'go' && target !== 'infrastructure' && target !== 'case-sensitive-smoke') throw new Error('CASE_SENSITIVE_ENV is supported only by test-go, test-infrastructure and case-sensitive-smoke');
     if (target === 'infrastructure') runs = infrastructureRuns(files);

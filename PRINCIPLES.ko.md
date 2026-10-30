@@ -215,10 +215,11 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   header의 stub hash가 stub의 것인지 확인한 뒤 phpize로 build하며, `composer.json`을 `src/` 옆에 둔 사본에서 build하므로
   `config.m4`가 extension의 version을 `../composer.json`에서 가져온다. `make test-php-ext`는 unit test 전에 등록한 것을
   Reflection으로 library와 비교하되 이름마다 그것을 선언한 library와 비교하며, unit test는 extension을 load하고 library의 source는 하나도 load하지 않고
-  (dependency와 autoload-dev는 load하고 library 자신의 autoload는 load하지 않으므로 library에는 extension에 대한 guard가 없다) 실행하는 모든
-  library의 PHPUnit 파일과 (있다면) `packages/php-ext`의 것이다. parity implementation은 이 layout으로 library의 test를 공유하며,
-  설정에 상대 경로를 두지 않는다. Composer type이 `project`인 package는 application이다. extension 실행과 S10 library
-  검사 밖에 있으며, `make test-php`는 그 test를 자기 package로 실행한다.
+  (dependency와 autoload-dev는 load하고 library 자신의 autoload는 load하지 않으므로 library에는 extension에 대한 guard가 없다) 실행하는,
+  config/parity.json이 extension에 선언한 폴더의 PHPUnit 파일이다. 곧 extension 구현의 root와, 이 layout으로 test를 공유하는 PHP
+  구현의 root이며, 설정에 상대 경로를 두지 않고, parity-check가 읽는 것과 같다(K905). Composer type이 `project`인 package는
+  application이다. S10 library 검사 밖에 있고 config/parity.json이 PHP 구현으로 선언할 때만 extension과 함께 실행되며,
+  `make test-php`는 그 test를 자기 package로 실행한다.
   Enforced by: `make lint-php-ext`, `make test-php-ext`
 - S11 로컬 링크: 개발 중 각 polyspec 패키지의 설치 폴더(node_modules, vendor, site-packages)는 checkout으로 가는 평범한
   디렉터리 심링크 하나입니다. 패키지 매니저의 링크 단계(npm link, Composer path repository, pip/uv editable)는 쓰지 않습니다

@@ -6,7 +6,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'no
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { buildRuns, caseSensitiveSmokeRuns, goWorkspaceBuilds, goWorkspaceRuns, infrastructureRuns, phpExtensionFolders, runtimeRuns, suiteRuns, taskTargets, type Run } from '../../scripts/kit/runtime-targets.mts';
+import { buildRuns, caseSensitiveSmokeRuns, goWorkspaceBuilds, goWorkspaceRuns, infrastructureRuns, runtimeRuns, suiteRuns, taskTargets, type Run } from '../../scripts/kit/runtime-targets.mts';
 import { withCaseSensitiveDirectory } from '../../scripts/kit/case-sensitive-directory.mts';
 import { libraryFolders } from '../../scripts/kit/php-extension.mts';
 
@@ -32,31 +32,41 @@ test('each package of a runtime runs its runner with the name filter of CASES in
 // PHPUnit's answer to `--list-tests --filter <CASES>` for each library: the tests named `Class::method` that the filter selects.
 const phpunitList = (tests: Record<string, string[]>) => (run: Run) => (tests[run.cwd] ?? []).filter(name => new RegExp(run.args[1] ?? '').test(name));
 
+// K905: the folders of the extension run come from config/parity.json: the extension's implementation and the PHP implementations
+// whose tests it shares (sharedRoots), as parity-check reads them. `parity` declares the PHP implementations of `roots` beside it.
+const declaration = (implementations: unknown[]) => JSON.stringify({ schema: 1, requirements: { pattern: '^R-[0-9]+$' }, units: [], implementations });
+const parity = (...roots: string[]) => {
+  const text = declaration([...roots.map((root, index) => ({ name: `php${index}`, runner: 'php', roots: [root] })), { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] }]);
+  return (file: string) => (file === 'config/parity.json' ? text : undefined);
+};
+
 test('the tests of the PHP extension run on PHPUnit with the built extension loaded (S10)', () => {
   const files = ['packages/php-ext/src/a.c', 'packages/php-ext/tests/ATest.php'];
-  assert.deepEqual(runtimeRuns(files, 'php-ext', 'parses', node, '/r/var/php-ext/polyspec_a.so', undefined, phpunitList({ 'packages/php-ext': ['ATest::parses'] })), [{ cwd: 'packages/php-ext', tool: 'phpunit', options: ['--php-extension', '/r/var/php-ext/polyspec_a.so'], args: ['--filter', 'parses'] }]);
+  assert.deepEqual(runtimeRuns(files, 'php-ext', 'parses', node, '/r/var/php-ext/polyspec_a.so', undefined, phpunitList({ 'packages/php-ext': ['ATest::parses'] }), [], parity()), [{ cwd: 'packages/php-ext', tool: 'phpunit', options: ['--php-extension', '/r/var/php-ext/polyspec_a.so'], args: ['--filter', 'parses'] }]);
   assert.throws(() => runtimeRuns(files, 'php-ext', 'parses', node), /load the built extension, which is not named/);
 });
 
 test('the extension with no tests of its own runs the PHPUnit files of packages/php with the extension loaded (S10, K285)', () => {
   const files = ['packages/php-ext/src/a.c', 'packages/php/tests/ATest.php', 'packages/php/composer.json'];
-  assert.deepEqual(runtimeRuns(files, 'php-ext', 'parses', node, '/r/var/php-ext/polyspec_a.so', undefined, phpunitList({ 'packages/php': ['ATest::parses'] })), [{ cwd: 'packages/php', tool: 'phpunit', options: ['--php-extension', '/r/var/php-ext/polyspec_a.so'], args: ['--filter', 'parses'] }]);
+  assert.deepEqual(runtimeRuns(files, 'php-ext', 'parses', node, '/r/var/php-ext/polyspec_a.so', undefined, phpunitList({ 'packages/php': ['ATest::parses'] }), [], parity('packages/php')), [{ cwd: 'packages/php', tool: 'phpunit', options: ['--php-extension', '/r/var/php-ext/polyspec_a.so'], args: ['--filter', 'parses'] }]);
   const both = [...files, 'packages/php-ext/tests/BTest.php'];
-  assert.deepEqual(runtimeRuns(both, 'php-ext', undefined, node, '/r/x.so').map(run => run.cwd), ['packages/php', 'packages/php-ext']);
+  assert.deepEqual(runtimeRuns(both, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], parity('packages/php')).map(run => run.cwd), ['packages/php', 'packages/php-ext']);
 });
 
 test('the extension of a repository with libraries per component runs the PHPUnit files of every library (K293)', () => {
   const files = ['packages/php-ext/src/a.c', 'packages/validator/php/tests/ATest.php', 'packages/generator/php/tests/BTest.php', 'packages/codec/php/src/c.php'];
-  assert.deepEqual(runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so').map(run => run.cwd), ['packages/generator/php', 'packages/validator/php']);
+  const read = parity('packages/validator/php', 'packages/generator/php', 'packages/codec/php');
+  assert.deepEqual(runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], read).map(run => run.cwd), ['packages/generator/php', 'packages/validator/php']);
 });
 
 test('test-php-ext runs CASES only in the libraries where it selects a test, and fails when it selects none (K390)', () => {
   const files = ['packages/php-ext/src/a.c', 'packages/validator/php/tests/ATest.php', 'packages/generator/php/tests/BTest.php'];
   const listed = phpunitList({ 'packages/validator/php': ['ATest::testAlpha'], 'packages/generator/php': ['BTest::testBeta'] });
   const notes: string[] = [];
-  assert.deepEqual(runtimeRuns(files, 'php-ext', 'testAlpha', node, '/r/x.so', undefined, listed, notes), [{ cwd: 'packages/validator/php', tool: 'phpunit', options: ['--php-extension', '/r/x.so'], args: ['--filter', 'testAlpha'] }]);
+  const read = parity('packages/validator/php', 'packages/generator/php');
+  assert.deepEqual(runtimeRuns(files, 'php-ext', 'testAlpha', node, '/r/x.so', undefined, listed, notes, read), [{ cwd: 'packages/validator/php', tool: 'phpunit', options: ['--php-extension', '/r/x.so'], args: ['--filter', 'testAlpha'] }]);
   assert.deepEqual(notes, ['packages/generator/php: no case selected by CASES']);
-  assert.throws(() => runtimeRuns(files, 'php-ext', 'testGamma', node, '/r/x.so', undefined, listed), /no test of packages\/generator\/php, packages\/validator\/php/);
+  assert.throws(() => runtimeRuns(files, 'php-ext', 'testGamma', node, '/r/x.so', undefined, listed, [], read), /no test of packages\/generator\/php, packages\/validator\/php/);
 });
 
 test('test-php-ext takes the selection of CASES from PHPUnit, so a #[Test] method without the prefix counts (K390-1)', () => {
@@ -64,7 +74,7 @@ test('test-php-ext takes the selection of CASES from PHPUnit, so a #[Test] metho
   // The #[Test] method `reads` has no test prefix, so a reading of `function test…` misses it; PHPUnit lists it as ATest::reads.
   const listed = phpunitList({ 'packages/validator/php': ['ATest::reads'] });
   const notes: string[] = [];
-  assert.deepEqual(runtimeRuns(files, 'php-ext', 'reads', node, '/r/x.so', undefined, listed, notes), [{ cwd: 'packages/validator/php', tool: 'phpunit', options: ['--php-extension', '/r/x.so'], args: ['--filter', 'reads'] }]);
+  assert.deepEqual(runtimeRuns(files, 'php-ext', 'reads', node, '/r/x.so', undefined, listed, notes, parity('packages/validator/php')), [{ cwd: 'packages/validator/php', tool: 'phpunit', options: ['--php-extension', '/r/x.so'], args: ['--filter', 'reads'] }]);
   assert.deepEqual(notes, []);
 });
 
@@ -245,10 +255,35 @@ const K433_TEXTS: Record<string, string> = {
 const k433Read = (file: string) => K433_TEXTS[file];
 const K433_FILES = ['packages/php-ext/src/a.c', 'packages/php/composer.json', 'packages/php/tests/ATest.php', 'packages/cli/php/composer.json', 'packages/cli/php/tests/CTest.php'];
 
-test('a PHP package of type project is left out of the extension run, whose libraries are the others (K433)', () => {
-  assert.deepEqual(phpExtensionFolders(K433_FILES, 'packages/php-ext', k433Read), ['packages/php']);
+test('a PHP package that no parity implementation declares, such as an application, is left out of the extension run (K433, K905)', () => {
+  const read = (file: string) => K433_TEXTS[file] ?? parity('packages/php')(file);
   const listed = phpunitList({ 'packages/php': ['ATest::parses'], 'packages/cli/php': ['CTest::parses'] });
-  assert.deepEqual(runtimeRuns(K433_FILES, 'php-ext', 'parses', node, '/r/x.so', undefined, listed, [], k433Read).map(run => run.cwd), ['packages/php']);
+  assert.deepEqual(runtimeRuns(K433_FILES, 'php-ext', 'parses', node, '/r/x.so', undefined, listed, [], read).map(run => run.cwd), ['packages/php']);
+});
+
+// K905: a repository declares its test bed packages/php, of type project, as its php implementation, whose tests parity-check runs for
+// php-ext; the extension run takes the same folders, whatever the composer type of a declared root.
+test('an application declared as the PHP implementation is run by the extension, as parity-check runs it (K905)', () => {
+  const files = ['packages/php-ext/composer.json', 'packages/php-ext/src/a.c', 'packages/php/composer.json', 'packages/php/tests/ConformanceTest.php'];
+  const read = (file: string) => (file === 'packages/php/composer.json' ? '{"name":"acme/test-bed","type":"project"}' : parity('packages/php')(file));
+  assert.deepEqual(runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], read).map(run => run.cwd), ['packages/php']);
+});
+
+test('an extension without a parity declaration of packages/php-ext fails with the fix, and runs no folder of its own choice (K905)', () => {
+  const files = ['packages/php-ext/src/a.c', 'packages/php/tests/ATest.php'];
+  assert.throws(() => runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so'), /config\/parity\.json declares no implementation with the root packages\/php-ext; declare the extension and the PHP implementations whose tests it runs there/);
+  const other = (file: string) => (file === 'config/parity.json' ? declaration([{ name: 'php', runner: 'php', roots: ['packages/php'] }]) : undefined);
+  assert.throws(() => runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], other), /declares no implementation with the root packages\/php-ext/);
+});
+
+// K905: the extension run reads the declaration as parity-check does, against its schema, and drops no entry that it cannot read.
+test('a broken parity declaration fails the extension run with the file named, and declared folders without a test fail too (K905)', () => {
+  const files = ['packages/php-ext/src/a.c', 'packages/php/tests/ATest.php'];
+  const typo = (file: string) => (file === 'config/parity.json' ? declaration([{ name: 'php', runner: 'phpp', roots: ['packages/php'] }, { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] }]) : undefined);
+  assert.throws(() => runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], typo), /config\/parity\.json: .*runner/);
+  const broken = (file: string) => (file === 'config/parity.json' ? '{' : undefined);
+  assert.throws(() => runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], broken), /config\/parity\.json is no JSON/);
+  assert.throws(() => runtimeRuns(['packages/php-ext/src/a.c'], 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], parity('packages/php')), /packages\/php, packages\/php-ext, which config\/parity\.json declares for packages\/php-ext, hold no test file/);
 });
 
 test('test-php runs the tests of a PHP package of type project as a package of its own (K433)', () => {

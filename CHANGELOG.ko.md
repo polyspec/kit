@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 03fa964b312c983bccb9a1035f01d3590690c7c1a010a8be208fbf166bdb6893 -->
+<!-- source-sha256: f00705332707af05a003907ace289f65f86074dae04fb0b7d64d39dce2819c9c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make test-php-ext는 PHP extension의 test를 config/parity.json이 그것에 선언한 폴더, 곧 그 구현의 root와 test를 공유하는 PHP 구현의 root에서 parity-check처럼 Composer type과 관계없이 실행합니다. packages/php-ext가 있는데 그 선언이 없는 저장소는 고칠 방법과 함께 실패합니다. fsm처럼 선언이 지정한 type project의 test bed는 test 없는 packages/php-ext 실행 대신 extension과 함께 실행됩니다 (K905).
 - kit은 package를 내려받지 않습니다(K865). make release-assets-fetch, config/release-assets.json schema와 함께 scripts/kit/release-assets.mts, main checkout의 var/(var/products, var/composer-artifacts)에서 오는 worktree-setup의 link를 삭제합니다. 개발에서 저장소는 package의 install folder를 개발 folder로 link하고, release는 Composer가 release의 composer type repository packages.json(K871)에서 가져오게 하므로, 소비자는 Composer artifact repository를 { "type": "composer", "url": "https://github.com/polyspec/<repo>/releases/download/<tag>/packages.json" }로 바꾸고 config/release-assets.json과 release-assets-fetch 호출을 지웁니다.
 - 각 Cargo.lock의 모든 crate가 CARGO_HOME의 registry에 있는지 오프라인으로 검사하던 cargo-downloads-check를 삭제합니다. crate가 있는지는 cargo의 상태입니다. make cargo-downloads-fetch는 모든 Cargo.lock과 kit catch-check lock의 cargo fetch --locked로 남고, check-cargo-downloads.mts는 fetch-cargo-downloads.mts로 이름을 바꾸며 --fetch도 옛 이름의 alias도 없습니다. 추적되는 Cargo.lock이 있으면 make install-kit이 kit-install-declared를 통해 이를 실행하므로, 저장소는 cargo-downloads-check 선행을 지우고 make install에 아무것도 더하지 않습니다 (K864).
 - install-tools는 더는 arginfo generator와 symbol extractor를 설치하지 않습니다. `make kit-install-php-arginfo`와 `make kit-install-symbols`가 이들을 설치하며, `install-kit`이 새 `kit-install-declared`(`install-symbols --declared`)로 저장소의 선언(`symbolExtractors`, `packages/php-ext`)을 읽어 같은 도구를 실행하므로 저장소는 바꿀 것이 없습니다. 둘은 설치할 때마다 kit의 RELEASE 없이 잠긴 `composer install`이나 `go build`를 실행하고, 각 build는 PHP의 `gen_stub.php`를 그대로 쓰며, exceptions의 Rust channel은 kit의 `rustup toolchain list` 필터 없이 `rustup toolchain install`을 실행합니다(K861).

@@ -236,12 +236,12 @@ tool lands, a standard binds the work as written here.
   php-ext-arginfo` writes with the gen_stub.php of the PHP, is that of the stub, in a copy that keeps `composer.json` beside
   `src/`, so that `config.m4` takes the version of the extension from `../composer.json`; `make test-php-ext` compares by
   Reflection what it registers with the libraries, each name with the library that declares it, before its unit tests, which
-  are the PHPUnit files of every library run with the extension loaded and none of the sources of the library (its dependencies and
-  autoload-dev are loaded, its own autoload is not, so the library has no guard against the extension), and those of `packages/php-ext` when it holds any; its
-  parity implementation shares the tests of the libraries by this layout, with no relative path in a configuration.
-  A Composer package of
-  type `project` is an application: it is outside the extension run and the S10 library checks, and `make test-php` runs its
-  tests as its own package.
+  are the PHPUnit files run with the extension loaded and none of the sources of the library (its dependencies and autoload-dev
+  are loaded, its own autoload is not, so the library has no guard against the extension) of the folders that config/parity.json
+  declares for it: the roots of its implementation and of the PHP implementations whose tests it shares by this layout, with no
+  relative path in a configuration, as parity-check reads them (K905). A Composer package of type `project` is an application:
+  it is outside the S10 library checks and is run with the extension only when config/parity.json declares it as a PHP
+  implementation, and `make test-php` runs its tests as its own package.
   Enforced by: `make lint-php-ext`, `make test-php-ext`
 - S11 Local links: during development each polyspec package's install folder (node_modules, vendor, site-packages) is one
   plain directory symlink to its checkout. No package-manager link step (npm link, Composer path repository, pip/uv editable)
