@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- AGENTS.ko.md, PRINCIPLES.ko.md and docs/operations/tool-inventory.ko.md carry the stamps of their current English sources; 0.0.77 shipped them with older stamps after a rebase, while their translations already matched (K909).
 ## 0.0.77
 
 - The K541 test of tests/kit/link-folders.test.mts states the links that go before uv as K869 decided: folder links at any depth go, and a file link, which is uv's own, stays (K908).

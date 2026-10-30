@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 18850e26fd155fb58004fc1805d385c1ca5d591a216c145b0a5efb7743c0026f -->
+<!-- source-sha256: be5cd092bd4f993eddadb828ff6b200159d651f3b64107aac40397992496e72a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- AGENTS.ko.md, PRINCIPLES.ko.md, docs/operations/tool-inventory.ko.md는 현재 영어 원문의 stamp를 갖습니다. 0.0.77은 rebase 뒤 이전 stamp로 이들을 실었고, 번역은 이미 맞았습니다 (K909).
 ## 0.0.77
 
 - tests/kit/link-folders.test.mts의 K541 테스트는 uv 전에 지우는 링크를 K869의 결정대로 적습니다. 어느 깊이의 폴더 링크든 지우고, uv 자신의 것인 파일 링크는 남깁니다 (K908).
