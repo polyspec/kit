@@ -55,12 +55,12 @@ function installSelection(root: string, selected: readonly string[] | undefined)
                 : undefined;
     if (!available) throw new Error(`${tool} is not declared by this checkout; declare it in its toolchain file or omit it from TOOLS`);
   }
-  const needsPhp = selected.some(tool => ['php', 'phpunit', 'phpcs', 'phpstan', 'composer'].includes(tool));
+  const needsPhp = selected.some(tool => ['php', 'phpunit', 'phpcs', 'phpstan', 'composer', 'pie'].includes(tool));
   if (needsPhp && !declared.php) throw new Error(`the selected PHP tools need PHP, but .php-version or config/toolchain.json does not declare it`);
   if (selected.some(tool => ['phpunit', 'phpcs', 'phpstan'].includes(tool)) && !declaredMise.composer) throw new Error(`the selected PHP tools need Composer, but mise.toml does not declare it`);
 
   const mise = new Set<string>();
-  let php = selected.includes('php') || selected.includes('composer');
+  let php = selected.includes('php') || selected.includes('composer') || selected.includes('pie');
   let phpunit = selected.includes('phpunit');
   let phpLint = selected.includes('phpcs') || selected.includes('phpstan');
   const rustSelected = selected.includes('rust');

@@ -33,7 +33,7 @@ test('the tools of mise.toml are read with their releases and the declaring key;
 });
 
 test('a key of another tool passes through to mise, and a release is taken as declared (K835, K839)', (t) => {
-  assert.deepEqual(declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\ndeno = "2.6.0"\n"http:pie" = "1.2.3"\n"http:x" = { url = "http://example.invalid/x" }\n' })), {});
+  assert.deepEqual(declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\ndeno = "2.6.0"\n"http:example" = "1.2.3"\n"http:x" = { url = "http://example.invalid/x" }\n' })), {});
   assert.deepEqual(declaredMiseTools(toolchainCheckout(t, { 'mise.toml': '[tools]\nnode = "26"\ngo = "1.27"\n"pypi:vulture" = "latest"\n' })), {
     node: { version: '26', source: 'mise.toml tools.node' },
     go: { version: '1.27', source: 'mise.toml tools.go' },
@@ -47,7 +47,7 @@ test('a key of another tool passes through to mise, and a release is taken as de
 });
 
 test('a repository declares an http tool of its own, which mise installs and kit passes through (K327, K839)', (t) => {
-  const http = '"http:pie" = { version = "1.2.3", url = "https://example.invalid/pie-{{version}}.phar" }\n';
+  const http = '"http:example" = { version = "1.2.3", url = "https://example.invalid/example-{{version}}.phar" }\n';
   assert.deepEqual(Object.keys(declaredMiseTools(toolchainCheckout(t, { 'mise.toml': `${MISE_TOML}${http}` }))), ['go', 'python', 'ruff', 'govulncheck', 'cargoAudit', 'cargoNextest', 'cargoDeny', 'vulture']);
 });
 

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8d7a117e287f9ea1a21323acddf595a7a935d7ea94cb50d521fe25e57b3e58f8 -->
+<!-- source-sha256: 9daf4decac12fee980ae98f5833ecb407457747013d6763d60ccfb537b890248 -->
 
 # 도구 목록
 
@@ -82,7 +82,17 @@ Composer release archive는 generated header를 stub/output 경로로 선언합�
 staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, commit timestamp를 고정합니다. `zip`이 없으면
 `make release-assets`가 먼저 설치 안내와 함께 실패하며, Ubuntu release workflow는 asset build 전에 runner의 `zip` 제공 여부를 확인합니다.
 
-저장소는 `mise.toml`에 http backend로 자기 도구를 선언할 수 있다(K327). 예: `"http:pie" = { version = "1.2.3", url = "https://.../pie-{{version}}.phar" }`. `mise.lock`이 lock의 모든 platform에 대해 그 sha256을 pin하고, mise가 `mise install --locked`에서 digest를 검사한다. kit이 실행하지 않는 key는 모두 mise로 넘어가며 mise가 판정한다(K839).
+저장소는 `mise.toml`에 http backend로 자기 도구를 선언할 수 있다(K327). 예: `"http:example" = { version = "1.2.3", url = "https://.../example-{{version}}.phar" }`. `mise.lock`이 lock의 모든 platform에 대해 그 sha256을 pin하고, mise가 `mise install --locked`에서 digest를 검사한다. kit이 실행하지 않는 key는 모두 mise로 넘어가며 mise가 판정한다(K839).
+
+PIE는 kit이 실행하는 도구입니다(K915). 저장소는 `mise.toml`에 `pie.phar`의 URL과 checksum으로 `"http:pie"`를 선언하고,
+`make install-tools TOOLS=pie`는 composer처럼 PHP와 함께 그것을 설치합니다. kit은 PIE release를 pin하지 않습니다. `make pie-build
+PACKAGES=<릴리스의 packages.json> PACKAGE=<vendor/name> VERSION=<X.Y.Z>`는 `scripts/kit/pie-build.mts`로 그 php-ext package를
+빌드합니다. `var/pie/<vendor/name>`을 지우고, 그곳에서 `PIE_WORKING_DIRECTORY`로 `pie repository:add composer PACKAGES`와 `pie build
+PACKAGE:VERSION`을 실행하며, PIE가 `vendor/composer/installed.json`에 그 package에 대해 기록한 `pie-built-binary`와 `install-path`를
+`binary <path>`와 `package <path>`로 출력합니다. 정확히 한 entry가 그것을 이름하지 않으면 실패합니다. PIE는 working directory에
+target PHP마다 Composer project 하나를 두고 repository:add가 더한 repository를 지우지 않으므로, 유지된 directory는 이전 버전의
+repository를 먼저 쓰고 이전 PHP의 build를 남깁니다. 매번 빈 directory는 repository 하나와 build 하나만 담습니다. `pie build`는 PHP에
+아무것도 설치하지 않고, wrapper된 PHP의 phpize와 php-config로 빌드합니다. `PIE=<file>`은 다른 PIE를 실행합니다.
 
 ### 선언
 

@@ -109,6 +109,22 @@ test('selected tools include only their declared mise prerequisites, and a missi
   const { root: phpConfigOnly, stubs: phpConfigStubs } = checkout(t, composerToml, { 'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.4'] }) });
   const configOnly = start(INSTALL_TOOLS, phpConfigOnly, phpConfigStubs.env, 'composer');
   assert.equal(configOnly.status, 0, `PHP declared by config/toolchain.json needs no .php-version to be wrapped (K862): ${configOnly.stderr}`);
+
+  // K915: pie is the http:pie of mise.toml, a phar that the PHP runs, selected like composer.
+  const pieToml = '[tools]\n"http:pie" = { version = "1.4.10", url = "https://github.com/php/pie/releases/download/{{version}}/pie.phar", bin = "pie" }\n';
+  const { root: pieOnly, stubs: pieStubs } = checkout(t, pieToml, { '.php-version': '8.4\n' });
+  writeFileSync(path.join(pieStubs.directory, 'bin/php'), '#!/bin/sh\nprintf "8.4\\n"\n', { mode: 0o755 });
+  const pie = start(INSTALL_TOOLS, pieOnly, pieStubs.env, 'pie');
+  assert.equal(pie.status, 0, pie.stderr);
+  assert.deepEqual(pieStubs.calls(), ['mise install --locked http:pie'], 'TOOLS=pie installs the http:pie of mise.toml');
+  const { root: noPie, stubs: noPieStubs } = checkout(t, composerToml, { '.php-version': '8.4\n' });
+  const undeclaredPie = start(INSTALL_TOOLS, noPie, noPieStubs.env, 'pie');
+  assert.equal(undeclaredPie.status, 1);
+  assert.match(undeclaredPie.stderr, /pie is not declared by this checkout/);
+  const { root: piePhpless, stubs: piePhplessStubs } = checkout(t, pieToml);
+  const phplessPie = start(INSTALL_TOOLS, piePhpless, piePhplessStubs.env, 'pie');
+  assert.equal(phplessPie.status, 1);
+  assert.match(phplessPie.stderr, /selected PHP tools need PHP/);
 });
 
 test('a requested tool absent from the checkout declaration is refused before mutation, and install-tools needs bootstrap mise', (t) => {
