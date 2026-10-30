@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: f1f30052a54c3501813446e5e5fa1764372913c68092475243acb0f14426dce7 -->
+<!-- source-sha256: eb72475887d2c78f7ec99173352bbc45f26eea2137ffc5cd71917d0e9adc6274 -->
 
 # 도구 목록
 
@@ -244,7 +244,7 @@ alint 0.18.2로 fixture 레포에서 측정했고, fsm과 orm에서는 읽기만
 | L3 | `packages/` 아래 `<repo>-` 접두사 금지 | template `no-repository-prefix` | native |
 | L4 | go.mod module path = `github.com/polyspec/<repo>/<folder>`, v2 이상은 Go의 `/vN` | `file_content_matches`를 쓰는 `for_each_file` | native |
 | L5 | `PYTHONPATH` 금지 | `file_content_forbidden` | native |
-| L6 | 레포를 벗어나는 경로 금지: `config/*.json`, `go.mod` replace, pyproject path source, `Cargo.toml` `path`, `composer.json` path repository | `json_path_absent`, 그리고 `cross_file` `relation: resolves`를 쓰는 `for_each_file`. `resolves`는 레포 안에서만 해석한다(없는 대상도 보고) | native |
+| L6 | 레포를 벗어나는 경로 금지: `config/*.json`, pyproject path source, `Cargo.toml` `path`, `composer.json` path repository | `json_path_absent`, 그리고 `cross_file` `relation: resolves`를 쓰는 `for_each_file`. `resolves`는 레포 안에서만 해석한다(없는 대상도 보고) | native |
 | L7 | `scripts/`와 `tests/` 아래 TypeScript가 아닌 인프라 script 금지, 선언된 S9 예외는 허용 | script 확장자에 `file_absent`, 다른 shebang에 `file_content_forbidden` | native. 이유는 주석 |
 | L8 | root `tests/`에는 선언된 runner만 | `dir_absent` | 위치는 native |
 | L9 | release와 platform별 sha256 고정, offline, 설정을 명시적으로 넘김 | `SHA256SUMS`와 cosign bundle이 있는 release archive | mise와 `mise.lock`에 맞음 |

@@ -274,7 +274,7 @@ standards plan lists (root `conformance/`, `machines/`, `schema/`, the `fsm-` pr
 | L3 | no `<repo>-` prefix under `packages/` | template `no-repository-prefix` | native |
 | L4 | go.mod module path = `github.com/polyspec/<repo>/<folder>`, with Go's `/vN` for v2+ | `for_each_file` with `file_content_matches` | native |
 | L5 | no `PYTHONPATH` | `file_content_forbidden` | native |
-| L6 | no path that leaves the repository: `config/*.json`, `go.mod` replace, pyproject path sources, `Cargo.toml` `path`, `composer.json` path repositories | `json_path_absent`; `for_each_file` with `cross_file` `relation: resolves`, which resolves inside the repository only (a missing target is reported too) | native |
+| L6 | no path that leaves the repository: `config/*.json`, pyproject path sources, `Cargo.toml` `path`, `composer.json` path repositories | `json_path_absent`; `for_each_file` with `cross_file` `relation: resolves`, which resolves inside the repository only (a missing target is reported too) | native |
 | L7 | no infrastructure script that is not TypeScript under `scripts/` and `tests/`, except declared S9 exceptions | `file_absent` on script extensions, `file_content_forbidden` on other shebangs | native; reasons are comments |
 | L8 | the root `tests/` holds the declared runners only | `dir_absent` | native for the location |
 | L9 | pinned release and sha256 per platform, offline, config passed explicitly | release archives with `SHA256SUMS` and a cosign bundle | fits mise and `mise.lock` |
