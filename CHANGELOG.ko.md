@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8a4cc97b8635c620e8c480b739e734ce2b8bcba1ca9c0d0d7ce17df71ad5b124 -->
+<!-- source-sha256: ce2e448d84feb8dccf3580eff27e0a4c4e5c581ca995467c97d255938908e44e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make pie-build는 실행되는 동안 PIE를 흘려보냅니다: PIE의 표준 출력과 표준 오류는 PIE가 쓰는 대로 pie-build의 표준 오류로 가므로, phpize, configure, make의 build는 끝날 때까지 아무것도 보이지 않는 대신 step마다 보이고, 표준 출력은 binary와 package 줄만 담습니다 (K926).
 - Windows에서 process table은 각 process의 생성 시각을 담고, process는 id와 생성 시각으로 구별된다. 자식은 그 부모 id를 가진 process 가운데 자식 이전이나 같은 시각에 가장 늦게 만들어진 것에 속하고, 끝난 tree의 root는 그 spawn 전에 잰 시각이 대신한다. 그래서 run의 tree 정지는 끝난 부모의 id가 다시 쓰인 더 오래된 process에 더는 taskkill을 보내지 않는다. flowmark의 Windows CI에서는 critical system process에 보냈다 (K925).
 - Windows에서 process table은 각 process의 생성 시각을 담고, process는 그 부모보다 뒤에 만들어졌을 때만 후손으로 친다. 그래서 run의 tree 정지는 끝난 부모의 id가 다시 쓰인 더 오래된 process에 더는 taskkill을 보내지 않는다. flowmark의 Windows CI에서는 critical system process에 보냈다 (K925).
 - 릴리스는 성공한 CI run의 id만 받습니다: gh workflow run release.yml -f run=<id>. workflow에는 version input이 없고, make release-tag RUN은 run의 commit에 있는 config/release.json의 `changelog`와 `goModules`(그 두 field만 검사한다)와 그 change log의 첫 section ## X.Y.Z에서 X.Y.Z를 읽고, 그런 section이 없거나 ## Unreleased 아래 항목이 있는 commit은 거부하며, 그 commit과 그 Go module에 tag를 달고 뒤 step을 위해 TAG와 VERSION을 GITHUB_ENV에 덧붙입니다. dispatch가 그 commit이 릴리스하지 않는 버전을 더는 지정할 수 없고, 어떤 버전도 비교하지 않습니다 (K924).

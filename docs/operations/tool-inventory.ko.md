@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8cef2abeb390421a25d2b0a68915d4f3c2fdb650493f7e4e44fccca0813d434d -->
+<!-- source-sha256: a468329ad97fc46f6c7097f99aeb6e36aafc7dec6327c5b6abc58815c75b48f1 -->
 
 # 도구 목록
 
@@ -88,8 +88,9 @@ PIE는 kit이 실행하는 도구입니다(K915). 저장소는 `mise.toml`에 `p
 `make install-tools TOOLS=pie`는 composer처럼 PHP와 함께 그것을 설치합니다. kit은 PIE release를 pin하지 않습니다. `make pie-build
 PACKAGES=<릴리스의 packages.json> PACKAGE=<vendor/name> VERSION=<X.Y.Z>`는 `scripts/kit/pie-build.mts`로 그 php-ext package를
 빌드합니다. `var/pie/<vendor/name>`을 지우고, 그곳에서 `PIE_WORKING_DIRECTORY`로 `pie repository:add composer PACKAGES`와 `pie build
-PACKAGE:VERSION`을 실행하며, PIE가 `vendor/composer/installed.json`에 그 package에 대해 기록한 `pie-built-binary`와 `install-path`를
-`binary <path>`와 `package <path>`로 출력합니다. 정확히 한 entry가 그것을 이름하지 않으면 실패합니다. PIE는 working directory에
+PACKAGE:VERSION`을 PIE의 표준 출력과 표준 오류를 PIE가 쓰는 대로 자기 표준 오류에 내며 실행하므로 build는 실행되는 동안 step마다
+보이고(K926), PIE가 `vendor/composer/installed.json`에 그 package에 대해 기록한 `pie-built-binary`와 `install-path`를
+표준 출력에 `binary <path>`와 `package <path>`로만 출력합니다. 정확히 한 entry가 그것을 이름하지 않으면 실패합니다. PIE는 working directory에
 target PHP마다 Composer project 하나를 두고 repository:add가 더한 repository를 지우지 않으므로, 유지된 directory는 이전 버전의
 repository를 먼저 쓰고 이전 PHP의 build를 남깁니다. 매번 빈 directory는 repository 하나와 build 하나만 담습니다. `pie build`는 PHP에
 아무것도 설치하지 않고, wrapper된 PHP의 phpize와 php-config로 빌드합니다. `PIE=<file>`은 다른 PIE를 실행합니다.

@@ -4,11 +4,14 @@
 // is never undone there, so a kept directory serves an earlier repository first and keeps the build of an earlier PHP. Each
 // run therefore starts in an empty var/pie/<vendor/name>, adds the one repository and builds. The result is what PIE records
 // in vendor/composer/installed.json: the pie-built-binary of the package and its install-path. `pie build` installs nothing
-// into the PHP. PIE is the environment's PIE, by default the shim of mise of the http:pie that mise.toml declares.
+// into the PHP. PIE is the environment's PIE, by default the shim of mise of the http:pie that mise.toml declares. PIE writes
+// its output, the phpize, configure and make of the build among it, to the standard error of pie-build while it runs (K926),
+// so the standard output holds only the lines binary and package.
+import spawn from 'cross-spawn';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
-import { run, Stop } from './process.mts';
+import { Stop } from './process.mts';
 
 const USAGE = 'usage: node scripts/kit/pie-build.mts PACKAGES PACKAGE VERSION';
 const NAME = /^[a-z0-9]([_.-]?[a-z0-9]+)*\/[a-z0-9](([_.]|-{1,2})?[a-z0-9]+)*$/;
@@ -37,15 +40,24 @@ export function pieBuilds(work: string, name: string): PieBuild[] {
   return builds;
 }
 
+/** Runs PIE with its standard output and standard error on the standard error of this process as PIE writes them (K926). */
+function runPie(pie: string, args: readonly string[], cwd: string, env: NodeJS.ProcessEnv): void {
+  const command = [pie, ...args].join(' ');
+  const result = spawn.sync(pie, [...args], { cwd, env, stdio: ['ignore', 2, 2] });
+  if (result.error) throw new Stop(`${command} could not start: ${result.error.message}`);
+  if (result.signal) throw new Stop(`${command} ended by signal ${result.signal}; its output is above`);
+  if (result.status !== 0) throw new Stop(`${command} exited with ${String(result.status)}; its output is above`);
+}
+
 /** Builds PACKAGE:VERSION of the repository `packages` in an empty var/pie/<PACKAGE> of `root`; returns what PIE recorded. */
-export function pieBuild(root: string, packages: string, name: string, version: string, env: NodeJS.ProcessEnv, log: (text: string) => void): PieBuild {
+export function pieBuild(root: string, packages: string, name: string, version: string, env: NodeJS.ProcessEnv): PieBuild {
   if (!NAME.test(name)) throw new Stop(`PACKAGE ${JSON.stringify(name)} is not a Composer package name vendor/name`);
   const work = path.join(root, 'var', 'pie', name);
   rmSync(work, { recursive: true, force: true });
   const pie = env.PIE ?? path.join(root, 'var', 'tools', 'mise', 'shims', 'pie');
   const pieEnv = { ...env, PIE_WORKING_DIRECTORY: work };
-  log(run(pie, ['repository:add', 'composer', packages, '--no-interaction'], { cwd: root, env: pieEnv }));
-  log(run(pie, ['build', `${name}:${version}`, '--no-interaction'], { cwd: root, env: pieEnv }));
+  runPie(pie, ['repository:add', 'composer', packages, '--no-interaction'], root, pieEnv);
+  runPie(pie, ['build', `${name}:${version}`, '--no-interaction'], root, pieEnv);
   const builds = pieBuilds(work, name);
   const [build] = builds;
   if (!build || builds.length !== 1) throw new Stop(`PIE recorded ${builds.length} builds of ${name} in ${work}/*/vendor/composer/installed.json, not one: ${JSON.stringify(builds)}`);
@@ -59,7 +71,7 @@ export function main(args: readonly string[], { root, env = process.env, print =
     return 2;
   }
   try {
-    const build = pieBuild(root, packages, name, version, env, text => { if (text.trim()) error(text.trimEnd()); });
+    const build = pieBuild(root, packages, name, version, env);
     print(`binary ${build.binary}`);
     print(`package ${build.package}`);
     return 0;

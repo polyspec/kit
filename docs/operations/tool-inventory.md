@@ -92,7 +92,9 @@ PIE is a tool that kit runs (K915). A repository declares `"http:pie"` in `mise.
 and `make install-tools TOOLS=pie` installs it, with PHP, like composer; kit pins no PIE release. `make pie-build
 PACKAGES=<packages.json of a release> PACKAGE=<vendor/name> VERSION=<X.Y.Z>` builds that php-ext package with
 `scripts/kit/pie-build.mts`: it removes `var/pie/<vendor/name>`, runs `pie repository:add composer PACKAGES` and `pie build
-PACKAGE:VERSION` there with `PIE_WORKING_DIRECTORY`, and prints `binary <path>` and `package <path>`, the `pie-built-binary` and the
+PACKAGE:VERSION` there with `PIE_WORKING_DIRECTORY`, with the standard output and standard error of PIE on its own standard
+error as PIE writes them, so a build shows each step while it runs (K926), and prints on its standard output only `binary <path>`
+and `package <path>`, the `pie-built-binary` and the
 `install-path` that PIE records for the package in `vendor/composer/installed.json`; it fails unless exactly one entry names them.
 PIE keeps one Composer project per target PHP in its working directory and never removes a repository that repository:add
 added, so a kept directory serves the repository of an earlier version first and keeps the build of an earlier PHP; an empty
