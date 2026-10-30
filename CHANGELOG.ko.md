@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3fcd55186a30484e2686012e07d8e65646177349abb271167e177df95fdb92f8 -->
+<!-- source-sha256: 9a403858ef732b0d212eb20c6937a3b118475f703a3dd84751be123ad19b86ba -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,6 +8,7 @@
 
 - Kit 0.0.78을 공개했습니다. release run 41038654240이 483a9f5f의 annotated v0.0.78 tag를 polyspec-kit-npm-0.0.78.tgz와 함께 게시된 release로 만들었습니다 (K917).
 - 저장소마다 CI 파이프라인 하나: kit은 workflows/ci-pipeline.yml(on: workflow_call)을 저장소 자신의 ci.yml이 호출하는 .github/workflows/ci-pipeline.yml로 복사하고, kit-sync는 gates workflow를 지웁니다. shared job이 먼저 계획하고 공유 게이트를 돌리며(다른 job의 runner를 이름하는 plan을 쓰므로 ubuntu-24.04에서 돕니다), parity와 runtime job은 그것을 needs로 해 병렬로 돌고, required job은 실패하거나 취소된 job이 있으면 실패합니다. 각 job은 자기 그룹의 kit 게이트와 config/ci.json이 그 job에 선언한 타깃(targets.shared, targets.parity, targets.runtimes.<runtime>)을 context 안에서 make ci-targets로 돌리고 보고서를 kit-report-<job>으로 올립니다. targets.runtimes가 이름한 runtime은 plan에 들어갑니다. rules-check는 그 타깃을 파이프라인으로 도달한 것으로 읽습니다. make kit-ci-verify-gates는 지웁니다 (K910).
+- packages/php-ext가 있는 저장소의 parity setup은 php-ext job처럼 php-ext의 setup 뒤에 arginfo 생성기를 설치하므로, parity job이 PHP-Parser와 함께 확장을 빌드합니다. parity job의 각 setup 타깃은 한 번 돕니다 (K914).
 
 ## 0.0.78
 

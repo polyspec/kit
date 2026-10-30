@@ -195,24 +195,24 @@ export function ciConfigTargets(root: string): string[] {
   ])];
 }
 
+/** The setup of `runtime`: its declared targets or its deps target, and for php-ext the arginfo generator that its build needs (K914). */
+function runtimeSetup(runtime: Runtime, config: CIConfig, files: readonly string[], targets: { has(name: string): boolean }): { target: string; args: string[] }[] {
+  const configured = config.setup.runtimes[runtime];
+  const setup = configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(runtime, targets);
+  if (runtime === 'php-ext' && files.some(file => file.startsWith('packages/php-ext/'))) setup.push({ target: 'kit-install-php-arginfo', args: [] });
+  return setup;
+}
+
 function invocations(root: string, group: 'shared' | 'parity' | 'runtime', runtime?: Runtime): { target: string; args: string[] }[] {
   const { config, runtimes, files, db } = readAndValidate(root);
-  let targets: { target: string; args: string[] }[];
-  if (group === 'shared') targets = config.setup.shared.map(target => ({ target, args: [] }));
-  else if (group === 'runtime') {
+  if (group === 'shared') return config.setup.shared.map(target => ({ target, args: [] }));
+  if (group === 'runtime') {
     if (runtime === undefined || !runtimes.includes(runtime)) throw new Error(`make kit-ci-setup GROUP=runtime needs a runtime of the plan (the tracked source files and targets.runtimes); choose ${runtimes.join(', ') || '(none)'}`);
-    const configured = config.setup.runtimes[runtime];
-    targets = configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(runtime, db.targets);
-    if (runtime === 'php-ext' && files.some(file => file.startsWith('packages/php-ext/'))) targets.push({ target: 'kit-install-php-arginfo', args: [] });
-  } else {
-    targets = [];
-    for (const selected of runtimes) {
-      const configured = config.setup.runtimes[selected];
-      targets.push(...(configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(selected, db.targets)));
-    }
-    targets.push(...config.setup.parity.map(target => ({ target, args: [] })));
+    return runtimeSetup(runtime, config, files, db.targets);
   }
-  return targets;
+  // The parity job builds every implementation, so it runs the setup of every runtime, each target once.
+  const targets = [...runtimes.flatMap(selected => runtimeSetup(selected, config, files, db.targets)), ...config.setup.parity.map(target => ({ target, args: [] }))];
+  return [...new Map(targets.map(invocation => [invocation.target, invocation])).values()];
 }
 
 export function ciSetupInvocations(root: string, group: 'shared' | 'parity' | 'runtime', runtime?: Runtime) {

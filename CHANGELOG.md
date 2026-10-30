@@ -7,6 +7,7 @@
 
 - Kit 0.0.78 is public: release run 41038654240 made the annotated v0.0.78 tag on 483a9f5f a published release with polyspec-kit-npm-0.0.78.tgz (K917).
 - One CI pipeline per repository: kit copies workflows/ci-pipeline.yml (on: workflow_call) to .github/workflows/ci-pipeline.yml, which the repository's own ci.yml calls, and kit-sync removes the gates workflow. The shared job plans and runs the shared gates first, on ubuntu-24.04, since it writes the plan that names the runner of the other jobs; the parity and runtime jobs need it and run in parallel; the required job fails on a failed or cancelled job. Each job runs kit's gate of its group and the targets that config/ci.json declares for it (targets.shared, targets.parity, targets.runtimes.<runtime>) through make ci-targets, inside its context, and uploads its report as kit-report-<job>; a runtime that targets.runtimes names joins the plan. rules-check reads those targets as reached through the pipeline. make kit-ci-verify-gates is deleted (K910).
+- The parity setup of a repository with packages/php-ext installs the arginfo generator after the setup of php-ext, as the php-ext job does, so the parity job builds the extension with PHP-Parser; each setup target of the parity job runs once (K914).
 
 ## 0.0.78
 

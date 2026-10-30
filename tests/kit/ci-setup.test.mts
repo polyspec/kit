@@ -392,6 +392,18 @@ test('K731: PHP extension jobs install their declared PHP and Composer tools and
       { target: 'extension-setup', args: [] },
       { target: 'kit-install-php-arginfo', args: [] },
     ]);
+    // K914: the parity job builds the extension too, so its setup installs the generator after the setup of php-ext, once
+    // also when setup.parity names it.
+    const parity = [
+      { target: 'go-setup', args: [] },
+      { target: 'extension-setup', args: [] },
+      { target: 'kit-install-php-arginfo', args: [] },
+      { target: 'parity-setup', args: [] },
+    ];
+    assert.deepEqual(ciSetupInvocations(root, 'parity'), parity);
+    config.setup.parity = ['parity-setup', 'kit-install-php-arginfo'];
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    assert.deepEqual(ciSetupInvocations(root, 'parity'), parity);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
