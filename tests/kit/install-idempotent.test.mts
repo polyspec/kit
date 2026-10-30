@@ -1,6 +1,6 @@
 // Tests of scripts/kit/bootstrap/verify-idempotent.mts (K852, P17): a second install leaves the same result, so the snapshot judges
 // the content of each installed file, not its timestamp or inode. CI runs the real second bootstrap
-// (.github/workflows/platform-bootstrap.yml); these tests run offline on a fixture.
+// (the job bootstrap of .github/workflows/ci.yml); these tests run offline on a fixture.
 import assert from 'node:assert/strict';
 import { mkdtempSync, renameSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';

@@ -1,7 +1,7 @@
 // Native bootstrap paths and wrappers are selected explicitly for Windows; this unit keeps the platform mapping and batch
 // command shape reviewable without downloading toolchains or invoking a shell.
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -43,8 +43,11 @@ test('Windows wrappers invoke native executables and pass through command argume
   assert.doesNotMatch(npm, /^call /m);
 });
 
+// K912: the smoke is the job bootstrap of kit's ci.yml, which the final job kit needs, so the run of a push covers every OS.
 test('the platform smoke installs pinned packages before SDK tools and requires every OS result', () => {
-  const workflow = readFileSync(new URL('../../.github/workflows/platform-bootstrap.yml', import.meta.url), 'utf8');
+  const ci = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  assert.equal(existsSync(new URL('../../.github/workflows/platform-bootstrap.yml', import.meta.url)), false, 'no second push workflow');
+  const workflow = ci.slice(ci.indexOf('\n  bootstrap:\n'), ci.indexOf('\n  kit:\n'));
   for (const runner of ['ubuntu-24.04', 'macos-15', 'windows-2025']) assert.ok(workflow.includes(`runner: ${runner}`), `${runner} is in the matrix`);
   assert.match(workflow, /install pinned mise, Node\.js and npm[\s\S]*?install pinned Kit dependencies/);
   assert.match(workflow, /verify bootstrap is idempotent[\s\S]*?run: node scripts\/kit\/bootstrap\/verify-idempotent\.mts/);
@@ -57,5 +60,5 @@ test('the platform smoke installs pinned packages before SDK tools and requires 
   assert.match(workflow, /run a mise shim through Git Bash Make on Windows[\s\S]*?shell: bash[\s\S]*?\$\(KIT_TOOLS\)\/mise\/shims\/go version/);
   // K830: the process tests start real processes; a hang fails the step by its limit.
   assert.match(workflow, /verify the Windows \.cmd process path\n\s+timeout-minutes: 10\n/);
-  assert.match(workflow, /platform-bootstrap-passed:[\s\S]*?if: always\(\)[\s\S]*?needs: \[bootstrap\][\s\S]*?BOOTSTRAP_RESULT: \$\{\{ needs\.bootstrap\.result \}\}[\s\S]*?test "\$BOOTSTRAP_RESULT" = success/);
+  assert.match(ci, /\n {2}kit:\n[\s\S]*?needs: \[[^\]]*\bbootstrap\b[^\]]*\][\s\S]*?RESULTS: \$\{\{ toJSON\(needs\) \}\}/, 'the final job kit requires the result of every OS');
 });

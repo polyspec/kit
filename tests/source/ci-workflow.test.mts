@@ -188,7 +188,7 @@ test('the kit required check aggregates independent checks, kit tests and source
   const kit = jobText('kit');
   assert.match(kit, /^    name: kit$/m, 'the required check keeps the name kit');
   assert.match(kit, /^    if: \$\{\{ always\(\) \}\}$/m, 'the aggregator runs after failures');
-  assert.match(kit, /^    needs: \[checks, kit_tests, source_tests\]$/m, 'the aggregator needs every independent job');
+  assert.match(kit, /^    needs: \[checks, kit_tests, source_tests, bootstrap\]$/m, 'the aggregator needs every independent job, the platform bootstrap included (K912)');
   assert.match(kit, /RESULTS: \$\{\{ toJSON\(needs\) \}\}/, 'the aggregator receives every job result');
   assert.match(jobText('kit_tests'), /fail-fast: false[\s\S]*shard: \[1, 2, 3, 4, 5, 6, 7\]/);
   assert.match(jobText('source_tests'), /fail-fast: false[\s\S]*group: \[ts, php, rust, go, python, common-1, common-2, common-3\]/);

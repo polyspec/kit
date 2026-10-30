@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 90783a803b2878e81052c5e303b1e16471bef22f37bd36831fcd60419615347f -->
+<!-- source-sha256: 6de005f07a7348579a0fa6428a8e245e48054bc776120da617a9e2f618553d99 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -10,6 +10,7 @@
 - 저장소마다 CI 파이프라인 하나: kit은 workflows/ci-pipeline.yml(on: workflow_call)을 저장소 자신의 ci.yml이 호출하는 .github/workflows/ci-pipeline.yml로 복사하고, kit-sync는 gates workflow를 지웁니다. shared job이 먼저 계획하고 공유 게이트를 돌리며(다른 job의 runner를 이름하는 plan을 쓰므로 ubuntu-24.04에서 돕니다), parity와 runtime job은 그것을 needs로 해 병렬로 돌고, required job은 실패하거나 취소된 job이 있으면 실패합니다. 각 job은 자기 그룹의 kit 게이트와 config/ci.json이 그 job에 선언한 타깃(targets.shared, targets.parity, targets.runtimes.<runtime>)을 context 안에서 make ci-targets로 돌리고 보고서를 kit-report-<job>으로 올립니다. targets.runtimes가 이름한 runtime은 plan에 들어갑니다. rules-check는 그 타깃을 파이프라인으로 도달한 것으로 읽습니다. make kit-ci-verify-gates는 지웁니다 (K910).
 - packages/php-ext가 있는 저장소의 parity setup은 php-ext job처럼 php-ext의 setup 뒤에 arginfo 생성기를 설치하므로, parity job이 PHP-Parser와 함께 확장을 빌드합니다. parity job의 각 setup 타깃은 한 번 돕니다 (K914).
 - 릴리스는 성공한 CI run의 id를 받습니다: gh workflow run release.yml -f run=<id> -f version=X.Y.Z. main의 kit으로 make release-tag RUN VERSION이 main 위 ci.yml의 완료되어 성공한 push 또는 dispatch run이며 그 커밋이 origin/main에 있음을 요구하고, 그 커밋에 annotated 태그 vX.Y.Z와 모든 Go 모듈의 태그 <directory>/vX.Y.Z를 만들어 push합니다. 거기 있는 태그가 lightweight이거나 다른 커밋에 있으면 거부합니다. 이어 workflow는 태그를 checkout하고 그 패키지를 설치한 뒤 빌드, draft, 공개를 합니다. 태그 push 트리거, config/release.json의 checks를 읽던 release-verify(checks를 이름한 설정은 이제 스키마에서 실패합니다)와 그것이 읽던 check run의 스키마, release-go-tags, Go 모듈 태그만의 릴리스, make release는 지웁니다 (K911).
+- kit 자신의 push는 workflow 하나를 돌린다: 플랫폼 bootstrap 매트릭스(ubuntu-24.04, macos-15, windows-2025)는 마지막 job kit가 needs로 하는 kit ci.yml의 job bootstrap이고, .github/workflows/platform-bootstrap.yml과 그 check platform-bootstrap-passed는 없어졌다. 그래서 릴리스가 id로 받는 ci.yml run이 모든 OS를 덮는다(K912).
 
 ## 0.0.78
 
