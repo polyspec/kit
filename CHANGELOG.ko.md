@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b7b57679d30609e5abaaa50a0b0605a52db449c7f14fe71cf4dbed58069be7b6 -->
+<!-- source-sha256: 9890644630e22426afa8cfaff5791233d8df4925fce3c8cbdc6c936aea663e7b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,6 +8,7 @@
 
 ## 0.0.77
 
+- tests/source/link-cargo-real.test.mts는 provider를 consumer의 무시된 .links에 선언하고 link cargo <consumer> <args>를 실행합니다. K869가 --checkout을 지웠기 때문입니다 (K907).
 - tests/source/uv-link-real.test.mts는 provider checkout을 app의 .links에 선언하고 app만으로 uv-install을 부릅니다. K869가 위치 인자 checkout을 지웠기 때문입니다 (K906).
 - kit-harness 행 K851, K854, K859-K862, K864, K865, K867, K869, K870, K892와 K828, K902, K904, K905를 담아 Kit 0.0.77을 릴리즈합니다 (K903).
 - make kit-inject-check는 kit-sync --check를 실행합니다. 그것은 사본을 쓴 뒤, git status가 사본 경로(kit.copies의 각 사본, scripts/kit, 은퇴한 사본)를 commit과 다르게 보이는 동안 실패합니다. 그래서 손으로 고친 PRINCIPLES, gates.yml, release.yml 등 kit.copies 파일이 실패합니다. 이 대상은 kit-gates와 kit-gates-static에 들어가며, 사본의 원천인 kit 자신의 checkout은 건너뜁니다. S13이 규칙을 밝히고, PRINCIPLES와 AGENTS는 K799 이후 사본을 비교하지 않는 kit-check 대신 이 대상을 지정합니다 (K851).

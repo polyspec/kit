@@ -17,7 +17,7 @@ test('K664-3 native Cargo selects an unreleased path source repeatedly without c
   const consumer = path.join(root, 'consumer');
   for (const folder of [provider, consumer]) { mkdirSync(folder); initRepository(folder); }
   put(provider, { 'Cargo.toml': '[package]\nname="polyspec-native-source"\nversion="0.0.2"\nedition="2024"\n', 'src/lib.rs': 'pub fn value() -> u8 { 2 }\n', 'config/release.json': JSON.stringify({ repositoryUrl: 'https://example.invalid/native-source' }) });
-  put(consumer, { '.gitignore': 'var/\ntarget/\n', 'Cargo.toml': '[package]\nname="native-consumer"\nversion="0.0.1"\nedition="2024"\n[dependencies]\npolyspec-native-source={path="../provider"}\n', 'src/lib.rs': 'pub fn value() -> u8 { polyspec_native_source::value() }\n' });
+  put(consumer, { '.gitignore': 'var/\ntarget/\n.links\n', '.links': '../provider\n', 'Cargo.toml': '[package]\nname="native-consumer"\nversion="0.0.1"\nedition="2024"\n[dependencies]\npolyspec-native-source={path="../provider"}\n', 'src/lib.rs': 'pub fn value() -> u8 { polyspec_native_source::value() }\n' });
   const env = { ...process.env, CARGO_NET_OFFLINE: 'true' };
   const generated = spawnSync('cargo', ['+1.99.0', 'generate-lockfile', '--offline'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(generated.status, 0, generated.stderr);
@@ -25,7 +25,7 @@ test('K664-3 native Cargo selects an unreleased path source repeatedly without c
   const tracked = readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8');
   const args = ['+1.99.0', 'metadata', '--offline', '--locked', '--format-version=1'];
   for (let repeat = 0; repeat < 2; repeat++) {
-    const executed = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/link.mts', import.meta.url)), 'cargo', '--checkout', provider, consumer, ...args], { cwd: consumer, env, encoding: 'utf8' });
+    const executed = spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/link.mts', import.meta.url)), 'cargo', consumer, ...args], { cwd: consumer, env, encoding: 'utf8' });
     assert.equal(executed.status, 0, executed.stderr);
     const metadata: unknown = JSON.parse(executed.stdout);
     assert.ok(isJsonObject(metadata) && Array.isArray(metadata.packages));
