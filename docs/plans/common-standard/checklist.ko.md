@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 25275069e9d55adea619921966c342bacdb0bc8381fff64da751a9e499835965 -->
+<!-- source-sha256: be41cbbe1b953b7f56c508adfe1f2359b343a1d5724127ebf49fa6e27f794ed3 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -800,4 +800,4 @@
 | K884 | Kit 0.0.75 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K889 | main HEAD에서 K875, K877, K883에 더해 K855, K857, K858, K885, K886, K887과 함께 Kit 0.0.75를 릴리즈한다. K884는 이것들 없이 잘랐고 그 CI 40965263643이 실패해 0.0.75는 공개되지 않았다 | CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K894 | main HEAD에서 K889의 row에 더해 K888, K891, K893과 함께 Kit 0.0.75를 릴리즈한다. K889 cut의 CI 40972329860이 K893이 고치는 K858 test에서 kit tests (5)로 실패했고 release는 origin/main을 tag하므로 0.0.75는 공개되지 않았다 | CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
-| K898 | Kit 0.0.76 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [ ] |
+| K898 | Kit 0.0.76 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [~] |
