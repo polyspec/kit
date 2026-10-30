@@ -3,7 +3,7 @@
 // with what the PHP library declares. The extension of tests/kit/php-ext-fixture registers Polyspec\Demo\add and
 // Polyspec\Demo\Counter; it is built with the phpize, php-config and php on PATH.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -226,6 +226,57 @@ test('a second build in the same checkout fetches no PHP-Parser, since gen_stub 
   const second = build({ ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` });
   assert.equal(second.status, 0, `${second.stdout}\n${second.stderr}`);
   assert.equal(existsSync(calls) ? readFileSync(calls, 'utf8') : '', '', 'the second build calls no fetch');
+});
+
+// K941 (b1): gen_stub makes its PHP-Parser directory before tar extracts it, and a build that starts its own check after that
+// mkdir but before tar ends trusts the half-extracted parser; gen_stub's flock does not cover that check. The fetch sleeps, the
+// directory appears, then tar sleeps before it extracts; a second build starts while tar still sleeps.
+test('a second build that starts while the parser is extracting waits for it, and builds (K941)', { timeout: 300000 }, async (t) => {
+  const files = good();
+  delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
+  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
+  const bin = path.join(root, 'slow-bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(path.join(bin, 'wget'), '#!/bin/sh\nsleep 4\nexec curl -fsSL -o "$2" "$3"\n');
+  writeFileSync(path.join(bin, 'tar'), '#!/bin/sh\nsleep 8\nexec /usr/bin/tar "$@"\n');
+  for (const name of ['wget', 'tar']) chmodSync(path.join(bin, name), 0o755);
+  const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` };
+  const build = () => new Promise<{ status: number | null; output: string }>((resolve) => {
+    const child = spawn(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, env });
+    let output = '';
+    child.stdout.on('data', (chunk: Buffer) => { output += chunk; });
+    child.stderr.on('data', (chunk: Buffer) => { output += chunk; });
+    child.on('close', (status) => resolve({ status, output }));
+  });
+  const first = build();
+  await new Promise((resolve) => setTimeout(resolve, 8000));
+  const second = build();
+  const [one, two] = await Promise.all([first, second]);
+  assert.equal(one.status, 0, one.output);
+  assert.equal(two.status, 0, two.output);
+  assert.ok(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')));
+});
+
+// K941 (b2): a fetch that fails leaves no gen-stub folder, so the next build starts from nothing and fetches again.
+test('a failing PHP-Parser fetch leaves no gen-stub folder, so the next build starts from nothing (K941)', { timeout: 300000 }, (t) => {
+  const files = good();
+  delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
+  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
+  const bin = path.join(root, 'failing-bin');
+  mkdirSync(bin, { recursive: true });
+  for (const name of ['wget', 'curl']) {
+    writeFileSync(path.join(bin, name), '#!/bin/sh\nexit 1\n');
+    chmodSync(path.join(bin, name), 0o755);
+  }
+  const failed = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` } });
+  assert.notEqual(failed.status, 0, `${failed.stdout}\n${failed.stderr}`);
+  assert.equal(existsSync(path.join(root, 'var/php-ext/gen-stub')), false, 'the failed build leaves no gen-stub folder');
 });
 
 test('the build generates arginfo from the stub in its temporary source when no header is tracked (K560)', (t) => {
