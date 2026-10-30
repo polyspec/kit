@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- A PHPUnit run of run-tests and its deadline prepend use one Composer vendor, the nearest that holds bin/phpunit, so a package whose own vendor has no PHPUnit loads the autoloader of the vendor whose PHPUnit runs instead of failing on PreparationStartedSubscriber; run-tests states why the external deadline stays: PHPUnit's own limit does not stop a blocked libpq wait, socket read or child process, and a test past it is only risky (K899).
+
 ## 0.0.76
 
 - Release Kit 0.0.76 with K890, K896 and K897 (K898).

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0df8c11f6330943528b958c1c025b5095ef76a2274d1b4ecc41277b0d4e2b8a3 -->
+<!-- source-sha256: 08dd7521780692c59dff55dc9c0af04f892103bde6dfdd72bb97028ef4f5b0af -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- run-tests의 PHPUnit 실행과 그 deadline prepend는 bin/phpunit을 가진 가장 가까운 Composer vendor 하나를 쓰므로, 자기 vendor에 PHPUnit이 없는 패키지는 PreparationStartedSubscriber로 실패하지 않고 실행되는 PHPUnit의 vendor autoloader를 읽습니다. run-tests는 바깥 deadline이 남는 이유를 밝힙니다: PHPUnit 자체 제한은 막힌 libpq 대기, 소켓 읽기, 자식 프로세스를 멈추지 못하고, 그것을 넘긴 테스트는 risky일 뿐입니다 (K899).
 
 ## 0.0.76
 

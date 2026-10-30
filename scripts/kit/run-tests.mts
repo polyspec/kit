@@ -27,7 +27,10 @@
 // as the interpreter that the mise shim runs (K141). The runner stops the group with SIGTERM and, when the tool has not
 // closed after a grace period, with SIGKILL: at a test's timeout, and when the runner itself receives SIGINT, SIGTERM or
 // SIGHUP, after which it ends on that signal. Only a SIGKILL of the runner itself, which no process can handle, leaves the
-// group running. A run that selects no test file, name or id runs only in CI (test-selection.mts, ci-only.mts). A run in which no test passed, failed or ran out of time fails, so a selection
+// group running. PHPUnit's own limit (enforceTimeLimit, php-invoker) does not replace this stop (K899): it is a SIGALRM of
+// pcntl with restarting system calls, which stops a busy loop or sleep() but not a test blocked in a libpq wait, a socket read
+// or a child process, and a test past its limit is only risky, with exit status 0; PHPUnit kills no process, not even with
+// --process-isolation. The deadline extension of php-library only tells this runner the limit of each test. A run that selects no test file, name or id runs only in CI (test-selection.mts, ci-only.mts). A run in which no test passed, failed or ran out of time fails, so a selection
 // that matches nothing never passes; a file of node tests that registers no test fails.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
@@ -218,12 +221,13 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
       // PHPUnit of the vendor directory that Composer gives the package of `cwd`: its own, or that of the nearest Composer
       // project above it, such as the root of a monorepo (composer-vendor.mts, K186); with none, the path of its own, whose
       // start fails with the install fix.
-      const found = packageVendorFile(root, path.relative(root, cwd) || '.', 'bin/phpunit');
-      const phpunit = found === undefined ? path.join(composerVendor(cwd), 'bin/phpunit') : path.join(root, found);
+      const vendor = phpunitVendor(root, cwd);
+      const phpunit = path.join(vendor ?? composerVendor(cwd), 'bin/phpunit');
       // Each --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit with its own
       // -d extension=, in the given order, so an extension loads after one that it depends on.
       // The PHP of both runs is the wrapper of var/tools/bin that install-tools writes for the checkout, never the php of PATH (K393).
-      const nativeTimeouts = !timeoutExplicit;
+      // Without PHPUnit there is no deadline extension to load: the run starts the missing PHPUnit, which fails at its start.
+      const nativeTimeouts = !timeoutExplicit && vendor !== undefined;
       const prepend = path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-library/phpunit-deadline-prepend.php');
       const bootstrap = nativeTimeouts ? ['-d', `auto_prepend_file=${prepend}`] : [];
       const extension = nativeTimeouts ? ['--extension', 'Polyspec\\Kit\\PHPUnit\\DeadlineExtension'] : [];
@@ -245,13 +249,22 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
 }
 
 /**
- * The autoloader that the deadline prepend of a PHPUnit run loads (K738): the autoload.php that Composer gives the project
- * of --cwd, for a run with native deadlines; none for another tool or an explicit --timeout.
+ * The Composer vendor directory whose PHPUnit a run in `cwd` starts: that of the package of `cwd`, or of the nearest Composer
+ * project above it, such as the root of a monorepo, that holds bin/phpunit (K186); undefined when none does.
+ */
+function phpunitVendor(root: string, cwd: string): string | undefined {
+  const found = packageVendorFile(root, path.relative(root, cwd) || '.', 'bin/phpunit');
+  return found === undefined ? undefined : path.resolve(root, found, '../..');
+}
+
+/**
+ * The autoloader that the deadline prepend of a PHPUnit run loads (K738): the autoload.php of the vendor whose PHPUnit the run
+ * starts (K899), for a run with native deadlines; none for another tool or an explicit --timeout.
  */
 function phpunitAutoload(options: Pick<RunOptions, 'tool' | 'timeoutExplicit' | 'cwd'>, root: string): { KIT_PHPUNIT_AUTOLOAD?: string } {
   if (options.tool !== 'phpunit' || options.timeoutExplicit) return {};
-  const autoload = packageVendorFile(root, path.relative(root, options.cwd) || '.', 'autoload.php');
-  return autoload === undefined ? {} : { KIT_PHPUNIT_AUTOLOAD: path.resolve(root, autoload) };
+  const vendor = phpunitVendor(root, options.cwd);
+  return vendor === undefined ? {} : { KIT_PHPUNIT_AUTOLOAD: path.join(vendor, 'autoload.php') };
 }
 
 /**

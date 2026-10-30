@@ -297,6 +297,24 @@ test('the PHPUnit listing of a run passes the autoloader of the run to the deadl
   assert.deepEqual(listedTests(['phpunit', '--cwd', path.join(root, 'p'), '--', 'tests/SmallTest.php'], root, env), ['Small::case']);
 });
 
+// K899: the deadline prepend loads the autoloader beside the PHPUnit that the run starts, not that of a package vendor without it.
+test('the deadline prepend of a package whose vendor has no PHPUnit loads the autoloader of the vendor that has it (K899)', (t) => {
+  const php = '#!/bin/sh\nif [ -f "$(dirname "$KIT_PHPUNIT_AUTOLOAD")/bin/phpunit" ]; then echo \' - Small::case\'; exit 0; fi\necho \'Interface "PHPUnit\\Event\\Test\\PreparationStartedSubscriber" not found\' >&2\nexit 255\n';
+  const root = tree(t, {
+    'composer.json': '{"config":{"vendor-dir":"vendor-php"}}\n',
+    'p/composer.json': '{}\n',
+    'p/vendor/autoload.php': '',
+    'vendor-php/bin/phpunit': '',
+    'vendor-php/autoload.php': '',
+    'var/tools/bin/php': php,
+  });
+  chmodSync(path.join(root, 'var/tools/bin/php'), 0o755);
+  composerStub(root);
+  const env = { ...process.env };
+  delete env.KIT_PHPUNIT_AUTOLOAD;
+  assert.deepEqual(listedTests(['phpunit', '--cwd', path.join(root, 'p'), '--', 'tests/SmallTest.php'], root, env), ['Small::case']);
+});
+
 // A PHP extension run starts the PHP of the checkout, the wrapper of var/tools/bin that install-tools writes, never the php of PATH (K393).
 test('a phpunit run with a PHP extension starts the php of the checkout, and fails without it (K393)', (t) => {
   const root = tree(t, { 'p/composer.json': '{}\n', 'var/tools/bin/php': '#!/bin/sh\n' });
