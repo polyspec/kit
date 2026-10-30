@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { isMain, repositoryRoot } from './paths.mts';
 import { appendFileSync } from 'node:fs';
-import { candidateAssets, CONFIG, context, createTags, MAIN, releasedVersion, taggedRelease, type CommandOptions, type Context } from './release.mts';
+import { candidateAssets, CONFIG, context, createTags, greaterRelease, MAIN, newestReleaseTag, parseTag, releasedVersion, taggedRelease, type CommandOptions, type Context } from './release.mts';
 import { repositoryParts } from './github-release.mts';
 import { execute, run, Stop } from './process.mts';
 
@@ -67,6 +67,11 @@ export function tagRun(ctx: Context, runId: number): { version: string; lines: s
   const tagged = { ...ctx, config: { ...ctx.config, ...taggedRelease(show(CONFIG), `${CONFIG} at ${commit}`) } };
   const { changelog } = tagged.config;
   const version = releasedVersion(show(changelog), `${changelog} at ${commit}`);
+  // A release is newer than every release tag of the repository (K941); a tag that already exists is left to createTags, which
+  // passes it at the same commit and refuses it elsewhere.
+  const newest = newestReleaseTag(tagged, false);
+  const exists = execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/v${version}`], { cwd: ctx.root, env: ctx.env }).status === 0;
+  if (newest !== undefined && !exists && !greaterRelease(version, parseTag(newest))) throw new Stop(`v${version} is not greater than the latest release tag ${newest}; a release is newer than every release tag`);
   return { version, lines: createTags(tagged, version, commit) };
 }
 

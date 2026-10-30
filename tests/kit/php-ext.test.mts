@@ -79,7 +79,7 @@ test('a wrong name, a second stub, a stale header and a library of another name 
   assert.deepEqual(findings({ ...good(), 'packages/php-ext/stubs/other.stub.php': '<?php\n' }), ['packages/php-ext/stubs/other.stub.php: the extension has one stub, packages/php-ext/src/polyspec_demo.stub.php']);
   assert.deepEqual(findings({ ...good(), 'packages/php-ext/src/config.m4': 'PHP_NEW_EXTENSION([demo], [demo.c])\n' }), ['packages/php-ext/src/config.m4: PHP_NEW_EXTENSION names the extension polyspec_demo, not demo']);
   const changed = `${STUB}\nfunction more(): void {}\n`;
-  assert.deepEqual(findings({ ...good(), 'packages/php-ext/src/polyspec_demo.stub.php': changed }), [`packages/php-ext/src/polyspec_demo_arginfo.h: the stub hash is ${stubHash(STUB)}, the stub's is ${stubHash(changed)}. Fix: regenerate it with gen_stub.php of the PHP build directory: \`$(php-config --prefix)/lib/php/build/gen_stub.php packages/php-ext/src/polyspec_demo.stub.php\``]);
+  assert.deepEqual(findings({ ...good(), 'packages/php-ext/src/polyspec_demo.stub.php': changed }), [`packages/php-ext/src/polyspec_demo_arginfo.h: the stub hash is ${stubHash(STUB)}, the stub's is ${stubHash(changed)}. Fix: regenerate it with the gen_stub.php that phpize copies into build/ of the extension source: \`php build/gen_stub.php packages/php-ext/src/polyspec_demo.stub.php\` after phpize (K941)`]);
   assert.deepEqual(findings({ ...good(), 'packages/php/composer.json': '{"name": "other/demo"}' }), ['packages/php/composer.json: the PHP library, whose classes the extension registers, is named polyspec/<repository>, not other/demo']);
 });
 
@@ -184,6 +184,23 @@ test('the build publishes the extension, which reports the version of its compos
   assert.deepEqual(declarationFindings(registered, declared()), []);
   put(root, { 'packages/php/src/Demo.php': library('string') });
   assert.deepEqual(declarationFindings(registered, declared()), ['class Polyspec\\Demo\\Counter methods next returnType: extension "int", library "string"']);
+});
+
+// K941: php-config --prefix names the prefix of the PHP, which on Ubuntu has no lib/php/build (its build directory is
+// /usr/lib/php/<api>/build); the arginfo comes from the gen_stub.php that phpize copies into build/ of the source.
+test('the arginfo comes from the gen_stub.php that phpize copies, whatever prefix php-config names (K941)', (t) => {
+  const files = good();
+  delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
+  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
+  const real = toolsPath(ROOT, 'bin', 'php-config');
+  writeFileSync(path.join(root, 'var/tools/bin/php-config'), `#!/bin/sh\nif [ "$1" = "--prefix" ]; then echo /nonexistent/prefix; else exec '${real}' "$@"; fi\n`);
+  chmodSync(path.join(root, 'var/tools/bin/php-config'), 0o755);
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
+  assert.ok(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')));
 });
 
 test('the build generates arginfo from the stub in its temporary source when no header is tracked (K560)', (t) => {

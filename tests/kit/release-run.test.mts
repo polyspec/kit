@@ -55,6 +55,18 @@ test('release-tag tags the commit of the successful run and of each Go module, a
   for (const tag of ['v0.0.1', 'packages/fixture-go/v0.0.1']) assert.equal(execFileSync('git', ['--git-dir', remote, 'rev-parse', `refs/tags/${tag}^{commit}`], { encoding: 'utf8' }).trim(), box.commit);
 });
 
+// K941: a release is newer than every release tag, so a version lower than the latest tag is refused before any tag is made.
+test('release-tag refuses a version that is not greater than the latest release tag, and tags nothing (K941)', (t) => {
+  const { box, remote, env } = runBox(t, commit => candidate({ head_sha: commit }));
+  git(box.root, 'tag', 'v0.0.2', box.commit);
+  git(box.root, 'push', '--quiet', 'origin', 'v0.0.2');
+  const refused = tagRun(box.root, env);
+  assert.equal(refused.result, 1);
+  assert.match(refused.errors.join('\n'), /v0\.0\.1 is not greater than the latest release tag v0\.0\.2/);
+  assert.equal(git(box.root, 'tag', '--list'), 'v0.0.2', 'the refused version is not tagged');
+  assert.equal(spawnSync('git', ['--git-dir', remote, 'show-ref', '--verify', '--quiet', 'refs/tags/v0.0.1']).status, 1, 'the remote has no v0.0.1');
+});
+
 test('release-tag tags an earlier commit of main whose run passed, after main moved on (K911)', (t) => {
   const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
   git(box.root, 'commit', '--quiet', '--allow-empty', '-m', 'later');

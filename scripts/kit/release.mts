@@ -208,14 +208,31 @@ export function context(root: string, { config = loadConfig(root), env = process
 /** The newest release tag reachable from HEAD, which resolves the argument `latest` of the release
  * commands: no release task names a version in its retry. */
 export function latestTag(ctx: Context): string {
+  const tag = newestReleaseTag(ctx, true);
+  if (tag === undefined) throw new Stop('no release tag is reachable from HEAD, so latest names no release');
+  return tag;
+}
+
+/**
+ * The newest release tag vX.Y.Z, reachable from HEAD or, when `reachable` is false, anywhere in the repository (K941); undefined
+ * when there is none.
+ */
+export function newestReleaseTag(ctx: Context, reachable: boolean): string | undefined {
   // git sorts version refs itself, newest first (--sort=-v:refname).
-  const list = run('git', ['tag', '--merged', 'HEAD', '--list', 'v[0-9]*', '--sort=-v:refname'], at(ctx));
+  const list = run('git', ['tag', ...(reachable ? ['--merged', 'HEAD'] : []), '--list', 'v[0-9]*', '--sort=-v:refname'], at(ctx));
   // A release tag is vX.Y.Z; the pattern v[0-9]* also lists tags such as v1.2 or v1.2.3-rc1, which name no release and which
   // git may sort above a release, as v1.2.3-rc1 above v1.2.3.
   const tags = list.trim().split('\n').filter(tag => tag.startsWith('v') && EXACT_VERSION.test(tag.slice(1)));
-  if (tags.length === 0) throw new Stop('no release tag is reachable from HEAD, so latest names no release');
-  // tags holds at least one tag, checked above.
-  return present(tags[0], 'tags[0]');
+  // tags[0] is the newest of the release tags that git sorts.
+  return tags[0];
+}
+
+/** Whether the release version `a` is greater than `b`, both X.Y.Z (K941). */
+export function greaterRelease(a: string, b: string): boolean {
+  const left = a.split('.').map(Number);
+  const right = b.split('.').map(Number);
+  for (let index = 0; index < 3; index += 1) if ((left[index] ?? 0) !== (right[index] ?? 0)) return (left[index] ?? 0) > (right[index] ?? 0);
+  return false;
 }
 
 /** The version X.Y.Z of the release tag vX.Y.Z. */

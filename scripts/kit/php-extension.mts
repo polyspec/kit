@@ -3,8 +3,8 @@
 //
 //   node scripts/kit/php-extension.mts check          the names, the one stub and, when present, the arginfo stub hash
 //   node scripts/kit/php-extension.mts build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]
-//                                                     the check, then generate arginfo in a temporary source copy with the gen_stub.php of the PHP, phpize,
-//                                                     configure and make; publish the library by a rename
+//                                                     the check, then phpize in a temporary source copy, the arginfo from the gen_stub.php that phpize
+//                                                     copies into build/ (K941), configure and make; publish the library by a rename
 //   node scripts/kit/php-extension.mts test           the classes and functions that the built extension registers, compared
 //                                                     by Reflection with those of the PHP library (symbols/php/reflection.php),
 //                                                     then the unit tests of runtime-targets.mts with the extension loaded
@@ -111,7 +111,7 @@ export function extensionFindings(files: readonly string[], read: (file: string)
   const header = read(names.arginfo);
   if (header !== undefined) {
     const recorded = /\* Stub hash: ([0-9a-f]+) \*/.exec(header)?.[1];
-    if (recorded !== stubHash(stub)) found.push(`${names.arginfo}: the stub hash is ${recorded ?? 'missing'}, the stub's is ${stubHash(stub)}. Fix: regenerate it with gen_stub.php of the PHP build directory: \`$(php-config --prefix)/lib/php/build/gen_stub.php ${names.stub}\``);
+    if (recorded !== stubHash(stub)) found.push(`${names.arginfo}: the stub hash is ${recorded ?? 'missing'}, the stub's is ${stubHash(stub)}. Fix: regenerate it with the gen_stub.php that phpize copies into build/ of the extension source: \`php build/gen_stub.php ${names.stub}\` after phpize (K941)`);
   }
   return found;
 }
@@ -285,10 +285,10 @@ function isSource(entry: string): boolean {
  */
 function generateArginfo(root: string, source: string, stub: string): string {
   const php = toolCommand(root, 'php');
-  // The gen_stub.php of the PHP is the one of its build directory (K930); the PHP-Parser that it needs is its own.
-  const prefix = run(toolCommand(root, 'php-config'), ['--prefix']).trim();
+  // phpize copies the gen_stub.php of the PHP into build/ of the source (K941): the build directory of the PHP is named by its
+  // phpize, not by php-config --prefix, which names no lib/php/build on Ubuntu. The PHP-Parser that it needs is its own.
   const file = path.join(source, path.basename(stub));
-  run(php, [path.join(prefix, 'lib/php/build/gen_stub.php'), file], { cwd: source });
+  run(php, [path.join(source, 'build', 'gen_stub.php'), file], { cwd: source });
   return path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h'));
 }
 
@@ -344,10 +344,10 @@ function phpized(root: string, label: string, stub: string, sourceCopies: readon
     cpSync(path.join(root, EXTENSION, 'src'), source, { recursive: true, filter: isSource });
     stageSourceCopies(root, source, sourceCopies);
     rmSync(path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h')), { force: true });
-    generateArginfo(root, source, stub);
     // The tools of the PHP of the checkout are its wrappers, never the ones on PATH.
     console.log(`[php-extension] phpize (${run(toolCommand(root, 'php-config'), ['--version']).trim()})`);
     run(toolCommand(root, 'phpize'), [], { cwd: source });
+    generateArginfo(root, source, stub);
     return { work, source };
   } catch (error) {
     rmSync(work, { recursive: true, force: true });
