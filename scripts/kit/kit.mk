@@ -381,7 +381,7 @@ release-candidate: ## Prepare the VERSION archives of the committed candidate be
 release-prepare:: ## Prepare what the release of this repository needs before release-tools; a repository declares it with release-prepare::
 	@:
 
-release-tools: ## Install the tools that config/release.json needs for the release (npm, Composer, Python and uv, Go) and check cargo when a git-tag proof needs it; ONLINE
+release-tools: ## Install the tools that config/release.json needs for the release (npm, Composer, Python and uv, Go), with packages/php-ext or a generated php-arginfo artifact also the arginfo generator (K920), and check cargo when a git-tag proof needs it; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/release-tools.$(KIT_EXT)
 
 

@@ -41,7 +41,7 @@ kit vendors the release workflow `workflows/release.yml` to `.github/workflows/r
 package.json). A repository never edits it; `make kit-sync` rewrites it. The workflow sets up the PHP of `.php-version` when
 the repository declares one, runs `make release-tag` on `main`, checks out the tag and installs the kit and the packages of the
 tag, then runs `make release-prepare` (the preparation that the repository's release declares with a
-`release-prepare::` rule of its Makefile, none by default), `make release-tools` (the tools that config/release.json needs), `make release-tools-path` (which
+`release-prepare::` rule of its Makefile, none by default), `make release-tools` (the tools that config/release.json needs, and the arginfo generator of packages/php-ext or of a generated php-arginfo artifact), `make release-tools-path` (which
 puts `var/tools/bin` and the shims of mise on the PATH of the following steps and the environment of mise in theirs, so they run on the installed tools), `make release-publish` (the release as a draft, whose id it records in `var/release/<tag>.json`)
 and `make release-undraft TAG=<tag>`, which makes the release public. undraft reads the
 draft by that id, never by its tag in the list of releases, which shows a new draft only after a while. A failed step leaves the release a

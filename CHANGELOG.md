@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The release of a repository with packages/php-ext installs the arginfo generator: release-tools runs install-tools and then install-php-arginfo when packages/php-ext exists, the rule of install-kit, or when a package of config/release.json declares a generated php-arginfo artifact, so release-assets builds the extension and its arginfo headers with PHP-Parser; a release with npm packages only gets install-tools too, whose PHP and Composer the generator needs (K920).
 - The Go runner reads a benchmark result line that test2json sends in two output events, its name and then its results, as it does when its reader wakes between the two writes of testing, which made the result lines vanish on the Windows runners; a benchmark that ends without a result line prints its output instead of dropping it, and the platform workflow runs a real Go benchmark through the runner on each platform (K919).
 - make install-tools TOOLS=pie installs the http:pie of mise.toml with PHP, and make pie-build PACKAGES PACKAGE VERSION builds a php-ext package of a release packages.json with PIE in an empty var/pie/<vendor/name> and prints the binary and the package folder that PIE records in installed.json; a kept PIE working directory served the repository of an earlier version first, which hyper and crudui worked around in their own copies of the recipe (K915).
 - Kit 0.0.78 is public: release run 41038654240 made the annotated v0.0.78 tag on 483a9f5f a published release with polyspec-kit-npm-0.0.78.tgz (K917).

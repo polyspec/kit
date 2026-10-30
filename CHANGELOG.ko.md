@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2d4d4a161672cc94fb3424d58b09589814aa0fff6dedbf29a44d534895a0bf24 -->
+<!-- source-sha256: 5bb081b8a08373234af0a258c91a4eb963026699c7f24ecc220a997f001e78f1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- packages/php-ext가 있는 저장소의 릴리스는 arginfo 생성기를 설치합니다. release-tools는 packages/php-ext가 있으면 install-kit의 규칙대로, 또는 config/release.json의 패키지가 generated php-arginfo artifact를 선언하면 install-tools 다음에 install-php-arginfo를 돌리므로, release-assets가 PHP-Parser와 함께 확장과 그 arginfo 헤더를 빌드합니다. 생성기가 install-tools의 PHP와 Composer를 쓰므로 npm 패키지만 있는 릴리스도 install-tools를 돌립니다 (K920).
 - Go 러너는 test2json이 이름과 결과로 나눠 두 output 이벤트로 보내는 벤치마크 결과 줄을 읽습니다. test2json의 reader가 testing의 두 쓰기 사이에 깨어나면 이렇게 나뉘며, 이 때문에 Windows 러너에서 결과 줄이 사라졌습니다. 결과 줄 없이 끝난 벤치마크는 출력을 버리지 않고 출력하며, 플랫폼 워크플로는 각 플랫폼에서 실제 Go 벤치마크를 러너로 실행합니다 (K919).
 - make install-tools TOOLS=pie는 mise.toml의 http:pie를 PHP와 함께 설치하고, make pie-build PACKAGES PACKAGE VERSION은 릴리스 packages.json의 php-ext package를 빈 var/pie/<vendor/name>에서 PIE로 빌드해 PIE가 installed.json에 기록한 binary와 package 폴더를 출력합니다. 유지된 PIE working directory는 이전 버전의 repository를 먼저 썼고, hyper와 crudui는 recipe의 자기 사본에서 이를 우회했습니다 (K915).
 - Kit 0.0.78을 공개했습니다. release run 41038654240이 483a9f5f의 annotated v0.0.78 tag를 polyspec-kit-npm-0.0.78.tgz와 함께 게시된 release로 만들었습니다 (K917).

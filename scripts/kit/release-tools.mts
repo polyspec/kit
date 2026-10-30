@@ -2,11 +2,15 @@
 // Installs the tools that the release of this repository needs (`make release-tools`), derived from config/release.json: a
 // Composer package, a wheel or a Go module needs the tools of mise.lock (the Composer, the Python, the uv and the Go of
 // mise.toml), which install-tools installs into var/tools; npm, which an npm package needs, is the npm of the bootstrap, which
-// installed the packages that this command runs from.
+// installed the packages that this command runs from. An extension in packages/php-ext and a generated php-arginfo artifact of a
+// package need the arginfo generator, which the build and the generation read offline, so install-php-arginfo follows, as
+// install-kit runs it for packages/php-ext (kit.mk kit-install-declared, K920).
 //
 // A step that fails stops the command with its output and the fix. Nothing is listed by hand: the configuration of a repository
 // decides the tools.
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import { context, stepFailure } from './release.mts';
 import { Stop } from './process.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
@@ -14,7 +18,7 @@ import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 
 /** The sections of config/release.json (release.mts loadConfig) that decide the tools of the release. */
 export type ToolsConfig = {
-  packages: { kind: string }[];
+  packages: { kind: string; generated?: { kind: string }[] }[];
   goModules: Record<string, string>;
 };
 /** The output of a step: `print` receives the stdout of the command and `error` its stderr. */
@@ -24,6 +28,16 @@ type Output = { print: (text: string) => void; error: (text: string) => void };
 export function needsInstallTools(config: ToolsConfig): boolean {
   const kinds = new Set(config.packages.map(({ kind }) => kind));
   return kinds.has('composer') || kinds.has('wheel') || Object.keys(config.goModules).length > 0;
+}
+
+/**
+ * The tools of the release of `root`, in order: install-tools for the tools of mise.lock, and install-php-arginfo for an extension
+ * in packages/php-ext, whose build reads the generator, or for a generated php-arginfo artifact of a package; the generator needs
+ * the PHP and the Composer that install-tools installs (K920).
+ */
+export function releaseSteps(root: string, config: ToolsConfig): string[] {
+  const arginfo = existsSync(path.join(root, 'packages/php-ext')) || config.packages.some(({ generated }) => generated?.some(({ kind }) => kind === 'php-arginfo'));
+  return [...(needsInstallTools(config) || arginfo ? ['install-tools'] : []), ...(arginfo ? ['install-php-arginfo'] : [])];
 }
 
 /** Runs `command` in `root`, forwards its output on success and failure, and stops with the status and output when it fails. */
@@ -46,11 +60,12 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
   }
   try {
     const { config } = context(root, { env });
-    if (needsInstallTools(config)) {
-      print('[release-tools] install-tools');
-      step(process.execPath, [siblingTool(import.meta.url, 'install-tools')], { cwd: root, env, print, error });
+    const steps = releaseSteps(root, config);
+    for (const name of steps) {
+      print(`[release-tools] ${name}`);
+      step(process.execPath, [siblingTool(import.meta.url, name)], { cwd: root, env, print, error });
     }
-    print(`[release-tools] the tools of the release are ready: ${needsInstallTools(config) ? 'install-tools' : 'none'}`);
+    print(`[release-tools] the tools of the release are ready: ${steps.join(', ') || 'none'}`);
   } catch (failure) {
     error(`[release-tools] failed: ${stepFailure(failure)}`);
     return 1;

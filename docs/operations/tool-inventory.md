@@ -1109,7 +1109,9 @@ docs/operations/release.md), so the consumer names only the tag. kit-check reads
   sibling release: kit.mk declares it as a double-colon target with no work, and a repository adds a `release-prepare::` rule
   to its Makefile (K132). The vendored release workflow runs it after install-packages.
 - `make release-tools` (`scripts/kit/release-tools.mts`) runs install-tools when config/release.json has a Composer package, a
-  wheel or a Go module; npm, which an npm package needs, is the npm of the bootstrap.
+  wheel or a Go module; npm, which an npm package needs, is the npm of the bootstrap. With packages/php-ext, as install-kit does, or with
+  a generated php-arginfo artifact of a package, it runs install-tools and then install-php-arginfo, since the build of the
+  extension and its arginfo headers read the generator offline (K920).
 - `release-publish` creates the release as a draft and records its id in `var/release/<tag>.json`. `release-undraft` reads the
   draft by that id (`repos/O/R/releases/<id>`), never by searching the list of releases for its tag: the list shows a new draft
   only after a while (the 0.0.38 run failed three seconds after the create), and the tag does not address a draft. A missing

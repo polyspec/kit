@@ -13,7 +13,8 @@
 #                    at that commit, or passes for a tag there already (K269); a tag pushed with the token of the run starts no run
 #   checkout of the tag, then the bootstrap, npm and the packages of the tagged commit again
 #   release-prepare  the preparation that the release of the repository declares with release-prepare:: (none by default)
-#   release-tools    installs the tools that config/release.json needs for the packages of this repository
+#   release-tools    installs the tools that config/release.json needs for the packages of this repository, and the
+#                    arginfo generator of packages/php-ext or of a generated php-arginfo artifact
 #   release-tools-path puts var/tools/bin on the PATH of the steps that follow, through GITHUB_PATH
 #   release-assets  builds the archive of every package, and packages.json of the Composer packages, into var/release/assets
 #   release-publish creates the GitHub Release of the tag as a draft, with its notes and those files
@@ -60,10 +61,11 @@ jobs:
         with:
           node-version-file: mise.toml
           package-manager-cache: false
-      # shivammathur/setup-php 2.40.0: the PHP of .php-version for the Composer packages of the release. A repository that needs
-      # PHP (a Composer package of config/release.json, or php of config/toolchain.json) declares .php-version,
-      # which the kit-check of CI requires (K193); a repository without PHP has none and sets up no PHP. The release runs no
-      # kit-check of its own: release-tag refuses a commit whose CI run, kit-check included, did not pass (K755).
+      # shivammathur/setup-php 2.40.0: the PHP of .php-version for the Composer packages and the extension of the release. A
+      # repository that needs PHP (a Composer package of config/release.json, or php of config/toolchain.json) declares
+      # .php-version, which the kit-check of CI requires (K193); a repository without PHP has none and sets up no PHP. The
+      # release runs no kit-check of its own: release-tag refuses a commit whose CI run, kit-check included, did not pass
+      # (K755).
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
         if: ${{ hashFiles('.php-version') != '' }}
         with:
