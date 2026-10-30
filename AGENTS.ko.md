@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: e13407294c6619426096317c467f0f5714a3d40f275299f344549e88144ddd50 -->
+<!-- source-sha256: d58294e9685528d0caf7d2361b83e78084ca1be23b435198ffffc5859a6713ac -->
 # 개발
 
 [English](AGENTS.md)
@@ -37,6 +37,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Refines P14: [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 `scripts/kit/`의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를
   쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다. kit은 dependency 해석, link, 설치 record, 생성 metadata를 native package manager에 위임하며 직접 dependency 폴더를 교체하거나 설치 metadata를 합성하지 않습니다.
   Enforced by: `make rebuild-check`
+- Own: 저장소는 uv를 `make uv-install`로 실행합니다. 이 target은 uv가 link를 거쳐 쓰고 지우므로(K539) uv가 쓰기 전에 environment의
+  package link를 제거하고, lock의 native locked 설치(`uv sync --locked`, 또는 pylock.toml의 `uv pip install`)를 실행합니다. symlink된 개발 폴더는 손상되지 않습니다.
+  Enforced by: `tests/kit/uv-install.test.mts`
 - Own: 추적되는 공유 root 파일과 workflow는 설치된 kit package의 일반 파일 사본이며 `make kit-sync`가 관리합니다. 소비자는
   `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include하며 첫 Make 실행 전에 lock에 고정된 npm dependency를 설치합니다.
   로컬 개발은 native npm link, Composer path repository, uv editable 설치로 설치된 package를 provider source에 연결합니다
@@ -51,6 +54,14 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   테스트는 link가 그 대상일 때만 link를 만듭니다(link를 거쳐 가리키는 path, link를 담은 archive). 테스트는 이 checkout의 도구를
   sandbox에 link하지 않고 sandbox에서 실행합니다(`tests/kit/kit-tools.mts`).
   Enforced by: `make kit-check`
+- Own: `make install`은 `install-link`로 끝납니다. 이 target은 설치된 polyspec package를 개발 checkout에 link합니다
+  (`docs/operations/local-links.md`). `make worktree-setup`은 행의 worktree를 만들고 거기서 `make install`을 실행한 뒤 link를
+  검사하므로, worktree는 자기 자신의 checkout입니다(K858).
+  Enforced by: `tests/kit/link.test.mts`, `tests/kit/worktree-setup.test.mts`
+- Own: `config/owner-checks.json`은 각 추적 경로를 소유하는 검사를 지정하므로, branch의 변경은 그것을 소유한 검사가 검사합니다.
+  `make land`는 바뀐 경로의 owner가 고른 gate를 실행합니다. `make owner-validate`는 어떤 owner도 갖지 않은 추적 경로와 존재하지 않는 검사를 지정한 owner를
+  실패시킵니다.
+  Enforced by: `make owner-validate`
 - Refines P15: 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `make duplication-check`(jscpd)는 6줄 이상의
   같은 부분이 두 번 있으면 실패합니다.
   Enforced by: `make duplication-check`
@@ -82,6 +93,10 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   `php<minor>`; 없으면 Homebrew의 `opt/php@<minor>` keg) php, php-config, phpize의 exec wrapper를 var/tools/bin에 쓰고,
   못 찾으면 시도한 목록과 함께 실패합니다. `make toolchain-check`가 이를 검증합니다.
   Enforced by: `make toolchain-check`, `make kit-check`
+- Own: var/tools/bin의 도구는 설치된 파일을 이 checkout 설치의 environment(checkout의 mise data 폴더 같은)와 함께 절대 경로로
+  실행하는 wrapper script이며, environment를 담지 못하는 symbolic link가 아닙니다. 한 checkout의 도구는 다른 checkout의 도구로
+  실행되지 않습니다(`scripts/kit/bootstrap/tool-wrappers.mts`).
+  Enforced by: `tests/kit/install-php.test.mts`
 - Own: 한 spec을 여러 implementation으로 가진 저장소는 그것을 `config/parity.json`에 선언하고, `parity-declarations-check`를 검사
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/operations/tool-inventory.md, Language parity).
   Enforced by: `make parity-declarations-check`
@@ -114,5 +129,9 @@ kit은 `main` commit의 annotated tag `vX.Y.Z`로 릴리스한다. 절차는
   Enforced by: `make release-verify`
 - Own: 릴리스는 archive와 함께 draft로 만들고 마지막에 공개한다. 실패한 step은 draft로 남긴다.
   Enforced by: `make release-publish`, `make release-undraft`
+- Own: `make release`는 `main`에서 성공한 CI run의 commit을 다시 테스트하지 않고 공개한다. release-run은 VERSION, SHA, RUN의
+  형식, SHA에 있고 `origin/main`인 깨끗한 checkout, config/release.json의 저장소, RUN이 그 commit의 `main` 위 성공한 CI run인지를
+  검사하며 version을 비교하지 않는다(S4).
+  Enforced by: `tests/kit/release-run.test.mts`
 - Own: 모든 저장소는 vendor된 `workflows/release.yml`로 릴리스하며 그것을 편집하지 않는다.
   Enforced by: `make kit-check`

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Every harness piece that kit keeps is named by a rule: AGENTS.md names make uv-install, install-link with make worktree-setup, make owner-validate, the wrapper scripts of tool-wrappers and release-run, P8 names catch-check, and S4 reads "kit compares and pins no version or lock; format validation of arguments is allowed" with Enforced by none; gates-workflow.test.mts fails on a kept piece that no rule names (K853).
 - The bootstrap idempotence check (verify-idempotent) compares the content of each installed file, its path, real path, digest, size and mode, instead of its time and inode, so a file that a second install writes again with the same bytes is no change; P17 names tests/kit/install-idempotent.test.mts (K852).
 - The golangci-lint configuration of kit drops gomoddirectives, so make lint-go no longer bans a replace, a toolchain line or another directive of go.mod, which are the go tool's (K866).
 - make item-new refuses an ID that a checklist of the checkout or of main already holds, reading main as check-commits does, so a second worktree cannot register the ID that another has registered on main (K868).

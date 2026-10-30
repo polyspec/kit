@@ -180,3 +180,12 @@ test('K896: the shared job installs the declared PHP symbol extractor before its
   assert.ok(install > shared.indexOf('make install-tools TOOLS="${{ join(fromJSON(needs.discover.outputs.common_tools)'), 'after the common tools installed PHP and Composer');
   assert.ok(install < shared.indexOf('kit-gates-static'), 'before the shared gates');
 });
+
+// K853: a harness piece that kit keeps serves a rule, so a rule of AGENTS.md or PRINCIPLES.md names it; a piece that no rule names
+// is kit code that no rule needs.
+test('each kept harness piece is named by a rule of AGENTS.md or PRINCIPLES.md (K853)', () => {
+  // A rule is an item from its `- ` line to its Enforced by entry and the indented lines that continue it.
+  const rules = ['AGENTS.md', 'PRINCIPLES.md'].flatMap(file => read(file).match(/^- [\s\S]*?\n {2}Enforced by:[^\n]*(?:\n {2}[^\n]*)*/gm) ?? []);
+  const pieces = ['owner-validate', 'install-link', 'catch-check', 'release-run', 'tool-wrappers', 'worktree-setup', 'uv-install'];
+  assert.deepEqual(pieces.filter(piece => !rules.some(rule => rule.includes(piece))), []);
+});

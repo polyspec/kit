@@ -42,6 +42,10 @@ and states only its own rules. The rules below are kit's own.
   creates, is accepted; our rules govern what we create. kit delegates dependency resolution, links, installed records
   and generated metadata to the native package manager; it does not replace dependency folders or synthesize installed metadata itself.
   Enforced by: `make rebuild-check`
+- Own: A repository runs uv through `make uv-install`, which removes the package links of the environment before uv writes,
+  since uv writes and deletes through a link (K539), and then runs the native locked install of its lock (`uv sync --locked`,
+  or `uv pip install` of a pylock.toml); a symlinked development folder is never damaged.
+  Enforced by: `tests/kit/uv-install.test.mts`
 - Own: Tracked shared root files and workflows are regular copies of the installed kit package, managed by `make kit-sync`. Consumers include
   `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`; they install the locked npm dependencies before the first Make invocation.
   Local development uses native npm links, Composer path repositories and uv editable installations to connect installed
@@ -57,6 +61,14 @@ and states only its own rules. The rules below are kit's own.
   A test creates a link only when the link is its subject (a path named through a link, an archive that holds a link); a
   test runs the tools of this checkout in its sandbox (`tests/kit/kit-tools.mts`) instead of linking them there.
   Enforced by: `make kit-check`
+- Own: `make install` ends with `install-link`, which links the installed polyspec packages to their development checkouts
+  (`docs/operations/local-links.md`), and `make worktree-setup` makes the worktree of a row, runs `make install` in it and then
+  checks its links, so a worktree is a checkout of its own (K858).
+  Enforced by: `tests/kit/link.test.mts`, `tests/kit/worktree-setup.test.mts`
+- Own: `config/owner-checks.json` names the checks that own each tracked path, so the changes of a branch are checked by the
+  checks that own them: `make land` runs the gates that the owners of the changed paths select. `make owner-validate` fails a
+  tracked path that no owner holds and an owner that names a check which does not exist.
+  Enforced by: `make owner-validate`
 - Refines P15: A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
   `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
   Enforced by: `make duplication-check`
@@ -91,6 +103,10 @@ and states only its own rules. The rules below are kit's own.
   setup-php step in CI; else `php<minor>` of apt; else the `opt/php@<minor>` keg of Homebrew) and writes exec wrappers for
   php, php-config and phpize in var/tools/bin, or fails with the attempts; `make toolchain-check` verifies it.
   Enforced by: `make toolchain-check`, `make kit-check`
+- Own: A tool of var/tools/bin is a wrapper script that starts the installed file by its absolute path with the environment
+  of this checkout's install, such as the mise data folder of the checkout, never a symbolic link, which carries no
+  environment: a tool of one checkout never runs with the tools of another (`scripts/kit/bootstrap/tool-wrappers.mts`).
+  Enforced by: `tests/kit/install-php.test.mts`
 - Own: A repository with several implementations of one spec declares them in `config/parity.json` and runs
   `parity-declarations-check` among its check targets and `parity-check` in its CI, both before a push lands
   (docs/operations/tool-inventory.md, Language parity).
@@ -127,5 +143,9 @@ kit is released by the annotated tag `vX.Y.Z` of a commit of `main`; the procedu
   Enforced by: `make release-verify`
 - Own: A release is created as a draft with its archives and made public last; a failed step leaves it a draft.
   Enforced by: `make release-publish`, `make release-undraft`
+- Own: `make release` publishes the commit of a successful CI run of `main` without another test run; release-run checks the
+  format of VERSION, SHA and RUN, a clean checkout at SHA that is `origin/main`, the repository of config/release.json, and
+  that RUN is the successful CI run of that commit on `main`; it compares no version (S4).
+  Enforced by: `tests/kit/release-run.test.mts`
 - Own: Every repository releases through the vendored `workflows/release.yml`, which it never edits.
   Enforced by: `make kit-check`

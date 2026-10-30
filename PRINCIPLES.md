@@ -38,7 +38,8 @@ in kit, with its grounding.
   Enforced by: `.claude/settings.json`
 - P8 Errors are never hidden: no fallback that turns a wrong input into a plausible one, no silent drop of an input or an
   output, no swallowed error. A fallback stands only where it is truly needed, with that need stated.
-  Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`
+  Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`,
+  catch-check (a step of `make lint-ts` and `make lint-rust`: no catch without a statement)
 - P9 Correct first; fast only when it stays correct.
   Enforced by: none, the order of correctness and speed is a judgement.
 - P10 Work reaches main in one of two ways. Direct work on main is committed through the commits of P38. Parallel or
@@ -194,8 +195,9 @@ tool lands, a standard binds the work as written here.
   (`*.test.{ts,mts,cts,mjs,cjs,js}`, vitest's `*.{test,spec}.*`, `*Test.php`, `*_test.go`, `tests/` and `#[test]`,
   `test_*.py`); a repository may add files but never narrow the set, and a file named like a test is run by a binding.
   Enforced by: `make parity-declarations-check`
-- S4 Versions: kit enforces no version or pin; each package manager and its lock decide.
-  Enforced by: `make toolchain-check`
+- S4 Versions: kit compares and pins no version or lock; format validation of arguments is allowed. Each package manager
+  and its lock decide.
+  Enforced by: none, a comparison that kit does not make needs no check; review refuses a new one (K853).
 - S5 Folders: every monorepo has the same root folders (`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`,
   `examples/`, `benchmarks/`, `config/`). Runtime ports of the main spec live in `packages/<runtime>/`, other components in
   `packages/<component>/` and their ports in `packages/<component>/<runtime>/`; folder names carry no repository prefix. A

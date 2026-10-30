@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 26ff6e1f96f5f534d3fc299a0acbe9dc919101c7b7931e406f57f0f32c0d8b5a -->
+<!-- source-sha256: aee3c5aa386baf066a23ad7e163ee8252cc3e72947b72b1b122d5e8585c5503c -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -38,7 +38,8 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   Enforced by: `.claude/settings.json`
 - P8 오류는 숨기지 않습니다: 잘못된 입력을 그럴듯한 입력으로 바꾸는 fallback도, 입력이나 출력을 조용히 버리는 것도, 삼킨
   오류도 없습니다. fallback은 정말 필요한 곳에만 그 필요를 적고 둡니다.
-  Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`
+  Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`,
+  catch-check(`make lint-ts`와 `make lint-rust`의 한 단계: 문장 없는 catch 금지)
 - P9 올바름이 먼저입니다; 빠름은 올바름을 지킬 때만 좇습니다.
   Enforced by: none, 올바름과 빠름의 순서는 판단입니다.
 - P10 main에 작업이 들어가는 길은 둘입니다. main에서 직접 하는 작업은 P38의 commit으로 들어갑니다. 병렬이나 격리된
@@ -183,8 +184,9 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   (`*.test.{ts,mts,cts,mjs,cjs,js}`, vitest의 `*.{test,spec}.*`, `*Test.php`, `*_test.go`, `tests/`와 `#[test]`, `test_*.py`).
   repository는 파일을 더할 수만 있고 좁힐 수 없으며, test처럼 이름 붙은 파일은 binding이 실행합니다.
   Enforced by: `make parity-declarations-check`
-- S4 버전: kit은 버전도 pin도 강제하지 않습니다. 각 package manager와 그 lock이 정합니다.
-  Enforced by: `make toolchain-check`
+- S4 버전: kit은 버전도 lock도 비교하지 않고 pin하지 않습니다. 인자의 형식 검증은 허용됩니다. 각 package manager와 그 lock이
+  정합니다.
+  Enforced by: none, kit이 하지 않는 비교에는 검사가 필요 없고, 새 비교는 리뷰가 거부합니다(K853).
 - S5 폴더: 모든 monorepo는 같은 root 폴더(`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`, `examples/`,
   `benchmarks/`, `config/`)를 가집니다. 주 spec의 runtime port는 `packages/<runtime>/`, 다른 component는
   `packages/<component>/`, 그 port는 `packages/<component>/<runtime>/`에 두며, 폴더 이름에 repository prefix를 붙이지
