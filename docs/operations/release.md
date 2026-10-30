@@ -43,11 +43,13 @@ kit vendors the release workflow `workflows/release.yml` to `.github/workflows/r
 package.json). A repository never edits it; `make kit-sync` rewrites it. The workflow sets up the PHP of `.php-version` when
 the repository declares one, runs `make release-tag` on `main`, checks out the tag and installs the kit and the packages of the
 tag, then runs `make release-prepare` (the preparation that the repository's release declares with a
-`release-prepare::` rule of its Makefile, none by default), `make release-tools` (the tools that config/release.json needs, and the arginfo generator of packages/php-ext or of a generated php-arginfo artifact), `make release-tools-path` (which
+`release-prepare::` rule of its Makefile, none by default), `make release-tools` (the tools that config/release.json needs, including the PHP that a make entry reads), `make release-tools-path` (which
 puts `var/tools/bin` and the shims of mise on the PATH of the following steps and the environment of mise in theirs, so they run on the installed tools), `make release-publish` (the release as a draft, whose id it records in `var/release/<tag>.json`)
 and `make release-undraft TAG=<tag>`, which makes the release public. undraft reads the
 draft by that id, never by its tag in the list of releases, which shows a new draft only after a while. A failed step leaves the release a
 draft and fails the run.
+
+A package that needs generated output declares each generated path in config/release.json as a `make` entry, with the target that produces it and its outputs. The pack (`make release-assets` and `make release-candidate-assets`) runs `make -C <copy> <target>` in a copy of the tagged commit that holds the tracked files and no link into the checkout, with no `var/` and no `node_modules/` of the checkout, and with `PHP_CONFIG` set to the php-config of the checkout. The target installs what it needs itself, through the lock of its repository; kit checks no lock and starts no package manager for it. A `gen_stub.php` of the PHP may fetch its own pinned PHP-Parser once into the PHP build directory, which P35 does not cover since it is a tool's internal fetch. Each declared output must exist in the copy afterwards and must not be tracked in Git; otherwise the pack fails and names the path (K930, P34).
 
 A package of kind `wheel` (a Python package with a `pyproject.toml`) is released as its PEP 427 wheel
 `<distribution>-<version>-py3-none-any.whl`, the file name pip parses. `release-assets` builds it from the tagged commit with

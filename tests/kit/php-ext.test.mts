@@ -4,15 +4,13 @@
 // Polyspec\Demo\Counter; it is built with the phpize, php-config and php on PATH.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { execute } from '../../scripts/kit/process.mts';
 import * as phpExtension from '../../scripts/kit/php-extension.mts';
 import { declarationFindings, declarations, declarationsOf, extensionFindings, extensionNames, stubHash, type Declarations } from '../../scripts/kit/php-extension.mts';
-import { genStub, installedGenStub, installPhpArginfo } from '../../scripts/kit/install-php-arginfo.mts';
 import { put, tree } from './tree.mts';
 import { toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 
@@ -32,14 +30,6 @@ function phpWrappers(root: string) {
     writeFileSync(path.join(bin, name), `#!/bin/sh\nexec '${real}' "$@"\n`);
     chmodSync(path.join(bin, name), 0o755);
   }
-  const generator = genStub(root);
-  const staged = installedGenStub(ROOT);
-  assert.equal(generator.parser, staged.parser);
-  const parser = path.join(path.dirname(staged.file), `PHP-Parser-${staged.parser}`);
-  const target = path.join(root, 'var/tools/php-arginfo');
-  mkdirSync(target, { recursive: true });
-  cpSync(generator.file, path.join(target, 'gen_stub.php'));
-  cpSync(path.join(parser, 'lib/PhpParser'), path.join(target, `PHP-Parser-${staged.parser}/lib/PhpParser`), { recursive: true });
 }
 
 // The files of a repository whose extension follows S10, as { path: text }.
@@ -53,19 +43,17 @@ const good = (): Record<string, string> => ({
 
 const findings = (files: Record<string, string>) => extensionFindings(Object.keys(files), file => files[file]);
 
-test('K670-1: arginfo keeps the PHP configuration that loads tokenizer', { timeout: 10000 }, (t) => {
+test('K670-1: the build keeps the PHP configuration that loads tokenizer', { timeout: 10000 }, (t) => {
   const root = tree(t, { ...good(), '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
   phpWrappers(root);
   const php = path.join(root, 'var/tools/bin/php');
   const real = toolsPath(ROOT, 'bin', 'php');
   writeFileSync(php, `#!/bin/sh\nif [ "$1" = -n ]; then echo 'The "tokenizer" extension is not available' >&2; exit 93; fi\nexec '${real}' "$@"\n`);
-  phpExtension.arginfo(root);
-  const header = readFileSync(path.join(root, 'var/php-ext/arginfo/polyspec_demo_arginfo.h'), 'utf8');
-  assert.equal(/Stub hash: ([0-9a-f]+)/.exec(header)?.[1], stubHash(STUB));
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
 });
-
-/** Whether `value` is a JSON object. */
-const isObject = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 test('the names of an extension follow from the repository, a hyphen an underscore (S10)', () => {
   assert.deepEqual(extensionNames('demo-codec'), {
@@ -91,7 +79,7 @@ test('a wrong name, a second stub, a stale header and a library of another name 
   assert.deepEqual(findings({ ...good(), 'packages/php-ext/stubs/other.stub.php': '<?php\n' }), ['packages/php-ext/stubs/other.stub.php: the extension has one stub, packages/php-ext/src/polyspec_demo.stub.php']);
   assert.deepEqual(findings({ ...good(), 'packages/php-ext/src/config.m4': 'PHP_NEW_EXTENSION([demo], [demo.c])\n' }), ['packages/php-ext/src/config.m4: PHP_NEW_EXTENSION names the extension polyspec_demo, not demo']);
   const changed = `${STUB}\nfunction more(): void {}\n`;
-  assert.deepEqual(findings({ ...good(), 'packages/php-ext/src/polyspec_demo.stub.php': changed }), [`packages/php-ext/src/polyspec_demo_arginfo.h: the stub hash is ${stubHash(STUB)}, the stub's is ${stubHash(changed)}. Fix: make php-ext-arginfo`]);
+  assert.deepEqual(findings({ ...good(), 'packages/php-ext/src/polyspec_demo.stub.php': changed }), [`packages/php-ext/src/polyspec_demo_arginfo.h: the stub hash is ${stubHash(STUB)}, the stub's is ${stubHash(changed)}. Fix: regenerate it with gen_stub.php of the PHP build directory: \`$(php-config --prefix)/lib/php/build/gen_stub.php packages/php-ext/src/polyspec_demo.stub.php\``]);
   assert.deepEqual(findings({ ...good(), 'packages/php/composer.json': '{"name": "other/demo"}' }), ['packages/php/composer.json: the PHP library, whose classes the extension registers, is named polyspec/<repository>, not other/demo']);
 });
 
@@ -215,27 +203,6 @@ test('the build generates arginfo from the stub in its temporary source when no 
 
 test('the extension build stages declared sources and accepts an explicit output and configure argument', (t) => {
   const files = good();
-  const config = readFileSync(path.join(ROOT, 'tests/kit/fixture/config/release.json'), 'utf8');
-  const parsed: unknown = JSON.parse(config);
-  if (!isObject(parsed)) throw new Error('tests/kit/fixture/config/release.json holds no object');
-  const release = parsed;
-  release.packages = [
-    {
-      kind: 'composer',
-      directory: 'packages/php-ext',
-      name: 'polyspec/demo-php-ext',
-      generated: [{
-        kind: 'source-copy',
-        source: 'packages/php/src/native/shared.c',
-        output: 'src/native/shared.c',
-      }],
-    },
-  ];
-  release.manifests = { 'packages/php-ext/composer.json': 'archive' };
-  release.notReleased = {};
-  release.goModules = {};
-  delete release.proof;
-  files['config/release.json'] = JSON.stringify(release);
   const originalConfig = readFileSync(path.join(FIXTURE, 'config.m4'), 'utf8');
   files['packages/php-ext/src/config.m4'] = originalConfig.replace(
     '[polyspec_demo.c]',
@@ -258,6 +225,7 @@ test('the extension build stages declared sources and accepts an explicit output
   const built = spawnSync(process.execPath, [
     path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build', '--output', outputPath,
     '--source-copy', 'packages/php-ext/testing/mermaid/module.c', 'src/mermaid_test.c',
+    '--source-copy', 'packages/php/src/native/shared.c', 'src/native/shared.c',
     '--configure-arg', '--enable-polyspec-demo-offset',
   ], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
@@ -301,81 +269,6 @@ test('a failed extension build keeps compiler warnings and the make cause withou
   assert.deepEqual(readdirSync(path.join(root, 'var/php-ext')).filter(name => name.startsWith('build.')), []);
 });
 
-test('a missing arginfo parser fails before gen_stub can invoke a network downloader (K560)', (t) => {
-  const files = good();
-  delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
-  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
-  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
-  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
-  phpWrappers(root);
-  const target = path.join(root, 'var/tools/php-arginfo');
-  const version = /\$version\s*=\s*"(\d+\.\d+\.\d+)"/.exec(readFileSync(path.join(target, 'gen_stub.php'), 'utf8'))?.[1];
-  assert.ok(version);
-  const parser = path.join(target, `PHP-Parser-${version}`);
-  rmSync(parser, { recursive: true, force: true });
-  const bin = path.join(root, 'var/network-bin');
-  mkdirSync(bin, { recursive: true });
-  const marker = path.join(root, 'var/network-attempted');
-  for (const command of ['wget', 'curl']) {
-    const script = path.join(bin, command);
-    writeFileSync(script, `#!/bin/sh\nprintf '%s\\n' ${command} >> '${marker}'\nexit 99\n`);
-    chmodSync(script, 0o755);
-  }
-  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], {
-    cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
-  });
-  assert.equal(built.status, 1);
-  assert.match(built.stderr, /PHP-Parser-.* is missing; run make kit-install-php-arginfo/);
-  assert.equal(existsSync(marker), false, 'the generator and downloader were not started');
-  assert.equal(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')), false, 'no partial module was published');
-});
-
-/** A checkout whose php-config names a PHP with the gen_stub.php of PHP-Parser `parser` in its API build directory. */
-function buildDirectoryGenStub(t: TestContext, parser: string) {
-  const root = tree(t, { 'mise.toml': '' });
-  const prefix = path.join(root, 'php');
-  const extensions = path.join(prefix, 'lib/php/20240924');
-  put(root, { 'php/lib/php/20240924/build/gen_stub.php': `<?php $version = "${parser}";\n` });
-  const config = path.join(root, 'var/tools/bin/php-config');
-  mkdirSync(path.dirname(config), { recursive: true });
-  writeFileSync(config, `#!/bin/sh\ncase "$1" in\n--prefix) printf '%s\\n' '${prefix}';;\n--extension-dir) printf '%s\\n' '${extensions}';;\n*) exit 97;;\nesac\n`);
-  chmodSync(config, 0o755);
-  return root;
-}
-
-test('genStub discovers the generator in the PHP API build directory (K652)', (t) => {
-  const root = buildDirectoryGenStub(t, '5.0.0');
-  assert.equal(genStub(root).file, path.join(root, 'php/lib/php/20240924/build/gen_stub.php'));
-  assert.equal(genStub(root).parser, '5.0.0');
-});
-
-test('make kit-install-php-arginfo stages the pinned PHP generator and parser atomically from locked Composer files (K560)', (t) => {
-  const root = tree(t, { '.php-version': '8.4\n', 'mise.toml': '' });
-  phpWrappers(root);
-  rmSync(path.join(root, 'var/tools/php-arginfo'), { recursive: true, force: true });
-  const composer = path.join(root, 'var/tools/mise/shims/composer');
-  const marker = path.join(root, 'var/composer-installs');
-  mkdirSync(path.dirname(composer), { recursive: true });
-  writeFileSync(composer, `#!/bin/sh\ntest "$1" = install || exit 98\nmkdir -p vendor/nikic/php-parser/lib/PhpParser\nprintf '<?php\\n' > vendor/nikic/php-parser/lib/PhpParser/ParserFactory.php\nprintf 'install\\n' >> '${marker}'\n`);
-  chmodSync(composer, 0o755);
-  installPhpArginfo({ root });
-  const target = path.join(root, 'var/tools/php-arginfo');
-  assert.ok(existsSync(path.join(target, 'gen_stub.php')));
-  const version = /\$version\s*=\s*"(\d+\.\d+\.\d+)"/.exec(readFileSync(path.join(target, 'gen_stub.php'), 'utf8'))?.[1];
-  assert.ok(version);
-  assert.ok(existsSync(path.join(target, `PHP-Parser-${version}/lib/PhpParser/ParserFactory.php`)));
-  assert.equal(existsSync(path.join(target, 'vendor')), false, 'only generator inputs are installed');
-  assert.equal(readFileSync(marker, 'utf8'), 'install\n');
-  installPhpArginfo({ root });
-  assert.equal(readFileSync(marker, 'utf8'), 'install\ninstall\n', 'K861: each install runs the locked composer install again; Composer keeps its own cache');
-  assert.equal(existsSync(path.join(target, 'RELEASE')), false, 'K861: no RELEASE of kit is recorded');
-});
-
-test('a PHP-Parser release that kit holds no Composer project for fails with the remedy, not a bare ENOENT (K861)', (t) => {
-  const root = buildDirectoryGenStub(t, '0.0.1');
-  assert.throws(() => installPhpArginfo({ root }), /kit holds no locked Composer project for PHP-Parser 0\.0\.1, .*add scripts\/kit\/php-arginfo\/0\.0\.1 to kit/);
-});
-
 test('the declarations of the extension are compared with the library that declares each name (K293)', (t) => {
   const counter = library('int').replace(/function add[\s\S]*?\n}\n\n/, '');
   const adder = (type: string) => `<?php\n\ndeclare(strict_types=1);\n\nnamespace Polyspec\\Demo;\n\nfunction add(int $a, int $b = 1): ${type}\n{\n    return $a + $b;\n}\n`;
@@ -415,20 +308,6 @@ test('the build copy holds the sources of the extension only, so a stale build p
   const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 1, built.stdout);
   assert.equal(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')), false, 'nothing is published');
-});
-
-test('arginfo writes the generated header atomically under ignored build output (K560)', (t) => {
-  const root = tree(t, { ...good(), '.gitignore': 'var/\n', 'packages/php/src/Demo.php': library('int') });
-  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
-  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
-  const before = spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout;
-  phpWrappers(root);
-  const written = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'arginfo'], { cwd: root, encoding: 'utf8' });
-  assert.equal(written.status, 0, `${written.stdout}\n${written.stderr}`);
-  const output = path.join(root, 'var/php-ext/arginfo/polyspec_demo_arginfo.h');
-  assert.equal(/\* Stub hash: ([0-9a-f]+) \*/.exec(readFileSync(output, 'utf8'))?.[1], stubHash(STUB));
-  assert.equal(existsSync(path.join(root, 'packages/php-ext/src/polyspec_demo_arginfo.h')), true, 'existing tracked input is not rewritten');
-  assert.equal(spawnSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).stdout, before, 'generated output stays ignored');
 });
 
 test('the sources of the extension are read from the working tree, so generated sources that are not tracked pass the check (K297)', (t) => {
@@ -500,39 +379,3 @@ test('the compare of test-php-ext fails on a class, function or constant that th
   const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
   assert.equal(built.status, 0, built.stderr);
   assert.deepEqual(declarations(root), ['class Polyspec\\Native\\Extra: the extension registers it, and the PHP library declares none', 'constant Polyspec\\Native\\EXTRA: the extension registers it, and the PHP library declares none']);});
-
-// K637: the gen_stub.php of each PHP names the PHP-Parser release it runs with (PHP 8.4: 5.0.0, PHP 8.5: 5.6.1); make kit-install-php-arginfo stages that
-// release from the locked Composer project of kit for it, so a repository that declares PHP 8.5 installs as one that declares 8.4.
-test('make kit-install-php-arginfo stages the PHP-Parser that the gen_stub.php of the declared PHP names (K637)', (t) => {
-  const root = tree(t, { '.php-version': '8.5\n', 'mise.toml': '' });
-  const prefix = path.join(root, 'php85');
-  put(root, { 'php85/lib/php/build/gen_stub.php': '<?php $version = "5.6.1";\n' });
-  const phpConfig = path.join(root, 'var/tools/bin/php-config');
-  mkdirSync(path.dirname(phpConfig), { recursive: true });
-  writeFileSync(phpConfig, `#!/bin/sh\ntest "$1" = --prefix || exit 97\nprintf '%s\\n' '${prefix}'\n`, { mode: 0o755 });
-  const composer = path.join(root, 'var/tools/mise/shims/composer');
-  mkdirSync(path.dirname(composer), { recursive: true });
-  // The fake Composer installs the parser of the lock it finds, so the staged release is the one that the chosen lock pins.
-  writeFileSync(composer, `#!/bin/sh\ntest "$1" = install || exit 98\nversion=$(sed -n 's/.*"version": "v\\([0-9.]*\\)".*/\\1/p' composer.lock | head -1)\nmkdir -p vendor/nikic/php-parser/lib/PhpParser\nprintf '<?php // %s\\n' "$version" > vendor/nikic/php-parser/lib/PhpParser/ParserFactory.php\n`);
-  chmodSync(composer, 0o755);
-  installPhpArginfo({ root });
-  const staged = path.join(root, 'var/tools/php-arginfo/PHP-Parser-5.6.1/lib/PhpParser/ParserFactory.php');
-  assert.equal(readFileSync(staged, 'utf8'), '<?php // 5.6.1\n', 'the lock of PHP-Parser 5.6.1 is installed for PHP 8.5');
-  assert.equal(installedGenStub(root).parser, '5.6.1');
-  // K861: kit compares no staged generator with the PHP's; the build takes the gen_stub.php of the PHP as it is.
-  put(root, { 'php85/lib/php/build/gen_stub.php': '<?php $version = "5.6.1"; // patched\n' });
-  const generator = installedGenStub(root);
-  assert.equal(readFileSync(generator.file, 'utf8'), '<?php $version = "5.6.1"; // patched\n');
-});
-
-// K639: link's sibling scan takes each Composer package name as one provider, so each locked PHP-Parser project of kit (K637) has its own
-// name; two projects of one name stop make install-link in every consumer.
-test('each PHP-Parser project of kit has its own Composer name (K639)', () => {
-  const projects = path.join(ROOT, 'scripts/kit/php-arginfo');
-  const names = readdirSync(projects).map(release => {
-    const manifest: unknown = JSON.parse(readFileSync(path.join(projects, release, 'composer.json'), 'utf8'));
-    return typeof manifest === 'object' && manifest !== null && 'name' in manifest ? String(manifest.name) : '';
-  });
-  assert.ok(names.length >= 2, names.join(', '));
-  assert.equal(new Set(names).size, names.length, `one name per project: ${names.join(', ')}`);
-});

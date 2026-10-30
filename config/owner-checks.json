@@ -9,7 +9,6 @@
     { "paths": ["scripts/kit/**/*.mts", "tests/kit/*.mts"], "targets": ["typecheck", "duplication-check", "lint-ts"], "importers": ["tests/kit/*.test.mts"] },
     { "paths": ["**/*.{ts,mts,cts,js,mjs,cjs,tsx,jsx,py,php,go,rs}"], "targets": ["suppression-check"] },
     { "paths": ["scripts/kit/schema/**"], "targets": ["kit-check"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/schema-validate.mts"] },
-    { "paths": ["scripts/kit/php-arginfo/**"], "targets": ["kit-test"], "tests": ["tests/kit/php-ext.test.mts"] },
     { "paths": ["scripts/kit/toolchain-pins.json"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/toolchain-pins.mts"] },
     { "paths": ["scripts/kit/symbols/**"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/install-symbols.mts", "scripts/kit/php-extension.mts"] },
     { "paths": ["scripts/kit/markers/**"], "importers": ["tests/kit/*.test.mts"], "modules": ["scripts/kit/test-markers.mts"] },

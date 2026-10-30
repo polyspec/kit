@@ -31,7 +31,7 @@
 // A `wheel` package builds its PEP 427 wheel `<distribution>-<version>-py3-none-any.whl` from the tagged commit with uv build,
 // which installs the build-system.requires of its pyproject.toml (release-wheel.mts).
 // Each failure names the tag, the file or the check, and the expected and the actual value, and exits with status 1.
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, type GitHubRelease } from './github-release.mts';
@@ -48,7 +48,6 @@ import { execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
 import { toolCommand } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
-import { installedGenStub } from './install-php-arginfo.mts';
 
 export const MAIN = 'origin/main';
 export const CONFIG = 'config/release.json';
@@ -82,17 +81,9 @@ export interface ReleasePackage {
 
 /**
  * A build artifact of a package, materialized from the committed package snapshot only while the package is packed: `make`
- * runs its target in a copy of the tagged tree (K929), and every declared output must exist there afterwards.
+ * runs its target in a copy of the tagged tree (K929, K930), and every declared output must exist there afterwards.
  */
 export type ReleaseGeneratedArtifact = {
-  kind: 'php-arginfo';
-  stub: string;
-  output: string;
-} | {
-  kind: 'source-copy';
-  source: string;
-  output: string;
-} | {
   kind: 'make';
   target: string;
   outputs: string[];
@@ -188,18 +179,12 @@ export function loadConfig(root: string): ReleaseConfig {
     if (config.manifests[manifest] !== 'archive') problems.push(`${CONFIG}: the package ${name} needs manifests.${manifest} = "archive", found ${JSON.stringify(config.manifests[manifest] ?? null)}`);
     for (const generated of config.packages.find(item => item.directory === directory)?.generated ?? []) {
       const valid = (file: string) => file !== '' && !file.startsWith('~') && !file.startsWith('/') && path.win32.parse(file).root === '' && !file.includes('\\') && file.split('/').every(part => part !== '' && part !== '.' && part !== '..');
-      if (generated.kind === 'php-arginfo') {
-        if (!valid(generated.stub) || !generated.stub.endsWith('.stub.php')) problems.push(`${CONFIG}: generated php-arginfo stub ${JSON.stringify(generated.stub)} is not a package-relative .stub.php path`);
-        if (!valid(generated.output) || generated.output !== generated.stub.replace(/\.stub\.php$/, '_arginfo.h')) problems.push(`${CONFIG}: generated php-arginfo output ${JSON.stringify(generated.output)} must be the matching _arginfo.h beside its stub`);
-      } else if (generated.kind === 'source-copy') {
-        if (!valid(generated.source)) problems.push(`${CONFIG}: source-copy source ${JSON.stringify(generated.source)} is not a repository-relative path without empty, dot or parent segments`);
-        if (!valid(generated.output)) problems.push(`${CONFIG}: source-copy output ${JSON.stringify(generated.output)} is not a package-relative path without empty, dot or parent segments`);
-      } else if (generated.kind === 'make') {
+      if (generated.kind === 'make') {
         if (!/^[A-Za-z][A-Za-z0-9_.-]*$/.test(generated.target)) problems.push(`${CONFIG}: generated make target ${JSON.stringify(generated.target)} is not a make target name`);
         if (!generated.outputs.length || generated.outputs.some(output => !valid(output))) problems.push(`${CONFIG}: generated make outputs of ${directory} must be one or more package-relative paths without empty, dot or parent segments`);
       }
     }
-    const outputs = (config.packages.find(item => item.directory === directory)?.generated ?? []).flatMap(item => (item.kind === 'make' ? item.outputs : [item.output]));
+    const outputs = (config.packages.find(item => item.directory === directory)?.generated ?? []).flatMap(item => item.outputs);
     for (const output of new Set(outputs)) if (outputs.filter(item => item === output).length > 1) problems.push(`${CONFIG}: generated output ${directory}/${output} is declared more than once`);
   }
   const archived = new Set(config.packages.map(({ directory, kind }) => path.posix.join(directory, MANIFEST_OF[kind])));
@@ -398,7 +383,6 @@ export function packedManifest(ctx: Context, file: string): string {
   return file.endsWith('.tgz') ? run('tar', ['-xzOf', file, 'package/package.json'], at(ctx)) : run('unzip', ['-p', file, 'composer.json'], at(ctx));
 }
 
-/** Generate package artifacts from the tagged sources in a private temporary directory. */
 /** The regular files under dir, sorted, as paths relative to dir with slashes. */
 function filesUnder(dir: string, prefix = ''): string[] {
   return readdirSync(path.join(dir, prefix), { withFileTypes: true })
@@ -410,11 +394,20 @@ function filesUnder(dir: string, prefix = ''): string[] {
 }
 
 /**
- * Runs the make target of each `make` entry (K929) in a copy of the tagged tree, the tracked files of the commit with the
- * node_modules and var of the checkout beside them for the tools the target runs, and stages each declared output under
- * staging at its package-relative path. An output that the target does not write fails the pack.
+ * Runs the make target of each `make` entry (K929) in a copy of the tagged tree: the tracked files of the commit, with no link into
+ * the checkout. PHP_CONFIG is the php-config of the checkout that toolCommand names (K930), so the target finds the PHP of the
+ * repository. A declared output that the commit tracks fails the pack, and each declared output must exist in the copy afterwards.
+ * The outputs are staged under staging at their package-relative paths.
  */
-function madeFiles(ctx: Context, commit: string, folder: string, makes: { target: string; outputs: string[] }[], staging: string): { output: string; file: string }[] {
+function madeFiles(ctx: Context, commit: string, folder: string, makes: ReleaseGeneratedArtifact[], staging: string): { output: string; file: string }[] {
+  const tracked = run('git', ['ls-tree', '-r', '--name-only', commit, folder], at(ctx)).split('\n').filter(Boolean);
+  for (const { outputs } of makes) {
+    for (const output of outputs) {
+      const declared = path.posix.join(folder, output);
+      if (tracked.some(file => file === declared || file.startsWith(`${declared}/`))) throw new Stop(`${declared} is tracked at commit ${commit}: a make output is generated and Git tracks no generated output (P34)`);
+    }
+  }
+  const phpConfig = toolCommand(ctx.root, 'php-config');
   const copy = mkdtempSync(path.join(tmpdir(), 'kit-release-make-'));
   try {
     const tree = path.join(copy, 'tree');
@@ -422,11 +415,11 @@ function madeFiles(ctx: Context, commit: string, folder: string, makes: { target
     mkdirSync(tree);
     run('git', ['archive', '--format=tar', `--output=${archive}`, commit], at(ctx));
     run('tar', ['-xf', archive, '-C', tree], at(ctx));
-    for (const name of ['node_modules', 'var']) if (existsSync(path.join(ctx.root, name))) symlinkSync(path.join(ctx.root, name), path.join(tree, name));
+    const env = { ...ctx.env, PHP_CONFIG: phpConfig };
     const files: { output: string; file: string }[] = [];
     for (const { target, outputs } of makes) {
       ctx.log(`[release] ${commit}: make ${target} in the copy of ${folder}`);
-      const result = execute('make', ['-C', tree, target], { cwd: tree, env: ctx.env });
+      const result = execute('make', ['-C', tree, target], { cwd: tree, env });
       if (result.error) throw new Stop(`make could not start for ${target}: ${result.error.message}`);
       if (result.status !== 0) throw new Stop(`make ${target} failed at ${commit} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
       for (const output of outputs) {
@@ -449,48 +442,12 @@ function madeFiles(ctx: Context, commit: string, folder: string, makes: { target
   }
 }
 
+/** Generate package artifacts from the tagged sources in a private temporary directory (K929, K930): the outputs of the make entries of the package. */
 function generatedArchiveFiles(ctx: Context, commit: string, folder: string, generated: ReleaseGeneratedArtifact[] | undefined): { directory: string; files: { output: string; file: string }[] } | null {
   if (!generated?.length) return null;
-  const phpArginfo = generated.filter(item => item.kind === 'php-arginfo');
-  const sourceCopies = generated.filter((item): item is Extract<ReleaseGeneratedArtifact, { kind: 'source-copy' }> => item.kind === 'source-copy');
-  const temporary = mkdtempSync(path.join(tmpdir(), 'kit-release-arginfo-'));
+  const temporary = mkdtempSync(path.join(tmpdir(), 'kit-release-generated-'));
   try {
-    const files: { output: string; file: string }[] = [];
-    const makes = generated.filter((item): item is Extract<ReleaseGeneratedArtifact, { kind: 'make' }> => item.kind === 'make');
-    if (makes.length) files.push(...madeFiles(ctx, commit, folder, makes, temporary));
-    if (phpArginfo.length) {
-      const generator = installedGenStub(ctx.root);
-      const php = toolCommand(ctx.root, 'php');
-      for (const item of phpArginfo) {
-        const stub = path.join(temporary, path.basename(item.stub));
-        const source = run('git', ['show', `${commit}:${path.posix.join(folder, item.stub)}`], at(ctx));
-        writeFileSync(stub, source);
-        const result = execute(php, [generator.file, '--force-regeneration', stub], { cwd: temporary, env: ctx.env });
-        if (result.error) throw new Stop(`${php} could not start while generating ${path.posix.join(folder, item.output)}: ${result.error.message}`);
-        if (result.status !== 0) throw new Stop(`${php} ${path.basename(generator.file)} failed for ${path.posix.join(folder, item.stub)} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
-        const output = path.join(temporary, path.basename(item.output));
-        if (!existsSync(output)) throw new Stop(`${generator.file} did not write ${path.posix.join(folder, item.output)}`);
-        const staged = path.join(temporary, item.output);
-        mkdirSync(path.dirname(staged), { recursive: true });
-        copyFileSync(output, staged);
-        files.push({ output: item.output, file: staged });
-      }
-    }
-    const packagePrefix = folder === '.' ? '' : `${folder}/`;
-    const packageFiles = run('git', ['ls-tree', '-r', '--name-only', commit, folder], at(ctx)).split('\n').filter(Boolean).map(file => (packagePrefix ? file.slice(packagePrefix.length) : file));
-    for (const item of sourceCopies) {
-      const staged = path.resolve(temporary, item.output);
-      if (packageFiles.some(file => file === item.output || file.startsWith(`${item.output}/`) || item.output.startsWith(`${file}/`))) {
-        throw new Stop(`${CONFIG}: source-copy output ${folder}/${item.output} overlaps a file or directory of the tagged package`);
-      }
-      const sourceFiles = run('git', ['ls-tree', '-r', '--name-only', commit, '--', item.source], at(ctx)).split('\n').filter(Boolean);
-      if (!sourceFiles.includes(item.source)) throw new Stop(`${CONFIG}: source-copy source ${item.source} is not a tracked file at tagged commit ${commit}`);
-      const contents = run('git', ['show', `${commit}:${item.source}`], at(ctx));
-      mkdirSync(path.dirname(staged), { recursive: true });
-      writeFileSync(staged, contents);
-      files.push({ output: item.output, file: staged });
-    }
-    return { directory: temporary, files };
+    return { directory: temporary, files: madeFiles(ctx, commit, folder, generated, temporary) };
   } catch (error) {
     rmSync(temporary, { recursive: true, force: true });
     throw error;

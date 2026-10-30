@@ -361,7 +361,7 @@ test('K910: the plan passes the declared targets of each job and takes the runti
   }
 });
 
-test('K731: PHP extension jobs install their declared PHP and Composer tools and generate arginfo locally', () => {
+test('K731: PHP extension jobs install their declared PHP and Composer tools', () => {
   const root = fixture();
   try {
     mkdirSync(path.join(root, 'packages/php-ext'));
@@ -370,12 +370,11 @@ test('K731: PHP extension jobs install their declared PHP and Composer tools and
     writeFileSync(path.join(root, '.php-version'), '8.4\n');
     writeFileSync(path.join(root, 'mise.toml'), '[tools]\n"http:composer" = { version = "2.9.0", url = "https://example.invalid/composer.phar" }\n');
     writeFileSync(path.join(root, 'Makefile'), [
-      '.PHONY: shared-setup parity-setup go-setup extension-setup kit-install-php-arginfo',
+      '.PHONY: shared-setup parity-setup go-setup extension-setup',
       'shared-setup:', '\t@printf shared >> setup.log',
       'parity-setup:', '\t@printf parity >> setup.log',
       'go-setup:', '\t@printf go >> setup.log',
       'extension-setup:', '\t@printf extension >> setup.log',
-      'kit-install-php-arginfo:', '\t@printf arginfo >> setup.log',
       '',
     ].join('\n'));
     const config = fixtureConfig(root);
@@ -390,18 +389,16 @@ test('K731: PHP extension jobs install their declared PHP and Composer tools and
     assert.equal(plan.parityTools.includes('phpunit'), false, 'the repository does not need Kit private PHPUnit when it provides its own Composer project');
     assert.deepEqual(ciSetupInvocations(root, 'runtime', 'php-ext'), [
       { target: 'extension-setup', args: [] },
-      { target: 'kit-install-php-arginfo', args: [] },
     ]);
-    // K914: the parity job builds the extension too, so its setup installs the generator after the setup of php-ext, once
+    // K914: the parity job builds the extension too, so its setup runs the setup of php-ext, once
     // also when setup.parity names it.
     const parity = [
       { target: 'go-setup', args: [] },
       { target: 'extension-setup', args: [] },
-      { target: 'kit-install-php-arginfo', args: [] },
       { target: 'parity-setup', args: [] },
     ];
     assert.deepEqual(ciSetupInvocations(root, 'parity'), parity);
-    config.setup.parity = ['parity-setup', 'kit-install-php-arginfo'];
+    config.setup.parity = ['parity-setup'];
     writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
     assert.deepEqual(ciSetupInvocations(root, 'parity'), parity);
   } finally {

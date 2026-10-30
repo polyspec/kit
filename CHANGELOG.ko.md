@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d95bbd5aa8c1e15202d2fe80e147496c87e010260cb339c15d53e0fd199374b5 -->
+<!-- source-sha256: 7e5f16f5a6bcbc6399974c5e1cdef9d951eb1ad8d462847d40fa0afbf5a354da -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K930: 릴리스 pack은 package의 생성 출력을 저장소 자신의 make target으로 만든다. config/release.json은 각 경로를 make 항목으로 선언하며, pack은 link가 checkout을 가리키지 않는 tagged commit의 사본에서 PHP_CONFIG(checkout의 php-config)와 함께 `make -C <사본> <target>`을 실행한다. commit이 추적하는 선언된 출력은 pack을 실패시키고 그 경로를 밝힌다. source-copy 종류와 kit의 php-arginfo 설치(install-php-arginfo, scripts/kit/php-arginfo)는 제거하며, generated.json의 `tracked`는 consumer가 tagged tree로 설치하는 생성 source를 선언한다 (K930). Red: f6fc6cfb에서 `node --test --test-name-pattern=K930 tests/kit/release.test.mts`는 추적 검사가 없어 실패했고, `node --test --test-name-pattern=K930 tests/kit/release-tools.test.mts`는 steps에 install-php-arginfo가 있어 실패했다.
 - K929: config/release.json의 generated 항목은 모든 package 종류에 허용되는 make 항목이다. 그 target은 packing 전에 tag된 tree의 사본에서 실행되며, 선언된 각 출력이 거기 있어야 한다 (K929)
 - make item-state가 item이 이미 가진 상태를 요청하면 "<id> is already <state>"로 성공하고, 아무것도 쓰지 않으며 Verification을 실행하지 않는다. STATE_TRANSITIONS 밖의 이동만 거부된다. K937 이후 어떤 상태도 자기 자신을 다음 상태로 나열하지 않으므로 active나 verifying item에 대한 반복 이동이 실패했다(K937-1).
 - make item-state는 item의 현재 상태에서 STATE_TRANSITIONS가 허용하지 않는 이동을 Verification을 실행하기 전에 거부하고 아무것도 쓰지 않는다. 오류는 item, 그 상태, 허용되는 다음 상태와 거부된 상태를 밝힌다. setState는 상태가 선언되었는지만 확인했으므로 done item이 verifying으로, impossible item이 active로 돌아갈 수 있었다. 쓰이지 않던 reachableStates는 제거된다(K937).

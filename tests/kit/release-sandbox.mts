@@ -199,6 +199,9 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
   writeFileSync(path.join(root, 'var/tools/bin/npm'), NPM_STUB);
   chmodSync(path.join(root, 'var/tools/bin/npm'), 0o755);
+  // The php-config of the checkout, which the pack passes to make as PHP_CONFIG (K930).
+  writeFileSync(path.join(root, 'var/tools/bin/php-config'), '#!/bin/sh\nprintf "%s\\n" /opt/php\n');
+  chmodSync(path.join(root, 'var/tools/bin/php-config'), 0o755);
   // go reads the go.mod files of the fixture. Pin the binary outside var/tools so a mise shim cannot recurse into this fixture's config.
   checkoutTools(root, ['go']);
   const state = path.join(root, '.stubs/state.json');

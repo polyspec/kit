@@ -7,8 +7,8 @@
 // var/tools/bin/mise, which keeps mise and the builds of its tools under var/tools/mise); a tool that mise.lock does not pin
 // fails the install. Then kit installs what mise does not: the Composer projects of config/phpunit (phpunit) and config/php-lint, the Rust
 // toolchain of rust-toolchain.toml with its components and the Rust channels of config/toolchain.json exceptions (install-rust.mts,
-// with rustup, which stays the toolchain manager of Rust). The arginfo generator and the symbol extractors have their own make
-// targets, kit-install-php-arginfo and kit-install-symbols, which install-kit runs from the declarations of the repository (kit-install-declared, K861). Each is installed only
+// with rustup, which stays the toolchain manager of Rust). The symbol extractors have their own make target, kit-install-symbols,
+// which install-kit runs from the declarations of the repository (kit-install-declared, K861). Each is installed only
 // when it is declared, and each tool judges what is already installed. The tools of the machine are never changed. Node.js is a tool of mise.toml, which
 // the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts wraps the php of PATH as it is (K283, K862). With no selectors the command installs all tools. A selector list of the tool names of toolchain-mise.mts installs only those pinned tools and their prerequisites, for example `make install-tools TOOLS="go python"`. Unknown, empty and undeclared selectors fail before the checkout is changed. `TOOLS=npm` remains the bootstrap. It prints a line for each
 // step and has no time limit.

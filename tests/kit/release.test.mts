@@ -108,8 +108,7 @@ test('the configuration is checked for the rules that the schema cannot express'
   stop(load(() => ({ ...original, goModules: { 'packages/fixture-go': '' } })), /goModules\.packages\/fixture-go needs the module path/);
   stop(load(() => ({ ...original, schema: 3 })), /\/schema must be equal to constant \{"allowedValue":1\}, value 3/);
   writeJson(box.root, 'config/release.json', original);
-  stop(load(() => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, generated: [{ kind: 'source-copy', source: '../outside.c', output: 'src/native/shared.c' }] } : p)) })), /source-copy source "\.\.\/outside\.c" is not a repository-relative path/);
-  stop(load(() => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, generated: [{ kind: 'source-copy', source: 'packages/fixture-lib/shared.c', output: 'src/../shared.c' }] } : p)) })), /source-copy output "src\/\.\.\/shared\.c" is not a package-relative path/);
+  stop(load(() => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, generated: [{ kind: 'make', target: 'fixture-native', outputs: ['../shared.c'] }] } : p)) })), /generated make outputs of packages\/fixture-php must be one or more package-relative paths/);
   git(box.root, 'rm', '-q', '-f', 'config/release.json');
   stop(() => release.loadConfig(box.root), /config\/release\.json: the file is missing/);
 });
@@ -153,10 +152,11 @@ test('K712 builds candidate archives from committed HEAD without a release tag',
   const generatedSource = '#include <sqlite3ext.h>\nSQLITE_EXTENSION_INIT1\n';
   const box = releaseSandbox(t, { mutate(root) {
     writeFileSync(path.join(root, 'packages/fixture-lib/shared.c'), generatedSource);
+    writeFileSync(path.join(root, 'Makefile'), `${existsSync(path.join(root, 'Makefile')) ? readFileSync(path.join(root, 'Makefile'), 'utf8') : ''}\nfixture-native:\n\tmkdir -p packages/fixture-php/src/native && cp packages/fixture-lib/shared.c packages/fixture-php/src/native/shared.c\n`);
     edit<ConfigJson>(root, 'config/release.json', config => ({
       ...config,
       packages: config.packages.map(item => item.directory === 'packages/fixture-php'
-        ? { ...item, generated: [{ kind: 'source-copy', source: 'packages/fixture-lib/shared.c', output: 'src/native/shared.c' }] }
+        ? { ...item, generated: [{ kind: 'make', target: 'fixture-native', outputs: ['src/native/shared.c'] }] }
         : item),
     }));
   } });
@@ -176,7 +176,8 @@ test('K712 builds candidate archives from committed HEAD without a release tag',
   assert.equal(git(box.root, 'tag', '--list'), '', 'candidate generation does not create or require a tag');
 });
 
-// K871: the release publishes packages.json, one flat Composer repository of its Composer packages beside the archives, since
+// K929 and K930: a make entry of a package runs its target in a copy of the tagged commit, and the pack packs the declared outputs.
+// The copy holds the tracked files of the commit and no link into the checkout; PHP_CONFIG is the php-config of the checkout (K930).
 test('K929 a make entry runs its target in a copy of the commit and packs the declared output', (t) => {
   const box = releaseSandbox(t, { mutate(root) {
     const makefile = path.join(root, 'Makefile');
@@ -205,6 +206,78 @@ test('K929 a make entry whose target does not write its declared output fails th
   stop(() => release.candidateAssets(context(box), '0.0.1'), /make fixture-silent did not write packages\/fixture-php\/src\/gen\/out\.txt/);
 });
 
+test('K930 a make output that the commit tracks fails the pack and names the path', (t) => {
+  const box = releaseSandbox(t, { mutate(root) {
+    const makefile = path.join(root, 'Makefile');
+    writeFileSync(makefile, `${existsSync(makefile) ? readFileSync(makefile, 'utf8') : ''}\nfixture-tracked:\n\tprintf tracked > packages/fixture-php/composer.json\n`);
+    edit<ConfigJson>(root, 'config/release.json', config => ({
+      ...config,
+      packages: config.packages.map(item => (item.directory === 'packages/fixture-php' ? { ...item, generated: [{ kind: 'make', target: 'fixture-tracked', outputs: ['composer.json'] }] } : item)),
+    }));
+  } });
+  stop(() => release.candidateAssets(context(box), '0.0.1'), /packages\/fixture-php\/composer\.json is tracked at commit/);
+});
+
+test('K930 the copy of a make entry holds no var and no node_modules of the checkout', (t) => {
+  const box = releaseSandbox(t, { mutate(root) {
+    const makefile = path.join(root, 'Makefile');
+    writeFileSync(makefile, `${existsSync(makefile) ? readFileSync(makefile, 'utf8') : ''}\nfixture-clean:\n\ttest ! -e var && test ! -e node_modules && mkdir -p packages/fixture-php/src/gen && printf clean > packages/fixture-php/src/gen/out.txt\n`);
+    edit<ConfigJson>(root, 'config/release.json', config => ({
+      ...config,
+      packages: config.packages.map(item => (item.directory === 'packages/fixture-php' ? { ...item, generated: [{ kind: 'make', target: 'fixture-clean', outputs: ['src/gen/out.txt'] }] } : item)),
+    }));
+  } });
+  // The checkout has its own node_modules, which the copy must not reach.
+  mkdirSync(path.join(box.root, 'node_modules/fixture'), { recursive: true });
+  const output: string[] = [];
+  assert.equal(release.main(['candidate-assets', '0.0.1'], { root: box.root, env: context(box).env, print: line => output.push(line), error: line => output.push(line) }), 0, output.join('\n'));
+  const zip = path.join(box.root, 'var/release/assets', 'polyspec-kit-fixture-php-0.0.1.zip');
+  assert.equal(spawnSync('unzip', ['-p', zip, 'src/gen/out.txt'], { encoding: 'utf8' }).stdout, 'clean');
+});
+
+test('K930 the pack runs exactly make -C <copy> <target> with PHP_CONFIG and no other package manager call', (t) => {
+  const box = releaseSandbox(t, { mutate(root) {
+    const makefile = path.join(root, 'Makefile');
+    writeFileSync(makefile, `${existsSync(makefile) ? readFileSync(makefile, 'utf8') : ''}\nfixture-once:\n\tmkdir -p packages/fixture-php/src/gen && printf once > packages/fixture-php/src/gen/out.txt\n`);
+    edit<ConfigJson>(root, 'config/release.json', config => ({
+      ...config,
+      packages: config.packages.map(item => (item.directory === 'packages/fixture-php' ? { ...item, generated: [{ kind: 'make', target: 'fixture-once', outputs: ['src/gen/out.txt'] }] } : item)),
+    }));
+  } });
+  // A make on the PATH records its arguments and PHP_CONFIG, then runs the real make.
+  const real = spawnSync('/bin/sh', ['-c', 'command -v make'], { encoding: 'utf8' }).stdout.trim();
+  const bin = path.join(box.root, '.stubs/make-bin');
+  const log = path.join(box.root, '.stubs/make.log');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(path.join(bin, 'make'), `#!/bin/sh\nprintf '%s\\tPHP_CONFIG=%s\\n' "$*" "$PHP_CONFIG" >> '${log}'\nexec '${real}' "$@"\n`);
+  chmodSync(path.join(bin, 'make'), 0o755);
+  const env = { ...context(box).env, PATH: `${bin}${path.delimiter}${box.env.PATH}` };
+  const output: string[] = [];
+  assert.equal(release.main(['candidate-assets', '0.0.1'], { root: box.root, env, print: line => output.push(line), error: line => output.push(line) }), 0, output.join('\n'));
+  const calls = readFileSync(log, 'utf8').trim().split('\n');
+  assert.equal(calls.length, 1, calls.join('\n'));
+  const first = known(calls[0], 'the make call');
+  const call = /^-C (\S+kit-release-make-\S+\/tree) fixture-once\tPHP_CONFIG=(.+)$/.exec(first);
+  assert.ok(call, first);
+  const phpConfig = known(call[2], 'PHP_CONFIG');
+  assert.equal(phpConfig, toolCommand(box.root, 'php-config'), 'PHP_CONFIG is the php-config of the checkout');
+  assert.deepEqual(box.npmCalls().filter(entry => entry.args[0] !== 'pack'), [], 'the pack starts no package manager but npm pack');
+});
+
+test('K930 a missing php-config of the checkout fails the pack with the message of toolCommand', (t) => {
+  const box = releaseSandbox(t, { mutate(root) {
+    const makefile = path.join(root, 'Makefile');
+    writeFileSync(makefile, `${existsSync(makefile) ? readFileSync(makefile, 'utf8') : ''}\nfixture-gen:\n\tmkdir -p packages/fixture-php/src/gen && printf 'generated by make' > packages/fixture-php/src/gen/out.txt\n`);
+    edit<ConfigJson>(root, 'config/release.json', config => ({
+      ...config,
+      packages: config.packages.map(item => (item.directory === 'packages/fixture-php' ? { ...item, generated: [{ kind: 'make', target: 'fixture-gen', outputs: ['src/gen/out.txt'] }] } : item)),
+    }));
+  } });
+  rmSync(path.join(box.root, 'var/tools/bin/php-config'));
+  assert.throws(() => release.candidateAssets(context(box), '0.0.1'), /php-config of the checkout is missing/);
+});
+
+// K871: the release publishes packages.json, one flat Composer repository of its Composer packages beside the archives, since
 // GitHub release assets hold no folder. Each package is its composer.json of the commit at the release version, with a dist of
 // its release asset URL and the sha1 of its zip, so a consumer names only the tag in the URL of the repository and Composer reads
 // the metadata itself. A consumer with the real Composer of the checkout resolves the package through it.
@@ -303,10 +376,11 @@ test('a Composer archive stages a declared tracked source from another package',
   const source = '#include <sqlite3ext.h>\nSQLITE_EXTENSION_INIT1\n';
   const box = releaseSandbox(t, { mutate(root) {
     writeFileSync(path.join(root, 'packages/fixture-lib/shared.c'), source);
+    writeFileSync(path.join(root, 'Makefile'), `${existsSync(path.join(root, 'Makefile')) ? readFileSync(path.join(root, 'Makefile'), 'utf8') : ''}\nfixture-native:\n\tmkdir -p packages/fixture-php/src/native && cp packages/fixture-lib/shared.c packages/fixture-php/src/native/shared.c\n`);
     edit<ConfigJson>(root, 'config/release.json', config => ({
       ...config,
       packages: config.packages.map(item => item.directory === 'packages/fixture-php'
-        ? { ...item, generated: [{ kind: 'source-copy', source: 'packages/fixture-lib/shared.c', output: 'src/native/shared.c' }] }
+        ? { ...item, generated: [{ kind: 'make', target: 'fixture-native', outputs: ['src/native/shared.c'] }] }
         : item),
     }));
   } });
@@ -316,66 +390,6 @@ test('a Composer archive stages a declared tracked source from another package',
   assert.equal(entries.status, 0, entries.stderr);
   assert.ok(entries.stdout.split('\n').includes('src/native/shared.c'));
   assert.equal(spawnSync('unzip', ['-p', archive, 'src/native/shared.c'], { encoding: 'utf8' }).stdout, source);
-});
-
-test('K560 Composer archives generate arginfo from the tagged stub without changing the checkout', (t) => {
-  const committedStub = "<?php\n// committed extension stub\n";
-  const box = releaseSandbox(t, { mutate(root) {
-    writeFileSync(path.join(root, 'packages/fixture-php/src/polyspec_orm.stub.php'), committedStub);
-    edit<ConfigJson>(root, 'config/release.json', config => ({
-      ...config,
-      packages: config.packages.map(item => item.kind === 'composer' ? { ...item, generated: [{ kind: 'php-arginfo', stub: 'src/polyspec_orm.stub.php', output: 'src/polyspec_orm_arginfo.h' }] } : item),
-    }));
-  } });
-  const prefix = path.join(box.root, 'php-prefix');
-  const generatorSource = '<?php\n$version = "5.0.0";\n';
-  const generator = path.join(box.root, 'var/tools/php-arginfo/gen_stub.php');
-  const parser = path.join(box.root, 'var/tools/php-arginfo/PHP-Parser-5.0.0/lib/PhpParser');
-  mkdirSync(path.join(prefix, 'lib/php/build'), { recursive: true });
-  mkdirSync(parser, { recursive: true });
-  writeFileSync(path.join(prefix, 'lib/php/build/gen_stub.php'), generatorSource);
-  writeFileSync(generator, generatorSource);
-  writeFileSync(path.join(parser, 'ParserFactory.php'), '<?php\n');
-  const bin = path.join(box.root, 'var/tools/bin');
-  mkdirSync(bin, { recursive: true });
-  writeFileSync(path.join(bin, 'php-config'), `#!/bin/sh\nprintf '%s\\n' '${prefix}'\n`);
-  chmodSync(path.join(bin, 'php-config'), 0o755);
-  writeFileSync(path.join(bin, 'php'), "#!/bin/sh\nstub=\nfor arg do case \"$arg\" in *.stub.php) stub=\"$arg\" ;; esac; done\noutput=$(printf '%s' \"$stub\" | sed 's/\\.stub\\.php$/_arginfo.h/')\nprintf 'generated from committed stub: ' > \"$output\"\ncat \"$stub\" >> \"$output\"\nhead -c 356000 /dev/zero | tr '\\000' X >> \"$output\"\n");
-  chmodSync(path.join(bin, 'php'), 0o755);
-
-  const source = path.join(box.root, 'packages/fixture-php/src/polyspec_orm.stub.php');
-  const mutableStub = '<?php\n// changed but not committed\n';
-  writeFileSync(source, mutableStub);
-  const ctx = context(box);
-  const tag = box.tag('v0.0.1');
-  const names = release.assets(ctx, tag);
-  const zip = path.join(box.root, 'var/release/assets', known(names[2], 'Composer archive name'));
-  const generated = spawnSync('unzip', ['-p', zip, 'src/polyspec_orm_arginfo.h']);
-  assert.equal(generated.status, 0, generated.stderr?.toString());
-  const expected = Buffer.concat([Buffer.from(`generated from committed stub: ${committedStub}`), Buffer.alloc(356000, 'X')]);
-  assert.equal(generated.stdout.length, expected.length, 'the complete generated header is archived');
-  assert.deepEqual(generated.stdout, expected, 'archive generation transports the header by file, not a size-limited argument');
-  const metadata = spawnSync('unzip', ['-Z', '-v', zip], { encoding: 'utf8' });
-  assert.equal(metadata.status, 0, metadata.stderr);
-  assert.match(metadata.stdout, /Central directory entry #\d+:\n-+\n\n  src\/polyspec_orm_arginfo\.h/);
-  assert.match(metadata.stdout, /compression method:\s+none \(stored\)/);
-  assert.match(metadata.stdout, /Unix file attributes \(100644 octal\):\s+-rw-r--r--/);
-  const zipless = path.join(box.root, 'zipless-path');
-  mkdirSync(zipless);
-  assert.throws(() => release.assets(release.context(box.root, { env: { ...box.env, PATH: zipless } }), tag), /zip is required to append generated files to Composer release archives; install Info-ZIP/);
-  assert.equal(existsSync(path.join(box.root, 'var/release/assets')), true, 'missing zip is detected without deleting the prior release output');
-  assert.equal(readFileSync(source, 'utf8'), mutableStub);
-  assert.equal(existsSync(path.join(box.root, 'packages/fixture-php/src/polyspec_orm_arginfo.h')), false);
-  const first = sha256(zip);
-  release.assets(release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY, TZ: 'Pacific/Auckland' } }), tag);
-  assert.equal(sha256(zip), first, 'the generated archive is deterministic across runs and time zones');
-  const failingBin = path.join(box.root, 'var/tools/bin');
-  mkdirSync(failingBin, { recursive: true });
-  writeFileSync(path.join(failingBin, 'zip'), '#!/bin/sh\nif [ "$1" = "-v" ]; then exit 0; fi\nexit 9\n');
-  chmodSync(path.join(failingBin, 'zip'), 0o755);
-  assert.throws(() => release.assets(release.context(box.root, { env: { ...box.env, PATH: `${failingBin}${path.delimiter}${box.env.PATH}` } }), tag), /zip failed while adding src\/polyspec_orm_arginfo\.h .*exit status 9/);
-  assert.equal(sha256(zip), first, 'a failed append leaves the previously published archive untouched');
-  assert.deepEqual(readdirSync(path.join(box.root, 'var/release')), ['assets'], 'a failed append removes its staged asset directory');
 });
 
 test('K686-6: kit assets accept only the canonical packed manifest', (t) => {

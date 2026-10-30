@@ -30,6 +30,7 @@ export interface GeneratedConfig {
   schema: 1;
   paths: string[];
   exceptions: string[];
+  tracked?: { path: string; reason: string }[];
 }
 
 const isGeneratedSegment = (segment: string) => GENERATED_SEGMENTS.includes(segment) || segment.endsWith('.egg-info');
@@ -77,8 +78,9 @@ export function executableOffenders(files: string[], config: Pick<GeneratedConfi
 }
 
 /** The paths that are generated (a segment of GENERATED_SEGMENTS, or a glob of `config.paths`) and that no glob of `config.exceptions` allows, in the order given. */
-export function generatedOffenders(paths: string[], config: Pick<GeneratedConfig, 'paths' | 'exceptions'>) {
-  return paths.filter(file => (file.split('/').some(isGeneratedSegment) || matchesAny(config.paths, file)) && !matchesAny(config.exceptions, file));
+export function generatedOffenders(paths: string[], config: Pick<GeneratedConfig, 'paths' | 'exceptions' | 'tracked'>) {
+  const tracked = (config.tracked ?? []).map(item => item.path);
+  return paths.filter(file => (file.split('/').some(isGeneratedSegment) || matchesAny(config.paths, file)) && !matchesAny(config.exceptions, file) && !matchesAny(tracked, file));
 }
 
 /**

@@ -184,9 +184,6 @@ jobs:
       - name: install PHP extension test tools
         if: ${{ matrix.shard == 5 && !cancelled() }}
         run: make install-tools TOOLS="php composer phpunit"
-      - name: install PHP extension fixture tools
-        if: ${{ matrix.shard == 5 && !cancelled() }}
-        run: make kit-install-php-arginfo
       # Temporary consumer fixtures resolve their parser from Kit's own source installation.
       - name: install PHP parser for consumer fixtures
         if: ${{ matrix.shard == 5 && !cancelled() }}

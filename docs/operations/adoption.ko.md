@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: c0363b06d0d5c2b622bb75f3222dfb1253a961cd85d2fa6248ef312eb07b5735 -->
+<!-- source-sha256: 081cc841ff35417b72f39b601ee487646c3914007181bd6455789c97c7259c52 -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -24,7 +24,7 @@ kit을 쓰는 저장소에서 일하는 agent나 사람의 절차이며, 그 바
   symbol은 non-public이 된다(P32).
 - 작업에 필요한데 `docs/spec`에 없는 규칙은 거기에 먼저 쓴다. unit을 버리지 않고, test 없이 requirement를 인용하지 않으며, 검사를
   피하려고 이름을 바꾸지 않는다(P33).
-- 반복된 code는 재구성하고, tool source는 분류하며, 생성물은 추적하지 않는다(P34).
+- 반복된 code는 재구성하고, tool source는 분류하며, 생성물은 추적하지 않는다. 다만 consumer가 tagged tree로 설치하는 생성 source는 `config/generated.json`에 선언하고 추적한다(P34).
 
 ## Provider
 

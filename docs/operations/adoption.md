@@ -24,7 +24,7 @@ This is the procedure of an agent or a person who works in a repository that tak
   requirement; a symbol that is public by accident becomes non-public (P32).
 - A rule the work needs and `docs/spec` lacks is written there first. A unit is never dropped, a requirement is never cited
   without a test, and nothing is renamed to escape a check (P33).
-- Repeated code is restructured, a tool source is classified and generated output is untracked (P34).
+- Repeated code is restructured, a tool source is classified and generated output is untracked except a tracked generated source that a consumer installs as the tagged tree itself, declared in config/generated.json (P34).
 
 ## Providers
 

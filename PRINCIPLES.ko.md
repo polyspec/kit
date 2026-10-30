@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: ef7eee51ef83542569224a246ef7eeb2bfd08066bb47a98be2da7c745c9c9527 -->
+<!-- source-sha256: b7573c67fbd7ba09d44f6a5ca7195508c998ab10d7e5ccdf8fd5c4f9796ea3fd -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -150,8 +150,9 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-inject-
 - P33 작업에 필요한데 docs/spec에 없는 규칙은 docs/spec에 먼저 쓴다. requirement는 그것을 test하는 test만 인용하고, unit을 통과하려고
   버리지 않으며, 검사를 피하려고 이름을 바꾸지 않는다.
   Enforced by: `make parity-declarations-check`
-- P34 반복된 code는 제외가 아니라 하나의 module로 재구성해서 고친다. tool source는 분류하고, 생성물은 Git에 추적하지 않는다.
-  Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`
+- P34 반복된 code는 제외가 아니라 하나의 module로 재구성해서 고친다. tool source는 분류하고, 생성물은 Git에 추적하지 않는다. 다만 consumer가 tagged tree 그 자체로 설치하는 생성 source(Go module, Rust crate)는 추적하고, 그 이유를 config/generated.json에 선언한다.
+  배포되는 package가 생성물을 필요로 하면 그 생성 경로마다 그것을 만드는 저장소의 make target을 config/release.json에 선언한다. release는 그 target을 link가 checkout을 가리키지 않는 tagged commit의 사본에서 실행하며, 선언된 경로가 결과에 없거나 Git에 추적되면 실패한다.
+  Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`, scripts/kit/release.mts의 release pack.
 - P35 로컬 source 개발은 provider release를 기다리지 않는다. Native source 연결 누락은 파일과 행을 밝혀
   kit 결함으로 보고하며 호환되지 않는 dependency requirement는 앱의 native 선언에서 수정한다.
   Release 설치는 개발 source 상태와 독립적으로 lock의 정확한 배포 graph를 사용한다.
@@ -215,7 +216,7 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   등록한다. library는 `polyspec/<repository>`라는 이름의 `packages/php`이거나, component마다 `polyspec/<repository>-<component>`라는
   이름의 `packages/<component>/php`이며, 저장소에는 extension이 하나다. `packages/php-ext/`에 두며 source는 `src/`에, stub은 하나,
   `src/polyspec_<repository>.stub.php`이다. 이름은 `polyspec/<repository>-php-ext`와 `polyspec_<repository>`이고, 저장소
-  이름의 hyphen은 underscore가 된다. `make build-php-ext`는 `make php-ext-arginfo`가 PHP의 gen_stub.php로 쓰는 arginfo
+  이름의 hyphen은 underscore가 된다. `make build-php-ext`는 PHP의 gen_stub.php가 쓰는 arginfo
   header의 stub hash가 stub의 것인지 확인한 뒤 phpize로 build하며, `composer.json`을 `src/` 옆에 둔 사본에서 build하므로
   `config.m4`가 extension의 version을 `../composer.json`에서 가져온다. `make test-php-ext`는 unit test 전에 등록한 것을
   Reflection으로 library와 비교하되 이름마다 그것을 선언한 library와 비교하며, unit test는 extension을 load하고 library의 source는 하나도 load하지 않고

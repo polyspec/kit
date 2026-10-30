@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: bb2f404967506ed059bb77ce7161926494f89ab6e8837548acae1833c819734a -->
+<!-- source-sha256: 5e3016b0c841c817c83ee8a596a57187961d9ef2a3622f49113badd9453da6a5 -->
 # 개발
 
 [English](AGENTS.md)
@@ -117,7 +117,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Own: 생성 파일은 Git에 추적하지 않습니다. 여기에는 의존성 설치(`node_modules/`, `vendor/`, 가상 환경), 빌드 산출물(`dist/`, `target/`, `*.tsbuildinfo`),
   캐시(`.cache/`, `__pycache__/`, `.pytest_cache/`), 테스트 실행 산출물(`test-results/`, `playwright-report/`, PHPUnit 캐시), 도구
   다운로드(`var/`)가 포함됩니다. 예외는 저장소가 의도적으로 필요로 하는 파일뿐이며 이것만 추적합니다: lock 파일(`package-lock.json`, `composer.lock`,
-  `Cargo.lock`, uv lock, `mise.lock`), 이 문서가 밝히는 커밋된 생성 문서, 테스트 fixture. 각 `.gitignore`가 이 경로를 덮으며, 새 생성기는 같은 commit에서
+  `Cargo.lock`, uv lock, `mise.lock`), 이 문서가 밝히는 커밋된 생성 문서, 테스트 fixture, 그리고 consumer가 tagged tree 그 자체로 설치하는 생성 source(Go module, Rust crate)로서 `config/generated.json`의 `tracked`에 이유와 함께 선언된 파일(P34). 각 `.gitignore`가 이 경로를 덮으며, 새 생성기는 같은 commit에서
   ignore 항목을 추가합니다.
   Enforced by: `.githooks/pre-commit`
 

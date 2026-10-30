@@ -161,8 +161,12 @@ repository.
   tests it, a unit is never dropped to pass, and nothing is renamed to escape a check.
   Enforced by: `make parity-declarations-check`
 - P34 Repeated code is fixed by restructuring it into one module, never by excluding it; a tool source is classified; generated
-  output is never tracked in Git.
-  Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`
+  output is never tracked in Git, except a generated source that a consumer installs as the tagged tree itself (a Go module, a Rust
+  crate), which is tracked and declared with its reason in config/generated.json. A released package that needs generated output
+  declares each generated path in config/release.json with the repository's make target that produces it; the release runs that
+  target in a copy of the tagged commit that holds no link into the checkout, and fails when a declared path is missing from the
+  result or is tracked in Git.
+  Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`, the release pack of scripts/kit/release.mts.
 - P35 Local source development does not wait for a provider release. Missing native source connections are reported as
   kit defects with their file and line; incompatible dependency requirements are corrected in the application's native
   declarations. Release installs use the exact released graph of their locks, independently of development source state.
@@ -237,8 +241,8 @@ tool lands, a standard binds the work as written here.
   named `polyspec/<repository>-<component>` for each component; the repository has one extension. It lies in
   `packages/php-ext/` with its sources in `src/` and one stub, `src/polyspec_<repository>.stub.php`; it is named
   `polyspec/<repository>-php-ext` and `polyspec_<repository>`, a hyphen of the repository name an underscore. `make
-  build-php-ext` builds it with phpize after checking that the stub hash of its arginfo header, which `make
-  php-ext-arginfo` writes with the gen_stub.php of the PHP, is that of the stub, in a copy that keeps `composer.json` beside
+  build-php-ext` builds it with phpize after checking that the stub hash of its arginfo header, which the gen_stub.php of the PHP
+  writes, is that of the stub, in a copy that keeps `composer.json` beside
   `src/`, so that `config.m4` takes the version of the extension from `../composer.json`; `make test-php-ext` compares by
   Reflection what it registers with the libraries, each name with the library that declares it, before its unit tests, which
   are the PHPUnit files run with the extension loaded and none of the sources of the library (its dependencies and autoload-dev

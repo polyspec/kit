@@ -195,11 +195,10 @@ export function ciConfigTargets(root: string): string[] {
   ])];
 }
 
-/** The setup of `runtime`: its declared targets or its deps target, and for php-ext the arginfo generator that its build needs (K914). */
+/** The setup of `runtime`: its declared targets or its deps target. */
 function runtimeSetup(runtime: Runtime, config: CIConfig, files: readonly string[], targets: { has(name: string): boolean }): { target: string; args: string[] }[] {
   const configured = config.setup.runtimes[runtime];
   const setup = configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(runtime, targets);
-  if (runtime === 'php-ext' && files.some(file => file.startsWith('packages/php-ext/'))) setup.push({ target: 'kit-install-php-arginfo', args: [] });
   return setup;
 }
 

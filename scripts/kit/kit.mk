@@ -80,22 +80,17 @@ else
 	$(NODE) $(KIT)/kit-sync.$(KIT_EXT) --check
 endif
 
-.PHONY: kit-install-php-arginfo kit-install-symbols
-kit-install-php-arginfo: ## Install the declared PHP generator and its paired parser for extension fixtures; ONLINE
-	$(ONLINE) $(NODE) $(KIT)/install-php-arginfo.$(KIT_EXT)
-
+.PHONY: kit-install-symbols
 kit-install-symbols: ## Install selected declared symbol extractors with EXTRACTORS="go php"; their pinned tools must be installed first; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) $(EXTRACTORS)
 
 # The tools of the parity rules that every repository shares are kit's, so install-kit installs them from the declarations of the
-# repository through their targets (K861): the symbolExtractors of config/toolchain.json, and the arginfo generator of an
-# extension in packages/php-ext (S10), and the crates of a tracked Cargo.lock, which offline checks read, since a check gives the
+# repository through their targets (K861): the symbolExtractors of config/toolchain.json, and the crates of a tracked Cargo.lock, which offline checks read, since a check gives the
 # same result for the same tree and makes no network query (AGENTS.md, K864). Reading a declaration or a tracked file judges
 # nothing; each target's tool judges its install.
 .PHONY: kit-install-declared
-kit-install-declared: ## Install the declared symbol extractors (install-symbols --declared), with packages/php-ext the arginfo generator and with a tracked Cargo.lock its crates through their targets; ONLINE
+kit-install-declared: ## Install the declared symbol extractors (install-symbols --declared), with a tracked Cargo.lock its crates through their targets; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) --declared
-	@if [ -d packages/php-ext ]; then $(MAKE) --no-print-directory kit-install-php-arginfo; fi
 	@if [ -n "$$(git ls-files -- '*Cargo.lock')" ]; then $(MAKE) --no-print-directory cargo-downloads-fetch; fi
 
 # --- cargo downloads: cargo fetch --locked downloads the crates of every Cargo.lock; cargo keeps which are present (K864).
@@ -104,7 +99,7 @@ cargo-downloads-fetch: ## Download the crates of every Cargo.lock with cargo fet
 	$(ONLINE) $(NODE) $(KIT)/fetch-cargo-downloads.$(KIT_EXT)
 # Toolchains (K8.2, K127): the bootstrap (TOOLS=npm) installs the npm of packageManager and mise; install-tools installs every
 # tool of mise.toml at the digests of mise.lock with mise, then what mise does not install (the wheel backend and the Composer
-# projects; the symbol extractors and the arginfo generator have their own targets, K861); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside
+# projects; the symbol extractors have their own targets, K861); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside
 # the checkout changes. A missing tool fails the target that runs it, so no target checks the installed tools (K854).
 .PHONY: install-tools toolchain-lock
 
@@ -175,7 +170,7 @@ commit-msg-hook: ## The message checks of make commit on the message being commi
 	$(NODE) $(KIT)/check-commits.$(KIT_EXT) --message $(MESSAGE)
 
 # --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
-.PHONY: build test lint build-go build-js build-php build-python build-rust build-ts lint-js build-php-ext lint-php-ext test-php-ext php-ext-arginfo
+.PHONY: build test lint build-go build-js build-php build-python build-rust build-ts lint-js build-php-ext lint-php-ext test-php-ext
 # The fixed tasks of a repository (K246): each runs its target for every runtime that packages/ holds; a repository adds its
 # own steps to a task as prerequisites, never under another name.
 build test lint: ## Run build-<runtime>, test-<runtime> or lint-<runtime> for every runtime that packages/ holds; offline
@@ -198,9 +193,6 @@ lint-php-ext: ## Check the names, the one stub and the stub hash when an arginfo
 
 test-php-ext: build-php-ext ## Compare the declarations of the built extension with the PHP library, then run its unit tests with CASES=<pattern>; offline
 	$(NODE) $(KIT)/php-extension.$(KIT_EXT) test
-
-php-ext-arginfo: ## Write the ignored arginfo header of packages/php-ext from its stub with the pinned local gen_stub.php; offline
-	$(NODE) $(KIT)/php-extension.$(KIT_EXT) arginfo
 
 .PHONY: test-go test-js test-php test-python test-rust test-ts test-integration test-conformance
 # The unit tests of a runtime with CASES=<pattern>, the name filter of its runner; without CASES, every unit test, which
@@ -374,7 +366,7 @@ release-candidate: ## Prepare the VERSION archives of the committed candidate be
 release-prepare:: ## Prepare what the release of this repository needs before release-tools; a repository declares it with release-prepare::
 	@:
 
-release-tools: ## Install the tools that config/release.json needs for the release (npm, Composer, Python and uv, Go), with packages/php-ext or a generated php-arginfo artifact also the arginfo generator (K920), and check cargo when a git-tag proof needs it; ONLINE
+release-tools: ## Install the tools that config/release.json needs for the release (npm, Composer, Python and uv, Go), and check cargo when a git-tag proof needs it; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/release-tools.$(KIT_EXT)
 
 

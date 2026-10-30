@@ -44,7 +44,7 @@ installs only those mise tools and their declared prerequisites; selectors are t
 `deadcode`, `govulncheck` and `golangciLint` also install Go, `vulture` installs Python and uv, Python installs the declared wheel
 backend, PHP composer tools install the declared PHP wrapper and Composer, and Rust installs its stable and declared exception
 channels. Unknown, empty and undeclared selectors fail before mutation. A selected install leaves other installed tools in place
-Neither the full nor a selected install builds symbol extractors or PHP arginfo; their explicit targets `kit-install-symbols` and `kit-install-php-arginfo` install them, and `install-kit` runs the same tools through `kit-install-declared` (`install-symbols --declared`, `kit-install-php-arginfo`) from the declarations of the repository (the `symbolExtractors` of `config/toolchain.json`, and `packages/php-ext`), so no repository copies the calls (K861). With a tracked `Cargo.lock`, `kit-install-declared` also runs `make cargo-downloads-fetch`, `cargo fetch --locked` of every lock, since offline checks read the crates; kit checks no crate presence (K864). The bootstrap selector `TOOLS=npm` is unchanged. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
+Neither the full nor a selected install builds symbol extractors; their explicit target `kit-install-symbols` installs them, and `install-kit` runs the same tool through `kit-install-declared` (`install-symbols --declared`) from the declarations of the repository (the `symbolExtractors` of `config/toolchain.json`), so no repository copies the calls (K861). With a tracked `Cargo.lock`, `kit-install-declared` also runs `make cargo-downloads-fetch`, `cargo fetch --locked` of every lock, since offline checks read the crates; kit checks no crate presence (K864). The bootstrap selector `TOOLS=npm` is unchanged. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
 `packageManager`, by its required `+sha512.<digest>`, and mise itself, by the sha256 of `config/toolchain.json` `mise`;
 `install-tool.mts` builds each of them beside its target, checks the digest of its download there, writes that digest into a
 marker (`node_modules/npm/.sha512` of `var/tools/npm`, `.sha256` of `var/tools/mise-release`) and renames it, so a second run
@@ -80,11 +80,8 @@ as an exec wrapper with the absolute path, never a link, before the Composer ins
 missing. Kit judges no install: PHP itself refuses to load an extension built for another install. No php on PATH
 fails with `php is not on PATH`.
 
-For a repository with `packages/php-ext`, `install-kit` runs `make kit-install-php-arginfo` to install the pinned PHP-Parser that its PHP `gen_stub.php` requires (K861). A PHP library without an extension needs no arginfo generator or extension development tools. The shared `kit.mk` exposes `make kit-install-php-arginfo` for a consumer's extension fixture and `make kit-install-symbols EXTRACTORS="go"` or `EXTRACTORS="php"` for one declared parity extractor; install the corresponding pinned tools first with `make install-tools TOOLS="php composer"` or `TOOLS=go`. Both targets call the existing pinned installers, and `EXTRACTORS` must be present in `config/toolchain.json symbolExtractors`. Kit declares its own extension-fixture preparation with `make kit-install-php-arginfo`; `make install` and CI run that target explicitly.
-Kit stages that installed parser under `var/tools/php-arginfo` with a locked `composer install` on each run, and each build copies the `gen_stub.php` of the PHP as it is beside it, so kit compares no staged generator (K861); builds and `make php-ext-arginfo`
-run the generator offline in a temporary source copy, and `make php-ext-arginfo` publishes only to ignored `var/php-ext/arginfo`.
-A missing parser fails the build that runs the generator; `make kit-install-php-arginfo` installs it (K303, K560, K854, K861). The Composer
-project and lock for each parser release are under `scripts/kit/php-arginfo/<version>`, included in the kit distribution beside the tool.
+For a repository with `packages/php-ext`, no install step writes the arginfo header: the build runs the `gen_stub.php` of its PHP, `$(php-config --prefix)/lib/php/build/gen_stub.php` (K930), and that tool may fetch its own pinned PHP-Parser once into the PHP build directory. P35 covers repository lock graphs, not a tool's internal fetch. A PHP library without an extension needs no extension development tools. The shared `kit.mk` exposes `make kit-install-symbols EXTRACTORS="go"` or `EXTRACTORS="php"` for one declared parity extractor; install the corresponding pinned tools first with `make install-tools TOOLS="php composer"` or `TOOLS=go`. The target calls the existing pinned installer, and `EXTRACTORS` must be present in `config/toolchain.json symbolExtractors`.
+The build runs the generator in a temporary source copy and publishes only the module, so kit compares no generator version (K930). The build fails when the PHP build directory holds no `gen_stub.php`.
 Composer release archives declare generated headers by stub and output path. Release assets generate them from the tagged stub,
 then append the staged file with Info-ZIP (`zip`) using stored entries, mode 0644 and the commit timestamp; `make release-assets`
 fails early with installation guidance when `zip` is missing. The Ubuntu release workflow checks that its runner provides `zip`
@@ -874,7 +871,7 @@ Left as it is, with the reason:
   setup starts; a missing target fails with a fix. ci-setup refuses nothing that a package manager, a target or parity-check
   judges itself (K860).
   PHP runtime jobs select the declared PHP and Composer tools. PHP extension jobs select those prerequisites and, when
-  `packages/php-ext` exists, run Kit's `kit-install-php-arginfo` before lint/build/test. Extension tests use PHPUnit installed
+  `packages/php-ext` exists, no install step precedes lint/build/test, since the build runs the `gen_stub.php` of its PHP. Extension tests use PHPUnit installed
   with their Composer package, so Kit's private PHPUnit declaration is not required. PHP parity selection includes Composer
   when its runner needs it. A consumer with a nonempty PHP setup list must include every Composer project it needs, including
   root and package projects.
@@ -1109,9 +1106,7 @@ docs/operations/release.md), so the consumer names only the tag. kit-check reads
   sibling release: kit.mk declares it as a double-colon target with no work, and a repository adds a `release-prepare::` rule
   to its Makefile (K132). The vendored release workflow runs it after install-packages.
 - `make release-tools` (`scripts/kit/release-tools.mts`) runs install-tools when config/release.json has a Composer package, a
-  wheel or a Go module; npm, which an npm package needs, is the npm of the bootstrap. With packages/php-ext, as install-kit does, or with
-  a generated php-arginfo artifact of a package, it runs install-tools and then install-php-arginfo, since the build of the
-  extension and its arginfo headers read the generator offline (K920).
+  wheel or a Go module; npm, which an npm package needs, is the npm of the bootstrap. With a make entry of a package (K930), whose target reads the PHP of mise, it also runs install-tools.
 - `release-publish` creates the release as a draft and records its id in `var/release/<tag>.json`. `release-undraft` reads the
   draft by that id (`repos/O/R/releases/<id>`), never by searching the list of releases for its tag: the list shows a new draft
   only after a while (the 0.0.38 run failed three seconds after the create), and the tag does not address a draft. A missing

@@ -542,10 +542,6 @@
       "kind": "policy",
       "reason": "the rule of K536 that Go code dead under every build tag is a finding; deadcode judges one tag set at a time"
     },
-    "scripts/kit/install-php-arginfo.mts": {
-      "kind": "policy",
-      "reason": "the pinned arginfo generator of the PHP extension (S10), which no package manager installs offline"
-    },
     "scripts/kit/kit-files.mts": {
       "kind": "policy",
       "reason": "the paths of the files that the kit package ships, which every tool of kit reads"

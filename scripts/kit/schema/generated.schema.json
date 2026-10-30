@@ -12,6 +12,19 @@
       "type": "array",
       "items": { "type": "string", "minLength": 1 }
     },
+    "tracked": {
+      "description": "Generated sources that a consumer installs as the tagged tree itself, such as a Go module or a Rust crate: each glob of repository paths is tracked in Git, and its reason says why (P34). Read by picomatch with dot: true.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
     "exceptions": {
       "description": "Globs of repository paths, read by picomatch with dot: true, that a generated segment may stay in, such as test fixtures. A glob names one deliberate file set, never a whole generated folder.",
       "type": "array",

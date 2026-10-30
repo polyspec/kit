@@ -80,13 +80,10 @@ test('Windows Make recipes use the Node.js selected by mise and its npm CLI, whi
   assert.match(runner.stdout, /^.*node\.exe .*\/npm\/node_modules\/npm\/bin\/npm-cli\.js ci$/m);
 });
 
-test('consumer kit.mk exposes the shared PHP arginfo and selective symbol installers', () => {
+test('consumer kit.mk exposes the selective symbol installer', () => {
   const dry = (target: string, ...args: string[]) => spawnSync('make', [
     '-n', '--no-print-directory', '-f', KIT_MK, target, 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', ...args,
   ], { cwd: ROOT, encoding: 'utf8' });
-  const arginfo = dry('kit-install-php-arginfo');
-  assert.equal(arginfo.status, 0, arginfo.stderr);
-  assert.equal(arginfo.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-php-arginfo.mjs`);
   const symbols = dry('kit-install-symbols', 'EXTRACTORS=go');
   assert.equal(symbols.status, 0, symbols.stderr);
   assert.equal(symbols.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs go`);
@@ -94,7 +91,7 @@ test('consumer kit.mk exposes the shared PHP arginfo and selective symbol instal
 
 // K861: the parity tools are kit's, so install-kit installs them from the declarations of the repository, and no repository
 // copies the calls into its own make install.
-test('K861: install-kit installs the declared symbol extractors and, with packages/php-ext, the arginfo generator; without declarations neither', (t) => {
+test('K861: install-kit installs the declared symbol extractors; without declarations none', (t) => {
   const bootstrap = path.join(ROOT, 'scripts/kit/kit-bootstrap.mk');
   const makefile = `include ${bootstrap}\n`;
   const dry = (root: string) => spawnSync('make', ['-n', '--no-print-directory', 'install-kit', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
@@ -102,11 +99,9 @@ test('K861: install-kit installs the declared symbol extractors and, with packag
   const both = dry(declared);
   assert.equal(both.status, 0, both.stderr);
   assert.match(both.stdout, /install-symbols\.mts --declared$/m, 'install-symbols installs the declared extractors');
-  assert.match(both.stdout, /install-php-arginfo\.mts$/m, 'the arginfo generator is installed for packages/php-ext');
   const bare = tree(t, { Makefile: makefile, 'config/toolchain.json': JSON.stringify({ schema: 1 }) });
   const none = dry(bare);
   assert.equal(none.status, 0, none.stderr);
-  assert.doesNotMatch(none.stdout, /install-php-arginfo\.mts$/m, 'no arginfo generator without packages/php-ext');
 });
 
 // K864: offline checks read the crates of every Cargo.lock (P17), so install-kit fetches them when a Cargo.lock is tracked, and

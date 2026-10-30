@@ -132,7 +132,8 @@ and states only its own rules. The rules below are kit's own.
   `.pytest_cache/`), test run artifacts (`test-results/`, `playwright-report/`, PHPUnit caches) and tool downloads
   (`var/`). The only exceptions are files the repository deliberately needs, and only these are tracked: lock files
   (`package-lock.json`, `composer.lock`, `Cargo.lock`, uv locks, `mise.lock`), committed generated documents that this
-  file names, and test fixtures. Each `.gitignore` covers these paths; a new generator adds its ignore entry in the same
+  file names, test fixtures, and generated sources that a consumer installs as the tagged tree itself (a Go module, a Rust crate), each declared
+  with its reason in `config/generated.json` `tracked` (P34). Each `.gitignore` covers these paths; a new generator adds its ignore entry in the same
   commit.
   Enforced by: `.githooks/pre-commit`
 

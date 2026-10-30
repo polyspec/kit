@@ -5,7 +5,7 @@ include scripts/kit/kit.mk
 
 .DEFAULT_GOAL := kit-test
 
-.PHONY: kit-test kit-tool-record source-test install-packages kit-install-symbols-php kit-install-php-arginfo kit-install-symbols install kit-build
+.PHONY: kit-test kit-tool-record source-test install-packages kit-install-symbols-php kit-install-symbols install kit-build
 
 # The suite of kit, which CI runs (.github/workflows/ci.yml); locally only the tests that own a change run
 # (node scripts/kit/run-tests.mts node -- <test file>).
@@ -117,11 +117,10 @@ build: kit-build
 test: kit-test source-test
 lint: lint-ts lint-php lint-python lint-go
 
-kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a rename, including the pinned PHP arginfo Composer project, so a consumer that links kit never reads a half-built dist; offline after npm ci
+kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a rename, so a consumer that links kit never reads a half-built dist; offline after npm ci
 	rm -rf dist.next dist.old
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.build.json --outDir dist.next
 	cp scripts/kit/kit.mk dist.next/kit.mk
-	cp -R scripts/kit/php-arginfo dist.next/php-arginfo
 	cp -R scripts/kit/schema dist.next/schema
 	cp -R scripts/kit/php-library dist.next/php-library
 	tar -C scripts/kit --exclude=vendor -cf - symbols | tar -C dist.next -xf -
@@ -138,9 +137,8 @@ typecheck: ## Check the types of the tools and tests of kit with tsc (tsconfig.j
 # that depend on install-kit, such as install: <repo>-install and <repo>-install: install-kit (K246-2). The step of kit itself
 # installs the packages of the PHP symbol extractor, which lint-php reads, so a fresh worktree of kit lints its PHP (K412).
 install: install-kit kit-install ## Install the tools and packages in the bootstrap order: the npm of packageManager, package-lock.json, then the tools, then the steps of the repository; ONLINE
-kit-install: install-kit ## The install step of kit after its bootstrap: the packages of the PHP symbol extractor (kit-install-symbols-php) and the arginfo generator of kit's extension fixture; ONLINE
+kit-install: install-kit ## The install step of kit after its bootstrap: the packages of the PHP symbol extractor (kit-install-symbols-php); ONLINE
 	$(MAKE) --no-print-directory kit-install-symbols-php
-	$(MAKE) --no-print-directory kit-install-php-arginfo
 
 install-kit: ## Install the npm of packageManager, the packages of package-lock.json, the tools and the declared parity tools (K861), in that order, in the checkout's own var/tools, a worktree's too (K858); ONLINE
 	$(MAKE) --no-print-directory install-tools TOOLS=npm
