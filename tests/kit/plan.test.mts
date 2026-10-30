@@ -143,6 +143,29 @@ test('item-state moves an item in both languages and refuses an unknown item and
   assert.throws(() => setState(root, { id: 'T1', state: '[x]' }), /the state "\[x\]" is none of/);
 });
 
+test('item-state refuses a move that STATE_TRANSITIONS does not allow, and writes nothing (K937)', (t) => {
+  const root = committed(t, 'T1', 'T2');
+  const english = 'docs/plans/parser/checklist.md';
+  const korean = 'docs/plans/parser/checklist.ko.md';
+  const files = () => [english, korean].map(file => readFileSync(path.join(root, file), 'utf8'));
+  setState(root, { id: 'T1', state: '[~]' });
+  commitState(root, 'start');
+  setState(root, { id: 'T1', state: '[v]' });
+  commitState(root, 'verification');
+  writeFileSync(path.join(root, 'CHANGELOG.md'), `${CHANGELOG}- Parse (T1).\n`);
+  writeFileSync(path.join(root, 'CHANGELOG.ko.md'), `${CHANGELOG}- 파싱 (T1).\n`);
+  setState(root, { id: 'T1', state: '[o]' });
+  commitState(root, 'done');
+  const done = files();
+  assert.throws(() => setState(root, { id: 'T1', state: '[v]' }), /T1 is \[o\], which allows no move; \[v\] is refused/);
+  assert.deepEqual(files(), done);
+  setState(root, { id: 'T2', state: '[-]', cause: 'the feature was dropped', causeKo: '기능을 버림' });
+  commitState(root, 'impossible');
+  const impossible = files();
+  assert.throws(() => setState(root, { id: 'T2', state: '[~]' }), /T2 is \[-\], which allows no move; \[~\] is refused/);
+  assert.deepEqual(files(), impossible);
+});
+
 test('item-state sets done only when the changelog of both languages holds the item, committed or not (K249-2, K808)', (t) => {
   const root = committed(t, 'T1');
   setState(root, { id: 'T1', state: '[~]' });

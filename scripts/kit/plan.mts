@@ -33,7 +33,7 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
-import { BYPASSED, CHECKLIST_HEADER, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATES, trackersOf, VERIFYING, WAITING, workingPlanFiles } from './checklist.mts';
+import { BYPASSED, CHECKLIST_HEADER, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATE_TRANSITIONS, STATES, trackersOf, VERIFYING, WAITING, workingPlanFiles } from './checklist.mts';
 import { COMMIT_RULES, indexItemFindings, messageFindings, nextIdentityFindings } from './check-commits.mts';
 import { refusal } from './claude-hook.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
@@ -332,16 +332,28 @@ function withState(text: string, id: string, state: string): string {
 }
 
 /**
+ * The item `change.id` with its checklist and the trackers of the checkout; throws on a state that is not declared and on a move
+ * from the current state of the item that STATE_TRANSITIONS does not allow (K937).
+ */
+function movableItem(root: string, change: NewState) {
+  if (!(STATES as readonly string[]).includes(change.state)) throw new Error(`the state ${JSON.stringify(change.state)} is none of ${STATES.join(', ')}`);
+  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
+  const entry = findItem(trackers, name => readFileSync(path.join(root, name), 'utf8'), change.id);
+  const from = entry.item.state;
+  const allowed = STATE_TRANSITIONS[from] ?? [];
+  if (!allowed.includes(change.state)) throw new Error(`${change.id} is ${from}, which allows ${allowed.length === 0 ? 'no move' : `only ${allowed.join(', ')}`}; ${change.state} is refused`);
+  return { trackers, entry };
+}
+
+/**
  * Moves the item `change.id` to `change.state` in its checklist and the Korean twin and returns the two files as
  * { path: text }. Throws, writing nothing, on a state that is not declared, a transition that STATE_TRANSITIONS does not allow,
  * the done state without a line with (<id>) in each changelog of the commit rules, a missing
  * cause or retry condition, and what the commit-msg hook would refuse: a second item whose state differs from HEAD.
  */
 export function setState(root: string, change: NewState): Record<string, string> {
-  if (!(STATES as readonly string[]).includes(change.state)) throw new Error(`the state ${JSON.stringify(change.state)} is none of ${STATES.join(', ')}`);
-  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
+  const { trackers, entry } = movableItem(root, change);
   const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
-  const entry = findItem(trackers, read, change.id);
   const rules = COMMIT_RULES;
   if (change.state === DONE) {
     const changelogs = rules.changelog ? [rules.changelog.path, ...(rules.changelog.translation ? [rules.changelog.translation] : [])] : [];
@@ -563,7 +575,9 @@ if (isMain(import.meta.url)) {
       for (const file of Object.keys(files)) console.log(`[plan] edited ${id} in ${file}`);
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
-      // The done state needs the verification of the row to pass on the tree of the commit (K335).
+      // A refused move fails before the verification runs (K937); the done state needs the verification of the row to pass on the
+      // tree of the commit (K335).
+      movableItem(root, change);
       if (change.state === VERIFYING) verifyImplementation(root, change.id);
       else if (change.state === DONE) verifyDone(root, change.id);
       for (const file of Object.keys(setState(root, change))) console.log(`[plan] set ${change.id} to ${change.state} in ${file}`);

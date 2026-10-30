@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8e245cfe3b19920267e4549029ca6d64ce8d82fa043a12d7a58126f29518edb9 -->
+<!-- source-sha256: ece3eab38aef4b933776467bed7e7a02cc478d83c72b7093dac698e43f4130e5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make item-state는 item의 현재 상태에서 STATE_TRANSITIONS가 허용하지 않는 이동을 Verification을 실행하기 전에 거부하고 아무것도 쓰지 않는다. 오류는 item, 그 상태, 허용되는 다음 상태와 거부된 상태를 밝힌다. setState는 상태가 선언되었는지만 확인했으므로 done item이 verifying으로, impossible item이 in progress로 돌아갈 수 있었다. 쓰이지 않던 reachableStates는 제거된다(K937).
 - `.links`가 없을 때 link-check는 거기서 make link가 남기는 release 상태와 비교하며 checkout 자체 저장소의 패키지를 link로 요구하지 않는다. link-check는 checkout의 work tree를 link의 check에 provider로 넘겼기 때문에, 선언이 없는 모든 checkout(CI 포함)에서 make link는 아무것도 link하지 않는데도 uv가 editable로 설치한 자기 Python 패키지가 folder link로 요구되었다("packages/python/.venv/lib/python3.14/site-packages/polyspec/orm is missing; fix: make link") (K935).
 - bootstrap은 설치된 mise와 npm을 digest marker만으로 판정하고 version은 비교하지 않는다. 설치는 확인한 digest를 var/tools/mise-release/.sha256과 var/tools/npm/node_modules/npm/.sha512에 쓰고, marker가 선언된 digest를 담은 설치를 유지한다. +sha512가 없는 packageManager는 아무것도 내려받기 전에 digest를 계산하는 명령과 함께 거부되고, machine의 npm은 쓰지 않는다. S4는 bootstrap digest와 release heading 순서를 두 예외로 적는다. pin 뒤 첫 설치는 marker를 쓰려고 mise를 한 번 내려받는다 (K933).
 - latestTag는 가장 새 release tag를 git 자체의 version 정렬(git tag --sort=-v:refname)에서 취하고 vX.Y.Z만 남기므로, git이 v0.0.10 위에 두는 v0.0.10-rc1 같은 pre-release는 latest가 되지 않는다. release.mts는 더는 semver를 import하지 않고, semver는 change log 순서 검사를 위해 남는다 (K932).
