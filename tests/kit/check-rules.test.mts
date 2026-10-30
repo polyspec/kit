@@ -191,6 +191,13 @@ test('a rule of PRINCIPLES.md without an id fails when AGENTS.md is read with it
   assert.deepEqual(checkRules(root, both).findings, ['PRINCIPLES.md:3: the rule has no id; a rule of PRINCIPLES.md begins with P<n> or S<n>']);
 });
 
+// K941-1: a command that is not make runs no target of the Makefile, so a word of its text that names a target is prose.
+test('a word of a run line that is not make reaches no target: prose that names install is not a run (K941-1)', (t) => {
+  const prose = { Makefile: 'install:\n\t@echo install\n', '.github/workflows/ci.yml': 'name: ci\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: echo we install the tools\n' };
+  const root = tree(t, { ...prose, 'AGENTS.md': rules('- Own: Install.\n  Enforced by: `make install`'), 'AGENTS.ko.md': rules('- Own: Install.\n  Enforced by: `make install`') });
+  assert.match(checkRules(root, ['AGENTS.md']).findings.join('\n'), /make install runs at no point that cannot be skipped/);
+});
+
 test('a target is expanded for each set of variables it is called with, so every call of one recipe is reached (K312)', (t) => {
   const root = tree(t, {
     Makefile: 'ci-targets:\n\t@echo $(TARGETS)\nfirst:\n\t@echo first\nsecond:\n\t@echo second\n',
