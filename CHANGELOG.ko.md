@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 785e6630336e310a9ac6ecbce594e89ade8392e438f3fe61d61d270a2c38651b -->
+<!-- source-sha256: c766700b6e2c09c1794c37f059bfeb7d65ea9b235f24d49460211d67b67f829b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.79
 
 - ${NAME}가 사용 중인 kit 패키지의 파일로 풀리는 parity binding은 link된 저장소에서도 돕니다. link된 저장소는 옆의 kit checkout을 $(KIT)로 실행하므로, parity-check는 kit 패키지 안으로 풀린 경로를 checkout 안의 경로처럼 받아들이고, checkout 밖의 다른 모든 경로, .. 세그먼트, ~ 경로는 여전히 거부합니다 (K922).
 - packages/php-ext가 있는 저장소의 릴리스는 arginfo 생성기를 설치합니다. release-tools는 packages/php-ext가 있으면 install-kit의 규칙대로, 또는 config/release.json의 패키지가 generated php-arginfo artifact를 선언하면 install-tools 다음에 install-php-arginfo를 돌리므로, release-assets가 PHP-Parser와 함께 확장과 그 arginfo 헤더를 빌드합니다. 생성기가 install-tools의 PHP와 Composer를 쓰므로 npm 패키지만 있는 릴리스도 install-tools를 돌립니다 (K920).
