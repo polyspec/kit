@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: a8cf803eed3559d7a4a6e94dfeb71431f73a05b3b1917a9b048f477f980b4b4a -->
+<!-- source-sha256: 1a55459e7f36c6cf99883703ed92e19c8e258024908a01d0d75b717ed959799a -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -151,7 +151,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-inject-
   버리지 않으며, 검사를 피하려고 이름을 바꾸지 않는다.
   Enforced by: `make parity-declarations-check`
 - P34 반복된 code는 제외가 아니라 하나의 module로 재구성해서 고친다. tool source는 분류하고, 생성물은 Git에 추적하지 않는다. 다만 consumer가 tagged tree 그 자체로 설치하는 생성 source(Go module, Rust crate)는 추적하고, 그 이유를 config/generated.json에 선언한다.
-  배포되는 package가 생성물을 필요로 하면 그 생성 경로마다 그것을 만드는 저장소의 make target을 config/release.json에 선언한다. release는 그 target을 link가 checkout을 가리키지 않는 tagged commit의 사본에서 실행하며, 선언된 경로가 결과에 없거나 Git에 추적되면 실패한다.
+  배포되는 package가 생성물을 필요로 하면 그 생성 경로마다 그것을 만드는 저장소의 make target을 config/release.json에 선언한다. release는 먼저 tagged commit과 다른 checkout, 변경되었거나 추적되지 않은 경로, 바깥에서 link된 dependency를 거부한다. 그다음 선언된 경로를 지우고 checkout에서 그 target을 실행하며, 선언된 경로가 결과에 없거나 Git에 추적되면 실패한다.
   Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`, scripts/kit/release.mts의 release pack.
 - P35 로컬 source 개발은 provider release를 기다리지 않는다. Native source 연결 누락은 파일과 행을 밝혀
   kit 결함으로 보고하며 호환되지 않는 dependency requirement는 앱의 native 선언에서 수정한다.

@@ -129,7 +129,9 @@ const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const name = manifest.name.replace(/^@/, '').replace('/', '-');
 const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'stub-npm-'));
 fs.mkdirSync(path.join(folder, 'package'));
-if (mode === 'rewrite') fs.writeFileSync(path.join(folder, 'package', 'package.json'), JSON.stringify(manifest));
+// STUB_NPM_PACKED names the file that the tarball of packages/fixture-lib carries as its package.json, as a prepack that rewrites the manifest does.
+if (process.env.STUB_NPM_PACKED && process.cwd().endsWith('/packages/fixture-lib')) fs.copyFileSync(process.env.STUB_NPM_PACKED, path.join(folder, 'package', 'package.json'));
+else if (mode === 'rewrite') fs.writeFileSync(path.join(folder, 'package', 'package.json'), JSON.stringify(manifest));
 else fs.copyFileSync('package.json', path.join(folder, 'package', 'package.json'));
 if (mode !== 'none') execFileSync('tar', ['-czf', path.join(destination, name + '-' + manifest.version + '.tgz'), '-C', folder, 'package']);
 if (mode === 'two') fs.writeFileSync(path.join(destination, 'extra.txt'), 'extra');

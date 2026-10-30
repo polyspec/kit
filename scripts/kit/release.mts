@@ -46,6 +46,7 @@ import { PACKAGE, copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
+import { linksOutsideCheckout } from './link.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
 
@@ -81,7 +82,8 @@ export interface ReleasePackage {
 
 /**
  * A build artifact of a package, materialized from the committed package snapshot only while the package is packed: `make`
- * runs its target in a copy of the tagged tree (K929, K930), and every declared output must exist there afterwards.
+ * runs its target in the checkout, which requireCheckout has checked to be the tagged commit (K929, K930, K939), and every declared
+ * output must exist there afterwards.
  */
 export type ReleaseGeneratedArtifact = {
   kind: 'make';
@@ -394,10 +396,11 @@ function filesUnder(dir: string, prefix = ''): string[] {
 }
 
 /**
- * Runs the make target of each `make` entry (K929) in a copy of the tagged tree: the tracked files of the commit, with no link into
- * the checkout. The make run gets the tools of the checkout on its PATH (toolsEnvironment, K930), so the target calls php-config itself;
- * repository. A declared output that the commit tracks fails the pack, and each declared output must exist in the copy afterwards.
- * The outputs are staged under staging at their package-relative paths.
+ * Runs the make target of each `make` entry (K929) in the checkout, which requireCheckout has checked to hold the commit with no
+ * changed, untracked or outside-linked path (K939): the target installs nothing of its own, so the kit that its Makefile includes is
+ * the one the checkout installs (P34). Each declared output is deleted before its target runs, so a stale output of an earlier run is never
+ * packed. A declared output that the commit tracks fails the pack, and each declared output must exist after its target. The outputs are
+ * staged under staging at their package-relative paths, then deleted from the checkout, which keeps it as it was.
  */
 function madeFiles(ctx: Context, commit: string, folder: string, makes: ReleaseGeneratedArtifact[], staging: string): { output: string; file: string }[] {
   const tracked = run('git', ['ls-tree', '-r', '--name-only', commit, folder], at(ctx)).split('\n').filter(Boolean);
@@ -407,22 +410,17 @@ function madeFiles(ctx: Context, commit: string, folder: string, makes: ReleaseG
       if (tracked.some(file => file === declared || file.startsWith(`${declared}/`))) throw new Stop(`${declared} is tracked at commit ${commit}: a make output is generated and Git tracks no generated output (P34)`);
     }
   }
-  const copy = mkdtempSync(path.join(tmpdir(), 'kit-release-make-'));
+  const { root } = ctx;
+  const files: { output: string; file: string }[] = [];
   try {
-    const tree = path.join(copy, 'tree');
-    const archive = path.join(copy, 'source.tar');
-    mkdirSync(tree);
-    run('git', ['archive', '--format=tar', `--output=${archive}`, commit], at(ctx));
-    run('tar', ['-xf', archive, '-C', tree], at(ctx));
-    const env = toolsEnvironment(ctx.root, ctx.env);
-    const files: { output: string; file: string }[] = [];
     for (const { target, outputs } of makes) {
-      ctx.log(`[release] ${commit}: make ${target} in the copy of ${folder}`);
-      const result = execute('make', ['-C', tree, target], { cwd: tree, env });
+      for (const output of outputs) rmSync(path.join(root, folder, output), { recursive: true, force: true });
+      ctx.log(`[release] ${commit}: make ${target} in the checkout, for ${folder}`);
+      const result = execute('make', ['-C', root, target], { cwd: root, env: toolsEnvironment(root, ctx.env) });
       if (result.error) throw new Stop(`make could not start for ${target}: ${result.error.message}`);
       if (result.status !== 0) throw new Stop(`make ${target} failed at ${commit} with exit status ${result.status}: ${(result.stdout + result.stderr).trim()}`);
       for (const output of outputs) {
-        const written = path.join(tree, folder, output);
+        const written = path.join(root, folder, output);
         if (!existsSync(written)) throw new Stop(`make ${target} did not write ${path.posix.join(folder, output)} at ${commit}`);
         // A declared directory is packed as the files under it, each at its package-relative path.
         const relatives = statSync(written).isDirectory() ? filesUnder(written) : [''];
@@ -435,10 +433,10 @@ function madeFiles(ctx: Context, commit: string, folder: string, makes: ReleaseG
         }
       }
     }
-    return files;
   } finally {
-    rmSync(copy, { recursive: true, force: true });
+    for (const { outputs } of makes) for (const output of outputs) rmSync(path.join(root, folder, output), { recursive: true, force: true });
   }
+  return files;
 }
 
 /** Generate package artifacts from the tagged sources in a private temporary directory (K929, K930): the outputs of the make entries of the package. */
@@ -461,7 +459,25 @@ export function assets(ctx: Context, tag: string): string[] {
   const version = parseTag(tag);
   const retry = `make release-assets TAG=${tag}`;
   requireArchiveTools(ctx, retry);
-  return assetsFromCommit(ctx, tag, taggedCommit(ctx, tag), version);
+  const commit = taggedCommit(ctx, tag);
+  requireCheckout(ctx, tag, commit, retry);
+  return assetsFromCommit(ctx, tag, commit, version);
+}
+
+/**
+ * Refuses a checkout that does not hold the commit it packs (K939, P34): HEAD is not `commit`, a tracked or untracked path differs from
+ * it, or a dependency of the checkout is linked from outside it. npm pack and the make entries read the checkout, so the pack must
+ * read only what the commit holds, and no link may bring in another tree.
+ */
+function requireCheckout(ctx: Context, reference: string, commit: string, retry: string): void {
+  const head = run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], at(ctx)).trim();
+  if (head !== commit) throw new Stop(`${reference}: HEAD ${head} is not ${commit}, the commit that is packed; check out ${commit}, then run ${retry}`);
+  const changed = run('git', ['diff', '--name-only', commit], at(ctx)).trim().split('\n').filter(Boolean);
+  const untracked = run('git', ['ls-files', '--others', '--exclude-standard'], at(ctx)).trim().split('\n').filter(Boolean);
+  const sourceChanges = [...new Set([...changed, ...untracked])].sort();
+  if (sourceChanges.length) throw new Stop(`${reference} packs the committed tree ${commit}, but the checkout holds changed or untracked paths: ${sourceChanges.join(', ')}; commit or remove them, then run ${retry}`);
+  const links = linksOutsideCheckout(ctx.root, ctx.env).map(link => path.relative(ctx.root, link));
+  if (links.length) throw new Stop(`${reference}: a dependency linked from outside the checkout: ${links.join(', ')}; remove those links, then run ${retry}`);
 }
 
 /** Builds archives from one committed tree through the producer shared by tagged releases and tagless candidates. */
@@ -579,11 +595,8 @@ function requireArchiveTools(ctx: Context, retry: string): void {
 export function candidateAssets(ctx: Context, version: string): string[] {
   if (!EXACT_VERSION.test(version)) throw new Stop(`candidate version ${JSON.stringify(version)} is not X.Y.Z`);
   const commit = run('git', ['rev-parse', '--verify', 'HEAD^{commit}'], at(ctx)).trim();
-  const changed = run('git', ['diff', '--name-only', commit], at(ctx)).trim().split('\n').filter(Boolean);
-  const untracked = run('git', ['ls-files', '--others', '--exclude-standard'], at(ctx)).trim().split('\n').filter(Boolean);
-  const sourceChanges = [...new Set([...changed, ...untracked])].sort();
-  if (sourceChanges.length) throw new Stop(`candidate assets require source inputs to match committed HEAD ${commit}; changed or untracked paths: ${sourceChanges.join(', ')}; commit source changes, then run make release-candidate-assets VERSION=${version}`);
   const retry = `make release-candidate-assets VERSION=${version}`;
+  requireCheckout(ctx, `HEAD candidate ${version}`, commit, retry);
   requireArchiveTools(ctx, retry);
   return assetsFromCommit(ctx, `HEAD candidate ${version}`, commit, version);
 }

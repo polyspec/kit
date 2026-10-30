@@ -163,9 +163,10 @@ repository.
 - P34 Repeated code is fixed by restructuring it into one module, never by excluding it; a tool source is classified; generated
   output is never tracked in Git, except a generated source that a consumer installs as the tagged tree itself (a Go module, a Rust
   crate), which is tracked and declared with its reason in config/generated.json. A released package that needs generated output
-  declares each generated path in config/release.json with the repository's make target that produces it; the release runs that
-  target in a copy of the tagged commit that holds no link into the checkout, and fails when a declared path is missing from the
-  result or is tracked in Git.
+  declares each generated path in config/release.json with the repository's make target that produces it; the release first refuses a
+  checkout that differs from the tagged commit, holds a changed or untracked path, or links a dependency from outside it; it then
+  deletes each declared path, runs that target in the checkout, and fails when a declared path is missing from the result or is
+  tracked in Git.
   Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`, the release pack of scripts/kit/release.mts.
 - P35 Local source development does not wait for a provider release. Missing native source connections are reported as
   kit defects with their file and line; incompatible dependency requirements are corrected in the application's native

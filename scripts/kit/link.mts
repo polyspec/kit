@@ -570,6 +570,14 @@ function outsideLinks(consumer: Consumer, env: NodeJS.ProcessEnv, ecosystems: re
 }
 
 /**
+ * The links of the install folders of the checkout at `root` that resolve out of it, or dangle (K939): the release refuses them, since
+ * a pack reads the dependencies of the checkout and a link would bring in another tree. Nothing is changed.
+ */
+export function linksOutsideCheckout(root: string, env: NodeJS.ProcessEnv): string[] {
+  return outsideLinks(consumerOf(root), env);
+}
+
+/**
  * Removes the files that link wrote for the consumer: the go.work and go.work.sum of each of its Go modules, the overrides
  * file of each environment and the Cargo lock copy of each workspace, each by its exact name, then each folder of var/link
  * that the removal leaves empty. Never a folder recursively: a nested project's files and folders stay (K201-3).
