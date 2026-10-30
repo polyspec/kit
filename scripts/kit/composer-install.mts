@@ -2,7 +2,7 @@
 // each installed polyspec package folder one plain directory symlink to its checkout (K761).
 import path from 'node:path';
 import { checkoutProviders, linkFolders, providedFolders } from './link-folders.mts';
-import { siblingCheckouts, workTreeOf } from './link-providers.mts';
+import { declaredCheckouts, workTreeOf } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { composerCommand, composerEnvironment } from './install-composer-project.mts';
 import { composerVendor } from './composer-vendor.mts';
@@ -37,16 +37,15 @@ export function composerInstall({ directory, checkouts, env = process.env, print
 }
 
 if (isMain(import.meta.url)) {
-  // Arguments after DIR are the checkouts that provide the polyspec packages (K501), and --no-dev.
+  // The providers are the checkouts of the link declaration (K869); --no-dev is the only option.
   const [directory, ...given] = process.argv.slice(2);
-  const checkouts = given.filter(argument => argument !== '--no-dev');
-  if (directory === undefined || checkouts.some(argument => argument.startsWith('--'))) {
-    process.stderr.write('Usage: node scripts/kit/composer-install.mts <dir> [--no-dev] [<checkout>...]\n');
+  if (directory === undefined || given.some(argument => argument !== '--no-dev')) {
+    process.stderr.write('Usage: node scripts/kit/composer-install.mts <dir> [--no-dev]\n');
     process.exitCode = 2;
   } else {
     composerInstall({
       directory,
-      checkouts: checkouts.length ? checkouts.map(checkout => path.resolve(checkout)) : siblingCheckouts(path.resolve(directory)).checkouts,
+      checkouts: declaredCheckouts(path.resolve(directory)) ?? [],
       noDev: given.includes('--no-dev'),
       print: text => process.stdout.write(`${text}\n`),
     });

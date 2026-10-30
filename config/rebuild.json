@@ -498,9 +498,9 @@
       "kind": "policy",
       "reason": "the rule of P10 and P38 that work reaches main by a fast-forward merge after its gates pass (K394); no ecosystem tool lands a branch under polyspec's gates"
     },
-    "scripts/kit/link-state-check.mts": {
+    "scripts/kit/link-check.mts": {
       "kind": "policy",
-      "reason": "the rule of P30 that a development consumer links each 0.0.x provider and never copies it (K305-1); it reads the links that npm and Composer make"
+      "reason": "the rule of P30 that a development consumer links each 0.0.x provider that its link declaration names and never copies it (K305-1, K869); it reads the links that npm and Composer make"
     },
     "scripts/kit/npm-install.mts": {
       "kind": "ecosystem",

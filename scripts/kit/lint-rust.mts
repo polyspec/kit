@@ -44,7 +44,7 @@ export function lintSteps(root: string): LintStep[] {
   return [...files
     .filter(file => path.posix.basename(file) === 'Cargo.toml' && isTable(readTomlFile(root, file).workspace))
     .map(file => path.posix.dirname(file))
-    .map(folder => ({ label: `cargo clippy ${folder}`, command: process.execPath, args: [siblingTool(import.meta.url, 'link'), 'cargo', '--siblings', '.', 'clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS], cwd: folder, env: { CLIPPY_CONF_DIR: kitPackageRoot() } })), ...catchCheck];
+    .map(folder => ({ label: `cargo clippy ${folder}`, command: process.execPath, args: [siblingTool(import.meta.url, 'link'), 'cargo', '.', 'clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS], cwd: folder, env: { CLIPPY_CONF_DIR: kitPackageRoot() } })), ...catchCheck];
 }
 
 /** Runs the steps of `root` and returns the labels of those that failed; the output of each step goes through `print`. */

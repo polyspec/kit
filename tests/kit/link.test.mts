@@ -10,10 +10,10 @@ import path from 'node:path';
 import nodeTest, { type TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { buildState, buildTargets } from '../../scripts/kit/link-build.mts';
-import { assertIgnored, foreignEnvironment, isIgnored, providers, siblingCheckouts, trackedManifests } from '../../scripts/kit/link-providers.mts';
+import { assertIgnored, declaredCheckouts, foreignEnvironment, isIgnored, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
 import { composerInstall } from '../../scripts/kit/composer-install.mts';
-import { linkFindings } from '../../scripts/kit/link-state-check.mts';
+import { linkFindings } from '../../scripts/kit/link-check.mts';
 import { acquireHolderLock } from '../../scripts/kit/holder-lock.mts';
 import { cargoMetadataArguments } from '../../scripts/kit/cargo-source.mts';
 import { cargo, link, unlink, writeWorkspaceHook } from '../../scripts/kit/link.mts';
@@ -338,7 +338,7 @@ test('the bootstrap runs the link source of the kit checkout that holds it, with
   const sources = path.join(KIT, 'scripts/kit');
   const dry = spawnSync('make', ['-n', '-f', path.join(sources, 'kit-bootstrap.mk'), 'install-link', 'NODE=node'], { cwd, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
-  assert.ok(dry.stdout.includes(`node ${sources}/link.mts link --siblings`), dry.stdout);
+  assert.ok(dry.stdout.split('\n').includes(`node ${sources}/link.mts link`), dry.stdout);
 });
 
 // K360-2: a step of the repository, which installs an environment that the link reads, runs before the link.
@@ -350,51 +350,143 @@ test('make install runs the steps of the repository before the link (K360-2)', (
   writeFileSync(path.join(cwd, 'Makefile'), `include ${path.join(KIT, 'scripts/kit/kit-bootstrap.mk')}\ninstall: cons-install\ncons-install: install-kit\n\t@echo the step of the repository\n`);
   const run = spawnSync('make', ['-n', 'install', 'KIT_EXT=mjs', 'NODE=node', 'NPM=npm', 'ONLINE='], { cwd, encoding: 'utf8' });
   const step = run.stdout.indexOf('the step of the repository');
-  const linked = run.stdout.indexOf('link --siblings');
+  const linked = run.stdout.indexOf('link.mjs link');
   assert.ok(step >= 0 && linked > step, `the step of the repository runs before the link:\n${run.stdout}${run.stderr}`);
 });
 
-// K349: the checkouts beside the repository are the checkouts of a link without arguments, also from a worktree of the repository.
-test('siblingCheckouts finds the checkouts beside the repository, not the repository, and a worktree finds the same (K349)', (t) => {
-  const { provider, kit, consumer } = workspace(t);
-  assert.deepEqual(siblingCheckouts(consumer).checkouts, [kit, provider].sort());
-  git(consumer, 'worktree', 'add', '--quiet', path.join(path.dirname(consumer), 'cons-wt'), '-b', 'wt');
-  assert.deepEqual(siblingCheckouts(path.join(path.dirname(consumer), 'cons-wt')).checkouts, [kit, provider].sort());
-  const alone = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-alone-')));
-  t.after(() => rmSync(alone, { recursive: true, force: true }));
-  initRepository(path.join(alone, 'only'));
-  assert.deepEqual(siblingCheckouts(path.join(alone, 'only')), { checkouts: [], skipped: [] }, 'no sibling, as in CI');
+// K869 (Decision 8 of the kit-harness plan): one git-ignored file per checkout, .links, names the provider checkouts; make link applies
+// it and make link-check compares it with the state.
+const LINK = path.join(KIT, 'scripts/kit/link.mts');
+const LINK_CHECK = path.join(KIT, 'scripts/kit/link-check.mts');
+/** `link` or link-check run as the command of the consumer, with the stubs of `env`. */
+const command = (consumer: string, env: NodeJS.ProcessEnv, script: string, ...args: string[]) => {
+  const result = spawnSync(process.execPath, [script, ...args], { cwd: consumer, env: { ...process.env, ...env }, encoding: 'utf8' });
+  return { status: result.status, text: `${result.stdout}${result.stderr}` };
+};
+/** The consumer of the workspace with its declaration `lines` (none for null), which its .gitignore ignores. */
+function declared(t: TestContext, lines: string[] | null) {
+  const found = workspace(t);
+  put(found.consumer, { '.gitignore': `${readFileSync(path.join(found.consumer, '.gitignore'), 'utf8')}.links\n` });
+  git(found.consumer, 'commit', '--quiet', '-am', 'ignore .links');
+  if (lines !== null) put(found.consumer, { '.links': `# the provider checkouts\n\n${lines.join('\n')}\n` });
+  return found;
+}
+const linkState = (file: string) => ({ link: readlinkSync(file), inode: lstatSync(file).ino });
+
+test('K869: make link creates exactly the declared links, and a second run changes nothing', (t) => {
+  const { provider, consumer, env } = declared(t, ['../prov']);
+  const first = command(consumer, env, LINK, 'link');
+  assert.equal(first.status, 0, first.text);
+  const npm = path.join(consumer, 'node_modules/@polyspec/x');
+  const composer = path.join(consumer, 'var/contracts/vendor/polyspec/y');
+  assert.equal(realpathSync(npm), path.join(provider, 'packages/ts'));
+  assert.equal(realpathSync(composer), path.join(provider, 'packages/php'));
+  assert.equal(lstatSync(path.join(consumer, 'node_modules/@polyspec/kit')).isSymbolicLink(), false, 'kit is not declared, so its release stays');
+  const before = [linkState(npm), linkState(composer)];
+  const second = command(consumer, env, LINK, 'link');
+  assert.equal(second.status, 0, second.text);
+  assert.deepEqual([linkState(npm), linkState(composer)], before);
 });
 
-// K363: a sibling is the main checkout of a polyspec repository, its origin github.com/polyspec/<name> and its folder that name.
-test('siblingCheckouts takes only the checkouts of polyspec repositories and lists every other folder as skipped (K363)', (t) => {
-  const { provider, kit, consumer } = workspace(t);
-  const workspaceFolder = path.dirname(consumer);
-  cpSync(provider, path.join(workspaceFolder, 'prov_2026'), { recursive: true });
-  git(path.join(workspaceFolder, 'prov_2026'), 'remote', 'remove', 'origin');
-  cpSync(provider, path.join(workspaceFolder, 'prov-copy'), { recursive: true });
-  assert.deepEqual(siblingCheckouts(consumer), {
-    checkouts: [kit, provider].sort(),
-    skipped: [`${path.join(workspaceFolder, 'prov-copy')} (origin https://github.com/polyspec/prov.git)`, `${path.join(workspaceFolder, 'prov_2026')} (no origin)`],
-  });
+test('K869: link-check fails on a link that the declaration does not name, and make link removes it', (t) => {
+  const { kit, consumer, env } = declared(t, ['../prov']);
+  assert.equal(command(consumer, env, LINK, 'link').status, 0);
+  const undeclared = path.join(consumer, 'node_modules/@polyspec/kit');
+  rmSync(undeclared, { recursive: true });
+  symlinkSync(kit, undeclared);
+  const checked = command(consumer, env, LINK_CHECK);
+  assert.equal(checked.status, 1, checked.text);
+  assert.match(checked.text, new RegExp(`${undeclared}: a link that the link declaration \\(\\.links\\) does not name`));
+  assert.equal(command(consumer, env, LINK, 'link').status, 0);
+  assert.equal(existsSync(undeclared), false, 'make link applies the declaration, so the undeclared link goes');
 });
 
-test('link --siblings links a fork checkout of forks/ beside the checkouts as the provider of its package (K379)', (t) => {
-  const { root, provider, kit, consumer, env } = workspace(t);
-  const fork = repository(path.join(root, 'forks'), 'json-schema', {
-    'composer.json': JSON.stringify({ name: 'opis/json-schema', autoload: { 'psr-4': { 'Opis\\JsonSchema\\': 'src/' } } }),
-    '.gitignore': 'vendor/\n',
-  });
-  git(fork, 'remote', 'add', 'origin', 'https://github.com/min-median-max/json-schema.git');
-  put(consumer, {
-    'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }, { type: 'path', url: '../forks/json-schema', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1', 'opis/json-schema': '2.6.0-p1' }, config: { 'vendor-dir': 'var/contracts/vendor' } }),
-    'var/contracts/vendor/composer/installed.json': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', 'install-path': '../polyspec/y' }, { name: 'opis/json-schema', version: '2.6.0-p1', 'install-path': '../opis/json-schema' }] }),
-    'var/contracts/vendor/opis/json-schema/composer.json': '{"name":"opis/json-schema"}',
-  });
-  const checkouts = siblingCheckouts(consumer).checkouts;
-  assert.deepEqual(checkouts, [fork, kit, provider].sort());
-  assert.equal(link({ checkouts, directories: [consumer], check: false, print: () => {}, env }), true);
-  assert.equal(realpathSync(path.join(consumer, 'var/contracts/vendor/opis/json-schema')), fork);
+test('K869: link-check fails on a declared package folder that is a copy', (t) => {
+  const { consumer, env } = declared(t, ['../prov']);
+  const checked = command(consumer, env, LINK_CHECK);
+  assert.equal(checked.status, 1, checked.text);
+  assert.match(checked.text, /NOT linked +npm +@polyspec\/x/);
+});
+
+test('K869: with no declaration, nothing is linked and any link fails link-check', (t) => {
+  const { provider, consumer, env } = declared(t, null);
+  const linked = command(consumer, env, LINK, 'link');
+  assert.equal(linked.status, 0, linked.text);
+  assert.match(linked.text, /no \.links in .*: nothing is linked/);
+  assert.equal(lstatSync(path.join(consumer, 'node_modules/@polyspec/x')).isSymbolicLink(), false);
+  // The fixture's manifests also name path sources (K773), which are findings of their own; the links are judged here.
+  const linkLinesOf = (text: string) => text.split('\n').filter(item => /NOT linked|a link that the link declaration/.test(item));
+  assert.deepEqual(linkLinesOf(command(consumer, env, LINK_CHECK).text), [], 'the release state has no link');
+  const folder = path.join(consumer, 'node_modules/@polyspec/x');
+  rmSync(folder, { recursive: true });
+  symlinkSync(path.join(provider, 'packages/ts'), folder);
+  const checked = command(consumer, env, LINK_CHECK);
+  assert.equal(checked.status, 1, checked.text);
+  assert.match(checked.text, new RegExp(`${folder}: a link that the link declaration`));
+  const removed = command(consumer, env, LINK, 'link');
+  assert.equal(removed.status, 0, removed.text);
+  assert.equal(existsSync(folder), false, 'with no declaration make link removes the link that an earlier declaration made');
+  assert.match(removed.text, /make install restores a released package whose link was removed/);
+  assert.deepEqual(linkLinesOf(command(consumer, env, LINK_CHECK).text), [], 'and link-check passes');
+});
+
+test('K869: make link and link-check leave the links into the checkout and the bin links, and handle a provider link out of it', (t) => {
+  const { kit, consumer, env } = declared(t, ['../prov']);
+  put(consumer, { 'packages/mine/package.json': '{"name":"mine"}', 'packages/lib/composer.json': '{"name":"acme/lib"}' });
+  const bin = path.join(consumer, 'node_modules/.bin/x');
+  const workspaceLink = path.join(consumer, 'node_modules/mine');
+  const pathRepository = path.join(consumer, 'var/contracts/vendor/acme/lib');
+  const provider = path.join(consumer, 'node_modules/@polyspec/kit');
+  mkdirSync(path.dirname(bin), { recursive: true });
+  mkdirSync(path.dirname(pathRepository), { recursive: true });
+  symlinkSync('../@polyspec/x/index.js', bin);
+  symlinkSync('../packages/mine', workspaceLink);
+  symlinkSync('../../../../packages/lib', pathRepository);
+  rmSync(provider, { recursive: true });
+  symlinkSync(kit, provider);
+  const linked = command(consumer, env, LINK, 'link');
+  assert.equal(linked.status, 0, linked.text);
+  for (const entry of [bin, workspaceLink, pathRepository]) assert.equal(lstatSync(entry).isSymbolicLink(), true, `${entry} stays`);
+  assert.equal(existsSync(provider), false, 'the provider link out of the checkout that the declaration does not name goes');
+  assert.doesNotMatch(command(consumer, env, LINK_CHECK).text, /a link that the link declaration/);
+});
+
+test('K869: a worktree reads the declaration of its main checkout and writes none', (t) => {
+  const { provider, kit, consumer } = declared(t, ['../prov', path.join('..', 'kit')]);
+  const worktree = path.join(path.dirname(consumer), 'cons-wt');
+  git(consumer, 'worktree', 'add', '--quiet', worktree, '-b', 'wt');
+  assert.deepEqual(declaredCheckouts(worktree), [provider, kit]);
+  assert.equal(existsSync(path.join(worktree, '.links')), false);
+  put(consumer, { '.links': '../missing\n' });
+  assert.throws(() => declaredCheckouts(worktree), /the declared checkout \.\.\/missing does not exist/);
+});
+
+test('K869: the go.work that link writes uses exactly the declared providers that the module requires', (t) => {
+  const { consumer, env } = declared(t, ['../prov']);
+  const requires = JSON.stringify({ Module: { Path: 'sub' }, Require: [{ Path: 'github.com/polyspec/prov/go', Version: 'v0.0.3' }] });
+  put(consumer, { 'sub/go.mod': 'module sub\n', 'sub/go.mod.json': requires });
+  git(consumer, 'add', '-A');
+  git(consumer, 'commit', '--quiet', '-m', 'sub');
+  assert.equal(command(consumer, env, LINK, 'link').status, 0);
+  const work = path.join(consumer, 'sub/go.work.json');
+  assert.doesNotMatch(command(consumer, env, LINK_CHECK).text, /NOT linked +go/);
+  const text = readFileSync(work, 'utf8');
+  assert.match(text, /"Use":\s*\[/);
+  writeFileSync(work, text.replace(/"Use":\s*\[/, '$&{"DiskPath":"../../kit"},'));
+  const extra = command(consumer, env, LINK_CHECK);
+  assert.equal(extra.status, 1, extra.text);
+  assert.match(extra.text, /uses it, though the link declaration does not name it/);
+  rmSync(path.join(consumer, '.links'));
+  const stale = command(consumer, env, LINK_CHECK);
+  assert.match(stale.text, /a go\.work that link wrote, though the link declaration names no provider/);
+});
+
+test('K869: link-check judges the workspace hook only while the declaration exists', (t) => {
+  const { root, kit, consumer, env } = declared(t, null);
+  hookCheckout(kit);
+  assert.doesNotMatch(command(consumer, env, LINK_CHECK).text, /settings\.json/, 'the release state has no hook to judge');
+  put(consumer, { '.links': '../prov\n' });
+  assert.match(command(consumer, env, LINK_CHECK).text, new RegExp(`${path.join(root, '.claude/settings.json')}: no Bash PreToolUse hook`));
 });
 
 // K385: a worktree is its own repository: its packages are its own, and the main checkout of its repository is never a provider.
@@ -822,7 +914,8 @@ test('make composer-install without a sibling that provides a polyspec package o
 });
 
 // K440: a Claude Code session started in the workspace folder (the folder of kit and its siblings) loads no .claude/settings.json of
-// kit, so link --siblings writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by its kit checkout.
+// kit, so link writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by its kit checkout, while the
+// link declaration exists (K869).
 /** The claude-hook and the node of the kit checkout `kit`, as a checkout has them (linked to the hook and node of this checkout). */
 function hookCheckout(kit: string) {
   mkdirSync(path.join(kit, 'scripts/kit'), { recursive: true });
@@ -837,13 +930,17 @@ const hookCommand = (kit: string) => `'${path.join(kit, 'var/tools/bin/node')}' 
 /** The Bash PreToolUse entry of the hook command of `kit`. */
 const hookEntry = (kit: string) => ({ matcher: 'Bash', hooks: [{ type: 'command', command: hookCommand(kit) }] });
 
-/** `link --siblings` run as the command of the consumer, with the stubs of `env`. */
+/** The declaration of the provider and kit checkouts beside `consumer` (K869). */
+const declareSiblings = (consumer: string) => put(consumer, { '.links': '../prov\n../kit\n' });
+
+/** `link` run as the command of the consumer with the declaration of its siblings, with the stubs of `env`. */
 function linkSiblings(consumer: string, env: NodeJS.ProcessEnv) {
-  const result = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--siblings'], { cwd: consumer, env: { ...process.env, ...env }, encoding: 'utf8' });
+  declareSiblings(consumer);
+  const result = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link'], { cwd: consumer, env: { ...process.env, ...env }, encoding: 'utf8' });
   assert.equal(result.status, 0, result.stderr);
 }
 
-test('link --siblings writes the Bash PreToolUse hook of claude-hook into the workspace folder, which refuses sleep 240 (K440)', (t) => {
+test('link writes the Bash PreToolUse hook of claude-hook into the workspace folder, which refuses sleep 240 (K440)', (t) => {
   const { kit, consumer, env } = workspace(t);
   hookCheckout(kit);
   linkSiblings(consumer, env);
@@ -853,7 +950,7 @@ test('link --siblings writes the Bash PreToolUse hook of claude-hook into the wo
   assert.match(hook.stderr, /refuse/);
 });
 
-test('link --siblings keeps the other settings of the workspace folder and replaces its kit hook, so a second run changes nothing (K440)', (t) => {
+test('link keeps the other settings of the workspace folder and replaces its kit hook, so a second run changes nothing (K440)', (t) => {
   const { kit, consumer, env } = workspace(t);
   hookCheckout(kit);
   const file = path.join(path.dirname(consumer), '.claude/settings.json');
@@ -874,28 +971,30 @@ test('a workspace without a kit checkout holding claude-hook gets no settings fi
   assert.equal(existsSync(path.join(path.dirname(consumer), '.claude')), false);
 });
 
-test('link-state-check fails while the workspace folder lacks the kit hook, names the file, and passes after link --siblings (K440)', (t) => {
+test('link-check fails while the workspace folder lacks the kit hook, names the file, and passes after link (K440, K869)', (t) => {
   const { kit, consumer, env } = workspace(t);
   hookCheckout(kit);
+  declareSiblings(consumer);
   const file = path.join(path.dirname(consumer), '.claude/settings.json');
   assert.ok(linkFindings(consumer, env).some(finding => finding.includes(file) && /make link/.test(finding)), 'a finding names the file and make link');
   linkSiblings(consumer, env);
   assert.deepEqual(linkFindings(consumer, env).filter(finding => finding.includes('settings.json')), []);
 });
 
-// K440-2: the writer and link-state-check judge the node of the kit checkout by one predicate, and each drift class has its own finding.
-/** The settings file of the workspace folder of `consumer`, which `link --siblings` writes. */
+// K440-2: the writer and link-check judge the node of the kit checkout by one predicate, and each drift class has its own finding.
+/** The settings file of the workspace folder of `consumer`, which `link` writes. */
 const workspaceSettingsFile = (consumer: string) => path.join(path.dirname(consumer), '.claude/settings.json');
 
-/** `link --siblings` run as the command of the consumer, which returns its status and stderr instead of asserting them. */
+/** `link` run as the command of the consumer with the declaration of its siblings, which returns its status and stderr. */
 function linkSiblingsResult(consumer: string, env: NodeJS.ProcessEnv) {
-  return spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--siblings'], { cwd: consumer, env: { ...process.env, ...env }, encoding: 'utf8' });
+  declareSiblings(consumer);
+  return spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link'], { cwd: consumer, env: { ...process.env, ...env }, encoding: 'utf8' });
 }
 
 /** The findings of `consumer` that concern its workspace settings file. */
 const settingsFindings = (consumer: string, env: NodeJS.ProcessEnv) => linkFindings(consumer, env).filter(finding => finding.includes('.claude/settings.json'));
 
-test('link-state-check reports a missing kit hook with its own message, when the settings hold no kit entry (K440-2)', (t) => {
+test('link-check reports a missing kit hook with its own message, when the settings hold no kit entry (K440-2)', (t) => {
   const { kit, consumer, env } = workspace(t);
   hookCheckout(kit);
   linkSiblings(consumer, env);
@@ -905,7 +1004,7 @@ test('link-state-check reports a missing kit hook with its own message, when the
   assert.match(found[0] ?? '', /no Bash PreToolUse hook runs the claude-hook of the kit checkout \(K440\); fix: make link$/);
 });
 
-test('link-state-check reports a kit hook whose content differs with its own message, and link --siblings rewrites it (K440-2)', (t) => {
+test('link-check reports a kit hook whose content differs with its own message, and link rewrites it (K440-2)', (t) => {
   const { kit, consumer, env } = workspace(t);
   hookCheckout(kit);
   linkSiblings(consumer, env);
@@ -917,7 +1016,7 @@ test('link-state-check reports a kit hook whose content differs with its own mes
   assert.deepEqual(settingsFindings(consumer, env), []);
 });
 
-test('link-state-check reports a node that is not executable with its own message, and the writer refuses it (K440-2)', (t) => {
+test('link-check reports a node that is not executable with its own message, and the writer refuses it (K440-2)', (t) => {
   const { kit, consumer, env } = workspace(t);
   hookCheckout(kit);
   linkSiblings(consumer, env);
@@ -955,6 +1054,7 @@ for (const nested of [false, true]) {
 test('a workspace outside the runner checkout retains missing, modified and non-executable hook checks (K661-6)', (t) => {
   const { root, kit, consumer, env } = workspace(t);
   hookCheckout(kit);
+  declareSiblings(consumer);
   const runner = { ...env, GITHUB_ACTIONS: 'true', GITHUB_WORKSPACE: consumer };
   assert.match(settingsFindings(consumer, runner).join('\n'), /no Bash PreToolUse hook/);
   assert.equal(writeWorkspaceHook(root, runner), workspaceSettingsFile(consumer));
@@ -972,63 +1072,68 @@ test('a workspace outside the runner checkout retains missing, modified and non-
 // the checkouts beside it patched, so no fetch materialises the git tag of a sibling crate.
 test('make cargo-fetch runs cargo fetch through the link of the sibling checkouts (K448-5)', () => {
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'ONLINE=online-wrapper', 'NODE=node', 'cargo-fetch', 'DIR=x'], { cwd: KIT, encoding: 'utf8' });
-  assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/link.mts cargo --siblings x fetch --locked');
+  assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/link.mts cargo x fetch --locked');
 });
 
-test('link cargo --siblings runs cargo with the sibling crates patched and the arguments unchanged (K448-5)', (t) => {
+test('link cargo with a declaration runs cargo with the sibling crates patched and the arguments unchanged (K448-5)', (t) => {
   const { consumer, env, log } = workspace(t);
+  declareSiblings(consumer);
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
-  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.match(log(), /^cargo fetch --config .*patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --locked$/m);
 });
 
 // K802: cargo passes a --config before the subcommand to no external subcommand, and clippy runs cargo again, so the patches and the lock
 // of the link follow the subcommand: cargo clippy compiles the sibling crate, not the git tag of the lock.
-test('link cargo --siblings passes the patches after the subcommand, which an external subcommand such as clippy takes (K802)', (t) => {
+test('link cargo with a declaration passes the patches after the subcommand, which an external subcommand such as clippy takes (K802)', (t) => {
   const { consumer, env, log } = workspace(t);
+  declareSiblings(consumer);
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
-  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'clippy', '--workspace', '--', '-D', 'warnings'], { cwd: consumer, env, encoding: 'utf8' });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'clippy', '--workspace', '--', '-D', 'warnings'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.match(log(), /^cargo clippy --config resolver\.lockfile-path=\S+ --config patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=\S+ --workspace -- -D warnings$/m);
 });
 
-// K489: cargo --siblings patches the crates of a sibling checkout that the consumer's lock names from git, and needs nothing from a checkout
+// K489: cargo patches the crates of a sibling checkout that the consumer's lock names from git, and needs nothing from a checkout
 // that has no config/release.json and that the lock does not name, such as an unrelated polyspec checkout (fsm) beside the consumer.
-test('link cargo --siblings patches no crate of a checkout without config/release.json that the lock does not name (K489)', (t) => {
+test('link cargo with a declaration patches no crate of a checkout without config/release.json that the lock does not name (K489)', (t) => {
   const { consumer, env, log } = workspace(t);
+  declareSiblings(consumer);
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
   repository(path.dirname(consumer), 'other', { 'rust/Cargo.toml': '[package]\nname = "polyspec-other"\nversion = "0.0.1"\n' });
   git(path.join(path.dirname(consumer), 'other'), 'remote', 'add', 'origin', 'https://github.com/polyspec/other.git');
-  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.match(log(), /patch\."https:\/\/github\.com\/polyspec\/prov"\.polyspec-prov\.path=/);
   assert.doesNotMatch(log(), /polyspec-other/);
 });
 
-// K448-5-1: cargo --siblings patches only the crates that the consumer's lock names. A patch of an unnamed crate is unused, and cargo records
+// K448-5-1: cargo patches only the crates that the consumer's lock names. A patch of an unnamed crate is unused, and cargo records
 // it as a patch.unused entry of the lock, so the tracked lock of the consumer would change and --locked refuses the fetch.
-test('link cargo --siblings patches no crate that the consumer lock does not name (K448-5-1)', (t) => {
+test('link cargo with a declaration patches no crate that the consumer lock does not name (K448-5-1)', (t) => {
   const { consumer, env, log } = workspace(t);
-  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  declareSiblings(consumer);
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.doesNotMatch(log(), /patch\./);
 });
 
-// K448-5-2: cargo --siblings resolves and fetches the patched graph in the link state (var/link), not against the tracked Cargo.lock:
+// K448-5-2: cargo resolves and fetches the patched graph in the link state (var/link), not against the tracked Cargo.lock:
 // metadata first resolves the copied lock, then the original native flags apply while the tracked lock stays byte-identical.
-test('link cargo --siblings fetches in the link lock with its native arguments and leaves the tracked Cargo.lock unchanged (K448-5-2)', (t) => {
+test('link cargo with a declaration fetches in the link lock with its native arguments and leaves the tracked Cargo.lock unchanged (K448-5-2)', (t) => {
   const { consumer, env, log } = workspace(t);
+  declareSiblings(consumer);
   put(consumer, { 'Cargo.lock': 'version = 4\n\n[[package]]\nname = "polyspec-prov"\nversion = "0.0.1"\n' });
   const before = readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8');
-  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', '--siblings', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
+  const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
   assert.match(log(), /^cargo fetch .* --locked$/m, 'the requested native arguments are preserved after metadata resolves the link graph');
   assert.match(log(), /^cargo fetch --config resolver\.lockfile-path=\S*var\/link\/cargo\/root\/Cargo\.lock\S* .*--locked$/m);
   assert.equal(readFileSync(path.join(consumer, 'Cargo.lock'), 'utf8'), before, 'the tracked Cargo.lock is unchanged');
 });
 
-test('link cargo without --siblings runs a plain locked fetch of the release (K448-5-2)', (t) => {
+test('link cargo without a declaration runs a plain locked fetch of the release (K448-5-2, K869)', (t) => {
   const { consumer, env, log } = workspace(t);
   const run = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'cargo', consumer, 'fetch', '--locked'], { cwd: consumer, env, encoding: 'utf8' });
   assert.equal(run.status, 0, run.stderr);
@@ -1090,8 +1195,9 @@ test('native npm retains a symbolic source link to its exact provider regardless
   assert.equal(readFileSync(path.join(kit, 'package.json'), 'utf8'), providerManifest);
 });
 
-// K501: composer-install takes the checkouts that provide its polyspec packages as arguments after DIR, as npm-install does (K448-9).
-test('composer-install takes the checkouts after DIR and runs the install with them (K501)', (t) => {
+// K501, K869: composer-install takes the checkouts that provide its polyspec packages from the link declaration, and refuses one given
+// after DIR.
+test('composer-install takes the checkouts of the link declaration and runs the install with them (K501, K869)', (t) => {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-composer-k501-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const project = path.join(root, 'app');
@@ -1108,7 +1214,9 @@ test('composer-install takes the checkouts after DIR and runs the install with t
   writeFileSync(bin, `#!/bin/sh\necho "composer $*" >> ${JSON.stringify(log)}\n`);
   chmodSync(bin, 0o755);
   const cli = fileURLToPath(new URL('../../scripts/kit/composer-install.mts', import.meta.url));
-  const outcome = spawnSync(process.execPath, [cli, project, checkout], { encoding: 'utf8', env: { ...process.env, COMPOSER_BIN: bin } });
+  assert.equal(spawnSync(process.execPath, [cli, project, checkout], { encoding: 'utf8', env: { ...process.env, COMPOSER_BIN: bin } }).status, 2, 'a checkout argument is refused');
+  writeFileSync(path.join(project, '.links'), '../provider\n');
+  const outcome = spawnSync(process.execPath, [cli, project], { encoding: 'utf8', env: { ...process.env, COMPOSER_BIN: bin } });
   assert.equal(outcome.status, 0, outcome.stderr);
   assert.match(readFileSync(log, 'utf8'), /composer install/);
 });
@@ -1135,7 +1243,7 @@ test('link writes the npm, Composer and Python folders as plain links with no pa
 });
 
 // K447: link covers every tracked Composer project of the checkout, not only the root: a project below the root with its own lock (hyper
-// examples/board) gets its installed polyspec package linked, as link-state-check reads every tracked manifest.
+// examples/board) gets its installed polyspec package linked, as link-check reads every tracked manifest.
 test('link replaces the polyspec package of a nested Composer project with a link to its provider (K447)', (t) => {
   const { provider, consumer, env } = workspace(t);
   put(consumer, {
@@ -1191,9 +1299,9 @@ test('K529: link reads COMPOSER_VENDOR_DIR as the vendor folder before config.ve
   assert.equal(realpathSync(vendor), realpathSync(path.join(provider, 'packages/php')));
 });
 
-// K529 (c), K888: link leaves out a project whose installer has not run yet, and link-state-check reports its declared package; once
+// K529 (c), K888: link leaves out a project whose installer has not run yet, and link-check reports its declared package; once
 // the project is installed, a declared package with no folder fails check and link, which install nothing.
-test('K529, K888: a declared package of a project that is not installed is left out by link and reported by link-state-check; once installed, check and link reject it (K529, K761, K888)', (t) => {
+test('K529, K888: a declared package of a project that is not installed is left out by link and reported by link-check; once installed, check and link reject it (K529, K761, K888)', (t) => {
   const { consumer, env } = workspace(t);
   put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: { 'polyspec/y': '0.0.1' }, config: { 'vendor-dir': 'var/not-installed' } }) });
   put(consumer, { 'composer-vendor-dir': 'var/not-installed' });
@@ -1202,6 +1310,7 @@ test('K529, K888: a declared package of a project that is not installed is left 
   const left = linkLines([consumer], env);
   assert.equal(left.ok, true, left.text);
   assert.doesNotMatch(left.text, /polyspec\/y/);
+  declareSiblings(consumer);
   assert.deepEqual(linkFindings(consumer, env).filter(line => line.includes('polyspec/y')), ['composer polyspec/y: no installed folder of . links it; Fix: make install']);
   mkdirSync(path.join(consumer, 'var/not-installed'), { recursive: true });
   const checked = linkLines([consumer], env, true);
@@ -1344,6 +1453,15 @@ test('K856: unlink removes the links of the consumer and runs no package manager
   assert.ok(lstatSync(path.join(consumer, 'node_modules/@polyspec/own')).isSymbolicLink(), 'the npm link of a workspace package of the consumer stays');
   assert.equal(existsSync(path.join(consumer, 'node_modules/@soksak/sidecar')), false, 'a link of another scope is removed');
   assert.throws(() => lstatSync(path.join(consumer, 'node_modules/plain')), 'a dangling link without a scope is removed');
+});
+
+test('K869: unlink, and so make link with no declaration, keeps a go.work that the repository tracks', (t) => {
+  const { consumer, env } = workspace(t);
+  put(consumer, { 'go.mod.json': JSON.stringify({ Module: { Path: 'cons' } }), 'go.work': 'go 1.24\n\nuse .\n' });
+  git(consumer, 'add', '-f', 'go.work');
+  git(consumer, 'commit', '--quiet', '-m', 'track go.work');
+  assert.equal(unlink({ directories: [consumer], print: () => {}, env }), true);
+  assert.equal(readFileSync(path.join(consumer, 'go.work'), 'utf8'), 'go 1.24\n\nuse .\n');
 });
 
 test('K856: link links a polyspec Go module whatever version the module requires', (t) => {

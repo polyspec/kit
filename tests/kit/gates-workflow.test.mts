@@ -82,12 +82,12 @@ test('K671-3: gates bootstrap the installed package with exact npm before Make, 
 });
 
 // K824: CI is release mode: the package managers install the declared versions, and nothing is linked, so no job runs link,
-// link-state-check or a package-link toolchain.
+// link-check or a package-link toolchain.
 test('K824: no gates job links packages or checks links; CI installs with the package managers only', () => {
   const workflow = read('workflows/gates.yml');
-  assert.doesNotMatch(workflow, /make link|link-state-check|link_tools|package-link/);
-  assert.doesNotMatch(read('.github/workflows/ci.yml'), /link-state-check/);
-  assert.doesNotMatch(read('scripts/kit/kit.mk').split('\n').filter(line => /^kit-gates(-parity)?:/.test(line)).join('\n'), /link-state-check/);
+  assert.doesNotMatch(workflow, /make link|link-check|link_tools|package-link/);
+  assert.doesNotMatch(read('.github/workflows/ci.yml'), /link-check/);
+  assert.doesNotMatch(read('scripts/kit/kit.mk').split('\n').filter(line => /^kit-gates(-parity)?:/.test(line)).join('\n'), /link-check/);
 });
 
 test('K731-1: context preparation surrounds the unchanged required gate and cleanup always runs after entry', () => {

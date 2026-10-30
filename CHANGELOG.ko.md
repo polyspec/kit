@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 70de0705ed8d974793487125f5789e795a46fbd8203947da794516bb13a7884e -->
+<!-- source-sha256: 58ba30c9b506f4906370f7f53d05b7843b85e5bc5842920aba1670144b57d80b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- main checkout 루트의 git-ignored `.links`가 provider checkout을 한 줄에 하나씩 선언합니다. worktree는 자기 main checkout의 파일을 읽고, 파일이 없으면 아무것도 link하지 않습니다. make link는 이를 멱등으로 적용하며 선언하지 않은 checkout 밖 패키지 폴더 link를 제거하되 checkout 안을 가리키는 link와 bin link는 남기고, 파일이 없으면 이전 선언의 link를 제거하며, make link-check(link-state-check를 흡수한 link-check.mts)는 link, 각 go.work의 use, K773·K888·K761 finding을 이에 맞춰 검사하고 ignore되지 않은 `.links`를 거부합니다. sibling checkout 탐색, `--siblings`, CHECKOUTS, link와 installer의 위치 인자 checkout, npm-install의 ADD와 선언되지 않은 polyspec 패키지 거부, forks/ 특례, make link-state-check target, Composer dist type 검사, 0.0.x pin 규칙은 없어졌습니다 (K869).
 - P17은 sleep과 polling loop를 거부하는 hook의 .claude/settings.json이 강제하고, 다른 조항은 모든 저장소가 가진 어떤 check도 닿지 않는 설계 판단임을 밝힙니다. owner check로서 규칙, Makefile, workflow, hook의 변경은 check-rules.test.mts를, scripts/kit이나 tests/kit 파일의 변경은 isolation.test.mts를, tests/kit module의 변경은 sandbox-repository.test.mts를 실행하므로, 전에는 CI만 돌리던 규칙 test가 변경과 함께 실행됩니다 (K904).
 - make uv-install은 SYNC의 flag를 --group dev, --project 같은 값까지 그대로 uv sync에 넘기며, link는 --project, --directory, --active가 고르는 environment에서 제거합니다. 따라서 저장소는 link를 거쳐 쓰는 raw uv sync 대신 이를 통해 uv를 실행합니다. flag 검증은 uv가 합니다(K850).
 - kit이 유지하는 모든 harness 조각은 규칙이 이름을 지정합니다. AGENTS.md는 make uv-install, install-link와 make worktree-setup, make owner-validate, tool-wrappers의 wrapper script, release-run을, P8은 catch-check를 지정하고, S4는 "kit은 버전도 lock도 비교하지 않고 pin하지 않으며 인자의 형식 검증은 허용된다"이고 Enforced by는 none입니다. gates-workflow.test.mts는 규칙이 지정하지 않은 유지 조각에서 실패합니다 (K853).

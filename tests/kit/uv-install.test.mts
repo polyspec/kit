@@ -49,7 +49,8 @@ test('K850: the command passes SYNC to uv sync as written, with flag values, and
   const before = readFileSync(path.join(checkout, 'src/polyspec_new_unreleased/__init__.py'), 'utf8');
   const lines: string[] = [];
   const sync = '--quiet --all-packages --no-editable --group dev --project . --no-install-project';
-  assert.equal(uvInstallCommand([root, checkout], { ...env, UV_SYNC: sync }, line => lines.push(line)), 0, lines.join(''));
+  writeFileSync(path.join(root, '.links'), 'provider\n');
+  assert.equal(uvInstallCommand([root], { ...env, UV_SYNC: sync }, line => lines.push(line)), 0, lines.join(''));
   assert.match(readFileSync(log, 'utf8'), new RegExp(`^sync --locked ${sync}$`, 'm'));
   assert.equal(existsSync(path.join(checkout, 'src/polyspec_new_unreleased/RELEASE')), false, 'the sync wrote no file into the checkout');
   assert.equal(readFileSync(path.join(checkout, 'src/polyspec_new_unreleased/__init__.py'), 'utf8'), before);
@@ -62,7 +63,8 @@ test('K850: the links of the project that --project of SYNC names go before the 
   const { root, env } = fixture(t);
   uvLink({ directory: other.root, uv: other.uv, env: other.env, providers: [other.provider] });
   const lines: string[] = [];
-  assert.equal(uvInstallCommand([root, other.checkout], { ...env, UV: other.uv, UV_SYNC: `--project ${other.root}` }, line => lines.push(line)), 0, lines.join(''));
+  writeFileSync(path.join(root, '.links'), `${other.checkout}\n`);
+  assert.equal(uvInstallCommand([root], { ...env, UV: other.uv, UV_SYNC: `--project ${other.root}` }, line => lines.push(line)), 0, lines.join(''));
   assert.equal(existsSync(path.join(other.checkout, 'src/polyspec_new_unreleased/RELEASE')), false, 'the sync wrote no file into the checkout');
   assert.equal(realpathSync(path.join(other.site, 'polyspec_new_unreleased')), path.join(other.checkout, 'src/polyspec_new_unreleased'));
 });
@@ -70,8 +72,9 @@ test('K850: the links of the project that --project of SYNC names go before the 
 test('K765, K539: the installer removes the links before uv syncs, so uv writes no checkout, and links the synced folder', { timeout: 30_000 }, (t) => {
   const { root, uv, site, checkout, provider, env } = fixture(t);
   uvLink({ directory: root, uv, env, providers: [provider] });
+  writeFileSync(path.join(root, '.links'), 'provider\n');
   const lines: string[] = [];
-  assert.equal(uvInstallCommand([root, checkout], env, line => lines.push(line)), 0, lines.join(''));
+  assert.equal(uvInstallCommand([root], env, line => lines.push(line)), 0, lines.join(''));
   assert.equal(existsSync(path.join(checkout, 'src/polyspec_new_unreleased/RELEASE')), false, 'the sync wrote no file into the checkout');
   assert.equal(realpathSync(path.join(site, 'polyspec_new_unreleased')), path.join(checkout, 'src/polyspec_new_unreleased'));
   assert.match(lines.join(''), /linked sources: polyspec-new-unreleased/);
@@ -98,8 +101,9 @@ test('K772: the installer links a package folder that uv sync left missing, sinc
   uvLink({ directory: root, uv, env, providers: [provider] });
   mkdirSync(path.join(site, 'polyspec_new_unreleased-0.0.1.dist-info'));
   // uv sync keeps the installed distribution and writes no folder, as for python-server: the fixture uv writes nothing here.
+  writeFileSync(path.join(root, '.links'), 'provider\n');
   const lines: string[] = [];
-  assert.equal(uvInstallCommand([root, checkout], { ...env, UV_FIXTURE_KEEP: 'yes' }, line => lines.push(line)), 0, lines.join(''));
+  assert.equal(uvInstallCommand([root], { ...env, UV_FIXTURE_KEEP: 'yes' }, line => lines.push(line)), 0, lines.join(''));
   assert.equal(realpathSync(path.join(site, 'polyspec_new_unreleased')), path.join(checkout, 'src/polyspec_new_unreleased'));
 });
 

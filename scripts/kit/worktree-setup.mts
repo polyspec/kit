@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 import { git, gitResult } from './git.mts';
 import { PACKAGE as KIT_PACKAGE } from './kit-check.mts';
 import { linkFolders, providedFolders } from './link-folders.mts';
-import { providerKey, providers, siblingCheckouts } from './link-providers.mts';
+import { declaredCheckouts, providerKey, providers } from './link-providers.mts';
 import { readNpmManifestFile } from './manifests.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { CONFIG as RELEASE_ASSETS, releaseAssets } from './release-assets.mts';
@@ -63,7 +63,7 @@ function run(command: string, args: string[], folder: string, env: NodeJS.Proces
 }
 
 /**
- * Creates or reuses the worktree of the row and runs `make install`, then `make link-state-check`, in it; returns its folder. Throws
+ * Creates or reuses the worktree of the row and runs `make install`, then `make link-check`, in it; returns its folder. Throws
  * before it creates anything when the folder exists as anything but the worktree of the branch, and throws with the worktree kept
  * when a step in it fails, so a second run retries it.
  */
@@ -98,11 +98,11 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     }
   }
   // make reads that include before make install links the packages, so the installed kit gets its link one step early: the provider
-  // that install-link resolves (siblingCheckouts and providers, link-providers.mts) and its link (linkFolders), kit alone. With no
-  // polyspec checkout beside the worktree nothing is linked, and the installed release runs.
-  const kit = providers(siblingCheckouts(folder).checkouts, undefined, folder, folder).get(providerKey('npm', KIT_PACKAGE));
+  // that install-link resolves (the link declaration of main, declaredCheckouts, and providers, link-providers.mts) and its link
+  // (linkFolders), kit alone. With no declaration nothing is linked, and the installed release runs.
+  const kit = providers(declaredCheckouts(folder) ?? [], undefined, folder, folder).get(providerKey('npm', KIT_PACKAGE));
   for (const line of kit === undefined ? [] : linkFolders(providedFolders(folder, [kit]))) print(`[worktree-setup] ${line}`);
-  for (const target of ['install', 'link-state-check']) {
+  for (const target of ['install', 'link-check']) {
     print(`[worktree-setup] make ${target} in ${folder}`);
     run('make', ['--no-print-directory', target], folder, own);
   }

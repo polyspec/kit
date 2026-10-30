@@ -1,5 +1,5 @@
 // Tests of scripts/kit/worktree-setup.mts (K348, K858): the worktree of a row is made from main beside the main checkout, and make install
-// and make link-state-check run in it, so it installs its own tools, packages and links; a second run converges.
+// and make link-check run in it, so it installs its own tools, packages and links; a second run converges.
 import assert from 'node:assert/strict';
 import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -28,10 +28,10 @@ function repository(t: TestContext, files: Record<string, string>, name = 'repo'
   return main;
 }
 
-test('worktree-setup makes the worktree of a row from main, runs make install and make link-state-check in it, and a second run converges (K348, K858)', (t) => {
-  // make install writes its own var/tools; link-state-check reads it, so the check fails unless the install ran in the worktree first.
+test('worktree-setup makes the worktree of a row from main, runs make install and make link-check in it, and a second run converges (K348, K858)', (t) => {
+  // make install writes its own var/tools; link-check reads it, so the check fails unless the install ran in the worktree first.
   const main = repository(t, {
-    'Makefile': 'install:\n\tmkdir -p var/tools && echo "$(CURDIR)" >> var/tools/installs.txt && echo "$$PATH" > var/tools/path.txt\nlink-state-check:\n\ttest -f var/tools/installs.txt\n',
+    'Makefile': 'install:\n\tmkdir -p var/tools && echo "$(CURDIR)" >> var/tools/installs.txt && echo "$$PATH" > var/tools/path.txt\nlink-check:\n\ttest -f var/tools/installs.txt\n',
     '.gitignore': '/var/\n',
   });
   const quiet = { print: () => {} };
@@ -57,7 +57,7 @@ test('worktree-setup runs npm ci of the npm that packageManager names in a workt
     '.gitignore': '/node_modules/\n/var/\n',
   });
   const bin = path.join(path.dirname(main), 'bin');
-  put(bin, { 'npm': '#!/bin/sh\necho "$@" >> calls.txt\nmkdir -p node_modules\nprintf \'install:\\n\\techo "$$MAKEFLAGS|$$MAKELEVEL" > flags.txt\\nlink-state-check:\\n\\ttrue\\n\' > node_modules/kit.mk\n' });
+  put(bin, { 'npm': '#!/bin/sh\necho "$@" >> calls.txt\nmkdir -p node_modules\nprintf \'install:\\n\\techo "$$MAKEFLAGS|$$MAKELEVEL" > flags.txt\\nlink-check:\\n\\ttrue\\n\' > node_modules/kit.mk\n' });
   chmodSync(path.join(bin, 'npm'), 0o755);
   const env = { ...process.env, PATH: [bin, process.env.PATH].join(path.delimiter), MAKEFLAGS: 's', MAKELEVEL: '1' };
   const folder = setupWorktree(main, { name: 'consumer', id: 'T4', type: 'fix' }, { print: () => {}, env });
@@ -68,16 +68,16 @@ test('worktree-setup runs npm ci of the npm that packageManager names in a workt
   assert.equal(readFileSync(path.join(folder, 'calls.txt'), 'utf8').split('\n').length, 2, 'a worktree with node_modules gets no second npm ci');
 });
 
-test('worktree-setup links the installed kit to the polyspec kit checkout beside it before make install, as install-link does, and leaves a release copy with none (K858)', (t) => {
+test('worktree-setup links the installed kit to the kit checkout that the link declaration of the main checkout names before make install, as install-link does, and leaves a release copy with none (K858, K869)', (t) => {
   // npm ci installs the release copy of the lock, whose make install refuses; the live kit checkout beside the consumer passes.
   const consumer = (name: string) => repository(t, {
     'Makefile': 'include node_modules/@polyspec/kit/kit.mk\n',
     'package.json': JSON.stringify({ name: 'consumer', packageManager: 'npm@12.2.0' }),
     'package-lock.json': '{}\n',
-    '.gitignore': '/node_modules/\n/var/\n',
+    '.gitignore': '/node_modules/\n/var/\n/.links\n',
   }, name);
   const npm = (parent: string) => {
-    put(path.join(parent, 'bin'), { 'npm': '#!/bin/sh\nmkdir -p node_modules/@polyspec/kit\nprintf \'{"name":"@polyspec/kit"}\' > node_modules/@polyspec/kit/package.json\nprintf \'install:\\n\\texit 7\\nlink-state-check:\\n\\ttrue\\n\' > node_modules/@polyspec/kit/kit.mk\n' });
+    put(path.join(parent, 'bin'), { 'npm': '#!/bin/sh\nmkdir -p node_modules/@polyspec/kit\nprintf \'{"name":"@polyspec/kit"}\' > node_modules/@polyspec/kit/package.json\nprintf \'install:\\n\\texit 7\\nlink-check:\\n\\ttrue\\n\' > node_modules/@polyspec/kit/kit.mk\n' });
     chmodSync(path.join(parent, 'bin', 'npm'), 0o755);
     return { ...process.env, PATH: [path.join(parent, 'bin'), process.env.PATH].join(path.delimiter) };
   };
@@ -85,19 +85,19 @@ test('worktree-setup links the installed kit to the polyspec kit checkout beside
   const parent = path.dirname(linked);
   const kit = path.join(parent, 'kit');
   initRepository(kit, '--initial-branch=main');
-  put(kit, { 'package.json': JSON.stringify({ name: '@polyspec/kit' }), 'kit.mk': 'install:\n\ttrue\nlink-state-check:\n\ttrue\n' });
+  put(kit, { 'package.json': JSON.stringify({ name: '@polyspec/kit' }), 'kit.mk': 'install:\n\ttrue\nlink-check:\n\ttrue\n' });
   git(kit, 'add', '-A');
   git(kit, 'commit', '--quiet', '-m', 'base');
-  git(kit, 'remote', 'add', 'origin', 'https://github.com/polyspec/kit.git');
+  put(linked, { '.links': '../kit\n' });
   const folder = setupWorktree(linked, { name: 'live', id: 'T5', type: 'fix' }, { print: () => {}, env: npm(parent) });
   assert.equal(realpathSync(path.join(folder, 'node_modules/@polyspec/kit')), realpathSync(kit), 'make install ran the kit checkout');
   assert.equal(path.isAbsolute(readlinkSync(path.join(folder, 'node_modules/@polyspec/kit'))), false, 'a relative link, as install-link makes');
   const alone = consumer('alone');
-  assert.throws(() => setupWorktree(alone, { name: 'release', id: 'T6', type: 'fix' }, { print: () => {}, env: npm(path.dirname(alone)) }), /make --no-print-directory install ended with exit status 2/, 'with no kit checkout beside it the release copy runs');
+  assert.throws(() => setupWorktree(alone, { name: 'release', id: 'T6', type: 'fix' }, { print: () => {}, env: npm(path.dirname(alone)) }), /make --no-print-directory install ended with exit status 2/, 'with no link declaration the release copy runs');
 });
 
 test('worktree-setup fails with the target whose make fails, and refuses a folder that is no worktree of the branch (K858)', (t) => {
-  const main = repository(t, { 'Makefile': 'install:\n\texit 3\nlink-state-check:\n\ttrue\n' });
+  const main = repository(t, { 'Makefile': 'install:\n\texit 3\nlink-check:\n\ttrue\n' });
   assert.throws(() => setupWorktree(main, { name: 'broken', id: 'T2', type: 'fix' }, { print: () => {} }), /make --no-print-directory install ended with exit status 2 in /);
   put(path.dirname(main), { 'repo-taken-T3/file': 'x' });
   assert.throws(() => setupWorktree(main, { name: 'taken', id: 'T3', type: 'fix' }, { print: () => {} }), /exists and is no worktree of fix\/taken-T3/);
@@ -107,7 +107,7 @@ test('worktree-setup links each declared release archive and unpacked directory 
   const asset = (name: string, directory: string, unpack?: string) => ({ name, version: '0.0.1', url: `https://example.invalid/v{version}/${name}-{version}.zip`, sha256: '0'.repeat(64), directory, ...(unpack === undefined ? {} : { unpack }) });
   const main = repository(t, {
     'config/release-assets.json': JSON.stringify({ schema: 1, assets: [asset('ext', 'var/products', 'var/products/ext'), asset('php', 'var/products/php'), asset('orm', 'var/composer-artifacts'), asset('absent', 'var/absent')] }),
-    'Makefile': 'install:\n\ttrue\nlink-state-check:\n\ttrue\n',
+    'Makefile': 'install:\n\ttrue\nlink-check:\n\ttrue\n',
     '.gitignore': '/var/\n',
   });
   put(main, { 'var/products/ext-0.0.1.zip': 'ext zip\n', 'var/products/ext/ext.so': 'ext\n', 'var/products/php/php-0.0.1.zip': 'php zip\n', 'var/composer-artifacts/orm-0.0.1.zip': 'orm zip\n' });

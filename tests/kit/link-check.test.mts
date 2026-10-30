@@ -1,6 +1,6 @@
-// Tests of scripts/kit/link-state-check.mts (K305-1): the link counts as the installed released version, so the check compares no
-// version and no requirement; while a link exists, an installed polyspec package pinned at 0.0.x is a link that resolves, and
-// a plain copy among links is a finding. Composer runs as a stub that answers `vendor` to `config vendor-dir`.
+// Tests of scripts/kit/link-check.mts (K305-1, K869): the findings beside link's check, which compares no version and no requirement:
+// the manifest paths of K773, the declared packages with no installed folder (K888) and the workspace hook. Composer runs as a stub
+// that answers `vendor` to `config vendor-dir`.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { initRepository } from './sandbox-repository.mts';
-import { linkFindings } from '../../scripts/kit/link-state-check.mts';
+import { linkCheck, linkFindings } from '../../scripts/kit/link-check.mts';
 import { put, tree } from './tree.mts';
 
 /** Commits every file of `root` (K453 tests: the build inputs of a provider are its tracked files). */
@@ -35,32 +35,15 @@ test('a tracked lock that records a polyspec package by a path or a link is no f
   assert.deepEqual(lockFindings(t, { 'package-lock.json': linked }, 'package-lock.json'), []);
 });
 
-// K399-2: a go.work that link wrote below a tracked go.work lacks the modules of that workspace, which link uses too.
-test('a git-ignored go.work below a tracked go.work that lacks the workspace modules is a finding, and passes once it uses them (K399-2)', (t) => {
-  const root = tree(t, {
-    '.gitignore': 'c/go.work\n',
-    'go.work': 'go 1.22\n\nuse (\n\t./a\n\t./b\n)\n',
-    'a/go.mod': 'module a\n',
-    'b/go.mod': 'module b\n',
-    'c/go.mod': 'module c\n',
-    'c/go.work': 'go 1.22\n\nuse (\n\t.\n)\n',
-  });
-  assert.equal(spawnSync('git', ['-C', root, 'add', 'go.work']).status, 0, 'the go.work of the repository is tracked');
-  const env = { ...process.env, GO: 'go' };
-  assert.deepEqual(linkFindings(root, env), ['go c/go.work: does not use the modules a, b of the tracked go.work above it; Fix: make link']);
-  put(root, { 'c/go.work': 'go 1.22\n\nuse (\n\t.\n\t../a\n\t../b\n)\n' });
-  assert.deepEqual(linkFindings(root, env), []);
-});
-
 test('the Composer projects that kit writes are no consumer project, so a repository with only those needs no Composer (K320)', (t) => {
   const root = tree(t, { 'config/php-lint/composer.json': '{"name": "polyspec/kit-php-lint"}', 'config/phpunit/composer.json': '{"name": "polyspec/kit-phpunit"}' });
   assert.deepEqual(linkFindings(root, { ...process.env, COMPOSER_BIN: '' }), []);
 });
 
 
-// K594: link-state-check judges only that each install location is the right symbolic link (and go.work and the Claude Code hook): the trust of mise, a merged branch that is left and the build of a provider are no link,
+// K594: link-check judges only that each install location is the right symbolic link (and go.work and the Claude Code hook): the trust of mise, a merged branch that is left and the build of a provider are no link,
 // so a foreign trust and a provider that was never built are no finding. K583 builds a stale provider at its commit.
-test('a foreign mise trust and a linked provider that was never built are no finding of link-state-check (K594)', (t) => {
+test('a foreign mise trust and a linked provider that was never built are no finding of link-check (K594)', (t) => {
   const provider = tree(t, {
     'package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1', main: './dist/x.mjs' }),
     'Makefile': 'build:\n\tmkdir -p dist\n\tcp src/x.mjs dist/x.mjs\n',
@@ -98,14 +81,19 @@ test('a provided package folder that is a copy is a finding, and its link to the
     return folder;
   };
   const provider = repository('zrepo', { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/z' }) });
-  const consumer = repository('cons', { 'composer.json': JSON.stringify({ name: 'cons/app' }), 'examples/board/composer.json': JSON.stringify({ name: 'cons/board', require: { 'polyspec/z': '9.9.9' } }), '.gitignore': 'vendor/\n' });
-  put(consumer, { 'examples/board/vendor/polyspec/z/composer.json': JSON.stringify({ name: 'polyspec/z', version: '9.9.9' }) });
-  const findings = linkFindings(consumer).filter(line => line.includes('polyspec/z'));
+  const consumer = repository('cons', { 'composer.json': JSON.stringify({ name: 'cons/app' }), 'examples/board/composer.json': JSON.stringify({ name: 'cons/board', require: { 'polyspec/z': '9.9.9' } }), '.gitignore': 'vendor/\n.links\n' });
+  put(consumer, { 'examples/board/vendor/polyspec/z/composer.json': JSON.stringify({ name: 'polyspec/z', version: '9.9.9' }), '.links': '../zrepo\n' });
+  const checked = () => {
+    const lines: string[] = [];
+    linkCheck(consumer, false, line => lines.push(line), { ...process.env, COMPOSER_VENDOR_DIR: '' });
+    return lines.filter(line => line.includes('polyspec/z'));
+  };
+  const findings = checked();
   assert.equal(findings.length, 1, findings.join('\n'));
-  assert.match(findings[0] ?? '', /^composer polyspec\/z: examples\/board\/vendor\/polyspec\/z is a copy, not a link to /);
+  assert.match(findings[0] ?? '', /NOT linked composer polyspec\/z: examples\/board\/vendor\/polyspec\/z is a copy, not a link to /);
   rmSync(path.join(consumer, 'examples/board/vendor/polyspec/z'), { recursive: true, force: true });
   symlinkSync(path.join(provider, 'packages/php'), path.join(consumer, 'examples/board/vendor/polyspec/z'));
-  assert.deepEqual(linkFindings(consumer).filter(line => line.includes('polyspec/z')), [], 'the link to the provider passes');
+  assert.deepEqual(checked().filter(line => /NOT linked|a link that/.test(line)), [], 'the link to the provider passes');
 });
 
 // K888: link leaves out a Python project without its environment, so the declared provider that no installed folder links is a finding.
@@ -126,8 +114,9 @@ test('a declared provider that no installed folder links is a finding in npm and
   const consumer = repository('cons', {
     'packages/python/pyproject.toml': '[project]\nname = "cons"\nversion = "0.0.0"\ndependencies = ["polyspec-p"]\n',
     'packages/db/package.json': JSON.stringify({ name: 'cons-db', dependencies: { '@polyspec/n': '0.0.1' } }),
-    '.gitignore': '.venv/\nnode_modules/\n',
+    '.gitignore': '.venv/\nnode_modules/\n.links\n',
   });
+  put(consumer, { '.links': '../prepo\n../nrepo\n' });
   // The fixture uv answers uv workspace dir with the project, as uv does for a project of no workspace.
   put(workspace, { 'uv': '#!/bin/sh\nif [ "$1 $2" = "workspace dir" ]; then pwd; fi\n' });
   chmodSync(path.join(workspace, 'uv'), 0o755);
@@ -160,8 +149,9 @@ test('a uv workspace member whose provider is linked in the environment of the w
   const consumer = repository('cons', {
     'pyproject.toml': '[project]\nname = "cons"\nversion = "0.0.0"\n\n[tool.uv.workspace]\nmembers = ["member"]\n',
     'member/pyproject.toml': '[project]\nname = "cons-member"\nversion = "0.0.0"\ndependencies = ["polyspec-p"]\n',
-    '.gitignore': '.venv/\nuv\n',
+    '.gitignore': '.venv/\nuv\n.links\n',
   });
+  put(consumer, { '.links': '../prepo\n' });
   // The fixture uv answers uv workspace dir with the workspace root, as uv does for a member.
   put(consumer, { 'uv': `#!/bin/sh\nif [ "$1 $2" = "workspace dir" ]; then echo '${consumer}'; fi\n`, '.venv/pyvenv.cfg': 'fixture\n' });
   chmodSync(path.join(consumer, 'uv'), 0o755);
@@ -204,4 +194,14 @@ test('a manifest path inside the repository that resolves through a link out of 
   commitAll(root, 'fixture');
   const found = linkFindings(root, process.env).filter(item => / is linked by the path /.test(item)).map(item => item.replace(/ outside.*$/, ''));
   assert.deepEqual(found, ['composer.json: a path repository is linked by the path var/link/a']);
+});
+
+// K869: the link declaration is a setting of the checkout, which Git ignores.
+test('a link declaration that Git does not ignore is a finding (K869)', (t) => {
+  const root = tree(t, { '.gitignore': 'var/\n' });
+  commitAll(root, 'fixture');
+  put(root, { '.links': '' });
+  assert.deepEqual(linkFindings(root, process.env), [`${path.join(realpathSync(root), '.links')}: Git does not ignore the link declaration; fix: add the line /.links to the .gitignore of the repository`]);
+  put(root, { '.gitignore': 'var/\n.links\n' });
+  assert.deepEqual(linkFindings(root, process.env), []);
 });

@@ -41,7 +41,7 @@ KIT_TEST_FILES_4 := \
 	tests/kit/holder-lock.test.mts \
 	tests/kit/install-tools.test.mts tests/kit/kit-assets.test.mts tests/kit/kit-bootstrap.test.mts \
 	tests/kit/kit-check.test.mts tests/kit/kit-files.test.mts tests/kit/land.test.mts \
-	tests/kit/language-check.test.mts tests/kit/link-state-check.test.mts tests/kit/lint-go.test.mts \
+	tests/kit/language-check.test.mts tests/kit/link-check.test.mts tests/kit/lint-go.test.mts \
 	tests/kit/registry.test.mts tests/kit/release.test.mts \
 	tests/kit/sandbox-cleanup.test.mts tests/kit/test-gap-start.test.mts tests/kit/test-markers.test.mts \
 	tests/kit/toolchain-files.test.mts

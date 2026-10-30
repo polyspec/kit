@@ -49,9 +49,9 @@ and states only its own rules. The rules below are kit's own.
   Enforced by: `tests/kit/uv-install.test.mts`, `tests/source/uv-link-real.test.mts`
 - Own: Tracked shared root files and workflows are regular copies of the installed kit package, managed by `make kit-sync`. Consumers include
   `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`; they install the locked npm dependencies before the first Make invocation.
-  Local development uses native npm links, Composer path repositories and uv editable installations to connect installed
-  packages to provider source (`docs/operations/local-links.md`). Such links are untracked and stay out of released output.
-  A sibling kit checkout is optional: `npm link ../kit` connects the installed package path to that checkout.
+  Local development links the provider checkouts that the git-ignored `.links` of the main checkout names, one per line: `make link`
+  makes each installed folder of their packages one plain directory symlink to its provider (`docs/operations/local-links.md`,
+  K869). Such links are untracked and stay out of released output. With no `.links` nothing is linked and the installed release runs.
   kit itself runs its own sources and does not install a published copy of itself. A path
   that this repository writes is relative to a stated anchor (the repository root, or the anchor its format defines, such
   as PEP 751's lock directory), stays inside the repository, and never depends on the working directory; it is never

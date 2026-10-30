@@ -3,7 +3,7 @@
 // pyproject.toml `project.name` (normalized, PEP 503) and go.mod `module` (go mod edit -json). A repository is identified
 // by its common Git directory, which every worktree of it shares, so a consumer never links a package of its own
 // repository, from whichever worktree it runs; a provider is always a main checkout, never a linked worktree.
-import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject } from './bootstrap/files.mts';
 import { readComposerManifestFile, readNpmManifestFile } from './manifests.mts';
@@ -132,47 +132,30 @@ export type Provider = { ecosystem: Ecosystem; name: string; folder: string; rep
 /** The key of a package name of an ecosystem. */
 export const providerKey = (ecosystem: Ecosystem, name: string): string => `${ecosystem}:${name}`;
 
-// The origin of the checkout of a polyspec repository, whose name is the folder of the checkout (K363).
-const POLYSPEC_ORIGIN = /^(?:https:\/\/|ssh:\/\/git@|git@)github\.com[:/]polyspec\/([A-Za-z0-9._-]+?)(?:\.git)?\/?$/;
+/** The link declaration of a checkout (K869): a git-ignored file at the root of its main checkout. */
+export const LINKS_FILE = '.links';
+
+/** The main checkout of `directory`: the folder of its common Git directory, else its own work tree (outside Git or a bare repository). */
+export function mainCheckout(directory: string): string {
+  const repository = repositoryOf(directory);
+  return path.basename(repository) === '.git' ? path.dirname(repository) : workTreeOf(directory);
+}
 
 /**
- * The main checkouts of polyspec repositories that lie beside the main checkout of the repository of `directory` (K349, K363): the
- * folders of its workspace that hold a .git directory and whose origin is github.com/polyspec/<folder>, the repository itself left
- * out, and every other folder with a .git entry as skipped, with the reason: a worktree, or a copy without that origin. A worktree
- * finds the same siblings as its main checkout. The main checkouts of the forks in the folder forks/ of the workspace come too, whatever
- * their origin. None where the consumer has no sibling, as in CI.
+ * The provider checkouts that the link declaration of the checkout of `directory` names (K869), as real paths: one path per line of
+ * LINKS_FILE at the root of its main checkout, a relative one resolved against that root; a blank line and a `#` line are ignored.
+ * A worktree reads the file of its main checkout and never writes one. Undefined when there is no file: nothing is linked, the release
+ * state. A declared path that does not exist throws with its line, since a declaration names a checkout.
  */
-export function siblingCheckouts(directory: string): { checkouts: string[]; skipped: string[] } {
-  const own = path.dirname(repositoryOf(directory));
-  const workspace = path.dirname(own);
-  const checkouts: string[] = [];
-  const skipped: string[] = [];
-  for (const name of readdirSync(workspace, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort()) {
-    const folder = path.join(workspace, name);
-    if (folder === own || !existsSync(path.join(folder, '.git'))) continue;
-    if (!existsSync(path.join(folder, '.git', 'HEAD'))) {
-      skipped.push(`${folder} (no main checkout)`);
-      continue;
-    }
-    // git config exits 1 for a key that is not set; any other failure is an error of the checkout.
-    const origin = linkGit(folder, 'config', '--get', 'remote.origin.url');
-    if (origin.error || (origin.status !== 0 && origin.status !== 1)) throw new Error(`git config --get remote.origin.url failed in ${folder}: ${origin.error?.message ?? origin.stderr.trim()}`);
-    const url = origin.status === 0 ? origin.stdout.trim() : undefined;
-    if (url !== undefined && POLYSPEC_ORIGIN.exec(url)?.[1] === name) checkouts.push(realpathSync(folder));
-    else skipped.push(`${folder} (${url === undefined ? 'no origin' : `origin ${url}`})`);
-  }
-  // A fork checkout is a main checkout in forks/ of the workspace, whatever its origin: the package it provides is named by its
-  // manifest, not by its folder or its origin (K379).
-  const forks = path.join(workspace, 'forks');
-  if (existsSync(forks)) {
-    for (const name of readdirSync(forks, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => entry.name).sort()) {
-      const folder = path.join(forks, name);
-      if (!existsSync(path.join(folder, '.git'))) continue;
-      if (existsSync(path.join(folder, '.git', 'HEAD'))) checkouts.push(realpathSync(folder));
-      else skipped.push(`${folder} (no main checkout)`);
-    }
-  }
-  return { checkouts: checkouts.sort(), skipped };
+export function declaredCheckouts(directory: string): string[] | undefined {
+  const main = mainCheckout(directory);
+  const file = path.join(main, LINKS_FILE);
+  if (!existsSync(file)) return undefined;
+  return readFileSync(file, 'utf8').split('\n').map(line => line.trim()).filter(line => line !== '' && !line.startsWith('#')).map((line) => {
+    const checkout = path.resolve(main, line);
+    if (!existsSync(checkout)) throw new Error(`${file}: the declared checkout ${line} does not exist`);
+    return realpathSync(checkout);
+  });
 }
 
 /** The main checkouts that `directories` names; a worktree or a folder inside a checkout fails, since it is no provider. */

@@ -100,7 +100,7 @@ test('npm install keeps the node_modules directory itself, so a mount point stay
   assert.equal(statSync(path.join(project, 'node_modules')).ino, kept, 'node_modules is the same directory');
 });
 
-test('npm install takes repository roots in CHECKOUTS, finds their package folders under packages/, and a root that shares its package name (K448)', (t) => {
+test('npm install takes repository roots as checkouts, finds their package folders under packages/, and a root that shares its package name (K448)', (t) => {
   const { root, project, npm } = fixture(t, 'kit-npm-roots-', { '@polyspec/fixture-client': '0.0.11', '@polyspec/fixture-server': '0.0.18', '@polyspec/fixture-codec': '0.0.9' }, ['@polyspec/fixture-client', '@polyspec/fixture-server', '@polyspec/fixture-codec']);
   const template = provider(path.join(root, 'client-fixture/packages/ts'), '@polyspec/fixture-client');
   const server = provider(path.join(root, 'server-fixture/packages/server/ts'), '@polyspec/fixture-server');
@@ -109,35 +109,26 @@ test('npm install takes repository roots in CHECKOUTS, finds their package folde
   const phpOnly = path.join(root, 'json-schema');
   mkdirSync(phpOnly, { recursive: true });
   writeFileSync(path.join(phpOnly, 'composer.json'), '{"name":"opis/json-schema"}');
-  npmInstall({ directory: project, checkouts: [path.join(root, 'client-fixture'), path.join(root, 'server-fixture'), path.join(root, 'fixture-codec'), phpOnly], npm, explicit: true, print: () => undefined, env: process.env });
+  npmInstall({ directory: project, checkouts: [path.join(root, 'client-fixture'), path.join(root, 'server-fixture'), path.join(root, 'fixture-codec'), phpOnly], npm, print: () => undefined, env: process.env });
   assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/fixture-client')), realpathSync(template));
   assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/fixture-server')), realpathSync(server), 'a package two folders down is found');
   assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/fixture-codec')), realpathSync(js), 'the package folder, not the root that shares its name');
-  assert.throws(() => npmInstall({ directory: project, checkouts: [path.join(root, 'absent')], npm, explicit: true, print: () => undefined, env: process.env }), /absent is no existing directory/);
 });
 
-test('npm install with ADD links a checkout whose package the project does not declare, with the tracked files unchanged (K448)', (t) => {
-  const { root, project, manifest, lock, npm } = fixture(t, 'kit-npm-add-', {}, []);
-  const core = provider(path.join(root, 'limepie/packages/core'), '@limepie/core');
-  npmInstall({ directory: project, checkouts: [], added: [path.join(root, 'limepie')], npm, print: () => undefined, env: process.env });
-  assert.equal(npmTarget(path.join(project, 'node_modules/@limepie/core')), realpathSync(core));
-  assert.equal(readFileSync(path.join(project, 'package.json'), 'utf8'), manifest);
-  assert.equal(readFileSync(path.join(project, 'package-lock.json'), 'utf8'), lock);
-});
-
-test('make npm-install forwards CHECKOUTS to the tool, which installs the lock and links the package folder (K448)', (t) => {
+test('make npm-install takes the checkouts of the link declaration, installs the lock and links the package folder (K448, K869)', (t) => {
   const { root, project, npm, log } = fixture(t, 'kit-npm-make-', { '@polyspec/fixture-client': '0.0.11' }, ['@polyspec/fixture-client']);
   const folder = provider(path.join(root, 'client-fixture/packages/ts'), '@polyspec/fixture-client');
   const kit = fileURLToPath(new URL('../..', import.meta.url));
-  const made = spawnSync('make', ['--no-print-directory', '-C', kit, 'npm-install', `DIR=${project}`, `CHECKOUTS=${folder}`, `NPM=${npm}`, `NODE=${process.execPath}`], { encoding: 'utf8' });
+  writeFileSync(path.join(project, '.links'), `${folder}\n`);
+  const made = spawnSync('make', ['--no-print-directory', '-C', kit, 'npm-install', `DIR=${project}`, `NPM=${npm}`, `NODE=${process.execPath}`], { encoding: 'utf8' });
   assert.equal(made.status, 0, made.stderr);
   assert.equal(readFileSync(log, 'utf8'), 'ci\n');
   assert.equal(npmTarget(path.join(project, 'node_modules/@polyspec/fixture-client')), realpathSync(folder));
   assert.equal(existsSync(path.join(project, 'node_modules/@polyspec/fixture-client/index.js')), true);
 });
 
-// K483-1: a declared polyspec package with no checkout fails in every mode, naming the package, and no npm ci or npm install runs.
-test('npm install refuses a declared polyspec package with no checkout in every mode, naming it, and runs no npm (K483-1)', (t) => {
+// K869: a polyspec package that no declared checkout provides is the release, as in link, so a partial declaration installs.
+test('npm install installs the release of a polyspec package that no declared checkout provides (K869)', (t) => {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-npm-k483-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const sibling = path.join(root, 'fixture-codec');
@@ -150,26 +141,15 @@ test('npm install refuses a declared polyspec package with no checkout in every 
   const log = path.join(root, 'npm.log');
   const stub = path.join(root, 'npm');
   writeFileSync(stub, `#!/bin/sh\nprintf "%s\\n" "$1" >> "${log}"\nmkdir -p node_modules\n`, { mode: 0o755 });
-  const modes: [string, string[], boolean][] = [
-    ['no checkout is given or found', [], false],
-    ['a checkout is found that provides another package', [sibling], false],
-    ['the checkouts are named explicitly', [sibling], true],
-  ];
-  for (const [mode, checkouts, explicit] of modes) {
-    assert.throws(() => npmInstall({ directory: project, checkouts, npm: stub, explicit, print: () => undefined, env: process.env }), /@polyspec\/missing/, `${mode}: the refusal names the package`);
-  }
-  assert.equal(existsSync(log), false, 'no npm subcommand runs in any mode');
+  assert.equal(npmInstall({ directory: project, checkouts: [sibling], npm: stub, print: () => undefined, env: process.env }), 'locked');
+  assert.equal(readFileSync(log, 'utf8'), 'ci\n', 'npm ci installs the releases of the undeclared packages');
 });
 
-test('make npm-install ADD=<checkout> passes each checkout to the tool with --add, and none without ADD (K485)', () => {
+test('make npm-install passes no checkout to the tool, which reads the link declaration (K485, K869)', () => {
   const kitRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
-  const dry = (...extra: string[]) => spawnSync('make', ['-n', 'npm-install', 'DIR=examples/app', ...extra], { cwd: kitRoot, encoding: 'utf8' });
-  const plain = dry();
+  const plain = spawnSync('make', ['-n', 'npm-install', 'DIR=examples/app'], { cwd: kitRoot, encoding: 'utf8' });
   assert.equal(plain.status, 0, plain.stderr);
-  assert.doesNotMatch(plain.stdout, /--add/, plain.stdout);
-  const added = dry('ADD=/work/core /work/template');
-  assert.equal(added.status, 0, added.stderr);
-  assert.match(added.stdout, /npm-install\.(mts|mjs|js) examples\/app\s+--add \/work\/core --add \/work\/template\s*$/m, added.stdout);
+  assert.match(plain.stdout, /npm-install\.(mts|mjs|js) examples\/app\s*$/m, plain.stdout);
 });
 
 // K526: every consumer lock resolves @polyspec/kit from the URL of its release asset, which npm refuses unless allow-remote opts in, so

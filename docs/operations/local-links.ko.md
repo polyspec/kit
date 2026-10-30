@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 872afc5fe8febbf92c1d81bf1bc81901f80ee67773b414b04c0a710c53dbb9e7 -->
+<!-- source-sha256: aeaa2a89c684ada387915e79894fb05235da64e922d5420dbfab8a85f72453d6 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -26,7 +26,7 @@
 | Composer source helper | composer-install은 선택한 manifest lock의 `composer install` 뒤 설치된 각 provider 폴더를 link한다. path repository와 `composer update`는 필요 없다. |
 | Python source helper | uv-install은 tracked lock의 `uv sync --locked`를 실행한 뒤 site-packages에 설치된 provider 패키지 폴더를 각 checkout의 같은 패키지로 link한다. 설치 record는 release의 dist-info이며 editable build와 build backend는 실행하지 않는다(K765). `uv pip check`가 설치 distribution을 검증한다. |
 
-link-check와 link-state-check는 source 연결을 설명하며 모든 version과 peer dependency를 해석하는 공통 solver가 아니다. peer 검증이 필요하면 native 진단은 npm ls --all이다. Kit 전용 resolver나 위장된 설치 version으로 불일치를 보정하지 않는다. Composer와 uv 실패도 숨기지 않는다.
+link-check는 source 연결을 설명하며 모든 version과 peer dependency를 해석하는 공통 solver가 아니다. peer 검증이 필요하면 native 진단은 npm ls --all이다. Kit 전용 resolver나 위장된 설치 version으로 불일치를 보정하지 않는다. Composer와 uv 실패도 숨기지 않는다.
 
 
 Provider는 변경된 dependency와 build 입력을 자신의 package manager로 설치한다. 이미 올바른 source link를 재사용해도 새 외부 provider dependency를 설치하거나 lifecycle을 다시 실행하지는 않는다. Source 수정은 새 release 없이 보이며 컴파일 산출물은 native build가 필요하다.
@@ -48,13 +48,14 @@ Composer가 생성한 autoload는 `vendor/<vendor>/<package>/src`를 가리키�
 | Rust | `link.mjs cargo <dir> <cargo args>`가 `--config` `[patch]` 항목과 `var/link/cargo` 아래 lock 사본으로 cargo 명령 하나를 실행합니다 |
 
 - checkout의 모든 tracked 프로젝트를 link하며, hyper의 `examples/board`처럼 root 아래의 중첩 프로젝트도 포함합니다(K447). 테스트, fixture, release consumer는 시험하는 설치를 그대로 둡니다.
-- provider: 인자로 준 main checkout, 없으면 저장소 옆의 checkout(`--siblings`)에 있는 패키지의 각 tracked manifest, 그리고 workspace의 `forks/`에 있는 fork(K379)입니다. checkout 자신의 패키지는 같은 저장소의 main checkout이 아니라 자기 폴더로 link됩니다.
-- `make npm-install`은 `npm ci` 뒤 link를 쓰며 `ADD`로 새 provider를 명시적으로 연결합니다. `make composer-install`은 lock의 `composer install` 뒤 link를 씁니다. `make uv-install`은 lock의 `uv sync --locked` 뒤 link를 씁니다. Python 개발 lock이 없거나 오래됐으면 native `uv lock`으로 준비해야 합니다.
+- link 선언(K869): main checkout 루트의 git-ignored 파일 `.links`가 provider checkout을 한 줄에 하나씩, 그 루트 기준 상대 경로로 지정합니다. 빈 줄과 `#`로 시작하는 줄은 무시합니다. worktree는 자기 main checkout의 파일을 읽습니다. 파일이 없으면 checkout은 릴리즈 상태입니다. 아무것도 link하지 않으며, `make link`는 `make unlink`처럼 이전 선언이 만든 link를 제거하고 그다음 `make install`이 배포된 패키지를 복원합니다. `make link`는 파일을 적용하며 멱등입니다. 선언된 folder는 각각 자기 link가 되고, checkout 밖으로 link되며 파일이 지정하지 않은 패키지 폴더는 제거됩니다. checkout 안을 가리키는 link는 npm과 Composer의 workspace link처럼 남습니다. K773이 추적 manifest가 저장소 밖 경로를 지정하지 못하게 하기 때문입니다. bin link도 남습니다.
+- provider: 선언된 checkout에 있는 패키지의 각 tracked manifest입니다. checkout 자신의 패키지는 같은 저장소의 main checkout이 아니라 자기 폴더로 link됩니다.
+- `make npm-install`은 `npm ci` 뒤 link를 씁니다. `make composer-install`은 lock의 `composer install` 뒤 link를 씁니다. `make uv-install`은 lock의 `uv sync --locked` 뒤 link를 씁니다. Python 개발 lock이 없거나 오래됐으면 native `uv lock`으로 준비해야 합니다.
 - kit은 link 중 build target을 실행하지 않습니다. native package-manager lifecycle hook은 정상 동작을 유지합니다. 별도 provider build는 자체 target을 사용합니다.
 
 ## 검증
 
-`make link-state-check`(K305-1, P30)는 제공된 패키지의 설치된 npm·Composer·Python 패키지 폴더가 각각 checkout으로 가는 link인지 검사하고 workspace link, `go.work`, Claude Code hook을 검증합니다. 추적된 project가 선언하고 다른 repository의 sibling checkout이 제공하는 npm, Composer, Python package에 그것을 link하는 설치된 folder가 없으면 finding입니다. `make link`는 installer가 아직 실행되지 않은 project(node_modules, vendor folder, environment가 없음)를 빼므로, 설치가 설치하지 않은 project는 통과하지 않습니다(K888). link된 npm provider마다 그 provider가 실행 시 필요한 polyspec 패키지도 실제 경로를 거쳐 한 단계 판단합니다. 거기 있는 복사본은 그 패키지의 두 번째 instance여서 consumer와 provider 사이 `instanceof`가 실패합니다(K761). `make link-check`는 개발 보조로 불일치를 나열합니다. dependency 호환성은 각 native package manager가 판단합니다. release CI는 로컬 provider 탐색 대신 선언된 배포 dependency를 사용합니다.
+`make link-check`(K305-1, P30, K869)는 link를 link 선언에 맞춰 검사합니다. 선언된 provider의 설치된 npm·Composer·Python 패키지 폴더가 각각 checkout으로 가는 link인지, 선언이 지정하지 않은 바깥으로 가는 link가 없는지, 각 `go.work`가 module과 그것이 require하는 선언된 provider만 정확히 쓰는지(선언이 없으면 없음), `.links`가 git-ignored인지, 그리고 `.links`가 있는 동안 Claude Code hook이 설치되어 있는지 검사합니다. 추적된 project가 선언하고 다른 repository의 선언된 checkout이 제공하는 npm, Composer, Python package에 그것을 link하는 설치된 folder가 없으면 finding입니다. `make link`는 installer가 아직 실행되지 않은 project(node_modules, vendor folder, environment가 없음)를 빼므로, 설치가 설치하지 않은 project는 통과하지 않습니다(K888). link된 npm provider마다 그 provider가 실행 시 필요한 polyspec 패키지도 실제 경로를 거쳐 한 단계 판단합니다. 거기 있는 복사본은 그 패키지의 두 번째 instance여서 consumer와 provider 사이 `instanceof`가 실패합니다(K761). dependency 호환성은 각 native package manager가 판단합니다. release CI는 로컬 provider 탐색 대신 선언된 배포 dependency를 사용합니다.
 
 Source 개발 계약은 배포된 dependency와 같은 version의 source 수정, release보다 앞선 source checkout, 배포 이력이 없는 새 provider를 포함합니다. Native package metadata는 유효해야 하며 release가 없다는 이유로 package manager의 metadata 요구를 생략하지 않습니다. 미배포 provider도 package manager의 정식 version metadata 또는 version 추론 규칙을 따르며 kit이 version을 만들어 주지 않습니다. 앱이 호환되는 개발 requirement와 local source를 선언하며 source 사용에 tag나 배포 archive는 필요하지 않습니다. Cargo의 exact-version requirement는 patch 선택을 막을 수 있으므로 wrapper는 native workspace metadata를 검사하고 필요한 개발 source 대신 release가 선택되면 거부합니다. metadata와 요청 명령은 `var/link/cargo` 아래 tracked lock의 복사본을 사용하며 그 복사본은 Cargo가 갱신하고 tracked manifest와 lock은 바뀌지 않습니다. Cargo에서 release보다 앞선 checkout은 이 계약의 한계입니다. 소비자의 requirement나 git tag보다 version이 높은 patch는 선택되지 않으며, 거부 메시지는 requirement보다 앞선 provider는 먼저 release한 뒤 요구하고, 뒤처진 provider는 그 checkout을 갱신하라고 알려 줍니다. Cargo source 검사는 `-p`로 선택한 package에만 한정되지 않고 workspace resolution을 대상으로 합니다.
 
@@ -63,7 +64,7 @@ Source 개발 계약은 배포된 dependency와 같은 version의 source 수정,
 ## Worktree
 
 - worktree branch는 `main`에서 만든 `<type>/<name>-<id>`이고(P10) `make land`로 `main`에 들어갑니다. worktree는 그 자체로 checkout이며 `var/tools`, dependency tree와 link가 모두 자기 것입니다(K858).
-- `make worktree-setup`은 worktree를 만들고 다른 checkout처럼 거기서 온라인으로 `make install`을 실행합니다. `make install`은 `mise.toml`과 `mise.lock`의 도구를 자기 `var/tools`에, lock의 package, 저장소의 단계, link를 설치합니다. 그다음 `make link-state-check`를 실행합니다. `node_modules`가 없는 worktree는 gates workflow의 clean checkout처럼 먼저 `packageManager`가 지정한 npm으로 `npm ci --ignore-scripts`를 실행하므로, 설치된 kit은 `make install-link`가 주는 link, 곧 worktree 옆 polyspec kit checkout으로 가는 link를 한 단계 먼저 받으므로, `node_modules`에서 kit을 include하는 Makefile은 live kit을 실행합니다. 옆에 kit checkout이 없으면 설치된 릴리즈가 실행됩니다. main checkout의 `var/tools`와 lock은 바뀌지 않습니다. `make install`과 `make install-tools`도 worktree에서 바로 실행됩니다. K858 전에 만든 worktree는 자기 도구를 갖도록 `make install`을 한 번 실행합니다.
+- `make worktree-setup`은 worktree를 만들고 다른 checkout처럼 거기서 온라인으로 `make install`을 실행합니다. `make install`은 `mise.toml`과 `mise.lock`의 도구를 자기 `var/tools`에, lock의 package, 저장소의 단계, link를 설치합니다. 그다음 `make link-check`를 실행합니다. `node_modules`가 없는 worktree는 gates workflow의 clean checkout처럼 먼저 `packageManager`가 지정한 npm으로 `npm ci --ignore-scripts`를 실행하므로, 설치된 kit은 `make install-link`가 주는 link, 곧 main checkout의 link 선언이 지정한 kit checkout으로 가는 link를 한 단계 먼저 받으므로, `node_modules`에서 kit을 include하는 Makefile은 live kit을 실행합니다. 선언이 없으면 설치된 릴리즈가 실행됩니다. main checkout의 `var/tools`와 lock은 바뀌지 않습니다. `make install`과 `make install-tools`도 worktree에서 바로 실행됩니다. K858 전에 만든 worktree는 자기 도구를 갖도록 `make install`을 한 번 실행합니다.
 - worktree-setup은 `make install` 실행 전에 `config/release-assets.json`이 선언하고 main checkout이 가진 release archive마다, 그리고 그 `unpack` directory마다, 예를 들어 `var/composer-artifacts/<name>-<version>.zip`이나 `var/products/template-ext`를, main checkout의 것으로 가는 link 하나로 만듭니다. 상위 directory는 worktree 자신의 것입니다(K780, K887). `make release-assets-fetch`는 다른 checkout처럼 worktree에서도 실행됩니다. 선언된 sha256을 가진 link된 archive는 그대로 두고, download나 unpack은 worktree 자신의 link를 바꿀 뿐 main checkout의 파일은 바꾸지 않습니다(K887). 설치된 vendor tree를 link하거나 metadata를 합성하지 않습니다(K690). Python environment는 link된 package가 worktree source를 실행해야 하므로 main environment로 가는 단일 directory link일 수 없습니다. make timestamp stamp는 새 checkout을 건너 이어질 수 없으며 거기서 유효해야 하는 stamp는 내용으로 판단합니다.
 - `make land`는 branch를 `main`에 fast-forward로 merge합니다(K495). 두 번째 land는 첫 번째의 lock을 기다리고, `main`보다 뒤처진 branch는 그 worktree에서 rebase됩니다.
 - worktree와 branch는 branch가 `main`에 merge되면 바로 지웁니다. `make land`는 land한 branch를 지우고, `main`이 포함한 branch의 다른 깨끗한 worktree 중 process가 없는 것도 모두 지웁니다. process가 아직 실행 중인 worktree는 다음 land까지 남습니다(K626).

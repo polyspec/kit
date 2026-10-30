@@ -3,7 +3,7 @@
 import path from 'node:path';
 import { existsSync, readdirSync } from 'node:fs';
 import { checkoutProviders, incompleteDistributions, linkFolders, providedFolders, releaseEnvironmentLinks } from './link-folders.mts';
-import { siblingCheckouts, type Provider } from './link-providers.mts';
+import { declaredCheckouts, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
 
@@ -51,7 +51,7 @@ function installSources({ directory, providers = [], uv = 'uv', env = process.en
   const project = path.resolve(directory);
   const { venv, workspace } = projectEnvironment(project, uv, env, sync);
   // K888: a project without its environment is not installed yet. The link creates none (K689-3) and leaves it out, as a package that
-  // is not installed; link-state-check reports each declared provider that stays unlinked.
+  // is not installed; link-check reports each declared provider that stays unlinked.
   if (sync === undefined && !existsSync(path.join(venv, 'pyvenv.cfg'))) {
     print(`uv development: no environment at ${venv}; the project is not installed, so nothing is linked`);
     return [];
@@ -88,13 +88,14 @@ export function uvLink(options: UvSourcesOptions): string[] {
 
 /** Runs the native declared development installation once; returns its exit code. */
 export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv, write: (text: string) => void): number {
-  const [directory, ...given] = args;
-  if (directory === undefined) {
-    write('Usage: node scripts/kit/uv-install.mts <dir> [<checkout>...]\n');
+  // The providers are the checkouts of the link declaration (K869).
+  const [directory, ...rest] = args;
+  if (directory === undefined || rest.length) {
+    write('Usage: node scripts/kit/uv-install.mts <dir>\n');
     return 2;
   }
   const project = path.resolve(directory);
-  const checkouts = given.length ? given.map(checkout => path.resolve(checkout)) : siblingCheckouts(project).checkouts;
+  const checkouts = declaredCheckouts(project) ?? [];
   try {
     // uv validates its own flags; the links of the environment that the flags choose go before the sync (K850).
     const sync = (env.UV_SYNC ?? '').split(/\s+/).filter(flag => flag !== '');

@@ -1,6 +1,6 @@
 // The link of kit (K448): each installed polyspec package folder is a direct symlink to the package folder of the checkout that
 // provides it. No package manager resolves anything and no version is read: the tracked lock is installed once, as it is, and the
-// link replaces each provided package folder, removing a copy. link-state-check reads the same folders.
+// link replaces each provided package folder, removing a copy. link-check reads the same folders.
 //
 //   npm       node_modules/<name>                  -> the folder of the provider's package.json
 //   Composer  <vendor-dir>/<vendor>/<package>      -> the folder of the provider's composer.json
@@ -10,7 +10,7 @@
 //
 // Each installed package is exactly one directory symlink, the user's rule (K591); no kit uv run writes through it, since every uv
 // install of kit removes the links first (K539).
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync, unlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
@@ -133,29 +133,36 @@ const present = (file: string): boolean => {
  * project or absolute, K448-14), else .venv; each is <environment>/lib/<python>/site-packages.
  */
 /**
- * Removes each entry of the site-packages of the environment of `project` (`environment` as in sitePackages), at any depth of its
- * real folders, that is a link resolving outside the environment, a package folder that link made into a provider checkout, and returns the removed paths
- * (K539): uv writes and deletes through such a link, so every uv install of the environment removes them first; the link only
- * goes, never its target. A dangling link goes too.
+ * The entries of the site-packages of the environment of `project` (`environment` as in sitePackages), at any depth of its real
+ * folders, that are links resolving outside the environment, or dangling: the package folders that link made into a provider checkout
+ * (K539, K541).
  */
-export function releaseEnvironmentLinks(project: string, environment: string | undefined): string[] {
+export function environmentLinks(project: string, environment: string | undefined): string[] {
   const venv = path.resolve(project, environment === undefined || environment === '' ? '.venv' : environment);
   const own = existsSync(venv) ? realpathSync(venv) : venv;
-  const removed: string[] = [];
-  // K541: the real folders of site-packages at any depth, as a namespace folder that holds a link of its package.
+  const found: string[] = [];
   const visit = (folder: string) => {
     for (const name of readdirSync(folder)) {
       const entry = path.join(folder, name);
       const stat = lstatSync(entry);
       if (stat.isDirectory()) visit(entry);
-      if (!stat.isSymbolicLink()) continue;
+      // A package link of kit is a folder link; a file link is uv's own, as with UV_LINK_MODE=symlink (K869).
+      if (!stat.isSymbolicLink() || (existsSync(entry) && !statSync(entry).isDirectory())) continue;
       const target = existsSync(entry) ? realpathSync(entry) : undefined;
-      if (target !== undefined && target.startsWith(`${own}${path.sep}`)) continue;
-      unlinkSync(entry);
-      removed.push(entry);
+      if (target === undefined || !target.startsWith(`${own}${path.sep}`)) found.push(entry);
     }
   };
   for (const folder of sitePackages(project, environment)) visit(folder);
+  return found;
+}
+
+/**
+ * Removes the links of environmentLinks and returns them: uv writes and deletes through such a link, so every uv install of the
+ * environment removes them first (K539); the link only goes, never its target.
+ */
+export function releaseEnvironmentLinks(project: string, environment: string | undefined): string[] {
+  const removed = environmentLinks(project, environment);
+  for (const entry of removed) unlinkSync(entry);
   return removed;
 }
 

@@ -15,8 +15,10 @@
 // into the consumer is one that Git ignores there, and link writes nothing into .git (K512) (the links in the install folders, var/link, and each go.work).
 // unlink only removes the links and the files that link wrote; make install restores the locked installs, reinstalling each Python
 // distribution whose package folder a removed link left missing (K856).
-//   node link.mjs link|check [--project <dir>] [--siblings] <checkout>... | unlink [--project <dir>] |
-//                 packages <dir> python|npm | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...
+//   node link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | packages <dir> python|npm |
+//                 providers <checkout>... | cargo <dir> <args>...
+// The providers are the checkouts that the link declaration names (K869): LINKS_FILE at the root of the main checkout, one path per
+// line; with no file nothing is linked. make link-check (link-check.mts) compares the declaration with the state.
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
 import { spawnSync } from 'node:child_process';
@@ -24,17 +26,15 @@ import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
-import { composerVendor } from './composer-vendor.mts';
 import { composerCommand } from './install-composer-project.mts';
 import { projectEnvironment, uvLink } from './uv-install.mts';
-import { composerVendorDir, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings, releaseEnvironmentLinks } from './link-folders.mts';
-import { assertIgnored, type Ecosystem, EXCLUDED, goModule, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, siblingCheckouts, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
+import { composerVendorDir, environmentLinks, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
+import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, LINKS_FILE, mainCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { isMain, siblingTool } from './paths.mts';
 import { kitPackageRoot } from './kit-files.mts';
 import { errorCode, execute, run } from './process.mts';
-import { git } from './git.mts';
 import { acquireHolderLock } from './holder-lock.mts';
 import { cargoMetadataArguments, verifyCargoSources } from './cargo-source.mts';
 import { manifestPolyspecNames } from './pyproject-dependencies.mts';
@@ -110,7 +110,7 @@ function consumerOf(directory: string, project = false): Consumer {
 }
 
 /** The work of one run. */
-type Run = { found: Map<string, Provider>; check: boolean; print: Print; failed: boolean; env: NodeJS.ProcessEnv };
+type Run = { found: Map<string, Provider>; check: boolean; print: Print; failed: boolean; env: NodeJS.ProcessEnv; declared: Set<string> };
 
 /** Prints a state line: `state` (linked, NOT linked, STALE, own) of `ecosystem` and the text. */
 const line = (work: Run, state: string, ecosystem: string, text: string) => work.print(`  ${state.padEnd(10)} ${ecosystem.padEnd(8)} ${text}`);
@@ -176,50 +176,7 @@ function installsFolder(project: string, folder: string): boolean {
   return (readComposerManifestFile(path.join(project, MANIFESTS.composer)).repositories ?? []).some(repository => repository.type === 'path' && repository.url !== undefined && path.resolve(project, repository.url) === folder);
 }
 
-/**
- * The Composer projects of the consumer, by vendor: the project of each composer.json (the nearest at or above it whose vendor
- * holds installed.json, else its own folder), the polyspec names that its composer.json files declare, and whether the vendor
- * holds installed.json. A vendor without installed.json is reported by linkComposer, never skipped. With --project the project
- * is the named folder itself (K201-3), except that a folder above it whose path repository installs the named folder is its
- * project too, as the root project installs a package folder without a vendor of its own (K396).
- */
-function composerProjects(consumer: Consumer, composer: Tool): { project: string; vendor: string; installed: boolean; declared: string[] }[] {
-  const found = new Map<string, { project: string; installed: boolean; declared: Set<string> }>();
-  const highest = consumer.project ? consumer.scope : consumer.top;
-  for (const file of consumer.manifests('composer')) {
-    let chosen: { project: string; vendor: string; installed: boolean } | undefined;
-    const folder = path.dirname(file);
-    for (let project = folder; `${project}/`.startsWith(`${consumer.top}/`) && !chosen?.installed; project = path.dirname(project)) {
-      if (!existsSync(path.join(project, MANIFESTS.composer))) continue;
-      const installer = project !== folder && installsFolder(project, folder);
-      if (!`${project}/`.startsWith(`${highest}/`) && !installer) continue;
-      const vendor = composerVendor(project, composer);
-      const installed = existsSync(path.join(vendor, 'composer/installed.json'));
-      // The project whose path repository installs the folder is its project even before its install, so the vendor to install is named.
-      if (!chosen || installed || installer) chosen = { project, vendor, installed };
-    }
-    if (!chosen) continue;
-    const entry = found.get(chosen.vendor) ?? { project: chosen.project, installed: chosen.installed, declared: new Set<string>() };
-    for (const name of declaredComposer(file)) entry.declared.add(name);
-    found.set(chosen.vendor, entry);
-  }
-  return [...found].map(([vendor, entry]) => ({ project: entry.project, vendor, installed: entry.installed, declared: [...entry.declared].sort() }));
-}
-
-
 // --- Python: uv installs the lock and owns the distribution metadata; kit links the installed package folders (K765).
-
-/** The environment of the pyproject `file` and its uv workspace, or why there is none. */
-function pythonTarget(uv: Tool, file: string): { venv: string; workspace: string } | string {
-  const target = projectEnvironment(path.dirname(file), uv.command, uv.env);
-  if (!existsSync(path.join(target.venv, 'pyvenv.cfg'))) return `no environment in ${target.workspace}: run the repository's install, or give UV_PROJECT_ENVIRONMENT`;
-  return target;
-}
-
-/** Removes the package links of the environment of `target` before uv writes into it, naming each (K539). */
-function releaseLinks(target: { venv: string; workspace: string }, print: Print): void {
-  for (const link of releaseEnvironmentLinks(target.workspace, target.venv)) print(`  unlinked   python   ${link}, so uv writes no provider checkout`);
-}
 
 /** The polyspec packages of the pyproject `file`: those that it names, whose releases its lock records (K507, K515). */
 function declaredPython(file: string): string[] {
@@ -253,12 +210,12 @@ const goWorkOf = (directory: string): string => path.join(directory, 'go.work');
  * The module folders that the tracked go.work of the nearest parent of `directory` up to the work tree `top` uses, as go work edit
  * -json reads them (K399): a go.work that link writes in a module below a tracked workspace of the repository shadows that
  * workspace, so it uses the modules of the workspace too. None when no parent has a tracked go.work. The go.work of `directory`
- * itself is never read: it is the file that link writes there. link-state-check reads it too (K399-2).
+ * itself is never read: it is the file that link writes there. link-check reads it too (K399-2).
  */
 export function trackedWorkspaceFolders(go: Tool, top: string, directory: string, tracked: ReadonlySet<string>): string[] {
   for (let folder = path.dirname(directory); `${folder}/`.startsWith(`${top}/`); folder = path.dirname(folder)) {
     const file = goWorkOf(folder);
-    if (tracked.has(file)) return worktreeGoFolders(top, usedFolders(go, file));
+    if (tracked.has(file)) return usedFolders(go, file);
   }
   return [];
 }
@@ -273,16 +230,6 @@ export function usedFolders(go: Tool, file: string): string[] {
   if (!isJsonObject(parsed)) throw new Error(`${file}: go work edit -json printed no object`);
   const uses = Array.isArray(parsed.Use) ? parsed.Use : [];
   return uses.flatMap(item => (isJsonObject(item) && typeof item.DiskPath === 'string' ? [path.resolve(folder, item.DiskPath)] : []));
-}
-
-/** Resolves main-checkout workspace modules to the corresponding source folders of `top`, retaining external providers. */
-export function worktreeGoFolders(top: string, folders: readonly string[]): string[] {
-  // The main checkout of `top`, an interim lookup until the link declaration of K869 replaces it.
-  const main = path.dirname(path.resolve(top, git(top, 'rev-parse', '--git-common-dir').trim()));
-  return folders.map(folder => {
-    const relative = path.relative(main, folder);
-    return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative) ? path.join(top, relative) : folder;
-  });
 }
 
 /** Reconciles native workspace use directives without discarding Go's checksum or other workspace state. */
@@ -316,27 +263,28 @@ function linkGo(work: Run, consumer: Consumer) {
     const requires = new Map<string, Provider>();
     for (const requirement of goModule(go, module, consumer.top).requires.filter(item => item.path.startsWith('github.com/polyspec/'))) {
       const provider = providerFor(work, consumer, 'go', requirement.path);
-      if (typeof provider === 'string') unlinkable(work, 'go', requirement.path, provider);
-      else requires.set(requirement.path, provider);
+      // K869: a module that no declared checkout provides is the release, as a package of the other ecosystems is.
+      if (provider === 'own') unlinkable(work, 'go', requirement.path, provider);
+      else if (provider !== 'no provider') requires.set(requirement.path, provider);
     }
     // The modules of the tracked workspace that the go.work of this module uses besides its own module.
     const workspace = requires.size ? trackedWorkspaceFolders(go, consumer.top, directory, tracked).filter(folder => folder !== directory) : [];
     if (work.check) {
-      // The providers that the module requires are found by go list -m; the modules that the link writes (the module and the
-      // tracked workspace) are compared with the modules that the go.work of this module uses.
-      for (const [name, provider] of requires) {
-        const found = existsSync(file) ? run(go.command, ['list', '-m', '-f', '{{.Dir}}', name], { cwd: directory, env: { ...go.env, GOWORK: file } }).trim() : '';
-        if (real(found) === realpathSync(provider.folder)) line(work, 'linked', 'go', `${name} -> ${provider.folder} (${file})`);
-        else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${provider.folder}`);
+      // K869: the go.work that link writes is the link of Go, so its use list is the state that the declaration is compared with:
+      // the module, the modules of the tracked workspace and each declared provider that the module requires, no more and no fewer;
+      // with none required, link writes no go.work.
+      const used = existsSync(file) && !tracked.has(file) ? new Set(usedFolders(go, file).map(folder => real(folder) ?? folder)) : undefined;
+      if (!requires.size) {
+        if (used !== undefined) unlinkable(work, 'go', path.relative(consumer.top, file), 'a go.work that link wrote, though the link declaration names no provider that the module requires; Fix: make link');
+        continue;
       }
-      if (requires.size) {
-        const used = new Set(existsSync(file) ? usedFolders(go, file).map(folder => real(folder)) : []);
-        for (const folder of [directory, ...workspace]) {
-          const name = goModule(go, path.join(folder, 'go.mod'), consumer.top).module;
-          if (used.has(real(folder))) line(work, 'linked', 'go', `${name} -> ${folder} (${file})`);
-          else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${folder}`);
-        }
+      const named = [...[directory, ...workspace].map(folder => ({ name: goModule(go, path.join(folder, 'go.mod'), consumer.top).module, folder })), ...[...requires].map(([name, provider]) => ({ name, folder: provider.folder }))];
+      const expected = new Map(named.map(item => [real(item.folder) ?? item.folder, item]));
+      for (const [key, { name, folder }] of expected) {
+        if (used?.has(key) === true) line(work, 'linked', 'go', `${name} -> ${folder} (${file})`);
+        else unlinkable(work, 'go', name, `go.work of ${directory} does not use ${folder}; Fix: make link`);
       }
+      for (const folder of used ?? []) if (!expected.has(folder)) unlinkable(work, 'go', folder, `go.work of ${directory} uses it, though the link declaration does not name it; Fix: make link`);
       continue;
     }
     assertIgnored(file);
@@ -364,10 +312,13 @@ export function link({ checkouts, directories, check, print, env = process.env, 
   const first = consumers[0];
   const go = ecosystems.includes('go') && first && first.manifests('go', true).length ? consumerTool(first.top, 'go', env) : undefined;
   const found = providers(checkouts, go, first?.top ?? process.cwd(), first?.top);
-  const work: Run = { found: new Map([...found].filter(([, provider]) => ecosystems.includes(provider.ecosystem))), check, print, failed: false, env };
+  const work: Run = { found: new Map([...found].filter(([, provider]) => ecosystems.includes(provider.ecosystem))), check, print, failed: false, env, declared: new Set() };
   for (const consumer of consumers) {
     print(`== ${consumer.scope}`);
-    if (ecosystems.some(ecosystem => ecosystem !== 'go')) linkPackageFolders(work, consumer, ecosystems);
+    if (ecosystems.some(ecosystem => ecosystem !== 'go')) {
+      linkPackageFolders(work, consumer, ecosystems);
+      undeclaredLinks(work, consumer, ecosystems);
+    }
     if (ecosystems.includes('go')) linkGo(work, consumer);
   }
   return !work.failed;
@@ -379,7 +330,7 @@ const UNLINKED = /(^|\/)(tests?|[^/]*fixtures?)\//;
 type FolderEcosystem = 'npm' | 'composer' | 'python';
 
 /**
- * K447: every tracked project of the consumer, a nested one below the root such as hyper's examples/board included, as link-state-check
+ * K447: every tracked project of the consumer, a nested one below the root such as hyper's examples/board included, as link-check
  * reads them; a test, a fixture or the release consumer keeps the install that it tests.
  */
 function linkedProjects(consumer: Consumer, ecosystems: readonly FolderEcosystem[]): string[] {
@@ -395,6 +346,11 @@ function linkedProjects(consumer: Consumer, ecosystems: readonly FolderEcosystem
 export function pythonEnvironmentOf(top: string, project: string, found: ReadonlyMap<string, Provider>, env: NodeJS.ProcessEnv): string | undefined {
   const manifest = path.join(project, MANIFESTS.python);
   if (!existsSync(manifest) || !declaredPython(manifest).some(name => found.get(providerKey('python', name)) !== undefined)) return undefined;
+  return environmentOf(top, project, env);
+}
+
+/** The environment of the uv workspace of the Python project `project` of `top`, found once for the run (projectEnvironment). */
+function environmentOf(top: string, project: string, env: NodeJS.ProcessEnv): string | undefined {
   const key = `${top}\0${project}\0${env.UV_PROJECT_ENVIRONMENT ?? ''}`;
   if (!ENVIRONMENTS.has(key)) {
     let uv: Tool | undefined;
@@ -426,12 +382,12 @@ function projectFolders(work: Run, consumer: Consumer, project: string, ecosyste
 
 /**
  * K888: the provided packages that the tracked projects of `root` declare and that no installed folder holds, each as a finding of
- * link-state-check: link leaves out a project whose installer has not run yet, so a project that make install never installed is
+ * link-check: link leaves out a project whose installer has not run yet, so a project that make install never installed is
  * reported here.
  */
 export function declaredUnlinked(root: string, found: Map<string, Provider>, env: NodeJS.ProcessEnv): string[] {
   const consumer = consumerOf(root);
-  const work: Run = { found, check: true, print: () => {}, failed: false, env };
+  const work: Run = { found, check: true, print: () => {}, failed: false, env, declared: new Set() };
   const ecosystems: FolderEcosystem[] = ['npm', 'composer', 'python'];
   return linkedProjects(consumer, ecosystems).flatMap((project) => {
     const folders = [...projectFolders(work, consumer, project, ecosystems), ...ownerFolders(work, consumer, project, ecosystems)];
@@ -458,6 +414,7 @@ function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly 
       uvLink({ directory: project, providers: work.found.values(), uv: uv.command, env: uv.env, print: work.print });
     }
     const folders = projectFolders(work, consumer, project, folderEcosystems);
+    for (const item of folders) work.declared.add(item.folder);
     // K761, K765: each installed npm, Composer and Python folder of a provided package is one plain directory symlink to its checkout;
     // no package manager re-resolves the consumer. A declared package with no installed folder is reported below (K529).
     if (!work.check) for (const text of linkFolders(folders)) work.print(text);
@@ -473,6 +430,22 @@ function linkPackageFolders(work: Run, consumer: Consumer, ecosystems: readonly 
       continue;
     }
     for (const item of folders) line(work, 'linked', item.ecosystem, `${item.name} -> ${item.target}`);
+  }
+}
+
+/**
+ * K869: the links of the install folders of the consumer that no provider of the link declaration gives, as a link from an earlier
+ * declaration: link removes each, so the state is the declaration, and the check reports each.
+ */
+function undeclaredLinks(work: Run, consumer: Consumer, ecosystems: readonly Ecosystem[]) {
+  for (const entry of outsideLinks(consumer, work.env, ecosystems).filter(item => !work.declared.has(item))) {
+    if (work.check) {
+      line(work, 'NOT linked', 'link', `${entry}: a link that the link declaration (${LINKS_FILE}) does not name; Fix: make link`);
+      work.failed = true;
+    } else {
+      rmSync(entry);
+      line(work, 'unlinked', 'link', `${entry}: the link declaration (${LINKS_FILE}) does not name it`);
+    }
   }
 }
 
@@ -536,7 +509,7 @@ function declaredWithoutFolder(work: Run, consumer: Consumer, project: string, f
     // no package path installs no folder (K529).
     if (provider === undefined || provider.repository === repositoryOf(consumer.top)) return false;
     if (ecosystem === 'python' && !hasPythonPackages(provider)) return false;
-    // K888: a project whose installer has not run yet has no folder to link; link-state-check reports it once make install has run.
+    // K888: a project whose installer has not run yet has no folder to link; link-check reports it once make install has run.
     if (!uninstalled && !installed(work, consumer, project, ecosystem)) return false;
     return !folders.some(folder => folder.ecosystem === ecosystem && (folder.name === name || folder.name.startsWith(`${name} `)));
   });
@@ -558,30 +531,41 @@ export function packages(directory: string, ecosystem: 'python' | 'npm'): string
 export function unlink({ directories, print, env = process.env, project = false }: { directories: readonly string[]; print: Print; env?: NodeJS.ProcessEnv; project?: boolean }): boolean {
   for (const consumer of directories.map(directory => consumerOf(directory, project))) {
     print(`== ${consumer.scope}`);
-    const own = realpathSync(consumer.top);
-    const outside = (entry: string) => !existsSync(entry) || !realpathSync(entry).startsWith(`${own}${path.sep}`);
-    const npmFolders = consumer.manifests('npm').map(file => path.join(path.dirname(file), 'node_modules'));
-    const composerFolders = consumer.manifests('composer').length ? composerProjects(consumer, consumerTool(consumer.top, 'composer', env)).filter(item => item.installed).map(item => item.vendor) : [];
-    // A package is <folder>/<name> or <folder>/<scope>/<name>: every link of those that resolves out of the checkout, or dangles, goes.
-    const entries = (folder: string) => (existsSync(folder) ? readdirSync(folder) : []).map(name => path.join(folder, name));
-    for (const folder of [...npmFolders, ...composerFolders]) {
-      for (const entry of entries(folder).flatMap(item => (lstatSync(item).isDirectory() ? [item, ...entries(item)] : [item]))) {
-        if (!lstatSync(entry).isSymbolicLink() || !outside(entry)) continue;
-        rmSync(entry);
-        print(`  unlinked   ${entry}`);
-      }
-    }
-    const pythonFiles = consumer.manifests('python').filter(file => declaredPython(file).length);
-    if (pythonFiles.length) {
-      const uv = consumerTool(consumer.top, 'uv', env);
-      for (const file of pythonFiles) {
-        const target = pythonTarget(uv, file);
-        if (typeof target !== 'string') releaseLinks(target, print);
-      }
+    for (const entry of outsideLinks(consumer, env)) {
+      rmSync(entry);
+      print(`  unlinked   ${entry}`);
     }
     removeWritten(consumer);
   }
   return true;
+}
+
+/**
+ * The links of the install folders of the consumer that resolve out of its checkout, or dangle (K856, K869): each package
+ * <folder>/<name> or <folder>/<scope>/<name> of each node_modules and Composer vendor folder, and the package links of each Python
+ * environment of a project that declares a polyspec package. A link of a workspace package of the consumer resolves inside it.
+ */
+function outsideLinks(consumer: Consumer, env: NodeJS.ProcessEnv, ecosystems: readonly Ecosystem[] = ALL_ECOSYSTEMS): string[] {
+  const own = realpathSync(consumer.top);
+  const outside = (entry: string) => !existsSync(entry) || !realpathSync(entry).startsWith(`${own}${path.sep}`);
+  const npmFolders = ecosystems.includes('npm') ? consumer.manifests('npm').map(file => path.join(path.dirname(file), 'node_modules')) : [];
+  // The vendor folder that composer.json names, read without Composer.
+  const composerFolders = ecosystems.includes('composer') ? consumer.manifests('composer').map(file => path.resolve(path.dirname(file), composerVendorDir(path.dirname(file), env) ?? 'vendor')) : [];
+  const entries = (folder: string) => (existsSync(folder) ? readdirSync(folder) : []).filter(name => !name.startsWith('.')).map(name => path.join(folder, name));
+  // The package folders: an npm name or an @scope and a name, a Composer vendor and a name; the bin folders hold the links of the
+  // package managers.
+  const npmPackages = (folder: string) => entries(folder).flatMap(item => (path.basename(item).startsWith('@') && lstatSync(item).isDirectory() ? entries(item) : [item]));
+  const composerPackages = (folder: string) => entries(folder).filter(item => !['bin', 'composer'].includes(path.basename(item)) && lstatSync(item).isDirectory()).flatMap(entries);
+  // A package folder that links out of the checkout is kit's (K869): K773 keeps a tracked manifest from naming a path out of the
+  // repository, so the links of the consumer's own workspace point into the checkout.
+  const found = [...npmFolders.flatMap(npmPackages), ...composerFolders.flatMap(composerPackages)]
+    .filter(entry => lstatSync(entry).isSymbolicLink() && outside(entry));
+  const pythonFiles = ecosystems.includes('python') ? consumer.manifests('python').filter(file => declaredPython(file).length) : [];
+  for (const file of pythonFiles) {
+    const venv = environmentOf(consumer.top, path.dirname(file), env);
+    if (venv !== undefined) found.push(...environmentLinks(path.dirname(file), venv));
+  }
+  return [...new Set(found)];
 }
 
 /**
@@ -592,9 +576,11 @@ export function unlink({ directories, print, env = process.env, project = false 
 function removeWritten(consumer: Consumer) {
   const base = path.join(consumer.top, 'var/link');
   const written: string[] = [];
+  // A go.work that the repository tracks is its own, never one that link wrote.
+  const tracked = new Set(trackedManifests(consumer.top, ['go.work', 'go.work.sum']).map(file => path.join(consumer.top, file)));
   for (const module of consumer.manifests('go', true)) {
     const file = goWorkOf(path.dirname(module));
-    written.push(file, `${file}.sum`);
+    written.push(...[file, `${file}.sum`].filter(item => !tracked.has(item)));
   }
   const cargo = path.join(base, 'cargo');
   for (const entry of existsSync(cargo) ? readdirSync(cargo, { withFileTypes: true }) : []) {
@@ -689,7 +675,8 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
 const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 
 // K440: a Claude Code session started in the workspace folder (the folder of kit and its siblings) loads no .claude/settings.json of
-// kit, so link --siblings writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by its kit checkout.
+// kit, so link writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by its kit checkout, whenever the
+// link declaration exists (K869).
 const KIT_HOOK = path.relative(kitPackageRoot(), siblingTool(import.meta.url, 'claude-hook'));
 // The node of a kit checkout that runs the hook: installed by make install-tools (K171, K440-2).
 const KIT_NODE = 'var/tools/bin/node';
@@ -711,7 +698,7 @@ export function kitHookCheckout(workspace: string, env: NodeJS.ProcessEnv = proc
 
 /**
  * Whether the node of the kit checkout `kit` can run the hook (K440-2): its path resolves through links to a regular file, and that
- * file is executable. The writer and link-state-check both judge the node by this predicate.
+ * file is executable. The writer and link-check both judge the node by this predicate.
  */
 export function kitNodeRunnable(kit: string): boolean {
   const node = path.join(kit, KIT_NODE);
@@ -845,7 +832,7 @@ if (isMain(import.meta.url)) {
     const project = rest.indexOf('--project');
     const projectDirectory = project === -1 ? undefined : rest[project + 1];
     if (project !== -1 && !projectDirectory) throw new Error('Usage: link.mjs ... --project <dir>');
-    const runtimeIndex = command === 'link' || command === 'check' ? rest.indexOf('--runtime') : -1;
+    const runtimeIndex = command === 'link' ? rest.indexOf('--runtime') : -1;
     const runtimeValue = runtimeIndex === -1 ? undefined : rest[runtimeIndex + 1];
     let runtime: LinkRuntime | undefined;
     if (runtimeIndex !== -1) {
@@ -855,31 +842,23 @@ if (isMain(import.meta.url)) {
       runtime = runtimeValue;
     }
     const withoutOptions = rest.filter((_, index) => (project === -1 || (index !== project && index !== project + 1)) && (runtimeIndex === -1 || (index !== runtimeIndex && index !== runtimeIndex + 1)));
-    // `--siblings` takes the checkouts beside the repository as the checkouts (K349): an install recipe links right after the
-    // install when polyspec checkouts are present, and a checkout without a sibling, such as CI, installs the released packages.
-    const siblings = withoutOptions.includes('--siblings');
-    const positional = withoutOptions.filter(argument => argument !== '--siblings');
     const directories = [projectDirectory ?? '.'];
     // K498, K506: a consumer named by --project gets the claude-hook of the running kit before the packages are linked, whatever
-    // their result, and check reads that entry; both run before the early return below, which a checkout without a polyspec sibling takes.
+    // their result.
     if (projectDirectory !== undefined && command === 'link') writeProjectHook(projectDirectory);
-    const hookFindings = projectDirectory !== undefined && command === 'check' ? projectHookFindings(projectDirectory) : [];
-    if (siblings && (command === 'link' || command === 'check')) {
-      const found = siblingCheckouts(projectDirectory ?? '.');
-      for (const folder of found.skipped) print(`skipped ${folder}: no main checkout of a polyspec repository, whose origin is github.com/polyspec/<its folder>`);
-      positional.push(...found.checkouts);
-      if (positional.length === 0) {
-        print(`no polyspec checkout beside ${workTreeOf(projectDirectory ?? '.')}: nothing is linked and the installs stay the released packages`);
-        for (const finding of hookFindings) print(finding);
-        process.exit(hookFindings.length === 0 ? 0 : 1);
-      }
-    }
     switch (command) {
-      case 'link': case 'check':
-        if (!link({ checkouts: positional, directories, check: command === 'check', print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
-        else if (command === 'link' && siblings) writeWorkspaceHook(workspaceOf(projectDirectory ?? '.'));
-        for (const finding of hookFindings) { print(finding); process.exitCode = 1; }
+      case 'link': {
+        // K869: the link declaration of the checkout names the providers; with no file nothing is linked, the release state.
+        if (withoutOptions.length) throw new Error(`link takes no checkout: ${LINKS_FILE} of the checkout declares them`);
+        // With no file the checkout is in its release state: link removes the links that an earlier declaration made, as unlink does.
+        const checkouts = declaredCheckouts(projectDirectory ?? '.');
+        if (checkouts === undefined) {
+          if (!unlink({ directories, print, project: projectDirectory !== undefined })) process.exitCode = 1;
+          print(`no ${LINKS_FILE} in ${mainCheckout(projectDirectory ?? '.')}: nothing is linked; make install restores a released package whose link was removed`);
+        } else if (!link({ checkouts, directories, check: false, print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
+        else writeWorkspaceHook(workspaceOf(projectDirectory ?? '.'));
         break;
+      }
       case 'unlink':
         if (!unlink({ directories, print, project: projectDirectory !== undefined })) process.exitCode = 1;
         break;
@@ -899,22 +878,13 @@ if (isMain(import.meta.url)) {
         break;
       }
       case 'cargo': {
-        // `--siblings` takes the checkouts beside the project as the checkouts, as link does (K448-5); without any, cargo runs as given.
-        const siblings = rest[0] === '--siblings';
-        if (siblings) rest.shift();
-        const checkouts: string[] = [];
-        while (rest[0] === '--checkout') checkouts.push(rest.splice(0, 2)[1] ?? '');
+        // K869: the providers are those of the link declaration of the project; with no file cargo runs as given.
         const [directory, ...args] = rest;
-        if (!directory) throw new Error('Usage: link.mjs cargo [--siblings] [--checkout <checkout>]... <dir> <cargo args>...');
-        if (siblings) {
-          const found = siblingCheckouts(directory);
-          for (const folder of found.skipped) print(`skipped ${folder}: no main checkout of a polyspec repository, whose origin is github.com/polyspec/<its folder>`);
-          checkouts.push(...found.checkouts);
-        }
-        process.exitCode = cargo({ directory, args, checkouts });
+        if (!directory) throw new Error('Usage: link.mjs cargo <dir> <cargo args>...');
+        process.exitCode = cargo({ directory, args, checkouts: declaredCheckouts(directory) ?? [] });
         break;
       }
-      default: throw new Error('Usage: link.mjs link|check [--project <dir>] <checkout>... | unlink [--project <dir>] | packages <dir> python|npm | providers <checkout>... | cargo [--siblings] [--checkout <checkout>]... <dir> <args>...');
+      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | packages <dir> python|npm | providers <checkout>... | cargo <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

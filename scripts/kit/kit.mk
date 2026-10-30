@@ -244,10 +244,6 @@ kit-ci-verify-gates: ## Fail unless every gate partition of the selected full or
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --verify-gates
 
 
-.PHONY: link-state-check
-link-state-check: ## Fail while an installed package folder that a sibling checkout provides is a copy or links elsewhere, or a workspace link, go.work, the hook, the trust or a merged worktree is wrong; no version is judged (K448, S4); offline
-	$(NODE) $(KIT)/link-state-check.$(KIT_EXT)
-
 .PHONY: suppression-check
 suppression-check: ## Fail on a tracked suppression of a lint finding (eslint-disable, oxlint-disable, noqa, @phpstan-ignore, phpcs:ignore, nolint, allow) that states no reason in the form of its tool (P8, K334); offline
 	$(NODE) $(KIT)/suppression-check.$(KIT_EXT)
@@ -430,21 +426,21 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 	@test -n "$(DIR)" || { echo "python-venv: DIR is required, for example make python-venv DIR=pkg/.venv"; exit 1; }
 	$(NODE) $(KIT)/python-venv.$(KIT_EXT) $(DIR)
 
-# --- link: the local links of 0.0.x development (docs/operations/local-links.md, K201, K205). CHECKOUTS names the main checkouts
-# that provide the packages (scripts/kit/link.mts); PROJECT, when given, names the consumer whose manifests directly in it
+# --- link: the local links of 0.0.x development (docs/operations/local-links.md, K201, K205, K869). The git-ignored .links
+# of the main checkout names the checkouts that provide the packages (scripts/kit/link.mts); PROJECT, when given, names the consumer whose manifests directly in it
 # are linked, else the whole tree of the checkout. Native package managers connect declared development sources;
 # application requirements remain their inputs and link invokes no product build target (K664); link-check
 # lists each provided folder that is a copy or links elsewhere; unlink only removes the links, and make install restores the locked
 # installs (K856). link writes a git-ignored go.work at each Go module, which go reads by itself; unlink removes it.
 .PHONY: link link-check unlink
 link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; offline
-	$(NODE) $(KIT)/link.$(KIT_EXT) link $(strip $(if $(PROJECT),--project $(PROJECT)) $(if $(RUNTIME),--runtime $(RUNTIME)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings))
+	$(NODE) $(KIT)/link.$(KIT_EXT) link $(strip $(if $(PROJECT),--project $(PROJECT)) $(if $(RUNTIME),--runtime $(RUNTIME)))
 
-link-check: ## List each installed package folder that a checkout of CHECKOUTS, else the checkouts beside the repository, provides and that is a copy or links elsewhere, as NOT linked, and fail on one (K448); offline
-	$(NODE) $(KIT)/link.$(KIT_EXT) check $(if $(PROJECT),--project $(PROJECT)) $(if $(CHECKOUTS),$(CHECKOUTS),--siblings)
+link-check: ## Fail while the links differ from the link declaration (.links, K869): a declared folder that is not a link to its provider, a link that it does not name, a go.work whose uses differ, a manifest path out of the repository (K773), a declared package with no installed folder (K888) or, with a declaration, the workspace hook (K440); offline
+	$(NODE) $(KIT)/link-check.$(KIT_EXT) $(if $(PROJECT),--project $(PROJECT))
 
 .PHONY: worktree-setup
-worktree-setup: ## Create or reuse the row worktree from main, run make install in it, which installs its own tools, packages and links, then make link-state-check (K858); ONLINE
+worktree-setup: ## Create or reuse the row worktree from main, run make install in it, which installs its own tools, packages and links, then make link-check (K858, K869); ONLINE
 	$(ONLINE) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix)
 
 # WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of
@@ -456,24 +452,24 @@ land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout
 
 # composer-install resolves declared local sources and installs the selected native Composer manifest and lock.
 .PHONY: composer-install
-composer-install: ## Resolve declared local providers and install the selected Composer manifest and lock in DIR; Composer owns links, metadata and autoload; NO_DEV=1 excludes development dependencies
-	$(ONLINE) $(NODE) $(KIT)/composer-install.$(KIT_EXT) $(DIR) $(if $(NO_DEV),--no-dev) $(CHECKOUTS)
+composer-install: ## Install the selected Composer manifest and lock in DIR and link the providers of the link declaration (.links, K869); Composer owns metadata and autoload; NO_DEV=1 excludes development dependencies
+	$(ONLINE) $(NODE) $(KIT)/composer-install.$(KIT_EXT) $(DIR) $(if $(NO_DEV),--no-dev)
 
 # npm-install installs a consumer's npm packages: npm ci of the tracked lock, then the link of the folders (K448).
 .PHONY: npm-install
-npm-install: ## Install the npm packages of DIR with npm ci of its tracked lock, then link each installed package that a checkout of CHECKOUTS, else a sibling checkout, provides, each a package folder or a repository root whose package folders under packages/ the kit finds itself (K448, K494); ADD=<checkout>... links each named checkout whether or not the project declares its package (K485); a declared polyspec package with no checkout is refused (K483-1)
-	NPM_BIN=$(NPM_BIN) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR) $(CHECKOUTS) $(addprefix --add ,$(ADD))
+npm-install: ## Install the npm packages of DIR with npm ci of its tracked lock, then link each installed package that a checkout of the link declaration (.links, K869) provides (K448, K494); with a declaration, a declared polyspec package with no checkout is refused (K483-1)
+	NPM_BIN=$(NPM_BIN) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR)
 
 # uv-install follows application source/workspace declarations with native locked sync and installed-distribution checks.
 .PHONY: uv-install
 uv-install: ## Install declared Python sources in DIR with one native uv sync --locked and check installed distributions; SYNC passes its uv sync flags as written (K850)
-	UV_SYNC="$(SYNC)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR) $(CHECKOUTS)
+	UV_SYNC="$(SYNC)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR)
 
 # cargo-fetch is the fetch of a consumer's Cargo crates in place of its cargo fetch: through the link of cargo, with the polyspec crates
 # of the sibling checkouts patched to their paths, so the git tag of a sibling crate is never fetched (K448-5).
 .PHONY: cargo-fetch
-cargo-fetch: ## Fetch the Cargo crates of the project DIR in place of cargo fetch --locked: the polyspec crates that a sibling checkout provides are patched to their paths from the start, no git tag fetched (K448-5)
-	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) cargo --siblings $(DIR) fetch --locked
+cargo-fetch: ## Fetch the Cargo crates of the project DIR in place of cargo fetch --locked: the polyspec crates that a checkout of the link declaration (.links, K869) provides are patched to their paths from the start, no git tag fetched (K448-5)
+	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) cargo $(DIR) fetch --locked
 
 unlink: ## Remove the links of PROJECT and the go.work files that link wrote; make install restores the locked installs, Python's included; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))

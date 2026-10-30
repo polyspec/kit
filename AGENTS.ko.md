@@ -42,9 +42,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   Enforced by: `tests/kit/uv-install.test.mts`, `tests/source/uv-link-real.test.mts`
 - Own: 추적되는 공유 root 파일과 workflow는 설치된 kit package의 일반 파일 사본이며 `make kit-sync`가 관리합니다. 소비자는
   `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include하며 첫 Make 실행 전에 lock에 고정된 npm dependency를 설치합니다.
-  로컬 개발은 native npm link, Composer path repository, uv editable 설치로 설치된 package를 provider source에 연결합니다
-  (`docs/operations/local-links.md`). 이 link는 추적되지 않고 release output에 들어가지 않습니다.
-  옆의 kit checkout은 선택 사항입니다. `npm link ../kit`은 설치된 package path를 그 checkout으로 연결합니다.
+  로컬 개발은 main checkout의 git-ignored `.links`가 한 줄에 하나씩 지정한 provider checkout을 link합니다. `make link`는
+  그 패키지의 설치된 folder마다 provider로 가는 평범한 directory symlink 하나로 만듭니다(`docs/operations/local-links.md`, K869).
+  이 link는 추적되지 않고 release output에 들어가지 않습니다. `.links`가 없으면 아무것도 link하지 않고 설치된 릴리즈가 실행됩니다.
   kit 자체는 자기 source를 실행하며 자기의 공개 package를 설치하지 않습니다. 이 저장소가
   쓰는 path는 명시된 기준(repository root, 또는 PEP 751의 lock directory처럼 그 형식이 정하는 기준)에 상대적이고, repository 안에
   머물며, working directory에 의존하지 않습니다. 절대 path는 쓰지 않습니다. repository root는 working directory가 속한 Git work tree의
