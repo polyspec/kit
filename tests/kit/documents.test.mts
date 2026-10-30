@@ -316,3 +316,16 @@ test('document checks report step starts, results and elapsed time without chang
     assert.ok(messages.some(line => line.startsWith(`step ${name}: passed (`) && line.endsWith(')')), messages.join('\n'));
   }
 });
+
+// K895: the site renderer compiles the raw HTML of a page as a Vue template, which fails on an element without its end tag.
+test('raw-tag: an element without its end tag outside code fails in the documents that a site renderer evaluates, and code passes (K895)', (t) => {
+  const raw = '| KSTD-5-120 | Define the deps-<runtime> targets that ci-setup calls. |\n';
+  const code = '| KSTD-5-120 | Define the `deps-<runtime>` targets that ci-setup calls. |\n\n<a id="x"></a> <br> <code v-pre>{{ y }}</code> <https://example.org>\n\n```\n<tag>\n```\n';
+  const script = '<script setup>\nconst s = "<T>";\n</script>\n\n<MyComp>x</mycomp>\n';
+  const quoted = '> a <x>\n\nb </y> <BR>\n';
+  const root = tree(t, { 'docs/raw.md': raw, 'docs/code.md': code, 'docs/script.md': script, 'docs/quoted.md': quoted, 'notes/raw.md': raw });
+  const found = run(root, { ...CONFIG, interpolation: ['docs/**'] });
+  has(found, 'docs/raw.md:1:32: raw-tag: <runtime> is not paired, so the site renderer fails on it as a Vue template; write it as code: `<runtime>`');
+  assert.deepEqual(found.filter(line => line.startsWith('docs/quoted.md')).map(line => line.split(': raw-tag: ')[0] ?? line).sort((a, b) => a.localeCompare(b)), ['docs/quoted.md:1:5', 'docs/quoted.md:3:3', 'docs/quoted.md:3:8'], 'a tag in a quote, an end tag without its element and an upper-case void element, which Vue does not know');
+  assert.deepEqual(found.filter(line => !/^docs\/(raw|quoted)\.md/.test(line)), [], 'code spans, fenced blocks, script content, closed and void elements and autolinks pass, and a document that the site does not render is not read');
+});

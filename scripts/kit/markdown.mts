@@ -123,6 +123,41 @@ function parseProse(text: string): { line: number; text: string }[] {
   return blankInlineCode(text, tree).split('\n').flatMap((line, index) => (fenced[index] ? [] : [{ line: index + 1, text: line }]));
 }
 
+// The elements of HTML that have no end tag (https://html.spec.whatwg.org/#void-elements).
+const VOID_ELEMENTS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+const TAG = /<(\/?)([A-Za-z][\w-]*)(?:\s[^<>]*?)?(\/?)>/g;
+
+/**
+ * The raw HTML tags of `text` that Vue cannot pair, as `{ tag, line, column }` (K895): an element that opens without its end tag and
+ * an end tag without its element. Only the HTML nodes of the parser are read, which code spans, fenced blocks and autolinks are not;
+ * comments and the raw text of script and style are left out. Names pair case-insensitively, as Vue pairs them, and a void element,
+ * which Vue knows in lower case only, or a self-closing one needs no end tag.
+ */
+export function unclosedTags(text: string): { tag: string; line: number; column: number }[] {
+  const open: { tag: string; name: string; offset: number }[] = [];
+  const found: { tag: string; offset: number }[] = [];
+  visit(parse(text), 'html', (node) => {
+    // The parser removes the prefix of a container (a quote or a list item) from the value, so each tag is found in the text.
+    let cursor = placeOf(node).start;
+    const blank = (part: string) => ' '.repeat(part.length);
+    const value = node.value.replace(/<!--[\s\S]*?-->/g, blank).replace(/(<(script|style)\b[^>]*>)([\s\S]*?)(<\/\2\s*>)/gi, (_, start: string, _name, body: string, end: string) => start + blank(body) + end);
+    for (const tag of value.matchAll(TAG)) {
+      // A tag that spans the lines of a quote is not in the text as written; it is placed at its node.
+      const written = text.indexOf(tag[0], cursor);
+      const offset = written === -1 ? placeOf(node).start : written;
+      if (written !== -1) cursor = written + tag[0].length;
+      const raw = present(tag[2], 'tag[2]');
+      const name = raw.toLowerCase();
+      if (tag[1] === '/') {
+        const at = open.findLastIndex(entry => entry.name === name);
+        if (at === -1) found.push({ tag: tag[0], offset });
+        else open.splice(at, 1);
+      } else if (tag[3] !== '/' && !VOID_ELEMENTS.has(raw)) open.push({ tag: `<${raw}>`, name, offset });
+    }
+  });
+  return [...found, ...open].sort((a, b) => a.offset - b.offset).map(({ tag, offset }) => ({ tag, ...lineColumn(text, offset) }));
+}
+
 const UNDEFINED_REFERENCE = /(?<!\\)\[([^\]\n]+)\]\[([^\]\n]*)\]/g;
 const BROKEN_INLINE = /(?<!\\)\]\(/;
 

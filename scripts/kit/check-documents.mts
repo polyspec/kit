@@ -7,6 +7,7 @@
 //   link            every relative link resolves to a file, a directory, an explicit anchor or a heading anchor
 //   private-path    no document holds a path into a user's home directory
 //   interpolation   no {{ outside a fenced code block in the documents that a site renderer evaluates
+//   raw-tag         in the same documents, every raw HTML tag outside code is paired, unless it is void or self-closing (K895)
 //   checklist-*     the checklists of the plan folders hold only tasks and their markers and states are valid (the strict reading
 //                   of scripts/kit/checklist.mts), an item ID is unique among them and a sub-item has its parent in its checklist
 //                   (checklist-cross), and no other document under docs/ holds checklist items (checklist-place)
@@ -27,7 +28,7 @@ import { verificationFindings } from './verification.mts';
 import { checklistsFindings, CHECKLIST_COLUMNS, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
 import type { Tracker } from './checklist.mts';
 import { matchesAny } from './glob.mts';
-import { anchors, headingAnchors, lineBlocks, links, linkSpans, scanFences } from './markdown.mts';
+import { anchors, headingAnchors, lineBlocks, links, linkSpans, scanFences, unclosedTags } from './markdown.mts';
 import { readStatusTable } from './status-table.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -138,6 +139,10 @@ function documentFindings(root: string, config: DocumentsConfig, file: string, e
       const at = prose.indexOf('{{');
       if (at !== -1) add({ line: index + 1, column: at + 1, rule: 'interpolation', message: '{{ outside a fenced code block is evaluated by the site renderer; write it in <code v-pre>...</code>' });
     });
+  }
+  // The site renderer compiles the raw HTML of a page as a Vue template, which fails on an element without its end tag (K895).
+  if (matchesAny(config.interpolation ?? [], english)) {
+    for (const tag of unclosedTags(text)) add({ line: tag.line, column: tag.column, rule: 'raw-tag', message: `${tag.tag} is not paired, so the site renderer fails on it as a Vue template; write it as code: \`${tag.tag}\`` });
   }
   return found;
 }
