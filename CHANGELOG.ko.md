@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 31339ae4c9324d25071cd4162d119778e8584f0e4b96baecbddbdfd8f31932cc -->
+<!-- source-sha256: 0865cc98afcffb3f738203b355a777cf5f253c965061f122f48f0413d7faf21a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 릴리스는 성공한 CI run의 id만 받습니다: gh workflow run release.yml -f run=<id>. workflow에는 version input이 없고, make release-tag RUN은 run의 commit에 있는 config/release.json의 `changelog`와 `goModules`(그 두 field만 검사한다)와 그 change log의 첫 section ## X.Y.Z에서 X.Y.Z를 읽고, 그런 section이 없거나 ## Unreleased 아래 항목이 있는 commit은 거부하며, 그 commit과 그 Go module에 tag를 달고 뒤 step을 위해 TAG와 VERSION을 GITHUB_ENV에 덧붙입니다. dispatch가 그 commit이 릴리스하지 않는 버전을 더는 지정할 수 없고, 어떤 버전도 비교하지 않습니다 (K924).
 - Kit 0.0.79를 공개했습니다. release run 41058908809가 f48e54d3의 성공한 CI run 41057899821을 받아 그 commit에 annotated v0.0.79 tag를 만들고 polyspec-kit-npm-0.0.79.tgz와 함께 게시된 release로 만들었습니다 (K921).
 
 ## 0.0.79

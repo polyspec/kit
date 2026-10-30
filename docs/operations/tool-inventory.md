@@ -650,7 +650,7 @@ Dropped behaviors:
 ## Release tool (K5)
 
 `scripts/kit/release.mts` merges the release tools of the five repositories (`versions`, `assets`, `publish`, plus
-`coverage`); the tags are created by `release-run tag VERSION RUN` (`make release-tag`, K911). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
+`coverage`); the tags are created by `release-run tag RUN` (`make release-tag`, K911). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {
@@ -673,8 +673,11 @@ Dropped behaviors:
 
 - Data instead of constants: `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `REPOSITORY_URL` and the change
   logs of template, hyper and ordered-json are `config/release.json`. The lists are explicit; coverage detects an omission.
-- Tags: `release-run tag VERSION RUN` tags the commit of the successful ci.yml run RUN on `main` (K911); the release workflow
-  runs it, and no tag is pushed by hand.
+- Tags: `release-run tag RUN` tags the commit of the successful ci.yml run RUN on `main` with the version of the newest section
+  `## X.Y.Z` of its change log (K911, K924): it reads `changelog` and `goModules` of config/release.json at that commit and
+  refuses a commit whose change log has no such section or has entries under `## Unreleased`. The maintainer dispatches the
+  release workflow with the id of the run alone (`gh workflow run release.yml -f run=<id>`), which runs it, and no tag is
+  pushed by hand.
 - `versions`: the manifest kinds package.json, composer.json, Cargo.toml, pyproject.toml (template) and VERSION (orm); the
   module path of every declared go.mod on a root tag, not only on a Go tag (orm, wider than template); a Go module at the
   repository root (orm); further change logs that must hold the section (orm, `changelogTranslations`). A composer.json may omit
@@ -741,8 +744,8 @@ Dropped behaviors:
 ### Go module tags (K5.3)
 
 - A Go proxy resolves a module that lives below the repository root from the tag `<directory>/vX.Y.Z`, not from `vX.Y.Z`. A
-  release once lacked these tags. `release-run tag VERSION RUN` creates, with `vX.Y.Z`, the tag `<directory>/vX.Y.Z` of every
-  module of `goModules` below the root on the same commit, and pushes them in one push (K911). It checks every tag before it
+  release once lacked these tags. `release-run tag RUN` creates, with `vX.Y.Z`, the tag `<directory>/vX.Y.Z` of every
+  module of `goModules` of config/release.json at that commit below the root on the same commit, and pushes them in one push (K911). It checks every tag before it
   creates one: a tag at another commit stops the release with the tag and both commits, since a published tag is never moved,
   and a tag at that commit already passes.
 - A tag `<directory>/vX.Y.Z` is what a Go proxy reads for that module. It is created only with `vX.Y.Z` and builds no

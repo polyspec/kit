@@ -26,10 +26,12 @@ the candidate command from a clean tracked tree with no non-ignored untracked fi
 build inputs outside their package directories. Commit source changes and rerun the candidate command when this check refuses.
 The version change rewrites package-manager locks. A version change of a composer.json re-locks it with `composer update --lock`
 in its directory, since the content-hash of `composer.lock` covers `version`. The commit lands on `main` and its CI run of `.github/workflows/ci.yml` concludes success. (2) The release workflow is
-dispatched with the id of that run and the version (`gh workflow run release.yml -f run=<id> -f version=X.Y.Z`, or the workflow
-dispatch of the GitHub API); no push of a tag starts it. Its `make release-tag` (`release-run tag VERSION RUN`) checks the format
-of both inputs and the repository of config/release.json, reads the run with `gh api`, requires a completed successful push or
-dispatch run of ci.yml on `main` whose commit is on `origin/main`, and tags that commit: it checks `vX.Y.Z` and the tag
+dispatched with the id of that run alone (`gh workflow run release.yml -f run=<id>`, or the workflow dispatch of the GitHub API);
+no push of a tag starts it. Its `make release-tag` (`release-run tag RUN`) checks the format of the run id and the repository of
+config/release.json, reads the run with `gh api`, requires a completed successful push or dispatch run of ci.yml on `main` whose
+commit is on `origin/main`, reads `changelog` and `goModules` of config/release.json at that commit (`git show`), checking those two fields alone, and X.Y.Z from the first section `## X.Y.Z` of its change log there,
+refuses a commit whose change log has none or has entries under `## Unreleased`, and tags that commit, then appends `TAG=vX.Y.Z` and `VERSION=X.Y.Z` to
+`GITHUB_ENV` for the steps that follow (K924): it checks `vX.Y.Z` and the tag
 `<directory>/vX.Y.Z` of every Go module below the root first, stops when one of them is at another commit, creates the missing
 ones as annotated tags (`git tag -a vX.Y.Z -m vX.Y.Z`) and pushes them in one push; a tag at that commit already passes (K911).
 No test runs again: the evidence is the CI run that the id names. (3) The run of `.github/workflows/release.yml`, which is the

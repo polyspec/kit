@@ -253,6 +253,50 @@ export function createTags(ctx: Context, version: string, commit: string): strin
   return tags.map(tag => (created.includes(tag) ? `created the tag ${tag} at ${commit} and pushed it` : `the tag ${tag} is at ${commit} already`));
 }
 
+/**
+ * The version of the release that the change log `text` of `file` records: the title of its first level-2 heading that is X.Y.Z,
+ * the section that the version-bump commit wrote below ## Unreleased (K924). A change log without one names no release, and one
+ * with an entry under ## Unreleased holds a change that the release would not carry.
+ */
+export function releasedVersion(text: string, file: string): string {
+  const heading = headings(text).find(item => item.depth === 2 && EXACT_VERSION.test(item.title));
+  if (!heading) throw new Stop(`${file} has no section ## X.Y.Z; the version-bump commit renames ## Unreleased to the version it releases`);
+  const unreleased = headings(text).find(item => item.depth === 2 && item.title === 'Unreleased');
+  if (unreleased) {
+    const lines = text.split('\n');
+    const next = headings(text).find(item => item.line > unreleased.line && item.depth <= 2);
+    const body = lines.slice(unreleased.endLine, next ? next.line - 1 : lines.length).map(line => line.trim());
+    if (body.some(line => line && !/^<a id="[^"]*"><\/a>$/.test(line))) throw new Stop(`${file} has unreleased entries; the version-bump commit moves every entry of ## Unreleased into the section of the version`);
+  }
+  return heading.title;
+}
+
+/**
+ * The change log and the Go modules that the text of config/release.json, named `source` in its errors, declares (K924):
+ * release-tag reads them from the commit of the run, which an earlier kit may have checked, so it checks these two fields alone,
+ * as the schema of config/release.json describes them, and leaves the rest to the steps that run the kit of the tag.
+ */
+export function taggedRelease(text: string, source: string): Pick<ReleaseConfig, 'changelog' | 'goModules'> {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch (error) {
+    if (!(error instanceof Error)) throw error;
+    throw new Stop(`${source} is no JSON: ${error.message}`);
+  }
+  const record = (item: unknown): item is Record<string, unknown> => typeof item === 'object' && item !== null && !Array.isArray(item);
+  if (!record(value)) throw new Stop(`${source} is no JSON object`);
+  const { changelog, goModules } = value;
+  if (typeof changelog !== 'string' || !/^[^/][^\\]*\.md$/.test(changelog)) throw new Stop(`${source}: changelog ${JSON.stringify(changelog ?? null)} is not the path of a Markdown file of the repository`);
+  if (!record(goModules)) throw new Stop(`${source}: goModules ${JSON.stringify(goModules ?? null)} is not an object of module paths by directory`);
+  const modules: Record<string, string> = {};
+  for (const [directory, module] of Object.entries(goModules)) {
+    if (typeof module !== 'string' || !module) throw new Stop(`${source}: goModules.${directory} needs the module path of its go.mod`);
+    modules[directory] = module;
+  }
+  return { changelog, goModules: modules };
+}
+
 /** The level-2 heading of the section `version` of the change log `text` of `file`, with the headings of the text. */
 function versionHeading(text: string, file: string, version: string) {
   const found = headings(text);

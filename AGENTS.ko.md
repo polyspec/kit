@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: e37a3126bda0bef7e74c77bd4e28d79b56420e5f061a54571ee2cc82db759b85 -->
+<!-- source-sha256: bb2f404967506ed059bb77ce7161926494f89ab6e8837548acae1833c819734a -->
 # 개발
 
 [English](AGENTS.md)
@@ -130,10 +130,10 @@ kit은 release workflow가 `main`에서 성공한 CI run의 commit에 만드는 
   Enforced by: `make release-tag`
 - Own: 릴리스는 archive와 함께 draft로 만들고 마지막에 공개한다. 실패한 step은 draft로 남긴다.
   Enforced by: `make release-publish`, `make release-undraft`
-- Own: 릴리스는 성공한 CI run의 id와 version을 받고(`gh workflow run release.yml -f run=<id> -f version=X.Y.Z`) 다른 테스트를
-  돌리지 않는다. `make release-tag`는 RUN과 VERSION의 형식, config/release.json의 저장소, RUN이 `main` 위 ci.yml의 push 또는
-  dispatch run으로 성공해 끝났고 그 commit이 `origin/main`에 있는지를 검사한 뒤 그 commit에 tag를 단다. version을 비교하지
-  않는다(S4, K911).
+- Own: 릴리스는 성공한 CI run의 id만 받고(`gh workflow run release.yml -f run=<id>`) 다른 테스트를 돌리지 않는다.
+  `make release-tag`는 RUN의 형식, config/release.json의 저장소, RUN이 `main` 위 ci.yml의 push 또는 dispatch run으로 성공해
+  끝났고 그 commit이 `origin/main`에 있는지를 검사하고, 그 commit에 있는 config/release.json의 `changelog`가 가리키는 change log에서 가장 새로운 section `## X.Y.Z`로 버전을 읽은 뒤
+  (그런 section이 없거나 `## Unreleased` 아래 항목이 있는 commit은 거부한다) 그 commit과 그 `goModules`의 module에 tag를 단다. version을 비교하지 않는다(S4, K911, K924).
   Enforced by: `tests/kit/release-run.test.mts`
 - Own: 모든 저장소는 vendor된 `workflows/release.yml`로 릴리스하며 그것을 편집하지 않는다.
   Enforced by: `make kit-check`

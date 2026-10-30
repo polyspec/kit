@@ -33,14 +33,16 @@ test('the release workflow has one job, so every step runs in the job that creat
   assert.equal(jobs.filter(line => /^  [a-z-]+:$/.test(line)).length, 1, 'the workflow names one job');
 });
 
-// K911: the release takes the id of a successful CI run and a version; the kit of main tags the commit of the run, and the release
-// builds the tagged commit with its own packages. Nothing reads check runs, and no tag push starts a release.
-test('K911: a dispatch with a CI run and a version starts the release, which tags the commit of the run before it builds it', () => {
+// K911, K924: the release takes the id of a successful CI run and nothing else; the kit of main tags the commit of the run with
+// the version of its change log and hands TAG to the next steps, and the release builds the tagged commit with its own packages.
+// Nothing reads check runs, and no tag push starts a release.
+test('K911, K924: a dispatch with a CI run alone starts the release, which tags the commit of the run before it builds it', () => {
   const text = lines.join('\n');
-  assert.match(text, /^on:\n {2}workflow_dispatch:\n {4}inputs:\n {6}run:\n[\s\S]*?\n {6}version:\n/m);
+  assert.match(text, /^on:\n {2}workflow_dispatch:\n {4}inputs:\n {6}run:\n/m);
+  assert.doesNotMatch(text, /inputs\.version|^ {6}version:$/m, 'the version is the section of the change log, not an input');
   assert.doesNotMatch(text, /^ {2}push:|tags: \[|inputs\.tag|release-verify|release-go-tags/m);
   assert.match(text, /^permissions:\n {2}contents: write\n {2}actions: read\n/m);
-  assert.match(text, /^ {6}TAG: v\$\{\{ inputs\.version \}\}$/m);
+  assert.doesNotMatch(text, /^ {6}(?:TAG|VERSION):/m, 'release-tag writes TAG and VERSION to GITHUB_ENV');
   const tag = step('make release-tag', /^make release-tag$/);
   const checkout = step('git checkout of the tag', /^git checkout --quiet "\$TAG"$/);
   assert.ok(tag.line < checkout.line && checkout.line < step('make release-prepare', /^make release-prepare$/).line, 'release-tag, then the checkout of the tag, then the release of that commit');

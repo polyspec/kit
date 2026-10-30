@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a6cfbfd4c136a4428d93709e09292ef269ffbaee6786b5ec37d391d13235d4fc -->
+<!-- source-sha256: 8cef2abeb390421a25d2b0a68915d4f3c2fdb650493f7e4e44fccca0813d434d -->
 
 # 도구 목록
 
@@ -594,7 +594,7 @@ version 일관성과 orm의 다른 영역 검사:
 ## Release 도구 (K5)
 
 `scripts/kit/release.mts`는 다섯 저장소의 release 도구를 하나로 합칩니다(`versions`, `assets`, `publish`, 그리고
-`coverage`). tag는 `release-run tag VERSION RUN`(`make release-tag`, K911)이 만듭니다. 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
+`coverage`). tag는 `release-run tag RUN`(`make release-tag`, K911)이 만듭니다. 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {
@@ -617,8 +617,10 @@ go.mod의 module path에 연결합니다.
 
 - 상수 대신 데이터: template, hyper, ordered-json의 `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `REPOSITORY_URL`과
   changelog는 `config/release.json`입니다. 목록은 명시적이며 빠진 항목은 coverage가 찾습니다.
-- Tag: `release-run tag VERSION RUN`은 `main` 위에서 성공한 ci.yml run RUN의 commit에 tag를 답니다(K911). release workflow가 이를
-  실행하며 손으로 push하는 tag는 없습니다.
+- Tag: `release-run tag RUN`은 `main` 위에서 성공한 ci.yml run RUN의 commit에 그 change log의 가장 새로운 section `## X.Y.Z`의
+  버전으로 tag를 답니다(K911, K924). 그 commit에 있는 config/release.json의 `changelog`와 `goModules`를 읽고, change log에 그런
+  section이 없거나 `## Unreleased` 아래 항목이 있는 commit은 거부합니다. maintainer는 run의 id만으로 release workflow를
+  dispatch하고(`gh workflow run release.yml -f run=<id>`) 그 workflow가 이를 실행하며, 손으로 push하는 tag는 없습니다.
 - `versions`: manifest 종류 package.json, composer.json, Cargo.toml, pyproject.toml(template)과 VERSION(orm); Go tag뿐 아니라 root tag에서도
   선언된 모든 go.mod의 module path(orm, template보다 넓음); 저장소 root의 Go module(orm); section이 있어야 하는 추가 changelog(orm,
   `changelogTranslations`). composer.json은 `archive` manifest가 아니면 `version`을 생략할 수 있습니다(hyper는 어디서나 생략을 허용하고
@@ -672,7 +674,7 @@ go.mod의 module path에 연결합니다.
 ### Go module tag (K5.3)
 
 - Go proxy는 저장소 root 아래에 있는 module을 `vX.Y.Z`가 아니라 tag `<directory>/vX.Y.Z`에서 얻습니다. 한 release에서 이 tag가 빠진 적이 있습니다.
-  `release-run tag VERSION RUN`은 `vX.Y.Z`와 함께 root 아래 `goModules`의 모든 module의 tag `<directory>/vX.Y.Z`를 같은 commit에 만들고 한 번의
+  `release-run tag RUN`은 `vX.Y.Z`와 함께 root 아래, 그 commit에 있는 config/release.json의 `goModules`의 모든 module의 tag `<directory>/vX.Y.Z`를 같은 commit에 만들고 한 번의
   push로 올립니다(K911). tag를 하나라도 만들기 전에 모든 tag를 검사합니다. 공개된 tag는 옮기지 않으므로 다른 commit에 있는 tag는 tag와 두 commit을
   적고 릴리스를 멈추며, 이미 그 commit에 있는 tag는 통과합니다.
 - tag `<directory>/vX.Y.Z`는 Go proxy가 그 module을 읽는 tag입니다. `vX.Y.Z`와 함께만 만들어지고 archive를 만들지 않으며, module tag만의

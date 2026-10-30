@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { isMain, repositoryRoot } from './paths.mts';
-import { candidateAssets, context, createTags, MAIN, type CommandOptions, type Context } from './release.mts';
+import { appendFileSync } from 'node:fs';
+import { candidateAssets, CONFIG, context, createTags, MAIN, releasedVersion, taggedRelease, type CommandOptions, type Context } from './release.mts';
 import { repositoryParts } from './github-release.mts';
 import { execute, run, Stop } from './process.mts';
 
@@ -43,12 +44,12 @@ export function prepare(ctx: Context, version: string): { sha: string; assets: s
 }
 
 /**
- * The release tags of VERSION at the commit of the successful CI run `runId` (`make release-tag RUN VERSION`, K911): the run
- * is a completed successful push or workflow_dispatch run of .github/workflows/ci.yml on main, its commit is on origin/main,
- * and createTags puts vX.Y.Z and the tag of every Go module there. Returns what it did per tag.
+ * The release tags at the commit of the successful CI run `runId` (`make release-tag RUN`, K911, K924): the run is a completed
+ * successful push or workflow_dispatch run of .github/workflows/ci.yml on main, its commit is on origin/main, the version is the
+ * newest section ## X.Y.Z of the change log of that commit, whose ## Unreleased holds no entry, and createTags puts vX.Y.Z and the
+ * tag of every Go module that config/release.json of that commit declares there. Returns the version and what it did per tag.
  */
-export function tagRun(ctx: Context, version: string, runId: number): string[] {
-  if (!VERSION.test(version)) throw new Stop(`version ${JSON.stringify(version)} is not X.Y.Z`);
+export function tagRun(ctx: Context, runId: number): { version: string; lines: string[] } {
   if (!Number.isSafeInteger(runId) || runId < 1) throw new Stop(`CI run id ${runId} is not a positive integer`);
   const { repo } = repositoryParts(ctx.config.repositoryUrl);
   const repository = ctx.env.GITHUB_REPOSITORY;
@@ -61,30 +62,39 @@ export function tagRun(ctx: Context, version: string, runId: number): string[] {
   const ancestry = execute('git', ['merge-base', '--is-ancestor', commit, MAIN], { cwd: ctx.root, env: ctx.env });
   if (ancestry.status === 1) throw new Stop(`the commit ${commit} of CI run ${runId} is not on ${MAIN}; a release tags a commit of main`);
   if (ancestry.status !== 0) throw new Stop(`git merge-base --is-ancestor ${commit} ${MAIN} exited with ${ancestry.status}: ${(ancestry.stderr ?? '').trim()}`);
-  return createTags(ctx, version, commit);
+  // The change log and the Go modules are those of the tagged tree: main may have changed config/release.json since the run.
+  const show = (file: string) => run('git', ['show', `${commit}:${file}`], { cwd: ctx.root, env: ctx.env });
+  const tagged = { ...ctx, config: { ...ctx.config, ...taggedRelease(show(CONFIG), `${CONFIG} at ${commit}`) } };
+  const { changelog } = tagged.config;
+  const version = releasedVersion(show(changelog), `${changelog} at ${commit}`);
+  return { version, lines: createTags(tagged, version, commit) };
 }
 
-const USAGE = 'usage: node scripts/kit/release-run.mts prepare VERSION | tag VERSION CI_RUN_ID';
+const USAGE = 'usage: node scripts/kit/release-run.mts prepare VERSION | tag CI_RUN_ID';
 
 export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
-  const [mode, version, runValue, ...rest] = argv;
-  if (mode === 'prepare' && version && !runValue && rest.length === 0) {
+  const [mode, value, extra, ...rest] = argv;
+  if (mode === 'prepare' && value && !extra && rest.length === 0) {
     try {
       const ctx = context(root, { env, log: print });
-      const result = prepare(ctx, version);
-      print(`[release-run] v${version}: prepared candidate ${result.sha} and ${result.assets.length} assets; push this exact commit to trigger the sole CI`);
+      const result = prepare(ctx, value);
+      print(`[release-run] v${value}: prepared candidate ${result.sha} and ${result.assets.length} assets; push this exact commit to trigger the sole CI`);
       return 0;
     } catch (failure) {
-      error(`[release-run] ${mode} ${version} failed: ${failure instanceof Error ? failure.message : String(failure)}`);
+      error(`[release-run] ${mode} ${value} failed: ${failure instanceof Error ? failure.message : String(failure)}`);
       return 1;
     }
   }
-  if (mode === 'tag' && version && runValue && rest.length === 0) {
+  // tag takes the CI run id alone; the version is the section of the change log of the run's commit (K924).
+  if (mode === 'tag' && value && !extra && rest.length === 0) {
     try {
-      for (const line of tagRun(context(root, { env }), version, Number(runValue))) print(`[release-run] ${line}`);
+      const tagged = tagRun(context(root, { env }), Number(value));
+      for (const line of tagged.lines) print(`[release-run] ${line}`);
+      // The steps after release-tag read the tag from the environment of the job (workflows/release.yml).
+      if (env.GITHUB_ENV) appendFileSync(env.GITHUB_ENV, `TAG=v${tagged.version}\nVERSION=${tagged.version}\n`);
       return 0;
     } catch (failure) {
-      error(`[release-run] ${mode} ${version} failed: ${failure instanceof Error ? failure.message : String(failure)}`);
+      error(`[release-run] ${mode} ${value} failed: ${failure instanceof Error ? failure.message : String(failure)}`);
       return 1;
     }
   }

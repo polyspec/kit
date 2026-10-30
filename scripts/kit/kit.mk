@@ -368,7 +368,8 @@ ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has t
 	$(NODE) $(KIT)/ci-passed.$(KIT_EXT)
 
 # The steps of a release (scripts/kit/release.mts, config/release.json). release-tag tags the commit of the successful CI run RUN
-# with vX.Y.Z of VERSION and the Go module tags (K911); TAG is that tag vX.Y.Z. The release workflow runs the steps in this order.
+# with vX.Y.Z, X.Y.Z the newest section of the change log of that commit, and the Go module tags (K911, K924); TAG is that tag
+# vX.Y.Z, which release-tag appends to GITHUB_ENV with VERSION. The release workflow runs the steps in this order.
 .PHONY: release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage
 
 # Freeze the native candidate before CI; the release then tags the exact commit of its successful run without another test run.
@@ -392,9 +393,9 @@ release-tools-path: ## Append var/tools/bin and the shims of mise to GITHUB_PATH
 	@echo "$(KIT_TOOLS)/bin" >> "$$GITHUB_PATH"
 	@for name in $(MISE_ENVIRONMENT); do echo "$$name=$$(printenv $$name)"; done >> "$$GITHUB_ENV"
 
-release-tag: ## Create and push the annotated tag vVERSION and the tag <directory>/vVERSION of every Go module at the commit of the successful CI run RUN of ci.yml on main, or pass for a tag there already (K269, K911); reads the run with gh
-	@test -n "$$RUN" && test -n "$$VERSION" || { echo "release-tag: RUN and VERSION are required, for example make release-tag RUN=123 VERSION=0.0.1"; exit 1; }
-	$(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$VERSION" "$$RUN"
+release-tag: ## Create and push the annotated tag vX.Y.Z, X.Y.Z the newest section of the change log, and the tag <directory>/vX.Y.Z of every Go module at the commit of the successful CI run RUN of ci.yml on main, or pass for a tag there already, and append TAG and VERSION to GITHUB_ENV when it is set (K269, K911, K924); reads the run with gh
+	@test -n "$$RUN" || { echo "release-tag: RUN is required, for example make release-tag RUN=123"; exit 1; }
+	$(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$RUN"
 
 release-assets: ## Build the archive of every package of TAG, and packages.json of its Composer packages (K871), into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }

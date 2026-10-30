@@ -146,10 +146,11 @@ kit is released by the annotated tag `vX.Y.Z` that the release workflow creates 
   Enforced by: `make release-tag`
 - Own: A release is created as a draft with its archives and made public last; a failed step leaves it a draft.
   Enforced by: `make release-publish`, `make release-undraft`
-- Own: A release takes the id of a successful CI run and a version (`gh workflow run release.yml -f run=<id> -f
-  version=X.Y.Z`) and runs no other test; `make release-tag` checks the format of RUN and VERSION, the repository of
-  config/release.json, that RUN is a completed successful push or dispatch run of ci.yml on `main` whose commit is on
-  `origin/main`, and then tags that commit; it compares no version (S4, K911).
+- Own: A release takes the id of a successful CI run and nothing else (`gh workflow run release.yml -f run=<id>`) and runs
+  no other test; `make release-tag` checks the format of RUN, the repository of config/release.json, that RUN is a
+  completed successful push or dispatch run of ci.yml on `main` whose commit is on `origin/main`, reads the version from the
+  newest section `## X.Y.Z` of the change log that `changelog` of config/release.json at that commit names, refusing a commit without one or
+  with entries under `## Unreleased`, and then tags that commit and the modules of its `goModules`; it compares no version (S4, K911, K924).
   Enforced by: `tests/kit/release-run.test.mts`
 - Own: Every repository releases through the vendored `workflows/release.yml`, which it never edits.
   Enforced by: `make kit-check`
