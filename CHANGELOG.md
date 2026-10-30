@@ -7,9 +7,10 @@
 
 ## 0.0.78
 
-- Release Kit 0.0.78 with the kit-harness rows K909 and K916 (K917).
+- Release Kit 0.0.78 with the kit-harness rows K909, K916 and K918 (K917).
 - AGENTS.ko.md, PRINCIPLES.ko.md and docs/operations/tool-inventory.ko.md carry the stamps of their current English sources; 0.0.77 shipped them with older stamps after a rebase, while their translations already matched (K909).
 - make link --project of an installed kit, whose real path lies inside node_modules, writes no Claude Code hook and link-check expects none: npm installs the package with no var/tools/bin/node, so the hook entry of an installed kit could not run and link --project threw before linking, as in CI; a kit checkout, a linked one included, writes and checks the hook as before (K916).
+- The K916 test of tests/kit/project-hook.test.mts sets core.excludesFile to /dev/null in its consumer and writes the consumer's .gitignore line before the linked-kit check, whose K512 check reads that file; the case passed only where the global Git excludes of the machine ignore .claude/settings.local.json, and kit CI failed on it (K918).
 
 ## 0.0.77
 

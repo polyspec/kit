@@ -61,7 +61,7 @@ test('writeProjectHook writes nothing into the Git directory of the consumer (K5
 test('projectHookFindings names a settings file that Git does not ignore, with the line for the .gitignore (K512)', (t) => {
   const project = consumer(t);
   // The global excludes of the machine may ignore the file; the consumer's own .gitignore is what the check reads here.
-  spawnSync('git', ['-C', project, 'config', 'core.excludesFile', '/dev/null']);
+  assert.equal(spawnSync('git', ['-C', project, 'config', 'core.excludesFile', '/dev/null']).status, 0);
   writeProjectHook(project);
   assert.ok(projectHookFindings(project).some(finding => finding.includes('/.claude/settings.local.json') && /\.gitignore/.test(finding)), projectHookFindings(project).join('\n'));
   writeFileSync(path.join(project, '.gitignore'), '/.claude/settings.local.json\n');
@@ -114,6 +114,8 @@ test('a consumer written by the link passes the check when the check runs under 
 // the hook: the link writes none and the check expects none. The kit checkout of this test keeps the hook.
 test('an installed kit writes no hook and expects none, and a kit checkout keeps it (K916)', (t) => {
   const project = consumer(t);
+  // The global excludes of the machine may ignore the file; the consumer's own .gitignore is what the check reads (K918).
+  assert.equal(spawnSync('git', ['-C', project, 'config', 'core.excludesFile', '/dev/null']).status, 0);
   const installed = path.join(path.dirname(project), 'node_modules', '@polyspec', 'kit');
   mkdirSync(installed, { recursive: true });
   assert.equal(writeProjectHook(project, installed), undefined);
@@ -121,7 +123,9 @@ test('an installed kit writes no hook and expects none, and a kit checkout keeps
   assert.deepEqual(projectHookFindings(project, installed), []);
   assert.equal(writeProjectHook(project, KIT), path.join(project, '.claude/settings.local.json'));
   assert.deepEqual(readJsonObject(project, '.claude/settings.local.json'), { hooks: { PreToolUse: [entry] } });
-  // A linked kit: node_modules/@polyspec/kit is a link to the kit checkout, whose real path holds the node, so the hook stays.
+  // A linked kit: node_modules/@polyspec/kit is a link to the kit checkout, whose real path holds the node, so the hook stays and
+  // the K512 check applies, which the consumer's .gitignore line passes.
+  writeFileSync(path.join(project, '.gitignore'), '/.claude/settings.local.json\n');
   const linked = path.join(path.dirname(project), 'linked', 'node_modules', '@polyspec', 'kit');
   mkdirSync(path.dirname(linked), { recursive: true });
   symlinkSync(KIT, linked);

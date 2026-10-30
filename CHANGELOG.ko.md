@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a59e01037eae6cf5adea26b5c82e03c0ad291625f831db021bc7312b1a5e8258 -->
+<!-- source-sha256: dd9639b1d16a9f3e77b8c1e8f1f8cfe01a56b8dccbac59a18d71640a13ee6ac4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,9 +8,10 @@
 
 ## 0.0.78
 
-- kit-harness 행 K909와 K916을 담아 Kit 0.0.78을 릴리즈합니다 (K917).
+- kit-harness 행 K909, K916, K918을 담아 Kit 0.0.78을 릴리즈합니다 (K917).
 - AGENTS.ko.md, PRINCIPLES.ko.md, docs/operations/tool-inventory.ko.md는 현재 영어 원문의 stamp를 갖습니다. 0.0.77은 rebase 뒤 이전 stamp로 이들을 실었고, 번역은 이미 맞았습니다 (K909).
 - 실제 경로가 node_modules 안에 있는 설치된 kit의 make link --project는 Claude Code hook을 쓰지 않고, link-check도 hook을 기대하지 않습니다. npm은 package를 var/tools/bin/node 없이 설치하므로 설치된 kit의 hook entry는 실행될 수 없었고, link --project는 CI에서처럼 link 전에 throw했습니다. kit checkout은, link된 것도 포함해, 이전처럼 hook을 쓰고 검사합니다 (K916).
+- tests/kit/project-hook.test.mts의 K916 test는 consumer에서 core.excludesFile을 /dev/null로 두고, K512 검사가 읽는 consumer의 .gitignore 줄을 linked kit 검사 전에 씁니다. 이 경우는 머신의 전역 Git excludes가 .claude/settings.local.json을 무시하는 곳에서만 통과했고, kit CI가 여기서 실패했습니다 (K918).
 
 ## 0.0.77
 
