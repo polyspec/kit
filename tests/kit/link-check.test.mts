@@ -226,3 +226,38 @@ test('a link declaration that Git does not ignore is a finding (K869)', (t) => {
   put(root, { '.gitignore': 'var/\n.links\n' });
   assert.deepEqual(linkFindings(root, process.env), []);
 });
+
+// K935: with no link declaration, make link links nothing (K869), so the checkout is in its release state: the own Python package
+// of a project is installed editable by uv, and no folder of its environment is a link. link-check compares that state with no
+// declaration and expects no own folder link.
+test('with no link declaration, an own Python package installed editable is no finding of link-check (K935)', (t) => {
+  const workspace = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-own-python-')));
+  t.after(() => rmSync(workspace, { recursive: true, force: true }));
+  const own = path.join(workspace, 'own');
+  mkdirSync(own, { recursive: true });
+  initRepository(own);
+  put(own, {
+    'packages/python/pyproject.toml': '[project]\nname = "polyspec-own"\nversion = "0.0.1"\n',
+    'packages/python/src/polyspec/own/__init__.py': '',
+    '.gitignore': '.venv/\n.links\nuv\n',
+  });
+  commitAll(own, 'base');
+  assert.equal(spawnSync('git', ['-C', own, 'remote', 'add', 'origin', 'https://github.com/polyspec/own.git']).status, 0);
+  // uv sync installs the project editable: its .dist-info and a .pth file in site-packages, no folder of the package.
+  put(own, {
+    'packages/python/.venv/pyvenv.cfg': 'fixture\n',
+    'packages/python/.venv/lib/python3.14/site-packages/__editable__.polyspec_own-0.0.1.pth': `${path.join(own, 'packages/python/src')}\n`,
+    'packages/python/.venv/lib/python3.14/site-packages/polyspec_own-0.0.1.dist-info/METADATA': 'Name: polyspec-own\nVersion: 0.0.1\n',
+    'uv': '#!/bin/sh\nif [ "$1 $2" = "workspace dir" ]; then pwd; fi\n',
+  });
+  chmodSync(path.join(own, 'uv'), 0o755);
+  const env = { ...process.env, UV: path.join(own, 'uv') };
+  const lines: string[] = [];
+  assert.equal(linkCheck(own, false, text => lines.push(text), env), true, lines.join('\n'));
+  assert.deepEqual(lines.filter(line => line.includes('polyspec-own')), [], 'the own package is not demanded as a link');
+  // With a declaration, link links the own package into the environment, and link-check demands that link.
+  put(own, { '.links': '' });
+  const declared: string[] = [];
+  assert.equal(linkCheck(own, false, text => declared.push(text), env), false, declared.join('\n'));
+  assert.ok(declared.some(line => line.includes('polyspec-own') && line.includes('is missing; fix: make link')), declared.join('\n'));
+});

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4e8258f75a8e942bb2bcb10e9bbfd76aa70af37944a9f4b536d7b510e07cc71a -->
+<!-- source-sha256: 8e245cfe3b19920267e4549029ca6d64ce8d82fa043a12d7a58126f29518edb9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- `.links`가 없을 때 link-check는 거기서 make link가 남기는 release 상태와 비교하며 checkout 자체 저장소의 패키지를 link로 요구하지 않는다. link-check는 checkout의 work tree를 link의 check에 provider로 넘겼기 때문에, 선언이 없는 모든 checkout(CI 포함)에서 make link는 아무것도 link하지 않는데도 uv가 editable로 설치한 자기 Python 패키지가 folder link로 요구되었다("packages/python/.venv/lib/python3.14/site-packages/polyspec/orm is missing; fix: make link") (K935).
 - bootstrap은 설치된 mise와 npm을 digest marker만으로 판정하고 version은 비교하지 않는다. 설치는 확인한 digest를 var/tools/mise-release/.sha256과 var/tools/npm/node_modules/npm/.sha512에 쓰고, marker가 선언된 digest를 담은 설치를 유지한다. +sha512가 없는 packageManager는 아무것도 내려받기 전에 digest를 계산하는 명령과 함께 거부되고, machine의 npm은 쓰지 않는다. S4는 bootstrap digest와 release heading 순서를 두 예외로 적는다. pin 뒤 첫 설치는 marker를 쓰려고 mise를 한 번 내려받는다 (K933).
 - latestTag는 가장 새 release tag를 git 자체의 version 정렬(git tag --sort=-v:refname)에서 취하고 vX.Y.Z만 남기므로, git이 v0.0.10 위에 두는 v0.0.10-rc1 같은 pre-release는 latest가 되지 않는다. release.mts는 더는 semver를 import하지 않고, semver는 change log 순서 검사를 위해 남는다 (K932).
 - kit에는 pie-build가 없다. kit이 PIE를 감싸라는 규칙이 없으므로 make pie-build와 scripts/kit/pie-build.mts는 제거되고, 저장소는 make install-tools TOOLS=pie가 설치하는 PIE를 자기 recipe에서 실행한다 (K931).

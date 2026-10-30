@@ -114,8 +114,9 @@ export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env)
 
 /** The link check of the checkout of `directory`, or with `project` of the consumer `directory`: link's check, then linkFindings. */
 export function linkCheck(directory: string, project: boolean, print: (text: string) => void, env: NodeJS.ProcessEnv = process.env): boolean {
-  const checkouts = declaredCheckouts(directory) ?? [];
-  let ok = link({ checkouts, directories: [directory], check: true, print, env, project });
+  // With no declaration, make link links nothing and leaves the release state (K869), which the check compares: no own link (K935).
+  const checkouts = declaredCheckouts(directory);
+  let ok = link({ checkouts: checkouts ?? [], directories: [directory], check: true, print, env, project, own: checkouts !== undefined });
   const root = workTreeOf(directory);
   for (const finding of [...linkFindings(root, env), ...(project ? projectHookFindings(directory) : [])]) {
     print(`[link-check] ${finding}`);

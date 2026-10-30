@@ -304,14 +304,15 @@ function linkGo(work: Run, consumer: Consumer) {
 
 /**
  * Links (or with `check`, reports) every polyspec package of each directory of `directories` that the main checkouts
- * `checkouts` provide; false when one is not linked.
+ * `checkouts` provide; false when one is not linked. With `own` false the work tree of the checkout provides nothing either: with
+ * no link declaration make link links nothing (K869), so the check of that release state demands no link of an own package (K935).
  */
-export function link({ checkouts, directories, check, print, env = process.env, project = false, runtime }: { checkouts: readonly string[]; directories: readonly string[]; check: boolean; print: Print; env?: NodeJS.ProcessEnv; project?: boolean; runtime?: LinkRuntime }): boolean {
+export function link({ checkouts, directories, check, print, env = process.env, project = false, runtime, own = true }: { checkouts: readonly string[]; directories: readonly string[]; check: boolean; print: Print; env?: NodeJS.ProcessEnv; project?: boolean; runtime?: LinkRuntime; own?: boolean }): boolean {
   const consumers = directories.map(directory => consumerOf(directory, project));
   const ecosystems = runtime === undefined ? ALL_ECOSYSTEMS : RUNTIME_ECOSYSTEMS[runtime];
   const first = consumers[0];
   const go = ecosystems.includes('go') && first && first.manifests('go', true).length ? consumerTool(first.top, 'go', env) : undefined;
-  const found = providers(checkouts, go, first?.top ?? process.cwd(), first?.top);
+  const found = providers(checkouts, go, first?.top ?? process.cwd(), own ? first?.top : undefined);
   const work: Run = { found: new Map([...found].filter(([, provider]) => ecosystems.includes(provider.ecosystem))), check, print, failed: false, env, declared: new Set() };
   for (const consumer of consumers) {
     print(`== ${consumer.scope}`);
