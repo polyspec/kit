@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 56be0fdcf6ca0d0dfd479e630a29528f7d9b0243e276e38d1fe36cb5769af69b -->
+<!-- source-sha256: 26ff6e1f96f5f534d3fc299a0acbe9dc919101c7b7931e406f57f0f32c0d8b5a -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -70,7 +70,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`�
   Enforced by: none, 임시방편인지는 설계 판단입니다.
 - P17 복구, 적용, 변환은 멱등입니다; 변경은 polling으로 찾지 않고 event로 게시합니다; 경로는 선언된 root에서 선언적으로
   결정합니다; multi-platform은 필수 요구이며 platform 꼼수 없이 채웁니다.
-  Enforced by: `.claude/settings.json`
+  Enforced by: `.claude/settings.json`, `tests/kit/install-idempotent.test.mts`(두 번째 설치는 설치된 파일의 내용을 바꾸지 않음, K852)
 - P18 끝이 정해지지 않은 loop로 주기적으로 살피는 script는 쓰지 않습니다: sleep을 넣은 `until`이나 `while`, `gh run list`를
   감싼 loop, watchdog 모두 쓰지 않습니다. 기다림은 자기 일이 끝을 정하는 명령 하나입니다: `gh run watch <id> --exit-status`,
   완료가 알려지는 background 명령, 또는 그 일을 하는 세션의 메시지.

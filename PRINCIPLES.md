@@ -71,7 +71,7 @@ in kit, with its grounding.
   Enforced by: none, whether a measure is a stopgap is a design judgement.
 - P17 Recovery, apply and transformation are idempotent; a change is published as an event, never found by polling; paths are
   resolved declaratively from a declared root; and multi-platform is a hard requirement, met without platform tricks.
-  Enforced by: `.claude/settings.json`
+  Enforced by: `.claude/settings.json`, `tests/kit/install-idempotent.test.mts` (a second install changes the content of no installed file, K852)
 - P18 No script polls in a loop with no known end: no `until` or `while` with a sleep, no loop around `gh run list`, no
   watchdog. A wait is one command that its own work bounds, such as `gh run watch <id> --exit-status`, a background
   command whose completion is notified, or a message from the session that does the work.

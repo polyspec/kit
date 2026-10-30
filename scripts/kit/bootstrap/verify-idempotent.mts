@@ -1,4 +1,6 @@
-// Re-runs the native SDK bootstrap and verifies that its installed tools and wrappers stay byte-for-byte and file-identity stable.
+// Re-runs the native SDK bootstrap and verifies that its installed tools and wrappers stay byte-for-byte the same (P17, K852): the
+// result is the content, so a file written again with the same bytes, such as an archive extracted again, is no change. The locks are
+// the package manager's, whose locked mode refuses to rewrite them (S4).
 // This runs before npm ci, so it imports only Node.js built-ins and the modules of this directory (K171).
 import { spawn } from 'node:child_process';
 import { realpathSync, statSync } from 'node:fs';
@@ -15,13 +17,10 @@ export type InstalledFile = {
   realPath: string;
   sha256: string;
   size: number;
-  mtimeMs: number;
-  dev: number;
-  ino: number;
   mode: number;
 };
 
-/** Captures each named installed file's content, timestamp and filesystem identity. */
+/** Captures each named installed file's content: its path, real path, digest, size and mode. */
 export function snapshotFiles(files: Readonly<Record<string, string>>): InstalledFile[] {
   return Object.entries(files).sort(([left], [right]) => left.localeCompare(right)).map(([name, file]) => {
     const info = statSync(file);
@@ -32,15 +31,12 @@ export function snapshotFiles(files: Readonly<Record<string, string>>): Installe
       realPath: realpathSync(file),
       sha256: fileDigest(file),
       size: info.size,
-      mtimeMs: info.mtimeMs,
-      dev: info.dev,
-      ino: info.ino,
       mode: info.mode,
     };
   });
 }
 
-/** Names installed files whose content, timestamp or identity changed between snapshots. */
+/** Names installed files whose content changed between snapshots. */
 export function changedFiles(before: readonly InstalledFile[], after: readonly InstalledFile[]): string[] {
   const oldFiles = new Map(before.map(file => [file.name, file]));
   const newFiles = new Map(after.map(file => [file.name, file]));

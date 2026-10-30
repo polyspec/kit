@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The bootstrap idempotence check (verify-idempotent) compares the content of each installed file, its path, real path, digest, size and mode, instead of its time and inode, so a file that a second install writes again with the same bytes is no change; P17 names tests/kit/install-idempotent.test.mts (K852).
 - The golangci-lint configuration of kit drops gomoddirectives, so make lint-go no longer bans a replace, a toolchain line or another directive of go.mod, which are the go tool's (K866).
 - make item-new refuses an ID that a checklist of the checkout or of main already holds, reading main as check-commits does, so a second worktree cannot register the ID that another has registered on main (K868).
 - link does no package-manager work and unlink only removes links: unlink removes the npm and Composer folders that link out of the checkout, the package links of each Python environment and the go.work files that link wrote, and runs no npm ci, composer install or uv sync, so make install restores the locked installs, and uv-install reinstalls each Python distribution whose package folder a removed link left missing; the Go 0.0.x pin rule, cargo update --offline of link cargo and the link rebuild command are gone, and a Cargo patch above the consumer's requirement is refused with the provider version that it does not match (K856).

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 97689881aa116a3d110647233c09d594cf596e55d0980991974bbb5da00bcfde -->
+<!-- source-sha256: f77483446d9e1c112d7257a3379e6cf2f6d717c502d557950638a40e40a639cf -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- bootstrap 멱등 검사(verify-idempotent)는 설치된 각 파일의 시간과 inode 대신 내용(경로, 실제 경로, digest, 크기, mode)을 비교하므로, 두 번째 설치가 같은 바이트로 다시 쓴 파일은 변경이 아닙니다. P17은 tests/kit/install-idempotent.test.mts를 지정합니다 (K852).
 - kit의 golangci-lint 설정에서 gomoddirectives를 뺍니다. make lint-go는 go tool의 것인 replace, toolchain 줄, go.mod의 다른 directive를 더 이상 금지하지 않습니다 (K866).
 - make item-new는 checkout이나 main의 checklist가 이미 가진 ID를 거부합니다. check-commits처럼 main을 읽으므로, 다른 worktree가 main에 등록한 ID를 두 번째 worktree가 등록할 수 없습니다 (K868).
 - link는 package manager 일을 하지 않고 unlink는 link만 제거합니다. unlink는 checkout 밖으로 link된 npm과 Composer 폴더, 각 Python environment의 package link, link가 쓴 go.work 파일을 제거하며 npm ci, composer install, uv sync를 실행하지 않으므로 locked 설치는 make install이 복원하고, 링크 제거로 패키지 폴더가 빠진 Python 배포본은 uv-install이 다시 설치합니다. Go 0.0.x pin 규칙, link cargo의 cargo update --offline, link rebuild 명령은 없어졌고, 소비자 requirement보다 높은 Cargo patch는 맞지 않는 provider version을 알려 주며 거부합니다 (K856).
