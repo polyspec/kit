@@ -7,6 +7,7 @@
 
 ## 0.0.77
 
+- tests/source/uv-link-real.test.mts declares the provider checkout in the .links of its app and calls uv-install with the app only, since K869 deleted the positional checkouts (K906).
 - Release Kit 0.0.77 with the kit-harness rows K851, K854, K859-K862, K864, K865, K867, K869, K870 and K892, and K828, K902, K904 and K905 (K903).
 - make kit-inject-check runs kit-sync --check, which writes the copies and then fails while git status shows a copy path (each copy of kit.copies, scripts/kit or a retired copy) differing from the commit, so a hand-edited copy of PRINCIPLES, gates.yml, release.yml or another kit.copies file fails; it joins kit-gates and kit-gates-static, and kit's own checkout, the source of the copies, skips it. S13 states the rule, and PRINCIPLES and AGENTS name the target instead of kit-check, which compares no copy since K799 (K851).
 - S12 states that a repository's CI runs the shared gates once, through gates.yml: no other workflow and no input of ci-targets or ci-setup names a prerequisite of kit-gates again; each consumer removes its duplicates in its adoption row (K870).

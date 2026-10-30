@@ -29,6 +29,8 @@ function consumer(t: { after: (fn: () => void) => void }) {
   // The checkout's backend is a setuptools that does not exist: a build of the checkout would fail.
   packageSource(checkout, 'setuptools==99.0.0', '0.0.2', 'checkout');
   for (const folder of [app, wheels]) mkdirSync(folder);
+  // The app declares its provider checkout in its .links, the one declaration of the links (K869).
+  writeFileSync(path.join(app, '.links'), '../provider\n');
   const uv = toolCommand(ROOT, 'uv');
   const env = toolsEnvironment(ROOT, { ...process.env, UV_CACHE_DIR: path.join(directory, 'cache'), UV_PROJECT_ENVIRONMENT: '.venv', PYTHONDONTWRITEBYTECODE: '1' });
   const run = (args: string[], cwd: string) => {
@@ -72,7 +74,7 @@ test('K765, K539: the installer removes the links before uv writes, so the check
   const { app, checkout, env, provider, site, uv } = consumer(t);
   uvLink({ directory: app, providers: [provider], uv, env });
   const lines: string[] = [];
-  const status = uvInstallCommand([app, checkout], { ...env, UV: uv, UV_SYNC: '--all-groups' }, line => lines.push(line));
+  const status = uvInstallCommand([app], { ...env, UV: uv, UV_SYNC: '--all-groups' }, line => lines.push(line));
   assert.equal(status, 0, lines.join(''));
   assert.ok(existsSync(path.join(checkout, 'src/polyspec_provider/__init__.py')), 'uv deleted nothing through the link');
   assert.equal(realpathSync(path.join(site, 'polyspec_provider')), path.join(checkout, 'src/polyspec_provider'));
@@ -91,7 +93,7 @@ test('K826: a uv install that drops a linked package leaves the edited dev folde
   const locked = spawnSync(uv, ['lock'], { cwd: app, env, encoding: 'utf8' });
   assert.equal(locked.status, 0, locked.stderr);
   const lines: string[] = [];
-  assert.equal(uvInstallCommand([app, checkout], { ...env, UV: uv }, line => lines.push(line)), 0, lines.join(''));
+  assert.equal(uvInstallCommand([app], { ...env, UV: uv }, line => lines.push(line)), 0, lines.join(''));
   assert.deepEqual(files(), before, 'uv deleted nothing in the dev folder');
   assert.equal(existsSync(path.join(site, 'polyspec_provider')), false, 'the dropped package is gone from the environment');
 });
@@ -105,7 +107,7 @@ test('K769: the installer installs a project locked by pylock.toml and no uv.loc
   const venv = spawnSync(uv, ['venv', '--python', toolCommand(ROOT, 'python3'), '.venv'], { cwd: app, env, encoding: 'utf8' });
   assert.equal(venv.status, 0, venv.stderr);
   const lines: string[] = [];
-  assert.equal(uvInstallCommand([app, checkout], { ...env, UV: uv }, line => lines.push(line)), 0, lines.join(''));
+  assert.equal(uvInstallCommand([app], { ...env, UV: uv }, line => lines.push(line)), 0, lines.join(''));
   assert.equal(realpathSync(path.join(site, 'polyspec_provider')), path.join(checkout, 'src/polyspec_provider'));
   assert.equal(existsSync(path.join(app, 'uv.lock')), false, 'the installer writes no uv.lock');
 });
