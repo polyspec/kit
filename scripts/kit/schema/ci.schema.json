@@ -65,7 +65,7 @@
   },
   "$defs": {
     "targets": {
-      "description": "Existing no-argument Make targets. A nonempty runtime list replaces Kit defaults and must name every required setup target for that runtime; an empty runtime list uses Kit's native locked installation/build targets. The full `install` and `install-kit` aggregates are forbidden.",
+      "description": "Existing no-argument Make targets. A nonempty runtime list replaces Kit defaults and must name every required setup target for that runtime; an empty runtime list runs the repository's own deps-<runtime> target (K859).",
       "type": "array",
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$" }

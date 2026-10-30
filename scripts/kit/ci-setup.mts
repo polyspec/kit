@@ -19,7 +19,6 @@ export const CI_CONFIG = 'config/ci.json';
 export const RUNTIMES = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
 type Runtime = (typeof RUNTIMES)[number];
 type CIJob = 'shared' | 'parity' | Runtime;
-const CI_JOBS = ['shared', 'parity', ...RUNTIMES] as const satisfies readonly CIJob[];
 type ConfigParityMode = 'full' | 'phases';
 type ParityMode = ConfigParityMode | 'none';
 type Runner = 'ubuntu-24.04' | 'ubuntu-26.04-arm';
@@ -32,19 +31,14 @@ type CIConfig = {
 };
 type RuntimeJob = { runtime: Runtime | 'none'; installTools: string[] };
 export type CIPlan = {
-  sharedTargets: string[];
   runner: Runner;
   parityMode: ParityMode;
   parityImplementations: string[];
   parityMatrix: { implementation: string }[];
-  parityTargets: string[];
-  parityRuntimes: Runtime[];
   runtimes: RuntimeJob[];
   commonTools: string[];
   parityTools: string[];
   extractors: string[];
-  phpDirs: string[];
-  pythonDirs: string[];
 };
 
 /** The exact binding matrix from config/parity.json, with duplicate and empty selections rejected before Actions schedules jobs. */
@@ -53,24 +47,6 @@ export function parityBindingMatrix(implementations: readonly string[]): { imple
   if (implementations.some(name => name === '')) throw new Error('config/parity.json declares an empty implementation name. Fix: use each implementation name as the provider target selector');
   if (new Set(implementations).size !== implementations.length) throw new Error('config/parity.json declares duplicate implementation names. Fix: give every implementation a unique name');
   return implementations.map(implementation => ({ implementation }));
-}
-
-/** Coverage findings for a planned binding matrix, useful to verify a workflow plan against its source declaration. */
-export function parityMatrixFindings(implementations: readonly string[], matrix: readonly { implementation: string }[]): string[] {
-  if (implementations.length === 0 && matrix.length === 0) return [];
-  try {
-    parityBindingMatrix(implementations);
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    return [error.message];
-  }
-  const findings: string[] = [];
-  for (const name of new Set([...implementations, ...matrix.map(entry => entry.implementation)])) {
-    const expected = implementations.filter(value => value === name).length;
-    const actual = matrix.filter(entry => entry.implementation === name).length;
-    if (expected !== actual) findings.push(`parity binding matrix selects ${name} ${actual} times; config/parity.json requires ${expected}`);
-  }
-  return findings;
 }
 
 const runtimeTools: Record<Runtime, string[]> = {
@@ -97,13 +73,6 @@ function toolchainNames(root: string): { declared: Record<string, unknown>; name
 
 const isRuntime = (value: string): value is Runtime => (RUNTIMES as readonly string[]).includes(value);
 
-function recursiveContextTarget(target: string): boolean {
-  return target === 'install' || target === 'install-kit' || target === 'kit-ci-setup' || target === 'kit-ci-context-prepare'
-    || target === 'kit-ci-context-cleanup' || target === 'kit-ci-plan' || target === 'kit-ci-verify-gates'
-    || target === 'parity-check' || target === 'parity-api-check' || /^parity-bindings-.+-check$/.test(target)
-    || /^kit-gates(?:-|$)/.test(target);
-}
-
 function runtimeSet(files: readonly string[], folders: readonly string[]): Set<Runtime> {
   const packageNames = new Set(folders.map(folder => path.posix.basename(folder)));
   const found = new Set<Runtime>();
@@ -114,21 +83,6 @@ function runtimeSet(files: readonly string[], folders: readonly string[]): Set<R
   if (packageNames.has('php') || files.some(file => file.endsWith('.php') && !file.endsWith('.stub.php'))) found.add('php');
   if (packageNames.has('php-ext')) found.add('php-ext');
   return found;
-}
-
-function phpDirectories(root: string, files: readonly string[], folders: readonly string[]): string[] {
-  const has = (file: string) => files.includes(file) && existsSync(path.join(root, file));
-  const dirs = new Set<string>();
-  if (has('composer.json') && has('composer.lock')) dirs.add('.');
-  for (const folder of folders.filter(folder => ['php', 'php-ext'].includes(path.posix.basename(folder)))) {
-    if (has(`${folder}/composer.json`) && has(`${folder}/composer.lock`)) dirs.add(folder);
-  }
-  return [...dirs].sort();
-}
-
-function pythonDirectories(root: string, files: readonly string[], folders: readonly string[]): string[] {
-  const has = (file: string) => files.includes(file) && existsSync(path.join(root, file));
-  return folders.filter(folder => path.posix.basename(folder) === 'python' && has(`${folder}/pyproject.toml`) && has(`${folder}/uv.lock`)).sort();
 }
 
 function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[]; files: string[]; folders: string[]; db: ReturnType<typeof makeDatabase>; parityMode: ParityMode; parityImplementations: string[] } {
@@ -142,7 +96,6 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
   ] as [string, string[]][];
   for (const [where, targets] of setupEntries) {
     for (const target of targets) {
-      if (target === 'install' || target === 'install-kit') throw new Error(`${CI_CONFIG}: ${where} names ${target}, the full install aggregate; name the existing per-runtime locked install/build target instead`);
       if (!db.targets.has(target)) throw new Error(`${CI_CONFIG}: ${where} names ${target}, which is not a Make target. Fix: declare an existing locked install/build target; the full install target is not a fallback`);
     }
   }
@@ -150,52 +103,22 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
   const folders = implementationFolders(files);
   const runtimes = [...runtimeSet(files, folders)].sort();
   for (const [scope, context] of Object.entries(config.contexts ?? {})) {
-    if (isRuntime(scope) && !runtimes.includes(scope)) throw new Error(`${CI_CONFIG}: contexts.${scope} selects a runtime with no tracked package. Fix: move the context to an active scope or declare the runtime package`);
     for (const phase of ['prepare', 'cleanup'] as const) {
       const target = context[phase];
-      if (recursiveContextTarget(target)) {
-        throw new Error(`${CI_CONFIG}: contexts.${scope}.${phase} names recursive Kit CI target ${target}. Fix: select a repository-owned context target`);
-      }
       if (!db.targets.has(target)) throw new Error(`${CI_CONFIG}: contexts.${scope}.${phase} names ${target}, which is not a Make target. Fix: declare an existing repository-owned prepare and cleanup target`);
     }
-  }
-  const { names } = toolchainNames(root);
-  for (const job of CI_JOBS) {
-    for (const tool of config.tools?.[job] ?? []) {
-      if (!(CHECK_TOOLS as readonly string[]).includes(tool)) throw new Error(`${CI_CONFIG}: tools.${job} names unknown Kit tool ${tool}. Fix: choose one of ${CHECK_TOOLS.join(', ')}`);
-      if (['node', 'npm', 'mise'].includes(tool)) throw new Error(`${CI_CONFIG}: tools.${job} names ${tool}, which the workflow already provisions. Fix: name an additional installable tool instead`);
-      if (!names.includes(tool)) throw new Error(`${CI_CONFIG}: tools.${job} names ${tool}, which this checkout does not declare. Fix: declare and pin ${tool} in the toolchain files before selecting it`);
-    }
-  }
-  for (const runtime of RUNTIMES) {
-    if (!runtimes.includes(runtime) && (config.tools?.[runtime]?.length ?? 0) > 0) throw new Error(`${CI_CONFIG}: tools.${runtime} selects tools for a runtime with no tracked package. Fix: move the tools to an active job or declare the runtime package`);
   }
   const parityFile = path.join(root, 'config/parity.json');
   let implementationNames: string[] = [];
   if (!existsSync(parityFile)) {
-    const discovered = implementationFolders(files);
-    if (discovered.length > 1) throw new Error(`config/parity.json does not exist, and packages/ holds ${discovered.length} implementations (${discovered.join(', ')}); declare them and their units there (scripts/kit/schema/parity.schema.json)`);
     parityMode = 'none';
   } else {
     const parity = readConfig<{ implementations: { name: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
     implementationNames = parity.implementations.map(({ name }) => name);
     parityBindingMatrix(implementationNames);
   }
-  if (parityMode === 'phases') {
-    if (!db.targets.has('parity-api-check')) throw new Error(`config/ci.json selects parityMode phases, but parity-api-check is not a Make target. Fix: use the provider parity targets from kit.mk`);
-    if (makeRecipe(db.targets.get('parity-api-check')?.recipe.trim()) !== '$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api') throw new Error(`config/ci.json selects parityMode phases, but parity-api-check does not use the provider API recipe. Fix: use the provider target without replacing its recipe`);
-    for (const implementation of implementationNames) {
-      if (!/^[a-z][a-z0-9-]*$/.test(implementation)) throw new Error(`config/parity.json has implementation name ${implementation}, which cannot select a provider binding target. Fix: use the declared implementation name format`);
-      const target = `parity-bindings-${implementation}-check`;
-      const recipe = db.targets.get(target)?.recipe.trim();
-      if (makeRecipe(recipe) !== `$(NODE) $(KIT)/parity.$(KIT_EXT) --phase bindings --implementation ${implementation}`) throw new Error(`${CI_CONFIG} selects phases, but ${target} is missing its provider binding recipe. Fix: use the generated provider target and add setup prerequisites without replacing its recipe`);
-    }
-  }
   return { config, runtimes, files, folders, db, parityMode, parityImplementations: implementationNames };
 }
-
-/** Make's database retains doubled dollars that were escaped through eval; compare the expanded provider recipe. */
-const makeRecipe = (recipe: string | undefined): string | undefined => recipe?.replaceAll('$$(', '$(');
 
 /** The default setup of a runtime is the repository's own deps-<runtime> target, a thin call of its package manager (K859). */
 function defaultSetup(runtime: Runtime, targets: { has(name: string): boolean }): { target: string; args: string[] }[] {
@@ -205,7 +128,7 @@ function defaultSetup(runtime: Runtime, targets: { has(name: string): boolean })
 }
 
 function plan(root: string): CIPlan {
-  const { config, runtimes, files, folders, parityMode, parityImplementations } = readAndValidate(root);
+  const { config, runtimes, parityMode, parityImplementations } = readAndValidate(root);
   invocations(root, 'shared');
   if (parityMode !== 'none') invocations(root, 'parity');
   for (const runtime of runtimes) invocations(root, 'runtime', runtime);
@@ -223,36 +146,31 @@ function plan(root: string): CIPlan {
   ])].sort();
   const runtimeJobs = runtimes.map(runtime => ({
     runtime,
-    installTools: [...new Set([...runtimeTools[runtime], ...(config.tools?.[runtime] ?? [])])].filter(name => names.includes(name) && !['node', 'npm', 'mise'].includes(name)),
+    // A configured selector passes as written, so install-tools judges it (K860); the runtime's own tools follow the declarations.
+    installTools: [...new Set([...runtimeTools[runtime].filter(name => names.includes(name) && !['node', 'npm', 'mise'].includes(name)), ...(config.tools?.[runtime] ?? [])])],
   }));
   const parity = existsSync(path.join(root, 'config/parity.json'))
     ? readConfig<{ implementations: { name: string; runner: string }[] }>(root, 'config/parity.json', 'parity.schema.json')
     : { implementations: [] };
-  const parityTools = new Set(parity.implementations.flatMap(implementation => parityRunnerTools[implementation.runner] ?? []));
+  const parityTools = new Set(parity.implementations.flatMap(implementation => parityRunnerTools[implementation.runner] ?? []).filter(name => names.includes(name)));
   for (const runtime of runtimes) for (const tool of config.tools?.[runtime] ?? []) parityTools.add(tool);
   for (const tool of config.tools?.parity ?? []) parityTools.add(tool);
   const symbolExtractors = declared.symbolExtractors;
   const extractors = isJsonObject(symbolExtractors) && Array.isArray(symbolExtractors.extractors)
     ? symbolExtractors.extractors.filter((extractor: unknown): extractor is string => typeof extractor === 'string')
     : [];
-  if (extractors.includes('go')) parityTools.add('go');
-  if (extractors.includes('php')) { parityTools.add('php'); parityTools.add('composer'); }
+  for (const name of [...(extractors.includes('go') ? ['go'] : []), ...(extractors.includes('php') ? ['php', 'composer'] : [])]) if (names.includes(name)) parityTools.add(name);
   // divergence-check of the shared job reads the polyfill guards with the PHP symbol extractor, which is installed with PHP and Composer (K896).
-  const sharedTools = extractors.includes('php') ? [...new Set([...commonTools, 'composer', 'php'])].filter(name => names.includes(name)).sort() : commonTools;
+  const sharedTools = extractors.includes('php') ? [...new Set([...commonTools, ...['composer', 'php'].filter(name => names.includes(name))])].sort() : commonTools;
   return {
-    sharedTargets: config.setup.shared,
     runner: config.runner ?? 'ubuntu-24.04',
     parityMode,
     parityImplementations,
     parityMatrix: parityImplementations.length ? parityBindingMatrix(parityImplementations) : [],
-    parityTargets: config.setup.parity,
-    parityRuntimes: runtimes,
     runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', installTools: [] }],
     commonTools: sharedTools,
-    parityTools: [...parityTools].filter(name => names.includes(name)).sort(),
+    parityTools: [...parityTools].sort(),
     extractors,
-    phpDirs: phpDirectories(root, files, folders),
-    pythonDirs: pythonDirectories(root, files, folders),
   };
 }
 
@@ -298,8 +216,6 @@ function writePlan(root: string): void {
     common_tools: result.commonTools,
     parity_tools: result.parityTools,
     extractors: result.extractors,
-    php_dirs: result.phpDirs,
-    python_dirs: result.pythonDirs,
   };
   for (const [key, value] of Object.entries(outputs)) appendFileSync(output, `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}\n`);
 }
@@ -363,7 +279,9 @@ export function runCIContext(root: string, phase: 'prepare' | 'cleanup', group: 
 
 // Kept as one small seam for an execution test; commands always contain a validated target name, never config text as shell input.
 function spawnMake(command: string, args: string[], cwd: string): number {
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
+  // A setup or context target that runs ci-setup again would spawn without end; the marker of the make that ci-setup starts stops it.
+  if (process.env.KIT_CI_DISPATCH) throw new Error(`make ${args.at(-1) ?? ''} runs inside a target that ci-setup started; a setup or context target must not run kit-ci-setup or kit-ci-context again`);
+  const result = spawnSync(command, args, { cwd, stdio: 'inherit', env: { ...process.env, KIT_CI_DISPATCH: '1' } });
   if (result.error) throw new Error(`${command} could not start: ${result.error.message}`);
   return result.status ?? 1;
 }

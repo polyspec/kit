@@ -863,28 +863,26 @@ Left as it is, with the reason:
   package locks. An empty runtime list runs the repository's own `deps-<runtime>` target (`deps-node` for ts, `deps-go`,
   `deps-rust`, `deps-php` for php and php-ext, `deps-python`), a thin call of the locked install of its package manager; a
   missing one fails and names the target to define (K859). Only a runtime present in tracked source files is set up. Every declared target is checked against the Make database before
-  setup starts; a missing target or the aggregate `install`/`install-kit` fails with a fix, and no full-install fallback runs.
+  setup starts; a missing target fails with a fix. ci-setup refuses nothing that a package manager, a target or parity-check
+  judges itself (K860).
   PHP runtime jobs select the declared PHP and Composer tools. PHP extension jobs select those prerequisites and, when
   `packages/php-ext` exists, run Kit's `kit-install-php-arginfo` before lint/build/test. Extension tests use PHPUnit installed
   with their Composer package, so Kit's private PHPUnit declaration is not required. PHP parity selection includes Composer
   when its runner needs it. A consumer with a nonempty PHP setup list must include every Composer project it needs, including
   root and package projects.
-  An empty Go runtime list selects `build-go` only when every tracked `go.mod` has no `require` directives. If a Go module has
-  dependencies, planning requires an explicit `setup.runtimes.go` target that fetches its locked modules before the build; Kit
-  does not label a build as an install or silently rely on Go downloading during the offline gate.
   `parityMode` is optional and defaults to `full`. `full` runs the complete provider `parity-check`; `phases` runs the provider
   `parity-api-check` once and a `parity-bindings-<implementation>-check` matrix whose names come exactly from
-  `config/parity.json`. A phase consumer adds setup prerequisites to those concrete targets without replacing their recipes.
+  `config/parity.json`. A phase consumer adds setup prerequisites to those concrete targets.
   `kit-check` requires `CHECK_TARGETS` to select either the full target once or the complete API-plus-bindings partition, never both.
   The final workflow job requires the selected parity path, every other required job and the exact matrix generated from the parity
   declaration; a skipped, missing or failed selected job fails the aggregate.
   The optional `tools` map names extra pinned Kit tool selectors needed by setup targets. For example, a TypeScript generator
-  target that needs Go declares `"tools": { "ts": ["go"] }`; Kit checks and installs that tool in the TypeScript job and in
-  parity, which repeats runtime setup. `shared` and `parity` keys select tools for those jobs. Selectors must be known and
-  declared by the checkout; node, npm and mise are already provisioned by the workflow and cannot be repeated there.
+  target that needs Go declares `"tools": { "ts": ["go"] }`; install-tools judges and installs that tool in the TypeScript job and in
+  parity, which repeats runtime setup. `shared` and `parity` keys select tools for those jobs; install-tools judges each
+  selector.
   The optional `contexts` map gives a job a repository-owned prepare and cleanup target after locked setup and immediately
   around its existing provider gate. Each scope requires both targets; both are validated as existing Make targets before the
-  workflow runs, and Kit rejects its own setup, gate, and context-dispatch targets to prevent recursion. For example,
+  workflow runs. A setup or context target that runs kit-ci-setup or kit-ci-context again fails at that second dispatch. For example,
   `"contexts": { "shared": { "prepare": "ci-shared-prepare", "cleanup": "ci-shared-cleanup" } }` selects a
   shared context. `parity` applies independently in each selected parity job; runtime keys apply to that runtime's job. The
   cleanup step uses Actions `always()` after preparation was entered, so it runs after either prepare or gate failure and its

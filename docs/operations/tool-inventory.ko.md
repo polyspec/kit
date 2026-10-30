@@ -785,29 +785,25 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   비어 있지 않은 runtime 목록은 Kit 기본값을 대체하므로, 해당 runtime이 필요한 setup과 추적된 native package lock을
   모두 포함해야 합니다. 목록이 비어 있으면 저장소 자신의 `deps-<runtime>` target(ts는 `deps-node`, `deps-go`, `deps-rust`,
   php와 php-ext는 `deps-php`, `deps-python`)을 실행합니다. 이는 package manager의 lock 설치를 얇게 부르는 target이며, 없으면
-  정의할 target 이름과 함께 실패합니다(K859). 추적된 source 파일에 있는 runtime만 setup합니다. 실행 전 모든 선언 target을 Make database와 대조합니다. 없는 target이나
-  집계 target인 `install`/`install-kit`은 수정 안내와 함께 실패하며 전체 설치로 대체하지 않습니다.
+  정의할 target 이름과 함께 실패합니다(K859). 추적된 source 파일에 있는 runtime만 setup합니다. 실행 전 모든 선언 target을 Make database와 대조합니다. 없는 target은
+  수정 안내와 함께 실패합니다. ci-setup은 package manager, target, parity-check가 스스로 판정하는 것을 거부하지 않습니다(K860).
   PHP runtime job은 선언된 PHP와 Composer 도구를 선택합니다. `packages/php-ext`가 있으면 PHP extension job도 이 도구를
   선택하고 lint/build/test 전에 Kit의 `kit-install-php-arginfo`를 실행합니다. Extension test는 Composer package에 설치된
   PHPUnit을 사용하므로 Kit의 private PHPUnit 선언은 필요하지 않습니다. PHP parity runner가 Composer를 쓰면 parity 도구에도
   Composer를 포함합니다. PHP setup 목록을 직접 지정하는 소비 저장소는 root와 package를 포함해 필요한 Composer project를
   모두 나열해야 합니다.
-  비어 있는 Go runtime 목록은 추적된 모든 `go.mod`에 `require` 지시문이 없을 때만 `build-go`를 선택합니다. Go module에
-  dependency가 있으면 계획 단계가 실패하고 `setup.runtimes.go`에 build 전에 잠긴 module을 fetch하는 명시적 target을
-  요구합니다. Kit은 build를 install로 부르거나 offline gate 도중 Go가 내려받기를 하도록 조용히 의존하지 않습니다.
   `parityMode`는 선택 항목이며 기본값은 `full`입니다. `full`은 provider의 전체 `parity-check`를 실행합니다. `phases`는
   `parity-api-check`를 한 번 실행하고 `config/parity.json`의 implementation 이름과 정확히 일치하는
-  `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite만 추가하고
-  provider recipe는 바꾸지 않습니다. `kit-check`는 `CHECK_TARGETS`가 전체 target 한 번 또는 API와 모든 binding phase를 완전하게
+  `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite를 추가합니다. `kit-check`는 `CHECK_TARGETS`가 전체 target 한 번 또는 API와 모든 binding phase를 완전하게
   실행하도록 요구하며, 두 방식을 섞지 못하게 합니다. 마지막 workflow job은 선택한 parity 경로와 나머지 필수 job, parity 선언에서
   만든 정확한 matrix를 요구합니다. 선택된 job의 누락, skip 또는 실패는 전체 aggregate를 실패시킵니다.
   선택 항목인 `tools` map은 setup target이 추가로 요구하는 Kit의 pinned tool selector를 선언합니다. 예를 들어 TypeScript
-  generator target이 Go를 필요로 하면 `"tools": { "ts": ["go"] }`로 선언합니다. Kit은 해당 도구를 TypeScript job과 runtime
-  setup을 반복하는 parity job에 설치하고 검사합니다. `shared`와 `parity` key는 각 job의 도구를 선택합니다. Selector는 Kit이
-  아는 이름이어야 하고 checkout이 선언해야 합니다. workflow가 이미 준비하는 node, npm, mise는 중복 선택할 수 없습니다.
+  generator target이 Go를 필요로 하면 `"tools": { "ts": ["go"] }`로 선언합니다. install-tools가 해당 도구를 TypeScript job과 runtime
+  setup을 반복하는 parity job에서 판정하고 설치합니다. `shared`와 `parity` key는 각 job의 도구를 선택합니다. 각 selector는
+  install-tools가 판정합니다.
   선택 항목인 `contexts` map은 잠긴 setup 뒤, 기존 provider gate를 실행하기 직전에 저장소의 prepare target을 실행하고
   gate 뒤에 cleanup target을 실행합니다. 각 scope에는 두 target이 모두 있어야 합니다. workflow 시작 전에 둘 다 실제 Make
-  target인지 검증하고, 재귀 실행을 막기 위해 Kit 자체 setup·gate·context dispatch target은 거부합니다. 예를 들어
+  target인지 검증합니다. kit-ci-setup이나 kit-ci-context를 다시 실행하는 setup 또는 context target은 그 두 번째 dispatch에서 실패합니다. 예를 들어
   `"contexts": { "shared": { "prepare": "ci-shared-prepare", "cleanup": "ci-shared-cleanup" } }`는 shared
   context를 선택합니다. `parity`는 선택된 각 parity job에서 따로 실행하고, runtime key는 해당 runtime job에 적용합니다.
   준비 단계에 진입한 뒤에는 Actions `always()`로 cleanup을 실행하므로 prepare 또는 gate가 실패해도 정리합니다. Cleanup 실패도
