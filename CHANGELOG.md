@@ -5,7 +5,12 @@
 
 ## Unreleased
 
+## 0.0.78
+
+- Release Kit 0.0.78 with the kit-harness rows K909 and K916 (K917).
 - AGENTS.ko.md, PRINCIPLES.ko.md and docs/operations/tool-inventory.ko.md carry the stamps of their current English sources; 0.0.77 shipped them with older stamps after a rebase, while their translations already matched (K909).
+- make link --project of an installed kit, whose real path lies inside node_modules, writes no Claude Code hook and link-check expects none: npm installs the package with no var/tools/bin/node, so the hook entry of an installed kit could not run and link --project threw before linking, as in CI; a kit checkout, a linked one included, writes and checks the hook as before (K916).
+
 ## 0.0.77
 
 - The K541 test of tests/kit/link-folders.test.mts states the links that go before uv as K869 decided: folder links at any depth go, and a file link, which is uv's own, stays (K908).
@@ -36,7 +41,6 @@
 - The documents that a site renderer evaluates, the interpolation patterns of config/documents.json, refuse an HTML element outside code that opens without its end tag or ends without its start tag (raw-tag), such as `deps-<runtime>` written outside a code span, on which the Vue compiler of a VitePress build fails (K895).
 - A PHPUnit run of run-tests with --php-extension loads its extensions through an ini file that PHP_INI_SCAN_DIR adds after PHP's own scan instead of -d extension, so a test that PHPUnit runs in a separate process loads them too (K900).
 - A PHPUnit run of run-tests and its deadline prepend use one Composer vendor, the nearest that holds bin/phpunit, so a package whose own vendor has no PHPUnit loads the autoloader of the vendor whose PHPUnit runs instead of failing on PreparationStartedSubscriber; run-tests states why the external deadline stays: PHPUnit's own limit does not stop a blocked libpq wait, socket read or child process, and a test past it is only risky (K899).
-- make link --project of an installed kit, whose real path lies inside node_modules, writes no Claude Code hook and link-check expects none: npm installs the package with no var/tools/bin/node, so the hook entry of an installed kit could not run and link --project threw before linking, as in CI; a kit checkout, a linked one included, writes and checks the hook as before (K916).
 
 ## 0.0.76
 

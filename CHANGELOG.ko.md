@@ -1,12 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dfec79e493c9a014afef9d9588068825e9d5f77ff81466574caeb7b7f886e54c -->
+<!-- source-sha256: a59e01037eae6cf5adea26b5c82e03c0ad291625f831db021bc7312b1a5e8258 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.78
+
+- kit-harness 행 K909와 K916을 담아 Kit 0.0.78을 릴리즈합니다 (K917).
 - AGENTS.ko.md, PRINCIPLES.ko.md, docs/operations/tool-inventory.ko.md는 현재 영어 원문의 stamp를 갖습니다. 0.0.77은 rebase 뒤 이전 stamp로 이들을 실었고, 번역은 이미 맞았습니다 (K909).
+- 실제 경로가 node_modules 안에 있는 설치된 kit의 make link --project는 Claude Code hook을 쓰지 않고, link-check도 hook을 기대하지 않습니다. npm은 package를 var/tools/bin/node 없이 설치하므로 설치된 kit의 hook entry는 실행될 수 없었고, link --project는 CI에서처럼 link 전에 throw했습니다. kit checkout은, link된 것도 포함해, 이전처럼 hook을 쓰고 검사합니다 (K916).
+
 ## 0.0.77
 
 - tests/kit/link-folders.test.mts의 K541 테스트는 uv 전에 지우는 링크를 K869의 결정대로 적습니다. 어느 깊이의 폴더 링크든 지우고, uv 자신의 것인 파일 링크는 남깁니다 (K908).
@@ -37,7 +42,6 @@
 - 사이트 렌더러가 평가하는 문서, 즉 config/documents.json의 interpolation 패턴의 문서는 코드 밖에서 끝 태그 없이 열리거나 시작 태그 없이 닫히는 HTML 요소(raw-tag)를 거부합니다. 코드 스팬 밖에 쓴 `deps-<runtime>`처럼 VitePress 빌드의 Vue 컴파일러가 실패하는 것입니다 (K895).
 - --php-extension이 붙은 run-tests의 PHPUnit 실행은 -d extension 대신 PHP_INI_SCAN_DIR이 PHP 자체 스캔 뒤에 더하는 ini 파일로 확장을 읽으므로, PHPUnit이 별도 프로세스로 돌리는 테스트도 확장을 읽습니다 (K900).
 - run-tests의 PHPUnit 실행과 그 deadline prepend는 bin/phpunit을 가진 가장 가까운 Composer vendor 하나를 쓰므로, 자기 vendor에 PHPUnit이 없는 패키지는 PreparationStartedSubscriber로 실패하지 않고 실행되는 PHPUnit의 vendor autoloader를 읽습니다. run-tests는 바깥 deadline이 남는 이유를 밝힙니다: PHPUnit 자체 제한은 막힌 libpq 대기, 소켓 읽기, 자식 프로세스를 멈추지 못하고, 그것을 넘긴 테스트는 risky일 뿐입니다 (K899).
-- 실제 경로가 node_modules 안에 있는 설치된 kit의 make link --project는 Claude Code hook을 쓰지 않고, link-check도 hook을 기대하지 않습니다. npm은 package를 var/tools/bin/node 없이 설치하므로 설치된 kit의 hook entry는 실행될 수 없었고, link --project는 CI에서처럼 link 전에 throw했습니다. kit checkout은, link된 것도 포함해, 이전처럼 hook을 쓰고 검사합니다 (K916).
 
 ## 0.0.76
 
