@@ -77,19 +77,19 @@ kit-install-symbols: ## Install selected declared symbol extractors with EXTRACT
 
 # The tools of the parity rules that every repository shares are kit's, so install-kit installs them from the declarations of the
 # repository through their targets (K861): the symbolExtractors of config/toolchain.json, and the arginfo generator of an
-# extension in packages/php-ext (S10). Reading a declaration judges nothing; each target's tool judges its install.
+# extension in packages/php-ext (S10), and the crates of a tracked Cargo.lock, which offline checks read, since a check gives the
+# same result for the same tree and makes no network query (AGENTS.md, K864). Reading a declaration or a tracked file judges
+# nothing; each target's tool judges its install.
 .PHONY: kit-install-declared
-kit-install-declared: ## Install the declared symbol extractors (install-symbols --declared) and, with packages/php-ext, the arginfo generator through its target; ONLINE
+kit-install-declared: ## Install the declared symbol extractors (install-symbols --declared), with packages/php-ext the arginfo generator and with a tracked Cargo.lock its crates through their targets; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) --declared
 	@if [ -d packages/php-ext ]; then $(MAKE) --no-print-directory kit-install-php-arginfo; fi
+	@if [ -n "$$(git ls-files -- '*Cargo.lock')" ]; then $(MAKE) --no-print-directory cargo-downloads-fetch; fi
 
-# --- cargo downloads: the crates of every Cargo.lock are downloaded before a check runs cargo offline.
-.PHONY: cargo-downloads-check cargo-downloads-fetch
-cargo-downloads-check: ## Check that the crates of every Cargo.lock are in the registry of CARGO_HOME; offline
-	$(NODE) $(KIT)/check-cargo-downloads.$(KIT_EXT)
-
-cargo-downloads-fetch: ## Download the crates of every Cargo.lock
-	$(ONLINE) $(NODE) $(KIT)/check-cargo-downloads.$(KIT_EXT) --fetch
+# --- cargo downloads: cargo fetch --locked downloads the crates of every Cargo.lock; cargo keeps which are present (K864).
+.PHONY: cargo-downloads-fetch
+cargo-downloads-fetch: ## Download the crates of every Cargo.lock with cargo fetch --locked
+	$(ONLINE) $(NODE) $(KIT)/fetch-cargo-downloads.$(KIT_EXT)
 # Toolchains (K8.2, K127): the bootstrap (TOOLS=npm) installs the npm of packageManager and mise; install-tools installs every
 # tool of mise.toml at the digests of mise.lock with mise, then what mise does not install (the wheel backend and the Composer
 # projects; the symbol extractors and the arginfo generator have their own targets, K861); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside

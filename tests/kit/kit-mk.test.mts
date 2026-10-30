@@ -2,7 +2,7 @@
 // a repository's kit-bootstrap.mk sets the built package (node_modules/@polyspec/kit/dist, mjs). kit.mk stops while either
 // is unset, and kit-test is kit's own target, since a repository holds no tests/kit.
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -11,6 +11,7 @@ import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { miseEnvironment } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { put, tree } from './tree.mts';
+import { initRepository } from './sandbox-repository.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const KIT_MK = path.join(ROOT, 'scripts/kit/kit.mk');
@@ -106,6 +107,24 @@ test('K861: install-kit installs the declared symbol extractors and, with packag
   const none = dry(bare);
   assert.equal(none.status, 0, none.stderr);
   assert.doesNotMatch(none.stdout, /install-php-arginfo\.mts$/m, 'no arginfo generator without packages/php-ext');
+});
+
+// K864: offline checks read the crates of every Cargo.lock (P17), so install-kit fetches them when a Cargo.lock is tracked, and
+// no repository adds cargo-downloads-fetch to its own make install.
+test('K864: install-kit runs cargo-downloads-fetch when a Cargo.lock is tracked, and not without one', (t) => {
+  const makefile = `include ${path.join(ROOT, 'scripts/kit/kit-bootstrap.mk')}\n`;
+  const dry = (files: Record<string, string>) => {
+    const root = tree(t, { Makefile: makefile, 'config/toolchain.json': JSON.stringify({ schema: 1 }), ...files });
+    initRepository(root);
+    execFileSync('git', ['add', '-A'], { cwd: root });
+    return spawnSync('make', ['-n', '--no-print-directory', 'install-kit', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
+  };
+  const locked = dry({ 'packages/rust/Cargo.lock': 'version = 4\n' });
+  assert.equal(locked.status, 0, locked.stderr);
+  assert.match(locked.stdout, /fetch-cargo-downloads\.mts$/m, 'the crates of the tracked lock are fetched');
+  const bare = dry({});
+  assert.equal(bare.status, 0, bare.stderr);
+  assert.doesNotMatch(bare.stdout, /fetch-cargo-downloads\.mts$/m, 'no lock, no fetch');
 });
 
 test('kit.mk accepts a parity declaration with no implementation targets and still rejects unreadable names', (t) => {

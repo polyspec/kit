@@ -50,9 +50,9 @@
       "kind": "ecosystem",
       "tool": "Node.js filesystem, OS and path APIs; hdiutil Case-sensitive APFS on macOS and fsutil.exe NTFS per-directory case sensitivity on Windows"
     },
-    "scripts/kit/check-cargo-downloads.mts": {
+    "scripts/kit/fetch-cargo-downloads.mts": {
       "kind": "ecosystem",
-      "tool": "cargo fetch --locked --offline"
+      "tool": "cargo fetch --locked"
     },
     "scripts/kit/check-commits.mts": {
       "kind": "record",

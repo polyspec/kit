@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4efdc32f708a2f8154657f179364fa35aaaf70cd6adb5b06db2245e7a1026a53 -->
+<!-- source-sha256: 71c4750b9a972fb55c0fd67a1a8e277f334ce08d328e92c9308f7bfa6505d8a5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- 각 Cargo.lock의 모든 crate가 CARGO_HOME의 registry에 있는지 오프라인으로 검사하던 cargo-downloads-check를 삭제합니다. crate가 있는지는 cargo의 상태입니다. make cargo-downloads-fetch는 모든 Cargo.lock과 kit catch-check lock의 cargo fetch --locked로 남고, check-cargo-downloads.mts는 fetch-cargo-downloads.mts로 이름을 바꾸며 --fetch도 옛 이름의 alias도 없습니다. 추적되는 Cargo.lock이 있으면 make install-kit이 kit-install-declared를 통해 이를 실행하므로, 저장소는 cargo-downloads-check 선행을 지우고 make install에 아무것도 더하지 않습니다 (K864).
 - install-tools는 더는 arginfo generator와 symbol extractor를 설치하지 않습니다. `make kit-install-php-arginfo`와 `make kit-install-symbols`가 이들을 설치하며, `install-kit`이 새 `kit-install-declared`(`install-symbols --declared`)로 저장소의 선언(`symbolExtractors`, `packages/php-ext`)을 읽어 같은 도구를 실행하므로 저장소는 바꿀 것이 없습니다. 둘은 설치할 때마다 kit의 RELEASE 없이 잠긴 `composer install`이나 `go build`를 실행하고, 각 build는 PHP의 `gen_stub.php`를 그대로 쓰며, exceptions의 Rust channel은 kit의 `rustup toolchain list` 필터 없이 `rustup toolchain install`을 실행합니다(K861).
 - install-php는 PATH의 php를 그대로 씁니다. `.php-version`과 release를 비교하지 않고, apt의 `php<minor>`나 Homebrew의 `opt/php@<minor>` keg를 더는 찾지 않습니다. PATH에 php가 없거나 `packages/php-ext`에 php-config나 phpize가 없으면 실패합니다. install-tools, install-symbols, toolchain 선언은 더는 `.php-version`을 요구하거나 `config/toolchain.json`의 `php`와 비교하지 않습니다. PHP가 필요한 저장소에는 `make kit-check`가 여전히 이를 요구합니다. 이 파일이 없으면 CI의 setup-php가 조용히 다른 PHP를 설치하기 때문입니다(K862).
 - ci-setup은 package manager, target, parity-check가 스스로 판정하는 것을 거부하지 않습니다. install 집계 target, 재귀 context target, 쓰지 않는 runtime의 context와 tools, 알 수 없거나 이미 준비되었거나 선언되지 않은 tool selector, 바꾼 parity phase recipe, 없는 config/parity.json에 대한 거부를 삭제했으며, 어떤 workflow도 읽지 않는 php_dirs, python_dirs 출력과 plan 필드, parityMatrixFindings도 삭제했습니다. config/ci.json의 tool selector는 그대로 install-tools에 전달되어 install-tools가 판정하고, ci-setup을 다시 실행하는 setup 또는 context target은 그 두 번째 dispatch에서 실패하며, tool-inventory의 낡은 build-go 문단은 삭제했습니다(K860).
