@@ -84,15 +84,6 @@ endif
 kit-install-php-arginfo: ## Install the declared PHP generator and its paired parser for extension fixtures; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-php-arginfo.$(KIT_EXT)
 
-# PIE builds the php-ext package PACKAGE at VERSION of the Composer repository PACKAGES, the packages.json of a release, in an
-# empty var/pie/<vendor/name>; PIE writes to the standard error while it runs (K926), and the standard output holds only the two
-# lines that name the library and the package folder that PIE records (K915). PIE is
-# the http:pie of mise.toml (make install-tools TOOLS=pie); PIE=<file> runs another. PACKAGES, PACKAGE, VERSION and PIE are read
-# from the environment, so a caller passes them on the command line: $(MAKE) pie-build PACKAGES=... PACKAGE=... VERSION=...
-.PHONY: pie-build
-pie-build: ## Build the php-ext package PACKAGE (vendor/name) at VERSION of the release Composer repository PACKAGES with PIE in var/pie and print its binary and package folder (K915); ONLINE
-	$(ONLINE) $(NODE) $(KIT)/pie-build.$(KIT_EXT) "$$PACKAGES" "$$PACKAGE" "$$VERSION"
-
 kit-install-symbols: ## Install selected declared symbol extractors with EXTRACTORS="go php"; their pinned tools must be installed first; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) $(EXTRACTORS)
 

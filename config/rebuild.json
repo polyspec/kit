@@ -334,10 +334,6 @@
       "kind": "policy",
       "reason": "checks the classes of config/rebuild.json, polyspec's S1 declaration"
     },
-    "scripts/kit/pie-build.mts": {
-      "kind": "ecosystem",
-      "tool": "PIE (pie repository:add and pie build) and the installed.json that Composer writes for it"
-    },
     "scripts/kit/recipe-tools.mts": {
       "kind": "policy",
       "reason": "polyspec's rule that a make recipe starts a tool of the checkout by its absolute path (K171); the recipes come from GNU make's database through owner-check.mts, split into words by the quoting rules of the POSIX shell with the parse of shell-quote (K179, K184)"

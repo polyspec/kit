@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- Kit has no pie-build: make pie-build and scripts/kit/pie-build.mts are removed, since no rule requires kit to wrap PIE; a repository runs the PIE that make install-tools TOOLS=pie installs in its own recipe (K931).
 - Kit 0.0.80 is public: release run 41088517118 took the successful CI run 41083175026 of 82ab25d1, made the annotated v0.0.80 tag on that commit and a published release with polyspec-kit-npm-0.0.80.tgz (K928).
 
 ## 0.0.80

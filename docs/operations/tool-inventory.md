@@ -88,18 +88,9 @@ before building assets.
 
 A repository may declare a downloaded tool of its own in `mise.toml` through the http backend (K327), such as `"http:example" = { version = "1.2.3", url = "https://.../example-{{version}}.phar" }`: `mise.lock` pins its sha256 for every platform of the lock, and mise checks the digest at `mise install --locked`. Any key that kit does not run passes through to mise, which judges it (K839).
 
-PIE is a tool that kit runs (K915). A repository declares `"http:pie"` in `mise.toml` with the URL of `pie.phar` and its checksum,
-and `make install-tools TOOLS=pie` installs it, with PHP, like composer; kit pins no PIE release. `make pie-build
-PACKAGES=<packages.json of a release> PACKAGE=<vendor/name> VERSION=<X.Y.Z>` builds that php-ext package with
-`scripts/kit/pie-build.mts`: it removes `var/pie/<vendor/name>`, runs `pie repository:add composer PACKAGES` and `pie build
-PACKAGE:VERSION` there with `PIE_WORKING_DIRECTORY`, with the standard output and standard error of PIE on its own standard
-error as PIE writes them, so a build shows each step while it runs (K926), and prints on its standard output only `binary <path>`
-and `package <path>`, the `pie-built-binary` and the
-`install-path` that PIE records for the package in `vendor/composer/installed.json`; it fails unless exactly one entry names them.
-PIE keeps one Composer project per target PHP in its working directory and never removes a repository that repository:add
-added, so a kept directory serves the repository of an earlier version first and keeps the build of an earlier PHP; an empty
-directory on each run holds the one repository and the one build. `pie build` installs nothing into the PHP; it builds with the
-phpize and php-config of the wrapped PHP. `PIE=<file>` runs another PIE.
+PIE is a tool that a repository runs in its own recipe. A repository declares `"http:pie"` in `mise.toml` with the URL of
+`pie.phar` and its checksum, and `make install-tools TOOLS=pie` installs it, with PHP, like composer; kit pins no PIE release and
+has no target that runs PIE (K931).
 
 ### Declarations
 

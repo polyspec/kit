@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 13e08d32a466bc32d95ca892ceed2c47a1ce008953949cb528c653b4e9f8458e -->
+<!-- source-sha256: 1bd4d54e078facdc729132baeef07eb4afd959e54db92d6cd35b23785d859b58 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit에는 pie-build가 없다. kit이 PIE를 감싸라는 규칙이 없으므로 make pie-build와 scripts/kit/pie-build.mts는 제거되고, 저장소는 make install-tools TOOLS=pie가 설치하는 PIE를 자기 recipe에서 실행한다 (K931).
 - Kit 0.0.80을 공개했다. release run 41088517118이 82ab25d1의 성공한 CI run 41083175026을 받아 그 commit에 annotated v0.0.80 tag를 만들고 polyspec-kit-npm-0.0.80.tgz와 함께 게시된 release를 만들었다 (K928).
 
 ## 0.0.80

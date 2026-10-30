@@ -10,7 +10,7 @@
 //   cargoNextest  github:nextest-rs/nextest, with version_prefix = "cargo-nextest-", the native binary of each platform
 //   cargoDeny     cargo-deny (aqua:EmbarkStudios/cargo-deny of the registry of mise), the native binary of each platform
 //   composer      http:composer, with the url of composer.phar and its checksum from getcomposer.org
-//   pie           http:pie, with the url of pie.phar and its checksum from the PIE release; make pie-build runs it (K915)
+//   pie           http:pie, with the url of pie.phar and its checksum from the PIE release; a repository runs it in its own recipe
 //   vulture       pypi:vulture, whose wheel and dependencies mise.lock pins with uv (.mise/locks)
 // A release is taken as mise.toml declares it. A key of another tool, a repository's own http: tool among them, passes
 // through to mise, which judges its configuration; kit checks the tools above only (K839). The TOML is read by readTomlFile
