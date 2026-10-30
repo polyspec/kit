@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 6740db997fb963008e8281b14fddefb40e790e4fee4d5ddd1394627faa1ea8a0 -->
+<!-- source-sha256: 155526e3a01ca6713d2c1e7c3cf5d4c730d0adcac98e9940fd899084235e4e59 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -781,7 +781,7 @@
 | K825 | release, tag 생성, FINAL_RUN의 checklist 상태 거부를 삭제함 | scripts/kit/release.mts, scripts/kit/ci-only.mts, docs/operations/release.md | `node --test tests/kit/release-tag.test.mts tests/kit/ci-only.test.mts tests/kit/release.test.mts` | [o] |
 | K826 | uv 설치가 link된 Python 패키지를 뺄 때 dev 폴더를 바이트 단위로 그대로 둠 | tests/source/uv-link-real.test.mts | `node --test tests/source/uv-link-real.test.mts` | [o] |
 | K827 | run의 PHPUnit test 목록 실행이 run의 autoloader를 가져 deadline prepend가 그 안에서 load된다 | scripts/kit/run-tests.mts, tests/kit/run-tests.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/run-tests.test.mts` | [v] |
-| K828 | 높은 load average에서도 run-tests suite의 모든 test가 끝나게 함 | tests/kit/run-tests.test.mts | `node --test tests/kit/run-tests.test.mts` | [ ] |
+| K828 | 높은 load average에서도 run-tests suite의 모든 test가 끝나게 함 | tests/kit/run-tests.test.mts | `node --test tests/kit/run-tests.test.mts` | [!] 원인: 재현되지 않음: node --test tests/kit/run-tests.test.mts가 부하 평균 40에서 단독으로 73/0, 부하 평균 54에서 동시 3회 실행 각각 73/0으로 통과했습니다(2026-10-30). 등록에는 끝나지 않은 테스트의 로그가 없습니다.; 재시도: 부하에서 끝나지 않은 테스트를 지목하는 run-tests 로그가 나오면 그 테스트를 Red로 삼아 타이밍을 고칩니다. |
 | K830 | Windows process test에 한도를 두어 멈춤은 그 한도로, 멈춘 실제 process test는 그 이름으로 실패하게 함 | .github/workflows/platform-bootstrap.yml, tests/kit/process-group.test.mts | `node --test tests/kit/bootstrap-platform.test.mts tests/kit/process-group.test.mts` | [o] |
 | K829 | Kit 0.0.73 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K832 | 추적되는 go.work가 있는 repository에서 make test-go CASES=<pattern>은 module별 run처럼 그 pattern을 workspace go test 하나에 -run으로 넘긴다. 원인: goWorkspaceRuns가 cases를 받지 않아 flowmark의 make test-go CASES=TestToken이 선택 없이 모든 Go test를 돌리고, run-tests는 이를 CI 밖에서 거부한다 | scripts/kit/runtime-targets.mts, tests/kit/runtime-targets.test.mts | `node scripts/kit/run-tests.mts node -- tests/kit/runtime-targets.test.mts` | [v] |
