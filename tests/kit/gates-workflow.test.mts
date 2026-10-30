@@ -172,3 +172,11 @@ test('K815: the shared job computes no commit range and passes no RANGE', () => 
   assert.doesNotMatch(shared, /commit range|RANGE=|\$range/);
   assert.doesNotMatch(read('scripts/kit/kit.mk'), /\$\(RANGE\)|\$\$RANGE/);
 });
+
+test('K896: the shared job installs the declared PHP symbol extractor before its gates, which divergence-check needs', () => {
+  const shared = workflowJob(read('workflows/gates.yml'), 'shared').join('\n');
+  const install = shared.indexOf("if: ${{ contains(needs.discover.outputs.extractors, 'php') }}\n        run: make kit-install-symbols EXTRACTORS=php");
+  assert.notEqual(install, -1, 'the shared job installs the PHP symbol extractor when the plan names it');
+  assert.ok(install > shared.indexOf('make install-tools TOOLS="${{ join(fromJSON(needs.discover.outputs.common_tools)'), 'after the common tools installed PHP and Composer');
+  assert.ok(install < shared.indexOf('kit-gates-static'), 'before the shared gates');
+});

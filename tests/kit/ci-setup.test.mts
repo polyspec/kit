@@ -466,3 +466,24 @@ test('K731: extra tool selectors must exist and be declared by the checkout', ()
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('K896: the shared job receives PHP and Composer for the PHP symbol extractor that divergence-check reads guards with', () => {
+  const root = fixture();
+  try {
+    mkdirSync(path.join(root, 'packages/php/src'), { recursive: true });
+    writeFileSync(path.join(root, 'packages/php/composer.json'), '{}');
+    writeFileSync(path.join(root, 'packages/php/composer.lock'), '{}');
+    writeFileSync(path.join(root, 'packages/php/src/A.php'), '<?php\n');
+    writeFileSync(path.join(root, '.php-version'), '8.4\n');
+    writeFileSync(path.join(root, 'mise.toml'), '[tools]\n"http:composer" = { version = "2.9.0", url = "https://example.invalid/composer.phar" }\n');
+    writeFileSync(path.join(root, 'config/toolchain.json'), JSON.stringify({ schema: 1, symbolExtractors: ['php'] }));
+    writeFileSync(path.join(root, 'Makefile'), `${readFileSync(path.join(root, 'Makefile'), 'utf8')}.PHONY: composer-install\ncomposer-install:\n\t@true\n`);
+    execFileSync('git', ['add', 'Makefile', '.php-version', 'mise.toml', 'config/toolchain.json', 'packages/php'], { cwd: root });
+    const plan = ciPlan(root);
+    assert.ok(plan.runtimes.some(job => job.runtime === 'php'), 'the PHP package selects a PHP runtime job, which owns PHP and Composer');
+    assert.deepEqual(plan.extractors, ['php']);
+    assert.ok(plan.commonTools.includes('php') && plan.commonTools.includes('composer'), `the shared job installs PHP and Composer: ${plan.commonTools.join(' ')}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

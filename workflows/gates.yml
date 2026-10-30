@@ -71,6 +71,9 @@ jobs:
       - name: install common gate tools
         if: ${{ needs.discover.outputs.common_tools != '[]' }}
         run: make install-tools TOOLS="${{ join(fromJSON(needs.discover.outputs.common_tools), ' ') }}"
+      - name: install PHP symbol extractor
+        if: ${{ contains(needs.discover.outputs.extractors, 'php') }}
+        run: make kit-install-symbols EXTRACTORS=php
       - name: install shared prerequisites
         run: make kit-ci-setup GROUP=shared
       - id: context_prepare

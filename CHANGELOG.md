@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The shared job of the gates workflow installs the PHP symbol extractor when config/toolchain.json declares it, with PHP and Composer among its common tools, so divergence-check reads the polyfill guards there instead of failing on a missing var/tools/symbols-php (K896).
 - The link of a Python project, link-state-check and the install read one environment, uv's: that of the uv workspace root, UV_PROJECT_ENVIRONMENT relative to it or .venv there, so a uv workspace member whose provider is linked in the root environment is no finding; VENV, which uv does not read, is gone (K890).
 
 ## 0.0.75

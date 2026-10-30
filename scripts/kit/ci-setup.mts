@@ -255,6 +255,8 @@ function plan(root: string): CIPlan {
     : [];
   if (extractors.includes('go')) parityTools.add('go');
   if (extractors.includes('php')) { parityTools.add('php'); parityTools.add('composer'); }
+  // divergence-check of the shared job reads the polyfill guards with the PHP symbol extractor, which is installed with PHP and Composer (K896).
+  const sharedTools = extractors.includes('php') ? [...new Set([...commonTools, 'composer', 'php'])].filter(name => names.includes(name)).sort() : commonTools;
   return {
     sharedTargets: config.setup.shared,
     runner: config.runner ?? 'ubuntu-24.04',
@@ -264,7 +266,7 @@ function plan(root: string): CIPlan {
     parityTargets: config.setup.parity,
     parityRuntimes: runtimes,
     runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', checkTools: [], installTools: [] }],
-    commonTools,
+    commonTools: sharedTools,
     parityTools: [...parityTools].filter(name => names.includes(name)).sort(),
     extractors,
     phpDirs: phpDirectories(root, files, folders),

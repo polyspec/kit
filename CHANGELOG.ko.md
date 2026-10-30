@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 13dd5f29ece6f30e79fe3dbbfb61f1e128d640c639525f1c8d0993dd41ec39bf -->
+<!-- source-sha256: 8b63ade96893a7cfe1bf7d9f656d8a38305d08e2b27fe3a4f6795d86887fbbac -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- gates 워크플로의 shared 잡은 config/toolchain.json이 PHP 심볼 추출기를 선언하면 공통 도구에 PHP와 Composer를 두고 그 추출기를 설치하므로, divergence-check가 var/tools/symbols-php가 없다며 실패하지 않고 거기서 polyfill 가드를 읽습니다 (K896).
 - Python project의 link, link-state-check, 설치는 하나의 environment, 즉 uv의 것인 uv workspace root의 environment(그 기준의 UV_PROJECT_ENVIRONMENT, 없으면 거기의 .venv)를 읽으므로, provider가 root environment에 link된 uv workspace member는 finding이 아닙니다. uv가 읽지 않는 VENV는 없어졌습니다 (K890).
 
 ## 0.0.75
