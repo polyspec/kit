@@ -260,8 +260,10 @@ test('a second build that starts while the parser is extracting waits for it, an
   assert.ok(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')));
 });
 
-// K941 (b2): a fetch that fails leaves no gen-stub folder, so the next build starts from nothing and fetches again.
-test('a failing PHP-Parser fetch leaves no gen-stub folder, so the next build starts from nothing (K941)', { timeout: 300000 }, (t) => {
+// K941 (b2): a fetch that fails leaves no PHP-Parser directory, so the next build starts from nothing and fetches again.
+// The PHP-Parser directories of a folder, which a failed run must not leave behind.
+const parsersIn = (folder: string): string[] => (existsSync(folder) ? readdirSync(folder).filter(name => name.startsWith('PHP-Parser-')).sort() : []);
+test('a failing PHP-Parser fetch leaves no PHP-Parser directory, so the next build starts from nothing (K941)', { timeout: 300000 }, (t) => {
   const files = good();
   delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
   const root = tree(t, { ...files, '.gitignore': 'var/\n' });
@@ -276,7 +278,26 @@ test('a failing PHP-Parser fetch leaves no gen-stub folder, so the next build st
   }
   const failed = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` } });
   assert.notEqual(failed.status, 0, `${failed.stdout}\n${failed.stderr}`);
-  assert.equal(existsSync(path.join(root, 'var/php-ext/gen-stub')), false, 'the failed build leaves no gen-stub folder');
+  assert.deepEqual(parsersIn(path.join(root, 'var/php-ext/gen-stub')), [], 'the failed build leaves no PHP-Parser directory');
+});
+
+// K941 (1): the cleanup of a failed run removes only the PHP-Parser directories that the run created; a parser an earlier build
+// fetched stays, and a later build uses it.
+test('a stub syntax error after an earlier good fetch keeps the parser that the earlier build fetched (K941)', { timeout: 300000 }, (t) => {
+  const files = good();
+  delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
+  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
+  const firstBuild = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.equal(firstBuild.status, 0, `${firstBuild.stdout}\n${firstBuild.stderr}`);
+  const fetched = parsersIn(path.join(root, 'var/php-ext/gen-stub'));
+  assert.equal(fetched.length, 1, 'the good build fetched one PHP-Parser');
+  writeFileSync(path.join(root, 'packages/php-ext/src/polyspec_demo.stub.php'), '<?php\nfunction broken(: int {}\n');
+  const broken = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(broken.status, 0, `${broken.stdout}\n${broken.stderr}`);
+  assert.deepEqual(parsersIn(path.join(root, 'var/php-ext/gen-stub')), fetched, 'the earlier parser stays');
 });
 
 test('the build generates arginfo from the stub in its temporary source when no header is tracked (K560)', (t) => {
