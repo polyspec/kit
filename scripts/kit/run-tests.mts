@@ -405,6 +405,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       const text = `${command} ${build.join(' ')}`;
       const buildBegan = Date.now();
       write(`[build] ${text}: started\n`);
+      const buildSince = Date.now();
       const builder = spawn(command, build, { cwd: options.cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
       present(builder.stdout, 'builder.stdout').setEncoding('utf8').on('data', (text: string) => write(text)); // The stream is piped.
       present(builder.stderr, 'builder.stderr').setEncoding('utf8').on('data', (text: string) => write(text)); // The stream is piped.
@@ -414,7 +415,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       });
       let buildStopping: Promise<void> | undefined;
       // A build that could not start has no pid and no group to stop.
-      stopRunning = () => { if (builder.pid !== undefined) buildStopping ??= stopGroup(builder.pid, built, graceMs); };
+      stopRunning = () => { if (builder.pid !== undefined) buildStopping ??= stopGroup(builder.pid, built, graceMs, undefined, buildSince); };
       // The leader may exit before descendants close its inherited output pipes.
       builder.once('exit', stopRunning);
       const ended = await built;
@@ -431,6 +432,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
         return 1;
       }
     }
+    const since = Date.now();
     const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit', reporter ? 'pipe' : 'ignore'], detached: true });
     // A tool that cannot start, such as a command missing on PATH, fails with its command and the install fix.
     const closed = new Promise<Ended>((resolve) => {
@@ -439,7 +441,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     });
     let stopping: Promise<void> | undefined;
     // A tool that could not start has no pid and no group to stop.
-    const stop = () => { if (child.pid !== undefined) stopping ??= stopGroup(child.pid, closed, graceMs); };
+    const stop = () => { if (child.pid !== undefined) stopping ??= stopGroup(child.pid, closed, graceMs, undefined, since); };
     stopRunning = stop;
     // Drain output after stopping descendants of a leader that has already exited.
     child.once('exit', stop);

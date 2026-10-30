@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
 import test from 'node:test';
-import { descendantsOf, processTable, signalGroup, signalWindowsTree, stopGroup } from '../../scripts/kit/process-group.mts';
+import { descendantsOf, fileTime, processTable, signalGroup, signalWindowsTree, stopGroup } from '../../scripts/kit/process-group.mts';
 import type { Kill, ProcessEntry } from '../../scripts/kit/process-group.mts';
 import { terminateGroup } from '../../scripts/kit/run-tests.mts';
 
@@ -89,10 +89,51 @@ test('a Windows process created before the process it names as its parent is no 
   assert.deepEqual(descendantsOf(20, table).map(entry => entry.pid), [21, 22]);
   assert.deepEqual(descendantsOf(20, table.filter(entry => entry.pid !== 20)).map(entry => entry.pid), [],
     'a parent whose creation time is unknown proves no child');
-  assert.deepEqual(descendantsOf(20, table.filter(entry => entry.pid !== 20), table).map(entry => entry.pid), [21, 22],
+  assert.deepEqual(descendantsOf(20, table.filter(entry => entry.pid !== 20), { earlier: table }).map(entry => entry.pid), [21, 22],
     'the creation time of an exited parent comes from the earlier table');
+  assert.deepEqual(descendantsOf(20, table.filter(entry => entry.pid !== 20), { rootStarted: 100n }).map(entry => entry.pid), [21, 22],
+    'the time taken before the spawn of an exited root stands for it');
   assert.deepEqual(descendantsOf(20, [{ pid: 20, ppid: 1, pgid: 20 }, { pid: 21, ppid: 20, pgid: 20 }]).map(entry => entry.pid), [21],
     'a table without creation times follows the parent ids alone');
+});
+
+test('a child created in the clock tick of its parent is a descendant (K925)', () => {
+  const table: ProcessEntry[] = [{ pid: 20, ppid: 1, pgid: 20, started: 100n }, { pid: 21, ppid: 20, pgid: 21, started: 100n }];
+  assert.deepEqual(descendantsOf(20, table).map(entry => entry.pid), [21]);
+});
+
+test('a process whose parent id is the reused id of an exited root is the child of the newer process (K925)', () => {
+  const earlier: ProcessEntry[] = [{ pid: 20, ppid: 1, pgid: 20, started: 100n }, { pid: 21, ppid: 20, pgid: 21, started: 150n }];
+  const now: ProcessEntry[] = [
+    { pid: 21, ppid: 20, pgid: 21, started: 150n },
+    { pid: 20, ppid: 7, pgid: 20, started: 300n },
+    { pid: 22, ppid: 20, pgid: 22, started: 310n },
+  ];
+  assert.deepEqual(descendantsOf(20, now, { earlier }).map(entry => entry.pid), [21], 'the child of the newer process 20 is not the root\'s');
+});
+
+test('the file time of a Unix time counts 100-nanosecond units from 1601 (K925)', () => {
+  assert.equal(fileTime(0), 116_444_736_000_000_000n);
+  assert.equal(fileTime(1.9), 116_444_736_000_010_000n);
+});
+
+test('the Windows tree stop of an exited root stops its orphans and no older process (K925)', () => {
+  let entries: ProcessEntry[] = [
+    { pid: 21, ppid: 20, pgid: 21, started: fileTime(1_000) + 5n },
+    { pid: 8136, ppid: 20, pgid: 8136, started: fileTime(10) },
+  ];
+  const calls: [number, boolean][] = [];
+  const operations = {
+    table: () => entries,
+    terminate: (pid: number, tree: boolean) => {
+      calls.push([pid, tree]);
+      entries = entries.filter(entry => entry.pid !== pid);
+    },
+  };
+  assert.equal(signalWindowsTree(20, 0, operations, 1_000), 'sent', 'an orphan of the exited root keeps its tree running');
+  assert.equal(signalWindowsTree(20, 'SIGTERM', operations, 1_000), 'ended');
+  assert.deepEqual(calls, [[21, false]]);
+  assert.equal(signalWindowsTree(20, 0, { table: () => [{ pid: 8136, ppid: 20, pgid: 8136, started: fileTime(10) }] }, 1_000), 'ended');
 });
 
 test('the Windows tree stop never targets a process that names the root as its parent but is older (K925)', () => {
