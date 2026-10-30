@@ -192,7 +192,9 @@ export async function runCheckoutSmoke(cwd: string, signal: AbortSignal, smoke: 
   command: process.execPath, args: ['--input-type=module', '-e', CHECKOUT_SMOKE_SOURCE],
 }) {
   let pgid: number | undefined;
-  const end = () => (pgid === undefined ? 'ended' : signalGroup(pgid, 'SIGTERM'));
+  // The time before the spawn of the group, which stands for its leader once it has exited (signalGroup).
+  let since: number | undefined;
+  const end = () => (pgid === undefined ? 'ended' : signalGroup(pgid, 'SIGTERM', undefined, since));
   const forward = (received: NodeJS.Signals) => {
     end();
     stop();
@@ -206,6 +208,7 @@ export async function runCheckoutSmoke(cwd: string, signal: AbortSignal, smoke: 
   signal.addEventListener('abort', end);
   process.once('SIGTERM', forward);
   process.once('SIGINT', forward);
+  since = Date.now();
   const child = spawn(smoke.command, smoke.args, { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
   pgid = child.pid;
   if (pgid === undefined) stop();

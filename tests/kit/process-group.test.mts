@@ -136,6 +136,37 @@ test('the Windows tree stop of an exited root stops its orphans and no older pro
   assert.equal(signalWindowsTree(20, 0, { table: () => [{ pid: 8136, ppid: 20, pgid: 8136, started: fileTime(10) }] }, 1_000), 'ended');
 });
 
+/** A table seam that answers each call with the next snapshot, and the last one from then on. */
+function snapshots(...tables: ProcessEntry[][]): () => ProcessEntry[] {
+  let call = 0;
+  return () => tables[Math.min(call++, tables.length - 1)] ?? [];
+}
+
+test('the Windows tree stop takes no process that reuses the id of a stopped descendant (K925)', () => {
+  const calls: [number, boolean][] = [];
+  const state = signalWindowsTree(20, 'SIGTERM', {
+    // The tree stop ends 20 and 21; the id 21 goes to an unrelated process before the next snapshot.
+    table: snapshots(
+      [{ pid: 20, ppid: 1, pgid: 20, started: 100n }, { pid: 21, ppid: 20, pgid: 21, started: 150n }],
+      [{ pid: 21, ppid: 4, pgid: 21, started: 9_000n }],
+    ),
+    terminate: (pid, tree) => { calls.push([pid, tree]); },
+  });
+  assert.deepEqual(calls, [[20, true]]);
+  assert.equal(state, 'ended');
+});
+
+test('the Windows tree stop of an exited root takes no process that reuses the id of the root (K925)', () => {
+  const calls: [number, boolean][] = [];
+  const orphan: ProcessEntry = { pid: 21, ppid: 20, pgid: 21, started: fileTime(1_000) + 5n };
+  signalWindowsTree(20, 'SIGTERM', {
+    // The id of the exited root 20 goes to an unrelated process, which starts a child, before the second snapshot.
+    table: snapshots([orphan], [orphan, { pid: 20, ppid: 7, pgid: 20, started: fileTime(9_000) }, { pid: 22, ppid: 20, pgid: 22, started: fileTime(9_100) }], []),
+    terminate: (pid, tree) => { calls.push([pid, tree]); },
+  }, 1_000);
+  assert.deepEqual(calls, [[21, false]], 'only the orphan of the exited root is stopped');
+});
+
 test('the Windows tree stop never targets a process that names the root as its parent but is older (K925)', () => {
   let entries: ProcessEntry[] = [
     { pid: 20, ppid: 1, pgid: 20, started: 100n },

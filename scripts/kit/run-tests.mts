@@ -310,8 +310,8 @@ export function listedTests(argv: string[], root = repositoryRoot(), callerEnv: 
  * Sends SIGTERM to the process group of a timed-out test (its pgid is the pid of the detached child). EPERM while a member is in
  * exit and ESRCH after the group ended are not errors (process-group.mts).
  */
-export function terminateGroup(pgid: number, kill?: Parameters<typeof signalGroup>[2]) {
-  return signalGroup(pgid, 'SIGTERM', kill);
+export function terminateGroup(pgid: number, kill?: Parameters<typeof signalGroup>[2], since?: number) {
+  return signalGroup(pgid, 'SIGTERM', kill, since);
 }
 
 /** How long a stopped tool has to close after SIGTERM before its group receives SIGKILL. */
