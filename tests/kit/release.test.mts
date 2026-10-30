@@ -51,6 +51,13 @@ test('latest compares only the tags of the form vX.Y.Z and fails when none is re
   assert.equal(release.latestTag(ctx), 'v0.0.10');
 });
 
+test('latest takes git\'s version sort and skips a pre-release that git sorts above its release (K932)', (t) => {
+  const box = releaseSandbox(t, { version: '0.0.3' });
+  const ctx = context(box);
+  for (const tag of ['v0.0.9', 'v0.0.10', 'v0.0.10-rc1']) git(ctx.root, 'tag', tag);
+  assert.equal(release.latestTag(ctx), 'v0.0.10');
+});
+
 test('latest fails when no release tag is reachable', (t) => {
   const ctx = context(releaseSandbox(t));
   stop(() => release.latestTag(ctx), /no release tag is reachable from HEAD/);

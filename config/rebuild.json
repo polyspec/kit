@@ -356,7 +356,7 @@
     },
     "scripts/kit/release.mts": {
       "kind": "policy",
-      "reason": "release-please, changesets and semantic-release version and publish from their own conventions; this repository releases a tagged main commit whose CI passed, with archives built by npm pack, git archive and uv build; their tag ordering goes to semver in K73"
+      "reason": "release-please, changesets and semantic-release version and publish from their own conventions; this repository releases a tagged main commit whose CI passed, with archives built by npm pack, git archive and uv build; the newest release tag comes from git's own version sort (git tag --sort=-v:refname, K932)"
     },
     "scripts/kit/run-tests.mts": {
       "kind": "ecosystem",

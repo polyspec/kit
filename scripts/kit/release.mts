@@ -34,7 +34,6 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import semver from 'semver';
 import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, type GitHubRelease } from './github-release.mts';
 import { headings } from './markdown.mts';
 import { fileDigest } from './bootstrap/digest.mts';
@@ -213,12 +212,14 @@ export function context(root: string, { config = loadConfig(root), env = process
 /** The newest release tag reachable from HEAD, which resolves the argument `latest` of the release
  * commands: no release task names a version in its retry. */
 export function latestTag(ctx: Context): string {
-  const list = run('git', ['tag', '--merged', 'HEAD', '--list', 'v[0-9]*'], at(ctx));
-  // A release tag is vX.Y.Z; the pattern v[0-9]* also lists tags such as v1.2 or v1.2.3-rc1, which name no release.
+  // git sorts version refs itself, newest first (--sort=-v:refname).
+  const list = run('git', ['tag', '--merged', 'HEAD', '--list', 'v[0-9]*', '--sort=-v:refname'], at(ctx));
+  // A release tag is vX.Y.Z; the pattern v[0-9]* also lists tags such as v1.2 or v1.2.3-rc1, which name no release and which
+  // git may sort above a release, as v1.2.3-rc1 above v1.2.3.
   const tags = list.trim().split('\n').filter(tag => tag.startsWith('v') && EXACT_VERSION.test(tag.slice(1)));
   if (tags.length === 0) throw new Stop('no release tag is reachable from HEAD, so latest names no release');
-  // tags holds at least one tag, checked above, and semver reads each vX.Y.Z.
-  return present(semver.rsort(tags)[0], 'semver.rsort(tags)[0]');
+  // tags holds at least one tag, checked above.
+  return present(tags[0], 'tags[0]');
 }
 
 /** The version X.Y.Z of the release tag vX.Y.Z. */
