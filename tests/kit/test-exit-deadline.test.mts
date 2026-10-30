@@ -48,3 +48,34 @@ test('a test that mocks setTimeout ends, since the turn around each test keeps t
   assert.equal(result.status, 0, output);
   assert.match(output, /2 passed, 0 failed, 0 timed out/);
 });
+
+// K943: a running test is bounded by its own declared timeout, which node applies, and the file default applies only when a test
+// declares none; the watch of the preload stays off while a test runs.
+test('a case that declares 60 s and takes 40 s passes under a 30 s file default (K943)', { timeout: 120_000 }, (t) => {
+  const slow = "import test from 'node:test';\ntest('declares 60 s and takes 40 s', { timeout: 60000 }, async () => { await new Promise(resolve => setTimeout(resolve, 40000)); });\n";
+  const root = tree(t, { 'tests/slow40.test.mjs': slow });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '30', '--', 'tests/slow40.test.mjs'], { cwd: root, encoding: 'utf8' });
+  const output = result.stdout + result.stderr;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /1 passed, 0 failed, 0 timed out/);
+});
+
+// Guard: node ends a test that never settles at its declared timeout, and the process then exits by its own means.
+test('a case that never settles is ended by node at its declared timeout, not at the file default (K943)', { timeout: 60_000 }, (t) => {
+  const stuck = "import test from 'node:test';\ntest('never settles', { timeout: 2000 }, async () => { await new Promise(() => {}); });\n";
+  const root = tree(t, { 'tests/stuck-declared.test.mjs': stuck });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '30', '--', 'tests/stuck-declared.test.mjs'], { cwd: root, encoding: 'utf8' });
+  const output = result.stdout + result.stderr;
+  assert.equal(result.status, 1, output);
+  assert.match(output, /timed out after 2000ms/);
+});
+
+// Guard: the watch after the last test still ends a process that does not exit.
+test('a process that outlives its last test is ended after the deadline with its open handle named (K943)', { timeout: 60_000 }, (t) => {
+  const leak = "import test from 'node:test';\ntest('passes and leaves a timer', () => { setInterval(() => {}, 1000); });\n";
+  const root = tree(t, { 'tests/leak-after.test.mjs': leak });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/leak-after.test.mjs'], { cwd: root, encoding: 'utf8' });
+  const output = result.stdout + result.stderr;
+  assert.equal(result.status, 1, output);
+  assert.match(output, /did not exit 2000 ms after its last test/);
+});
