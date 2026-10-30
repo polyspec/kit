@@ -2,6 +2,7 @@
 // and the command that runs them. Each rule has a passing and a failing case.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
@@ -342,4 +343,27 @@ test('running the owners refuses outside CI and runs no check; --dry-run prints 
   assert.doesNotMatch(refused.stdout, /ran-first/);
   const dry = command(root, ['--paths', 'a.txt', '--dry-run'], { ci: false });
   assert.equal(dry.status, 0, dry.stdout + dry.stderr);
+});
+
+// K945: makeDatabase reads the database of make -pRrq without running a recipe. Under -q, GNU make still runs a recipe line that
+// contains $(MAKE), so a default goal that calls $(MAKE) recursed without bound, with each child selecting the same goal again. The
+// fixture logs each parse, so a child make is visible, and it stops a child at parse time, so a regression is bounded at one child.
+test('makeDatabase reads the database of a Makefile whose default goal calls $(MAKE), with no child make (K945)', { timeout: 20_000 }, (t) => {
+  const root = tree(t, { 'Makefile': 'placeholder\n' });
+  const log = path.join(root, 'make-parses.log');
+  writeFileSync(path.join(root, 'Makefile'), [
+    `_ := $(shell echo level-$(MAKELEVEL) >> ${log})`,
+    'ifneq ($(MAKELEVEL),0)',
+    '$(error a child make of the database runs: the recursion of K945)',
+    'endif',
+    'ci-targets:',
+    '\t$(MAKE) $(TARGETS)',
+    '',
+  ].join('\n'));
+  const database = makeDatabase(root);
+  assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), ['level-0'], 'make runs once, with no child make');
+  assert.equal(database.targets.has('ci-targets'), true, 'the database names the targets of the Makefile');
+  // The default goal of this read is not a target of the Makefile, and its variable is not a variable of it (K945).
+  assert.equal(database.targets.has('.kit-database-read'), false, 'the database leaves out the default goal of the read');
+  assert.equal(database.variables.has('.DEFAULT_GOAL'), false, 'the database leaves out the default goal variable');
 });
