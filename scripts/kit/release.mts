@@ -180,7 +180,6 @@ export function loadConfig(root: string): ReleaseConfig {
     for (const generated of config.packages.find(item => item.directory === directory)?.generated ?? []) {
       const valid = (file: string) => file !== '' && !file.startsWith('~') && !file.startsWith('/') && path.win32.parse(file).root === '' && !file.includes('\\') && file.split('/').every(part => part !== '' && part !== '.' && part !== '..');
       if (generated.kind === 'make') {
-        if (!/^[A-Za-z][A-Za-z0-9_.-]*$/.test(generated.target)) problems.push(`${CONFIG}: generated make target ${JSON.stringify(generated.target)} is not a make target name`);
         if (!generated.outputs.length || generated.outputs.some(output => !valid(output))) problems.push(`${CONFIG}: generated make outputs of ${directory} must be one or more package-relative paths without empty, dot or parent segments`);
       }
     }

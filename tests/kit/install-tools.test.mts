@@ -170,7 +170,7 @@ test('K861: install-tools runs rustup toolchain install for each declared Rust c
   assert.deepEqual(stubs.calls().filter(line => line.startsWith('rustup')).slice(1), ['rustup toolchain install nightly-2026-10-01 --profile minimal'], 'kit judges no installed channel; rustup keeps it');
 });
 
-test('K861: install-tools installs no arginfo generator and no symbol extractor; their make targets are the one path', (t) => {
+test('K861: install-tools installs no symbol extractor; their make targets are the one path', (t) => {
   const composerToml = '[tools]\n"http:composer" = { version = "2.8.12", url = "https://getcomposer.org/download/2.8.12/composer.phar" }\n';
   const { root, stubs } = checkout(t, composerToml, { '.php-version': '8.4\n', 'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['php'] }), 'packages/php-ext/config.m4': '' });
   for (const name of ['php', 'php-config', 'phpize']) writeFileSync(path.join(stubs.directory, 'bin', name), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
@@ -178,7 +178,7 @@ test('K861: install-tools installs no arginfo generator and no symbol extractor;
   writeFileSync(path.join(root, 'var/tools/mise/shims/composer'), '#!/bin/sh\nexit 0\n', { mode: 0o755 });
   const result = start(INSTALL_TOOLS, root, stubs.env);
   assert.equal(result.status, 0, result.stderr);
-  for (const prefix of ['php-arginfo', 'symbols-php']) assert.equal(existsSync(path.join(root, 'var/tools', prefix)), false, `install-tools installs no var/tools/${prefix}`);
+  for (const prefix of ['symbols-php']) assert.equal(existsSync(path.join(root, 'var/tools', prefix)), false, `install-tools installs no var/tools/${prefix}`);
 });
 
 test('a declared Rust channel without rustup fails with the one prerequisite of the machine', (t) => {

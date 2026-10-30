@@ -2,8 +2,8 @@
 // Installs the tools that the release of this repository needs (`make release-tools`), derived from config/release.json: a
 // Composer package, a wheel or a Go module needs the tools of mise.lock (the Composer, the Python, the uv and the Go of
 // mise.toml), which install-tools installs into var/tools; npm, which an npm package needs, is the npm of the bootstrap, which
-// installed the packages that this command runs from. A make entry of a package (K930) runs the target of the repository, which
-// reads the PHP of mise.lock, so install-tools installs it for the pack.
+// installed the packages that this command runs from. releaseSteps installs install-tools when a package declares a make entry (K930):
+// kit cannot know whether the target of the repository needs the PHP of mise.lock, so every make entry gets the tools.
 //
 // A step that fails stops the command with its output and the fix. Nothing is listed by hand: the configuration of a repository
 // decides the tools.

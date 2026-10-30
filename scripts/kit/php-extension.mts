@@ -293,7 +293,7 @@ function generateArginfo(root: string, source: string, stub: string): string {
 }
 
 /** A tracked repository source that `--source-copy` stages into the build (K247-3). */
-type SourceCopy = { kind: 'source-copy'; source: string; output: string };
+type SourceCopy = { source: string; output: string };
 
 interface BuildOptions {
   output?: string;
@@ -404,7 +404,7 @@ function buildOptions(args: readonly string[]): BuildOptions {
       const source = args[++index];
       const output = args[++index];
       if (!source || !output) throw new Stop('usage: --source-copy requires a tracked repository source and package-relative output');
-      options.sourceCopies?.push({ kind: 'source-copy', source, output });
+      options.sourceCopies?.push({ source, output });
     } else if (option === '--configure-arg') {
       const value = args[++index];
       if (!value) throw new Stop('usage: --configure-arg requires one configure option');

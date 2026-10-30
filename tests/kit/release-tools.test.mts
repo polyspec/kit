@@ -26,7 +26,7 @@ test('release-tools runs install-tools for a Composer package, a wheel and a Go 
   assert.equal(needsInstallTools({ packages: [{ kind: 'npm' }], goModules: {} }), false);
 });
 
-test('K930 release-tools installs no generator: a make entry of a package needs install-tools for the PHP of mise, and nothing else', () => {
+test('K930 releaseSteps installs install-tools when a package declares a make entry', () => {
   assert.deepEqual(releaseSteps({ packages: [{ kind: 'npm' }], goModules: {} }), []);
   assert.deepEqual(releaseSteps({ packages: [{ kind: 'npm', generated: [{ kind: 'make', target: 'gen', outputs: ['src/a.h'] }] }], goModules: {} }), ['install-tools']);
   assert.deepEqual(releaseSteps({ packages: [{ kind: 'composer', generated: [{ kind: 'make', target: 'gen', outputs: ['src/a.h'] }] }], goModules: {} }), ['install-tools']);
