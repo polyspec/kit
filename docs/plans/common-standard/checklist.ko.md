@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: a8c57165d2e2e964a8fa67fcb08ccf94a22cb193d07668bde67670207450f1b9 -->
+<!-- source-sha256: af62eb0d863fe6cd7e6d9607f31d5fcc250f044418e9e39ef11d5024d81e2963 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -802,3 +802,4 @@
 | K894 | main HEAD에서 K889의 row에 더해 K888, K891, K893과 함께 Kit 0.0.75를 릴리즈한다. K889 cut의 CI 40972329860이 K893이 고치는 K858 test에서 kit tests (5)로 실패했고 release는 origin/main을 tag하므로 0.0.75는 공개되지 않았다 | CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K898 | Kit 0.0.76 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K903 | Kit 0.0.77 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
+| K917 | Kit 0.0.78 릴리즈 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [ ] |
