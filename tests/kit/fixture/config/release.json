@@ -2,10 +2,6 @@
   "schema": 1,
   "repositoryUrl": "https://example.com/polyspec/kit-fixture",
   "changelog": "CHANGELOG.md",
-  "checks": [
-    "push-gate",
-    "ci-passed"
-  ],
   "packages": [
     {
       "kind": "npm",

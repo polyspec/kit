@@ -33,9 +33,17 @@ test('the release workflow has one job, so every step runs in the job that creat
   assert.equal(jobs.filter(line => /^  [a-z-]+:$/.test(line)).length, 1, 'the workflow names one job');
 });
 
-test('the release workflow installs the tools of the repository before it verifies anything', () => {
-  const tools = step('make release-tools', /^make release-tools$/);
-  assert.ok(tools.line < step('make release-verify', /^make release-verify$/).line, 'release-tools runs before release-verify');
+// K911: the release takes the id of a successful CI run and a version; the kit of main tags the commit of the run, and the release
+// builds the tagged commit with its own packages. Nothing reads check runs, and no tag push starts a release.
+test('K911: a dispatch with a CI run and a version starts the release, which tags the commit of the run before it builds it', () => {
+  const text = lines.join('\n');
+  assert.match(text, /^on:\n {2}workflow_dispatch:\n {4}inputs:\n {6}run:\n[\s\S]*?\n {6}version:\n/m);
+  assert.doesNotMatch(text, /^ {2}push:|tags: \[|inputs\.tag|release-verify|release-go-tags/m);
+  assert.match(text, /^permissions:\n {2}contents: write\n {2}actions: read\n/m);
+  assert.match(text, /^ {6}TAG: v\$\{\{ inputs\.version \}\}$/m);
+  const tag = step('make release-tag', /^make release-tag$/);
+  const checkout = step('git checkout of the tag', /^git checkout --quiet "\$TAG"$/);
+  assert.ok(tag.line < checkout.line && checkout.line < step('make release-prepare', /^make release-prepare$/).line, 'release-tag, then the checkout of the tag, then the release of that commit');
 });
 
 test('the release workflow creates the release as a draft and makes it public last', () => {
@@ -69,16 +77,15 @@ test('the release workflow sets up the PHP of .php-version without a coverage dr
 });
 
 test('the release workflow bootstraps the package, checks the configuration, then prepares the release of the repository, before release-tools (K71-2, K132, K193)', () => {
-  // The release runs no kit-check of its own: release-verify refuses a commit whose CI, kit-check included, did not pass (K193, K755).
+  // The release runs no kit-check of its own: release-tag refuses a commit whose CI run, kit-check included, did not pass (K193, K755).
   const install = step('make install-tools TOOLS=npm', /^make install-tools TOOLS=npm$/);
   assert.ok(step('the Composer archive preflight', /^command -v zip /).line < install.line, 'archive capability is checked before installation');
-  assert.deepEqual(runs.filter(run => run.command.startsWith('make ')).slice(0, 5).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make release-tag', 'make release-prepare', 'make release-tools']);
-  // A dispatch with a tag creates the tag at origin/main; a tag push already has it (K269).
-  assert.equal(lines[step('make release-tag', /^make release-tag$/).line - 2]?.trim(), "if: ${{ github.event_name == 'workflow_dispatch' }}");
+  // The kit of main tags (K269, K911); the packages of the tagged commit are installed again before its release.
+  assert.deepEqual(runs.filter(run => run.command.startsWith('make ')).slice(0, 7).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make release-tag', 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare', 'make release-tools']);
 });
 
 test('kit releases itself with the workflow it vendors: .github/workflows/release.yml is workflows/release.yml', () => {
-  // config/release.json declares the package @polyspec/kit and its asset; a tag push runs this workflow, which needs kit's own
+  // config/release.json declares the package @polyspec/kit and its asset; a dispatch runs this workflow, which needs kit's own
   // make targets install-tools and install-packages in the bootstrap order (K79).
   assert.equal(readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8'), readFileSync(path.join(ROOT, 'workflows/release.yml'), 'utf8'));
   assert.match(readFileSync(path.join(ROOT, 'Makefile'), 'utf8'), /^install-packages:/m);

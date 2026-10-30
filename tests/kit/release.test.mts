@@ -1,4 +1,4 @@
-// Tests of the release tool (scripts/kit/release.mts): the configuration, the tag, verify, the manifest rules,
+// Tests of the release tool (scripts/kit/release.mts): the configuration, the tag, the manifest rules,
 // assets, publish and coverage. Each case works in a committed copy of the fixture (release-sandbox.mts) with stubs of
 // gh and npm on PATH; real git, tar and unzip run, and the K871 case runs the real Composer and PHP of the main checkout.
 // No case reaches GitHub or a registry.
@@ -56,12 +56,10 @@ test('latest fails when no release tag is reachable', (t) => {
   stop(() => release.latestTag(ctx), /no release tag is reachable from HEAD/);
 });
 
-test('a release tag is a version or a Go module directory and a version', (t) => {
-  const { config } = context(releaseSandbox(t));
-  assert.deepEqual(release.parseTag(config, 'v1.2.3'), [null, '1.2.3']);
-  assert.deepEqual(release.parseTag(config, 'packages/fixture-go/v1.2.3'), ['packages/fixture-go', '1.2.3']);
-  for (const tag of ['1.2.3', 'v1.2', 'v01.2.3', 'v1.2.3-rc1', 'v1.2.3/', '']) stop(() => release.parseTag(config, tag), /a release tag is vX\.Y\.Z or <Go module directory>\/vX\.Y\.Z/);
-  stop(() => release.parseTag(config, 'other/v1.2.3'), /other is not a Go module directory; the Go modules are \[packages\/fixture-go\]/);
+// K911: a release is the tag vX.Y.Z; release-tag creates the Go module tags with it, so no release starts from a module tag.
+test('a release tag is vX.Y.Z', () => {
+  assert.equal(release.parseTag('v1.2.3'), '1.2.3');
+  for (const tag of ['1.2.3', 'v1.2', 'v01.2.3', 'v1.2.3-rc1', 'v1.2.3/', '', 'packages/fixture-go/v1.2.3']) stop(() => release.parseTag(tag), /a release tag is vX\.Y\.Z$/);
 });
 
 test('the schema accepts the configuration of the fixture and names each error of another', (t) => {
@@ -86,10 +84,9 @@ test('the configuration is checked for the rules that the schema cannot express'
     writeJson(box.root, 'config/release.json', change(readJson<ConfigJson>(box.root, 'config/release.json')));
     return () => release.loadConfig(box.root);
   };
-  assert.equal(release.loadConfig(box.root).checks.join(), 'push-gate,ci-passed');
   const original = readJson<ConfigJson>(box.root, 'config/release.json');
-  writeJson(box.root, 'config/release.json', (({ checks: _checks, ...rest }) => rest)(original));
-  assert.equal(release.loadConfig(box.root).checks.join(), 'ci-passed', 'the checks default to ci-passed');
+  // K911: the CI run is the evidence of a release, so the configuration names no checks.
+  stop(load(c => ({ ...c, checks: ['ci-passed'] })), /must NOT have additional properties/);
   writeJson(box.root, 'config/release.json', original);
   stop(load(c => ({ ...c, manifests: { ...c.manifests, 'package.json': 'tarball' } })), /manifests\.package\.json is "tarball", the allowed values are archive, version, git-tag/);
   writeJson(box.root, 'config/release.json', original);
@@ -108,66 +105,6 @@ test('the configuration is checked for the rules that the schema cannot express'
   stop(load(() => ({ ...original, packages: original.packages.map(p => (p.kind === 'composer' ? { ...p, generated: [{ kind: 'source-copy', source: 'packages/fixture-lib/shared.c', output: 'src/../shared.c' }] } : p)) })), /source-copy output "src\/\.\.\/shared\.c" is not a package-relative path/);
   git(box.root, 'rm', '-q', '-f', 'config/release.json');
   stop(() => release.loadConfig(box.root), /config\/release\.json: the file is missing/);
-});
-
-test('a commit of main whose checks succeeded is verified, and the check runs are read for it', (t) => {
-  const box = releaseSandbox(t);
-  const tag = box.release('0.0.1');
-  const lines: string[] = [];
-  const result = release.verify(context(box, { log: line => lines.push(line) }), tag);
-  assert.deepEqual(result, { commit: box.commit, checks: ['push-gate', 'ci-passed'] });
-  assert.deepEqual(box.state().calls, [['api', '--paginate', `repos/${REPOSITORY}/commits/${box.commit}/check-runs?per_page=100`, '--jq', '.check_runs[] | [.id, .name, .status, .conclusion] | @json']]);
-  assert.ok(lines.some(line => line.includes(`reading the check runs of ${box.commit}`)), lines.join('\n'));
-});
-
-test('a release tag is annotated: a lightweight tag fails and names the tag and its kind, an annotated tag passes', (t) => {
-  const box = releaseSandbox(t);
-  git(box.root, 'tag', 'v0.0.1', box.commit);
-  stop(() => release.verify(context(box), 'v0.0.1'), /v0\.0\.1: the commit [0-9a-f]{40}: the tag v0\.0\.1 has the object type commit, not tag; a release tag is annotated, so create it with git tag -a v0\.0\.1 -m v0\.0\.1/);
-  git(box.root, 'tag', '-d', 'v0.0.1');
-  assert.equal(release.verify(context(box), box.release('0.0.1')).commit, box.commit);
-});
-
-test('a commit that is not an ancestor of origin/main fails and names the commit', (t) => {
-  const box = releaseSandbox(t);
-  writeFileSync(path.join(box.root, 'later.txt'), 'later');
-  git(box.root, 'add', '-A');
-  git(box.root, 'commit', '--quiet', '-m', 'later');
-  const tag = box.tag('v0.0.1', git(box.root, 'rev-parse', 'HEAD'));
-  stop(() => release.verify(context(box), tag), /v0\.0\.1: the commit [0-9a-f]{40}: the commit is not on origin\/main; a release tags a commit of main/);
-});
-
-test('a missing, running or failed check is named and the latest run of a check decides', (t) => {
-  const box = releaseSandbox(t);
-  const tag = box.release('0.0.1');
-  box.checkRuns([['push-gate', 'success']]);
-  stop(() => release.verify(context(box), tag), /the check ci-passed is missing/);
-  box.checkRuns([['push-gate', 'failure'], ['ci-passed', null]]);
-  stop(() => release.verify(context(box), tag), /the check push-gate is completed with the conclusion failure, not success; the check ci-passed is in_progress with the conclusion null, not success/);
-  box.checkRuns([['push-gate', 'failure'], ['ci-passed', 'success'], ['push-gate', 'success']]);
-  assert.equal(release.verify(context(box), tag).commit, box.commit, 'a rerun that succeeded replaces the failed run');
-  box.checkRuns([['push-gate', 'success'], ['ci-passed', 'success'], ['push-gate', 'cancelled']]);
-  stop(() => release.verify(context(box), tag), /the check push-gate is completed with the conclusion cancelled/);
-});
-
-test('the checks come from the configuration', (t) => {
-  const box = releaseSandbox(t);
-  const tag = box.release('0.0.1');
-  edit<ConfigJson>(box.root, 'config/release.json', c => ({ ...c, checks: ['build'] }));
-  box.checkRuns([['push-gate', 'success'], ['ci-passed', 'success']]);
-  stop(() => release.verify(context(box), tag), /the check build is missing/);
-  box.checkRuns([['build', 'success']]);
-  assert.deepEqual(release.verify(context(box), tag).checks, ['build']);
-});
-
-test('verify without the repository, with an unknown tag or with a failing gh stops with the cause', (t) => {
-  const box = releaseSandbox(t);
-  const tag = box.release('0.0.1');
-  stop(() => release.verify(release.context(box.root, { env: { ...box.env, GITHUB_REPOSITORY: '' } }), tag), /GITHUB_REPOSITORY is not set/);
-  assert.deepEqual(box.state().calls, [], 'no request without the repository');
-  stop(() => release.verify(context(box), 'v9.9.9'), /git rev-parse --verify refs\/tags\/v9\.9\.9\^\{commit\} exited with 128/);
-  writeFileSync(path.join(box.root, '.stubs/bin/gh'), '#!/bin/sh\necho "HTTP 404" >&2\nexit 1\n');
-  stop(() => release.verify(context(box), tag), /gh api --paginate repos\/example\/kit-fixture\/commits\/[0-9a-f]{40}\/check-runs\?per_page=100 .* exited with 1: HTTP 404/);
 });
 
 test('the section is the release notes without the anchor of the next section', (t) => {
@@ -189,7 +126,7 @@ test('a section over the limit of GitHub becomes a link to the section, and a se
   assert.equal(release.releaseNotes(context(box), 'v0.0.1'),
     'The changes of 0.0.1 are listed in [CHANGELOG.md](https://example.com/polyspec/kit-fixture/blob/v0.0.1/CHANGELOG.md#release-001).\n');
   writeFileSync(path.join(box.root, 'CHANGELOG.md'), `# Changelog\n\n## 0.0.1\n\n${entry(release.NOTES_LIMIT + 5)}\n`);
-  assert.match(release.releaseNotes(context(box), 'packages/fixture-go/v0.0.1'), /blob\/packages\/fixture-go\/v0\.0\.1\/CHANGELOG\.md#001\)\.\n$/, 'the anchor of a heading without an id is the version without dots');
+  assert.match(release.releaseNotes(context(box), 'v0.0.1'), /blob\/v0\.0\.1\/CHANGELOG\.md#001\)\.\n$/, 'the anchor of a heading without an id is the version without dots');
 });
 
 // K785: the form of a dependency is the package manager's to resolve; the release keeps only the tag version of its own packages.
@@ -463,21 +400,11 @@ test('npm pack that writes none or several archives fails and names them', (t) =
   stop(() => release.assets(context(box), tag), /npm pack of packages\/fixture-lib wrote \[\], not one archive/);
 });
 
-test('a Go module tag builds no archive and clears the directory', (t) => {
-  const box = releaseSandbox(t);
-  const target = path.join(box.root, 'var/release/assets');
-  mkdirSync(target, { recursive: true });
-  writeFileSync(path.join(target, 'stale.tgz'), 'old');
-  assert.deepEqual(release.assets(context(box), box.tag('packages/fixture-go/v0.0.1')), []);
-  assert.deepEqual(readdirSync(target), []);
-  assert.deepEqual(box.npmCalls(), []);
-});
-
 test('publish creates the release with the notes and the archives', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
   release.assets(context(box), tag);
-  box.checkRuns([]);
+  box.ghState();
   const lines: string[] = [];
   const names = release.publish(context(box, { log: line => lines.push(line) }), tag);
   const target = path.join(box.root, 'var/release/assets');
@@ -494,23 +421,19 @@ test('publish creates the release with the notes and the archives', (t) => {
 test('publish with a missing archive fails before any request', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
-  box.checkRuns([]);
+  box.ghState();
   stop(() => release.publish(context(box), tag), /var\/release\/assets lacks \[fixture-lib-npm-0\.0\.1\.tgz, fixture-app-npm-0\.0\.1\.tgz, polyspec-kit-fixture-php-0\.0\.1\.zip, kit_fixture-0\.0\.1-py3-none-any\.whl, packages\.json\]; make release-assets builds them/);
   assert.deepEqual(box.state().calls, []);
 });
 
-test('publish of a Go module tag creates a release without archives, and a failing gh stops', (t) => {
+test('publish stops on a failing gh and on a tag that the remote lacks', (t) => {
   const box = releaseSandbox(t);
-  const tag = box.tag('packages/fixture-go/v0.0.1');
-  box.checkRuns([]);
-  assert.deepEqual(release.publish(context(box), tag), []);
-  assert.deepEqual(box.state().created, { tag, name: tag, draft: 'true' });
-  assert.equal(box.state().uploads, undefined, 'a Go module tag uploads no archive');
-  assert.deepEqual(readJson(box.root, 'var/release/packages/fixture-go/v0.0.1.json'), { id: 42 });
-  box.checkRuns([], { failRelease: true });
+  const tag = box.tag('v0.0.1');
+  release.assets(context(box), tag);
+  box.ghState({ failRelease: true });
   stop(() => release.publish(context(box), tag), /gh api .*--method POST repos\/polyspec\/kit-fixture\/releases .* exited with 1: gh: release failed/);
-  box.checkRuns([], { missingTag: true });
-  stop(() => release.publish(context(box), tag), /the tag packages\/fixture-go\/v0\.0\.1 is not on https:\/\/[^ ]+; push it before the release is published/);
+  box.ghState({ missingTag: true });
+  stop(() => release.publish(context(box), tag), /the tag v0\.0\.1 is not on https:\/\/[^ ]+; push it before the release is published/);
 });
 
 test('publish needs the section of the version', (t) => {
@@ -518,7 +441,7 @@ test('publish needs the section of the version', (t) => {
   const tag = box.tag('v0.0.1');
   release.assets(context(box), tag);
   writeFileSync(path.join(box.root, 'CHANGELOG.md'), '# Changelog\n');
-  box.checkRuns([]);
+  box.ghState();
   stop(() => release.publish(context(box), tag), /CHANGELOG\.md: no section ## 0\.0\.1/);
   assert.deepEqual(box.state().calls, []);
 });
@@ -575,13 +498,10 @@ const cli = (box: Box, args: string[]) => spawnSync(process.execPath, [tool(impo
 test('the command line runs each step, prints a line per step and exits with 1 on a failure', (t) => {
   const box = releaseSandbox(t);
   const tag = box.release('0.0.1');
-  let result = cli(box, ['verify', tag]);
-  assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout, new RegExp(`\\[release\\] v0\\.0\\.1: the commit ${box.commit} is on origin/main and passed push-gate, ci-passed`));
-  result = cli(box, ['assets', tag]);
+  let result = cli(box, ['assets', tag]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /\[release\] v0\.0\.1: built fixture-lib-npm-0\.0\.1\.tgz, fixture-app-npm-0\.0\.1\.tgz, polyspec-kit-fixture-php-0\.0\.1\.zip, kit_fixture-0\.0\.1-py3-none-any\.whl, packages\.json in var\/release\/assets/);
-  box.checkRuns([]);
+  box.ghState();
   result = cli(box, ['publish', tag]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /created the GitHub Release with fixture-lib-npm-0\.0\.1\.tgz/);
@@ -598,10 +518,10 @@ test('the command line runs each step, prints a line per step and exits with 1 o
 
 test('the command line refuses a missing mode, missing arguments and extra arguments with the usage', (t) => {
   const box = releaseSandbox(t);
-  for (const args of [[], ['verify'], ['candidate-assets'], ['bogus', 'v0.0.1'], ['verify', 'v0.0.1', 'extra'], ['candidate-assets', '0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {
+  for (const args of [[], ['verify', 'v0.0.1'], ['tag', 'v0.0.1'], ['go-tags', 'v0.0.1'], ['candidate-assets'], ['bogus', 'v0.0.1'], ['assets', 'v0.0.1', 'extra'], ['candidate-assets', '0.0.1', 'extra'], ['coverage', 'v0.0.1']]) {
     const result = cli(box, args);
     assert.equal(result.status, 2, args.join(' '));
-    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts tag\|verify\|assets\|publish\|undraft\|go-tags TAG \| candidate-assets VERSION \| coverage/);
+    assert.match(result.stderr, /usage: node scripts\/kit\/release\.mts assets\|publish\|undraft TAG \| candidate-assets VERSION \| coverage/);
   }
 });
 
@@ -609,7 +529,7 @@ test('make runs each release step with the tag of the environment and fails with
   const box = releaseSandbox(t);
   box.release('0.0.1');
   const make = (...args: string[]) => spawnSync('make', [...KIT_MAKE, ...args], { cwd: box.root, env: { ...box.env, GITHUB_REPOSITORY: REPOSITORY }, encoding: 'utf8' });
-  for (const target of ['release-verify', 'release-assets', 'release-publish', 'release-undraft']) {
+  for (const target of ['release-assets', 'release-publish', 'release-undraft']) {
     const result = make(target);
     assert.equal(result.status, 2, target);
     assert.match(result.stdout + result.stderr, new RegExp(`${target}: TAG is required, for example make ${target} TAG=v0\\.0\\.1`));
@@ -620,8 +540,6 @@ test('make runs each release step with the tag of the environment and fails with
   result = make('release-candidate-assets', 'VERSION=0.0.1');
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /\[release\] HEAD candidate 0\.0\.1: built fixture-lib-npm-0\.0\.1\.tgz/);
-  result = make('release-verify', 'TAG=v0.0.1');
-  assert.equal(result.status, 0, result.stderr);
   result = make('release-coverage');
   assert.equal(result.status, 0, result.stderr);
 });
@@ -696,7 +614,7 @@ test('publish replaces the draft of an earlier run and never replaces a public r
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
   release.assets(context(box), tag);
-  box.checkRuns([]);
+  box.ghState();
   box.releases([{ id: 5, tag_name: tag, draft: true, assets: [] }]);
   const lines: string[] = [];
   release.publish(context(box, { log: line => lines.push(line) }), tag);
@@ -711,7 +629,7 @@ test('publish replaces the draft of an earlier run and never replaces a public r
 test('undraft finds the draft by the id that publish recorded, also while the list of releases does not show it yet (K79)', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');
-  box.checkRuns([], { byId: { 42: { id: 42, tag_name: tag, draft: true, assets: [] } } });
+  box.ghState({ byId: { 42: { id: 42, tag_name: tag, draft: true, assets: [] } } });
   box.releases([]);
   stop(() => release.undraft(context(box), tag), /var\/release\/v0\.0\.1\.json is missing; make release-publish writes it/);
   mkdirSync(path.join(box.root, 'var/release'), { recursive: true });

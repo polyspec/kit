@@ -1,25 +1,18 @@
 #!/usr/bin/env node
-// Releases a tag of a commit of main. The steps run in this order from the release workflow (workflows/release.yml), each
-// through its make target:
+// Releases a tag of a commit of main. The release workflow (workflows/release.yml) creates the tags with release-run.mts tag
+// (K911) and then runs these steps in this order, each through its make target:
 //
-//   node scripts/kit/release.mts verify TAG     the tagged commit is on origin/main and its checks concluded success
 //   node scripts/kit/release.mts assets TAG     build the archive of every package of the tag, and packages.json of its
 //                                               Composer packages, into var/release/assets
 //   node scripts/kit/release.mts publish TAG    create the GitHub Release of the tag as a draft, with its notes and those files
 //   node scripts/kit/release.mts undraft TAG    make the draft release of the tag public
-//   node scripts/kit/release.mts go-tags TAG    every Go module has its tag <directory>/vX.Y.Z at the commit of TAG
 //   node scripts/kit/release.mts coverage       every package file of the checkout is classified in config/release.json
 //
 // The repository is data: config/release.json (schema scripts/kit/schema/release.schema.json) lists the packages that a
 // tag releases as archives, the manifests that carry the version, the manifests that no tag releases and the Go modules.
-// A tag `vX.Y.Z` releases the packages at the version X.Y.Z; a tag `<Go module directory>/vX.Y.Z` releases that Go module
-// and builds no archive. No step reruns the tests: every commit of main passed the full suite before it reached main.
-//
-// `verify` resolves the tag to its commit, requires the commit to be an ancestor of origin/main, requires for a tag vX.Y.Z
-// the tag `<directory>/vX.Y.Z` of every Go module at the same commit (`go-tags`; a Go proxy reads a module from that tag
-// only) and reads the check runs of the commit from `gh api repos/<repository>/commits/<sha>/check-runs` (the repository of GITHUB_REPOSITORY): the latest run
-// of each configured check must be completed with the conclusion success.
-//   TAG is `latest` for the newest root release tag reachable from HEAD.
+// A tag `vX.Y.Z` releases the packages at the version X.Y.Z; createTags puts it and the tag `<directory>/vX.Y.Z` of every Go
+// module, which a Go proxy reads, at the commit of a successful CI run (K911). No step reruns the tests: the run is the evidence.
+//   TAG is `latest` for the newest release tag reachable from HEAD.
 // `assets` builds one archive per package, named `<package>-<language>-<version>.<ext>` with `@scope/`
 // written `scope-` and `vendor/` `vendor-` (`@scope/x` is `scope-x-npm-1.0.0.tgz`, `vendor/x` is `vendor-x-php-1.0.0.zip`):
 // `npm pack` of an npm package, whose output is renamed to that name, and a `git archive` zip of the directory of a Composer
@@ -63,14 +56,13 @@ export const CONFIG = 'config/release.json';
 export const ASSETS = 'var/release/assets';
 /** The Composer repository of the Composer packages of a release, beside its archives (K871). */
 export const PACKAGES_JSON = 'packages.json';
-export const DEFAULT_CHECKS = ['ci-passed'];
 // GitHub refuses a release body over 125000 characters.
 export const NOTES_LIMIT = 125000;
 export const MODES: readonly string[] = ['archive', 'version', 'git-tag'];
 // The files of a checkout that carry the version or the module of a package; coverage requires each to be classified.
 export const PACKAGE_FILES = ['package.json', 'composer.json', 'Cargo.toml', 'pyproject.toml', 'go.mod', 'VERSION'];
 const MANIFEST_FILES = PACKAGE_FILES.filter(name => name !== 'go.mod');
-const TAG = /^(?:(?<directory>[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*)\/)?v(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
+const TAG = /^v(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const MANIFEST_OF: Record<PackageKind, string> = { npm: 'package.json', composer: 'composer.json', wheel: 'pyproject.toml' };
 // The language and the extension of the archive of each package kind: an npm tarball and a Composer zip.
@@ -106,7 +98,6 @@ export interface ReleaseConfig {
   repositoryUrl: string;
   changelog: string;
   changelogTranslations: string[];
-  checks: string[];
   packages: ReleasePackage[];
   manifests: Record<string, string>;
   notReleased: Record<string, string>;
@@ -114,21 +105,19 @@ export interface ReleaseConfig {
 }
 
 /** config/release.json as the schema admits it: the values of the maps are not checked yet, two lists may be absent. */
-type SchemaReleaseConfig = Omit<ReleaseConfig, 'changelogTranslations' | 'checks' | 'manifests' | 'notReleased' | 'goModules'> & {
+type SchemaReleaseConfig = Omit<ReleaseConfig, 'changelogTranslations' | 'manifests' | 'notReleased' | 'goModules'> & {
   changelogTranslations?: string[];
-  checks?: string[];
   manifests: Record<string, unknown>;
   notReleased: Record<string, unknown>;
   goModules: Record<string, unknown>;
 };
 
-/** A command context of context(). A test sets `repository` in place of GITHUB_REPOSITORY. */
+/** A command context of context(). */
 export interface Context {
   root: string;
   config: ReleaseConfig;
   env: NodeJS.ProcessEnv;
   log: (text: string) => void;
-  repository?: string;
 }
 
 /** A parsed manifest, package.json (NpmManifest) or composer.json (ComposerManifest), in the fields that the release reads. */
@@ -211,7 +200,7 @@ export function loadConfig(root: string): ReleaseConfig {
   }
   if (new Set(assetNames(config, '1.0.0')).size !== config.packages.length) problems.push(`${CONFIG}: two packages have the same archive name`);
   if (problems.length) throw new Stop(problems.join('; '));
-  return { ...config, checks: config.checks ?? DEFAULT_CHECKS, changelogTranslations: config.changelogTranslations ?? [], manifests, notReleased, goModules };
+  return { ...config, changelogTranslations: config.changelogTranslations ?? [], manifests, notReleased, goModules };
 }
 
 const at = (ctx: Context) => ({ cwd: ctx.root, env: ctx.env });
@@ -221,7 +210,7 @@ export function context(root: string, { config = loadConfig(root), env = process
   return { root, config, env, log };
 }
 
-/** The newest root release tag reachable from HEAD, which resolves the argument `latest` of the release
+/** The newest release tag reachable from HEAD, which resolves the argument `latest` of the release
  * commands: no release task names a version in its retry. */
 export function latestTag(ctx: Context): string {
   const list = run('git', ['tag', '--merged', 'HEAD', '--list', 'v[0-9]*'], at(ctx));
@@ -232,93 +221,36 @@ export function latestTag(ctx: Context): string {
   return present(semver.rsort(tags)[0], 'semver.rsort(tags)[0]');
 }
 
-/** [Go module directory or null, version] of a release tag. */
-export function parseTag(config: Pick<ReleaseConfig, 'goModules'>, tag: string): [string | null, string] {
+/** The version X.Y.Z of the release tag vX.Y.Z. */
+export function parseTag(tag: string): string {
   const found = TAG.exec(tag);
-  if (!found) throw new Stop(`${tag}: a release tag is vX.Y.Z or <Go module directory>/vX.Y.Z`);
-  // TAG has named groups, so a match has groups.
-  const directory = present(found.groups, 'found.groups').directory ?? null;
-  if (directory !== null && (directory === '.' || !(directory in config.goModules))) {
-    throw new Stop(`${tag}: ${directory} is not a Go module directory; the Go modules are [${Object.keys(config.goModules).filter(item => item !== '.').sort().join(', ')}]`);
-  }
-  // TAG has named groups and the group version takes part in every match.
-  return [directory, present(present(found.groups, 'found.groups').version, 'found.groups.version')];
+  if (!found) throw new Stop(`${tag}: a release tag is vX.Y.Z`);
+  // TAG has the named group version, which takes part in every match.
+  return present(present(found.groups, 'found.groups').version, 'found.groups.version');
 }
 
 const taggedCommit = (ctx: Context, tag: string) => run('git', ['rev-parse', '--verify', `refs/tags/${tag}^{commit}`], at(ctx)).trim();
 
 /**
- * The problems of the Go module tags of a tag vX.Y.Z: each declared Go module below the root needs the tag
- * `<directory>/vX.Y.Z` at the commit of vX.Y.Z, because a Go proxy resolves the module from that tag. A missing tag and a tag at
- * another commit name the git command that creates it. A Go module tag releases that module only and has no sibling tags.
+ * Creates the annotated tag vX.Y.Z and the tag `<directory>/vX.Y.Z` of every Go module of config/release.json at `commit`, the
+ * commit of a successful CI run, and pushes them (K269, K911); returns what it did per tag. A tag that names `commit` already
+ * passes; a tag at another commit stops before any tag is created, since a published tag is never moved. In GitHub Actions the
+ * tagger is the actor of the run.
  */
-export function goTagProblems(ctx: Context, tag: string): string[] {
-  const [directory, version] = parseTag(ctx.config, tag);
-  const commit = taggedCommit(ctx, tag);
-  if (directory !== null) return [];
-  const problems: string[] = [];
-  for (const [module, modulePath] of Object.entries(ctx.config.goModules).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))) {
-    if (module === '.') continue;
-    const goTag = `${module}/v${version}`;
-    const found = execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${goTag}^{commit}`], at(ctx));
-    const create = `git tag -a ${goTag} -m ${goTag} ${commit} && git push origin ${goTag}`;
-    if (found.status !== 0) problems.push(`the Go module tag ${goTag} is missing; a Go proxy resolves ${modulePath} from it. Fix: ${create}`);
-    else if (found.stdout.trim() !== commit) problems.push(`the Go module tag ${goTag} is at ${found.stdout.trim()}, the tag ${tag} is at ${commit}. Fix: git tag -d ${goTag} && ${create}`);
-  }
-  return problems;
-}
-
-/**
- * Creates the annotated tag `tag` at origin/main and pushes it, the first step of a release that the release workflow starts from
- * a dispatch (K269); returns what it did. A second run passes when the tag already names that commit; a tag at another commit
- * stops, since a published tag is never moved. In GitHub Actions the tagger is the actor of the run.
- */
-export function createTag(ctx: Context, tag: string): string {
-  parseTag(ctx.config, tag);
-  const main = run('git', ['rev-parse', '--verify', `${MAIN}^{commit}`], at(ctx)).trim();
-  const existing = execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`], at(ctx));
-  if (existing.status === 0) {
-    const commit = existing.stdout.trim();
-    if (commit !== main) throw new Stop(`the tag ${tag} is at ${commit}, not at ${MAIN} ${main}; a published tag is never moved`);
-    return `the tag ${tag} is at ${main} already`;
+export function createTags(ctx: Context, version: string, commit: string): string[] {
+  const tags = [`v${version}`, ...Object.keys(ctx.config.goModules).filter(module => module !== '.').sort().map(module => `${module}/v${version}`)];
+  const existing = new Map(tags.map(tag => [tag, execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`], at(ctx))]));
+  for (const [tag, found] of existing) {
+    if (found.status === 0 && found.stdout.trim() !== commit) throw new Stop(`the tag ${tag} is at ${found.stdout.trim()}, not at ${commit}; a published tag is never moved`);
+    const kind = found.status === 0 ? run('git', ['cat-file', '-t', `refs/tags/${tag}`], at(ctx)).trim() : 'tag';
+    if (kind !== 'tag') throw new Stop(`the tag ${tag} is a lightweight tag (${kind}); a release tag is annotated, so delete it with git tag -d ${tag} and release again`);
   }
   const actor = ctx.env.GITHUB_ACTOR;
   const identity = actor ? ['-c', `user.name=${actor}`, '-c', `user.email=${actor}@users.noreply.github.com`] : [];
-  run('git', [...identity, 'tag', '-a', tag, '-m', tag, main], at(ctx));
-  run('git', ['push', 'origin', `refs/tags/${tag}`], at(ctx));
-  return `created the tag ${tag} at ${main} and pushed it`;
-}
-
-export function verify(ctx: Context, tag: string): { commit: string; checks: string[] } {
-  parseTag(ctx.config, tag);
-  const repository = ctx.repository ?? ctx.env.GITHUB_REPOSITORY;
-  if (!repository) throw new Stop('GITHUB_REPOSITORY is not set; it names the repository <owner>/<name> whose check runs are read');
-  const commit = taggedCommit(ctx, tag);
-  const problems: string[] = [];
-  // A release tag is annotated: its object is a tag object that records the tagger and the time, not the commit itself.
-  const kind = run('git', ['cat-file', '-t', `refs/tags/${tag}`], at(ctx)).trim();
-  if (kind !== 'tag') problems.push(`the tag ${tag} has the object type ${kind}, not tag; a release tag is annotated, so create it with git tag -a ${tag} -m ${tag}`);
-  const ancestry = execute('git', ['merge-base', '--is-ancestor', commit, MAIN], at(ctx));
-  if (ancestry.status === 1) problems.push(`the commit is not on ${MAIN}; a release tags a commit of main`);
-  else if (ancestry.status !== 0) throw new Stop(`git merge-base --is-ancestor ${commit} ${MAIN} exited with ${ancestry.status}: ${(ancestry.stderr ?? '').trim()}`);
-  ctx.log(`[release] ${tag}: reading the Go module tags of ${Object.keys(ctx.config.goModules).filter(item => item !== '.').length} modules`);
-  problems.push(...goTagProblems(ctx, tag));
-  ctx.log(`[release] ${tag}: reading the check runs of ${commit} in ${repository}`);
-  const listed = run('gh', ['api', '--paginate', `repos/${repository}/commits/${commit}/check-runs?per_page=100`, '--jq', '.check_runs[] | [.id, .name, .status, .conclusion] | @json'], at(ctx));
-  // Each line is the JSON array [id, name, status, conclusion] that the --jq filter writes.
-  const runs = listed.split('\n').filter(line => line.trim()).map(line => parseJson<[number, string, string, string | null]>(line, 'github-check-run.schema.json', 'gh api check-runs'));
-  for (const name of ctx.config.checks) {
-    const named = runs.filter(entry => entry[1] === name);
-    if (named.length === 0) {
-      problems.push(`the check ${name} is missing`);
-      continue;
-    }
-    // A rerun of a check is a new run with a greater id; the latest run decides.
-    const [, , status, conclusion] = named.reduce((latest, entry) => (entry[0] > latest[0] ? entry : latest));
-    if (status !== 'completed' || conclusion !== 'success') problems.push(`the check ${name} is ${status} with the conclusion ${conclusion}, not success`);
-  }
-  if (problems.length) throw new Stop(`${tag}: the commit ${commit}: ${problems.join('; ')}`);
-  return { commit, checks: [...ctx.config.checks] };
+  const created = tags.filter(tag => existing.get(tag)?.status !== 0);
+  for (const tag of created) run('git', [...identity, 'tag', '-a', tag, '-m', tag, commit], at(ctx));
+  if (created.length) run('git', ['push', 'origin', ...created.map(tag => `refs/tags/${tag}`)], at(ctx));
+  return tags.map(tag => (created.includes(tag) ? `created the tag ${tag} at ${commit} and pushed it` : `the tag ${tag} is at ${commit} already`));
 }
 
 /** The level-2 heading of the section `version` of the change log `text` of `file`, with the headings of the text. */
@@ -357,12 +289,11 @@ export function changelogAnchor(root: string, file: string, version: string): st
 
 /** The notes of the release of the tag: the section when it has at most NOTES_LIMIT characters, otherwise one linking line. */
 export function releaseNotes(ctx: Context, tag: string): string {
-  const [, version] = parseTag(ctx.config, tag);
+  const version = parseTag(tag);
   const { changelog, repositoryUrl } = ctx.config;
   const section = changelogSection(ctx.root, changelog, version);
   if (section.length <= NOTES_LIMIT) return section;
-  const tagPath = tag.split('/').map(encodeURIComponent).join('/');
-  return `The changes of ${version} are listed in [${path.posix.basename(changelog)}](${repositoryUrl}/blob/${tagPath}/${changelog}#${changelogAnchor(ctx.root, changelog, version)}).\n`;
+  return `The changes of ${version} are listed in [${path.posix.basename(changelog)}](${repositoryUrl}/blob/${tag}/${changelog}#${changelogAnchor(ctx.root, changelog, version)}).\n`;
 }
 
 
@@ -465,16 +396,7 @@ function generatedArchiveFiles(ctx: Context, commit: string, folder: string, gen
  * tagged commit names its package, and each archive must carry the manifest of its package at the commit byte for byte; kit alone uses its canonical prepack source-to-dist manifest. The directory is replaced as a whole.
  */
 export function assets(ctx: Context, tag: string): string[] {
-  const { config } = ctx;
-  const [directory, version] = parseTag(config, tag);
-  if (directory !== null) {
-    const { root } = ctx;
-    const target = path.join(root, ASSETS);
-    ctx.log(`[release] ${tag}: a Go module tag builds no archive`);
-    rmSync(target, { recursive: true, force: true });
-    mkdirSync(target, { recursive: true });
-    return [];
-  }
+  const version = parseTag(tag);
   const retry = `make release-assets TAG=${tag}`;
   requireArchiveTools(ctx, retry);
   return assetsFromCommit(ctx, tag, taggedCommit(ctx, tag), version);
@@ -615,9 +537,9 @@ export function recordedRelease(ctx: Pick<Context, 'root' | 'env' | 'config'>, t
  */
 export function publish(ctx: Context, tag: string): string[] {
   const { root, config } = ctx;
-  const [directory, version] = parseTag(config, tag);
+  const version = parseTag(tag);
   const notes = releaseNotes(ctx, tag);
-  const names = directory === null ? releaseFiles(config, version) : [];
+  const names = releaseFiles(config, version);
   const target = path.join(root, ASSETS);
   const missing = names.filter(name => !existsSync(path.join(target, name)));
   if (missing.length) throw new Stop(`${ASSETS} lacks [${missing.join(', ')}]; make release-assets builds them`);
@@ -682,13 +604,13 @@ export function coverage(ctx: Context): string[] {
   return problems;
 }
 
-const USAGE = 'usage: node scripts/kit/release.mts tag|verify|assets|publish|undraft|go-tags TAG | candidate-assets VERSION | coverage';
+const USAGE = 'usage: node scripts/kit/release.mts assets|publish|undraft TAG | candidate-assets VERSION | coverage';
 
 /** Runs a step of the command line; the exit status. */
 export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
   const [mode, latest, ...rest] = argv;
   let tag = latest;
-  const tagged = mode !== undefined && ['tag', 'verify', 'assets', 'publish', 'undraft', 'go-tags'].includes(mode);
+  const tagged = mode !== undefined && ['assets', 'publish', 'undraft'].includes(mode);
   const candidate = mode === 'candidate-assets' && latest !== undefined && rest.length === 0;
   if (!(tagged && tag && rest.length === 0) && !candidate && !(mode === 'coverage' && tag === undefined)) {
     error(USAGE);
@@ -714,22 +636,9 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
       print(`[release] coverage: every package file is classified in ${CONFIG}`);
     } else if (tag === undefined) {
       throw new Error(`[release] ${mode} has no TAG, which the usage check above requires`);
-    } else if (mode === 'tag') {
-      print(`[release] ${createTag(ctx, tag)}`);
-    } else if (mode === 'verify') {
-      const { commit, checks } = verify(ctx, tag);
-      print(`[release] ${tag}: the commit ${commit} is on ${MAIN} and passed ${checks.join(', ')}`);
-    } else if (mode === 'go-tags') {
-      const problems = goTagProblems(ctx, tag);
-      for (const problem of problems) error(`[release] go-tags ${tag}: ${problem}`);
-      if (problems.length) {
-        error(`[release] go-tags ${tag} failed: ${problems.length} Go module tags are missing or at another commit`);
-        return 1;
-      }
-      print(`[release] ${tag}: every Go module has its tag at the commit of ${tag}`);
     } else if (mode === 'assets') {
       const names = assets(ctx, tag);
-      print(`[release] ${tag}: built ${names.length ? names.join(', ') : 'no archive (a Go module)'} in ${ASSETS}`);
+      print(`[release] ${tag}: built ${names.join(', ')} in ${ASSETS}`);
     } else if (mode === 'undraft') {
       const made = undraft(ctx, tag);
       print(`[release] ${tag}: ${made ? 'made the GitHub Release public' : 'the GitHub Release is already public'}`);

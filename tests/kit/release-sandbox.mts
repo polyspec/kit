@@ -1,5 +1,5 @@
 // Helpers of the release tests: a Git repository in a temporary directory that holds the fixture at one version, a change
-// log, origin/main and stubs of `gh` and `npm` first on PATH. The stub `gh` answers the check runs of the GitHub API from a
+// log, origin/main and stubs of `gh` and `npm` first on PATH. The stub `gh` answers the releases of the GitHub API from a
 // JSON state file and records each call and the notes of a release; the stub `npm` packs the package.json of its directory
 // into the tarball that npm pack writes and records each call. No test reaches GitHub or a registry.
 import { spawnSync } from 'node:child_process';
@@ -101,8 +101,6 @@ if (args[0] === 'api' && args.some(arg => /\\/git\\/ref\\/tags\\//.test(arg))) {
   else console.log(JSON.stringify(release));
 } else if (args[0] === 'api' && args.some(arg => arg.endsWith('/releases'))) {
   for (const release of state.releases ?? []) console.log(JSON.stringify(release));
-} else if (args[0] === 'api' && args[1] === '--paginate') {
-  for (const run of state.checkRuns) console.log(JSON.stringify([run.id, run.name, run.status, run.conclusion]));
 } else if (args[0] === 'release' && args[1] === 'create') {
   if (state.failRelease) { console.error('gh: release failed'); status = 1; }
   else state.notes = fs.readFileSync(args[args.indexOf('--notes-file') + 1], 'utf8');
@@ -178,8 +176,7 @@ function setVersion(root: string, file: string, version: string) {
 export type ReleaseSandboxOptions = { version?: string; changelog?: string; mutate?: (root: string) => void };
 
 /**
- * A committed copy of the fixture at `version` with origin/main at the commit, the stubs on PATH and the check runs
- * push-gate and ci-passed succeeded. `mutate(root)` changes the files before the commit. Returns the root, the environment
+ * A committed copy of the fixture at `version` with origin/main at the commit and the stubs on PATH. `mutate(root)` changes the files before the commit. Returns the root, the environment
  * of the commands, the commit and helpers for the stubs.
  */
 export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1', changelog = CHANGELOG, mutate = () => {} }: ReleaseSandboxOptions = {}) {
@@ -232,9 +229,9 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
     root,
     env,
     commit,
-    /** The check runs the stub answers: [name, conclusion or null for a run in progress], with ids in order. */
-    checkRuns(runs: Array<[string, string | null]>, extra: Record<string, unknown> = {}) {
-      writeFileSync(state, JSON.stringify({ calls: [], notes: null, checkRuns: runs.map(([name, conclusion], index) => ({ id: index + 1, name, status: conclusion ? 'completed' : 'in_progress', conclusion })), ...extra }));
+    /** Resets the state of the gh stub to no calls, with `extra` fields such as failRelease or byId. */
+    ghState(extra: Record<string, unknown> = {}) {
+      writeFileSync(state, JSON.stringify({ calls: [], notes: null, ...extra }));
     },
     /** The releases the stub lists for the API, drafts included: each { id, tag_name, draft, assets }. */
     releases(list: unknown[]) {
@@ -256,6 +253,6 @@ export function releaseSandbox(t: Pick<TestContext, 'after'>, { version = '0.0.1
     /** Sets the Requires-Dist lines that the uv stub writes into the wheel it builds. */
     wheelRequires: (lines: WheelRequires) => writeFileSync(env.STUB_WHEEL_REQUIRES_FILE, JSON.stringify(lines)),
   };
-  box.checkRuns([['push-gate', 'success'], ['ci-passed', 'success']]);
+  box.ghState();
   return box;
 }

@@ -36,15 +36,6 @@
         "pattern": "^[^/][^\\\\]*\\.md$"
       }
     },
-    "checks": {
-      "description": "The check runs of the tagged commit that must have concluded success; ci-passed when absent.",
-      "type": "array",
-      "minItems": 1,
-      "items": {
-        "type": "string",
-        "pattern": "^[^\\s]+$"
-      }
-    },
     "packages": {
       "description": "The packages that a tag vX.Y.Z releases as one archive each; a wheel is released as its PEP 427 wheel.",
       "type": "array",
@@ -114,7 +105,7 @@
       "type": "object"
     },
     "goModules": {
-      "description": "Each Go module by its directory (`.` for the repository root) with its module path.",
+      "description": "Each Go module by its directory (`.` for the repository root) with its module path; release-tag creates the tag <directory>/vX.Y.Z of each module below the root with vX.Y.Z (K911).",
       "type": "object"
     }
   }

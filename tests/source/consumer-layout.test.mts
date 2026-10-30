@@ -79,14 +79,14 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const make = (...args: string[]) => spawnSync('make', ['--no-print-directory', ...args], { cwd: consumer, env, encoding: 'utf8' });
 
   // The steps of the release workflow before release-tools run in its order: the bootstrap, then release-prepare, which a
-  // consumer without a preparation of its own runs as no work (K132); release-tag runs before it on a dispatch (K269). The release
-  // runs no kit-check of its own: release-verify refuses a commit whose CI did not pass (K755).
+  // consumer without a preparation of its own runs as no work (K132); release-tag runs before it, and the packages of the tag are
+  // installed again (K269, K911). The release runs no kit-check of its own: release-tag refuses a commit whose CI run did not pass (K755).
   const workflow = readFileSync(path.join(consumer, '.github/workflows/release.yml'), 'utf8');
   // The make steps of the workflow; a step that checks the runner, as for zip, runs no target.
   const steps = [...workflow.matchAll(/^\s+run: (make .+)$/gm)].map(match => match[1] ?? '');
   const bootstrap = steps.slice(0, steps.indexOf('make release-tools'));
-  assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', 'make release-tag', 'make release-prepare'], 'the release workflow bootstraps the package and prepares the release before release-tools; release-verify stands for kit-check (K755)');
-  // release-tag runs only on a dispatch, with the tag of its input (K269); release-tag.test.mts runs it.
+  assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', 'make release-tag', 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare'], 'the release workflow bootstraps the package, tags the commit of the CI run, installs it again and prepares the release before release-tools (K755, K911)');
+  // release-tag reads a CI run with gh (K911); release-tag.test.mts runs it.
   for (const command of bootstrap.filter(command => command !== 'make release-tag')) {
     const step = spawnSync('sh', ['-c', command], { cwd: consumer, env, encoding: 'utf8' });
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);

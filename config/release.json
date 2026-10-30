@@ -5,10 +5,6 @@
   "changelogTranslations": [
     "CHANGELOG.ko.md"
   ],
-  "checks": [
-    "kit",
-    "platform-bootstrap-passed"
-  ],
   "packages": [
     {
       "kind": "npm",

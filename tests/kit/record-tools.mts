@@ -40,7 +40,7 @@ export const TOOL_RECORDS_FILE: JSONSchemaType<Record<string, ToolRecord[]>> = {
 };
 
 // The test files whose stubs answer from the records (the registries of registry.mts, the version stubs of toolchain-stubs.mts).
-const TESTS = ['registry', 'release', 'release-go-tags', 'release-wheel']
+const TESTS = ['registry', 'release', 'release-wheel']
   .map(name => path.join(ROOT, 'tests/kit', `${name}.test.mts`));
 
 /** The absolute path of the command `command` that mise installed for this checkout; throws while it is not installed. */

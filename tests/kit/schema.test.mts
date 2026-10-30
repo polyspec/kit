@@ -72,7 +72,6 @@ test('readConfig gives the JSON of a file as the type of its schema, and invalid
   writeFileSync(path.join(root, 'record.json'), '{');
   assert.throws(() => readConfigFindings<{ id: number }>(root, 'record.json', 'release-record.schema.json'), (error: unknown) => error instanceof ConfigError && !(error instanceof SchemaError) && error.message.startsWith('record.json is no JSON: '));
   assert.throws(() => readConfig<{ id: number }>(root, 'missing.json', 'release-record.schema.json'), /missing\.json is missing; the repository declares it \(schema release-record\.schema\.json of kit\)/);
-  assert.throws(() => parseJson<[number, string, string, string | null]>('[1, "ci", "completed"]', 'github-check-run.schema.json', 'gh api'), /gh api: \/ must NOT have fewer than 4 items/);
 });
 
 test('every schema of kit compiles in the strict mode of ajv (K158)', () => {

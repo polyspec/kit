@@ -359,17 +359,14 @@ ci-summary: ## Write summary.md of CI_REPORT again from its record, also for a r
 ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has the result success
 	$(NODE) $(KIT)/ci-passed.$(KIT_EXT)
 
-# The steps of a release (scripts/kit/release.mts, config/release.json). TAG is the pushed tag, vX.Y.Z or <Go module
-# directory>/vX.Y.Z; release-verify reads the check runs of GITHUB_REPOSITORY. The release workflow runs the steps in this order.
-.PHONY: release-prepare release-tools release-tag release-verify release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags
+# The steps of a release (scripts/kit/release.mts, config/release.json). release-tag tags the commit of the successful CI run RUN
+# with vX.Y.Z of VERSION and the Go module tags (K911); TAG is that tag vX.Y.Z. The release workflow runs the steps in this order.
+.PHONY: release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage
 
-# Freeze the native candidate before CI, then publish the exact successful commit without another test run.
-.PHONY: release-candidate release
+# Freeze the native candidate before CI; the release then tags the exact commit of its successful run without another test run.
+.PHONY: release-candidate
 release-candidate: ## Prepare the VERSION archives of the committed candidate before CI
 	$(NODE) $(KIT)/release-run.$(KIT_EXT) prepare "$(VERSION)"
-
-release: ## Publish VERSION at SHA after the successful CI run RUN; no version edits or tests
-	$(NODE) $(KIT)/release-run.$(KIT_EXT) publish "$(VERSION)" "$(SHA)" "$(RUN)"
 
 # release-prepare is the preparation that a repository's release needs before release-tools, such as the checkout of a sibling
 # release: kit declares it with no recipe, and a repository adds its own with a release-prepare:: rule of its Makefile (K132).
@@ -387,13 +384,9 @@ release-tools-path: ## Append var/tools/bin and the shims of mise to GITHUB_PATH
 	@echo "$(KIT_TOOLS)/bin" >> "$$GITHUB_PATH"
 	@for name in $(MISE_ENVIRONMENT); do echo "$$name=$$(printenv $$name)"; done >> "$$GITHUB_ENV"
 
-release-tag: ## Create the annotated tag TAG at origin/main and push it, or pass when it is there already; the release workflow runs it on a dispatch (K269)
-	@test -n "$$TAG" || { echo "release-tag: TAG is required, for example make release-tag TAG=v0.0.1"; exit 1; }
-	$(NODE) $(KIT)/release.$(KIT_EXT) tag "$$TAG"
-
-release-verify: ## Require the commit of TAG on origin/main with its check runs succeeded; reads GITHUB_REPOSITORY
-	@test -n "$$TAG" || { echo "release-verify: TAG is required, for example make release-verify TAG=v0.0.1"; exit 1; }
-	$(NODE) $(KIT)/release.$(KIT_EXT) verify "$$TAG"
+release-tag: ## Create and push the annotated tag vVERSION and the tag <directory>/vVERSION of every Go module at the commit of the successful CI run RUN of ci.yml on main, or pass for a tag there already (K269, K911); reads the run with gh
+	@test -n "$$RUN" && test -n "$$VERSION" || { echo "release-tag: RUN and VERSION are required, for example make release-tag RUN=123 VERSION=0.0.1"; exit 1; }
+	$(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$VERSION" "$$RUN"
 
 release-assets: ## Build the archive of every package of TAG, and packages.json of its Composer packages (K871), into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }
@@ -413,10 +406,6 @@ release-undraft: ## Make the draft release of TAG public
 
 release-coverage: ## Require every package file of the checkout to be classified in config/release.json; offline
 	$(NODE) $(KIT)/release.$(KIT_EXT) coverage
-
-release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the commit of TAG; offline
-	@test -n "$$TAG" || { echo "release-go-tags: TAG is required, for example make release-go-tags TAG=v0.0.1"; exit 1; }
-	$(NODE) $(KIT)/release.$(KIT_EXT) go-tags "$$TAG"
 
 # --- python-venv: a virtual environment of the checkout Python, made by the uv of the checkout as uv makes it
 # (scripts/kit/python-venv.mts); an existing venv of the checkout Python is kept.
@@ -458,7 +447,7 @@ unlink: ## Remove the links of PROJECT and the go.work files that link wrote; ma
 	$(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
 
 # The release uses the released versions (K343), so its Go runs without the go.work of the links.
-release-prepare release-tools release-verify release-assets release-candidate-assets release-publish release-undraft release-coverage release-go-tags: export GOWORK := off
+release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage: export GOWORK := off
 # The archive builds build the tree of the repository, so the go.work that it tracks, its own workspace and not a link, is their GOWORK;
 # naming it also hides the git-ignored go.work that link writes in each module (K774). A repository that tracks none builds with GOWORK
 # off.
