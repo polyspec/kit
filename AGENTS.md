@@ -32,9 +32,9 @@ and states only its own rules. The rules below are kit's own.
   `config/<name>.json` with a schema in `scripts/kit/schema/`, which ajv validates (draft 2020-12, strict mode, every error).
   Enforced by: `tests/kit/isolation.test.mts`
 - Own: A vendored file is changed in kit and copied with `make kit-sync`, which writes the copies of the installed package (npm
-  ci installs the version of package-lock.json by its integrity), never edited in a repository: `make kit-check` fails on a changed or missing vendored file, and
+  ci installs the version of package-lock.json by its integrity), never edited in a repository: `make kit-inject-check` fails on a changed or missing vendored file, and
   on a file of `scripts/kit/` that is no copy, since that directory holds the copies of kit only; `make kit-sync` removes it.
-  Enforced by: `make kit-check`, `.claude/settings.json`
+  Enforced by: `make kit-inject-check` (S13), `.claude/settings.json`
 - Own: Use conventional package-manager installation, dependency locks and versioned releases. Before implementing a request that departs from those conventions, report the departure and its consequences and propose the conventional alternative, even when the request explicitly asks for the departure. Local source links remain a development mechanism.
   Enforced by: none, the choice and explanation require review.
 - Refines P14: The ecosystem principle of [PRINCIPLES.md](PRINCIPLES.md) applies to the tools of `scripts/kit/`: uv for Python interpreters,

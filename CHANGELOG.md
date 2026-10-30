@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- make kit-inject-check runs kit-sync --check, which writes the copies and then fails while git status shows a copy path (each copy of kit.copies, scripts/kit or a retired copy) differing from the commit, so a hand-edited copy of PRINCIPLES, gates.yml, release.yml or another kit.copies file fails; it joins kit-gates and kit-gates-static, and kit's own checkout, the source of the copies, skips it. S13 states the rule, and PRINCIPLES and AGENTS name the target instead of kit-check, which compares no copy since K799 (K851).
 - S12 states that a repository's CI runs the shared gates once, through gates.yml: no other workflow and no input of ci-targets or ci-setup names a prerequisite of kit-gates again; each consumer removes its duplicates in its adoption row (K870).
 - kit holds no copy of check-editor-boundaries: the check of the editor boundaries is template's own rule, and template keeps scripts/check-editor-boundaries.mts and its configuration. kit deletes scripts/kit/check-editor-boundaries.mts, its schema, its test and its dependency eslint-scope (K867).
 - make test-php-ext runs the tests of the PHP extension in the folders that config/parity.json declares for it, the roots of its implementation and of the PHP implementations whose tests it shares, as parity-check does, whatever their Composer type; a repository with packages/php-ext and no such declaration fails with the fix. A test bed of type project that the declaration names, as in fsm, runs with the extension instead of a run of packages/php-ext with no test (K905).

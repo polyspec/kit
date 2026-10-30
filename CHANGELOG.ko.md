@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9c90c5d5173fb318b3e2c243a445f49cd02c341ee0e8c917fbe0554c95ef1ab6 -->
+<!-- source-sha256: ee97a1903718c5347853a5518646cb634494b05035c6916ed98728000c68d0ed -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make kit-inject-check는 kit-sync --check를 실행합니다. 그것은 사본을 쓴 뒤, git status가 사본 경로(kit.copies의 각 사본, scripts/kit, 은퇴한 사본)를 commit과 다르게 보이는 동안 실패합니다. 그래서 손으로 고친 PRINCIPLES, gates.yml, release.yml 등 kit.copies 파일이 실패합니다. 이 대상은 kit-gates와 kit-gates-static에 들어가며, 사본의 원천인 kit 자신의 checkout은 건너뜁니다. S13이 규칙을 밝히고, PRINCIPLES와 AGENTS는 K799 이후 사본을 비교하지 않는 kit-check 대신 이 대상을 지정합니다 (K851).
 - S12는 저장소의 CI가 공유 gate를 gates.yml로 한 번만 실행한다고 밝힙니다. 다른 workflow도 ci-targets나 ci-setup의 입력도 kit-gates의 prerequisite를 다시 지정하지 않으며, 각 소비자가 채택 행에서 중복을 지웁니다 (K870).
 - kit은 check-editor-boundaries 사본을 두지 않습니다. editor boundary 검사는 template 자신의 규칙이며 template이 scripts/check-editor-boundaries.mts와 그 설정을 갖습니다. kit은 scripts/kit/check-editor-boundaries.mts, 그 schema, test, 의존성 eslint-scope를 삭제합니다 (K867).
 - make test-php-ext는 PHP extension의 test를 config/parity.json이 그것에 선언한 폴더, 곧 그 구현의 root와 test를 공유하는 PHP 구현의 root에서 parity-check처럼 Composer type과 관계없이 실행합니다. packages/php-ext가 있는데 그 선언이 없는 저장소는 고칠 방법과 함께 실패합니다. fsm처럼 선언이 지정한 type project의 test bed는 test 없는 packages/php-ext 실행 대신 extension과 함께 실행됩니다 (K905).

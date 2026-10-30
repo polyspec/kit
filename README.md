@@ -9,7 +9,7 @@ byte-for-byte copies of the files that `kit.copies` of its `package.json` lists;
 
 | Concern | Tools (`scripts/kit/`) | Make targets (`scripts/kit/kit.mk`) |
 |---|---|---|
-| Vendoring | `kit-sync.mts`, `kit-check.mts` | `kit-sync`, `kit-check` |
+| Vendoring | `kit-sync.mts`, `kit-check.mts` | `kit-sync`, `kit-check`, `kit-inject-check` |
 | Toolchains | the bootstrap (`bootstrap/bootstrap.mts`: the npm of packageManager and mise), `install-tools.mts` (`mise install --locked` of `mise.toml` and `mise.lock`, then the wheel backend, the Composer projects and the Rust channels of `install-rust.mts`), `mise-tools.mts`, `toolchain-mise.mts`, `fetch-cargo-downloads.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock`, `cargo-downloads-fetch` |
 | Folder layout | the alint of `mise.toml` runs `config/layout.yml` over the common rules of `config/layout.kit.yml` | `layout-check` |
 | Lint | `lint-python.mts`, `lint-php.mts`, `lint-rust.mts`, `lint-go.mts`, `lint-ts.mts`, with the copied configuration (docs/operations/tool-inventory.md, Lint configuration) and the ruff, vulture, golangci-lint and deadcode of `mise.toml` and the PHP lint of `install-php-lint.mts` | `lint-python`, `lint-php`, `lint-rust`, `lint-go`, `lint-ts` |
@@ -34,6 +34,7 @@ byte-for-byte copies of the files that `kit.copies` of its `package.json` lists;
 make install-tools TOOLS=npm   # install the npm of packageManager and mise with the copied bootstrap (online)
 make install-packages          # npm ci with that npm, @polyspec/kit included (online)
 make kit-sync                  # write the copies of the installed package, the version of package-lock.json (offline)
+make kit-inject-check          # kit-sync, then fail while a copy differs from the commit (offline, K851)
 make kit-check                 # check the configuration against the schemas (offline)
 ```
 

@@ -133,6 +133,10 @@ jobs:
       - name: kit check
         if: ${{ !cancelled() }}
         run: make kit-check
+      # A prerequisite of kit-gates like the others: in kit, the source of the copies, it reports that there is nothing to check (K851).
+      - name: kit inject check
+        if: ${{ !cancelled() }}
+        run: make kit-inject-check
       - name: release coverage
         if: ${{ !cancelled() }}
         run: make release-coverage

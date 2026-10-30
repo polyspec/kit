@@ -308,3 +308,35 @@ test('a linked consumer runs the sibling kit for the whole make even after npm c
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(result.stdout.trim().split('\n').at(-1), `${realpathSync(path.join(root, 'kit/scripts/kit'))}|mts`);
 });
+
+// K851: the rules that every repository shares are injected identically: kit-inject-check runs kit-sync and fails while git
+// status shows a copy path differing from the commit, so a hand-edited copy is found until the synced copy is committed; kit's
+// own checkout is the source and skips.
+test('K851: kit-inject-check fails on a hand-edited copy of a consumer until the synced copy is committed; kit skips it', (t) => {
+  const copy = 'PRINCIPLES.md';
+  const root = tree(t, {
+    Makefile: `include ${path.join(ROOT, 'scripts/kit/kit-bootstrap.mk')}\n`,
+    'package.json': `${JSON.stringify({ name: 'consumer', private: true, devDependencies: { '@polyspec/kit': '0.1.0' } })}\n`,
+    'package-lock.json': `${JSON.stringify({ name: 'consumer', lockfileVersion: 3, packages: { '': { name: 'consumer' }, 'node_modules/@polyspec/kit': { version: '0.1.0', dev: true } } })}\n`,
+    'node_modules/@polyspec/kit/package.json': `${JSON.stringify({ name: '@polyspec/kit', version: '0.1.0', kit: { copies: { [copy]: copy } } })}\n`,
+    [`node_modules/@polyspec/kit/${copy}`]: '# Principles\n',
+    '.gitignore': 'node_modules/\n',
+    [copy]: '# Principles, edited by hand\n',
+  });
+  initRepository(root);
+  execFileSync('git', ['add', '-A'], { cwd: root });
+  execFileSync('git', ['commit', '-q', '-m', 'consumer'], { cwd: root });
+  const check = () => spawnSync('make', ['--no-print-directory', 'kit-inject-check', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
+  const edited = check();
+  assert.notEqual(edited.status, 0, 'a hand-edited copy fails');
+  assert.match(edited.stderr, new RegExp(`${copy}`));
+  const uncommitted = check();
+  assert.notEqual(uncommitted.status, 0, 'the commit still holds the hand edit after kit-sync wrote the copy');
+  assert.match(uncommitted.stderr, new RegExp(` M ${copy}`));
+  execFileSync('git', ['commit', '-q', '-am', 'kit-sync'], { cwd: root });
+  const synced = check();
+  assert.equal(synced.status, 0, synced.stdout + synced.stderr);
+  const kit = spawnSync('make', ['-n', '--no-print-directory', 'kit-inject-check'], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(kit.status, 0, kit.stderr);
+  assert.doesNotMatch(kit.stdout, /kit-sync/, 'kit is the source of the copies and runs no kit-sync');
+});

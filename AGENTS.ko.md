@@ -29,9 +29,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   schema는 ajv가 검증합니다(draft 2020-12, strict mode, 모든 error).
   Enforced by: `tests/kit/isolation.test.mts`
 - Own: vendored 파일은 kit에서 고치고 설치된 package의 사본을 쓰는 `make kit-sync`로 복사합니다(npm ci가 package-lock.json의 version을 integrity로 설치합니다). 저장소에서
-  직접 고치지 않으며, 고치면 `make kit-check`가 바뀐 파일이나 빠진 파일로 실패합니다. `scripts/kit/`은 kit의 사본만 담으므로
+  직접 고치지 않으며, 고치면 `make kit-inject-check`가 바뀐 파일이나 빠진 파일로 실패합니다. `scripts/kit/`은 kit의 사본만 담으므로
   사본이 아닌 그 안의 파일에도 실패하며, `make kit-sync`가 그 파일을 지웁니다.
-  Enforced by: `make kit-check`, `.claude/settings.json`
+  Enforced by: `make kit-inject-check` (S13), `.claude/settings.json`
 - Own: 일반적인 package manager 설치, dependency lock, version release를 따른다. 이를 벗어나는 요청은 명시적인 사용자 요청이라도 구현 전에 이탈 지점과 영향을 보고하고 정석적인 대안을 제시한다. 로컬 source link는 개발 수단으로 유지한다.
   Enforced by: none, 선택과 설명은 검토가 필요하다.
 - Refines P14: [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 `scripts/kit/`의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를

@@ -105,7 +105,7 @@ test('the commands run in the repository of their working directory and print th
   assert.equal(checked.stdout, '[kit-check] the configuration matches its schemas\n');
   const refused = spawnSync(process.execPath, [KIT_SYNC, '--tag', 'v0.1.0'], { cwd: root, encoding: 'utf8' });
   assert.equal(refused.status, 2, refused.stdout);
-  assert.equal(refused.stderr, '[kit-sync] kit-sync takes no argument: it writes the copies of the installed package. Usage: node scripts/kit/kit-sync.mts\n');
+  assert.equal(refused.stderr, '[kit-sync] kit-sync takes only --check: it writes the copies of the installed package. Usage: node scripts/kit/kit-sync.mts [--check]\n');
 });
 
 test('kit copies installed shared files and workflows without requiring a sibling checkout (K671-2)', (t) => {

@@ -4,7 +4,7 @@
 [한국어](PRINCIPLES.ko.md)
 
 These are the working principles of every polyspec repository. kit vendors this file byte for byte to each repository that
-takes its tools, so each repository holds the same text and `make kit-check` fails on a difference. A repository's
+takes its tools, so each repository holds the same text and `make kit-inject-check` fails on a difference. A repository's
 AGENTS.md links here and states only the rules of its own. The principles come from the owner; a principle is changed only
 in kit, with its grounding.
 
@@ -252,3 +252,7 @@ tool lands, a standard binds the work as written here.
   prerequisites of `make kit-gates`); no other workflow of the repository, and no input that ci-targets or ci-setup reads,
   names a prerequisite of kit-gates again. kit's own ci.yml, which tests kit itself, is no consumer CI (K870).
   Enforced by: none, a workflow is the repository's own file; each consumer removes its duplicates in its adoption row
+- S13 The rules that every repository shares are injected identically: each copy of `kit.copies` of the installed kit (this
+  file, gates.yml, release.yml and the others) is the bytes of the package, written by `make kit-sync` and changed only in kit;
+  scripts/kit holds those copies only. kit itself is their source and holds no copies (K851).
+  Enforced by: `make kit-inject-check`

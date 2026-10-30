@@ -3,7 +3,7 @@
 // repository that needs PHP against .php-version, the PHP that CI and the release workflow set up (K193), and no
 // recipe of the Makefile starts a tool of the checkout by its bare name (recipe-tools.mts, K171). The names of the targets, the
 // suite and the tracked files of a repository are its own (K810). Whether the copies
-// of kit match the installed package is npm's and kit-sync's business, not a check (K799).
+// of kit match the installed package is make kit-inject-check's, which runs kit-sync (K799, K851).
 //
 //   node scripts/kit/kit-check.mts
 //

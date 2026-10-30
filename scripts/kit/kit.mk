@@ -68,6 +68,18 @@ kit-sync: ## Write the copies of the installed @polyspec/kit (kit.copies of its 
 kit-check: ## Check the configuration against the schemas of kit, the PHP that a PHP repository declares and the tool recipes; offline
 	$(NODE) $(KIT)/kit-check.$(KIT_EXT)
 
+.PHONY: kit-inject-check
+# The rules that every repository shares are injected identically (S13, K851): kit-sync writes the copies of the installed
+# kit, and kit-sync --check then fails while git status shows a copy path, each copy, scripts/kit or a retired copy,
+# differing from the commit: a copy edited by hand. kit's own checkout, whose Makefile sets KIT := scripts/kit, is the
+# source of the copies and holds none.
+kit-inject-check: ## Run kit-sync, then fail while a copy of the installed kit differs from the commit; kit itself has no copies; offline
+ifeq ($(KIT),scripts/kit)
+	@echo "[kit-inject-check] kit is the source of the copies; nothing to check"
+else
+	$(NODE) $(KIT)/kit-sync.$(KIT_EXT) --check
+endif
+
 .PHONY: kit-install-php-arginfo kit-install-symbols
 kit-install-php-arginfo: ## Install the declared PHP generator and its paired parser for extension fixtures; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-php-arginfo.$(KIT_EXT)
@@ -210,13 +222,13 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by.
-kit-gates: kit-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
 # entry point above; these targets are only the disjoint workflow partitions, and the parity job checks every implementation in
 # one run.
 .PHONY: kit-gates-static kit-gates-parity kit-gates-runtime-ts kit-gates-runtime-php kit-gates-runtime-python kit-gates-runtime-go kit-gates-runtime-rust kit-gates-runtime-php-ext
-kit-gates-static: kit-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check ## Run the shared gates
+kit-gates-static: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check ## Run the shared gates
 kit-gates-parity: parity-check ## Run the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate
 kit-gates-runtime-php: lint-php ## Run the PHP gate

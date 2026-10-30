@@ -8,7 +8,9 @@
 // to give. Each copy of `kit.copies` (the package.json of the package) is written
 // to its path, and a copy that is already the same bytes is not written, so a second sync writes nothing. A file of scripts/kit
 // that the package does not declare is removed: that directory holds the copies of kit only. The command reads
-// no network; it prints a line for each change.
+// no network; it prints a line for each change. With --check (`make kit-inject-check`, S13, K851) it then fails while git
+// status shows a copy path, each copy, scripts/kit or a retired copy, differing from the commit: a copy edited by hand.
+import { execFileSync } from 'node:child_process';
 import { lstatSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { COPY_DIRECTORY, isSource, installedKit, INSTALLED, PACKAGE, RETIRED_COPIES, strayCopies } from './kit-check.mts';
@@ -16,7 +18,7 @@ import { isMain, repositoryRoot } from './paths.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 import { readNpmManifest } from './manifests.mts';
 
-const USAGE = 'Usage: node scripts/kit/kit-sync.mts';
+const USAGE = 'Usage: node scripts/kit/kit-sync.mts [--check]';
 
 /** Writes the copies of the installed package into `root`; returns the lines of the changes, empty when the copies match. */
 export function sync(root: string): string[] {
@@ -51,9 +53,23 @@ export function sync(root: string): string[] {
   return changes;
 }
 
+/** The paths of `root` that the copies of the installed kit own: each copy, scripts/kit and the retired copies. */
+export function copyPaths(root: string): string[] {
+  const kit = installedKit(root);
+  if ('finding' in kit) throw new Error(kit.finding);
+  return [...kit.copies.map(({ file }) => file), COPY_DIRECTORY, ...RETIRED_COPIES];
+}
+
+/** The lines of git status of `root` for the copy paths, empty when every copy is the committed one. */
+export function changedCopies(root: string): string[] {
+  const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all', '--', ...copyPaths(root)], { cwd: root, encoding: 'utf8' });
+  return status.split('\n').filter(line => line !== '');
+}
+
 if (isMain(import.meta.url)) {
-  if (process.argv.length > 2) {
-    console.error(`[kit-sync] kit-sync takes no argument: it writes the copies of the installed package. ${USAGE}`);
+  const check = process.argv[2] === '--check';
+  if (process.argv.length > (check ? 3 : 2)) {
+    console.error(`[kit-sync] kit-sync takes only --check: it writes the copies of the installed package. ${USAGE}`);
     process.exit(2);
   }
   try {
@@ -61,6 +77,12 @@ if (isMain(import.meta.url)) {
     for (const line of changes) console.log(`[kit-sync] ${line}`);
     const { version } = readNpmManifest(repositoryRoot(), `${INSTALLED}/package.json`);
     console.log(changes.length ? `[kit-sync] ${changes.length} changes from ${PACKAGE} ${version}` : `[kit-sync] unchanged: ${PACKAGE} ${version}`);
+    const changed = check ? changedCopies(repositoryRoot()) : [];
+    for (const line of changed) console.error(`[kit-sync] ${line}`);
+    if (changed.length) {
+      console.error(`[kit-sync] these copies differ from the commit; a copy is changed in kit, never by hand: commit the copies that kit-sync wrote, or change them in kit`);
+      process.exit(1);
+    }
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     // The installed package, the copies and the writes fail with an Error.

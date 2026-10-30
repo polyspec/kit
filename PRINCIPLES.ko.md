@@ -5,7 +5,7 @@
 [English](PRINCIPLES.md)
 
 이것은 모든 polyspec repository의 작업 원칙입니다. kit은 자기 tool을 받는 각 repository에 이 파일을 byte 그대로
-vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-check`는 차이가 있으면 실패합니다. repository의 AGENTS.md는
+vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-inject-check`는 차이가 있으면 실패합니다. repository의 AGENTS.md는
 여기로 link하고 자기만의 규칙만 적습니다. 원칙은 owner에게서 옵니다; 원칙은 kit에서만, 근거와 함께 바꿉니다.
 
 ## 책임
@@ -230,3 +230,7 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   실행합니다. 저장소의 다른 workflow도, ci-targets나 ci-setup이 읽는 입력도 kit-gates의 prerequisite를 다시 지정하지 않습니다.
   kit 자신을 시험하는 kit의 ci.yml은 소비자 CI가 아닙니다(K870).
   Enforced by: none, workflow는 저장소 자신의 파일이며 각 소비자가 채택 행에서 중복을 지운다
+- S13 모든 저장소가 공유하는 규칙은 똑같이 주입됩니다. 설치된 kit의 `kit.copies`에 있는 각 사본(이 파일, gates.yml,
+  release.yml 등)은 package의 byte 그대로이며, `make kit-sync`가 쓰고 kit에서만 고칩니다. scripts/kit은 그 사본만 담습니다.
+  kit 자신은 사본의 원천이므로 사본을 갖지 않습니다(K851).
+  Enforced by: `make kit-inject-check`
