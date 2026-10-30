@@ -19,18 +19,20 @@ export function assertWorkflowPackageBootstrap(workflow: string, t: TestContext)
   const bin = path.join(root, 'bin');
   mkdirSync(bin);
   writeFileSync(path.join(bin, 'node'), `#!/bin/sh\nexec '${process.execPath}' "$@"\n`, { mode: 0o755 });
-  writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\nprintf "%s\\n" "$*" >> "$BOOTSTRAP_LOG"\nprintf "%s" "$npm_config_cache" > "$BOOTSTRAP_CACHE_LOG"\n', { mode: 0o755 });
+  // K938-1: the npm of the runner refuses to run in a folder whose devEngines names another npm (EBADDEVENGINES), as npm 11 does.
+  writeFileSync(path.join(bin, 'npm'), '#!/bin/sh\nif [ -f "$PWD/package.json" ] && grep -q devEngines "$PWD/package.json"; then echo "EBADDEVENGINES" >&2; exit 1; fi\nprintf "%s\\n" "$*" >> "$BOOTSTRAP_LOG"\nprintf "%s" "$npm_config_cache" > "$BOOTSTRAP_CACHE_LOG"\n', { mode: 0o755 });
+  mkdirSync(path.join(root, 'runner-temp'));
   for (const name of ['@example/consumer', '@polyspec/kit']) {
     const folder = path.join(root, name.endsWith('/kit') ? 'kit' : 'consumer');
     mkdirSync(folder);
     const log = path.join(folder, 'npm.log');
     const cache = path.join(folder, 'cache.log');
     writeFileSync(path.join(folder, 'package.json'), JSON.stringify({ name, devEngines: { packageManager: { name: 'npm', version: '11.14.0' } } }));
-    const result = spawnSync('bash', ['-eu', '-c', script], { cwd: folder, env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}`, BOOTSTRAP_LOG: log, BOOTSTRAP_CACHE_LOG: cache }, encoding: 'utf8' });
+    const result = spawnSync('bash', ['-eu', '-c', script], { cwd: folder, env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}`, RUNNER_TEMP: path.join(root, 'runner-temp'), BOOTSTRAP_LOG: log, BOOTSTRAP_CACHE_LOG: cache }, encoding: 'utf8' });
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
     if (name === '@polyspec/kit') assert.equal(existsSync(log), false, 'kit uses its source Makefile without installing its own published package');
     else {
-      assert.equal(readFileSync(log, 'utf8'), 'exec --yes --package=npm@11.14.0 -- npm ci --ignore-scripts --allow-remote=root\n');
+      assert.equal(readFileSync(log, 'utf8'), `exec --yes --package=npm@11.14.0 -- npm --prefix ${folder} ci --ignore-scripts --allow-remote=root\n`);
       assert.equal(readFileSync(cache, 'utf8'), path.join(folder, 'var/bootstrap/npm-cache'));
     }
   }
