@@ -56,6 +56,9 @@ test('the platform smoke installs pinned packages before SDK tools and requires 
   assert.match(workflow, /\.\\var\\tools\\bin\\node\.cmd \.\\var\\tools\\npm\\node_modules\\npm\\bin\\npm-cli\.js ci --ignore-scripts --allow-remote=root/);
   assert.match(workflow, /install pinned Kit dependencies[\s\S]*?install pinned Go and Rust toolchains/);
   assert.match(workflow, /verify Git Bash Make uses pinned Node\.js on Windows[\s\S]*?shell: bash[\s\S]*?run: make --no-print-directory kit-check/);
+  // K923: the real Go benchmark runs the go shim of mise, which reaches mise only by the PATH of kit.mk, so the step runs
+  // the declared go source-test group through Git Bash make on every runner, Windows included.
+  assert.match(workflow, /verify the Go benchmark result line[\s\S]*?shell: bash[\s\S]*?run: make --no-print-directory source-test-group GROUP=go SOURCE_TEST_FILES_go=tests\/source\/go-bench-output-real\.test\.mts/);
   // K820: on Windows a mise shim run through Git Bash make reaches mise.exe by the PATH of kit.mk.
   assert.match(workflow, /run a mise shim through Git Bash Make on Windows[\s\S]*?shell: bash[\s\S]*?\$\(KIT_TOOLS\)\/mise\/shims\/go version/);
   // K830: the process tests start real processes; a hang fails the step by its limit.

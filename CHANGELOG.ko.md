@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c766700b6e2c09c1794c37f059bfeb7d65ea9b235f24d49460211d67b67f829b -->
+<!-- source-sha256: 90075b3bf877bd4fec5a0810cc7c2d972188a42eb86d2e3de66b08db79b2d7b0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,6 +8,7 @@
 
 ## 0.0.79
 
+- K919의 실제 Go 벤치마크를 돌리는 kit ci.yml 단계는 kit.mk의 PATH가 mise를 담는 Git Bash make로 그것을 실행하므로, mise의 go shim이 windows-2025에서도 시작합니다(K923).
 - ${NAME}가 사용 중인 kit 패키지의 파일로 풀리는 parity binding은 link된 저장소에서도 돕니다. link된 저장소는 옆의 kit checkout을 $(KIT)로 실행하므로, parity-check는 kit 패키지 안으로 풀린 경로를 checkout 안의 경로처럼 받아들이고, checkout 밖의 다른 모든 경로, .. 세그먼트, ~ 경로는 여전히 거부합니다 (K922).
 - packages/php-ext가 있는 저장소의 릴리스는 arginfo 생성기를 설치합니다. release-tools는 packages/php-ext가 있으면 install-kit의 규칙대로, 또는 config/release.json의 패키지가 generated php-arginfo artifact를 선언하면 install-tools 다음에 install-php-arginfo를 돌리므로, release-assets가 PHP-Parser와 함께 확장과 그 arginfo 헤더를 빌드합니다. 생성기가 install-tools의 PHP와 Composer를 쓰므로 npm 패키지만 있는 릴리스도 install-tools를 돌립니다 (K920).
 - Go 러너는 test2json이 이름과 결과로 나눠 두 output 이벤트로 보내는 벤치마크 결과 줄을 읽습니다. test2json의 reader가 testing의 두 쓰기 사이에 깨어나면 이렇게 나뉘며, 이 때문에 Windows 러너에서 결과 줄이 사라졌습니다. 결과 줄 없이 끝난 벤치마크는 출력을 버리지 않고 출력하며, 플랫폼 워크플로는 각 플랫폼에서 실제 Go 벤치마크를 러너로 실행합니다 (K919).

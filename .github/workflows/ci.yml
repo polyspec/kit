@@ -317,9 +317,11 @@ jobs:
         timeout-minutes: 10
         run: node --test tests/kit/process.test.mts tests/kit/process-group.test.mts
       # K919: the runner reads the result line of a real Go benchmark on each platform, whose pipes split it differently.
+      # K923: the go shim of mise reaches mise only by the PATH of kit.mk, so Git Bash make runs the test.
       - name: verify the Go benchmark result line
         timeout-minutes: 10
-        run: node --test tests/source/go-bench-output-real.test.mts
+        shell: bash
+        run: make --no-print-directory source-test-group GROUP=go SOURCE_TEST_FILES_go=tests/source/go-bench-output-real.test.mts
       - name: verify native wrappers and selected toolchains
         if: matrix.runner != 'windows-2025'
         shell: bash

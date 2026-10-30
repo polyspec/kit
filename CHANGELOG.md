@@ -7,6 +7,7 @@
 
 ## 0.0.79
 
+- The step of kit's ci.yml that runs the real Go benchmark of K919 runs it through Git Bash make, whose PATH of kit.mk names mise, so the go shim of mise starts on windows-2025 as well (K923).
 - A parity binding whose ${NAME} resolves to a file of the kit package in use runs in a linked repository too: parity-check accepts a resolved path inside the kit package as it accepts one inside the checkout, since a linked repository runs the kit checkout beside it as $(KIT), and still refuses every other path outside the checkout, a .. segment and a ~ path (K922).
 - The release of a repository with packages/php-ext installs the arginfo generator: release-tools runs install-tools and then install-php-arginfo when packages/php-ext exists, the rule of install-kit, or when a package of config/release.json declares a generated php-arginfo artifact, so release-assets builds the extension and its arginfo headers with PHP-Parser; a release with npm packages only gets install-tools too, whose PHP and Composer the generator needs (K920).
 - The Go runner reads a benchmark result line that test2json sends in two output events, its name and then its results, as it does when its reader wakes between the two writes of testing, which made the result lines vanish on the Windows runners; a benchmark that ends without a result line prints its output instead of dropping it, and the platform workflow runs a real Go benchmark through the runner on each platform (K919).
