@@ -41,9 +41,8 @@ endif
 
 # A recipe starts the pinned tools of the checkout by absolute paths, never by bare names (K171). POSIX uses the native shell
 # wrappers. On Windows Make recipes run in Git Bash, which cannot execute a .cmd wrapper as a Bash command, so NODE is the
-# node.exe selected by mise and NPM is that NODE with the installed npm-cli.js. NPM_BIN remains the native wrapper path for
-# Node's cross-spawn callers. If the SDK is absent, ordinary recipes still point into var/tools and fail; only the bootstrap
-# target uses the machine Node.js through BOOTSTRAP_NODE (K174).
+# node.exe selected by mise and NPM is that NODE with the installed npm-cli.js. If the SDK is absent, ordinary recipes still point
+# into var/tools and fail; only the bootstrap target uses the machine Node.js through BOOTSTRAP_NODE (K174).
 ifeq ($(OS),Windows_NT)
 KIT_MISE_BINARY := $(KIT_TOOLS)/mise-release/mise/bin/mise.exe
 ifneq ($(wildcard $(KIT_MISE_BINARY)),)
@@ -54,11 +53,9 @@ else
 NODE := $(KIT_TOOLS)/bin/node
 endif
 NPM := $(NODE) $(KIT_TOOLS)/npm/node_modules/npm/bin/npm-cli.js
-NPM_BIN ?= $(if $(filter command line,$(origin NPM)),$(NPM),$(KIT_TOOLS)/bin/npm.cmd)
 else
 NODE := $(KIT_TOOLS)/bin/node
 NPM := $(KIT_TOOLS)/bin/npm
-NPM_BIN ?= $(NPM)
 endif
 ALINT := $(KIT_TOOLS)/mise/shims/alint
 BOOTSTRAP_NODE := node
@@ -447,26 +444,10 @@ land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout
 	$(NODE) $(KIT)/land.$(KIT_EXT) $(BRANCH)
 
 
-# composer-install resolves declared local sources and installs the selected native Composer manifest and lock.
-.PHONY: composer-install
-composer-install: ## Install the selected Composer manifest and lock in DIR and link the providers of the link declaration (.links, K869); Composer owns metadata and autoload; NO_DEV=1 excludes development dependencies
-	$(ONLINE) $(NODE) $(KIT)/composer-install.$(KIT_EXT) $(DIR) $(if $(NO_DEV),--no-dev)
-
-# npm-install installs a consumer's npm packages: npm ci of the tracked lock, then the link of the folders (K448).
-.PHONY: npm-install
-npm-install: ## Install the npm packages of DIR with npm ci of its tracked lock, then link each installed package that a checkout of the link declaration (.links, K869) provides (K448, K494); with a declaration, a declared polyspec package with no checkout is refused (K483-1)
-	NPM_BIN=$(NPM_BIN) $(ONLINE) $(NODE) $(KIT)/npm-install.$(KIT_EXT) $(DIR)
-
 # uv-install follows application source/workspace declarations with native locked sync and installed-distribution checks.
 .PHONY: uv-install
 uv-install: ## Install declared Python sources in DIR with one native uv sync --locked and check installed distributions; SYNC passes its uv sync flags as written (K850)
 	UV_SYNC="$(SYNC)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR)
-
-# cargo-fetch is the fetch of a consumer's Cargo crates in place of its cargo fetch: through the link of cargo, with the polyspec crates
-# of the sibling checkouts patched to their paths, so the git tag of a sibling crate is never fetched (K448-5).
-.PHONY: cargo-fetch
-cargo-fetch: ## Fetch the Cargo crates of the project DIR in place of cargo fetch --locked: the polyspec crates that a checkout of the link declaration (.links, K869) provides are patched to their paths from the start, no git tag fetched (K448-5)
-	$(ONLINE) $(NODE) $(KIT)/link.$(KIT_EXT) cargo $(DIR) fetch --locked
 
 unlink: ## Remove the links of PROJECT and the go.work files that link wrote; make install restores the locked installs, Python's included; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))

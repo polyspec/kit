@@ -21,8 +21,7 @@ The user's rule (2026-10-29): during development the official install folder of 
 | Mode | Native contract and scope |
 |---|---|
 | Release installation | The installed-package bootstrap uses native locked installation such as npm ci; no sibling checkout is a prerequisite. Composer installs the selected release manifest and lock. |
-| npm source helper | npm-install is a development-source helper: declared polyspec providers require checkouts. It runs `npm ci` of the tracked lock, then links each installed provider folder. It is distinct from release install-packages. |
-| Composer source helper | composer-install runs `composer install` of the selected manifest's lock, then links each installed provider folder. No path repository and no `composer update` are needed. |
+| npm, Composer and Cargo | kit wraps no install (K859): each repository installs with the locked command of its package manager (`npm ci`, `composer install`, `cargo fetch --locked`) in its own `deps-<runtime>` target, and `make link` then links each installed provider folder. |
 | Python source helper | uv-install runs `uv sync --locked` of the tracked lock, then links each installed provider package folder in site-packages to the same package of its checkout. The release's dist-info stays the installed record; no editable build and no build backend run (K765). `uv pip check` validates the installed distributions. |
 
 link-check describes source connections; they are not a universal version or peer-dependency solver. npm ls --all is the native diagnostic when peer validation is required. No kit-written resolver or substituted installed version repairs such a mismatch. Composer and uv failures are preserved rather than hidden.
@@ -49,7 +48,7 @@ Composer's generated autoload names `vendor/<vendor>/<package>/src`, which reads
 - Every tracked project of the checkout is linked, a nested one below the root such as hyper's `examples/board` included (K447); the tests, the fixtures and the release consumer keep the install that they test.
 - Link declaration (K869): the git-ignored file `.links` at the root of the main checkout names the provider checkouts, one path per line relative to that root; blank lines and lines that start with `#` are ignored. A worktree reads the file of its main checkout. With no file the checkout is in its release state: nothing is linked, and `make link` removes the links that an earlier declaration made, as `make unlink` does, after which `make install` restores the released packages. `make link` applies the file and is idempotent: each declared folder becomes its link, and a package folder that links outside the checkout and that the file does not name is removed. A link into the checkout stays, as the workspace links of npm and Composer do, since K773 keeps a tracked manifest from naming a path out of the repository; so do the bin links.
 - Providers: each tracked manifest of a package in a declared checkout. A checkout's own packages link to its own folders, never to the main checkout of the same repository.
-- `make npm-install` runs `npm ci` followed by the links. `make composer-install` runs `composer install` of the lock followed by the links. `make uv-install` runs `uv sync --locked` of the lock followed by the links. A missing or stale Python development lock needs native `uv lock` preparation.
+- The locked install of the package manager runs first, then `make link` (K859). `make uv-install` runs `uv sync --locked` of the lock followed by the links. A missing or stale Python development lock needs native `uv lock` preparation.
 - kit runs no build target during linking. Native package-manager lifecycle hooks retain their usual behavior. A separate provider build uses its own target.
 
 ## Verification

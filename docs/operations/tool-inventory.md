@@ -867,9 +867,9 @@ Left as it is, with the reason:
 
   Runtime setup targets are run in that runtime's job and in the parity job, since parity executes every tracked runtime.
   A nonempty runtime list replaces Kit's defaults and must include all setup that runtime needs, including its tracked native
-  package locks. Empty runtime lists use Kit's existing locked targets (`build-ts`, `build-go`, `cargo-downloads-fetch`, and
-  the Composer/uv install targets discovered from tracked lockfiles). If a required PHP or Python lock project cannot be found,
-  planning fails and asks for an explicit setup target. Every declared target is checked against the Make database before
+  package locks. An empty runtime list runs the repository's own `deps-<runtime>` target (`deps-node` for ts, `deps-go`,
+  `deps-rust`, `deps-php` for php and php-ext, `deps-python`), a thin call of the locked install of its package manager; a
+  missing one fails and names the target to define (K859). Only a runtime present in tracked source files is set up. Every declared target is checked against the Make database before
   setup starts; a missing target or the aggregate `install`/`install-kit` fails with a fix, and no full-install fallback runs.
   PHP runtime jobs select the declared PHP and Composer tools. PHP extension jobs select those prerequisites and, when
   `packages/php-ext` exists, run Kit's `kit-install-php-arginfo` before lint/build/test. Extension tests use PHPUnit installed

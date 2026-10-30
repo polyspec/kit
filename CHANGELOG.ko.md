@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b6731e0be6c8f94f3f9654f79d91524dc436b4d1b57d4d8dee283de6ed3041ef -->
+<!-- source-sha256: e20ddca96bd1d0dcf10f7969dc17edf58361a74be2d98f47b8a18a26b2bbe03a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit은 패키지 설치를 감싸지 않습니다. make npm-install, make composer-install, make cargo-fetch를 스크립트와 함께 삭제했으며, 저장소는 package manager의 lock 설치를 실행한 뒤 make link를 실행합니다. config/ci.json의 setup.runtimes.<runtime>이 비어 있으면 저장소 자신의 make deps-<runtime>(ts는 deps-node, deps-go, deps-rust, php와 php-ext는 deps-php, deps-python)을 실행하고, 없으면 정의할 target 이름을 밝힙니다. 추적된 source가 없는 runtime은 아무것도 필요하지 않습니다(K859).
 - land가 브랜치의 완료된 커밋마다 부모와 비교해 diff 규칙 commit-red와 commit-fix-test를 판정하고 finding마다 sha를 밝힙니다(check-commits --range). commit-msg hook은 메시지 규칙만 맡으므로 amend를 추측하지 않습니다. prepare-commit-msg hook과 그 make target이 없어졌으므로 저장소는 자기 .githooks/prepare-commit-msg를 지우며, 지울 때까지 make hooks-check가 그것을 보고합니다 (K892).
 - make link-check는 추적되는 package.json, composer.json, pyproject.toml이 패키지 이름과 상관없이 저장소 밖 경로(npm file: 또는 link: 의존성, Composer path repository, uv source path)를 지정하면 보고합니다. 깨끗한 클론과 CI가 재현하지 못하기 때문이며, K773은 polyspec 이름만 판단했습니다 (K902).
 - main checkout 루트의 git-ignored `.links`가 provider checkout을 한 줄에 하나씩 선언합니다. worktree는 자기 main checkout의 파일을 읽고, 파일이 없으면 아무것도 link하지 않습니다. make link는 이를 멱등으로 적용하며 선언하지 않은 checkout 밖 패키지 폴더 link를 제거하되 checkout 안을 가리키는 link와 bin link는 남기고, 파일이 없으면 이전 선언의 link를 제거하며, make link-check(link-state-check를 흡수한 link-check.mts)는 link, 각 go.work의 use, K773·K888·K761 finding을 이에 맞춰 검사하고 ignore되지 않은 `.links`를 거부합니다. sibling checkout 탐색, `--siblings`, CHECKOUTS, link와 installer의 위치 인자 checkout, npm-install의 ADD와 선언되지 않은 polyspec 패키지 거부, forks/ 특례, make link-state-check target, Composer dist type 검사, 0.0.x pin 규칙은 없어졌습니다 (K869).

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // The locked setup of the shared CI gate partitions (`make kit-ci-plan`, `make kit-ci-setup`, K731): config/ci.json names
 // repository-owned Make targets; where none are declared, Kit uses the existing native lock/install/build targets.
-import { appendFileSync, existsSync, readFileSync } from 'node:fs';
+import { appendFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -198,27 +198,11 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
 /** Make's database retains doubled dollars that were escaped through eval; compare the expanded provider recipe. */
 const makeRecipe = (recipe: string | undefined): string | undefined => recipe?.replaceAll('$$(', '$(');
 
-function defaultSetup(root: string, runtime: Runtime, files: readonly string[], folders: readonly string[]): { target: string; args: string[] }[] {
-  switch (runtime) {
-    case 'ts': return [{ target: 'build-ts', args: [] }];
-    case 'go': {
-      const dependencyModule = files.find(file => path.posix.basename(file) === 'go.mod' && /^\s*require(?:\s|\()/m.test(readFileSync(path.join(root, file), 'utf8')));
-      if (dependencyModule !== undefined) throw new Error(`${CI_CONFIG}: ${dependencyModule} declares Go module requirements, but build-go alone does not fetch them. Fix: declare an existing locked Go setup target under setup.runtimes.go`);
-      return [{ target: 'build-go', args: [] }];
-    }
-    case 'rust': return [{ target: 'cargo-downloads-fetch', args: [] }];
-    case 'php':
-    case 'php-ext': {
-      const dirs = phpDirectories(root, files, folders);
-      if (dirs.length === 0) throw new Error(`${CI_CONFIG}: no locked Composer project was found for ${runtime}. Fix: declare an existing locked setup target under setup.runtimes.${runtime}`);
-      return dirs.map(dir => ({ target: 'composer-install', args: [`DIR=${dir}`] }));
-    }
-    case 'python': {
-      const dirs = pythonDirectories(root, files, folders);
-      if (dirs.length === 0) throw new Error(`${CI_CONFIG}: no locked Python project (pyproject.toml and uv.lock) was found. Fix: declare an existing locked setup target under setup.runtimes.python`);
-      return dirs.map(dir => ({ target: 'uv-install', args: [`DIR=${dir}`] }));
-    }
-  }
+/** The default setup of a runtime is the repository's own deps-<runtime> target, a thin call of its package manager (K859). */
+function defaultSetup(runtime: Runtime, targets: { has(name: string): boolean }): { target: string; args: string[] }[] {
+  const target = `deps-${{ ts: 'node', go: 'go', rust: 'rust', php: 'php', 'php-ext': 'php', python: 'python' }[runtime]}`;
+  if (!targets.has(target)) throw new Error(`${CI_CONFIG}: the default setup target ${target} is not present in this Makefile. Fix: define ${target} in the Makefile as the locked install of the package manager, or declare setup.runtimes.${runtime}`);
+  return [{ target, args: [] }];
 }
 
 function plan(root: string): CIPlan {
@@ -277,24 +261,21 @@ function plan(root: string): CIPlan {
 export function ciPlan(root: string = repositoryRoot()): CIPlan { return plan(root); }
 
 function invocations(root: string, group: 'shared' | 'parity' | 'runtime', runtime?: Runtime): { target: string; args: string[] }[] {
-  const { config, runtimes, files, folders, db } = readAndValidate(root);
+  const { config, runtimes, files, db } = readAndValidate(root);
   let targets: { target: string; args: string[] }[];
   if (group === 'shared') targets = config.setup.shared.map(target => ({ target, args: [] }));
   else if (group === 'runtime') {
     if (runtime === undefined || !runtimes.includes(runtime)) throw new Error(`make kit-ci-setup GROUP=runtime needs a runtime present in tracked source files; choose ${runtimes.join(', ') || '(none)'}`);
     const configured = config.setup.runtimes[runtime];
-    targets = configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(root, runtime, files, folders);
+    targets = configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(runtime, db.targets);
     if (runtime === 'php-ext' && files.some(file => file.startsWith('packages/php-ext/'))) targets.push({ target: 'kit-install-php-arginfo', args: [] });
   } else {
     targets = [];
     for (const selected of runtimes) {
       const configured = config.setup.runtimes[selected];
-      targets.push(...(configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(root, selected, files, folders)));
+      targets.push(...(configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(selected, db.targets)));
     }
     targets.push(...config.setup.parity.map(target => ({ target, args: [] })));
-  }
-  for (const { target } of targets) {
-    if (!db.targets.has(target)) throw new Error(`${CI_CONFIG}: the default setup target ${target} is not present in this Makefile. Fix: declare an existing per-runtime setup target under setup.runtimes instead`);
   }
   return targets;
 }

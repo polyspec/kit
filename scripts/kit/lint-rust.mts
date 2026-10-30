@@ -4,7 +4,7 @@
 // lints of a workspace deny unsafe code and an allow attribute without its reason, and every package takes them
 // (config/cargo.schema.json, which make layout-check runs), so a package outside a workspace fails there. cargo runs the
 // toolchain that rust-toolchain.toml of the checkout pins; lint-steps.mts runs the steps. clippy runs through the cargo link with the
-// sibling checkouts, as make cargo-fetch does (K448-5, K802): in a linked checkout a polyspec git dependency compiles against the
+// checkouts of the link declaration (K448-5, K802): in a linked checkout a polyspec git dependency compiles against the
 // sibling checkout, which the generated code of a consumer follows, not against its tag.
 //
 //   node scripts/kit/lint-rust.mts

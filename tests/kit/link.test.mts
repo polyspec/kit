@@ -12,7 +12,6 @@ import { fileURLToPath } from 'node:url';
 import { buildState, buildTargets } from '../../scripts/kit/link-build.mts';
 import { assertIgnored, declaredCheckouts, foreignEnvironment, isIgnored, providers, trackedManifests } from '../../scripts/kit/link-providers.mts';
 import { providedFolders } from '../../scripts/kit/link-folders.mts';
-import { composerInstall } from '../../scripts/kit/composer-install.mts';
 import { linkFindings } from '../../scripts/kit/link-check.mts';
 import { acquireHolderLock } from '../../scripts/kit/holder-lock.mts';
 import { cargoMetadataArguments } from '../../scripts/kit/cargo-source.mts';
@@ -322,7 +321,6 @@ test('K205: link links the checkouts that it is given with no environment variab
   const packages = recipeOf('install-packages').join('\n');
   // install-packages installs the tracked lock with npm ci, the release record, and links nothing (K511).
   assert.match(packages, /\$\(ONLINE\) \$\(NPM\) ci/);
-  assert.match(readFileSync(path.join(KIT, 'scripts/kit/npm-install.mts'), 'utf8'), /spawnSync\(npm, \['ci'/, 'npm-install runs npm ci');
   assert.doesNotMatch(packages, /link/);
   // install-kit installs only; the recipe of install links, after all its prerequisites, the steps of the repository included.
   assert.doesNotMatch(recipeOf('install-kit').join('\n'), /link/);
@@ -891,28 +889,6 @@ test('a consumer workspace package wins over a sibling package with the same nam
   assert.equal(ok, true, lines.join('\n'));
   assert.doesNotMatch(lines.join('\n'), /NOT linked/);
 });
-
-// make composer-install installs a consumer's Composer project through the link when a sibling checkout provides a polyspec
-// package that its composer.lock holds, so the lock's release archive is never installed and the provided folder resolves.
-/** A fresh checkout of the consumer: its composer.lock pins polyspec/y as a release archive, and no vendor is installed. */
-function freshComposer(consumer: string) {
-  rmSync(path.join(consumer, 'var/contracts/vendor'), { recursive: true, force: true });
-  put(consumer, { 'composer.lock': JSON.stringify({ packages: [{ name: 'polyspec/y', version: '0.0.1', dist: { type: 'zip', url: 'https://example.invalid/polyspec/y-0.0.1.zip' } }] }) });
-}
-
-// The lock-only package is not declared by composer.json, so no refusal applies to it (K483-1 refuses a declared package only).
-test('make composer-install without a sibling that provides a polyspec package of the lock runs composer install of the tracked lock (K432)', (t) => {
-  const { consumer, env, log } = workspace(t);
-  freshComposer(consumer);
-  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: {} }) });
-  const lines: string[] = [];
-  const mode = composerInstall({ directory: consumer, checkouts: [], env, print: text => lines.push(text) });
-  assert.match(log(), /^composer install --no-interaction$/m, 'the tracked lock is installed');
-  assert.doesNotMatch(log(), /^composer update/m, 'no update runs without a link');
-  assert.equal(existsSync(path.join(consumer, 'composer.link.json')), false, 'no link manifest is written');
-  assert.equal(mode, 'locked', 'the selected path installs the locked project without source updates');
-});
-
 // K440: a Claude Code session started in the workspace folder (the folder of kit and its siblings) loads no .claude/settings.json of
 // kit, so link writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by its kit checkout, while the
 // link declaration exists (K869).
@@ -1068,13 +1044,6 @@ test('a workspace outside the runner checkout retains missing, modified and non-
   assert.throws(() => writeWorkspaceHook(root, runner), /missing or not executable/);
 });
 
-// K448-5: cargo links the sibling crates from the start. make cargo-fetch runs cargo fetch of the project through the link, with
-// the checkouts beside it patched, so no fetch materialises the git tag of a sibling crate.
-test('make cargo-fetch runs cargo fetch through the link of the sibling checkouts (K448-5)', () => {
-  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit.mk', 'KIT=scripts/kit', 'KIT_EXT=mts', 'ONLINE=online-wrapper', 'NODE=node', 'cargo-fetch', 'DIR=x'], { cwd: KIT, encoding: 'utf8' });
-  assert.equal(dry.stdout.trim(), 'online-wrapper node scripts/kit/link.mts cargo x fetch --locked');
-});
-
 test('link cargo with a declaration runs cargo with the sibling crates patched and the arguments unchanged (K448-5)', (t) => {
   const { consumer, env, log } = workspace(t);
   declareSiblings(consumer);
@@ -1152,26 +1121,6 @@ test('every Go module of the kit checkout gets a git-ignored go.work (K440-2)', 
   }
 });
 
-// K483-2: composer-install installs with --no-dev when the make option NO_DEV=1 is given, and without it the install is unchanged.
-test('composer-install installs with --no-dev when noDev is given, as make composer-install NO_DEV=1 does (K483-2)', (t) => {
-  const { consumer, env, log } = workspace(t);
-  freshComposer(consumer);
-  put(consumer, { 'composer.json': JSON.stringify({ name: 'cons/app', repositories: [{ type: 'path', url: '../prov/packages/php', options: { symlink: true } }], require: {} }) });
-  composerInstall({ directory: consumer, checkouts: [], env, noDev: true, print: () => undefined });
-  assert.match(log(), /^composer install --no-interaction --no-dev$/m, 'the tracked lock is installed without dev packages');
-});
-
-test('make -n composer-install NO_DEV=1 passes --no-dev to the composer-install tool, and without it passes none (K483-2)', () => {
-  const kitRoot = path.resolve(fileURLToPath(new URL('../..', import.meta.url)));
-  const dry = (...extra: string[]) => spawnSync('make', ['-n', 'composer-install', 'DIR=examples/app', ...extra], { cwd: kitRoot, encoding: 'utf8' });
-  const withDev = dry();
-  assert.equal(withDev.status, 0, withDev.stderr);
-  assert.match(withDev.stdout, /composer-install\.(mts|mjs|js) examples\/app\s*$/m, withDev.stdout);
-  const noDev = dry('NO_DEV=1');
-  assert.equal(noDev.status, 0, noDev.stderr);
-  assert.match(noDev.stdout, /composer-install\.(mts|mjs|js) examples\/app --no-dev\s*$/m, noDev.stdout);
-});
-
 // K326-3: link writes the target of a link relative to the link's folder, as the rules of kit name (never absolute). A link that an
 // earlier run wrote absolute, and that still resolves to its provider, is re-made relative by the next link run.
 test('native npm retains a symbolic source link to its exact provider regardless of path representation (K326-3)', (t) => {
@@ -1193,32 +1142,6 @@ test('native npm retains a symbolic source link to its exact provider regardless
   assert.equal(checked.ok, true, checked.text);
   assert.deepEqual(declarations(), before, 'source linking and read-only diagnostics preserve the release manifest and lock');
   assert.equal(readFileSync(path.join(kit, 'package.json'), 'utf8'), providerManifest);
-});
-
-// K501, K869: composer-install takes the checkouts that provide its polyspec packages from the link declaration, and refuses one given
-// after DIR.
-test('composer-install takes the checkouts of the link declaration and runs the install with them (K501, K869)', (t) => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-composer-k501-')));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const project = path.join(root, 'app');
-  const checkout = path.join(root, 'provider');
-  mkdirSync(project);
-  mkdirSync(checkout);
-  // A checkout is the top level of a Git repository (link takes main checkouts).
-  initRepository(checkout);
-  initRepository(project);
-  writeFileSync(path.join(project, 'composer.json'), JSON.stringify({ name: 'app/app', require: {} }));
-  writeFileSync(path.join(project, 'composer.lock'), JSON.stringify({ packages: [], 'packages-dev': [] }));
-  const log = path.join(root, 'composer.log');
-  const bin = path.join(root, 'composer');
-  writeFileSync(bin, `#!/bin/sh\necho "composer $*" >> ${JSON.stringify(log)}\n`);
-  chmodSync(bin, 0o755);
-  const cli = fileURLToPath(new URL('../../scripts/kit/composer-install.mts', import.meta.url));
-  assert.equal(spawnSync(process.execPath, [cli, project, checkout], { encoding: 'utf8', env: { ...process.env, COMPOSER_BIN: bin } }).status, 2, 'a checkout argument is refused');
-  writeFileSync(path.join(project, '.links'), '../provider\n');
-  const outcome = spawnSync(process.execPath, [cli, project], { encoding: 'utf8', env: { ...process.env, COMPOSER_BIN: bin } });
-  assert.equal(outcome.status, 0, outcome.stderr);
-  assert.match(readFileSync(log, 'utf8'), /composer install/);
 });
 
 // K448: the link is the folder. Each installed polyspec package folder that a sibling checkout provides becomes a direct symlink to

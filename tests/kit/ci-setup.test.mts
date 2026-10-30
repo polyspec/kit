@@ -198,16 +198,28 @@ test('K731: missing consumer setup config names its required declaration and sch
   }
 });
 
-test('K731: a Go module with external requirements cannot silently use build-only defaults', () => {
+// K859: kit wraps no package install; the default setup of a runtime is the repository's own deps-<runtime> target, a thin call of its
+// package manager, and a missing one names the target to define.
+test('K859: the default setup of a runtime is the deps target of the repository, a missing one is named, and an absent runtime needs none', () => {
   const root = fixture();
   try {
     writeFileSync(path.join(root, 'packages/go/go.mod'), 'module example.invalid/fixture\n\nrequire example.com/library v1.2.3\n');
-    execFileSync('git', ['add', 'packages/go/go.mod'], { cwd: root });
-    const configFile = path.join(root, 'config/ci.json');
+    mkdirSync(path.join(root, 'packages/php'), { recursive: true });
+    writeFileSync(path.join(root, 'packages/php/composer.json'), '{}');
+    writeFileSync(path.join(root, 'packages/php/composer.lock'), '{}');
+    writeFileSync(path.join(root, 'packages/php/A.php'), '<?php\n');
     const config = fixtureConfig(root);
     config.setup.runtimes.go = [];
-    writeFileSync(configFile, JSON.stringify(config));
-    assert.throws(() => ciSetupInvocations(root, 'runtime', 'go'), /declares Go module requirements, but build-go alone does not fetch them\. Fix: declare an existing locked Go setup target under setup\.runtimes\.go/);
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    execFileSync('git', ['add', 'packages', 'config/ci.json'], { cwd: root });
+    assert.throws(() => ciSetupInvocations(root, 'runtime', 'go'), /the default setup target deps-go is not present in this Makefile\. Fix: define deps-go in the Makefile as the locked install of the package manager, or declare setup\.runtimes\.go/);
+    writeFileSync(path.join(root, 'Makefile'), `${readFileSync(path.join(root, 'Makefile'), 'utf8')}.PHONY: deps-go deps-php\ndeps-go:\n\t@true\ndeps-php:\n\t@true\n`);
+    execFileSync('git', ['add', 'Makefile'], { cwd: root });
+    assert.deepEqual(ciSetupInvocations(root, 'runtime', 'go'), [{ target: 'deps-go', args: [] }]);
+    assert.deepEqual(ciSetupInvocations(root, 'runtime', 'php'), [{ target: 'deps-php', args: [] }], 'no install wrapper of each locked folder');
+    // A runtime with no tracked source is not set up, so a repository defines no deps target for it: deps-node, deps-rust and
+    // deps-python stay undefined here and the parity setup still passes.
+    assert.deepEqual(ciSetupInvocations(root, 'parity').map(({ target }) => target), ['deps-go', 'deps-php', 'parity-setup']);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -383,13 +395,12 @@ test('K731: PHP extension jobs install their declared PHP and Composer tools and
     writeFileSync(path.join(root, '.php-version'), '8.4\n');
     writeFileSync(path.join(root, 'mise.toml'), '[tools]\n"http:composer" = { version = "2.9.0", url = "https://example.invalid/composer.phar" }\n');
     writeFileSync(path.join(root, 'Makefile'), [
-      '.PHONY: shared-setup parity-setup go-setup extension-setup kit-install-php-arginfo composer-install',
+      '.PHONY: shared-setup parity-setup go-setup extension-setup kit-install-php-arginfo',
       'shared-setup:', '\t@printf shared >> setup.log',
       'parity-setup:', '\t@printf parity >> setup.log',
       'go-setup:', '\t@printf go >> setup.log',
       'extension-setup:', '\t@printf extension >> setup.log',
       'kit-install-php-arginfo:', '\t@printf arginfo >> setup.log',
-      'composer-install:', '\t@printf composer >> setup.log',
       '',
     ].join('\n'));
     const config = fixtureConfig(root);
@@ -426,10 +437,10 @@ test('K731: extra pinned tools follow the setup target that needs them and parit
     }));
     writeFileSync(path.join(root, 'mise.toml'), '[tools]\ngo = "1.26.0"\n');
     writeFileSync(path.join(root, 'Makefile'), [
-      '.PHONY: shared-setup parity-setup build-ts',
+      '.PHONY: shared-setup parity-setup deps-node',
       'shared-setup:', '\t@true',
       'parity-setup:', '\t@true',
-      'build-ts:', '\t@true',
+      'deps-node:', '\t@true',
       '',
     ].join('\n'));
     const configFile = path.join(root, 'config/ci.json');
@@ -477,7 +488,7 @@ test('K896: the shared job receives PHP and Composer for the PHP symbol extracto
     writeFileSync(path.join(root, '.php-version'), '8.4\n');
     writeFileSync(path.join(root, 'mise.toml'), '[tools]\n"http:composer" = { version = "2.9.0", url = "https://example.invalid/composer.phar" }\n');
     writeFileSync(path.join(root, 'config/toolchain.json'), JSON.stringify({ schema: 1, symbolExtractors: ['php'] }));
-    writeFileSync(path.join(root, 'Makefile'), `${readFileSync(path.join(root, 'Makefile'), 'utf8')}.PHONY: composer-install\ncomposer-install:\n\t@true\n`);
+    writeFileSync(path.join(root, 'Makefile'), `${readFileSync(path.join(root, 'Makefile'), 'utf8')}.PHONY: deps-php\ndeps-php:\n\t@true\n`);
     execFileSync('git', ['add', 'Makefile', '.php-version', 'mise.toml', 'config/toolchain.json', 'packages/php'], { cwd: root });
     const plan = ciPlan(root);
     assert.ok(plan.runtimes.some(job => job.runtime === 'php'), 'the PHP package selects a PHP runtime job, which owns PHP and Composer');

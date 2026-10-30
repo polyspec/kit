@@ -788,9 +788,9 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 
   runtime setup target은 해당 runtime job과 parity job에서 실행됩니다. parity는 추적된 모든 runtime을 실행하기 때문입니다.
   비어 있지 않은 runtime 목록은 Kit 기본값을 대체하므로, 해당 runtime이 필요한 setup과 추적된 native package lock을
-  모두 포함해야 합니다. 목록이 비어 있으면 Kit의 기존 lock 기반 native target(`build-ts`, `build-go`, `cargo-downloads-fetch`,
-  추적된 lockfile에서 찾은 Composer/uv 설치 target)을 사용합니다. 필요한 PHP 또는 Python lock 프로젝트를 찾지 못하면 계획 단계가
-  실패하며 명시적 setup target을 요구합니다. 실행 전 모든 선언 target을 Make database와 대조합니다. 없는 target이나
+  모두 포함해야 합니다. 목록이 비어 있으면 저장소 자신의 `deps-<runtime>` target(ts는 `deps-node`, `deps-go`, `deps-rust`,
+  php와 php-ext는 `deps-php`, `deps-python`)을 실행합니다. 이는 package manager의 lock 설치를 얇게 부르는 target이며, 없으면
+  정의할 target 이름과 함께 실패합니다(K859). 추적된 source 파일에 있는 runtime만 setup합니다. 실행 전 모든 선언 target을 Make database와 대조합니다. 없는 target이나
   집계 target인 `install`/`install-kit`은 수정 안내와 함께 실패하며 전체 설치로 대체하지 않습니다.
   PHP runtime job은 선언된 PHP와 Composer 도구를 선택합니다. `packages/php-ext`가 있으면 PHP extension job도 이 도구를
   선택하고 lint/build/test 전에 Kit의 `kit-install-php-arginfo`를 실행합니다. Extension test는 Composer package에 설치된

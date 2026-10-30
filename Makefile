@@ -46,10 +46,10 @@ KIT_TEST_FILES_4 := \
 	tests/kit/sandbox-cleanup.test.mts tests/kit/test-gap-start.test.mts tests/kit/test-markers.test.mts \
 	tests/kit/toolchain-files.test.mts
 KIT_TEST_FILES_5 := \
-	tests/kit/cargo-downloads.test.mts tests/kit/catch-check-steps.test.mts tests/kit/composer-install.test.mts \
+	tests/kit/cargo-downloads.test.mts tests/kit/catch-check-steps.test.mts \
 	tests/kit/divergence-check.test.mts tests/kit/duplication-check.test.mts tests/kit/git-hooks.test.mts \
 	tests/kit/install-npm.test.mts tests/kit/install-packages.test.mts tests/kit/lint-php.test.mts \
-	tests/kit/npm-install.test.mts tests/kit/php-ext.test.mts tests/kit/plan.test.mts \
+	tests/kit/php-ext.test.mts tests/kit/plan.test.mts \
 	tests/kit/process-group.test.mts \
 	tests/kit/release-wheel.test.mts tests/kit/retained-branches.test.mts tests/kit/sandbox-repository.test.mts \
 	tests/kit/schema.test.mts tests/kit/test-build-first.test.mts tests/kit/twin-merge.test.mts
@@ -66,7 +66,7 @@ KIT_TEST_FILES_7 := tests/kit/install-composer-project.test.mts tests/kit/parity
 
 SOURCE_TEST_GROUPS := ts php rust go python common-1 common-2 common-3
 SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts tests/source/symbols-ts-real.test.mts
-SOURCE_TEST_FILES_php := tests/source/composer-install-real.test.mts tests/source/link-composer-real.test.mts tests/source/lint-php-real.test.mts tests/source/symbols-php-real.test.mts
+SOURCE_TEST_FILES_php := tests/source/link-composer-real.test.mts tests/source/lint-php-real.test.mts tests/source/symbols-php-real.test.mts
 SOURCE_TEST_FILES_rust := tests/source/link-cargo-real.test.mts tests/source/lint-rust-real.test.mts
 SOURCE_TEST_FILES_go := tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
 SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts

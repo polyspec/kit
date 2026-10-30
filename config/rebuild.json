@@ -474,10 +474,6 @@
       "kind": "policy",
       "reason": "the rule of P31 that no test, script or Makefile bypasses a gate (CI identity, make -o of a gate, --no-verify); no ecosystem tool checks a bypass of polyspec's gates (K308)"
     },
-    "scripts/kit/composer-install.mts": {
-      "kind": "ecosystem",
-      "tool": "composer install of the tracked lock, the Composer of install-composer-project.mts (K432)"
-    },
     "scripts/kit/ci-setup.mts": {
       "kind": "policy",
       "reason": "the shared CI gate contract partitions required jobs and validates each declared repository setup prerequisite; ecosystems execute the selected Make targets"
@@ -501,10 +497,6 @@
     "scripts/kit/link-check.mts": {
       "kind": "policy",
       "reason": "the rule of P30 that a development consumer links each 0.0.x provider that its link declaration names and never copies it (K305-1, K869); it reads the links that npm and Composer make"
-    },
-    "scripts/kit/npm-install.mts": {
-      "kind": "ecosystem",
-      "tool": "npm ci installs the locked dependencies and npm link connects declared sibling sources; npm owns installed links and metadata while --no-save and --package-lock=false preserve release records"
     },
     "scripts/kit/php-library/phpunit-deadline-extension.php": {
       "kind": "ecosystem",

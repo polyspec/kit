@@ -61,10 +61,7 @@ test('the gates workflow partitions every kit-gates target across shared, parity
   assert.match(setup, /implementationFolders\(files\)/);
   assert.match(workflow, /include: \$\{\{ fromJSON\(needs\.discover\.outputs\.runtimes\) \}\}/);
   assert.match(setup, /declared\.symbolExtractors/);
-  assert.match(setup, /target: 'composer-install'/);
-  assert.match(setup, /target: 'uv-install'/);
-  assert.match(setup, /target: 'build-go'/);
-  assert.match(setup, /target: 'build-ts'/);
+  assert.match(setup, /`deps-\$\{/, 'the default setup of a runtime is the deps target of the repository (K859)');
   const enforced = read('PRINCIPLES.md').split('\n').filter(line => line.trim().startsWith('Enforced by:')).join('\n');
   const named = new Set([...enforced.matchAll(/`make ([a-z0-9-]+)`/g)].map(match => match[1]));
   assert.ok(named.size > 10, 'the rules of PRINCIPLES.md name their checks');

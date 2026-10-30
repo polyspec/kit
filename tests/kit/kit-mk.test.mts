@@ -29,7 +29,7 @@ test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT 
   assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
 });
 
-test('Windows Make recipes use the Node.js selected by mise and its npm CLI, while npm-install gets the native wrapper', (t) => {
+test('Windows Make recipes use the Node.js selected by mise and its npm CLI, which run the kit tools', (t) => {
   const tools = mkdtempSync(path.join(tmpdir(), 'kit-make-windows-sdk-'));
   t.after(() => rmSync(tools, { recursive: true, force: true }));
   const mise = path.join(tools, 'mise-release/mise/bin/mise.exe');
@@ -54,9 +54,9 @@ test('Windows Make recipes use the Node.js selected by mise and its npm CLI, whi
   assert.match(makefile, /KIT_NODE_DIRECTORY := \$\(shell \$\(KIT_MISE_ENVIRONMENT_ARGS\) "\$\(KIT_MISE_BINARY\)" where node\)/);
 
   const env = { ...process.env, KIT_MISE_NODE_DIR: nodeDirectory };
-  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'npm-install', 'KIT=scripts/kit', 'KIT_EXT=mts', 'OS=Windows_NT', `KIT_TOOLS=${makeTools}`], { cwd: ROOT, encoding: 'utf8', env });
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'unlink', 'KIT=scripts/kit', 'KIT_EXT=mts', 'OS=Windows_NT', `KIT_TOOLS=${makeTools}`], { cwd: ROOT, encoding: 'utf8', env });
   assert.equal(dry.status, 0, dry.stdout + dry.stderr);
-  assert.match(dry.stdout, /NPM_BIN=.*\/bin\/npm\.cmd\s+.*node\.exe scripts\/kit\/npm-install\.mts/, dry.stderr);
+  assert.match(dry.stdout, /node\.exe scripts\/kit\/link\.mts unlink/, dry.stderr);
   const normalized = (value: string) => path.normalize(value.replaceAll('\\', '/'));
   const environmentLine = dry.stderr.split('\n').find(line => line.includes('|'));
   assert.ok(environmentLine, dry.stderr);

@@ -21,5 +21,5 @@ test('install-packages of a consumer with the installed kit bootstrap runs npm c
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
   assert.match(run.stdout, /var\/tools\/bin\/npm ci\b/);
   // The link is install-link's, after the tools and the steps of the repository; install-packages calls no target of kit.mk.
-  assert.doesNotMatch(run.stdout, /npm-install|link\.(?:mts|mjs)/);
+  assert.doesNotMatch(run.stdout, /link\.(?:mts|mjs)/);
 });

@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 7a8619e237505d2d66d75513dc9722740a76bb24d94844d3a797b8c60c7b44f3 -->
+<!-- source-sha256: 62538803d67e6d02ca628c30d39ad2c292ed8efd5794dc05bd3d00e553dd65de -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -22,8 +22,7 @@
 | Mode | Native 계약과 범위 |
 |---|---|
 | Release 설치 | 설치 package bootstrap은 npm ci 같은 native locked 설치를 사용하며 sibling checkout이 선행 조건이 아니다. Composer는 선택한 release manifest와 lock을 설치한다. |
-| npm source helper | npm-install은 개발 source helper이며 선언된 polyspec provider는 checkout이 필요하다. tracked lock의 `npm ci` 뒤 설치된 각 provider 폴더를 link한다. Release용 install-packages와 별개이다. |
-| Composer source helper | composer-install은 선택한 manifest lock의 `composer install` 뒤 설치된 각 provider 폴더를 link한다. path repository와 `composer update`는 필요 없다. |
+| npm, Composer, Cargo | kit은 설치를 감싸지 않는다(K859). 각 저장소는 자기 `deps-<runtime>` target에서 package manager의 lock 설치(`npm ci`, `composer install`, `cargo fetch --locked`)를 실행하고, 그 뒤 `make link`가 설치된 각 provider 폴더를 link한다. |
 | Python source helper | uv-install은 tracked lock의 `uv sync --locked`를 실행한 뒤 site-packages에 설치된 provider 패키지 폴더를 각 checkout의 같은 패키지로 link한다. 설치 record는 release의 dist-info이며 editable build와 build backend는 실행하지 않는다(K765). `uv pip check`가 설치 distribution을 검증한다. |
 
 link-check는 source 연결을 설명하며 모든 version과 peer dependency를 해석하는 공통 solver가 아니다. peer 검증이 필요하면 native 진단은 npm ls --all이다. Kit 전용 resolver나 위장된 설치 version으로 불일치를 보정하지 않는다. Composer와 uv 실패도 숨기지 않는다.
@@ -50,7 +49,7 @@ Composer가 생성한 autoload는 `vendor/<vendor>/<package>/src`를 가리키�
 - checkout의 모든 tracked 프로젝트를 link하며, hyper의 `examples/board`처럼 root 아래의 중첩 프로젝트도 포함합니다(K447). 테스트, fixture, release consumer는 시험하는 설치를 그대로 둡니다.
 - link 선언(K869): main checkout 루트의 git-ignored 파일 `.links`가 provider checkout을 한 줄에 하나씩, 그 루트 기준 상대 경로로 지정합니다. 빈 줄과 `#`로 시작하는 줄은 무시합니다. worktree는 자기 main checkout의 파일을 읽습니다. 파일이 없으면 checkout은 릴리즈 상태입니다. 아무것도 link하지 않으며, `make link`는 `make unlink`처럼 이전 선언이 만든 link를 제거하고 그다음 `make install`이 배포된 패키지를 복원합니다. `make link`는 파일을 적용하며 멱등입니다. 선언된 folder는 각각 자기 link가 되고, checkout 밖으로 link되며 파일이 지정하지 않은 패키지 폴더는 제거됩니다. checkout 안을 가리키는 link는 npm과 Composer의 workspace link처럼 남습니다. K773이 추적 manifest가 저장소 밖 경로를 지정하지 못하게 하기 때문입니다. bin link도 남습니다.
 - provider: 선언된 checkout에 있는 패키지의 각 tracked manifest입니다. checkout 자신의 패키지는 같은 저장소의 main checkout이 아니라 자기 폴더로 link됩니다.
-- `make npm-install`은 `npm ci` 뒤 link를 씁니다. `make composer-install`은 lock의 `composer install` 뒤 link를 씁니다. `make uv-install`은 lock의 `uv sync --locked` 뒤 link를 씁니다. Python 개발 lock이 없거나 오래됐으면 native `uv lock`으로 준비해야 합니다.
+- package manager의 lock 설치가 먼저 실행되고 그 뒤 `make link`가 link를 씁니다(K859). `make uv-install`은 lock의 `uv sync --locked` 뒤 link를 씁니다. Python 개발 lock이 없거나 오래됐으면 native `uv lock`으로 준비해야 합니다.
 - kit은 link 중 build target을 실행하지 않습니다. native package-manager lifecycle hook은 정상 동작을 유지합니다. 별도 provider build는 자체 target을 사용합니다.
 
 ## 검증

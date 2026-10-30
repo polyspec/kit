@@ -32,7 +32,7 @@ function checkout(t: TestContext): string {
 }
 
 const CLIPPY = ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS];
-// K802: clippy runs through the cargo link with the sibling checkouts, as cargo-fetch does (K448-5), so in a linked checkout a
+// K802: clippy runs through the cargo link with the checkouts of the link declaration (K448-5), so in a linked checkout a
 // polyspec git dependency compiles against the sibling checkout, not against its tag.
 const LINKED = [siblingTool(new URL('../../scripts/kit/lint-rust.mts', import.meta.url).href, 'link'), 'cargo', '.', ...CLIPPY];
 
