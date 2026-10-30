@@ -46,6 +46,8 @@ export function signalWindowsTree(root: number, signal: NodeJS.Signals | number,
   const terminate = operations.terminate ?? ((pid, tree) => taskkill(pid, tree, true));
   const entries = table();
   const descendants = descendantsOf(root, entries).map(entry => entry.pid);
+  // The root and its descendants leave the later tables as they are stopped; their creation times stay known from the first one.
+  const earlier = entries;
   const present = entries.some(entry => entry.pid === root);
   if (signal === 0) return present || descendants.length ? 'sent' : 'ended';
   // Windows has no POSIX process-group signals. Keep the first snapshot so descendants remain targets if the root exits during
@@ -54,16 +56,16 @@ export function signalWindowsTree(root: number, signal: NodeJS.Signals | number,
   for (const entry of descendantsOf(root, entries)) depths.set(entry.pid, (depths.get(entry.ppid) ?? 0) + 1);
   if (present) terminate(root, true);
   const afterTreeStop = table();
-  for (const entry of descendantsOf(root, afterTreeStop)) {
+  for (const entry of descendantsOf(root, afterTreeStop, earlier)) {
     depths.set(entry.pid, Math.max(depths.get(entry.pid) ?? 0, (depths.get(entry.ppid) ?? 0) + 1));
   }
-  const known = new Set([...descendants, ...descendantsOf(root, afterTreeStop).map(entry => entry.pid)]);
+  const known = new Set([...descendants, ...descendantsOf(root, afterTreeStop, earlier).map(entry => entry.pid)]);
   const alive = new Set(afterTreeStop.map(entry => entry.pid));
   const survivors = [...known].filter(pid => alive.has(pid)).sort((left, right) => (depths.get(right) ?? 0) - (depths.get(left) ?? 0));
   for (const pid of survivors) terminate(pid, false);
   const final = table();
   const finalPids = new Set(final.map(entry => entry.pid));
-  const remaining = [...known].some(pid => finalPids.has(pid)) || finalPids.has(root) || descendantsOf(root, final).length > 0;
+  const remaining = [...known].some(pid => finalPids.has(pid)) || finalPids.has(root) || descendantsOf(root, final, earlier).length > 0;
   return remaining ? 'sent' : 'ended';
 }
 
@@ -78,17 +80,21 @@ function taskkill(pid: number, tree: boolean, force: boolean): void {
   throw new Error(`taskkill.exe ${args.join(' ')} exited with ${result.status}: ${(result.stderr || result.stdout).trim()}`);
 }
 
-/** A process of the process table: its id, its parent's id and its process group id. */
+/**
+ * A process of the process table: its id, its parent's id and its process group id, and on Windows its creation time in the
+ * 100-nanosecond units of a Windows file time (K925), or null for a process that has none, such as the System process.
+ */
 export interface ProcessEntry {
   pid: number;
   ppid: number;
   pgid: number;
+  started?: bigint | null;
 }
 
 /** The processes of the machine, read with ps or Windows CIM (read only): each process has a pid, parent and group id. */
 export function processTable(): ProcessEntry[] {
   if (process.platform === 'win32') {
-    const script = "$ErrorActionPreference='Stop'; Get-CimInstance Win32_Process | Select-Object @{Name='pid';Expression={$_.ProcessId}},@{Name='ppid';Expression={$_.ParentProcessId}},@{Name='pgid';Expression={$_.ProcessId}} | ConvertTo-Json -Compress";
+    const script = "$ErrorActionPreference='Stop'; Get-CimInstance Win32_Process | Select-Object @{Name='pid';Expression={$_.ProcessId}},@{Name='ppid';Expression={$_.ParentProcessId}},@{Name='pgid';Expression={$_.ProcessId}},@{Name='started';Expression={if ($_.CreationDate) { [string]$_.CreationDate.ToFileTimeUtc() } else { $null }}} | ConvertTo-Json -Compress";
     const listed = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8', windowsHide: true, maxBuffer: 1 << 28 });
     if (listed.error || listed.status !== 0) throw new Error(`powershell.exe could not list the processes: ${listed.error?.message ?? listed.stderr}`);
     const decoded: unknown = JSON.parse(listed.stdout || '[]');
@@ -99,8 +105,11 @@ export function processTable(): ProcessEntry[] {
       }
       const pid = row.pid;
       const ppid = row.ppid;
-      if (typeof pid !== 'number' || typeof ppid !== 'number') throw new Error(`powershell.exe printed a line that is no process entry: ${JSON.stringify(row)}`);
-      return { pid, ppid, pgid: pid };
+      const started = 'started' in row ? row.started : undefined;
+      if (typeof pid !== 'number' || typeof ppid !== 'number' || !(started === null || (typeof started === 'string' && /^\d+$/.test(started)))) {
+        throw new Error(`powershell.exe printed a line that is no process entry: ${JSON.stringify(row)}`);
+      }
+      return { pid, ppid, pgid: pid, started: started === null ? null : BigInt(started) };
     });
   }
   const listed = spawnSync('ps', ['-axo', 'pid=,ppid=,pgid='], { encoding: 'utf8', maxBuffer: 1 << 28 });
@@ -112,14 +121,27 @@ export function processTable(): ProcessEntry[] {
   });
 }
 
-/** The descendants of `root` in `table`: the processes whose parent chain reaches it, `root` itself left out. */
-export function descendantsOf(root: number, table: readonly ProcessEntry[]): ProcessEntry[] {
+/**
+ * The descendants of `root` in `table`: the processes whose parent chain reaches it, `root` itself left out. A table that carries
+ * creation times (Windows, K925) keeps the id of a parent that has exited, and Windows reuses process ids, so a child there counts
+ * only when it was created after its parent; the creation time of a parent that is no longer in `table` is taken from `earlier`, a
+ * table read before. A table without creation times (POSIX) reparents an orphan, so its parent ids are current.
+ */
+export function descendantsOf(root: number, table: readonly ProcessEntry[], earlier: readonly ProcessEntry[] = []): ProcessEntry[] {
   const children = new Map<number, ProcessEntry[]>();
   for (const entry of table) children.set(entry.ppid, [...(children.get(entry.ppid) ?? []), entry]);
+  const startOf = new Map<number, bigint | null | undefined>();
+  for (const entry of [...earlier, ...table]) startOf.set(entry.pid, entry.started);
+  const after = (child: ProcessEntry, parent: number): boolean => {
+    if (child.started === undefined) return true;
+    const parentStarted = startOf.get(parent);
+    return child.started !== null && typeof parentStarted === 'bigint' && child.started > parentStarted;
+  };
   const found: ProcessEntry[] = [];
   const queue = [root];
   for (let pid = queue.shift(); pid !== undefined; pid = queue.shift()) {
     for (const child of children.get(pid) ?? []) {
+      if (!after(child, pid)) continue;
       found.push(child);
       queue.push(child.pid);
     }

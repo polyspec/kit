@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- On Windows the process table carries each process's creation time, and a process counts as a descendant only when it was created after its parent, so the tree stop of a run no longer sends taskkill to an older process whose exited parent had a reused id, as it did to a critical system process in flowmark's Windows CI (K925).
 - The release takes the id of a successful CI run alone: gh workflow run release.yml -f run=<id>. The workflow has no version input, and make release-tag RUN reads `changelog` and `goModules` of config/release.json at the commit of the run, checking those two fields alone, and X.Y.Z from the first section ## X.Y.Z of its change log, refuses a commit whose change log has none or has entries under ## Unreleased, tags that commit and its Go modules and appends TAG and VERSION to GITHUB_ENV for the steps that follow; a dispatch can no longer name a version that the commit does not release, and nothing compares a version (K924).
 - Kit 0.0.79 is public: release run 41058908809 took the successful CI run 41057899821 of f48e54d3, made the annotated v0.0.79 tag on that commit and a published release with polyspec-kit-npm-0.0.79.tgz (K921).
 

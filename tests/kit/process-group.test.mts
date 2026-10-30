@@ -6,7 +6,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
 import test from 'node:test';
-import { processTable, signalGroup, signalWindowsTree, stopGroup } from '../../scripts/kit/process-group.mts';
+import { descendantsOf, processTable, signalGroup, signalWindowsTree, stopGroup } from '../../scripts/kit/process-group.mts';
 import type { Kill, ProcessEntry } from '../../scripts/kit/process-group.mts';
 import { terminateGroup } from '../../scripts/kit/run-tests.mts';
 
@@ -73,6 +73,44 @@ test('Windows tree cleanup stops original descendants after root exit and repare
     terminate: () => {},
   });
   assert.equal(remaining, 'sent', 'a surviving process is never reported as ended');
+});
+
+// K925: Windows keeps the parent id of a process whose parent has exited and reuses process ids, so a process created before the
+// root, or before the descendant whose id it names as its parent, is no descendant. The creation times are Windows file times.
+test('a Windows process created before the process it names as its parent is no descendant (K925)', () => {
+  const table: ProcessEntry[] = [
+    { pid: 20, ppid: 1, pgid: 20, started: 100n },
+    { pid: 8136, ppid: 20, pgid: 8136, started: 50n },
+    { pid: 21, ppid: 20, pgid: 21, started: 150n },
+    { pid: 22, ppid: 21, pgid: 22, started: 160n },
+    { pid: 23, ppid: 21, pgid: 23, started: 140n },
+    { pid: 24, ppid: 20, pgid: 24, started: null },
+  ];
+  assert.deepEqual(descendantsOf(20, table).map(entry => entry.pid), [21, 22]);
+  assert.deepEqual(descendantsOf(20, table.filter(entry => entry.pid !== 20)).map(entry => entry.pid), [],
+    'a parent whose creation time is unknown proves no child');
+  assert.deepEqual(descendantsOf(20, table.filter(entry => entry.pid !== 20), table).map(entry => entry.pid), [21, 22],
+    'the creation time of an exited parent comes from the earlier table');
+  assert.deepEqual(descendantsOf(20, [{ pid: 20, ppid: 1, pgid: 20 }, { pid: 21, ppid: 20, pgid: 20 }]).map(entry => entry.pid), [21],
+    'a table without creation times follows the parent ids alone');
+});
+
+test('the Windows tree stop never targets a process that names the root as its parent but is older (K925)', () => {
+  let entries: ProcessEntry[] = [
+    { pid: 20, ppid: 1, pgid: 20, started: 100n },
+    { pid: 21, ppid: 20, pgid: 21, started: 150n },
+    { pid: 8136, ppid: 20, pgid: 8136, started: 50n },
+  ];
+  const calls: [number, boolean][] = [];
+  const state = signalWindowsTree(20, 'SIGTERM', {
+    table: () => entries,
+    terminate: (pid, tree) => {
+      calls.push([pid, tree]);
+      entries = entries.filter(entry => entry.pid !== (pid === 20 ? 20 : pid));
+    },
+  });
+  assert.deepEqual(calls, [[20, true], [21, false]], 'the descendant that outlived the root is stopped and the older process is not');
+  assert.equal(state, 'ended');
 });
 
 test('stopGroup returns only after a root that ignores SIGTERM has ended through SIGKILL (K754)', PROCESS_TIMEOUT, async () => {

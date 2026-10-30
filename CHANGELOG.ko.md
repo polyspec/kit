@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0865cc98afcffb3f738203b355a777cf5f253c965061f122f48f0413d7faf21a -->
+<!-- source-sha256: de9c22ae4e8ce03aa35631c4ae25b4a6b1ff634699b64827486236e3d9d5f423 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Windows에서 process table은 각 process의 생성 시각을 담고, process는 그 부모보다 뒤에 만들어졌을 때만 후손으로 친다. 그래서 run의 tree 정지는 끝난 부모의 id가 다시 쓰인 더 오래된 process에 더는 taskkill을 보내지 않는다. flowmark의 Windows CI에서는 critical system process에 보냈다 (K925).
 - 릴리스는 성공한 CI run의 id만 받습니다: gh workflow run release.yml -f run=<id>. workflow에는 version input이 없고, make release-tag RUN은 run의 commit에 있는 config/release.json의 `changelog`와 `goModules`(그 두 field만 검사한다)와 그 change log의 첫 section ## X.Y.Z에서 X.Y.Z를 읽고, 그런 section이 없거나 ## Unreleased 아래 항목이 있는 commit은 거부하며, 그 commit과 그 Go module에 tag를 달고 뒤 step을 위해 TAG와 VERSION을 GITHUB_ENV에 덧붙입니다. dispatch가 그 commit이 릴리스하지 않는 버전을 더는 지정할 수 없고, 어떤 버전도 비교하지 않습니다 (K924).
 - Kit 0.0.79를 공개했습니다. release run 41058908809가 f48e54d3의 성공한 CI run 41057899821을 받아 그 commit에 annotated v0.0.79 tag를 만들고 polyspec-kit-npm-0.0.79.tgz와 함께 게시된 release로 만들었습니다 (K921).
 
