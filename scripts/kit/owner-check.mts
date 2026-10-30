@@ -127,6 +127,9 @@ const noImporters: Importers = () => {
   throw new Error(`${DECLARATION}: a rule names importers, but no import graph was read`);
 };
 
+// The default goal that makeDatabase names: a target with an empty recipe, which no recipe of a Makefile can be (K945).
+const DATABASE_GOAL = '.kit-database-read';
+
 /**
  * The targets and variables of the Makefile of `root` from the database that GNU make prints (`make -pRrq`), so that an
  * included file, a variable in a prerequisite and a target-specific variable are read as make reads them. A checkout
@@ -134,11 +137,18 @@ const noImporters: Importers = () => {
  */
 export function makeDatabase(root: string): MakeDatabase {
   if (!existsSync(path.join(root, 'Makefile'))) return { targets: new Map(), variables: new Map() };
-  // -q runs no recipe; its exit status says whether the default goal is up to date, so only the printed database counts.
-  const result = spawnSync('make', ['-pRrq', '-f', 'Makefile'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28 });
+  // -q does not stop a recipe line that contains $(MAKE): GNU make runs such a line even with -n, -t or -q (GNU make manual,
+  // Instead of Execution). So the default goal is a dedicated target with an empty recipe, given on standard input after the
+  // Makefile, and no recipe of the Makefile is selected or run; a default goal that calls $(MAKE) recursed without bound (K945).
+  const result = spawnSync('make', ['-pRrq', '-f', 'Makefile', '-f', '-'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, input: `.DEFAULT_GOAL := ${DATABASE_GOAL}\n${DATABASE_GOAL}: ;\n` });
   if (result.error) throw new Error(`make could not start: ${result.error.message}`);
   if (!result.stdout.includes('# Make data base')) throw new Error(`make printed no database of ${path.join(root, 'Makefile')}: ${result.stderr.trim()}`);
-  return parseMakeDatabase(result.stdout);
+  const database = parseMakeDatabase(result.stdout);
+  // The default goal of this read is not a target of the Makefile, and its variable is not a variable of it, so the database
+  // leaves both out (K945).
+  database.targets.delete(DATABASE_GOAL);
+  database.variables.delete('.DEFAULT_GOAL');
+  return database;
 }
 
 /** The targets and the makefile variables of the database text that `make -pRrq` prints. */

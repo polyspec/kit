@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6e81142fe84e13048f28e6fe6bb213c49e8361a0afe3c8d059f1c559e52d6937 -->
+<!-- source-sha256: 9d167bbc87e7178bf262e966ae6a37d2ffb9386b899468b7fd79806413353329 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K945: makeDatabase는 전용 기본 goal을 표준 입력으로 주고 database에서 뺀 채 make -pRrq의 database를 읽으므로, 기본 goal이 $(MAKE)를 부르는 Makefile이 끝없이 재귀하지 않습니다 (K945).
 - K938-1이 K938을 바로잡는다: worktree-setup은 devEngines npm을 선언하지 않은 package.json을 worktree나 branch를 만들기 전에, 그리고 npm이나 make를 실행하기 전에 거부하고, devEngines npm을 임시 폴더에서 `npm --prefix <checkout> ci`로 실행한다. 이는 runner의 npm 11이 받아들이는 형태이며(그렇지 않으면 EBADDEVENGINES), release와 CI의 bootstrap 단계도 checkout 밖에서 같은 형태를 쓴다(K938-1).
 - K938-1: worktree-setup은 package-lock.json을 확인하지 않는다. devEngines npm을 선언했지만 lock이 없는 worktree는 그 단계를 조용히 건너뛰지 않고 npm ci에서 실패한다(K938-1).
 - K941: arginfo 생성은 gen-stub 폴더 옆의 lock 하나를 잡으므로, 같은 checkout의 동시 build는 서로를 기다리고 gen_stub가 풀고 있는 PHP-Parser를 믿지 않습니다. 실패한 실행은 폴더를 지우므로 덜 풀린 parser가 남지 않습니다 (K941).

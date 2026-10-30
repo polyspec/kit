@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K945: makeDatabase reads the database of make -pRrq with a dedicated default goal, given on standard input and left out of the database, so a Makefile whose default goal calls $(MAKE) no longer recurses without bound (K945).
 - K938-1 corrects K938: worktree-setup refuses a package.json with no devEngines npm before it creates the worktree or its branch, and before it runs npm or make, runs the devEngines npm in a temporary folder of its own with `npm --prefix <checkout> ci`, which the npm 11 of a runner accepts (EBADDEVENGINES otherwise), and the release and CI bootstrap steps run that form outside the checkout (K938-1).
 - K938-1: worktree-setup no longer checks for package-lock.json. A worktree whose package.json declares devEngines npm but has no lock fails in npm ci, instead of skipping that step silently (K938-1).
 - K941: arginfo generation takes one lock beside the gen-stub folder, so concurrent builds of a checkout wait for each other and a parser that gen_stub is extracting is never trusted; a failed run removes the folder, so no partial parser stays (K941).
