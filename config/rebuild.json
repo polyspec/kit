@@ -62,13 +62,9 @@
       "kind": "policy",
       "reason": "polyspec's document rules: translation pairs, revisions, relative links and anchors, site interpolation; its Markdown reading is markdown.mts"
     },
-    "scripts/kit/check-editor-boundaries.mts": {
-      "kind": "ecosystem",
-      "tool": "amaro turns TypeScript into JavaScript, acorn and acorn-walk find the imports and eslint-scope the undeclared globals; the boundaries are polyspec's rules in config/editor-boundaries.json (K80)"
-    },
     "scripts/kit/module-imports.mts": {
       "kind": "ecosystem",
-      "tool": "amaro turns TypeScript into JavaScript, acorn parses it and acorn-walk finds the imports and the started modules, for the editor boundaries and the import graph of owner-check (K191)"
+      "tool": "amaro turns TypeScript into JavaScript, acorn parses it and acorn-walk finds the imports and the started modules, for the import graph of owner-check (K191, K867)"
     },
     "scripts/kit/check-rules.mts": {
       "kind": "policy",

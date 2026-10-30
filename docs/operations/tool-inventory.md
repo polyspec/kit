@@ -487,7 +487,7 @@ Merged behaviors:
 - Every selected check runs to its end and the failures are listed together (all implementations); no check has a time limit.
 - `importers` (new, K191) names globs of node test files: a changed path of the rule runs the tests among them that import
   it, directly or through other modules, or that are the path itself. The import graph reads each module with
-  `module-imports.mts`, the parser of the editor boundaries (amaro, acorn, acorn-walk), and follows relative imports,
+  `module-imports.mts`, the parser of TypeScript imports (amaro, acorn, acorn-walk), and follows relative imports,
   re-exports, `import()` and `require()`, and the modules that a module starts: `import.meta.resolve('<specifier>')`, the
   module resolution of Node.js, and `siblingTool(import.meta.url, '<name>')` of paths.mts. A computed import or a relative
   import of no file fails. `modules` stands for a path that is no module, such as a schema or a fixture: the importers of
@@ -1481,39 +1481,9 @@ lock and its hashes.
 ## Editor tools (K80)
 
 orm and template both have editor packages: a language service, a language server, a CodeMirror adapter and a VS Code
-extension. The two tools that check and test them move from template (`scripts/check-editor-boundaries.mjs` 103,
-`scripts/install-vscode.mjs` 75) into kit. Each repository runs them from its own make target, with its own configuration.
-
-### Editor boundaries
-
-`scripts/kit/check-editor-boundaries.mts` reads `config/editor-boundaries.json` (`scripts/kit/schema/editor-boundaries.schema.json`).
-Each boundary has:
-- `packages`, the package directories;
-- `sources`, the source directory of each package;
-- `forbiddenModules`, globs of the modules that the packages may neither import nor declare in a dependency field of package.json;
-- `forbiddenGlobals`, the globals that the packages may not use;
-- `exempt`, the sources that are not starting points, such as the command line of a language service.
-
-The check starts at every source that no exempt glob matches. It follows the relative imports transitively, also out of
-the package, and reports a finding with its import chain. A file under an exempt glob that a checked source reaches is
-checked too. A bare specifier is judged by its name and never followed. A relative import names its file, with `.js` for
-a `.ts` file. An import that the check cannot follow is a finding, never skipped: a computed `import()`, a subpath import,
-a relative import of no file, or a `.tsx` or `.jsx` source.
-
-The template tool had no configuration and followed no import. It found imports with one regular expression over each file
-of `src`, and found DOM globals with a second one that listed the properties of `document`. kit parses instead:
-- amaro, the TypeScript remover of Node.js, turns TypeScript into JavaScript in transform mode. The remover built into
-  Node.js 26 only strips, and fails on parameter properties.
-- acorn parses the JavaScript, and acorn-walk finds the `import`, `export … from`, `import()` and `require()` nodes. The
-  reading is `scripts/kit/module-imports.mts`, which the import graph of owner-check shares (K191).
-- eslint-scope finds the references that no scope declares, so a local variable named `document` is not a use of the global.
-
-These replaced the alternatives:
-- TypeScript 7 has only an unstable compiler API.
-- dependency-cruiser and madge need the API of TypeScript 6 (K111).
-- es-module-lexer reads neither `require()` nor globals.
-
-The runtime self-test of the template tool became `tests/kit/editor-boundaries.test.mts`.
+extension. The installer that tests them moved from template (`scripts/install-vscode.mjs` 75) into kit, and each
+repository runs it from its own make target. The check of the editor boundaries is template's own rule, so template keeps
+`scripts/check-editor-boundaries.mts` and its configuration, and kit holds no copy (K867).
 
 ### VS Code installer
 

@@ -445,7 +445,7 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
 - node test 파일은 `scripts/kit/run-tests.mts`로 실행하거나, make target `testTarget`에 `TESTS=<files>`를 넘겨 실행합니다(hyper).
 - 고른 check는 모두 끝까지 실행하고 실패를 함께 나열합니다(모든 구현). check에는 시간 제한이 없습니다.
 - `importers`(새 동작, K191)는 node test 파일의 glob을 적습니다: rule의 변경된 경로는 그중에서 그 경로를 직접 또는 다른 module을
-  거쳐 import하거나 그 경로 자체인 test를 실행합니다. import graph는 editor boundaries의 parser인 `module-imports.mts`(amaro, acorn,
+  거쳐 import하거나 그 경로 자체인 test를 실행합니다. import graph는 TypeScript import의 parser인 `module-imports.mts`(amaro, acorn,
   acorn-walk)로 각 module을 읽고, relative import, re-export, `import()`, `require()`, 그리고 module이 시작하는 module을 따라갑니다:
   Node.js의 module resolution인 `import.meta.resolve('<specifier>')`와 paths.mts의 `siblingTool(import.meta.url, '<name>')`입니다.
   계산된 import나 파일이 없는 relative import는 실패합니다. `modules`는 schema나 fixture처럼 module이 아닌 경로를 대신합니다: 그
@@ -1351,38 +1351,9 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
 ## Editor tools (K80)
 
 orm과 template은 둘 다 editor package를 갖습니다: language service, language server, CodeMirror adapter, VS Code extension입니다.
-이것을 검사하고 시험하는 두 tool이 template(`scripts/check-editor-boundaries.mjs` 103, `scripts/install-vscode.mjs` 75)에서
-kit으로 옮겨집니다. 각 repository는 자기 make target에서 자기 설정으로 이것을 실행합니다.
-
-### Editor boundaries
-
-`scripts/kit/check-editor-boundaries.mts`는 `config/editor-boundaries.json`(`scripts/kit/schema/editor-boundaries.schema.json`)을
-읽습니다. 각 boundary는 다음을 갖습니다:
-- `packages`: package directory;
-- `sources`: 각 package의 source directory;
-- `forbiddenModules`: package가 import하지도, package.json의 dependency field에 선언하지도 못하는 module의 glob;
-- `forbiddenGlobals`: package가 쓰지 못하는 global;
-- `exempt`: 시작점이 아닌 source, 예를 들어 language service의 command line.
-
-검사는 exempt glob에 맞지 않는 모든 source에서 시작합니다. relative import를 package 밖까지 이행적으로 따라가고, finding을 import
-사슬과 함께 보고합니다. 검사한 source가 닿는 파일은 exempt glob 아래에 있어도 검사합니다. bare specifier는 이름으로 판정하며 따라가지
-않습니다. relative import는 자기 파일을 적고, `.ts` 파일에는 `.js`를 적습니다. 검사가 따라갈 수 없는 import는 건너뛰지 않고 finding이
-됩니다: 계산된 `import()`, subpath import, 파일이 없는 relative import, `.tsx`나 `.jsx` source입니다.
-
-template tool은 설정이 없었고 import를 따라가지 않았습니다. `src`의 각 파일에서 정규식 하나로 import를 찾았고, `document`의 property를
-나열한 두 번째 정규식으로 DOM global을 찾았습니다. kit은 대신 parse합니다:
-- Node.js의 TypeScript 제거기인 amaro가 transform mode로 TypeScript를 JavaScript로 바꿉니다. Node.js 26에 내장된 제거기는 strip만
-  하며, parameter property에서 실패합니다.
-- acorn이 JavaScript를 parse하고, acorn-walk가 `import`, `export … from`, `import()`, `require()` node를 찾습니다. 이 읽기는
-  owner-check의 import graph와 함께 쓰는 `scripts/kit/module-imports.mts`입니다(K191).
-- eslint-scope가 어떤 scope도 선언하지 않은 reference를 찾으므로, `document`라는 지역 변수는 global의 사용이 아닙니다.
-
-이것들이 다음 대안을 대신했습니다:
-- TypeScript 7에는 불안정한 compiler API만 있습니다.
-- dependency-cruiser와 madge는 TypeScript 6의 API가 필요합니다(K111).
-- es-module-lexer는 `require()`도 global도 읽지 않습니다.
-
-template tool의 runtime self-test는 `tests/kit/editor-boundaries.test.mts`가 되었습니다.
+이것을 시험하는 installer는 template(`scripts/install-vscode.mjs` 75)에서 kit으로 옮겨졌고, 각 repository는 자기 make target에서 이것을
+실행합니다. editor boundary 검사는 template 자신의 규칙이므로 template이 `scripts/check-editor-boundaries.mts`와 그 설정을 갖고, kit은
+사본을 두지 않습니다(K867).
 
 ### VS Code installer
 

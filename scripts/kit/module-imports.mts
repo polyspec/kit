@@ -1,7 +1,7 @@
 // The imports of a JavaScript or TypeScript module, read as Node.js reads it: amaro (the TypeScript remover of Node.js, in
 // transform mode) turns TypeScript into JavaScript, acorn parses it, and acorn-walk finds the import and export
-// declarations with a source, the dynamic imports and the calls of require. The editor boundaries (check-editor-boundaries)
-// and the import graph of owner-check read modules through it; the graph also follows the modules that a module starts
+// declarations with a source, the dynamic imports and the calls of require. The import graph of owner-check reads modules
+// through it; the graph also follows the modules that a module starts
 // rather than imports (moduleReferences).
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
