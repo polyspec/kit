@@ -220,9 +220,9 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
 
 .PHONY: kit-gates
-# The gates of every repository, which the vendored gates workflow runs with make -k so that one run shows every failure
+# The gates of every repository, whose partitions below the CI pipeline (workflows/ci-pipeline.yml) runs past failures, so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by.
-kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the gates workflow runs it with make -k in CI
+kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the CI pipeline runs its partitions in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
 # entry point above; these targets are only the disjoint workflow partitions, and the parity job checks every implementation in
@@ -237,8 +237,8 @@ kit-gates-runtime-go: lint-go ## Run the Go gate
 kit-gates-runtime-rust: lint-rust ## Run the Rust gate
 kit-gates-runtime-php-ext: lint-php-ext test-php-ext ## Run the PHP extension gates
 
-.PHONY: kit-ci-plan kit-ci-setup kit-ci-context-prepare kit-ci-context-cleanup kit-ci-verify-gates
-kit-ci-plan: ## Validate config/ci.json and write the runtime/tool plan to GITHUB_OUTPUT for the shared gates workflow
+.PHONY: kit-ci-plan kit-ci-setup kit-ci-context-prepare kit-ci-context-cleanup
+kit-ci-plan: ## Validate config/ci.json and write the runtime, tool and target plan to GITHUB_OUTPUT for the CI pipeline
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --plan
 
 kit-ci-setup: ## Run the locked setup targets declared by config/ci.json; GROUP=shared|parity|runtime and RUNTIME=<runtime>
@@ -249,10 +249,6 @@ kit-ci-context-prepare: ## Run the optional repository context preparation targe
 
 kit-ci-context-cleanup: ## Run the optional repository context cleanup target for GROUP and RUNTIME
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --context-cleanup $(GROUP) $(RUNTIME)
-
-kit-ci-verify-gates: ## Fail unless every gate partition of the selected full or phased CI path passed
-	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --verify-gates
-
 
 .PHONY: suppression-check
 suppression-check: ## Fail on a tracked suppression of a lint finding (eslint-disable, oxlint-disable, noqa, @phpstan-ignore, phpcs:ignore, nolint, allow) that states no reason in the form of its tool (P8, K334); offline

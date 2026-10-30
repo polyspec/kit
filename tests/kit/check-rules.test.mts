@@ -201,6 +201,22 @@ test('a target is expanded for each set of variables it is called with, so every
   assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
 });
 
+// K910: the CI pipeline runs the targets that config/ci.json declares, which its steps name only as expressions, so a target
+// that config/ci.json names is reached while the repository holds the pipeline, and not without it.
+test('K910: a target that config/ci.json declares is reached through the CI pipeline that the repository holds', (t) => {
+  const agents = rules('- Own: Go tests.\n  Enforced by: `make test-go`', '- Own: Docs.\n  Enforced by: `make own-docs`');
+  const config = JSON.stringify({ schema: 1, setup: { shared: [], parity: [], runtimes: { go: [], php: [], 'php-ext': [], python: [], rust: [], ts: [] } }, targets: { shared: ['own-docs'], runtimes: { go: ['test-go'] } } });
+  const files = {
+    Makefile: 'test-go:\n\t@echo go\nown-docs:\n\t@echo docs\n',
+    'config/ci.json': config,
+    '.github/workflows/ci.yml': 'name: ci\non: push\njobs:\n  kit:\n    uses: ./.github/workflows/ci-pipeline.yml\n',
+    'AGENTS.md': agents,
+    'AGENTS.ko.md': agents,
+  };
+  assert.deepEqual(checkRules(tree(t, { ...files, '.github/workflows/ci-pipeline.yml': 'name: ci-pipeline\non:\n  workflow_call:\n' }), ['AGENTS.md']).findings, []);
+  assert.equal(checkRules(tree(t, files), ['AGENTS.md']).findings.length, 2);
+});
+
 test('a step that names ${{ matrix.runtime }} reaches the target of every runtime of the gates matrix (K757)', (t) => {
   const makefile = 'kit-gates-runtime-go: lint-go\nkit-gates-runtime-rust: lint-rust\nlint-go:\n\t@echo go\nlint-rust:\n\t@echo rust\n';
   const agents = rules('- Own: Go lints.\n  Enforced by: `make lint-go`', '- Own: Rust lints.\n  Enforced by: `make lint-rust`');

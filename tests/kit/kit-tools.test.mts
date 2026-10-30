@@ -46,11 +46,11 @@ test('a clean consumer can parse its first npm bootstrap before Node exists and 
   assert.notEqual(mixed.status, 0, 'combining bootstrap with a provider phase still requires phase enumeration');
   assert.match(mixed.stderr, /config\/parity\.json implementation names could not be read safely/);
 
-  const workflow = readFileSync(path.join(KIT, '../../workflows/gates.yml'), 'utf8');
-  const discoverStart = workflow.indexOf('\n  discover:');
-  const discoverEnd = workflow.indexOf('\n  shared:', discoverStart + 1);
-  assert.ok(discoverStart >= 0 && discoverEnd > discoverStart, 'the copied gates workflow declares its discovery job');
-  const discovery = workflow.slice(discoverStart, discoverEnd);
+  const workflow = readFileSync(path.join(KIT, '../../workflows/ci-pipeline.yml'), 'utf8');
+  const sharedStart = workflow.indexOf('\n  shared:');
+  const sharedEnd = workflow.indexOf('\n  parity:', sharedStart + 1);
+  assert.ok(sharedStart >= 0 && sharedEnd > sharedStart, 'the copied CI pipeline declares its shared job, which plans the others');
+  const discovery = workflow.slice(sharedStart, sharedEnd);
   const npm = discovery.indexOf('run: make install-tools TOOLS=npm');
   const packages = discovery.indexOf('run: make install-packages');
   const plan = discovery.indexOf('run: make kit-ci-plan');

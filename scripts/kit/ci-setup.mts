@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-// The locked setup of the shared CI gate partitions (`make kit-ci-plan`, `make kit-ci-setup`, K731): config/ci.json names
-// repository-owned Make targets; where none are declared, Kit uses the existing native lock/install/build targets.
+// The locked setup of the jobs of the CI pipeline (`make kit-ci-plan`, `make kit-ci-setup`, K731, K910): config/ci.json names
+// repository-owned Make targets; where none are declared, Kit uses the repository's deps-<runtime> targets (K859). The plan
+// also passes the targets that config/ci.json declares for each job (targets.shared, targets.parity, targets.runtimes).
 import { appendFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -28,8 +29,9 @@ type CIConfig = {
   setup: { shared: string[]; parity: string[]; runtimes: Record<Runtime, string[]> };
   tools?: Partial<Record<CIJob, string[]>>;
   contexts?: Partial<Record<CIJob, { prepare: string; cleanup: string }>>;
+  targets?: { shared?: string[]; parity?: string[]; runtimes?: Partial<Record<Runtime, string[]>> };
 };
-type RuntimeJob = { runtime: Runtime | 'none'; installTools: string[] };
+type RuntimeJob = { runtime: Runtime | 'none'; installTools: string[]; targets: string[] };
 export type CIPlan = {
   runner: Runner;
   parityMode: ParityMode;
@@ -38,6 +40,8 @@ export type CIPlan = {
   runtimes: RuntimeJob[];
   commonTools: string[];
   parityTools: string[];
+  sharedTargets: string[];
+  parityTargets: string[];
   extractors: string[];
 };
 
@@ -101,7 +105,9 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
   }
   const files = trackedFiles(root);
   const folders = implementationFolders(files);
-  const runtimes = [...runtimeSet(files, folders)].sort();
+  // One runtime set for the plan, the setup and the contexts: the runtimes of the tracked files and those that targets.runtimes
+  // names, so a declared runtime is never left out (K910).
+  const runtimes = [...new Set([...runtimeSet(files, folders), ...RUNTIMES.filter(runtime => config.targets?.runtimes?.[runtime] !== undefined)])].sort();
   for (const [scope, context] of Object.entries(config.contexts ?? {})) {
     for (const phase of ['prepare', 'cleanup'] as const) {
       const target = context[phase];
@@ -148,6 +154,7 @@ function plan(root: string): CIPlan {
     runtime,
     // A configured selector passes as written, so install-tools judges it (K860); the runtime's own tools follow the declarations.
     installTools: [...new Set([...runtimeTools[runtime].filter(name => names.includes(name) && !['node', 'npm', 'mise'].includes(name)), ...(config.tools?.[runtime] ?? [])])],
+    targets: config.targets?.runtimes?.[runtime] ?? [],
   }));
   const parity = existsSync(path.join(root, 'config/parity.json'))
     ? readConfig<{ implementations: { name: string; runner: string }[] }>(root, 'config/parity.json', 'parity.schema.json')
@@ -167,21 +174,33 @@ function plan(root: string): CIPlan {
     parityMode,
     parityImplementations,
     parityMatrix: parityImplementations.length ? parityBindingMatrix(parityImplementations) : [],
-    runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', installTools: [] }],
+    runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', installTools: [], targets: [] }],
     commonTools: sharedTools,
     parityTools: [...parityTools].sort(),
+    sharedTargets: config.targets?.shared ?? [],
+    parityTargets: config.targets?.parity ?? [],
     extractors,
   };
 }
 
 export function ciPlan(root: string = repositoryRoot()): CIPlan { return plan(root); }
 
+/** Every Make target that config/ci.json names, which the CI pipeline runs: the setup, context and declared targets (K910). */
+export function ciConfigTargets(root: string): string[] {
+  const config = readConfig<CIConfig>(root, CI_CONFIG, 'ci.schema.json');
+  return [...new Set([
+    ...config.setup.shared, ...config.setup.parity, ...Object.values(config.setup.runtimes).flat(),
+    ...Object.values(config.contexts ?? {}).flatMap(({ prepare, cleanup }) => [prepare, cleanup]),
+    ...(config.targets?.shared ?? []), ...(config.targets?.parity ?? []), ...Object.values(config.targets?.runtimes ?? {}).flat(),
+  ])];
+}
+
 function invocations(root: string, group: 'shared' | 'parity' | 'runtime', runtime?: Runtime): { target: string; args: string[] }[] {
   const { config, runtimes, files, db } = readAndValidate(root);
   let targets: { target: string; args: string[] }[];
   if (group === 'shared') targets = config.setup.shared.map(target => ({ target, args: [] }));
   else if (group === 'runtime') {
-    if (runtime === undefined || !runtimes.includes(runtime)) throw new Error(`make kit-ci-setup GROUP=runtime needs a runtime present in tracked source files; choose ${runtimes.join(', ') || '(none)'}`);
+    if (runtime === undefined || !runtimes.includes(runtime)) throw new Error(`make kit-ci-setup GROUP=runtime needs a runtime of the plan (the tracked source files and targets.runtimes); choose ${runtimes.join(', ') || '(none)'}`);
     const configured = config.setup.runtimes[runtime];
     targets = configured.length ? configured.map(target => ({ target, args: [] })) : defaultSetup(runtime, db.targets);
     if (runtime === 'php-ext' && files.some(file => file.startsWith('packages/php-ext/'))) targets.push({ target: 'kit-install-php-arginfo', args: [] });
@@ -215,39 +234,11 @@ function writePlan(root: string): void {
     has_runtimes: result.runtimes.some(({ runtime }) => runtime !== 'none'),
     common_tools: result.commonTools,
     parity_tools: result.parityTools,
+    shared_targets: result.sharedTargets,
+    parity_targets: result.parityTargets,
     extractors: result.extractors,
   };
   for (const [key, value] of Object.entries(outputs)) appendFileSync(output, `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}\n`);
-}
-
-export const GATE_REQUIRED_NEEDS = ['discover', 'shared', 'parity', 'parity-api', 'parity-bindings', 'runtime'] as const;
-export type GateResult = 'success' | 'failure' | 'cancelled' | 'skipped' | 'unknown';
-
-/** Whether the provider workflow's final aggregate accepted exactly the selected parity path and all required partitions. */
-export function gateResultsPass(mode: ParityMode, results: { discover: GateResult; shared: GateResult; parity: GateResult; api: GateResult; bindings: GateResult; runtime: GateResult }, hasRuntimes: boolean): boolean {
-  if (results.discover !== 'success' || results.shared !== 'success') return false;
-  if (mode === 'none') {
-    if (results.parity !== 'skipped' || results.api !== 'skipped' || results.bindings !== 'skipped') return false;
-  } else if (mode === 'full') {
-    if (results.parity !== 'success' || results.api !== 'skipped' || results.bindings !== 'skipped') return false;
-  } else if (mode === 'phases') {
-    if (results.parity !== 'skipped' || results.api !== 'success' || results.bindings !== 'success') return false;
-  } else return false;
-  return hasRuntimes ? results.runtime === 'success' : results.runtime === 'skipped';
-}
-
-function verifyGateResults(): void {
-  const mode = process.env.KIT_CI_PARITY_MODE;
-  if (mode !== 'full' && mode !== 'phases' && mode !== 'none') throw new Error(`the parity mode is missing or unknown (${mode ?? 'unset'}); fix config/ci.json and rerun the gates`);
-  const readResult = (name: string): GateResult => {
-    const value = process.env[`KIT_CI_${name.toUpperCase()}_RESULT`];
-    return value === 'success' || value === 'failure' || value === 'cancelled' || value === 'skipped' ? value : 'unknown';
-  };
-  const hasRuntimes = process.env.KIT_CI_HAS_RUNTIMES === 'true';
-  const results = { discover: readResult('discover'), shared: readResult('shared'), parity: readResult('parity'), api: readResult('parity_api'), bindings: readResult('parity_bindings'), runtime: readResult('runtime') };
-  if (!gateResultsPass(mode, results, hasRuntimes)) {
-    throw new Error(`gate result aggregation failed for parityMode ${mode}: ${JSON.stringify(results)}; fix every failed, skipped or unselected required partition and rerun CI`);
-  }
 }
 
 export function runCISetup(root: string, group: 'shared' | 'parity' | 'runtime', runtimeName?: Runtime): void {
@@ -265,7 +256,7 @@ export function runCIContext(root: string, phase: 'prepare' | 'cleanup', group: 
   const { config, runtimes } = readAndValidate(root);
   let scope: CIJob;
   if (group === 'runtime') {
-    if (runtimeName === undefined || !runtimes.includes(runtimeName)) throw new Error(`make kit-ci-context-${phase} GROUP=runtime needs a runtime present in tracked source files; choose ${runtimes.join(', ') || '(none)'}`);
+    if (runtimeName === undefined || !runtimes.includes(runtimeName)) throw new Error(`make kit-ci-context-${phase} GROUP=runtime needs a runtime of the plan (the tracked source files and targets.runtimes); choose ${runtimes.join(', ') || '(none)'}`);
     scope = runtimeName;
   } else {
     if (runtimeName !== undefined) throw new Error(`make kit-ci-context-${phase} GROUP=${group} does not accept RUNTIME; omit it`);
@@ -291,7 +282,6 @@ if (isMain(import.meta.url)) {
     const root = repositoryRoot();
     const [mode = '', group = '', runtime = ''] = process.argv.slice(2);
     if (mode === '--plan') writePlan(root);
-    else if (mode === '--verify-gates') verifyGateResults();
     else if (mode === '--context-prepare' || mode === '--context-cleanup') {
       const [, contextGroup = '', contextRuntime = ''] = process.argv.slice(2);
       if (contextRuntime !== '' && !isRuntime(contextRuntime)) throw new Error(`unknown runtime ${contextRuntime}; choose ${RUNTIMES.join(', ')}`);
@@ -300,7 +290,7 @@ if (isMain(import.meta.url)) {
       if (group !== 'shared' && group !== 'parity' && group !== 'runtime') throw new Error(`unknown CI setup group ${group}; choose shared, parity or runtime`);
       if (runtime !== '' && !isRuntime(runtime)) throw new Error(`unknown runtime ${runtime}; choose ${RUNTIMES.join(', ')}`);
       runCISetup(root, group, runtime === '' ? undefined : runtime);
-    } else throw new Error(`unknown CI setup mode ${mode}; use --plan, --setup GROUP [RUNTIME], --context-prepare GROUP [RUNTIME], --context-cleanup GROUP [RUNTIME] or --verify-gates`);
+    } else throw new Error(`unknown CI setup mode ${mode}; use --plan, --setup GROUP [RUNTIME], --context-prepare GROUP [RUNTIME], or --context-cleanup GROUP [RUNTIME]`);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[ci-setup] ${error.message}`);

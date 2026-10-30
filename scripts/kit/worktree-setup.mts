@@ -54,7 +54,7 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   const own: NodeJS.ProcessEnv = { ...env, PATH: (env.PATH ?? '').split(path.delimiter).filter(entry => entry !== tools && !entry.startsWith(`${tools}${path.sep}`)).join(path.delimiter) };
   for (const name of ['MAKEFLAGS', 'MFLAGS', 'MAKELEVEL']) delete own[name];
   // A consumer Makefile includes kit from node_modules, which a new worktree lacks: npm ci of the npm that packageManager names
-  // installs it first, as the clean checkout of the gates workflow does (release.md), and make install then runs its own.
+  // installs it first, as the clean checkout of the CI pipeline does (release.md), and make install then runs its own.
   const manifest = path.join(folder, 'package.json');
   if (!existsSync(path.join(folder, 'node_modules')) && existsSync(path.join(folder, 'package-lock.json')) && existsSync(manifest)) {
     const { packageManager } = readNpmManifestFile(manifest);

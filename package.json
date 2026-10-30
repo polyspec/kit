@@ -49,7 +49,7 @@
     "config/php-lint/composer.json",
     "config/php-lint/composer.lock",
     "workflows/release.yml",
-    "workflows/gates.yml",
+    "workflows/ci-pipeline.yml",
     "claude/settings.json",
     "PRINCIPLES.md",
     "PRINCIPLES.ko.md"
@@ -102,7 +102,7 @@
       ".editorconfig": ".editorconfig",
       ".claude/settings.json": "claude/settings.json",
       ".github/workflows/release.yml": "workflows/release.yml",
-      ".github/workflows/gates.yml": "workflows/gates.yml",
+      ".github/workflows/ci-pipeline.yml": "workflows/ci-pipeline.yml",
       "config/layout.kit.yml": "config/layout.kit.yml",
       "config/pyproject.schema.json": "config/pyproject.schema.json",
       "config/composer.schema.json": "config/composer.schema.json",
@@ -113,7 +113,7 @@
       {
         "paths": [
           ".github/workflows/release.yml",
-          ".github/workflows/gates.yml",
+          ".github/workflows/ci-pipeline.yml",
           ".claude/settings.json",
           ".editorconfig"
         ],

@@ -8,7 +8,8 @@
 // backticks: `make <target>`, a test file, a Git hook of .githooks or `.claude/settings.json`; or `Enforced by: none, <reason>`
 // for a rule that no tool can enforce, which the check lists; `planned <item>` names the open checklist item that builds the
 // check of a rule, which the check lists until the item is done and then fails. A check is reached when a point that cannot be skipped runs it:
-// a step of a workflow of .github/workflows or a Git hook of .githooks starts make with it, it is a prerequisite of a reached
+// a step of a workflow of .github/workflows or a Git hook of .githooks starts make with it, config/ci.json names it for the CI
+// pipeline that the repository holds (K910), it is a prerequisite of a reached
 // target, a reached recipe names it after the expansion of its variables, or a reached recipe names the test file or a folder
 // of it. A rule of PRINCIPLES.md begins with an id, P<n> or S<n>. A rule of AGENTS.md begins with `Own:` or `Refines <id>:`; a
 // refining rule names, in backticks, a term of the repository that PRINCIPLES.md lacks (an existing path or a make target), so a
@@ -19,7 +20,7 @@ import { lineBlocks } from './markdown.mts';
 import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
 import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { RUNTIMES } from './ci-setup.mts';
+import { CI_CONFIG, ciConfigTargets, RUNTIMES } from './ci-setup.mts';
 import { CONFIG, DONE, IMPOSSIBLE, loadConfig, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 
 /** A rule of a document: its first line and the text of its `Enforced by:` line, or null. */
@@ -35,6 +36,8 @@ const ENFORCED = /^\s*Enforced by:\s*(.*)$/;
 const DEFAULT_DOCUMENTS = ['PRINCIPLES.md', 'AGENTS.md'];
 // The points that cannot be skipped: the folders whose files start make.
 const ENTRY_FOLDERS = ['.github/workflows', '.githooks'];
+// The CI pipeline that kit copies into a repository (K910).
+const PIPELINE = '.github/workflows/ci-pipeline.yml';
 
 /** Whether a recipe-free aggregate names only existing suite targets through an acyclic prerequisite graph. */
 function mandatoryAggregate(target: string, make: MakeDatabase): boolean {
@@ -160,7 +163,7 @@ const MATRIX_RUNTIME = /\$\{\{\s*matrix\.runtime\s*\}\}/g;
 
 /**
  * The shell lines of the steps of the workflow `text`: the value of each `run:`, on its line or in the block below it. A line
- * that names `${{ matrix.runtime }}` runs once for each runtime the gates job can hold, since discover fills that matrix
+ * that names `${{ matrix.runtime }}` runs once for each runtime the runtime job of the CI pipeline can hold, since its shared job fills that matrix
  * with the runtimes of the repository (K757). Any other expression `${{ … }}`, which GitHub replaces before the shell reads the
  * line, is one word.
  */
@@ -209,6 +212,8 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
       for (const words of commandsOf(script)) enter(words, new Map());
     }
   }
+  // The CI pipeline runs the setup, context and declared targets of config/ci.json, which its steps name only as expressions (K910).
+  if (existsSync(path.join(root, PIPELINE)) && existsSync(path.join(root, CI_CONFIG))) for (const target of ciConfigTargets(root)) queue.push({ target, variables: new Map() });
   // A target is expanded once for each set of variables it is called with (K312): `make ci-targets TARGETS="a"` and
   // `make ci-targets TARGETS="b"` run different targets through one recipe.
   const expanded = new Set<string>();

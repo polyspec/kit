@@ -109,8 +109,8 @@ test('install-packages runs the targets that INSTALL_PACKAGES_EXTRA names after 
   assert.equal(run.stdout, 'npm allow-remote=root: ci\nnpm allow-remote=root: extra-one\nnpm allow-remote=root: extra-two\n');
 });
 
-test('the gates workflow bootstraps the installed kit with pinned npm before Make and builds no sibling checkout (K686-2)', (t) => {
-  const workflow = readFileSync(path.resolve(KIT, '../../workflows/gates.yml'), 'utf8');
+test('the CI pipeline bootstraps the installed kit with pinned npm before Make and builds no sibling checkout (K686-2, K910)', (t) => {
+  const workflow = readFileSync(path.resolve(KIT, '../../workflows/ci-pipeline.yml'), 'utf8');
   assertWorkflowPackageBootstrap(workflow, t);
   assert.doesNotMatch(workflow, /make -C \.\.\/kit|kit-build/, 'package bootstrap never builds a sibling kit');
 });

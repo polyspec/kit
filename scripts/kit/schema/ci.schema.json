@@ -1,15 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "config/ci.json",
-  "description": "Existing Make targets needed before and around the shared gates (`scripts/kit/ci-setup.mts`): repository-specific install and generation prerequisites grouped by shared checks, parity, and runtime. Optional contexts name paired repository-owned preparation and cleanup targets around each provider gate. `parityMode` selects the provider full gate (the default) or the provider-owned API and implementation-binding phases.",
+  "description": "Existing Make targets needed before, around and after the gates of the CI pipeline (`scripts/kit/ci-setup.mts`, workflows/ci-pipeline.yml): repository-specific install and generation prerequisites grouped by shared checks, parity, and runtime. Optional contexts name paired repository-owned preparation and cleanup targets around each provider gate. `parityMode` selects the provider full gate (the default) or the provider-owned API and implementation-binding phases.",
   "type": "object",
   "required": ["schema", "setup"],
   "additionalProperties": false,
   "properties": {
     "schema": { "type": "integer", "const": 1 },
     "comment": { "type": "string" },
-    "runner": { "description": "The supported GitHub-hosted runner for gate jobs. The default is Ubuntu 24.04 x64; repositories may select Ubuntu 26.04 ARM when their native database tooling requires it.", "type": "string", "enum": ["ubuntu-24.04", "ubuntu-26.04-arm"] },
-    "parityMode": { "description": "The parity path of the provider gates workflow. `full` (default) runs complete parity-check; `phases` runs the global API phase and one binding phase for every implementation in config/parity.json.", "type": "string", "enum": ["full", "phases"] },
+    "runner": { "description": "The supported GitHub-hosted runner of the parity and runtime jobs of the CI pipeline. The default is Ubuntu 24.04 x64; repositories may select Ubuntu 26.04 ARM when their native database tooling requires it. The shared job, which writes the plan that names the runner, runs on Ubuntu 24.04 x64 (K910).", "type": "string", "enum": ["ubuntu-24.04", "ubuntu-26.04-arm"] },
+    "parityMode": { "description": "The parity path of the CI pipeline. `full` (default) runs complete parity-check; `phases` runs the global API phase and one binding phase for every implementation in config/parity.json.", "type": "string", "enum": ["full", "phases"] },
     "setup": {
       "type": "object",
       "required": ["shared", "parity", "runtimes"],
@@ -60,6 +60,27 @@
         "python": { "$ref": "#/$defs/tools" },
         "rust": { "$ref": "#/$defs/tools" },
         "ts": { "$ref": "#/$defs/tools" }
+      }
+    },
+    "targets": {
+      "description": "Optional repository-owned Make targets that each job of the CI pipeline runs after kit's gate of its group, inside its context (K910): targets.shared in the shared job, targets.parity in the parity job (the API phase in the phases mode; a repository without config/parity.json has no parity job, so its targets.parity never run), targets.runtimes.<runtime> in the job of that runtime, which joins the runtime matrix even when no tracked file shows it.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shared": { "$ref": "#/$defs/targets" },
+        "parity": { "$ref": "#/$defs/targets" },
+        "runtimes": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "go": { "$ref": "#/$defs/targets" },
+            "php": { "$ref": "#/$defs/targets" },
+            "php-ext": { "$ref": "#/$defs/targets" },
+            "python": { "$ref": "#/$defs/targets" },
+            "rust": { "$ref": "#/$defs/targets" },
+            "ts": { "$ref": "#/$defs/targets" }
+          }
+        }
       }
     }
   },

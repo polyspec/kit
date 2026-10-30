@@ -114,7 +114,7 @@ test('kit copies installed shared files and workflows without requiring a siblin
   const expected = {
     'PRINCIPLES.md': 'PRINCIPLES.md', 'PRINCIPLES.ko.md': 'PRINCIPLES.ko.md', '.editorconfig': '.editorconfig',
     '.claude/settings.json': 'claude/settings.json', '.github/workflows/release.yml': 'workflows/release.yml',
-    '.github/workflows/gates.yml': 'workflows/gates.yml', 'config/layout.kit.yml': 'config/layout.kit.yml',
+    '.github/workflows/ci-pipeline.yml': 'workflows/ci-pipeline.yml', 'config/layout.kit.yml': 'config/layout.kit.yml',
     'config/pyproject.schema.json': 'config/pyproject.schema.json', 'config/composer.schema.json': 'config/composer.schema.json',
     'config/cargo.schema.json': 'config/cargo.schema.json',
   };
@@ -195,7 +195,7 @@ test('a consumer after kit-sync passes owner-validate with the rules that kit sh
   // make hooks writes the hooks of kit (K495, K522), which a rule that kit ships owns.
   for (const hook of HOOKS) write(root, hook, '#!/bin/sh\n');
   // Installed copies and the consumer commit identity are regular files owned by the shipped rules.
-  const held = ['.github/workflows/release.yml', '.github/workflows/gates.yml', '.claude/settings.json', '.editorconfig', 'PRINCIPLES.md', 'PRINCIPLES.ko.md'];
+  const held = ['.github/workflows/release.yml', '.github/workflows/ci-pipeline.yml', '.claude/settings.json', '.editorconfig', 'PRINCIPLES.md', 'PRINCIPLES.ko.md'];
   for (const file of held) write(root, file, `${file}\n`);
   write(root, 'config/owner-checks.json', '{}\n');
   const tracked = [...Object.keys(copies), ...HOOKS, ...held, 'config/owner-checks.json', 'package.json', 'package-lock.json'];

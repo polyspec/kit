@@ -36,7 +36,6 @@ test('each target runs the tool of its gate with the commit and the keys that th
   const directory = repository(t);
   assert.deepEqual(commands(directory, 'hooks'), ['$(NODE) scripts/kit/git-hooks.mts install']);
   assert.deepEqual(commands(directory, 'hooks-check'), ['$(NODE) scripts/kit/git-hooks.mts check']);
-  assert.deepEqual(commands(directory, 'kit-ci-verify-gates'), ['$(NODE) scripts/kit/ci-setup.mts --verify-gates']);
 });
 
 test('the provider parity phase targets fix their selectors and accept a concrete implementation name', (t) => {

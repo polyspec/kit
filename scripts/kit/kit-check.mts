@@ -140,10 +140,10 @@ export function strayCopies(root: string, copies: { file: string }[]): string[] 
 
 /**
  * The files that an earlier kit copied into the repository and that kit now reads from its package (K514): the lint
- * configurations, which each lint of kit.mk names by their path in the package. kit-sync removes them, and kit-check names one
- * that a consumer still holds (K514-1).
+ * configurations, which each lint of kit.mk names by their path in the package, and the gates workflow, which the CI pipeline
+ * replaced (K910). kit-sync removes them, and kit-check names one that a consumer still holds (K514-1).
  */
-export const RETIRED_COPIES = ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json'] as const;
+export const RETIRED_COPIES = ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json', '.github/workflows/gates.yml'] as const;
 
 /** The findings of `root`: the configuration and the recipes; empty when they match. */
 export function check(root: string): string[] {
