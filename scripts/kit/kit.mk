@@ -466,7 +466,7 @@ npm-install: ## Install the npm packages of DIR with npm ci of its tracked lock,
 
 # uv-install follows application source/workspace declarations with native locked sync and installed-distribution checks.
 .PHONY: uv-install
-uv-install: ## Install declared Python sources in DIR with one native uv sync --locked and check installed distributions; SYNC accepts --no-install-project and --all-groups
+uv-install: ## Install declared Python sources in DIR with one native uv sync --locked and check installed distributions; SYNC passes its uv sync flags as written (K850)
 	UV_SYNC="$(SYNC)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR) $(CHECKOUTS)
 
 # cargo-fetch is the fetch of a consumer's Cargo crates in place of its cargo fetch: through the link of cargo, with the polyspec crates

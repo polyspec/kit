@@ -7,8 +7,6 @@ import { siblingCheckouts, type Provider } from './link-providers.mts';
 import { isMain } from './paths.mts';
 import { run } from './process.mts';
 
-const SYNC_FLAGS = new Set(['--no-install-project', '--all-groups']);
-
 /**
  * The PEP 751 lock of the workspace `workspace`, of a project that has no uv.lock: pylock.toml, else the first pylock.<name>.toml
  * in sorted order; undefined when there is none.
@@ -24,10 +22,20 @@ export function pylockOf(workspace: string): string | undefined {
  * (relative to the workspace root, as uv reads it) or .venv of the workspace root. The link, its checks and the install read this one,
  * so a workspace member is judged in the environment that uv installs and the link links.
  */
-export function projectEnvironment(project: string, uv: string, env: NodeJS.ProcessEnv): { venv: string; workspace: string } {
-  const workspace = run(uv, ['workspace', 'dir'], { cwd: project, env }).trim();
+export function projectEnvironment(project: string, uv: string, env: NodeJS.ProcessEnv, sync: readonly string[] = []): { venv: string; workspace: string } {
+  const workspace = run(uv, ['workspace', 'dir', ...locationFlags(sync)], { cwd: project, env }).trim();
   if (!path.isAbsolute(workspace)) throw new Error('uv workspace dir returned no absolute project root');
-  return { venv: path.resolve(workspace, env.UV_PROJECT_ENVIRONMENT || '.venv'), workspace };
+  // uv sync --active installs into the activated environment (K850).
+  const active = sync.includes('--active') && env.VIRTUAL_ENV ? path.resolve(project, env.VIRTUAL_ENV) : undefined;
+  return { venv: active ?? path.resolve(workspace, env.UV_PROJECT_ENVIRONMENT || '.venv'), workspace };
+}
+
+/** The flags of `sync` that choose the project of uv, --project and --directory, which uv workspace dir takes as uv sync does (K850). */
+function locationFlags(sync: readonly string[]): string[] {
+  return sync.flatMap((flag, index) => {
+    if (flag === '--project' || flag === '--directory') return [flag, sync[index + 1] ?? ''];
+    return flag.startsWith('--project=') || flag.startsWith('--directory=') ? [flag] : [];
+  });
 }
 
 type UvSourcesOptions = {
@@ -41,7 +49,7 @@ type UvSourcesOptions = {
  */
 function installSources({ directory, providers = [], uv = 'uv', env = process.env, print = () => {} }: UvSourcesOptions, sync?: readonly string[]): string[] {
   const project = path.resolve(directory);
-  const { venv, workspace } = projectEnvironment(project, uv, env);
+  const { venv, workspace } = projectEnvironment(project, uv, env, sync);
   // K888: a project without its environment is not installed yet. The link creates none (K689-3) and leaves it out, as a package that
   // is not installed; link-state-check reports each declared provider that stays unlinked.
   if (sync === undefined && !existsSync(path.join(venv, 'pyvenv.cfg'))) {
@@ -88,9 +96,8 @@ export function uvInstallCommand(args: readonly string[], env: NodeJS.ProcessEnv
   const project = path.resolve(directory);
   const checkouts = given.length ? given.map(checkout => path.resolve(checkout)) : siblingCheckouts(project).checkouts;
   try {
+    // uv validates its own flags; the links of the environment that the flags choose go before the sync (K850).
     const sync = (env.UV_SYNC ?? '').split(/\s+/).filter(flag => flag !== '');
-    const refused = sync.filter(flag => !SYNC_FLAGS.has(flag));
-    if (refused.length) throw new Error(`SYNC takes ${[...SYNC_FLAGS].join(' and ')}, not ${refused.join(' ')}`);
     const providers = checkoutProviders(checkouts, 'python');
     const linked = installSources({ directory: project, providers, uv: env.UV ?? 'uv', env, print: text => write(`${text}\n`) }, sync);
     write(`uv-install ${project}: native locked development sync passed${linked.length ? `; linked sources: ${linked.join(', ')}` : ''}\n`);

@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: d58294e9685528d0caf7d2361b83e78084ca1be23b435198ffffc5859a6713ac -->
+<!-- source-sha256: 5fce3a8e9774e26c3eeb01922a5b1a173a172063550aec19e6f0e6ef5f4e377f -->
 # 개발
 
 [English](AGENTS.md)
@@ -37,9 +37,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Refines P14: [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 `scripts/kit/`의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를
   쓰며, uv가 만드는 symbolic link 같은 그 도구 자신의 동작은 받아들입니다; 우리 규칙은 우리가 만드는 것을 다스립니다. kit은 dependency 해석, link, 설치 record, 생성 metadata를 native package manager에 위임하며 직접 dependency 폴더를 교체하거나 설치 metadata를 합성하지 않습니다.
   Enforced by: `make rebuild-check`
-- Own: 저장소는 uv를 `make uv-install`로 실행합니다. 이 target은 uv가 link를 거쳐 쓰고 지우므로(K539) uv가 쓰기 전에 environment의
-  package link를 제거하고, lock의 native locked 설치(`uv sync --locked`, 또는 pylock.toml의 `uv pip install`)를 실행합니다. symlink된 개발 폴더는 손상되지 않습니다.
-  Enforced by: `tests/kit/uv-install.test.mts`
+- Own: 저장소는 uv를 `make uv-install`로 실행합니다. 이 target은 uv가 link를 거쳐 쓰고 지우므로(K539) uv가 쓰기 전에 uv가 쓸 environment의
+  package link를 제거하고(`SYNC`의 `--project`, `--directory`, `--active`가 고르는 environment 포함), lock의 native locked 설치(`uv sync --locked`, 또는 pylock.toml의 `uv pip install`)를 `SYNC`의 flag 그대로 실행합니다. symlink된 개발 폴더는 손상되지 않습니다.
+  Enforced by: `tests/kit/uv-install.test.mts`, `tests/source/uv-link-real.test.mts`
 - Own: 추적되는 공유 root 파일과 workflow는 설치된 kit package의 일반 파일 사본이며 `make kit-sync`가 관리합니다. 소비자는
   `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include하며 첫 Make 실행 전에 lock에 고정된 npm dependency를 설치합니다.
   로컬 개발은 native npm link, Composer path repository, uv editable 설치로 설치된 package를 provider source에 연결합니다

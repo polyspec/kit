@@ -20,7 +20,7 @@ function fixture(t: { after: (fn: () => void) => void }) {
   const uv = path.join(root, 'uv');
   writeFileSync(path.join(root, 'pyproject.toml'), '[project]\nname = "consumer"\nversion = "0.0.0"\ndependencies = ["polyspec-new-unreleased"]\n');
   // The fixture sync writes the release files into the package folder, as uv does, through a link that is still there.
-  writeFileSync(uv, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nif [ "$1 $2" = "workspace dir" ]; then echo '${root}'; fi\nif [ "$1" = sync ] && [ -z "$UV_FIXTURE_KEEP" ]; then mkdir -p '${site}/polyspec_new_unreleased' && echo release > '${site}/polyspec_new_unreleased/RELEASE'; fi\nif [ "$1 $2" = "pip check" ] && [ "$UV_FIXTURE_CONFLICT" = yes ]; then echo 'incompatible native dependency requirement' >&2; exit 1; fi\n`);
+  writeFileSync(uv, `#!/bin/sh\nprintf '%s\\n' "$*" >> '${log}'\nif [ "$1 $2" = "workspace dir" ]; then if [ "$3" = --project ]; then (cd "$4" && pwd -P); else pwd -P; fi; fi\nif [ "$1" = sync ] && [ -z "$UV_FIXTURE_KEEP" ]; then mkdir -p '${site}/polyspec_new_unreleased' && echo release > '${site}/polyspec_new_unreleased/RELEASE'; fi\nif [ "$1 $2" = "pip check" ] && [ "$UV_FIXTURE_CONFLICT" = yes ]; then echo 'incompatible native dependency requirement' >&2; exit 1; fi\n`);
   chmodSync(uv, 0o755);
   const provider = { ecosystem: 'python' as const, name: 'polyspec-new-unreleased', folder: checkout, repository: checkout, checkout };
   return { root, log, uv, site, checkout, provider, env: { ...process.env, UV: uv, UV_PROJECT_ENVIRONMENT: '.venv' } };
@@ -41,13 +41,30 @@ test('K664-1: incompatible native dependency checks are failures with developmen
   assert.throws(() => uvLink({ directory: root, uv, env: { ...env, UV_FIXTURE_CONFLICT: 'yes' } }), /ensure each local provider is compatible.*incompatible native dependency requirement/s);
 });
 
-test('K664-1: the command forwards supported native sync flags and rejects bypass flags', { timeout: 30_000 }, (t) => {
-  const { root, log, env } = fixture(t);
+// K850: uv validates its own flags, so SYNC reaches uv sync as the repository wrote it, values included; the links go before the sync
+// whatever the flags, so no flag lets uv write through a link into the development folder.
+test('K850: the command passes SYNC to uv sync as written, with flag values, and the development folder stays unchanged', { timeout: 30_000 }, (t) => {
+  const { root, log, uv, site, checkout, provider, env } = fixture(t);
+  uvLink({ directory: root, uv, env, providers: [provider] });
+  const before = readFileSync(path.join(checkout, 'src/polyspec_new_unreleased/__init__.py'), 'utf8');
   const lines: string[] = [];
-  assert.equal(uvInstallCommand([root, root], { ...env, UV_SYNC: '--all-groups --no-install-project' }, line => lines.push(line)), 0);
-  assert.match(readFileSync(log, 'utf8'), /^sync --locked --all-groups --no-install-project$/m);
-  assert.match(lines.join(''), /native locked development sync passed/);
-  assert.equal(uvInstallCommand([root, root], { ...env, UV_SYNC: '--no-deps' }, () => {}), 1);
+  const sync = '--quiet --all-packages --no-editable --group dev --project . --no-install-project';
+  assert.equal(uvInstallCommand([root, checkout], { ...env, UV_SYNC: sync }, line => lines.push(line)), 0, lines.join(''));
+  assert.match(readFileSync(log, 'utf8'), new RegExp(`^sync --locked ${sync}$`, 'm'));
+  assert.equal(existsSync(path.join(checkout, 'src/polyspec_new_unreleased/RELEASE')), false, 'the sync wrote no file into the checkout');
+  assert.equal(readFileSync(path.join(checkout, 'src/polyspec_new_unreleased/__init__.py'), 'utf8'), before);
+  assert.equal(realpathSync(path.join(site, 'polyspec_new_unreleased')), path.join(checkout, 'src/polyspec_new_unreleased'));
+});
+
+// K850: --project of SYNC makes uv sync another project, so the links of that project's environment go before the sync.
+test('K850: the links of the project that --project of SYNC names go before the sync, so uv writes no checkout through them', { timeout: 30_000 }, (t) => {
+  const other = fixture(t);
+  const { root, env } = fixture(t);
+  uvLink({ directory: other.root, uv: other.uv, env: other.env, providers: [other.provider] });
+  const lines: string[] = [];
+  assert.equal(uvInstallCommand([root, other.checkout], { ...env, UV: other.uv, UV_SYNC: `--project ${other.root}` }, line => lines.push(line)), 0, lines.join(''));
+  assert.equal(existsSync(path.join(other.checkout, 'src/polyspec_new_unreleased/RELEASE')), false, 'the sync wrote no file into the checkout');
+  assert.equal(realpathSync(path.join(other.site, 'polyspec_new_unreleased')), path.join(other.checkout, 'src/polyspec_new_unreleased'));
 });
 
 test('K765, K539: the installer removes the links before uv syncs, so uv writes no checkout, and links the synced folder', { timeout: 30_000 }, (t) => {

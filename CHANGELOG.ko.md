@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0d3606b666732ad11800bbb92f7aa8cc0ef6edb0b7a8f9724e3f7ee4558f7419 -->
+<!-- source-sha256: 1f6f37247eb4f671c9ad369e13b9e6d72b46100e01d9fae9071e2790dc884d42 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- make uv-install은 SYNC의 flag를 --group dev, --project 같은 값까지 그대로 uv sync에 넘기며, link는 --project, --directory, --active가 고르는 environment에서 제거합니다. 따라서 저장소는 link를 거쳐 쓰는 raw uv sync 대신 이를 통해 uv를 실행합니다. flag 검증은 uv가 합니다(K850).
 - kit이 유지하는 모든 harness 조각은 규칙이 이름을 지정합니다. AGENTS.md는 make uv-install, install-link와 make worktree-setup, make owner-validate, tool-wrappers의 wrapper script, release-run을, P8은 catch-check를 지정하고, S4는 "kit은 버전도 lock도 비교하지 않고 pin하지 않으며 인자의 형식 검증은 허용된다"이고 Enforced by는 none입니다. gates-workflow.test.mts는 규칙이 지정하지 않은 유지 조각에서 실패합니다 (K853).
 - bootstrap 멱등 검사(verify-idempotent)는 설치된 각 파일의 시간과 inode 대신 내용(경로, 실제 경로, digest, 크기, mode)을 비교하므로, 두 번째 설치가 같은 바이트로 다시 쓴 파일은 변경이 아닙니다. P17은 tests/kit/install-idempotent.test.mts를 지정합니다 (K852).
 - kit의 golangci-lint 설정에서 gomoddirectives를 뺍니다. make lint-go는 go tool의 것인 replace, toolchain 줄, go.mod의 다른 directive를 더 이상 금지하지 않습니다 (K866).

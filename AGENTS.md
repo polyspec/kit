@@ -42,10 +42,11 @@ and states only its own rules. The rules below are kit's own.
   creates, is accepted; our rules govern what we create. kit delegates dependency resolution, links, installed records
   and generated metadata to the native package manager; it does not replace dependency folders or synthesize installed metadata itself.
   Enforced by: `make rebuild-check`
-- Own: A repository runs uv through `make uv-install`, which removes the package links of the environment before uv writes,
+- Own: A repository runs uv through `make uv-install`, which removes the package links of the environment that uv writes, the
+  one that `--project`, `--directory` or `--active` of `SYNC` chooses included, before uv writes,
   since uv writes and deletes through a link (K539), and then runs the native locked install of its lock (`uv sync --locked`,
-  or `uv pip install` of a pylock.toml); a symlinked development folder is never damaged.
-  Enforced by: `tests/kit/uv-install.test.mts`
+  or `uv pip install` of a pylock.toml) with the flags of `SYNC` as written; a symlinked development folder is never damaged.
+  Enforced by: `tests/kit/uv-install.test.mts`, `tests/source/uv-link-real.test.mts`
 - Own: Tracked shared root files and workflows are regular copies of the installed kit package, managed by `make kit-sync`. Consumers include
   `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`; they install the locked npm dependencies before the first Make invocation.
   Local development uses native npm links, Composer path repositories and uv editable installations to connect installed
