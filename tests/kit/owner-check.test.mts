@@ -360,7 +360,15 @@ test('makeDatabase reads the database of a Makefile whose default goal calls $(M
     '\t$(MAKE) $(TARGETS)',
     '',
   ].join('\n'));
-  const database = makeDatabase(root);
+  // The read is the top-level make of its own process: the make that runs this test may have set MAKELEVEL and its flags (K945).
+  const invoking = Object.fromEntries(['MAKELEVEL', 'MAKEFLAGS', 'MFLAGS'].map(name => [name, process.env[name]]));
+  for (const name of Object.keys(invoking)) delete process.env[name];
+  let database;
+  try {
+    database = makeDatabase(root);
+  } finally {
+    for (const [name, value] of Object.entries(invoking)) if (value !== undefined) process.env[name] = value;
+  }
   assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), ['level-0'], 'make runs once, with no child make');
   assert.equal(database.targets.has('ci-targets'), true, 'the database names the targets of the Makefile');
   // The default goal of this read is not a target of the Makefile, and its variable is not a variable of it (K945).
