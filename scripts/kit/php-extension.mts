@@ -3,8 +3,8 @@
 //
 //   node scripts/kit/php-extension.mts check          the names, the one stub and, when present, the arginfo stub hash
 //   node scripts/kit/php-extension.mts build [--output <absolute-path>] [--source-copy <source> <output>] [--configure-arg <arg>]
-//                                                     the check, then phpize in a temporary source copy, the arginfo from the gen_stub.php that phpize
-//                                                     copies into build/ (K941), configure and make; publish the library by a rename
+//                                                     the check, then phpize in a temporary source copy, the arginfo from the gen_stub.php of
+//                                                     var/php-ext/gen-stub (K941), configure and make; publish the library by a rename
 //   node scripts/kit/php-extension.mts test           the classes and functions that the built extension registers, compared
 //                                                     by Reflection with those of the PHP library (symbols/php/reflection.php),
 //                                                     then the unit tests of runtime-targets.mts with the extension loaded
@@ -30,6 +30,8 @@ import { git } from './git.mts';
 export const LIBRARY = 'packages/php';
 export const EXTENSION = 'packages/php-ext';
 const OUTPUT = 'var/php-ext';
+// The folder of gen_stub.php in a checkout (K941): its PHP-Parser is fetched once there, and it is git-ignored with var/.
+const GEN_STUB = `${OUTPUT}/gen-stub`;
 
 /** The names of the extension of the repository `repository`: its Composer package, its extension and its stub. */
 export function extensionNames(repository: string): { composer: string; extension: string; stub: string; arginfo: string } {
@@ -285,10 +287,17 @@ function isSource(entry: string): boolean {
  */
 function generateArginfo(root: string, source: string, stub: string): string {
   const php = toolCommand(root, 'php');
-  // phpize copies the gen_stub.php of the PHP into build/ of the source (K941): the build directory of the PHP is named by its
-  // phpize, not by php-config --prefix, which names no lib/php/build on Ubuntu. The PHP-Parser that it needs is its own.
+  // phpize copies the gen_stub.php of the PHP into build/ of the source (K941), which names the PHP build directory by itself, so
+  // php-config --prefix is not used. gen_stub keeps the PHP-Parser that it fetches for its own release in its own directory, so it
+  // runs from one folder per checkout: PHP's tool fetches its parser once, and a later build finds it there (K941).
+  const folder = path.join(root, GEN_STUB);
+  mkdirSync(folder, { recursive: true });
+  const generator = path.join(folder, 'gen_stub.php');
+  const staged = `${generator}.${process.pid}`;
+  copyFileSync(path.join(source, 'build', 'gen_stub.php'), staged);
+  renameSync(staged, generator);
   const file = path.join(source, path.basename(stub));
-  run(php, [path.join(source, 'build', 'gen_stub.php'), file], { cwd: source });
+  run(php, [generator, file], { cwd: source });
   return path.join(source, path.basename(stub).replace(/\.stub\.php$/, '_arginfo.h'));
 }
 
