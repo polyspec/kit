@@ -6,7 +6,8 @@
 // worktree of that branch installs and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { git, gitResult } from './git.mts';
@@ -54,15 +55,24 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   const own: NodeJS.ProcessEnv = { ...env, PATH: (env.PATH ?? '').split(path.delimiter).filter(entry => entry !== tools && !entry.startsWith(`${tools}${path.sep}`)).join(path.delimiter) };
   for (const name of ['MAKEFLAGS', 'MFLAGS', 'MAKELEVEL']) delete own[name];
   // A consumer Makefile includes kit from node_modules, which a new worktree lacks: npm ci of the npm that devEngines names
-  // installs it first, as the clean checkout of the CI pipeline does (release.md), and make install then runs its own.
+  // installs it first, as the clean checkout of the CI pipeline does (release.md), and make install then runs its own. A package.json
+  // without that declaration (a consumer that adopted no npm:npm, K938-1) is refused here, before any npm or make runs: the include of
+  // kit would fail with make's own message, and no other npm is used in its place.
   const manifest = path.join(folder, 'package.json');
-  if (!existsSync(path.join(folder, 'node_modules')) && existsSync(path.join(folder, 'package-lock.json')) && existsSync(manifest)) {
+  if (!existsSync(path.join(folder, 'node_modules')) && existsSync(manifest)) {
     const { devEngines } = readNpmManifestFile(manifest);
     const npm = devEngines?.packageManager;
-    if (npm?.name === 'npm') {
-      if (npm.version === undefined) throw new Error('devEngines.packageManager of package.json names npm without a version; declare the npm version there, for example "version": "12.2.0"');
-      print(`[worktree-setup] npm ci of npm@${npm.version} in ${folder}`);
-      run('npm', ['exec', '--yes', `--package=npm@${npm.version}`, '--', 'npm', 'ci', '--ignore-scripts', '--allow-remote=root'], folder, own);
+    if (npm?.name !== 'npm') throw new Error('package.json declares no devEngines.packageManager of npm, so a worktree gets no node_modules for the include of kit; declare "devEngines": {"packageManager": {"name": "npm", "version": "12.2.0", "onFail": "error"}} and "npm:npm" = "12.2.0" in mise.toml (docs/operations/adoption.md)');
+    if (npm.version === undefined) throw new Error('devEngines.packageManager of package.json names npm without a version; declare the npm version there, for example "version": "12.2.0"');
+    print(`[worktree-setup] npm ci of npm@${npm.version} in ${folder}`);
+    // npm 11 of the machine refuses to run in a folder whose devEngines names npm 12.2.0 (EBADDEVENGINES), so the npm of the
+    // devEngines runs from the temporary folder with --prefix, and the folder is never the working directory of the outer npm (K938-1).
+    // The outer npm writes into its working directory, so it runs in a folder of its own that is removed after the run (K938-1).
+    const outer = mkdtempSync(path.join(os.tmpdir(), 'kit-npm-'));
+    try {
+      run('npm', ['exec', '--yes', `--package=npm@${npm.version}`, '--', 'npm', '--prefix', folder, 'ci', '--ignore-scripts', '--allow-remote=root'], outer, own);
+    } finally {
+      rmSync(outer, { recursive: true, force: true });
     }
   }
   // make reads that include before make install links the packages, so the installed kit gets its link one step early: the provider

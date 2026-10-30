@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b1cb53c1a05080500e7c864083316e67b6ef0b24d7a1be9f5dfcc137991ee50f -->
+<!-- source-sha256: 69b26176741feaf6800616a1a87a80f2f531e421762f615a809901366151fd41 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K938-1이 K938을 바로잡는다: worktree-setup은 devEngines npm을 선언하지 않은 package.json을 npm이나 make를 실행하기 전에 거부하고, devEngines npm을 임시 폴더에서 `npm --prefix <checkout> ci`로 실행한다. 이는 runner의 npm 11이 받아들이는 형태이며(그렇지 않으면 EBADDEVENGINES), release와 CI의 bootstrap 단계도 checkout 밖에서 같은 형태를 쓴다(K938-1).
 - K941: arginfo 생성은 gen-stub 폴더 옆의 lock 하나를 잡으므로, 같은 checkout의 동시 build는 서로를 기다리고 gen_stub가 풀고 있는 PHP-Parser를 믿지 않습니다. 실패한 실행은 폴더를 지우므로 덜 풀린 parser가 남지 않습니다 (K941).
 - bootstrap은 mise를 sha256으로 설치하고 설치된 mise를 digest marker만으로 판정하며 version은 비교하지 않는다. 설치는 확인한 digest를 var/tools/mise-release/.sha256에 쓰고, marker가 선언된 digest를 담은 설치를 유지한다. kit은 자기 npm을 설치하지 않는다. mise.toml의 node와 npm은 mise가 설치하고 mise.lock에 lock되며, var/tools/bin/npm은 mise.toml의 npm:npm을 mise.toml의 node로 실행한다. package.json은 packageManager 대신 devEngines.packageManager를 선언하며, npm이 onFail error로 직접 강제한다. workflow와 worktree-setup은 그 version으로 npm exec를 실행한다. S4는 mise의 digest와 release heading 순서를 두 예외로 적는다. pin 뒤 첫 설치는 marker를 쓰려고 mise를 한 번 내려받는다 (K933, K938).
 - K941: arginfo generator는 checkout마다 한 폴더 `var/php-ext/gen-stub`에서 실행하므로 PHP의 gen_stub.php는 고정 PHP-Parser를 build마다가 아니라 checkout마다 한 번 내려받습니다. kit은 아무것도 고정하거나 해시하지 않습니다 (K941).

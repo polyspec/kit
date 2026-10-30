@@ -70,7 +70,11 @@ jobs:
       - name: bootstrap the installed kit package
         run: |
           if [ "$(node -p 'require("./package.json").name')" != '@polyspec/kit' ]; then
-            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="npm@$(node -p 'require("./package.json").devEngines.packageManager.version')" -- npm ci --ignore-scripts --allow-remote=root
+            # npm 11 of the runner refuses to run in a folder whose devEngines names npm 12.2.0 (EBADDEVENGINES), so the npm of
+            # devEngines runs outside the checkout with --prefix (K938-1).
+            root="$PWD"
+            version="$(node -p 'require("./package.json").devEngines.packageManager.version')"
+            (cd "$RUNNER_TEMP" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
           fi
       - name: install npm
         run: make install-tools TOOLS=npm
@@ -84,7 +88,11 @@ jobs:
       - name: bootstrap the installed kit package of the tag
         run: |
           if [ "$(node -p 'require("./package.json").name')" != '@polyspec/kit' ]; then
-            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="npm@$(node -p 'require("./package.json").devEngines.packageManager.version')" -- npm ci --ignore-scripts --allow-remote=root
+            # npm 11 of the runner refuses to run in a folder whose devEngines names npm 12.2.0 (EBADDEVENGINES), so the npm of
+            # devEngines runs outside the checkout with --prefix (K938-1).
+            root="$PWD"
+            version="$(node -p 'require("./package.json").devEngines.packageManager.version')"
+            (cd "$RUNNER_TEMP" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
           fi
       - name: install npm of the tag
         run: make install-tools TOOLS=npm

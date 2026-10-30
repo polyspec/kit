@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: 081cc841ff35417b72f39b601ee487646c3914007181bd6455789c97c7259c52 -->
+<!-- source-sha256: de4530ab836c120da2f6c7159a399bfafabb039f35c4116f0120de842530bf66 -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -35,6 +35,37 @@ release workflow 실행을 하지 않는다([local-links.ko.md](local-links.ko.m
 ## 질문
 
 conductor에게 묻는 것은 kit의 결함(파일과 줄을 적어서)이나 서로 모순되는 두 규칙뿐이다(P23). 없는 규칙은 kit에서 먼저 만든다.
+
+## mise.toml의 npm 채택 (K938)
+
+저장소는 npm을 `mise.toml`에서 가져오고 `mise.lock`에 잠그며, 같은 version을 `package.json`에 선언한다. `packageManager` 필드는
+두지 않는다. 각 단계는 그것을 검사하는 도구를 가리킨다.
+
+1. `package.json`: `packageManager`를 `"devEngines": {"packageManager": {"name": "npm", "version": "12.2.0", "onFail": "error"}}`로
+   바꾼다. version은 npm 자신이 강제한다.
+2. `mise.toml`: `[tools]`에 `node`와 `"npm:npm" = "12.2.0"`을 선언한다.
+3. `make toolchain-lock`(온라인)이 `npm:npm`의 digest를 `mise.lock`에 쓰고, `mise.lock`이 이름하는 sidecar
+   `.mise/locks/npm-npm/<version>/`(`aube-lock.yaml`과 `package.json`)를 쓴다. 이 모두를 커밋한다. sidecar가 없으면
+   `mise install --locked`가 실패하므로(K192) 손으로 고치지 않는다.
+4. workflow: `packageManager`를 읽는 각 줄은 대신 `devEngines.packageManager.version`을 읽는다. `npm exec`의 npm은 checkout 밖에서
+   실행한다. 기계의 npm은 devEngines가 다른 version을 이름하는 폴더에서 실행을 거부하기 때문이다(EBADDEVENGINES). 줄은
+   `cd "$RUNNER_TEMP" && npm exec --yes --package="npm@<version>" -- npm --prefix "$GITHUB_WORKSPACE" ci --ignore-scripts --allow-remote=root`
+   이다.
+5. `node_modules`가 없는 checkout에는 include할 kit이 없다. worktree는 `make worktree-setup NAME=<name> ID=<id>`로 만들며, 이는 위의
+   npm ci를 실행한 뒤 거기서 `make install`과 `make link-check`를 실행한다(K858). devEngines npm을 선언하지 않은 `package.json`은
+   npm이나 make를 실행하기 전에 거부한다(K938-1). 일반 clone은 checkout 밖에서 같은 npm ci를 먼저 실행한다.
+
+fixture 소비자에서 실제로 실행한 첫 채택의 순서는 다음과 같다(K938-1).
+
+- `package.json`과 `mise.toml`(1, 2단계), 그다음 `--prefix`를 쓰는 npm ci(4단계): exit 0.
+- `make install-tools TOOLS=npm`: 첫 실행은 mise를 설치한 뒤 exit 2로 끝난다. mise.lock이 아직 node와 npm:npm을 고정하지 않으므로
+  bootstrap이 `make toolchain-lock`을 이름한다. 기대한 동작이며 고칠 것이 없다.
+- `make toolchain-lock`: exit 0, `mise.lock`과 sidecar를 쓴다. bootstrap의 `var/tools/bin/mise`와, 레시피가 kit의 include를 거쳐
+  실행되므로 `node_modules` 안의 kit이 필요하다.
+- `make install-tools TOOLS=npm`: exit 0.
+- `make install`: exit 0.
+
+그다음 `package.json`, `mise.toml`, `mise.lock`, `.mise/locks/npm-npm/<version>/`과 workflow 줄을 한 변경으로 커밋한다.
 
 ## 하지 않는 것
 
