@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Kit 0.0.79 is public: release run 41058908809 took the successful CI run 41057899821 of f48e54d3, made the annotated v0.0.79 tag on that commit and a published release with polyspec-kit-npm-0.0.79.tgz (K921).
+
 ## 0.0.79
 
 - The step of kit's ci.yml that runs the real Go benchmark of K919 runs it through Git Bash make, whose PATH of kit.mk names mise, so the go shim of mise starts on windows-2025 as well (K923).
