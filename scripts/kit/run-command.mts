@@ -5,13 +5,13 @@
 // caller. When the caller is interrupted, its running commands stop with it. The result carries
 // the elapsed time, which the caller prints with the command's outcome (K430).
 import { spawn } from 'node:child_process';
-import { signalGroup, stopGroup } from './process-group.mts';
+import { signalGroup, stopGroup, watchRoot, type SpawnedRoot } from './process-group.mts';
 
 const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 /** How long the processes that a command leaves in its group have to close after SIGTERM before SIGKILL. */
 const LEFT_GRACE_MS = 1000;
-// The running groups, each with the time taken before its spawn (signalGroup).
-const groups = new Map<number, number>();
+// The running groups, each with what its spawn knows of its leader (watchRoot).
+const groups = new Map<number, SpawnedRoot>();
 
 export interface RunCommandOptions {
   command: string;
@@ -42,19 +42,19 @@ export const formatSeconds = (milliseconds: number): string => `${(milliseconds 
 
 // An interrupted or ending caller takes its running commands with it.
 function stopAll() {
-  for (const [pid, since] of groups) signalGroup(pid, 'SIGKILL', undefined, since);
+  for (const [pid, root] of groups) signalGroup(pid, 'SIGKILL', undefined, root);
 }
 const onSignal = (signal: NodeJS.Signals): void => {
   stopAll();
   process.exit(signal === 'SIGINT' ? 130 : 143);
 };
-function track(pid: number, since: number): void {
+function track(pid: number, root: SpawnedRoot): void {
   if (groups.size === 0) {
     process.on('SIGINT', onSignal);
     process.on('SIGTERM', onSignal);
     process.on('exit', stopAll);
   }
-  groups.set(pid, since);
+  groups.set(pid, root);
 }
 function untrack(pid: number): void {
   groups.delete(pid);
@@ -77,6 +77,7 @@ export function runCommand(
   return new Promise<RunCommandResult>(resolve => {
     const since = Date.now();
     const child = spawn(command, args, { cwd, env, stdio: ['ignore', stdout, stderr], detached: true });
+    const root = watchRoot(child, since);
     const output = { stdout: '', stderr: '' };
     let bytes = 0, done = false;
     let stopped: 'output' | undefined;
@@ -89,7 +90,7 @@ export function runCommand(
       resolve({ ...output, elapsedMs: performance.now() - started, stopped, status: null, signal: null, ...result });
     };
     // A command that did not start has no pid and no group to track.
-    if (child.pid !== undefined) track(child.pid, since);
+    if (child.pid !== undefined) track(child.pid, root);
     const closed = new Promise<void>(resolveClosed => child.once('close', () => resolveClosed()));
     for (const name of ['stdout', 'stderr'] as const) {
       // The text of the stream after its last newline, which waits for the rest of its line.
@@ -98,7 +99,7 @@ export function runCommand(
       stream?.on('data', (chunk: string) => {
         bytes += Buffer.byteLength(chunk);
         if (bytes > maxOutputBytes) {
-          if (!stopped && child.pid !== undefined) signalGroup(child.pid, 'SIGKILL', undefined, since);
+          if (!stopped && child.pid !== undefined) signalGroup(child.pid, 'SIGKILL', undefined, root);
           stopped = 'output';
           return;
         }
@@ -118,7 +119,7 @@ export function runCommand(
     // closes every output pipe they hold, and the result follows the close of the output.
     child.once('exit', (status, signal) => {
       exit = { status, signal };
-      if (child.pid !== undefined) cleanup = stopGroup(child.pid, closed, LEFT_GRACE_MS, undefined, since).catch((error: Error) => finish({ error }));
+      if (child.pid !== undefined) cleanup = stopGroup(child.pid, closed, LEFT_GRACE_MS, undefined, root).catch((error: Error) => finish({ error }));
     });
     child.once('close', (status, signal) => {
       // A descendant may close its pipes on SIGTERM and keep running. Wait for the

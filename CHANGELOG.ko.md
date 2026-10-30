@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ce2e448d84feb8dccf3580eff27e0a4c4e5c581ca995467c97d255938908e44e -->
+<!-- source-sha256: dbb280855c5153c0bcaa032eed434b957bb1b62324f006292e485e108f0feabd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- Windows에서 run은 자기가 spawn한 각 process의 생성 시각을 그 process가 도는 동안 읽고, 그 tree의 정지는 root를 그 id를 가진 table entry가 아니라 그 spawn에서 취한다. Node는 child의 exit event 전에 그 handle을 닫으므로, 정지의 첫 snapshot 전에 끝난 root의 id를 받은 process가 root로 taskkill /T에 멈춰졌다 (K927).
 - make pie-build는 실행되는 동안 PIE를 흘려보냅니다: PIE의 표준 출력과 표준 오류는 PIE가 쓰는 대로 pie-build의 표준 오류로 가므로, phpize, configure, make의 build는 끝날 때까지 아무것도 보이지 않는 대신 step마다 보이고, 표준 출력은 binary와 package 줄만 담습니다 (K926).
 - Windows에서 process table은 각 process의 생성 시각을 담고, process는 id와 생성 시각으로 구별된다. 자식은 그 부모 id를 가진 process 가운데 자식 이전이나 같은 시각에 가장 늦게 만들어진 것에 속하고, 끝난 tree의 root는 그 spawn 전에 잰 시각이 대신한다. 그래서 run의 tree 정지는 끝난 부모의 id가 다시 쓰인 더 오래된 process에 더는 taskkill을 보내지 않는다. flowmark의 Windows CI에서는 critical system process에 보냈다 (K925).
 - Windows에서 process table은 각 process의 생성 시각을 담고, process는 그 부모보다 뒤에 만들어졌을 때만 후손으로 친다. 그래서 run의 tree 정지는 끝난 부모의 id가 다시 쓰인 더 오래된 process에 더는 taskkill을 보내지 않는다. flowmark의 Windows CI에서는 critical system process에 보냈다 (K925).

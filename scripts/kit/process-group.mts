@@ -3,7 +3,7 @@
 // member is in exit, although the member is gone from the process table; the group has ended only when the call fails with
 // ESRCH. signalGroup returns 'sent' when the call succeeds, 'exiting' for EPERM and 'ended' for ESRCH; any other errno is an
 // error.
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { errorCode } from './process.mts';
 
 /** The answer of a signal to a process group. */
@@ -20,11 +20,63 @@ function isUnknownArray(value: unknown): value is unknown[] {
 }
 
 /**
- * Sends `signal` to the process group `pgid`; `kill` is process.kill by default and is injected by the tests. `since` is the time
- * (Date.now) taken before the spawn of `pgid`, which on Windows bounds the creation of its descendants once it has exited (K925).
+ * What the spawner of a root knows of it (K927). Node closes the process handle of a child before its exit event, and Windows may
+ * then give its id to another process; while the child runs, its handle keeps the id, so a table entry with that id is the root.
+ * `exited` turns true at the exit event, and `started` is the creation time of the root, read on Windows while it runs; a root
+ * that ended before the read is bounded by `since`, the time taken before the spawn, before which no descendant was created.
  */
-export function signalGroup(pgid: number, signal: NodeJS.Signals | number, kill: Kill = defaultKill, since?: number): GroupState {
-  if (process.platform === 'win32' && kill === defaultKill) return signalWindowsTree(pgid, signal, {}, since);
+export interface SpawnedRoot {
+  readonly since: number;
+  exited: boolean;
+  started: bigint | undefined;
+  readError: Error | undefined;
+  /** Settles when the read of the creation time has ended; at once outside Windows. */
+  read: Promise<void>;
+}
+
+/**
+ * Follows the root `child`, spawned after `since` (Date.now): call it right after the spawn, before any other exit listener, so the
+ * exit is known first. `readStart` reads the creation time of a running process: CIM on Windows, none elsewhere, whose process
+ * groups need no creation time; the tests inject it.
+ */
+export function watchRoot(child: ChildProcess, since: number, readStart: ((pid: number) => Promise<bigint | undefined>) | undefined = process.platform === 'win32' ? readCreationTime : undefined): SpawnedRoot {
+  const root: SpawnedRoot = { since, exited: false, started: undefined, readError: undefined, read: Promise.resolve() };
+  child.once('exit', () => { root.exited = true; });
+  if (readStart !== undefined && child.pid !== undefined) {
+    // A time read after the exit event may be that of another process with the id, so it is kept only while the root runs.
+    root.read = readStart(child.pid).then(
+      (started) => { if (!root.exited) root.started = started; },
+      (error: unknown) => { root.readError = error instanceof Error ? error : new Error(String(error)); },
+    );
+  }
+  return root;
+}
+
+/** The creation time of the running process `pid` as a Windows file time, read with CIM, or undefined for a process that is gone. */
+function readCreationTime(pid: number): Promise<bigint | undefined> {
+  const script = `$ErrorActionPreference='Stop'; $p = Get-CimInstance Win32_Process -Filter 'ProcessId=${pid}'; if ($p -and $p.CreationDate) { [string]$p.CreationDate.ToFileTimeUtc() }`;
+  return new Promise((resolve, reject) => {
+    const reader = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', script], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '', err = '';
+    reader.stdout.setEncoding('utf8').on('data', (text: string) => { out += text; });
+    reader.stderr.setEncoding('utf8').on('data', (text: string) => { err += text; });
+    reader.once('error', error => reject(new Error(`powershell.exe could not read the creation time of ${pid}: ${error.message}`)));
+    reader.once('close', (status) => {
+      const text = out.trim();
+      if (status !== 0) reject(new Error(`powershell.exe could not read the creation time of ${pid}: ${err.trim()}`));
+      else if (text === '') resolve(undefined);
+      else if (/^\d+$/.test(text)) resolve(BigInt(text));
+      else reject(new Error(`powershell.exe printed no creation time for ${pid}: ${text}`));
+    });
+  });
+}
+
+/**
+ * Sends `signal` to the process group `pgid`; `kill` is process.kill by default and is injected by the tests. `spawned` is what its
+ * spawner knows of `pgid` (watchRoot), which the Windows tree stop needs once it has exited.
+ */
+export function signalGroup(pgid: number, signal: NodeJS.Signals | number, kill: Kill = defaultKill, spawned?: SpawnedRoot): GroupState {
+  if (process.platform === 'win32' && kill === defaultKill) return signalWindowsTree(pgid, signal, {}, spawned);
   try {
     kill(-pgid, signal);
     return 'sent';
@@ -44,18 +96,17 @@ export type WindowsTreeOperations = {
 };
 
 /**
- * Sends a Windows process-tree stop through taskkill, which is available on every supported Windows runner. `since` is the time
- * taken before the spawn of `root` (signalGroup).
+ * Sends a Windows process-tree stop through taskkill, which is available on every supported Windows runner. `spawned` is what the
+ * spawner knows of `root` (watchRoot).
  */
-export function signalWindowsTree(root: number, signal: NodeJS.Signals | number, operations: WindowsTreeOperations = {}, since?: number): GroupState {
+export function signalWindowsTree(root: number, signal: NodeJS.Signals | number, operations: WindowsTreeOperations = {}, spawned?: SpawnedRoot): GroupState {
   const table = operations.table ?? processTable;
   const terminate = operations.terminate ?? ((pid, tree) => taskkill(pid, tree, true));
   // A process is told by its id and creation time (K925): a process that takes the id of one that has ended is another process.
-  // The root is the one of the first snapshot; a root absent from it has exited, and an entry with its id in a later table is
+  // The root is the entry of its id in the first snapshot only while it runs (K927); an entry with its id in a later table is
   // another process.
   const entries = table();
-  const rootEntry = entries.find(entry => entry.pid === root);
-  const rootStarted = rootStartOf(rootEntry, since);
+  const { rootEntry, rootStarted } = rootOf(root, entries, spawned);
   const first = descendantsOf(root, entries, { rootStarted });
   if (signal === 0) return rootEntry !== undefined || first.length ? 'sent' : 'ended';
   // Windows has no POSIX process-group signals. Keep the first snapshot so descendants remain targets if the root exits during
@@ -81,10 +132,16 @@ function identity(entry: ProcessEntry): string {
   return `${entry.pid}@${String(entry.started)}`;
 }
 
-/** The creation time of a root: that of its table entry, or, for a root that has exited, the time taken before its spawn. */
-function rootStartOf(rootEntry: ProcessEntry | undefined, since: number | undefined): bigint | undefined {
-  if (typeof rootEntry?.started === 'bigint') return rootEntry.started;
-  return since === undefined ? undefined : fileTime(since);
+/**
+ * The root in `entries` and its creation time. Without `spawned`, the root is the entry of its id. With it, the entry is the root
+ * only while the root runs; the creation time is that of the entry, else the one read while it ran, else the time taken before
+ * its spawn. A failed read of that time is the error of the stop.
+ */
+function rootOf(root: number, entries: readonly ProcessEntry[], spawned: SpawnedRoot | undefined): { rootEntry: ProcessEntry | undefined; rootStarted: bigint | undefined } {
+  if (spawned?.readError) throw spawned.readError;
+  const rootEntry = spawned?.exited ? undefined : entries.find(entry => entry.pid === root);
+  if (typeof rootEntry?.started === 'bigint') return { rootEntry, rootStarted: rootEntry.started };
+  return { rootEntry, rootStarted: spawned === undefined ? undefined : spawned.started ?? fileTime(spawned.since) };
 }
 
 /**
@@ -209,9 +266,9 @@ export function descendantsOf(root: number, table: readonly ProcessEntry[], { ea
  * and after the grace the same targets get SIGKILL, so a child of a process that ends at its deadline outlives it no longer. The group
  * of `root` is never signalled: it holds the runner that started `root`, which reports the result of its run.
  */
-export async function stopDescendants(root: number, { table = processTable, kill = defaultKill, graceMs = 1000, skipGroup, since }: { table?: () => ProcessEntry[]; kill?: Kill | undefined; graceMs?: number; skipGroup?: number | undefined; since?: number | undefined } = {}): Promise<void> {
+export async function stopDescendants(root: number, { table = processTable, kill = defaultKill, graceMs = 1000, skipGroup, spawned }: { table?: () => ProcessEntry[]; kill?: Kill | undefined; graceMs?: number; skipGroup?: number | undefined; spawned?: SpawnedRoot | undefined } = {}): Promise<void> {
   const entries = table();
-  const found = descendantsOf(root, entries, { rootStarted: rootStartOf(entries.find(entry => entry.pid === root), since) }).filter(entry => entry.pgid !== skipGroup);
+  const found = descendantsOf(root, entries, { rootStarted: rootOf(root, entries, spawned).rootStarted }).filter(entry => entry.pgid !== skipGroup);
   if (process.platform === 'win32' && kill === defaultKill) {
     for (const entry of [...found].reverse()) taskkill(entry.pid, false, true);
     return;
@@ -237,22 +294,22 @@ export async function stopDescendants(root: number, { table = processTable, kill
 /**
  * Stops the process group `pgid`: SIGTERM, then SIGKILL once `closed` resolves (the tool has closed) or the grace period has
  * passed, whichever comes first, so that no member that survived SIGTERM or outlived the tool remains. ESRCH and EPERM are not
- * errors (signalGroup). run-tests and run-command (K430) stop their groups with it. `since` is the time taken before the spawn of
- * `pgid` (signalGroup).
+ * errors (signalGroup). run-tests and run-command (K430) stop their groups with it. `spawned` is what the spawner
+ * knows of `pgid` (watchRoot).
  */
-export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs: number, kill?: Kill, since?: number): Promise<void> {
-  if (signalGroup(pgid, 0, kill, since) === 'ended') return;
+export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs: number, kill?: Kill, spawned?: SpawnedRoot): Promise<void> {
+  if (signalGroup(pgid, 0, kill, spawned) === 'ended') return;
   // The descendants outside pgid go first (K454): a descendant that leads a group of its own is no member of pgid, and once the
   // SIGTERM of the group has ended the leader, such a descendant is reparented to launchd and no longer found. The members of pgid
   // are left to the group signal below.
-  await stopDescendants(pgid, { kill, skipGroup: pgid, since });
-  if (signalGroup(pgid, 'SIGTERM', kill, since) === 'ended') return;
+  await stopDescendants(pgid, { kill, skipGroup: pgid, spawned });
+  if (signalGroup(pgid, 'SIGTERM', kill, spawned) === 'ended') return;
   let timer: NodeJS.Timeout | undefined;
   await Promise.race([closed, new Promise((resolve) => { timer = setTimeout(resolve, graceMs); })]);
   clearTimeout(timer);
   // SIGKILL cannot be caught, so the group ends; the caller's close is awaited so that no stopped process is still listed or
   // unreaped when stopGroup returns (K754).
-  if (signalGroup(pgid, 'SIGKILL', kill, since) === 'ended') return;
+  if (signalGroup(pgid, 'SIGKILL', kill, spawned) === 'ended') return;
   await closed;
 }
 

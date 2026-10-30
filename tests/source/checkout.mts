@@ -1,7 +1,7 @@
 // A copy of the tracked files of kit in a sandbox, for installation and package-consumption source tests.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { signalGroup } from '../../scripts/kit/process-group.mts';
+import { signalGroup, watchRoot, type SpawnedRoot } from '../../scripts/kit/process-group.mts';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -192,9 +192,9 @@ export async function runCheckoutSmoke(cwd: string, signal: AbortSignal, smoke: 
   command: process.execPath, args: ['--input-type=module', '-e', CHECKOUT_SMOKE_SOURCE],
 }) {
   let pgid: number | undefined;
-  // The time before the spawn of the group, which stands for its leader once it has exited (signalGroup).
-  let since: number | undefined;
-  const end = () => (pgid === undefined ? 'ended' : signalGroup(pgid, 'SIGTERM', undefined, since));
+  // What the spawn knows of the leader of the group (watchRoot).
+  let root: SpawnedRoot | undefined;
+  const end = () => (pgid === undefined ? 'ended' : signalGroup(pgid, 'SIGTERM', undefined, root));
   const forward = (received: NodeJS.Signals) => {
     end();
     stop();
@@ -208,8 +208,9 @@ export async function runCheckoutSmoke(cwd: string, signal: AbortSignal, smoke: 
   signal.addEventListener('abort', end);
   process.once('SIGTERM', forward);
   process.once('SIGINT', forward);
-  since = Date.now();
+  const since = Date.now();
   const child = spawn(smoke.command, smoke.args, { cwd, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  root = watchRoot(child, since);
   pgid = child.pid;
   if (pgid === undefined) stop();
   assert.ok(pgid !== undefined, `checkout smoke did not start in ${cwd}`);

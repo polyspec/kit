@@ -6,8 +6,8 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createInterface } from 'node:readline';
 import test from 'node:test';
-import { descendantsOf, fileTime, processTable, signalGroup, signalWindowsTree, stopGroup } from '../../scripts/kit/process-group.mts';
-import type { Kill, ProcessEntry } from '../../scripts/kit/process-group.mts';
+import { descendantsOf, fileTime, processTable, signalGroup, signalWindowsTree, stopGroup, watchRoot } from '../../scripts/kit/process-group.mts';
+import type { Kill, ProcessEntry, SpawnedRoot } from '../../scripts/kit/process-group.mts';
 import { terminateGroup } from '../../scripts/kit/run-tests.mts';
 
 // K830: a test that starts real processes fails by name within its timeout instead of holding a CI step until the job limit.
@@ -130,11 +130,16 @@ test('the Windows tree stop of an exited root stops its orphans and no older pro
       entries = entries.filter(entry => entry.pid !== pid);
     },
   };
-  assert.equal(signalWindowsTree(20, 0, operations, 1_000), 'sent', 'an orphan of the exited root keeps its tree running');
-  assert.equal(signalWindowsTree(20, 'SIGTERM', operations, 1_000), 'ended');
+  assert.equal(signalWindowsTree(20, 0, operations, exited(1_000)), 'sent', 'an orphan of the exited root keeps its tree running');
+  assert.equal(signalWindowsTree(20, 'SIGTERM', operations, exited(1_000)), 'ended');
   assert.deepEqual(calls, [[21, false]]);
-  assert.equal(signalWindowsTree(20, 0, { table: () => [{ pid: 8136, ppid: 20, pgid: 8136, started: fileTime(10) }] }, 1_000), 'ended');
+  assert.equal(signalWindowsTree(20, 0, { table: () => [{ pid: 8136, ppid: 20, pgid: 8136, started: fileTime(10) }] }, exited(1_000)), 'ended');
 });
+
+/** What the spawner knows of a root that has exited: spawned after `since`, with the creation time `started` read while it ran. */
+function exited(since: number, started?: bigint): SpawnedRoot {
+  return { since, exited: true, started, readError: undefined, read: Promise.resolve() };
+}
 
 /** A table seam that answers each call with the next snapshot, and the last one from then on. */
 function snapshots(...tables: ProcessEntry[][]): () => ProcessEntry[] {
@@ -163,7 +168,7 @@ test('the Windows tree stop of an exited root takes no process that reuses the i
     // The id of the exited root 20 goes to an unrelated process, which starts a child, before the second snapshot.
     table: snapshots([orphan], [orphan, { pid: 20, ppid: 7, pgid: 20, started: fileTime(9_000) }, { pid: 22, ppid: 20, pgid: 22, started: fileTime(9_100) }], []),
     terminate: (pid, tree) => { calls.push([pid, tree]); },
-  }, 1_000);
+  }, exited(1_000));
   assert.deepEqual(calls, [[21, false]], 'only the orphan of the exited root is stopped');
 });
 
@@ -183,6 +188,53 @@ test('the Windows tree stop never targets a process that names the root as its p
   });
   assert.deepEqual(calls, [[20, true], [21, false]], 'the descendant that outlived the root is stopped and the older process is not');
   assert.equal(state, 'ended');
+});
+
+// K927: Node closes the handle of a child before its exit event, and Windows may then give its id to another process, so the root
+// of an exited tree is known only from its spawn.
+test('the Windows tree stop of an exited root takes no process that took its id before the first snapshot (K927)', () => {
+  const calls: [number, boolean][] = [];
+  const orphan: ProcessEntry = { pid: 21, ppid: 20, pgid: 21, started: fileTime(1_000) + 50n };
+  // The id of the exited root went to an unrelated process 20, which started a child 22, before the first snapshot.
+  const reused: ProcessEntry[] = [{ pid: 20, ppid: 7, pgid: 20, started: fileTime(5_000) }, { pid: 22, ppid: 20, pgid: 22, started: fileTime(5_100) }];
+  const state = signalWindowsTree(20, 'SIGTERM', {
+    // The table before and after the root's tree stop, then after the orphan is stopped.
+    table: snapshots([orphan, ...reused], [orphan, ...reused], reused),
+    terminate: (pid, tree) => { calls.push([pid, tree]); },
+  }, exited(1_000, fileTime(1_000) + 10n));
+  assert.deepEqual(calls, [[21, false]], 'the process with the id of the root and its child are not stopped');
+  assert.equal(state, 'ended');
+});
+
+test('a process created between the spawn and the creation of the root is no descendant once the time of the root is read (K927)', () => {
+  const root = exited(1_000, fileTime(1_000) + 10n);
+  const table: ProcessEntry[] = [{ pid: 23, ppid: 20, pgid: 23, started: fileTime(1_000) + 5n }, { pid: 21, ppid: 20, pgid: 21, started: fileTime(1_000) + 50n }];
+  const calls: number[] = [];
+  signalWindowsTree(20, 'SIGTERM', { table: () => table, terminate: (pid) => { calls.push(pid); } }, root);
+  assert.deepEqual(calls, [21]);
+});
+
+test('watchRoot keeps a creation time read while the root runs, drops one read after its exit and keeps a failed read (K927)', async () => {
+  const running = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 200)'], { stdio: 'ignore' });
+  const kept = watchRoot(running, Date.now(), () => Promise.resolve(42n));
+  await kept.read;
+  assert.equal(kept.started, 42n);
+  await once(running, 'exit');
+  assert.equal(kept.exited, true);
+
+  const ended = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' });
+  let answer: (value: bigint) => void = () => {};
+  const late = watchRoot(ended, Date.now(), () => new Promise(resolve => { answer = resolve; }));
+  await once(ended, 'exit');
+  answer(42n);
+  await late.read;
+  assert.equal(late.started, undefined, 'a time read after the exit may be that of another process');
+
+  const failing = spawn(process.execPath, ['-e', ''], { stdio: 'ignore' });
+  const failed = watchRoot(failing, Date.now(), () => Promise.reject(new Error('no CIM')));
+  await failed.read;
+  await once(failing, 'exit');
+  assert.throws(() => signalWindowsTree(failing.pid ?? 0, 0, { table: () => [] }, failed), /no CIM/);
 });
 
 test('stopGroup returns only after a root that ignores SIGTERM has ended through SIGKILL (K754)', PROCESS_TIMEOUT, async () => {

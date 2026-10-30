@@ -45,7 +45,7 @@ import { compactSeconds } from './time.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress, type Sink, type TestRef } from './test-output.mts';
 // stopGroup is the group stop of process-group.mts, which run-command shares (K430).
-import { signalGroup, stopGroup } from './process-group.mts';
+import { signalGroup, stopGroup, watchRoot, type SpawnedRoot } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
 import { toolCommand as miseCommand, toolsEnvironment } from './mise-tools.mts';
 import { toolsPath } from './bootstrap/tool-wrappers.mts';
@@ -310,8 +310,8 @@ export function listedTests(argv: string[], root = repositoryRoot(), callerEnv: 
  * Sends SIGTERM to the process group of a timed-out test (its pgid is the pid of the detached child). EPERM while a member is in
  * exit and ESRCH after the group ended are not errors (process-group.mts).
  */
-export function terminateGroup(pgid: number, kill?: Parameters<typeof signalGroup>[2], since?: number) {
-  return signalGroup(pgid, 'SIGTERM', kill, since);
+export function terminateGroup(pgid: number, kill?: Parameters<typeof signalGroup>[2], spawned?: SpawnedRoot) {
+  return signalGroup(pgid, 'SIGTERM', kill, spawned);
 }
 
 /** How long a stopped tool has to close after SIGTERM before its group receives SIGKILL. */
@@ -407,6 +407,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       write(`[build] ${text}: started\n`);
       const buildSince = Date.now();
       const builder = spawn(command, build, { cwd: options.cwd, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+      const buildRoot = watchRoot(builder, buildSince);
       present(builder.stdout, 'builder.stdout').setEncoding('utf8').on('data', (text: string) => write(text)); // The stream is piped.
       present(builder.stderr, 'builder.stderr').setEncoding('utf8').on('data', (text: string) => write(text)); // The stream is piped.
       const built = new Promise<Ended>((resolve) => {
@@ -415,7 +416,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
       });
       let buildStopping: Promise<void> | undefined;
       // A build that could not start has no pid and no group to stop.
-      stopRunning = () => { if (builder.pid !== undefined) buildStopping ??= stopGroup(builder.pid, built, graceMs, undefined, buildSince); };
+      stopRunning = () => { if (builder.pid !== undefined) buildStopping ??= stopGroup(builder.pid, built, graceMs, undefined, buildRoot); };
       // The leader may exit before descendants close its inherited output pipes.
       builder.once('exit', stopRunning);
       const ended = await built;
@@ -434,6 +435,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     }
     const since = Date.now();
     const child = spawn(command, args, { cwd: options.cwd, env, stdio: ['ignore', reads ? 'pipe' : 'inherit', cargo || python ? 'pipe' : 'inherit', reporter ? 'pipe' : 'ignore'], detached: true });
+    const spawnedChild = watchRoot(child, since);
     // A tool that cannot start, such as a command missing on PATH, fails with its command and the install fix.
     const closed = new Promise<Ended>((resolve) => {
       child.once('error', error => resolve({ error }));
@@ -441,7 +443,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     });
     let stopping: Promise<void> | undefined;
     // A tool that could not start has no pid and no group to stop.
-    const stop = () => { if (child.pid !== undefined) stopping ??= stopGroup(child.pid, closed, graceMs, undefined, since); };
+    const stop = () => { if (child.pid !== undefined) stopping ??= stopGroup(child.pid, closed, graceMs, undefined, spawnedChild); };
     stopRunning = stop;
     // Drain output after stopping descendants of a leader that has already exited.
     child.once('exit', stop);

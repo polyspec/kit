@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- On Windows a run reads the creation time of each process it spawns while that process runs, and the stop of its tree takes the root from that spawn, never from a table entry with its id: Node closes the handle of a child before its exit event, and a process that took the id of an exited root before the first snapshot of the stop was stopped as the root with taskkill /T (K927).
 - make pie-build streams PIE while it runs: the standard output and the standard error of PIE go to the standard error of pie-build as PIE writes them, so a build of phpize, configure and make shows each step instead of nothing until it ends, and the standard output holds only the lines binary and package (K926).
 - On Windows the process table carries each process's creation time, and a process is told by its id and creation time: a child belongs to the process of its parent id created last at or before it, and the root of an exited tree is stood for by the time taken before its spawn, so the tree stop of a run no longer sends taskkill to an older process whose exited parent had a reused id, as it did to a critical system process in flowmark's Windows CI (K925).
 - On Windows the process table carries each process's creation time, and a process counts as a descendant only when it was created after its parent, so the tree stop of a run no longer sends taskkill to an older process whose exited parent had a reused id, as it did to a critical system process in flowmark's Windows CI (K925).
