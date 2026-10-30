@@ -52,12 +52,16 @@ function miseRelease(t: TestContext, lock?: string) {
   return { archive, sha256, url, installs: () => (existsSync(calls) ? readFileSync(calls, 'utf8').split('\n').filter(Boolean) : []) };
 }
 
+// The digest of the npm of packageManager, which the marker of the installed npm holds, so the bootstrap keeps it (K933).
+const NPM_SHA512 = 'a'.repeat(128);
+
 /** A checkout whose npm of packageManager is installed, declaring mise with `sha256` for this platform. */
 function checkout(t: TestContext, sha256: string) {
   const root = toolchainCheckout(t, {
-    'package.json': '{ "packageManager": "npm@12.2.0" }\n',
+    'package.json': `{ "packageManager": "npm@12.2.0+sha512.${NPM_SHA512}" }\n`,
     'config/toolchain.json': JSON.stringify({ schema: 1, mise: { version: VERSION, sha256: { [KEY]: sha256 } } }),
     'var/tools/npm/node_modules/npm/package.json': '{ "version": "12.2.0" }\n',
+    'var/tools/npm/node_modules/npm/.sha512': `${NPM_SHA512}\n`,
   });
   return root;
 }
@@ -112,8 +116,33 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
   assert.match(readFileSync(path.join(root, 'var/tools/bin/npm'), 'utf8'), new RegExp(`^exec ${escape(`'${path.join(tools, 'bin/node')}'`)} `, 'm'));
   const second = bootstrap(root, stubs.env);
   assert.equal(second.status, 0, second.stderr);
-  assert.match(second.stdout, new RegExp(`mise: ${escape(VERSION)} is installed in var/tools/mise-release`));
+  assert.match(second.stdout, new RegExp(`mise: ${escape(VERSION)} with the declared digest is installed in var/tools/mise-release`));
   assert.equal(stubs.calls().filter(line => line.startsWith('curl')).length, 1, 'a second run downloads nothing');
+});
+
+test('an installed mise whose marker holds the declared digest is kept, whatever version its binary prints (K933)', (t) => {
+  const release = miseRelease(t);
+  const root = checkout(t, release.sha256);
+  const stubs = toolchainStubs(t, { downloads: { [release.url]: release.archive } });
+  assert.equal(bootstrap(root, stubs.env).status, 0);
+  assert.equal(readFileSync(path.join(root, 'var/tools/mise-release/.sha256'), 'utf8'), `${release.sha256}\n`);
+  const binary = path.join(root, 'var/tools/mise-release/mise/bin/mise');
+  writeFileSync(binary, readFileSync(binary, 'utf8').replaceAll(VERSION, '2026.1.1'));
+  const second = bootstrap(root, stubs.env);
+  assert.equal(second.status, 0, `${second.stdout}${second.stderr}`);
+  assert.equal(stubs.calls().filter(line => line.startsWith('curl')).length, 1, 'the marker alone keeps the install');
+});
+
+test('an installed mise whose marker holds another digest is installed again (K933)', (t) => {
+  const release = miseRelease(t);
+  const root = checkout(t, release.sha256);
+  const stubs = toolchainStubs(t, { downloads: { [release.url]: release.archive } });
+  assert.equal(bootstrap(root, stubs.env).status, 0);
+  writeFileSync(path.join(root, 'var/tools/mise-release/.sha256'), `${'0'.repeat(64)}\n`);
+  const second = bootstrap(root, stubs.env);
+  assert.equal(second.status, 0, `${second.stdout}${second.stderr}`);
+  assert.equal(stubs.calls().filter(line => line.startsWith('curl')).length, 2);
+  assert.equal(readFileSync(path.join(root, 'var/tools/mise-release/.sha256'), 'utf8'), `${release.sha256}\n`);
 });
 
 test('a mise archive with another digest is refused, nothing is installed, and the error names both digests', (t) => {

@@ -45,8 +45,12 @@ installs only those mise tools and their declared prerequisites; selectors are t
 backend, PHP composer tools install the declared PHP wrapper and Composer, and Rust installs its stable and declared exception
 channels. Unknown, empty and undeclared selectors fail before mutation. A selected install leaves other installed tools in place
 Neither the full nor a selected install builds symbol extractors or PHP arginfo; their explicit targets `kit-install-symbols` and `kit-install-php-arginfo` install them, and `install-kit` runs the same tools through `kit-install-declared` (`install-symbols --declared`, `kit-install-php-arginfo`) from the declarations of the repository (the `symbolExtractors` of `config/toolchain.json`, and `packages/php-ext`), so no repository copies the calls (K861). With a tracked `Cargo.lock`, `kit-install-declared` also runs `make cargo-downloads-fetch`, `cargo fetch --locked` of every lock, since offline checks read the crates; kit checks no crate presence (K864). The bootstrap selector `TOOLS=npm` is unchanged. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
-`packageManager` and mise itself, by the sha256 of `config/toolchain.json` `mise`; `install-tool.mts` builds each of them beside
-its target, checks it there and renames it, so a second run changes nothing. mise keeps its data, cache, state and config,
+`packageManager`, by its required `+sha512.<digest>`, and mise itself, by the sha256 of `config/toolchain.json` `mise`;
+`install-tool.mts` builds each of them beside its target, checks the digest of its download there, writes that digest into a
+marker (`node_modules/npm/.sha512` of `var/tools/npm`, `.sha256` of `var/tools/mise-release`) and renames it, so a second run
+keeps an installation whose marker holds the declared digest and compares no version (K933). Only the marker is read, so a
+binary swapped while its marker stays passes the check. A `packageManager` without the digest is refused before anything is
+downloaded, with the commands that compute it. mise keeps its data, cache, state and config,
 its installs and its shims in `var/tools/mise`, and the wrapper `var/tools/bin/mise` sets that environment; nothing outside the
 checkout changes. A tool of `mise.toml` is reached through its shim in `var/tools/mise/shims` (`scripts/kit/mise-tools.mts`):
 kit.mk exports the environment of mise of the checkout to every recipe and puts `var/tools/bin` and the shims first on PATH.
@@ -97,7 +101,7 @@ has no target that runs PIE (K931).
 | Tool | Declared in | Install or verify |
 |---|---|---|
 | Node.js | `node` of `mise.toml` (exact), at the kit pin; `mise.lock` holds the sha256 of each platform's archive of nodejs.org. The bootstrap installs it with mise before npm and writes `var/tools/bin/node`, which the wrappers of npm and every recipe of kit.mk (`$(NODE)`) run (K171) | install with mise, in the bootstrap |
-| npm | `packageManager` of `package.json`: `npm@X.Y.Z` or `npm@X.Y.Z+sha512.<digest>` | install |
+| npm | `packageManager` of `package.json`: `npm@X.Y.Z+sha512.<digest>` of the registry tarball (K933) | install in the bootstrap |
 | Go | `go` of `mise.toml`, at the kit pin of `scripts/kit/toolchain-pins.json`; `mise.lock` holds the sha256 of each platform's archive; the `go` line of every `go.mod` must equal the pin, read by `go mod edit -json` (K78) | install with mise |
 | Rust | `channel` of `rust-toolchain.toml` as declared, which rustup judges (K840), read by smol-toml (`readToml`, K78, K73) | verify |
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version`; install-tools wraps the php of PATH when either declares PHP | wrap (K283, K862) |
@@ -152,11 +156,11 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 
 ### Merged behaviors
 
-- npm: the install of template (the npm of the machine runs `npm install --prefix`) and the install of hyper and
-  ordered-json (the registry tarball, refused unless its SHA-512 is the declared digest) are one install that takes the
-  second path when `packageManager` carries a digest. The layout is `var/tools/npm/node_modules/npm`; the wrappers `npm` and
+- npm: the install of template (the npm of the machine ran `npm install --prefix`) and the install of hyper and
+  ordered-json (the registry tarball, refused unless its SHA-512 is the declared digest) are one install, the second; a
+  `packageManager` without a digest is refused (K933). The layout is `var/tools/npm/node_modules/npm`; the wrappers `npm` and
   `npx` start `npm-cli.js` and `npx-cli.js`. A changed digest of the same version reinstalls (hyper). A tarball with a link or a
-  special file is refused (ordered-json). The bootstrap npm runs without `var/tools/bin` on `PATH` (template).
+  special file is refused (ordered-json). The bootstrap installs npm without running any npm of the machine (template).
 - Go: the Go of `mise.toml`, at the kit pin, is installed by mise from the archive of the Go downloads at the sha256 of
   `mise.lock`. No Go of the machine takes part, so a checkout without Go installs one. The archive install of kit and the `goArchives` digests of
   `toolchain-pins.json` are gone (K127).
@@ -197,8 +201,9 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 
 ### Dropped behaviors
 
-- hyper checked that `npm` and `composer` on `PATH` are the files of `var/tools/bin`. The policy is the declared version, which
-  the version check enforces for every tool; a machine whose own npm is the declared release passes.
+- hyper checked that `npm` and `composer` on `PATH` are the files of `var/tools/bin`. kit checks no tool on `PATH` and compares
+  no version: the recipes run npm as `$(NPM)`, the npm of `var/tools/npm`, whose installation its digest marker judges (K933),
+  and composer is the `http:composer` of `mise.toml`, whose digest `mise.lock` pins.
 - hyper kept npm in `var/tools/npm` without `node_modules`; the layout of template replaces it, so one wrapper text exists.
 - ordered-json's `pin TOOL` command printed a pinned version for CI. The setup actions read the pin files, and
   `declaredToolchain` returns the same values to a script.
@@ -803,7 +808,6 @@ The check also leaves out the S10 stub of a PHP extension, `packages/php-ext/src
 | `manifests.mts` | `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` with their readers, each validated against its schema (`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`) | the local shapes of package.json, package-lock.json, composer.json and composer.lock in toolchain-floors, release, release-consumer, kit-check and owner-check (K158) | those modules |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | `EXCLUDED` of release | release, the lint and check tools |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | the same names in target-run, `LAST_LINES` of target-run, the target-name pattern of ci-targets, `git` of target-report | ci-targets, full-run |
-| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | the version arguments and patterns of ruff, uv, alint, cargo-audit and govulncheck that the release installers and the probes of check-toolchain each held; since K127 mise installs those tools and only the bootstrap reads them | the bootstrap |
 | `pyproject-dependencies.mts` | `dependencyArrays`, the `dependencies` of `[project]`, each extra and each group of `[dependency-groups]`; `dependencyGroups`, each group with its `{ include-group }` tables resolved as the reference implementation of PEP 735 does (K177) | the read of the extras alone, which missed the dependency groups | link |
 
 Other duplicates removed:

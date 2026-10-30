@@ -1,9 +1,9 @@
 // What the installers of var/tools share: the directories, the environment of the bootstrap commands, a command that
 // prints itself before it runs, and the wrapper scripts of var/tools/bin. A wrapper starts the installed file by its
 // absolute path; there is no symbolic link.
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import type { SpawnSyncOptions } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { writeAtomic } from './files.mts';
 
@@ -64,34 +64,6 @@ export function run(command: string, args: readonly string[], options: SpawnSync
   const result = spawnSync(command, args, { stdio: 'inherit', ...options });
   if (result.error) throw new Error(`${command} could not start: ${result.error.message}; install ${command} on the machine to bootstrap ${TOOLS}`);
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} ended with exit status ${result.status}`);
-}
-
-// The arguments that make a tool of var/tools print its release, and the pattern that reads the release from the output.
-export const RELEASE_OUTPUT = {
-  ruff: { args: ['--version'], pattern: /^ruff (\d+\.\d+\.\d+)$/m },
-  vulture: { args: ['--version'], pattern: /^vulture (\d+(?:\.\d+)+)$/m },
-  uv: { args: ['--version'], pattern: /^uv (\d+\.\d+\.\d+) /m },
-  mise: { args: ['--version'], pattern: /^(\d+\.\d+\.\d+) /m },
-  alint: { args: ['--version'], pattern: /^alint (\d+\.\d+\.\d+) /m },
-  'golangci-lint': { args: ['version'], pattern: /^golangci-lint has version (\d+\.\d+\.\d+) /m },
-  phpcs: { args: ['--version'], pattern: /^PHP_CodeSniffer version (\d+\.\d+\.\d+) /m },
-  phpstan: { args: ['--version'], pattern: /^PHPStan - PHP Static Analysis Tool (\d+\.\d+\.\d+)$/m },
-  phpunit: { args: ['--version'], pattern: /^PHPUnit (\d+\.\d+\.\d+) /m },
-  cargoAudit: { args: ['--version'], pattern: /^cargo-audit (\d+\.\d+\.\d+)$/m },
-  govulncheck: { args: ['-version'], pattern: /^Scanner: govulncheck@v(\d+\.\d+\.\d+)$/m },
-};
-
-/**
- * The release that `command` prints for `tool` of RELEASE_OUTPUT, or undefined when the command does not exist (ENOENT). Another
- * error of the file, a failed command and an output without the release throw.
- */
-export function printedRelease(command: string, tool: keyof typeof RELEASE_OUTPUT): string | undefined {
-  const { args, pattern } = RELEASE_OUTPUT[tool];
-  if (!statSync(command, { throwIfNoEntry: false })) return undefined;
-  const output = execFileSync(command, args, { encoding: 'utf8' });
-  const release = pattern.exec(output)?.[1];
-  if (release === undefined) throw new Error(`${command} ${args.join(' ')} printed no release: ${JSON.stringify(output.trim())}`);
-  return release;
 }
 
 /** `text` quoted for sh. */

@@ -1,7 +1,8 @@
 // The toolchain versions that a checkout declares for the bootstrap and for the tools that mise does not install, read from
 // the files that declare them. Each entry names its version and the declaring file, so that an install and a check name the
 // file in a message:
-//   npm          packageManager of package.json: npm@<version>, optionally +sha512.<digest of the registry tarball>
+//   npm          packageManager of package.json: npm@<version>+sha512.<digest of the registry tarball>; installNpm refuses one
+//                without the digest (K933)
 //   mise         config/toolchain.json mise: the exact version and the sha256 of the release archive of each platform, which
 //                the bootstrap installs; mise installs the tools of mise.toml at the digests of mise.lock (toolchain-mise.mts),
 //                Node.js first, in the bootstrap (K171)

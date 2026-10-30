@@ -11,7 +11,7 @@ import { writeAtomic } from './files.mts';
 import path from 'node:path';
 import { fileDigest } from './digest.mts';
 import { installOnce } from './install-tool.mts';
-import { archiveTar, bootstrapEnvironment, commandPath, printedRelease, run, toolsPath, writeNativeWrapper } from './tool-wrappers.mts';
+import { archiveTar, bootstrapEnvironment, commandPath, run, toolsPath, writeNativeWrapper } from './tool-wrappers.mts';
 
 // The asset of the mise archive of each platform key (process.platform-process.arch) that the declaration may name.
 export const MISE_ASSETS: Readonly<Record<string, string>> = {
@@ -140,8 +140,9 @@ export function installMise({ root, declared, platform = misePlatform(), print =
   const url = miseArchiveUrl(declared.version, asset, extension);
   const prefix = toolsPath(root, 'mise-release');
   const binary = (directory: string) => miseBinary(directory);
+  // The marker .sha256 of var/tools/mise-release holds the digest of the archive it was unpacked from (K933).
   const result = installOnce({
-    root, label: 'mise', prefix, recorded: declared.version, installedRelease: (directory: string) => printedRelease(binary(directory), 'mise'), print,
+    root, label: 'mise', version: declared.version, prefix, digest: sha256, marker: '.sha256', print,
     install: (next: string) => {
       const archive = path.join(next, `mise-${asset}.${extension}`);
       const environment = bootstrapEnvironment(root);

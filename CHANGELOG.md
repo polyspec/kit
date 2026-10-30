@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- The bootstrap judges the installed mise and npm by a digest marker alone and compares no version: the install writes the verified digest into var/tools/mise-release/.sha256 and var/tools/npm/node_modules/npm/.sha512 and keeps an installation whose marker holds the declared digest. A packageManager without +sha512 is refused before anything is downloaded, with the commands that compute the digest, and the npm of the machine is never used; S4 names the bootstrap digests and the release heading order as its two exceptions. The first install after the pin downloads mise once to write its marker (K933).
 - latestTag takes the newest release tag from git's own version sort (git tag --sort=-v:refname) and keeps only vX.Y.Z, so a pre-release such as v0.0.10-rc1, which git sorts above v0.0.10, is never latest; release.mts no longer imports semver, which stays for the change-log order check (K932).
 - Kit has no pie-build: make pie-build and scripts/kit/pie-build.mts are removed, since no rule requires kit to wrap PIE; a repository runs the PIE that make install-tools TOOLS=pie installs in its own recipe (K931).
 - Kit 0.0.80 is public: release run 41088517118 took the successful CI run 41083175026 of 82ab25d1, made the annotated v0.0.80 tag on that commit and a published release with polyspec-kit-npm-0.0.80.tgz (K928).

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 1e15cdf6172545d61d450eb21394674d16cba9f18a1e1ca3ee8d52601d0428b3 -->
+<!-- source-sha256: 5e80d8d62ab9dc77faaa62b07a102d677a417025d40c83727e44b909e25b643e -->
 
 # 도구 목록
 
@@ -43,9 +43,12 @@ x64와 arm64의 linux, macOS, Windows 중 archive가 있는 각 platform의 sha2
 설치하는(`install-rust.mts`) `rust-toolchain.toml`의 toolchain과 그 component(checkout에서 파일을 읽는
 `rustup toolchain install --no-self-update`; rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다)와 `exceptions`의
 Rust channel입니다. 이미 설치된 것은 rustup이 판정합니다(K861). `TOOLS` selector가 없으면 기존처럼 전체 도구를 설치합니다. `make install-tools TOOLS="go python"`은 해당 mise 도구와 선언된 prerequisite만 설치합니다. Selector는 `scripts/kit/toolchain-mise.mts`의 `TOOLS`에 있는 정확한 이름입니다. `deadcode`, `govulncheck`, `golangciLint`는 Go도 설치하고, `vulture`는 Python과 uv를 설치하며, Python은 선언된 wheel backend를 설치합니다. PHP Composer 도구는 선언된 PHP wrapper와 Composer를 설치하고, Rust는 stable toolchain과 선언된 exception channel을 설치합니다. 알 수 없거나 비어 있거나 선언되지 않은 selector는 변경 전에 거부합니다. 선택 설치는 다른 기존 설치물을 지우지 않습니다. 전체 설치든 선택 설치든 symbol extractor나 PHP arginfo는 만들지 않으며, 명시적 target `kit-install-symbols`와 `kit-install-php-arginfo`가 이들을 설치합니다. `install-kit`이 `kit-install-declared`(`install-symbols --declared`, `kit-install-php-arginfo`)로 저장소의 선언(`config/toolchain.json`의 `symbolExtractors`와 `packages/php-ext`)을 읽어 같은 도구를 실행하므로, 어떤 저장소도 호출을 복사하지 않습니다(K861). 추적되는 `Cargo.lock`이 있으면 `kit-install-declared`는 오프라인 검사가 crate를 읽으므로 모든 lock의 `cargo fetch --locked`인 `make cargo-downloads-fetch`도 실행하며, kit은 crate가 있는지 검사하지 않습니다(K864). bootstrap의 `TOOLS=npm`은 그대로입니다.
-bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)은 `packageManager`의 npm과, `config/toolchain.json`
-`mise`의 sha256으로 mise 자체를 설치합니다. `install-tool.mts`가 각각을 대상 옆에서 만들고 거기서 확인한 뒤 rename하므로, 두
-번째 실행은 아무것도 바꾸지 않습니다. mise는 data, cache, state, config와 설치물, shim을 `var/tools/mise`에 두며, wrapper
+bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)은 반드시 있어야 하는 `+sha512.<digest>`로
+`packageManager`의 npm을, `config/toolchain.json` `mise`의 sha256으로 mise 자체를 설치합니다. `install-tool.mts`가 각각을 대상
+옆에서 만들고 거기서 download의 digest를 확인한 뒤 그 digest를 marker(`var/tools/npm`의 `node_modules/npm/.sha512`,
+`var/tools/mise-release`의 `.sha256`)에 쓰고 rename하므로, 두 번째 실행은 marker가 선언된 digest를 담은 설치를 유지하고 version은
+비교하지 않습니다(K933). marker만 읽으므로 marker가 남은 채 바뀐 binary는 검사를 통과합니다. digest가 없는 `packageManager`는
+아무것도 내려받기 전에, 그것을 계산하는 명령과 함께 거부됩니다. mise는 data, cache, state, config와 설치물, shim을 `var/tools/mise`에 두며, wrapper
 `var/tools/bin/mise`가 그 환경을 정합니다. checkout 밖은 아무것도 바뀌지 않습니다. `mise.toml`의 도구는 `var/tools/mise/shims`의
 shim으로 실행합니다(`scripts/kit/mise-tools.mts`). kit.mk는 checkout의 mise 환경을 모든 recipe에 export하고 `var/tools/bin`과 shim을
 PATH 맨 앞에 둡니다. `var/tools/bin`에는 kit이 checkout의 선언에 따라 쓰는 wrapper만 있습니다: bootstrap의 mise, npm, npx와
@@ -93,7 +96,7 @@ PIE는 저장소가 자기 recipe에서 실행하는 도구입니다. 저장소�
 | 도구 | 선언 위치 | 설치 또는 검증 |
 |---|---|---|
 | Node.js | `mise.toml`의 `node`(정확한 version), kit pin; `mise.lock`이 nodejs.org의 platform별 archive sha256을 가집니다. bootstrap이 npm보다 먼저 mise로 설치하고 `var/tools/bin/node`를 쓰며, npm의 wrapper와 kit.mk의 모든 recipe(`$(NODE)`)가 이를 실행합니다(K171) | bootstrap에서 mise로 설치 |
-| npm | `package.json`의 `packageManager`: `npm@X.Y.Z` 또는 `npm@X.Y.Z+sha512.<digest>` | 설치 |
+| npm | `package.json`의 `packageManager`: registry tarball의 `npm@X.Y.Z+sha512.<digest>`(K933) | bootstrap에서 설치 |
 | Go | `mise.toml`의 `go`, `scripts/kit/toolchain-pins.json`의 kit pin과 같음; `mise.lock`이 platform별 archive의 sha256을 가짐; 모든 `go.mod`의 `go` 줄은 pin과 같아야 하며 `go mod edit -json`으로 읽음(K78) | mise로 설치 |
 | Rust | 선언된 그대로의 `rust-toolchain.toml`의 `channel`, rustup이 판정함(K840), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
 | PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version`; install-tools는 둘 중 하나가 PHP를 선언하면 PATH의 php를 wrapper로 제공 | wrapper(K283, K862) |
@@ -148,11 +151,11 @@ Go와 Python을 그 pin으로 선언해야 합니다:
 
 ### 합친 동작
 
-- npm: template의 설치(machine의 npm이 `npm install --prefix`를 실행)와 hyper, ordered-json의 설치(registry tarball을 받아
-  SHA-512가 선언한 digest와 같을 때만 사용)는 하나의 설치입니다. `packageManager`에 digest가 있으면 두 번째 경로를 씁니다.
+- npm: template의 설치(machine의 npm이 `npm install --prefix`를 실행했음)와 hyper, ordered-json의 설치(registry tarball을 받아
+  SHA-512가 선언한 digest와 같을 때만 사용)는 하나의 설치, 곧 두 번째입니다. digest가 없는 `packageManager`는 거부됩니다(K933).
   배치는 `var/tools/npm/node_modules/npm`이고, wrapper `npm`과 `npx`가 `npm-cli.js`와 `npx-cli.js`를 실행합니다. 같은
-  version에서 digest가 바뀌면 다시 설치합니다(hyper). link나 특수 파일이 든 tarball은 거부합니다(ordered-json). bootstrap npm은
-  `PATH`에서 `var/tools/bin`을 뺀 채 실행합니다(template).
+  version에서 digest가 바뀌면 다시 설치합니다(hyper). link나 특수 파일이 든 tarball은 거부합니다(ordered-json). bootstrap은
+  기계의 npm을 실행하지 않고 npm을 설치합니다(template).
 - Go: kit pin인 `mise.toml`의 Go를 mise가 Go 내려받기의 archive에서 `mise.lock`의 sha256으로 설치합니다. 기계의 Go는
   관여하지 않으므로 Go가 없는 checkout에도 설치됩니다. kit의 archive 설치와 `toolchain-pins.json`의 `goArchives` digest는 없어졌습니다(K127).
 - Composer: hyper는 SHA-256을 확인한 `composer.phar`를 설치하고, template, crudui, orm은 실행 중인 Composer만 검증합니다.
@@ -175,8 +178,9 @@ Go와 Python을 그 pin으로 선언해야 합니다:
 
 ### 버린 동작
 
-- hyper는 `PATH`의 `npm`과 `composer`가 `var/tools/bin`의 파일인지 검사했습니다. 정책은 선언한 version이고 version 검사가 모든
-  도구에 그것을 강제하므로, machine의 npm이 선언한 release이면 통과합니다.
+- hyper는 `PATH`의 `npm`과 `composer`가 `var/tools/bin`의 파일인지 검사했습니다. kit은 `PATH`의 도구를 검사하지 않고 version을
+  비교하지 않습니다. recipe는 npm을 `var/tools/npm`의 npm인 `$(NPM)`으로 실행하고 그 설치는 digest marker가 판정하며(K933),
+  composer는 `mise.lock`이 digest를 pin하는 `mise.toml`의 `http:composer`입니다.
 - hyper는 `node_modules` 없이 npm을 `var/tools/npm`에 두었습니다. template의 배치로 바꾸므로 wrapper 문구가 하나입니다.
 - ordered-json의 `pin TOOL` 명령은 CI에 pin된 version을 출력했습니다. setup action이 pin 파일을 읽고, script는
   `declaredToolchain`에서 같은 값을 받습니다.
@@ -731,7 +735,6 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 | `manifests.mts` | 각자의 schema(`npm-manifest`, `npm-lock`, `composer-manifest`, `composer-lock`)로 검증하는 reader와 함께 `NpmManifest`, `NpmLock`, `ComposerManifest`, `ComposerLock` | toolchain-floors, release, release-consumer, kit-check, owner-check에 있던 package.json, package-lock.json, composer.json, composer.lock의 지역 shape(K158) | 위 module들 |
 | `tracked-files.mts` | `checkedFiles`, `KIT_FIXTURE` | release의 `EXCLUDED` | release, lint와 검사 도구 |
 | `target-report.mts` | `TARGET_NAME`, `FAILURE_LINES`, `logPath`, `startReport`, `treeId` | target-run의 같은 이름들, target-run의 `LAST_LINES`, ci-targets의 target 이름 pattern, target-report의 `git` | ci-targets, full-run |
-| `tool-wrappers.mts` | `RELEASE_OUTPUT`, `printedRelease` | release installer와 check-toolchain의 probe가 각자 가진 ruff, uv, alint, cargo-audit, govulncheck의 version 인자와 pattern. K127 이후 그 도구는 mise가 설치하고, bootstrap만 읽음 | bootstrap |
 | `pyproject-dependencies.mts` | `dependencyArrays`: `[project]`의 `dependencies`, 각 extra, `[dependency-groups]`의 각 group; `dependencyGroups`: PEP 735의 reference implementation처럼 `{ include-group }` table을 푼 각 group(K177) | dependency group을 빠뜨린 extra만의 읽기 | link |
 
 그 밖에 없앤 중복:

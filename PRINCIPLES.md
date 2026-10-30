@@ -197,9 +197,14 @@ tool lands, a standard binds the work as written here.
   (`*.test.{ts,mts,cts,mjs,cjs,js}`, vitest's `*.{test,spec}.*`, `*Test.php`, `*_test.go`, `tests/` and `#[test]`,
   `test_*.py`); a repository may add files but never narrow the set, and a file named like a test is run by a binding.
   Enforced by: `make parity-declarations-check`
-- S4 Versions: kit compares and pins no version or lock; format validation of arguments is allowed. Each package manager
-  and its lock decide.
-  Enforced by: none, a comparison that kit does not make needs no check; review refuses a new one (K853).
+- S4 Versions: kit compares and pins no version or lock; each package manager and its lock decide. Two exceptions: the
+  digests of kit's two bootstrap tools (mise and npm), which the bootstrap checks as the anchor before any package manager
+  runs, with the installed state of those two judged by that digest alone; and the order of the repository's own release
+  headings in its change log and its release tags, newest first, which release takes its version from. Format validation
+  of arguments is allowed.
+  Enforced by: `tests/kit/install-mise.test.mts` and `tests/kit/install-npm.test.mts` (installed state judged by the digest
+  marker alone), `tests/kit/release.test.mts` (the latest release tag), `make docs-check` (change-log heading order); review
+  refuses any other version comparison (K853).
 - S5 Folders: every monorepo has the same root folders (`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`,
   `examples/`, `benchmarks/`, `config/`). Runtime ports of the main spec live in `packages/<runtime>/`, other components in
   `packages/<component>/` and their ports in `packages/<component>/<runtime>/`; folder names carry no repository prefix. A

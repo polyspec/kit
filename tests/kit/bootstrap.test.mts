@@ -5,7 +5,7 @@
 // npm, and every later step runs that node (K171).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -61,21 +61,4 @@ test('without package.json the copied installer names package.json', (t) => {
   const { run } = copied(t, {});
   assert.equal(run.status, 1, run.stdout);
   assert.equal(run.stderr, '[bootstrap] package.json is missing; its packageManager pins the npm to install\n');
-});
-
-test('printedRelease reads only a missing command as no installation: another error and an output without a release fail', async (t) => {
-  const { printedRelease } = await import('../../scripts/kit/bootstrap/tool-wrappers.mts');
-  const directory = mkdtempSync(path.join(tmpdir(), 'kit-printed-release-'));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
-  assert.equal(printedRelease(path.join(directory, 'missing'), 'uv'), undefined);
-  const command = path.join(directory, 'uv');
-  writeFileSync(command, '#!/bin/sh\necho "uv twelve"\n', { mode: 0o755 });
-  assert.throws(() => printedRelease(command, 'uv'), /uv --version printed no release: "uv twelve"$/);
-  // A command that cannot run, a file without execute permission, fails with EACCES and is no missing installation. A file
-  // keeps the directory removable by a plain rm -r, also when a run is killed before t.after (a directory without
-  // permissions was left behind so).
-  const unrunnable = path.join(directory, 'uv-unrunnable');
-  writeFileSync(unrunnable, '#!/bin/sh\necho "uv 0.12.24"\n', { mode: 0o644 });
-  assert.throws(() => printedRelease(unrunnable, 'uv'), { code: 'EACCES' });
-  assert.deepEqual(readdirSync(directory, { recursive: true, withFileTypes: true }).filter(entry => entry.isDirectory() && (statSync(path.join(entry.parentPath, entry.name)).mode & 0o500) !== 0o500).map(entry => entry.name), [], 'a directory without read and search permission');
 });

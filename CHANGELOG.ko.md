@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bddf49a9b144740574f283eb5e3938705ab6e382f1dc732e4affc47c2996f328 -->
+<!-- source-sha256: 4e8258f75a8e942bb2bcb10e9bbfd76aa70af37944a9f4b536d7b510e07cc71a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- bootstrap은 설치된 mise와 npm을 digest marker만으로 판정하고 version은 비교하지 않는다. 설치는 확인한 digest를 var/tools/mise-release/.sha256과 var/tools/npm/node_modules/npm/.sha512에 쓰고, marker가 선언된 digest를 담은 설치를 유지한다. +sha512가 없는 packageManager는 아무것도 내려받기 전에 digest를 계산하는 명령과 함께 거부되고, machine의 npm은 쓰지 않는다. S4는 bootstrap digest와 release heading 순서를 두 예외로 적는다. pin 뒤 첫 설치는 marker를 쓰려고 mise를 한 번 내려받는다 (K933).
 - latestTag는 가장 새 release tag를 git 자체의 version 정렬(git tag --sort=-v:refname)에서 취하고 vX.Y.Z만 남기므로, git이 v0.0.10 위에 두는 v0.0.10-rc1 같은 pre-release는 latest가 되지 않는다. release.mts는 더는 semver를 import하지 않고, semver는 change log 순서 검사를 위해 남는다 (K932).
 - kit에는 pie-build가 없다. kit이 PIE를 감싸라는 규칙이 없으므로 make pie-build와 scripts/kit/pie-build.mts는 제거되고, 저장소는 make install-tools TOOLS=pie가 설치하는 PIE를 자기 recipe에서 실행한다 (K931).
 - Kit 0.0.80을 공개했다. release run 41088517118이 82ab25d1의 성공한 CI run 41083175026을 받아 그 commit에 annotated v0.0.80 tag를 만들고 polyspec-kit-npm-0.0.80.tgz와 함께 게시된 release를 만들었다 (K928).

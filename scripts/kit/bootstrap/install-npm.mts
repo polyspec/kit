@@ -1,25 +1,16 @@
 // Installs the npm that `packageManager` of package.json declares into var/tools/npm, with the wrappers npm and npx in
-// var/tools/bin. Without a digest in packageManager, the npm of the machine installs it (`npm install --prefix`). With
-// `+sha512.<digest>`, the registry tarball is downloaded, refused unless its SHA-512 is the digest or when it holds a link,
-// and unpacked. An installed release with the same digest is kept. The npm of the machine is never changed.
+// var/tools/bin. packageManager declares `npm@<version>+sha512.<digest>`: the registry tarball is downloaded, refused unless its
+// SHA-512 is the digest or when it holds a link, and unpacked; a declaration without the digest is refused before anything is
+// downloaded. An installation whose marker holds the digest is kept (K933). The npm of the machine is never used or changed.
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { installOnce } from './install-tool.mts';
 import { archiveTar, bootstrapEnvironment, run, toolsPath, writeNativeWrapper } from './tool-wrappers.mts';
 import { fileDigest } from './digest.mts';
-import { readJsonObject } from './files.mts';
 
-const MARKER = '.sha512';
-
-/** The release of the npm under `prefix` as `<version>` or `<version>+sha512.<digest>`, or undefined when none is installed. */
-function installedRelease(prefix: string): string | undefined {
-  const directory = path.join(prefix, 'node_modules/npm');
-  if (!statSync(path.join(directory, 'package.json'), { throwIfNoEntry: false })) return undefined;
-  const { version } = readJsonObject(directory, 'package.json');
-  if (typeof version !== 'string') throw new Error(`${path.join(directory, 'package.json')} records no version: ${JSON.stringify(version)}`);
-  return statSync(path.join(directory, MARKER), { throwIfNoEntry: false }) ? `${version}+sha512.${readFileSync(path.join(directory, MARKER), 'utf8').trim()}` : version;
-}
+/** The digest marker of the installed npm, relative to var/tools/npm. */
+const MARKER = 'node_modules/npm/.sha512';
 
 // Downloads the tarball, checks its digest and that it holds only files and directories, and unpacks it without its top directory.
 function unpackVerified({ root, next, version, sha512, print }: { root: string; next: string; version: string; sha512: string; print: (text: string) => void }): void {
@@ -38,7 +29,6 @@ function unpackVerified({ root, next, version, sha512, print }: { root: string; 
   const directory = path.join(next, 'node_modules/npm');
   mkdirSync(directory, { recursive: true });
   run(archiveTar(), ['-x', '-f', tarball, '-C', directory, '--strip-components', '1'], { cwd: root }, print);
-  writeFileSync(path.join(directory, MARKER), `${sha512}\n`);
   rmSync(scratch, { recursive: true, force: true });
 }
 
@@ -47,19 +37,17 @@ export const NPM_WRAPPERS = { npm: 'npm-cli.js', npx: 'npx-cli.js' };
 
 /**
  * Installs the declared npm `{ version, sha512 }` into var/tools/npm of `root` and writes the wrappers, which run it with
- * `node`, the node of the checkout by its absolute path; returns `{ installed, release }`.
+ * `node`, the node of the checkout by its absolute path; returns `{ installed }`. A declaration without its sha512 is refused first, naming how to get it.
  */
-export function installNpm({ root, declared, node, print = () => {} }: { root: string; declared: { version: string; sha512?: string | undefined }; node: string; print?: (text: string) => void }) {
-  const recorded = declared.sha512 ? `${declared.version}+sha512.${declared.sha512}` : declared.version;
+export function installNpm({ root, declared, node, print = () => {} }: { root: string; declared: { version: string; sha512: string | undefined }; node: string; print?: (text: string) => void }) {
+  const { version, sha512 } = declared;
+  if (sha512 === undefined) throw new Error(`packageManager of package.json declares npm@${version} without a sha512 digest; add it: run \`npm pack npm@${version}\` and \`shasum -a 512 npm-${version}.tgz\`, then write npm@${version}+sha512.<hex> in packageManager`);
   const prefix = toolsPath(root, 'npm');
   const result = installOnce({
-    root, label: 'npm', prefix, recorded, installedRelease, print,
+    root, label: 'npm', version, prefix, digest: sha512, marker: MARKER, print,
     install: (next: string) => {
       writeFileSync(path.join(next, 'package.json'), '{ "private": true }\n');
-      if (declared.sha512) unpackVerified({ root, next, version: declared.version, sha512: declared.sha512, print });
-      // The bootstrap keeps the npm of the machine: var/tools does not exist before this install, so this is the one start that takes
-      // its tool from PATH, and bootstrapEnvironment keeps var/tools/bin off PATH (K393-1).
-      else run('npm', ['install', '--prefix', next, '--no-save', '--no-package-lock', '--no-bin-links', '--no-audit', '--no-fund', `npm@${declared.version}`], { cwd: next, env: bootstrapEnvironment(root) }, print);
+      unpackVerified({ root, next, version, sha512, print });
     },
   });
   for (const [name, cli] of Object.entries(NPM_WRAPPERS)) {

@@ -20,13 +20,13 @@ const NPM = `${HEADER}
 if (process.env.STUB_PATH_LOG) fs.appendFileSync(process.env.STUB_PATH_LOG, process.env.PATH + '\\n');
 const version = /^npm@(.+)$/.exec(args.at(-1))[1];
 const prefix = args[args.indexOf('--prefix') + 1];
-const shown = process.env.STUB_NPM_SHOWS ?? version;
 fs.mkdirSync(path.join(prefix, 'node_modules/npm'), { recursive: true });
-fs.writeFileSync(path.join(prefix, 'node_modules/npm/package.json'), JSON.stringify({ name: 'npm', version: shown }));
-script(path.join(prefix, 'node_modules/npm/bin/npm-cli.js'), 'console.log(' + JSON.stringify(shown) + ');');
+fs.writeFileSync(path.join(prefix, 'node_modules/npm/package.json'), JSON.stringify({ name: 'npm', version }));
+script(path.join(prefix, 'node_modules/npm/bin/npm-cli.js'), 'console.log(' + JSON.stringify(version) + ');');
 `;
 
 const CURL = `${HEADER}
+if (process.env.STUB_PATH_LOG) fs.appendFileSync(process.env.STUB_PATH_LOG, process.env.PATH + '\\n');
 const url = args.at(-1);
 const output = args[args.indexOf('--output') + 1];
 const source = JSON.parse(process.env.STUB_DOWNLOADS ?? '{}')[url];
