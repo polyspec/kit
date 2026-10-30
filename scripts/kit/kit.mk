@@ -50,7 +50,7 @@ KIT_MISE_ENVIRONMENT_ARGS := $(foreach variable,$(MISE_ENVIRONMENT),$(variable)=
 KIT_NODE_DIRECTORY := $(shell $(KIT_MISE_ENVIRONMENT_ARGS) "$(KIT_MISE_BINARY)" where node)
 KIT_NPM_DIRECTORY := $(shell $(KIT_MISE_ENVIRONMENT_ARGS) "$(KIT_MISE_BINARY)" where npm:npm)
 NODE := $(if $(KIT_NODE_DIRECTORY),$(subst \,/,$(KIT_NODE_DIRECTORY))/node.exe,$(KIT_TOOLS)/bin/node)
-NPM := $(NODE) $(subst \,/,$(KIT_NPM_DIRECTORY))/node_modules/npm/bin/npm-cli.js
+NPM := $(if $(KIT_NPM_DIRECTORY),$(NODE) $(subst \,/,$(KIT_NPM_DIRECTORY))/node_modules/npm/bin/npm-cli.js,$(KIT_TOOLS)/bin/npm)
 else
 NODE := $(KIT_TOOLS)/bin/node
 NPM := $(KIT_TOOLS)/bin/npm

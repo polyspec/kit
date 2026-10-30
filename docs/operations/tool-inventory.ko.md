@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 179b13a5d96ec156b3bfe8033c4584cbf9c5e1f3e1d2a97b5450a17f9c664144 -->
+<!-- source-sha256: c22e20c0bf0aa4ddc63002750eec699c7f6643a3e4b6f7db35664e7a44ef0e8a -->
 
 # 도구 목록
 
@@ -174,14 +174,14 @@ Go와 Python을 그 pin으로 선언해야 합니다:
 ### 버린 동작
 
 - hyper는 `PATH`의 `npm`과 `composer`가 `var/tools/bin`의 파일인지 검사했습니다. kit은 `PATH`의 도구를 검사하지 않고 version을
-  비교하지 않습니다. recipe는 npm을 `var/tools/npm`의 npm인 `$(NPM)`으로 실행하고 그 설치는 digest marker가 판정하며(K933),
+  비교하지 않습니다. recipe는 npm을 `$(NPM)`, 곧 mise가 `mise.lock`의 digest로 설치하는 `mise.toml`의 `npm:npm`으로 실행하며,
   composer는 `mise.lock`이 digest를 pin하는 `mise.toml`의 `http:composer`입니다.
-- hyper는 `node_modules` 없이 npm을 `var/tools/npm`에 두었습니다. template의 배치로 바꾸므로 wrapper 문구가 하나입니다.
+- hyper는 `node_modules` 없이 npm을 `var/tools/npm`에 두었습니다. kit은 npm을 mise에서 받으므로(K938) 자체 npm 배치가 없습니다.
 - ordered-json의 `pin TOOL` 명령은 CI에 pin된 version을 출력했습니다. setup action이 pin 파일을 읽고, script는
   `declaredToolchain`에서 같은 값을 받습니다.
 - orm은 `.node-version`, `.php-version`, `.go-version` 끝의 newline을 요구했습니다. 파일을 trim해서 읽습니다.
   편집기 설정은 toolchain version이 아닙니다.
-- crudui의 `.tools/npm` 경로는 `var/tools/npm`으로 대체합니다(`checkout-npm.mjs`는 vendored하지 않음).
+- crudui의 `.tools/npm` 경로는 `mise.toml`의 `npm:npm`으로 대체합니다(`checkout-npm.mjs`는 vendored하지 않음).
 
 ### 저장소에 남는 것
 

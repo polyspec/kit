@@ -3,7 +3,7 @@
 // is unset, and kit-test is kit's own target, since a repository holds no tests/kit.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -28,6 +28,21 @@ test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT 
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'docs-check', 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs'], { cwd: ROOT, encoding: 'utf8' });
   assert.equal(dry.status, 0, dry.stderr);
   assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
+});
+
+test('Windows Make with mise present and npm:npm absent points NPM under var/tools, never at /node_modules (K938)', (t) => {
+  const tools = mkdtempSync(path.join(tmpdir(), 'kit-make-windows-nonpm-'));
+  t.after(() => rmSync(tools, { recursive: true, force: true }));
+  const mise = path.join(tools, 'mise-release/mise/bin/mise.exe');
+  mkdirSync(path.dirname(mise), { recursive: true });
+  // mise knows the node of the checkout and no install of npm:npm: `mise where npm:npm` prints nothing.
+  writeFileSync(mise, '#!/bin/sh\nif [ "$1" = where ] && [ "$2" = node ]; then echo "D:/kit-sdk/node/26.12.0"; fi\nexit 0\n');
+  chmodSync(mise, 0o755);
+  const makeTools = tools.replaceAll('\\', '/');
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(ROOT, 'Makefile'), 'install-packages', 'OS=Windows_NT', `KIT_TOOLS=${makeTools}`], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(dry.status, 0, dry.stdout + dry.stderr);
+  assert.doesNotMatch(dry.stdout, /\/node_modules\/npm\/bin\/npm-cli\.js/, 'an npm at the root of the drive');
+  assert.match(dry.stdout, new RegExp(`^.*${escape(makeTools)}/bin/npm ci$`, 'm'), dry.stdout);
 });
 
 test('Windows Make without mise points NPM under var/tools, so its recipe fails there and runs no npm of the machine (K938)', (t) => {

@@ -196,14 +196,14 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 ### Dropped behaviors
 
 - hyper checked that `npm` and `composer` on `PATH` are the files of `var/tools/bin`. kit checks no tool on `PATH` and compares
-  no version: the recipes run npm as `$(NPM)`, the npm of `var/tools/npm`, whose installation its digest marker judges (K933),
+  no version: the recipes run npm as `$(NPM)`, the `npm:npm` of `mise.toml`, which mise installs at the digest of `mise.lock`,
   and composer is the `http:composer` of `mise.toml`, whose digest `mise.lock` pins.
-- hyper kept npm in `var/tools/npm` without `node_modules`; the layout of template replaces it, so one wrapper text exists.
+- hyper kept npm in `var/tools/npm` without `node_modules`; kit now takes npm from mise (K938), so kit has no npm layout of its own.
 - ordered-json's `pin TOOL` command printed a pinned version for CI. The setup actions read the pin files, and
   `declaredToolchain` returns the same values to a script.
 - orm required a newline at the end of `.node-version`, `.php-version` and `.go-version`. The files are read
   trimmed; an editor setting is not a toolchain version.
-- The `.tools/npm` path of crudui is replaced by `var/tools/npm` (`checkout-npm.mjs` is not vendored).
+- The `.tools/npm` path of crudui is replaced by the `npm:npm` of `mise.toml` (`checkout-npm.mjs` is not vendored).
 
 ### Stays in the repository
 
