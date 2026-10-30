@@ -991,31 +991,13 @@ phpcs와 PHPStan을 설치합니다. 모든 저장소가 그 사본을 가지며
 - API Extractor가 @rushstack/ts-command-line과 argparse 1.0.10을 거쳐 가져오는 sprintf-js 1.0.3의 moderate advisory
   GHSA-hp3w-g68c-fv3c(npm advisory 1241202)는 sprintf-js의 모든 release에 해당하며, npm audit가 이를 보고합니다.
 
-## 다른 repository의 release archive (K140)
+## 다른 repository의 package (K140, K865)
 
-다른 polyspec repository의 release archive(예: template release의 php와 php-ext zip, orm과 ordered-json의 Composer zip)를 쓰는
-repository는 자기 downloader 대신 `config/release-assets.json`(schema `scripts/kit/schema/release-assets.schema.json`, `make kit-check`가
-검사)에 그것을 고정합니다:
-
-```json
-{
-  "schema": 1,
-  "assets": [
-    { "name": "codec-php", "version": "0.0.14", "url": "https://github.com/polyspec/codec/releases/download/v{version}/polyspec-codec-php-{version}.zip",
-      "sha256": "<64 hex digits>", "directory": "var/composer-artifacts", "unpack": "var/products/codec" }
-  ]
-}
-```
-
-- version은 entry에 한 번만 선언합니다. `url`의 `{version}`이 그것을 뜻하며 다른 placeholder는 받지 않습니다. tag가 필요한
-  Makefile은 그것을 읽습니다: `$(shell node $(KIT)/release-assets.$(KIT_EXT) version codec-php)`.
-- 목적지는 `directory`와 URL의 마지막 path segment입니다. `directory`와 `unpack`은 `..` 없는 `var/` 아래 directory이고 Git이
-  무시해야 합니다(`git check-ignore`). 두 entry가 같은 name이나 목적지를 가지면 거부합니다.
-- `make release-assets-fetch`(ONLINE, install 단계)는 목적지가 sha256을 지니지 않은 archive를 Node의 fetch로 내려받고, sha256이
-  다르면 거부하며 그때는 아무것도 쓰지 않고, `<destination>.next-<pid>`와 rename으로 씁니다. `unpack`이 있는 entry는 zip이며,
-  `unzip`이 `unpack` 옆의 임시 directory에 풀고 rename으로 그것을 바꿉니다. 그 안의 `.release-asset.sha256`가 archive를 기록하므로
-  같은 archive는 다시 풀지 않습니다.
-- `tests/kit/release-assets.test.mts`는 fetch의 stub과 machine의 `zip`이 만든 zip으로 도구를 실행합니다.
+kit은 package를 내려받지 않습니다. 개발에서 저장소는 다른 polyspec 저장소 package의 install folder를 그 저장소의 개발 folder로
+link하며(make install-link, docs/operations/local-links.md) 아무것도 내려받지 않습니다. release 설치는 package manager가 package를
+가져오게 둡니다. Composer package는 release가 게시하는 `composer` type repository
+`https://github.com/polyspec/<repo>/releases/download/<tag>/packages.json`에서 오므로(K871, docs/operations/release.md) 소비자는 tag만
+적습니다. kit-check는 config/release-assets.json을 읽지 않습니다.
 
 ## Release workflow, tool과 draft (K38)
 

@@ -6,7 +6,7 @@
 // worktree of that branch installs and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
-import { existsSync, lstatSync, mkdirSync, symlinkSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { git, gitResult } from './git.mts';
@@ -15,43 +15,10 @@ import { linkFolders, providedFolders } from './link-folders.mts';
 import { declaredCheckouts, providerKey, providers } from './link-providers.mts';
 import { readNpmManifestFile } from './manifests.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { CONFIG as RELEASE_ASSETS, releaseAssets } from './release-assets.mts';
 
 /** The worktree of a row: its folder beside the main checkout and its branch. */
 export function worktreeOf(main: string, { name, id, type }: { name: string; id: string; type: string }): { folder: string; branch: string } {
   return { folder: path.join(path.dirname(main), `${path.basename(main)}-${name}-${id}`), branch: `${type}/${name}-${id}` };
-}
-
-/**
- * The release archives of `main` that config/release-assets.json declares, each file at its destination, and each `unpack` directory
- * (K780, K887). Linking the parent directories instead would let a fetch or an unpack of the worktree replace what the main checkout
- * holds.
- */
-function releaseAssetPaths(main: string): string[] {
-  if (!existsSync(path.join(main, RELEASE_ASSETS))) return [];
-  return [...new Set(releaseAssets(main).flatMap(asset => [asset.destination, ...(asset.unpack === undefined ? [] : [asset.unpack])]))].sort();
-}
-
-/**
- * Makes each release archive and unpacked directory of the worktree one link to that of the main checkout (K622, K780, K887): Composer
- * and the builds read them; a fetch or an unpack in the worktree replaces its own link, never the main checkout's file.
- */
-function linkReleaseAssets(main: string, folder: string, print: (text: string) => void): void {
-  for (const relative of releaseAssetPaths(main)) {
-    const source = path.join(main, relative);
-    if (!existsSync(source)) {
-      print(`[worktree-setup] ${relative} is not fetched in the main checkout; the worktree gets none`);
-      continue;
-    }
-    const target = path.join(folder, relative);
-    const wanted = path.relative(path.dirname(target), source);
-    const entry = lstatSync(target, { throwIfNoEntry: false });
-    // A path that the worktree already holds is its own.
-    if (entry !== undefined) continue;
-    mkdirSync(path.dirname(target), { recursive: true });
-    symlinkSync(wanted, target, lstatSync(source).isDirectory() ? 'dir' : 'file');
-    print(`[worktree-setup] linked ${relative} to the main checkout's`);
-  }
 }
 
 /** Runs `command` with `args` in `folder`, throwing when it does not start or ends with a failure. */
@@ -81,7 +48,6 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   } else {
     print(`[worktree-setup] ${folder} is the worktree of ${branch}; installing and checking it again`);
   }
-  linkReleaseAssets(main, folder, print);
   // The make of the main checkout that runs this puts its var/tools first on PATH and passes its flags; the worktree runs its own
   // tools in a make of its own (K858).
   const tools = path.join(main, 'var', 'tools');

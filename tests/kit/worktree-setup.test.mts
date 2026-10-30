@@ -1,7 +1,7 @@
 // Tests of scripts/kit/worktree-setup.mts (K348, K858): the worktree of a row is made from main beside the main checkout, and make install
 // and make link-check run in it, so it installs its own tools, packages and links; a second run converges.
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync } from 'node:fs';
+import { chmodSync, existsSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -103,29 +103,13 @@ test('worktree-setup fails with the target whose make fails, and refuses a folde
   assert.throws(() => setupWorktree(main, { name: 'taken', id: 'T3', type: 'fix' }, { print: () => {} }), /exists and is no worktree of fix\/taken-T3/);
 });
 
-test('worktree-setup links each declared release archive and unpacked directory to the main checkout (K622, K780, K887)', (t) => {
-  const asset = (name: string, directory: string, unpack?: string) => ({ name, version: '0.0.1', url: `https://example.invalid/v{version}/${name}-{version}.zip`, sha256: '0'.repeat(64), directory, ...(unpack === undefined ? {} : { unpack }) });
-  const main = repository(t, {
-    'config/release-assets.json': JSON.stringify({ schema: 1, assets: [asset('ext', 'var/products', 'var/products/ext'), asset('php', 'var/products/php'), asset('orm', 'var/composer-artifacts'), asset('absent', 'var/absent')] }),
-    'Makefile': 'install:\n\ttrue\nlink-check:\n\ttrue\n',
-    '.gitignore': '/var/\n',
-  });
-  put(main, { 'var/products/ext-0.0.1.zip': 'ext zip\n', 'var/products/ext/ext.so': 'ext\n', 'var/products/php/php-0.0.1.zip': 'php zip\n', 'var/composer-artifacts/orm-0.0.1.zip': 'orm zip\n' });
-  const check = (folder: string) => {
-    for (const relative of ['var/products/ext-0.0.1.zip', 'var/products/ext', 'var/products/php/php-0.0.1.zip', 'var/composer-artifacts/orm-0.0.1.zip']) {
-      const link = path.join(folder, relative);
-      assert.ok(lstatSync(link).isSymbolicLink(), `${relative} is one link`);
-      assert.equal(realpathSync(link), realpathSync(path.join(main, relative)));
-    }
-    assert.ok(!lstatSync(path.join(folder, 'var/products')).isSymbolicLink(), 'the parent directory is the worktree\'s own');
-    assert.equal(existsSync(path.join(folder, 'var/absent')), false, 'an archive that the main checkout has not fetched gets no link');
-    assert.equal(git(folder, 'status', '--porcelain'), '', 'the worktree has no change');
-  };
-  const folder = setupWorktree(main, { name: 'artifacts', id: 'K780', type: 'fix' }, { print: () => {} });
-  check(folder);
-  assert.equal(setupWorktree(main, { name: 'artifacts', id: 'K780', type: 'fix' }, { print: () => {} }), folder, 'a second run converges');
-  check(folder);
-  // K887: an unpack in the worktree replaces its own link; the main checkout keeps its directory.
-  renameSync(path.join(folder, 'var/products/ext'), path.join(folder, 'var/products/ext.old'));
-  assert.equal(readFileSync(path.join(main, 'var/products/ext/ext.so'), 'utf8'), 'ext\n');
+// K865: kit downloads no package and links nothing of var/ between checkouts; a worktree installs its own, as any checkout does.
+test('worktree-setup links nothing of the var/ of the main checkout into the worktree (K865)', (t) => {
+  // The config/release-assets.json of an earlier kit declared archives that worktree-setup linked from the main checkout.
+  const asset = (name: string, directory: string) => ({ name, version: '0.0.1', url: `https://example.invalid/v{version}/${name}-{version}.zip`, sha256: '0'.repeat(64), directory });
+  const main = repository(t, { 'config/release-assets.json': JSON.stringify({ schema: 1, assets: [asset('ext', 'var/products'), asset('orm', 'var/composer-artifacts')] }), 'Makefile': 'install:\n\ttrue\nlink-check:\n\ttrue\n', '.gitignore': '/var/\n' });
+  put(main, { 'var/products/ext-0.0.1.zip': 'ext zip\n', 'var/composer-artifacts/orm-0.0.1.zip': 'orm zip\n' });
+  const folder = setupWorktree(main, { name: 'artifacts', id: 'K865', type: 'fix' }, { print: () => {} });
+  assert.equal(existsSync(path.join(folder, 'var/products')), false);
+  assert.equal(existsSync(path.join(folder, 'var/composer-artifacts')), false);
 });

@@ -114,10 +114,10 @@ and states only its own rules. The rules below are kit's own.
   (docs/operations/tool-inventory.md, Language parity).
   Enforced by: `make parity-declarations-check`
 - Own: Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
-  for each step, and has no time limit; a test case has its own timeout. A network query is made only by
-  the targets that kit.mk marks ONLINE (`install-tools`, `release-tools`,
-  `release-assets`, `release-candidate-assets`, `cargo-downloads-fetch` and `release-assets-fetch`), and its
-  result is a committed record, an installation in var/tools or an archive under var/ that config/release-assets.json pins.
+  for each step, and has no time limit; a test case has its own timeout. A network query is made only by a command that a
+  make recipe runs through `$(ONLINE)`, such as those of `install-tools` and `release-assets`, and its result is a committed
+  record, an installation or a release archive of the repository itself; kit downloads no package of another repository
+  (K865).
   Enforced by: `make kit-test`
 - Own: A dependency advisory is fixed by an update. npm audit, composer audit, cargo audit and govulncheck report
   outdated and vulnerable dependencies; kit compares no versions and keeps no record of them.

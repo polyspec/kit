@@ -1080,32 +1080,13 @@ TypeScript lint resolves its declared dependency packages with Node's native pac
 - The moderate advisory GHSA-hp3w-g68c-fv3c (npm advisory 1241202) of sprintf-js 1.0.3, which API Extractor pulls in through
   @rushstack/ts-command-line and argparse 1.0.10, covers every release of sprintf-js; npm audit reports it.
 
-## Release archives of other repositories (K140)
+## Packages of other repositories (K140, K865)
 
-A repository that uses a release archive of another polyspec repository, such as the php and php-ext zips of a template
-release or the Composer zips of orm and ordered-json, pins it in `config/release-assets.json` (schema
-`scripts/kit/schema/release-assets.schema.json`, checked by `make kit-check`) instead of a downloader of its own:
-
-```json
-{
-  "schema": 1,
-  "assets": [
-    { "name": "codec-php", "version": "0.0.14", "url": "https://github.com/polyspec/codec/releases/download/v{version}/polyspec-codec-php-{version}.zip",
-      "sha256": "<64 hex digits>", "directory": "var/composer-artifacts", "unpack": "var/products/codec" }
-  ]
-}
-```
-
-- The version is declared once, in the entry; `{version}` of `url` stands for it, and no other placeholder is accepted. A
-  Makefile that needs the tag reads it: `$(shell node $(KIT)/release-assets.$(KIT_EXT) version codec-php)`.
-- The destination is `directory` and the last path segment of the URL. `directory` and `unpack` are directories under `var/`
-  without `..`, and Git must ignore them (`git check-ignore`); a name or a destination that two entries share is refused.
-- `make release-assets-fetch` (ONLINE, an install step) downloads with the fetch of Node each archive whose destination
-  does not hold its sha256, refuses a download with another sha256 and writes nothing then, and writes through
-  `<destination>.next-<pid>` and a rename. An entry with `unpack` is a zip that `unzip` extracts into a temporary directory
-  beside `unpack`, which replaces it with a rename; the file `.release-asset.sha256` in it records the archive, so the same
-  archive is not extracted again.
-- `tests/kit/release-assets.test.mts` runs the tool with a stub of fetch and a zip of the machine's `zip`.
+Kit downloads no package. In development a repository links the install folder of a package of another polyspec repository to
+that repository's development folder (make install-link, docs/operations/local-links.md), and downloads nothing. A release
+installation lets the package manager fetch the package: a Composer package comes from the `composer`-type repository
+`https://github.com/polyspec/<repo>/releases/download/<tag>/packages.json` that the release publishes (K871,
+docs/operations/release.md), so the consumer names only the tag. kit-check reads no config/release-assets.json.
 
 ## Release workflow, tools and draft (K38)
 

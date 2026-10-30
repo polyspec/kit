@@ -410,13 +410,6 @@ release-go-tags: ## Require the tag <directory>/vX.Y.Z of every Go module at the
 	@test -n "$$TAG" || { echo "release-go-tags: TAG is required, for example make release-go-tags TAG=v0.0.1"; exit 1; }
 	$(NODE) $(KIT)/release.$(KIT_EXT) go-tags "$$TAG"
 
-# --- release-assets: the release archives of other repositories that config/release-assets.json pins by version and sha256
-# (scripts/kit/release-assets.mts). The fetch is an install step; a Makefile reads the version of an entry with
-# `$(shell node $(KIT)/release-assets.$(KIT_EXT) version <name>)`.
-.PHONY: release-assets-fetch
-release-assets-fetch: ## Download the archives of config/release-assets.json that var/ lacks, with their sha256 checked, and extract those that declare unpack; in a worktree it keeps the linked archives of the main checkout that hold their sha256, and a download or an unpack replaces the worktree's own link (K780, K887); ONLINE
-	$(ONLINE) $(NODE) $(KIT)/release-assets.$(KIT_EXT) fetch
-
 # --- python-venv: a virtual environment of the checkout Python, made by the uv of the checkout as uv makes it
 # (scripts/kit/python-venv.mts); an existing venv of the checkout Python is kept.
 .PHONY: python-venv

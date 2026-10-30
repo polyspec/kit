@@ -1,7 +1,6 @@
 // The install step that the tools of var/tools share: build into a temporary directory beside the target and rename it into
 // place, so a reader never sees a partly installed tool (replaceInstall). The bootstrap installers of mise and npm, which have no
-// tool beneath them to judge an installed release, also skip a recorded release (installOnce, K861), as release-assets does until
-// K865 deletes it.
+// tool beneath them to judge an installed release, also skip a recorded release (installOnce, K861).
 import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync } from 'node:fs';
 import path from 'node:path';
 

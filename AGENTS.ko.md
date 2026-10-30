@@ -102,9 +102,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   target에서, `parity-check`를 CI에서 실행하며, 둘 다 push가 반영되기 전에 실행합니다(docs/operations/tool-inventory.md, Language parity).
   Enforced by: `make parity-declarations-check`
 - Own: 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
-  case는 자기 timeout을 가집니다. 네트워크 조회는 kit.mk가 ONLINE으로 표시한 target(`install-tools`,
-  `release-tools`, `release-assets`, `release-candidate-assets`, `cargo-downloads-fetch`,
-  `release-assets-fetch`)만 하고, 결과는 commit된 기록, var/tools의 설치, 또는 config/release-assets.json이 고정한 var/ 아래의 archive입니다.
+  case는 자기 timeout을 가집니다. 네트워크 조회는 make recipe가 `$(ONLINE)`으로 실행하는 명령(예: `install-tools`와
+  `release-assets`의 명령)만 하고, 결과는 commit된 기록, 설치, 또는 저장소 자신의
+  release archive입니다. kit은 다른 저장소의 package를 내려받지 않습니다(K865).
   Enforced by: `make kit-test`
 - Own: dependency advisory는 갱신으로 고칩니다. npm audit, composer audit, cargo audit와 govulncheck가 오래되거나 취약한
   dependency를 보고하며, kit은 version을 비교하지 않고 그 기록도 두지 않습니다.

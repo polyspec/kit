@@ -58,7 +58,7 @@ KIT_TEST_FILES_6 := \
 	tests/kit/documents.test.mts tests/kit/gates-workflow.test.mts \
 	tests/kit/generated-files.test.mts tests/kit/git.test.mts tests/kit/kit-sync.test.mts \
 	tests/kit/linked-sources.test.mts tests/kit/lint-rust.test.mts tests/kit/lint-ts.test.mts \
-	tests/kit/project-hook.test.mts tests/kit/python-venv.test.mts tests/kit/release-assets.test.mts \
+	tests/kit/project-hook.test.mts tests/kit/python-venv.test.mts \
 	tests/kit/release-tools-path.test.mts tests/kit/run-command.test.mts \
 	tests/kit/tracked-files.test.mts tests/kit/verification.test.mts \
 	tests/kit/worktree-setup.test.mts

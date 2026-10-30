@@ -342,10 +342,6 @@
       "kind": "policy",
       "reason": "polyspec's rule that a make recipe starts a tool of the checkout by its absolute path (K171); the recipes come from GNU make's database through owner-check.mts, split into words by the quoting rules of the POSIX shell with the parse of shell-quote (K179, K184)"
     },
-    "scripts/kit/release-assets.mts": {
-      "kind": "policy",
-      "reason": "polyspec's pins of the release archives of its own repositories, which no registry serves, by version and sha256 under var/; the download is the fetch of Node.js and the extraction unzip"
-    },
     "scripts/kit/release-run.mts": {
       "kind": "policy",
       "reason": "orders candidate archive builds, exact-commit CI validation and the existing tag-triggered release workflow; no ecosystem release tool enforces this repository's single-CI ordering"

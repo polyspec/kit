@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 62538803d67e6d02ca628c30d39ad2c292ed8efd5794dc05bd3d00e553dd65de -->
+<!-- source-sha256: ca37b9ae1ec34249c05f9f372b275d27e814366f8e22643704730566addda4a0 -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -64,7 +64,7 @@ Source 개발 계약은 배포된 dependency와 같은 version의 source 수정,
 
 - worktree branch는 `main`에서 만든 `<type>/<name>-<id>`이고(P10) `make land`로 `main`에 들어갑니다. worktree는 그 자체로 checkout이며 `var/tools`, dependency tree와 link가 모두 자기 것입니다(K858).
 - `make worktree-setup`은 worktree를 만들고 다른 checkout처럼 거기서 온라인으로 `make install`을 실행합니다. `make install`은 `mise.toml`과 `mise.lock`의 도구를 자기 `var/tools`에, lock의 package, 저장소의 단계, link를 설치합니다. 그다음 `make link-check`를 실행합니다. `node_modules`가 없는 worktree는 gates workflow의 clean checkout처럼 먼저 `packageManager`가 지정한 npm으로 `npm ci --ignore-scripts`를 실행하므로, 설치된 kit은 `make install-link`가 주는 link, 곧 main checkout의 link 선언이 지정한 kit checkout으로 가는 link를 한 단계 먼저 받으므로, `node_modules`에서 kit을 include하는 Makefile은 live kit을 실행합니다. 선언이 없으면 설치된 릴리즈가 실행됩니다. main checkout의 `var/tools`와 lock은 바뀌지 않습니다. `make install`과 `make install-tools`도 worktree에서 바로 실행됩니다. K858 전에 만든 worktree는 자기 도구를 갖도록 `make install`을 한 번 실행합니다.
-- worktree-setup은 `make install` 실행 전에 `config/release-assets.json`이 선언하고 main checkout이 가진 release archive마다, 그리고 그 `unpack` directory마다, 예를 들어 `var/composer-artifacts/<name>-<version>.zip`이나 `var/products/template-ext`를, main checkout의 것으로 가는 link 하나로 만듭니다. 상위 directory는 worktree 자신의 것입니다(K780, K887). `make release-assets-fetch`는 다른 checkout처럼 worktree에서도 실행됩니다. 선언된 sha256을 가진 link된 archive는 그대로 두고, download나 unpack은 worktree 자신의 link를 바꿀 뿐 main checkout의 파일은 바꾸지 않습니다(K887). 설치된 vendor tree를 link하거나 metadata를 합성하지 않습니다(K690). Python environment는 link된 package가 worktree source를 실행해야 하므로 main environment로 가는 단일 directory link일 수 없습니다. make timestamp stamp는 새 checkout을 건너 이어질 수 없으며 거기서 유효해야 하는 stamp는 내용으로 판단합니다.
+- worktree-setup은 main checkout의 `var/`에서 아무것도 worktree로 link하지 않습니다. kit은 package를 내려받지 않으므로 worktree는 다른 checkout처럼 필요한 것을 설치합니다(K865). 설치된 vendor tree를 link하거나 metadata를 합성하지 않습니다(K690). Python environment는 link된 package가 worktree source를 실행해야 하므로 main environment로 가는 단일 directory link일 수 없습니다. make timestamp stamp는 새 checkout을 건너 이어질 수 없으며 거기서 유효해야 하는 stamp는 내용으로 판단합니다.
 - `make land`는 branch를 `main`에 fast-forward로 merge합니다(K495). 두 번째 land는 첫 번째의 lock을 기다리고, `main`보다 뒤처진 branch는 그 worktree에서 rebase됩니다.
 - worktree와 branch는 branch가 `main`에 merge되면 바로 지웁니다. `make land`는 land한 branch를 지우고, `main`이 포함한 branch의 다른 깨끗한 worktree 중 process가 없는 것도 모두 지웁니다. process가 아직 실행 중인 worktree는 다음 land까지 남습니다(K626).
 
