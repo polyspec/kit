@@ -66,7 +66,7 @@
             "pattern": "^(@[a-z0-9._-]+/)?[a-z0-9._-]+(/[a-z0-9._-]+)?$"
           },
           "generated": {
-            "description": "Artifacts that are generated from the package files of the tagged commit and included in its archive; never written into the checkout.",
+            "description": "Artifacts that are generated from the package files of the tagged commit and included in its archive; never written into the checkout. A make entry runs its target in a copy of the tagged tree and packs its declared outputs (K929), for any package kind.",
             "type": "array",
             "items": {
               "oneOf": [
@@ -88,6 +88,16 @@
                     "kind": { "type": "string", "const": "source-copy" },
                     "source": { "type": "string", "minLength": 1 },
                     "output": { "type": "string", "minLength": 1 }
+                  }
+                },
+                {
+                  "type": "object",
+                  "required": ["kind", "target", "outputs"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": { "type": "string", "const": "make" },
+                    "target": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$" },
+                    "outputs": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } }
                   }
                 }
               ]

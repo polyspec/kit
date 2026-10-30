@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K929: a generated entry of config/release.json is a make entry for any package kind: its target runs in a copy of the tagged tree before the pack, and each declared output must exist there (K929)
 - make item-state to the state an item already has succeeds with "<id> is already <state>", writes nothing and runs no Verification; only a move outside STATE_TRANSITIONS is refused. Since K937 the repeated move of an active or verifying item failed, because no state lists itself as a next state (K937-1).
 - make item-state refuses a move that STATE_TRANSITIONS does not allow from the current state of the item, before it runs the Verification, and writes nothing; the error names the item, its state, the allowed next states and the refused one. setState checked only that the state was declared, so a done item could move back to verifying and an impossible one to active. The unused reachableStates is removed (K937).
 - link-check with no `.links` compares the release state that make link leaves there and demands no link of a package of the checkout's own repository: link-check passed the work tree of the checkout as a provider to link's check, so the own Python package that uv installs editable was demanded as a folder link ("packages/python/.venv/lib/python3.14/site-packages/polyspec/orm is missing; fix: make link") in every checkout without a declaration, CI among them, while make link there links nothing (K935).

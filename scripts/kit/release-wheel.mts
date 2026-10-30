@@ -31,9 +31,10 @@ export function metadataProblems(metadata: WheelMetadata, name: string, version:
 /**
  * Builds the wheel of the package at `directory` of `commit` into the directory `output`. The source is a copy of the directory
  * at the commit (`git archive`), so the build writes into no checkout; SOURCE_DATE_EPOCH is the time of the commit. uv build
- * installs the build-system.requires of its pyproject.toml into an isolated build environment.
+ * installs the build-system.requires of its pyproject.toml into an isolated build environment. The generated files (K929) are
+ * copied into the source at their package-relative paths before the build.
  */
-export function buildWheel({ root, env, commit, directory, output }: { root: string; env: NodeJS.ProcessEnv; commit: string; directory: string; output: string }): void {
+export function buildWheel({ root, env, commit, directory, output, generated }: { root: string; env: NodeJS.ProcessEnv; commit: string; directory: string; output: string; generated: { output: string; file: string }[] }): void {
   const python = toolCommand(root, 'python3');
   if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; the wheel is built by the Python of mise.toml, declare python there and run make install-tools`);
   const uv = toolCommand(root, 'uv');
@@ -44,6 +45,10 @@ export function buildWheel({ root, env, commit, directory, output }: { root: str
     const source = path.join(folder, 'source');
     mkdirSync(source);
     run('tar', ['-xf', archive, '-C', source], { cwd: root, env });
+    for (const item of generated) {
+      mkdirSync(path.dirname(path.join(source, item.output)), { recursive: true });
+      copyFileSync(item.file, path.join(source, item.output));
+    }
     const epoch = run('git', ['show', '-s', '--format=%ct', commit], { cwd: root, env }).trim();
     // uv build writes a .gitignore into its output folder, so the wheel is built apart and only the wheel is copied into `output`.
     const built = path.join(folder, 'dist');

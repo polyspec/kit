@@ -29,6 +29,6 @@ test('the fixture wheel is built with the real Python and uv build', { timeout: 
   const env = { ...process.env, PIP_CACHE_DIR: path.join(folder, 'pip-cache') };
   const output = path.join(folder, 'wheels');
   mkdirSync(output);
-  buildWheel({ root: ROOT, env, commit, directory: FIXTURE, output });
+  buildWheel({ root: ROOT, env, commit, directory: FIXTURE, output, generated: [] });
   assert.deepEqual(readdirSync(output), [wheelName('kit-fixture', '0.0.0')]);
 });
