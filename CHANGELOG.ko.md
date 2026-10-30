@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9890644630e22426afa8cfaff5791233d8df4925fce3c8cbdc6c936aea663e7b -->
+<!-- source-sha256: 18850e26fd155fb58004fc1805d385c1ca5d591a216c145b0a5efb7743c0026f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,6 +8,7 @@
 
 ## 0.0.77
 
+- tests/kit/link-folders.test.mts의 K541 테스트는 uv 전에 지우는 링크를 K869의 결정대로 적습니다. 어느 깊이의 폴더 링크든 지우고, uv 자신의 것인 파일 링크는 남깁니다 (K908).
 - tests/source/link-cargo-real.test.mts는 provider를 consumer의 무시된 .links에 선언하고 link cargo <consumer> <args>를 실행합니다. K869가 --checkout을 지웠기 때문입니다 (K907).
 - tests/source/uv-link-real.test.mts는 provider checkout을 app의 .links에 선언하고 app만으로 uv-install을 부릅니다. K869가 위치 인자 checkout을 지웠기 때문입니다 (K906).
 - kit-harness 행 K851, K854, K859-K862, K864, K865, K867, K869, K870, K892와 K828, K902, K904, K905를 담아 Kit 0.0.77을 릴리즈합니다 (K903).

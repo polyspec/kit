@@ -7,6 +7,7 @@
 
 ## 0.0.77
 
+- The K541 test of tests/kit/link-folders.test.mts states the links that go before uv as K869 decided: folder links at any depth go, and a file link, which is uv's own, stays (K908).
 - tests/source/link-cargo-real.test.mts declares the provider in the ignored .links of its consumer and runs link cargo <consumer> <args>, since K869 deleted --checkout (K907).
 - tests/source/uv-link-real.test.mts declares the provider checkout in the .links of its app and calls uv-install with the app only, since K869 deleted the positional checkouts (K906).
 - Release Kit 0.0.77 with the kit-harness rows K851, K854, K859-K862, K864, K865, K867, K869, K870 and K892, and K828, K902, K904 and K905 (K903).

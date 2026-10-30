@@ -26,14 +26,19 @@ function fixture(t: TestContext) {
   return { root, target, site, folder, item: { ecosystem: 'python' as const, name: 'pkg', folder, target } };
 }
 
-test('every link of the environment that resolves outside it goes before uv, at any depth, its target kept (K541, K539)', (t) => {
+// K908: a package link of kit is a folder link (K869); a file link is uv's own, as with UV_LINK_MODE=symlink: a removal by uv
+// unlinks it and keeps its target, so it carries no K539 risk, and it stays, since link-check reads the same links.
+test('every folder link of the environment that resolves outside it goes before uv, at any depth, its target kept, and a file link stays (K541, K539, K908)', (t) => {
   const { root, target, site } = fixture(t);
   mkdirSync(path.join(site, 'polyspec'));
   symlinkSync(target, path.join(site, 'polyspec/fixturelib'));
-  mkdirSync(path.join(site, 'deep/pkg'), { recursive: true });
-  symlinkSync(path.join(target, '__init__.py'), path.join(site, 'deep/pkg/__init__.py'));
+  mkdirSync(path.join(site, 'deep/ns'), { recursive: true });
+  symlinkSync(target, path.join(site, 'deep/ns/pkg'));
+  mkdirSync(path.join(site, 'uvfile'));
+  symlinkSync(path.join(target, '__init__.py'), path.join(site, 'uvfile/__init__.py'));
   const removed = releaseEnvironmentLinks(path.join(root, 'cons'), undefined).map(file => path.relative(site, file)).sort();
-  assert.deepEqual(removed, ['deep/pkg/__init__.py', 'pkg', 'polyspec/fixturelib']);
+  assert.deepEqual(removed, ['deep/ns/pkg', 'pkg', 'polyspec/fixturelib']);
+  assert.ok(lstatSync(path.join(site, 'uvfile/__init__.py')).isSymbolicLink(), 'the file link of uv stays');
   assert.equal(readFileSync(path.join(target, '__init__.py'), 'utf8'), 'VALUE = "checkout"\n', 'the provider keeps its files');
   assert.ok(lstatSync(path.join(site, 'polyspec')).isDirectory(), 'the real namespace folder stays');
 });
