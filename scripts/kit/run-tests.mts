@@ -33,7 +33,7 @@
 // --process-isolation. The deadline extension of php-library only tells this runner the limit of each test. A run that selects no test file, name or id runs only in CI (test-selection.mts, ci-only.mts). A run in which no test passed, failed or ran out of time fails, so a selection
 // that matches nothing never passes; a file of node tests that registers no test fails.
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -223,8 +223,8 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
       // start fails with the install fix.
       const vendor = phpunitVendor(root, cwd);
       const phpunit = path.join(vendor ?? composerVendor(cwd), 'bin/phpunit');
-      // Each --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit with its own
-      // -d extension=, in the given order, so an extension loads after one that it depends on.
+      // Each --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit from the ini file
+      // of phpExtensionScan, in the given order, so an extension loads after one that it depends on (K165, K900).
       // The PHP of both runs is the wrapper of var/tools/bin that install-tools writes for the checkout, never the php of PATH (K393).
       // Without PHPUnit there is no deadline extension to load: the run starts the missing PHPUnit, which fails at its start.
       const nativeTimeouts = !timeoutExplicit && vendor !== undefined;
@@ -234,7 +234,8 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
       // K452: an extension run gives PHPUnit the configuration of the package, so the bootstrap that it names loads as in the library run.
       const configuration = ['phpunit.xml', 'phpunit.xml.dist'].map(file => path.join(cwd, file)).find(file => existsSync(file));
       const configured = configuration === undefined ? [] : ['--configuration', configuration];
-      if (phpExtensions.length || nativeTimeouts) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...phpExtensions.flatMap(item => ['-d', `extension=${item}`]), ...bootstrap, phpunit, '--teamcity', ...configured, ...extension, ...args] };
+      // The extensions load from the ini file of phpExtensionScan, which a separate-process child reads too (K900).
+      if (phpExtensions.length || nativeTimeouts) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...bootstrap, phpunit, '--teamcity', ...configured, ...extension, ...args] };
       return { command: phpunit, args: ['--teamcity', ...args] };
     }
     case 'python':
@@ -268,6 +269,18 @@ function phpunitAutoload(options: Pick<RunOptions, 'tool' | 'timeoutExplicit' | 
 }
 
 /**
+ * The PHP_INI_SCAN_DIR that loads the PHP `extensions` of a run, in their order (K900): an ini file in `directory` with an
+ * extension= line for each, after the scan directories of `env`, or PHP's own (a leading ':'). PHPUnit gives a child of
+ * #[RunTestsInSeparateProcesses] its own ini overrides only, without extension, while a child inherits the environment.
+ */
+export function phpExtensionScan(extensions: readonly string[], directory: string, env: NodeJS.ProcessEnv): { PHP_INI_SCAN_DIR?: string } {
+  if (extensions.length === 0) return {};
+  writeFileSync(path.join(directory, 'kit-php-extensions.ini'), extensions.map(extension => `extension=${extension}\n`).join(''));
+  // An empty PHP_INI_SCAN_DIR scans nothing, and an unset one PHP's own directory, which a leading ':' keeps.
+  return { PHP_INI_SCAN_DIR: env.PHP_INI_SCAN_DIR === '' ? directory : `${env.PHP_INI_SCAN_DIR ?? ''}:${directory}` };
+}
+
+/**
  * The tests that the run of `argv` (the arguments of run-tests) selects, as PHPUnit lists them: the command of the run with
  * --list-tests added, so the library and the extension are the run's own (K390-1). PHPUnit prints each test as ` - Class::method`.
  */
@@ -279,7 +292,14 @@ export function listedTests(argv: string[], root = repositoryRoot(), callerEnv: 
   const env = toolsEnvironment(root, callerEnv);
   delete env.KIT_PHPUNIT_AUTOLOAD;
   Object.assign(env, phpunitAutoload(options, root));
-  const result = spawnSync(command, args, { cwd: options.cwd, env, encoding: 'utf8' });
+  const scan = mkdtempSync(path.join(tmpdir(), 'kit-php-scan-'));
+  let result;
+  try {
+    Object.assign(env, phpExtensionScan(options.phpExtensions, scan, env));
+    result = spawnSync(command, args, { cwd: options.cwd, env, encoding: 'utf8' });
+  } finally {
+    rmSync(scan, { recursive: true, force: true });
+  }
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`phpunit --list-tests in ${path.relative(root, options.cwd) || '.'} ended with ${result.status}: ${result.stderr.trim()}`);
   return result.stdout.split('\n').flatMap(line => /^\s*-\s+(\S.*)$/.exec(line)?.[1] ?? []);
@@ -348,6 +368,8 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   delete env.KIT_PHPUNIT_AUTOLOAD;
   delete env.KIT_TEST_EVENTS;
   Object.assign(env, phpunitAutoload(options, root));
+  // The ini file of the extensions lives in the folder of the results, which the run removes at its end (K900).
+  Object.assign(env, phpExtensionScan(options.phpExtensions, results, env));
   if (reporter) env[TEST_EVENTS] = String(TEST_EVENTS_FD);
   // Native Cargo resolves its workspace target unless the caller supplied an explicit CLI target argument (K676).
   if (cargo) delete env.CARGO_TARGET_DIR;

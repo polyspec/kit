@@ -250,9 +250,9 @@ test('phpunit runs the PHPUnit of the vendor directory that Composer gives the p
   const root = tree(t, { 'p/composer.json': '{}\n', 'q/composer.json': '{"config":{"vendor-dir":"lib/vendor"}}\n', 'var/tools/bin/php': '#!/bin/sh\n' });
   const p = path.join(root, 'p');
   assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: p, args: ['t'] }, root), { command: path.join(p, 'vendor/bin/phpunit'), args: ['--teamcity', 't'] });
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: p, args: [], phpExtensions: ['/r/e.so'] }, root).args.slice(0, 3), ['-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit')]);
-  // K165: each extension is loaded with its own -d extension=, in the given order, so one can depend on an earlier one.
-  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: p, args: ['t'], phpExtensions: ['/r/base.so', '/r/e.so'] }, root), { command: path.join(root, 'var/tools/bin/php'), args: ['-d', 'extension=/r/base.so', '-d', 'extension=/r/e.so', path.join(p, 'vendor/bin/phpunit'), '--teamcity', 't'] });
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: p, args: [], phpExtensions: ['/r/e.so'] }, root).args.slice(0, 1), [path.join(p, 'vendor/bin/phpunit')]);
+  // K900: the extensions load from the ini file of PHP_INI_SCAN_DIR, in the given order (K165), so no -d extension= is passed.
+  assert.deepEqual(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: p, args: ['t'], phpExtensions: ['/r/base.so', '/r/e.so'] }, root), { command: path.join(root, 'var/tools/bin/php'), args: [path.join(p, 'vendor/bin/phpunit'), '--teamcity', 't'] });
   assert.equal(toolCommand({ tool: 'phpunit', timeoutSeconds: 7, timeoutExplicit: true, cwd: path.join(root, 'q'), args: [] }, root).command, path.join(root, 'q/lib/vendor/bin/phpunit'));
   t.after(() => { delete process.env.COMPOSER_VENDOR_DIR; });
   process.env.COMPOSER_VENDOR_DIR = '/elsewhere';
@@ -630,6 +630,26 @@ test('each PHP extension, the second as the first, that is not built fails befor
   const first = await inProcess(t, ['phpunit', '--php-extension', 'build/missing.so', '--php-extension', 'build/base.so'], { root });
   assert.equal(first.status, 1);
   assert.match(first.text, /the PHP extension build\/missing\.so is not built; build it before the run/);
+});
+
+// K900: PHPUnit gives a child of #[RunTestsInSeparateProcesses] its own ini overrides only, so an extension of -d reaches the parent
+// alone; an ini file of PHP_INI_SCAN_DIR, which a child inherits with the environment, loads it in both.
+test('a phpunit run loads its PHP extensions in order through an ini file of PHP_INI_SCAN_DIR after PHP\'s own scan, without -d (K900)', async (t) => {
+  const pass = "echo \"##teamcity[testStarted name='test_a' flowId='1']\"; echo \"##teamcity[testFinished name='test_a' duration='1' flowId='1']\"";
+  const php = [
+    '#!/bin/sh',
+    'case "$*" in *" -r "*) exit 0;; esac',
+    'case "$*" in *"extension="*) exit 3;; esac',
+    'case "$PHP_INI_SCAN_DIR" in :*) ;; *) exit 4;; esac',
+    'case "$(cat "${PHP_INI_SCAN_DIR#:}"/*.ini)" in *"extension="*"/build/base.so"*"extension="*"/build/ext.so"*) ;; *) exit 5;; esac',
+    pass,
+    '',
+  ].join('\n');
+  const root = tree(t, { ...COMPOSER_PROJECT, 'var/tools/bin/php': php, 'build/base.so': '', 'build/ext.so': '' });
+  chmodSync(path.join(root, 'var/tools/bin/php'), 0o755);
+  const result = await inProcess(t, ['phpunit', '--timeout', '7', '--php-extension', 'build/base.so', '--php-extension', 'build/ext.so', 'tests/ATest.php'], { root });
+  assert.equal(result.status, 0, result.text);
+  assert.match(result.text, /1 passed/);
 });
 
 // The hanging stub keeps a live timer and never ends on its own, so only the runner's timeout stops it. The deadline of this
