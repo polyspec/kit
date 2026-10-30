@@ -285,3 +285,9 @@ test('no rule of PRINCIPLES.md is enforced by a path that only kit has (K359-2)'
   const lines = readFileSync(new URL('../../PRINCIPLES.md', import.meta.url), 'utf8').split('\n').filter(line => line.startsWith('  Enforced by: '));
   assert.deepEqual(lines.filter(line => /`(?:tests|scripts)\//.test(line)), []);
 });
+
+// K941: a kit-only path named without backticks is the same dependency, so the check covers it too.
+test('no Enforced by line of PRINCIPLES.md names a path under tests/ or scripts/ without backticks either (K941)', () => {
+  const lines = readFileSync(new URL('../../PRINCIPLES.md', import.meta.url), 'utf8').split('\n').filter(line => line.startsWith('  Enforced by: '));
+  assert.deepEqual(lines.filter(line => /(?:^|[\s,(])(?:tests|scripts)\/\S/.test(line)), []);
+});

@@ -67,6 +67,38 @@ test('release-tag refuses a version that is not greater than the latest release 
   assert.equal(spawnSync('git', ['--git-dir', remote, 'show-ref', '--verify', '--quiet', 'refs/tags/v0.0.1']).status, 1, 'the remote has no v0.0.1');
 });
 
+// K941: the order of the release tags, which the newest release tag of the repository sets; a prerelease tag is no release.
+test('release-tag ignores a prerelease tag as the newest one, so the first release of its line is tagged (K941)', (t) => {
+  const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
+  git(box.root, 'tag', 'v0.0.3-rc1', box.commit);
+  const run = tagRun(box.root, env);
+  assert.equal(run.result, 0, run.errors.join('\n'));
+  assert.equal(git(box.root, 'rev-parse', 'refs/tags/v0.0.1^{commit}'), box.commit);
+});
+
+test('release-tag tags the first release of a repository that has no release tag (K941)', (t) => {
+  const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
+  assert.equal(git(box.root, 'tag', '--list'), '', 'the repository has no tag');
+  const run = tagRun(box.root, env);
+  assert.equal(run.result, 0, run.errors.join('\n'));
+});
+
+test('release-tag passes a version whose tag already exists at the commit of the run, and tags only the Go module that lacks one (K941)', (t) => {
+  const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
+  git(box.root, 'tag', '-a', 'v0.0.1', '-m', 'v0.0.1', box.commit);
+  const run = tagRun(box.root, env);
+  assert.equal(run.result, 0, run.errors.join('\n'));
+  assert.deepEqual(run.lines, [`[release-run] the tag v0.0.1 is at ${box.commit} already`, `[release-run] created the tag packages/fixture-go/v0.0.1 at ${box.commit} and pushed it`]);
+});
+
+test('release-tag orders the versions numerically, so v0.0.10 is greater than v0.0.9 (K941)', (t) => {
+  const { box, env } = runBox(t, commit => candidate({ head_sha: commit }), { changelog: '# Changelog\n\n## Unreleased\n\n## 0.0.10\n\n- The first entry of 0.0.10.\n' });
+  git(box.root, 'tag', 'v0.0.9', box.commit);
+  const run = tagRun(box.root, env);
+  assert.equal(run.result, 0, run.errors.join('\n'));
+  assert.equal(git(box.root, 'rev-parse', 'refs/tags/v0.0.10^{commit}'), box.commit);
+});
+
 test('release-tag tags an earlier commit of main whose run passed, after main moved on (K911)', (t) => {
   const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
   git(box.root, 'commit', '--quiet', '--allow-empty', '-m', 'later');
