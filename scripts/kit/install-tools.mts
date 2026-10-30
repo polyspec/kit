@@ -10,7 +10,7 @@
 // with rustup, which stays the toolchain manager of Rust), PHP's pinned arginfo parser when packages/php-ext is declared, and the symbol
 // extractors of symbolExtractors, which build with the Go and the Composer of mise. Each is installed only when it is declared, and an install of the release that is present changes
 // nothing, so a second run installs nothing. The tools of the machine are never changed. Node.js is a tool of mise.toml, which
-// the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts finds the release of .php-version there and wraps it (K283). With no selectors the command installs all tools. A selector list of the tool names of toolchain-mise.mts installs only those pinned tools and their prerequisites, for example `make install-tools TOOLS="go python"`. Unknown, empty and undeclared selectors fail before the checkout is changed. `TOOLS=npm` remains the bootstrap. It prints a line for each
+// the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts wraps the php of PATH as it is (K283, K862). With no selectors the command installs all tools. A selector list of the tool names of toolchain-mise.mts installs only those pinned tools and their prerequisites, for example `make install-tools TOOLS="go python"`. Unknown, empty and undeclared selectors fail before the checkout is changed. `TOOLS=npm` remains the bootstrap. It prints a line for each
 // step and has no time limit.
 import { existsSync, lstatSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -59,7 +59,6 @@ function installSelection(root: string, selected: readonly string[] | undefined)
   }
   const needsPhp = selected.some(tool => ['php', 'phpunit', 'phpcs', 'phpstan', 'composer'].includes(tool));
   if (needsPhp && !declared.php) throw new Error(`the selected PHP tools need PHP, but .php-version or config/toolchain.json does not declare it`);
-  if (needsPhp && !existsSync(path.join(root, '.php-version'))) throw new Error(`the selected PHP tools need the PHP wrapper, but .php-version is missing; add the declared PHP minor before installing tools`);
   if (selected.some(tool => ['phpunit', 'phpcs', 'phpstan'].includes(tool)) && !declaredMise.composer) throw new Error(`the selected PHP tools need Composer, but mise.toml does not declare it`);
 
   const mise = new Set<string>();
@@ -107,7 +106,7 @@ export function installTools({ root = repositoryRoot(), tools, print = () => {} 
   else removeStaleWrappers(root, [], print, selectedStaleWrappers(selection.mise));
   // The wrapper sets the environment of mise itself; the installs of kit that follow run the tools of mise.
   if (selection.all || selection.mise.length > 0) run(mise, ['install', '--locked', ...(selection.all ? [] : selection.mise)], { cwd: root, env: process.platform === 'win32' ? miseInstallEnvironment(root) : process.env }, print);
-  // The wrappers of php come before the installs that run Composer, so that Composer runs on the pinned PHP.
+  // The wrappers of php come before the installs that run Composer, so that Composer runs on the php of PATH.
   if (selection.php && php) installPhp({ root, print });
   if (selection.arginfo && php && existsSync(path.join(root, 'packages/php-ext'))) installPhpArginfo({ root, print });
   if (selection.phpunit && phpunit) installPhpunit({ root, declared: phpunit, print });

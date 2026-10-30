@@ -59,7 +59,6 @@ test('a declaration that is malformed or contradicts another fails with the file
   const cases: [Record<string, string>, RegExp][] = [
     [{ 'package.json': '{ "packageManager": "pnpm@11.0.0" }' }, /package\.json packageManager is "pnpm@11\.0\.0", expected npm@/],
     [{ 'package.json': '{}' }, /package\.json packageManager is "", expected npm@/],
-    [{ 'config/toolchain.json': '{ "schema": 1, "php": ["8.5"] }', '.php-version': '8.4\n' }, /\.php-version declares 8\.4, but config\/toolchain\.json php lists 8\.5/],
     [{ 'config/toolchain.json': '{ "schema": 1, "mise": { "version": "2026.10", "sha256": {} } }' }, /config\/toolchain\.json mise must record version as <major>\.<minor>\.<patch>; it records "2026\.10"/],
     [{ 'config/toolchain.json': '{ "schema": 1, "mise": { "version": "2026.10.8", "sha256": {} } }' }, /config\/toolchain\.json mise must record the sha256 of the mise archive of each platform, for example linux-x64; it records none/],
     // A version is text: a JSON number or a list whose text matches is refused (K98).

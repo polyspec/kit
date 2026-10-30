@@ -5,7 +5,7 @@
 //   mise         config/toolchain.json mise: the exact version and the sha256 of the release archive of each platform, which
 //                the bootstrap installs; mise installs the tools of mise.toml at the digests of mise.lock (toolchain-mise.mts),
 //                Node.js first, in the bootstrap (K171)
-//   php          config/toolchain.json php (minor releases), else .php-version
+//   php          config/toolchain.json php (minor releases), else .php-version as written
 //   phpunit      config/toolchain.json phpunit: the exact release, installed from the composer.json and composer.lock of config/phpunit
 //   symbolExtractors config/toolchain.json symbolExtractors: the symbol extractors of the parity check that install-tools builds
 // The tools of mise.toml, Node.js among them, are read by toolchain-mise.mts, Rust by toolchain-files.mts and the PHP lint by
@@ -110,13 +110,13 @@ export function declaredToolchain(root: string): DeclaredToolchain {
     if (version === undefined) throw new Error(`package.json packageManager ${JSON.stringify(manager)} matched without its version`);
     declared.npm = { version, sha512, source: 'packageManager of package.json' };
   }
-  const phpFile = existsSync(path.join(root, '.php-version')) ? minor('.php-version', 'the PHP minor release', read(root, '.php-version').trim()) : undefined;
+  // .php-version declares that the checkout uses PHP; its text is the input of CI's setup-php, which kit does not judge (K862).
+  const phpFile = existsSync(path.join(root, '.php-version')) ? read(root, '.php-version').trim() : undefined;
   if (config.php) {
     const php = config.php;
     if (!isJsonList(php)) throw new Error(`config/toolchain.json must record php as a list of minor releases; it records ${JSON.stringify(php)}`);
     // Each item that passes is a minor release as text.
     const minors = php.map(value => minor('config/toolchain.json', 'php as a list of minor releases', value));
-    if (phpFile && !minors.includes(phpFile)) throw new Error(`.php-version declares ${phpFile}, but config/toolchain.json php lists ${minors.join(', ')}; list ${phpFile} or change .php-version`);
     declared.php = { minors, source: 'config/toolchain.json php' };
   } else if (phpFile) {
     declared.php = { minors: [phpFile], source: '.php-version' };

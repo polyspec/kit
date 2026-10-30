@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e697a17a2ab45992b147723cbbea25bddc4a5033b87408a7b646bc718ff20476 -->
+<!-- source-sha256: 2d1e37c63c90c4a78ce4dc0f90878cb96b701612d21f5c9e361c9a4e12533756 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- install-php는 PATH의 php를 그대로 씁니다. `.php-version`과 release를 비교하지 않고, apt의 `php<minor>`나 Homebrew의 `opt/php@<minor>` keg를 더는 찾지 않습니다. PATH에 php가 없거나 `packages/php-ext`에 php-config나 phpize가 없으면 실패합니다. install-tools, install-symbols, toolchain 선언은 더는 `.php-version`을 요구하거나 `config/toolchain.json`의 `php`와 비교하지 않습니다. PHP가 필요한 저장소에는 `make kit-check`가 여전히 이를 요구합니다. 이 파일이 없으면 CI의 setup-php가 조용히 다른 PHP를 설치하기 때문입니다(K862).
 - ci-setup은 package manager, target, parity-check가 스스로 판정하는 것을 거부하지 않습니다. install 집계 target, 재귀 context target, 쓰지 않는 runtime의 context와 tools, 알 수 없거나 이미 준비되었거나 선언되지 않은 tool selector, 바꾼 parity phase recipe, 없는 config/parity.json에 대한 거부를 삭제했으며, 어떤 workflow도 읽지 않는 php_dirs, python_dirs 출력과 plan 필드, parityMatrixFindings도 삭제했습니다. config/ci.json의 tool selector는 그대로 install-tools에 전달되어 install-tools가 판정하고, ci-setup을 다시 실행하는 setup 또는 context target은 그 두 번째 dispatch에서 실패하며, tool-inventory의 낡은 build-go 문단은 삭제했습니다(K860).
 - toolchain-check를 check-toolchain.mts, toolchain-floors.mts의 .npmrc 검사와 함께 삭제했습니다. 도구가 없으면 그 도구를 실행하는 target이 실패하므로 make kit-gates, workflows/gates.yml의 shared와 runtime job, kit CI는 도구 검사를 실행하지 않습니다. install-tools TOOLS와 ci-setup이 고르는 도구 이름은 toolchain-mise.mts의 TOOLS이고, ci-targets의 record는 도구 release 없이 runner를 적습니다(K854).
 - kit은 패키지 설치를 감싸지 않습니다. make npm-install, make composer-install, make cargo-fetch를 스크립트와 함께 삭제했으며, 저장소는 package manager의 lock 설치를 실행한 뒤 make link를 실행합니다. config/ci.json의 setup.runtimes.<runtime>이 비어 있으면 저장소 자신의 make deps-<runtime>(ts는 deps-node, deps-go, deps-rust, php와 php-ext는 deps-php, deps-python)을 실행하고, 없으면 정의할 target 이름을 밝힙니다. 추적된 source가 없는 runtime은 아무것도 필요하지 않습니다(K859).

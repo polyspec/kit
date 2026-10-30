@@ -21,7 +21,7 @@ const STUB = readFileSync(path.join(FIXTURE, 'polyspec_demo.stub.php'), 'utf8');
 const HEADER = readFileSync(path.join(FIXTURE, 'polyspec_demo_arginfo.h'), 'utf8');
 
 // The build tests start the PHP of the checkout, its wrappers in var/tools/bin (K393-1). The fixture checkout gets wrappers that
-// run the PHP of kit's own var/tools/bin, the PHP of .php-version, whose gen_stub.php needs the PHP-Parser that kit pins; the PHP
+// run the PHP of kit's own var/tools/bin, the php of PATH that install-tools wrapped, whose gen_stub.php needs the PHP-Parser that kit pins; the PHP
 // first on PATH may be another release (K630).
 function phpWrappers(root: string) {
   const bin = path.join(root, 'var/tools/bin');

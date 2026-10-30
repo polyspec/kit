@@ -126,7 +126,7 @@ export function installDeclaredExtractors({
   if (selected.includes('go') && !mise.go) throw new Error('the Go symbol extractor needs go in mise.toml; run make install-tools TOOLS=go');
   if (selected.includes('php')) {
     if (!mise.composer) throw new Error('the PHP symbol extractor needs http:composer in mise.toml; run make install-tools TOOLS=php composer');
-    if (!toolchain.php || !existsSync(path.join(root, '.php-version'))) throw new Error('the PHP symbol extractor needs the PHP wrapper of .php-version; run make install-tools TOOLS=php composer');
+    if (!toolchain.php) throw new Error('the PHP symbol extractor needs PHP declared by .php-version or config/toolchain.json php; run make install-tools TOOLS=php composer');
   }
   return selected.map(extractor => install({ root, extractor, print }));
 }

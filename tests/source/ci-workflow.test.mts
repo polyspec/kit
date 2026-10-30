@@ -10,7 +10,6 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readFixture } from '../kit/json-fixture.mts';
 import { known } from '../kit/known.mts';
-import { PINS } from '../../scripts/kit/toolchain-pins.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const text = readFileSync(path.join(ROOT, '.github/workflows/ci.yml'), 'utf8');
@@ -141,7 +140,6 @@ test('the CI workflow bootstraps npm and package-lock before job-specific tools 
 test('the CI workflow installs the PHP of .php-version before install-tools, which runs PHPUnit on it (K78)', () => {
   // The Composer projects of kit (config/phpunit, config/php-lint) require the PHP of the pin; the runner's own PHP is
   // older, so the workflow installs the declared release first (CI run 38438896766 failed on PHP 8.3.6).
-  assert.equal(readFileSync(path.join(ROOT, '.php-version'), 'utf8').trim(), PINS.php);
   const checkJob = jobText('checks');
   const setup = checkJob.indexOf('php-version-file: .php-version');
   const tools = checkJob.indexOf('run: make install-tools\n');

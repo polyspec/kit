@@ -46,19 +46,19 @@ export function installedGenStub(root: string): { file: string; parser: string }
 export function genStub(root: string): { file: string; source: string; parser: string } {
   const phpConfig = toolCommand(root, 'php-config');
   const result = execute(phpConfig, ['--prefix'], { cwd: root });
-  if (result.error || result.status !== 0) throw new Error(`${phpConfig} --prefix failed; install the PHP development files of .php-version and run make install-tools`);
+  if (result.error || result.status !== 0) throw new Error(`${phpConfig} --prefix failed; install the PHP development files of the php of PATH and run make install-tools`);
   const prefix = result.stdout.trim();
   const prefixFile = path.join(prefix, 'lib/php/build/gen_stub.php');
   const candidates = [prefixFile];
   if (!existsSync(prefixFile)) {
     const extensions = execute(phpConfig, ['--extension-dir'], { cwd: root });
     if (extensions.error || extensions.status !== 0 || !extensions.stdout.trim()) {
-      throw new Error(`${phpConfig} --extension-dir failed; install the PHP development files of .php-version and run make install-tools`);
+      throw new Error(`${phpConfig} --extension-dir failed; install the PHP development files of the php of PATH and run make install-tools`);
     }
     candidates.push(path.join(extensions.stdout.trim(), 'build/gen_stub.php'));
   }
   const file = candidates.find(candidate => existsSync(candidate));
-  if (file === undefined) throw new Error(`${candidates.join(', ')} are missing; install the PHP development files of .php-version and run make install-tools`);
+  if (file === undefined) throw new Error(`${candidates.join(', ')} are missing; install the PHP development files of the php of PATH and run make install-tools`);
   const source = readFileSync(file, 'utf8');
   return { file, source, parser: parserVersion(source) };
 }

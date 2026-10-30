@@ -444,7 +444,7 @@
     },
     "scripts/kit/install-php.mts": {
       "kind": "policy",
-      "reason": "polyspec pins the minor of .php-version and runs every tool with that PHP through exec wrappers over the PHP that the machine provides (K283, S8); mise would compile PHP from source and no ecosystem tool selects among the installed PHPs of a machine"
+      "reason": "polyspec runs every tool with the php of PATH, which the machine provides, through exec wrappers, so a later PATH does not change it (K283, K862, S8); mise would compile PHP from source"
     },
     "scripts/kit/symbols/php/PublicSymbols.php": {
       "kind": "ecosystem",

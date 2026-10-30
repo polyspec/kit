@@ -99,11 +99,12 @@ and states only its own rules. The rules below are kit's own.
   that mise does not install. `make install-tools` installs, with rustup, the toolchain of `rust-toolchain.toml` with its
   components (`rustup toolchain install` in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo
   first runs) and each Rust channel that config/toolchain.json `exceptions` declares; a missing rustup fails with its
-  install, and rustup names a toolchain that is not installed when cargo runs. PHP is discovered and wrapped, not
-  installed (K283): `make install-tools` finds the release of `.php-version` (a `php` on PATH of that minor, which is the
-  setup-php step in CI; else `php<minor>` of apt; else the `opt/php@<minor>` keg of Homebrew) and writes exec wrappers for
-  php, php-config and phpize in var/tools/bin, or fails with the attempts.
-  Enforced by: `tests/kit/install-rust.test.mts`, `tests/kit/install-tools.test.mts`, `tests/kit/install-php.test.mts`, `make kit-check`
+  install, and rustup names a toolchain that is not installed when cargo runs. PHP is wrapped, not
+  installed (K283, K862): when `.php-version` or config/toolchain.json `php` declares PHP, `make install-tools` wraps the
+  `php` of PATH as it is with php-config and phpize beside it in var/tools/bin and compares no release; it fails when php is
+  not on PATH, or when `packages/php-ext` lacks php-config or phpize. A repository that needs PHP keeps `.php-version`,
+  the input of CI's setup-php, which silently sets up another PHP without it (K193).
+  Enforced by: `tests/kit/install-rust.test.mts`, `tests/kit/install-tools.test.mts`, `tests/kit/install-php.test.mts`, `make kit-check` (phpVersionFinding, K193)
 - Own: A tool of var/tools/bin is a wrapper script that starts the installed file by its absolute path with the environment
   of this checkout's install, such as the mise data folder of the checkout, never a symbolic link, which carries no
   environment: a tool of one checkout never runs with the tools of another (`scripts/kit/bootstrap/tool-wrappers.mts`).

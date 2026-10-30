@@ -107,10 +107,8 @@ test('selected tools include only their declared mise prerequisites, and a missi
   assert.deepEqual(missingPhpStubs.calls(), [], 'Composer without a declared PHP pin fails before mutation');
 
   const { root: phpConfigOnly, stubs: phpConfigStubs } = checkout(t, composerToml, { 'config/toolchain.json': JSON.stringify({ schema: 1, php: ['8.4'] }) });
-  const rejectedConfig = start(INSTALL_TOOLS, phpConfigOnly, phpConfigStubs.env, 'composer');
-  assert.equal(rejectedConfig.status, 1);
-  assert.match(rejectedConfig.stderr, /.php-version is missing/);
-  assert.deepEqual(phpConfigStubs.calls(), [], 'a PHP minor without the installable .php-version declaration fails before mutation');
+  const configOnly = start(INSTALL_TOOLS, phpConfigOnly, phpConfigStubs.env, 'composer');
+  assert.equal(configOnly.status, 0, `PHP declared by config/toolchain.json needs no .php-version to be wrapped (K862): ${configOnly.stderr}`);
 });
 
 test('a requested tool absent from the checkout declaration is refused before mutation, and install-tools needs bootstrap mise', (t) => {

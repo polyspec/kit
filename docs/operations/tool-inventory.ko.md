@@ -39,7 +39,7 @@ export된 `runCommand`는 output이 닫힌 뒤에도 process group cleanup 완�
 checkout의 도구는 `mise.lock`을 쓰는 mise가 설치합니다(K127). `mise.toml`이 도구를 선언하고 `mise.lock`이 각 archive를
 x64와 arm64의 linux, macOS, Windows 중 archive가 있는 각 platform의 sha256으로 mise가 기록하는 대로 고정합니다. `make toolchain-lock`이 `mise lock`으로 lock을 씁니다(K836).
 `pypi:` 도구는 uv로 lock되고 uv는 PATH의 첫 uv와 PATH보다 먼저 home의 managed Python을 쓰므로, 먼저 `mise.toml`이 선언한 uv와 python을 lock하고 설치한 뒤 그 Python을 `UV_PYTHON`으로 지정합니다. `make install-tools`가 그것을 설치한 뒤(`scripts/kit/install-tools.mts`, `mise install --locked`) mise가 설치하지 않는
-것을 설치합니다. PHP는 machine이 제공하며 `install-php.mts`가 탐색해 wrapper로 제공하고(K283, 아래), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
+것을 설치합니다. PHP는 machine이 제공하며 `install-php.mts`가 그대로 wrapper로 제공하고(K283, K862, 아래), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
 설치하는(`install-rust.mts`) `rust-toolchain.toml`의 toolchain과 그 component(checkout에서 파일을 읽는
 `rustup toolchain install --no-self-update`; rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다)와 `exceptions`의
 Rust channel, symbol extractor입니다. `TOOLS` selector가 없으면 기존처럼 전체 도구를 설치합니다. `make install-tools TOOLS="go python"`은 해당 mise 도구와 선언된 prerequisite만 설치합니다. Selector는 `scripts/kit/toolchain-mise.mts`의 `TOOLS`에 있는 정확한 이름입니다. `deadcode`, `govulncheck`, `golangciLint`는 Go도 설치하고, `vulture`는 Python과 uv를 설치하며, Python은 선언된 wheel backend를 설치합니다. PHP Composer 도구는 선언된 PHP wrapper와 Composer를 설치하고, Rust는 stable toolchain과 선언된 exception channel을 설치합니다. 알 수 없거나 비어 있거나 선언되지 않은 selector는 변경 전에 거부합니다. 선택 설치는 다른 기존 설치물을 지우지 않으며 symbol extractor나 PHP arginfo는 만들지 않습니다. 이들은 명시적 target이 있습니다. bootstrap의 `TOOLS=npm`은 그대로입니다.
@@ -62,16 +62,16 @@ Platform pin에는 Node.js와 Go의 Windows x64·ARM64 archive가 있습니다. 
 반복 실행 결과와 native wrapper/version도 검사합니다. 새 CI 실행은 아직 대기 중입니다. 이 pin과 smoke가 Kit의 모든 gate가
 Windows에서 동작하거나 Windows PHP extension SDK를 지원한다고 입증하지는 않습니다.
 
-PHP는 설치하지 않고 탐색해서 wrapper로 제공합니다(K283). minor는 `.php-version`에서만 읽으며, PHP를 `config/toolchain.json`
-목록에만 둔 저장소는 실패하므로 `.php-version`을 추가해야 합니다. `install-php.mts`는 bootstrap의 PATH(`var/tools/bin` 제외,
-자기 wrapper를 찾지 않기 위해)로 찾으며 처음 일치한 것을 씁니다: (1) `PHP_MAJOR_VERSION.PHP_MINOR_VERSION`이 해당 minor인 PATH의
-`php`(CI의 setup-php); (2) PATH의 `php<minor>`와 그 옆의 `phpize<minor>`, `php-config<minor>`(Debian, Ubuntu);
-(3) `$(brew --prefix)/opt/php@<minor>/bin/php`, keg의 안정된 `opt/` 경로이며 brew가 없으면 건너뜁니다. 일치한 것의 절대
-경로를 담은 exec wrapper로 `var/tools/bin/php`를 쓰며 link는 만들지 않고, Composer 설치보다 먼저 써서 Composer가 고정된 PHP로
-실행되게 합니다. `php-config`와 `phpize`는 일치한 php 옆에 있으면 wrapper로 쓰고, `php-config --version`은 같은 minor여야
-하며, `packages/php-ext`가 있는 저장소는 이들이 없으면 실패합니다(`php<minor>-dev` 또는 `brew reinstall php@<minor>`).
-일치하는 것이 없으면 시도한 순서, `.php-version`, 설치 명령(`brew install php@<minor>` 또는 `apt install php<minor>-cli`)과
-함께 실패합니다.
+PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862). `.php-version`이나 `config/toolchain.json`의 `php`는 checkout이 PHP를
+쓴다는 선언입니다. `.php-version`은 CI setup-php의 입력으로서 적힌 그대로 읽으며, PHP가 필요한 저장소에는 `make kit-check`가 이를
+요구합니다(K193, 아래).
+`install-php.mts`는 bootstrap의 PATH(`var/tools/bin` 제외, 자기 wrapper를 찾지 않기 위해)의 `php`를 그대로 쓰며 release를
+비교하지 않습니다. 패키지의 `require`가 제외하는 PHP는 Composer의 platform 검사가 거부하고, 나머지는 저장소 자신의 검사가
+맡습니다. 절대 경로를 담은 exec wrapper로
+`var/tools/bin/php`를 쓰며 link는 만들지 않고, Composer 설치보다 먼저 써서 Composer가 그 PHP로 실행되게 합니다. `php-config`와
+`phpize`는 php 옆에 있으면 wrapper로 쓰며, `packages/php-ext`가 있는 저장소는 이들이 없으면
+실패합니다. kit은 설치를 판정하지 않습니다. 다른 설치용으로 빌드된 extension은 PHP 자신이 로드를 거부합니다. PATH에 php가 없으면
+`php is not on PATH`로 실패합니다.
 
 `packages/php-ext`가 있는 저장소는 `make install-tools`에서 PHP `gen_stub.php`가 요구하는 고정 PHP-Parser를 설치합니다. extension이 없는 PHP library는 arginfo generator나 extension 개발 도구가 필요하지 않습니다. 공유 `kit.mk`는 consumer extension fixture에 `make kit-install-php-arginfo`를 제공하고, 선언된 parity extractor 하나를 `make kit-install-symbols EXTRACTORS="go"` 또는 `EXTRACTORS="php"`로 설치합니다. 먼저 대응하는 고정 도구를 `make install-tools TOOLS="php composer"` 또는 `TOOLS=go`로 설치해야 합니다. 두 target은 기존 pinned installer를 호출하며 `EXTRACTORS`는 `config/toolchain.json symbolExtractors`에 선언되어야 합니다. Kit 자체 extension fixture 준비도 `make kit-install-php-arginfo`를 사용하고, `make install`과 CI가 그 target을 명시적으로 실행합니다.
 Kit은 설치된 parser를 generator와 함께 `var/tools/php-arginfo`에 배치합니다. Build와 `make php-ext-arginfo`는 임시 source 사본에서
@@ -92,7 +92,7 @@ staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, comm
 | npm | `package.json`의 `packageManager`: `npm@X.Y.Z` 또는 `npm@X.Y.Z+sha512.<digest>` | 설치 |
 | Go | `mise.toml`의 `go`, `scripts/kit/toolchain-pins.json`의 kit pin과 같음; `mise.lock`이 platform별 archive의 sha256을 가짐; 모든 `go.mod`의 `go` 줄은 pin과 같아야 하며 `go mod edit -json`으로 읽음(K78) | mise로 설치 |
 | Rust | 선언된 그대로의 `rust-toolchain.toml`의 `channel`, rustup이 판정함(K840), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
-| PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version`; install-tools는 `.php-version`의 PHP만 제공 | 탐색 후 wrapper(K283), 검증 |
+| PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version`; install-tools는 둘 중 하나가 PHP를 선언하면 PATH의 php를 wrapper로 제공 | wrapper(K283, K862) |
 | Python | `mise.toml`의 `python`(정확한 version), 그 minor는 kit pin; `mise.lock`이 platform별 python-build-standalone build를 URL과 sha256으로 고정 | mise로 설치 |
 | mise | `config/toolchain.json`의 `mise`: 정확한 `version`과 platform별 archive `mise-v<version>-<os>-<arch>.tar.gz`의 `sha256` | bootstrap에서 설치 |
 | uv, ruff, golangci-lint | `mise.toml`의 `uv`, `ruff`, `golangci-lint`(aqua backend; `mise.lock`이 archive별 sha256을 가짐) | mise로 설치 |
@@ -155,7 +155,7 @@ Go와 Python을 그 pin으로 선언해야 합니다:
   mise가 `mise.toml`의 `http:composer` 항목과 선언된 checksum으로 설치합니다(K127).
 - Python과 PHP: crudui는 minor release를 설정에, template과 ordered-json은 `.python-version`에 선언합니다. Python은 이제
   `mise.toml`의 도구로 정확한 release로 선언합니다(K127). PHP는 설정을 먼저 읽고 없으면 `.php-version`(ordered-json, orm)과
-  crudui, template의 목록을 읽으며, 둘 다 있고 다르면 실패합니다. PHP가 필요한 저장소(`config/release.json`의 Composer package나
+  crudui, template의 목록을 읽으며, 둘을 서로 비교하지 않습니다(K862). PHP가 필요한 저장소(`config/release.json`의 Composer package나
   Composer consumer, 또는 `config/toolchain.json`의 `php`)는 CI와 release workflow가 설치하는 PHP(`php-version-file`)인
   `.php-version`을 선언합니다. release workflow가 어떤 release 단계보다 먼저 실행하는 `make kit-check`는 그것이 없으면 실패합니다.
   그렇지 않으면 release가 runner의 PHP로 실행되었기 때문입니다(K193).

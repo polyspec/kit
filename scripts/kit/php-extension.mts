@@ -14,8 +14,8 @@
 // In a repository without packages/php-ext, check, build and test say so and pass: every repository runs them in its CI.
 // The PHP library is packages/php, named polyspec/<repository>; the extension lies in packages/php-ext with its sources in src/,
 // is named polyspec/<repository>-php-ext and polyspec_<repository> (a hyphen an underscore), and has one stub,
-// src/polyspec_<repository>.stub.php. phpize, php-config and php are the wrappers of var/tools/bin of the checkout, the PHP of
-// .php-version, never the ones on PATH (K393-1).
+// src/polyspec_<repository>.stub.php. phpize, php-config and php are the wrappers of var/tools/bin that install-tools wrote for
+// the php of PATH (K862), never whatever PATH holds later (K393-1).
 import { createHash } from 'node:crypto';
 import { copyFileSync, cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync, statSync, lstatSync } from 'node:fs';
 import path from 'node:path';

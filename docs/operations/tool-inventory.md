@@ -36,7 +36,7 @@ repositories (lines).
 mise with `mise.lock` installs the tools of a checkout (K127). `mise.toml` declares them and `mise.lock` pins each archive by
 its sha256 for each platform of linux, macOS and Windows on x64 and arm64 that has its archive, as mise records them; `make toolchain-lock` writes the lock with `mise lock` (K836): it first locks and installs the uv and the python that `mise.toml` declares and names that Python as `UV_PYTHON`, since a `pypi:` tool locks with uv, which takes the first uv on PATH and a managed Python of the home before PATH,
 and `make install-tools` installs it (`scripts/kit/install-tools.mts`, `mise install --locked`), then installs what mise does
-not: PHP, which the machine provides and `install-php.mts` discovers and wraps (K283, below), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
+not: PHP, which the machine provides and `install-php.mts` wraps as it is (K283, K862, below), the Composer projects of `config/phpunit` and `config/php-lint`, with rustup
 (`install-rust.mts`) the toolchain of `rust-toolchain.toml` with its components (`rustup toolchain install --no-self-update`
 in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo first runs) and the Rust channels of
 `exceptions`, and the symbol extractors. With no `TOOLS` selectors this remains the full install. `make install-tools TOOLS="go python"`
@@ -65,16 +65,16 @@ platforms above. `.github/workflows/platform-bootstrap.yml` runs the selected No
 macOS arm64 and Windows x64, including a repeatability check and native wrapper/version checks. Its new CI run is still pending;
 these pins and smoke cases do not establish that every Kit gate runs on Windows or that a Windows PHP extension SDK is supported.
 
-PHP is discovered and wrapped, not installed (K283). The minor comes from `.php-version` only; a repository whose PHP is listed
-only in `config/toolchain.json` fails and must add `.php-version`. `install-php.mts` searches with the PATH of the bootstrap
-(without `var/tools/bin`, so it never finds its own wrapper) and the first match wins: (1) `php` on PATH whose
-`PHP_MAJOR_VERSION.PHP_MINOR_VERSION` is the minor (CI's setup-php); (2) `php<minor>` on PATH with `phpize<minor>` and
-`php-config<minor>` beside it (Debian, Ubuntu); (3) `$(brew --prefix)/opt/php@<minor>/bin/php`, the stable `opt/` path of the keg,
-skipped without brew. It writes `var/tools/bin/php` as an exec wrapper with the absolute path of the match, never a link, before
-the Composer installs, so Composer runs on the pinned PHP. `php-config` and `phpize` are wrapped when they exist beside the
-match; `php-config --version` must have the same minor, and a repository with `packages/php-ext` fails when they are missing
-(`php<minor>-dev` or `brew reinstall php@<minor>`). No match fails with the attempts in order, `.php-version` and the install
-command (`brew install php@<minor>` or `apt install php<minor>-cli`).
+PHP is wrapped, not installed (K283, K862). `.php-version` or `config/toolchain.json` `php` declares that the checkout uses
+PHP; `.php-version` is read as written, as the input of CI's setup-php, and `make kit-check` requires it of a repository that
+needs PHP (K193, below).
+`install-php.mts` takes the `php` of the PATH of the bootstrap (without `var/tools/bin`, so it never finds its own wrapper) as it
+is and compares no release: a PHP that the packages' `require` excludes is refused by Composer's platform check, and what
+remains is the repository's own checks. It writes `var/tools/bin/php`
+as an exec wrapper with the absolute path, never a link, before the Composer installs, so Composer runs on that PHP.
+`php-config` and `phpize` are wrapped when they exist beside it; a repository with `packages/php-ext` fails when they are
+missing. Kit judges no install: PHP itself refuses to load an extension built for another install. No php on PATH
+fails with `php is not on PATH`.
 
 A repository with `packages/php-ext` uses `make install-tools` to install the pinned PHP-Parser that its PHP `gen_stub.php` requires. A PHP library without an extension needs no arginfo generator or extension development tools. The shared `kit.mk` exposes `make kit-install-php-arginfo` for a consumer's extension fixture and `make kit-install-symbols EXTRACTORS="go"` or `EXTRACTORS="php"` for one declared parity extractor; install the corresponding pinned tools first with `make install-tools TOOLS="php composer"` or `TOOLS=go`. Both targets call the existing pinned installers, and `EXTRACTORS` must be present in `config/toolchain.json symbolExtractors`. Kit declares its own extension-fixture preparation with `make kit-install-php-arginfo`; `make install` and CI run that target explicitly.
 Kit stages that installed parser beside the matching generator under `var/tools/php-arginfo`; builds and `make php-ext-arginfo`
@@ -96,7 +96,7 @@ A repository may declare a downloaded tool of its own in `mise.toml` through the
 | npm | `packageManager` of `package.json`: `npm@X.Y.Z` or `npm@X.Y.Z+sha512.<digest>` | install |
 | Go | `go` of `mise.toml`, at the kit pin of `scripts/kit/toolchain-pins.json`; `mise.lock` holds the sha256 of each platform's archive; the `go` line of every `go.mod` must equal the pin, read by `go mod edit -json` (K78) | install with mise |
 | Rust | `channel` of `rust-toolchain.toml` as declared, which rustup judges (K840), read by smol-toml (`readToml`, K78, K73) | verify |
-| PHP | `config/toolchain.json` `php` (minor releases), else `.php-version`; install-tools provides the PHP of `.php-version` only | discover and wrap (K283), verify |
+| PHP | `config/toolchain.json` `php` (minor releases), else `.php-version`; install-tools wraps the php of PATH when either declares PHP | wrap (K283, K862) |
 | Python | `python` of `mise.toml` (exact), whose minor is the kit pin; `mise.lock` pins the python-build-standalone build of each platform by its URL and sha256 | install with mise |
 | mise | `config/toolchain.json` `mise`: the exact `version` and the `sha256` of the archive `mise-v<version>-<os>-<arch>.tar.gz` of each platform | install in the bootstrap |
 | uv, ruff, golangci-lint | `uv`, `ruff`, `golangci-lint` of `mise.toml` (the aqua backend; `mise.lock` holds the sha256 of each archive) | install with mise |
@@ -160,7 +160,7 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
   Composer. mise installs it from the `http:composer` entry of `mise.toml` with its declared checksum (K127).
 - Python and PHP: crudui declares the minor release in the configuration, template and ordered-json in `.python-version`.
   Python is a tool of `mise.toml` now, declared at its exact release (K127). PHP takes the configuration, else
-  `.php-version` (ordered-json, orm) and the list of crudui and template, and fails when both exist and differ. A
+  `.php-version` (ordered-json, orm) and the list of crudui and template, and compares neither with the other (K862). A
   repository that needs PHP (a Composer package or the Composer consumer of `config/release.json`, or `php` of
   `config/toolchain.json`) declares `.php-version`, the PHP that CI and the release workflow set up
   (`php-version-file`); `make kit-check`, which the release workflow runs before any release step, fails without it,
