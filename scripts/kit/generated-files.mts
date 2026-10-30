@@ -143,7 +143,7 @@ export function trackedFindings(root: string, config: GeneratedConfig): string[]
     ...trackedRuleFindings(root, config),
     ...generatedOffenders(files, config).map(file => `${file} is a generated file (AGENTS.md "Generated files"); untrack it, or declare it in ${CONFIG}`),
     ...executableOffenders(files, config, head).map(({ file, format }) => `${file} is an executable object (${format}), whatever its path; untrack it, or declare it an exception in ${CONFIG}`),
-    ...files.filter(file => !matchesAny(config.exceptions, file) && hasGeneratedHeader(head(file))).map(file => `${file} has a generated-file header (Code generated ... DO NOT EDIT); untrack it, or declare it an exception in ${CONFIG}`),
+    ...files.filter(file => !matchesAny(config.exceptions, file) && !matchesAny((config.tracked ?? []).map(item => item.path), file) && hasGeneratedHeader(head(file))).map(file => `${file} has a generated-file header (Code generated ... DO NOT EDIT); untrack it, or declare it an exception in ${CONFIG}`),
   ];
 }
 

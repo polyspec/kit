@@ -46,7 +46,7 @@ import { PACKAGE, copiesOf, runningKit, writtenByKit } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
-import { toolCommand } from './mise-tools.mts';
+import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { packedPackageManifest } from './pack-manifest.mts';
 
 export const MAIN = 'origin/main';
@@ -177,6 +177,7 @@ export function loadConfig(root: string): ReleaseConfig {
     directories.add(directory);
     const manifest = path.posix.join(directory, MANIFEST_OF[kind]);
     if (config.manifests[manifest] !== 'archive') problems.push(`${CONFIG}: the package ${name} needs manifests.${manifest} = "archive", found ${JSON.stringify(config.manifests[manifest] ?? null)}`);
+    if (kind === 'npm' && (config.packages.find(item => item.directory === directory)?.generated?.length ?? 0) > 0) problems.push(`${CONFIG}: npm package ${name} declares generated make entries; npm builds its output in the prepack script of its package.json, not here`);
     for (const generated of config.packages.find(item => item.directory === directory)?.generated ?? []) {
       const valid = (file: string) => file !== '' && !file.startsWith('~') && !file.startsWith('/') && path.win32.parse(file).root === '' && !file.includes('\\') && file.split('/').every(part => part !== '' && part !== '.' && part !== '..');
       if (generated.kind === 'make') {
@@ -394,7 +395,7 @@ function filesUnder(dir: string, prefix = ''): string[] {
 
 /**
  * Runs the make target of each `make` entry (K929) in a copy of the tagged tree: the tracked files of the commit, with no link into
- * the checkout. PHP_CONFIG is the php-config of the checkout that toolCommand names (K930), so the target finds the PHP of the
+ * the checkout. The make run gets the tools of the checkout on its PATH (toolsEnvironment, K930), so the target calls php-config itself;
  * repository. A declared output that the commit tracks fails the pack, and each declared output must exist in the copy afterwards.
  * The outputs are staged under staging at their package-relative paths.
  */
@@ -406,7 +407,6 @@ function madeFiles(ctx: Context, commit: string, folder: string, makes: ReleaseG
       if (tracked.some(file => file === declared || file.startsWith(`${declared}/`))) throw new Stop(`${declared} is tracked at commit ${commit}: a make output is generated and Git tracks no generated output (P34)`);
     }
   }
-  const phpConfig = toolCommand(ctx.root, 'php-config');
   const copy = mkdtempSync(path.join(tmpdir(), 'kit-release-make-'));
   try {
     const tree = path.join(copy, 'tree');
@@ -414,7 +414,7 @@ function madeFiles(ctx: Context, commit: string, folder: string, makes: ReleaseG
     mkdirSync(tree);
     run('git', ['archive', '--format=tar', `--output=${archive}`, commit], at(ctx));
     run('tar', ['-xf', archive, '-C', tree], at(ctx));
-    const env = { ...ctx.env, PHP_CONFIG: phpConfig };
+    const env = toolsEnvironment(ctx.root, ctx.env);
     const files: { output: string; file: string }[] = [];
     for (const { target, outputs } of makes) {
       ctx.log(`[release] ${commit}: make ${target} in the copy of ${folder}`);

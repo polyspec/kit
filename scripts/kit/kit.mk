@@ -185,8 +185,8 @@ lint-js: lint-ts
 # The PHP extension of packages/php-ext (php-extension.mts, S10): one build with phpize, the check of its names, its stub and
 # the stub hash of its arginfo header when present, the generated header during the temporary build, and the declaration test before its unit tests. A repository
 # without an extension passes them, so every CI runs them.
-build-php-ext: ## Build packages/php-ext with phpize into var/php-ext/polyspec_<repository>.so after the offline arginfo check; offline
-	$(NODE) $(KIT)/php-extension.$(KIT_EXT) build
+build-php-ext: ## Build packages/php-ext with phpize into var/php-ext/polyspec_<repository>.so after the arginfo check; ONLINE (gen_stub.php may fetch its PHP-Parser once)
+	$(ONLINE) $(NODE) $(KIT)/php-extension.$(KIT_EXT) build
 
 lint-php-ext: ## Check the names, the one stub and the stub hash when an arginfo header is present (S10); offline
 	$(NODE) $(KIT)/php-extension.$(KIT_EXT) check
