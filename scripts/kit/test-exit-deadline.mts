@@ -5,7 +5,8 @@
 // file's process at its last known test and dropped a test registered after a top-level await (K72).
 // A file whose own code never settles (K437) never ends its tests, so the deadline after the last test never starts. A watch
 // therefore runs from the process start and after each test: it exits 1 at the deadline, naming the running test or saying that
-// no test was reached. A running test has node's own timeout at the same deadline; the watch allows a margin over it.
+// no test was reached. A running test is bounded by node's own timeout (its declared timeout, or --test-timeout), and the watch
+// is off while it runs (K943).
 // Declared setup/teardown operations pause this watch and restore its pending deadline when they finish. They do not
 // change the timeout of any actual test or the leak deadline after all declared operations end.
 import { writeSync } from 'node:fs';
@@ -16,7 +17,6 @@ import { onTestOperation, PROCESS_UP } from './test-gap.mts';
 // The internal handle of a standard stream; Node.js does not declare it.
 type WithHandle = { _handle?: { setBlocking?: (blocking: boolean) => void } };
 
-// The margin that the watch of a running test allows over the test's own timeout.
 // The events of a test leave the process through a stream that is written only when the event loop turns. A test that blocks
 // the loop, such as one that runs tools with spawnSync, ends without a turn before the next one starts, so the events of a file of
 // such tests reached run-tests only when the file ended, and its gap watch (K371-1) stopped a file that was still passing. A
@@ -25,7 +25,6 @@ type WithHandle = { _handle?: { setBlocking?: (blocking: boolean) => void } };
 // never fire and would hang the hook of that test (K547).
 const realSetTimeout = globalThis.setTimeout;
 const turnTheLoop = (): Promise<void> => new Promise(resolve => realSetTimeout(resolve, 0));
-const RUNNING_TEST_MARGIN_MS = 1000;
 
 const file = process.argv[1];
 // Only the process of a test file: node --test marks it with NODE_TEST_CONTEXT.
@@ -67,8 +66,10 @@ if (file && process.env.NODE_TEST_CONTEXT) {
     }
   });
   arm(deadline, `no test started or ended within ${deadline} ms of the process start; the file's own code did not settle`);
-  beforeEach(async (context) => {
-    arm(deadline + RUNNING_TEST_MARGIN_MS, `the test "${context.name}" did not settle within ${deadline} ms; the process ends`);
+  // A running test is bounded by node's own timeout, the declared one or the file default (K943), so the watch is off meanwhile.
+  beforeEach(async () => {
+    clearTimeout(watch);
+    pending = undefined;
     await turnTheLoop();
   });
   afterEach(async () => {
