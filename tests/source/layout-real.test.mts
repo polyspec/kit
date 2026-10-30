@@ -52,7 +52,7 @@ const GOOD: Record<string, string> = {
   'config/layout.yml': LAYOUT,
   'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: [] }),
   'config/parity.json': JSON.stringify({ implementations: [{ name: 'go', roots: ['packages/go'] }] }),
-  // The modules of the repository resolve each other through its go.work, never a replace (.golangci.yml, gomoddirectives).
+  // The modules of the repository resolve each other through its go.work.
   'go.work': 'go 1.27.2\n\nuse (\n\t./packages/codec/go\n\t./packages/go\n)\n',
   'packages/go/go.mod': 'module github.com/polyspec/demo/packages/go\n\ngo 1.27.2\n\nrequire github.com/polyspec/demo/packages/codec/go/v2 v2.0.0\n',
   'packages/codec/go/go.mod': 'module github.com/polyspec/demo/packages/codec/go/v2\n\ngo 1.27.2\n',

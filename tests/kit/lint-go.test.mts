@@ -109,3 +109,8 @@ test('lint-go judges deadcode over the union of the build tags of a module (K536
   assert.match(output, /extra\.go:5:6: unreachable func: Lonely/, 'a function behind a tag that its run does not reach is unreachable');
   assert.doesNotMatch(output, /Live/, 'a function that the run of a tag reaches is live');
 });
+
+// K866: go.mod is the go tool's: a replace and a toolchain line are its directives, so the kit configuration bans neither.
+test('the kit golangci-lint configuration does not ban the go.mod directives replace and toolchain (K866)', () => {
+  assert.doesNotMatch(readFileSync(kitFile('.golangci.yml'), 'utf8'), /gomoddirectives|replace-local|toolchain-forbidden/);
+});

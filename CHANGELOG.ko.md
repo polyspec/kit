@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d03ec11700c2ffdbc2ea7bb13a9887b0909a5b04fcec848591688910b5931795 -->
+<!-- source-sha256: 97689881aa116a3d110647233c09d594cf596e55d0980991974bbb5da00bcfde -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- kit의 golangci-lint 설정에서 gomoddirectives를 뺍니다. make lint-go는 go tool의 것인 replace, toolchain 줄, go.mod의 다른 directive를 더 이상 금지하지 않습니다 (K866).
 - make item-new는 checkout이나 main의 checklist가 이미 가진 ID를 거부합니다. check-commits처럼 main을 읽으므로, 다른 worktree가 main에 등록한 ID를 두 번째 worktree가 등록할 수 없습니다 (K868).
 - link는 package manager 일을 하지 않고 unlink는 link만 제거합니다. unlink는 checkout 밖으로 link된 npm과 Composer 폴더, 각 Python environment의 package link, link가 쓴 go.work 파일을 제거하며 npm ci, composer install, uv sync를 실행하지 않으므로 locked 설치는 make install이 복원하고, 링크 제거로 패키지 폴더가 빠진 Python 배포본은 uv-install이 다시 설치합니다. Go 0.0.x pin 규칙, link cargo의 cargo update --offline, link rebuild 명령은 없어졌고, 소비자 requirement보다 높은 Cargo patch는 맞지 않는 provider version을 알려 주며 거부합니다 (K856).
 - 사이트 렌더러가 평가하는 문서, 즉 config/documents.json의 interpolation 패턴의 문서는 코드 밖에서 끝 태그 없이 열리거나 시작 태그 없이 닫히는 HTML 요소(raw-tag)를 거부합니다. 코드 스팬 밖에 쓴 `deps-<runtime>`처럼 VitePress 빌드의 Vue 컴파일러가 실패하는 것입니다 (K895).

@@ -35,8 +35,6 @@ const GOOD: Record<string, string> = {
 
 // One violation for each linter: the files it adds or replaces, and the text that the failing step prints for it.
 const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp }[] = [
-  { name: 'a replace of a sibling module', files: { [MOD]: `${GOOD[MOD]}\nreplace ${CODEC} => ../codec/go\n` }, finding: /go\.mod:\d+:\d+: local replacement are not allowed: github\.com\/polyspec\/demo\/packages\/codec\/go \(gomoddirectives\)/ },
-  { name: 'a toolchain line', files: { [MOD]: known(GOOD[MOD], 'GOOD[MOD]').replace('go 1.27.2\n', 'go 1.27.2\n\ntoolchain go1.27.2\n') }, finding: /go\.mod:\d+:\d+: toolchain directive is not allowed \(gomoddirectives\)/ },
   { name: 'an unused function', files: { [DEMO]: `${GOOD[DEMO]}\nfunc triple(value int) int {\n\treturn value * 3\n}\n` }, finding: /demo\.go:\d+:\d+: func triple is unused \(unused\)/ },
   { name: 'a wrong format verb', files: { [DEMO]: `${GOOD[DEMO]}\n// Name names a value.\nfunc Name(value int) string {\n\treturn fmt.Sprintf("%s", value)\n}\n`.replace(`import "${CODEC}"`, `import (\n\t"fmt"\n\n\t"${CODEC}"\n)`) }, finding: /\(govet\)/ },
   { name: 'an exported function that no test reaches', files: { [DEMO]: `${GOOD[DEMO]}\n// Octuple octuples a value.\nfunc Octuple(value int) int {\n\treturn Quadruple(Quadruple(value)) / value\n}\n` }, finding: /demo\.go:\d+:\d+: unreachable func: Octuple/ },
@@ -53,8 +51,10 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'a nolint without its reason', files: { [DEMO]: quadruple(['os'], '\t_ = os.Remove("demo.tmp") //nolint:errcheck\n') }, finding: /\(nolintlint\)/ },
 ];
 
-// The variants that state their need or handle the error pass (P8).
+// The variants that state their need or handle the error pass (P8), and the directives of go.mod, which are the go tool's (K866).
 const STATED: { name: string; files: Record<string, string> }[] = [
+  { name: 'a replace of a sibling module (K866)', files: { [MOD]: `${GOOD[MOD]}\nreplace ${CODEC} => ../codec/go\n` } },
+  { name: 'a toolchain line (K866)', files: { [MOD]: known(GOOD[MOD], 'GOOD[MOD]').replace('go 1.27.2\n', 'go 1.27.2\n\ntoolchain go1.27.2\n') } },
   { name: 'a nolint with its linter and its reason', files: { [DEMO]: quadruple(['os'], '\t_ = os.Remove("demo.tmp") //nolint:errcheck // the temporary file may be gone already\n') } },
   { name: 'an error that is wrapped with %w and compared with errors.Is', files: { [DEMO]: quadruple(['errors', 'fmt', 'io'], '\tif err := fmt.Errorf("read: %w", io.EOF); errors.Is(err, io.EOF) {\n\t\treturn value * 4\n\t}\n') } },
 ];

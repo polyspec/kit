@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // Lints the Go of the checkout with the golangci-lint and the deadcode of mise.toml, through their shims (`make lint-go`), in
 // the folder of each Go module, a go.mod of the checkout:
-//   - `golangci-lint run --config <kit>/.golangci.yml ./...`, the configuration of the kit package (K514): the standard linters and
-//     gomoddirectives, which forbids a replace (the modules of a repository resolve each other through its go.work) and a
-//     toolchain line.
+//   - `golangci-lint run --config <kit>/.golangci.yml ./...`, the configuration of the kit package (K514): the standard linters
+//     and those of P8; the directives of go.mod are the go tool's, which it does not judge (K866).
 //   - golangci-lint once more for each build tag that the Go files of the module name in their `//go:build` lines (K406), with
 //     `--build-tags=<tag>`, so a file behind a tag is linted too. The tags that the go tool sets itself, such as the platforms
 //     and go1.N, are left out (GO_SET_TAGS).

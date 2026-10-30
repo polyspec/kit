@@ -135,7 +135,7 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 | `engines.node` of every `package.json` | `>=` the Node.js pin |
 | `require.php` of every `composer.json`; `config.platform.php` of one beside a `composer.lock` | `>=` the PHP pin; the pin or a patch release of it (`8.4.1`) |
 | `project.requires-python` of every `pyproject.toml` with a project table (smol-toml) | `>=` the Python pin |
-| `go` of every `go.mod` (`go mod edit -json`) | the Go pin, with no `toolchain` line, which the go command drops when it equals the `go` line |
+| `go` of every `go.mod` (`go mod edit -json`) | the Go pin; a `toolchain` line is the go tool's (K866) |
 | `rust-version` of every Cargo package (`cargo metadata --no-deps`, workspace inheritance included) | the Rust pin |
 | `typescript` of each dependency field of a `package.json`, and the `typescript` that a `package-lock.json` resolves at its top level or for a workspace whose lock entry (`""` or the workspace) declares `typescript`; a typescript that npm hoists for another package or nests under it, such as the TypeScript of API Extractor, is that tool's (S1) | the TypeScript pin |
 
@@ -1036,9 +1036,8 @@ TypeScript lint resolves its declared dependency packages with Node's native pac
   `clippy::allow_attributes_without_reason`, so unsafe code is allowed only at an FFI site that names its reason; without it
   a crate-level `#![allow(unsafe_code)]` passes in silence. Cargo applies the lints only to a member that says
   `lints.workspace = true`, so every package must, and a package outside a workspace fails.
-- **Go.** gomoddirectives forbids every `replace`: the modules of a repository resolve each other through its `go.work`, and
-  a released go.mod never holds a replace that its consumers would not see. It also forbids a toolchain line, since `go mod
-  tidy` removes one equal to the go directive. forbidigo is left out: no standard names a Go API to forbid, and its default
+- **Go.** gomoddirectives is left out (K866): a replace, a toolchain line and the other directives of go.mod are the go
+  tool's, which kit does not judge. forbidigo is left out: no standard names a Go API to forbid, and its default
   bans `fmt.Print` of every CLI.
 - **TypeScript.** The types are checked by `tsc --noEmit -p tsconfig.json` in the folder of each `tsconfig.json` with TypeScript below it: a step of `make lint-ts`, and in the local commit path (`make commit`, `make item-test`) for the owning tsconfig of each changed file, since vitest and node transpile without checking the types (K309). typescript-eslint does not support TypeScript 7, so the type-aware rules are oxlint-tsgolint's. They
   apply to TypeScript files only, an `overrides` entry of `.oxlintrc.json` for `**/*.{ts,mts,cts,tsx}`, as

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 3188f83189dbc5c4b283f3c4dc46685ed2ea2cd7943a6da00cc2947cb34e32b2 -->
+<!-- source-sha256: f1f30052a54c3501813446e5e5fa1764372913c68092475243acb0f14426dce7 -->
 
 # 도구 목록
 
@@ -131,7 +131,7 @@ Go와 Python을 그 pin으로 선언해야 합니다:
 | 모든 `package.json`의 `engines.node` | Node.js pin 이상(`>=`) |
 | 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin 또는 그 patch release(`8.4.1`) |
 | project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(smol-toml) | Python pin 이상(`>=`) |
-| 모든 `go.mod`의 `go`(`go mod edit -json`) | Go pin, `toolchain` 줄 없음(go 명령은 `go` 줄과 같은 `toolchain` 줄을 지움) |
+| 모든 `go.mod`의 `go`(`go mod edit -json`) | Go pin. `toolchain` 줄은 go tool의 것입니다(K866) |
 | 모든 Cargo package의 `rust-version`(`cargo metadata --no-deps`, workspace 상속 포함) | Rust pin |
 | `package.json` 각 dependency 필드의 `typescript`, `package-lock.json`이 top level이나 workspace에서 resolve하는 `typescript` 중 그 lock 항목(`""` 또는 workspace)이 `typescript`를 선언한 것. npm이 다른 package를 위해 hoist하거나 그 아래에 중첩한 typescript(API Extractor의 TypeScript 등)는 그 도구의 것입니다(S1) | TypeScript pin |
 
@@ -952,9 +952,8 @@ phpcs와 PHPStan입니다. 모든 저장소가 그 사본을 가지며, 저장�
   `clippy::allow_attributes_without_reason`을 deny하여 unsafe code는 이유를 적은 FFI 위치에서만 허용합니다. 이것이 없으면
   crate 수준 `#![allow(unsafe_code)]`가 조용히 통과합니다. Cargo는 `lints.workspace = true`라고 적은 member에만 lint를 적용하므로
   모든 package가 그렇게 적어야 하며, workspace 밖의 package는 실패합니다.
-- **Go.** gomoddirectives는 모든 `replace`를 금지합니다. 저장소의 module은 `go.work`로 서로를 찾으며, 배포한 go.mod는 consumer가
-  보지 못하는 replace를 가지지 않습니다. `go mod tidy`가 go directive와 같은 toolchain 줄을 지우므로 toolchain 줄도 금지합니다.
-  forbidigo는 넣지 않습니다. 금지할 Go API를 정한 standard가 없고, 기본값은 모든 CLI의 `fmt.Print`를 금지합니다.
+- **Go.** gomoddirectives는 넣지 않습니다(K866). replace, toolchain 줄과 go.mod의 다른 directive는 go tool의 것이며 kit이
+  판단하지 않습니다. forbidigo는 넣지 않습니다. 금지할 Go API를 정한 standard가 없고, 기본값은 모든 CLI의 `fmt.Print`를 금지합니다.
 - **TypeScript.** type은 TypeScript가 있는 각 `tsconfig.json` 폴더의 `tsc --noEmit -p tsconfig.json`이 검사합니다. 이는 `make lint-ts`의 한 단계이고, vitest와 node는 type 검사 없이 transpile하므로 local commit 경로(`make commit`, `make item-test`)에서는 변경된 각 파일이 속한 tsconfig로 실행됩니다(K309). typescript-eslint는 TypeScript 7을 지원하지 않으므로 type-aware 규칙은 oxlint-tsgolint의 것입니다. 이 규칙은
   typescript-eslint의 `disableTypeChecked`가 JavaScript에서 끄는 것처럼 `.oxlintrc.json`의 `**/*.{ts,mts,cts,tsx}`에 대한
   `overrides` 항목으로 TypeScript 파일에만 적용됩니다: 일반 .js나 .mjs 파일에서는 type이 없는 parameter가 모두 `any`이므로

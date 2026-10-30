@@ -9,7 +9,6 @@ linters:
   # The standard set: errcheck, govet, ineffassign, staticcheck and unused; errcheck refuses an unchecked error (K256).
   default: standard
   enable:
-    - gomoddirectives
     # P8, errors are never hidden (K334): nilerr an error checked and then returned as nil, errorlint a comparison, assertion
     # or %v wrap that loses the error chain, nolintlint a nolint without its linter and its reason.
     - nilerr
@@ -25,15 +24,6 @@ linters:
       require-explanation: true
       require-specific: true
       allow-unused: false
-    gomoddirectives:
-      # The modules of a repository resolve each other through its go.work; a released go.mod never names a replace,
-      # which its consumers would not see.
-      replace-local: false
-      retract-allow-no-explanation: false
-      exclude-forbidden: true
-      # The Go of a module is its go directive at the pin of kit (S4); a toolchain line equal to it is removed by go mod tidy.
-      toolchain-forbidden: true
-      go-debug-forbidden: true
     staticcheck:
       # The default checks of golangci-lint 2 (.golangci.reference.yml) without ST1005, "error strings should not be
       # capitalized": a polyspec error string is a cross-port message of the repository's spec, which every port returns
