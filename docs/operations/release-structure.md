@@ -61,7 +61,7 @@ their callers, and the link document of the principles. Point 1 is a rule of the
 
 ## Current package bootstrap (K671)
 
-Consumers include the bootstrap of the installed `@polyspec/kit` package. Native npm installs the locked package before the first Make invocation. Shared principles, editor and Claude settings, and release/gates workflows are regular copies written by kit-sync. A sibling source checkout is optional and can be connected through native `npm link ../kit`. This supersedes the sibling bootstrap and tracked shared links recorded below.
+Consumers include the bootstrap of the installed `@polyspec/kit` package. Native npm installs the locked package before the first Make invocation. Shared principles, editor and Claude settings, and release/CI pipeline workflows are regular copies written by kit-sync. A sibling source checkout is optional and can be connected through native `npm link ../kit`. This supersedes the sibling bootstrap and tracked shared links recorded below.
 
 ## What K614 did
 

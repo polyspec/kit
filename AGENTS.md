@@ -138,16 +138,18 @@ and states only its own rules. The rules below are kit's own.
 
 ## Release
 
-kit is released by the annotated tag `vX.Y.Z` of a commit of `main`; the procedure is
+kit is released by the annotated tag `vX.Y.Z` that the release workflow creates on the commit of a successful CI run of
+`main`; the procedure is
 [docs/operations/release.md](docs/operations/release.md).
 
 - Own: A release tag is annotated, lies on a commit of `main` whose CI concluded success, and a published tag is never moved.
-  Enforced by: `make release-verify`
+  Enforced by: `make release-tag`
 - Own: A release is created as a draft with its archives and made public last; a failed step leaves it a draft.
   Enforced by: `make release-publish`, `make release-undraft`
-- Own: `make release` publishes the commit of a successful CI run of `main` without another test run; release-run checks the
-  format of VERSION, SHA and RUN, a clean checkout at SHA that is `origin/main`, the repository of config/release.json, and
-  that RUN is the successful CI run of that commit on `main`; it compares no version (S4).
+- Own: A release takes the id of a successful CI run and a version (`gh workflow run release.yml -f run=<id> -f
+  version=X.Y.Z`) and runs no other test; `make release-tag` checks the format of RUN and VERSION, the repository of
+  config/release.json, that RUN is a completed successful push or dispatch run of ci.yml on `main` whose commit is on
+  `origin/main`, and then tags that commit; it compares no version (S4, K911).
   Enforced by: `tests/kit/release-run.test.mts`
 - Own: Every repository releases through the vendored `workflows/release.yml`, which it never edits.
   Enforced by: `make kit-check`

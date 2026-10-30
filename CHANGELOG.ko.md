@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6de005f07a7348579a0fa6428a8e245e48054bc776120da617a9e2f618553d99 -->
+<!-- source-sha256: e985ae34ea296ffcd72d8971f4ab7810199aae3b5b33779c0f42b69829fdbed8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -11,6 +11,7 @@
 - packages/php-ext가 있는 저장소의 parity setup은 php-ext job처럼 php-ext의 setup 뒤에 arginfo 생성기를 설치하므로, parity job이 PHP-Parser와 함께 확장을 빌드합니다. parity job의 각 setup 타깃은 한 번 돕니다 (K914).
 - 릴리스는 성공한 CI run의 id를 받습니다: gh workflow run release.yml -f run=<id> -f version=X.Y.Z. main의 kit으로 make release-tag RUN VERSION이 main 위 ci.yml의 완료되어 성공한 push 또는 dispatch run이며 그 커밋이 origin/main에 있음을 요구하고, 그 커밋에 annotated 태그 vX.Y.Z와 모든 Go 모듈의 태그 <directory>/vX.Y.Z를 만들어 push합니다. 거기 있는 태그가 lightweight이거나 다른 커밋에 있으면 거부합니다. 이어 workflow는 태그를 checkout하고 그 패키지를 설치한 뒤 빌드, draft, 공개를 합니다. 태그 push 트리거, config/release.json의 checks를 읽던 release-verify(checks를 이름한 설정은 이제 스키마에서 실패합니다)와 그것이 읽던 check run의 스키마, release-go-tags, Go 모듈 태그만의 릴리스, make release는 지웁니다 (K911).
 - kit 자신의 push는 workflow 하나를 돌린다: 플랫폼 bootstrap 매트릭스(ubuntu-24.04, macos-15, windows-2025)는 마지막 job kit가 needs로 하는 kit ci.yml의 job bootstrap이고, .github/workflows/platform-bootstrap.yml과 그 check platform-bootstrap-passed는 없어졌다. 그래서 릴리스가 id로 받는 ci.yml run이 모든 OS를 덮는다(K912).
+- S12, S13, AGENTS.md와 운영 문서는 CI 파이프라인 하나, 곧 저장소 ci.yml이 config/ci.json의 targets와 함께 호출하는 ci-pipeline.yml과, make release-tag가 tag를 만드는 성공한 CI run의 id로 하는 릴리스를 설명합니다. gates.yml, release-verify와 그 check run, go-tags, platform-bootstrap.yml은 문서에서 사라졌습니다(K913).
 
 ## 0.0.78
 

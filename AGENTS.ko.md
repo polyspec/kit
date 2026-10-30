@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 59e6b7ebadbbcfabd78bae8e470c32c5fefe470dbedc0d9f54d5f292ffdeb450 -->
+<!-- source-sha256: e37a3126bda0bef7e74c77bd4e28d79b56420e5f061a54571ee2cc82db759b85 -->
 # 개발
 
 [English](AGENTS.md)
@@ -123,16 +123,17 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 
 ## 릴리스
 
-kit은 `main` commit의 annotated tag `vX.Y.Z`로 릴리스한다. 절차는
+kit은 release workflow가 `main`에서 성공한 CI run의 commit에 만드는 annotated tag `vX.Y.Z`로 릴리스한다. 절차는
 [docs/operations/release.ko.md](docs/operations/release.ko.md)이다.
 
 - Own: 릴리스 tag는 annotated이고, CI가 성공으로 끝난 `main` commit 위에 있으며, 공개된 tag는 옮기지 않는다.
-  Enforced by: `make release-verify`
+  Enforced by: `make release-tag`
 - Own: 릴리스는 archive와 함께 draft로 만들고 마지막에 공개한다. 실패한 step은 draft로 남긴다.
   Enforced by: `make release-publish`, `make release-undraft`
-- Own: `make release`는 `main`에서 성공한 CI run의 commit을 다시 테스트하지 않고 공개한다. release-run은 VERSION, SHA, RUN의
-  형식, SHA에 있고 `origin/main`인 깨끗한 checkout, config/release.json의 저장소, RUN이 그 commit의 `main` 위 성공한 CI run인지를
-  검사하며 version을 비교하지 않는다(S4).
+- Own: 릴리스는 성공한 CI run의 id와 version을 받고(`gh workflow run release.yml -f run=<id> -f version=X.Y.Z`) 다른 테스트를
+  돌리지 않는다. `make release-tag`는 RUN과 VERSION의 형식, config/release.json의 저장소, RUN이 `main` 위 ci.yml의 push 또는
+  dispatch run으로 성공해 끝났고 그 commit이 `origin/main`에 있는지를 검사한 뒤 그 commit에 tag를 단다. version을 비교하지
+  않는다(S4, K911).
   Enforced by: `tests/kit/release-run.test.mts`
 - Own: 모든 저장소는 vendor된 `workflows/release.yml`로 릴리스하며 그것을 편집하지 않는다.
   Enforced by: `make kit-check`

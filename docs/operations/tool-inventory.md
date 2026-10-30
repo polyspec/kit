@@ -61,9 +61,9 @@ mechanism, and the rust backend of mise drives rustup itself, so a second layer 
 of mise is in docs/rebuild/toolchain.md.
 
 The platform pins include Windows x64 and ARM64 archives for Node.js and Go; the other mise lock entries cover the four POSIX
-platforms above. `.github/workflows/platform-bootstrap.yml` runs the selected Node.js/npm/Go/Rust bootstrap smoke on Ubuntu x64,
-macOS arm64 and Windows x64, including a repeatability check and native wrapper/version checks. Its new CI run is still pending;
-these pins and smoke cases do not establish that every Kit gate runs on Windows or that a Windows PHP extension SDK is supported.
+platforms above. The job `bootstrap` of kit's `.github/workflows/ci.yml` (K912) runs the selected Node.js/npm/Go/Rust bootstrap smoke on Ubuntu x64,
+macOS arm64 and Windows x64, including a repeatability check and native wrapper/version checks.
+These pins and smoke cases do not establish that every Kit gate runs on Windows or that a Windows PHP extension SDK is supported.
 
 PHP is wrapped, not installed (K283, K862). `.php-version` or `config/toolchain.json` `php` declares that the checkout uses
 PHP; `.php-version` is read as written, as the input of CI's setup-php, and `make kit-check` requires it of a repository that
@@ -638,8 +638,8 @@ Dropped behaviors:
 
 ## Release tool (K5)
 
-`scripts/kit/release.mts` merges the release tools of the five repositories (`verify`, `versions`, `assets`, `publish`, plus
-`coverage`). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
+`scripts/kit/release.mts` merges the release tools of the five repositories (`versions`, `assets`, `publish`, plus
+`coverage`); the tags are created by `release-run tag VERSION RUN` (`make release-tag`, K911). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {
@@ -647,7 +647,6 @@ Dropped behaviors:
   "repositoryUrl": "https://github.com/<owner>/<name>",
   "changelog": "CHANGELOG.md",
   "changelogTranslations": ["CHANGELOG.ko.md"],
-  "checks": ["push-gate", "ci-passed"],
   "packages": [{ "kind": "npm", "directory": "packages/x", "name": "@scope/x" }],
   "manifests": { "package.json": "version", "packages/x/package.json": "archive", "crate/Cargo.toml": "git-tag" },
   "notReleased": { "tests/consumer/package.json": "the reason" },
@@ -655,17 +654,16 @@ Dropped behaviors:
 }
 ```
 
-`changelogTranslations` and `checks` are optional (`checks` defaults to `push-gate` and `ci-passed`). The values of
+`changelogTranslations` is optional. The values of
 `manifests` are `archive` (the manifest of a package in `packages`), `version` (carries the version without an archive) and
 `git-tag` (consumed by git tag). `goModules` maps a directory (`.` for the repository root) to the module path of its go.mod.
 
 ### Merged behaviors (the wider behavior is kept)
 
-- Data instead of constants: `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `CHECKS`, `REPOSITORY_URL` and the change
+- Data instead of constants: `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `REPOSITORY_URL` and the change
   logs of template, hyper and ordered-json are `config/release.json`. The lists are explicit; coverage detects an omission.
-- `verify`: ancestor of `origin/main` and the latest run of each check (template, hyper, ordered-json, crudui, orm). The
-  not-on-main finding and the check findings are reported in one message (crudui). The latest run of a check is the run with the
-  greatest id, so a rerun that succeeded replaces a failed run.
+- Tags: `release-run tag VERSION RUN` tags the commit of the successful ci.yml run RUN on `main` (K911); the release workflow
+  runs it, and no tag is pushed by hand.
 - `versions`: the manifest kinds package.json, composer.json, Cargo.toml, pyproject.toml (template) and VERSION (orm); the
   module path of every declared go.mod on a root tag, not only on a Go tag (orm, wider than template); a Go module at the
   repository root (orm); further change logs that must hold the section (orm, `changelogTranslations`). A composer.json may omit
@@ -701,8 +699,9 @@ Dropped behaviors:
 
 - crudui discovered the packages of `packages/` and skipped `private` ones: dropped for the explicit list; coverage reports
   a package file that the list omits.
-- crudui failed when any run of a check was not successful, even an older failed run that was rerun: dropped, because it blocks
-  a release after a successful rerun. orm ordered the runs by `started_at`: dropped for the id, which grows with creation.
+- `verify` with the latest run of each check of `checks` (template, hyper, ordered-json, crudui, orm), and the step `go-tags`:
+  deleted (K911). The release takes the id of one successful ci.yml run, which holds every job of the commit, and creates the
+  tags itself.
 - crudui and orm ran `make build`, `make typescript-build` or `scripts/package-dist.mjs` inside the release tool: dropped. The
   build of a package is a prerequisite that the repository adds to its own `release-assets` recipe, so the tool names no build.
 - crudui `RELEASE_COMMIT` (assets before the tag exists) and the install of the archives as a consumer (template
@@ -731,17 +730,13 @@ Dropped behaviors:
 ### Go module tags (K5.3)
 
 - A Go proxy resolves a module that lives below the repository root from the tag `<directory>/vX.Y.Z`, not from `vX.Y.Z`. A
-  release once lacked these tags. `verify` of a tag `vX.Y.Z` now requires, for every module of `goModules` below the root, the
-  tag `<directory>/vX.Y.Z` at the same commit as `vX.Y.Z`. A missing tag and a tag at another commit are findings that name
-  the tag, the module path or both commits, and the command that creates the tag
-  (`git tag -a <directory>/vX.Y.Z -m <directory>/vX.Y.Z <commit> && git push origin <directory>/vX.Y.Z`; a tag at another commit
-  is deleted first with `git tag -d`). The findings are reported in the same message as the ancestry and the check runs.
-- The step `go-tags TAG` (`make release-go-tags`) runs this check alone, offline, so the maintainer can run it after tagging.
-  Before this row template and ordered-json named the tags in their release policy, and no tool of the five repositories
-  checked them.
-- A tag `<directory>/vX.Y.Z` releases that module alone: it needs no sibling tag and builds no archive. A module at the
-  repository root (`.`) is released by `vX.Y.Z` itself and needs no further tag. The tags must exist in the checkout that runs
-  `verify`, so a workflow that runs it fetches the tags.
+  release once lacked these tags. `release-run tag VERSION RUN` creates, with `vX.Y.Z`, the tag `<directory>/vX.Y.Z` of every
+  module of `goModules` below the root on the same commit, and pushes them in one push (K911). It checks every tag before it
+  creates one: a tag at another commit stops the release with the tag and both commits, since a published tag is never moved,
+  and a tag at that commit already passes.
+- A tag `<directory>/vX.Y.Z` is what a Go proxy reads for that module. It is created only with `vX.Y.Z` and builds no
+  archive; a module tag is no release of its own (K911). A module at the repository root (`.`) is released by `vX.Y.Z` itself
+  and needs no further tag.
 
 ## One checklist model (K7.2)
 
@@ -836,7 +831,9 @@ Left as it is, with the reason:
   the suite. The parity prerequisite may be fulfilled by the complete provider-owned API and binding phase partition described
   below. The lint of a language, and the lint and test of a PHP extension, are required only in a repository that holds code of it.
   kit's own checkout is not checked, since it is the source of the gates.
-- `workflows/gates.yml` partitions the same `kit-gates` prerequisites into shared, parity, and runtime jobs. A consumer declares
+- `workflows/ci-pipeline.yml` (`on: workflow_call`, K910) partitions the same `kit-gates` prerequisites into shared, parity, and
+  runtime jobs; the repository's ci.yml calls it as its job `kit`, and a repository job of that ci.yml runs after it with
+  `needs: kit`, so one run holds every job of a commit. A consumer declares
   repository-owned setup targets in `config/ci.json`; each value is an existing Make target name, not a command. The schema is
   `scripts/kit/schema/ci.schema.json` and `kit-check` validates the consumer declaration. For example:
 
@@ -874,8 +871,13 @@ Left as it is, with the reason:
   `parity-api-check` once and a `parity-bindings-<implementation>-check` matrix whose names come exactly from
   `config/parity.json`. A phase consumer adds setup prerequisites to those concrete targets.
   `kit-check` requires `CHECK_TARGETS` to select either the full target once or the complete API-plus-bindings partition, never both.
-  The final workflow job requires the selected parity path, every other required job and the exact matrix generated from the parity
-  declaration; a skipped, missing or failed selected job fails the aggregate.
+  The final job `required` (ubuntu-24.04) needs every job of the pipeline and fails when one of them failed or was cancelled; a
+  job that the plan does not select is skipped and passes. There is no kit-ci-verify-gates.
+  The optional `targets` map names the repository's own check targets of each job: `shared` runs after `kit-gates-static` in the
+  shared job, `parity` after `kit-gates-parity` in the parity job (`parityMode` full) or after `parity-api-check` in the parity-api job (`phases`; the
+  bindings jobs run no `targets.parity`), and `runtimes.<runtime>` after
+  `kit-gates-runtime-<runtime>` in that runtime's job; a runtime named in `targets.runtimes` has a job even when no tracked file
+  selects it. A repository without config/parity.json runs no parity job, so it never runs `targets.parity`.
   The optional `tools` map names extra pinned Kit tool selectors needed by setup targets. For example, a TypeScript generator
   target that needs Go declares `"tools": { "ts": ["go"] }`; install-tools judges and installs that tool in the TypeScript job and in
   parity, which repeats runtime setup. `shared` and `parity` keys select tools for those jobs; install-tools judges each

@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 9cb7da5778b4b660111e0e4e8a7f5d91b9322743432ff2dcf1fd24d5f641a62a -->
+<!-- source-sha256: c26c59fa6b6fcef98e68f6cf1ed13732a2b05c50acf03fe83b1c2e71f743a7bc -->
 # 릴리스
 
 [English](release.md)
@@ -24,20 +24,18 @@ Kit의 native npm prepack은 source export와 hook bin을 build된 dist path로 
 packer를 사용하며 tag를 조회하거나 만들지 않습니다. package lifecycle script가 package directory 바깥의 build input도 읽을 수 있으므로
 candidate command는 tracked 변경과 ignore되지 않은 untracked 파일이 없는 checkout을 요구합니다. 거부되면 source 변경을 commit한 뒤 candidate
 command를 다시 실행합니다. 버전 변경은 package-manager lock을 다시 씁니다. `composer.lock`의 content-hash가 `version`을 포함하므로,
-composer.json의 버전 변경은 그 directory에서 `composer update --lock`으로 다시 lock합니다. 이 commit은
-`main`에 들어가고 CI가 success로 끝나야 실제 tag를 만듭니다. 이후 `make release-assets TAG=vX.Y.Z`로 그 tag의 공식 asset을 빌드합니다.
-이 경로는 실제 tag를 요구하고 읽으며 publication의 유일한 source입니다. (2) release workflow를 tag와 함께 dispatch합니다
-(`gh workflow run release.yml -f tag=vX.Y.Z`, 또는
-GitHub API의 workflow dispatch). 그 `make release-tag`가 origin/main에 annotated tag를 만들어 push하고, tag가 이미 있으면 통과합니다(K269).
-tag를 push해도 같은 workflow가 시작됩니다. (3) `.github/workflows/release.yml`이 실행됩니다. 이 파일은 vendor되는
-`workflows/release.yml` 그대로이며 tag에서 공식 npm archive를 만들고 GitHub Release에 draft로 게시한 뒤 공개합니다.
-저장소는 그 asset의 URL과 integrity를 pin합니다.
+composer.json의 버전 변경은 그 directory에서 `composer update --lock`으로 다시 lock합니다. 이 commit은 `main`에 들어가고 그 `.github/workflows/ci.yml` CI run이 success로 끝납니다. (2) release workflow를 그 run의 id와
+버전으로 dispatch합니다(`gh workflow run release.yml -f run=<id> -f version=X.Y.Z`, 또는 GitHub API의 workflow dispatch). tag push는
+이 workflow를 시작하지 않습니다. 그 `make release-tag`(`release-run tag VERSION RUN`)는 두 입력의 형식과 config/release.json의 저장소를
+검사하고, `gh api`로 run을 읽어 `main` 위 ci.yml의 push 또는 dispatch run이 성공으로 끝났고 그 commit이 `origin/main`에 있는지를 요구한 뒤
+그 commit에 tag를 답니다. 먼저 `vX.Y.Z`와 root 아래 모든 Go module의 tag `<directory>/vX.Y.Z`를 검사해 하나라도 다른 commit에 있으면
+멈추고, 없는 tag를 annotated tag(`git tag -a vX.Y.Z -m vX.Y.Z`)로 만들어 한 번의 push로 올립니다. 이미 그 commit에 있는 tag는
+통과합니다(K911). 테스트는 다시 돌지 않습니다: 근거는 id가 가리키는 CI run입니다. (3) 이어서 `.github/workflows/release.yml`, 곧
+vendor되는 `workflows/release.yml` 그대로의 run이 tag를 checkout하고, publication의 유일한 source인 `make release-assets TAG=vX.Y.Z`로
+그 tag에서 공식 asset을 만들고, GitHub Release에 draft로 게시한 뒤 공개합니다. 저장소는 그 asset의 URL과 integrity를 pin합니다.
+게시된 tag는 옮기지 않습니다.
 
-릴리스 tag는 annotated tag입니다: `git tag -a vX.Y.Z -m vX.Y.Z`로 만듭니다. `release-verify`는 object 종류
-(`git cat-file -t <tag>`)가 `tag`가 아닌 tag를 거부하고, tag 이름과 그 종류를 적은 줄을 출력합니다(lightweight tag는 `commit`).
-이미 게시된 tag는 옮기지 않으며, 검사는 릴리스되는 tag에만 실행합니다.
-
-kit은 `workflows/release.yml`을 package.json의 `kit.copies`로 모든 저장소의 `.github/workflows/release.yml`에 vendor합니다. 저장소는 이를 편집하지 않으며, `make kit-sync`가 다시 씁니다. workflow는 저장소가 `.php-version`을 선언하면 그 PHP를 설치하고, `make release-prepare`(저장소의 release가 Makefile의 `release-prepare::` 규칙으로 선언한 준비, 기본은 없음), `make release-tools`(config/release.json이 필요로 하는 tool), `make release-tools-path`(뒤따르는 단계가 설치된 tool로 실행되도록 `var/tools/bin`과 mise의 shim을 그 PATH에, mise의 환경을 그 환경에 올립니다), `make release-publish`(draft release, 그 id를 `var/release/<tag>.json`에 기록), `make release-undraft TAG=<tag>`(release 공개)를 실행합니다. undraft는 새 draft를 한동안 보여 주지 않는 release 목록의 tag가 아니라 그 id로 draft를 읽습니다. 실패한 step은 release를 draft로 남기고 run을 실패시킵니다.
+kit은 `workflows/release.yml`을 package.json의 `kit.copies`로 모든 저장소의 `.github/workflows/release.yml`에 vendor합니다. 저장소는 이를 편집하지 않으며, `make kit-sync`가 다시 씁니다. workflow는 저장소가 `.php-version`을 선언하면 그 PHP를 설치하고, `main`에서 `make release-tag`를 실행하고, tag를 checkout해 그 tag의 kit와 package를 설치한 뒤 `make release-prepare`(저장소의 release가 Makefile의 `release-prepare::` 규칙으로 선언한 준비, 기본은 없음), `make release-tools`(config/release.json이 필요로 하는 tool), `make release-tools-path`(뒤따르는 단계가 설치된 tool로 실행되도록 `var/tools/bin`과 mise의 shim을 그 PATH에, mise의 환경을 그 환경에 올립니다), `make release-publish`(draft release, 그 id를 `var/release/<tag>.json`에 기록), `make release-undraft TAG=<tag>`(release 공개)를 실행합니다. undraft는 새 draft를 한동안 보여 주지 않는 release 목록의 tag가 아니라 그 id로 draft를 읽습니다. 실패한 step은 release를 draft로 남기고 run을 실패시킵니다.
 
 kind `wheel` package(`pyproject.toml`을 가진 Python package)는 PEP 427 wheel `<distribution>-<version>-py3-none-any.whl`로 릴리스되며,
 이 파일 이름을 pip이 파싱합니다. `release-assets`는 tag된 commit에서 `uv build --wheel`로 이 wheel을 만들며, uv build가 package 자신의

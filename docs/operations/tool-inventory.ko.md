@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0a39b64b2aa7c50fd4f46a543a9815adf339c7da26d40d7fdb05a2f8a1d70402 -->
+<!-- source-sha256: 8d7a117e287f9ea1a21323acddf595a7a935d7ea94cb50d521fe25e57b3e58f8 -->
 
 # 도구 목록
 
@@ -58,8 +58,8 @@ Rust는 rustup에 남습니다. rustup과 `rust-toolchain.toml`은 Rust 생태�
 rustup을 구동하므로, 층을 하나 더 두어도 얻는 것이 없습니다. mise의 빈틈마다 내린 결정은 docs/rebuild/toolchain.md에 있습니다.
 
 Platform pin에는 Node.js와 Go의 Windows x64·ARM64 archive가 있습니다. 나머지 mise lock 항목은 위 네 POSIX platform을 다룹니다.
-`.github/workflows/platform-bootstrap.yml`은 Ubuntu x64, macOS arm64, Windows x64에서 Node.js/npm/Go/Rust bootstrap smoke를 실행하며,
-반복 실행 결과와 native wrapper/version도 검사합니다. 새 CI 실행은 아직 대기 중입니다. 이 pin과 smoke가 Kit의 모든 gate가
+kit `.github/workflows/ci.yml`의 job `bootstrap`(K912)은 Ubuntu x64, macOS arm64, Windows x64에서 Node.js/npm/Go/Rust bootstrap smoke를 실행하며,
+반복 실행 결과와 native wrapper/version도 검사합니다. 이 pin과 smoke가 Kit의 모든 gate가
 Windows에서 동작하거나 Windows PHP extension SDK를 지원한다고 입증하지는 않습니다.
 
 PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862). `.php-version`이나 `config/toolchain.json`의 `php`는 checkout이 PHP를
@@ -583,8 +583,8 @@ version 일관성과 orm의 다른 영역 검사:
 
 ## Release 도구 (K5)
 
-`scripts/kit/release.mts`는 다섯 저장소의 release 도구를 하나로 합칩니다(`verify`, `versions`, `assets`, `publish`, 그리고
-`coverage`). 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
+`scripts/kit/release.mts`는 다섯 저장소의 release 도구를 하나로 합칩니다(`versions`, `assets`, `publish`, 그리고
+`coverage`). tag는 `release-run tag VERSION RUN`(`make release-tag`, K911)이 만듭니다. 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {
@@ -592,7 +592,6 @@ version 일관성과 orm의 다른 영역 검사:
   "repositoryUrl": "https://github.com/<owner>/<name>",
   "changelog": "CHANGELOG.md",
   "changelogTranslations": ["CHANGELOG.ko.md"],
-  "checks": ["push-gate", "ci-passed"],
   "packages": [{ "kind": "npm", "directory": "packages/x", "name": "@scope/x" }],
   "manifests": { "package.json": "version", "packages/x/package.json": "archive", "crate/Cargo.toml": "git-tag" },
   "notReleased": { "tests/consumer/package.json": "the reason" },
@@ -600,16 +599,16 @@ version 일관성과 orm의 다른 영역 검사:
 }
 ```
 
-`changelogTranslations`와 `checks`는 선택입니다(`checks`의 기본값은 `push-gate`와 `ci-passed`). `manifests`의 값은 `archive`(`packages`에 있는
+`changelogTranslations`는 선택입니다. `manifests`의 값은 `archive`(`packages`에 있는
 package의 manifest), `version`(archive 없이 version만 가짐), `git-tag`(git tag로 소비됨)입니다. `goModules`는 directory(저장소 root는 `.`)를 그
 go.mod의 module path에 연결합니다.
 
 ### 합친 동작 (더 넓은 동작을 유지)
 
-- 상수 대신 데이터: template, hyper, ordered-json의 `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `CHECKS`, `REPOSITORY_URL`과
+- 상수 대신 데이터: template, hyper, ordered-json의 `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `REPOSITORY_URL`과
   changelog는 `config/release.json`입니다. 목록은 명시적이며 빠진 항목은 coverage가 찾습니다.
-- `verify`: `origin/main`의 조상인지와 각 check의 가장 최근 run(다섯 저장소 모두). main에 없다는 결과와 check 결과는 한 메시지로
-  보고합니다(crudui). check의 가장 최근 run은 id가 가장 큰 run이므로, 성공한 재실행이 실패한 run을 대체합니다.
+- Tag: `release-run tag VERSION RUN`은 `main` 위에서 성공한 ci.yml run RUN의 commit에 tag를 답니다(K911). release workflow가 이를
+  실행하며 손으로 push하는 tag는 없습니다.
 - `versions`: manifest 종류 package.json, composer.json, Cargo.toml, pyproject.toml(template)과 VERSION(orm); Go tag뿐 아니라 root tag에서도
   선언된 모든 go.mod의 module path(orm, template보다 넓음); 저장소 root의 Go module(orm); section이 있어야 하는 추가 changelog(orm,
   `changelogTranslations`). composer.json은 `archive` manifest가 아니면 `version`을 생략할 수 있습니다(hyper는 어디서나 생략을 허용하고
@@ -638,8 +637,8 @@ go.mod의 module path에 연결합니다.
 
 - crudui는 `packages/`의 package를 찾고 `private`을 건너뛰었습니다. 명시적 목록으로 대체하여 버렸고, 목록에 빠진 package file은
   coverage가 보고합니다.
-- crudui는 check의 어떤 run이라도 성공이 아니면 실패했습니다(재실행된 이전 실패 run 포함). 성공한 재실행 뒤에도 release를 막으므로 버렸습니다.
-  orm은 run을 `started_at`으로 정렬했습니다. 생성 순서대로 커지는 id로 대체하여 버렸습니다.
+- `checks`의 각 check의 가장 최근 run을 보던 `verify`(template, hyper, ordered-json, crudui, orm)와 단계 `go-tags`: 지웠습니다(K911).
+  릴리스는 commit의 모든 job을 담은 성공한 ci.yml run 하나의 id를 받고 tag를 스스로 만듭니다.
 - crudui와 orm은 release 도구 안에서 `make build`, `make typescript-build`, `scripts/package-dist.mjs`를 실행했습니다. 버렸습니다. package의 build는
   저장소가 자기 `release-assets` recipe에 붙이는 선행 단계이므로 도구는 build를 알지 못합니다.
 - crudui `RELEASE_COMMIT`(tag가 생기기 전의 assets)은 합치지 않습니다. archive를 소비자처럼 설치하는 일(template `release-consumer`, crudui
@@ -663,14 +662,12 @@ go.mod의 module path에 연결합니다.
 ### Go module tag (K5.3)
 
 - Go proxy는 저장소 root 아래에 있는 module을 `vX.Y.Z`가 아니라 tag `<directory>/vX.Y.Z`에서 얻습니다. 한 release에서 이 tag가 빠진 적이 있습니다.
-  이제 tag `vX.Y.Z`의 `verify`는 root 아래 `goModules`의 모든 module에 대해 `vX.Y.Z`와 같은 commit의 tag `<directory>/vX.Y.Z`를 요구합니다.
-  tag가 없는 경우와 다른 commit에 있는 경우는 결과로 보고하며, tag 이름, module path 또는 두 commit, 그리고 tag를 만드는 명령을 적습니다
-  (`git tag -a <directory>/vX.Y.Z -m <directory>/vX.Y.Z <commit> && git push origin <directory>/vX.Y.Z`; 다른 commit에 있는 tag는 먼저 `git tag -d`로 지움).
-  결과는 ancestry와 check run 결과와 같은 메시지에 보고합니다.
-- 단계 `go-tags TAG`(`make release-go-tags`)는 이 검사만 offline으로 실행하므로, maintainer가 tag를 붙인 뒤 실행할 수 있습니다. 이 row 이전에
-  template과 ordered-json은 release 정책에 이 tag를 적었지만, 다섯 저장소의 어떤 도구도 검사하지 않았습니다.
-- tag `<directory>/vX.Y.Z`는 그 module만 release합니다. sibling tag가 필요 없고 archive도 만들지 않습니다. 저장소 root(`.`)의 module은 `vX.Y.Z` 자체로 release되며 다른
-  tag가 필요 없습니다. tag는 `verify`를 실행하는 checkout에 있어야 하므로, 이를 실행하는 workflow는 tag를 fetch합니다.
+  `release-run tag VERSION RUN`은 `vX.Y.Z`와 함께 root 아래 `goModules`의 모든 module의 tag `<directory>/vX.Y.Z`를 같은 commit에 만들고 한 번의
+  push로 올립니다(K911). tag를 하나라도 만들기 전에 모든 tag를 검사합니다. 공개된 tag는 옮기지 않으므로 다른 commit에 있는 tag는 tag와 두 commit을
+  적고 릴리스를 멈추며, 이미 그 commit에 있는 tag는 통과합니다.
+- tag `<directory>/vX.Y.Z`는 Go proxy가 그 module을 읽는 tag입니다. `vX.Y.Z`와 함께만 만들어지고 archive를 만들지 않으며, module tag만의
+  release는 없습니다(K911). 저장소 root(`.`)의 module은 `vX.Y.Z` 자체로 release되며 다른
+  tag가 필요 없습니다.
 
 ## 체크리스트 모델 하나 (K7.2)
 
@@ -759,7 +756,9 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   prerequisite로 닿는지도 요구하므로, gates workflow가 실행하는 gate가 suite에서 빠지지 않습니다. 아래의 provider API와 binding phase
   partition이 완전하면 parity prerequisite를 대신 충족합니다. 언어의 lint와 PHP extension의 lint·test는 그 code를 가진 저장소에서만
   요구합니다. kit의 checkout은 gate의 source이므로 검사하지 않습니다.
-- `workflows/gates.yml`은 같은 `kit-gates` prerequisite를 shared, parity, runtime job으로 나눕니다. 소비 저장소는
+- `workflows/ci-pipeline.yml`(`on: workflow_call`, K910)은 같은 `kit-gates` prerequisite를 shared, parity, runtime job으로 나눕니다.
+  저장소의 ci.yml이 이를 job `kit`으로 호출하고, 그 ci.yml의 저장소 job은 `needs: kit`으로 뒤에 실행되므로 run 하나가 commit의 모든
+  job을 담습니다. 소비 저장소는
   `config/ci.json`에 저장소별 setup target을 선언합니다. 각 값은 명령문이 아니라 실제 존재하는 Make target 이름입니다.
   schema는 `scripts/kit/schema/ci.schema.json`이며 `kit-check`가 소비 저장소의 선언을 검증합니다. 예:
 
@@ -795,8 +794,14 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   `parityMode`는 선택 항목이며 기본값은 `full`입니다. `full`은 provider의 전체 `parity-check`를 실행합니다. `phases`는
   `parity-api-check`를 한 번 실행하고 `config/parity.json`의 implementation 이름과 정확히 일치하는
   `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite를 추가합니다. `kit-check`는 `CHECK_TARGETS`가 전체 target 한 번 또는 API와 모든 binding phase를 완전하게
-  실행하도록 요구하며, 두 방식을 섞지 못하게 합니다. 마지막 workflow job은 선택한 parity 경로와 나머지 필수 job, parity 선언에서
-  만든 정확한 matrix를 요구합니다. 선택된 job의 누락, skip 또는 실패는 전체 aggregate를 실패시킵니다.
+  실행하도록 요구하며, 두 방식을 섞지 못하게 합니다. 마지막 job `required`(ubuntu-24.04)는
+  파이프라인의 모든 job을 needs로 하고, 그중 하나가 실패하거나 취소되면 실패합니다. plan이 고르지 않은 job은 skip되고 통과합니다.
+  kit-ci-verify-gates는 없습니다.
+  선택 항목인 `targets` map은 각 job에서 저장소 자신의 check target을 이름합니다. `shared`는 shared job에서 `kit-gates-static` 뒤에,
+  `parity`는 parity job(`parityMode` full)에서 `kit-gates-parity` 뒤에, 또는 parity-api job(`phases`)에서 `parity-api-check` 뒤에(bindings job은
+  `targets.parity`를 실행하지 않습니다), `runtimes.<runtime>`은 그 runtime job에서
+  `kit-gates-runtime-<runtime>` 뒤에 실행됩니다. `targets.runtimes`에 이름이 있는 runtime은 tracked 파일이 고르지 않아도 job을 가집니다.
+  config/parity.json이 없는 저장소는 parity job을 돌리지 않으므로 `targets.parity`도 실행하지 않습니다.
   선택 항목인 `tools` map은 setup target이 추가로 요구하는 Kit의 pinned tool selector를 선언합니다. 예를 들어 TypeScript
   generator target이 Go를 필요로 하면 `"tools": { "ts": ["go"] }`로 선언합니다. install-tools가 해당 도구를 TypeScript job과 runtime
   setup을 반복하는 parity job에서 판정하고 설치합니다. `shared`와 `parity` key는 각 job의 도구를 선택합니다. 각 selector는

@@ -25,22 +25,22 @@ handling and native packers as the tagged asset producer; it neither resolves no
 the candidate command from a clean tracked tree with no non-ignored untracked files, because package lifecycle scripts can read
 build inputs outside their package directories. Commit source changes and rerun the candidate command when this check refuses.
 The version change rewrites package-manager locks. A version change of a composer.json re-locks it with `composer update --lock`
-in its directory, since the content-hash of `composer.lock` covers `version`. The commit lands on `main` and its CI concludes success; only then can the real tag be
-created on that commit. Build official assets from that tag with `make release-assets TAG=vX.Y.Z`; this path requires and reads the
-actual tag and remains the only source for publication. (2) The release workflow is dispatched with the tag
-(`gh workflow run release.yml -f tag=vX.Y.Z`, or the workflow
-dispatch of the GitHub API); its `make release-tag` creates the annotated tag at origin/main and pushes it, and passes when the
-tag is there already (K269). A push of the tag starts the same workflow. (3) The run of `.github/workflows/release.yml`,
-which is the vendored `workflows/release.yml` itself: it builds the official npm archive from the tag, publishes it on the GitHub
-Release as a draft and makes it public. A repository pins that asset's URL with its integrity.
-
-A release tag is annotated: it is created with `git tag -a vX.Y.Z -m vX.Y.Z`. `release-verify` refuses a tag whose object
-type (`git cat-file -t <tag>`) is not `tag`, with a line that names the tag and its kind (`commit` for a lightweight tag). A
-published tag is not moved; the check runs only on the tag being released.
+in its directory, since the content-hash of `composer.lock` covers `version`. The commit lands on `main` and its CI run of `.github/workflows/ci.yml` concludes success. (2) The release workflow is
+dispatched with the id of that run and the version (`gh workflow run release.yml -f run=<id> -f version=X.Y.Z`, or the workflow
+dispatch of the GitHub API); no push of a tag starts it. Its `make release-tag` (`release-run tag VERSION RUN`) checks the format
+of both inputs and the repository of config/release.json, reads the run with `gh api`, requires a completed successful push or
+dispatch run of ci.yml on `main` whose commit is on `origin/main`, and tags that commit: it checks `vX.Y.Z` and the tag
+`<directory>/vX.Y.Z` of every Go module below the root first, stops when one of them is at another commit, creates the missing
+ones as annotated tags (`git tag -a vX.Y.Z -m vX.Y.Z`) and pushes them in one push; a tag at that commit already passes (K911).
+No test runs again: the evidence is the CI run that the id names. (3) The run of `.github/workflows/release.yml`, which is the
+vendored `workflows/release.yml` itself, then checks out the tag, builds the official assets from it with
+`make release-assets TAG=vX.Y.Z`, the only source for publication, publishes them on the GitHub Release as a draft and makes it
+public. A repository pins that asset's URL with its integrity. A published tag is never moved.
 
 kit vendors the release workflow `workflows/release.yml` to `.github/workflows/release.yml` of every repository (`kit.copies` of
 package.json). A repository never edits it; `make kit-sync` rewrites it. The workflow sets up the PHP of `.php-version` when
-the repository declares one, runs `make release-prepare` (the preparation that the repository's release declares with a
+the repository declares one, runs `make release-tag` on `main`, checks out the tag and installs the kit and the packages of the
+tag, then runs `make release-prepare` (the preparation that the repository's release declares with a
 `release-prepare::` rule of its Makefile, none by default), `make release-tools` (the tools that config/release.json needs), `make release-tools-path` (which
 puts `var/tools/bin` and the shims of mise on the PATH of the following steps and the environment of mise in theirs, so they run on the installed tools), `make release-publish` (the release as a draft, whose id it records in `var/release/<tag>.json`)
 and `make release-undraft TAG=<tag>`, which makes the release public. undraft reads the
