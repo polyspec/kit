@@ -27,11 +27,11 @@ jobs:
         with:
           php-version-file: .php-version
           tools: none
-      # The bootstrap order of a repository (K71-2): the npm of packageManager first, then the packages of package-lock.json
+      # The bootstrap order of a repository (K71-2): the mise, node and npm of mise.toml first, then the packages of package-lock.json
       # with it, then the other tools.
       - name: install npm
         run: make install-tools TOOLS=npm
-      # The npm of packageManager installs TypeScript and the Node types from package-lock.json.
+      # The npm of mise.toml installs TypeScript and the Node types from package-lock.json.
       - name: install packages
         run: make install-packages
       # install-tools installs the tools of mise.toml at the digests of mise.lock with the mise of the bootstrap (Go, Python,
@@ -164,11 +164,11 @@ jobs:
         with:
           php-version-file: .php-version
           tools: none
-      # The bootstrap order of a repository (K71-2): the npm of packageManager first, then the packages of package-lock.json
+      # The bootstrap order of a repository (K71-2): the mise, node and npm of mise.toml first, then the packages of package-lock.json
       # with it, then the other tools.
       - name: install npm
         run: make install-tools TOOLS=npm
-      # The npm of packageManager installs TypeScript and the Node types from package-lock.json.
+      # The npm of mise.toml installs TypeScript and the Node types from package-lock.json.
       - name: install packages
         run: make install-packages
       # These shards exercise Composer-backed fixtures or require their selected runtimes; shard 5 also runs PHP extension tests.
@@ -225,11 +225,11 @@ jobs:
         with:
           php-version-file: .php-version
           tools: none
-      # The bootstrap order of a repository (K71-2): the npm of packageManager first, then the packages of package-lock.json
+      # The bootstrap order of a repository (K71-2): the mise, node and npm of mise.toml first, then the packages of package-lock.json
       # with it, then the other tools.
       - name: install npm
         run: make install-tools TOOLS=npm
-      # The npm of packageManager installs TypeScript and the Node types from package-lock.json.
+      # The npm of mise.toml installs TypeScript and the Node types from package-lock.json.
       - name: install packages
         run: make install-packages
       # Each source group installs only the declared tools its files exercise.
@@ -294,12 +294,12 @@ jobs:
       - name: install pinned Kit dependencies
         if: matrix.runner != 'windows-2025'
         shell: bash
-        run: var/tools/bin/node var/tools/npm/node_modules/npm/bin/npm-cli.js ci --ignore-scripts --allow-remote=root
+        run: var/tools/bin/npm ci --ignore-scripts --allow-remote=root
       - name: install pinned Kit dependencies on Windows
         if: matrix.runner == 'windows-2025'
         shell: pwsh
         run: |
-          & .\var\tools\bin\node.cmd .\var\tools\npm\node_modules\npm\bin\npm-cli.js ci --ignore-scripts --allow-remote=root
+          & .\var\tools\bin\npm.cmd ci --ignore-scripts --allow-remote=root
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: verify Git Bash Make uses pinned Node.js on Windows
         if: matrix.runner == 'windows-2025'

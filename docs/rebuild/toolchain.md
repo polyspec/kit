@@ -12,7 +12,6 @@ toolchains that a repository does not install. This record covers those parts. M
 
 - `scripts/kit/bootstrap/bootstrap.mts`
 - `scripts/kit/bootstrap/install-mise.mts`
-- `scripts/kit/bootstrap/install-npm.mts`
 - `scripts/kit/bootstrap/install-tool.mts`
 - `scripts/kit/bootstrap/tool-wrappers.mts`
 - `scripts/kit/bootstrap/toolchain-declared.mts`
@@ -22,7 +21,7 @@ toolchains that a repository does not install. This record covers those parts. M
 | Item | Requirement |
 |---|---|
 | P1 | every downloaded tool is pinned to an exact release with the sha256 of each platform's archive, and the install refuses another archive |
-| P2 | the npm of `packageManager` (with its sha512) is installed before `npm ci`, since another npm can rewrite or refuse the lock (S4) |
+| P2 | the npm of `mise.toml` (`npm:npm`, locked in `mise.lock`) is installed before `npm ci`, since another npm can rewrite or refuse the lock (S4) |
 | P4 | Go installs on a checkout that has no Go, at the pinned release, and the go directive of each `go.mod` agrees with it |
 | P5 | nothing outside the checkout changes: the tools, their caches and their configuration stay under `var/tools` |
 
@@ -38,7 +37,7 @@ toolchains that a repository does not install. This record covers those parts. M
 
 The gaps that the measurement found, each with its decision:
 
-- npm stays in the bootstrap, with the sha512 of `packageManager` (P2).
+- npm comes from mise, as `npm:npm` of `mise.toml` locked in `mise.lock` (P2, K938).
 - Composer is one file, so `mise.toml` declares `checksum = "sha256:…"` on its `http:composer` entry, from the
   `composer.phar.sha256sum` of getcomposer.org, and `mise.lock` records it.
 - cargo-audit is `"github:rustsec/rustsec" = { version, version_prefix = "cargo-audit/v" }`, which locks the native binaries of
@@ -66,6 +65,6 @@ it (K854).
 
 ## Retry condition
 
-Revisit P2 when npm or corepack installs the `packageManager` release with its digest, the install of mise when mise ships a
+Revisit P2 when mise ships a
 locked package, and the exception of the `go:` tools when
 `mise lock` records a checksum for them.

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "comment": "The toolchains of the kit itself that mise does not install. The bootstrap installs mise (its archive of each platform by sha256) after the npm of packageManager; mise installs the tools of mise.toml at the digests of mise.lock. install-tools then installs the Composer project of config/phpunit (phpunit), and make kit-install-symbols the declared symbol extractors used by parity and PHP lint; with rustup it also installs the Rust nightly of exceptions, which the rust symbol extractor of parity-real runs.",
+  "comment": "The toolchains of the kit itself that mise does not install. The bootstrap installs mise (its archive of each platform by sha256) after the node and npm of mise.toml; mise installs the tools of mise.toml at the digests of mise.lock. install-tools then installs the Composer project of config/phpunit (phpunit), and make kit-install-symbols the declared symbol extractors used by parity and PHP lint; with rustup it also installs the Rust nightly of exceptions, which the rust symbol extractor of parity-real runs.",
   "phpunit": {
     "version": "13.4.2"
   },

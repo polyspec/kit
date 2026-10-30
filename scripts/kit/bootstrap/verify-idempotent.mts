@@ -7,7 +7,7 @@ import { realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { fileDigest } from './digest.mts';
-import { MISE_WRAPPER, miseBinary, miseWhere, nodeBinary, NODE_WRAPPER } from './install-mise.mts';
+import { MISE_WRAPPER, miseBinary, miseWhere, nodeBinary, NODE_WRAPPER, NPM_WRAPPERS } from './install-mise.mts';
 import { declaredToolchain } from './toolchain-declared.mts';
 import { commandPath, toolsPath } from './tool-wrappers.mts';
 
@@ -45,14 +45,14 @@ export function changedFiles(before: readonly InstalledFile[], after: readonly I
 
 function installedFiles(root: string): Record<string, string> {
   const nodeDirectory = miseWhere(root, 'node');
-  const npm = toolsPath(root, 'npm', 'node_modules', 'npm');
+  const npm = path.join(miseWhere(root, 'npm:npm'), 'node_modules', 'npm');
   return {
     'mise binary': miseBinary(toolsPath(root, 'mise-release')),
     'mise wrapper': commandPath(root, MISE_WRAPPER),
     'node binary': nodeBinary(nodeDirectory),
     'node wrapper': commandPath(root, NODE_WRAPPER),
     'npm package metadata': path.join(npm, 'package.json'),
-    'npm command': path.join(npm, 'bin', 'npm-cli.js'),
+    'npm command': path.join(npm, 'bin', NPM_WRAPPERS.npm),
     'npm wrapper': commandPath(root, 'npm'),
     'npx wrapper': commandPath(root, 'npx'),
   };
@@ -72,8 +72,8 @@ function runBootstrap(root: string): Promise<void> {
 
 /** Re-runs bootstrap with its native output visible and refuses any change to the installed SDK files. */
 export async function verifyBootstrapIdempotent(root: string, print: (text: string) => void = console.log): Promise<void> {
-  const { mise, npm } = declaredToolchain(root);
-  if (!mise || !npm) throw new Error('config/toolchain.json and package.json must declare mise and npm before bootstrap idempotence can be checked');
+  const { mise } = declaredToolchain(root);
+  if (!mise) throw new Error('config/toolchain.json must declare mise before bootstrap idempotence can be checked');
   const before = snapshotFiles(installedFiles(root));
   print('repeat the native mise, Node.js, and npm bootstrap');
   await runBootstrap(root);

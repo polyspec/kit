@@ -37,7 +37,7 @@ jobs:
       - name: bootstrap the installed kit package
         run: |
           if [ "$(node -p 'require("./package.json").name')" != '@polyspec/kit' ]; then
-            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="$(node -p 'require("./package.json").packageManager.split("+")[0]')" -- npm ci --ignore-scripts --allow-remote=root
+            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="npm@$(node -p 'require("./package.json").devEngines.packageManager.version')" -- npm ci --ignore-scripts --allow-remote=root
           fi
       - name: install npm
         run: make install-tools TOOLS=npm
@@ -97,7 +97,7 @@ jobs:
       - name: bootstrap the installed kit package
         run: |
           if [ "$(node -p 'require("./package.json").name')" != '@polyspec/kit' ]; then
-            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="$(node -p 'require("./package.json").packageManager.split("+")[0]')" -- npm ci --ignore-scripts --allow-remote=root
+            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="npm@$(node -p 'require("./package.json").devEngines.packageManager.version')" -- npm ci --ignore-scripts --allow-remote=root
           fi
       - name: install npm
         run: make install-tools TOOLS=npm
@@ -149,7 +149,7 @@ jobs:
       - name: bootstrap the installed kit package
         run: |
           if [ "$(node -p 'require("./package.json").name')" != '@polyspec/kit' ]; then
-            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="$(node -p 'require("./package.json").packageManager.split("+")[0]')" -- npm ci --ignore-scripts --allow-remote=root
+            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="npm@$(node -p 'require("./package.json").devEngines.packageManager.version')" -- npm ci --ignore-scripts --allow-remote=root
           fi
       - name: install npm
         run: make install-tools TOOLS=npm
@@ -205,7 +205,7 @@ jobs:
       - name: bootstrap the installed kit package
         run: |
           if [ "$(node -p 'require("./package.json").name')" != '@polyspec/kit' ]; then
-            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="$(node -p 'require("./package.json").packageManager.split("+")[0]')" -- npm ci --ignore-scripts --allow-remote=root
+            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="npm@$(node -p 'require("./package.json").devEngines.packageManager.version')" -- npm ci --ignore-scripts --allow-remote=root
           fi
       - name: install npm
         run: make install-tools TOOLS=npm
@@ -259,7 +259,7 @@ jobs:
       - name: bootstrap the installed kit package
         run: |
           if [ "$(node -p 'require("./package.json").name')" != '@polyspec/kit' ]; then
-            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="$(node -p 'require("./package.json").packageManager.split("+")[0]')" -- npm ci --ignore-scripts --allow-remote=root
+            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="npm@$(node -p 'require("./package.json").devEngines.packageManager.version')" -- npm ci --ignore-scripts --allow-remote=root
           fi
       - name: install npm
         run: make install-tools TOOLS=npm

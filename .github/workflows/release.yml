@@ -5,8 +5,8 @@
 # the version of the newest section ## X.Y.Z of its change log (K924) and creates the GitHub Release of the tag as a draft with
 # its archives, and makes it public. The run is the evidence; the release runs no test again. The steps run in order and stop at
 # the first failure; each step runs one make target of kit with TAG, vX.Y.Z, from the environment, which release-tag writes:
-#   bootstrap package installs the locked kit with the exact packageManager npm for consumers, without scripts
-#   install-tools TOOLS=npm installs the npm of packageManager with the copied installer of scripts/kit/bootstrap
+#   bootstrap package installs the locked kit with the npm that devEngines.packageManager names for consumers, without scripts
+#   install-tools TOOLS=npm installs the mise, the node and the npm of mise.toml with the copied installer of scripts/kit/bootstrap
 #   install-packages installs package-lock.json with that npm, @polyspec/kit included, whose kit.mk has the targets below
 #   release-tag      with the kit of main: requires a completed successful push or dispatch run RUN of ci.yml on main whose
 #                    commit is on origin/main, reads X.Y.Z from the change log of that commit, creates and pushes the annotated
@@ -70,7 +70,7 @@ jobs:
       - name: bootstrap the installed kit package
         run: |
           if [ "$(node -p 'require("./package.json").name')" != '@polyspec/kit' ]; then
-            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="$(node -p 'require("./package.json").packageManager.split("+")[0]')" -- npm ci --ignore-scripts --allow-remote=root
+            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="npm@$(node -p 'require("./package.json").devEngines.packageManager.version')" -- npm ci --ignore-scripts --allow-remote=root
           fi
       - name: install npm
         run: make install-tools TOOLS=npm
@@ -84,7 +84,7 @@ jobs:
       - name: bootstrap the installed kit package of the tag
         run: |
           if [ "$(node -p 'require("./package.json").name')" != '@polyspec/kit' ]; then
-            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="$(node -p 'require("./package.json").packageManager.split("+")[0]')" -- npm ci --ignore-scripts --allow-remote=root
+            npm_config_cache="$PWD/var/bootstrap/npm-cache" npm exec --yes --package="npm@$(node -p 'require("./package.json").devEngines.packageManager.version')" -- npm ci --ignore-scripts --allow-remote=root
           fi
       - name: install npm of the tag
         run: make install-tools TOOLS=npm

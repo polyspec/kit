@@ -1,8 +1,6 @@
 // The toolchain versions that a checkout declares for the bootstrap and for the tools that mise does not install, read from
 // the files that declare them. Each entry names its version and the declaring file, so that an install and a check name the
 // file in a message:
-//   npm          packageManager of package.json: npm@<version>+sha512.<digest of the registry tarball>; installNpm refuses one
-//                without the digest (K933)
 //   mise         config/toolchain.json mise: the exact version and the sha256 of the release archive of each platform, which
 //                the bootstrap installs; mise installs the tools of mise.toml at the digests of mise.lock (toolchain-mise.mts),
 //                Node.js first, in the bootstrap (K171)
@@ -34,7 +32,6 @@ export type PlatformRelease = { version: string; sha256: Record<string, string>;
 
 /** The declared toolchains of a checkout; an undeclared tool is absent. */
 export type DeclaredToolchain = {
-  npm?: Declared & { sha512: string | undefined };
   php?: { minors: string[]; source: string };
   mise?: PlatformRelease;
   phpunit?: Declared & { manifest: string };
@@ -101,16 +98,6 @@ function phpunit(value: unknown): Declared & { manifest: string } {
 export function declaredToolchain(root: string): DeclaredToolchain {
   const config = toolchainConfig(root);
   const declared: DeclaredToolchain = {};
-  if (existsSync(path.join(root, 'package.json'))) {
-    const manager = readJsonObject(root, 'package.json').packageManager ?? '';
-    // A packageManager that is not text is no npm declaration, whatever its text would be.
-    const match = typeof manager === 'string' ? /^npm@(\d+\.\d+\.\d+)(?:\+sha512\.([0-9a-f]{128}))?$/.exec(manager) : null;
-    if (!match) throw new Error(`package.json packageManager is ${JSON.stringify(manager)}, expected npm@<major>.<minor>.<patch> or npm@<major>.<minor>.<patch>+sha512.<128 hexadecimal digits>`);
-    const [, version, sha512] = match;
-    // The first group always takes part in a match.
-    if (version === undefined) throw new Error(`package.json packageManager ${JSON.stringify(manager)} matched without its version`);
-    declared.npm = { version, sha512, source: 'packageManager of package.json' };
-  }
   // .php-version declares that the checkout uses PHP; its text is the input of CI's setup-php, which kit does not judge (K862).
   const phpFile = existsSync(path.join(root, '.php-version')) ? read(root, '.php-version').trim() : undefined;
   if (config.php) {

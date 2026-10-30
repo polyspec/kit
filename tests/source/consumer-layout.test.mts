@@ -26,7 +26,7 @@ const NODE = known(declaredMiseTools(ROOT).node, 'the node of mise.toml').versio
 const DEPENDENCIES = installedLockEntries(runtimePackage);
 
 test('a consumer installs the packed kit offline and runs the bootstrap order and the gate targets', { timeout: 10 * 60_000 }, (t) => {
-  assert.ok(existsSync(NPM), `${path.relative(ROOT, NPM)} is missing; make install-tools TOOLS=npm installs the npm of packageManager`);
+  assert.ok(existsSync(NPM), `${path.relative(ROOT, NPM)} is missing; make install-tools TOOLS=npm installs the npm of mise.toml`);
   const copy = builtCopy(t);
   const work = mkdtempSync(path.join(tmpdir(), 'kit-consumer-'));
   t.after(() => rmSync(work, { recursive: true, force: true }));
@@ -52,15 +52,17 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
     mkdirSync(path.dirname(path.join(consumer, file)), { recursive: true });
     cpSync(path.join(unpacked, from), path.join(consumer, file));
   }
-  const { manifest, lock } = kitConsumer(packed, { packageManager: KIT.packageManager, engines: { node: `>=${NODE}` } });
+  const { manifest, lock } = kitConsumer(packed, { devEngines: KIT.devEngines, engines: { node: `>=${NODE}` } });
   writeFileSync(path.join(consumer, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   writeFileSync(path.join(consumer, 'package-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
   // The consumer declares the node of kit in mise.toml, and its mise.lock pins it as the mise.lock of kit does (K171).
-  writeFileSync(path.join(consumer, 'mise.toml'), `[tools]\nnode = "${NODE}"\n`);
+  const NPM_VERSION = KIT.devEngines.packageManager.version;
+  writeFileSync(path.join(consumer, 'mise.toml'), `[tools]\nnode = "${NODE}"\n"npm:npm" = "${NPM_VERSION}"\n`);
   const kitLock = parse(readFileSync(path.join(ROOT, 'mise.lock'), 'utf8'));
   const tools = kitLock.tools;
-  assert.ok(typeof tools === 'object' && tools !== null && 'node' in tools, 'the mise.lock of kit pins no node');
-  writeFileSync(path.join(consumer, 'mise.lock'), stringify({ lockfile_version: kitLock.lockfile_version, tools: { node: tools.node } }));
+  assert.ok(typeof tools === 'object' && tools !== null && 'node' in tools && 'npm:npm' in tools, 'the mise.lock of kit pins no node or npm');
+  writeFileSync(path.join(consumer, 'mise.lock'), stringify({ lockfile_version: kitLock.lockfile_version, tools: { node: tools.node, 'npm:npm': tools['npm:npm'] } }));
+  cpSync(path.join(ROOT, '.mise/locks'), path.join(consumer, '.mise/locks'), { recursive: true });
   // The bootstrap installs the mise that config/toolchain.json declares, then the node of mise.toml with it; the consumer
   // declares the mise of kit.
   const toolchain = readFixture<{ exceptions?: { tool: string; channel: string }[]; mise: unknown }>(ROOT, 'config/toolchain.json');
@@ -70,9 +72,9 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   writeFileSync(path.join(consumer, 'Makefile'), 'include ../kit/scripts/kit/kit-bootstrap.mk\nCHECK_TARGETS := kit-gates\n');
   writeFileSync(path.join(consumer, '.gitignore'), '/node_modules/\n/var/\n');
   commitSandbox(consumer);
-  // The npm of packageManager, the mise of config/toolchain.json and the node of mise.toml are the releases that kit installed:
+  // The npm of mise.toml, the mise of config/toolchain.json and the node of mise.toml are the releases that kit installed:
   // the bootstrap keeps a release that is installed, so the first step runs offline and writes the wrappers of the consumer.
-  cpSync(path.join(ROOT, 'var/tools/npm'), path.join(consumer, 'var/tools/npm'), { recursive: true });
+  cpSync(path.join(ROOT, 'var/tools/mise/installs/npm-npm'), path.join(consumer, 'var/tools/mise/installs/npm-npm'), { recursive: true, verbatimSymlinks: true });
   cpSync(path.join(ROOT, 'var/tools/mise-release'), path.join(consumer, 'var/tools/mise-release'), { recursive: true });
   cpSync(path.join(ROOT, 'var/tools/mise/installs/node'), path.join(consumer, 'var/tools/mise/installs/node'), { recursive: true, verbatimSymlinks: true });
   const env = { ...process.env, npm_config_cache: cache, npm_config_offline: 'true', npm_config_audit: 'false', npm_config_fund: 'false' };

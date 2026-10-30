@@ -5,10 +5,11 @@
 // Runs the make, the mise and the node of this checkout, after make install-tools TOOLS=npm.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { declaredToolchain } from '../../scripts/kit/bootstrap/toolchain-declared.mts';
+import { readNpmManifestFile } from '../../scripts/kit/manifests.mts';
 import { declaredMiseTools } from '../../scripts/kit/toolchain-mise.mts';
 import { known } from '../kit/known.mts';
 
@@ -28,9 +29,10 @@ test('a recipe of kit.mk that starts $(NODE) runs the node of mise.toml from var
   assert.equal(version, `v${node.version}`);
 });
 
-test('a command npm that node starts by its name is the npm of packageManager, not the npm that Node.js bundles', () => {
-  const declared = known(declaredToolchain(ROOT).npm, 'the npm of packageManager').version;
-  assert.equal(recipe(`$(NODE) -e 'process.stdout.write(require("node:child_process").execSync("npm --version", { encoding: "utf8" }))'`), declared);
+test('the npm of the checkout is the npm:npm of mise.toml, which devEngines.packageManager names, not the npm that Node.js bundles (K938)', () => {
+  const version = known(readNpmManifestFile(path.join(ROOT, 'package.json')).devEngines?.packageManager?.version, 'the devEngines npm of package.json');
+  assert.match(readFileSync(path.join(ROOT, 'mise.toml'), 'utf8'), new RegExp(`^"npm:npm" = "${version.replaceAll('.', '\\.')}"$`, 'm'));
+  assert.equal(recipe('$(NPM) --version'), version);
 });
 
 test('the npm wrapper runs with the node of the checkout when no node is on PATH', () => {

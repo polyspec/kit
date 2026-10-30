@@ -44,13 +44,11 @@ installs only those mise tools and their declared prerequisites; selectors are t
 `deadcode`, `govulncheck` and `golangciLint` also install Go, `vulture` installs Python and uv, Python installs the declared wheel
 backend, PHP composer tools install the declared PHP wrapper and Composer, and Rust installs its stable and declared exception
 channels. Unknown, empty and undeclared selectors fail before mutation. A selected install leaves other installed tools in place
-Neither the full nor a selected install builds symbol extractors; their explicit target `kit-install-symbols` installs them, and `install-kit` runs the same tool through `kit-install-declared` (`install-symbols --declared`) from the declarations of the repository (the `symbolExtractors` of `config/toolchain.json`), so no repository copies the calls (K861). With a tracked `Cargo.lock`, `kit-install-declared` also runs `make cargo-downloads-fetch`, `cargo fetch --locked` of every lock, since offline checks read the crates; kit checks no crate presence (K864). The bootstrap selector `TOOLS=npm` is unchanged. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs the npm of
-`packageManager`, by its required `+sha512.<digest>`, and mise itself, by the sha256 of `config/toolchain.json` `mise`;
+Neither the full nor a selected install builds symbol extractors; their explicit target `kit-install-symbols` installs them, and `install-kit` runs the same tool through `kit-install-declared` (`install-symbols --declared`) from the declarations of the repository (the `symbolExtractors` of `config/toolchain.json`), so no repository copies the calls (K861). With a tracked `Cargo.lock`, `kit-install-declared` also runs `make cargo-downloads-fetch`, `cargo fetch --locked` of every lock, since offline checks read the crates; kit checks no crate presence (K864). The bootstrap selector `TOOLS=npm` is unchanged. The bootstrap (`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`) installs mise, by the sha256 of `config/toolchain.json` `mise`, and with it the node and the npm of `mise.toml` (`npm:npm`), locked in `mise.lock` (K938);
 `install-tool.mts` builds each of them beside its target, checks the digest of its download there, writes that digest into a
-marker (`node_modules/npm/.sha512` of `var/tools/npm`, `.sha256` of `var/tools/mise-release`) and renames it, so a second run
+marker (`.sha256` of `var/tools/mise-release`) and renames it, so a second run
 keeps an installation whose marker holds the declared digest and compares no version (K933). Only the marker is read, so a
-binary swapped while its marker stays passes the check. A `packageManager` without the digest is refused before anything is
-downloaded, with the commands that compute it. mise keeps its data, cache, state and config,
+binary swapped while its marker stays passes the check. mise keeps its data, cache, state and config,
 its installs and its shims in `var/tools/mise`, and the wrapper `var/tools/bin/mise` sets that environment; nothing outside the
 checkout changes. A tool of `mise.toml` is reached through its shim in `var/tools/mise/shims` (`scripts/kit/mise-tools.mts`):
 kit.mk exports the environment of mise of the checkout to every recipe and puts `var/tools/bin` and the shims first on PATH.
@@ -98,7 +96,7 @@ has no target that runs PIE (K931).
 | Tool | Declared in | Install or verify |
 |---|---|---|
 | Node.js | `node` of `mise.toml` (exact), at the kit pin; `mise.lock` holds the sha256 of each platform's archive of nodejs.org. The bootstrap installs it with mise before npm and writes `var/tools/bin/node`, which the wrappers of npm and every recipe of kit.mk (`$(NODE)`) run (K171) | install with mise, in the bootstrap |
-| npm | `packageManager` of `package.json`: `npm@X.Y.Z+sha512.<digest>` of the registry tarball (K933) | install in the bootstrap |
+| npm | `npm:npm` of `mise.toml` (exact), locked in `mise.lock`; `var/tools/bin/npm` runs it with the node of `mise.toml` (K938) | install with mise, in the bootstrap |
 | Go | `go` of `mise.toml`, at the kit pin of `scripts/kit/toolchain-pins.json`; `mise.lock` holds the sha256 of each platform's archive; the `go` line of every `go.mod` must equal the pin, read by `go mod edit -json` (K78) | install with mise |
 | Rust | `channel` of `rust-toolchain.toml` as declared, which rustup judges (K840), read by smol-toml (`readToml`, K78, K73) | verify |
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version`; install-tools wraps the php of PATH when either declares PHP | wrap (K283, K862) |
@@ -155,8 +153,7 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
 
 - npm: the install of template (the npm of the machine ran `npm install --prefix`) and the install of hyper and
   ordered-json (the registry tarball, refused unless its SHA-512 is the declared digest) are one install, the second; a
-  `packageManager` without a digest is refused (K933). The layout is `var/tools/npm/node_modules/npm`; the wrappers `npm` and
-  `npx` start `npm-cli.js` and `npx-cli.js`. A changed digest of the same version reinstalls (hyper). A tarball with a link or a
+  `npm:npm` of mise.toml is installed by mise (K938). The wrappers `npm` and `npx` start `npm-cli.js` and `npx-cli.js` of that install with the node of mise.toml. A changed digest of the same version reinstalls (hyper). A tarball with a link or a
   special file is refused (ordered-json). The bootstrap installs npm without running any npm of the machine (template).
 - Go: the Go of `mise.toml`, at the kit pin, is installed by mise from the archive of the Go downloads at the sha256 of
   `mise.lock`. No Go of the machine takes part, so a checkout without Go installs one. The archive install of kit and the `goArchives` digests of
@@ -797,7 +794,7 @@ The check also leaves out the S10 stub of a PHP extension, `packages/php-ext/src
 | `process.mts` | `execute`, `run`, `Stop` | `run` of release, the `spawnSync` calls with `encoding` and `maxBuffer` | release, fetch-cargo-downloads, git |
 | `git.mts` | `git`, `gitResult` | the `git` helper of full-run, push-gate, owner-check, kit-sync, tracked-files and target-report, and the direct `git` calls of git-hooks, check-commits, push-gate | those modules |
 | `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, kit-sync, target-report, tool-wrappers and git-hooks | those modules |
-| `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of install-composer (gone in K127), the sha512 of install-npm | those modules |
+| `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of install-composer (gone in K127), | those modules |
 | `time.mts` | `now`, `seconds`, `compactSeconds` | `now` of ci-targets and full-run, `seconds` of full-run and target-report (`1.2 s`), `seconds` of test-progress and test-hooks (`1.2s`) | those modules |
 | `findings.mts` | `finding` | `finding` of status-table and changelog | status-table, changelog |
 | `markdown.mts` | `lineBlocks`, `headings` | `cells` of checklist and `rowCells` of status-table, which read every line that starts with `|` (K130: the rows and list items of the tree), and the `## ` lines of `changelog.sections` and of the release notes (K130: the headings of the tree). Its fences, prose, links and anchors read the syntax tree of mdast-util-from-markdown with GFM and YAML front matter, and heading anchors are the slugs of github-slugger and of @mdit-vue/shared (VitePress) (K120) | checklist, status-table, changelog |

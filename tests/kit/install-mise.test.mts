@@ -52,16 +52,11 @@ function miseRelease(t: TestContext, lock?: string) {
   return { archive, sha256, url, installs: () => (existsSync(calls) ? readFileSync(calls, 'utf8').split('\n').filter(Boolean) : []) };
 }
 
-// The digest of the npm of packageManager, which the marker of the installed npm holds, so the bootstrap keeps it (K933).
-const NPM_SHA512 = 'a'.repeat(128);
-
-/** A checkout whose npm of packageManager is installed, declaring mise with `sha256` for this platform. */
+/** A checkout that declares npm with devEngines, without a digest, and mise with `sha256` for this platform. */
 function checkout(t: TestContext, sha256: string) {
   const root = toolchainCheckout(t, {
-    'package.json': `{ "packageManager": "npm@12.2.0+sha512.${NPM_SHA512}" }\n`,
+    'package.json': '{ "devEngines": { "packageManager": { "name": "npm", "version": "12.2.0", "onFail": "error" } } }\n',
     'config/toolchain.json': JSON.stringify({ schema: 1, mise: { version: VERSION, sha256: { [KEY]: sha256 } } }),
-    'var/tools/npm/node_modules/npm/package.json': '{ "version": "12.2.0" }\n',
-    'var/tools/npm/node_modules/npm/.sha512': `${NPM_SHA512}\n`,
   });
   return root;
 }
@@ -111,9 +106,9 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
   assert.match(text, new RegExp(`^exec ${escape(`'${path.join(tools, 'mise-release/mise/bin/mise')}'`)} "\\$@"$`, 'm'));
   assert.equal(text.includes(homedir()), false, 'the wrapper names no directory of the home');
   // With mise, the bootstrap installs the node of mise.toml and writes its wrapper, which npm runs (K171).
-  assert.deepEqual(release.installs(), ['install --locked node']);
+  assert.deepEqual(release.installs(), ['install --locked node npm:npm']);
   assert.equal(readFileSync(path.join(root, 'var/tools/bin/node'), 'utf8').split('\n').at(-2), `exec '${NODE_INSTALL}/bin/node' "$@"`);
-  assert.match(readFileSync(path.join(root, 'var/tools/bin/npm'), 'utf8'), new RegExp(`^exec ${escape(`'${path.join(tools, 'bin/node')}'`)} `, 'm'));
+  assert.match(readFileSync(path.join(root, 'var/tools/bin/npm'), 'utf8'), new RegExp(`^exec ${escape(`'${NODE_INSTALL}/bin/node'`)} ${escape(`'${NODE_INSTALL}/node_modules/npm/bin/npm-cli.js'`)} `, 'm'));
   const second = bootstrap(root, stubs.env);
   assert.equal(second.status, 0, second.stderr);
   assert.match(second.stdout, new RegExp(`mise: ${escape(VERSION)} with the declared digest is installed in var/tools/mise-release`));
@@ -161,9 +156,19 @@ test('a node that mise cannot install, as one that mise.toml or mise.lock does n
   const stubs = toolchainStubs(t, { downloads: { [release.url]: release.archive } });
   const result = bootstrap(root, { ...stubs.env, MISE_STUB_FAIL: '1' });
   assert.equal(result.status, 1, result.stdout);
-  assert.match(result.stderr, /install --locked node ended with exit status 1; mise\.toml must declare node, the Node\.js release of the checkout, and mise\.lock must pin it \(make toolchain-lock\)/);
+  assert.match(result.stderr, /install --locked node npm:npm ended with exit status 1; mise\.toml must declare node and npm:npm, the Node\.js and npm releases of the checkout, and mise\.lock must pin them \(make toolchain-lock\)/);
   assert.equal(existsSync(path.join(root, 'var/tools/bin/node')), false);
   assert.equal(existsSync(path.join(root, 'var/tools/bin/npm')), false, 'npm is installed only with the node of the checkout');
+});
+
+test('a devEngines npm without a digest bootstraps with the npm of mise.toml, and no npm of packageManager is installed (K938)', (t) => {
+  const release = miseRelease(t);
+  const root = checkout(t, release.sha256);
+  const stubs = toolchainStubs(t, { downloads: { [release.url]: release.archive } });
+  const result = bootstrap(root, stubs.env);
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.equal(existsSync(path.join(root, 'var/tools/npm')), false, 'kit installed an npm of its own');
+  assert.ok(existsSync(path.join(root, 'var/tools/bin/npm')), 'the npm wrapper of mise is written');
 });
 
 test('the bootstrap requires the declaration of mise', (t) => {

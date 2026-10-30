@@ -126,7 +126,7 @@ test('the CI workflow runs docs-check', () => {
 test('the CI workflow installs the packages with the pinned npm and then checks the types (K71-1)', () => {
   const install = runs.indexOf('make install-packages');
   const typecheck = runs.indexOf('make typecheck');
-  assert.ok(runs.indexOf('make install-tools TOOLS=npm') >= 0 && install > runs.indexOf('make install-tools TOOLS=npm'), 'npm ci runs after install-tools installed the npm of packageManager');
+  assert.ok(runs.indexOf('make install-tools TOOLS=npm') >= 0 && install > runs.indexOf('make install-tools TOOLS=npm'), 'npm ci runs after install-tools installed the npm of mise.toml');
   assert.ok(typecheck > install, 'make typecheck runs after npm ci installed TypeScript');
 });
 

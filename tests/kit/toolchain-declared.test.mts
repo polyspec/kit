@@ -10,7 +10,6 @@ import { declaredToolchain } from '../../scripts/kit/bootstrap/toolchain-declare
 import { FIXTURE_CONFIG, fixtureConfig, toolchainCheckout } from './toolchain-checkout.mts';
 
 const SCHEMA = schemaFile('toolchain.schema.json');
-const DIGEST = 'a'.repeat(128);
 
 test('the schema accepts every representative toolchain configuration', () => {
   const names = readdirSync(FIXTURE_CONFIG).filter(name => name.startsWith('toolchain-'));
@@ -35,11 +34,9 @@ test('the schema names an unknown key, a wrong shape and a malformed version; a 
 test('declaredToolchain reads each declaring file of the full shape', (t) => {
   const root = toolchainCheckout(t, {
     'config/toolchain.json': fixtureConfig('toolchain-full.json'),
-    'package.json': JSON.stringify({ packageManager: `npm@12.2.0+sha512.${DIGEST}` }),
   });
   const { mise } = parseJson<{ mise: { sha256: Record<string, string> } }>(fixtureConfig('toolchain-full.json'), 'toolchain.schema.json', 'toolchain-full.json');
   assert.deepEqual(declaredToolchain(root), {
-    npm: { version: '12.2.0', sha512: DIGEST, source: 'packageManager of package.json' },
     php: { minors: ['8.2', '8.5'], source: 'config/toolchain.json php' },
     mise: { version: '2026.10.8', sha256: mise.sha256, source: 'config/toolchain.json mise' },
     phpunit: { version: '11.5.57', manifest: 'config/phpunit/composer.json', source: 'config/toolchain.json phpunit' },
@@ -48,21 +45,17 @@ test('declaredToolchain reads each declaring file of the full shape', (t) => {
 });
 
 test('declaredToolchain reads the version files when the configuration lists nothing; Python is a tool of mise.toml', (t) => {
-  const root = toolchainCheckout(t, { '.php-version': '8.5\n', '.python-version': '3.14\n', 'package.json': '{ "packageManager": "npm@12.2.0" }' });
+  const root = toolchainCheckout(t, { '.php-version': '8.5\n', '.python-version': '3.14\n' });
   assert.deepEqual(declaredToolchain(root), {
-    npm: { version: '12.2.0', sha512: undefined, source: 'packageManager of package.json' },
     php: { minors: ['8.5'], source: '.php-version' },
   });
 });
 
 test('a declaration that is malformed or contradicts another fails with the file and the values', (t) => {
   const cases: [Record<string, string>, RegExp][] = [
-    [{ 'package.json': '{ "packageManager": "pnpm@11.0.0" }' }, /package\.json packageManager is "pnpm@11\.0\.0", expected npm@/],
-    [{ 'package.json': '{}' }, /package\.json packageManager is "", expected npm@/],
     [{ 'config/toolchain.json': '{ "schema": 1, "mise": { "version": "2026.10", "sha256": {} } }' }, /config\/toolchain\.json mise must record version as <major>\.<minor>\.<patch>; it records "2026\.10"/],
     [{ 'config/toolchain.json': '{ "schema": 1, "mise": { "version": "2026.10.8", "sha256": {} } }' }, /config\/toolchain\.json mise must record the sha256 of the mise archive of each platform, for example linux-x64; it records none/],
     // A version is text: a JSON number or a list whose text matches is refused (K98).
-    [{ 'package.json': '{ "packageManager": ["npm@12.2.0"] }' }, /package\.json packageManager is \["npm@12\.2\.0"\], expected npm@/],
     [{ 'config/toolchain.json': '{ "schema": 1, "phpunit": { "version": 11.5 } }' }, /config\/toolchain\.json phpunit must record the PHPUnit release as <major>\.<minor>\.<patch>; it records 11\.5/],
     [{ 'config/toolchain.json': `{ "schema": 1, "mise": { "version": ["2026.10.8"], "sha256": { "linux-x64": "${'a'.repeat(64)}" } } }` }, /config\/toolchain\.json mise must record version as <major>\.<minor>\.<patch>; it records \["2026\.10\.8"\]/],
   ];

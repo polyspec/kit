@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Installs the tools of the checkout into var/tools (`make install-tools`, ONLINE), after the bootstrap installed npm and mise:
+// Installs the tools of the checkout into var/tools (`make install-tools`, ONLINE), after the bootstrap installed mise, node and npm of mise.toml:
 //
 //   node scripts/kit/install-tools.mts
 //
@@ -15,7 +15,7 @@
 import { existsSync, lstatSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { MISE_WRAPPER, NODE_WRAPPER, miseBinary, miseInstallEnvironment, removeForeignTrusts } from './bootstrap/install-mise.mts';
-import { NPM_WRAPPERS } from './bootstrap/install-npm.mts';
+import { NPM_WRAPPERS } from './bootstrap/install-mise.mts';
 import { declaredToolchain } from './bootstrap/toolchain-declared.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
 import { installPhp, PHP_WRAPPERS } from './install-php.mts';

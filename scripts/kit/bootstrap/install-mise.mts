@@ -1,7 +1,7 @@
 // Installs the mise release that config/toolchain.json mise declares into var/tools/mise-release, with the wrapper mise in
 // var/tools/bin; the data, cache, state and config of mise, its installs and its shims, are var/tools/mise.
 // mise installs every other tool of the checkout from mise.toml and mise.lock, so it is installed first by the bootstrap, which
-// then installs the node of mise.toml with it (installNode), before npm and before any package (K171). The archive is mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of mise for
+// then installs the node and the npm of mise.toml with it (installNode), before any package (K171, K938). The archive is mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of mise for
 // this platform (`.tar.gz` on POSIX and `.zip` on Windows); the download is refused unless its sha256 is the digest that the declaration gives for the platform. The
 // wrapper keeps every directory that mise reads or writes under var/tools, records the trust of the config of the checkout (trustConfig) and installs only
 // what mise.lock pins (MISE_LOCKED), so nothing of the machine changes and no config of the home is read.
@@ -174,26 +174,31 @@ export function miseWhere(root: string, key: string): string {
 
 /** The wrapper of var/tools/bin that runs the Node.js of mise.toml, which mise installs into var/tools/mise. */
 export const NODE_WRAPPER = 'node';
+/** The wrappers of var/tools/bin that run the npm of mise.toml with the node of the checkout, each with its script of npm/bin. */
+export const NPM_WRAPPERS = { npm: 'npm-cli.js', npx: 'npx-cli.js' };
 export const nodeBinary = (directory: string, platform = process.platform): string => (platform === 'win32' ? path.win32 : path).join(directory, platform === 'win32' ? 'node.exe' : 'bin/node');
 
 /**
- * Installs the Node.js of mise.toml at the digest of mise.lock with the mise of the checkout (`mise install --locked node`)
- * and writes the wrapper node of var/tools/bin, which starts that node by the absolute path that `mise where node` prints.
- * The wrapper runs node itself, not the shim of mise: a shim puts the bin directory of the install, with the npm that Node.js
- * bundles, first on the PATH of node, so a command npm of a tool would not run the npm of packageManager. A mise.toml that
- * declares no node, or a mise.lock that does not pin it, fails the install of mise. Returns the path of the wrapper.
+ * Installs the Node.js and the npm of mise.toml at the digests of mise.lock with the mise of the checkout (`mise install --locked
+ * node npm:npm`) and writes the wrappers node, npm and npx of var/tools/bin. node starts that node by the absolute path that
+ * `mise where node` prints; npm and npx run the npm of `mise where npm:npm` with that node. The wrappers run node itself, not the
+ * shim of mise: a shim puts the bin directory of the install, with the npm that Node.js bundles, first on the PATH of node.
+ * A mise.toml that declares no node or npm, or a mise.lock that does not pin them, fails the install of mise. Returns the path of the node wrapper.
  */
 export function installNode({ root, print = () => {} }: { root: string; print?: (text: string) => void }): string {
   const mise = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : commandPath(root, MISE_WRAPPER);
   try {
-    run(mise, ['install', '--locked', 'node'], { cwd: root, env: { ...bootstrapEnvironment(root), ...miseEnvironment(root) } }, print);
+    run(mise, ['install', '--locked', 'node', 'npm:npm'], { cwd: root, env: { ...bootstrapEnvironment(root), ...miseEnvironment(root) } }, print);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
-    throw new Error(`${error.message}; mise.toml must declare node, the Node.js release of the checkout, and mise.lock must pin it (make toolchain-lock)`, { cause: error });
+    throw new Error(`${error.message}; mise.toml must declare node and npm:npm, the Node.js and npm releases of the checkout, and mise.lock must pin them (make toolchain-lock)`, { cause: error });
   }
-  const directory = miseWhere(root, 'node');
-  const executable = nodeBinary(directory);
+  const executable = nodeBinary(miseWhere(root, 'node'));
   writeNativeWrapper(root, NODE_WRAPPER, { comment: 'the Node.js of mise.toml of this checkout', executable }, print);
+  const npmCli = path.join(miseWhere(root, 'npm:npm'), 'node_modules/npm/bin');
+  for (const [name, cli] of Object.entries(NPM_WRAPPERS)) {
+    writeNativeWrapper(root, name, { comment: `${name} of mise.toml of this checkout, run with its node`, executable, args: [path.join(npmCli, cli)] }, print);
+  }
   // npm's Windows wrapper starts node.exe directly, avoiding a nested .cmd launch and its second command-line expansion.
   return process.platform === 'win32' ? executable : commandPath(root, NODE_WRAPPER);
 }

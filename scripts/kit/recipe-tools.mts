@@ -10,7 +10,7 @@
 // is text (K179, K184). Each command of a line counts: the first word of the line and of each part after &&, ||, ;, |, ( and {, after the prefixes
 // @, - and +, $(ONLINE) and the variable assignments before the command.
 import { MISE_WRAPPER, NODE_WRAPPER } from './bootstrap/install-mise.mts';
-import { NPM_WRAPPERS } from './bootstrap/install-npm.mts';
+import { NPM_WRAPPERS } from './bootstrap/install-mise.mts';
 import { PHP_LINT_WRAPPERS } from './install-php-lint.mts';
 import { PHPUNIT_WRAPPERS } from './install-phpunit.mts';
 import { parse } from 'shell-quote';

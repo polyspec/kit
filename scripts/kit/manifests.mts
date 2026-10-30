@@ -24,7 +24,7 @@ export type NpmManifest = {
   version?: string;
   private?: boolean;
   license?: string;
-  packageManager?: string;
+  devEngines?: { packageManager?: { name?: string; version?: string; onFail?: string } };
   files?: string[];
   bin?: string | Record<string, string>;
   workspaces?: string[];

@@ -1,5 +1,5 @@
 <!-- doc-id: readme -->
-<!-- source-sha256: d5f9518fb77fe1176b0d57b4e12413ab40d515f9c0a22fffac7dfd0a805f450c -->
+<!-- source-sha256: 2049c19348a62fbcea9793efe606bb046f26dbaf510463c2c6cbe8be6033eb44 -->
 # polyspec/kit
 
 모든 polyspec 저장소가 공유하는 도구입니다. 저장소는 이를 package `@polyspec/kit`으로 설치하고, 그 `package.json`의 `kit.copies`가 나열하는
@@ -10,7 +10,7 @@
 | 관심사 | 도구(`scripts/kit/`) | make target(`scripts/kit/kit.mk`) |
 |---|---|---|
 | Vendoring | `kit-sync.mts`, `kit-check.mts` | `kit-sync`, `kit-check`, `kit-inject-check` |
-| Toolchain | bootstrap(`bootstrap/bootstrap.mts`: packageManager의 npm과 mise), `install-tools.mts`(`mise.toml`과 `mise.lock`의 `mise install --locked`, 이어서 wheel backend, Composer project, `install-rust.mts`의 Rust channel), `mise-tools.mts`, `toolchain-mise.mts`, `fetch-cargo-downloads.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock`, `cargo-downloads-fetch` |
+| Toolchain | bootstrap(`bootstrap/bootstrap.mts`: mise, 그리고 mise.toml의 node와 npm), `install-tools.mts`(`mise.toml`과 `mise.lock`의 `mise install --locked`, 이어서 wheel backend, Composer project, `install-rust.mts`의 Rust channel), `mise-tools.mts`, `toolchain-mise.mts`, `fetch-cargo-downloads.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock`, `cargo-downloads-fetch` |
 | 폴더 layout | `mise.toml`의 alint가 `config/layout.kit.yml`의 공통 rule 위에 `config/layout.yml`을 돌림 | `layout-check` |
 | Lint | `lint-python.mts`, `lint-php.mts`, `lint-rust.mts`, `lint-go.mts`, `lint-ts.mts`, 복사된 설정(docs/operations/tool-inventory.md, Lint 설정)과 `mise.toml`의 ruff, vulture, golangci-lint, deadcode, `install-php-lint.mts`의 PHP lint | `lint-python`, `lint-php`, `lint-rust`, `lint-go`, `lint-ts` |
 | Gate | `git-hooks.mts`, `generated-files.mts`, `holder-lock.mts`, `checklist.mts`, `ci-only.mts` (full suite는 CI에서만 실행), `claude-hook.mts` (vendor되는 Claude Code hook) | `hooks`, `hooks-check`, `staged-generated-hook`, `push-gate-commit` |
@@ -30,7 +30,7 @@
 ## 저장소에서 사용
 
 ```sh
-make install-tools TOOLS=npm   # install the npm of packageManager and mise with the copied bootstrap (online)
+make install-tools TOOLS=npm   # install mise, and the node and npm of mise.toml, with the copied bootstrap (online)
 make install-packages          # npm ci with that npm, @polyspec/kit included (online)
 make kit-sync                  # write the copies of the installed package, the version of package-lock.json (offline)
 make kit-inject-check          # kit-sync, then fail while a copy differs from the commit (offline, K851)

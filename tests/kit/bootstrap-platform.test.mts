@@ -52,8 +52,8 @@ test('the platform smoke installs pinned packages before SDK tools and requires 
   assert.match(workflow, /install pinned mise, Node\.js and npm[\s\S]*?install pinned Kit dependencies/);
   assert.match(workflow, /verify bootstrap is idempotent[\s\S]*?run: node scripts\/kit\/bootstrap\/verify-idempotent\.mts/);
   assert.doesNotMatch(workflow, /grep -q ['"]installing |match ['"]installing /);
-  assert.match(workflow, /var\/tools\/bin\/node var\/tools\/npm\/node_modules\/npm\/bin\/npm-cli\.js ci --ignore-scripts --allow-remote=root/);
-  assert.match(workflow, /\.\\var\\tools\\bin\\node\.cmd \.\\var\\tools\\npm\\node_modules\\npm\\bin\\npm-cli\.js ci --ignore-scripts --allow-remote=root/);
+  assert.match(workflow, /run: var\/tools\/bin\/npm ci --ignore-scripts --allow-remote=root/);
+  assert.match(workflow, /& \.\\var\\tools\\bin\\npm\.cmd ci --ignore-scripts --allow-remote=root/);
   assert.match(workflow, /install pinned Kit dependencies[\s\S]*?install pinned Go and Rust toolchains/);
   assert.match(workflow, /verify Git Bash Make uses pinned Node\.js on Windows[\s\S]*?shell: bash[\s\S]*?run: make --no-print-directory kit-check/);
   // K923: the real Go benchmark runs the go shim of mise, which reaches mise only by the PATH of kit.mk, so the step runs

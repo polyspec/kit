@@ -28,7 +28,7 @@ const PACKED: JSONSchemaType<Packed> = {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-/** The npm of packageManager, which make install-tools TOOLS=npm installs; the tests pack with it, not with a machine npm. */
+/** The npm of mise.toml, which make install-tools TOOLS=npm installs; the tests pack with it, not with a machine npm. */
 export const NPM = toolsPath(ROOT, 'bin', 'npm');
 
 /** An entry of package-lock.json of kit. */
@@ -134,7 +134,7 @@ export function builtCopy(t: { after: (fn: () => void) => void }) {
   t.after(() => rmSync(copy, { recursive: true, force: true }));
   const files = run('git', ['ls-files', '--cached', '--others', '--exclude-standard'], ROOT).split('\n').filter(Boolean);
   for (const file of files) if (existsSync(path.join(ROOT, file))) cpSync(path.join(ROOT, file), path.join(copy, file));
-  // The copy installs the packages of package-lock.json as a checkout does: npm ci of the npm of packageManager, offline,
+  // The copy installs the packages of package-lock.json as a checkout does: npm ci of the npm of mise.toml, offline,
   // from the primed cache.
   run(NPM, ['ci', '--offline', '--cache', primedCache(), '--ignore-scripts', '--no-audit', '--no-fund'], copy);
   run('make', ['--no-print-directory', 'kit-build'], copy);

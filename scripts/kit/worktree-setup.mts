@@ -2,7 +2,7 @@
 // The worktree of a row (K348, docs/operations/local-links.md, Worktrees): `make worktree-setup NAME=<name> ID=<id> [TYPE=<type>]`
 // creates the worktree `../<repository>-<name>-<id>` of the main checkout on the branch `<type>/<name>-<id>` from main and runs
 // `make install` in it, which installs its own tools, packages and links (K858); a worktree without node_modules first gets npm ci
-// of the npm that packageManager names, so a Makefile that includes kit from node_modules can run. A second run on an existing
+// of the npm that devEngines.packageManager names, so a Makefile that includes kit from node_modules can run. A second run on an existing
 // worktree of that branch installs and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
@@ -53,14 +53,15 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   const tools = path.join(main, 'var', 'tools');
   const own: NodeJS.ProcessEnv = { ...env, PATH: (env.PATH ?? '').split(path.delimiter).filter(entry => entry !== tools && !entry.startsWith(`${tools}${path.sep}`)).join(path.delimiter) };
   for (const name of ['MAKEFLAGS', 'MFLAGS', 'MAKELEVEL']) delete own[name];
-  // A consumer Makefile includes kit from node_modules, which a new worktree lacks: npm ci of the npm that packageManager names
+  // A consumer Makefile includes kit from node_modules, which a new worktree lacks: npm ci of the npm that devEngines names
   // installs it first, as the clean checkout of the CI pipeline does (release.md), and make install then runs its own.
   const manifest = path.join(folder, 'package.json');
   if (!existsSync(path.join(folder, 'node_modules')) && existsSync(path.join(folder, 'package-lock.json')) && existsSync(manifest)) {
-    const { packageManager } = readNpmManifestFile(manifest);
-    if (packageManager?.startsWith('npm@')) {
-      print(`[worktree-setup] npm ci of ${packageManager.split('+')[0]} in ${folder}`);
-      run('npm', ['exec', '--yes', `--package=${packageManager.split('+')[0]}`, '--', 'npm', 'ci', '--ignore-scripts', '--allow-remote=root'], folder, own);
+    const { devEngines } = readNpmManifestFile(manifest);
+    const npm = devEngines?.packageManager;
+    if (npm?.name === 'npm') {
+      print(`[worktree-setup] npm ci of npm@${npm.version} in ${folder}`);
+      run('npm', ['exec', '--yes', `--package=npm@${npm.version}`, '--', 'npm', 'ci', '--ignore-scripts', '--allow-remote=root'], folder, own);
     }
   }
   // make reads that include before make install links the packages, so the installed kit gets its link one step early: the provider

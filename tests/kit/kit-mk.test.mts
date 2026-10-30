@@ -53,6 +53,7 @@ test('Windows Make recipes use the Node.js selected by mise and its npm CLI, whi
   const makefile = readFileSync(KIT_MK, 'utf8');
   assert.match(makefile, /KIT_MISE_BINARY := .*mise\.exe/);
   assert.match(makefile, /KIT_NODE_DIRECTORY := \$\(shell \$\(KIT_MISE_ENVIRONMENT_ARGS\) "\$\(KIT_MISE_BINARY\)" where node\)/);
+  assert.match(makefile, /KIT_NPM_DIRECTORY := \$\(shell \$\(KIT_MISE_ENVIRONMENT_ARGS\) "\$\(KIT_MISE_BINARY\)" where npm:npm\)/);
 
   const env = { ...process.env, KIT_MISE_NODE_DIR: nodeDirectory };
   const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'unlink', 'KIT=scripts/kit', 'KIT_EXT=mts', 'OS=Windows_NT', `KIT_TOOLS=${makeTools}`], { cwd: ROOT, encoding: 'utf8', env });
@@ -77,7 +78,7 @@ test('Windows Make recipes use the Node.js selected by mise and its npm CLI, whi
 
   const runner = spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(ROOT, 'Makefile'), 'install-packages', 'OS=Windows_NT', `KIT_TOOLS=${makeTools}`], { cwd: ROOT, encoding: 'utf8', env });
   assert.equal(runner.status, 0, runner.stdout + runner.stderr);
-  assert.match(runner.stdout, /^.*node\.exe .*\/npm\/node_modules\/npm\/bin\/npm-cli\.js ci$/m);
+  assert.match(runner.stdout, /^.*node\.exe .*\/node_modules\/npm\/bin\/npm-cli\.js ci$/m);
 });
 
 test('consumer kit.mk exposes the selective symbol installer', () => {

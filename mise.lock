@@ -208,6 +208,12 @@ url = "https://nodejs.org/dist/v26.12.0/node-v26.12.0-win-arm64.zip"
 checksum = "sha256:50efaf01a08c520b4bbe499c09a8c5a5c370002c419c0d9da2c6815d3066a453"
 url = "https://nodejs.org/dist/v26.12.0/node-v26.12.0-win-x64.zip"
 
+[[tools."npm:npm"]]
+version = "12.2.0"
+aube = { path = ".mise/locks/npm-npm/12.2.0", digest = "sha256:ce704ee0a99dacc7181715a5d854470a968908ad4eed463cf838cfba38b1f027" }
+backend = "npm:npm"
+specifiers = ["12.2.0"]
+
 [[tools."pypi:vulture"]]
 version = "2.16"
 backend = "pypi:vulture"

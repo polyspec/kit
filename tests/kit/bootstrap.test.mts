@@ -16,7 +16,7 @@ const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../sc
 // The directory of the installer that the copy starts; named through import.meta.resolve, so the import graph of
 // owner-check selects this test when the installer changes (K191).
 const BOOTSTRAP = path.dirname(fileURLToPath(import.meta.resolve('../../scripts/kit/bootstrap/bootstrap.mts')));
-const MODULES = ['bootstrap', 'digest', 'files', 'install-mise', 'install-npm', 'install-tool', 'tool-wrappers', 'toolchain-declared', 'verify-idempotent'];
+const MODULES = ['bootstrap', 'digest', 'files', 'install-mise', 'install-tool', 'tool-wrappers', 'toolchain-declared', 'verify-idempotent'];
 
 test('the bootstrap modules are in scripts/kit/bootstrap, once', () => {
   assert.deepEqual(existsSync(BOOTSTRAP) ? readdirSync(BOOTSTRAP).sort() : [], MODULES.map(name => `${name}.mts`));
@@ -45,20 +45,9 @@ function copied(t: TestContext, files: Record<string, string>) {
 }
 
 test('the copied installer compares no running node and stops before any install without the mise of config/toolchain.json', (t) => {
-  const { root, run } = copied(t, { 'package.json': '{ "packageManager": "npm@12.2.0" }\n' });
+  const { root, run } = copied(t, { 'package.json': '{ "devEngines": { "packageManager": { "name": "npm", "version": "12.2.0" } } }\n' });
   assert.equal(run.status, 1, run.stdout);
   assert.equal(run.stderr, '[bootstrap] config/toolchain.json declares no mise; declare its version and the sha256 of its archive of each platform\n');
   assert.equal(existsSync(path.join(root, 'var')), false, 'the installer wrote var/');
 });
 
-test('the copied installer reads packageManager, and names it when it is missing', (t) => {
-  const { run } = copied(t, { 'package.json': '{}\n' });
-  assert.equal(run.status, 1, run.stdout);
-  assert.equal(run.stderr, '[bootstrap] package.json packageManager is "", expected npm@<major>.<minor>.<patch> or npm@<major>.<minor>.<patch>+sha512.<128 hexadecimal digits>\n');
-});
-
-test('without package.json the copied installer names package.json', (t) => {
-  const { run } = copied(t, {});
-  assert.equal(run.status, 1, run.stdout);
-  assert.equal(run.stderr, '[bootstrap] package.json is missing; its packageManager pins the npm to install\n');
-});

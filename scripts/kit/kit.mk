@@ -41,18 +41,19 @@ endif
 
 # A recipe starts the pinned tools of the checkout by absolute paths, never by bare names (K171). POSIX uses the native shell
 # wrappers. On Windows Make recipes run in Git Bash, which cannot execute a .cmd wrapper as a Bash command, so NODE is the
-# node.exe selected by mise and NPM is that NODE with the installed npm-cli.js. If the SDK is absent, ordinary recipes still point
+# node.exe selected by mise and NPM is that NODE with the npm-cli.js of the npm:npm that mise installs (K938). If the SDK is absent, ordinary recipes still point
 # into var/tools and fail; only the bootstrap target uses the machine Node.js through BOOTSTRAP_NODE (K174).
 ifeq ($(OS),Windows_NT)
 KIT_MISE_BINARY := $(KIT_TOOLS)/mise-release/mise/bin/mise.exe
 ifneq ($(wildcard $(KIT_MISE_BINARY)),)
 KIT_MISE_ENVIRONMENT_ARGS := $(foreach variable,$(MISE_ENVIRONMENT),$(variable)="$($(variable))")
 KIT_NODE_DIRECTORY := $(shell $(KIT_MISE_ENVIRONMENT_ARGS) "$(KIT_MISE_BINARY)" where node)
+KIT_NPM_DIRECTORY := $(shell $(KIT_MISE_ENVIRONMENT_ARGS) "$(KIT_MISE_BINARY)" where npm:npm)
 NODE := $(if $(KIT_NODE_DIRECTORY),$(subst \,/,$(KIT_NODE_DIRECTORY))/node.exe,$(KIT_TOOLS)/bin/node)
 else
 NODE := $(KIT_TOOLS)/bin/node
 endif
-NPM := $(NODE) $(KIT_TOOLS)/npm/node_modules/npm/bin/npm-cli.js
+NPM := $(NODE) $(subst \,/,$(KIT_NPM_DIRECTORY))/node_modules/npm/bin/npm-cli.js
 else
 NODE := $(KIT_TOOLS)/bin/node
 NPM := $(KIT_TOOLS)/bin/npm
@@ -97,7 +98,7 @@ kit-install-declared: ## Install the declared symbol extractors (install-symbols
 .PHONY: cargo-downloads-fetch
 cargo-downloads-fetch: ## Download the crates of every Cargo.lock with cargo fetch --locked
 	$(ONLINE) $(NODE) $(KIT)/fetch-cargo-downloads.$(KIT_EXT)
-# Toolchains (K8.2, K127): the bootstrap (TOOLS=npm) installs the npm of packageManager and mise; install-tools installs every
+# Toolchains (K8.2, K127): the bootstrap (TOOLS=npm) installs mise, and the node and npm of mise.toml; install-tools installs every
 # tool of mise.toml at the digests of mise.lock with mise, then what mise does not install (the wheel backend and the Composer
 # projects; the symbol extractors have their own targets, K861); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside
 # the checkout changes. A missing tool fails the target that runs it, so no target checks the installed tools (K854).

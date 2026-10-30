@@ -25,7 +25,7 @@ export function assertWorkflowPackageBootstrap(workflow: string, t: TestContext)
     mkdirSync(folder);
     const log = path.join(folder, 'npm.log');
     const cache = path.join(folder, 'cache.log');
-    writeFileSync(path.join(folder, 'package.json'), JSON.stringify({ name, packageManager: 'npm@11.14.0+sha512.fixture' }));
+    writeFileSync(path.join(folder, 'package.json'), JSON.stringify({ name, devEngines: { packageManager: { name: 'npm', version: '11.14.0' } } }));
     const result = spawnSync('bash', ['-eu', '-c', script], { cwd: folder, env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}`, BOOTSTRAP_LOG: log, BOOTSTRAP_CACHE_LOG: cache }, encoding: 'utf8' });
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
     if (name === '@polyspec/kit') assert.equal(existsSync(log), false, 'kit uses its source Makefile without installing its own published package');

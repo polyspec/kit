@@ -70,8 +70,18 @@
     "license": {
       "type": "string"
     },
-    "packageManager": {
-      "type": "string"
+    "devEngines": {
+      "type": "object",
+      "properties": {
+        "packageManager": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "version": { "type": "string" },
+            "onFail": { "type": "string" }
+          }
+        }
+      }
     },
     "files": {
       "type": "array",

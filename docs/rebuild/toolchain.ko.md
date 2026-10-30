@@ -1,5 +1,5 @@
 <!-- doc-id: rebuild-toolchain -->
-<!-- source-sha256: 2505bc6e592265cd447d6db7b636e1e79cbd038894e1bd6daf880200840fef37 -->
+<!-- source-sha256: f124bc4509b6dc201bc27de0a24238aecd9703dc522097bee6cfbb9690b3043c -->
 # 재구현 기록: toolchain
 
 [English](toolchain.md)
@@ -12,7 +12,6 @@
 
 - `scripts/kit/bootstrap/bootstrap.mts`
 - `scripts/kit/bootstrap/install-mise.mts`
-- `scripts/kit/bootstrap/install-npm.mts`
 - `scripts/kit/bootstrap/install-tool.mts`
 - `scripts/kit/bootstrap/tool-wrappers.mts`
 - `scripts/kit/bootstrap/toolchain-declared.mts`
@@ -22,7 +21,7 @@
 | 항목 | 요구사항 |
 |---|---|
 | P1 | 내려받는 도구는 모두 정확한 release와 platform별 archive의 sha256으로 고정되며, 설치는 다른 archive를 거부합니다 |
-| P2 | `packageManager`의 npm(sha512 포함)은 `npm ci` 전에 설치됩니다. 다른 npm은 lock을 다시 쓰거나 거부할 수 있기 때문입니다(S4) |
+| P2 | `mise.toml`의 `npm:npm`(`mise.lock`에 lock됨)은 `npm ci` 전에 설치됩니다. 다른 npm은 lock을 다시 쓰거나 거부할 수 있기 때문입니다(S4) |
 | P4 | Go가 없는 checkout에도 고정한 release의 Go가 설치되고, 모든 `go.mod`의 go directive는 그 release와 일치합니다 |
 | P5 | checkout 밖은 아무것도 바뀌지 않습니다. 도구와 그 cache, 설정은 `var/tools` 아래에 있습니다 |
 
@@ -38,7 +37,7 @@
 
 측정에서 찾은 빈틈과 각각의 결정:
 
-- npm은 `packageManager`의 sha512와 함께 bootstrap에 남습니다(P2).
+- npm은 mise가 `mise.toml`의 `npm:npm`으로 설치하며 `mise.lock`에 lock됩니다(P2, K938).
 - Composer는 파일 하나이므로 `mise.toml`이 `http:composer` 항목에 getcomposer.org의 `composer.phar.sha256sum`에서 가져온
   `checksum = "sha256:…"`을 선언하고, `mise.lock`이 이를 기록합니다.
 - cargo-audit은 `"github:rustsec/rustsec" = { version, version_prefix = "cargo-audit/v" }`이며, aarch64-apple-darwin과
@@ -66,6 +65,6 @@ P2는 bootstrap입니다. 고정한 npm은 npm이 어떤 package를 설치하기
 
 ## 재시도 조건
 
-P2는 npm이나 corepack이 `packageManager`의 release를 digest와 함께 설치하게 되면, mise의 설치는 mise가 lock된 package를
+P2는 mise가 lock된 package를
 내놓으면, `go:` 도구의 예외는 `mise lock`이 그 checksum을
 기록하게 되면 다시 검토합니다.

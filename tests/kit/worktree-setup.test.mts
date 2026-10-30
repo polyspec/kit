@@ -48,11 +48,11 @@ test('worktree-setup makes the worktree of a row from main, runs make install an
   assert.equal(git(main, 'worktree', 'list', '--porcelain'), listed, 'and leaves the same worktrees');
 });
 
-test('worktree-setup runs npm ci of the npm that packageManager names in a worktree without node_modules, and make without the flags of the calling make (K858)', (t) => {
+test('worktree-setup runs npm ci of the npm that devEngines.packageManager names in a worktree without node_modules, and make without the flags of the calling make (K858)', (t) => {
   // The Makefile includes a file that only npm ci writes, as a consumer includes kit from node_modules.
   const main = repository(t, {
     'Makefile': 'include node_modules/kit.mk\n',
-    'package.json': JSON.stringify({ packageManager: 'npm@12.2.0+sha512.abc' }),
+    'package.json': JSON.stringify({ devEngines: { packageManager: { name: 'npm', version: '12.2.0' } } }),
     'package-lock.json': '{}\n',
     '.gitignore': '/node_modules/\n/var/\n',
   });
@@ -72,7 +72,7 @@ test('worktree-setup links the installed kit to the kit checkout that the link d
   // npm ci installs the release copy of the lock, whose make install refuses; the live kit checkout beside the consumer passes.
   const consumer = (name: string) => repository(t, {
     'Makefile': 'include node_modules/@polyspec/kit/kit.mk\n',
-    'package.json': JSON.stringify({ name: 'consumer', packageManager: 'npm@12.2.0' }),
+    'package.json': JSON.stringify({ name: 'consumer', devEngines: { packageManager: { name: 'npm', version: '12.2.0' } } }),
     'package-lock.json': '{}\n',
     '.gitignore': '/node_modules/\n/var/\n/.links\n',
   }, name);

@@ -18,10 +18,6 @@
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"
     },
-    "scripts/kit/bootstrap/install-npm.mts": {
-      "kind": "record",
-      "record": "docs/rebuild/toolchain.md"
-    },
     "scripts/kit/bootstrap/install-tool.mts": {
       "kind": "record",
       "record": "docs/rebuild/toolchain.md"

@@ -187,12 +187,12 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   repository는 파일을 더할 수만 있고 좁힐 수 없으며, test처럼 이름 붙은 파일은 binding이 실행합니다.
   Enforced by: `make parity-declarations-check`
 - S4 버전: kit은 버전도 lock도 비교하지 않고 pin하지 않습니다. 각 package manager와 그 lock이 정합니다. 예외는 둘입니다. 하나는
-  kit의 두 bootstrap 도구(mise와 npm)의 digest로, bootstrap이 어떤 package manager보다 먼저 기준으로 검사하며 그 둘의 설치 상태는
-  그 digest만으로 판정합니다. 다른 하나는 release가 그 버전을 취하는, change log의 저장소 자신의 release heading과 release tag의
-  순서(가장 새것이 먼저)입니다. 인자의 형식 검증은 허용됩니다.
-  Enforced by: `tests/kit/install-mise.test.mts`와 `tests/kit/install-npm.test.mts`(설치 상태를 digest marker만으로 판정),
-  `tests/kit/release.test.mts`(가장 새 release tag), `make docs-check`(change log heading 순서); 다른 버전 비교는 리뷰가
-  거부합니다(K853).
+  kit의 bootstrap 도구 mise의 digest로, bootstrap이 어떤 package manager보다 먼저 기준으로 검사하며 mise의 설치 상태는 그
+  digest만으로 판정합니다. 다른 하나는 release가 그 버전을 취하는, change log의 저장소 자신의 release heading과 release tag의
+  순서(가장 새것이 먼저)입니다. 인자의 형식 검증은 허용됩니다. checkout의 npm은 mise.toml의 npm:npm이며 mise.lock에 lock되고,
+  kit은 자기 npm을 설치하지 않습니다(K938).
+  Enforced by: `tests/kit/install-mise.test.mts`(mise의 설치 상태를 digest marker만으로 판정), `tests/kit/release.test.mts`(가장 새
+  release tag), `make docs-check`(change log heading 순서); 다른 버전 비교는 리뷰가 거부합니다(K853).
 - S5 폴더: 모든 monorepo는 같은 root 폴더(`packages/`, `contracts/`, `docs/`, `scripts/`, `tests/`, `examples/`,
   `benchmarks/`, `config/`)를 가집니다. 주 spec의 runtime port는 `packages/<runtime>/`, 다른 component는
   `packages/<component>/`, 그 port는 `packages/<component>/<runtime>/`에 두며, 폴더 이름에 repository prefix를 붙이지
