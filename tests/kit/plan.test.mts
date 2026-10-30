@@ -166,6 +166,25 @@ test('item-state refuses a move that STATE_TRANSITIONS does not allow, and write
   assert.deepEqual(files(), impossible);
 });
 
+test('item-state to the state an item already has succeeds, writes nothing and runs no Verification (K937-1)', (t) => {
+  const root = plans(t, 'parser');
+  // A Verification that fails shows that the repeated move to the verifying state does not run it.
+  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(1)"`' }));
+  setState(root, { id: 'T1', state: '[~]' });
+  commitState(root, 'start');
+  const files = () => ['docs/plans/parser/checklist.md', 'docs/plans/parser/checklist.ko.md'].map(file => readFileSync(path.join(root, file), 'utf8'));
+  const active = files();
+  assert.deepEqual(setState(root, { id: 'T1', state: '[~]' }), {});
+  assert.deepEqual(files(), active);
+  const run = (state: string) => spawnSync(process.execPath, [fileURLToPath(new URL('../../scripts/kit/plan.mts', import.meta.url)), 'item-state'], { cwd: root, env: { ...process.env, ID: 'T1', STATE: state }, encoding: 'utf8' });
+  const again = run('[~]');
+  assert.equal(again.status, 0, again.stderr);
+  assert.match(again.stdout, /T1 is already \[~\]/);
+  assert.deepEqual(files(), active);
+  const refused = run('[o]');
+  assert.notEqual(refused.status, 0, 'the failing Verification refuses the done state');
+});
+
 test('item-state sets done only when the changelog of both languages holds the item, committed or not (K249-2, K808)', (t) => {
   const root = committed(t, 'T1');
   setState(root, { id: 'T1', state: '[~]' });
