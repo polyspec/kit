@@ -56,7 +56,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   writeFileSync(path.join(consumer, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   writeFileSync(path.join(consumer, 'package-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
   // The consumer declares the node of kit in mise.toml, and its mise.lock pins it as the mise.lock of kit does (K171).
-  const NPM_VERSION = KIT.devEngines.packageManager.version;
+  const NPM_VERSION = KIT.devEngines?.packageManager?.version;
+  assert.ok(NPM_VERSION, 'package.json of kit declares no devEngines npm version');
   writeFileSync(path.join(consumer, 'mise.toml'), `[tools]\nnode = "${NODE}"\n"npm:npm" = "${NPM_VERSION}"\n`);
   const kitLock = parse(readFileSync(path.join(ROOT, 'mise.lock'), 'utf8'));
   const tools = kitLock.tools;

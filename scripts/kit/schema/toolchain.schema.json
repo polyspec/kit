@@ -39,7 +39,7 @@
       }
     },
     "mise": {
-      "description": "The mise release that the bootstrap installs into var/tools/mise-release after the node and npm of mise.toml: the exact version, and the sha256 of the archive mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits. mise installs the tools of mise.toml into var/tools/mise at the digests of mise.lock.",
+      "description": "The mise release that the bootstrap installs first, into var/tools/mise-release, then with it the node and npm of mise.toml: the exact version, and the sha256 of the archive mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of each platform key (process.platform-process.arch), the digest read as 64 lowercase hexadecimal digits. mise installs the tools of mise.toml into var/tools/mise at the digests of mise.lock.",
       "type": "object",
       "required": [
         "version",

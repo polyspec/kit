@@ -37,9 +37,9 @@ test('Windows wrappers invoke native executables and pass through command argume
   });
   assert.equal(wrapper, '@echo off\r\nsetlocal\r\nrem mise of checkout\r\nset "MISE_DATA_DIR=C:\\work\\var\\tools\\mise"\r\nset "PATH=C:\\work\\var\\tools\\mise\\bin;%PATH%"\r\n"C:\\tools\\mise.exe" %*\r\nexit /b %ERRORLEVEL%\r\n');
   const npm = windowsWrapperText('npm of checkout', 'C:\\work\\var\\tools\\mise\\installs\\node\\26.12.0\\node.exe', {
-    args: ['C:\\work\\var\\tools\\npm\\node_modules\\npm\\bin\\npm-cli.js'],
+    args: ['C:\\work\\var\\tools\\mise\\installs\\npm-npm\\12.2.0\\node_modules\\npm\\bin\\npm-cli.js'],
   });
-  assert.match(npm, /"C:\\work\\var\\tools\\mise\\installs\\node\\26\.12\.0\\node\.exe" "C:\\work\\var\\tools\\npm\\node_modules\\npm\\bin\\npm-cli\.js" %\*/);
+  assert.match(npm, /"C:\\work\\var\\tools\\mise\\installs\\node\\26\.12\.0\\node\.exe" "C:\\work\\var\\tools\\mise\\installs\\npm-npm\\12\.2\.0\\node_modules\\npm\\bin\\npm-cli\.js" %\*/);
   assert.doesNotMatch(npm, /^call /m);
 });
 

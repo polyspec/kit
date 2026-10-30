@@ -30,6 +30,16 @@ test('kit.mk runs the tools of the directory and extension that KIT and KIT_EXT 
   assert.equal(dry.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/check-documents.mjs`);
 });
 
+test('Windows Make without mise points NPM under var/tools, so its recipe fails there and runs no npm of the machine (K938)', (t) => {
+  const tools = mkdtempSync(path.join(tmpdir(), 'kit-make-windows-nomise-'));
+  t.after(() => rmSync(tools, { recursive: true, force: true }));
+  const makeTools = tools.replaceAll('\\', '/');
+  const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(ROOT, 'Makefile'), 'install-packages', 'OS=Windows_NT', `KIT_TOOLS=${makeTools}`], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(dry.status, 0, dry.stdout + dry.stderr);
+  assert.match(dry.stdout, new RegExp(`^.*${escape(makeTools)}/bin/npm ci$`, 'm'), dry.stdout);
+  assert.doesNotMatch(dry.stdout, /npm-cli\.js ci$/m, 'an npm outside var/tools');
+});
+
 test('Windows Make recipes use the Node.js selected by mise and its npm CLI, which run the kit tools', (t) => {
   const tools = mkdtempSync(path.join(tmpdir(), 'kit-make-windows-sdk-'));
   t.after(() => rmSync(tools, { recursive: true, force: true }));

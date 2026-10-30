@@ -41,8 +41,8 @@ endif
 
 # A recipe starts the pinned tools of the checkout by absolute paths, never by bare names (K171). POSIX uses the native shell
 # wrappers. On Windows Make recipes run in Git Bash, which cannot execute a .cmd wrapper as a Bash command, so NODE is the
-# node.exe selected by mise and NPM is that NODE with the npm-cli.js of the npm:npm that mise installs (K938). If the SDK is absent, ordinary recipes still point
-# into var/tools and fail; only the bootstrap target uses the machine Node.js through BOOTSTRAP_NODE (K174).
+# node.exe selected by mise and NPM is that NODE with the npm-cli.js of the npm:npm that mise installs (K938). If the SDK is absent,
+# ordinary recipes still point into var/tools and fail; only the bootstrap target uses the machine Node.js through BOOTSTRAP_NODE (K174).
 ifeq ($(OS),Windows_NT)
 KIT_MISE_BINARY := $(KIT_TOOLS)/mise-release/mise/bin/mise.exe
 ifneq ($(wildcard $(KIT_MISE_BINARY)),)
@@ -50,10 +50,11 @@ KIT_MISE_ENVIRONMENT_ARGS := $(foreach variable,$(MISE_ENVIRONMENT),$(variable)=
 KIT_NODE_DIRECTORY := $(shell $(KIT_MISE_ENVIRONMENT_ARGS) "$(KIT_MISE_BINARY)" where node)
 KIT_NPM_DIRECTORY := $(shell $(KIT_MISE_ENVIRONMENT_ARGS) "$(KIT_MISE_BINARY)" where npm:npm)
 NODE := $(if $(KIT_NODE_DIRECTORY),$(subst \,/,$(KIT_NODE_DIRECTORY))/node.exe,$(KIT_TOOLS)/bin/node)
+NPM := $(NODE) $(subst \,/,$(KIT_NPM_DIRECTORY))/node_modules/npm/bin/npm-cli.js
 else
 NODE := $(KIT_TOOLS)/bin/node
+NPM := $(KIT_TOOLS)/bin/npm
 endif
-NPM := $(NODE) $(subst \,/,$(KIT_NPM_DIRECTORY))/node_modules/npm/bin/npm-cli.js
 else
 NODE := $(KIT_TOOLS)/bin/node
 NPM := $(KIT_TOOLS)/bin/npm

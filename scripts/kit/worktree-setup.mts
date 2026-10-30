@@ -60,6 +60,7 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     const { devEngines } = readNpmManifestFile(manifest);
     const npm = devEngines?.packageManager;
     if (npm?.name === 'npm') {
+      if (npm.version === undefined) throw new Error('devEngines.packageManager of package.json names npm without a version; declare the npm version there, for example "version": "12.2.0"');
       print(`[worktree-setup] npm ci of npm@${npm.version} in ${folder}`);
       run('npm', ['exec', '--yes', `--package=npm@${npm.version}`, '--', 'npm', 'ci', '--ignore-scripts', '--allow-remote=root'], folder, own);
     }

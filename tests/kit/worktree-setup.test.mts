@@ -68,6 +68,16 @@ test('worktree-setup runs npm ci of the npm that devEngines.packageManager names
   assert.equal(readFileSync(path.join(folder, 'calls.txt'), 'utf8').split('\n').length, 2, 'a worktree with node_modules gets no second npm ci');
 });
 
+test('worktree-setup refuses a devEngines.packageManager of npm without a version, naming the field, before it runs any npm (K938)', (t) => {
+  const main = repository(t, {
+    'Makefile': 'include node_modules/kit.mk\n',
+    'package.json': JSON.stringify({ devEngines: { packageManager: { name: 'npm' } } }),
+    'package-lock.json': '{}\n',
+    '.gitignore': '/node_modules/\n/var/\n',
+  });
+  assert.throws(() => setupWorktree(main, { name: 'consumer', id: 'T6', type: 'fix' }, { print: () => {} }), /devEngines\.packageManager of package\.json names npm without a version; declare the npm version there/);
+});
+
 test('worktree-setup links the installed kit to the kit checkout that the link declaration of the main checkout names before make install, as install-link does, and leaves a release copy with none (K858, K869)', (t) => {
   // npm ci installs the release copy of the lock, whose make install refuses; the live kit checkout beside the consumer passes.
   const consumer = (name: string) => repository(t, {
