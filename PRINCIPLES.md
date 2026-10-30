@@ -167,7 +167,7 @@ repository.
   checkout that differs from the tagged commit, holds a changed or untracked path, or links a dependency from outside it; it then
   deletes each declared path, runs that target in the checkout, and fails when a declared path is missing from the result or is
   tracked in Git.
-  Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`, the release pack of scripts/kit/release.mts.
+  Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`, `make release-assets`.
 - P35 Local source development does not wait for a provider release. Missing native source connections are reported as
   kit defects with their file and line; incompatible dependency requirements are corrected in the application's native
   declarations. Release installs use the exact released graph of their locks, independently of development source state.

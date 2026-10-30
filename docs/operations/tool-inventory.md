@@ -78,8 +78,8 @@ as an exec wrapper with the absolute path, never a link, before the Composer ins
 missing. Kit judges no install: PHP itself refuses to load an extension built for another install. No php on PATH
 fails with `php is not on PATH`.
 
-For a repository with `packages/php-ext`, no install step writes the arginfo header: the build runs the `gen_stub.php` that phpize copies from the PHP build directory into `build/` of the extension source, after phpize and before configure (K930, K941; `php-config --prefix` names no build directory on Ubuntu), and that tool may fetch its own pinned PHP-Parser once into the PHP build directory. P35 covers repository lock graphs, not a tool's internal fetch. A PHP library without an extension needs no extension development tools. The shared `kit.mk` exposes `make kit-install-symbols EXTRACTORS="go"` or `EXTRACTORS="php"` for one declared parity extractor; install the corresponding pinned tools first with `make install-tools TOOLS="php composer"` or `TOOLS=go`. The target calls the existing pinned installer, and `EXTRACTORS` must be present in `config/toolchain.json symbolExtractors`.
-The build runs the generator in a temporary source copy and publishes only the module, so kit compares no generator version (K930). The build fails when the PHP build directory holds no `gen_stub.php`.
+For a repository with `packages/php-ext`, no install step writes the arginfo header: the build runs the `gen_stub.php` that phpize copies from the PHP build directory into `build/` of the extension source, after phpize and before configure (K930, K941; `php-config --prefix` names no build directory on Ubuntu), and that tool fetches its own pinned PHP-Parser into that `build/` when it is absent, so each build fetches it again. P35 covers repository lock graphs, not a tool's internal fetch. A PHP library without an extension needs no extension development tools. The shared `kit.mk` exposes `make kit-install-symbols EXTRACTORS="go"` or `EXTRACTORS="php"` for one declared parity extractor; install the corresponding pinned tools first with `make install-tools TOOLS="php composer"` or `TOOLS=go`. The target calls the existing pinned installer, and `EXTRACTORS` must be present in `config/toolchain.json symbolExtractors`.
+The build runs the generator in a temporary source copy and publishes only the module, so kit compares no generator version (K930). The build fails when phpize did not copy `build/gen_stub.php` into the source.
 Composer release archives declare generated headers by stub and output path. Release assets generate them from the tagged stub,
 then append the staged file with Info-ZIP (`zip`) using stored entries, mode 0644 and the commit timestamp; `make release-assets`
 fails early with installation guidance when `zip` is missing. The Ubuntu release workflow checks that its runner provides `zip`
@@ -868,7 +868,7 @@ Left as it is, with the reason:
   setup starts; a missing target fails with a fix. ci-setup refuses nothing that a package manager, a target or parity-check
   judges itself (K860).
   PHP runtime jobs select the declared PHP and Composer tools. PHP extension jobs select those prerequisites and, when
-  `packages/php-ext` exists, no install step precedes lint/build/test, since the build runs the `gen_stub.php` of its PHP. Extension tests use PHPUnit installed
+  `packages/php-ext` exists, no install step precedes lint/build/test, since the build runs the `gen_stub.php` that phpize copies into `build/` of the source. Extension tests use PHPUnit installed
   with their Composer package, so Kit's private PHPUnit declaration is not required. PHP parity selection includes Composer
   when its runner needs it. A consumer with a nonempty PHP setup list must include every Composer project it needs, including
   root and package projects.

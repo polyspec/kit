@@ -227,14 +227,6 @@ export function newestReleaseTag(ctx: Context, reachable: boolean): string | und
   return tags[0];
 }
 
-/** Whether the release version `a` is greater than `b`, both X.Y.Z (K941). */
-export function greaterRelease(a: string, b: string): boolean {
-  const left = a.split('.').map(Number);
-  const right = b.split('.').map(Number);
-  for (let index = 0; index < 3; index += 1) if ((left[index] ?? 0) !== (right[index] ?? 0)) return (left[index] ?? 0) > (right[index] ?? 0);
-  return false;
-}
-
 /** The version X.Y.Z of the release tag vX.Y.Z. */
 export function parseTag(tag: string): string {
   const found = TAG.exec(tag);

@@ -74,8 +74,8 @@ PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862). `.php-version
 실패합니다. kit은 설치를 판정하지 않습니다. 다른 설치용으로 빌드된 extension은 PHP 자신이 로드를 거부합니다. PATH에 php가 없으면
 `php is not on PATH`로 실패합니다.
 
-`packages/php-ext`가 있는 저장소에서는 설치 단계가 arginfo header를 쓰지 않습니다. build는 phpize 뒤에 phpize가 PHP build 디렉터리에서 extension source의 `build/`로 복사한 `gen_stub.php`를 실행합니다(K930, K941; Ubuntu의 `php-config --prefix`에는 build 디렉터리가 없습니다). 이 도구는 필요한 고정 PHP-Parser를 PHP build 디렉터리에 한 번 내려받을 수 있습니다. P35는 저장소의 lock graph를 다루며 도구 내부의 fetch는 다루지 않습니다. extension이 없는 PHP library는 extension 개발 도구가 필요하지 않습니다. 공유 `kit.mk`는 선언된 parity extractor 하나를 `make kit-install-symbols EXTRACTORS="go"` 또는 `EXTRACTORS="php"`로 설치합니다. 먼저 대응하는 고정 도구를 `make install-tools TOOLS="php composer"` 또는 `TOOLS=go`로 설치하며, `EXTRACTORS`는 `config/toolchain.json symbolExtractors`에 있어야 합니다.
-build는 임시 source 사본에서 generator를 실행하고 module만 게시하므로, kit은 generator 버전을 비교하지 않습니다(K930). PHP build 디렉터리에 `gen_stub.php`가 없으면 build가 실패합니다.
+`packages/php-ext`가 있는 저장소에서는 설치 단계가 arginfo header를 쓰지 않습니다. build는 phpize 뒤에 phpize가 PHP build 디렉터리에서 extension source의 `build/`로 복사한 `gen_stub.php`를 실행합니다(K930, K941; Ubuntu의 `php-config --prefix`에는 build 디렉터리가 없습니다). 이 도구는 없으면 그 `build/`에 필요한 고정 PHP-Parser를 내려받으므로 build마다 다시 내려받습니다. P35는 저장소의 lock graph를 다루며 도구 내부의 fetch는 다루지 않습니다. extension이 없는 PHP library는 extension 개발 도구가 필요하지 않습니다. 공유 `kit.mk`는 선언된 parity extractor 하나를 `make kit-install-symbols EXTRACTORS="go"` 또는 `EXTRACTORS="php"`로 설치합니다. 먼저 대응하는 고정 도구를 `make install-tools TOOLS="php composer"` 또는 `TOOLS=go`로 설치하며, `EXTRACTORS`는 `config/toolchain.json symbolExtractors`에 있어야 합니다.
+build는 임시 source 사본에서 generator를 실행하고 module만 게시하므로, kit은 generator 버전을 비교하지 않습니다(K930). phpize가 source의 `build/`에 `gen_stub.php`를 복사하지 않았으면 build가 실패합니다.
 Composer release archive는 generated header를 stub/output 경로로 선언합니다. Release asset은 tag의 stub에서 header를 만들고
 staged file을 Info-ZIP(`zip`)으로 추가하며, stored entry, mode 0644, commit timestamp를 고정합니다. `zip`이 없으면
 `make release-assets`가 먼저 설치 안내와 함께 실패하며, Ubuntu release workflow는 asset build 전에 runner의 `zip` 제공 여부를 확인합니다.
@@ -791,7 +791,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   정의할 target 이름과 함께 실패합니다(K859). 추적된 source 파일에 있는 runtime만 setup합니다. 실행 전 모든 선언 target을 Make database와 대조합니다. 없는 target은
   수정 안내와 함께 실패합니다. ci-setup은 package manager, target, parity-check가 스스로 판정하는 것을 거부하지 않습니다(K860).
   PHP runtime job은 선언된 PHP와 Composer 도구를 선택합니다. `packages/php-ext`가 있으면 PHP extension job도 이 도구를
-  선택하고 lint/build/test 전에 설치 단계가 필요 없습니다. build가 PHP의 `gen_stub.php`를 실행합니다. Extension test는 Composer package에 설치된
+  선택하고 lint/build/test 전에 설치 단계가 필요 없습니다. build는 phpize가 `build/`에 복사한 `gen_stub.php`를 실행합니다. Extension test는 Composer package에 설치된
   PHPUnit을 사용하므로 Kit의 private PHPUnit 선언은 필요하지 않습니다. PHP parity runner가 Composer를 쓰면 parity 도구에도
   Composer를 포함합니다. PHP setup 목록을 직접 지정하는 소비 저장소는 root와 package를 포함해 필요한 Composer project를
   모두 나열해야 합니다.
