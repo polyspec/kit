@@ -69,7 +69,9 @@ test('the CI pipeline partitions every kit-gates target across shared, parity an
   const enforced = read('PRINCIPLES.md').split('\n').filter(line => line.trim().startsWith('Enforced by:')).join('\n');
   const named = new Set([...enforced.matchAll(/`make ([a-z0-9-]+)`/g)].map(match => match[1]));
   assert.ok(named.size > 10, 'the rules of PRINCIPLES.md name their checks');
-  for (const target of named) assert.ok(gates.has(target ?? ''), `kit-gates runs make ${target}`);
+  // A check that only a release runs is in release.yml, which no merge gate runs; every other named check is a kit-gates target (K941-1).
+  const released = new Set([...read('.github/workflows/release.yml').matchAll(/run: make ([a-z0-9-]+)/g)].map(match => match[1] ?? ''));
+  for (const target of named) assert.ok(gates.has(target ?? '') || released.has(target ?? ''), `kit-gates or release.yml runs make ${target}`);
 });
 
 test('kit ships the CI pipeline with its npm package and copies it in place of the gates workflow (K270, K614, K910)', () => {
