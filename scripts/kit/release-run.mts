@@ -2,7 +2,7 @@
 import { isMain, repositoryRoot } from './paths.mts';
 import { appendFileSync } from 'node:fs';
 import semver from 'semver';
-import { candidateAssets, CONFIG, context, createTags, MAIN, newestReleaseTag, parseTag, releasedVersion, taggedRelease, type CommandOptions, type Context } from './release.mts';
+import { candidateAssets, CONFIG, context, createTags, hasUnreleasedEntries, MAIN, newestReleaseTag, parseTag, releasedVersion, taggedRelease, topVersion, type CommandOptions, type Context } from './release.mts';
 import { repositoryParts } from './github-release.mts';
 import { execute, run, Stop } from './process.mts';
 
@@ -49,8 +49,14 @@ export function prepare(ctx: Context, version: string): { sha: string; assets: s
  * successful push or workflow_dispatch run of .github/workflows/ci.yml on main, its commit is on origin/main, the version is the
  * newest section ## X.Y.Z of the change log of that commit, whose ## Unreleased holds no entry, and createTags puts vX.Y.Z and the
  * tag of every Go module that config/release.json of that commit declares there. Returns the version and what it did per tag.
+ *
+ * With `auto`, the run started the release by itself, as the workflow_run of a green push run of CI does (K987), so the commit
+ * releases only when it is the version commit of the top ## X.Y.Z of its change log: a commit whose top version is tagged at
+ * another commit has nothing to release, and a top version that is not tagged and not released by this commit, as when the run of
+ * its version commit was replaced or the version commit was not the tip of its push, fails and names that commit, since a version
+ * that never releases is no state to pass over.
  */
-export function tagRun(ctx: Context, runId: number): { version: string; lines: string[] } {
+export function tagRun(ctx: Context, runId: number, auto = false): { version: string; lines: string[]; release: boolean } {
   if (!Number.isSafeInteger(runId) || runId < 1) throw new Stop(`CI run id ${runId} is not a positive integer`);
   const { repo } = repositoryParts(ctx.config.repositoryUrl);
   const repository = ctx.env.GITHUB_REPOSITORY;
@@ -67,16 +73,81 @@ export function tagRun(ctx: Context, runId: number): { version: string; lines: s
   const show = (file: string) => run('git', ['show', `${commit}:${file}`], { cwd: ctx.root, env: ctx.env });
   const tagged = { ...ctx, config: { ...ctx.config, ...taggedRelease(show(CONFIG), `${CONFIG} at ${commit}`) } };
   const { changelog } = tagged.config;
+  if (auto) {
+    const decided = autoDecision(ctx, commit, changelog, runId, repo);
+    if (decided !== undefined) return decided;
+  }
   const version = releasedVersion(show(changelog), `${changelog} at ${commit}`);
   // A release is newer than every release tag of the repository (K941); a tag that already exists is left to createTags, which
   // passes it at the same commit and refuses it elsewhere.
   const newest = newestReleaseTag(tagged, false);
   const exists = execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/v${version}`], { cwd: ctx.root, env: ctx.env }).status === 0;
   if (newest !== undefined && !exists && !semver.gt(version, parseTag(newest))) throw new Stop(`v${version} is not greater than the latest release tag ${newest}; a release is newer than every release tag`);
-  return { version, lines: createTags(tagged, version, commit) };
+  return { version, lines: createTags(tagged, version, commit), release: true };
 }
 
-const USAGE = 'usage: node scripts/kit/release-run.mts prepare VERSION | tag CI_RUN_ID';
+/** The commit of the tag `tag`, or undefined when the repository has no such tag. */
+function tagCommit(ctx: Context, tag: string): string | undefined {
+  const found = execute('git', ['rev-parse', '--verify', '--quiet', `refs/tags/${tag}^{commit}`], { cwd: ctx.root, env: ctx.env });
+  return found.status === 0 ? found.stdout.trim() : undefined;
+}
+
+/** The change log `file` at `commit`, or undefined when the commit has no such file. */
+function changelogAt(ctx: Context, commit: string, file: string): string | undefined {
+  const shown = execute('git', ['show', `${commit}:${file}`], { cwd: ctx.root, env: ctx.env });
+  return shown.status === 0 ? shown.stdout : undefined;
+}
+
+/**
+ * The version commit of `version` at or below `commit` on its first-parent line: the newest commit whose change log has `version`
+ * at its top while that of its first parent has another top, or no change log.
+ */
+function versionCommit(ctx: Context, commit: string, file: string, version: string): string {
+  const line = run('git', ['rev-list', '--first-parent', commit, '--', file], { cwd: ctx.root, env: ctx.env }).split('\n').filter(Boolean);
+  for (const candidate of line) {
+    const parent = execute('git', ['rev-parse', '--verify', '--quiet', `${candidate}^1`], { cwd: ctx.root, env: ctx.env });
+    const before = parent.status === 0 ? changelogAt(ctx, parent.stdout.trim(), file) : undefined;
+    if ((before === undefined ? undefined : topVersion(before)) !== version) return candidate;
+  }
+  throw new Stop(`no commit of the first-parent history of ${commit} adds ## ${version} to ${file}`);
+}
+
+/**
+ * The decision of a release that the run started by itself (K987), from the change log `file` at `commit`, with the one parser of
+ * the change log: undefined when the commit releases its top version, as a dispatch does; otherwise the result of nothing to
+ * release, or a Stop that names the version commit that did not release.
+ */
+function autoDecision(ctx: Context, commit: string, file: string, runId: number, repo: string): { version: string; lines: string[]; release: boolean } | undefined {
+  const text = run('git', ['show', `${commit}:${file}`], { cwd: ctx.root, env: ctx.env });
+  const version = topVersion(text);
+  if (version === undefined) return { version: '', lines: [`nothing to release: ${file} at ${commit} has no section ## X.Y.Z`], release: false };
+  const nothing = (why: string) => ({ version, lines: [`nothing to release: ${why}`], release: false });
+  const tagged = tagCommit(ctx, `v${version}`);
+  if (tagged === commit) {
+    // A second run of the version commit after its release is public has nothing to release; a re-run of a release that failed
+    // after its tag, which left no public release, runs the release again.
+    const draft = execute('gh', ['api', `repos/${repo}/releases/tags/v${version}`, '--jq', '.draft'], { cwd: ctx.root, env: ctx.env });
+    if (draft.status === 0 && draft.stdout.trim() === 'false') return nothing(`v${version} is the tag of ${commit} and its release is public already`);
+    return undefined;
+  }
+  if (tagged !== undefined) {
+    // The tag on the line of the commit, before it or after it, released the top version.
+    const onLine = (ancestor: string, descendant: string) => execute('git', ['merge-base', '--is-ancestor', ancestor, descendant], { cwd: ctx.root, env: ctx.env }).status === 0;
+    if (onLine(tagged, commit) || onLine(commit, tagged)) return nothing(`v${version}, the top version of ${file} at ${commit}, is the tag of ${tagged}`);
+    throw new Stop(`v${version}, the top version of ${file} at ${commit}, is the tag of ${tagged}, which is not on the line of ${commit}; give the release a version of its own`);
+  }
+  const origin = versionCommit(ctx, commit, file, version);
+  if (origin === commit && !hasUnreleasedEntries(text)) return undefined;
+  if (origin === commit) throw new Stop(`v${version} is not released: ${file} at ${commit} has entries under ## Unreleased; the version commit moves every entry into the section of the version`);
+  // The CI run of the version commit may still run, as a later push can finish first: its success then releases it.
+  const runs = run('gh', ['api', `repos/${repo}/actions/workflows/ci.yml/runs?head_sha=${origin}&branch=main`, '--jq', '[.workflow_runs[].status]'], { cwd: ctx.root, env: ctx.env });
+  const statuses: unknown = JSON.parse(runs);
+  if (!Array.isArray(statuses)) throw new Stop(`GitHub returned no list of the CI runs of ${origin}: ${runs.trim()}`);
+  if (statuses.some(status => status !== 'completed')) return nothing(`v${version} waits for the CI run of its version commit ${origin}, whose success releases it`);
+  throw new Stop(`v${version} is not released: the green CI run ${runId} is of ${commit}, not of the version commit ${origin}, and no CI run of ${origin} released it; dispatch release.yml with a green CI run of ${origin}, or of a later commit of main whose ## Unreleased is empty`);
+}
+
+const USAGE = 'usage: node scripts/kit/release-run.mts prepare VERSION | tag CI_RUN_ID [--auto]';
 
 export function main(argv: string[], { root = repositoryRoot(), env = process.env, print = console.log, error = console.error }: CommandOptions = {}): number {
   const [mode, value, extra, ...rest] = argv;
@@ -91,13 +162,15 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
       return 1;
     }
   }
-  // tag takes the CI run id alone; the version is the section of the change log of the run's commit (K924).
-  if (mode === 'tag' && value && !extra && rest.length === 0) {
+  // tag takes the CI run id, and --auto when the run started the release by itself (K987); the version is the section of the
+  // change log of the run's commit (K924).
+  if (mode === 'tag' && value && (extra === undefined || extra === '--auto') && rest.length === 0) {
     try {
-      const tagged = tagRun(context(root, { env }), Number(value));
+      const tagged = tagRun(context(root, { env }), Number(value), extra === '--auto');
       for (const line of tagged.lines) print(`[release-run] ${line}`);
-      // The steps after release-tag read the tag from the environment of the job (workflows/release.yml).
-      if (env.GITHUB_ENV) appendFileSync(env.GITHUB_ENV, `TAG=v${tagged.version}\nVERSION=${tagged.version}\n`);
+      // The steps after release-tag read the tag from the environment of the job (workflows/release.yml); with nothing to release
+      // no TAG is written, and they are skipped.
+      if (env.GITHUB_ENV && tagged.release) appendFileSync(env.GITHUB_ENV, `TAG=v${tagged.version}\nVERSION=${tagged.version}\n`);
       return 0;
     } catch (failure) {
       error(`[release-run] ${mode} ${value} failed: ${failure instanceof Error ? failure.message : String(failure)}`);

@@ -23,7 +23,9 @@ function runBox(t: Parameters<typeof releaseSandbox>[0], run: (commit: string) =
   git(box.root, 'remote', 'add', 'origin', remote);
   git(box.root, 'push', '--quiet', 'origin', 'main');
   const bin = path.join(box.root, '.stubs/bin');
-  writeFileSync(path.join(bin, 'gh'), '#!/usr/bin/env node\nconsole.log(process.env.RELEASE_RUN_RESPONSE ?? "{}");\n');
+  // The runs of a commit (K987) answer RELEASE_RUNS_RESPONSE, the statuses that --jq selects; one run answers RELEASE_RUN_RESPONSE.
+  // The release of a tag answers RELEASE_TAG_RESPONSE, its draft field, and fails as gh does for no release when it is unset.
+  writeFileSync(path.join(bin, 'gh'), '#!/usr/bin/env node\nconst tag = process.argv.some(arg => arg.includes("/releases/tags/"));\nif (tag && process.env.RELEASE_TAG_RESPONSE === undefined) process.exit(1);\nconsole.log(tag ? process.env.RELEASE_TAG_RESPONSE : process.argv.some(arg => arg.includes("/runs?")) ? (process.env.RELEASE_RUNS_RESPONSE ?? "[]") : (process.env.RELEASE_RUN_RESPONSE ?? "{}"));\n');
   chmodSync(path.join(bin, 'gh'), 0o755);
   return { box, remote, env: { ...box.env, GITHUB_REPOSITORY: 'polyspec/kit-fixture', RELEASE_RUN_RESPONSE: JSON.stringify(run(box.commit)) } };
 }
@@ -196,4 +198,97 @@ test('release-tag refuses a failed run, a commit off main and another repository
   assert.equal(other.result, 1);
   assert.match(other.errors.join('\n'), /does not match config\/release\.json repository/);
   assert.equal(tagRun(off.box.root, off.env, ['publish', '0.0.1', 'a'.repeat(40), '91']).result, 2, 'make release is gone; only prepare and tag remain');
+});
+
+// K987: a green push run of CI starts the release by itself (release-tag --auto); only the version commit of the top ## X.Y.Z
+// releases, a commit whose top version is tagged at another commit has nothing to release and ends green, and a top version that no
+// run released, as when the run of its version commit was replaced or the version commit was not the tip of its push, fails and
+// names the version commit.
+test('release-tag --auto releases the version commit and hands the tag on, runs a release again that left no public release, and passes a second run after a public one (K987)', (t) => {
+  const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
+  const folder = mkdtempSync(path.join(tmpdir(), 'kit-release-env-'));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const githubEnv = path.join(folder, 'env');
+  writeFileSync(githubEnv, '');
+  const run = tagRun(box.root, { ...env, GITHUB_ENV: githubEnv }, ['tag', '91', '--auto']);
+  assert.equal(run.result, 0, run.errors.join('\n'));
+  assert.equal(git(box.root, 'rev-parse', 'refs/tags/v0.0.1^{commit}'), box.commit);
+  assert.equal(readFileSync(githubEnv, 'utf8'), 'TAG=v0.0.1\nVERSION=0.0.1\n');
+  // A re-run of a release that failed after its tag, with no release or a draft, runs the release again.
+  for (const response of [undefined, 'true']) {
+    writeFileSync(githubEnv, '');
+    const rerun = tagRun(box.root, { ...env, GITHUB_ENV: githubEnv, ...(response === undefined ? {} : { RELEASE_TAG_RESPONSE: response }) }, ['tag', '91', '--auto']);
+    assert.equal(rerun.result, 0, rerun.errors.join('\n'));
+    assert.equal(readFileSync(githubEnv, 'utf8'), 'TAG=v0.0.1\nVERSION=0.0.1\n', `a release that is ${response === undefined ? 'missing' : 'a draft'} runs again`);
+  }
+  // A second green run after the release is public releases nothing: its publish would fail.
+  writeFileSync(githubEnv, '');
+  const again = tagRun(box.root, { ...env, GITHUB_ENV: githubEnv, RELEASE_TAG_RESPONSE: 'false' }, ['tag', '91', '--auto']);
+  assert.equal(again.result, 0, again.errors.join('\n'));
+  assert.match(again.lines.join('\n'), /nothing to release: v0\.0\.1 is the tag of [0-9a-f]{40} and its release is public already/);
+  assert.equal(readFileSync(githubEnv, 'utf8'), '');
+});
+
+test('release-tag --auto ends green with nothing to release for a commit whose top version is tagged at another commit (K987)', (t) => {
+  const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
+  assert.equal(tagRun(box.root, env, ['tag', '91', '--auto']).result, 0);
+  writeFileSync(path.join(box.root, 'CHANGELOG.md'), readFileSync(path.join(box.root, 'CHANGELOG.md'), 'utf8').replace('## Unreleased\n', '## Unreleased\n\n- A change after the release.\n'));
+  git(box.root, 'commit', '--quiet', '-am', 'an ordinary change');
+  git(box.root, 'push', '--quiet', 'origin', 'main');
+  const head = git(box.root, 'rev-parse', 'HEAD');
+  const folder = mkdtempSync(path.join(tmpdir(), 'kit-release-env-'));
+  t.after(() => rmSync(folder, { recursive: true, force: true }));
+  const githubEnv = path.join(folder, 'env');
+  writeFileSync(githubEnv, '');
+  const run = tagRun(box.root, { ...env, GITHUB_ENV: githubEnv, RELEASE_RUN_RESPONSE: JSON.stringify(candidate({ head_sha: head })) }, ['tag', '91', '--auto']);
+  assert.equal(run.result, 0, run.errors.join('\n'));
+  assert.match(run.lines.join('\n'), new RegExp(`nothing to release: v0\\.0\\.1, the top version of CHANGELOG\\.md at ${head}, is the tag of ${box.commit}`));
+  assert.equal(readFileSync(githubEnv, 'utf8'), '', 'no tag is handed to the next steps');
+});
+
+test('release-tag --auto fails and names the version commit when its run was replaced or it was not the tip of its push (K987)', (t) => {
+  for (const later of ['a plan-only commit after the version commit', 'an ordinary change after an unreleased version']) {
+    const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
+    if (later.startsWith('a plan')) git(box.root, 'commit', '--quiet', '--allow-empty', '-m', later);
+    else {
+      writeFileSync(path.join(box.root, 'CHANGELOG.md'), readFileSync(path.join(box.root, 'CHANGELOG.md'), 'utf8').replace('## Unreleased\n', '## Unreleased\n\n- A change.\n'));
+      git(box.root, 'commit', '--quiet', '-am', later);
+    }
+    git(box.root, 'push', '--quiet', 'origin', 'main');
+    const head = git(box.root, 'rev-parse', 'HEAD');
+    const refused = tagRun(box.root, { ...env, RELEASE_RUN_RESPONSE: JSON.stringify(candidate({ head_sha: head })) }, ['tag', '91', '--auto']);
+    assert.equal(refused.result, 1, later);
+    assert.match(refused.errors.join('\n'), new RegExp(`v0\\.0\\.1 is not released: the green CI run 91 is of ${head}, not of the version commit ${box.commit}, and no CI run of ${box.commit} released it; dispatch release\\.yml with a green CI run of ${box.commit}`), later);
+    assert.equal(git(box.root, 'tag', '--list'), '', later);
+    // While the CI run of the version commit still runs, a later push that finished first waits for it, green.
+    const waiting = tagRun(box.root, { ...env, RELEASE_RUN_RESPONSE: JSON.stringify(candidate({ head_sha: head })), RELEASE_RUNS_RESPONSE: '["in_progress"]' }, ['tag', '91', '--auto']);
+    assert.equal(waiting.result, 0, waiting.errors.join('\n'));
+    assert.match(waiting.lines.join('\n'), new RegExp(`nothing to release: v0\\.0\\.1 waits for the CI run of its version commit ${box.commit}`), later);
+  }
+});
+
+test('release-tag --auto fails for a version commit with unreleased entries or a version tagged off its line, and passes a change log without a version (K987)', (t) => {
+  const entries = runBox(t, commit => candidate({ head_sha: commit }), { changelog: '# Changelog\n\n## Unreleased\n\n- A change.\n\n## 0.0.1\n\n- The first entry of 0.0.1.\n' });
+  const refused = tagRun(entries.box.root, entries.env, ['tag', '91', '--auto']);
+  assert.equal(refused.result, 1);
+  assert.match(refused.errors.join('\n'), /v0\.0\.1 is not released: CHANGELOG\.md at [0-9a-f]{40} has entries under ## Unreleased/);
+  const unversioned = runBox(t, commit => candidate({ head_sha: commit }), { changelog: '# Changelog\n\n## Unreleased\n\n- A change.\n' });
+  const none = tagRun(unversioned.box.root, unversioned.env, ['tag', '91', '--auto']);
+  assert.equal(none.result, 0, none.errors.join('\n'));
+  assert.match(none.lines.join('\n'), /nothing to release: CHANGELOG\.md at [0-9a-f]{40} has no section ## X\.Y\.Z/);
+  const off = runBox(t, commit => candidate({ head_sha: commit }));
+  git(off.box.root, 'checkout', '--quiet', '--orphan', 'side');
+  git(off.box.root, 'commit', '--quiet', '--allow-empty', '-m', 'side');
+  git(off.box.root, 'tag', 'v0.0.1');
+  git(off.box.root, 'checkout', '--quiet', 'main');
+  const elsewhere = tagRun(off.box.root, off.env, ['tag', '91', '--auto']);
+  assert.equal(elsewhere.result, 1);
+  // A tag on a later commit of the line, as a dispatch of a later green run gives, released the version.
+  const later = runBox(t, commit => candidate({ head_sha: commit }));
+  git(later.box.root, 'commit', '--quiet', '--allow-empty', '-m', 'later');
+  git(later.box.root, 'tag', 'v0.0.1');
+  const descendant = tagRun(later.box.root, later.env, ['tag', '91', '--auto']);
+  assert.equal(descendant.result, 0, descendant.errors.join('\n'));
+  assert.match(descendant.lines.join('\n'), /nothing to release: v0\.0\.1, the top version of CHANGELOG\.md at [0-9a-f]{40}, is the tag of/);
+  assert.match(elsewhere.errors.join('\n'), /v0\.0\.1, the top version of CHANGELOG\.md at [0-9a-f]{40}, is the tag of [0-9a-f]{40}, which is not on the line of/);
 });

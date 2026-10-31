@@ -266,16 +266,25 @@ export function createTags(ctx: Context, version: string, commit: string): strin
  * with an entry under ## Unreleased holds a change that the release would not carry.
  */
 export function releasedVersion(text: string, file: string): string {
-  const heading = headings(text).find(item => item.depth === 2 && EXACT_VERSION.test(item.title));
-  if (!heading) throw new Stop(`${file} has no section ## X.Y.Z; the version-bump commit renames ## Unreleased to the version it releases`);
+  const version = topVersion(text);
+  if (version === undefined) throw new Stop(`${file} has no section ## X.Y.Z; the version-bump commit renames ## Unreleased to the version it releases`);
+  if (hasUnreleasedEntries(text)) throw new Stop(`${file} has unreleased entries; the version-bump commit moves every entry of ## Unreleased into the section of the version`);
+  return version;
+}
+
+/** The title of the first level-2 heading of the change log `text` that is X.Y.Z, the newest version it records, or undefined. */
+export function topVersion(text: string): string | undefined {
+  return headings(text).find(item => item.depth === 2 && EXACT_VERSION.test(item.title))?.title;
+}
+
+/** Whether the ## Unreleased section of the change log `text` holds an entry; an anchor line alone is none. */
+export function hasUnreleasedEntries(text: string): boolean {
   const unreleased = headings(text).find(item => item.depth === 2 && item.title === 'Unreleased');
-  if (unreleased) {
-    const lines = text.split('\n');
-    const next = headings(text).find(item => item.line > unreleased.line && item.depth <= 2);
-    const body = lines.slice(unreleased.endLine, next ? next.line - 1 : lines.length).map(line => line.trim());
-    if (body.some(line => line && !/^<a id="[^"]*"><\/a>$/.test(line))) throw new Stop(`${file} has unreleased entries; the version-bump commit moves every entry of ## Unreleased into the section of the version`);
-  }
-  return heading.title;
+  if (!unreleased) return false;
+  const lines = text.split('\n');
+  const next = headings(text).find(item => item.line > unreleased.line && item.depth <= 2);
+  const body = lines.slice(unreleased.endLine, next ? next.line - 1 : lines.length).map(line => line.trim());
+  return body.some(line => line && !/^<a id="[^"]*"><\/a>$/.test(line));
 }
 
 /**

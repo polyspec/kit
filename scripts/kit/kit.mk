@@ -379,9 +379,9 @@ release-tools-path: ## Append var/tools/bin and the shims of mise to GITHUB_PATH
 	@echo "$(KIT_TOOLS)/bin" >> "$$GITHUB_PATH"
 	@for name in $(MISE_ENVIRONMENT); do echo "$$name=$$(printenv $$name)"; done >> "$$GITHUB_ENV"
 
-release-tag: ## Create and push the annotated tag vX.Y.Z, X.Y.Z the newest section of the change log, and the tag <directory>/vX.Y.Z of every Go module at the commit of the successful CI run RUN of ci.yml on main, or pass for a tag there already, and append TAG and VERSION to GITHUB_ENV when it is set (K269, K911, K924); reads the run with gh
+release-tag: ## Create and push the annotated tag vX.Y.Z, X.Y.Z the newest section of the change log, and the tag <directory>/vX.Y.Z of every Go module at the commit of the successful CI run RUN of ci.yml on main, or pass for a tag there already, and append TAG and VERSION to GITHUB_ENV when it is set (K269, K911, K924); with AUTO, as the workflow_run of a green CI starts it, only the version commit of the top version releases, a commit whose top version is tagged elsewhere passes with nothing to release, and any other fails naming the version commit (K987); reads the run with gh
 	@test -n "$$RUN" || { echo "release-tag: RUN is required, for example make release-tag RUN=123"; exit 1; }
-	$(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$RUN"
+	$(NODE) $(KIT)/release-run.$(KIT_EXT) tag "$$RUN"$(if $(AUTO), --auto)
 
 release-assets: ## Build the archive of every package of TAG, and packages.json of its Composer packages (K871), into var/release/assets; ONLINE, since uv build installs the build-system.requires of a wheel package
 	@test -n "$$TAG" || { echo "release-assets: TAG is required, for example make release-assets TAG=v0.0.1"; exit 1; }

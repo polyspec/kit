@@ -5,7 +5,7 @@ import { spawnSync } from 'node:child_process';
 import { symlinkSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { check } from '../../scripts/kit/kit-check.mts';
+import { check, ciNameFinding } from '../../scripts/kit/kit-check.mts';
 import { tree } from './tree.mts';
 
 test('kit-check reads the configuration only: a tracked link, a target of its own name and an old config pass (K810)', (t) => {
@@ -23,4 +23,13 @@ test('kit-check reads the configuration only: a tracked link, a target of its ow
 test('kit-check fails on a configuration that breaks its schema', (t) => {
   const root = tree(t, { 'Makefile': 'all:\n\t@true\n', 'config/checklist.json': '{ "schema": 1 }\n' });
   assert.ok(check(root).some(line => line.includes('config/checklist.json')), 'the finding names the file');
+});
+
+// K987: release.yml waits for the CI workflow by its name, so kit-check requires the ci.yml of the repository to carry that name.
+test('kit-check requires the ci.yml of a repository to be named as the CI workflow that release.yml waits for (K987)', (t) => {
+  const release = 'on:\n  workflow_run:\n    workflows: [ci]\n    types: [completed]\n';
+  assert.equal(ciNameFinding(tree(t, { '.github/workflows/release.yml': release, '.github/workflows/ci.yml': 'name: ci\non:\n  push:\n' })), null);
+  assert.match(ciNameFinding(tree(t, { '.github/workflows/release.yml': release, '.github/workflows/ci.yml': 'name: CI\non:\n  push:\n' })) ?? '', /ci\.yml is named CI, but \.github\/workflows\/release\.yml waits for the CI workflow ci/);
+  assert.match(ciNameFinding(tree(t, { '.github/workflows/release.yml': release })) ?? '', /ci\.yml is missing/);
+  assert.equal(ciNameFinding(tree(t)), null, 'a repository without the release workflow releases nothing');
 });

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0b49cbf20f4864befba07af0c91a13fde7569f6502818f3b7e9c8013791e0963 -->
+<!-- source-sha256: cd9c38361d220039ab9dab60c303fb2863de844480595427be9c259ca757d37c -->
 
 # 도구 목록
 
@@ -573,7 +573,18 @@ version 일관성과 orm의 다른 영역 검사:
 ## Release 도구 (K5)
 
 `scripts/kit/release.mts`는 다섯 저장소의 release 도구를 하나로 합칩니다(`versions`, `assets`, `publish`, 그리고
-`coverage`). tag는 `release-run tag RUN`(`make release-tag`, K911)이 만듭니다. 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
+`coverage`). tag는 `release-run tag RUN`(`make release-tag`, K911)이 만듭니다.
+
+release는 스스로 시작합니다(K987). release.yml은 main에서 CI workflow `ci`의 push 또는 dispatch run이 성공할 때마다 그 workflow_run으로
+실행되어 그 run의 head_sha를 checkout하고 `make release-tag AUTO=1`을 실행합니다. 릴리즈하는 것은 version commit뿐입니다.
+version commit은 `## Unreleased`를 비우고 자기 `## X.Y.Z`를 change log 맨 위에 두는 commit이며, CI가 그 commit에서 돌도록
+push의 tip입니다. 맨 위 version이 자기 line의 앞이나 뒤에서 tag된 commit은 릴리즈할 것이 없다며 green으로 끝나고, release가
+public이 된 뒤 version commit이 다시 돈 run도 그렇게 끝나며, tag 뒤에 실패한 release의 재실행은 release를 다시 실행합니다. version commit의 CI run이 아직 도는 commit은 그
+run을 기다리며 green으로 끝납니다. 어떤 run도 릴리즈하지 않은 맨 위 version은, version commit의 run이 대체되거나 취소되었거나
+version commit이 push의 tip이 아니었기 때문이므로, 실패하며 그 version commit을 적습니다. 그러면 green CI run으로 release.yml을
+dispatch해 릴리즈합니다. 맨 위 version이 commit의 line 밖에서 tag되어도 실패합니다. release job의 concurrency group은 저장소의
+release를 한 번에 하나만 실행하고, `make kit-check`는 저장소의 `.github/workflows/ci.yml` 이름이 release.yml이 기다리는 workflow인
+`ci`이기를 요구합니다. 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {

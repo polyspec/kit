@@ -38,12 +38,12 @@ test('the release workflow has one job, so every step runs in the job that creat
 // Nothing reads check runs, and no tag push starts a release.
 test('K911, K924: a dispatch with a CI run alone starts the release, which tags the commit of the run before it builds it', () => {
   const text = lines.join('\n');
-  assert.match(text, /^on:\n {2}workflow_dispatch:\n {4}inputs:\n {6}run:\n/m);
+  assert.match(text, /^ {2}workflow_dispatch:\n {4}inputs:\n {6}run:\n/m);
   assert.doesNotMatch(text, /inputs\.version|^ {6}version:$/m, 'the version is the section of the change log, not an input');
   assert.doesNotMatch(text, /^ {2}push:|tags: \[|inputs\.tag|release-verify|release-go-tags/m);
   assert.match(text, /^permissions:\n {2}contents: write\n {2}actions: read\n/m);
   assert.doesNotMatch(text, /^ {6}(?:TAG|VERSION):/m, 'release-tag writes TAG and VERSION to GITHUB_ENV');
-  const tag = step('make release-tag', /^make release-tag$/);
+  const tag = step('make release-tag', /^make release-tag /);
   const checkout = step('git checkout of the tag', /^git checkout --quiet "\$TAG"$/);
   assert.ok(tag.line < checkout.line && checkout.line < step('make release-prepare', /^make release-prepare$/).line, 'release-tag, then the checkout of the tag, then the release of that commit');
 });
@@ -83,7 +83,7 @@ test('the release workflow bootstraps the package, checks the configuration, the
   const install = step('make install-tools TOOLS=npm', /^make install-tools TOOLS=npm$/);
   assert.ok(step('the Composer archive preflight', /^command -v zip /).line < install.line, 'archive capability is checked before installation');
   // The kit of main tags (K269, K911); the packages of the tagged commit are installed again before its release.
-  assert.deepEqual(runs.filter(run => run.command.startsWith('make ')).slice(0, 7).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', 'make release-tag', 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare', 'make release-tools']);
+  assert.deepEqual(runs.filter(run => run.command.startsWith('make ')).slice(0, 7).map(run => run.command), ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare', 'make release-tools']);
 });
 
 test('kit releases itself with the workflow it vendors: .github/workflows/release.yml is workflows/release.yml', () => {
@@ -91,4 +91,23 @@ test('kit releases itself with the workflow it vendors: .github/workflows/releas
   // make targets install-tools and install-packages in the bootstrap order (K79).
   assert.equal(readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8'), readFileSync(path.join(ROOT, 'workflows/release.yml'), 'utf8'));
   assert.match(readFileSync(path.join(ROOT, 'Makefile'), 'utf8'), /^install-packages:/m);
+});
+
+// K987: a green push run of the CI workflow ci on main starts the release by itself. The workflow checks out the head_sha of that run,
+// never a later main, release-tag decides with AUTO whether that commit is the version commit, the steps after it run only for the
+// TAG it hands on, and a concurrency group of the repository runs one release at a time without cancelling one.
+test('K987: a green push or dispatch run of ci starts the release of its head_sha, which release-tag decides, one at a time', () => {
+  const text = lines.join('\n');
+  assert.match(text, /^on:\n {2}workflow_run:\n {4}workflows: \[ci\]\n {4}types: \[completed\]\n {4}branches: \[main\]\n/m);
+  assert.doesNotMatch(text, /^concurrency:/m, 'a run whose job is skipped joins no group');
+  assert.match(text, /^ {4}concurrency:\n {6}group: release-\$\{\{ github\.repository \}\}\n {6}cancel-in-progress: false\n/m);
+  assert.match(text, /^ {4}if: \$\{\{ github\.event_name == 'workflow_dispatch' \|\| \(github\.event\.workflow_run\.conclusion == 'success' && \(github\.event\.workflow_run\.event == 'push' \|\| github\.event\.workflow_run\.event == 'workflow_dispatch'\)\) \}\}$/m);
+  assert.match(text, /^ {6}RUN: \$\{\{ inputs\.run \|\| github\.event\.workflow_run\.id \}\}$/m);
+  assert.match(text, /fetch-depth: 0\n {10}ref: \$\{\{ github\.event\.workflow_run\.head_sha \}\}\n/, 'the checkout is the head_sha of the run');
+  const tag = step('make release-tag', /^make release-tag \$\{\{ github\.event_name == 'workflow_run' && 'AUTO=1' \|\| '' \}\}$/);
+  const after = lines.slice(tag.line).filter(line => /^ {6}- (?:name|uses):/.test(line));
+  assert.ok(after.length > 0);
+  lines.slice(tag.line).forEach((line, index) => {
+    if (/^ {6}- (?:name|uses):/.test(line)) assert.equal(lines[tag.line + index + 1], "        if: ${{ env.TAG != '' }}", `${line.trim()} runs only for a TAG`);
+  });
 });

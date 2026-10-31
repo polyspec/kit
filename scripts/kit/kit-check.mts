@@ -7,7 +7,7 @@
 //
 //   node scripts/kit/kit-check.mts
 //
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readConfig, readConfigFindings, SCHEMAS } from './schema-validate.mts';
@@ -145,10 +145,31 @@ export function strayCopies(root: string, copies: { file: string }[]): string[] 
  */
 export const RETIRED_COPIES = ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json', '.github/workflows/gates.yml'] as const;
 
-/** The findings of `root`: the configuration and the recipes; empty when they match. */
+// The release workflow that kit copies and the CI workflow of the repository, whose success starts it (K987).
+const RELEASE_WORKFLOW = '.github/workflows/release.yml';
+const CI_WORKFLOW = '.github/workflows/ci.yml';
+
+/**
+ * The finding of a repository whose CI workflow is not the one its release workflow waits for (K987): the workflow_run of
+ * release.yml names the CI workflow by its name, so a ci.yml of another name never starts a release. Each file's top-level key
+ * is read by its line, as a workflow writes it at the start of a line.
+ */
+export function ciNameFinding(root: string): string | null {
+  const release = path.join(root, RELEASE_WORKFLOW);
+  if (!existsSync(release)) return null;
+  const waited = /^\s+workflows:\s*\[\s*([^\],\s]+)\s*\]\s*$/m.exec(readFileSync(release, 'utf8'))?.[1];
+  if (waited === undefined) return null;
+  const ci = path.join(root, CI_WORKFLOW);
+  if (!existsSync(ci)) return `${CI_WORKFLOW} is missing, though ${RELEASE_WORKFLOW} waits for the CI workflow ${waited}; a green CI starts the release (K987)`;
+  const name = /^name:\s*['"]?([^'"\s#]+)['"]?\s*(?:#.*)?$/m.exec(readFileSync(ci, 'utf8'))?.[1];
+  return name === waited ? null : `${CI_WORKFLOW} is named ${name ?? '(no name)'}, but ${RELEASE_WORKFLOW} waits for the CI workflow ${waited}, so no CI run starts a release; name it ${waited} (K987)`;
+}
+
+/** The findings of `root`: the configuration, the CI workflow that the release waits for and the recipes; empty when they match. */
 export function check(root: string): string[] {
   const make = makeDatabase(root);
-  return [...checkConfig(root), ...bareToolFindings(make), ...testRunnerFindings(make)];
+  const ci = ciNameFinding(root);
+  return [...checkConfig(root), ...(ci === null ? [] : [ci]), ...bareToolFindings(make), ...testRunnerFindings(make)];
 }
 
 if (isMain(import.meta.url)) {
