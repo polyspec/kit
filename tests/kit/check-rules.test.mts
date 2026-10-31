@@ -198,6 +198,19 @@ test('a word of a run line that is not make reaches no target: prose that names 
   assert.match(checkRules(root, ['AGENTS.md']).findings.join('\n'), /make install runs at no point that cannot be skipped/);
 });
 
+// K941-2: orm's CI runs its targets through make check-run, whose recipe hands the target names to a repository script, and the
+// script runs make on each. A command that runs a file of the repository hands it its arguments, so the targets are reached.
+test('a target that a recipe hands to a repository script is reached, as the check runner of orm runs its targets (K941-2)', (t) => {
+  const root = tree(t, {
+    Makefile: 'CHECK_RUN_TARGETS = feature-unit-check\ncheck-run:\n\tnode scripts/check/run.mts $(CHECK_RUN_TARGETS)\nfeature-unit-check:\n\t@echo unit\n',
+    'scripts/check/run.mts': '',
+    '.github/workflows/ci.yml': 'name: ci\non: push\njobs:\n  a:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: make check-run GROUP=a\n',
+    'AGENTS.md': rules('- Own: Unit.\n  Enforced by: `make feature-unit-check`'),
+    'AGENTS.ko.md': rules('- Own: Unit.\n  Enforced by: `make feature-unit-check`'),
+  });
+  assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
+});
+
 test('a target is expanded for each set of variables it is called with, so every call of one recipe is reached (K312)', (t) => {
   const root = tree(t, {
     Makefile: 'ci-targets:\n\t$(MAKE) $(TARGETS)\nfirst:\n\t@echo first\nsecond:\n\t@echo second\n',
