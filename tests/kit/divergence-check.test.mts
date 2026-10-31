@@ -55,8 +55,11 @@ test('an exception of a configuration whose reason names no kind of kit is a fin
   assert.equal(reasonKind('because'), false);
 });
 
-test('the tools and tests of kit itself are left out (K315)', () => {
-  assert.deepEqual(run({ 'tests/kit/a.test.mts': "process.platform; extension_loaded('x')", 'config/parity.json': PARITY }), []);
+test('the tools and tests of kit itself are checked like any other (K315, K954)', () => {
+  const same = "process.platform; extension_loaded('x')";
+  const kit = run({ 'tests/kit/a.test.mts': same, 'config/parity.json': PARITY });
+  assert.notDeepEqual(kit, []);
+  assert.deepEqual(kit, run({ 'tests/other/a.test.mts': same, 'config/parity.json': PARITY }).map(line => line.replace('tests/other/', 'tests/kit/')));
 });
 
 // K883: the polyfill guard of K873, an if whose condition is only !function_exists or !defined of the name that its body alone declares,

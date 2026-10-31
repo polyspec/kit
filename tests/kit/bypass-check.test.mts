@@ -32,8 +32,8 @@ test('--no-verify is a finding in a test, a script, a Makefile and a Git hook (K
   assert.deepEqual(bypassFindings('docs/guide.md', 'git commit --no-verify\n', GATES), [], 'a document is no test, script or Makefile');
 });
 
-test('the tools and tests of kit itself are left out (K308)', () => {
-  assert.deepEqual(bypassFindings('tests/kit/ci-only.test.mts', "const env = { GITHUB_ACTIONS: 'true' };\n", GATES), []);
+test('the tools and tests of kit itself are checked like any other (K954)', () => {
+  assert.deepEqual(bypassFindings('tests/kit/ci-only.test.mts', "const env = { GITHUB_ACTIONS: 'true' };\n", GATES), ['tests/kit/ci-only.test.mts:1: CI identity variable set: GITHUB_ACTIONS']);
 });
 
 // K357-1: a consumer includes the kit.mk of the installed kit, so the gates are those of the kit-gates of its Makefile.
