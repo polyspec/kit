@@ -113,6 +113,22 @@ test('worktree-setup runs the outer npm in a temporary folder of its own and lea
   assert.deepEqual(readdirSync(box), [], 'the temporary root holds nothing after the run');
 });
 
+// K938-1: a refusal comes before anything is created, so a refused run leaves no worktree and no branch behind.
+test('worktree-setup refuses a consumer without devEngines npm before it creates the worktree or its branch (K938-1)', (t) => {
+  const main = repository(t, {
+    'Makefile': 'include node_modules/kit.mk\n',
+    'package.json': JSON.stringify({ packageManager: 'npm@12.2.0+sha512.00' }),
+    'package-lock.json': '{}\n',
+    '.gitignore': '/node_modules/\n/var/\n',
+  });
+  const worktrees = git(main, 'worktree', 'list', '--porcelain');
+  const branchExists = () => spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/fix/refused-T9'], { cwd: main }).status === 0;
+  assert.throws(() => setupWorktree(main, { name: 'refused', id: 'T9', type: 'fix' }, { print: () => {} }), /declares no devEngines\.packageManager of npm/);
+  assert.equal(git(main, 'worktree', 'list', '--porcelain'), worktrees, 'git worktree list is unchanged');
+  assert.equal(branchExists(), false, 'the branch was not created');
+  assert.equal(existsSync(path.join(path.dirname(main), 'repo-refused-T9')), false, 'the folder was not created');
+});
+
 test('worktree-setup refuses a package.json with no devEngines.packageManager of npm, before it runs npm or make, and names what to declare (K938-1)', (t) => {
   const main = repository(t, {
     'Makefile': 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\n',
