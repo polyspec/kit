@@ -190,10 +190,33 @@ function loopCommands(parts: string[][]): { kind: string; words: string[] }[] {
   return found;
 }
 
+// The short options of env that take an operand, and their long forms: -u, -C, -P and -S (K974).
+const ENV_OPERAND_LETTERS = /[uCPS]/;
+const ENV_LONG_OPERANDS = new Set(['--unset', '--chdir']);
+
+/**
+ * The assignments and command after env, the arguments `args` of env: env reads its own options only before them, so those of the
+ * command it runs stay its own (K974). An option skips its operand, also as the last letter of a cluster such as -iu, and the operand
+ * of -S (--split-string) is split into the words that start the command, as env does; -- ends the options.
+ */
+function envArguments(args: string[]): string[] {
+  let rest = args;
+  for (let head = rest[0]; head !== undefined && head.startsWith('-'); head = rest[0]) {
+    if (head === '--') return rest.slice(1);
+    const letters = head.startsWith('--') ? '' : head.slice(1);
+    const operand = ENV_LONG_OPERANDS.has(head) ? 'u' : head === '--split-string' ? 'S' : ENV_OPERAND_LETTERS.exec(letters)?.[0];
+    const attached = operand !== undefined && letters.indexOf(operand) < letters.length - 1;
+    if (operand === undefined || attached) rest = rest.slice(1);
+    else if (operand === 'S') rest = [...(rest[1] ?? '').split(/\s+/).filter(Boolean), ...rest.slice(2)];
+    else rest = rest.slice(2);
+  }
+  return rest;
+}
+
 /** The program and arguments of the simple command `words`, after its negation, env and prefix words. */
 function programOf(words: string[]): { program: string | undefined; args: string[] } {
   let rest = words;
-  while (rest[0] !== undefined && (rest[0] === '!' || rest[0] === 'env' || rest[0].startsWith('-') || assigned(rest[0]) || PREFIXES.has(rest[0]))) rest = rest.slice(1);
+  while (rest[0] !== undefined && (rest[0] === '!' || rest[0] === 'env' || rest[0].startsWith('-') || assigned(rest[0]) || PREFIXES.has(rest[0]))) rest = rest[0] === 'env' ? envArguments(rest.slice(1)) : rest.slice(1);
   const [command, ...args] = rest;
   return { program: command === undefined ? undefined : path.basename(command), args };
 }
@@ -227,7 +250,7 @@ function commandRefusal(words: string[], context: Context, seen: Set<string>): s
   const { isFileAt } = context;
   let rest = words;
   if (rest[0] === 'export' && rest.slice(1).some(word => assigned(word) && marker(word))) return `${rest.join(' ')} sets the variable that marks a CI run; a suite ${SUITE}`;
-  if (rest[0] === 'env') rest = rest.slice(1).filter(word => !word.startsWith('-'));
+  if (rest[0] === 'env') rest = envArguments(rest.slice(1));
   for (let head = rest[0]; head !== undefined && assigned(head); head = rest[0]) {
     if (marker(head)) return `${head} sets the variable that marks a CI run; a suite ${SUITE}`;
     rest = rest.slice(1);

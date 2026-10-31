@@ -104,6 +104,17 @@ test('run-tests runs its runner over the arguments after --, so it needs their s
   assert.equal(refusal('node scripts/kit/run-tests.mts go -- -run TestParse ./...', named), null);
 });
 
+test('the options of the command that env runs still select its tests; only the options of env are skipped (K974)', () => {
+  assert.equal(refusal('env A=1 node scripts/kit/run-tests.mts go -- -run TestParse ./...', named), null);
+  assert.equal(refusal('env -i -u B A=1 node scripts/kit/run-tests.mts go -- -run TestParse ./...', named), null);
+  assert.match(refusal('env -u B A=1 node scripts/kit/run-tests.mts node -- tests/kit', named) ?? '', /runs a whole runtime without a selection/);
+  assert.equal(refusal('env --unset=B -- A=1 node scripts/kit/run-tests.mts go -- -run TestParse ./...', named), null);
+  // The operand of -S starts the command, and the last letter of a cluster takes the next word, as env reads them.
+  assert.match(refusal('env -S make kit-test', named, () => MAKE) ?? '', /^make kit-test runs /);
+  assert.match(refusal('env -iu B make kit-test', named, () => MAKE) ?? '', /^make kit-test runs /);
+  assert.match(refusal('while ! env -u B pgrep x; do :; done', anyFile) ?? '', /polls in a loop/);
+});
+
 test('the hook follows a forwarded Cargo command from a Make target without target-name exemptions (K568)', () => {
   const database = (cargo: string) => ({
     targets: new Map([['arbitrary-target-name', { prerequisites: [], recipe: `$(NODE) tests/cargo-test.mts arbitrary-target-name -- cargo ${cargo}` }]]),

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9120732b5a1c8d088517562c750b04d845555a545914b3b10597d5e670db3b29 -->
+<!-- source-sha256: 84d481ebbb9401b2959ef0ffd90485d38e65474b9b1df88ccf99cd4f19894d56 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K974: Claude hook은 env가 실행하는 명령 앞의 env option만 건너뛰므로, `env A=1 node run-tests.mjs phpunit -- --filter …`가 선택을 잃고 선택 없는 runtime 전체로 거부되지 않습니다 (K974).
 
 ## 0.0.83
 

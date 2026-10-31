@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K974: the Claude hook skips only the options of env before the command it runs, so `env A=1 node run-tests.mjs phpunit -- --filter …` keeps its selection instead of being refused as a whole runtime without one (K974).
+
 ## 0.0.83
 
 - Kit 0.0.83 carries the hook of make link written in the process that links (K967), the errors file of a parity implementation checked on disk (K968), the silence limit of a parity binding (K936), the parity ledger tests in a CI shard (K970), the names of pyproject requirements read by the PEP 508 pattern (K971) and the ledger test of a go that cannot start on a runner with go in /usr/bin (K973) (K972).
