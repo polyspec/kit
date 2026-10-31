@@ -1,6 +1,6 @@
 {
   "name": "@polyspec/kit",
-  "version": "0.0.83",
+  "version": "0.0.84",
   "description": "The shared tools of the polyspec repositories",
   "license": "MIT",
   "type": "module",
