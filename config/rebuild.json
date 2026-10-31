@@ -324,7 +324,7 @@
     },
     "scripts/kit/pyproject-dependencies.mts": {
       "kind": "policy",
-      "reason": "lists the dependency arrays of a pyproject.toml for link, and resolves the include-group tables of [dependency-groups] as the reference implementation of PEP 735 does; no npm package reads dependency groups (K177)"
+      "reason": "lists the dependency arrays of a pyproject.toml for link, and resolves the include-group tables of [dependency-groups] as the reference implementation of PEP 735 does; no npm package reads dependency groups (K177); it reads the name of each requirement by the name pattern of PEP 508, the only part link needs, since the PEP 508 grammar of npm fails on a direct reference with a marker (K971)"
     },
     "scripts/kit/python-venv.mts": {
       "kind": "ecosystem",

@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f6a262ec9b0d6b687cc23ade7480bc1d788f6e7206e6a8b31d6eeeaf372ff532 -->
+<!-- source-sha256: 23fd44b185229e16a4f8ca53bf7622382bba9e1dd3ec0f16fdf4e705f1592813 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K971: link은 pyproject의 각 요구사항 이름을 PEP 508의 이름 pattern으로 읽으므로, orm이 플랫폼별 wheel을 고정하는 것처럼 marker가 있는 direct reference(`name @ url ; marker`)가 더 이상 make link을 실패시키지 않습니다. link에는 이름만 필요하고 나머지는 uv가 풉니다. 그 형식에서 예외를 내던 PEP 508 grammar library pip-requirements-js와 쓰이지 않던 export는 지웁니다 (K971).
 - K970: go를 설치하는 CI test shard가 K936이 추가하고 build test가 실제 go를 실행하는 tests/kit/parity-ledger.test.mts를 실행합니다. 이를 지정한 shard가 없어 K718의 shard 검사가 main CI를 실패시켰습니다 (K970).
 - K936: parity 실행은 run-tests의 start-up bound(120초) 동안 아무것도 출력하지 않는 binding을 process group과 함께 멈춥니다. 예전에는 멈춘 binding이 case 이름 없이 parity job을 멈춰 두었습니다. R3 finding 하나가 binding과 멈춤을 말하고, 어떤 출력이든 bound를 다시 셉니다. built-in go와 cargo binding은 run-tests처럼 bound 없이 먼저 build하고, 실패한 build는 그 출력과 함께 그 실행의 finding입니다 (K936).
 - K968: parity implementation의 errors 파일은 symbols entry처럼 checkout에 있으면 declaration 검사를 통과하므로, setup이 쓰는 것처럼 Git이 무시하는 생성된 errors 파일(P34)이 더 이상 "does not exist"로 실패하지 않습니다 (K968).

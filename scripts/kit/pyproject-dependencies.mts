@@ -2,7 +2,6 @@
 // `dependencies` of [project], each extra of [project.optional-dependencies] and each group of [dependency-groups]
 // (PEP 735), whose `{ include-group = "…" }` tables are resolved as PEP 735 specifies; link reads the polyspec names of them (K177).
 import { isJsonList, isJsonObject } from './bootstrap/files.mts';
-import { parsePipRequirementsLine } from 'pip-requirements-js';
 
 /** The kind of a dependency array: `dependencies` of [project], an extra or a dependency group. */
 export type DependencyArrayKind = 'dependencies' | 'build-system' | `optional:${string}` | `group:${string}`;
@@ -76,48 +75,21 @@ export function dependencyGroups(document: Record<string, unknown>, manifest: st
   return new Map(arrays.map(({ name }) => [name, resolve(normalizeName(name), [])]));
 }
 
-/** The normalized package names required by a pyproject's build, project, extra and group requirements. */
-function manifestRequirements(document: Record<string, unknown>, manifest: string): unknown[] {
-  return [
+/**
+ * The name that opens a PEP 508 requirement, by the name pattern of the specification (`^([A-Z0-9]|[A-Z0-9][A-Z0-9._-]*[A-Z0-9])$`,
+ * case-insensitive). Link needs only the names (K971): extras, versions, URLs and markers are resolved by uv, which validates them.
+ */
+const REQUIREMENT_NAME = /^\s*([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)/;
+
+/** The normalized polyspec distributions named by the build, project, extra and group requirements of a pyproject (K177). */
+export function manifestPolyspecNames(document: Record<string, unknown>, manifest: string): string[] {
+  const requirements = [
     ...dependencyArrays(document, manifest).filter(item => !item.kind.startsWith('group:')).flatMap(item => item.list),
     ...[...dependencyGroups(document, manifest).values()].flat(),
   ];
-}
-
-/** The normalized package names of the project's build, project, extra and group requirements. */
-export function manifestPackageNames(document: Record<string, unknown>, manifest: string): string[] {
-  return requirementPackageNames(manifestRequirements(document, manifest));
-}
-
-/** Explicit requirement extras forwarded to native editable requests without resolving versions or markers. */
-export function manifestPackageExtras(document: Record<string, unknown>, manifest: string): Map<string, string[]> {
-  const result = new Map<string, string[]>();
-  for (const requirement of manifestRequirements(document, manifest)) {
-    if (typeof requirement !== 'string') continue;
-    const parsed = parsePipRequirementsLine(requirement);
-    if (!parsed || (parsed.type !== 'ProjectName' && parsed.type !== 'ProjectURL')) continue;
-    const name = normalizeName(parsed.name);
-    result.set(name, [...new Set([...(result.get(name) ?? []), ...(parsed.extras ?? [])])]);
-  }
-  return result;
-}
-
-/** The normalized names of PEP 508 requirements; version and marker resolution remains native. */
-export function requirementPackageNames(requirements: readonly unknown[]): string[] {
-  const names = requirements.flatMap((item) => {
-    if (typeof item !== 'string') return [];
-    const parsed = parsePipRequirementsLine(item);
-    return parsed && (parsed.type === 'ProjectName' || parsed.type === 'ProjectURL') ? [normalizeName(parsed.name)] : [];
+  const names = requirements.flatMap(item => {
+    const name = typeof item === 'string' ? REQUIREMENT_NAME.exec(item)?.[1] : undefined;
+    return name === undefined ? [] : [normalizeName(name)];
   });
-  return [...new Set(names)];
-}
-
-/** The normalized polyspec distributions named by a pyproject's requirements. */
-export function manifestPolyspecNames(document: Record<string, unknown>, manifest: string): string[] {
-  return manifestPackageNames(document, manifest).filter(name => name.startsWith('polyspec-'));
-}
-
-/** The names of a source project's runtime dependencies, without interpreting versions or markers. */
-export function runtimePackageNames(document: Record<string, unknown>, manifest: string): string[] {
-  return requirementPackageNames(dependencyArrays(document, manifest).filter(item => item.kind === 'dependencies').flatMap(item => item.list));
+  return [...new Set(names)].filter(name => name.startsWith('polyspec-'));
 }

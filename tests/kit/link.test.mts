@@ -253,6 +253,17 @@ function linkLines(directories: string[], env: NodeJS.ProcessEnv, check = false)
   return { ok, text: lines.join('\n') };
 }
 
+// K971: link reads only the names of the requirements of a pyproject; a direct reference with a marker, as orm pins a wheel per
+// platform, names its distribution before its URL and marker, which uv resolves.
+test('link reads a pyproject requirement that is a direct reference with a marker by its name (K971)', (t) => {
+  const { consumer, env } = workspace(t);
+  const pythonProject = path.join(consumer, 'python/pyproject.toml');
+  writeFileSync(pythonProject, readFileSync(pythonProject, 'utf8').replace('dependencies = []', 'dependencies = ["rapidyaml @ https://example.invalid/rapidyaml.whl#sha256=00 ; sys_platform == \'linux\' and platform_machine == \'x86_64\'"]'));
+  const { ok, text } = linkLines([consumer], env);
+  assert.equal(ok, true, text);
+  assert.doesNotMatch(text, /Failed to parse/);
+});
+
 test('runtime links use only the selected native managers in a mixed-language consumer; npm and Composer folders are plain links (K761)', (t) => {
   const cases = [
     { runtime: 'ts', variable: 'NPM', command: undefined },

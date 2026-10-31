@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K971: link reads the name of each pyproject requirement by the name pattern of PEP 508, so a direct reference with a marker (`name @ url ; marker`), as orm pins a wheel per platform, no longer fails make link; link needs only the names, and uv resolves the rest. The PEP 508 grammar library pip-requirements-js, which threw on that form, and the exports that no code used go (K971).
 - K970: the CI test shard that installs go runs tests/kit/parity-ledger.test.mts, which K936 added and whose build test runs the real go: no shard named it, so the shard check of K718 failed main CI (K970).
 - K936: a parity run stops a binding that prints nothing for the start-up bound of run-tests (120 s) with its process group, where a hanging binding used to hang the parity job with no case named; one R3 finding names the binding and the stop. Output of any kind re-arms the bound. A built-in go or cargo binding builds first with no bound, as run-tests does, and a failed build is the finding of its run with its output (K936).
 - K968: the errors file of a parity implementation passes the declaration check when it exists in the checkout, as its symbols entry does, so a generated errors file that Git ignores (P34), such as one that setup writes, no longer fails with "does not exist" (K968).
