@@ -97,3 +97,17 @@ test('a file that config/generated.json declares generated is left out of the du
   put(root, { 'src/c.ts': `// another module\n${PIECE}\n` });
   assert.equal(duplicationCheck(root, () => {}).status, 1);
 });
+
+// K956: a generated source that the repository tracks (P34), such as a Go module's generated table, repeats by nature, and its single
+// source is the generator, so config/generated.json's tracked entries are left out of the duplication check as its paths are.
+test('a file that config/generated.json tracks as a generated source is left out of the duplication check, and a clone outside it is not (K956)', (t) => {
+  const root = tree(t, { 'src/a.ts': `${PIECE}\n`, 'gen/table.ts': `${PIECE}\n` });
+  put(root, { 'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: [], tracked: [{ path: 'gen/table.ts', reason: 'a generated table that its generator writes' }] }) });
+  assert.equal(duplicationCheck(root, () => {}).status, 0, 'a tracked generated file repeats its generator output');
+  put(root, { 'src/c.ts': `// another module\n${PIECE}\n` });
+  const found = duplicationCheck(root, () => {});
+  assert.equal(found.status, 1, found.output);
+  assert.match(found.output, /src\/a\.ts/);
+  assert.match(found.output, /src\/c\.ts/);
+  assert.doesNotMatch(found.output, /gen\/table\.ts/);
+});
