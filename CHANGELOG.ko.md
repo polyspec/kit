@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 4486105b778d5cd40ed46f1f9d19c3769ce0950cd8fcc2b9b8cb84ce3b0162ff -->
+<!-- source-sha256: 4a358c70da740ffeb8d012a649ccf5cc36864938d46e3f205ad67a0c53eaa2a8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.82
+
+- Kit 0.0.82는 선택된 job이 skipped이면 실패하는 CI job(K950), config/ci.json에서만 오는 parityMode(K951), toolchain pin과 version 검사의 삭제(K953), bypass-check와 divergence-check가 검사하는 kit 자신의 도구(K954), target이 없으면 실패하는 task(K955), 중복 검사에서 빠지는 생성 소스(K956), 설치된 package의 kit item id(K957, K957-1), 이유를 적는 generated 예외(K958), 한 번씩 실행하는 parity binding(K959), link가 아니라 make hook이 쓰는 Claude Code hook(K960), 한 implementation이 소유하는 suite unit(K961), node를 받는 kit-build rename test(K962)를 담습니다 (K963).
 - K962: kit-build는 node로 kit-items.json을 쓰고(K957) test sandbox에는 자기 node가 없으므로, kit-build rename test는 stub NODE를 넘깁니다 (K962).
 - K961: case가 한 implementation에만 있는 suite unit은 feature처럼 그 owner를 선언할 수 있어, 다른 implementation은 binding이 필요 없고 실행하지도 않습니다. API unit은 여전히 release package만 owner가 될 수 있습니다 (K961).
 - K960: link는 Claude Code 설정을 쓰지 않으므로, container처럼 읽기 전용으로 mount된 checkout도 EROFS 없이 link됩니다. hook은 자기 명령 link.mts hook [--project <dir>] (make hook)를 가집니다. 이 명령은 실행 중인 kit checkout의 hook을 checkout 최상위의 git-ignored .claude/settings.local.json에, --project가 없으면 workspace 폴더의 .claude/settings.json에도 씁니다. make link는 link 다음에 hook을 실행합니다. --project가 없을 때 workspace 파일은 실행 중인 kit checkout과 그 형제들이 있는 폴더에만 씁니다. hook은 checkout의 .gitignore가 settings.local.json을 무시하지 않는 동안 그 파일을 거부하므로, 각 저장소는 kit의 .gitignore처럼 /.claude/settings.local.json 줄을 추가합니다. link-check는 hook을 검사하지 않습니다. kit이 설치된 package인지는 더 이상 상관없습니다(K916 삭제) (K960).
