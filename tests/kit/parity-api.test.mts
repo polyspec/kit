@@ -1663,6 +1663,15 @@ test('a php suite binding with the symbol <class>::<method> runs that method alo
   assert.deepEqual(declared('\\Example\\CodecTest::testCodec'), ['declaration: unit codec: the php binding names \\Example\\CodecTest::testCodec, which is no test method <class>::<method> of a fully qualified class']);
 });
 
+// K968: an errors file is read from the checkout (parity-errors), so one that Git ignores, as a generated source of P34 that setup
+// writes, is checked like the symbols entry beside it: it must exist, whatever Git does with it.
+test('the errors file of an implementation passes when it exists and Git ignores it (K968)', TIMEOUT, (t) => {
+  const { findings } = check(t, { files: { '.gitignore': 'var/\nts/src/codes.ts\n' } }, { execute: false });
+  assert.deepEqual(findings.filter(finding => finding.message.includes('does not exist')).map(finding => finding.message), []);
+  const missing = check(t, { files: { 'ts/src/codes.ts': null } }, { execute: false });
+  assert.ok(missing.findings.some(finding => finding.message === 'implementation ts: ts/src/codes.ts does not exist'));
+});
+
 test('R3: a case that the run reports twice fails, and the finding names the case (K47)', TIMEOUT, (t) => {
   const { findings } = check(t, { files: { 'go/codec_test.go': 'PASS TestCodec/empty\nPASS TestCodec/empty\nPASS TestCodec/ascii\n' } });
   assert.deepEqual(keys(findings), ['R3 codec go']);

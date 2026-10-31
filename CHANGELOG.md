@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K968: the errors file of a parity implementation passes the declaration check when it exists in the checkout, as its symbols entry does, so a generated errors file that Git ignores (P34), such as one that setup writes, no longer fails with "does not exist" (K968).
 - K967: the first make link of a consumer that runs the installed kit no longer exits 2: make link links and then writes the hook in one process (link.mjs link --hook), where it used to start link.mjs hook again from the KIT folder that the link had just replaced with the kit checkout. link without --hook still writes no Claude Code settings (K960), and make hook stays (K967).
 
 ## 0.0.82

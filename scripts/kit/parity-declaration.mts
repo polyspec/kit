@@ -1,7 +1,7 @@
 // The declaration of the language-parity check (config/parity.json): reading it against its schema, resolving its references
 // against the tree, and the finding that every rule of the check reports. A declaration that names a missing file, an unknown
 // implementation, or a stale entry is a finding of the rule `declaration`, and the other rules do not run on it.
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { matchesAny } from './glob.mts';
@@ -706,7 +706,8 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
         seen.add(key);
       }
     }
-    if (entry.errors && !files.has(entry.errors.file)) fail(`implementation ${entry.name}: ${entry.errors.file} does not exist`);
+    // The errors file is read from the checkout (parity-errors), so a generated one that Git ignores (P34) counts as the symbols entry does (K968).
+    if (entry.errors && statSync(path.join(root, entry.errors.file), { throwIfNoEntry: false })?.isFile() !== true) fail(`implementation ${entry.name}: ${entry.errors.file} does not exist`);
   }
   // The runners whose convention or declared testPatterns select each file, and the test files of each implementation: those of
   // its runner in its roots, and those of its tests globs.
