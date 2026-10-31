@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: 472456f1819275007843d54a530c2a8f4a0060f9b334c208cea55c4d835d1767 -->
+<!-- source-sha256: bd25f02a76cb7352310f0c9e849845b008ea262d426dfc28bfd07ef214b70f6e -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -58,7 +58,7 @@ conductor에게 묻는 것은 kit의 결함(파일과 줄을 적어서)이나 �
    ```
 5. `node_modules`가 없는 checkout에는 include할 kit이 없다. worktree는 `make worktree-setup NAME=<name> ID=<id>`로 만들며, 이는 위의
    npm ci를 실행한 뒤 거기서 `make install`과 `make link-check`를 실행한다(K858). devEngines npm을 선언하지 않은 `package.json`은
-   npm이나 make를 실행하기 전에 거부한다(K938-1). 일반 clone은 checkout 밖에서 같은 npm ci를 먼저 실행한다.
+   worktree나 branch를 만들기 전에, 그리고 npm이나 make를 실행하기 전에 거부한다(K938-1). 일반 clone은 checkout 밖에서 같은 npm ci를 먼저 실행한다.
 
 첫 채택의 순서는 다음과 같다(K938-1).
 

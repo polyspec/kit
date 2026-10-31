@@ -59,7 +59,7 @@ A repository takes its npm from `mise.toml`, locked in `mise.lock`, and declares
    (cd "${RUNNER_TEMP:?RUNNER_TEMP is not set}" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
    ```
 5. A checkout without `node_modules` has no kit to include. A worktree is made by `make worktree-setup NAME=<name> ID=<id>`, which
-   runs the npm ci above, then `make install` and `make link-check` in it (K858). It refuses, before it runs npm or make, a
+   runs the npm ci above, then `make install` and `make link-check` in it (K858). It refuses, before it creates the worktree or its branch and before it runs npm or make, a
    `package.json` that declares no devEngines npm (K938-1). A plain clone runs the same npm ci from outside the checkout first.
 
 The sequence of a first adoption (K938-1):

@@ -6,7 +6,7 @@
 // worktree of that branch installs and checks it again, so a run leaves the same state.
 //
 //   node scripts/kit/worktree-setup.mts <name> <id> [<type>]
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -14,7 +14,8 @@ import { git, gitResult } from './git.mts';
 import { PACKAGE as KIT_PACKAGE } from './kit-check.mts';
 import { linkFolders, providedFolders } from './link-folders.mts';
 import { declaredCheckouts, providerKey, providers } from './link-providers.mts';
-import { readNpmManifestFile } from './manifests.mts';
+import type { NpmManifest } from './manifests.mts';
+import { parseJson } from './schema-validate.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 
 /** The worktree of a row: its folder beside the main checkout and its branch. */
@@ -30,6 +31,29 @@ function run(command: string, args: string[], folder: string, env: NodeJS.Proces
   if (result.status !== 0) throw new Error(`${shown} ended with ${result.status === null ? `the signal ${result.signal}` : `exit status ${result.status}`} in ${folder}`);
 }
 
+/** The text of `file`, or undefined when it does not exist. */
+function readOptional(file: string): string | undefined {
+  return existsSync(file) ? readFileSync(file, 'utf8') : undefined;
+}
+
+/** The text of the object `rev` of the main checkout, or undefined when git does not know it. */
+function shown(main: string, rev: string): string | undefined {
+  const result = gitResult(main, 'show', rev);
+  return result.status === 0 ? result.stdout : undefined;
+}
+
+/**
+ * The version of the npm that the package.json `text` declares in devEngines.packageManager; throws the refusal of a
+ * package.json without that declaration, or without a version, before anything is created (K938-1).
+ */
+function declaredNpmVersion(text: string): string {
+  const { devEngines } = parseJson<NpmManifest>(text, 'npm-manifest.schema.json', 'package.json');
+  const npm = devEngines?.packageManager;
+  if (npm?.name !== 'npm') throw new Error('package.json declares no devEngines.packageManager of npm, so a worktree gets no node_modules for the include of kit; declare "devEngines": {"packageManager": {"name": "npm", "version": "12.2.0", "onFail": "error"}} and "npm:npm" = "12.2.0" in mise.toml (docs/operations/adoption.md)');
+  if (npm.version === undefined) throw new Error('devEngines.packageManager of package.json names npm without a version; declare the npm version there, for example "version": "12.2.0"');
+  return npm.version;
+}
+
 /**
  * Creates or reuses the worktree of the row and runs `make install`, then `make link-check`, in it; returns its folder. Throws
  * before it creates anything when the folder exists as anything but the worktree of the branch, and throws with the worktree kept
@@ -41,10 +65,14 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   const listed = git(main, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
   const existing = listed.find(entry => entry.folder === folder);
   if (existing && existing.branch !== branch) throw new Error(`${folder} is the worktree of ${existing.branch ?? 'a detached HEAD'}, not of ${branch}`);
+  // K938-1: the npm of devEngines is read and validated before anything is created, so a refused run leaves no worktree and no
+  // branch. A new worktree has the tracked package.json of its base (the branch, or main when the branch is new); an existing one, its own.
+  const known = gitResult(main, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).status === 0;
+  const text = existing ? readOptional(path.join(folder, 'package.json')) : shown(main, `${known ? branch : 'main'}:package.json`);
+  const version = (existing && existsSync(path.join(folder, 'node_modules'))) || text === undefined ? undefined : declaredNpmVersion(text);
   if (!existing) {
     if (existsSync(folder)) throw new Error(`${folder} exists and is no worktree of ${branch}; remove it or choose another name`);
-    const known = gitResult(main, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).status === 0;
-    git(main, 'worktree', 'add', '--quiet', folder, ...(known ? [branch] : ['-b', branch, 'main']));
+    git(main, 'worktree', "add", '--quiet', folder, ...(known ? [branch] : ['-b', branch, 'main']));
     print(`[worktree-setup] created ${folder} on ${branch}`);
   } else {
     print(`[worktree-setup] ${folder} is the worktree of ${branch}; installing and checking it again`);
@@ -58,19 +86,14 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
   // installs it first, as the clean checkout of the CI pipeline does (release.md), and make install then runs its own. A package.json
   // without that declaration (a consumer that adopted no npm:npm, K938-1) is refused here, before any npm or make runs: the include of
   // kit would fail with make's own message, and no other npm is used in its place.
-  const manifest = path.join(folder, 'package.json');
-  if (!existsSync(path.join(folder, 'node_modules')) && existsSync(manifest)) {
-    const { devEngines } = readNpmManifestFile(manifest);
-    const npm = devEngines?.packageManager;
-    if (npm?.name !== 'npm') throw new Error('package.json declares no devEngines.packageManager of npm, so a worktree gets no node_modules for the include of kit; declare "devEngines": {"packageManager": {"name": "npm", "version": "12.2.0", "onFail": "error"}} and "npm:npm" = "12.2.0" in mise.toml (docs/operations/adoption.md)');
-    if (npm.version === undefined) throw new Error('devEngines.packageManager of package.json names npm without a version; declare the npm version there, for example "version": "12.2.0"');
-    print(`[worktree-setup] npm ci of npm@${npm.version} in ${folder}`);
+  if (version !== undefined) {
+    print(`[worktree-setup] npm ci of npm@${version} in ${folder}`);
     // npm 11 of the machine refuses to run in a folder whose devEngines names npm 12.2.0 (EBADDEVENGINES), so the npm of the
     // devEngines runs from the temporary folder with --prefix, and the folder is never the working directory of the outer npm (K938-1).
     // The outer npm writes into its working directory, so it runs in a folder of its own that is removed after the run (K938-1).
     const outer = mkdtempSync(path.join(os.tmpdir(), 'kit-npm-'));
     try {
-      run('npm', ['exec', '--yes', `--package=npm@${npm.version}`, '--', 'npm', '--prefix', folder, 'ci', '--ignore-scripts', '--allow-remote=root'], outer, own);
+      run('npm', ['exec', '--yes', `--package=npm@${version}`, '--', 'npm', '--prefix', folder, 'ci', '--ignore-scripts', '--allow-remote=root'], outer, own);
     } finally {
       rmSync(outer, { recursive: true, force: true });
     }
