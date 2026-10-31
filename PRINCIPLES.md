@@ -188,6 +188,15 @@ repository.
   python. A package manager's name never stands in for the runtime, and the package name is never read for the product or
   the runtime. Only package assets carry a label; packages.json, a file of the release, carries none (K980).
   Enforced by: `make release-assets`, `make release-publish`
+- P40 One concept has one name across the rules, the configuration fields, the file names and the documents: ts, go,
+  rust, php, php-ext and python are runtimes, and a field for them is `runtime`. A new name first reuses the one kit already
+  has for the same concept (K981).
+  Enforced by: none, whether two names denote one concept is a judgement at review.
+- P41 A convention shared across repositories is first a rule of this document with its check; the code implements the
+  rule (K981).
+  Enforced by: none, whether a change introduces a shared convention is a judgement at review.
+- P42 The Task of a checklist item states its requirement, never the release or the version that will carry it (K981).
+  Enforced by: none, whether a Task names a release instead of its requirement is a judgement at review.
 
 ## Repository standards
 

@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 4a38cba556160a33705f8f552f836287cf272af666dc8e579dafa5a2b5ef63d2 -->
+<!-- source-sha256: 50593ad2772952b7106516916923d613fa0a509ba169c8a1292eff551899de2f -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -172,6 +172,13 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-inject-
   중 하나다. package manager의 이름이 runtime을 대신하지 않고, product나 runtime을 package 이름에서 읽지 않는다. label은
   package asset만 달며, release의 파일인 packages.json은 달지 않는다 (K980).
   Enforced by: `make release-assets`, `make release-publish`
+- P40 한 개념은 규칙, 설정 필드, 파일 이름, 문서에서 이름 하나를 쓴다. ts, go, rust, php, php-ext, python은 runtime이고,
+  그것을 담는 필드는 `runtime`이다. 새 이름은 같은 개념에 kit이 이미 쓰는 이름을 먼저 다시 쓴다 (K981).
+  Enforced by: none, 두 이름이 한 개념을 가리키는지는 review의 판단이다.
+- P41 여러 저장소에 걸친 관례는 먼저 검사와 함께 이 문서의 규칙이 되고, 코드는 그 규칙을 구현한다 (K981).
+  Enforced by: none, 변경이 공유 관례를 들이는지는 review의 판단이다.
+- P42 checklist 항목의 Task는 요구사항을 적고, 그것을 담을 릴리스나 버전은 적지 않는다 (K981).
+  Enforced by: none, Task가 요구사항 대신 릴리스를 적는지는 review의 판단이다.
 
 ## Repository 기준
 

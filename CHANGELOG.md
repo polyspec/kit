@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K981: PRINCIPLES states three rules: one concept has one name across rules, config fields, file names and docs, reusing the name kit already has (P40); a convention shared across repositories is first a PRINCIPLES rule with its check (P41); the Task of a checklist item states its requirement, never the release that will carry it (P42) (K981).
+
 ## 0.0.85
 
 - Kit 0.0.85 carries link-check judging only the project of --project (K975), a manifest path of link-check judged by its text (K976), and release assets that keep the file name of their packer and carry the label <vendor>-<product>-<runtime>-<version> from the product and runtime each package of config/release.json now declares (K980) (K982).
