@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: fd9812eaef4668ee90feb6a7dbb8411ef8500450e884668f00b1fc55a306a4cd -->
+<!-- source-sha256: 40cae6113d17054483b685c9f69ced46561f626da4c6cc74ec8a2ff399117dde -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K957: checklist-kit 규칙은 저장소 옆의 ../kit 대신, kit-build가 쓰는 설치된 kit 패키지의 dist/kit-items.json에서 kit item id를 읽습니다. CI에는 ../kit가 없어서 이 규칙이 CI에서 실행되지 않았습니다. 목록이 없으면 note가 아니라 finding입니다. red: 수정 전 commit에서 `node --test --test-name-pattern=K957 tests/kit/documents.test.mts`가 목록 누락을 finding으로 보고하지 않아 실패합니다. green: 수정 뒤 통과합니다 (K957).
 - K950: CI pipeline의 required job은 plan이 선택한 job이 skipped이면 실패합니다. plan은 shared, parity_mode full의 parity job, phases의 parity-api와 parity-bindings job, 저장소에 runtime이 있으면 runtime을 선택하며, plan이 선택하지 않은 job은 결과가 아닙니다. red: `node --test --test-name-pattern=K950 tests/kit/gates-workflow.test.mts`는 plan이 선택한 skipped parity job에 대해 0을 반환했습니다 (K950).
 - K956: 중복 검사는 config/generated.json의 tracked 생성 소스도 paths와 exceptions와 같이 뺍니다. 생성 데이터 표는 본래 반복되며 단일 원본은 생성기이기 때문입니다. red: 수정 전 commit에서 `node --test --test-name-pattern=K956 tests/kit/duplication-check.test.mts`가 "a tracked generated file repeats its generator output"으로 실패합니다. green: 수정 뒤 통과합니다 (K956).
 

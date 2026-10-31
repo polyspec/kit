@@ -8,6 +8,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../../scripts/kit/check-documents.mts';
+import { kitItemIds } from '../../scripts/kit/kit-items.mts';
 import { checkConfig } from '../../scripts/kit/kit-check.mts';
 import { readStatusTable } from '../../scripts/kit/status-table.mts';
 import { changelogFindings, sections } from '../../scripts/kit/changelog.mts';
@@ -17,6 +18,8 @@ import { tool } from './kit-tools.mts';
 const CONFIG = { schema: 1, include: ['**/*.md'] };
 const run = (root: string, config: Parameters<typeof check>[1] = CONFIG): string[] => check(root, config).findings;
 const has = (findings: string[], text: string) => assert.ok(findings.some(line => line === text), `expected ${text}\nin\n${findings.join('\n')}`);
+// The item list that the installed kit package ships beside a consumer, written from the checklists of the kit checkout `kit` (K957).
+const kitList = (kit: string) => ({ 'node_modules/@polyspec/kit/dist/kit-items.json': JSON.stringify(kitItemIds(kit)) });
 const hasPart = (findings: string[], ...parts: string[]) => assert.ok(findings.some(line => parts.every(part => line.includes(part))), `expected ${parts.join(' ... ')}\nin\n${findings.join('\n')}`);
 
 test('a document with anchors, fences and links passes', (t) => {
@@ -103,6 +106,8 @@ const checklist = (rows: string, extra = '') => `# Plan\n\n${extra}| ID | Task |
 const withChecklist = (t: TestContext, en: string, ko = en) => tree(t, {
   ...pair(CHECKLIST, 'checklist', en.replace(/^# Plan\n/, '').trimStart(), ko.replace(/^# Plan\n/, '').trimStart()),
   ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'),
+  // The installed kit package ships no item (K957): the rows of these fixtures name no kit item.
+  'node_modules/@polyspec/kit/dist/kit-items.json': '[]\n',
 });
 const run2 = (root: string) => {
   put(root, { 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: ID_PATTERN }) });
@@ -180,8 +185,8 @@ test('a checklist row that names an unregistered kit item is a finding with its 
   const consumer = pair(CHECKLIST, 'checklist', `${rows}\n`);
   const en = consumer[CHECKLIST];
   assert.ok(en !== undefined);
-  const root = tree(t, { ...consumer, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: ID_PATTERN }) });
-  const found = check(root, CONFIG, kit).findings;
+  const root = tree(t, { ...consumer, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), ...kitList(kit), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: ID_PATTERN }) });
+  const found = check(root, CONFIG).findings;
   const lineOf = (needle: string) => en.split('\n').findIndex(entry => entry.includes(needle)) + 1;
   hasPart(found, `${CHECKLIST}:${lineOf('| T1 |')}:`, 'checklist-kit', 'K99999');
   hasPart(found, `${CHECKLIST}:${lineOf('| T4 |')}:`, 'checklist-kit', 'K12345');
@@ -199,8 +204,8 @@ test('a K-id after the name of a sibling repository, or the own K-id of a reposi
     const files = pair(CHECKLIST, 'checklist', `${[...header, ...rows].join('\n')}\n${definitions}`);
     const parent = tree(t, siblingPresent ? { 'demo-benchmark/.git/HEAD': 'ref: refs/heads/main\n' } : {});
     const root = path.join(parent, 'repo');
-    put(root, { ...files, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern }) });
-    return check(root, CONFIG, kit).findings.filter(line => line.includes('checklist-kit') && line.startsWith(`${CHECKLIST}:`));
+    put(root, { ...files, ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), ...kitList(kit), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern }) });
+    return check(root, CONFIG).findings.filter(line => line.includes('checklist-kit') && line.startsWith(`${CHECKLIST}:`));
   };
   // A repository of T-ids: the item of the sibling demo-benchmark is its own; a bare unregistered K-id is a kit item.
   const sibling = consumer(['| T1 | as demo-benchmark K79-3 does | `a.mts` | `node --test a.test.mts` | [ ] |', '| T2 | waits on K99999 | `b.mts` | `node --test b.test.mts` | [ ] |', '| T3 | [demo-benchmark K79-3](https://github.com/polyspec/demo-benchmark) and [demo-library K80](https://github.com/polyspec/demo-library) | `c.mts` | `node --test c.test.mts` | [ ] |', '| T4 | waits on kit K77777 | `d.mts` | `node --test d.test.mts` | [ ] |'], ID_PATTERN);
@@ -309,7 +314,7 @@ test('link: a site reads the VitePress slug and the {#id} of a heading, a reposi
 test('document checks report step starts, results and elapsed time without changing findings (K685)', (t) => {
   const root = tree(t, pair('a.md', 'alpha'));
   const messages: string[] = [];
-  const actual = check(root, CONFIG, undefined, line => messages.push(line));
+  const actual = check(root, CONFIG, line => messages.push(line));
   assert.deepEqual(actual, check(root, CONFIG));
   for (const name of ['document pairs', 'checklists', 'status tables and changelogs']) {
     assert.ok(messages.includes(`step ${name}: started`), messages.join('\n'));
@@ -338,9 +343,9 @@ test('checklist-kit reads the kit item list of the installed kit package, and a 
   // Without the list the check fails on the list, and no note stands in for the rule.
   const missing = check(root, CONFIG);
   hasPart(missing.findings, 'node_modules/@polyspec/kit/dist/kit-items.json: checklist-kit');
-  assert.deepEqual(missing.notes, [], missing.notes.join('\n'));
   put(root, { 'node_modules/@polyspec/kit/dist/kit-items.json': JSON.stringify(['K365', 'K369']) });
+  // The English checklist and its Korean twin each name the unlisted item once.
   const found = check(root, CONFIG).findings.filter(line => line.includes('checklist-kit'));
-  assert.equal(found.length, 1, found.join('\n'));
-  assert.match(found[0] ?? '', /K99999/);
+  assert.equal(found.length, 2, found.join('\n'));
+  assert.ok(found.every(line => /the kit item K99999/.test(line)), found.join('\n'));
 });

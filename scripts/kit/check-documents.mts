@@ -12,8 +12,8 @@
 //                   of scripts/kit/checklist.mts), an item ID is unique among them and a sub-item has its parent in its checklist
 //                   (checklist-cross), and no other document under docs/ holds checklist items (checklist-place)
 //   checklist-kit   a task row names in its Task, Verification or state a kit item id (K<n> or K<n>-<m>) that the checklists of
-//                   the kit the repository uses hold none of (K374); the kit is this checkout, or else ../kit beside it, and where
-//                   neither exists the rule is skipped with a note
+//                   the kit hold none of (K374); the kit is this checkout, or else the item list dist/kit-items.json of the installed
+//                   kit package, which a missing list fails (K957)
 //   status-table    the status tables have the declared cells and values
 //   changelog       the changelogs start with ## Unreleased, then the versions newest first
 //   missing         a file that config/documents.json names exists
@@ -26,6 +26,7 @@ import { changelogFindings } from './changelog.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { verificationFindings } from './verification.mts';
 import { checklistsFindings, CHECKLIST_COLUMNS, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
+import { KIT_ITEMS, kitItemIds } from './kit-items.mts';
 import type { Tracker } from './checklist.mts';
 import { matchesAny } from './glob.mts';
 import { anchors, headingAnchors, lineBlocks, links, linkSpans, scanFences, unclosedTags } from './markdown.mts';
@@ -171,23 +172,21 @@ const packageName = (root: string): unknown => {
   return typeof parsed === 'object' && parsed !== null && 'name' in parsed ? parsed.name : undefined;
 };
 
-/**
- * The checkout of the kit whose checklists the rows of `root` name: `root` itself in kit, else the kit checkout ../kit
- * beside the repository (K348-1), since the kit package ships no plan. Undefined when neither exists.
- */
-export function kitCheckoutOf(root: string): string | undefined {
-  if (packageName(root) === KIT_PACKAGE) return root;
-  const sibling = path.resolve(root, '..', 'kit');
-  return existsSync(path.join(sibling, CHECKLIST_CONFIG)) ? sibling : undefined;
-}
+/** The item list of the installed kit package that `root` installs, relative to `root` (K957). */
+const KIT_LIST = path.posix.join('node_modules', KIT_PACKAGE, KIT_ITEMS);
 
-/** The item IDs of the checklists of the kit checkout `kit`: every task of every plan folder. Throws when one cannot be read. */
-function kitItemIds(kit: string): Set<string> {
-  const ids = new Set<string>();
-  for (const tracker of trackersOf(loadChecklists(kit), workingPlanFiles(kit))) {
-    for (const item of readChecklist(readFileSync(path.join(kit, tracker.path), 'utf8'), tracker).items) ids.add(item.id);
-  }
-  return ids;
+/**
+ * The item IDs of the kit whose items the rows of `root` name (K957): the checklists of `root` itself in kit, else the list that the
+ * installed kit package ships, since CI has no kit checkout beside the repository (K348-1). Undefined when the list is missing; a
+ * list that is no array of IDs is an error.
+ */
+function kitItemsOf(root: string, isKit: boolean): string[] | undefined {
+  if (isKit) return kitItemIds(root);
+  const file = path.join(root, KIT_LIST);
+  if (!existsSync(file)) return undefined;
+  const parsed: unknown = JSON.parse(readFileSync(file, 'utf8'));
+  if (!Array.isArray(parsed) || !parsed.every(id => typeof id === 'string')) throw new Error(`${file} is no array of kit item IDs; make kit-build writes it`);
+  return parsed;
 }
 
 /** The word right before `index` of `text`, as the name of a repository stands before its item: template-benchmark K79-3. */
@@ -249,9 +248,8 @@ function kitRowFindings(checklists: readonly Tracker[], available: (file: string
   return found;
 }
 
-/** The findings of the checkout at `root` under `config`, as printed lines, sorted; `kitRoot` is the kit checkout the rows name. */
-export function check(root: string, config: DocumentsConfig, kitRoot: string | undefined = kitCheckoutOf(root), progress?: (line: string) => void) {
-  const notes: string[] = [];
+/** The findings of the checkout at `root` under `config`, as printed lines, sorted. */
+export function check(root: string, config: DocumentsConfig, progress?: (line: string) => void) {
   const cache = new Map<string, string>();
   const read = (file: string) => {
     if (!cache.has(file)) cache.set(file, readFileSync(path.join(root, file), 'utf8'));
@@ -290,15 +288,17 @@ export function check(root: string, config: DocumentsConfig, kitRoot: string | u
   const available = (file: string) => (missing.includes(file) ? undefined : read(file));
   let database: MakeDatabase | undefined;
   for (const { file, finding } of [...checklistsFindings(checklists, available), ...verificationFindings(checklists, available, () => (database ??= makeDatabase(root)))]) add(file, finding);
-  // A row that names a kit item waits on the checklists of the kit that the repository uses; without a kit the rule is skipped.
+  // A row that names a kit item waits on the checklists of the kit (K374); a missing item list of the installed kit package is a finding (K957).
   if (checklists.length > 0) {
-    if (kitRoot === undefined) notes.push(`no checkout of the kit at ${path.resolve(root, '..', 'kit')}: the rows that name kit items are not checked`);
+    const isKit = packageName(root) === KIT_PACKAGE;
+    const ids = kitItemsOf(root, isKit);
+    if (ids === undefined) add(KIT_LIST, { rule: 'checklist-kit', message: `${KIT_LIST} is missing; make kit-build writes the item IDs of kit into the package, and the rows that name kit items cannot be checked without them` });
     else {
-      // K559: a kit checkout whose checklists cannot be read fails the check, never a note.
+      // K559: a kit whose checklists cannot be read fails the check, never a note.
       // A repository other than kit whose ids are K-ids names kit as kit K<n>; a sibling repository names its own items (K374-1).
-      const ownKitIds = path.resolve(kitRoot) !== path.resolve(root) && checklists.some(tracker => new RegExp(`^(?:${tracker.idPattern})$`).test('K1'));
+      const ownKitIds = !isKit && checklists.some(tracker => new RegExp(`^(?:${tracker.idPattern})$`).test('K1'));
       const reader = { siblings: siblingRepositories(root), ownKitIds };
-      for (const [file, entry] of kitRowFindings(checklists, available, kitItemIds(kitRoot), reader)) add(file, entry);
+      for (const [file, entry] of kitRowFindings(checklists, available, new Set(ids), reader)) add(file, entry);
     }
   }
   // A document under docs/ that holds checklist items but is no checklist of a plan folder is read by no gate (K235).
@@ -325,7 +325,7 @@ export function check(root: string, config: DocumentsConfig, kitRoot: string | u
   progress?.(`step status tables and changelogs: ${found.length === beforeStatus ? 'passed' : `${found.length - beforeStatus} findings`} (${compactSeconds(performance.now() - statusStarted)})`);
   const lines = found.map(([file, entry]): [string, number, number, string] => [file, entry.line ?? 0, entry.column ?? 0, format(file, entry)]);
   lines.sort((x, y) => (x[0] < y[0] ? -1 : x[0] > y[0] ? 1 : x[1] - y[1] || x[2] - y[2] || (x[3] < y[3] ? -1 : 1)));
-  return { findings: [...new Set(lines.map(line => line[3]))], documents: documents.length, checklists: checklists.length, notes };
+  return { findings: [...new Set(lines.map(line => line[3]))], documents: documents.length, checklists: checklists.length };
 }
 
 if (isMain(import.meta.url)) {
@@ -336,8 +336,7 @@ if (isMain(import.meta.url)) {
   }
   const config = readConfig<DocumentsConfig>(root, CONFIG, 'documents.schema.json');
   console.log(`[check-documents] reading the documents selected by ${CONFIG}`);
-  const { findings, documents, checklists, notes } = check(root, config, undefined, line => console.log(`[check-documents] ${line}`));
-  for (const note of notes) console.log(`[check-documents] note: ${note}`);
+  const { findings, documents, checklists } = check(root, config, line => console.log(`[check-documents] ${line}`));
   for (const line of findings) console.error(`[check-documents] ${line}`);
   if (findings.length) {
     console.error(`[check-documents] ${findings.length} findings in ${documents} document pairs`);

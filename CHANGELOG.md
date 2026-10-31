@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K957: the checklist-kit rule reads the kit item ids from dist/kit-items.json of the installed kit package, which kit-build writes, instead of ../kit beside the repository, which CI does not have; so the rule runs in CI. A missing list is a finding, never a note. Red: `node --test --test-name-pattern=K957 tests/kit/documents.test.mts` fails on the commit before with "node_modules/@polyspec/kit/dist/kit-items.json: checklist-kit" missing; green: it passes with the fix (K957).
 - K950: the required job of the CI pipeline fails when a job that the plan selected is skipped; the plan selects shared, the parity job of parity_mode full, the parity-api and parity-bindings jobs of phases, and runtime when the repository has one, and a job the plan did not select is not a result. Red: `node --test --test-name-pattern=K950 tests/kit/gates-workflow.test.mts` returned 0 for a skipped parity job the plan selected (K950).
 - K956: the duplication check leaves out the tracked generated sources of config/generated.json as it leaves out its paths and exceptions, since a generated data table repeats by nature and its single source is the generator. Red: `node --test --test-name-pattern=K956 tests/kit/duplication-check.test.mts` fails on the commit before with "a tracked generated file repeats its generator output"; green: it passes with the fix (K956).
 

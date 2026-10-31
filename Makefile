@@ -124,6 +124,7 @@ kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and 
 	cp -R scripts/kit/schema dist.next/schema
 	cp -R scripts/kit/php-library dist.next/php-library
 	tar -C scripts/kit --exclude=vendor -cf - symbols | tar -C dist.next -xf -
+	$(NODE) $(KIT)/kit-items.$(KIT_EXT) dist.next/kit-items.json
 	cp -R scripts/kit/markers dist.next/markers
 	cp -R scripts/kit/runners dist.next/runners
 	if [ -d dist ]; then mv dist dist.old; fi
