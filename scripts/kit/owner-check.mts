@@ -33,7 +33,6 @@ import { readNpmManifest } from './manifests.mts';
 import { present } from './present.mts';
 import { moduleImports, moduleReferences, parseModule, resolveRelative } from './module-imports.mts';
 import { expandMake } from './recipe-tools.mts';
-import { CALLER } from './target-report.mts';
 import { INSTALLED } from './kit-check.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
@@ -142,9 +141,10 @@ export function makeDatabase(root: string): MakeDatabase {
   // selects no recipe of the Makefile (K945). Other code of the Makefile still runs under -q: a recipe that remakes an included
   // makefile, and a parse-time $(shell). A recipe line that contains $(MAKE) runs even under -n, -t or -q (GNU make manual,
   // Instead of Execution), so a default goal that calls $(MAKE) recursed without bound. The input starts with a newline, so a
-  // Makefile whose last line ends in a backslash cannot join the first injected line (K945). The MAKELEVEL and flags of the make
-  // that calls the read are removed from its environment, so the read is the top-level make (K945).
-  const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => !CALLER.includes(name)));
+  // Makefile whose last line ends in a backslash cannot join the first injected line (K945). The MAKELEVEL of the make that calls the
+  // read is removed, so the read is the top-level make; its command-line variables stay, since make exports them in MAKEOVERRIDES and
+  // MAKEFLAGS and kit-bootstrap.mk passes KIT to every recursive make (K945-2).
+  const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== 'MAKELEVEL'));
   const result = spawnSync('make', ['-pRrq', '-f', 'Makefile', '-f', '-'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, env: environment, input: `\n.DEFAULT_GOAL := ${DATABASE_GOAL}\n${DATABASE_GOAL}: ;\n` });
   if (result.error) throw new Error(`make could not start: ${result.error.message}`);
   if (!result.stdout.includes('# Make data base')) throw new Error(`make printed no database of ${path.join(root, 'Makefile')}: ${result.stderr.trim()}`);

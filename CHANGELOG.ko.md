@@ -8,6 +8,7 @@
 
 ## 0.0.81
 
+- K945-2: K945-1이 database read에서 지운 것은 MAKELEVEL만이어야 합니다. MAKEOVERRIDES와 MAKEFLAGS도 지워서 호출자의 명령줄 변수(kit-bootstrap.mk가 모든 재귀 make에 넘기는 KIT와 KIT_EXT, K762)가 사라졌고, main CI의 ci-setup test가 깨졌습니다. 이제 read는 명령줄 변수를 유지하고 MAKELEVEL만 지웁니다. red: 명령줄 변수 KIT_PROBE=1을 export하는 case는 origin/main 87a4dc4d에서 "the command-line variable of the caller selects the target"로 실패합니다. green: 수정 뒤 통과합니다 (K945-2).
 - Kit 0.0.81은 생성되는 릴리스 출력의 make 항목(K930), checkout 밖에서 실행하는 mise.toml의 npm과 worktree를 만들기 전에 하는 devEngines 거부(K938-1), release.yml에서 읽는 릴리스 전용 검사와 저장소 명령을 통해 닿는 규칙(K941, K941-1, K941-2), 어떤 recipe도 재귀하지 못하는 make database 읽기(K945, K945-1), 한도가 있는 테스트 사이 감시(K943), checkout에서 실행되는 make 항목(K939)을 담는다 (K949).
 - K941-2: K941-1 이후 orm의 rules check는 finding 71개를 냈습니다. orm의 CI는 make check-run으로 target을 실행하고, 그 recipe는 target 이름을 저장소 script에 넘기며 script는 각 target에 make를 실행하기 때문입니다. 저장소의 파일을 실행하는 명령은 인자를 그 파일에 넘기므로 그 인자의 target에 닿습니다. 파일을 실행하지 않는 명령은 여전히 target을 실행하지 않으므로 산문은 닿지 않습니다 (K941-2). red: orm 형태의 fixture는 수정 전 commit에서 "make feature-unit-check runs at no point"로 실패합니다. green: 수정 뒤 통과합니다.
 - K941-1: rules check는 make 호출을 통해서만 target에 닿으므로, run 줄의 산문은 아무것도 닿지 않고 matrix 단계는 리터럴 matrix의 각 값에 닿습니다. gates test는 release 전용 check를 release.yml에서 얻습니다. S4는 make install-tools를, kit test는 make kit-test-shard를 명시합니다 (K941-1).
