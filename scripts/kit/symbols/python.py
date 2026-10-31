@@ -3,7 +3,7 @@
     python3 -I python.py [--leaks] <import root> <file list>
 
 Prints a JSON array of the public symbol ids, sorted, read with the standard library's ast. The modules are the .py files of
-the file list, one path per line, the files of the source package that git does not ignore; the reader reads no environment or installed
+the file list, one path per line, the files of the source package on disk, Git-ignored generated modules included (K977); the reader reads no environment or installed
 distribution, discovers no module itself, and imports or runs no product module. A module is named by its path from the
 import root, and a package by its __init__.py. A module or package whose name starts with _
 is private, except __init__. The public names of a module are its __all__ when it assigns one a list or tuple

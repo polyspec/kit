@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K977: the python symbols extractor of parity-api reads the .py files on disk under its entry, so a generated module that Git ignores, such as orm's codes.py, is public as the package ships it instead of 99 R1 missing-implementation findings; a folder that is no Python identifier, such as .venv, and __pycache__ are not read (K977).
 - K974: the Claude hook skips only the options of env before the command it runs, so `env A=1 node run-tests.mjs phpunit -- --filter …` keeps its selection instead of being refused as a whole runtime without one (K974).
 
 ## 0.0.83

@@ -1,4 +1,4 @@
-// The Python symbol extractor on the source package of an entry: the .py files under it that git does not ignore, named from
+// The Python symbol extractor on the source package of an entry: the .py files on disk under it (K977), named from
 // the import root (the src folder beside the nearest pyproject.toml, else its folder), read by the python3 of mise.toml with no
 // environment and no install. The leaks (K307-1): a public function, method or class whose annotations or bases name a private
 // symbol of the package (a name that starts with one _) is a leak; a public name is not. Nothing is stubbed; make
@@ -82,7 +82,9 @@ test('a public signature or base class that names a private symbol is a leak, an
   assert.deepEqual(run(t, { 'pkg/__init__.py': 'class Open:\n    pass\n\n\ndef fine(value: Open) -> Open:\n    return value\n' }, '--leaks'), []);
 });
 
-test('K701: a module that git ignores, such as a generated one, is not public, and the src folder is the import root', (t) => {
+// K977: what is public is what the package ships, read from the disk, so a generated module that Git ignores is public; a folder that
+// is no Python identifier, such as a .venv, holds no module that the package imports.
+test('K977: a module that git ignores, such as a generated one, is public, and the src folder is the import root', (t) => {
   const root = checkout(t, {
     'pkg/pyproject.toml': '[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n\n[project]\nname = "fixture"\nversion = "0.0.1"\n',
     'pkg/.gitignore': '/src/pkg/generated/\n',
@@ -90,8 +92,9 @@ test('K701: a module that git ignores, such as a generated one, is not public, a
     'pkg/src/pkg/api.py': 'class Api:\n    def call(self):\n        return None\n',
     'pkg/src/pkg/generated/__init__.py': 'class GeneratedModel:\n    pass\n',
     'pkg/src/pkg/generated/models.py': 'class Account:\n    pass\n',
+    'pkg/src/pkg/.cache/stale.py': 'class Stale:\n    pass\n',
   });
-  assert.deepEqual(listedAt(root, 'pkg/src/pkg'), ['pkg.Public', 'pkg.api.Api', 'pkg.api.Api.call']);
+  assert.deepEqual(listedAt(root, 'pkg/src/pkg'), ['pkg.Public', 'pkg.api.Api', 'pkg.api.Api.call', 'pkg.generated.GeneratedModel', 'pkg.generated.models.Account']);
 });
 
 test('K704 reports an entry that no pyproject.toml holds', (t) => {
@@ -121,7 +124,7 @@ test('K855 refuses a symlinked module, which it never follows, and an entry with
   const root = checkout(t, { 'project/pyproject.toml': PYPROJECT, 'project/pkg/__init__.py': 'class Open:\n    pass\n', 'project/empty/README.md': 'none\n' });
   const empty = pythonListed(root, 'project/empty', toolsEnvironment(ROOT));
   assert.ok('error' in empty);
-  assert.match(empty.error, /project\/empty holds no \.py file under the import root project that git does not ignore/);
+  assert.match(empty.error, /project\/empty holds no \.py file under the import root project/);
   if (process.platform === 'win32') return;
   symlinkSync('__init__.py', path.join(root, 'project/pkg/linked.py'));
   const linked = pythonListed(root, 'project/pkg', toolsEnvironment(ROOT));

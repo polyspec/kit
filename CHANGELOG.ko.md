@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 84d481ebbb9401b2959ef0ffd90485d38e65474b9b1df88ccf99cd4f19894d56 -->
+<!-- source-sha256: 6f415dd0d3d5a91b9fe38367f8baec4e6a42de3bc92184541bb444629d306a1f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K977: parity-api의 python symbols 추출기는 entry 아래 디스크의 .py 파일을 읽으므로, orm의 codes.py처럼 Git이 무시하는 생성 module도 R1 missing-implementation 지적 99개 대신 package가 배포하는 대로 public입니다. .venv처럼 이름이 Python 식별자가 아닌 폴더와 __pycache__는 읽지 않습니다 (K977).
 - K974: Claude hook은 env가 실행하는 명령 앞의 env option만 건너뛰므로, `env A=1 node run-tests.mjs phpunit -- --filter …`가 선택을 잃고 선택 없는 runtime 전체로 거부되지 않습니다 (K974).
 
 ## 0.0.83

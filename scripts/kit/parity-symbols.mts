@@ -2,7 +2,7 @@
 // entry }` or `entries` has its public API read by the standard tool of its ecosystem, never by a parser of kit, in the full
 // check; nothing is read from a saved snapshot. Each input gives public symbol ids, combined when `entries` is declared:
 //   python  scripts/kit/symbols/python.py, the standard library's ast, on the source package <entry>: the .py files under it
-//           that git does not ignore, named from the import root, the folder src beside the nearest pyproject.toml from <entry>
+//           on disk, Git-ignored generated modules included (K977), named from the import root, the folder src beside the nearest pyproject.toml from <entry>
 //           up when that folder exists, else the folder of that pyproject.toml (the src and the flat layout of the Python
 //           Packaging User Guide); run by the python3 of the checkout, reading no environment or installed distribution;
 //           ids <module>.<name> and <module>.<class>.<method>
@@ -28,7 +28,6 @@ import type { ApiItem } from '@microsoft/api-extractor-model';
 import { finding, symbolEntries } from './parity-declaration.mts';
 import type { Environment, Extractor, Finding, ParityModel, ParitySymbolEntry } from './parity-declaration.mts';
 import { execute } from './process.mts';
-import { git } from './git.mts';
 import { toolCommand } from './mise-tools.mts';
 import { SYMBOLS, symbolsPrefix } from './install-symbols.mts';
 import { readExceptions } from './toolchain-exceptions.mts';
@@ -58,27 +57,37 @@ function listed(root: string, command: string, args: string[], env: Environment)
 }
 
 /**
+ * The .py files under the path `file` of `root`, relative to `root`, from the disk, so a generated module that Git ignores is read as
+ * the package ships it (K977): a folder whose name is no Python identifier, such as .venv, holds no module of the package, and
+ * __pycache__ holds no source, so neither is entered; a folder link is not followed, and a linked .py file is listed for its refusal.
+ */
+function pythonFiles(root: string, file: string): string[] {
+  const full = path.join(root, file);
+  if (!existsSync(full)) return [];
+  if (!lstatSync(full).isDirectory()) return file.endsWith('.py') ? [file] : [];
+  return readdirSync(full, { withFileTypes: true }).flatMap((item) => {
+    const child = path.posix.join(file, item.name);
+    if (item.isDirectory()) return /^[A-Za-z_][A-Za-z0-9_]*$/.test(item.name) && item.name !== '__pycache__' ? pythonFiles(root, child) : [];
+    return item.name.endsWith('.py') && (item.isFile() || item.isSymbolicLink()) ? [child] : [];
+  }).sort();
+}
+
+/**
  * The source package of the python symbols `entry`: its import root, the folder src beside the nearest pyproject.toml from `entry`
  * up to the checkout when that folder exists, else the folder of that pyproject.toml (the src and the flat layout of the Python
- * Packaging User Guide), and the .py files under both `entry` and the import root that git does not ignore, so a generated module
- * that the repository ignores is not public; an error when no folder holds a pyproject.toml, when a listed file is a symlink,
- * which is reported and never followed, or when no file is listed.
+ * Packaging User Guide), and the .py files on disk under both `entry` and the import root (pythonFiles), what the package ships
+ * whether Git tracks it or not (K977); an error when no folder holds a pyproject.toml, when a listed file is a symlink, which is
+ * reported and never followed, or when no file is listed.
  */
 function pythonSource(root: string, entry: string): { base: string; files: string[] } | { error: string } {
   for (let project = path.posix.normalize(entry); ; project = path.posix.dirname(project)) {
     if (existsSync(path.join(root, project, 'pyproject.toml'))) {
       const src = path.posix.join(project, 'src');
       const base = existsSync(path.join(root, src)) ? src : project;
-      let listedFiles: string;
-      try {
-        listedFiles = git(root, 'ls-files', '--cached', '--others', '--exclude-standard', '-z', '--', entry);
-      } catch (error) {
-        return { error: `git cannot list the source package ${entry}: ${error instanceof Error ? error.message : String(error)}` };
-      }
-      const files = listedFiles.split('\0').filter(file => file.endsWith('.py') && (base === '.' || file.startsWith(`${base}/`)));
+      const files = pythonFiles(root, path.posix.normalize(entry)).filter(file => base === '.' || file.startsWith(`${base}/`));
       const linked = files.find(file => lstatSync(path.join(root, file)).isSymbolicLink());
       if (linked !== undefined) return { error: `${linked} is a symlink; the python symbols read no symlink` };
-      if (files.length === 0) return { error: `${entry} holds no .py file under the import root ${base} that git does not ignore` };
+      if (files.length === 0) return { error: `${entry} holds no .py file under the import root ${base}` };
       return { base, files };
     }
     if (project === '.' || project === '/') return { error: `no pyproject.toml from ${entry} up to the checkout, whose folder or src folder is the import root of the source package` };
