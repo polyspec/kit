@@ -5,7 +5,9 @@
 
 ## Unreleased
 
+- K950: the required job of the CI pipeline fails when a job that the plan selected is skipped; the plan selects shared, the parity job of parity_mode full, the parity-api and parity-bindings jobs of phases, and runtime when the repository has one, and a job the plan did not select is not a result. Red: `node --test --test-name-pattern=K950 tests/kit/gates-workflow.test.mts` returned 0 for a skipped parity job the plan selected (K950).
 - K956: the duplication check leaves out the tracked generated sources of config/generated.json as it leaves out its paths and exceptions, since a generated data table repeats by nature and its single source is the generator. Red: `node --test --test-name-pattern=K956 tests/kit/duplication-check.test.mts` fails on the commit before with "a tracked generated file repeats its generator output"; green: it passes with the fix (K956).
+
 ## 0.0.81
 
 - K945-2: the database read that K945-1 made keeps the command-line variables of its caller (KIT and KIT_EXT, which kit-bootstrap.mk passes to every recursive make, K762) and drops only MAKELEVEL; K945-1 had dropped MAKEOVERRIDES and MAKEFLAGS too and broke the ci-setup test of main CI. Red: the case that exports KIT_PROBE=1 as a command-line variable fails on origin/main 87a4dc4d with "the command-line variable of the caller selects the target"; green: it passes with the fix (K945-2).

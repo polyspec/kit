@@ -157,18 +157,47 @@ test('K734: the pipeline selects exactly one parity path and its final job needs
 
 // K910: the final job judges the results of its needs with no checkout or install: a failed or cancelled job fails it, and a
 // skipped job (a parity path that the mode excludes, no runtime, or a red shared job, which is a failure itself) does not.
+// The jobs that required judges, in the order of its needs: the result of each job and whether the plan selected it. The run
+// of required reads them from its environment, and RESULTS, the join of the results as the earlier judgement read them, is set
+// too, so that the judgement of the earlier script runs and fails the cases below.
+const JOBS = ['SHARED', 'PARITY', 'PARITY_API', 'PARITY_BINDINGS', 'RUNTIME'] as const;
+function requiredJudgement(required: readonly string[]) {
+  const run = required.slice(required.findIndex(line => line === '        run: |') + 1).map(line => line.replace(/^ {10}/, '')).join('\n');
+  return (results: Record<(typeof JOBS)[number], string>, selected: Record<(typeof JOBS)[number], boolean>) => {
+    const env: NodeJS.ProcessEnv = { ...process.env, RESULTS: JOBS.map(job => results[job]).join(' ') };
+    for (const job of JOBS) {
+      env[`${job}_RESULT`] = results[job];
+      env[`${job}_SELECTED`] = String(selected[job]);
+    }
+    return spawnSync('bash', ['-eu', '-c', run], { env, encoding: 'utf8' }).status;
+  };
+}
+
 test('K910: required runs always on the default runner and fails on a failed or cancelled job of the pipeline', () => {
   const required = workflowJob(read(PIPELINE), 'required');
   assert.ok(required.includes('    if: ${{ always() }}'));
   assert.doesNotMatch(required.join('\n'), /actions\/checkout|make /, 'required installs nothing');
-  const env = required.findIndex(line => line.includes('RESULTS: ${{ join(needs.*.result, \' \') }}'));
-  assert.notEqual(env, -1, 'required reads the result of every need');
-  const run = required.slice(required.findIndex(line => line === '        run: |') + 1).map(line => line.replace(/^ {10}/, '')).join('\n');
-  const judge = (results: string) => spawnSync('bash', ['-eu', '-c', run], { env: { ...process.env, RESULTS: results }, encoding: 'utf8' }).status;
-  assert.equal(judge('success success skipped skipped success'), 0);
-  assert.equal(judge('success skipped skipped skipped skipped'), 0);
-  assert.equal(judge('failure skipped skipped skipped skipped'), 1);
-  assert.equal(judge('success success skipped skipped cancelled'), 1);
+  const judge = requiredJudgement(required);
+  const full = { SHARED: true, PARITY: true, PARITY_API: false, PARITY_BINDINGS: false, RUNTIME: true };
+  assert.equal(judge({ SHARED: 'success', PARITY: 'success', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'success' }, full), 0);
+  assert.equal(judge({ SHARED: 'success', PARITY: 'failure', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'success' }, full), 1);
+  assert.equal(judge({ SHARED: 'success', PARITY: 'success', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'cancelled' }, full), 1);
+});
+
+// K950: required judges only the jobs that the plan selected (shared, the parity path of parity_mode, runtime when the
+// repository has one). A selected job that is skipped fails the pipeline, a job the plan did not select is not a result.
+test('K950: required fails when a job the plan selected is skipped, and judges no job the plan did not select', () => {
+  const judge = requiredJudgement(workflowJob(read(PIPELINE), 'required'));
+  const none = { SHARED: true, PARITY: false, PARITY_API: false, PARITY_BINDINGS: false, RUNTIME: false };
+  const phases = { SHARED: true, PARITY: false, PARITY_API: true, PARITY_BINDINGS: true, RUNTIME: true };
+  const skipped = { SHARED: 'success', PARITY: 'skipped', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'skipped' } as const;
+  assert.equal(judge(skipped, none), 0, 'no job is selected, so none is a result');
+  assert.equal(judge({ ...skipped, PARITY: 'success' }, { ...none, PARITY: true }), 0);
+  assert.equal(judge(skipped, { ...none, PARITY: true }), 1, 'a selected parity job that is skipped fails the pipeline');
+  assert.equal(judge({ ...skipped, PARITY_API: 'success', PARITY_BINDINGS: 'success', RUNTIME: 'success' }, phases), 0, 'the full parity job is not selected in phases mode');
+  assert.equal(judge({ ...skipped, PARITY_API: 'success', PARITY_BINDINGS: 'skipped', RUNTIME: 'success' }, phases), 1, 'a selected binding job that is skipped fails the pipeline');
+  assert.equal(judge({ ...skipped, RUNTIME: 'skipped' }, { ...none, RUNTIME: true }), 1, 'a selected runtime job that is skipped fails the pipeline');
+  assert.equal(judge({ ...skipped, SHARED: 'failure' }, none), 1, 'a failed shared job fails the pipeline');
 });
 
 // K910: every job after shared needs it, so a red shared job holds one runner, and each job passes the targets that
