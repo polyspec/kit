@@ -337,7 +337,7 @@ test('K719 scopes API symbols to a release package entry without narrowing share
     };
     return config;
   } }, { execute: false });
-  assert.ok(coverageOwnedApi.findings.some(finding => finding.message.includes('only a feature or a release-package-owned API unit')));
+  assert.ok(coverageOwnedApi.findings.some(finding => finding.message.includes('only a release package can own an API unit')));
 
   const otherRuntimeSymbol = check(t, { files, edit: config => {
     configure(config);
@@ -349,14 +349,6 @@ test('K719 scopes API symbols to a release package entry without narrowing share
     return config;
   } }, { execute: false });
   assert.ok(otherRuntimeSymbol.findings.some(finding => finding.message.includes('release-package-owned API symbols must all belong to rust')));
-
-  const suiteOwner = check(t, { edit: config => {
-    itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').owner = {
-      kind: 'release-package', artifact: 'git-tag', package: 'codec-build',
-    };
-    return config;
-  } }, { execute: false });
-  assert.ok(suiteOwner.findings.some(finding => finding.message.includes('only a feature or a release-package-owned API unit')));
 
   const commonRequirement = check(t, { files: {
     ...files,
@@ -1124,6 +1116,41 @@ test('K566: a feature owner scope derives its implementation from a declared cov
   const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['go-native-roundtrip'] });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.runs.map(run => `${run.implementation} ${run.status}`), ['go 0']);
+});
+
+// K961: a suite whose cases exist in one implementation only declares that owner, and the other implementations bind and run none.
+test('K961: a suite unit owned by a coverage part runs its owner alone and needs no binding of the others', TIMEOUT, (t) => {
+  const change: Change = {
+    files: {
+      'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-1** Go encodes the native vectors of its codec.\n',
+      'contracts/features.json': JSON.stringify({ features: [{ id: 'codec', parity: ['codec'], tests: ['go/codec_test.go'], coverage: { owners: { go: { part: 'go', tests: ['go/codec_test.go'] } } } }] }),
+    },
+    edit: config => {
+      config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
+      const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'codec');
+      unit.requirements = ['RX-1'];
+      unit.owner = { kind: 'coverage-part', feature: 'codec', part: 'owner/go' };
+      unit.bindings = (unit.bindings ?? []).filter(entry => entry.implementation === 'go');
+      return config;
+    },
+  };
+  const root = repository(t, change);
+  writeFileSync(path.join(root, 'go/codec_test.go'), `${readFileSync(path.join(root, 'go/codec_test.go'), 'utf8')}\n// RX-1\n`);
+  // The whole declaration: R2 asks the owned suite for no binding of the other implementations.
+  const declared = checkParity(root, { execute: false, env: ENV, say: () => {} });
+  assert.deepEqual(declared.findings.filter(finding => finding.unit === 'codec').map(finding => `${finding.rule}: ${finding.message}`), []);
+  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['codec'] });
+  assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), []);
+  assert.deepEqual(ledger.runs.map(run => `${run.implementation} ${run.status}`), ['go 0']);
+  // A requirement that does not name the owner keeps the suite shared, and an owned suite binds its owner only.
+  const shared = check(t, { ...change, files: { ...change.files, 'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-1** Every implementation encodes the native vectors.\n' } }, { execute: false });
+  assert.ok(shared.findings.some(finding => finding.message.includes('unit codec: requirement RX-1 does not name its owner go')));
+  const outside = check(t, { ...change, edit: config => {
+    change.edit?.(config);
+    itemWhere(config.units, (entry: { id: string }) => entry.id === 'codec').bindings?.push({ implementation: 'ts', test: 'ts/tests/codec.mjs' });
+    return config;
+  } }, { execute: false });
+  assert.ok(outside.findings.some(finding => finding.message.includes('an owner-scoped unit binds an implementation other than go')));
 });
 
 test('K566 rejects component scope for a shared SQL requirement and an unowned coverage part', TIMEOUT, (t) => {

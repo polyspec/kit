@@ -112,7 +112,7 @@ export interface ParityUnit {
   symbols?: ParitySymbol[];
 }
 
-/** A feature's native surface, traced to one existing owner or an explicit set of coverage parts. */
+/** The native surface of a feature or suite (K961), traced to one existing owner or an explicit set of coverage parts. */
 export type ParityOwner =
   | { kind: 'coverage-part'; feature: string; part: string }
   | { kind: 'coverage-parts'; feature: string; parts: string[] }
@@ -165,7 +165,7 @@ export interface ParityModel {
   cases: Map<string, string[]>;
   tests: Map<string, string[]>;
   testRunners: Map<string, Runner[]>;
-  /** The implementation derived from a feature/API unit's declared repository owner, or all implementations when absent. */
+  /** The implementation derived from a feature, suite or API unit's declared repository owner, or all implementations when absent. */
   unitImplementations: Map<string, ParityImplementation[]>;
   /** The package root of a release-package-owned API unit, used to select that artifact's symbol inputs. */
   unitOwnerRoots: Map<string, string>;
@@ -880,8 +880,9 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
     units.set(unit.id, unit);
     const where = `unit ${unit.id}`;
     if (unit.owner !== undefined) {
-      if (unit.kind !== 'feature' && !(unit.kind === 'api' && unit.owner.kind === 'release-package')) {
-        fail(`${where}: only a feature or a release-package-owned API unit can have an owner; suites and unowned API units apply to every implementation`);
+      // K961: a suite whose cases exist in its owner only is owned as a feature is; an api unit is owned by a release package only.
+      if (unit.kind === 'api' && unit.owner.kind !== 'release-package') {
+        fail(`${where}: only a release package can own an API unit; unowned API units apply to every implementation`);
       }
       const ownerScope = unit.owner;
       const multiOwner = ownerScope.kind === 'coverage-parts';
@@ -900,7 +901,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
             if (bindings.length === 0) fail(`${where}: multi-owner scope has no native binding for ${owner.implementation.name}`);
             if (bindings.some(binding => binding.test !== owner.root && !within(owner.root, binding.test))) fail(`${where}: owner ${owner.implementation.name} does not contain each of its bound tests`);
           }
-          if ((unit.bindings ?? []).some(binding => !ownerNames.includes(binding.implementation))) fail(`${where}: a multi-owner feature binds an implementation outside its declared owners`);
+          if ((unit.bindings ?? []).some(binding => !ownerNames.includes(binding.implementation))) fail(`${where}: a multi-owner unit binds an implementation outside its declared owners`);
         }
         unitImplementations.set(unit.id, resolved.map(owner => owner.implementation));
         if (unit.kind === 'api' && ownerScope.kind === 'release-package') {
@@ -925,7 +926,7 @@ export function readDeclaration(root: string, files: ReadonlySet<string>, only?:
             fail(multiOwner ? `${where}: requirement ${id} does not name or share owner ${ownerName}` : `${where}: requirement ${id} does not name its owner ${ownerName}`);
           }
         }
-        if (!multiOwner && (unit.bindings ?? []).some(binding => binding.implementation !== resolved[0]?.implementation.name)) fail(`${where}: an owner-scoped feature binds an implementation other than ${resolved[0]?.implementation.name}`);
+        if (!multiOwner && (unit.bindings ?? []).some(binding => binding.implementation !== resolved[0]?.implementation.name)) fail(`${where}: an owner-scoped unit binds an implementation other than ${resolved[0]?.implementation.name}`);
       }
     }
     const owned = unit.kind === 'api' ? unit.symbols ?? [] : unit.bindings ?? [];
