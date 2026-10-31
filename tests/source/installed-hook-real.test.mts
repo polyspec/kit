@@ -62,7 +62,7 @@ describe('installed kit bootstrap and hook bin (K671-1)', () => {
       assert.ok(command);
       const invoke = (text: string) => spawnSync('sh', ['-c', command], {
         cwd: consumer, env: { ...process.env, CLAUDE_PROJECT_DIR: consumer }, encoding: 'utf8',
-        input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: text } }),
+        input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: text }, cwd: consumer }),
       });
       const allowed = invoke('printf ok');
       const refused = invoke('make check');

@@ -27,6 +27,14 @@ test('a recipe line that already names the placeholder of a make reference fails
   assert.throws(() => commandWords('${KIT_MAKE_REFERENCE_7} a.mts'), /recipe line `\$\{KIT_MAKE_REFERENCE_7\} a\.mts` already contains KIT_MAKE_REFERENCE_, the placeholder that recipe-tools puts in place of a make reference/);
 });
 
+// K984: the file descriptor number written against a redirection is no word; a number parted from it by a blank is one.
+test('the file descriptor number of a redirection is no word of the command (K984)', () => {
+  assert.deepEqual(commandParts('node --test a.mts 2>&1 | grep x'), [['node', '--test', 'a.mts'], ['grep', 'x']]);
+  assert.deepEqual(commandParts('echo 2 > f'), [['echo', '2']]);
+  assert.deepEqual(commandParts('echo a\\ 2>f'), [['echo', 'a 2']]);
+  assert.deepEqual(commandParts('echo "a\\" 2>x" 3>y'), [['echo', 'a" 2>x']]);
+});
+
 test('POSIX parameter expansions are restored as their original shell tokens (K563)', () => {
   assert.deepEqual(commandParts('out=${1:?usage: build.sh <output>}'), [['out=${1:?usage: build.sh <output>}']]);
   assert.deepEqual(commandParts('echo "${X:-${Y:-a b}}"'), [['echo', '${X:-${Y:-a b}}']]);

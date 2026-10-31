@@ -69,6 +69,14 @@ function positionals(tool: string, args: readonly string[]): string[] {
 }
 
 /**
+ * The positional arguments of `args` of the runner `tool` that select by file (node, phpunit) and name no file by `isFileAt`, so a
+ * refusal names the files it did not find instead of passing over them (K984).
+ */
+export function missingFiles(tool: string, args: readonly string[], isFileAt: (file: string) => boolean = isFile): string[] {
+  return tool === 'node' || tool === 'phpunit' ? positionals(tool, args).filter(word => !isFileAt(word)) : [];
+}
+
+/**
  * Whether the arguments `args` of the runner `tool` select tests. `isFileAt(path)` tells whether a path names a file.
  * node and phpunit select by a test file or a name filter; vitest by a file filter or a name filter; go by -run; cargo
  * by a test name filter or a test target; python unittest by a test id or -k. For Cargo `-- --exact`, a native test name

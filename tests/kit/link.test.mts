@@ -987,7 +987,7 @@ test('hook writes the Bash PreToolUse hook of the kit checkout into the workspac
   hookCheckout(kit);
   assert.equal(writeWorkspaceHook(root, kit), path.join(root, '.claude/settings.json'));
   assert.deepEqual(readJsonObject(root, '.claude/settings.json'), { hooks: { PreToolUse: [hookEntry(kit)] } });
-  const hook = spawnSync('/bin/sh', ['-c', hookCommand(kit)], { cwd: consumer, input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'sleep 240' } }), encoding: 'utf8' });
+  const hook = spawnSync('/bin/sh', ['-c', hookCommand(kit)], { cwd: consumer, input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'sleep 240' }, cwd: consumer }), encoding: 'utf8' });
   assert.equal(hook.status, 2, hook.stderr);
   assert.match(hook.stderr, /refuse/);
 });

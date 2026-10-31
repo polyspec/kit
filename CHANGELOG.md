@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K984: the Claude hook judges a relative test file of a command and a make command by the Makefile of the cwd of the hook input, where Claude Code runs it, instead of the folder the hook process started in, so a session that moved into another checkout is no longer refused for a named file as a whole runtime without a selection; a named file that is no file there is named in the refusal, an input with no cwd is refused by name, and the 2 of 2>&1 is no longer read as an argument (K984).
 - K983: `make install-link` takes `PROJECT` and `RUNTIME` as `make link` does, with no hook, `make unlink` and `link.mjs unlink` take `RUNTIME` and `--runtime`, unlink and hook refuse an argument they do not take, and with no link declaration a runtime also selects the links that link removes, so a CI job of one runtime, as a node job without uv, no longer fails starting uv for a Python environment (K983).
 - K981: PRINCIPLES states three rules: one concept has one name across rules, config fields, file names and docs, reusing the name kit already has (P40); a convention shared across repositories is first a PRINCIPLES rule with its check (P41); the Task of a checklist item states its requirement, never the release that will carry it (P42) (K981).
 

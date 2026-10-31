@@ -401,7 +401,7 @@ function refuseCommands(root: string, id: string, commands: readonly string[]): 
   let database: MakeDatabase | undefined;
   for (const command of commands) {
     // The command runs in the root, so a file that it names is judged from there (K353-2).
-    const refused = refusal(command, file => isFile(path.resolve(root, file)), () => (database ??= makeDatabase(root)));
+    const refused = refusal(command, file => isFile(path.resolve(root, file)), () => (database ??= makeDatabase(root)), root);
     if (refused) throw new Error(`the command \`${command}\` of ${id} is refused by the Claude Code hook: ${refused}`);
   }
 }

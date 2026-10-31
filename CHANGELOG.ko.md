@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7489212ddf63caab1f909fd68321d4cfdad1bd664da32ccb1dcc8872e4314bc1 -->
+<!-- source-sha256: 5a52119bfd4bf2c5a7fb50f449824a11c16920ac4e355a82b0e3f52ade57f6fc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K984: Claude hook은 명령의 상대 테스트 파일과 make 명령의 Makefile을 hook 프로세스가 시작한 폴더 대신 Claude Code가 명령을 실행하는 hook 입력의 cwd에서 판단하므로, 다른 checkout으로 이동한 세션의 지정 파일이 더 이상 선택 없는 runtime 전체로 거부되지 않습니다. 거기에 없는 지정 파일은 거부 이유에 이름이 적히고, cwd가 없는 입력은 이유를 밝혀 거부하며, 2>&1의 2는 더 이상 인자로 읽지 않습니다 (K984).
 - K983: `make install-link`는 `make link`처럼 `PROJECT`와 `RUNTIME`을 받고 hook은 쓰지 않으며, `make unlink`와 `link.mjs unlink`는 `RUNTIME`과 `--runtime`을 받고, unlink와 hook은 받지 않는 인자를 거부하며, link 선언이 없을 때 runtime은 link가 제거하는 link도 선택하므로, uv가 없는 node job처럼 한 runtime의 CI job이 더 이상 Python 환경을 찾는 uv를 실행하다 실패하지 않습니다 (K983).
 - K981: PRINCIPLES는 세 규칙을 적습니다. 한 개념은 규칙, 설정 필드, 파일 이름, 문서에서 kit에 이미 있는 이름을 다시 써서 이름 하나를 쓰고(P40), 여러 저장소에 걸친 관례는 먼저 검사와 함께 PRINCIPLES 규칙이 되며(P41), checklist 항목의 Task는 요구사항을 적고 그것을 담을 릴리스는 적지 않습니다(P42) (K981).
 

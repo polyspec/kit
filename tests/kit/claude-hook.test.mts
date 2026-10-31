@@ -73,8 +73,23 @@ test('an edit of a file that kit vendors is refused in a consumer and allowed in
 });
 
 test('a Bash input runs the command check, and another tool passes', () => {
-  assert.match(toolRefusal({ tool_name: 'Bash', tool_input: { command: 'make check' } }, '/') ?? '', /CI/);
+  assert.match(toolRefusal({ tool_name: 'Bash', tool_input: { command: 'make check' }, cwd: '/' }, '/') ?? '', /CI/);
   assert.equal(toolRefusal({ tool_name: 'Read', tool_input: { file_path: '/x' } }, '/'), null);
+});
+
+// K984: Claude Code runs a command in the folder of the session, the cwd of the hook input, which may be another checkout than the
+// one the session started in; a named test file is judged there, a file that is no file there is named in the refusal, and an input
+// with no cwd is refused by name instead of being judged in the folder of the hook.
+test('a named test file is judged in the cwd of the hook input and a missing one is named (K984)', (t) => {
+  const session = tree(t, { 'tests/a.test.mts': '', Makefile: 'unit:\n\tnode --test\n' });
+  const started = tree(t, { Makefile: 'other:\n\ttrue\n' });
+  const bash = (command: string, cwd?: string) => toolRefusal({ tool_name: 'Bash', tool_input: { command }, ...(cwd === undefined ? {} : { cwd }) }, started);
+  assert.equal(bash('PATH=$PWD/var/tools/bin:$PATH node --test tests/a.test.mts 2>&1 | grep -E "x"', session), null);
+  assert.match(bash('node --test tests/a.test.mts', started) ?? '', new RegExp(`without a selection; tests/a\\.test\\.mts is no file in ${started}`));
+  assert.match(bash('node --test tests/a.test.mts') ?? '', /names no absolute cwd/);
+  assert.match(refusal('node --test 2>&1') ?? '', /^node --test runs a whole runtime/, 'the 2 of 2>&1 is no argument');
+  assert.match(bash('make unit', session) ?? '', /without a selection/, 'the Makefile of the cwd is the one make runs');
+  assert.match(bash('node scripts/kit/run-tests.mts node --cwd /nowhere -- missing.test.mts', session) ?? '', /missing\.test\.mts is no file in \/nowhere,/);
 });
 
 // A make database with the suite of a repository's own Makefile and a unit target, as makeDatabase reads it.

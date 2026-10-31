@@ -151,6 +151,41 @@ export function expandMake(text: string, variables: ReadonlyMap<string, string>)
 }
 
 /**
+ * `text` without the file descriptor number of each redirection: shell-quote reads `2>&1` as the word 2, the operator >& and the
+ * word 1, and the 2, written against the operator, is no argument of the command (POSIX shell, 2.7 Redirection). A number that a
+ * blank parts from the operator, as in `echo 2 > f`, is a word and stays; quoted text is left as it is (K984).
+ */
+function withoutRedirectionNumbers(text: string): string {
+  let result = '';
+  let quote: string | undefined;
+  // Whether the last character was escaped: an escaped blank or operator joins its word and starts no new one.
+  let escaped = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text.charAt(index);
+    // A backslash escapes the next character outside single quotes (2.2.1, 2.2.3), so an escaped quote ends no quoting.
+    if (quote !== "'" && char === '\\') {
+      result += text.slice(index, index + 2);
+      index += 1;
+      escaped = true;
+      continue;
+    }
+    const afterBreak = index === 0 || (!escaped && /[\s;&|()]/.test(text.charAt(index - 1)));
+    escaped = false;
+    if (quote === undefined && (char === "'" || char === '"')) quote = char;
+    else if (char === quote) quote = undefined;
+    else if (quote === undefined && /\d/.test(char) && afterBreak) {
+      const number = /^\d+(?=[<>])/.exec(text.slice(index));
+      if (number) {
+        index += number[0].length - 1;
+        continue;
+      }
+    }
+    result += char;
+  }
+  return result;
+}
+
+/**
  * The words of each command of the recipe line `line`, split by the quoting rules of the POSIX shell with the parse of
  * shell-quote: a quoted string is one word with its quotes removed, and an operator or a blank inside quotes is text of the
  * word, so `echo "a|node"` is one command. Each reference of make, which the shell never sees, stays one word as written.
@@ -185,7 +220,7 @@ export function commandParts(line: string): string[][] {
   };
   const parts: string[][] = [[]];
   let redirection = false;
-  for (const entry of parse(text, key => `\${${key}}`)) {
+  for (const entry of parse(withoutRedirectionNumbers(text), key => `\${${key}}`)) {
     if (typeof entry === 'string' || 'pattern' in entry) {
       if (!redirection) parts[parts.length - 1]?.push(restore(typeof entry === 'string' ? entry : entry.pattern));
       redirection = false;

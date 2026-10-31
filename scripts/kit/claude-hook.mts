@@ -21,7 +21,7 @@ import { readNpmManifest } from './manifests.mts';
 import { existsSync } from 'node:fs';
 import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
-import { isFile, runnerWords, selects } from './test-selection.mts';
+import { isFile, missingFiles, runnerWords, selects } from './test-selection.mts';
 
 // The make targets of kit that run a suite or a group of its targets.
 const SUITE_TARGETS = new Set(['check', 'ci', 'ci-targets', 'check-run', 'rerun-failed', 'owner-check', 'kit-test-shard']);
@@ -52,49 +52,58 @@ const SELECT: Record<string, string> = {
   python: 'name the test ids or add -k <pattern>',
 };
 
-/** The refusal of `command`, which runs the runner `tool` of test-selection.mts with `args`, when they select no test. */
-function selection(command: string[], tool: string, args: string[], isFileAt: (file: string) => boolean): string | null {
-  return selects(tool, args, isFileAt) ? null : `${command.join(' ')} runs a whole runtime without a selection, which ${SUITE}: ${SELECT[tool] ?? 'select the tests'}`;
+/**
+ * The refusal of `command`, which runs the runner `tool` of test-selection.mts with `args` in the folder `where`, when they select no
+ * test; it names each file the command names that is no file there, so a wrong folder is not taken for a missing selection (K984).
+ */
+function selection(command: string[], tool: string, args: string[], isFileAt: (file: string) => boolean, where: string | undefined): string | null {
+  if (selects(tool, args, isFileAt)) return null;
+  const missing = missingFiles(tool, args, isFileAt);
+  const found = missing.length ? `; ${missing.join(', ')} ${missing.length === 1 ? 'is' : 'are'} no file in ${where ?? 'the folder the command runs in'}` : '';
+  return `${command.join(' ')} runs a whole runtime without a selection${found}, which ${SUITE}: ${SELECT[tool] ?? 'select the tests'}`;
 }
 
-/** The refusal of a test runner `program` with `args` that selects no test, or null. */
-function runnerRefusal(program: string, args: string[], isFileAt: (file: string) => boolean): string | null {
+/** The refusal of a test runner `program` with `args`, run in the folder `where`, that selects no test, or null. */
+function runnerRefusal(program: string, args: string[], isFileAt: (file: string) => boolean, where: string | undefined): string | null {
   const [first, second] = args;
   const command = [program, ...args];
-  if (program === 'cargo' && first?.startsWith('+')) return runnerRefusal(program, args.slice(1), isFileAt);
-  if (program === 'go' && first === 'test') return selection(command, 'go', args.slice(1), isFileAt);
-  if (program === 'cargo' && first === 'test') return selection(command, 'cargo', args.slice(1), isFileAt);
-  if (program === 'cargo' && first === 'nextest' && second === 'run') return selection(command, 'cargo', args.slice(2), isFileAt);
-  if (program === 'phpunit') return selection(command, 'phpunit', args, isFileAt);
-  if (program === 'php' && first !== undefined && path.basename(first) === 'phpunit') return selection(command, 'phpunit', args.slice(1), isFileAt);
+  if (program === 'cargo' && first?.startsWith('+')) return runnerRefusal(program, args.slice(1), isFileAt, where);
+  if (program === 'go' && first === 'test') return selection(command, 'go', args.slice(1), isFileAt, where);
+  if (program === 'cargo' && first === 'test') return selection(command, 'cargo', args.slice(1), isFileAt, where);
+  if (program === 'cargo' && first === 'nextest' && second === 'run') return selection(command, 'cargo', args.slice(2), isFileAt, where);
+  if (program === 'phpunit') return selection(command, 'phpunit', args, isFileAt, where);
+  if (program === 'php' && first !== undefined && path.basename(first) === 'phpunit') return selection(command, 'phpunit', args.slice(1), isFileAt, where);
   if (program === 'node') {
     const separator = args.indexOf('--');
     const nodeArgs = separator === -1 ? args : args.slice(0, separator);
-    if (nodeArgs.includes('--test')) return selection(command, 'node', nodeArgs.filter(arg => arg !== '--test'), isFileAt);
+    if (nodeArgs.includes('--test')) return selection(command, 'node', nodeArgs.filter(arg => arg !== '--test'), isFileAt, where);
   }
-  if (program === 'vitest') return selection(command, 'vitest', args, isFileAt);
-  if (/^python3?(\.\d+)?$/.test(program) && first === '-m' && (second === 'unittest' || second === 'pytest')) return selection(command, 'python', args.slice(2), isFileAt);
-  if (program === 'pytest') return selection(command, 'python', args, isFileAt);
+  if (program === 'vitest') return selection(command, 'vitest', args, isFileAt, where);
+  if (/^python3?(\.\d+)?$/.test(program) && first === '-m' && (second === 'unittest' || second === 'pytest')) return selection(command, 'python', args.slice(2), isFileAt, where);
+  if (program === 'pytest') return selection(command, 'python', args, isFileAt, where);
   // run-tests.mts <runner> [<options>] [--] <args> runs the runner over the arguments after its options in its --cwd, so it needs
   // their selection there (K249-3, K353-2).
   if (program === 'node' && first !== undefined && second !== undefined && /(?:^|\/)run-tests\.m[jt]s$/.test(first)) {
     const { options, args: toolArgs } = runnerWords(args.slice(2));
     const cwd = options.findLast(([flag]) => flag === '--cwd')?.[1] ?? '.';
-    return selection(command, second, toolArgs, file => isFileAt(path.isAbsolute(file) ? file : path.join(cwd, file)));
+    return selection(command, second, toolArgs, file => isFileAt(path.isAbsolute(file) ? file : path.join(cwd, file)), where === undefined ? cwd : path.resolve(where, cwd));
   }
   // A node wrapper may forward a command after --; apply the same runner selection rules to that declared command.
   if (program === 'node') {
     const separator = args.indexOf('--');
     if (separator !== -1) {
       const [forwarded, ...forwardedArgs] = args.slice(separator + 1);
-      if (forwarded !== undefined) return runnerRefusal(path.basename(forwarded), forwardedArgs, isFileAt);
+      if (forwarded !== undefined) return runnerRefusal(path.basename(forwarded), forwardedArgs, isFileAt, where);
     }
   }
   return null;
 }
 
-/** What a refusal reads besides the command: whether a word names a file, and the database of the Makefile of the root. */
-type Context = { isFileAt: (file: string) => boolean; make: () => MakeDatabase | undefined };
+/**
+ * What a refusal reads besides the command: whether a word names a file, the folder the command runs in, which a refusal names, and
+ * the database of the Makefile of that folder.
+ */
+type Context = { isFileAt: (file: string) => boolean; where: string | undefined; make: () => MakeDatabase | undefined };
 
 /** The refusal of the first command that the target `target` runs, through its prerequisites and recipes, or null. */
 function recipeRefusal(target: string, database: MakeDatabase, assignments: ReadonlyMap<string, string>, context: Context, seen: Set<string>): string | null {
@@ -247,7 +256,7 @@ function shellScript(args: string[]): string | undefined {
 
 /** The refusal of one simple command, its `words`, or null. */
 function commandRefusal(words: string[], context: Context, seen: Set<string>): string | null {
-  const { isFileAt } = context;
+  const { isFileAt, where } = context;
   let rest = words;
   if (rest[0] === 'export' && rest.slice(1).some(word => assigned(word) && marker(word))) return `${rest.join(' ')} sets the variable that marks a CI run; a suite ${SUITE}`;
   if (rest[0] === 'env') rest = envArguments(rest.slice(1));
@@ -265,7 +274,7 @@ function commandRefusal(words: string[], context: Context, seen: Set<string>): s
   if (program === 'sleep') return waitRefusal(`${words.join(' ')} waits`);
   if (program === 'make') return makeRefusal(args, context, seen);
   if (program === 'git') return gitRefusal(args);
-  return runnerRefusal(program, args, isFileAt);
+  return runnerRefusal(program, args, isFileAt, where);
 }
 
 /** The refusal of the Bash command `command` in `context`, or null; `seen` holds the make targets already read. */
@@ -281,10 +290,11 @@ function refusalIn(command: string, context: Context, seen: Set<string>): string
 
 /**
  * The refusal of the Bash command `command`, or null when the hook allows it. `make` gives the database of the Makefile of
- * the root, which a make command is followed through; without it a make command is read by its targets alone.
+ * the folder the command runs in, `where`, which a make command is followed through; without it a make command is read by its
+ * targets alone. `where` is named in a refusal of a named file that is no file.
  */
-export function refusal(command: string, isFileAt: (file: string) => boolean = isFile, make: () => MakeDatabase | undefined = () => undefined): string | null {
-  return refusalIn(command, { isFileAt, make }, new Set());
+export function refusal(command: string, isFileAt: (file: string) => boolean = isFile, make: () => MakeDatabase | undefined = () => undefined, where?: string): string | null {
+  return refusalIn(command, { isFileAt, where, make }, new Set());
 }
 
 /**
@@ -296,8 +306,14 @@ export function toolRefusal(input: unknown, root: string): string | null {
   if (!isJsonObject(input) || !isJsonObject(input.tool_input)) return null;
   const tool = input.tool_name;
   if (tool === 'Bash') {
+    if (typeof input.tool_input.command !== 'string') return null;
+    // Claude Code runs the command in the folder of the session, the cwd of the hook input, which the session may have changed
+    // since it started; a relative file of the command and the Makefile that a make command runs are judged there (K984). An
+    // input without it is refused by name rather than judged in another folder.
+    const cwd = input.cwd;
+    if (typeof cwd !== 'string' || !path.isAbsolute(cwd)) return 'the hook input names no absolute cwd, the folder where the command runs, so the files it names cannot be judged; this is a defect of the hook input, report it to kit';
     let database: MakeDatabase | undefined;
-    return typeof input.tool_input.command === 'string' ? refusal(input.tool_input.command, isFile, () => (database ??= makeDatabase(root))) : null;
+    return refusal(input.tool_input.command, file => isFile(path.resolve(cwd, file)), () => (database ??= makeDatabase(cwd)), cwd);
   }
   if (typeof tool !== 'string' || !EDITS.has(tool)) return null;
   const file = input.tool_input.file_path ?? input.tool_input.notebook_path;
