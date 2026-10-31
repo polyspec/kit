@@ -8,38 +8,16 @@
 //     requires; with none, link wrote no go.work;
 //   - a polyspec package that a tracked project declares and a declared checkout provides has an installed folder (K888);
 //   - no tracked manifest names a path out of the repository, whatever the package, which a clean clone cannot reproduce (K773, K902);
-//   - with a declaration, the workspace folder holds the Claude Code hook of the kit checkout (K440), and with --project the consumer
-//     holds the hook of the kit that links it (K498), unless that kit is an installed package (K916).
 // Nothing about a version is judged. A finding names the ecosystem and the package or the file.
 //
 //   node link-check.mts [--project <dir>]
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
-import { declaredUnlinked, isKitHookEntry, kitHookCheckout, kitNodeRunnable, link, projectHookFindings, workspaceHookEntry, workspaceSettings } from './link.mts';
-import { declaredCheckouts, isIgnored, LINKS_FILE, mainCheckout, providers, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
+import { declaredUnlinked, link } from './link.mts';
+import { declaredCheckouts, isIgnored, LINKS_FILE, mainCheckout, providers, trackedManifests, workTreeOf } from './link-providers.mts';
 import { isTable, readToml } from './toml.mts';
 import { isMain } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
-
-/**
- * K440, K440-2: the findings of the workspace folder of `root` whose kit checkout has claude-hook. Three classes, one message each: the
- * node that runs the hook is missing or not executable (kitNodeRunnable); the settings lack the hook (no PreToolUse entry runs the
- * claude-hook of the checkout); the settings hold a hook of the checkout whose entry differs from the one the writer writes.
- */
-function workspaceHookFindings(root: string, env: NodeJS.ProcessEnv): string[] {
-  const workspace = workspaceOf(root);
-  const kit = kitHookCheckout(workspace, env);
-  if (kit === undefined) return [];
-  const found: string[] = [];
-  if (!kitNodeRunnable(kit)) found.push(`${path.join(kit, 'var/tools/bin/node')}: the node of the kit checkout is missing or not executable, so the Claude Code hook cannot run (K440-2); fix: make -C ${realpathSync(kit)} install-tools`);
-  const file = path.join(workspace, '.claude/settings.json');
-  const settings = workspaceSettings(workspace);
-  const pre: unknown[] = isJsonObject(settings.hooks) && Array.isArray(settings.hooks.PreToolUse) ? settings.hooks.PreToolUse : [];
-  const present = pre.filter(isKitHookEntry);
-  if (present.length === 0) found.push(`${file}: no Bash PreToolUse hook runs the claude-hook of the kit checkout (K440); fix: make link`);
-  else if (JSON.stringify(present) !== JSON.stringify([workspaceHookEntry(kit)])) found.push(`${file}: the Bash PreToolUse hook of the claude-hook of the kit checkout differs from the entry the link writes (K440-2); fix: make link`);
-  return found;
-}
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
 const NPM_PATH = /^(?:file|link):/;
@@ -101,7 +79,7 @@ function trackedManifestPathFindings(root: string): string[] {
 
 /**
  * The findings of `root` beside link's check, sorted: K773's paths of the tracked manifests, the declared packages with no installed
- * folder (K888) and, with a declaration, the hook of the workspace folder (K440).
+ * folder (K888). link writes no Claude Code settings, so the check judges none (K960).
  */
 export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
   const checkouts = declaredCheckouts(root);
@@ -109,7 +87,7 @@ export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env)
   // The declaration is a setting of the checkout, which Git ignores (K869).
   const file = path.join(mainCheckout(root), LINKS_FILE);
   const ignored = checkouts === undefined || isIgnored(file) ? [] : [`${file}: Git does not ignore the link declaration; fix: add the line /${LINKS_FILE} to the .gitignore of the repository`];
-  return [...ignored, ...trackedManifestPathFindings(root), ...declaredUnlinked(root, provided, env), ...(checkouts === undefined ? [] : workspaceHookFindings(root, env))].sort();
+  return [...ignored, ...trackedManifestPathFindings(root), ...declaredUnlinked(root, provided, env)].sort();
 }
 
 /** The link check of the checkout of `directory`, or with `project` of the consumer `directory`: link's check, then linkFindings. */
@@ -118,7 +96,7 @@ export function linkCheck(directory: string, project: boolean, print: (text: str
   const checkouts = declaredCheckouts(directory);
   let ok = link({ checkouts: checkouts ?? [], directories: [directory], check: true, print, env, project, own: checkouts !== undefined });
   const root = workTreeOf(directory);
-  for (const finding of [...linkFindings(root, env), ...(project ? projectHookFindings(directory) : [])]) {
+  for (const finding of linkFindings(root, env)) {
     print(`[link-check] ${finding}`);
     ok = false;
   }

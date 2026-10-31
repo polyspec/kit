@@ -26,3 +26,6 @@ coverage/
 go.work
 go.work.sum
 /.links
+
+# The Claude Code hook that make hook writes into the checkout (K498, K960)
+/.claude/settings.local.json

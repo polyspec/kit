@@ -416,10 +416,15 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 # lists each provided folder that is a copy or links elsewhere; unlink only removes the links, and make install restores the locked
 # installs (K856). link writes a git-ignored go.work at each Go module, which go reads by itself; unlink removes it.
 .PHONY: link link-check unlink
-link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; offline
+link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; then make hook; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) link $(strip $(if $(PROJECT),--project $(PROJECT)) $(if $(RUNTIME),--runtime $(RUNTIME)))
+	$(NODE) $(KIT)/link.$(KIT_EXT) hook $(if $(PROJECT),--project $(PROJECT))
 
-link-check: ## Fail while the links differ from the link declaration (.links, K869): a declared folder that is not a link to its provider, a link that it does not name, a go.work whose uses differ, a manifest path out of the repository (K773), a declared package with no installed folder (K888) or, with a declaration, the workspace hook (K440); offline
+.PHONY: hook
+hook: ## Write the Claude Code hook of the kit checkout that runs it into the git-ignored .claude/settings.local.json at the top of the checkout, or of PROJECT (K498, K512), and, without PROJECT, into .claude/settings.json of the workspace folder of that kit checkout (K440); link writes no Claude Code settings (K960); offline
+	$(NODE) $(KIT)/link.$(KIT_EXT) hook $(if $(PROJECT),--project $(PROJECT))
+
+link-check: ## Fail while the links differ from the link declaration (.links, K869): a declared folder that is not a link to its provider, a link that it does not name, a go.work whose uses differ, a manifest path out of the repository (K773), or a declared package with no installed folder (K888); link writes no Claude Code settings, so no hook is judged (K960); offline
 	$(NODE) $(KIT)/link-check.$(KIT_EXT) $(if $(PROJECT),--project $(PROJECT))
 
 .PHONY: worktree-setup
