@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 41faa05692970870fdd92d8184467b0812f2ddae76e3144a7d16f5888d58853e -->
+<!-- source-sha256: 5daca4851cedeedcff5278696cc44dd74713fd1818a2051895abddc018d86e5a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,12 +8,13 @@
 
 ## 0.0.82
 
-- Kit 0.0.82는 선택된 job이 skipped이면 실패하는 CI job(K950), config/ci.json에서만 오는 parityMode(K951), toolchain pin과 version 검사의 삭제(K953), bypass-check와 divergence-check가 검사하는 kit 자신의 도구(K954), target이 없으면 실패하는 task(K955), 중복 검사에서 빠지는 생성 소스(K956), 설치된 package의 kit item id(K957, K957-1), 이유를 적는 generated 예외(K958), 한 번씩 실행하는 parity binding(K959), link가 아니라 make hook이 쓰는 Claude Code hook(K960), 한 implementation이 소유하는 suite unit(K961), node를 받는 kit-build rename test(K962), 사본에서 되는 package build(K964), make link의 K383 test(K965)를 담습니다 (K963).
+- Kit 0.0.82는 선택된 job이 skipped이면 실패하는 CI job(K950), config/ci.json에서만 오는 parityMode(K951), toolchain pin과 version 검사의 삭제(K953), bypass-check와 divergence-check가 검사하는 kit 자신의 도구(K954), target이 없으면 실패하는 task(K955), 중복 검사에서 빠지는 생성 소스(K956), 설치된 package의 kit item id(K957, K957-1), 이유를 적는 generated 예외(K958), 한 번씩 실행하는 parity binding(K959), link가 아니라 make hook이 쓰는 Claude Code hook(K960), 한 implementation이 소유하는 suite unit(K961), node를 받는 kit-build rename test(K962), 사본에서 되는 package build(K964), make link의 K383 test(K965), .gitignore를 판정하지 않는 hook(K966)을 담습니다 (K963).
+- K966: hook은 Git이 .claude/settings.local.json을 무시하는지 판정하지 않고 씁니다. 저장소가 무엇을 무시할지는 저장소의 일이므로, 어떤 저장소도 kit 때문에 .gitignore 줄을 추가하지 않습니다 (K966).
 - K965: kit-mk의 K383 test는 K960이 link 다음에 hook을 실행하게 한 make link의 link 줄과 그 뒤의 hook 줄을 기대합니다 (K965).
 - K964: kit-items는 docs/plans를 폴더에서 읽고, npm pack은 npm을 실행하는 node를 NODE로 넘겨 kit-build를 실행합니다. 그래서 package test처럼 var/tools도 Git 디렉터리도 없는 사본에서 하는 package build가 다시 됩니다. main CI는 K957부터 실패했습니다 (K964).
 - K962: kit-build는 node로 kit-items.json을 쓰고(K957) test sandbox에는 자기 node가 없으므로, kit-build rename test는 stub NODE를 넘깁니다 (K962).
 - K961: case가 한 implementation에만 있는 suite unit은 feature처럼 그 owner를 선언할 수 있어, 다른 implementation은 binding이 필요 없고 실행하지도 않습니다. API unit은 여전히 release package만 owner가 될 수 있습니다 (K961).
-- K960: link는 Claude Code 설정을 쓰지 않으므로, container처럼 읽기 전용으로 mount된 checkout도 EROFS 없이 link됩니다. hook은 자기 명령 link.mts hook [--project <dir>] (make hook)를 가집니다. 이 명령은 실행 중인 kit checkout의 hook을 checkout 최상위의 git-ignored .claude/settings.local.json에, --project가 없으면 workspace 폴더의 .claude/settings.json에도 씁니다. make link는 link 다음에 hook을 실행합니다. --project가 없을 때 workspace 파일은 실행 중인 kit checkout과 그 형제들이 있는 폴더에만 씁니다. hook은 checkout의 .gitignore가 settings.local.json을 무시하지 않는 동안 그 파일을 거부하므로, 각 저장소는 kit의 .gitignore처럼 /.claude/settings.local.json 줄을 추가합니다. link-check는 hook을 검사하지 않습니다. kit이 설치된 package인지는 더 이상 상관없습니다(K916 삭제) (K960).
+- K960: link는 Claude Code 설정을 쓰지 않으므로, container처럼 읽기 전용으로 mount된 checkout도 EROFS 없이 link됩니다. hook은 자기 명령 link.mts hook [--project <dir>] (make hook)를 가집니다. 이 명령은 실행 중인 kit checkout의 hook을 checkout 최상위의 .claude/settings.local.json에, --project가 없으면 workspace 폴더의 .claude/settings.json에도 씁니다. make link는 link 다음에 hook을 실행합니다. --project가 없을 때 workspace 파일은 실행 중인 kit checkout과 그 형제들이 있는 폴더에만 씁니다. link-check는 hook을 검사하지 않습니다. kit이 설치된 package인지는 더 이상 상관없습니다(K916 삭제) (K960).
 - K959: parity-check는 작성된 모든 test처럼 각 feature와 suite binding을 한 번 실행합니다. 고정 seed와 격리된 database가 실행을 결정적으로 만들며, flaky test는 두 번째 실행이 찾을 대상이 아니라 고칠 결함입니다. 각 feature id의 정확히 한 번 통과 검사, 반복 case 검사, 각 suite의 case 검사는 그 실행에서 유지됩니다 (K959).
 - K955: runtime task는 저장소에 runtime의 package가 하나도 없으면 실패합니다. 예전에는 아무것도 실행하지 않는다고 출력하고 0으로 끝나, package를 잃은 소비자가 통과할 수 있었습니다. runtime이 없는 저장소는 config/ci.json에 `"runtimes": []`를 선언하며, kit이 그렇게 합니다. setup은 여전히 필수입니다. Red: 선언이 없고 target이 0개이면 0으로 종료합니다(K955).
 - K954: kit 자신의 도구와 test도 다른 저장소와 같이 검사합니다. bypass-check와 divergence-check는 더 이상 KIT_OWN을 제외하지 않습니다. TypeScript와 JavaScript 파일은 parser로 읽어 code만 대조하므로 문자열 리터럴 안의 CI identity나 divergence는 data입니다. 실행되는 process의 env 옵션으로 CI identity를 넘기거나 process.env에 대입하면 finding입니다. CI identity를 넣고 실행하던 test는 identity 없이 실행하므로 CI 전용 실행은 로컬에서 설계대로 거부됩니다(K954).

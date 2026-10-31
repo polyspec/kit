@@ -21,7 +21,6 @@
 // line; with no file nothing is linked. make link-check (link-check.mts) compares the declaration with the state.
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
-import { spawnSync } from 'node:child_process';
 import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
@@ -684,8 +683,8 @@ const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
 
 // The Claude Code hook of claude-hook, run by the node of the kit checkout that runs `hook` (K960). Claude Code reads the shared
 // .claude/settings.json only in the folder where a session starts, and .claude/settings.local.json at the top of the Git work tree
-// of a session that starts below it, so `hook` writes the settings.local.json of a checkout (K498), which its .gitignore ignores
-// (K512), and, run in a checkout of the workspace, the settings.json of the workspace folder, where a session of the kit and its
+// of a session that starts below it, so `hook` writes the settings.local.json of a checkout (K498), whatever Git ignores there,
+// which is the repository's own business (K966), and, run in a checkout of the workspace, the settings.json of the workspace folder, where a session of the kit and its
 // siblings starts (K440). link writes no Claude Code settings (K960): linking is installation, which a container runs on read-only
 // checkouts, and the hook is a tool of a development session; make link runs link, then hook.
 const KIT_HOOK = path.relative(kitPackageRoot(), siblingTool(import.meta.url, 'claude-hook'));
@@ -729,7 +728,7 @@ function withHook(settings: Record<string, unknown>, kit: string): Record<string
   return { ...settings, hooks: { ...hooks, PreToolUse: next } };
 }
 
-/** The settings file of a checkout that `hook` writes, which Git ignores there (K498, K512). */
+/** The settings file of a checkout that `hook` writes (K498). */
 const PROJECT_HOOK_FILE = '.claude/settings.local.json';
 
 /**
@@ -758,15 +757,11 @@ export function writeWorkspaceHook(workspace: string, kit = kitPackageRoot()): s
 
 /**
  * Writes the hook of the kit checkout `kit`, by default the one that runs it, into the settings.local.json at the top of the work tree
- * of `directory` (K498). The file is refused while Git does not ignore it there, and nothing goes into .git, whose common directory
- * of a worktree is the main checkout's (K512).
+ * of `directory` (K498). Nothing goes into .git, whose common directory of a worktree is the main checkout's (K512); whether Git
+ * ignores the file is the repository's own business (K966).
  */
 export function writeProjectHook(directory: string, kit = kitPackageRoot()): string {
-  const top = workTreeOf(directory);
-  if (spawnSync('git', ['-C', top, 'rev-parse', '--git-dir']).status === 0 && spawnSync('git', ['-C', top, 'check-ignore', '-q', PROJECT_HOOK_FILE]).status !== 0) {
-    throw new Error(`Git does not ignore ${PROJECT_HOOK_FILE} in ${top}, where hook writes the Claude Code hook (K512); add the line /${PROJECT_HOOK_FILE} to its .gitignore`);
-  }
-  return writeHook(top, PROJECT_HOOK_FILE, kit);
+  return writeHook(workTreeOf(directory), PROJECT_HOOK_FILE, kit);
 }
 
 if (isMain(import.meta.url)) {

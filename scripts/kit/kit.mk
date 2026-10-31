@@ -421,7 +421,7 @@ link: ## Connect provided development sources through native package managers, u
 	$(NODE) $(KIT)/link.$(KIT_EXT) hook $(if $(PROJECT),--project $(PROJECT))
 
 .PHONY: hook
-hook: ## Write the Claude Code hook of the kit checkout that runs it into the git-ignored .claude/settings.local.json at the top of the checkout, or of PROJECT (K498, K512), and, without PROJECT, into .claude/settings.json of the workspace folder of that kit checkout (K440); link writes no Claude Code settings (K960); offline
+hook: ## Write the Claude Code hook of the kit checkout that runs it into .claude/settings.local.json at the top of the checkout, or of PROJECT (K498), and, without PROJECT, into .claude/settings.json of the workspace folder of that kit checkout (K440); link writes no Claude Code settings (K960); offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) hook $(if $(PROJECT),--project $(PROJECT))
 
 link-check: ## Fail while the links differ from the link declaration (.links, K869): a declared folder that is not a link to its provider, a link that it does not name, a go.work whose uses differ, a manifest path out of the repository (K773), or a declared package with no installed folder (K888); link writes no Claude Code settings, so no hook is judged (K960); offline

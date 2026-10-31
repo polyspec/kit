@@ -1,6 +1,6 @@
 // K498, K960: hook writes the Bash PreToolUse hook of the kit that runs it into the untracked .claude/settings.local.json at the top
 // of the work tree of a checkout, which Claude Code reads for a session started anywhere in it, and keeps the other keys of that
-// file. K512: hook writes nothing into .git and refuses the file while the checkout's .gitignore does not ignore it.
+// file. K512: hook writes nothing into .git; whether Git ignores the file is the repository's own business (K966).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -18,13 +18,12 @@ const command = `'${path.join(KIT, 'var/tools/bin/node')}' '${path.join(KIT, 'sc
 const entry = { matcher: 'Bash', hooks: [{ type: 'command', command }] };
 const FILE = '.claude/settings.local.json';
 
-/** A git checkout in a temporary folder whose .gitignore ignores the settings file, removed when the test ends. */
+/** A git checkout in a temporary folder, removed when the test ends. */
 function consumer(t: TestContext): string {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-project-hook-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const directory = path.join(root, 'cons');
   initRepository(directory);
-  writeFileSync(path.join(directory, '.gitignore'), `/${FILE}\n`);
   return directory;
 }
 
@@ -65,12 +64,12 @@ test('writeProjectHook writes nothing into the Git directory of the checkout (K5
   assert.equal(existsSync(exclude) ? readFileSync(exclude, 'utf8') : undefined, before);
 });
 
-test('writeProjectHook refuses a settings file that Git does not ignore, naming the line for the .gitignore, and writes nothing (K512)', (t) => {
+// K966: what a repository ignores is its own business, so hook writes the file whether or not Git ignores it.
+test('writeProjectHook writes the settings file of a checkout whose Git does not ignore it (K966)', (t) => {
   const project = consumer(t);
-  rmSync(path.join(project, '.gitignore'));
   spawnSync('git', ['-C', project, 'config', 'core.excludesFile', '/dev/null']);
-  assert.throws(() => writeProjectHook(project), /add the line \/\.claude\/settings\.local\.json to its \.gitignore/);
-  assert.equal(existsSync(path.join(project, '.claude')), false);
+  assert.equal(writeProjectHook(project), path.join(project, FILE));
+  assert.deepEqual(readJsonObject(project, FILE), { hooks: { PreToolUse: [entry] } });
 });
 
 test('link.mts hook --project writes the hook of the checkout and no workspace settings (K960)', (t) => {
