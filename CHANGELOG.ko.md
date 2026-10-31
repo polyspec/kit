@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bedbb759333392b5cc39a6ac6eeb22dc525a6d1fbcace4eda9f73e82d9594ad9 -->
+<!-- source-sha256: 7489212ddf63caab1f909fd68321d4cfdad1bd664da32ccb1dcc8872e4314bc1 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K983: `make install-link`는 `make link`처럼 `PROJECT`와 `RUNTIME`을 받고 hook은 쓰지 않으며, `make unlink`와 `link.mjs unlink`는 `RUNTIME`과 `--runtime`을 받고, unlink와 hook은 받지 않는 인자를 거부하며, link 선언이 없을 때 runtime은 link가 제거하는 link도 선택하므로, uv가 없는 node job처럼 한 runtime의 CI job이 더 이상 Python 환경을 찾는 uv를 실행하다 실패하지 않습니다 (K983).
 - K981: PRINCIPLES는 세 규칙을 적습니다. 한 개념은 규칙, 설정 필드, 파일 이름, 문서에서 kit에 이미 있는 이름을 다시 써서 이름 하나를 쓰고(P40), 여러 저장소에 걸친 관례는 먼저 검사와 함께 PRINCIPLES 규칙이 되며(P41), checklist 항목의 Task는 요구사항을 적고 그것을 담을 릴리스는 적지 않습니다(P42) (K981).
 
 ## 0.0.85

@@ -29,7 +29,7 @@ link-check describes source connections; they are not a universal version or pee
 
 Providers install their own changed dependencies and build inputs with their package manager. Reusing an already-correct source link does not install new external provider dependencies or rerun its lifecycle. Source edits remain visible without a new release; compiled outputs still need their native build.
 
-Independent runtime jobs run `make link RUNTIME=<runtime>` (`go`, `php`, `php-ext`, `python`, `rust` or `ts`). The selector limits provider discovery, linking and installed-source verification to that runtime. TypeScript links its npm folders, PHP and the PHP extension link their Composer vendor folders, Python links its site-packages package folders and Go uses its workspace; Rust keeps its existing Cargo source-patch path. The default `make link` and parity jobs retain all declared ecosystems.
+Independent runtime jobs run `make link RUNTIME=<runtime>` (`go`, `php`, `php-ext`, `python`, `rust` or `ts`). The selector limits provider discovery, linking and installed-source verification to that runtime. TypeScript links its npm folders, PHP and the PHP extension link their Composer vendor folders, Python links its site-packages package folders and Go uses its workspace; Rust keeps its existing Cargo source-patch path. The default `make link` and parity jobs retain all declared ecosystems. With no link declaration the selector also limits the links that link removes, so a job of one runtime starts no package manager of another, as uv for a Python environment (K983). `make install-link`, which the CI of a consumer runs, and `make unlink` take `PROJECT` and `RUNTIME` as `make link` does and write no hook.
 
 ## Mechanism
 

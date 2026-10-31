@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K983: `make install-link` takes `PROJECT` and `RUNTIME` as `make link` does, with no hook, `make unlink` and `link.mjs unlink` take `RUNTIME` and `--runtime`, unlink and hook refuse an argument they do not take, and with no link declaration a runtime also selects the links that link removes, so a CI job of one runtime, as a node job without uv, no longer fails starting uv for a Python environment (K983).
 - K981: PRINCIPLES states three rules: one concept has one name across rules, config fields, file names and docs, reusing the name kit already has (P40); a convention shared across repositories is first a PRINCIPLES rule with its check (P41); the Task of a checklist item states its requirement, never the release that will carry it (P42) (K981).
 
 ## 0.0.85

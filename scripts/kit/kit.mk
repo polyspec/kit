@@ -442,8 +442,8 @@ land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout
 uv-install: ## Install declared Python sources in DIR with one native uv sync --locked and check installed distributions; SYNC passes its uv sync flags as written (K850)
 	UV_SYNC="$(SYNC)" $(ONLINE) $(NODE) $(KIT)/uv-install.$(KIT_EXT) $(DIR)
 
-unlink: ## Remove the links of PROJECT and the go.work files that link wrote; make install restores the locked installs, Python's included; offline
-	$(NODE) $(KIT)/link.$(KIT_EXT) unlink $(if $(PROJECT),--project $(PROJECT))
+unlink: ## Remove the links of PROJECT and the go.work files that link wrote, of the runtime of RUNTIME when given; make install restores the locked installs, Python's included; offline
+	$(NODE) $(KIT)/link.$(KIT_EXT) unlink$(if $(PROJECT), --project $(PROJECT))$(if $(RUNTIME), --runtime $(RUNTIME))
 
 # The release uses the released versions (K343), so its Go runs without the go.work of the links.
 release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage: export GOWORK := off

@@ -292,6 +292,22 @@ test('runtime links use only the selected native managers in a mixed-language co
   }
 });
 
+// K983: with no link declaration link removes the links of an earlier one; a runtime selects them, so a job of one runtime, as the node
+// job of a CI without uv, starts no package manager of another, while a run of every runtime that cannot start uv says so. make
+// install-link passes PROJECT and RUNTIME to link as make link does, with no hook.
+test('unlink honors the runtime and starts no uv for ts, and install-link passes PROJECT and RUNTIME without a hook (K983)', (t) => {
+  const { consumer, env } = workspace(t);
+  const noUv = { ...env, UV: path.join(consumer, 'no-such-uv') };
+  const lines: string[] = [];
+  assert.equal(unlink({ directories: [consumer], print: text => lines.push(text), env: noUv, runtime: 'ts' }), true, lines.join('\n'));
+  assert.throws(() => unlink({ directories: [consumer], print: () => {}, env: noUv }), /no-such-uv workspace dir could not start/);
+  // A project of PROJECT reads only its own manifests, so a TypeScript project starts no uv with no runtime given.
+  assert.equal(unlink({ directories: [path.join(consumer, 'packages/own')], project: true, print: () => {}, env: noUv }), true);
+  const dryRun = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit-bootstrap.mk', 'install-link', 'NODE=node', ...args], { cwd: KIT, encoding: 'utf8' }).stdout.trim();
+  assert.match(dryRun(), /link\.mts link$/);
+  assert.match(dryRun('PROJECT=examples/board', 'RUNTIME=ts'), /link\.mts link --project examples\/board --runtime ts$/);
+});
+
 test('link rejects an unknown runtime before writing consumer links', (t) => {
   const { consumer } = workspace(t);
   const cli = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--runtime', 'ruby', '--project', consumer], { cwd: consumer, encoding: 'utf8' });
@@ -415,6 +431,37 @@ test('K869: link-check fails on a declared package folder that is a copy', (t) =
   const checked = command(consumer, env, LINK_CHECK);
   assert.equal(checked.status, 1, checked.text);
   assert.match(checked.text, /NOT linked +npm +@polyspec\/x/);
+});
+
+// K983: the command that failed in a CI without uv, link with no declaration, removes by its runtime only the links and the written
+// go.work and Cargo locks of that runtime; unlink takes the same --runtime, and an argument it does not take is refused.
+test('link with no declaration and unlink remove only what their runtime selects and start no uv for ts (K983)', (t) => {
+  const { consumer, env } = declared(t, null);
+  const noUv = { ...env, UV: path.join(consumer, 'no-such-uv') };
+  const goWork = path.join(consumer, 'go.work');
+  const cargoLock = path.join(consumer, 'var/link/cargo/x/Cargo.lock');
+  put(consumer, { 'go.work': 'go 1.22\n', 'var/link/cargo/x/Cargo.lock': '' });
+  const ts = command(consumer, noUv, LINK, 'link', '--runtime', 'ts');
+  assert.equal(ts.status, 0, ts.text);
+  assert.equal(existsSync(goWork) && existsSync(cargoLock), true, 'ts removes no go.work or Cargo lock');
+  const go = command(consumer, noUv, LINK, 'unlink', '--runtime', 'go');
+  assert.equal(go.status, 0, go.text);
+  assert.equal(existsSync(goWork), false, 'go removes the go.work that link wrote');
+  assert.equal(existsSync(cargoLock), true, 'go keeps the Cargo lock');
+  const rust = command(consumer, noUv, LINK, 'unlink', '--runtime', 'rust');
+  assert.equal(rust.status, 0, rust.text);
+  assert.equal(existsSync(cargoLock), false, 'rust removes the Cargo lock that link wrote');
+  for (const args of [['unlink', '--hook'], ['unlink', 'extra']]) {
+    const refused = command(consumer, noUv, LINK, ...args);
+    assert.equal(refused.status, 1, refused.text);
+    assert.match(refused.text, /unlink takes no argument but --project and --runtime/);
+  }
+  const hook = command(consumer, noUv, LINK, 'hook', '--runtime', 'ts');
+  assert.equal(hook.status, 1, hook.text);
+  assert.match(hook.text, /hook takes no argument but --project: --runtime ts/);
+  const all = command(consumer, noUv, LINK, 'link');
+  assert.equal(all.status, 1, all.text);
+  assert.match(all.text, /no-such-uv workspace dir could not start/, 'a run of every runtime names the uv it cannot start');
 });
 
 test('K869: with no declaration, nothing is linked and any link fails link-check', (t) => {

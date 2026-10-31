@@ -529,14 +529,17 @@ export function packages(directory: string, ecosystem: 'python' | 'npm'): string
  * Removes the links of each directory (K856): the npm and Composer folders that are links out of the checkout, the package links of
  * each Python environment and the files that link wrote. It installs nothing; make install restores the locked installs.
  */
-export function unlink({ directories, print, env = process.env, project = false }: { directories: readonly string[]; print: Print; env?: NodeJS.ProcessEnv; project?: boolean }): boolean {
+export function unlink({ directories, print, env = process.env, project = false, runtime }: { directories: readonly string[]; print: Print; env?: NodeJS.ProcessEnv; project?: boolean; runtime?: LinkRuntime }): boolean {
+  // K983: a runtime selects the links that are removed, as it selects those that link writes, so a job of one runtime starts no
+  // package manager of another, as uv for the environment of a Python project.
+  const ecosystems = runtime === undefined ? ALL_ECOSYSTEMS : RUNTIME_ECOSYSTEMS[runtime];
   for (const consumer of directories.map(directory => consumerOf(directory, project))) {
     print(`== ${consumer.scope}`);
-    for (const entry of outsideLinks(consumer, env)) {
+    for (const entry of outsideLinks(consumer, env, ecosystems)) {
       rmSync(entry);
       print(`  unlinked   ${entry}`);
     }
-    removeWritten(consumer);
+    removeWritten(consumer, runtime);
   }
   return true;
 }
@@ -582,17 +585,17 @@ export function linksOutsideCheckout(root: string, env: NodeJS.ProcessEnv): stri
  * file of each environment and the Cargo lock copy of each workspace, each by its exact name, then each folder of var/link
  * that the removal leaves empty. Never a folder recursively: a nested project's files and folders stay (K201-3).
  */
-function removeWritten(consumer: Consumer) {
+function removeWritten(consumer: Consumer, runtime?: LinkRuntime) {
   const base = path.join(consumer.top, 'var/link');
   const written: string[] = [];
   // A go.work that the repository tracks is its own, never one that link wrote.
   const tracked = new Set(trackedManifests(consumer.top, ['go.work', 'go.work.sum']).map(file => path.join(consumer.top, file)));
-  for (const module of consumer.manifests('go', true)) {
+  for (const module of runtime === undefined || runtime === 'go' ? consumer.manifests('go', true) : []) {
     const file = goWorkOf(path.dirname(module));
     written.push(...[file, `${file}.sum`].filter(item => !tracked.has(item)));
   }
   const cargo = path.join(base, 'cargo');
-  for (const entry of existsSync(cargo) ? readdirSync(cargo, { withFileTypes: true }) : []) {
+  for (const entry of (runtime === undefined || runtime === 'rust') && existsSync(cargo) ? readdirSync(cargo, { withFileTypes: true }) : []) {
     if (entry.isDirectory()) written.push(path.join(cargo, entry.name, 'Cargo.lock'));
   }
   for (const file of written) {
@@ -774,7 +777,7 @@ if (isMain(import.meta.url)) {
     const project = rest.indexOf('--project');
     const projectDirectory = project === -1 ? undefined : rest[project + 1];
     if (project !== -1 && !projectDirectory) throw new Error('Usage: link.mjs ... --project <dir>');
-    const runtimeIndex = command === 'link' ? rest.indexOf('--runtime') : -1;
+    const runtimeIndex = command === 'link' || command === 'unlink' ? rest.indexOf('--runtime') : -1;
     // `--hook` makes link write the hook as hook does, in this process, after the link: make link, whose KIT names the folder that
     // the link replaces, starts no second kit from it (K967).
     const hook = command === 'link' && rest.includes('--hook');
@@ -806,7 +809,7 @@ if (isMain(import.meta.url)) {
         // With no file the checkout is in its release state: link removes the links that an earlier declaration made, as unlink does.
         const checkouts = declaredCheckouts(projectDirectory ?? '.');
         if (checkouts === undefined) {
-          if (!unlink({ directories, print, project: projectDirectory !== undefined })) process.exitCode = 1;
+          if (!unlink({ directories, print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
           print(`no ${LINKS_FILE} in ${mainCheckout(projectDirectory ?? '.')}: nothing is linked; make install restores a released package whose link was removed`);
         } else if (!link({ checkouts, directories, check: false, print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
         // A failed link writes no hook, as make stopped before hook when link failed.
@@ -814,10 +817,12 @@ if (isMain(import.meta.url)) {
         break;
       }
       case 'hook':
+        if (withoutOptions.length || rest.includes('--hook')) throw new Error(`hook takes no argument but --project: ${rest.join(' ')}`);
         writeHooks();
         break;
       case 'unlink':
-        if (!unlink({ directories, print, project: projectDirectory !== undefined })) process.exitCode = 1;
+        if (withoutOptions.length || rest.includes('--hook')) throw new Error(`unlink takes no argument but --project and --runtime: ${rest.join(' ')}`);
+        if (!unlink({ directories, print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
         break;
       case 'providers': {
         // The npm providers of the checkouts that the arguments name, one line each: the name, a tab and the package folder, sorted by

@@ -33,8 +33,10 @@ install-packages: ## Install the packages of package-lock.json, @polyspec/kit in
 # environments that the steps of the repository install, so make install runs it after all of them. KIT always comes from
 # the installed package, including when native npm links it to development sources.
 .PHONY: install-link
-install-link: ## Link the packages to the checkouts of the link declaration (.links, K869), with the node of var/tools, after every install of make install
-	$(NODE) $(KIT)/link.$(KIT_EXT) link
+# K983: install-link writes no Claude Code hook, so CI links with it; PROJECT and RUNTIME select the project and the runtime as for
+# make link, so a job of one project or runtime starts no package manager of another.
+install-link: ## Link the packages to the checkouts of the link declaration (.links, K869), with the node of var/tools, after every install of make install; PROJECT and RUNTIME select as for make link, and no hook is written
+	$(NODE) $(KIT)/link.$(KIT_EXT) link$(if $(PROJECT), --project $(PROJECT))$(if $(RUNTIME), --runtime $(RUNTIME))
 
 .PHONY: install install-kit
 # install runs the bootstrap of kit as its first prerequisite; a repository adds its install steps as later prerequisites
