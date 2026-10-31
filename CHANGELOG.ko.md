@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 23fd44b185229e16a4f8ca53bf7622382bba9e1dd3ec0f16fdf4e705f1592813 -->
+<!-- source-sha256: 3ed097c3f70a2b5bb7dd36c6916d9b1928a8c4e9dd29ba499299d1074ca4c145 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.83
+
+- Kit 0.0.83은 link하는 프로세스에서 쓰는 make link의 hook(K967), 디스크에서 검사하는 parity implementation의 errors 파일(K968), parity binding의 침묵 한도(K936), CI shard에서 도는 parity ledger 테스트(K970), PEP 508 pattern으로 읽는 pyproject 요구사항 이름(K971)을 담습니다 (K972).
 - K971: link은 pyproject의 각 요구사항 이름을 PEP 508의 이름 pattern으로 읽으므로, orm이 플랫폼별 wheel을 고정하는 것처럼 marker가 있는 direct reference(`name @ url ; marker`)가 더 이상 make link을 실패시키지 않습니다. link에는 이름만 필요하고 나머지는 uv가 풉니다. 그 형식에서 예외를 내던 PEP 508 grammar library pip-requirements-js와 쓰이지 않던 export는 지웁니다 (K971).
 - K970: go를 설치하는 CI test shard가 K936이 추가하고 build test가 실제 go를 실행하는 tests/kit/parity-ledger.test.mts를 실행합니다. 이를 지정한 shard가 없어 K718의 shard 검사가 main CI를 실패시켰습니다 (K970).
 - K936: parity 실행은 run-tests의 start-up bound(120초) 동안 아무것도 출력하지 않는 binding을 process group과 함께 멈춥니다. 예전에는 멈춘 binding이 case 이름 없이 parity job을 멈춰 두었습니다. R3 finding 하나가 binding과 멈춤을 말하고, 어떤 출력이든 bound를 다시 셉니다. built-in go와 cargo binding은 run-tests처럼 bound 없이 먼저 build하고, 실패한 build는 그 출력과 함께 그 실행의 finding입니다 (K936).
