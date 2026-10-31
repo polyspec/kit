@@ -808,4 +808,4 @@
 | K963 | Release Kit 0.0.82 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K972 | Release Kit 0.0.83 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K978 | Release Kit 0.0.84 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
-| K982 | Release Kit 0.0.85 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [~] |
+| K982 | Release Kit 0.0.85 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |

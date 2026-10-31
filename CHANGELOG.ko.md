@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 211616ac1ea3d920bbb9cd3d7643759bc5f458f288c6f2ef077bae1d5149a5ad -->
+<!-- source-sha256: 4613da6116fcb9e7e3587f7cd7ae77f58bfb7f788788935c2d83aa2e1a14e1a0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.85
+
+- Kit 0.0.85는 --project의 project만 판단하는 link-check(K975), 텍스트로 판단하는 link-check의 manifest 경로(K976), packer의 파일 이름을 유지하고 config/release.json의 각 package가 이제 선언하는 product와 runtime으로 label <vendor>-<product>-<runtime>-<version>을 다는 release asset(K980)을 담습니다 (K982).
 - K980: release asset은 packer가 붙인 파일 이름(npm pack의 `scope-name-<version>.tgz`, Composer zip의 `vendor-name-<version>.zip`, wheel의 PEP 427 이름)을 유지하고, repositoryUrl의 owner를 vendor로, 이제 config/release.json의 각 package가 선언하는 product와 runtime으로 GitHub label `<vendor>-<product>-<runtime>-<version>`(P39)을 답니다. 그래서 `polyspec/orm-php-ext`는 `polyspec-orm-php-ext-php-0.0.19.zip` 대신 label `polyspec-orm-php-ext-0.0.19`를 단 `polyspec-orm-php-ext-0.0.19.zip`이고, kit은 `polyspec-kit-npm-<version>.tgz` 대신 `polyspec-kit-<version>.tgz`입니다. kit은 더 이상 npm pack의 출력 이름을 바꾸지 않고, packages.json은 label을 달지 않으며, archive 이름이 같거나 product와 runtime이 같은 두 package는 거부합니다 (K980).
 - K976: link-check은 manifest 경로를 텍스트로 판단합니다. 저장소가 sibling checkout으로 가는 link나 복사본으로 채우는 git-ignored 폴더인 file:var/platforms/app처럼 저장소 안의 경로는 저장소 자신의 폴더로 통과하고, 텍스트상 저장소를 벗어나는 경로(../x, 절대경로)만 finding입니다 (K976).
 - K975: link-check --project는 저장소의 모든 project 대신, link가 검사 범위를 정하는 대로 그 project만, 즉 설치 폴더가 없는 선언 패키지와 자기 manifest의 경로만 판단합니다 (K975).
