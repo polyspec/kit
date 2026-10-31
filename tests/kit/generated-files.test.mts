@@ -7,7 +7,9 @@ import { mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'nod
 import path from 'node:path';
 import test from 'node:test';
 import { checkout, commitIndex, git, prepared, run } from './gates-checkout.mts';
+import { loadGeneratedConfig } from '../../scripts/kit/generated-files.mts';
 import { tool } from './kit-tools.mts';
+import { tree } from './tree.mts';
 
 const GENERATED_CONFIG = JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**'] });
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'staged']);
@@ -192,4 +194,11 @@ test('a tracked generated file, executable object or generated-header file is re
   rmSync(path.join(source.work, 'src/app.py'));
   const unread = tracked(source.work);
   assert.equal(unread.status, 0, unread.stderr);
+});
+
+// K958: an exception is an unconditional exemption from the generated-file and duplication checks, so it carries the reason that
+// tracked takes, and the schema refuses an exception without one.
+test('an exception of config/generated.json without a reason fails the schema (K958)', (t) => {
+  const root = tree(t, { 'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**'] }) });
+  assert.throws(() => loadGeneratedConfig(root), /reason/);
 });
