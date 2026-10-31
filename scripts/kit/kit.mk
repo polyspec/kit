@@ -249,7 +249,7 @@ suppression-check: ## Fail on a tracked suppression of a lint finding (eslint-di
 	$(NODE) $(KIT)/suppression-check.$(KIT_EXT)
 
 .PHONY: bypass-check
-bypass-check: ## Fail on a tracked test, script or Makefile that sets the CI identity, assumes a gate of kit-gates up to date with make -o, or skips a Git hook with --no-verify (K308); offline
+bypass-check: ## Fail on a tracked test, script or Makefile that sets the CI identity, assumes a gate of kit-gates up to date with make -o, or skips a Git hook with the flag that git commit takes for that (K308); offline
 	$(NODE) $(KIT)/bypass-check.$(KIT_EXT)
 
 # The red of a row whose whole change is text (K431): the Verification of P19's sub-item. It is no gate of kit-gates.

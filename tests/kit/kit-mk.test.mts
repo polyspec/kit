@@ -251,7 +251,7 @@ test('kit-test fails when its run changes the checkout, and names the path', (t)
   const writes = "import test from 'node:test';\nimport { writeFileSync } from 'node:fs';\ntest('writes', () => { writeFileSync('stray.txt', 'x'); });\n";
   const root = kitCheckout(t, { 'tests/kit/writes.test.mts': writes });
   // kit-test runs the whole of tests/kit, which a CI run does (ci-only.mts).
-  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8', env: { ...process.env, GITHUB_ACTIONS: 'true' } });
+  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8', env: { ...process.env } });
   assert.notEqual(run.status, 0, run.stdout);
   assert.match(run.stderr, /> \?\? stray\.txt/);
   assert.match(run.stderr, /kit-test: the run changed the checkout/);
@@ -260,7 +260,7 @@ test('kit-test fails when its run changes the checkout, and names the path', (t)
 test('kit-test passes when its run leaves the checkout as it was', (t) => {
   const root = kitCheckout(t, { 'tests/kit/clean.test.mts': "import test from 'node:test';\ntest('clean', () => {});\n" });
   // kit-test runs the whole of tests/kit, which a CI run does (ci-only.mts).
-  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8', env: { ...process.env, GITHUB_ACTIONS: 'true' } });
+  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8', env: { ...process.env } });
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
 });
 

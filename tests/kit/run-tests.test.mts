@@ -40,7 +40,22 @@ const SPEC = "import test from 'node:test';\n";
 const checkout = (t: TestContext, files: Record<string, string>) => tree(t, files);
 // The tests of the runner's mechanics run whole directories, which only a CI run may do (ci-only.mts).
 const CI = { GITHUB_ACTIONS: 'true' };
-const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI, ...env } });
+const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
+// A run of a whole directory is CI-only (ci-only.mts), so it runs in-process with the CI identity as its caller environment: the
+// identity is data here, not an environment of a spawned process (K954).
+async function runInProcess(root: string, args: string[]): Promise<{ status: number; stdout: string; stderr: string }> {
+  let stdout = '';
+  // The runner names each case relative to the working directory, which the spawned run had as its checkout.
+  const previous = process.cwd();
+  const real = realpathSync(root);
+  process.chdir(real);
+  try {
+    const status = await run(args, { root: real, write: (text: string) => { stdout += text; }, callerEnv: CI });
+    return { status, stdout, stderr: '' };
+  } finally {
+    process.chdir(previous);
+  }
+}
 const output = (result: { stdout: string; stderr: string }) => result.stdout + result.stderr;
 // The Python of a checkout is var/tools/mise/shims/python3, the shim of mise: a test writes its stub there.
 function pythonStub(root: string, script: string) {
@@ -63,11 +78,13 @@ test('a passing file prints the start and the result of each test and a summary,
   assert.match(result.stdout, /✔ node --test: 3 passed, 0 failed, 0 timed out, 0 skipped/);
 });
 
-test('a directory runs the test files below it', (t) => {
+test('a directory runs the test files below it', async (t) => {
   const root = checkout(t, { 'tests/one/a.test.mjs': `${SPEC}test('a', () => {});\n`, 'tests/one/b.test.mjs': `${SPEC}test('b', () => {});\n` });
-  const result = runner(root, ['node', 'tests/one']);
+  // The child reporter writes to the process, so the recorded results count the files that ran.
+  const result = await runInProcess(root, ['node', '--results', 'var/report/one.json', 'tests/one']);
   assert.equal(result.status, 0, output(result));
-  assert.match(result.stdout, /2 passed/);
+  const record = readStub(path.join(root, 'var/report/one.json'), RESULTS);
+  assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['tests/one/a.test.mjs › a', 'pass'], ['tests/one/b.test.mjs › b', 'pass']]);
 });
 
 test('a failing test prints its failure and exits 1', (t) => {
@@ -163,7 +180,7 @@ test('a node test that awaits a promise that never settles is ended past the dea
 test('a node file whose top-level await never settles, with a live handle, is ended past the deadline (K437-1)', { timeout: 60_000 }, (t) => {
   const root = checkout(t, { 'tests/pending.test.mjs': `${SPEC}setInterval(() => {}, 1000);\nawait new Promise(() => {});\ntest('late', () => {});\n` });
   const began = Date.now();
-  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/pending.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI }, timeout: 30_000 });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/pending.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env }, timeout: 30_000 });
   const elapsed = Date.now() - began;
   assert.equal(result.status, 1, output(result));
   assert.match(output(result), /(⏱ node \. tests\/pending\.test\.mjs: no test started within 2 s after the start of tests\/pending\.test\.mjs|tests\/pending\.test\.mjs: no test started or ended within 2000 ms of the process start)/);
@@ -821,7 +838,7 @@ test('declared setup operations suspend only the gap watch and restore it when t
 test('a node file that never reports a test and never yields is stopped by the gap watch (K371-1-1)', { timeout: 60_000 }, (t) => {
   const root = checkout(t, { 'tests/busy.test.mjs': 'const end = Date.now() + 20000;\nwhile (Date.now() < end) {}\n' });
   const began = Date.now();
-  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/busy.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI }, timeout: 40_000 });
+  const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', '--', 'tests/busy.test.mjs'], { cwd: root, encoding: 'utf8', env: { ...process.env }, timeout: 40_000 });
   const elapsed = Date.now() - began;
   assert.equal(result.status, 1, output(result));
   assert.match(output(result), /⏱ node \. tests\/busy\.test\.mjs: no test started within 2 s after the start of tests\/busy\.test\.mjs; the run elapsed [\d.]+s; stopping `[^`]*node --test/);
@@ -835,7 +852,7 @@ test('a node file that holds a handle and never reports a test is ended at its t
   const stop = /no test started (?:within 2 s after the start of tests\/(?:hold|idle)\.test\.mjs|or ended within 2000 ms of the process start)/;
   for (const args of [['--', 'tests/hold.test.mjs'], ['--', '--test-name-pattern', 'nomatch', 'tests/idle.test.mjs']]) {
     const began = Date.now();
-    const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...CI }, timeout: 40_000 });
+    const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--timeout', '2', ...args], { cwd: root, encoding: 'utf8', env: { ...process.env }, timeout: 40_000 });
     const elapsed = Date.now() - began;
     assert.equal(result.status, 1, output(result));
     assert.match(output(result), stop, output(result));
@@ -890,7 +907,7 @@ test('a timeout stops the whole process group of the tool, with SIGKILL after th
 
 test('an interrupted runner stops the whole process group of the tool and ends on its signal (K141)', { timeout: 30_000 }, async (t) => {
   const { root, pids } = hangingPython(t);
-  const child = spawn(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'python', '--timeout', '60', 'tests'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, ...CI } });
+  const child = spawn(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'python', '--timeout', '60', 'tests'], { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env } });
   t.after(() => child.kill('SIGKILL'));
   // The runner prints the start of the test after the stub recorded its pids.
   child.stdout.setEncoding('utf8').on('data', (text: string) => { if (text.includes('▶ test_hang')) child.kill('SIGTERM'); });
@@ -907,7 +924,7 @@ test('run-tests stops its process group when its parent is killed (K437)', { tim
   const { root, pids } = hangingPython(t);
   const parentFile = path.join(root, 'parent.mjs');
   writeFileSync(parentFile, `const { spawn } = process.getBuiltinModule('node:child_process');\nspawn(process.execPath, [${JSON.stringify(tool(import.meta.resolve('../../scripts/kit/run-tests.mts')))}, 'python', '--timeout', '60', 'tests'], { cwd: ${JSON.stringify(root)}, stdio: 'inherit' });\nsetInterval(() => {}, 1000);\n`);
-  const parent = spawn(process.execPath, [parentFile], { cwd: root, env: { ...process.env, ...CI }, stdio: ['ignore', 'pipe', 'inherit'] });
+  const parent = spawn(process.execPath, [parentFile], { cwd: root, env: { ...process.env }, stdio: ['ignore', 'pipe', 'inherit'] });
   t.after(() => parent.kill('SIGKILL'));
   await new Promise<void>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error('the runner never started the test')), 20_000);
@@ -1082,12 +1099,10 @@ test('--results records the cases of node tests, which the reporter counts in it
   assert.equal(record.tool, 'node');
 });
 
-test('under --cwd a node file group is not a test case, and its ids name the file from the checkout root', (t) => {
+test('under --cwd a node file group is not a test case, and its ids name the file from the checkout root', async (t) => {
   const root = checkout(t, { 'pkg/tests/a.test.mjs': `${SPEC}test('adds', () => {});\ntest('subtracts', () => {});\n` });
-  const result = runner(root, ['node', '--cwd', 'pkg', '--results', '.results/node.json', '--', 'tests']);
+  const result = await runInProcess(root, ['node', '--cwd', 'pkg', '--results', '.results/node.json', '--', 'tests']);
   assert.equal(result.status, 0, output(result));
-  assert.match(result.stdout, /✔ node --test: 2 passed, 0 failed, 0 timed out, 0 skipped/);
-  assert.match(result.stdout, /✔ pkg\/tests\/a\.test\.mjs › adds/);
   const record = readStub(path.join(root, '.results/node.json'), RESULTS);
   assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['pkg/tests/a.test.mjs › adds', 'pass'], ['pkg/tests/a.test.mjs › subtracts', 'pass']]);
 });
@@ -1141,7 +1156,7 @@ test('run-tests starts its runner with the environment of mise of the checkout, 
   // The fixture writes the state dir, the global config file and the first PATH entry, one per line.
   const fixture = "import { writeFileSync } from 'node:fs';\ntest('env', () => { writeFileSync('seen.txt', [process.env.MISE_STATE_DIR, process.env.MISE_GLOBAL_CONFIG_FILE, process.env.PATH.split(':')[0]].join('\\n')); });\n";
   const root = checkout(t, { 'tests/env.test.mjs': `${SPEC}${fixture}` });
-  const env: NodeJS.ProcessEnv = { ...process.env, ...CI };
+  const env: NodeJS.ProcessEnv = { ...process.env };
   for (const name of Object.keys(env)) if (name.startsWith('MISE_')) delete env[name];
   const result = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), 'node', '--', 'tests/env.test.mjs'], { cwd: root, encoding: 'utf8', env });
   assert.equal(result.status, 0, output(result));

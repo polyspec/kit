@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 64cb5e8713769ff6d904c919ad7d5fad7b0ad4dcc961306220361995deadee07 -->
+<!-- source-sha256: 26bcf3c860dc134e58bee074110b78ec0b0ca2613f850a047043801f4bf333bd -->
 
 # 도구 목록
 
@@ -408,8 +408,7 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
 시작하지 않는 `config/duplication.json`의 예외와 `config/parity.json`의 `tools`, `internal`(`generated:`, `fixture:`, `test:`,
 `harness:`, `ecosystem:`, `external:`). 건너뛰거나 좁힌 test는 `make test-markers-check`의 marker이며 이 검사는 `testing.Short()`,
 `pytest.importorskip`, `@requires`, `#[Requires...]`, `node:test` context의 skip도 읽는다. `make item-state`는 cause가 release,
-재현되지 않음, flake, 일시적이거나 무관한 실패, 환경을 인용하는 bypassed나 impossible 상태를 거부한다. `make item-state`는 Verification 칸의 명령이 commit이 담는 tree에서 통과한 뒤에만 item을 done으로 표시한다(K335). kit 자신의 도구와 test는
-제외한다.
+재현되지 않음, flake, 일시적이거나 무관한 실패, 환경을 인용하는 bypassed나 impossible 상태를 거부한다. `make item-state`는 Verification 칸의 명령이 commit이 담는 tree에서 통과한 뒤에만 item을 done으로 표시한다(K335). kit 자신의 도구와 test도 다른 저장소와 같이 검사한다(K954). TypeScript와 JavaScript 파일은 parser로 읽으므로, 문자열 리터럴 안에 쓰인 bypass나 divergence는 data이고 파일의 code만 대조합니다. CI identity는 실행되는 process의 `env` 옵션으로 넘기거나 `process.env`에 대입하면 finding이고, 테스트 대상 함수에 인자로 넘기면 data입니다(K954).
 
 ## Owner check (K8.1-1)
 

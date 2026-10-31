@@ -90,7 +90,7 @@ test('parity selects runtime implementations without narrowing declaration check
   assert.match(emptyCommand.stderr, /one or more nonempty implementation names/);
   assert.doesNotMatch(emptyCommand.stdout, /run codec /);
 
-  const viaMake = spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-check', 'UNITS=codec', 'IMPLEMENTATIONS=go'], { cwd: root, env: { ...ENV, GITHUB_ACTIONS: 'true' }, encoding: 'utf8' });
+  const viaMake = spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-check', 'UNITS=codec', 'IMPLEMENTATIONS=go'], { cwd: root, env: ENV, encoding: 'utf8' });
   assert.equal(viaMake.status, 0, viaMake.stdout + viaMake.stderr);
   assert.match(viaMake.stdout, /--implementation go: only their runtime bindings run/);
   assert.doesNotMatch(viaMake.stdout, /run codec (rust|ts|php|python)/);

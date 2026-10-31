@@ -30,15 +30,17 @@ import { parserAutoloader } from './lint-php.mts';
 import { toolsEnvironment } from './mise-tools.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { errorCode } from './process.mts';
+import { codeText, SCRIPT_FILE } from './script-ast.mts';
 
 /** The kinds of reason that kit defines for an exception of a configuration: the reason begins with the kind and a colon. */
 export const REASON_KINDS = ['generated', 'fixture', 'test', 'harness', 'ecosystem', 'external'] as const;
 
 const SOURCE = /\.(?:php|py|[cm]?[jt]sx?|go|rs)$/;
+// A TypeScript or JavaScript file is checked as its code: a string literal or a comment that names a probe is data (K954).
+const codeOf = (file: string, text: string | undefined): string | undefined => (text === undefined || !SCRIPT_FILE.test(file) ? text : codeText(file, text));
 // The environment that a test branches on: a call or a name, on a line of code.
 const ENVIRONMENT = /\b(?:extension_loaded|function_exists|PHP_VERSION(?:_ID)?|PHP_OS(?:_FAMILY)?|sys\.version_info|sys\.platform|process\.versions|process\.platform|process\.arch|runtime\.GOOS|runtime\.GOARCH|cfg!|os\.name)\b|#\[cfg\(/;
 const PHP_FUNCTION_PROBE = /\bfunction_exists\s*\(\s*(['"])([^'"]+)\1\s*\)/g;
-const KIT_OWN = /^(?:scripts\/kit\/|tests\/kit\/|tests\/source\/)/;
 // K543: a statement that asserts, with the assertion call of its language, and holds no branch: a test that declares its environment and
 // asserts it fails loudly where the environment differs, so its probe changes nothing that the test asserts.
 const ASSERTION = /^\s*(?:\$this->assert\w*\(|(?:self|static)::assert\w*\(|self\.assert\w*\(|assert[\s(.]|assert(?:_eq|_ne)?!\(|expect\()/;
@@ -182,7 +184,7 @@ export function divergenceFindings(files: readonly string[], read: (file: string
   const phpFunctions = phpFunctionDeclarations(files, roots, read);
   const probed: Record<string, string> = {};
   for (const file of files) {
-    const text = file.endsWith('.php') && !isTestFile(file) && !KIT_OWN.test(file) && roots.some(root => within(root, file)) ? read(file) : undefined;
+    const text = file.endsWith('.php') && !isTestFile(file) && roots.some(root => within(root, file)) ? read(file) : undefined;
     if (text !== undefined && lines(text).some(({ code }) => functionProbeFindings(code, phpFunctions) && !/\bextension_loaded\s*\(/.test(code))) probed[file] = text;
   }
   const guarded = phpPolyfillGuards(probed);
@@ -190,8 +192,7 @@ export function divergenceFindings(files: readonly string[], read: (file: string
   const unguarded = (file: string, number: number, code: string) => [...code.matchAll(/\bfunction_exists\s*\(/g)].length > (guarded.get(`${file}:${number}`) ?? 0);
   const found: string[] = [];
   for (const file of files) {
-    if (KIT_OWN.test(file)) continue;
-    const text = read(file);
+    const text = codeOf(file, read(file));
     if (text === undefined) continue;
     const inRoot = roots.some(root => within(root, file));
     if (inRoot && SOURCE.test(file)) {

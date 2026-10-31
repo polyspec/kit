@@ -194,17 +194,25 @@ test('the summary of a report is written again from its record, also for a run t
   assert.match(readFileSync(path.join(root, 'var/report/ci/summary.md'), 'utf8'), /recorded no run\*\* \(var\/report\/ci\/record\.json: /);
 });
 
-function command(root: string, args: string[], env: Record<string, string> = {}) {
-  return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/ci-targets.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, GITHUB_ACTIONS: 'true', ...env } });
+// The command without a CI run: its usage and its summary refuse or read before any CI decision, so they need no CI identity.
+function command(root: string, args: string[]) {
+  const environment: NodeJS.ProcessEnv = { ...process.env };
+  delete environment.GITHUB_ACTIONS;
+  return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/ci-targets.mts')), ...args], { cwd: root, encoding: 'utf8', env: environment });
 }
 
-test('the command runs the targets, exits with the result and refuses a bad usage', (t) => {
+// The CI run of the targets, in-process: the command runs ciTargets with its environment, so the CI identity is data here (K954).
+function runTargets(root: string, directory: string, names: string[], printed: string[]) {
+  return ciTargets({ root, directory, targets: names, env: { PATH: process.env.PATH ?? '', GITHUB_ACTIONS: 'true' }, print: line => printed.push(line), output: () => {} });
+}
+
+test('the command runs the targets, exits with the result and refuses a bad usage', async (t) => {
   const root = setup(t);
-  const failed = command(root, ['var/report/ci', 'bad', 'good']);
-  assert.equal(failed.status, 1, failed.stdout + failed.stderr);
-  assert.match(failed.stdout, /\[ci-targets\] 1 of 2 targets passed; failed: bad/);
+  const printed: string[] = [];
+  assert.equal(await runTargets(root, 'var/report/ci', ['bad', 'good'], printed), 1, printed.join('\n'));
+  assert.ok(printed.some(line => /\[ci-targets\] 1 of 2 targets passed; failed: bad/.test(line)), printed.join('\n'));
   assert.equal(readJsonFile<RunRecord>(path.join(root, 'var/report/ci/record.json'), 'run-record.schema.json').result, 'failed');
-  assert.equal(command(root, ['var/report/ci', 'good']).status, 0);
+  assert.equal(await runTargets(root, 'var/report/ci', ['good'], []), 0);
   const summary = command(root, ['--summary', 'var/report/ci']);
   assert.equal(summary.status, 0, summary.stderr);
   assert.match(summary.stdout, /# make ci-targets good/);

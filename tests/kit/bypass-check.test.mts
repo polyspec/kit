@@ -10,9 +10,9 @@ import { tree } from './tree.mts';
 const GATES = ['kit-check', 'layout-check', 'docs-check'];
 
 test('setting GITHUB_ACTIONS or CI outside a workflow is a finding, in a shell line, an object and an assignment (K308)', () => {
-  assert.deepEqual(bypassFindings('tests/ci.test.mts', "const env = { ...process.env, GITHUB_ACTIONS: 'true' };\nprocess.env.CI = '1';\n", GATES), [
-    'tests/ci.test.mts:1: sets the CI identity outside a workflow; a local run never impersonates CI',
+  assert.deepEqual(bypassFindings('tests/ci.test.mts', "const env = { ...process.env, GITHUB_ACTIONS: 'true' };\nspawnSync('make', [], { env });\nprocess.env.CI = '1';\n", GATES), [
     'tests/ci.test.mts:2: sets the CI identity outside a workflow; a local run never impersonates CI',
+    'tests/ci.test.mts:3: sets the CI identity outside a workflow; a local run never impersonates CI',
   ]);
   assert.deepEqual(bypassFindings('scripts/run.sh', 'GITHUB_ACTIONS=true make check\n', GATES), ['scripts/run.sh:1: sets the CI identity outside a workflow; a local run never impersonates CI']);
   assert.deepEqual(bypassFindings('.github/workflows/ci.yml', 'env:\n  CI: true\n', GATES), [], 'a workflow is where CI is named');
@@ -32,8 +32,16 @@ test('--no-verify is a finding in a test, a script, a Makefile and a Git hook (K
   assert.deepEqual(bypassFindings('docs/guide.md', 'git commit --no-verify\n', GATES), [], 'a document is no test, script or Makefile');
 });
 
-test('the tools and tests of kit itself are checked like any other (K954)', () => {
-  assert.deepEqual(bypassFindings('tests/kit/ci-only.test.mts', "const env = { GITHUB_ACTIONS: 'true' };\n", GATES), ['tests/kit/ci-only.test.mts:1: sets the CI identity outside a workflow; a local run never impersonates CI']);
+test('a CI identity in the environment of a spawned process is a finding, in kit too (K954)', () => {
+  const spawned = "spawnSync('make', [], { env: { ...process.env, GITHUB_ACTIONS: 'true' } });\n";
+  assert.deepEqual(bypassFindings('tests/kit/ci-only.test.mts', spawned, GATES), ['tests/kit/ci-only.test.mts:1: sets the CI identity outside a workflow; a local run never impersonates CI']);
+  const ci = "const CI = { GITHUB_ACTIONS: 'true' };\nspawnSync('make', [], { env: { ...CI } });\n";
+  assert.deepEqual(bypassFindings('tests/kit/ci-only.test.mts', ci, GATES), ['tests/kit/ci-only.test.mts:2: sets the CI identity outside a workflow; a local run never impersonates CI']);
+  assert.deepEqual(bypassFindings('tests/kit/ci-only.test.mts', "process.env.CI = 'true';\n", GATES), ['tests/kit/ci-only.test.mts:1: sets the CI identity outside a workflow; a local run never impersonates CI']);
+});
+
+test('a CI identity passed as an argument to a pure function under test is data (K954)', () => {
+  assert.deepEqual(bypassFindings('tests/kit/ci-only.test.mts', "assert.equal(ciRefusal('make ci-targets', { GITHUB_ACTIONS: 'true' }), null);\n", GATES), []);
 });
 
 test('a bypass written inside a string literal of a consumer test is data, not a bypass (K954)', () => {

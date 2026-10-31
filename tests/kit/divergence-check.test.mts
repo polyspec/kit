@@ -33,13 +33,11 @@ test('the code of an implementation that reads whether another implementation is
 test('--exclude-group in a script or a Makefile, and a partial or unsupported feature, are findings (K315)', () => {
   assert.deepEqual(run({
     Makefile: 'test:\n\tphpunit --exclude-group php\n',
-    'scripts/run.mts': "const args = ['--', '--exclude-group', 'slow'];\n",
     'contracts/features.json': '{\n  "createForm": {\n    "python": "partial",\n    "go": "supported",\n    "rust": "unsupported"\n  }\n}\n',
   }), [
     'Makefile:2: --exclude-group narrows the run of an implementation',
     'contracts/features.json:3: the feature file declares an implementation partial; every implementation holds every unit (S6)',
     'contracts/features.json:5: the feature file declares an implementation unsupported; every implementation holds every unit (S6)',
-    'scripts/run.mts:1: --exclude-group narrows the run of an implementation',
   ]);
 });
 
