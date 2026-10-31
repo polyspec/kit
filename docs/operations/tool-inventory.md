@@ -875,9 +875,11 @@ Left as it is, with the reason:
   `parityMode` is optional and defaults to `full`. `full` runs the complete provider `parity-check`; `phases` runs the provider
   `parity-api-check` once and a `parity-bindings-<implementation>-check` matrix whose names come exactly from
   `config/parity.json`. A phase consumer adds setup prerequisites to those concrete targets.
+  Without `config/parity.json` the plan has no default: `parityMode` must be declared, as `none` when the repository has no
+  parity declaration (K951); a missing file with no declared mode fails the plan.
   `kit-check` requires `CHECK_TARGETS` to select either the full target once or the complete API-plus-bindings partition, never both.
-  The final job `required` (ubuntu-24.04) needs every job of the pipeline and fails when one of them failed or was cancelled; a
-  job that the plan does not select is skipped and passes. There is no kit-ci-verify-gates.
+  The final job `required` (ubuntu-24.04) needs every job of the pipeline and fails when a job that the plan selected does not
+  succeed, including a skipped one (K950); a job that the plan does not select is skipped and is not a result. There is no kit-ci-verify-gates.
   The optional `targets` map names the repository's own check targets of each job: `shared` runs after `kit-gates-static` in the
   shared job, `parity` after `kit-gates-parity` in the parity job (`parityMode` full) or after `parity-api-check` in the parity-api job (`phases`; the
   bindings jobs run no `targets.parity`), and `runtimes.<runtime>` after

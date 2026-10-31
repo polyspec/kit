@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c22e20c0bf0aa4ddc63002750eec699c7f6643a3e4b6f7db35664e7a44ef0e8a -->
+<!-- source-sha256: dda8aa382a16feafdff29f394bd62f697b3548767e3eeea145da15ce8535e5ce -->
 
 # 도구 목록
 
@@ -797,9 +797,9 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   모두 나열해야 합니다.
   `parityMode`는 선택 항목이며 기본값은 `full`입니다. `full`은 provider의 전체 `parity-check`를 실행합니다. `phases`는
   `parity-api-check`를 한 번 실행하고 `config/parity.json`의 implementation 이름과 정확히 일치하는
-  `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite를 추가합니다. `kit-check`는 `CHECK_TARGETS`가 전체 target 한 번 또는 API와 모든 binding phase를 완전하게
+  `parity-bindings-<implementation>-check` matrix를 실행합니다. 소비 저장소는 concrete target에 setup prerequisite를 추가합니다. `config/parity.json`이 없으면 plan에는 기본값이 없습니다. `parityMode`를 선언해야 하며, parity 선언이 없는 저장소는 `none`을 선언합니다(K951). 선언된 모드 없이 파일이 없으면 plan이 실패합니다. `kit-check`는 `CHECK_TARGETS`가 전체 target 한 번 또는 API와 모든 binding phase를 완전하게
   실행하도록 요구하며, 두 방식을 섞지 못하게 합니다. 마지막 job `required`(ubuntu-24.04)는
-  파이프라인의 모든 job을 needs로 하고, 그중 하나가 실패하거나 취소되면 실패합니다. plan이 고르지 않은 job은 skip되고 통과합니다.
+  파이프라인의 모든 job을 needs로 하고, plan이 선택한 job이 성공하지 않으면(skip된 경우 포함, K950) 실패합니다. plan이 고르지 않은 job은 skip되며 결과가 아닙니다.
   kit-ci-verify-gates는 없습니다.
   선택 항목인 `targets` map은 각 job에서 저장소 자신의 check target을 이름합니다. `shared`는 shared job에서 `kit-gates-static` 뒤에,
   `parity`는 parity job(`parityMode` full)에서 `kit-gates-parity` 뒤에, 또는 parity-api job(`phases`)에서 `parity-api-check` 뒤에(bindings job은

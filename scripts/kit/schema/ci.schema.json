@@ -9,7 +9,7 @@
     "schema": { "type": "integer", "const": 1 },
     "comment": { "type": "string" },
     "runner": { "description": "The supported GitHub-hosted runner of the parity and runtime jobs of the CI pipeline. The default is Ubuntu 24.04 x64; repositories may select Ubuntu 26.04 ARM when their native database tooling requires it. The shared job, which writes the plan that names the runner, runs on Ubuntu 24.04 x64 (K910).", "type": "string", "enum": ["ubuntu-24.04", "ubuntu-26.04-arm"] },
-    "parityMode": { "description": "The parity path of the CI pipeline. `full` (default) runs complete parity-check; `phases` runs the global API phase and one binding phase for every implementation in config/parity.json.", "type": "string", "enum": ["full", "phases"] },
+    "parityMode": { "description": "The parity path of the CI pipeline. `full` (default) runs complete parity-check; `phases` runs the global API phase and one binding phase for every implementation in config/parity.json; `none` runs no parity job and is the declaration of a repository without config/parity.json (K951).", "type": "string", "enum": ["full", "phases", "none"] },
     "setup": {
       "type": "object",
       "required": ["shared", "parity", "runtimes"],

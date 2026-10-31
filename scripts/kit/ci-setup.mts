@@ -20,11 +20,10 @@ export const CI_CONFIG = 'config/ci.json';
 export const RUNTIMES = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
 type Runtime = (typeof RUNTIMES)[number];
 type CIJob = 'shared' | 'parity' | Runtime;
-type ConfigParityMode = 'full' | 'phases';
-type ParityMode = ConfigParityMode | 'none';
+type ParityMode = 'full' | 'phases' | 'none';
 type Runner = 'ubuntu-24.04' | 'ubuntu-26.04-arm';
 type CIConfig = {
-  parityMode?: ConfigParityMode;
+  parityMode?: ParityMode;
   runner?: Runner;
   setup: { shared: string[]; parity: string[]; runtimes: Record<Runtime, string[]> };
   tools?: Partial<Record<CIJob, string[]>>;
@@ -114,10 +113,12 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
       if (!db.targets.has(target)) throw new Error(`${CI_CONFIG}: contexts.${scope}.${phase} names ${target}, which is not a Make target. Fix: declare an existing repository-owned prepare and cleanup target`);
     }
   }
+  // parityMode comes only from config/ci.json (K951): a missing config/parity.json is a declaration of none, not a default.
   const parityFile = path.join(root, 'config/parity.json');
   let implementationNames: string[] = [];
   if (!existsSync(parityFile)) {
-    parityMode = 'none';
+    if (config.parityMode === undefined) throw new Error(`${CI_CONFIG}: config/parity.json is missing and parityMode is not declared in ${CI_CONFIG}; declare "parityMode": "none" when the repository has no parity declaration, or add config/parity.json. Fix: one of the two`);
+    if (config.parityMode !== 'none') throw new Error(`${CI_CONFIG}: parityMode is ${config.parityMode} in ${CI_CONFIG}, but config/parity.json is missing. Fix: add config/parity.json, or declare "parityMode": "none"`);
   } else {
     const parity = readConfig<{ implementations: { name: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
     implementationNames = parity.implementations.map(({ name }) => name);

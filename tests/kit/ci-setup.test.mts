@@ -10,7 +10,7 @@ import { ciPlan, ciSetupInvocations, parityBindingMatrix, runCIContext, runCISet
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 
 const runtimes = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
-type FixtureConfig = { parityMode?: 'full' | 'phases'; runner?: 'ubuntu-24.04' | 'ubuntu-26.04-arm'; setup: { shared: string[]; parity: string[]; runtimes: Record<string, string[]> }; tools?: Record<string, string[]>; contexts?: Record<string, { prepare?: string; cleanup?: string }>; targets?: { shared?: string[]; parity?: string[]; runtimes?: Record<string, string[]> } };
+type FixtureConfig = { parityMode?: 'full' | 'phases' | 'none'; runner?: 'ubuntu-24.04' | 'ubuntu-26.04-arm'; setup: { shared: string[]; parity: string[]; runtimes: Record<string, string[]> }; tools?: Record<string, string[]>; contexts?: Record<string, { prepare?: string; cleanup?: string }>; targets?: { shared?: string[]; parity?: string[]; runtimes?: Record<string, string[]> } };
 const fixtureConfig = (root: string) => readConfig<FixtureConfig>(root, 'config/ci.json', 'ci.schema.json');
 
 function fixture(): string {
@@ -276,6 +276,9 @@ test('K745: one discovered implementation without parity declaration selects no 
   const root = fixture();
   try {
     execFileSync('git', ['rm', '-q', '-f', 'config/parity.json'], { cwd: root });
+    const declared = fixtureConfig(root);
+    declared.parityMode = 'none';
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(declared));
     const noParity = ciPlan(root);
     assert.equal(noParity.parityMode, 'none');
     assert.deepEqual(noParity.parityImplementations, []);
@@ -284,6 +287,26 @@ test('K745: one discovered implementation without parity declaration selects no 
     const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
     execFileSync(process.execPath, [script, '--plan'], { cwd: root, env: { ...process.env, GITHUB_OUTPUT: output } });
     assert.match(readFileSync(output, 'utf8'), /^parity_mode=none$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// K951: parityMode comes only from config/ci.json. A missing config/parity.json selects no parity phase only when config/ci.json
+// declares parityMode none; without that declaration, or with a parity mode that needs the declaration, the plan fails with the fix.
+test('K951: a missing config/parity.json fails the plan unless config/ci.json declares parityMode none', () => {
+  const root = fixture();
+  try {
+    const file = path.join(root, 'config/ci.json');
+    execFileSync('git', ['rm', '-q', '-f', 'config/parity.json'], { cwd: root });
+    assert.throws(() => ciPlan(root), /config\/parity\.json is missing and parityMode is not declared in config\/ci\.json; .*Fix: /);
+    const config = fixtureConfig(root);
+    config.parityMode = 'full';
+    writeFileSync(file, JSON.stringify(config));
+    assert.throws(() => ciPlan(root), /parityMode is full in config\/ci\.json, but config\/parity\.json is missing/);
+    config.parityMode = 'none';
+    writeFileSync(file, JSON.stringify(config));
+    assert.equal(ciPlan(root).parityMode, 'none');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -487,9 +510,10 @@ test('K860: ci-setup refuses no tool selector, context scope, parity recipe or m
     mkdirSync(path.join(root, 'packages/php'), { recursive: true });
     writeFileSync(path.join(root, 'packages/php/Client.php'), '<?php\n');
     execFileSync('git', ['add', 'packages/php/Client.php'], { cwd: root });
-    const plan = ciPlan(root);
-    assert.equal(plan.parityMode, 'none', 'parity-check reports the missing declaration');
-    assert.equal('phpDirs' in plan || 'pythonDirs' in plan, false, 'no output that no workflow reads');
+    assert.throws(() => ciPlan(root), /config\/parity\.json is missing/, 'the plan refuses the missing declaration with the fix');
+    // A repository without a parity declaration declares parityMode none (K951), so the setup below reads a valid plan.
+    config.parityMode = 'none';
+    writeFileSync(file, JSON.stringify(config));
     // A setup target that runs ci-setup again is stopped at the second dispatch rather than spawning without end.
     const saved = process.env.KIT_CI_DISPATCH;
     process.env.KIT_CI_DISPATCH = '1';
