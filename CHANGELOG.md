@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+## 0.0.86
+
+- Kit 0.0.86 carries three always-true rules in PRINCIPLES (K981), make install-link and unlink selecting by PROJECT and RUNTIME so a job of one runtime starts no package manager of another (K983), the Claude hook judging named files and make commands in the folder where the command runs (K984), the Composer zip named by its P39 label (K985), and a release that starts by itself when the CI run of its version commit succeeds (K987) (K986).
 - K987: a release starts by itself: release.yml runs on the workflow_run of each successful push or dispatch run of the CI workflow `ci` on main, checks out its head_sha, and `make release-tag AUTO=1` releases only the version commit of the top `## X.Y.Z`, which is the tip of its push; a commit whose top version is tagged on its line, or that waits for the CI run of its version commit, ends green with nothing to release, an unreleased top version fails naming its version commit, the dispatch with a CI run id stays for re-runs, and `make kit-check` requires `.github/workflows/ci.yml` to be named `ci` (K987).
 - K985: kit names the Composer zip that it packs by the P39 label of its package, `<vendor>-<product>-<runtime>-<version>.zip`, and packages.json names it in dist.url; the npm tarball keeps the name of npm pack and a wheel its PEP 427 name (K985).
 - K984: the Claude hook judges a relative test file of a command and a make command by the Makefile of the cwd of the hook input, where Claude Code runs it, instead of the folder the hook process started in, so a session that moved into another checkout is no longer refused for a named file as a whole runtime without a selection; a named file that is no file there is named in the refusal, an input with no cwd is refused by name, and the 2 of 2>&1 is no longer read as an argument (K984).
