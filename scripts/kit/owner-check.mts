@@ -33,6 +33,7 @@ import { readNpmManifest } from './manifests.mts';
 import { present } from './present.mts';
 import { moduleImports, moduleReferences, parseModule, resolveRelative } from './module-imports.mts';
 import { expandMake } from './recipe-tools.mts';
+import { CALLER } from './target-report.mts';
 import { INSTALLED } from './kit-check.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
@@ -137,15 +138,19 @@ const DATABASE_GOAL = '.kit-database-read';
  */
 export function makeDatabase(root: string): MakeDatabase {
   if (!existsSync(path.join(root, 'Makefile'))) return { targets: new Map(), variables: new Map() };
-  // -q does not stop a recipe line that contains $(MAKE): GNU make runs such a line even with -n, -t or -q (GNU make manual,
-  // Instead of Execution). So the default goal is a dedicated target with an empty recipe, given on standard input after the
-  // Makefile, and no recipe of the Makefile is selected or run; a default goal that calls $(MAKE) recursed without bound (K945).
-  const result = spawnSync('make', ['-pRrq', '-f', 'Makefile', '-f', '-'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, input: `.DEFAULT_GOAL := ${DATABASE_GOAL}\n${DATABASE_GOAL}: ;\n` });
+  // The default goal of the read is a target with an empty recipe, given on standard input after the Makefile, so the read
+  // selects no recipe of the Makefile (K945). Other code of the Makefile still runs under -q: a recipe that remakes an included
+  // makefile, and a parse-time $(shell). A recipe line that contains $(MAKE) runs even under -n, -t or -q (GNU make manual,
+  // Instead of Execution), so a default goal that calls $(MAKE) recursed without bound. The input starts with a newline, so a
+  // Makefile whose last line ends in a backslash cannot join the first injected line (K945). The MAKELEVEL and flags of the make
+  // that calls the read are removed from its environment, so the read is the top-level make (K945).
+  const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => !CALLER.includes(name)));
+  const result = spawnSync('make', ['-pRrq', '-f', 'Makefile', '-f', '-'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, env: environment, input: `\n.DEFAULT_GOAL := ${DATABASE_GOAL}\n${DATABASE_GOAL}: ;\n` });
   if (result.error) throw new Error(`make could not start: ${result.error.message}`);
   if (!result.stdout.includes('# Make data base')) throw new Error(`make printed no database of ${path.join(root, 'Makefile')}: ${result.stderr.trim()}`);
   const database = parseMakeDatabase(result.stdout);
-  // The default goal of this read is not a target of the Makefile, and its variable is not a variable of it, so the database
-  // leaves both out (K945).
+  // The default goal of this read is not a target of the Makefile. A .DEFAULT_GOAL that the Makefile sets is replaced by this
+  // read, and no caller reads it, so the database leaves the variable out (K945).
   database.targets.delete(DATABASE_GOAL);
   database.variables.delete('.DEFAULT_GOAL');
   return database;

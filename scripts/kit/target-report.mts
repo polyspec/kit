@@ -23,7 +23,7 @@ export const FAILURE_LINES = 20;
 export const LIMIT_BYTES = 1024 * 1024;
 export const TAIL_BYTES = 256 * 1024;
 // The variables of a calling make, which a target of the run must not inherit.
-const CALLER = ['MAKEFLAGS', 'MFLAGS', 'MAKELEVEL', 'MAKEOVERRIDES'];
+export const CALLER = ['MAKEFLAGS', 'MFLAGS', 'MAKELEVEL', 'MAKEOVERRIDES'];
 
 // A target name is a word of letters, digits, dots, underscores and hyphens that starts with a letter or a digit, so it names its log file without escaping and make takes it for a target.
 export const TARGET_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;

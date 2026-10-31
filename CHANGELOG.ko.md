@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 9d167bbc87e7178bf262e966ae6a37d2ffb9386b899468b7fd79806413353329 -->
+<!-- source-sha256: 747dafc15c1478b2e7ae404aaa87e4ed599fd0493b7a45f4ef6f31b16050a5a6 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K945: makeDatabase는 전용 기본 goal을 표준 입력으로 주고 database에서 뺀 채 make -pRrq의 database를 읽으므로 read는 Makefile의 recipe를 고르지 않습니다. read는 호출한 make의 MAKELEVEL과 flag도 지우므로, MAKELEVEL에 따라 갈라지는 Makefile도 최상위 make가 읽는 대로 읽힙니다. red: MAKELEVEL=1로 읽는 갈라지는 Makefile의 test는 origin/main 24c4b685에서 실패합니다. green: read에서는 통과합니다 (K945).
 - K945: makeDatabase는 전용 기본 goal을 표준 입력으로 주고 database에서 뺀 채 make -pRrq의 database를 읽으므로, 기본 goal이 $(MAKE)를 부르는 Makefile이 끝없이 재귀하지 않습니다 (K945).
 - K938-1이 K938을 바로잡는다: worktree-setup은 devEngines npm을 선언하지 않은 package.json을 worktree나 branch를 만들기 전에, 그리고 npm이나 make를 실행하기 전에 거부하고, devEngines npm을 임시 폴더에서 `npm --prefix <checkout> ci`로 실행한다. 이는 runner의 npm 11이 받아들이는 형태이며(그렇지 않으면 EBADDEVENGINES), release와 CI의 bootstrap 단계도 checkout 밖에서 같은 형태를 쓴다(K938-1).
 - K938-1: worktree-setup은 package-lock.json을 확인하지 않는다. devEngines npm을 선언했지만 lock이 없는 worktree는 그 단계를 조용히 건너뛰지 않고 npm ci에서 실패한다(K938-1).
