@@ -85,7 +85,7 @@ const isParityPhase = (value: string): value is ParityPhase => value === 'all' |
  * the full check; `phase: 'api'` runs R1/R11 without native bindings, and `phase: 'bindings'` runs native bindings and requirement
  * checks without public symbol extraction. Together, `api` and `bindings` cover the full rule set; `execute` runs bindings (R3).
  */
-export function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules, ids, implementations, phase = 'all' }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined; ids?: string[] | undefined; implementations?: string[] | undefined; phase?: ParityPhase } = {}): { findings: ParityFinding[]; ledger: Ledger } {
+export async function checkParity(root: string, { execute = true, env = process.env, say = () => {}, units, rules, ids, implementations, phase = 'all', silenceMs }: { execute?: boolean; env?: NodeJS.ProcessEnv; say?: (text: string) => void; units?: string[] | undefined; rules?: string[] | undefined; ids?: string[] | undefined; implementations?: string[] | undefined; phase?: ParityPhase; silenceMs?: number | undefined } = {}): Promise<{ findings: ParityFinding[]; ledger: Ledger }> {
   const files = new Set(checkedFiles(root));
   const ledger: Ledger = { runs: [], cases: [] };
   if (!execute && phase !== 'all') return { findings: [finding('declaration', `--declarations cannot be combined with --phase ${phase}`, { place: DECLARATION })], ledger };
@@ -211,7 +211,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
     say(`bindings phase${implementations === undefined ? '' : ` for ${implementations.join(', ')}`}: native bindings run once; public symbol extraction is skipped`);
     const { findings: requirementTraceFindings, heldUnits } = traceRequirements();
     reportHeldUnits(heldUnits);
-    const executed = runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection, heldUnits });
+    const executed = await runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection, heldUnits, silenceMs });
     const missing = missingBindings(model).filter(item => implementationSelection === undefined || implementationSelection.has(item.implementation ?? ''));
     const findings = [...missing, ...executed.findings, ...requirementTraceFindings]
       .filter(matchesSelection);
@@ -224,7 +224,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   for (const tool of model.config.tools ?? []) say(tool.root === undefined
     ? `tools exact files ${(tool.files ?? []).join(', ')}: ${tool.reason}`
     : `tools root ${tool.root}: ${tool.reason}`);
-  const executed = execute ? runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection, heldUnits }) : { ledger, findings: [] };
+  const executed = execute ? await runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection, heldUnits, silenceMs }) : { ledger, findings: [] };
   if (selected !== undefined && execute) return { findings: [...executed.findings, ...requirementTraceFindings.filter(item => item.unit !== undefined && selected.has(item.unit))], ledger: executed.ledger };
   const extracted = execute ? extractSymbols(model, root, { env, say }) : { snapshots: new Map(), entrySnapshots: new Map(), findings: [] };
   say('check the units against the tree');
@@ -271,7 +271,7 @@ if (isMain(import.meta.url)) {
       process.exitCode = 1;
     } else {
       const selectedPhase = phase;
-      const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation, phase: selectedPhase });
+      const { findings, ledger } = await checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation, phase: selectedPhase });
       if (selectedPhase === 'api' && !values.declarations) say('API phase ran no native bindings');
       else if (!values.declarations) say(`${ledger.runs.length} bindings ran, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
       for (const item of findings) console.error(`[parity] ${findingLine(item)}`);

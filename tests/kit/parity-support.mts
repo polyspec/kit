@@ -90,6 +90,8 @@ if (build.length) {
   console.log(JSON.stringify({ Action: 'fail', Package: 'example.com/codec', Elapsed: 0.003, FailedBuild: id }));
   process.exit(1);
 }
+// The build of the tests (go test -exec=true) compiles them and runs no test: a failing test fails the run, not the build (K936).
+if (args.includes('-exec=true')) process.exit(0);
 console.log(JSON.stringify({ Action: 'start', Package: 'example' }));
 for (const file of fs.readdirSync(directory).filter(name => name.endsWith('_test.go')).sort()) {
   for (const line of fs.readFileSync(path.join(directory, file), 'utf8').split('\\n')) {
@@ -156,6 +158,7 @@ const source = fs.readFileSync(file, 'utf8');
 const ignoresExact = source.split('\\n').includes('HARNESS ignores-exact');
 const tests = source.split('\\n').map(line => /^(PASS|FAIL) (\\S+)$/.exec(line)).filter(match => match && (exact && !ignoresExact ? match[2] === filter : match[2].startsWith(filter)));
 process.stderr.write('   Compiling codec v0.1.0\\n    Finished \\x60test\\x60 profile [unoptimized + debuginfo] target(s) in 0.01s\\n     Running ' + file + '\\n');
+if (args.includes('--no-run')) process.exit(0);
 process.stdout.write('\\nrunning ' + tests.length + ' tests\\n');
 let exit = 0;
 const width = fs.readFileSync(file, 'utf8').split('\\n').includes('HARNESS libtest-mimic') ? Math.max(...tests.map(([, , name]) => name.length)) : 0;
@@ -401,8 +404,8 @@ function repository(t: TestContext, { files = {}, edit = config => config }: Cha
 }
 
 /** The findings of the check of a mini repository; `execute` false checks the declarations only. */
-function check(t: TestContext, change?: Change, { execute = true, units, implementations }: { execute?: boolean; units?: string[]; implementations?: string[] } = {}) {
-  return checkParity(repository(t, change), { execute, env: ENV, say: () => {}, units, implementations });
+async function check(t: TestContext, change?: Change, { execute = true, units, implementations }: { execute?: boolean; units?: string[]; implementations?: string[] } = {}) {
+  return await checkParity(repository(t, change), { execute, env: ENV, say: () => {}, units, implementations });
 }
 
 /** Each finding as `<rule> <unit> <implementation>`, the fields that a finding names. */
@@ -552,6 +555,8 @@ const output = args.find(arg => arg.startsWith('--outputFile.json=')).slice(18);
 const filter = args[args.length - 1];
 const dir = args.includes('--dir') ? path.resolve(args[args.indexOf('--dir') + 1]) : process.cwd();
 const status = { PASS: 'passed', FAIL: 'failed', SKIP: 'skipped', TODO: 'todo' };
+// A hung globalSetup: the file vitest-hang of the checkout makes the run silent before any event (K936); it ends by itself after 30 s.
+if (fs.existsSync(path.join(process.cwd(), 'vitest-hang'))) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30000); process.exit(1); }
 const found = [];
 const walk = (folder) => { for (const entry of fs.readdirSync(folder)) { if (entry === 'node_modules') continue; const next = path.join(folder, entry); if (fs.statSync(next).isDirectory()) walk(next); else if (next.endsWith(path.sep + filter)) found.push(next); } };
 walk(dir);

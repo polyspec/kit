@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f368edb7e26d307cb37e15a2c7e880e084bbbb4258ebd1a491dcc16c31eae2ea -->
+<!-- source-sha256: 8d5847eefb6fdf146746cd588c7d8018820125db9a86a89c3fa23a5fd8c6bef7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K936: parity 실행은 run-tests의 start-up bound(120초) 동안 아무것도 출력하지 않는 binding을 process group과 함께 멈춥니다. 예전에는 멈춘 binding이 case 이름 없이 parity job을 멈춰 두었습니다. R3 finding 하나가 binding과 멈춤을 말하고, 어떤 출력이든 bound를 다시 셉니다. built-in go와 cargo binding은 run-tests처럼 bound 없이 먼저 build하고, 실패한 build는 그 출력과 함께 그 실행의 finding입니다 (K936).
 - K968: parity implementation의 errors 파일은 symbols entry처럼 checkout에 있으면 declaration 검사를 통과하므로, setup이 쓰는 것처럼 Git이 무시하는 생성된 errors 파일(P34)이 더 이상 "does not exist"로 실패하지 않습니다 (K968).
 - K967: 설치된 kit을 실행하는 consumer의 첫 make link가 더 이상 2로 끝나지 않습니다. make link은 한 프로세스에서 link한 뒤 hook을 씁니다(link.mjs link --hook). 예전에는 link가 방금 kit checkout으로 바꾼 KIT 폴더에서 link.mjs hook을 다시 시작했습니다. --hook 없는 link는 여전히 Claude Code 설정을 쓰지 않고(K960), make hook은 그대로 있습니다 (K967).
 

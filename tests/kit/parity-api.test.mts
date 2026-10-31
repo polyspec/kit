@@ -29,15 +29,15 @@ type ParityImplementation = parity.ParityImplementation;
 type ParityModel = parity.ParityModel;
 type UnitJson = parity.UnitJson;
 
-test('R12: a feature unit rejects the same native id even when the second binding names another test file (K209)', TIMEOUT, (t) => {
-  const { findings } = check(t, feature({ 'ts/tests/other-roundtrip.test.mjs': "import { test } from 'node:test';\ntest('bytes', () => {});\n" }, (unit) => { unit.bindings?.push({ implementation: 'ts', test: 'ts/tests/other-roundtrip.test.mjs', id: 'roundtrip › bytes' }); return unit; }), { execute: false });
+test('R12: a feature unit rejects the same native id even when the second binding names another test file (K209)', TIMEOUT, async (t) => {
+  const { findings } = await check(t, feature({ 'ts/tests/other-roundtrip.test.mjs': "import { test } from 'node:test';\ntest('bytes', () => {});\n" }, (unit) => { unit.bindings?.push({ implementation: 'ts', test: 'ts/tests/other-roundtrip.test.mjs', id: 'roundtrip › bytes' }); return unit; }), { execute: false });
   assert.deepEqual(keys(findings), ['R12 roundtrip ts']);
   assert.equal(findingAt(findings, 0).message, 'unit roundtrip binds ts case roundtrip › bytes twice; keep one binding');
 });
 
-test('parity allows one TypeScript feature case per database under a shared native test file (K567)', TIMEOUT, (t) => {
+test('parity allows one TypeScript feature case per database under a shared native test file (K567)', TIMEOUT, async (t) => {
   const source = "import { describe, test } from 'node:test';\ndescribe('transaction_rollback', () => {\n  test('sqlite', () => {});\n  test('mysql', () => {});\n  test('postgres', () => {});\n});\n";
-  const { findings, ledger } = check(t, feature({ 'ts/tests/roundtrip.test.mjs': source }, unit => {
+  const { findings, ledger } = await check(t, feature({ 'ts/tests/roundtrip.test.mjs': source }, unit => {
     const ts = itemWhere(unit.bindings ?? [], (entry: { implementation: string }) => entry.implementation === 'ts');
     ts.id = 'transaction_rollback › sqlite';
     unit.bindings?.push({ ...ts, id: 'transaction_rollback › mysql' }, { ...ts, id: 'transaction_rollback › postgres' });
@@ -51,8 +51,8 @@ test('parity allows one TypeScript feature case per database under a shared nati
   ]);
 });
 
-test('parity rejects two bindings of one database-specific native case (K567)', TIMEOUT, (t) => {
-  const { findings } = check(t, feature({}, unit => {
+test('parity rejects two bindings of one database-specific native case (K567)', TIMEOUT, async (t) => {
+  const { findings } = await check(t, feature({}, unit => {
     const ts = itemWhere(unit.bindings ?? [], (entry: { implementation: string }) => entry.implementation === 'ts');
     ts.id = 'transaction_rollback › mysql';
     unit.bindings?.push({ ...ts });
@@ -62,8 +62,8 @@ test('parity rejects two bindings of one database-specific native case (K567)', 
   assert.equal(findingAt(findings, 0).message, 'unit roundtrip binds ts case transaction_rollback › mysql twice; keep one binding');
 });
 
-test('suite and API units still reject duplicate implementation declarations (K567)', TIMEOUT, (t) => {
-  const suite = check(t, { edit: config => {
+test('suite and API units still reject duplicate implementation declarations (K567)', TIMEOUT, async (t) => {
+  const suite = await check(t, { edit: config => {
     const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'size');
     const go = binding(config, 'size', 'go');
     unit.bindings = [...unit.bindings ?? [], { ...go }];
@@ -71,7 +71,7 @@ test('suite and API units still reject duplicate implementation declarations (K5
   } }, { execute: false });
   assert.deepEqual(keys(suite.findings), ['R12 size go']);
 
-  const api = check(t, { edit: config => {
+  const api = await check(t, { edit: config => {
     const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'encode');
     const ts = itemWhere(unit.symbols ?? [], (entry: { implementation: string }) => entry.implementation === 'ts');
     unit.symbols?.push({ ...ts });
@@ -80,8 +80,8 @@ test('suite and API units still reject duplicate implementation declarations (K5
   assert.deepEqual(keys(api.findings), ['R12 encode ts']);
 });
 
-test('a feature binding names its id and no symbol, and a feature unit has no vector file (K75)', TIMEOUT, (t) => {
-  const { findings } = check(t, feature({}, (unit) => {
+test('a feature binding names its id and no symbol, and a feature unit has no vector file (K75)', TIMEOUT, async (t) => {
+  const { findings } = await check(t, feature({}, (unit) => {
     delete itemAt(unit.bindings ?? [], 0).id;
     itemAt(unit.bindings ?? [], 1).symbol = 'roundtrip';
     unit.file = 'tests/vectors/codec.json';
@@ -102,25 +102,25 @@ test('a vitest test that lies under none of the declared roots is a run error th
   assert.match(run.error, /\bother\b/);
 });
 
-test('the vitest runner reads the JSON report of vitest: a suite case is a top-level test, a feature id the joined titles (K75)', TIMEOUT, (t) => {
+test('the vitest runner reads the JSON report of vitest: a suite case is a top-level test, a feature id the joined titles (K75)', TIMEOUT, async (t) => {
   const root = vitestRepository(t);
-  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {} });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: ENV, say: () => {} });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'web').map(entry => `${entry.unit} ${entry.case} ${entry.outcome}`), [
     'codec empty pass', 'codec ascii pass', 'roundtrip roundtrip › nested › bytes pass',
   ]);
   const run = known(ledger.runs.find(entry => entry.implementation === 'web'), 'ledger.runs.find(entry => entry.implementation === …)');
   assert.deepEqual([run.command, ...run.args], [process.execPath, path.join(root, 'node_modules/vitest/vitest.mjs'), 'run', '--dir', 'web', '--reporter=json', `--outputFile.json=${path.join(root, 'var/parity/vitest.json')}`, 'web/src/codec.spec.ts']);
-  const failing = checkParity(vitestRepository(t, { 'web/src/roundtrip.test.ts': 'TODO roundtrip › nested › bytes\n', 'web/src/codec.spec.ts': 'PASS empty\nFAIL ascii\n' }), { execute: true, env: ENV, say: () => {} }).findings;
+  const failing = (await checkParity(vitestRepository(t, { 'web/src/roundtrip.test.ts': 'TODO roundtrip › nested › bytes\n', 'web/src/codec.spec.ts': 'PASS empty\nFAIL ascii\n' }), { execute: true, env: ENV, say: () => {} })).findings;
   assert.deepEqual(keys(failing), ['R3 codec web', 'R3 roundtrip web']);
   assert.match(findingAt(failing, 0).message, /failed: ascii/);
   assert.match(findingAt(failing, 1).message, /failed: roundtrip › nested › bytes/);
-  const missing = checkParity(vitestRepository(t, { 'node_modules/vitest/vitest.mjs': null }), { execute: true, env: ENV, say: () => {} }).findings;
+  const missing = (await checkParity(vitestRepository(t, { 'node_modules/vitest/vitest.mjs': null }), { execute: true, env: ENV, say: () => {} })).findings;
   assert.deepEqual(keys(missing), ['R3 codec web', 'R3 roundtrip web']);
   assert.match(findingAt(missing, 0).message, /node_modules\/vitest\/vitest\.mjs does not exist/);
 });
 
-test('vitest discovers the tests of a binding only in the root of its implementation, not through a link under var/ (K202)', TIMEOUT, (t) => {
+test('vitest discovers the tests of a binding only in the root of its implementation, not through a link under var/ (K202)', TIMEOUT, async (t) => {
   const root = vitestRepository(t);
   // A link under var/ to a folder that holds a test of the same path, as the trust records of mise link to the home folder,
   // where an old checkout of the repository may hold one.
@@ -130,7 +130,7 @@ test('vitest discovers the tests of a binding only in the root of its implementa
   writeFileSync(path.join(elsewhere, 'old/web/src/codec.spec.ts'), 'PASS empty\nPASS ascii\n');
   mkdirSync(path.join(root, 'var/tools/mise/state/trusted-configs'), { recursive: true });
   symlinkSync(elsewhere, path.join(root, 'var/tools/mise/state/trusted-configs/home'));
-  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {} });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: ENV, say: () => {} });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.filter(entry => entry.implementation === 'web' && entry.unit === 'codec').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii pass']);
 });
@@ -141,14 +141,14 @@ test('the parity command runs the shims of mise with the environment of mise of 
   assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
-test('R6: a test that two conventions select lies in a root of one of their runners (K75)', TIMEOUT, (t) => {
-  const { findings } = checkParity(vitestRepository(t, { 'tools/extra.test.ts': '', 'web/src/extra.test.ts': 'PASS extra\n' }), { execute: false, env: ENV, say: () => {} });
+test('R6: a test that two conventions select lies in a root of one of their runners (K75)', TIMEOUT, async (t) => {
+  const { findings } = await checkParity(vitestRepository(t, { 'tools/extra.test.ts': '', 'web/src/extra.test.ts': 'PASS extra\n' }), { execute: false, env: ENV, say: () => {} });
   assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation ?? '-'} ${finding.place}`), ['R5 web web/src/extra.test.ts', 'R6 - tools/extra.test.ts']);
   assert.match(findingAt(findings, 1).message, /a node or vitest test/);
 });
 
-test('R1: an API unit whose symbol an extractor does not give, or that declares none of an implementation, fails (K75)', TIMEOUT, (t) => {
-  const { findings } = check(t, {
+test('R1: an API unit whose symbol an extractor does not give, or that declares none of an implementation, fails (K75)', TIMEOUT, async (t) => {
+  const { findings } = await check(t, {
     files: { 'rust/symbols.txt': 'hex_upper\n' },
     edit: config => {
       const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'encode');
@@ -161,28 +161,28 @@ test('R1: an API unit whose symbol an extractor does not give, or that declares 
   assert.match(findingAt(findings, 0).message, /codec::encode is no public symbol of rust/);
   assert.match(findingAt(findings, 1).message, /declares no symbol of python/);
   // An extractor that fails is a finding that names it, and the rules of its symbols do not run on a guess.
-  const failed = check(t, { files: { 'ts/index.d.ts': TS_API('export declare const encode: (;') } }).findings;
+  const failed = (await check(t, { files: { 'ts/index.d.ts': TS_API('export declare const encode: (;') } })).findings;
   assert.deepEqual(keys(failed), ['R1 - ts']);
   assert.match(findingAt(failed, 0).message, /the ts extractor of ts\/index\.d\.ts gives no symbols: API Extractor failed/);
   // A check of the declarations runs no extractor, so it judges no symbol.
-  assert.deepEqual(check(t, { files: { 'rust/symbols.txt': '' } }, { execute: false }).findings, []);
+  assert.deepEqual((await check(t, { files: { 'rust/symbols.txt': '' } }, { execute: false })).findings, []);
 });
 
-test('the ts extractor reads a declaration of the ES2015+ library, such as ReadonlyMap, from a folder without TypeScript (K129)', TIMEOUT, (t) => {
+test('the ts extractor reads a declaration of the ES2015+ library, such as ReadonlyMap, from a folder without TypeScript (K129)', TIMEOUT, async (t) => {
   // The repository has no node_modules, tsconfig or @types, and the check runs in it, as a consumer runs kit.
   const root = repository(t, { files: { 'ts/index.d.ts': TS_API('export declare const encode: (table?: ReadonlyMap<string, number>) => number;') } });
   const cwd = process.cwd();
   process.chdir(root);
   try {
-    const found = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
+    const found = (await checkParity(root, { execute: true, env: ENV, say: () => {} })).findings;
     assert.deepEqual(keys(found), [], found.map(item => item.message).join('\n'));
   } finally {
     process.chdir(cwd);
   }
 });
 
-test('an API unit without symbols fails the declaration and names the unit, and one with an empty list is R1 (K107)', TIMEOUT, (t) => {
-  const without = check(t, {
+test('an API unit without symbols fails the declaration and names the unit, and one with an empty list is R1 (K107)', TIMEOUT, async (t) => {
+  const without = await check(t, {
     edit: config => {
       delete itemWhere(config.units, (entry: { id: string }) => entry.id === 'encode').symbols;
       return config;
@@ -190,7 +190,7 @@ test('an API unit without symbols fails the declaration and names the unit, and 
   }, { execute: false });
   assert.deepEqual(keys(without.findings), ['declaration - -']);
   assert.equal(findingAt(without.findings, 0).message, 'unit encode: a unit of kind api needs symbols');
-  const empty = check(t, {
+  const empty = await check(t, {
     edit: config => {
       itemWhere(config.units, (entry: { id: string }) => entry.id === 'encode').symbols = [];
       return config;
@@ -199,20 +199,20 @@ test('an API unit without symbols fails the declaration and names the unit, and 
   assert.deepEqual(keys(empty.findings).filter(key => key.startsWith('R1 ')), ['R1 encode go', 'R1 encode rust', 'R1 encode ts', 'R1 encode php', 'R1 encode python']);
 });
 
-test('the rust extractor runs the Rust nightly of the exception whose scope holds the crate, and names a missing one (K75)', TIMEOUT, (t) => {
+test('the rust extractor runs the Rust nightly of the exception whose scope holds the crate, and names a missing one (K75)', TIMEOUT, async (t) => {
   const exception = (channel: string, scope = '.') => ({ tool: 'rust', channel, scope, reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' });
-  const messages = (exceptions: unknown[]) => check(t, { files: { 'config/toolchain.json': JSON.stringify({ schema: 1,
-    requirements: { pattern: 'CX-[0-9]+' }, exceptions }) } }).findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`);
-  assert.deepEqual(messages([exception('nightly-2026-10-01', 'rust')]), []);
-  const [none] = messages([exception('nightly-2026-10-01', 'go')]);
+  const messages = async (exceptions: unknown[]) => (await check(t, { files: { 'config/toolchain.json': JSON.stringify({ schema: 1,
+    requirements: { pattern: 'CX-[0-9]+' }, exceptions }) } })).findings.map(finding => `${finding.rule} ${finding.implementation}: ${finding.message}`);
+  assert.deepEqual(await messages([exception('nightly-2026-10-01', 'rust')]), []);
+  const [none] = await messages([exception('nightly-2026-10-01', 'go')]);
   assert.match(known(none, 'none'), /^R1 rust: the rust extractor of rust\/Cargo\.toml gives no symbols: rustdoc JSON needs a Rust nightly \(rust-lang\/rust#76578\), and config\/toolchain\.json exceptions declares none whose scope holds rust\/Cargo\.toml/);
-  const [two] = messages([exception('nightly-2026-10-01'), exception('nightly-2026-09-01', 'rust')]);
+  const [two] = await messages([exception('nightly-2026-10-01'), exception('nightly-2026-09-01', 'rust')]);
   assert.match(known(two, 'two'), /holds 2 Rust nightlies whose scope holds rust\/Cargo\.toml: nightly-2026-10-01, nightly-2026-09-01; keep one/);
-  const [uninstalled] = messages([exception('nightly-2026-09-01')]);
+  const [uninstalled] = await messages([exception('nightly-2026-09-01')]);
   assert.match(known(uninstalled, 'uninstalled'), /cargo \+nightly-2026-09-01 rustdoc .* exited with 1: error: toolchain 'nightly-2026-09-01' is not installed/);
 });
 
-test('Rust symbol entries combine crate APIs and run each declared feature selection (K714)', TIMEOUT, (t) => {
+test('Rust symbol entries combine crate APIs and run each declared feature selection (K714)', TIMEOUT, async (t) => {
   const entries = [
     { entry: 'rust/Cargo.toml' },
     { entry: 'rust/schema/Cargo.toml', features: ['live-db'] },
@@ -231,10 +231,10 @@ test('Rust symbol entries combine crate APIs and run each declared feature selec
     'rust/schema/symbols.txt': 'decode\n',
     'rust/schema/required-feature.txt': 'live-db\n',
   };
-  const found = check(t, { files, edit: configure });
+  const found = await check(t, { files, edit: configure });
   assert.deepEqual(keys(found.findings), [], found.findings.map(item => item.message).join('\n'));
 
-  const failed = check(t, { files: { ...files, 'rust/schema/symbols.txt': null }, edit: configure });
+  const failed = await check(t, { files: { ...files, 'rust/schema/symbols.txt': null }, edit: configure });
   assert.deepEqual(keys(failed.findings), ['R1 - rust']);
   assert.match(findingAt(failed.findings, 0).message, /rust\/schema\/Cargo\.toml \(features: live-db\).*exited with 1/);
 
@@ -246,7 +246,7 @@ test('Rust symbol entries combine crate APIs and run each declared feature selec
     [{ entry: 'rust/Cargo.toml', features: [] }],
   ];
   for (const invalid of invalidEntries) {
-    const invalidConfig = check(t, { edit: config => {
+    const invalidConfig = await check(t, { edit: config => {
       itemWhere(config.implementations, (implementation: { name: string }) => implementation.name === 'rust').symbols = {
         extractor: 'rust', entries: invalid,
       };
@@ -255,7 +255,7 @@ test('Rust symbol entries combine crate APIs and run each declared feature selec
     assert.equal(invalidConfig.findings[0]?.rule, 'declaration');
   }
 
-  const nonRustFeatures = check(t, { edit: config => {
+  const nonRustFeatures = await check(t, { edit: config => {
     itemWhere(config.implementations, (implementation: { name: string }) => implementation.name === 'go').symbols = {
       extractor: 'go', entries: [{ entry: 'go', features: ['live-db'] }],
     };
@@ -266,22 +266,22 @@ test('Rust symbol entries combine crate APIs and run each declared feature selec
 
 // K803, K855: the python extractor reads the source package of entry, named from the folder of the nearest pyproject.toml or
 // its src folder, so a python input declares only its entry, as every other extractor does.
-test('the python symbols declare only the entry, and an implementation without a pyproject.toml is refused (K803, K855)', TIMEOUT, (t) => {
-  const declaration = (symbols: unknown) => check(t, { files: { 'python/src/codec/__init__.py': '' }, edit: config => {
+test('the python symbols declare only the entry, and an implementation without a pyproject.toml is refused (K803, K855)', TIMEOUT, async (t) => {
+  const declaration = async (symbols: unknown) => (await check(t, { files: { 'python/src/codec/__init__.py': '' }, edit: config => {
     itemWhere(config.implementations, (implementation: { name: string }) => implementation.name === 'python').symbols = symbols;
     return config;
-  } }, { execute: false }).findings.filter(finding => finding.rule === 'declaration').length;
-  assert.equal(declaration({ extractor: 'python', entry: 'python' }), 0);
-  assert.equal(declaration({ extractor: 'python', entries: [{ entry: 'python' }] }), 0);
-  assert.ok(declaration({ extractor: 'python', entry: 'python', distribution: 'codec' }) > 0, 'distribution is no field');
-  const loose = check(t, { files: { 'python/pyproject.toml': null, 'python/src/codec/__init__.py': '' } });
+  } }, { execute: false })).findings.filter(finding => finding.rule === 'declaration').length;
+  assert.equal(await declaration({ extractor: 'python', entry: 'python' }), 0);
+  assert.equal(await declaration({ extractor: 'python', entries: [{ entry: 'python' }] }), 0);
+  assert.ok(await declaration({ extractor: 'python', entry: 'python', distribution: 'codec' }) > 0, 'distribution is no field');
+  const loose = await check(t, { files: { 'python/pyproject.toml': null, 'python/src/codec/__init__.py': '' } });
   assert.ok(loose.findings.some(finding => /implementation python: no root of python holds a pyproject\.toml/.test(finding.message)), JSON.stringify(loose.findings));
   // A consumer names the package folder below its project, such as packages/python/src/<package>: the src folder beside the
   // nearest pyproject.toml above it is the import root.
-  assert.equal(declaration({ extractor: 'python', entry: 'python/src/codec' }), 0);
+  assert.equal(await declaration({ extractor: 'python', entry: 'python/src/codec' }), 0);
 });
 
-test('K719 scopes API symbols to a release package entry without narrowing shared APIs', TIMEOUT, (t) => {
+test('K719 scopes API symbols to a release package entry without narrowing shared APIs', TIMEOUT, async (t) => {
   const files = {
     'docs/spec/rust-builder.md': '# Rust builder API\n\n- **INT-100** Rust native model generation exposes the builder crate API.\n',
     'config/release.json': JSON.stringify({ packages: [], manifests: { 'rust/build/Cargo.toml': 'git-tag' } }),
@@ -316,13 +316,13 @@ test('K719 scopes API symbols to a release package entry without narrowing share
     return config;
   };
 
-  const apiOnly = check(t, { files, edit: configure }, { execute: false });
+  const apiOnly = await check(t, { files, edit: configure }, { execute: false });
   assert.ok(apiOnly.findings.some(finding => finding.rule === 'R13' && finding.message.includes('INT-100')));
 
-  const positive = check(t, { files, edit: configureWithBehaviour });
+  const positive = await check(t, { files, edit: configureWithBehaviour });
   assert.deepEqual(keys(positive.findings), [], positive.findings.map(finding => finding.message).join('\n'));
 
-  const wrongArtifact = check(t, { files, edit: config => {
+  const wrongArtifact = await check(t, { files, edit: config => {
     configure(config);
     itemWhere(config.units, (unit: { id: string }) => unit.id === 'rust-build-api').owner = {
       kind: 'release-package', artifact: 'archive', package: 'polyspec-orm-build',
@@ -331,7 +331,7 @@ test('K719 scopes API symbols to a release package entry without narrowing share
   } }, { execute: false });
   assert.ok(wrongArtifact.findings.some(finding => finding.message.includes('polyspec-orm-build with artifact archive resolves to 0')));
 
-  const coverageOwnedApi = check(t, { files, edit: config => {
+  const coverageOwnedApi = await check(t, { files, edit: config => {
     configure(config);
     itemWhere(config.units, (unit: { id: string }) => unit.id === 'rust-build-api').owner = {
       kind: 'coverage-part', feature: 'codec', part: 'owner/rust',
@@ -340,7 +340,7 @@ test('K719 scopes API symbols to a release package entry without narrowing share
   } }, { execute: false });
   assert.ok(coverageOwnedApi.findings.some(finding => finding.message.includes('only a release package can own an API unit')));
 
-  const otherRuntimeSymbol = check(t, { files, edit: config => {
+  const otherRuntimeSymbol = await check(t, { files, edit: config => {
     configure(config);
     const unit = itemWhere(config.units, entry => entry.id === 'rust-build-api');
     unit.symbols = unit.symbols ?? [];
@@ -351,13 +351,13 @@ test('K719 scopes API symbols to a release package entry without narrowing share
   } }, { execute: false });
   assert.ok(otherRuntimeSymbol.findings.some(finding => finding.message.includes('release-package-owned API symbols must all belong to rust')));
 
-  const commonRequirement = check(t, { files: {
+  const commonRequirement = await check(t, { files: {
     ...files,
     'docs/spec/rust-builder.md': '# Rust builder API\n\n- **INT-100** Every implementation exports its builder API.\n',
   }, edit: configure }, { execute: false });
   assert.ok(commonRequirement.findings.some(finding => finding.message.includes('requirement INT-100 does not name its owner rust')));
 
-  const falseR1 = check(t, { files, edit: config => {
+  const falseR1 = await check(t, { files, edit: config => {
     configure(config);
     itemWhere(config.units, (unit: { id: string }) => unit.id === 'rust-build-api').symbols = [
       { implementation: 'rust', symbol: 'codec::encode' },
@@ -446,8 +446,8 @@ test('K719 scopes API symbols to a release package entry without narrowing share
   ).some(finding => finding.rule === 'R1'), 'a Rust API cannot be claimed from a different crate nested under the artifact');
 });
 
-test('R2: a suite without a binding of an implementation fails', TIMEOUT, (t) => {
-  const { findings } = check(t, {
+test('R2: a suite without a binding of an implementation fails', TIMEOUT, async (t) => {
+  const { findings } = await check(t, {
     files: { 'python/tests/test_codec.py': null },
     edit: config => {
       const unit = itemWhere(config.units, (entry: { id: string }) => entry.id === 'codec');
@@ -459,9 +459,9 @@ test('R2: a suite without a binding of an implementation fails', TIMEOUT, (t) =>
   assert.match(findingAt(findings, 0).message, /tests\/vectors\/codec\.json has no binding of python/);
 });
 
-test('an invalid node reporter line fails its bindings and later bindings still run (K691)', TIMEOUT, (t) => {
+test('an invalid node reporter line fails its bindings and later bindings still run (K691)', TIMEOUT, async (t) => {
   const invalidReporter = ['sh', '-c', 'printf "exit 0\\n"'];
-  const { findings, ledger } = check(t, {
+  const { findings, ledger } = await check(t, {
     files: FEATURE_FILES,
     edit: config => {
       binding(config, 'codec', 'ts').command = invalidReporter;
@@ -482,8 +482,8 @@ test('an invalid node reporter line fails its bindings and later bindings still 
   assert.ok(ledger.cases.some(entry => entry.unit === 'codec' && entry.implementation === 'php' && entry.outcome === 'pass'));
 });
 
-test('R3: a binding that fails, misses a case, adds a case or exits with an error fails', TIMEOUT, (t) => {
-  const { findings, ledger } = check(t, {
+test('R3: a binding that fails, misses a case, adds a case or exits with an error fails', TIMEOUT, async (t) => {
+  const { findings, ledger } = await check(t, {
     files: {
       'go/codec_test.go': 'PASS TestCodec/empty\nFAIL TestCodec/ascii\nEXIT TestCodec 1\n',
       'ts/tests/codec.mjs': `${NODE_CODEC}test('latin1', () => {});\n`,
@@ -500,7 +500,7 @@ test('R3: a binding that fails, misses a case, adds a case or exits with an erro
   assert.ok(ledger.cases.some(entry => entry.implementation === 'go' && entry.case === 'ascii' && entry.outcome === 'fail'));
 });
 
-test('R3: each binding executes once, and its cases are checked on that run (K959)', TIMEOUT, (t) => {
+test('R3: each binding executes once, and its cases are checked on that run (K959)', TIMEOUT, async (t) => {
   // The test counts its executions in var/ (ignored), with the cases of the suite.
   const counted = [
     "import test from 'node:test';",
@@ -513,71 +513,72 @@ test('R3: each binding executes once, and its cases are checked on that run (K95
     "test('ascii', () => {});",
   ].join('\n');
   const root = repository(t, { files: { 'ts/tests/codec.mjs': `${counted}\n` } });
-  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['codec'], implementations: ['ts'] });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['codec'], implementations: ['ts'] });
   assert.deepEqual(findings, []);
   assert.equal(readFileSync(path.join(root, 'var/ts-runs'), 'utf8'), '1');
   assert.equal(ledger.runs.filter(run => run.unit === 'codec' && run.implementation === 'ts').length, 1);
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'codec' && entry.implementation === 'ts').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii pass']);
 });
 
-test('R3: a binding whose runner cannot start fails, and a check of the declarations runs no binding', TIMEOUT, (t) => {
+test('R3: a binding whose runner cannot start fails, and a check of the declarations runs no binding', TIMEOUT, async (t) => {
   const root = repository(t);
   // The python3 of the checkout cannot start: a runner that cannot start is the finding of its runs, and no error ends the check
   // (K393-2). The python extractor runs with the python3 of the checkout too (K855), so it names the same tool.
   chmodSync(path.join(root, 'var/tools/mise/shims/python3'), 0o644);
-  const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
+  const missing = (await checkParity(root, { execute: true, env: ENV, say: () => {} })).findings;
   assert.deepEqual(keys(missing), ['R1 - python', 'R3 codec python', 'R3 width python', 'R3 size python']);
   assert.match(findingAt(missing, 0).message, /python3/);
   assert.match(findingAt(missing, 1).message, /python3/);
   // An extractor that install-tools did not build names the declaration and the install.
-  const unbuilt = check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null, 'var/tools/symbols-php/vendor/autoload.php': null } }).findings;
+  const unbuilt = (await check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null, 'var/tools/symbols-php/vendor/autoload.php': null } })).findings;
   assert.deepEqual(keys(unbuilt), ['R1 - go', 'R1 - php']);
   assert.match(findingAt(unbuilt, 1).message, /var\/tools\/symbols-php\/vendor\/autoload\.php does not exist; name php in symbolExtractors/);
   assert.match(findingAt(unbuilt, 0).message, /var\/tools\/symbols-go\/bin\/kit-symbols-go does not exist; name go in symbolExtractors of config\/toolchain\.json and run make install, whose install-kit runs make kit-install-symbols/);
-  const declarations = checkParity(root, { execute: false, env: ENV, say: () => {} });
+  const declarations = await checkParity(root, { execute: false, env: ENV, say: () => {} });
   assert.deepEqual(declarations.findings, []);
   assert.deepEqual(declarations.ledger.runs, []);
 });
 
-test('R3: a Go package that does not build names the compiler output', TIMEOUT, (t) => {
-  const { findings } = check(t, { files: { 'go/codec_test.go': 'BUILD ./codec_test.go:7:2: undefined: undefinedThing\n' } });
+test('R3: a Go package that does not build names the compiler output', TIMEOUT, async (t) => {
+  const { findings } = await check(t, { files: { 'go/codec_test.go': 'BUILD ./codec_test.go:7:2: undefined: undefinedThing\n' } });
   assert.deepEqual(keys(findings), ['R3 codec go', 'R3 width go', 'R3 size go']);
-  assert.equal(findingAt(findings, 0).message, 'exited with 1: ./codec_test.go:7:2: undefined: undefinedThing; not executed: empty, ascii');
+  // A build that fails is the finding of its run, with the compiler output; no case of it is read (K936).
+  assert.equal(findingAt(findings, 0).message, 'the build of the tests exited with 1: ./codec_test.go:7:2: undefined: undefinedThing');
 });
 
-test('a case name that a runner cannot report, and a Go symbol that is no test function, fail the declaration', TIMEOUT, (t) => {
-  const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages({ files: { 'tests/vectors/codec.json': JSON.stringify({ vectors: [{ name: 'empty' }, { name: 'two words' }, { name: 'a/b' }] }) } }), [
+test('a case name that a runner cannot report, and a Go symbol that is no test function, fail the declaration', TIMEOUT, async (t) => {
+  const messages = async (change: Change) => (await check(t, change, { execute: false })).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(await messages({ files: { 'tests/vectors/codec.json': JSON.stringify({ vectors: [{ name: 'empty' }, { name: 'two words' }, { name: 'a/b' }] }) } }), [
     'declaration: unit codec: tests/vectors/codec.json: the case "two words" holds whitespace, which no test name of the check can match',
     'declaration: unit codec: tests/vectors/codec.json: the case "a/b" holds /, which Go nests as a subtest; the unit has a go binding',
   ]);
-  assert.deepEqual(messages({ files: { 'tests/vectors/width.json': JSON.stringify(['a/b']) }, edit: (config) => { binding(config, 'width', 'go').symbol = 'Width'; return config; } }), [
+  assert.deepEqual(await messages({ files: { 'tests/vectors/width.json': JSON.stringify(['a/b']) }, edit: (config) => { binding(config, 'width', 'go').symbol = 'Width'; return config; } }), [
     'declaration: unit width: the go binding names Width, which is no test function (^Test\\w*$)',
     'declaration: unit width: tests/vectors/width.json: the case "a/b" holds /, which Go nests as a subtest; the unit has a go binding',
   ]);
 });
 
-test('R4: a suite file that no unit declares fails', TIMEOUT, (t) => {
-  const { findings } = check(t, { files: { 'tests/vectors/events.json': '[]' } }, { execute: false });
+test('R4: a suite file that no unit declares fails', TIMEOUT, async (t) => {
+  const { findings } = await check(t, { files: { 'tests/vectors/events.json': '[]' } }, { execute: false });
   assert.deepEqual(keys(findings), ['R4 - -']);
   assert.equal(findingAt(findings, 0).place, 'tests/vectors/events.json');
 });
 
-test('R5: a test file of an implementation that no binding runs fails', TIMEOUT, (t) => {
-  const { findings } = check(t, { files: { 'python/tests/test_vector.py': 'PASS codec/empty\n' } }, { execute: false });
+test('R5: a test file of an implementation that no binding runs fails', TIMEOUT, async (t) => {
+  const { findings } = await check(t, { files: { 'python/tests/test_vector.py': 'PASS codec/empty\n' } }, { execute: false });
   assert.deepEqual(keys(findings), ['R5 - python']);
   assert.equal(findingAt(findings, 0).place, 'python/tests/test_vector.py');
 });
 
-test('R5: kit fixes the test files of each runner, and a declaration adds to them but never removes one (K75)', TIMEOUT, (t) => {
+test('R5: kit fixes the test files of each runner, and a declaration adds to them but never removes one (K75)', TIMEOUT, async (t) => {
   // No implementation declares tests and no testPatterns are declared: the convention of each runner alone selects the files.
   const conventional = (config: Declaration) => {
     for (const entry of config.implementations) if (entry.runner !== 'node' && entry.runner !== 'php') delete entry.tests;
     delete config.testPatterns;
     return config;
   };
-  assert.deepEqual(check(t, { edit: conventional }, { execute: false }).findings, []);
-  const { findings } = check(t, {
+  assert.deepEqual((await check(t, { edit: conventional }, { execute: false })).findings, []);
+  const { findings } = await check(t, {
     files: {
       'go/extra_test.go': 'package codec\n',
       'rust/tests/extra.rs': '#[test]\nfn extra() {}\n',
@@ -600,9 +601,9 @@ test('R5: kit fixes the test files of each runner, and a declaration adds to the
   ]);
 });
 
-test('R5: a file named like a test that its runner does not run, and that no binding runs, fails (K75)', TIMEOUT, (t) => {
+test('R5: a file named like a test that its runner does not run, and that no binding runs, fails (K75)', TIMEOUT, async (t) => {
   // A PHP script named *_test.php that imports no PHPUnit is a test that neither the php convention nor a binding runs.
-  const { findings } = check(t, {
+  const { findings } = await check(t, {
     files: { 'php/scripts/codec_test.php': '<?php\necho "ok\\n";\n', 'python/codec.spec.py': '', 'go/testdata/test_input.json': '{}' },
   }, { execute: false });
   assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation} ${finding.place}`), [
@@ -612,15 +613,15 @@ test('R5: a file named like a test that its runner does not run, and that no bin
   ]);
   assert.match(findingAt(findings, 1).message, /\*\*\/\*Test\.php/);
   // A support glob takes a file named like a test out of the rule; it holds no test.
-  assert.deepEqual(check(t, {
+  assert.deepEqual((await check(t, {
     files: { 'go/testdata/test_input.json': '{}' },
     edit: (config) => { itemAt(config.implementations, 0).support = ['go/testdata/**']; return config; },
-  }, { execute: false }).findings, []);
+  }, { execute: false })).findings, []);
 });
 
-test('R5: a Rust file whose only test attribute lies in a comment or a string holds no test; one in code does (K204)', TIMEOUT, (t) => {
+test('R5: a Rust file whose only test attribute lies in a comment or a string holds no test; one in code does (K204)', TIMEOUT, async (t) => {
   // The doc comment quotes #[tokio::test], the block comment #[test] and the string literal #[test]; only real.rs has one in code.
-  const { findings } = check(t, {
+  const { findings } = await check(t, {
     files: {
       'rust/src/doc.rs': '/// ```\n/// #[tokio::test]\n/// async fn quoted() {}\n/// ```\n/* #[test] */\npub const SAMPLE: &str = "#[test]";\npub fn doc() {}\n',
       'rust/src/real.rs': '#[tokio::test]\nasync fn real() {}\n',
@@ -629,8 +630,8 @@ test('R5: a Rust file whose only test attribute lies in a comment or a string ho
   assert.deepEqual(findings.map(finding => `${finding.rule} ${finding.implementation ?? '-'} ${finding.place}`), ['R5 rust rust/src/real.rs']);
 });
 
-test('R6: a binding whose test lies outside the roots of its implementation fails', TIMEOUT, (t) => {
-  const { findings } = check(t, {
+test('R6: a binding whose test lies outside the roots of its implementation fails', TIMEOUT, async (t) => {
+  const { findings } = await check(t, {
     files: { 'php/tests/codec.php': null, 'tests/php/codec.php': FILES['php/tests/codec.php'], 'tests/composer.json': '{}\n', 'tests/vendor/bin/phpunit': '' },
     edit: config => { binding(config, 'codec', 'php').test = 'tests/php/codec.php'; return config; },
   });
@@ -638,12 +639,12 @@ test('R6: a binding whose test lies outside the roots of its implementation fail
   assert.match(findingAt(findings, 0).message, /outside php/);
 });
 
-test('R6: a binding of an implementation that shares the tests of another lies in the roots of either (K232)', TIMEOUT, (t) => {
+test('R6: a binding of an implementation that shares the tests of another lies in the roots of either (K232)', TIMEOUT, async (t) => {
   const placed = (findings: ParityFinding[]) => findings.filter(finding => finding.rule === 'R6').map(finding => `${finding.unit} ${finding.implementation}`);
   // Without shares, the go tests are outside gonative's roots.
-  assert.deepEqual(placed(check(t, { files: { 'gonative/doc.go': 'package gonative\n', 'gonative/go.mod': 'module example.com/gonative\n' }, edit: config => sharing(config, undefined) }, { execute: false }).findings), ['width gonative', 'size gonative']);
+  assert.deepEqual(placed((await check(t, { files: { 'gonative/doc.go': 'package gonative\n', 'gonative/go.mod': 'module example.com/gonative\n' }, edit: config => sharing(config, undefined) }, { execute: false })).findings), ['width gonative', 'size gonative']);
   // With shares, gonative's bindings may run go's tests, and R5 still judges only gonative's own roots.
-  const { findings } = check(t, { files: { 'gonative/doc.go': 'package gonative\n', 'gonative/go.mod': 'module example.com/gonative\n' }, edit: config => sharing(config, 'go') }, { execute: false });
+  const { findings } = await check(t, { files: { 'gonative/doc.go': 'package gonative\n', 'gonative/go.mod': 'module example.com/gonative\n' }, edit: config => sharing(config, 'go') }, { execute: false });
   // The declaration holds, so the rules ran and R6 found the shared roots.
   assert.deepEqual(findings.filter(finding => finding.rule === 'declaration').map(finding => finding.message), []);
   assert.deepEqual(placed(findings), []);
@@ -692,41 +693,41 @@ test('R6 leaves out a file that an internal glob of any implementation selects (
   assert.deepEqual(misplacedTests(model(true), [file]), []);
 });
 
-test('an internal test is no parity unit: R5 asks no binding for it, and the same file without the declaration is R5 (K313)', TIMEOUT, (t) => {
+test('an internal test is no parity unit: R5 asks no binding for it, and the same file without the declaration is R5 (K313)', TIMEOUT, async (t) => {
   const files = { 'php/tests/Internal.php': 'PASS test_helper\n' };
-  const plain = check(t, { files }, { execute: false }).findings;
+  const plain = (await check(t, { files }, { execute: false })).findings;
   assert.deepEqual(keys(plain.filter(item => item.place === 'php/tests/Internal.php')), ['R5 - php']);
-  const declared = check(t, { files, edit: INTERNAL }, { execute: false }).findings;
+  const declared = (await check(t, { files, edit: INTERNAL }, { execute: false })).findings;
   assert.deepEqual(declared.filter(item => item.place === 'php/tests/Internal.php'), []);
   assert.deepEqual(declared.filter(item => item.rule === 'declaration').map(item => item.message), []);
 });
 
-test('an internal test that mentions UTF-8 names no requirement, and one that names a defined requirement after it still does (K342)', TIMEOUT, (t) => {
+test('an internal test that mentions UTF-8 names no requirement, and one that names a defined requirement after it still does (K342)', TIMEOUT, async (t) => {
   const broad = (config: Declaration) => { config.requirements = { pattern: '[A-Z0-9]+-[0-9]+' }; return INTERNAL(config); };
-  const plain = check(t, { files: { 'php/tests/Internal.php': 'PASS test_helper\n// encodes UTF-8 and SHA-256\n' }, edit: broad }, { execute: false }).findings;
+  const plain = (await check(t, { files: { 'php/tests/Internal.php': 'PASS test_helper\n// encodes UTF-8 and SHA-256\n' }, edit: broad }, { execute: false })).findings;
   assert.deepEqual(plain.filter(item => item.rule === 'R16'), []);
-  const named = check(t, { files: { 'php/tests/Internal.php': 'PASS test_helper\n// UTF-8 then CX-1\n' }, edit: broad }, { execute: false }).findings;
+  const named = (await check(t, { files: { 'php/tests/Internal.php': 'PASS test_helper\n// UTF-8 then CX-1\n' }, edit: broad }, { execute: false })).findings;
   assert.match(findingAt(named.filter(item => item.rule === 'R16'), 0).message, /names CX-1, a requirement of the spec/);
 });
 
-test('an internal test that names a requirement of the spec is R16, and an internal glob that selects no test is a declaration finding (K313)', TIMEOUT, (t) => {
-  const named = check(t, { files: { 'php/tests/Internal.php': 'PASS test_helper\n// CX-1\n' }, edit: INTERNAL }, { execute: false }).findings;
+test('an internal test that names a requirement of the spec is R16, and an internal glob that selects no test is a declaration finding (K313)', TIMEOUT, async (t) => {
+  const named = (await check(t, { files: { 'php/tests/Internal.php': 'PASS test_helper\n// CX-1\n' }, edit: INTERNAL }, { execute: false })).findings;
   assert.deepEqual(keys(named.filter(item => item.rule === 'R16')), ['R16 - php']);
   assert.match(findingAt(named.filter(item => item.rule === 'R16'), 0).message, /names CX-1, a requirement of the spec/);
-  const stale = check(t, { edit: config => INTERNAL(config, 'php/tests/Nothing*.php') }, { execute: false }).findings;
+  const stale = (await check(t, { edit: config => INTERNAL(config, 'php/tests/Nothing*.php') }, { execute: false })).findings;
   assert.deepEqual(stale.filter(item => item.rule === 'declaration').map(item => item.message), ['implementation php: the internal glob php/tests/Nothing*.php selects no test file of php']);
 });
 
-test('a shares that names itself, no implementation, or another runner is a declaration finding (K232)', TIMEOUT, (t) => {
-  const messages = (shares: string) => check(t, { files: { 'gonative/doc.go': 'package gonative\n', 'gonative/go.mod': 'module example.com/gonative\n' }, edit: config => sharing(config, shares) }, { execute: false }).findings
+test('a shares that names itself, no implementation, or another runner is a declaration finding (K232)', TIMEOUT, async (t) => {
+  const messages = async (shares: string) => (await check(t, { files: { 'gonative/doc.go': 'package gonative\n', 'gonative/go.mod': 'module example.com/gonative\n' }, edit: config => sharing(config, shares) }, { execute: false })).findings
     .filter(finding => finding.rule === 'declaration').map(finding => finding.message);
-  assert.deepEqual(messages('gonative'), ['implementation gonative shares its own tests; shares names the implementation whose tests it runs']);
-  assert.deepEqual(messages('swift'), ['implementation gonative shares the tests of swift, which is no implementation']);
-  assert.deepEqual(messages('php'), ['implementation gonative shares the tests of php, whose runner php is not its runner go']);
+  assert.deepEqual(await messages('gonative'), ['implementation gonative shares its own tests; shares names the implementation whose tests it runs']);
+  assert.deepEqual(await messages('swift'), ['implementation gonative shares the tests of swift, which is no implementation']);
+  assert.deepEqual(await messages('php'), ['implementation gonative shares the tests of php, whose runner php is not its runner go']);
 });
 
-test('R6: a test of a runner outside the roots of every implementation of that runner and every comparator root fails', TIMEOUT, (t) => {
-  const { findings } = check(t, {
+test('R6: a test of a runner outside the roots of every implementation of that runner and every comparator root fails', TIMEOUT, async (t) => {
+  const { findings } = await check(t, {
     files: {
       'tools/extra_test.go': 'package tools\n',
       'php/tests/codec_test.go': 'package php\n',
@@ -742,22 +743,22 @@ test('R6: a test of a runner outside the roots of every implementation of that r
   assert.match(findingAt(findings, 1).message, /a go test outside go, the roots of the go implementations, and outside tests\/compare, the comparator roots/);
 });
 
-test('the whole repository is no root, and a declared tests list is not empty', TIMEOUT, (t) => {
-  const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages({ edit: (config) => { itemAt(config.implementations, 0).roots = ['.']; config.comparators = ['./']; return config; } }), [
+test('the whole repository is no root, and a declared tests list is not empty', TIMEOUT, async (t) => {
+  const messages = async (change: Change) => (await check(t, change, { execute: false })).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(await messages({ edit: (config) => { itemAt(config.implementations, 0).roots = ['.']; config.comparators = ['./']; return config; } }), [
     'declaration: implementation go: the root . is the whole repository; name the directories of the implementation',
     'declaration: comparators: the root ./ is the whole repository; name the directories of the comparators',
   ]);
-  assert.deepEqual(messages({ edit: (config) => { itemAt(config.implementations, 0).tests = []; return config; } }), [
+  assert.deepEqual(await messages({ edit: (config) => { itemAt(config.implementations, 0).tests = []; return config; } }), [
     'declaration: config/parity.json: /implementations/0/tests must NOT have fewer than 1 items {"limit":1}',
   ]);
 });
 
-test('the schema rejects PYTHONPATH and every path that leaves the repository; a resolved reference may not leave it either (K75)', TIMEOUT, (t) => {
-  const places = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule} ${/(?<=^config\/parity\.json: )\/\S*/.exec(finding.message)?.[0]}`);
+test('the schema rejects PYTHONPATH and every path that leaves the repository; a resolved reference may not leave it either (K75)', TIMEOUT, async (t) => {
+  const places = async (edit: (config: Declaration) => Declaration) => (await check(t, { edit }, { execute: false })).findings.map(finding => `${finding.rule} ${/(?<=^config\/parity\.json: )\/\S*/.exec(finding.message)?.[0]}`);
   const python = (config: Declaration) => itemWhere(config.implementations, (entry: { name: string }) => entry.name === 'python');
-  assert.deepEqual(places((config) => { python(config).env = [{ name: 'PYTHONPATH', value: 'python/src' }]; return config; }), ['declaration /implementations/4/env/0/name']);
-  assert.deepEqual(places((config) => {
+  assert.deepEqual(await places((config) => { python(config).env = [{ name: 'PYTHONPATH', value: 'python/src' }]; return config; }), ['declaration /implementations/4/env/0/name']);
+  assert.deepEqual(await places((config) => {
     itemAt(config.implementations, 0).roots = ['go', '../shared'];
     python(config).command = '/usr/bin/python3';
     python(config).args = ['-d', 'extension=../modules/codec.so', '--root=/opt/codec', '~/codec'];
@@ -776,9 +777,9 @@ test('the schema rejects PYTHONPATH and every path that leaves the repository; a
     'declaration /units/0/file',
   ]);
   // A path inside the repository, a name on PATH, a version range and a reference stay valid.
-  assert.deepEqual(places((config) => { python(config).command = 'python3'; python(config).args = ['-X', 'dev', '--range=1..2', '${PARITY_ARGS}']; return config; }), []);
+  assert.deepEqual(await places((config) => { python(config).command = 'python3'; python(config).args = ['-X', 'dev', '--range=1..2', '${PARITY_ARGS}']; return config; }), []);
   const root = repository(t, { edit: (config) => { python(config).command = '${PARITY_VENV}/bin/python'; return config; } });
-  const outside = checkParity(root, { execute: true, env: { ...ENV, PARITY_VENV: path.dirname(root) }, say: () => {} }).findings;
+  const outside = (await checkParity(root, { execute: true, env: { ...ENV, PARITY_VENV: path.dirname(root) }, say: () => {} })).findings;
   assert.deepEqual(keys(outside), ['R3 codec python', 'R3 width python', 'R3 size python']);
   assert.match(findingAt(outside, 0).message, /cannot start: command/);
   assert.ok(findingAt(outside, 0).message.includes(path.dirname(root)) === false, 'the value of a reference is never printed');
@@ -862,8 +863,8 @@ test('a reference may resolve into the kit package in use, which a linked reposi
   }
 });
 
-test('R7: an implementation whose error codes differ from the catalog, or that declares none, fails', TIMEOUT, (t) => {
-  const { findings } = check(t, {
+test('R7: an implementation whose error codes differ from the catalog, or that declares none, fails', TIMEOUT, async (t) => {
+  const { findings } = await check(t, {
     files: { 'python/codes.py': 'CONFIG = "CONFIG"\nEXTRA = "EXTRA"\n' },
     edit: config => { delete itemWhere(config.implementations, (entry: { name: string }) => entry.name === 'php').errors; return config; },
   }, { execute: false });
@@ -873,32 +874,32 @@ test('R7: an implementation whose error codes differ from the catalog, or that d
   assert.match(findingAt(findings, 1).message, /not in the catalog: EXTRA/);
 });
 
-test('the catalog pattern reads every line of the catalog that is not blank or a comment, and reads at least one code', TIMEOUT, (t) => {
-  const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule} ${finding.place}: ${finding.message}`);
-  assert.deepEqual(messages({ files: { 'docs/errors.yaml': '# The codes.\n\n- code: CONFIG # a missing secret\n- code: CODEC_DECODE\n' } }), [
+test('the catalog pattern reads every line of the catalog that is not blank or a comment, and reads at least one code', TIMEOUT, async (t) => {
+  const messages = async (change: Change) => (await check(t, change, { execute: false })).findings.map(finding => `${finding.rule} ${finding.place}: ${finding.message}`);
+  assert.deepEqual(await messages({ files: { 'docs/errors.yaml': '# The codes.\n\n- code: CONFIG # a missing secret\n- code: CODEC_DECODE\n' } }), [
     'declaration docs/errors.yaml:3: the catalog pattern ^- code: (\\w+)$ does not read the line "- code: CONFIG # a missing secret"; write a pattern that reads every line of the catalog',
   ]);
-  assert.deepEqual(messages({ files: { 'docs/errors.yaml': '# The codes.\n// none yet\n' } }), [
+  assert.deepEqual(await messages({ files: { 'docs/errors.yaml': '# The codes.\n// none yet\n' } }), [
     'declaration docs/errors.yaml: the catalog pattern ^- code: (\\w+)$ reads no code',
   ]);
-  assert.deepEqual(messages({ files: { 'python/codes.py': '# generated\n' } }), [
+  assert.deepEqual(await messages({ files: { 'python/codes.py': '# generated\n' } }), [
     'declaration python/codes.py: the pattern ^\\w+ = "(\\w+)"$ of python reads no code',
   ]);
-  assert.deepEqual(messages({
+  assert.deepEqual(await messages({
     files: { 'docs/errors.yaml': 'codes:\n  - code: CONFIG\n    meaning: a missing secret\n  - code: CODEC_DECODE\n' },
     edit: (config) => { config.errors.catalog.pattern = '^  - code: (\\w+)$|^codes:$|^    \\w+: .*$'; return config; },
   }), [], 'a line that the pattern matches without its group holds no code');
 });
 
-test('R9: a language list of another file that differs from the implementations fails', TIMEOUT, (t) => {
-  const { findings } = check(t, { files: { 'tools/languages.mjs': "export const LANGUAGES = ['go', 'rust', 'ts', 'php'];\n" } }, { execute: false });
+test('R9: a language list of another file that differs from the implementations fails', TIMEOUT, async (t) => {
+  const { findings } = await check(t, { files: { 'tools/languages.mjs': "export const LANGUAGES = ['go', 'rust', 'ts', 'php'];\n" } }, { execute: false });
   assert.deepEqual(keys(findings), ['R9 - -']);
   assert.match(findingAt(findings, 0).message, /missing python/);
   assert.equal(findingAt(findings, 0).place, 'tools/languages.mjs:1');
 });
 
-test('R10: a document that counts or lists the implementations unlike the implementations fails', TIMEOUT, (t) => {
-  const { findings } = check(t, {
+test('R10: a document that counts or lists the implementations unlike the implementations fails', TIMEOUT, async (t) => {
+  const { findings } = await check(t, {
     files: {
       'docs/index.md': '# Codec\n\nFour languages share the codec.\nGo, PHP, Rust, and TS share one contract.\n',
       'docs/index.ko.md': '# Codec\n\n네 언어가 codec을 공유한다.\n',
@@ -909,7 +910,7 @@ test('R10: a document that counts or lists the implementations unlike the implem
   assert.match(findingAt(findings, 2).message, /go, php, rust, ts/);
 });
 
-test('R10: a count or a list is judged against every implementation, read from the prose of a Markdown passage', TIMEOUT, (t) => {
+test('R10: a count or a list is judged against every implementation, read from the prose of a Markdown passage', TIMEOUT, async (t) => {
   // Each paragraph, and the findings that it gives: `count` or `list`, at its first line or at the line after @.
   const paragraphs: [string, string[]][] = [
     ['The codec has one language.', ['count']],
@@ -943,7 +944,7 @@ test('R10: a count or a list is judged against every implementation, read from t
     }
     lines.push(...text.split('\n'), '');
   }
-  const { findings } = check(t, {
+  const { findings } = await check(t, {
     files: {
       'docs/index.md': lines.join('\n'),
       'docs/index.ko.md': '# Codec\n\n다섯 언어가 codec을 공유한다: Go, Rust, TS, PHP와 Python.\n\n검사를 한 언어에서 실행한다.\n\norm은 6개 언어로 배포된다.\n\ncodec은 다섯 개 언어로 구현된다.\n\n세 가지 언어가 planner를 공유한다.\n',
@@ -961,8 +962,8 @@ test('R10: a count or a list is judged against every implementation, read from t
   ]);
 });
 
-test('R10: a distributive count and a run of names inside a list of other items are no count and no list of implementations (K197)', TIMEOUT, (t) => {
-  const { findings } = check(t, {
+test('R10: a distributive count and a run of names inside a list of other items are no count and no list of implementations (K197)', TIMEOUT, async (t) => {
+  const { findings } = await check(t, {
     files: {
       'docs/index.md': [
         '# Codec', '',
@@ -987,8 +988,8 @@ test('R10: a distributive count and a run of names inside a list of other items 
   ]);
 });
 
-test('R10: a noun that modifies a compound and the pair of a comparison are no count of implementations (K311)', TIMEOUT, (t) => {
-  const { findings } = check(t, {
+test('R10: a noun that modifies a compound and the pair of a comparison are no count of implementations (K311)', TIMEOUT, async (t) => {
+  const { findings } = await check(t, {
     files: {
       'docs/index.md': [
         '# Codec', '',
@@ -1002,9 +1003,9 @@ test('R10: a noun that modifies a compound and the pair of a comparison are no c
   assert.deepEqual(findings.filter(finding => finding.rule === 'R10').map(finding => `${finding.place} ${finding.message.split('"')[1]}`), ['docs/index.md:7 three languages']);
 });
 
-test('R10: a bullet list of one implementation per item is one list, and a declared prose name is its implementation (K43)', TIMEOUT, (t) => {
+test('R10: a bullet list of one implementation per item is one list, and a declared prose name is its implementation (K43)', TIMEOUT, async (t) => {
   const prose = (config: Declaration) => { itemWhere(config.implementations, (entry: { name: string }) => entry.name === 'ts').prose = ['TypeScript', 'Node package']; return config; };
-  const { findings } = check(t, {
+  const { findings } = await check(t, {
     files: {
       'docs/index.md': [
         '# Codec', '',
@@ -1023,23 +1024,23 @@ test('R10: a bullet list of one implementation per item is one list, and a decla
     'R10 docs/index.md:3: the Markdown list go, php, rust, ts names one implementation per item, which is not every implementation (the implementations: go, rust, ts, php, python)',
     'R10 docs/index.md:22: the list ts, go, php, rust is in a sentence that names ts, go, php, rust, which is not every implementation (the implementations: go, rust, ts, php, python)',
   ]);
-  const messages = (edit: (config: Declaration) => Declaration) => check(t, { edit }, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages((config) => { itemAt(prose(config).implementations, 0).prose = ['typescript']; return config; }), [
+  const messages = async (edit: (config: Declaration) => Declaration) => (await check(t, { edit }, { execute: false })).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(await messages((config) => { itemAt(prose(config).implementations, 0).prose = ['typescript']; return config; }), [
     'declaration: implementation go: the prose name typescript is also a name of ts',
     'declaration: implementation ts: the prose name TypeScript is also a name of go',
   ]);
-  assert.deepEqual(messages((config) => { itemAt(config.implementations, 0).prose = ['Rust']; return config; }), [
+  assert.deepEqual(await messages((config) => { itemAt(config.implementations, 0).prose = ['Rust']; return config; }), [
     'declaration: implementation go: the prose name Rust is also a name of rust',
   ]);
-  assert.deepEqual(messages((config) => { itemAt(config.implementations, 0).prose = [' Go']; return config; }).length, 1);
+  assert.deepEqual((await messages((config) => { itemAt(config.implementations, 0).prose = [' Go']; return config; })).length, 1);
   // A prose name is declared once: a repeated one breaks the schema.
-  assert.deepEqual(messages((config) => { itemAt(config.implementations, 0).prose = ['Golang', 'Golang']; return config; }), [
+  assert.deepEqual(await messages((config) => { itemAt(config.implementations, 0).prose = ['Golang', 'Golang']; return config; }), [
     'declaration: config/parity.json: /implementations/0/prose must NOT have duplicate items (items ## 1 and 0 are identical) {"i":0,"j":1}',
   ]);
 });
 
-test('R11: a public symbol that no API unit declares fails (K75)', TIMEOUT, (t) => {
-  const { findings } = check(t, {
+test('R11: a public symbol that no API unit declares fails (K75)', TIMEOUT, async (t) => {
+  const { findings } = await check(t, {
     files: {
       'ts/index.d.ts': TS_API('export declare const encode: () => number;', 'export declare function orderedJsonOutput(): string;'),
       'rust/symbols.txt': 'encode\n',
@@ -1050,8 +1051,8 @@ test('R11: a public symbol that no API unit declares fails (K75)', TIMEOUT, (t) 
   ]);
 });
 
-test('R17: a public signature that names an internal symbol fails, in each extractor that reports leaks (K307-1)', TIMEOUT, (t) => {
-  const { findings } = check(t, {
+test('R17: a public signature that names an internal symbol fails, in each extractor that reports leaks (K307-1)', TIMEOUT, async (t) => {
+  const { findings } = await check(t, {
     files: {
       'php/symbols.txt': 'LEAK A\\\\Child::take names the internal A\\\\Hidden\n',
       'python/symbols.txt': 'LEAK pkg.build names the private _Hidden\n',
@@ -1063,23 +1064,23 @@ test('R17: a public signature that names an internal symbol fails, in each extra
   ]);
 });
 
-test('an implementation with no manifest of its ecosystem below its roots, or with the roots of another, is a declaration finding (K336)', TIMEOUT, (t) => {
-  const messages = (edit: (config: Declaration) => Declaration, files: Record<string, string | null> = {}) => check(t, { files, edit }, { execute: false }).findings.filter(item => item.rule === 'declaration').map(item => item.message);
-  assert.deepEqual(messages(config => config), []);
+test('an implementation with no manifest of its ecosystem below its roots, or with the roots of another, is a declaration finding (K336)', TIMEOUT, async (t) => {
+  const messages = async (edit: (config: Declaration) => Declaration, files: Record<string, string | null> = {}) => (await check(t, { files, edit }, { execute: false })).findings.filter(item => item.rule === 'declaration').map(item => item.message);
+  assert.deepEqual(await messages(config => config), []);
   const engine = (config: Declaration) => {
     config.implementations.push({ name: 'php-engine', runner: 'php', roots: ['php/tests/engine'], tests: ['php/tests/engine/*.php'] });
     return config;
   };
-  assert.deepEqual(messages(engine, { 'php/tests/engine/a.php': 'PASS x\n' }).filter(message => message.startsWith('implementation ')), ['implementation php-engine: no root of php/tests/engine holds a composer.json; an implementation is a source root with the manifest of its ecosystem, never only test globs']);
+  assert.deepEqual((await messages(engine, { 'php/tests/engine/a.php': 'PASS x\n' })).filter(message => message.startsWith('implementation ')), ['implementation php-engine: no root of php/tests/engine holds a composer.json; an implementation is a source root with the manifest of its ecosystem, never only test globs']);
   const twin = (config: Declaration) => {
     config.implementations.push({ name: 'php-twin', runner: 'php', roots: ['php'], tests: ['php/tests/twin/*.php'] });
     return config;
   };
-  assert.match(messages(twin, { 'php/tests/twin/a.php': 'PASS x\n' }).join('\n'), /implementation php-twin: it has the roots of php; two implementations of one package only split its tests/);
+  assert.match((await messages(twin, { 'php/tests/twin/a.php': 'PASS x\n' })).join('\n'), /implementation php-twin: it has the roots of php; two implementations of one package only split its tests/);
 });
 
-test('K276: free-form profiles, nativeOnly and exclusions fail; only a provenance-backed owner scope may narrow a feature', TIMEOUT, (t) => {
-  const { findings } = check(t, { edit: (config) => { config.profiles = [{ name: 'all', implementations: ['go'] }]; config.nativeOnly = []; config.exclusions = []; return config; } }, { execute: false });
+test('K276: free-form profiles, nativeOnly and exclusions fail; only a provenance-backed owner scope may narrow a feature', TIMEOUT, async (t) => {
+  const { findings } = await check(t, { edit: (config) => { config.profiles = [{ name: 'all', implementations: ['go'] }]; config.nativeOnly = []; config.exclusions = []; return config; } }, { execute: false });
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"profiles"}',
     'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"nativeOnly"}',
@@ -1087,14 +1088,14 @@ test('K276: free-form profiles, nativeOnly and exclusions fail; only a provenanc
   ]);
 });
 
-test('K276-1: a suite that declares admit fails the schema, since every implementation runs every case', TIMEOUT, (t) => {
-  const { findings } = check(t, { edit: (config) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; } }, { execute: false });
+test('K276-1: a suite that declares admit fails the schema, since every implementation runs every case', TIMEOUT, async (t) => {
+  const { findings } = await check(t, { edit: (config) => { itemWhere(config.units, (unit: { id: string }) => unit.id === 'codec').admit = 'kinds'; return config; } }, { execute: false });
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: config/parity.json: /units/0 must NOT have additional properties {"additionalProperty":"admit"}',
   ]);
 });
 
-test('K566: a feature owner scope derives its implementation from a declared coverage part and runs its native case', TIMEOUT, (t) => {
+test('K566: a feature owner scope derives its implementation from a declared coverage part and runs its native case', TIMEOUT, async (t) => {
   const files = {
     'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-1** Go exposes its rollback fault through its test-only entry point.\n',
     'contracts/features.json': JSON.stringify({ features: [{ id: 'roundtrip', parity: ['go-native-roundtrip'], tests: ['go/roundtrip_test.go'], coverage: { owners: { go: { part: 'go', tests: ['go/roundtrip_test.go'] } } } }] }),
@@ -1111,16 +1112,16 @@ test('K566: a feature owner scope derives its implementation from a declared cov
       return config;
     },
   };
-  const noRequirementTrace = check(t, { ...change, files: { ...files, 'go/roundtrip_test.go': FEATURE_FILES['go/roundtrip_test.go'] } }, { execute: false });
+  const noRequirementTrace = await check(t, { ...change, files: { ...files, 'go/roundtrip_test.go': FEATURE_FILES['go/roundtrip_test.go'] } }, { execute: false });
   assert.ok(noRequirementTrace.findings.some(finding => finding.rule === 'R15' && finding.unit === 'go-native-roundtrip' && finding.implementation === 'go' && finding.requirements?.includes('RX-1')));
   const root = repository(t, change);
-  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['go-native-roundtrip'] });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['go-native-roundtrip'] });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.runs.map(run => `${run.implementation} ${run.status}`), ['go 0']);
 });
 
 // K961: a suite whose cases exist in one implementation only declares that owner, and the other implementations bind and run none.
-test('K961: a suite unit owned by a coverage part runs its owner alone and needs no binding of the others', TIMEOUT, (t) => {
+test('K961: a suite unit owned by a coverage part runs its owner alone and needs no binding of the others', TIMEOUT, async (t) => {
   const change: Change = {
     files: {
       'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-1** Go encodes the native vectors of its codec.\n',
@@ -1138,15 +1139,15 @@ test('K961: a suite unit owned by a coverage part runs its owner alone and needs
   const root = repository(t, change);
   writeFileSync(path.join(root, 'go/codec_test.go'), `${readFileSync(path.join(root, 'go/codec_test.go'), 'utf8')}\n// RX-1\n`);
   // The whole declaration: R2 asks the owned suite for no binding of the other implementations.
-  const declared = checkParity(root, { execute: false, env: ENV, say: () => {} });
+  const declared = await checkParity(root, { execute: false, env: ENV, say: () => {} });
   assert.deepEqual(declared.findings.filter(finding => finding.unit === 'codec').map(finding => `${finding.rule}: ${finding.message}`), []);
-  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['codec'] });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['codec'] });
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), []);
   assert.deepEqual(ledger.runs.map(run => `${run.implementation} ${run.status}`), ['go 0']);
   // A requirement that does not name the owner keeps the suite shared, and an owned suite binds its owner only.
-  const shared = check(t, { ...change, files: { ...change.files, 'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-1** Every implementation encodes the native vectors.\n' } }, { execute: false });
+  const shared = await check(t, { ...change, files: { ...change.files, 'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-1** Every implementation encodes the native vectors.\n' } }, { execute: false });
   assert.ok(shared.findings.some(finding => finding.message.includes('unit codec: requirement RX-1 does not name its owner go')));
-  const outside = check(t, { ...change, edit: config => {
+  const outside = await check(t, { ...change, edit: config => {
     change.edit?.(config);
     itemWhere(config.units, (entry: { id: string }) => entry.id === 'codec').bindings?.push({ implementation: 'ts', test: 'ts/tests/codec.mjs' });
     return config;
@@ -1154,7 +1155,7 @@ test('K961: a suite unit owned by a coverage part runs its owner alone and needs
   assert.ok(outside.findings.some(finding => finding.message.includes('an owner-scoped unit binds an implementation other than go')));
 });
 
-test('K566 rejects component scope for a shared SQL requirement and an unowned coverage part', TIMEOUT, (t) => {
+test('K566 rejects component scope for a shared SQL requirement and an unowned coverage part', TIMEOUT, async (t) => {
   const files = {
     'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-2** Every client executes SQL using its declared dialect.\n',
     'contracts/features.json': JSON.stringify({ features: [{ id: 'roundtrip', parity: ['go-native-roundtrip'], tests: ['go/roundtrip_test.go'], coverage: { owners: { go: { part: 'go', tests: ['go/roundtrip_test.go'] } } } }] }),
@@ -1168,18 +1169,18 @@ test('K566 rejects component scope for a shared SQL requirement and an unowned c
       return config;
     },
   });
-  const shared = check(t, makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }), { execute: false });
+  const shared = await check(t, makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }), { execute: false });
   assert.ok(shared.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('requirement RX-2 does not name its owner go')));
-  const nonSubject = check(t, { ...makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }), files: {
+  const nonSubject = await check(t, { ...makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }), files: {
     ...files,
     'docs/spec/owner-scope.md': '# Native ownership\n\n- **RX-2** Rollback fault handling exposes SQL errors through the native entry point.\n',
   } }, { execute: false });
   assert.ok(nonSubject.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('requirement RX-2 does not name its owner go')));
-  const unknownPart = check(t, makeChange({ kind: 'coverage-part', feature: 'missing', part: 'owner/go' }), { execute: false });
+  const unknownPart = await check(t, makeChange({ kind: 'coverage-part', feature: 'missing', part: 'owner/go' }), { execute: false });
   assert.ok(unknownPart.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('feature missing does not exist in contracts/features.json')));
-  const absentOwner = check(t, makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/rust' }), { execute: false });
+  const absentOwner = await check(t, makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/rust' }), { execute: false });
   assert.ok(absentOwner.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not name a coverage owner in contracts/features.json')));
-  const unlistedTest = check(t, { ...makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }), edit: config => {
+  const unlistedTest = await check(t, { ...makeChange({ kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }), edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
     config.units.push({ id: 'go-native-roundtrip', kind: 'feature', requirements: ['RX-2'], owner: { kind: 'coverage-part', feature: 'roundtrip', part: 'owner/go' }, bindings: [{ implementation: 'go', test: 'go/unlisted_test.go', id: 'TestRoundtrip/bytes' }] });
     return config;
@@ -1188,19 +1189,19 @@ test('K566 rejects component scope for a shared SQL requirement and an unowned c
   assert.ok(unlistedTest.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not declare each bound test in its feature tests')));
 });
 
-test('K650: a coverage part may contain one implementation’s multiple roots', TIMEOUT, (t) => {
-  const result = check(t, coveragePartChange('go', 'go/orm/roundtrip_test.go'), { execute: false });
+test('K650: a coverage part may contain one implementation’s multiple roots', TIMEOUT, async (t) => {
+  const result = await check(t, coveragePartChange('go', 'go/orm/roundtrip_test.go'), { execute: false });
   assert.deepEqual(result.findings, []);
 });
 
-test('K650: a coverage part spanning implementations or excluding its bound test is rejected', TIMEOUT, (t) => {
-  const ambiguous = check(t, coveragePartChange('go', 'go/orm/roundtrip_test.go', true), { execute: false });
+test('K650: a coverage part spanning implementations or excluding its bound test is rejected', TIMEOUT, async (t) => {
+  const ambiguous = await check(t, coveragePartChange('go', 'go/orm/roundtrip_test.go', true), { execute: false });
   assert.ok(ambiguous.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('resolves to 2 implementation roots')));
-  const outside = check(t, coveragePartChange('go/orm', 'go/engine/roundtrip_test.go'), { execute: false });
+  const outside = await check(t, coveragePartChange('go/orm', 'go/engine/roundtrip_test.go'), { execute: false });
   assert.ok(outside.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('does not contain every bound test')));
 });
 
-test('K635 resolves an explicit multi-owner feature without narrowing it to every implementation', TIMEOUT, (t) => {
+test('K635 resolves an explicit multi-owner feature without narrowing it to every implementation', TIMEOUT, async (t) => {
   const phpExt = { name: 'php-extension', prose: ['PHP extension'], runner: 'php', roots: ['php-ext'], tests: ['php-ext/tests/*.php'], symbols: { extractor: 'php', entry: 'php-ext' }, errors: { file: 'php-ext/src/Code.php', pattern: "^    const \\w+ = '(\\w+)';$" }, shares: 'php' };
   const files = {
     'php/composer.json': '{}\n',
@@ -1252,16 +1253,16 @@ test('K635 resolves an explicit multi-owner feature without narrowing it to ever
       return config;
     },
   };
-  const { findings } = check(t, change, { execute: false });
+  const { findings } = await check(t, change, { execute: false });
   assert.deepEqual(findings, []);
-  const sharedRequirement = check(t, { ...change, files: {
+  const sharedRequirement = (await check(t, { ...change, files: {
     ...files,
     'docs/spec/owner-scope.md': '# Session setup\n\n- **RX-6** Every client applies declared session initialization before the first query.\n',
-  } }, { execute: false }).findings;
+  } }, { execute: false })).findings;
   assert.ok(sharedRequirement.some(finding => finding.message.includes('requirement RX-6 does not name or share owner')));
 });
 
-test('K635 rejects empty, duplicate, unknown and unbound members of a multi-owner scope', TIMEOUT, (t) => {
+test('K635 rejects empty, duplicate, unknown and unbound members of a multi-owner scope', TIMEOUT, async (t) => {
   const base: Change = {
     files: {
       'contracts/features.json': JSON.stringify({ features: [{ id: 'roundtrip', parity: ['roundtrip'], tests: ['go/roundtrip_test.go', 'python-extra/tests/test_roundtrip.py'], coverage: { owners: {
@@ -1278,24 +1279,24 @@ test('K635 rejects empty, duplicate, unknown and unbound members of a multi-owne
       return config;
     },
   };
-  const findings = (parts: string[]) => check(t, { ...base, edit: config => {
+  const findings = async (parts: string[]) => (await check(t, { ...base, edit: config => {
     base.edit?.(config);
     const unit = config.units.at(-1);
     assert.ok(unit);
     unit.owner = { kind: 'coverage-parts', feature: 'roundtrip', parts };
     return config;
-  } }, { execute: false }).findings;
-  assert.ok(findings([]).some(finding => finding.rule === 'declaration'));
-  assert.ok(findings(['owner/go', 'owner/missing']).some(finding => finding.message.includes('does not name a coverage owner')));
-  assert.ok(findings(['owner/go', 'owner/go']).some(finding => finding.rule === 'declaration'));
-  const missingBinding = check(t, { ...base, edit: config => {
+  } }, { execute: false })).findings;
+  assert.ok((await findings([])).some(finding => finding.rule === 'declaration'));
+  assert.ok((await findings(['owner/go', 'owner/missing'])).some(finding => finding.message.includes('does not name a coverage owner')));
+  assert.ok((await findings(['owner/go', 'owner/go'])).some(finding => finding.rule === 'declaration'));
+  const missingBinding = (await check(t, { ...base, edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
     config.implementations.push({ name: 'python-extra', runner: 'python', roots: ['python-extra'], tests: ['python-extra/tests/*.py'] });
     config.units.push({ id: 'roundtrip', kind: 'feature', requirements: ['RX-7'], owner: { kind: 'coverage-parts', feature: 'roundtrip', parts: ['owner/go', 'owner/python-extra'] }, bindings: [{ implementation: 'go', test: 'go/roundtrip_test.go', id: 'TestRoundtrip/bytes' }] });
     return config;
-  } }, { execute: false }).findings;
+  } }, { execute: false })).findings;
   assert.ok(missingBinding.some(finding => finding.message.includes('has no native binding')));
-  const unrelatedOwner = check(t, { ...base, edit: config => {
+  const unrelatedOwner = (await check(t, { ...base, edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
     config.implementations.push({ name: 'python-extra', runner: 'python', roots: ['python-extra'], tests: ['python-extra/tests/*.py'] });
     config.units.push({ id: 'roundtrip', kind: 'feature', requirements: ['RX-7'], owner: { kind: 'coverage-parts', feature: 'roundtrip', parts: ['owner/go', 'owner/python-extra'] }, bindings: [
@@ -1303,11 +1304,11 @@ test('K635 rejects empty, duplicate, unknown and unbound members of a multi-owne
       { implementation: 'python-extra', test: 'python-extra/tests/test_roundtrip.py', id: 'test_roundtrip' },
     ] });
     return config;
-  } }, { execute: false }).findings;
+  } }, { execute: false })).findings;
   assert.ok(unrelatedOwner.some(finding => finding.message.includes('does not name or share owner python-extra')));
 });
 
-test('K566: a release-package owner resolves its implementation from config/release.json', TIMEOUT, (t) => {
+test('K566: a release-package owner resolves its implementation from config/release.json', TIMEOUT, async (t) => {
   const files = {
     'docs/spec/owner-scope.md': '# Native package\n\n- **RX-3** The codec-ts package exports its client declarations at its package root.\n',
     'config/release.json': JSON.stringify({ packages: [{ name: 'codec-ts', directory: 'ts' }] }),
@@ -1321,23 +1322,23 @@ test('K566: a release-package owner resolves its implementation from config/rele
       return config;
     },
   };
-  const { findings, ledger } = check(t, change);
+  const { findings, ledger } = await check(t, change);
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.runs.filter(run => run.unit === 'ts-native-entry').map(run => `${run.implementation} ${run.status}`), ['ts 0']);
-  const mismatched = check(t, { ...change, files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'codec-ts', directory: 'php' }] }) } }, { execute: false });
+  const mismatched = await check(t, { ...change, files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'codec-ts', directory: 'php' }] }) } }, { execute: false });
   assert.ok(mismatched.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('binds an implementation other than php')));
-  const unknownPackage = check(t, { ...change, edit: config => {
+  const unknownPackage = await check(t, { ...change, edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
     config.units.push({ id: 'ts-native-entry', kind: 'feature', requirements: ['RX-3'], owner: { kind: 'release-package', artifact: 'archive', package: 'missing-package' }, bindings: [{ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'native' }] });
     return config;
   } }, { execute: false });
   assert.ok(unknownPackage.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('missing-package with artifact archive resolves to 0')));
-  const implementationNameOnly = check(t, { ...change, files: {
+  const implementationNameOnly = await check(t, { ...change, files: {
     ...files,
     'docs/spec/owner-scope.md': '# Native package\n\n- **RX-3** TypeScript exports its client declarations at its package root.\n',
   } }, { execute: false });
   assert.ok(implementationNameOnly.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('requirement RX-3 does not name its owner ts')));
-  const extraOwnerOverride = check(t, { ...change, edit: config => {
+  const extraOwnerOverride = await check(t, { ...change, edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
     config.units.push({ id: 'ts-native-entry', kind: 'feature', requirements: ['RX-3'], owner: { kind: 'release-package', artifact: 'archive', package: 'codec-ts', implementations: ['ts'] }, bindings: [{ implementation: 'ts', test: 'ts/tests/roundtrip.test.mjs', id: 'native' }] });
     return config;
@@ -1345,7 +1346,7 @@ test('K566: a release-package owner resolves its implementation from config/rele
   assert.ok(extraOwnerOverride.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('additionalProperty')));
 });
 
-test('K566: release owners resolve Go modules and Rust git-tag crates from their declared artifacts', TIMEOUT, (t) => {
+test('K566: release owners resolve Go modules and Rust git-tag crates from their declared artifacts', TIMEOUT, async (t) => {
   const files = {
     'docs/spec/owner-scope.md': '# Native package owners\n\n- **RX-4** The example/go package exports its ORM client from its module path.\n- **RX-5** The example-rust package exposes its ORM client from its crate root.\n',
     'config/release.json': JSON.stringify({ packages: [], goModules: { go: 'example/go' }, manifests: { 'rust/Cargo.toml': 'git-tag' } }),
@@ -1354,7 +1355,7 @@ test('K566: release owners resolve Go modules and Rust git-tag crates from their
     'rust/Cargo.toml': '[package]\nname = "example-rust"\n',
     'rust/tests/roundtrip.rs': '#[test]\nfn roundtrip() {}\n// RX-5\n',
   };
-  const { findings } = check(t, { files, edit: config => {
+  const { findings } = await check(t, { files, edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
     config.units.push(
       { id: 'go-native-package', kind: 'feature', requirements: ['RX-4'], owner: { kind: 'release-package', artifact: 'go-module', package: 'example/go' }, bindings: [{ implementation: 'go', test: 'go/orm/roundtrip_test.go', id: 'TestRoundtrip' }] },
@@ -1363,7 +1364,7 @@ test('K566: release owners resolve Go modules and Rust git-tag crates from their
     return config;
   } }, { execute: false });
   assert.deepEqual(findings, []);
-  const crossArtifactSameName = check(t, { files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'example-rust', directory: 'python' }], goModules: { go: 'example/go' }, manifests: { 'rust/Cargo.toml': 'git-tag' } }) }, edit: config => {
+  const crossArtifactSameName = await check(t, { files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'example-rust', directory: 'python' }], goModules: { go: 'example/go' }, manifests: { 'rust/Cargo.toml': 'git-tag' } }) }, edit: config => {
     config.requirements.pattern = '(?:CX-[0-9]+|RX-[0-9]+)';
     config.units.push(
       { id: 'go-native-package', kind: 'feature', requirements: ['RX-4'], owner: { kind: 'release-package', artifact: 'go-module', package: 'example/go' }, bindings: [{ implementation: 'go', test: 'go/orm/roundtrip_test.go', id: 'TestRoundtrip' }] },
@@ -1374,16 +1375,16 @@ test('K566: release owners resolve Go modules and Rust git-tag crates from their
   assert.deepEqual(crossArtifactSameName.findings, []);
 });
 
-test('a declaration that breaks its schema fails, and no rule runs on it', TIMEOUT, (t) => {
-  const { findings } = check(t, { edit: (config) => { config.extra = true; itemAt(config.units, 0).kind = 'vector'; return config; } });
+test('a declaration that breaks its schema fails, and no rule runs on it', TIMEOUT, async (t) => {
+  const { findings } = await check(t, { edit: (config) => { config.extra = true; itemAt(config.units, 0).kind = 'vector'; return config; } });
   assert.deepEqual(findings.map(finding => `${finding.rule}: ${finding.message}`), [
     'declaration: config/parity.json: / must NOT have additional properties {"additionalProperty":"extra"}',
     'declaration: config/parity.json: /units/0/kind must be equal to one of the allowed values {"allowedValues":["suite","feature","api"]}, value "vector"',
   ]);
 });
 
-test('a declaration that names what does not exist or holds a stale entry fails, and no rule runs on it', TIMEOUT, (t) => {
-  const { findings, ledger } = check(t, {
+test('a declaration that names what does not exist or holds a stale entry fails, and no rule runs on it', TIMEOUT, async (t) => {
+  const { findings, ledger } = await check(t, {
     files: { 'tests/vectors/width.json': JSON.stringify(['narrow', 'narrow']) },
     edit: (config) => {
       itemAt(config.units, 0).bindings?.push({ implementation: 'swift', test: 'php/tests/codec.php' });
@@ -1447,16 +1448,16 @@ test('--unit with an id that no unit of the declaration holds is an error that n
   assert.doesNotMatch(unknown.stdout, /\[parity\] run /);
 });
 
-test('parity-declarations-check UNITS reports the findings of the named units and of config/parity.json only (K400)', TIMEOUT, (t) => {
+test('parity-declarations-check UNITS reports the findings of the named units and of config/parity.json only (K400)', TIMEOUT, async (t) => {
   const root = repository(t, { edit: config => {
     itemWhere(config.units, (entry: { id: string }) => entry.id === 'width').requirements = ['CX-9'];
     return config;
   } });
-  const declarations = (units?: string[]) => checkParity(root, { execute: false, env: ENV, say: () => {}, units }).findings;
-  const width = declarations().filter(item => item.unit === 'width');
-  assert.ok(width.length > 0, keys(declarations()).join('\n'));
-  assert.deepEqual(keys(declarations(['width'])), keys(width), 'the findings of width, the unit still failing');
-  assert.deepEqual(declarations(['codec']), [], 'codec, the unit fixed, has no finding of its own');
+  const declarations = async (units?: string[]) => (await checkParity(root, { execute: false, env: ENV, say: () => {}, units })).findings;
+  const width = (await declarations()).filter(item => item.unit === 'width');
+  assert.ok(width.length > 0, keys(await declarations()).join('\n'));
+  assert.deepEqual(keys(await declarations(['width'])), keys(width), 'the findings of width, the unit still failing');
+  assert.deepEqual(await declarations(['codec']), [], 'codec, the unit fixed, has no finding of its own');
   const make = (directory: string, units: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', `UNITS=${units}`], { cwd: directory, env: ENV, encoding: 'utf8' });
   const fixed = make(root, 'codec');
   assert.equal(fixed.status, 0, fixed.stdout + fixed.stderr);
@@ -1475,21 +1476,21 @@ test('parity-declarations-check UNITS reports the findings of the named units an
   assert.match(declaration.stderr, /R12 .* size go config\/parity\.json: .*names go twice/);
 });
 
-test('parity-declarations-check UNITS scopes the schema findings of config/parity.json to the named units (K400-1)', TIMEOUT, (t) => {
+test('parity-declarations-check UNITS scopes the schema findings of config/parity.json to the named units (K400-1)', TIMEOUT, async (t) => {
   const root = repository(t, { edit: config => {
     const width = itemWhere(config.units, (entry: { id: string }) => entry.id === 'width');
     delete width.requirements;
     return config;
   } });
   const lines: string[] = [];
-  const declarations = (units?: string[]) => checkParity(root, { execute: false, env: ENV, say: line => lines.push(line), units }).findings;
-  assert.deepEqual(declarations(['codec']), [], 'codec holds, and the schema finding of width is another unit');
+  const declarations = async (units?: string[]) => (await checkParity(root, { execute: false, env: ENV, say: line => lines.push(line), units })).findings;
+  assert.deepEqual(await declarations(['codec']), [], 'codec holds, and the schema finding of width is another unit');
   assert.ok(lines.some(line => /^width breaks the schema of config\/parity\.json and is left out; the rules run on the other units$/.test(line)), lines.join('\n'));
-  const scopedWidth = declarations(['width']);
+  const scopedWidth = await declarations(['width']);
   assert.equal(scopedWidth.length, 1, keys(scopedWidth).join('\n'));
   assert.match(scopedWidth[0]?.message ?? '', /^config\/parity\.json: \/units\/1 must have required property 'requirements'/);
-  assert.match(declarations()[0]?.message ?? '', /^config\/parity\.json: \/units\/1 must have required property 'requirements'/, 'unscoped, the schema finding counts');
-  assert.deepEqual(declarations(['nope']).map(item => item.message), ['--unit nope names no unit of config/parity.json'], 'an unknown unit is still a finding');
+  assert.match((await declarations())[0]?.message ?? '', /^config\/parity\.json: \/units\/1 must have required property 'requirements'/, 'unscoped, the schema finding counts');
+  assert.deepEqual((await declarations(['nope'])).map(item => item.message), ['--unit nope names no unit of config/parity.json'], 'an unknown unit is still a finding');
   const make = (units: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', `UNITS=${units}`], { cwd: root, env: ENV, encoding: 'utf8' });
   const valid = make('codec');
   assert.equal(valid.status, 0, valid.stdout + valid.stderr);
@@ -1502,7 +1503,7 @@ test('parity-declarations-check UNITS scopes the schema findings of config/parit
   assert.match(unknown.stderr, /--unit nope names no unit of config\/parity\.json/);
 });
 
-test('parity-declarations-check RULES reports the findings of the named rules only (K414)', TIMEOUT, (t) => {
+test('parity-declarations-check RULES reports the findings of the named rules only (K414)', TIMEOUT, async (t) => {
   const root = repository(t, {
     edit: config => {
       itemWhere(config.units, (entry: { id: string }) => entry.id === 'width').requirements = ['CX-9'];
@@ -1510,15 +1511,15 @@ test('parity-declarations-check RULES reports the findings of the named rules on
     },
     files: { 'docs/spec/tooling.md': '# Tooling\n\nThe tooling runs the checks; it defines no requirement.\n' },
   });
-  const declarations = (rules?: string[]) => checkParity(root, { execute: false, env: ENV, say: () => {}, rules }).findings;
-  const all = keys(declarations());
+  const declarations = async (rules?: string[]) => (await checkParity(root, { execute: false, env: ENV, say: () => {}, rules })).findings;
+  const all = keys(await declarations());
   assert.ok(all.some(line => line.startsWith('R14 ')) && all.some(line => line.startsWith('R19 ')), all.join('\n'));
-  const unknownRequirement = keys(declarations(['R14']));
+  const unknownRequirement = keys(await declarations(['R14']));
   assert.ok(unknownRequirement.length > 0 && unknownRequirement.every(line => line.startsWith('R14 ')), unknownRequirement.join('\n'));
-  assert.deepEqual(keys(declarations(['unknown-requirement'])), unknownRequirement, 'the rule named by its id and by its name give the same findings');
-  assert.deepEqual(keys(declarations(['R19'])), all.filter(line => line.startsWith('R19 ')), 'only the findings of R19');
-  assert.deepEqual(keys(declarations(['R10'])), [], 'R10 holds, so it has no finding');
-  assert.deepEqual(keys(declarations(['nope'])), ['declaration - -'], 'a rule that is no rule of the check is a finding of its own');
+  assert.deepEqual(keys(await declarations(['unknown-requirement'])), unknownRequirement, 'the rule named by its id and by its name give the same findings');
+  assert.deepEqual(keys(await declarations(['R19'])), all.filter(line => line.startsWith('R19 ')), 'only the findings of R19');
+  assert.deepEqual(keys(await declarations(['R10'])), [], 'R10 holds, so it has no finding');
+  assert.deepEqual(keys(await declarations(['nope'])), ['declaration - -'], 'a rule that is no rule of the check is a finding of its own');
   const make = (rules: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', `RULES=${rules}`], { cwd: root, env: ENV, encoding: 'utf8' });
   const only = make('R14');
   assert.notEqual(only.status, 0, only.stdout + only.stderr);
@@ -1531,7 +1532,7 @@ test('parity-declarations-check RULES reports the findings of the named rules on
   assert.match(unknown.stderr, /--rule nope names no rule of the parity check/);
 });
 
-test('parity-declarations-check IDS reports only the findings that name the requested requirements (K414-1)', TIMEOUT, (t) => {
+test('parity-declarations-check IDS reports only the findings that name the requested requirements (K414-1)', TIMEOUT, async (t) => {
   const spec = '# Codec\n\n- **CX-1** The codec encodes every vector.\n- **CX-2** The codec passes the conformance suite.\n- **CX-3** Every implementation holds the width tables.\n';
   // Before: the width unit cites CX-2 and CX-3 but binds only Go, so CX-2 selects both its R2 and R15 findings.
   const before = repository(t, {
@@ -1570,13 +1571,13 @@ test('parity-declarations-check IDS reports only the findings that name the requ
       return config;
     },
   });
-  const run = (root: string, ids?: string[], rules?: string[]) => checkParity(root, { execute: false, env: ENV, say: () => {}, ids, rules }).findings;
-  assert.deepEqual(run(before).filter(item => item.rule === 'R15').map(item => item.requirements), [['CX-2'], ['CX-3']], 'one R15 finding per id');
-  assert.deepEqual(keys(run(before, ['CX-2'])), ['R2 width rust', 'R2 width ts', 'R2 width php', 'R2 width python', 'R15 width go'], 'R2 missing bindings also name the unit requirements');
-  assert.deepEqual(keys(run(before, ['CX-2'], ['R15'])), ['R15 width go'], 'with RULES R15 the same');
-  assert.deepEqual(keys(run(after, ['CX-2'])), [], 'the citation of CX-2 moved to a unit whose test names it: no finding');
-  assert.deepEqual(keys(run(after)).filter(line => line.startsWith('R15 ')), ['R15 width go'], 'unscoped, the R15 finding of CX-3 remains');
-  const misspelt = run(after, ['CX-9']);
+  const run = async (root: string, ids?: string[], rules?: string[]) => (await checkParity(root, { execute: false, env: ENV, say: () => {}, ids, rules })).findings;
+  assert.deepEqual((await run(before)).filter(item => item.rule === 'R15').map(item => item.requirements), [['CX-2'], ['CX-3']], 'one R15 finding per id');
+  assert.deepEqual(keys(await run(before, ['CX-2'])), ['R2 width rust', 'R2 width ts', 'R2 width php', 'R2 width python', 'R15 width go'], 'R2 missing bindings also name the unit requirements');
+  assert.deepEqual(keys(await run(before, ['CX-2'], ['R15'])), ['R15 width go'], 'with RULES R15 the same');
+  assert.deepEqual(keys(await run(after, ['CX-2'])), [], 'the citation of CX-2 moved to a unit whose test names it: no finding');
+  assert.deepEqual(keys(await run(after)).filter(line => line.startsWith('R15 ')), ['R15 width go'], 'unscoped, the R15 finding of CX-3 remains');
+  const misspelt = await run(after, ['CX-9']);
   assert.deepEqual(keys(misspelt), ['declaration - -'], 'an id that no unit cites is a finding of its own');
   assert.match(misspelt[0]?.message ?? '', /--id CX-9 names no requirement that a unit of config\/parity\.json cites/);
   const make = (directory: string, ids: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', `IDS=${ids}`], { cwd: directory, env: ENV, encoding: 'utf8' });
@@ -1587,7 +1588,7 @@ test('parity-declarations-check IDS reports only the findings that name the requ
   assert.equal(fixed.status, 0, fixed.stdout + fixed.stderr);
 });
 
-test('K638 requirement and rule filters retain R2 bindings of the cited unit', TIMEOUT, (t) => {
+test('K638 requirement and rule filters retain R2 bindings of the cited unit', TIMEOUT, async (t) => {
   const root = repository(t, {
     files: {
       'docs/spec/codec.md': '# Codec\n\n- **CX-1** The codec encodes every vector.\n- **CX-2** The codec passes the conformance suite.\n- **CX-3** Every implementation holds the width tables.\n',
@@ -1599,12 +1600,12 @@ test('K638 requirement and rule filters retain R2 bindings of the cited unit', T
       return config;
     },
   });
-  const selected = checkParity(root, { execute: false, env: ENV, say: () => {}, ids: ['CX-2'], rules: ['R2'] });
+  const selected = await checkParity(root, { execute: false, env: ENV, say: () => {}, ids: ['CX-2'], rules: ['R2'] });
   assert.deepEqual(selected.findings.filter(item => item.rule === 'R2').map(item => `${item.unit} ${item.implementation} ${item.requirements?.join(',')}`), [
     'width rust CX-2', 'width ts CX-2', 'width php CX-2', 'width python CX-2',
   ]);
-  assert.deepEqual(keys(checkParity(root, { execute: false, env: ENV, say: () => {}, ids: ['CX-1'], rules: ['R2'] }).findings), []);
-  assert.deepEqual(keys(checkParity(root, { execute: false, env: ENV, say: () => {}, units: ['width'], rules: ['R2'] }).findings), [
+  assert.deepEqual(keys((await checkParity(root, { execute: false, env: ENV, say: () => {}, ids: ['CX-1'], rules: ['R2'] })).findings), []);
+  assert.deepEqual(keys((await checkParity(root, { execute: false, env: ENV, say: () => {}, units: ['width'], rules: ['R2'] })).findings), [
     'R2 width rust', 'R2 width ts', 'R2 width php', 'R2 width python',
   ]);
   const cli = spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', 'IDS=CX-2', 'RULES=R2'], { cwd: root, env: ENV, encoding: 'utf8' });
@@ -1612,14 +1613,14 @@ test('K638 requirement and rule filters retain R2 bindings of the cited unit', T
   assert.match(cli.stderr, /\[parity\] R2 missing-binding width rust/);
 });
 
-test('a document of docs/spec that defines no requirement is a finding that names it (K337)', TIMEOUT, (t) => {
+test('a document of docs/spec that defines no requirement is a finding that names it (K337)', TIMEOUT, async (t) => {
   const root = repository(t, { files: { 'docs/spec/tooling.md': '# Tooling\n\nThe tooling runs the checks; it defines no requirement.\n' } });
-  const { findings } = checkParity(root, { execute: false, env: ENV, say: () => {} });
+  const { findings } = await checkParity(root, { execute: false, env: ENV, say: () => {} });
   assert.deepEqual(keys(findings), ['R19 - -']);
   assert.equal(findings[0]?.place, 'docs/spec/tooling.md');
 });
 
-test('K33 reads the TeamCity messages of a PHPUnit run through the php runner: a class is a group, a method a case (K47)', TIMEOUT, (t) => {
+test('K33 reads the TeamCity messages of a PHPUnit run through the php runner: a class is a group, a method a case (K47)', TIMEOUT, async (t) => {
   // The messages of PHPUnit 11 for a class with a passing and a failing test method, as the php runner reads them.
   const teamcity = [
     "##teamcity[testSuiteStarted name='CodecTest' locationHint='php_qn://php/tests/codec.php::\\\\CodecTest' nodeId='1' parentNodeId='0']",
@@ -1631,23 +1632,23 @@ test('K33 reads the TeamCity messages of a PHPUnit run through the php runner: a
     "##teamcity[testSuiteFinished name='CodecTest' nodeId='1' parentNodeId='0']",
     'EXIT 1',
   ].join('\n');
-  const { findings, ledger } = check(t, { files: { 'php/tests/codec.php': `${teamcity}\n` } });
+  const { findings, ledger } = await check(t, { files: { 'php/tests/codec.php': `${teamcity}\n` } });
   assert.deepEqual(keys(findings), ['R3 codec php']);
   assert.equal(findingAt(findings, 0).message, 'exited with 1; failed: ascii');
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'codec' && entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii fail']);
 });
 
-test('R3 reads each case of a cargo binding whose harness libtest-mimic pads the test names (K136)', TIMEOUT, (t) => {
-  const { findings, ledger } = check(t, { files: { 'rust/src/lib.rs': 'HARNESS libtest-mimic\nPASS width::tests::vectors::narrow\nPASS width::tests::vectors::wide\n' } });
+test('R3 reads each case of a cargo binding whose harness libtest-mimic pads the test names (K136)', TIMEOUT, async (t) => {
+  const { findings, ledger } = await check(t, { files: { 'rust/src/lib.rs': 'HARNESS libtest-mimic\nPASS width::tests::vectors::narrow\nPASS width::tests::vectors::wide\n' } });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width' && entry.implementation === 'rust').map(entry => `${entry.case} ${entry.outcome}`), ['narrow pass', 'wide pass']);
 });
 
-test('a php suite binding with the symbol <class>::<method> runs that method alone, and each data set is a case (K137)', TIMEOUT, (t) => {
+test('a php suite binding with the symbol <class>::<method> runs that method alone, and each data set is a case (K137)', TIMEOUT, async (t) => {
   const tests = 'PASS testCodec with data set "empty"\nFAIL testCodec with data set "ascii"\nPASS testCodecExtra with data set "empty"\nPASS testOther\nEXIT 1\n';
   const edit = (config: Declaration) => { binding(config, 'codec', 'php').symbol = 'CodecTest::testCodec'; return config; };
   const root = repository(t, { files: { 'php/tests/codec.php': tests }, edit });
-  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {} });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: ENV, say: () => {} });
   assert.deepEqual(keys(findings), ['R3 codec php']);
   assert.equal(findingAt(findings, 0).message, 'exited with 1; failed: ascii');
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'codec' && entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii fail']);
@@ -1658,22 +1659,22 @@ test('a php suite binding with the symbol <class>::<method> runs that method alo
   if (namespaced.error) throw new Error(namespaced.error);
   assert.equal(namespaced.args.at(-2), '/^Example\\\\Tests\\\\CodecTest::testCodec(?: with data set |$)/');
   assert.deepEqual(['testCodec with data set "a/b"', 'testCodec with data set #0', 'testCodec', 'testCodecExtra with data set "a"'].map(name => namespaced.caseOf({ id: name, name })), ['a/b', '#0', undefined, undefined]);
-  const declared = (symbol: string) => check(t, { edit: (config) => { binding(config, 'codec', 'php').symbol = symbol; return config; } }, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(declared('testCodec'), ['declaration: unit codec: the php binding names testCodec, which is no test method <class>::<method> of a fully qualified class']);
-  assert.deepEqual(declared('\\Example\\CodecTest::testCodec'), ['declaration: unit codec: the php binding names \\Example\\CodecTest::testCodec, which is no test method <class>::<method> of a fully qualified class']);
+  const declared = async (symbol: string) => (await check(t, { edit: (config) => { binding(config, 'codec', 'php').symbol = symbol; return config; } }, { execute: false })).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(await declared('testCodec'), ['declaration: unit codec: the php binding names testCodec, which is no test method <class>::<method> of a fully qualified class']);
+  assert.deepEqual(await declared('\\Example\\CodecTest::testCodec'), ['declaration: unit codec: the php binding names \\Example\\CodecTest::testCodec, which is no test method <class>::<method> of a fully qualified class']);
 });
 
 // K968: an errors file is read from the checkout (parity-errors), so one that Git ignores, as a generated source of P34 that setup
 // writes, is checked like the symbols entry beside it: it must exist, whatever Git does with it.
-test('the errors file of an implementation passes when it exists and Git ignores it (K968)', TIMEOUT, (t) => {
-  const { findings } = check(t, { files: { '.gitignore': 'var/\nts/src/codes.ts\n' } }, { execute: false });
+test('the errors file of an implementation passes when it exists and Git ignores it (K968)', TIMEOUT, async (t) => {
+  const { findings } = await check(t, { files: { '.gitignore': 'var/\nts/src/codes.ts\n' } }, { execute: false });
   assert.deepEqual(findings.filter(finding => finding.message.includes('does not exist')).map(finding => finding.message), []);
-  const missing = check(t, { files: { 'ts/src/codes.ts': null } }, { execute: false });
+  const missing = await check(t, { files: { 'ts/src/codes.ts': null } }, { execute: false });
   assert.ok(missing.findings.some(finding => finding.message === 'implementation ts: ts/src/codes.ts does not exist'));
 });
 
-test('R3: a case that the run reports twice fails, and the finding names the case (K47)', TIMEOUT, (t) => {
-  const { findings } = check(t, { files: { 'go/codec_test.go': 'PASS TestCodec/empty\nPASS TestCodec/empty\nPASS TestCodec/ascii\n' } });
+test('R3: a case that the run reports twice fails, and the finding names the case (K47)', TIMEOUT, async (t) => {
+  const { findings } = await check(t, { files: { 'go/codec_test.go': 'PASS TestCodec/empty\nPASS TestCodec/empty\nPASS TestCodec/ascii\n' } });
   assert.deepEqual(keys(findings), ['R3 codec go']);
   assert.equal(findingAt(findings, 0).message, 'reported twice: empty');
 });
@@ -1689,29 +1690,29 @@ test('the PHPUnit run names the configuration of its package, phpunit.xml or php
   assert.deepEqual(args({ 'php/phpunit.xml.dist': '<phpunit/>\n' }), ['php/vendor/bin/phpunit', '--teamcity', '--configuration', 'php/phpunit.xml.dist', 'php/tests/codec.php']);
 });
 
-test('a php binding of a Composer monorepo runs the PHPUnit of the root project, and one with no vendor directory above it fails with the fix (K178)', TIMEOUT, (t) => {
+test('a php binding of a Composer monorepo runs the PHPUnit of the root project, and one with no vendor directory above it fails with the fix (K178)', TIMEOUT, async (t) => {
   const monorepo = { 'php/vendor/bin/phpunit': null, 'composer.json': '{}\n', 'vendor/bin/phpunit': '' };
   const run = runOf({ name: 'php', runner: 'php' }, repository(t, { files: monorepo }), { test: 'php/tests/codec.php' }, 'suite', ENV);
   if (run.error) throw new Error(`the php binding cannot start: ${run.error}`);
   assert.deepEqual(run.args, ['vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php']);
-  assert.deepEqual(check(t, { files: monorepo }).findings, []);
-  const { findings } = check(t, { files: { 'php/vendor/bin/phpunit': null } });
+  assert.deepEqual((await check(t, { files: monorepo })).findings, []);
+  const { findings } = await check(t, { files: { 'php/vendor/bin/phpunit': null } });
   assert.deepEqual(keys(findings), ['R3 codec php', 'R3 width php', 'R3 size php']);
   assert.match(findingAt(findings, 0).message, /php\/vendor\/bin\/phpunit does not exist; run composer install in php, or in the project that requires it/);
 });
 
-test('a case path step .~ selects the keys of an object as the case names (K42)', TIMEOUT, (t) => {
+test('a case path step .~ selects the keys of an object as the case names (K42)', TIMEOUT, async (t) => {
   const keyed = { files: { 'tests/vectors/width.json': JSON.stringify({ narrow: { width: 1 }, wide: { width: 2 } }) }, edit: (config: Declaration) => { widthUnit(config).cases = '$.~'; return config; } };
-  const { findings, ledger } = check(t, keyed);
+  const { findings, ledger } = await check(t, keyed);
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width').map(entry => `${entry.implementation} ${entry.case}`), ['go narrow', 'go wide', 'rust narrow', 'rust wide', 'ts narrow', 'ts wide', 'php narrow', 'php wide', 'python narrow', 'python wide']);
-  const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages({ edit: keyed.edit }), ['declaration: unit width: tests/vectors/width.json: $ is no object']);
-  assert.deepEqual(messages({ files: { 'tests/vectors/width.json': '{}' }, edit: keyed.edit }), ['declaration: unit width: $.~ selects no case in tests/vectors/width.json']);
-  assert.deepEqual(messages({ files: keyed.files, edit: (config) => { widthUnit(config).cases = '$.~.name'; return config; } }).length, 1);
+  const messages = async (change: Change) => (await check(t, change, { execute: false })).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(await messages({ edit: keyed.edit }), ['declaration: unit width: tests/vectors/width.json: $ is no object']);
+  assert.deepEqual(await messages({ files: { 'tests/vectors/width.json': '{}' }, edit: keyed.edit }), ['declaration: unit width: $.~ selects no case in tests/vectors/width.json']);
+  assert.deepEqual((await messages({ files: keyed.files, edit: (config) => { widthUnit(config).cases = '$.~.name'; return config; } })).length, 1);
 });
 
-test('two suite units that cite the same requirements from different case sets are a finding naming both (K350)', TIMEOUT, (t) => {
+test('two suite units that cite the same requirements from different case sets are a finding naming both (K350)', TIMEOUT, async (t) => {
   const files = {
     'docs/spec/forms.md': '# Forms\n\n- **CX-2** The form keeps its history.\n- **CX-3** The form saves its draft.\n',
     'tests/forms/form-history/save/case.json': '{"requirements": ["CX-2"]}\n',
@@ -1724,7 +1725,7 @@ test('two suite units that cite the same requirements from different case sets a
     config.units.push(suite('form-history', 'CX-2'), suite('form-history-2', 'CX-2'), suite('other', 'CX-3'));
     return config;
   };
-  const { findings } = check(t, { files, edit }, { execute: false });
+  const { findings } = await check(t, { files, edit }, { execute: false });
   const overlaps = findings.filter(item => item.rule === 'R18');
   assert.equal(overlaps.length, 1, 'only the two suites sharing a requirement conflict');
   const overlap = overlaps[0];
@@ -1736,56 +1737,56 @@ test('two suite units that cite the same requirements from different case sets a
   assert.ok(!overlap.message.includes('other'), 'the unrelated suite is no conflict');
 });
 
-test('a suite file names a directory whose case glob matches one directory per case, which go runs as nested subtests (K42)', TIMEOUT, (t) => {
-  const { findings, ledger } = check(t, { files: CASE_DIRECTORIES, edit: caseDirectories });
+test('a suite file names a directory whose case glob matches one directory per case, which go runs as nested subtests (K42)', TIMEOUT, async (t) => {
+  const { findings, ledger } = await check(t, { files: CASE_DIRECTORIES, edit: caseDirectories });
   // The other implementations hold the unit too, and their native test names are no nested case of the suite.
   assert.deepEqual(keys(findings), ['R3 width rust', 'R3 width ts', 'R3 width php', 'R3 width python']);
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'width' && entry.implementation === 'go').map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), ['go echo/bool pass', 'go echo/html-escape-five-chars pass', 'go if/true pass']);
   // A subtest below a case is no case of the suite.
-  const nested = check(t, { files: { ...CASE_DIRECTORIES, 'go/width_test.go': `${CASE_DIRECTORIES['go/width_test.go']}PASS TestWidth/if/true/sub\n` }, edit: caseDirectories });
+  const nested = await check(t, { files: { ...CASE_DIRECTORIES, 'go/width_test.go': `${CASE_DIRECTORIES['go/width_test.go']}PASS TestWidth/if/true/sub\n` }, edit: caseDirectories });
   assert.deepEqual(nested.findings.map(finding => `${finding.rule} ${finding.unit}: ${finding.message}`), ['R3 width: not in the suite: if/true/sub', 'R3 width: not executed: echo/bool, echo/html-escape-five-chars, if/true; not in the suite: narrow, wide', 'R3 width: not executed: echo/bool, echo/html-escape-five-chars, if/true; not in the suite: narrow, wide', 'R3 width: not executed: echo/bool, echo/html-escape-five-chars, if/true; not in the suite: narrow, wide', 'R3 width: not executed: echo/bool, echo/html-escape-five-chars, if/true; not in the suite: narrow, wide']);
-  const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages({ files: { ...CASE_DIRECTORIES, 'tests/cases/README.md': 'x\n', 'tests/cases/echo/notes.md': 'x\n' }, edit: caseDirectories }), [
+  const messages = async (change: Change) => (await check(t, change, { execute: false })).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual(await messages({ files: { ...CASE_DIRECTORIES, 'tests/cases/README.md': 'x\n', 'tests/cases/echo/notes.md': 'x\n' }, edit: caseDirectories }), [
     'declaration: unit width: tests/cases/README.md is a file where the case glob */* matches a directory',
     'declaration: unit width: tests/cases/echo/notes.md is a file where the case glob */* matches a directory',
   ]);
-  assert.deepEqual(messages({ files: CASE_DIRECTORIES, edit: (config) => { caseDirectories(config); widthUnit(config).cases = '$[*]'; return config; } }), [
+  assert.deepEqual(await messages({ files: CASE_DIRECTORIES, edit: (config) => { caseDirectories(config); widthUnit(config).cases = '$[*]'; return config; } }), [
     'declaration: unit width: tests/cases is a directory, so cases is a glob of its case directories, not $[*]',
   ]);
-  assert.deepEqual(messages({ files: CASE_DIRECTORIES, edit: (config) => { caseDirectories(config); widthUnit(config).cases = '**'; return config; } }), [
+  assert.deepEqual(await messages({ files: CASE_DIRECTORIES, edit: (config) => { caseDirectories(config); widthUnit(config).cases = '**'; return config; } }), [
     'declaration: unit width: the case glob ** holds **; each / step of the glob matches one directory level',
   ]);
-  assert.deepEqual(messages({ edit: (config) => { widthUnit(config).cases = '*'; return config; } }), [
+  assert.deepEqual(await messages({ edit: (config) => { widthUnit(config).cases = '*'; return config; } }), [
     'declaration: unit width: tests/vectors/width.json is a file, so cases is a path $… of its case names, not *',
   ]);
-  assert.deepEqual(messages({ edit: (config) => { widthUnit(config).caseFile = 'out.html'; return config; } }), [
+  assert.deepEqual(await messages({ edit: (config) => { widthUnit(config).caseFile = 'out.html'; return config; } }), [
     'declaration: unit width: caseFile out.html applies only to a suite whose file is a directory, and tests/vectors/width.json is a file',
   ]);
-  assert.deepEqual(messages({ files: CASE_DIRECTORIES, edit: (config) => { caseDirectories(config); widthUnit(config).cases = 'none/*'; return config; } }), [
+  assert.deepEqual(await messages({ files: CASE_DIRECTORIES, edit: (config) => { caseDirectories(config); widthUnit(config).cases = 'none/*'; return config; } }), [
     'declaration: unit width: none/* selects no case in tests/cases',
   ]);
 });
 
-test('a tools root holds single-language tooling tests that R6 accepts and every run prints (K42)', TIMEOUT, (t) => {
+test('a tools root holds single-language tooling tests that R6 accepts and every run prints (K42)', TIMEOUT, async (t) => {
   const files = { 'tools/tests/grammar.mjs': "import test from 'node:test';\ntest('grammar', () => {});\n" };
-  assert.deepEqual(check(t, { files }, { execute: false }).findings.map(finding => `${finding.rule} ${finding.place}`), ['R6 tools/tests/grammar.mjs']);
+  assert.deepEqual((await check(t, { files }, { execute: false })).findings.map(finding => `${finding.rule} ${finding.place}`), ['R6 tools/tests/grammar.mjs']);
   const tools = (config: Declaration) => { config.tools = [{ root: 'tools', reason: 'the editor grammar, tested in node only' }]; return config; };
   const lines: string[] = [];
-  const { findings } = checkParity(repository(t, { files, edit: tools }), { execute: false, env: ENV, say: line => lines.push(line) });
+  const { findings } = await checkParity(repository(t, { files, edit: tools }), { execute: false, env: ENV, say: line => lines.push(line) });
   assert.deepEqual(findings, []);
   assert.ok(lines.includes('tools root tools: the editor grammar, tested in node only'), lines.join('\n'));
-  const messages = (change: Change) => check(t, change, { execute: false }).findings.map(finding => `${finding.rule}: ${finding.message}`);
-  assert.deepEqual(messages({ edit: (config) => { config.tools = [{ root: 'ts/tools', reason: 'x' }, { root: 'go/../go', reason: 'y' }]; return config; } }).length, 1, 'the schema refuses a path with ..');
-  assert.deepEqual(messages({ edit: (config) => { config.tools = [{ root: 'ts/tools', reason: 'x' }, { root: 'tools', reason: ' ' }]; return config; } }), [
+  const messages = async (change: Change) => (await check(t, change, { execute: false })).findings.map(finding => `${finding.rule}: ${finding.message}`);
+  assert.deepEqual((await messages({ edit: (config) => { config.tools = [{ root: 'ts/tools', reason: 'x' }, { root: 'go/../go', reason: 'y' }]; return config; } })).length, 1, 'the schema refuses a path with ..');
+  assert.deepEqual(await messages({ edit: (config) => { config.tools = [{ root: 'ts/tools', reason: 'x' }, { root: 'tools', reason: ' ' }]; return config; } }), [
     'declaration: tools: the root ts/tools overlaps ts, a root of the implementation ts',
     'declaration: tools: the root tools gives no reason; write why its tests belong outside the shared implementation set',
   ]);
-  assert.deepEqual(messages({ files: { 'tools/tests/codec.mjs': NODE_CODEC }, edit: (config) => { tools(config); binding(config, 'codec', 'ts').test = 'tools/tests/codec.mjs'; return config; } }), [
+  assert.deepEqual(await messages({ files: { 'tools/tests/codec.mjs': NODE_CODEC }, edit: (config) => { tools(config); binding(config, 'codec', 'ts').test = 'tools/tests/codec.mjs'; return config; } }), [
     'declaration: tools: the root tools holds tools/tests/codec.mjs, the test of the suite codec in ts',
   ]);
 });
 
-test('a tool-owned requirement uses its exact native case without becoming an implementation binding (K604)', TIMEOUT, (t) => {
+test('a tool-owned requirement uses its exact native case without becoming an implementation binding (K604)', TIMEOUT, async (t) => {
   const files = {
     'docs/spec/editor.md': '# Editor\n\n- **CX-2** The editor tool handles its native behavior.\n',
     'tools/editor/adapter.test.mjs': "test('native adapter case', () => {}); // CX-2\n",
@@ -1799,10 +1800,10 @@ test('a tool-owned requirement uses its exact native case without becoming an im
     return config;
   };
   const root = repository(t, { files, edit });
-  assert.deepEqual(checkParity(root, { execute: false, env: ENV, ids: ['CX-2'], say: () => {} }).findings, []);
+  assert.deepEqual((await checkParity(root, { execute: false, env: ENV, ids: ['CX-2'], say: () => {} })).findings, []);
 
-  const findings = (change: Change) => check(t, { files, edit: change.edit ?? edit, ...(change.files === undefined ? {} : { files: { ...files, ...change.files } }) }, { execute: false }).findings;
-  const fakeCase = findings({ edit: config => {
+  const findings = async (change: Change) => (await check(t, { files, edit: change.edit ?? edit, ...(change.files === undefined ? {} : { files: { ...files, ...change.files } }) }, { execute: false })).findings;
+  const fakeCase = await findings({ edit: config => {
     edit(config);
     const tool = itemWhere(config.tools ?? [], entry => entry.root === 'tools/editor');
     itemAt(itemAt(tool.units ?? [], 0).bindings, 0).id = 'CX-2 missing case';
@@ -1810,7 +1811,7 @@ test('a tool-owned requirement uses its exact native case without becoming an im
   } });
   assert.ok(fakeCase.some(item => item.rule === 'declaration' && item.message.includes('CX-2 missing case')), keys(fakeCase).join('\n'));
 
-  const missingTest = findings({ edit: config => {
+  const missingTest = await findings({ edit: config => {
     edit(config);
     const tool = itemWhere(config.tools ?? [], entry => entry.root === 'tools/editor');
     itemAt(itemAt(tool.units ?? [], 0).bindings, 0).test = 'tools/editor/missing.test.mjs';
@@ -1818,7 +1819,7 @@ test('a tool-owned requirement uses its exact native case without becoming an im
   } });
   assert.ok(missingTest.some(item => item.rule === 'declaration' && item.message.includes('missing.test.mjs')), keys(missingTest).join('\n'));
 
-  const misplaced = findings({ files: { 'tools/other.test.mjs': "test('native adapter case', () => {}); // CX-2\n" }, edit: config => {
+  const misplaced = await findings({ files: { 'tools/other.test.mjs': "test('native adapter case', () => {}); // CX-2\n" }, edit: config => {
     edit(config);
     const tool = itemWhere(config.tools ?? [], entry => entry.root === 'tools/editor');
     itemAt(itemAt(tool.units ?? [], 0).bindings, 0).test = 'tools/other.test.mjs';
@@ -1826,11 +1827,11 @@ test('a tool-owned requirement uses its exact native case without becoming an im
   } });
   assert.ok(misplaced.some(item => item.rule === 'declaration' && item.message.includes('outside its tools root')), keys(misplaced).join('\n'));
 
-  const uncited = findings({ files: { 'tools/editor/adapter.test.mjs': "test('native adapter case', () => {});\n" } });
+  const uncited = await findings({ files: { 'tools/editor/adapter.test.mjs': "test('native adapter case', () => {});\n" } });
   assert.ok(uncited.some(item => item.rule === 'R15' && item.requirements?.includes('CX-2')), keys(uncited).join('\n'));
 });
 
-test('an exact oracle test file inside an implementation root is tool-owned without hiding its sibling tests (K651)', TIMEOUT, (t) => {
+test('an exact oracle test file inside an implementation root is tool-owned without hiding its sibling tests (K651)', TIMEOUT, async (t) => {
   const oracle = 'go/oracle/facts_test.go';
   const sibling = 'go/oracle/client_contract_test.go';
   const files = {
@@ -1846,29 +1847,29 @@ test('an exact oracle test file inside an implementation root is tool-owned with
     }];
     return config;
   };
-  const { findings } = check(t, { files, edit }, { execute: false });
+  const { findings } = await check(t, { files, edit }, { execute: false });
   assert.deepEqual(findings.map(item => `${item.rule} ${item.place}`), [`R5 ${sibling}`]);
 
-  const changed = (change: (config: Declaration) => Declaration) => check(t, { files, edit: change }, { execute: false }).findings;
-  const directory = changed(config => {
+  const changed = async (change: (config: Declaration) => Declaration) => (await check(t, { files, edit: change }, { execute: false })).findings;
+  const directory = await changed(config => {
     edit(config);
     itemWhere(config.tools ?? [], tool => tool.files?.[0] === oracle).files = ['go/oracle'];
     return config;
   });
   assert.ok(directory.some(item => item.rule === 'declaration' && item.message.includes('go/oracle')), keys(directory).join('\n'));
-  const glob = changed(config => {
+  const glob = await changed(config => {
     edit(config);
     itemWhere(config.tools ?? [], tool => tool.files?.[0] === oracle).files = ['go/oracle/*.go'];
     return config;
   });
   assert.ok(glob.some(item => item.rule === 'declaration' && item.message.includes('go/oracle/*.go')), keys(glob).join('\n'));
-  const unbound = changed(config => {
+  const unbound = await changed(config => {
     edit(config);
     itemWhere(config.tools ?? [], tool => tool.files?.[0] === oracle).units = [];
     return config;
   });
   assert.ok(unbound.some(item => item.rule === 'declaration' && item.message.includes('is not bound by a tool unit')), keys(unbound).join('\n'));
-  const dual = changed(config => {
+  const dual = await changed(config => {
     edit(config);
     config.units.push({
       id: 'vendor-facts-as-client', kind: 'feature', requirements: ['CX-2'],
@@ -1877,7 +1878,7 @@ test('an exact oracle test file inside an implementation root is tool-owned with
     return config;
   });
   assert.ok(dual.some(item => item.rule === 'declaration' && item.message.includes('also bound to an implementation unit')), keys(dual).join('\n'));
-  const duplicate = changed(config => {
+  const duplicate = await changed(config => {
     edit(config);
     config.tools?.push({
       files: [oracle], reason: 'A second tool cannot own the same test file.',
@@ -1888,7 +1889,7 @@ test('an exact oracle test file inside an implementation root is tool-owned with
   assert.ok(duplicate.some(item => item.rule === 'declaration' && item.message.includes('has more than one tool owner')), keys(duplicate).join('\n'));
 });
 
-test('a repository with one implementation needs no parity declaration; one with two fails without it (K248-2)', TIMEOUT, (t) => {
+test('a repository with one implementation needs no parity declaration; one with two fails without it (K248-2)', TIMEOUT, async (t) => {
   const git = (root: string) => {
     initRepository(root);
     const added = spawnSync('git', ['add', '-A'], { cwd: root, encoding: 'utf8' });
@@ -1896,21 +1897,21 @@ test('a repository with one implementation needs no parity declaration; one with
   };
   const one = tree(t, { 'packages/ts/src/a.ts': '', 'scripts/b.mts': '' });
   git(one);
-  assert.deepEqual(checkParity(one, { execute: false }).findings, []);
+  assert.deepEqual((await checkParity(one, { execute: false })).findings, []);
   const two = tree(t, { 'packages/ts/src/a.ts': '', 'packages/validator/go/a.go': '', 'packages/validator/php/A.php': '' });
   git(two);
-  const findings = checkParity(two, { execute: false }).findings.map(item => item.message);
+  const findings = (await checkParity(two, { execute: false })).findings.map(item => item.message);
   assert.deepEqual(findings, ['config/parity.json does not exist, and packages/ holds 3 implementations (packages/ts, packages/validator/go, packages/validator/php); declare them and their units there (scripts/kit/schema/parity.schema.json)']);
 });
 
-test('parity-declarations-check UNITS runs the rules on the named units while another unit breaks the schema (K517)', TIMEOUT, (t) => {
+test('parity-declarations-check UNITS runs the rules on the named units while another unit breaks the schema (K517)', TIMEOUT, async (t) => {
   const root = repository(t, { edit: config => {
     delete itemWhere(config.units, (entry: { id: string }) => entry.id === 'width').requirements;
     itemWhere(config.units, (entry: { id: string }) => entry.id === 'codec').requirements = ['CX-9'];
     return config;
   } });
   const lines: string[] = [];
-  const codec = checkParity(root, { execute: false, env: ENV, say: line => lines.push(line), units: ['codec'] }).findings;
+  const codec = (await checkParity(root, { execute: false, env: ENV, say: line => lines.push(line), units: ['codec'] })).findings;
   assert.ok(codec.some(item => item.unit === 'codec' && item.rule === 'R14'), keys(codec).join('\n'));
   assert.ok(lines.some(line => /^width breaks the schema of config\/parity\.json and is left out; the rules run on the other units$/.test(line)), lines.join('\n'));
   const make = spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-declarations-check', 'UNITS=codec'], { cwd: root, env: ENV, encoding: 'utf8' });
@@ -1918,7 +1919,7 @@ test('parity-declarations-check UNITS runs the rules on the named units while an
   assert.match(make.stderr, /\[parity\] R14 unknown-requirement codec: cites CX-9/);
 });
 
-test('R13 reports active gaps separately from a valid held requirement (K656)', TIMEOUT, (t) => {
+test('R13 reports active gaps separately from a valid held requirement (K656)', TIMEOUT, async (t) => {
   const checklist = (state: string) => `# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | \`node test.mts\` | ${state} |\n`;
   const files = {
     'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
@@ -1933,12 +1934,12 @@ test('R13 reports active gaps separately from a valid held requirement (K656)', 
     },
   });
   const lines: string[] = [];
-  const result = checkParity(root, { execute: false, env: ENV, say: line => lines.push(line) });
+  const result = await checkParity(root, { execute: false, env: ENV, say: line => lines.push(line) });
   assert.deepEqual(result.findings.filter(item => item.rule === 'R13').map(item => item.requirements), [['CX-3']]);
   assert.ok(lines.includes('DEFERRED CX-2: held by K656 in docs/plans/held/checklist.md'), lines.join('\n'));
 });
 
-test('a feature unit whose requirements are all held keeps its bindings but does not execute them (K715)', TIMEOUT, (t) => {
+test('a feature unit whose requirements are all held keeps its bindings but does not execute them (K715)', TIMEOUT, async (t) => {
   const checklist = '# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | `node test.mts` | [!] cause: user held it; retry: user reopens the work |\n';
   const boundFiles = {
     'go/codec_test.go': `${FILES['go/codec_test.go']}\n// CX-2\n`,
@@ -1969,10 +1970,10 @@ test('a feature unit whose requirements are all held keeps its bindings but does
     },
   });
   const lines: string[] = [];
-  const declarations = checkParity(root, { execute: false, env: ENV, say: () => {} });
+  const declarations = await checkParity(root, { execute: false, env: ENV, say: () => {} });
   assert.ok(!declarations.findings.some(item => item.rule === 'R5' && item.place?.includes('codec')), keys(declarations.findings).join('\n'));
   assert.ok(!declarations.findings.some(item => item.rule === 'R2' && item.unit === 'held-codec'), keys(declarations.findings).join('\n'));
-  const result = checkParity(root, { execute: true, env: ENV, say: line => lines.push(line), units: ['held-codec'] });
+  const result = await checkParity(root, { execute: true, env: ENV, say: line => lines.push(line), units: ['held-codec'] });
   assert.deepEqual(result.findings, []);
   assert.deepEqual(result.ledger.runs, []);
   assert.deepEqual(result.ledger.cases, []);
@@ -1980,13 +1981,13 @@ test('a feature unit whose requirements are all held keeps its bindings but does
   assert.ok(!lines.some(line => line.includes('held-codec go:') || line.includes('held-codec rust:') || line.includes('held-codec ts:') || line.includes('held-codec php:') || line.includes('held-codec python:')), lines.join('\n'));
 });
 
-test('a deferred requirement cannot hide an active or mixed feature unit (K715)', TIMEOUT, (t) => {
+test('a deferred requirement cannot hide an active or mixed feature unit (K715)', TIMEOUT, async (t) => {
   const files = {
     'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
     'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A held feature remains declared.\n',
     'docs/plans/held/checklist.md': '# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | `node test.mts` | [!] cause: user held it; retry: user reopens the work |\n',
   };
-  const mixed = check(t, { files, edit: config => {
+  const mixed = await check(t, { files, edit: config => {
     (config as Entry).deferredRequirements = [{ id: 'CX-2', checklist: 'docs/plans/held/checklist.md', item: 'K656' }];
     config.units.push({ id: 'mixed-codec', kind: 'feature', requirements: ['CX-1', 'CX-2'], bindings: [
       { implementation: 'go', test: 'go/codec_test.go', id: 'TestCodec/empty' },
@@ -1999,7 +2000,7 @@ test('a deferred requirement cannot hide an active or mixed feature unit (K715)'
   } }, { execute: false });
   assert.ok(mixed.findings.some(item => item.rule === 'declaration' && item.message.includes('also has active requirements')), keys(mixed.findings).join('\n'));
 
-  const wrongState = check(t, { files: { ...files, 'docs/plans/held/checklist.md': files['docs/plans/held/checklist.md'].replace('[!] cause: user held it; retry: user reopens the work', '[o]') }, edit: config => {
+  const wrongState = await check(t, { files: { ...files, 'docs/plans/held/checklist.md': files['docs/plans/held/checklist.md'].replace('[!] cause: user held it; retry: user reopens the work', '[o]') }, edit: config => {
     (config as Entry).deferredRequirements = [{ id: 'CX-2', checklist: 'docs/plans/held/checklist.md', item: 'K656' }];
     config.units.push({ id: 'held-codec', kind: 'feature', requirements: ['CX-2'], bindings: [
       { implementation: 'go', test: 'go/codec_test.go', id: 'TestCodec/empty' },
@@ -2013,29 +2014,29 @@ test('a deferred requirement cannot hide an active or mixed feature unit (K715)'
   assert.ok(wrongState.findings.some(item => item.rule === 'declaration' && item.message.includes('not [!]')), wrongState.findings.map(item => item.message).join('\n'));
 });
 
-test('deferred requirement entries reject unrecognized fields (K656)', TIMEOUT, (t) => {
+test('deferred requirement entries reject unrecognized fields (K656)', TIMEOUT, async (t) => {
   const files = {
     'config/checklist.json': '{"schema":1,"hooks":["pre-push"],"idPattern":"K[0-9]+"}\n',
     'docs/spec/held.md': '# Held behavior\n\n- **CX-2** A requirement remains defined while its checklist item is held.\n',
     'docs/plans/held/checklist.md': '# Held work\n\n| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n| K656 | Held CX-2 behavior | source | `node test.mts` | [!] cause: user held it; retry: user reopens the work |\n',
   };
-  const messages = check(t, {
+  const messages = (await check(t, {
     files,
     edit: config => {
       (config as Entry).deferredRequirements = [{ id: 'CX-2', checklist: 'docs/plans/held/checklist.md', item: 'K656', extra: true }];
       return config;
     },
-  }, { execute: false }).findings.map(item => item.message);
+  }, { execute: false })).findings.map(item => item.message);
   assert.ok(messages.some(message => message.includes('additional properties') && message.includes('extra')), messages.join('\n'));
 });
 
-test('parity-declarations-check UNITS fails while docs/spec defines a requirement twice (K520)', TIMEOUT, (t) => {
+test('parity-declarations-check UNITS fails while docs/spec defines a requirement twice (K520)', TIMEOUT, async (t) => {
   const root = repository(t, { files: { 'docs/spec/codec.md': '# Codec\n\n- **CX-1** The codec encodes every vector.\n- **CX-1** Defined again.\n' } });
-  const scoped = checkParity(root, { execute: false, env: ENV, say: () => {}, units: ['codec'] }).findings;
+  const scoped = (await checkParity(root, { execute: false, env: ENV, say: () => {}, units: ['codec'] })).findings;
   assert.ok(scoped.some(item => /CX-1 is defined at docs\/spec\/codec\.md:3 and docs\/spec\/codec\.md:4/.test(item.message)), keys(scoped).join('\n'));
 });
 
-test('PHP extension parity runs library tests with the PHPUnit of the library and the extension arguments (K677-2, K790)', TIMEOUT, (t) => {
+test('PHP extension parity runs library tests with the PHPUnit of the library and the extension arguments (K677-2, K790)', TIMEOUT, async (t) => {
   const root = repository(t, { files: {
     'native/composer.json': JSON.stringify({ type: 'php-ext' }),
     'php/composer.json': JSON.stringify({ autoload: { files: ['src/functions.php'] }, 'autoload-dev': { 'psr-4': { 'Example\\Tests\\': 'tests/' } } }),
@@ -2051,7 +2052,7 @@ test('PHP extension parity runs library tests with the PHPUnit of the library an
   writeFileSync(configFile, JSON.stringify(config));
   for (const status of [0, 1]) {
     writeFileSync(path.join(root, 'php/tests/codec.php'), `PASS test_empty\nPASS test_ascii\nEXIT ${status}\n// CX-1\n`);
-    const result = checkParity(root, { env: ENV, units: ['codec'], rules: ['R3'] });
+    const result = await checkParity(root, { env: ENV, units: ['codec'], rules: ['R3'] });
     assert.equal(result.ledger.runs.filter(entry => entry.implementation === 'php').length, 1);
     assert.equal(result.findings.some(entry => entry.implementation === 'php'), status !== 0, JSON.stringify(result.findings));
   }
@@ -2071,12 +2072,12 @@ test('every list member is checked by R1 and an omitted public symbol still fail
   assert.ok(findings.some(entry => entry.rule === 'R11' && entry.message.includes('python/codec.py::Encoder')));
 });
 
-test('symbol lists reject empty, duplicate, blank and ambiguous declarations (K697)', TIMEOUT, (t) => {
+test('symbol lists reject empty, duplicate, blank and ambiguous declarations (K697)', TIMEOUT, async (t) => {
   for (const symbols of [[], ['python/codec.py::encode', 'python/codec.py::encode'], ['']]) {
-    const result = check(t, { edit: config => pythonEncodingSymbols(config, symbols) }, { execute: false });
+    const result = await check(t, { edit: config => pythonEncodingSymbols(config, symbols) }, { execute: false });
     assert.ok(result.findings.some(entry => entry.rule === 'declaration'));
   }
-  const ambiguous = check(t, { edit: config => {
+  const ambiguous = await check(t, { edit: config => {
     pythonEncodingSymbols(config, ['python/codec.py::encode']);
     const unit = itemWhere(config.units, entry => entry.id === 'encode');
     itemWhere(known(unit.symbols, 'the API symbols'), entry => entry.implementation === 'python').symbol = 'python/codec.py::encode';
@@ -2085,8 +2086,8 @@ test('symbol lists reject empty, duplicate, blank and ambiguous declarations (K6
   assert.ok(ambiguous.findings.some(entry => entry.rule === 'declaration'));
 });
 
-test('a list binding retains one declaration per implementation (K697)', TIMEOUT, (t) => {
-  const result = check(t, { edit: config => {
+test('a list binding retains one declaration per implementation (K697)', TIMEOUT, async (t) => {
+  const result = await check(t, { edit: config => {
     pythonEncodingSymbols(config, ['python/codec.py::encode']);
     const unit = itemWhere(config.units, entry => entry.id === 'encode');
     known(unit.symbols, 'the API symbols').push({ implementation: 'python', symbol: 'python/codec.py::encode' });

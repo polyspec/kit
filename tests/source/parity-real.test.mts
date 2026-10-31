@@ -79,7 +79,7 @@ const REAL_CONFIG = {
   }],
 };
 
-test('K33 reads the output of real node, go, cargo, unittest and PHPUnit runs through the shared parsers (K47)', { timeout: 300_000 }, (t) => {
+test('K33 reads the output of real node, go, cargo, unittest and PHPUnit runs through the shared parsers (K47)', { timeout: 300_000 }, async (t) => {
   const vendor = phpunitVendor();
   const root = tree(t, {
     '.gitignore': 'var/\ntarget/\n',
@@ -100,7 +100,7 @@ test('K33 reads the output of real node, go, cargo, unittest and PHPUnit runs th
   });
   giveTools(root);
   symlinkSync(vendor, path.join(root, 'php/vendor'));
-  const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(findings, []);
   // Each tool reports its tests in its own order (cargo and unittest sort them), so the order of the cases is not compared.
   assert.deepEqual(ledger.cases.map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`).sort(), [
@@ -110,7 +110,7 @@ test('K33 reads the output of real node, go, cargo, unittest and PHPUnit runs th
 
 
 // The PHP case runs the PHPUnit of config/phpunit, which kit installs with its Composer; the test links that vendor directory into the temporary package.
-test('K33 reads real PHPUnit: the configuration of the package applies, and a skipped or incomplete test is skipped, not passed (K47)', { timeout: 300_000 }, (t) => {
+test('K33 reads real PHPUnit: the configuration of the package applies, and a skipped or incomplete test is skipped, not passed (K47)', { timeout: 300_000 }, async (t) => {
   const vendor = phpunitVendor();
   const root = tree(t, {
     '.gitignore': 'var/\n',
@@ -127,7 +127,7 @@ test('K33 reads real PHPUnit: the configuration of the package applies, and a sk
     })}`,
   });
   symlinkSync(vendor, path.join(root, 'php/vendor'));
-  const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(keys(findings), ['R3 codec php']);
   const first = findings[0];
   assert.ok(first, 'checkParity found nothing');
@@ -147,7 +147,7 @@ const UNITTEST_CONFIG = {
 
 // Moved from tests/kit/parity.test.mjs (K81): a vendored test runs in every consumer, and a consumer that declares no
 // Python cannot install the one this case runs.
-test('R3: a unittest expected failure is a todo, which is no pass, so its case fails (real unittest, K47)', { timeout: 120_000 }, (t) => {
+test('R3: a unittest expected failure is a todo, which is no pass, so its case fails (real unittest, K47)', { timeout: 120_000 }, async (t) => {
   const root = tree(t, {
     '.gitignore': 'var/\n',
     'tests/vectors/codec.json': JSON.stringify({ requirement: 'CX-1', vectors: [{ name: 'empty' }, { name: 'known' }] }),
@@ -157,7 +157,7 @@ test('R3: a unittest expected failure is a todo, which is no pass, so its case f
     'config/parity.json': `${declared(UNITTEST_CONFIG)}`,
   });
   giveTools(root);
-  const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(keys(findings), ['R3 codec python']);
   const [first] = findings;
   assert.ok(first, 'the check reports the R3 finding');
@@ -165,7 +165,7 @@ test('R3: a unittest expected failure is a todo, which is no pass, so its case f
   assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`).sort(), ['empty pass', 'known fail']);
 });
 
-test('a feature unit holds on the ids that real go, cargo, node and unittest runs of the whole test file passed (K75)', { timeout: 300_000 }, (t) => {
+test('a feature unit holds on the ids that real go, cargo, node and unittest runs of the whole test file passed (K75)', { timeout: 300_000 }, async (t) => {
   const root = tree(t, {
     '.gitignore': 'var/\ntarget/\n',
     'go/go.mod': 'module example.com/codec\n\ngo 1.21\n',
@@ -197,7 +197,7 @@ test('a feature unit holds on the ids that real go, cargo, node and unittest run
     })}`,
   });
   giveTools(root);
-  const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), [
     'go TestRoundtrip/bytes pass', 'rust roundtrip::bytes pass', 'ts roundtrip › nested › bytes pass', 'python test_bytes pass',
@@ -205,9 +205,9 @@ test('a feature unit holds on the ids that real go, cargo, node and unittest run
 });
 
 /** The findings of a check of `root` as `<rule> <implementation>: <message>`. */
-const lines = (root: string) => checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} }).findings.map(finding => `${finding.rule} ${finding.implementation ?? '-'}: ${finding.message}`);
+const lines = async (root: string) => (await checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} })).findings.map(finding => `${finding.rule} ${finding.implementation ?? '-'}: ${finding.message}`);
 
-test('the python extractor reads the public symbols of a package with ast: __all__, public names and public methods (K75)', { timeout: 120_000 }, (t) => {
+test('the python extractor reads the public symbols of a package with ast: __all__, public names and public methods (K75)', { timeout: 120_000 }, async (t) => {
   const declaration = (symbols: string[]) => `${declared({
     schema: 1,
     implementations: [{ name: 'python', runner: 'python', roots: ['python'], symbols: { extractor: 'python', entry: 'python' } }],
@@ -226,12 +226,12 @@ test('the python extractor reads the public symbols of a package with ast: __all
   const root = tree(t, { ...files, 'config/parity.json': declaration(all) });
   giveTools(root);
   gitInit(root);
-  assert.deepEqual(lines(root), []);
+  assert.deepEqual(await lines(root), []);
   // codec.Codec of __all__ names the class that core defines; its methods are ids of core.
   const partial = tree(t, { ...files, 'config/parity.json': declaration(['codec.encode', 'codec.core.decode']) });
   giveTools(partial);
   gitInit(partial);
-  assert.deepEqual(lines(partial), [
+  assert.deepEqual(await lines(partial), [
     'R1 python: codec.core.decode is no public symbol of python, as its python extractor reads python',
     'R11 python: codec.Codec is public, and no API unit declares it',
     'R11 python: codec.core.Codec is public, and no API unit declares it',
@@ -241,7 +241,7 @@ test('the python extractor reads the public symbols of a package with ast: __all
   ]);
 });
 
-test('the ts extractor reads the API model that API Extractor builds from the .d.ts that tsc 7 emits (K75)', { timeout: 120_000 }, (t) => {
+test('the ts extractor reads the API model that API Extractor builds from the .d.ts that tsc 7 emits (K75)', { timeout: 120_000 }, async (t) => {
   const root = tree(t, {
     '.gitignore': 'dist/\n',
     'docs/spec/codec.md': SPEC,
@@ -260,10 +260,10 @@ test('the ts extractor reads the API model that API Extractor builds from the .d
   });
   const tsc = spawnSync(process.execPath, [path.join(ROOT, 'node_modules/typescript/bin/tsc'), '--declaration', '--emitDeclarationOnly', '--strict', '--target', 'es2024', '--module', 'nodenext', '--outDir', 'ts/dist', 'ts/src/index.ts'], { cwd: root, encoding: 'utf8' });
   assert.equal(tsc.status, 0, tsc.stdout + tsc.stderr);
-  assert.deepEqual(lines(root), ['R11 ts: @demo/codec!Codec#decode:member(1) is public, and no API unit declares it']);
+  assert.deepEqual(await lines(root), ['R11 ts: @demo/codec!Codec#decode:member(1) is public, and no API unit declares it']);
 });
 
-test('make kit-install-symbols builds the go extractor, which reads the exported API of a module with go/packages (K75)', { timeout: 300_000 }, (t) => {
+test('make kit-install-symbols builds the go extractor, which reads the exported API of a module with go/packages (K75)', { timeout: 300_000 }, async (t) => {
   const root = tree(t, {
     '.gitignore': 'var/\n',
     // The workspace of the consumer, which does not use the module of the extractor (K196).
@@ -291,7 +291,7 @@ test('make kit-install-symbols builds the go extractor, which reads the exported
   process.env.GOWORK = path.join(realpathSync(root), 'go.work');
   t.after(() => { if (saved === undefined) delete process.env.GOWORK; else process.env.GOWORK = saved; });
   installExtractor({ root, extractor: 'go' });
-  assert.deepEqual(lines(root), [
+  assert.deepEqual(await lines(root), [
     'R11 go: example.com/codec.Codec.Encode is public, and no API unit declares it',
     'R11 go: example.com/codec.Codec.Strict is public, and no API unit declares it',
     'R11 go: example.com/codec.Limit is public, and no API unit declares it',
@@ -300,7 +300,7 @@ test('make kit-install-symbols builds the go extractor, which reads the exported
   ]);
 });
 
-test('make kit-install-symbols installs the php extractor, which reads the public API of sources and of a stub with php-parser (K75)', { timeout: 300_000 }, (t) => {
+test('make kit-install-symbols installs the php extractor, which reads the public API of sources and of a stub with php-parser (K75)', { timeout: 300_000 }, async (t) => {
   const root = tree(t, {
     '.gitignore': 'var/\n',
     'php/src/Codec.php': "<?php\nnamespace Demo\\Codec;\n\nconst LIMIT = 3;\n\nfinal class Codec\n{\n    public const MODE = 1;\n    private const HIDDEN = 2;\n    public function __construct(public readonly string $name, private int $size = 0) {}\n    public function decode(): void {}\n    private function hidden(): void {}\n}\n",
@@ -325,7 +325,7 @@ test('make kit-install-symbols installs the php extractor, which reads the publi
   // The Composer of this checkout installs php-parser, with its home and cache in the tree.
   giveTools(root);
   installExtractor({ root, extractor: 'php' });
-  assert.deepEqual(lines(root), [
+  assert.deepEqual(await lines(root), [
     'R11 php: Demo\\Codec\\Codec is public, and no API unit declares it',
     'R11 php: Demo\\Codec\\Codec::$name is public, and no API unit declares it',
     'R11 php: Demo\\Codec\\Codec::MODE is public, and no API unit declares it',
@@ -338,7 +338,7 @@ test('make kit-install-symbols installs the php extractor, which reads the publi
 
 // The case runs the Rust nightly that its exception declares, which `rustup toolchain install nightly-2026-10-01 --profile
 // minimal` installs; a nightly that is not installed fails the case with the error of rustup.
-test('the rust extractor reads the public API of a crate from the rustdoc JSON of the declared nightly (K75)', { timeout: 300_000 }, (t) => {
+test('the rust extractor reads the public API of a crate from the rustdoc JSON of the declared nightly (K75)', { timeout: 300_000 }, async (t) => {
   const root = tree(t, {
     '.gitignore': 'var/\ntarget/\n',
     'config/toolchain.json': JSON.stringify({ schema: 1, exceptions: [{ tool: 'rust', channel: 'nightly-2026-10-01', scope: 'rust', reason: 'rustdoc JSON is unstable', retry: 'rustdoc JSON is stable' }] }),
@@ -352,7 +352,7 @@ test('the rust extractor reads the public API of a crate from the rustdoc JSON o
       units: [{ id: 'codec', kind: 'api', symbols: [{ implementation: 'rust', symbol: 'codec::Codec' }] }, trace([{ implementation: 'rust', test: 'rust/tests/trace.rs', id: 'trace' }])],
     })}`,
   });
-  assert.deepEqual(lines(root), [
+  assert.deepEqual(await lines(root), [
     'R11 rust: codec::Codec::strict is public, and no API unit declares it',
     'R11 rust: codec::Codec::encode is public, and no API unit declares it',
     'R11 rust: codec::Mode is public, and no API unit declares it',
@@ -363,7 +363,7 @@ test('the rust extractor reads the public API of a crate from the rustdoc JSON o
   ]);
 });
 
-test('K42 reads the case directories of a suite from real go as nested subtests', { timeout: 300_000 }, (t) => {
+test('K42 reads the case directories of a suite from real go as nested subtests', { timeout: 300_000 }, async (t) => {
   const root = tree(t, {
     '.gitignore': 'var/\n',
     'tests/cases/echo/html-escape-five-chars/case.json': '{"requirements":["CX-1"]}\n',
@@ -390,7 +390,7 @@ test('K42 reads the case directories of a suite from real go as nested subtests'
     })}`,
   });
   giveTools(root);
-  const { findings, ledger } = checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
+  const { findings, ledger } = await checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`).sort(), ['echo/bool pass', 'echo/html-escape-five-chars pass', 'if/true pass']);
 });
