@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 14d2ad1c10ae3a485f20acf08ecbcc4b88694a480aa751fa2c81cb0550853220 -->
+<!-- source-sha256: 8f1449e98665b476e6efdc2f7fca983a5aff6f70cb7e8ecd030c5c024cc57794 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -115,3 +115,4 @@
 | K971 | link은 pyproject의 각 요구사항 이름을 PEP 508의 이름 pattern으로 읽으므로, marker가 있는 direct reference가 더 이상 make link을 실패시키지 않는다. PEP 508 grammar library는 지운다. | `scripts/kit/pyproject-dependencies.mts`, `package.json`, `package-lock.json`, `config/rebuild.json`, `tests/kit/link.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K971 tests/kit/link.test.mts` fails on the current tree. Green: the same command passes. | [o] |
 | K973 | 실행할 수 없는 go의 parity ledger test는 자기 빈 PATH 폴더로 실행하므로, /usr/bin에 go가 있는 기계에서도 성립한다. | `tests/kit/parity-ledger.test.mts`, `CHANGELOG.md(.ko)` | Red: the test with a go stub folder before /usr/bin:/bin in its PATH fails on the current tree. Green: `node --test --test-name-pattern="go cannot start" tests/kit/parity-ledger.test.mts` passes. | [o] |
 | K974 | Claude hook은 env가 실행하는 명령 앞의 env option만 건너뛰므로, 그 명령의 option이 여전히 test를 고른다. | `scripts/kit/claude-hook.mts`, `tests/kit/claude-hook.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K974 tests/kit/claude-hook.test.mts` fails on the current tree. Green: the same command passes. | [o] |
+| K975 | link-check --project는 그 project만 판단한다: 설치 폴더가 없는 선언 패키지와 자기 manifest의 경로를, link가 검사 범위를 정하는 대로 판단하며 저장소의 모든 project를 판단하지 않는다. | `scripts/kit/link-check.mts`, `scripts/kit/link.mts`, `tests/kit/link-check.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K975 tests/kit/link-check.test.mts` fails on the current tree. Green: the same command passes. | [ ] |
