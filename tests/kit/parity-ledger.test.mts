@@ -89,8 +89,10 @@ test('a go build that fails is reported as the build, with its exit status, and 
 });
 
 test('a built-in go binding whose go cannot start names the program and the cause, as before its build step (K936, K393-2)', { timeout: 120_000 }, async (t) => {
-  // A PATH that holds no go: the go of the runner is the one of PATH.
-  const { findings } = await checkParity(repository(t), { execute: true, env: { ...ENV, PATH: '/usr/bin:/bin' }, units: ['codec'], implementations: ['go'], say: () => {}, silenceMs: FAST });
+  // A PATH that holds no go on any machine, an empty folder of the test: a runner may have go in /usr/bin (K973).
+  const empty = mkdtempSync(path.join(tmpdir(), 'kit-no-go-'));
+  t.after(() => rmSync(empty, { recursive: true, force: true }));
+  const { findings } = await checkParity(repository(t), { execute: true, env: { ...ENV, PATH: empty }, units: ['codec'], implementations: ['go'], say: () => {}, silenceMs: FAST });
   const messages = findings.map(finding => finding.message);
   assert.ok(messages.some(message => /could not start: .*ENOENT/.test(message)), `no start finding; findings: ${JSON.stringify(messages)}`);
 });
