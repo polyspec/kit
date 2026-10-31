@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 5ab6e1018762be7238d66aae3f5750042fc7a4f373a22d1274c8a913ffcbbaed -->
+<!-- source-sha256: e2ae4cd904735ed73bcd3cb29fae5127be824ddbc4578d558bce5da52cafeb52 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -114,4 +114,4 @@
 | K970 | CI test shard가 K936이 추가한 tests/kit/parity-ledger.test.mts를 실행하므로, 추적되는 kit test 파일이 다시 모두 정확히 한 shard에 있다. | `Makefile`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K718 tests/source/ci-workflow.test.mts` fails on the current tree. Green: the same command passes. | [o] |
 | K971 | link은 pyproject의 각 요구사항 이름을 PEP 508의 이름 pattern으로 읽으므로, marker가 있는 direct reference가 더 이상 make link을 실패시키지 않는다. PEP 508 grammar library는 지운다. | `scripts/kit/pyproject-dependencies.mts`, `package.json`, `package-lock.json`, `config/rebuild.json`, `tests/kit/link.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K971 tests/kit/link.test.mts` fails on the current tree. Green: the same command passes. | [o] |
 | K973 | 실행할 수 없는 go의 parity ledger test는 자기 빈 PATH 폴더로 실행하므로, /usr/bin에 go가 있는 기계에서도 성립한다. | `tests/kit/parity-ledger.test.mts`, `CHANGELOG.md(.ko)` | Red: the test with a go stub folder before /usr/bin:/bin in its PATH fails on the current tree. Green: `node --test --test-name-pattern="go cannot start" tests/kit/parity-ledger.test.mts` passes. | [o] |
-| K974 | Claude hook은 env가 실행하는 명령 앞의 env option만 건너뛰므로, 그 명령의 option이 여전히 test를 고른다. | `scripts/kit/claude-hook.mts`, `tests/kit/claude-hook.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K974 tests/kit/claude-hook.test.mts` fails on the current tree. Green: the same command passes. | [ ] |
+| K974 | Claude hook은 env가 실행하는 명령 앞의 env option만 건너뛰므로, 그 명령의 option이 여전히 test를 고른다. | `scripts/kit/claude-hook.mts`, `tests/kit/claude-hook.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K974 tests/kit/claude-hook.test.mts` fails on the current tree. Green: the same command passes. | [~] |
