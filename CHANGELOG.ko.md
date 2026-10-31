@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 124868144024be38be4d1e5487a6d2b27b6784dbc2312e9ba08a09eff597a68c -->
+<!-- source-sha256: 2fb78eb2a526032fd8cd1396c6b1ee19a6dc35a7f81708d304fa150aac166175 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K967: 설치된 kit을 실행하는 consumer의 첫 make link가 더 이상 2로 끝나지 않습니다. make link은 한 프로세스에서 link한 뒤 hook을 씁니다(link.mjs link --hook). 예전에는 link가 방금 kit checkout으로 바꾼 KIT 폴더에서 link.mjs hook을 다시 시작했습니다. --hook 없는 link는 여전히 Claude Code 설정을 쓰지 않고(K960), make hook은 그대로 있습니다 (K967).
 
 ## 0.0.82
 

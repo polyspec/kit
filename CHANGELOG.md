@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K967: the first make link of a consumer that runs the installed kit no longer exits 2: make link links and then writes the hook in one process (link.mjs link --hook), where it used to start link.mjs hook again from the KIT folder that the link had just replaced with the kit checkout. link without --hook still writes no Claude Code settings (K960), and make hook stays (K967).
+
 ## 0.0.82
 
 - Kit 0.0.82 carries the failing CI job of a skipped selected job (K950), parityMode from config/ci.json only (K951), no toolchain pins or version checks (K953), kit's own tools under bypass-check and divergence-check (K954), a failing task with zero targets (K955), the generated sources left out of the duplication check (K956), the kit item ids of the installed package (K957, K957-1), reasoned generated exceptions (K958), each parity binding run once (K959), the Claude Code hook written by make hook and never by link (K960), suite units owned by one implementation (K961), the kit-build rename test with a node (K962), the package build in a copy (K964), the K383 test of make link (K965), a hook that judges no .gitignore (K966), the config.log of a failed php-ext configure (K946) and the tools of PATH where the checkout has none (K947) (K963).

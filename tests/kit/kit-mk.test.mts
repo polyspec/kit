@@ -164,12 +164,32 @@ test('kit.mk accepts a parity declaration with no implementation targets and sti
 test('link and link-check take the providers from the link declaration, not from arguments (K383, K869)', () => {
   const dryRun = (goal: string, ...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, goal, 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', ...args], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
   assert.match(dryRun('link-check'), /link-check\.mjs$/);
-  // make link runs link, then hook, which writes the Claude Code hook (K960); each line of the dry run is read without its end blanks.
-  const lines = (...args: string[]) => dryRun('link', ...args).split('\n').map(line => line.trim());
-  const [link, hook] = lines();
-  assert.match(link ?? '', /link\.mjs link$/);
-  assert.match(hook ?? '', /link\.mjs hook$/);
-  assert.match(lines('RUNTIME=ts')[0] ?? '', /link\.mjs link --runtime ts$/);
+  // make link links and then writes the Claude Code hook (K960) in one process (K967).
+  assert.match(dryRun('link'), /link\.mjs link --hook$/);
+  assert.match(dryRun('link', 'RUNTIME=ts'), /link\.mjs link --runtime ts --hook$/);
+});
+
+// The first make link of a consumer that runs the installed kit replaces node_modules/@polyspec/kit, the folder of KIT, with the kit
+// checkout. A stub NODE does what link does to that folder and runs a hook only from a kit that has one: the installed kit has it,
+// the linked kit (whose dist was built before the hook) has none. make link links and writes the hook in one process (K967).
+test('the first make link writes the hook from the kit that linked, not from the kit that the link put in its place (K967)', (t) => {
+  const root = tree(t, {
+    'installed/link.mjs': 'hook\n',
+    'linked/link.mjs': '\n',
+    'node.sh': [
+      '#!/bin/sh',
+      'case "$2" in',
+      '  link) ln -sfn ../../linked node_modules/@polyspec/kit; for a; do [ "$a" = --hook ] && exec grep -q hook installed/link.mjs; done; exit 0;;',
+      '  hook) grep -q hook "$1" || exit 2;;',
+      'esac',
+      '',
+    ].join('\n'),
+  });
+  chmodSync(path.join(root, 'node.sh'), 0o755);
+  mkdirSync(path.join(root, 'node_modules/@polyspec'), { recursive: true });
+  symlinkSync('../../installed', path.join(root, 'node_modules/@polyspec/kit'));
+  const result = spawnSync('make', ['--no-print-directory', '-f', KIT_MK, 'link', 'KIT=node_modules/@polyspec/kit', 'KIT_EXT=mjs', `NODE=${path.join(root, 'node.sh')}`], { cwd: root, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
 });
 
 test('kit.mk stops while KIT or KIT_EXT is unset', () => {

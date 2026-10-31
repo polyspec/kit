@@ -416,9 +416,8 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 # lists each provided folder that is a copy or links elsewhere; unlink only removes the links, and make install restores the locked
 # installs (K856). link writes a git-ignored go.work at each Go module, which go reads by itself; unlink removes it.
 .PHONY: link link-check unlink
-link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; then make hook; offline
-	$(NODE) $(KIT)/link.$(KIT_EXT) link $(strip $(if $(PROJECT),--project $(PROJECT)) $(if $(RUNTIME),--runtime $(RUNTIME)))
-	$(NODE) $(KIT)/link.$(KIT_EXT) hook $(if $(PROJECT),--project $(PROJECT))
+link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; then the hook of make hook, in the same process (K967); offline
+	$(NODE) $(KIT)/link.$(KIT_EXT) link $(strip $(if $(PROJECT),--project $(PROJECT)) $(if $(RUNTIME),--runtime $(RUNTIME)) --hook)
 
 .PHONY: hook
 hook: ## Write the Claude Code hook of the kit checkout that runs it into .claude/settings.local.json at the top of the checkout, or of PROJECT (K498), and, without PROJECT, into .claude/settings.json of the workspace folder of that kit checkout (K440); link writes no Claude Code settings (K960); offline

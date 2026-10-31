@@ -892,7 +892,7 @@ test('a consumer workspace package wins over a sibling package with the same nam
 });
 // K440: a Claude Code session started in the workspace folder (the folder of a checkout and its siblings) loads no
 // .claude/settings.json of a checkout, so `hook` writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by
-// a kit checkout. K960: link writes no Claude Code settings; make link runs link, then hook.
+// a kit checkout. K960: link writes no Claude Code settings; make link runs link --hook, which writes it after the link (K967).
 /** The claude-hook and the node of the kit checkout `kit`, as a checkout has them (linked to the hook and node of this checkout). */
 function hookCheckout(kit: string) {
   mkdirSync(path.join(kit, 'scripts/kit'), { recursive: true });

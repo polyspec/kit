@@ -80,6 +80,15 @@ test('link.mts hook --project writes the hook of the checkout and no workspace s
   assert.equal(existsSync(path.join(path.dirname(project), '.claude')), false);
 });
 
+test('link.mts link --project --hook links and then writes the hook of the checkout in the same process (K967)', (t) => {
+  const project = consumer(t);
+  writeFileSync(path.join(project, 'package.json'), '{}\n');
+  const result = spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'link', '--project', project, '--hook'], { encoding: 'utf8' });
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  assert.match(result.stdout, /nothing is linked[^]*\[hook\] /);
+  assert.deepEqual(readJsonObject(project, FILE), { hooks: { PreToolUse: [entry] } });
+});
+
 test('writeProjectHook writes into the directory itself when it is no Git checkout (K960)', (t) => {
   const directory = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-project-hook-plain-')));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
