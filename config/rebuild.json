@@ -186,6 +186,10 @@
       "kind": "policy",
       "reason": "the bootstrap order of a repository before the package @polyspec/kit is installed (K71-2)"
     },
+    "scripts/kit/kit-items.mts": {
+      "kind": "policy",
+      "reason": "writes the item IDs of the kit checklists into the installed package, which the consumer checks read (K957)"
+    },
     "scripts/kit/kit-check.mts": {
       "kind": "policy",
       "reason": "ties the copies of a repository to the version of @polyspec/kit that package-lock resolves (K71-2); npm checks the installed package, not the copies"
