@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 8e9a0272902f4382e3b7122e75d0ec220a896759bc96c5daf3a86213845b923e -->
+<!-- source-sha256: 72170747c9de10299056fe795ffa4cc42acc9f50d35b775f443137de837fc9d5 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -123,3 +123,4 @@
 | K981 | PRINCIPLES는 세 규칙을 적는다. 한 개념은 규칙, 설정 필드, 파일 이름, 문서에서 이름 하나를 쓰며 kit에 이미 있는 이름을 다시 쓴다(ts, go, rust, php, php-ext, python은 runtime). 여러 저장소에 걸친 관례는 먼저 검사와 함께 PRINCIPLES 규칙이 되고 코드는 그것을 구현한다. 수정의 Task는 요구사항을 적고, 그것을 담을 릴리스는 적지 않는다. | `PRINCIPLES.md(.ko)`, `CHANGELOG.md(.ko)` | `make rules-check` | [ ] |
 | K983 | 설치된 kit(실제 경로가 node_modules 안에 있어 Claude Code hook을 실행할 node가 없음)을 쓰는 consumer의 make link는 link하고 hook을 쓰지 않으므로, CI처럼 .links가 없을 때 0으로 끝난다. kit checkout은 link된 것을 포함해 여전히 hook을 쓰고, make hook은 여전히 설치된 kit을 이름과 함께 거부한다. | `scripts/kit/link.mts`, `tests/kit/project-hook.test.mts`, `docs/operations/local-links.md(.ko)`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K983 tests/kit/project-hook.test.mts` fails on the current tree. Green: the same command passes. | [ ] |
 | K984 | Claude hook은 명령이 지정한 상대 테스트 파일을 hook 입력의 cwd, 곧 Claude Code가 명령을 실행하는 폴더 기준으로 찾으므로, 세션이 어디서 시작했든 세션 폴더의 지정 파일은 선택이다. | `scripts/kit/claude-hook.mts`, `tests/kit/claude-hook.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K984 tests/kit/claude-hook.test.mts` fails on the current tree. Green: the same command passes. | [ ] |
+| K985 | kit은 자신이 pack하는 Composer zip의 이름을 package의 P39 label, 곧 <vendor>-<product>-<runtime>-<version>.zip으로 짓고 packages.json은 dist.url에 그 zip을 적는다. npm tarball은 npm pack의 이름을, wheel은 PEP 427 이름을 유지하며 두 package는 같은 archive 이름을 갖지 않는다. | `scripts/kit/release.mts`, `tests/kit/release.test.mts`, `PRINCIPLES.md(.ko)`, `docs/operations/tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K985 tests/kit/release.test.mts` fails on the current tree. Green: the same command passes. | [ ] |
