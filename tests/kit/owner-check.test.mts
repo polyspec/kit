@@ -348,6 +348,30 @@ test('running the owners refuses outside CI and runs no check; --dry-run prints 
 // K945: makeDatabase reads the database of make -pRrq without running a recipe. Under -q, GNU make still runs a recipe line that
 // contains $(MAKE), so a default goal that calls $(MAKE) recursed without bound, with each child selecting the same goal again. The
 // fixture logs each parse, so a child make is visible, and it stops a child at parse time, so a regression is bounded at one child.
+// K945: the database is the top-level read of the Makefile, so a make that runs the read has its MAKELEVEL and flags removed in
+// the read, and a Makefile that branches on MAKELEVEL is read as it is read at the top.
+test('makeDatabase reads a Makefile that branches on MAKELEVEL as the top-level make reads it, when it is read inside make (K945)', { timeout: 20_000 }, (t) => {
+  const root = tree(t, { 'Makefile': [
+    'ifeq ($(MAKELEVEL),0)',
+    'ci-targets:',
+    '\t@echo top',
+    'else',
+    'inner-targets:',
+    '\t@echo inner',
+    'endif',
+    '',
+  ].join('\n') });
+  const invoking = process.env.MAKELEVEL;
+  process.env.MAKELEVEL = '1';
+  try {
+    const database = makeDatabase(root);
+    assert.equal(database.targets.has('ci-targets'), true, 'the top-level read names the targets of the level-0 branch');
+  } finally {
+    if (invoking === undefined) delete process.env.MAKELEVEL;
+    else process.env.MAKELEVEL = invoking;
+  }
+});
+
 test('makeDatabase reads the database of a Makefile whose default goal calls $(MAKE), with no child make (K945)', { timeout: 20_000 }, (t) => {
   const root = tree(t, { 'Makefile': 'placeholder\n' });
   const log = path.join(root, 'make-parses.log');
@@ -360,15 +384,7 @@ test('makeDatabase reads the database of a Makefile whose default goal calls $(M
     '\t$(MAKE) $(TARGETS)',
     '',
   ].join('\n'));
-  // The read is the top-level make of its own process: the make that runs this test may have set MAKELEVEL and its flags (K945).
-  const invoking = Object.fromEntries(['MAKELEVEL', 'MAKEFLAGS', 'MFLAGS'].map(name => [name, process.env[name]]));
-  for (const name of Object.keys(invoking)) delete process.env[name];
-  let database;
-  try {
-    database = makeDatabase(root);
-  } finally {
-    for (const [name, value] of Object.entries(invoking)) if (value !== undefined) process.env[name] = value;
-  }
+  const database = makeDatabase(root);
   assert.deepEqual(readFileSync(log, 'utf8').trim().split('\n'), ['level-0'], 'make runs once, with no child make');
   assert.equal(database.targets.has('ci-targets'), true, 'the database names the targets of the Makefile');
   // The default goal of this read is not a target of the Makefile, and its variable is not a variable of it (K945).
