@@ -46,6 +46,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const consumer = path.join(work, 'consumer');
   mkdirSync(path.join(consumer, '.github/workflows'), { recursive: true });
   cpSync(path.join(ROOT, 'workflows/release.yml'), path.join(consumer, '.github/workflows/release.yml'));
+  // A repository's own ci.yml, named ci as release.yml waits for it (K987, K989).
+  writeFileSync(path.join(consumer, '.github/workflows/ci.yml'), 'name: ci\non:\n  push:\n    branches: [main]\njobs:\n  ci:\n    uses: ./.github/workflows/ci-pipeline.yml\n');
   const copies = KIT.kit?.copies;
   assert.ok(copies, 'package.json of kit declares no kit.copies');
   for (const [file, from] of Object.entries(copies)) {
