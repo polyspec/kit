@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "runtimes": [],
+  "setup": {
+    "shared": [],
+    "parity": [],
+    "runtimes": {
+      "go": [],
+      "php": [],
+      "php-ext": [],
+      "python": [],
+      "rust": [],
+      "ts": []
+    }
+  }
+}

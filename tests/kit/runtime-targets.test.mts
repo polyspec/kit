@@ -3,7 +3,7 @@
 // under tests/ of the root and run only in CI (K244).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -307,8 +307,9 @@ test('a task with zero targets fails unless config/ci.json declares runtimes: []
   const task = [tool(import.meta.resolve('../../scripts/kit/runtime-targets.mts')), 'task', 'test'];
   const undeclared = spawnSync(process.execPath, task, { cwd: root, encoding: 'utf8' });
   assert.notEqual(undeclared.status, 0, undeclared.stdout + undeclared.stderr);
+  mkdirSync(path.join(root, 'config'));
   writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify({ schema: 1, runtimes: [], setup: { shared: [], parity: [], runtimes: { go: [], php: [], 'php-ext': [], python: [], rust: [], ts: [] } } }));
   const declared = spawnSync(process.execPath, task, { cwd: root, encoding: 'utf8' });
   assert.equal(declared.status, 0, declared.stdout + declared.stderr);
-  assert.match(declared.stdout, /declares no runtime/);
+  assert.match(declared.stdout, /declares runtimes: \[\]/);
 });

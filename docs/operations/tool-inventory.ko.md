@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 26bcf3c860dc134e58bee074110b78ec0b0ca2613f850a047043801f4bf333bd -->
+<!-- source-sha256: 6f9bd787b2fc18e6f80b7ea04cbc86154e112e65d990cabf84dad30e728d3ad4 -->
 
 # 도구 목록
 
@@ -750,7 +750,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   저장소의 ci.yml이 이를 job `kit`으로 호출하고, 그 ci.yml의 저장소 job은 `needs: kit`으로 뒤에 실행되므로 run 하나가 commit의 모든
   job을 담습니다. 소비 저장소는
   `config/ci.json`에 저장소별 setup target을 선언합니다. 각 값은 명령문이 아니라 실제 존재하는 Make target 이름입니다.
-  schema는 `scripts/kit/schema/ci.schema.json`이며 `kit-check`가 소비 저장소의 선언을 검증합니다. 예:
+  schema는 `scripts/kit/schema/ci.schema.json`이며 `kit-check`가 소비 저장소의 선언을 검증합니다. runtime task는 runtime의 package가 하나도 없으면 `config/ci.json`이 `"runtimes": []`를 선언하지 않는 한 실패합니다. 이 선언은 kit처럼 저장소에 runtime이 없다는 뜻입니다(K955). 예:
 
   ```json
   {

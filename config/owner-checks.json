@@ -39,6 +39,7 @@
     { "paths": ["scripts/kit/**", "tests/kit/**"], "tests": ["tests/kit/isolation.test.mts"] },
     { "paths": ["tests/kit/*.mts"], "tests": ["tests/kit/sandbox-repository.test.mts"] },
     { "paths": ["config/duplication.json"], "targets": ["duplication-check", "kit-check"] },
+    { "paths": ["config/ci.json"], "targets": ["kit-check", "kit-test"], "tests": ["tests/kit/runtime-targets.test.mts"] },
     { "paths": ["config/rebuild.json", "docs/rebuild/**"], "targets": ["rebuild-check", "docs-check"] },
     { "paths": ["config/toolchain.json", ".php-version", "rust-toolchain.toml", "mise.toml", "mise.lock", ".mise/**"], "targets": ["kit-test"] },
     { "paths": ["config/phpunit/**"], "targets": ["kit-test"] },

@@ -827,7 +827,8 @@ Left as it is, with the reason:
   runtime jobs; the repository's ci.yml calls it as its job `kit`, and a repository job of that ci.yml runs after it with
   `needs: kit`, so one run holds every job of a commit. A consumer declares
   repository-owned setup targets in `config/ci.json`; each value is an existing Make target name, not a command. The schema is
-  `scripts/kit/schema/ci.schema.json` and `kit-check` validates the consumer declaration. For example:
+  `scripts/kit/schema/ci.schema.json` and `kit-check` validates the consumer declaration. A runtime task with no package of a runtime
+fails unless `config/ci.json` declares `"runtimes": []`, which says that the repository has no runtime, as kit does (K955). For example:
 
   ```json
   {

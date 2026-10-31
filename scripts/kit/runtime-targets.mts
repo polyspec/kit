@@ -259,16 +259,28 @@ function environmentOf(root: string, folder: string): string | undefined {
   }
 }
 
+/** The runtimes that config/ci.json declares, or undefined when it declares none (K955). */
+function declaredRuntimes(root: string): string[] | undefined {
+  const file = path.join(root, 'config/ci.json');
+  if (!existsSync(file)) return undefined;
+  return parseJson<{ runtimes?: string[] }>(readFileSync(file, 'utf8'), 'ci.schema.json', 'config/ci.json').runtimes;
+}
+
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
   const [target = '', name = ''] = process.argv.slice(2);
   const files = trackedFiles(root);
   if (target === 'task') {
     const targets = taskTargets(files, name);
-    // A repository without a runtime, such as kit, joins the task by its own prerequisites (build: kit-build).
+    // A repository declares that it has no runtime with an empty list in config/ci.json (K955); then the task runs the
+    // prerequisites of the repository, such as kit (build: kit-build). Zero targets otherwise fail, so lost packages cannot pass.
     if (targets.length === 0) {
-      console.log(`[runtime-targets] packages/ holds no runtime; make ${name} runs only the prerequisites of the repository`);
-      process.exit(0);
+      if (declaredRuntimes(root)?.length === 0) {
+        console.log(`[runtime-targets] config/ci.json declares runtimes: []; make ${name} runs only the prerequisites of the repository`);
+        process.exit(0);
+      }
+      console.error(`[runtime-targets] packages/ holds no runtime and config/ci.json declares none; make ${name} would run nothing. Fix: restore the packages, or declare "runtimes": [] in config/ci.json when the repository has no runtime`);
+      process.exit(1);
     }
     const result = spawnSync('make', ['--no-print-directory', ...targets], { cwd: root, stdio: 'inherit' });
     process.exit(result.status ?? 1);
