@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 747dafc15c1478b2e7ae404aaa87e4ed599fd0493b7a45f4ef6f31b16050a5a6 -->
+<!-- source-sha256: bdbe9fe00ba7af726f4f2e2072af8b942e89d96715aa2fed4ac3cd665727d7cb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K945-1: K945 이후 database read는 운영 코드에서도 호출자의 환경을 지우고(target-report.mts가 가지고 이제 export하는 CALLER 변수), 표준 입력을 줄바꿈으로 시작하며, 주석은 read가 건너뛰는 것을 밝힙니다. red: MAKELEVEL에 따라 갈라지는 Makefile의 test는 origin/main 24c4b685에서 "the top-level read names the targets of the level-0 branch"로 실패합니다. green: read에서는 통과합니다 (K945-1).
 - K945: makeDatabase는 전용 기본 goal을 표준 입력으로 주고 database에서 뺀 채 make -pRrq의 database를 읽으므로 read는 Makefile의 recipe를 고르지 않습니다. read는 호출한 make의 MAKELEVEL과 flag도 지우므로, MAKELEVEL에 따라 갈라지는 Makefile도 최상위 make가 읽는 대로 읽힙니다. red: MAKELEVEL=1로 읽는 갈라지는 Makefile의 test는 origin/main 24c4b685에서 실패합니다. green: read에서는 통과합니다 (K945).
 - K945: makeDatabase는 전용 기본 goal을 표준 입력으로 주고 database에서 뺀 채 make -pRrq의 database를 읽으므로, 기본 goal이 $(MAKE)를 부르는 Makefile이 끝없이 재귀하지 않습니다 (K945).
 - K938-1이 K938을 바로잡는다: worktree-setup은 devEngines npm을 선언하지 않은 package.json을 worktree나 branch를 만들기 전에, 그리고 npm이나 make를 실행하기 전에 거부하고, devEngines npm을 임시 폴더에서 `npm --prefix <checkout> ci`로 실행한다. 이는 runner의 npm 11이 받아들이는 형태이며(그렇지 않으면 EBADDEVENGINES), release와 CI의 bootstrap 단계도 checkout 밖에서 같은 형태를 쓴다(K938-1).

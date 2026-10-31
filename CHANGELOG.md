@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K945-1: after K945, the database read clears the environment of its caller in production (the CALLER variables, which target-report.mts now exports and shares), starts its standard input with a newline, and its comments state what the read skips. Red: the test of a Makefile that branches on MAKELEVEL fails on origin/main 24c4b685 with "the top-level read names the targets of the level-0 branch"; green: it passes with the read (K945-1).
 - K945: makeDatabase reads the database of make -pRrq with a dedicated default goal, given on standard input and left out of the database, so the read selects no recipe of the Makefile; the read also clears MAKELEVEL and the make flags of its caller, so a Makefile that branches on MAKELEVEL is read as the top level reads it. Red: the test of a branching Makefile read with MAKELEVEL=1 fails on origin/main 24c4b685; green: it passes with the read (K945).
 - K945: makeDatabase reads the database of make -pRrq with a dedicated default goal, given on standard input and left out of the database, so a Makefile whose default goal calls $(MAKE) no longer recurses without bound (K945).
 - K938-1 corrects K938: worktree-setup refuses a package.json with no devEngines npm before it creates the worktree or its branch, and before it runs npm or make, runs the devEngines npm in a temporary folder of its own with `npm --prefix <checkout> ci`, which the npm 11 of a runner accepts (EBADDEVENGINES otherwise), and the release and CI bootstrap steps run that form outside the checkout (K938-1).
