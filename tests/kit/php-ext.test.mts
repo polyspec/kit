@@ -300,6 +300,32 @@ test('a stub syntax error after an earlier good fetch keeps the parser that the 
   assert.deepEqual(parsersIn(path.join(root, 'var/php-ext/gen-stub')), fetched, 'the earlier parser stays');
 });
 
+// K946: a failed configure keeps its config.log under var/ and names it, as a copy at var/php-ext/config.log, and a successful
+// build removes that copy, so no stale failure log survives. The work folder is removed as before.
+test('a failed configure keeps its config.log under var/ and names it, and a success removes it (K946)', { timeout: 300000 }, (t) => {
+  const files = good();
+  delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
+  const config = readFileSync(path.join(FIXTURE, 'config.m4'), 'utf8');
+  files['packages/php-ext/src/config.m4'] = `AS_ECHO(["K946 config.log marker"]) >&5\nAC_MSG_ERROR([K946 fixture: configure fails])\n${config}`;
+  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  phpWrappers(root);
+  const failed = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.notEqual(failed.status, 0, `${failed.stdout}\n${failed.stderr}`);
+  const copied = path.join(root, 'var/php-ext/config.log');
+  assert.match(failed.stdout + failed.stderr, /config\.log is kept at .*var\/php-ext\/config\.log/, 'the message names the copied config.log');
+  assert.equal(existsSync(copied), true, 'the copy of config.log is kept under var/');
+  assert.match(readFileSync(copied, 'utf8'), /K946 config\.log marker/, 'the copy holds the marker that the fixture wrote');
+  assert.equal(existsSync(path.join(root, 'var/php-ext/configure-failed')), false, 'no folder of the failed build is kept');
+  // A successful build removes the copy: the fixture no longer fails configure.
+  writeFileSync(path.join(root, 'packages/php-ext/src/config.m4'), config);
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8' });
+  assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
+  assert.equal(existsSync(copied), false, 'a successful build removes the failure log');
+});
+
 test('the build generates arginfo from the stub in its temporary source when no header is tracked (K560)', (t) => {
   const files = good();
   delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];

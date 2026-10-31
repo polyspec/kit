@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5daca4851cedeedcff5278696cc44dd74713fd1818a2051895abddc018d86e5a -->
+<!-- source-sha256: e112680acc9a7bfcb213d933dfbd5767815b3b80333f2b8a7fdf70213dd35e9e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,7 +8,8 @@
 
 ## 0.0.82
 
-- Kit 0.0.82는 선택된 job이 skipped이면 실패하는 CI job(K950), config/ci.json에서만 오는 parityMode(K951), toolchain pin과 version 검사의 삭제(K953), bypass-check와 divergence-check가 검사하는 kit 자신의 도구(K954), target이 없으면 실패하는 task(K955), 중복 검사에서 빠지는 생성 소스(K956), 설치된 package의 kit item id(K957, K957-1), 이유를 적는 generated 예외(K958), 한 번씩 실행하는 parity binding(K959), link가 아니라 make hook이 쓰는 Claude Code hook(K960), 한 implementation이 소유하는 suite unit(K961), node를 받는 kit-build rename test(K962), 사본에서 되는 package build(K964), make link의 K383 test(K965), .gitignore를 판정하지 않는 hook(K966)을 담습니다 (K963).
+- Kit 0.0.82는 선택된 job이 skipped이면 실패하는 CI job(K950), config/ci.json에서만 오는 parityMode(K951), toolchain pin과 version 검사의 삭제(K953), bypass-check와 divergence-check가 검사하는 kit 자신의 도구(K954), target이 없으면 실패하는 task(K955), 중복 검사에서 빠지는 생성 소스(K956), 설치된 package의 kit item id(K957, K957-1), 이유를 적는 generated 예외(K958), 한 번씩 실행하는 parity binding(K959), link가 아니라 make hook이 쓰는 Claude Code hook(K960), 한 implementation이 소유하는 suite unit(K961), node를 받는 kit-build rename test(K962), 사본에서 되는 package build(K964), make link의 K383 test(K965), .gitignore를 판정하지 않는 hook(K966), 실패한 php-ext configure의 config.log(K946)를 담습니다 (K963).
+- K946: php-ext build의 configure가 실패하면 build가 작업 폴더를 지우므로 config.log를 var/php-ext/config.log로 복사하고 오류에서 그 사본을 가리킵니다. 성공한 build는 사본을 지웁니다 (K946).
 - K966: hook은 Git이 .claude/settings.local.json을 무시하는지 판정하지 않고 씁니다. 저장소가 무엇을 무시할지는 저장소의 일이므로, 어떤 저장소도 kit 때문에 .gitignore 줄을 추가하지 않습니다 (K966).
 - K965: kit-mk의 K383 test는 K960이 link 다음에 hook을 실행하게 한 make link의 link 줄과 그 뒤의 hook 줄을 기대합니다 (K965).
 - K964: kit-items는 docs/plans를 폴더에서 읽고, npm pack은 npm을 실행하는 node를 NODE로 넘겨 kit-build를 실행합니다. 그래서 package test처럼 var/tools도 Git 디렉터리도 없는 사본에서 하는 package build가 다시 됩니다. main CI는 K957부터 실패했습니다 (K964).

@@ -412,13 +412,26 @@ export function build(root: string, options: BuildOptions = {}): string {
     const env = { ...process.env, CFLAGS: `${process.env.CFLAGS ?? ''} -Werror=unused-result`.trim() };
     console.log('[php-extension] configure');
     // configure finds a php-config on PATH by itself; the PHP of the checkout builds the module that its php loads (K632).
-    run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`, `--with-php-config=${toolCommand(root, 'php-config')}`, ...(options.configureArgs ?? [])], { cwd: source, env });
+    try {
+      run('./configure', [`--enable-${names.extension.replaceAll('_', '-')}`, `--with-php-config=${toolCommand(root, 'php-config')}`, ...(options.configureArgs ?? [])], { cwd: source, env });
+    } catch (error) {
+      // config.log explains a failed configure, and the work folder is removed below: its copy is kept under var/, replacing the
+      // one of an earlier failure, and the message names the copy only when it was copied (K946).
+      const message = error instanceof Error ? error.message : String(error);
+      const log = path.join(source, 'config.log');
+      if (!existsSync(log)) throw new Stop(message);
+      const kept = path.join(root, OUTPUT, 'config.log');
+      copyFileSync(log, kept);
+      throw new Stop(`${message}\nconfig.log is kept at ${kept}`);
+    }
     console.log('[php-extension] make');
     const made = run('make', [], { cwd: source, env });
     const warnings = made.split('\n').filter(line => /\.[ch]:\d+:\d+: warning:/.test(line));
     if (warnings.length) throw new Stop(`the build of ${names.extension} has compiler warnings:\n${warnings.join('\n')}`);
     renameSync(path.join(source, 'modules', `${names.extension}.so`), temporaryLibrary);
     renameSync(temporaryLibrary, library);
+    // A successful build leaves no failure log of an earlier build behind (K946).
+    rmSync(path.join(root, OUTPUT, 'config.log'), { force: true });
     console.log(`[php-extension] built ${path.relative(root, library)}`);
     return library;
   } finally {
