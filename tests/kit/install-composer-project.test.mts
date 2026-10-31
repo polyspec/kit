@@ -18,7 +18,7 @@ test('composer install of a project in a linked kit runs in the checkout root wi
   // The Composer of the checkout records the folder that it starts in and its arguments.
   put(root, { 'var/tools/bin/composer': `#!/bin/sh\npwd -P > ${JSON.stringify(path.join(parent, 'cwd.txt'))}\necho "$@" > ${JSON.stringify(path.join(parent, 'args.txt'))}\n` });
   chmodSync(path.join(root, 'var/tools/bin/composer'), 0o755);
-  installComposerProject({ root, label: 'php-lint', folder: 'php-lint', project: 'node_modules/@polyspec/kit/config/php-lint', plugins: true, wrappers: {}, comment: 'test' });
+  installComposerProject({ root, folder: 'php-lint', project: 'node_modules/@polyspec/kit/config/php-lint', plugins: true, wrappers: {}, comment: 'test' });
   assert.equal(readFileSync(path.join(parent, 'cwd.txt'), 'utf8').trim(), root, 'Composer starts in the checkout root, not in the kit checkout');
   assert.ok(readFileSync(path.join(parent, 'args.txt'), 'utf8').trim().split(' ').includes(`--working-dir=${path.join(root, 'node_modules/@polyspec/kit/config/php-lint')}`), 'Composer installs the project by its --working-dir');
 });

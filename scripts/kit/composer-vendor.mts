@@ -7,8 +7,7 @@
 // under a symbolic link, such as /var on macOS.
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { composerCommand } from './install-composer-project.mts';
-import { toolsEnvironment } from './mise-tools.mts';
+import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { repositoryRoot } from './paths.mts';
 import { run } from './process.mts';
 
@@ -17,7 +16,7 @@ import { run } from './process.mts';
  * when `project` is; `composer` answers, by default the Composer of the checkout that kit runs in.
  */
 export function composerVendor(project: string, composer?: { command: string; env: NodeJS.ProcessEnv }): string {
-  const tool = composer ?? { command: composerCommand(repositoryRoot(), 'the vendor directory of a Composer project'), env: toolsEnvironment(repositoryRoot()) };
+  const tool = composer ?? { command: toolCommand(repositoryRoot(), 'composer'), env: toolsEnvironment(repositoryRoot()) };
   const answer = run(tool.command, ['config', '--no-interaction', '--no-plugins', 'vendor-dir'], { cwd: project, env: tool.env });
   return path.resolve(project, answer.trim());
 }

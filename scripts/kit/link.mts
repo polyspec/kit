@@ -24,7 +24,6 @@
 import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
-import { composerCommand } from './install-composer-project.mts';
 import { projectEnvironment, uvLink } from './uv-install.mts';
 import { composerVendorDir, environmentLinks, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
 import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, LINKS_FILE, mainCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
@@ -50,15 +49,15 @@ const isLinkRuntime = (value: string): value is LinkRuntime => Object.hasOwn(RUN
 
 /**
  * The command `name` of the consumer `top`: the variable `variable` when the recipe gives it, else the tool of the checkout
- * (the shim of mise, var/tools/bin/npm, the Composer of mise.toml, or the cargo of rustup); a missing tool fails with its cause.
+ * (the shim of mise, var/tools/bin/npm, the Composer of mise.toml), else the one on PATH (K947), and cargo is that of PATH; a
+ * tool that cannot start fails with its cause.
  */
 function consumerTool(top: string, name: 'npm' | 'composer' | 'uv' | 'go' | 'cargo', env: NodeJS.ProcessEnv): Tool {
   const variable = { npm: 'NPM', composer: 'COMPOSER_BIN', uv: 'UV', go: 'GO', cargo: 'CARGO' }[name];
   const given = env[variable];
   if (given) return { command: given, env };
   if (name === 'cargo') return { command: 'cargo', env };
-  if (name === 'composer') return { command: composerCommand(top, `the links of ${top}`), env: toolsEnvironment(top, env) };
-  // A missing tool of the checkout throws the message of toolCommand, the one message for it (K393-1).
+  // The tool of the checkout, else the one on PATH (K947).
   return { command: toolCommand(top, name), env: toolsEnvironment(top, env) };
 }
 
@@ -338,8 +337,8 @@ function linkedProjects(consumer: Consumer, ecosystems: readonly FolderEcosystem
 
 /**
  * The environment of the Python project `project` of `top` (K890): that of its uv workspace (projectEnvironment), the one rule of the
- * link, its checks and the install, for a project that declares a polyspec package that `found` provides in Python. A checkout without
- * uv has installed none, so it reads the path that uv would make there. Undefined otherwise, so a run with no such package runs no uv;
+ * link, its checks and the install, for a project that declares a polyspec package that `found` provides in Python, as uv names it.
+ * Undefined otherwise, so a run with no such package runs no uv;
  * the answer of a project is kept for the run.
  */
 export function pythonEnvironmentOf(top: string, project: string, found: ReadonlyMap<string, Provider>, env: NodeJS.ProcessEnv): string | undefined {
@@ -352,14 +351,8 @@ export function pythonEnvironmentOf(top: string, project: string, found: Readonl
 function environmentOf(top: string, project: string, env: NodeJS.ProcessEnv): string | undefined {
   const key = `${top}\0${project}\0${env.UV_PROJECT_ENVIRONMENT ?? ''}`;
   if (!ENVIRONMENTS.has(key)) {
-    let uv: Tool | undefined;
-    try {
-      uv = consumerTool(top, 'uv', env);
-    } catch (error) {
-      // The message of toolCommand for a missing uv of the checkout (K393-1).
-      if (!(error instanceof Error) || !error.message.startsWith('uv of the checkout is missing')) throw error;
-    }
-    ENVIRONMENTS.set(key, uv === undefined ? path.resolve(project, env.UV_PROJECT_ENVIRONMENT || '.venv') : projectEnvironment(project, uv.command, uv.env).venv);
+    const uv = consumerTool(top, 'uv', env);
+    ENVIRONMENTS.set(key, projectEnvironment(project, uv.command, uv.env).venv);
   }
   return ENVIRONMENTS.get(key);
 }

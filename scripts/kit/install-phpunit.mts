@@ -9,7 +9,7 @@ export const PHPUNIT_WRAPPERS = { phpunit: 'vendor/bin/phpunit' };
 /** Installs the declared PHPUnit `{ version, manifest }` into var/tools/phpunit of `root` and writes the wrapper. */
 export function installPhpunit({ root, declared, print = () => {} }: { root: string; declared: { version: string; manifest: string }; print?: (text: string) => void }) {
   installComposerProject({
-    root, label: 'PHPUnit', folder: 'phpunit', project: path.dirname(declared.manifest), plugins: false,
+    root, folder: 'phpunit', project: path.dirname(declared.manifest), plugins: false,
     wrappers: PHPUNIT_WRAPPERS, comment: `PHPUnit ${declared.version}`, print,
   });
 }

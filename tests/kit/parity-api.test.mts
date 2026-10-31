@@ -1,5 +1,6 @@
 // Declaration, public API, and coverage-scope behavior of the parity checker.
 import assert from 'node:assert/strict';
+import { chmodSync } from 'node:fs';
 import test from 'node:test';
 import * as parity from './parity-support.mts';
 import { kitPackageRoot } from '../../scripts/kit/kit-files.mts';
@@ -521,13 +522,13 @@ test('R3: each binding executes once, and its cases are checked on that run (K95
 
 test('R3: a binding whose runner cannot start fails, and a check of the declarations runs no binding', TIMEOUT, (t) => {
   const root = repository(t);
-  rmSync(path.join(root, 'var/tools/mise/shims/python3'));
+  // The python3 of the checkout cannot start: a runner that cannot start is the finding of its runs, and no error ends the check
+  // (K393-2). The python extractor runs with the python3 of the checkout too (K855), so it names the same tool.
+  chmodSync(path.join(root, 'var/tools/mise/shims/python3'), 0o644);
   const missing = checkParity(root, { execute: true, env: ENV, say: () => {} }).findings;
-  // A tool that the checkout lacks is the finding of its runs, naming the tool and its install, and no error ends the check
-  // (K393-2). The python extractor runs with the python3 of the checkout too (K855), so it names the same missing tool.
   assert.deepEqual(keys(missing), ['R1 - python', 'R3 codec python', 'R3 width python', 'R3 size python']);
-  assert.match(findingAt(missing, 0).message, /python3 of the checkout is missing .*run make install/);
-  assert.match(findingAt(missing, 1).message, /python3 of the checkout is missing .*run make install/);
+  assert.match(findingAt(missing, 0).message, /python3/);
+  assert.match(findingAt(missing, 1).message, /python3/);
   // An extractor that install-tools did not build names the declaration and the install.
   const unbuilt = check(t, { files: { 'var/tools/symbols-go/bin/kit-symbols-go': null, 'var/tools/symbols-php/vendor/autoload.php': null } }).findings;
   assert.deepEqual(keys(unbuilt), ['R1 - go', 'R1 - php']);

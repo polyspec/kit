@@ -93,12 +93,7 @@ function pythonSource(root: string, entry: string): { base: string; files: strin
 export function pythonListed(root: string, entry: string, env: Environment, flags: string[] = []): Extracted {
   const source = pythonSource(root, entry);
   if ('error' in source) return { error: source.error };
-  let python: string;
-  try {
-    python = toolCommand(root, 'python3');
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
-  }
+  const python = toolCommand(root, 'python3');
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-python-symbols-'));
   try {
     const list = path.join(folder, 'files.txt');

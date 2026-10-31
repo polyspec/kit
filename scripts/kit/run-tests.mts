@@ -48,7 +48,6 @@ import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress, type Si
 import { signalGroup, stopGroup, watchRoot, type SpawnedRoot } from './process-group.mts';
 import { venvProblem } from './python-venv.mts';
 import { toolCommand as miseCommand, toolsEnvironment } from './mise-tools.mts';
-import { toolsPath } from './bootstrap/tool-wrappers.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
@@ -143,14 +142,6 @@ function splitCargo(args: string[]) {
   return index === -1 ? { cargo: args, harness: [] } : { cargo: args.slice(0, index), harness: args.slice(index + 1) };
 }
 
-/**
- * The file of the checkout that a command starts. It must exist: a missing one fails before the run starts, and the command is
- * never looked up on PATH.
- */
-function checkoutFile(file: string): string {
-  if (!existsSync(file)) throw new Error(`${file} does not exist; run make install`);
-  return file;
-}
 
 /** The Playwright CLI installed in this checkout or its test project; never resolve one from the machine. */
 function playwrightCli(root: string, cwd: string): string | undefined {
@@ -210,9 +201,9 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
     case 'go':
       // go test has no limit per test; this runner applies it. -timeout=0 removes the limit of go test on a whole test
       // binary, a package.
-      // go is the one of mise.toml, run by the shim of the checkout, never the go of PATH.
+      // go is the one of mise.toml, run by the shim of the checkout, else the go of PATH (K947).
       // The build runs the test binaries with `true`, which ends at once, so it compiles each binary and runs no test (K549-1).
-      return { command: checkoutFile(miseCommand(root, 'go')), args: ['test', '-json', '-count=1', '-timeout=0', ...args], build: ['test', '-exec=true', ...args] };
+      return { command: miseCommand(root, 'go'), args: ['test', '-json', '-count=1', '-timeout=0', ...args], build: ['test', '-exec=true', ...args] };
     case 'cargo':
       // One test at a time, so each test prints its start before its result. cargo is not pinned by kit: rustup finds it on PATH
       // (rust-toolchain.toml), so it is the one command that is not resolved by the checkout.
@@ -225,7 +216,7 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
       const phpunit = path.join(vendor ?? composerVendor(cwd), 'bin/phpunit');
       // Each --php-extension loads a PHP extension, such as a build of the repository, into the PHP of PHPUnit from the ini file
       // of phpExtensionScan, in the given order, so an extension loads after one that it depends on (K165, K900).
-      // The PHP of both runs is the wrapper of var/tools/bin that install-tools writes for the checkout, never the php of PATH (K393).
+      // The PHP of both runs is the wrapper of var/tools/bin that install-tools writes for the checkout, else the php of PATH (K393, K947).
       // Without PHPUnit there is no deadline extension to load: the run starts the missing PHPUnit, which fails at its start.
       const nativeTimeouts = !timeoutExplicit && vendor !== undefined;
       const prepend = path.join(path.dirname(fileURLToPath(import.meta.url)), 'php-library/phpunit-deadline-prepend.php');
@@ -235,14 +226,14 @@ export function toolCommand({ tool, timeoutSeconds, timeoutExplicit = false, cwd
       const configuration = ['phpunit.xml', 'phpunit.xml.dist'].map(file => path.join(cwd, file)).find(file => existsSync(file));
       const configured = configuration === undefined ? [] : ['--configuration', configuration];
       // The extensions load from the ini file of phpExtensionScan, which a separate-process child reads too (K900).
-      if (phpExtensions.length || nativeTimeouts) return { command: checkoutFile(toolsPath(root, 'bin', 'php')), args: [...bootstrap, phpunit, '--teamcity', ...configured, ...extension, ...args] };
+      if (phpExtensions.length || nativeTimeouts) return { command: miseCommand(root, 'php'), args: [...bootstrap, phpunit, '--teamcity', ...configured, ...extension, ...args] };
       return { command: phpunit, args: ['--teamcity', ...args] };
     }
     case 'python':
       // -v prints each test with its outcome on standard error; unittest runs one test at a time. -v goes last: before a
       // `discover` argument unittest would read `discover` as a test name. The runner gives each test its own timeout (K371);
       // a --module harness keeps `-m <module>`, whose tests run with the timeout of the runner of this script.
-      const interpreter = venv ? path.join(venv, 'bin', 'python') : checkoutFile(miseCommand(root, 'python3'));
+      const interpreter = venv ? path.join(venv, 'bin', 'python') : miseCommand(root, 'python3');
       if (module !== undefined) return { command: interpreter, args: ['-m', module, ...args, '-v'] };
       return { command: interpreter, args: ['-c', PYTHON_START, PYTHON_RUNNER, '--timeout', String(timeoutSeconds), ...args, '-v'] };
   }
@@ -340,7 +331,7 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
     write(`✖ ${label}: the PHP extension ${path.relative(root, unbuilt)} is not built; build it before the run\n`);
     return 1;
   }
-  const unloaded = options.phpExtensions.length ? probeExtensions(options.phpExtensions, checkoutFile(toolsPath(root, 'bin', 'php'))) : undefined;
+  const unloaded = options.phpExtensions.length ? probeExtensions(options.phpExtensions, miseCommand(root, 'php')) : undefined;
   if (unloaded) {
     write(`✖ ${label}: ${unloaded}\n`);
     return 1;

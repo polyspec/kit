@@ -12,7 +12,7 @@ export const PHP_LINT_WRAPPERS = { phpcs: 'vendor/bin/phpcs', phpstan: 'vendor/b
 /** Installs the declared PHP lint `{ lock, manifest }` (lock: the sha256 of its composer.lock) into var/tools/php-lint of `root`. */
 export function installPhpLint({ root, declared, print = () => {} }: { root: string; declared: { lock: string; manifest: string }; print?: (text: string) => void }) {
   installComposerProject({
-    root, label: 'php-lint', folder: 'php-lint', project: path.dirname(declared.manifest), plugins: true,
+    root, folder: 'php-lint', project: path.dirname(declared.manifest), plugins: true,
     wrappers: PHP_LINT_WRAPPERS, comment: `The PHP lint of the composer.lock ${declared.lock.slice(0, 12)}`, print,
   });
 }

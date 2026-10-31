@@ -17,14 +17,12 @@ export const shimsPath = (root: string, ...name: string[]): string => toolsPath(
 
 /**
  * The command `name` of the checkout `root`: its wrapper in var/tools/bin when install-tools wrote one, else the shim of the command
- * in var/tools/mise/shims. A tool that the checkout lacks throws with the fix; PATH is never searched (K393-1).
+ * in var/tools/mise/shims, else the bare name, which PATH resolves: which tool a machine provides is not kit's to judge (K947).
  */
 export function toolCommand(root: string, name: string): string {
   const extensions = process.platform === 'win32' ? ['.exe', '.cmd', ''] : [''];
   const tried = [toolsPath(root, 'bin'), shimsPath(root)].flatMap(directory => extensions.map(extension => path.join(directory, `${name}${extension}`)));
-  const found = tried.find(file => existsSync(file));
-  if (found === undefined) throw new Error(`${name} of the checkout is missing (${tried.map(file => path.relative(root, file)).join(', ')}); run make install`);
-  return found;
+  return tried.find(file => existsSync(file)) ?? name;
 }
 
 /** The shim of the command `name` in the checkout `root`, whether or not it exists: UV_PYTHON names it, and a missing shim is not an error there. */

@@ -16,9 +16,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { replaceInstall } from './bootstrap/install-tool.mts';
 import { run, toolsPath } from './bootstrap/tool-wrappers.mts';
-import { composerCommand, composerEnvironment } from './install-composer-project.mts';
+import { composerEnvironment } from './install-composer-project.mts';
 import { miseInstallEnvironment, miseWhere } from './bootstrap/install-mise.mts';
-import { toolsEnvironment } from './mise-tools.mts';
+import { toolCommand, toolsEnvironment } from './mise-tools.mts';
 import { declaredToolchain, type InstalledExtractor } from './bootstrap/toolchain-declared.mts';
 import { declaredMiseTools, MISE_TOOLS } from './toolchain-mise.mts';
 import { isMain, repositoryRoot } from './paths.mts';
@@ -48,7 +48,7 @@ function goCommand(root: string): string {
 // How each extractor is built into the temporary directory `next` for the checkout `root`.
 const BUILDS: Record<InstalledExtractor, (root: string, next: string, print: (text: string) => void) => void> = {
   php: (root, next, print) => {
-    const composer = composerCommand(root, 'the php symbol extractor');
+    const composer = toolCommand(root, 'composer');
     for (const file of ['composer.json', 'composer.lock']) copyFileSync(path.join(SYMBOLS, 'php', file), path.join(next, file));
     run(composer, ['install', '--no-interaction', '--no-progress', '--no-scripts', '--no-plugins', '--prefer-dist'], { cwd: next, env: composerEnvironment(root) }, print);
   },

@@ -2,7 +2,7 @@
 // of the wheel metadata. uv build builds the wheel in an isolated environment with the build-system.requires of the package's
 // own pyproject.toml (PEP 517/518); kit pins and installs no build backend (K788). The Python of a build is the python3 of
 // mise.toml and uv is the uv of mise.toml (their shims, mise-tools.mts).
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { run, Stop } from './process.mts';
@@ -36,7 +36,6 @@ export function metadataProblems(metadata: WheelMetadata, name: string, version:
  */
 export function buildWheel({ root, env, commit, directory, output, generated }: { root: string; env: NodeJS.ProcessEnv; commit: string; directory: string; output: string; generated: { output: string; file: string }[] }): void {
   const python = toolCommand(root, 'python3');
-  if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; the wheel is built by the Python of mise.toml, declare python there and run make install-tools`);
   const uv = toolCommand(root, 'uv');
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-release-wheel-'));
   try {
@@ -67,7 +66,6 @@ export function buildWheel({ root, env, commit, directory, output, generated }: 
  */
 export function wheelMetadata(root: string, file: string, env: NodeJS.ProcessEnv): WheelMetadata {
   const python = toolCommand(root, 'python3');
-  if (!existsSync(python)) throw new Stop(`${path.relative(root, python)} is missing; pip reads the metadata of a wheel with the Python of mise.toml, declare python there and run make install-tools`);
   const report = parseJson<{ install?: { metadata: { name: string; version: string; requires_dist?: string[] } }[] }>(run(python, ['-m', 'pip', 'install', '--dry-run', '--no-deps', '--no-index', '--ignore-installed', '--quiet', '--no-input', '--disable-pip-version-check', '--report', '-', file], { cwd: root, env }), 'pip-report.schema.json', `pip install --report of ${file}`);
   const installs = report.install ?? [];
   const [install] = installs;

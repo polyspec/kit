@@ -326,6 +326,30 @@ test('a failed configure keeps its config.log under var/ and names it, and a suc
   assert.equal(existsSync(copied), false, 'a successful build removes the failure log');
 });
 
+// K947: a build finds its PHP tools on the PATH of its checkout as make gives it: the checkout's own bin and shims first, then the
+// PATH of the caller. A build without var/tools, such as a consumer's make or a pack copy, finds its PHP on that PATH.
+function externalPhp(root: string): string {
+  const external = path.join(root, 'external-bin');
+  mkdirSync(external, { recursive: true });
+  for (const name of ['php', 'php-config', 'phpize']) {
+    writeFileSync(path.join(external, name), `#!/bin/sh\nexec '${toolsPath(ROOT, 'bin', name)}' "$@"\n`);
+    chmodSync(path.join(external, name), 0o755);
+  }
+  return external;
+}
+
+test('a build finds php, php-config and phpize on the PATH of its caller when its checkout has no var/tools (K947)', { timeout: 300000 }, (t) => {
+  const files = good();
+  delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
+  const root = tree(t, { ...files, '.gitignore': 'var/\n' });
+  cpSync(path.join(FIXTURE, 'polyspec_demo.c'), path.join(root, 'packages/php-ext/src/polyspec_demo.c'));
+  assert.equal(spawnSync('git', ['add', '-A'], { cwd: root }).status, 0);
+  const external = externalPhp(root);
+  const built = spawnSync(process.execPath, [path.join(ROOT, 'scripts/kit/php-extension.mts'), 'build'], { cwd: root, encoding: 'utf8', env: { ...process.env, PATH: `${external}${path.delimiter}${process.env.PATH ?? ''}` } });
+  assert.equal(built.status, 0, `${built.stdout}\n${built.stderr}`);
+  assert.ok(existsSync(path.join(root, 'var/php-ext/polyspec_demo.so')));
+});
+
 test('the build generates arginfo from the stub in its temporary source when no header is tracked (K560)', (t) => {
   const files = good();
   delete files['packages/php-ext/src/polyspec_demo_arginfo.h'];
