@@ -72,7 +72,7 @@ export const runtimePackage = (item: LockEntry): boolean => !item.dev && !item.d
 
 /**
  * The package.json (with the fields of `manifest`) and package-lock.json of a consumer that installs the packed kit
- * `packed` as a dev dependency by the URL of its release asset, as config/release.json names it (release.mts archiveName),
+ * `packed` as a dev dependency by the URL of its release asset, as config/release.json names it (release.mts assetNames),
  * with the packages that kit depends on at run time at the versions of its package-lock.
  */
 export function kitConsumer(packed: { version: string; integrity: string }, manifest: Record<string, unknown> = {}) {

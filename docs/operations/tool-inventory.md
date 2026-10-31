@@ -707,12 +707,13 @@ Dropped behaviors:
 
 ### Archive names (K5.2)
 
-- Name: the file name its packer gives (P39, K980): npm pack's `scope-name-<version>.tgz`, `vendor-name-<version>.zip` for
-  the Composer zip that kit packs, and the PEP 427 name of a wheel. Each package asset carries the GitHub label
+- Name: the file name its packer gives (P39, K980): npm pack's `scope-name-<version>.tgz` and the PEP 427 name of a wheel;
+  Composer names no archive, so the Composer zip that kit packs is its label with .zip (K985). Each package asset carries the GitHub label
   `<vendor>-<product>-<runtime>-<version>`: the vendor is the owner of repositoryUrl, and the product and the runtime (ts,
   go, rust, php, php-ext or python) are declared for each package in config/release.json and never read from the name, so
   a package manager's name never stands in for the runtime. In github.com/polyspec/orm, `polyspec/orm-php-ext` of product
-  orm and runtime php-ext is `polyspec-orm-php-ext-0.0.19.zip` labelled `polyspec-orm-php-ext-0.0.19`, and `@polyspec/orm`
+  orm and runtime php-ext is `polyspec-orm-php-ext-0.0.19.zip` labelled `polyspec-orm-php-ext-0.0.19`, `polyspec/orm` of runtime php is
+  `polyspec-orm-php-0.0.19.zip`, and `@polyspec/orm`
   of runtime ts is `polyspec-orm-0.0.19.tgz` labelled `polyspec-orm-ts-0.0.19`. packages.json carries no label. Two
   packages with the same archive name, or with the same product and runtime, are refused.
 - `npm pack` names its output itself, and that name is the archive name: the single new file in the destination must be it;

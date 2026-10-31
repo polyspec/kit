@@ -14,7 +14,7 @@
 // module, which a Go proxy reads, at the commit of a successful CI run (K911). No step reruns the tests: the run is the evidence.
 //   TAG is `latest` for the newest release tag reachable from HEAD.
 // `assets` builds one archive per package under the name its packer gives (`@scope/x` is `scope-x-1.0.0.tgz` as npm pack
-// writes it, `vendor/x` is `vendor-x-1.0.0.zip`, a wheel keeps its PEP 427 name), which `publish` labels
+// writes it, a wheel keeps its PEP 427 name, and the Composer zip, which kit packs, is its label with .zip, K985), which `publish` labels
 // `<vendor>-<product>-<runtime>-<version>` (P39, K980): `npm pack` of an npm package, and a `git archive` zip of the directory of a Composer
 // package at the tagged commit, with stored entries, the time of the commit and TZ=UTC. Declared generated files are
 // appended from staged files with fixed mode and the same commit time, so a second run of the same tag writes the same
@@ -64,8 +64,6 @@ const MANIFEST_FILES = PACKAGE_FILES.filter(name => name !== 'go.mod');
 const TAG = /^v(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const MANIFEST_OF: Record<PackageKind, string> = { npm: 'package.json', composer: 'composer.json', wheel: 'pyproject.toml' };
-// The extension of the archive of each package kind: an npm tarball and a Composer zip.
-const ARCHIVE_EXTENSION: Record<Exclude<PackageKind, 'wheel'>, string> = { npm: 'tgz', composer: 'zip' };
 const NPM_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
 const COMPOSER_DEPENDENCY_FIELDS = ['require', 'require-dev'] as const;
 
@@ -351,17 +349,18 @@ export function releaseNotes(ctx: Context, tag: string): string {
 
 
 /**
- * The file name of the archive of a package of `kind` at `version`, the name its packer gives (P39, K980): npm pack writes
- * `@scope/x` as `scope-x-1.0.0.tgz`, kit packs `vendor/x` as `vendor-x-1.0.0.zip`, and a wheel keeps its PEP 427 name.
+ * The archive names of the packages at `version`, in the order of the configuration, each the name its packer gives (P39): npm
+ * pack writes `@scope/x` as `scope-x-1.0.0.tgz` (K980), a wheel keeps its PEP 427 name, and the Composer zip, which kit packs
+ * and which no standard names, is the label of its package with .zip, `<vendor>-<product>-<runtime>-<version>.zip` (K985).
  */
-export function archiveName(kind: PackageKind, name: string, version: string): string {
-  if (kind === 'wheel') return wheelName(name, version);
-  return `${name.replace(/^@/, '').replace('/', '-')}-${version}.${ARCHIVE_EXTENSION[kind]}`;
-}
-
-/** The archive names of the packages at `version`, in the order of the configuration. */
-export function assetNames(config: Pick<ReleaseConfig, 'packages'>, version: string): string[] {
-  return config.packages.map(({ kind, name }) => archiveName(kind, name, version));
+export function assetNames(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string): string[] {
+  const labels = assetLabels(config, version);
+  return config.packages.map(({ kind, name }, index) => {
+    if (kind === 'wheel') return wheelName(name, version);
+    // labels holds the label of each package at its index.
+    if (kind === 'composer') return `${present(labels[index], 'labels[index]')}.zip`;
+    return `${name.replace(/^@/, '').replace('/', '-')}-${version}.tgz`;
+  });
 }
 
 /**
@@ -375,7 +374,7 @@ export function assetLabels(config: Pick<ReleaseConfig, 'packages' | 'repository
 }
 
 /** The files of the release at `version`: the archives, and packages.json when a package is a Composer package (K871). */
-function releaseFiles(config: Pick<ReleaseConfig, 'packages'>, version: string): string[] {
+function releaseFiles(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string): string[] {
   return [...assetNames(config, version), ...(config.packages.some(({ kind }) => kind === 'composer') ? [PACKAGES_JSON] : [])];
 }
 

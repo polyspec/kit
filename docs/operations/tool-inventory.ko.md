@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e909afde0dc397558a1a24f0113d590c55025741b8b03129515836f757c0faa9 -->
+<!-- source-sha256: 0b49cbf20f4864befba07af0c91a13fde7569f6502818f3b7e9c8013791e0963 -->
 
 # 도구 목록
 
@@ -640,11 +640,11 @@ go.mod의 module path에 연결합니다.
 
 ### Archive 이름 (K5.2)
 
-- 이름: packer가 붙인 파일 이름입니다(P39, K980). npm pack의 `scope-name-<version>.tgz`, kit이 만드는 Composer zip의
-  `vendor-name-<version>.zip`, wheel의 PEP 427 이름입니다. 각 package asset은 GitHub label `<vendor>-<product>-<runtime>-<version>`을
+- 이름: packer가 붙인 파일 이름입니다(P39, K980). npm pack의 `scope-name-<version>.tgz`, wheel의 PEP 427 이름입니다.
+  Composer는 archive 이름을 정하지 않으므로 kit이 만드는 Composer zip은 label에 .zip을 붙인 이름입니다(K985). 각 package asset은 GitHub label `<vendor>-<product>-<runtime>-<version>`을
   답니다. vendor는 repositoryUrl의 owner이고, product와 runtime(ts, go, rust, php, php-ext, python)은 config/release.json에 package마다
   선언하며 이름에서 읽지 않으므로, package manager의 이름이 runtime을 대신하지 않습니다. github.com/polyspec/orm에서 product orm,
-  runtime php-ext인 `polyspec/orm-php-ext`는 label `polyspec-orm-php-ext-0.0.19`를 단 `polyspec-orm-php-ext-0.0.19.zip`이고,
+  runtime php-ext인 `polyspec/orm-php-ext`는 label `polyspec-orm-php-ext-0.0.19`를 단 `polyspec-orm-php-ext-0.0.19.zip`, runtime php인 `polyspec/orm`은 `polyspec-orm-php-0.0.19.zip`이고,
   runtime ts인 `@polyspec/orm`은 label `polyspec-orm-ts-0.0.19`를 단 `polyspec-orm-0.0.19.tgz`입니다. packages.json은 label을 달지 않습니다.
   archive 이름이 같거나 product와 runtime이 같은 두 package는 거부합니다.
 - `npm pack`은 출력 이름을 스스로 정하고, 그 이름이 archive 이름입니다. 대상 directory에 새로 생긴 file 하나가 그 이름이어야 하며, 없거나 여럿이거나
