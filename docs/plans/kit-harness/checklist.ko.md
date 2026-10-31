@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 75e835a0dec39758229e18c91a8e2e126a6039c652cd7965e99306f7d36305a6 -->
+<!-- source-sha256: dfeb62aacdfa8d2102253f90ee4b1615ac96103cb9549c8130ce692de8f4d6da -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -116,4 +116,4 @@
 | K973 | 실행할 수 없는 go의 parity ledger test는 자기 빈 PATH 폴더로 실행하므로, /usr/bin에 go가 있는 기계에서도 성립한다. | `tests/kit/parity-ledger.test.mts`, `CHANGELOG.md(.ko)` | Red: the test with a go stub folder before /usr/bin:/bin in its PATH fails on the current tree. Green: `node --test --test-name-pattern="go cannot start" tests/kit/parity-ledger.test.mts` passes. | [o] |
 | K974 | Claude hook은 env가 실행하는 명령 앞의 env option만 건너뛰므로, 그 명령의 option이 여전히 test를 고른다. | `scripts/kit/claude-hook.mts`, `tests/kit/claude-hook.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K974 tests/kit/claude-hook.test.mts` fails on the current tree. Green: the same command passes. | [o] |
 | K975 | link-check --project는 그 project만 판단한다: 설치 폴더가 없는 선언 패키지와 자기 manifest의 경로를, link가 검사 범위를 정하는 대로 판단하며 저장소의 모든 project를 판단하지 않는다. | `scripts/kit/link-check.mts`, `scripts/kit/link.mts`, `tests/kit/link-check.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K975 tests/kit/link-check.test.mts` fails on the current tree. Green: the same command passes. | [ ] |
-| K977 | python symbols 추출기는 entry 아래 디스크의 .py 파일을 읽으므로, Git이 무시하는 생성 module도 package가 배포하는 대로 공개된다. | `scripts/kit/parity-symbols.mts`, `scripts/kit/symbols/python.py`, `tests/kit/parity-api.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K977 tests/kit/parity-api.test.mts` fails on the current tree. Green: the same command passes. | [ ] |
+| K977 | python symbols 추출기는 entry 아래 디스크의 .py 파일을 읽으므로, Git이 무시하는 생성 module도 package가 배포하는 대로 공개된다. | `scripts/kit/parity-symbols.mts`, `scripts/kit/symbols/python.py`, `tests/kit/parity-api.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K977 tests/kit/parity-api.test.mts` fails on the current tree. Green: the same command passes. | [~] |
