@@ -329,3 +329,18 @@ test('raw-tag: an element without its end tag outside code fails in the document
   assert.deepEqual(found.filter(line => line.startsWith('docs/quoted.md')).map(line => line.split(': raw-tag: ')[0] ?? line).sort((a, b) => a.localeCompare(b)), ['docs/quoted.md:1:5', 'docs/quoted.md:3:3', 'docs/quoted.md:3:8'], 'a tag in a quote, an end tag without its element and an upper-case void element, which Vue does not know');
   assert.deepEqual(found.filter(line => !/^docs\/(raw|quoted)\.md/.test(line)), [], 'code spans, fenced blocks, script content, closed and void elements and autolinks pass, and a document that the site does not render is not read');
 });
+
+// K957: CI has no kit checkout beside the repository, so the consumer check reads the item ids that the installed kit package ships in
+// dist/kit-items.json; a missing list is a finding, never a note.
+test('checklist-kit reads the kit item list of the installed kit package, and a missing list is a finding (K957)', (t) => {
+  const rows = ['| ID | Task | Deliverables | Verification | State |', '| --- | --- | --- | --- | --- |', '| T1 | waits on K365 | `a.mts` | `node --test a.test.mts` | [ ] |', '| T2 | waits on K99999 | `b.mts` | `node --test b.test.mts` | [ ] |'];
+  const root = tree(t, { ...pair(CHECKLIST, 'checklist', `${rows.join('\n')}\n`), ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: ID_PATTERN }) });
+  // Without the list the check fails on the list, and no note stands in for the rule.
+  const missing = check(root, CONFIG);
+  hasPart(missing.findings, 'node_modules/@polyspec/kit/dist/kit-items.json: checklist-kit');
+  assert.deepEqual(missing.notes, [], missing.notes.join('\n'));
+  put(root, { 'node_modules/@polyspec/kit/dist/kit-items.json': JSON.stringify(['K365', 'K369']) });
+  const found = check(root, CONFIG).findings.filter(line => line.includes('checklist-kit'));
+  assert.equal(found.length, 1, found.join('\n'));
+  assert.match(found[0] ?? '', /K99999/);
+});
