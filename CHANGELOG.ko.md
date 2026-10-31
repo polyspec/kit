@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- K941-2: K941-1 이후 orm의 rules check는 finding 71개를 냈습니다. orm의 CI는 make check-run으로 target을 실행하고, 그 recipe는 target 이름을 저장소 script에 넘기며 script는 각 target에 make를 실행하기 때문입니다. 저장소의 파일을 실행하는 명령은 인자를 그 파일에 넘기므로 그 인자의 target에 닿습니다. 파일을 실행하지 않는 명령은 여전히 target을 실행하지 않으므로 산문은 닿지 않습니다 (K941-2). red: orm 형태의 fixture는 수정 전 commit에서 "make feature-unit-check runs at no point"로 실패합니다. green: 수정 뒤 통과합니다.
 - K941-1: rules check는 make 호출을 통해서만 target에 닿으므로, run 줄의 산문은 아무것도 닿지 않고 matrix 단계는 리터럴 matrix의 각 값에 닿습니다. gates test는 release 전용 check를 release.yml에서 얻습니다. S4는 make install-tools를, kit test는 make kit-test-shard를 명시합니다 (K941-1).
 - K941: release tag는 저장소의 최신 release tag보다 크지 않은 버전을 거부합니다(release-run tag, `make release-tag`). arginfo는 phpize 뒤에 phpize가 extension source의 `build/`로 복사한 gen_stub.php에서 만들므로, `php-config --prefix`에 lib/php/build가 없는 PHP(Ubuntu php-dev)도 build됩니다. S4는 `make install-tools`과 `make release-tag`를 명시합니다. Red: `node --test --test-name-pattern=K941 tests/kit/release-run.test.mts`는 v0.0.2 아래의 v0.0.1을 통과시켰고, `node --test --test-name-pattern=K941 tests/kit/php-ext.test.mts`는 `Could not open input file: /nonexistent/prefix/lib/php/build/gen_stub.php`로 실패했습니다. Green: 둘 다 통과합니다 (K941).
 - K945-1: K945 이후 database read는 운영 코드에서도 호출자의 환경을 지우고(target-report.mts가 가지고 이제 export하는 CALLER 변수), 표준 입력을 줄바꿈으로 시작하며, 주석은 read가 건너뛰는 것을 밝힙니다. red: MAKELEVEL에 따라 갈라지는 Makefile의 test는 origin/main 24c4b685에서 "the top-level read names the targets of the level-0 branch"로 실패합니다. green: read에서는 통과합니다 (K945-1).

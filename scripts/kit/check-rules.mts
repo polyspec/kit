@@ -14,7 +14,7 @@
 // of it. A rule of PRINCIPLES.md begins with an id, P<n> or S<n>. A rule of AGENTS.md begins with `Own:` or `Refines <id>:`; a
 // refining rule names, in backticks, a term of the repository that PRINCIPLES.md lacks (an existing path or a make target), so a
 // restatement of a principle is a finding (K300). The Korean twin of a document (<name>.ko.md) names the same checks for each rule.
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { lineBlocks } from './markdown.mts';
 import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
@@ -220,7 +220,15 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
     // builtin exec runs its command in place, so `exec make` is a make call.
     const [first, ...rest] = words;
     const [command, ...args] = first === 'exec' ? rest : words;
-    if (command === undefined || path.basename(command) !== 'make') return;
+    if (command === undefined) return;
+    if (path.basename(command) !== 'make') {
+      // A command that runs a file of the repository hands it its arguments, and the file runs the targets that they name, as the
+      // check runner of orm runs make on each target of its arguments (K941-2). A command that runs no file runs no target (K941-1).
+      const isFile = (word: string) => existsSync(path.resolve(root, word)) && statSync(path.resolve(root, word)).isFile();
+      if (![command, ...args].some(isFile)) return;
+      for (const word of args) if (make.targets.has(word)) queue.push({ target: word, variables: new Map(variables) });
+      return;
+    }
     const { targets: named, assignments } = makeArguments(args);
     for (const target of named) queue.push({ target, variables: new Map([...variables, ...assignments]) });
   };
