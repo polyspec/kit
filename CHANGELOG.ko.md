@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b8c7ecf5d199d98899cc0d9ab7b10b28cc269ed85b7d38815d3777ef6e94fee0 -->
+<!-- source-sha256: 94a5da418591fd7c2d96c760eddd9cc23dec118fac1a5364d2cfe81bdcd4be14 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K976: link-check은 manifest 경로를 텍스트로 판단합니다. 저장소가 sibling checkout으로 가는 link나 복사본으로 채우는 git-ignored 폴더인 file:var/platforms/app처럼 저장소 안의 경로는 저장소 자신의 폴더로 통과하고, 텍스트상 저장소를 벗어나는 경로(../x, 절대경로)만 finding입니다 (K976).
 - K975: link-check --project는 저장소의 모든 project 대신, link가 검사 범위를 정하는 대로 그 project만, 즉 설치 폴더가 없는 선언 패키지와 자기 manifest의 경로만 판단합니다 (K975).
 
 ## 0.0.84

@@ -7,11 +7,12 @@
 //   - the go.work that link writes at each Go module uses exactly the module, its tracked workspace and the declared providers that it
 //     requires; with none, link wrote no go.work;
 //   - a polyspec package that a tracked project declares and a declared checkout provides has an installed folder (K888);
-//   - no tracked manifest names a path out of the repository, whatever the package, which a clean clone cannot reproduce (K773, K902);
+//   - no tracked manifest names a path out of the repository by its text, whatever the package, which a clean clone cannot reproduce
+//     (K773, K902); a path inside it is the repository's own folder, however the repository fills it (K976);
 // Nothing about a version is judged. A finding names the ecosystem and the package or the file.
 //
 //   node link-check.mts [--project <dir>]
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { consumerManifests, declaredUnlinked, link } from './link.mts';
 import { declaredCheckouts, isIgnored, LINKS_FILE, mainCheckout, providers, workTreeOf } from './link-providers.mts';
@@ -24,34 +25,25 @@ const NPM_PATH = /^(?:file|link):/;
 /** A release archive installs a release, not the folder of a checkout. */
 const ARCHIVE = /\.(?:tgz|tar\.gz|zip|whl)$/;
 
-/** The path `target` of the manifest `file` in `root`, when it exists. */
-function located(file: string, target: string, root: string): string | undefined {
-  const full = path.resolve(root, path.dirname(file), target);
-  return existsSync(full) ? full : undefined;
-}
-
 /**
- * Whether the path `target` of the manifest `file` leaves the repository of `root`. A target that exists is judged by its
- * real path, so an in-repo path through a link out of the repository leaves it too; the text judges the rest.
+ * Whether the path `target` of the manifest `file` leaves the repository, judged by its text (K976): an absolute path, or one that
+ * leaves the folder of the repository after normalizing. A path inside the repository is the repository's own folder, however the
+ * repository fills it (a link to a sibling checkout in development, a copy in CI), so where it resolves is not judged.
  */
-function outside(file: string, target: string, root: string): boolean {
-  const full = located(file, target, root);
-  if (full !== undefined) {
-    const relative = path.relative(realpathSync(root), realpathSync(full));
-    return relative.startsWith('..') || path.isAbsolute(relative);
-  }
-  return path.posix.isAbsolute(target) || path.posix.normalize(path.posix.join(path.posix.dirname(file), target)).startsWith('../');
+function outside(file: string, target: string): boolean {
+  const normalized = path.posix.normalize(path.posix.join(path.posix.dirname(file), target));
+  return path.posix.isAbsolute(target) || normalized === '..' || normalized.startsWith('../');
 }
 
 /**
- * K773, K902: the findings of one manifest `file` with its text: each folder outside the repository of `root` that it links by a
+ * K773, K902: the findings of one manifest `file` with its text: each path out of the repository by its text (K976) that it links by a
  * path, a Composer path repository, an npm file:/link: dependency or a uv source path, whatever the package name, since a clean clone and
  * CI cannot reproduce it. A sibling is linked only by the folder link of make link (docs/operations/local-links.md); a path inside the
- * repository, an own member, and a release archive pass.
+ * repository, however it resolves (K976), an own member, and a release archive pass.
  */
-function manifestPathFindings(file: string, text: string, root: string): string[] {
+function manifestPathFindings(file: string, text: string): string[] {
   const finding = (name: string, target: string) => `${file}: ${name} is linked by the path ${target} outside the repository, which a clean clone cannot reproduce; fix: require a release, and link a polyspec checkout with .links and make link (docs/operations/local-links.md)`;
-  const linked = (target: string) => !ARCHIVE.test(target) && outside(file, target, root);
+  const linked = (target: string) => !ARCHIVE.test(target) && outside(file, target);
   if (path.posix.basename(file) === 'pyproject.toml') {
     const tool = readToml(text, file).tool;
     const uv = isTable(tool) ? tool.uv : undefined;
@@ -75,7 +67,7 @@ function manifestPathFindings(file: string, text: string, root: string): string[
 /** The findings of each composer.json, package.json and pyproject.toml that link judges in `directory`, with `project` its own (K773, K975). */
 function manifestsPathFindings(root: string, directory: string, project: boolean): string[] {
   const top = realpathSync(root);
-  return consumerManifests(directory, project, ['composer', 'npm', 'python']).flatMap(file => manifestPathFindings(path.relative(top, file), readFileSync(file, 'utf8'), root));
+  return consumerManifests(directory, project, ['composer', 'npm', 'python']).flatMap(file => manifestPathFindings(path.relative(top, file), readFileSync(file, 'utf8')));
 }
 
 /**

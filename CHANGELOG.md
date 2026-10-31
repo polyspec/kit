@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K976: link-check judges a manifest path by its text: a path inside the repository, such as file:var/platforms/app, a git-ignored folder that the repository fills with a link to a sibling checkout or a copy, is its own folder and passes; only a path that leaves the repository by its text (../x, an absolute path) is a finding (K976).
 - K975: link-check --project judges only that project, its declared packages with no installed folder and the paths of its own manifests, as link scopes its check, instead of every project of the repository (K975).
 
 ## 0.0.84

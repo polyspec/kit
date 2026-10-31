@@ -206,14 +206,21 @@ test('a tracked manifest path outside the repository is a finding in Composer, n
   ]);
 });
 
-test('a manifest path inside the repository that resolves through a link out of it is a finding, whatever the package (K773, K902)', (t) => {
-  const outer = tree(t, { 'a/composer.json': '{"name":"polyspec/a"}\n', 'b/composer.json': '{"name":"other/b"}\n' });
-  const root = tree(t, { '.gitignore': 'var/\n', 'composer.json': JSON.stringify({ repositories: [{ type: 'path', url: 'var/link/a' }, { type: 'path', url: 'var/link/b' }] }) });
+// K976: a path is judged by its text; a folder inside the repository is the repository's own, however it fills it (a link to a sibling
+// checkout in development, a copy in CI), and a path that leaves the repository after normalizing is still a finding.
+test('a manifest path inside the repository passes though it resolves through a link out of it, and a path that leaves it by its text fails (K976)', (t) => {
+  const outer = tree(t, { 'app/package.json': '{"name":"@limepie/app"}\n', 'a/composer.json': '{"name":"polyspec/a"}\n' });
+  const root = tree(t, { '.gitignore': 'var/\n', 'inner/composer.json': '{"name":"polyspec/b"}\n' });
+  const away = path.relative(path.join(root, 'inner'), outer);
+  put(root, {
+    'composer.json': JSON.stringify({ repositories: [{ type: 'path', url: 'var/platforms/a' }, { type: 'path', url: `inner/${away}/a` }] }),
+    'package.json': JSON.stringify({ dependencies: { '@limepie/app': 'file:var/platforms/app' } }),
+  });
   mkdirSync(path.join(root, 'var'), { recursive: true });
-  symlinkSync(outer, path.join(root, 'var/link'));
+  symlinkSync(outer, path.join(root, 'var/platforms'));
   commitAll(root, 'fixture');
   const found = linkFindings(root, process.env).filter(item => / is linked by the path /.test(item)).map(item => item.replace(/ outside.*$/, ''));
-  assert.deepEqual(found, ['composer.json: a path repository is linked by the path var/link/a', 'composer.json: a path repository is linked by the path var/link/b']);
+  assert.deepEqual(found, [`composer.json: a path repository is linked by the path inner/${away}/a`]);
 });
 
 // K902: a path out of the repository is a dependency that a clean clone and CI cannot reproduce, whatever the package name.

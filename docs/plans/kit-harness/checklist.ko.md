@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 89be16978b0d164df4fddaee2bf8db6562b7528db118d82250730823415b7024 -->
+<!-- source-sha256: 5ae2bdfe528a1783f5172717f612d575c1abab4b28d481931a8ac569416938b0 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -117,4 +117,4 @@
 | K974 | Claude hook은 env가 실행하는 명령 앞의 env option만 건너뛰므로, 그 명령의 option이 여전히 test를 고른다. | `scripts/kit/claude-hook.mts`, `tests/kit/claude-hook.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K974 tests/kit/claude-hook.test.mts` fails on the current tree. Green: the same command passes. | [o] |
 | K975 | link-check --project는 그 project만 판단한다: 설치 폴더가 없는 선언 패키지와 자기 manifest의 경로를, link가 검사 범위를 정하는 대로 판단하며 저장소의 모든 project를 판단하지 않는다. | `scripts/kit/link-check.mts`, `scripts/kit/link.mts`, `tests/kit/link-check.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K975 tests/kit/link-check.test.mts` fails on the current tree. Green: the same command passes. | [o] |
 | K977 | python symbols 추출기는 entry 아래 디스크의 .py 파일을 읽으므로, Git이 무시하는 생성 module도 package가 배포하는 대로 공개된다. | `scripts/kit/parity-symbols.mts`, `scripts/kit/symbols/python.py`, `scripts/kit/schema/parity.schema.json`, `tests/source/symbols-python-real.test.mts`, `docs/operations/tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K977 tests/source/symbols-python-real.test.mts` fails on the current tree. Green: the same command passes. | [o] |
-| K976 | link-check는 추적되는 manifest 경로를 텍스트로 판단한다: 저장소 안의 경로는 저장소가 어떻게 채우든 저장소 자신의 폴더이고, 텍스트상 저장소를 벗어나는 경로만 finding이다. | `scripts/kit/link-check.mts`, `tests/kit/link-check.test.mts`, `docs/operations/local-links.md(.ko)`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K976 tests/kit/link-check.test.mts` fails on the current tree. Green: the same command passes. | [~] |
+| K976 | link-check는 추적되는 manifest 경로를 텍스트로 판단한다: 저장소 안의 경로는 저장소가 어떻게 채우든 저장소 자신의 폴더이고, 텍스트상 저장소를 벗어나는 경로만 finding이다. | `scripts/kit/link-check.mts`, `tests/kit/link-check.test.mts`, `docs/operations/local-links.md(.ko)`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K976 tests/kit/link-check.test.mts` fails on the current tree. Green: the same command passes. | [o] |
