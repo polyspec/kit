@@ -26,9 +26,17 @@
       }
     },
     "exceptions": {
-      "description": "Globs of repository paths, read by picomatch with dot: true, that a generated segment may stay in, such as test fixtures. A glob names one deliberate file set, never a whole generated folder.",
+      "description": "Generated segments that the repository keeps, each glob of repository paths with its reason, such as test fixtures: read by picomatch with dot: true. A glob names one deliberate file set, never a whole generated folder; an exception exempts the path from the generated-file and duplication checks (K958).",
       "type": "array",
-      "items": { "type": "string", "minLength": 1 }
+      "items": {
+        "type": "object",
+        "required": ["path", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "path": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
     }
   }
 }

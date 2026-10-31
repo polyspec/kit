@@ -60,7 +60,7 @@ export function duplicationCheck(root: string, print: (text: string) => void = t
   const excluded = existsSync(path.join(root, CONFIG)) ? readConfig<DuplicationConfig>(root, CONFIG, 'duplication.schema.json').exclude : [];
   // A generated file repeats what its generator writes for each input; config/generated.json already declares it (K640), and a tracked
   // generated source is one too, since its single source is the generator (K956).
-  const generated = existsSync(path.join(root, GENERATED)) ? (({ paths, exceptions, tracked = [] }) => [...paths, ...exceptions, ...tracked.map(item => item.path)])(loadGeneratedConfig(root)) : [];
+  const generated = existsSync(path.join(root, GENERATED)) ? (({ paths, exceptions, tracked = [] }) => [...paths, ...exceptions.map(item => item.path), ...tracked.map(item => item.path)])(loadGeneratedConfig(root)) : [];
   // --ignore splits its value at each comma, so a brace glob {a,b} would exclude nothing (K310): the globs go whole in a configuration file.
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-jscpd-'));
   const config = path.join(folder, 'jscpd.json');

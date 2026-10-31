@@ -11,7 +11,7 @@ import { loadGeneratedConfig } from '../../scripts/kit/generated-files.mts';
 import { tool } from './kit-tools.mts';
 import { tree } from './tree.mts';
 
-const GENERATED_CONFIG = JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**'] });
+const GENERATED_CONFIG = JSON.stringify({ schema: 1, paths: [], exceptions: [{ path: 'tests/*/fixtures/**', reason: 'test fixtures' }] });
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'staged']);
 const installs = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/generated-files.mts')), 'installs']);
 const stage = (work: string, file: string, text: string | Buffer = 'x\n') => {
@@ -51,7 +51,7 @@ test('every generated segment is refused, and a name that only contains one is a
 });
 
 test('a path that config/generated.json declares generated is refused, and an exception of the config still allows it', (t) => {
-  const config = JSON.stringify({ schema: 1, paths: ['build/**', '**/*.vsix', '.vitepress/cache/**'], exceptions: ['build/keep/**'] });
+  const config = JSON.stringify({ schema: 1, paths: ['build/**', '**/*.vsix', '.vitepress/cache/**'], exceptions: [{ path: 'build/keep/**', reason: 'kept output' }] });
   const { work } = prepared(t, { files: { 'config/generated.json': config } });
   const generated = ['build/tools/x', 'ext/a.vsix', '.vitepress/cache/x.json'];
   for (const file of [...generated, 'build/keep/y.txt']) stage(work, file);
@@ -115,7 +115,7 @@ test('a staged executable is refused whatever its path, and one that config/gene
   const accepted = check(textCheckout.work);
   assert.equal(accepted.status, 0, accepted.stderr);
   assert.match(accepted.stdout, /no generated file is staged/);
-  const declared = JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**', binary] });
+  const declared = JSON.stringify({ schema: 1, paths: [], exceptions: [{ path: 'tests/*/fixtures/**', reason: 'test fixtures' }, { path: binary, reason: 'a binary fixture' }] });
   const declaredCheckout = prepared(t, { files: { 'config/generated.json': declared } });
   stage(declaredCheckout.work, binary, machO);
   const exempt = check(declaredCheckout.work);
@@ -173,7 +173,7 @@ test('a tracked generated file, executable object or generated-header file is re
   const refusedHeader = tracked(generated.work);
   assert.equal(refusedHeader.status, 1, refusedHeader.stderr);
   assert.match(refusedHeader.stderr, /packages\/python\/src\/polyspec\/fixture_models\/models\/models\.py has a generated-file header/);
-  const declared = JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**', models] });
+  const declared = JSON.stringify({ schema: 1, paths: [], exceptions: [{ path: 'tests/*/fixtures/**', reason: 'test fixtures' }, { path: models, reason: 'a generated model' }] });
   const exempt = prepared(t, { files: { 'config/generated.json': declared, [models]: header } });
   const passed = tracked(exempt.work);
   assert.equal(passed.status, 0, passed.stderr);
@@ -199,6 +199,6 @@ test('a tracked generated file, executable object or generated-header file is re
 // K958: an exception is an unconditional exemption from the generated-file and duplication checks, so it carries the reason that
 // tracked takes, and the schema refuses an exception without one.
 test('an exception of config/generated.json without a reason fails the schema (K958)', (t) => {
-  const root = tree(t, { 'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: ['tests/*/fixtures/**'] }) });
+  const root = tree(t, { 'config/generated.json': JSON.stringify({ schema: 1, paths: [], exceptions: [{ path: 'tests/*/fixtures/**' }] }) });
   assert.throws(() => loadGeneratedConfig(root), /reason/);
 });

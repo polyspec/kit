@@ -29,9 +29,12 @@ export const GENERATED_SEGMENTS = ['node_modules', 'vendor', '.venv', 'venv', '_
 export interface GeneratedConfig {
   schema: 1;
   paths: string[];
-  exceptions: string[];
+  exceptions: { path: string; reason: string }[];
   tracked?: { path: string; reason: string }[];
 }
+
+/** The globs of the exceptions of `config`, each with its reason (K958). */
+const excepted = (config: Pick<GeneratedConfig, 'exceptions'>) => config.exceptions.map(item => item.path);
 
 const isGeneratedSegment = (segment: string) => GENERATED_SEGMENTS.includes(segment) || segment.endsWith('.egg-info');
 
@@ -73,14 +76,14 @@ export function executableOffenders(files: string[], config: Pick<GeneratedConfi
   return files.flatMap(file => {
     const content = read(file);
     const format = content === undefined ? undefined : executableFormat(content);
-    return format !== undefined && !matchesAny(config.exceptions, file) ? [{ file, format }] : [];
+    return format !== undefined && !matchesAny(excepted(config), file) ? [{ file, format }] : [];
   });
 }
 
 /** The paths that are generated (a segment of GENERATED_SEGMENTS, or a glob of `config.paths`) and that no glob of `config.exceptions` allows, in the order given. */
 export function generatedOffenders(paths: string[], config: Pick<GeneratedConfig, 'paths' | 'exceptions' | 'tracked'>) {
   const tracked = (config.tracked ?? []).map(item => item.path);
-  return paths.filter(file => (file.split('/').some(isGeneratedSegment) || matchesAny(config.paths, file)) && !matchesAny(config.exceptions, file) && !matchesAny(tracked, file));
+  return paths.filter(file => (file.split('/').some(isGeneratedSegment) || matchesAny(config.paths, file)) && !matchesAny(excepted(config), file) && !matchesAny(tracked, file));
 }
 
 /**
@@ -143,7 +146,7 @@ export function trackedFindings(root: string, config: GeneratedConfig): string[]
     ...trackedRuleFindings(root, config),
     ...generatedOffenders(files, config).map(file => `${file} is a generated file (AGENTS.md "Generated files"); untrack it, or declare it in ${CONFIG}`),
     ...executableOffenders(files, config, head).map(({ file, format }) => `${file} is an executable object (${format}), whatever its path; untrack it, or declare it an exception in ${CONFIG}`),
-    ...files.filter(file => !matchesAny(config.exceptions, file) && !matchesAny((config.tracked ?? []).map(item => item.path), file) && hasGeneratedHeader(head(file))).map(file => `${file} has a generated-file header (Code generated ... DO NOT EDIT); untrack it, or declare it an exception in ${CONFIG}`),
+    ...files.filter(file => !matchesAny(excepted(config), file) && !matchesAny((config.tracked ?? []).map(item => item.path), file) && hasGeneratedHeader(head(file))).map(file => `${file} has a generated-file header (Code generated ... DO NOT EDIT); untrack it, or declare it an exception in ${CONFIG}`),
   ];
 }
 

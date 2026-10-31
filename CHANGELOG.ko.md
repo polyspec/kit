@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 899b1454d5f3fa3f595e6374dd0a81f9f087551f899fcf3c0f472f62962b325f -->
+<!-- source-sha256: 1fd08f4df936955d1e5cf96f04527c78672dbea79ca5d79d46fc982124cd7197 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K958: config/generated.json의 exception은 tracked와 같이 path와 reason을 가진 object이며, schema가 reason을 요구합니다. 생성 파일 검사와 중복 검사는 exception의 path를 읽습니다. reason이 없는 exception은 schema가 거부합니다. red: 수정 전 commit에서 이유 없는 bare glob이 통과하여 `node --test --test-name-pattern=K958 tests/kit/generated-files.test.mts`가 실패합니다("Missing expected exception"). green: 수정 뒤 통과합니다 (K958).
 - K951: parityMode는 config/ci.json에서만 옵니다. config/parity.json이 없어도 parityMode를 none으로 설정하지 않습니다. 모드가 선언되지 않으면 plan이 해결 방법과 함께 실패하고, parity 선언이 없는 저장소는 `"parityMode": "none"`을 선언합니다. ci.json 스키마가 이를 허용합니다. red: `node --test --test-name-pattern=K951 tests/kit/ci-setup.test.mts`는 parity.json도 parityMode도 없는 plan을 통과시켰습니다 (K951).
 - K957: checklist-kit 규칙은 저장소 옆의 ../kit 대신, kit-build가 쓰는 설치된 kit 패키지의 dist/kit-items.json에서 kit item id를 읽습니다. CI에는 ../kit가 없어서 이 규칙이 CI에서 실행되지 않았습니다. 목록이 없으면 note가 아니라 finding입니다. red: 수정 전 commit에서 `node --test --test-name-pattern=K957 tests/kit/documents.test.mts`가 목록 누락을 finding으로 보고하지 않아 실패합니다. green: 수정 뒤 통과합니다 (K957).
 - K950: CI pipeline의 required job은 plan이 선택한 job이 skipped이면 실패합니다. plan은 shared, parity_mode full의 parity job, phases의 parity-api와 parity-bindings job, 저장소에 runtime이 있으면 runtime을 선택하며, plan이 선택하지 않은 job은 결과가 아닙니다. red: `node --test --test-name-pattern=K950 tests/kit/gates-workflow.test.mts`는 plan이 선택한 skipped parity job에 대해 0을 반환했습니다 (K950).
