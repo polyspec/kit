@@ -13,7 +13,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 test('a package at the repository root is declared with the directory . and its manifest package.json', (t) => {
   const config = {
     schema: 1, repositoryUrl: 'https://example.com/polyspec/root', changelog: 'CHANGELOG.md',
-    packages: [{ kind: 'npm', directory: '.', name: '@polyspec/root' }],
+    packages: [{ kind: 'npm', directory: '.', name: '@polyspec/root', product: 'root', runtime: 'ts' }],
     manifests: { 'package.json': 'archive' }, notReleased: {}, goModules: {},
   };
   const root = tree(t, { 'config/release.json': JSON.stringify(config), 'package.json': JSON.stringify({ name: '@polyspec/root', version: '1.0.0' }), 'CHANGELOG.md': '# Changelog\n' });
@@ -24,8 +24,8 @@ test('a package at the repository root is declared with the directory . and its 
 
 test('the release configuration of kit declares the package @polyspec/kit at its root and classifies every package file', () => {
   const config = loadConfig(ROOT);
-  assert.deepEqual(config.packages, [{ kind: 'npm', directory: '.', name: '@polyspec/kit' }]);
+  assert.deepEqual(config.packages, [{ kind: 'npm', directory: '.', name: '@polyspec/kit', product: 'kit', runtime: 'ts' }]);
   assert.equal(config.manifests['package.json'], 'archive');
-  assert.deepEqual(assetNames(config, '1.2.3'), ['polyspec-kit-npm-1.2.3.tgz']);
+  assert.deepEqual(assetNames(config, '1.2.3'), ['polyspec-kit-1.2.3.tgz']);
   assert.deepEqual(coverage(context(ROOT, { config })), []);
 });

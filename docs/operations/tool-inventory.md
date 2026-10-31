@@ -707,14 +707,16 @@ Dropped behaviors:
 
 ### Archive names (K5.2)
 
-- Name: `<package>-<language>-<version>.<ext>`; `@scope/name` is written `scope-name` and `vendor/name` `vendor-name`; the
-  language is `npm` for an npm package and `php` for a Composer package. `@polyspec/x` is `polyspec-x-npm-0.0.5.tgz`,
-  `polyspec/x` is `polyspec-x-php-0.0.5.zip` and `polyspec/x-extension` is `polyspec-x-extension-php-0.0.5.zip`. The five tools
-  named archives `<package>-<version>.<ext>` (ordered-json already had the language); the language is kept because an npm
-  package and a Composer package may share a name.
-- `npm pack` names its output itself. The single new file in the destination is renamed to the archive name (ordered-json,
-  template); zero or several new files fail with their names. crudui and orm took the name from the pack report or the
-  package name; the rule for the single new file covers both and needs no npm output format.
+- Name: the file name its packer gives (P39, K980): npm pack's `scope-name-<version>.tgz`, `vendor-name-<version>.zip` for
+  the Composer zip that kit packs, and the PEP 427 name of a wheel. Each package asset carries the GitHub label
+  `<vendor>-<product>-<runtime>-<version>`: the vendor is the owner of repositoryUrl, and the product and the runtime (ts,
+  go, rust, php, php-ext or python) are declared for each package in config/release.json and never read from the name, so
+  a package manager's name never stands in for the runtime. In github.com/polyspec/orm, `polyspec/orm-php-ext` of product
+  orm and runtime php-ext is `polyspec-orm-php-ext-0.0.19.zip` labelled `polyspec-orm-php-ext-0.0.19`, and `@polyspec/orm`
+  of runtime ts is `polyspec-orm-0.0.19.tgz` labelled `polyspec-orm-ts-0.0.19`. packages.json carries no label. Two
+  packages with the same archive name, or with the same product and runtime, are refused.
+- `npm pack` names its output itself, and that name is the archive name: the single new file in the destination must be it;
+  zero, several or another file fail with their names (K980).
 - Zip: `git archive --format=zip -0` of the package directory at the tagged commit with `--mtime` set to the commit time and
   `TZ=UTC` (ordered-json used a fixed constant time, template the commit time, crudui, hyper and orm neither). `git archive`
   of a tree otherwise writes the current time, and a zip stores local time. A second run of the same tag writes the same

@@ -13,9 +13,9 @@
 // A tag `vX.Y.Z` releases the packages at the version X.Y.Z; createTags puts it and the tag `<directory>/vX.Y.Z` of every Go
 // module, which a Go proxy reads, at the commit of a successful CI run (K911). No step reruns the tests: the run is the evidence.
 //   TAG is `latest` for the newest release tag reachable from HEAD.
-// `assets` builds one archive per package, named `<package>-<language>-<version>.<ext>` with `@scope/`
-// written `scope-` and `vendor/` `vendor-` (`@scope/x` is `scope-x-npm-1.0.0.tgz`, `vendor/x` is `vendor-x-php-1.0.0.zip`):
-// `npm pack` of an npm package, whose output is renamed to that name, and a `git archive` zip of the directory of a Composer
+// `assets` builds one archive per package under the name its packer gives (`@scope/x` is `scope-x-1.0.0.tgz` as npm pack
+// writes it, `vendor/x` is `vendor-x-1.0.0.zip`, a wheel keeps its PEP 427 name), which `publish` labels
+// `<vendor>-<product>-<runtime>-<version>` (P39, K980): `npm pack` of an npm package, and a `git archive` zip of the directory of a Composer
 // package at the tagged commit, with stored entries, the time of the commit and TZ=UTC. Declared generated files are
 // appended from staged files with fixed mode and the same commit time, so a second run of the same tag writes the same
 // bytes without placing generated contents in argv. Each archive carries its unchanged manifest, except kit uses its
@@ -34,7 +34,7 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, type GitHubRelease } from './github-release.mts';
+import { createDraft, deleteRelease, makePublic, releaseById, releaseOf, repositoryParts, type GitHubRelease } from './github-release.mts';
 import { headings } from './markdown.mts';
 import { fileDigest } from './bootstrap/digest.mts';
 import { writeJson } from './bootstrap/files.mts';
@@ -64,8 +64,8 @@ const MANIFEST_FILES = PACKAGE_FILES.filter(name => name !== 'go.mod');
 const TAG = /^v(?<version>(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*))$/;
 const EXACT_VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 const MANIFEST_OF: Record<PackageKind, string> = { npm: 'package.json', composer: 'composer.json', wheel: 'pyproject.toml' };
-// The language and the extension of the archive of each package kind: an npm tarball and a Composer zip.
-const ARCHIVE_FORMAT: Record<Exclude<PackageKind, 'wheel'>, [string, string]> = { npm: ['npm', 'tgz'], composer: ['php', 'zip'] };
+// The extension of the archive of each package kind: an npm tarball and a Composer zip.
+const ARCHIVE_EXTENSION: Record<Exclude<PackageKind, 'wheel'>, string> = { npm: 'tgz', composer: 'zip' };
 const NPM_DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies'] as const;
 const COMPOSER_DEPENDENCY_FIELDS = ['require', 'require-dev'] as const;
 
@@ -77,6 +77,8 @@ export interface ReleasePackage {
   kind: PackageKind;
   directory: string;
   name: string;
+  product: string;
+  runtime: string;
   generated?: ReleaseGeneratedArtifact[];
 }
 
@@ -194,6 +196,7 @@ export function loadConfig(root: string): ReleaseConfig {
     if (value === 'archive' && !archived.has(key)) problems.push(`${CONFIG}: manifests.${key} is "archive" but no package of packages has that manifest`);
   }
   if (new Set(assetNames(config, '1.0.0')).size !== config.packages.length) problems.push(`${CONFIG}: two packages have the same archive name`);
+  if (new Set(assetLabels(config, '1.0.0')).size !== config.packages.length) problems.push(`${CONFIG}: two packages have the same product and runtime, so their assets would have the same label`);
   if (problems.length) throw new Stop(problems.join('; '));
   return { ...config, changelogTranslations: config.changelogTranslations ?? [], manifests, notReleased, goModules };
 }
@@ -348,23 +351,27 @@ export function releaseNotes(ctx: Context, tag: string): string {
 
 
 /**
- * <package>-<language>-<version>.<ext>: `@scope/name` is written `scope-name` and `vendor/name` `vendor-name`, the language
- * is `npm` for an npm package and `php` for a Composer package: `@scope/x` is `scope-x-npm-1.0.0.tgz` and `vendor/x` is
- * `vendor-x-php-1.0.0.zip`.
+ * The file name of the archive of a package of `kind` at `version`, the name its packer gives (P39, K980): npm pack writes
+ * `@scope/x` as `scope-x-1.0.0.tgz`, kit packs `vendor/x` as `vendor-x-1.0.0.zip`, and a wheel keeps its PEP 427 name.
  */
-export function assetName(name: string, language: string, version: string, extension: string): string {
-  return `${name.replace(/^@/, '').replaceAll('/', '-')}-${language}-${version}.${extension}`;
-}
-
-/** The file name of the archive of a package of `kind` at `version`: a wheel keeps its PEP 427 name. */
 export function archiveName(kind: PackageKind, name: string, version: string): string {
   if (kind === 'wheel') return wheelName(name, version);
-  return assetName(name, ARCHIVE_FORMAT[kind][0], version, ARCHIVE_FORMAT[kind][1]);
+  return `${name.replace(/^@/, '').replace('/', '-')}-${version}.${ARCHIVE_EXTENSION[kind]}`;
 }
 
 /** The archive names of the packages at `version`, in the order of the configuration. */
 export function assetNames(config: Pick<ReleaseConfig, 'packages'>, version: string): string[] {
   return config.packages.map(({ kind, name }) => archiveName(kind, name, version));
+}
+
+/**
+ * The GitHub labels of the archives of the packages at `version`, in the order of the configuration (P39, K980):
+ * `<vendor>-<product>-<runtime>-<version>`, the vendor the owner of repositoryUrl, and the product and the runtime those the
+ * package declares, never read from its name.
+ */
+export function assetLabels(config: Pick<ReleaseConfig, 'packages' | 'repositoryUrl'>, version: string): string[] {
+  const vendor = repositoryParts(config.repositoryUrl).repo.split('/')[0];
+  return config.packages.map(({ product, runtime }) => `${vendor}-${product}-${runtime}-${version}`);
 }
 
 /** The files of the release at `version`: the archives, and packages.json when a package is a Composer package (K871). */
@@ -527,11 +534,9 @@ function assetsFromCommit(ctx: Context, reference: string, commit: string, versi
         const before = new Set(readdirSync(next));
         // npm is the tool of the checkout, never the one on PATH (K393-1).
         run(toolCommand(root, 'npm'), ['pack', '--pack-destination', next], { cwd: path.join(root, folder), env: ctx.env });
-        // npm pack names its output itself; the single new file is renamed to the archive name.
+        // npm pack names its output itself, and that name is the archive name (K980).
         const created = readdirSync(next).filter(item => !before.has(item));
-        if (created.length !== 1) throw new Stop(`npm pack of ${folder} wrote [${created.join(', ')}], not one archive`);
-        // created holds one file, checked above, and names holds the archive name of each package at its index.
-        renameSync(path.join(next, present(created[0], 'created[0]')), path.join(next, present(names[index], 'names[index]')));
+        if (created.length !== 1 || created[0] !== names[index]) throw new Stop(`npm pack of ${folder} wrote [${created.join(', ')}], not the one archive ${names[index]}`);
       } else if (kind === 'wheel') {
         // The generated files of the wheel are staged like those of a Composer archive and removed after its build (K929).
         const generated = generatedArchiveFiles(ctx, commit, folder, config.packages[index]?.generated);
@@ -654,7 +659,9 @@ export function publish(ctx: Context, tag: string): string[] {
     const notesFile = path.join(folder, 'notes.md');
     writeFileSync(notesFile, notes);
     ctx.log(`[release] ${tag}: creating the draft GitHub Release with ${names.length} assets`);
-    const id = createDraft(at(ctx), config.repositoryUrl, tag, notesFile, names.map(name => path.join(target, name)));
+    // Only a package archive carries a label; packages.json is a file of the release, not a package (P39).
+    const labels = assetLabels(config, version);
+    const id = createDraft(at(ctx), config.repositoryUrl, tag, notesFile, names.map((name, index) => ({ file: path.join(target, name), label: labels[index] })));
     writeJson(path.join(root, releaseRecord(tag)), { id });
     ctx.log(`[release] ${tag}: the draft release ${id} is recorded in ${releaseRecord(tag)}`);
   } finally {

@@ -37,14 +37,16 @@
       }
     },
     "packages": {
-      "description": "The packages that a tag vX.Y.Z releases as one archive each; a wheel is released as its PEP 427 wheel.",
+      "description": "The packages that a tag vX.Y.Z releases as one archive each, under the name its packer gives (a wheel its PEP 427 name) and with the GitHub label <vendor>-<product>-<runtime>-<version>, the vendor the owner of repositoryUrl (P39, K980).",
       "type": "array",
       "items": {
         "type": "object",
         "required": [
           "kind",
           "directory",
-          "name"
+          "name",
+          "product",
+          "runtime"
         ],
         "additionalProperties": false,
         "properties": {
@@ -64,6 +66,16 @@
           "name": {
             "type": "string",
             "pattern": "^(@[a-z0-9._-]+/)?[a-z0-9._-]+(/[a-z0-9._-]+)?$"
+          },
+          "product": {
+            "description": "The product of the package, the part of the asset label after the vendor: x for @acme/x and acme/x-php-ext (K980).",
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+          },
+          "runtime": {
+            "description": "The runtime of the package, one of the six runtimes, the part of the asset label after the product (K980).",
+            "type": "string",
+            "enum": ["go", "php", "php-ext", "python", "rust", "ts"]
           },
           "generated": {
             "description": "Artifacts that are generated from the package files of the tagged commit and included in its archive; never written into the checkout. A make entry runs its target (the repository's own make target) in the checkout, after the pack refuses a checkout that differs from the tagged commit, holds a changed or untracked path, or links a dependency from outside it; it packs its declared outputs (K929, K930, K939), for a composer or wheel package; npm builds its output in the prepack script of its package.json, so an npm package refuses a make entry.",

@@ -24,7 +24,7 @@ type GhState = {
   calls: string[][];
   notes?: string | null;
   created?: { tag: string; name: string; draft: string };
-  uploads?: { name: string; input: string; type: string }[];
+  uploads?: { name: string; label?: string | null; input: string; type: string }[];
   byId?: Record<string, StubRelease>;
   patched?: string[][];
   deleted?: string[];
@@ -37,7 +37,7 @@ const GH_STATE: JSONSchemaType<GhState> = {
     calls: { type: 'array', items: TEXTS },
     notes: { type: 'string', nullable: true },
     created: { type: 'object', nullable: true, required: ['tag', 'name', 'draft'], properties: { tag: STRING, name: STRING, draft: STRING } },
-    uploads: { type: 'array', nullable: true, items: { type: 'object', required: ['name', 'input', 'type'], properties: { name: STRING, input: STRING, type: STRING } } },
+    uploads: { type: 'array', nullable: true, items: { type: 'object', required: ['name', 'input', 'type'], properties: { name: STRING, label: { type: 'string', nullable: true }, input: STRING, type: STRING } } },
     byId: {
       type: 'object',
       nullable: true,
@@ -69,7 +69,7 @@ state.calls.push(args);
 let status = 0;
 const method = args.includes('--method') ? args[args.indexOf('--method') + 1] : 'GET';
 const byId = args.map(arg => /^repos\\/[^/]+\\/[^/]+\\/releases\\/(\\d+)$/.exec(arg)).find(Boolean);
-const upload = args.map(arg => /^https:\\/\\/uploads\\.[^/]+\\/repos\\/[^/]+\\/[^/]+\\/releases\\/(\\d+)\\/assets\\?name=(.+)$/.exec(arg)).find(Boolean);
+const upload = args.map(arg => /^https:\\/\\/uploads\\.[^/]+\\/repos\\/[^/]+\\/[^/]+\\/releases\\/(\\d+)\\/assets\\?name=([^&]+)(?:&label=(.+))?$/.exec(arg)).find(Boolean);
 state.byId = state.byId ?? {};
 if (args[0] === 'api' && args.some(arg => /\\/git\\/ref\\/tags\\//.test(arg))) {
   if (state.missingTag) { console.error('gh: Not Found (HTTP 404)'); status = 1; }
@@ -88,7 +88,7 @@ if (args[0] === 'api' && args.some(arg => /\\/git\\/ref\\/tags\\//.test(arg))) {
 } else if (args[0] === 'api' && upload) {
   const release = state.byId[upload[1]];
   release.assets.push({ id: release.assets.length + 1, name: decodeURIComponent(upload[2]), url: 'https://example.com/polyspec/kit-fixture/releases/download/' + release.tag_name + '/' + decodeURIComponent(upload[2]), digest: null });
-  state.uploads = [...(state.uploads ?? []), { name: decodeURIComponent(upload[2]), input: args[args.indexOf('--input') + 1], type: args[args.indexOf('-H') + 1] }];
+  state.uploads = [...(state.uploads ?? []), { name: decodeURIComponent(upload[2]), label: upload[3] === undefined ? null : decodeURIComponent(upload[3]), input: args[args.indexOf('--input') + 1], type: args[args.indexOf('-H') + 1] }];
   console.log('1');
 } else if (args[0] === 'api' && byId && method === 'PATCH') {
   state.byId[byId[1]].draft = false;

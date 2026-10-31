@@ -6,22 +6,30 @@
     {
       "kind": "npm",
       "directory": "packages/fixture-lib",
-      "name": "fixture-lib"
+      "name": "fixture-lib",
+      "product": "fixture-lib",
+      "runtime": "ts"
     },
     {
       "kind": "npm",
       "directory": "packages/fixture-app",
-      "name": "fixture-app"
+      "name": "fixture-app",
+      "product": "fixture-app",
+      "runtime": "ts"
     },
     {
       "kind": "composer",
       "directory": "packages/fixture-php",
-      "name": "polyspec/kit-fixture"
+      "name": "polyspec/kit-fixture",
+      "product": "kit-fixture",
+      "runtime": "php"
     },
     {
       "kind": "wheel",
       "directory": "packages/fixture-python",
-      "name": "kit-fixture"
+      "name": "kit-fixture",
+      "product": "kit-fixture",
+      "runtime": "python"
     }
   ],
   "manifests": {

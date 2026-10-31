@@ -36,9 +36,10 @@ export function releaseById(options: RunPlace, url: string, id: number): GitHubR
 /**
  * Creates the draft release of `tag` in the repository with the body of `notesFile` and uploads `files` to it; returns its
  * id. The tag must be on the remote, as gh release create --verify-tag requires, since GitHub would otherwise create it from
- * the default branch. Each file is uploaded to the upload URL of the new release, which names the release by its id.
+ * the default branch. Each file is uploaded to the upload URL of the new release, which names the release by its id, with its
+ * label when it has one (K980).
  */
-export function createDraft(options: RunPlace, url: string, tag: string, notesFile: string, files: string[]): number {
+export function createDraft(options: RunPlace, url: string, tag: string, notesFile: string, files: { file: string; label: string | undefined }[]): number {
   const { hostname, repo } = repositoryParts(url);
   try {
     run('gh', ['api', '--hostname', hostname, `repos/${repo}/git/ref/tags/${tag}`, '--jq', '.ref'], options);
@@ -49,8 +50,9 @@ export function createDraft(options: RunPlace, url: string, tag: string, notesFi
   const created = parseJson<{ id: number; upload_url: string }>(run('gh', ['api', '--hostname', hostname, '--method', 'POST', `repos/${repo}/releases`, '-f', `tag_name=${tag}`, '-f', `name=${tag}`, '-F', `body=@${notesFile}`, '-F', 'draft=true', '--jq', '{id, upload_url}'], options), 'github-release-created.schema.json', `gh api repos/${repo}/releases`);
   // The upload URL is an RFC 6570 URI pattern whose query names the asset: https://uploads.github.com/repos/O/R/releases/<id>/assets{?name,label}.
   const upload = created.upload_url.replace(/\{[^}]*\}$/, '');
-  for (const file of files) {
-    run('gh', ['api', '--method', 'POST', `${upload}?name=${encodeURIComponent(path.basename(file))}`, '-H', 'Content-Type: application/octet-stream', '--input', file, '--jq', '.id'], options);
+  for (const { file, label } of files) {
+    const query = `name=${encodeURIComponent(path.basename(file))}${label === undefined ? '' : `&label=${encodeURIComponent(label)}`}`;
+    run('gh', ['api', '--method', 'POST', `${upload}?${query}`, '-H', 'Content-Type: application/octet-stream', '--input', file, '--jq', '.id'], options);
   }
   return created.id;
 }

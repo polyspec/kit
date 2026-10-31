@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 24123ed756e20c2752eeafeab04ad34da949a0ee24b3de4f269917deca4fcf5d -->
+<!-- source-sha256: e909afde0dc397558a1a24f0113d590c55025741b8b03129515836f757c0faa9 -->
 
 # 도구 목록
 
@@ -640,12 +640,15 @@ go.mod의 module path에 연결합니다.
 
 ### Archive 이름 (K5.2)
 
-- 이름: `<package>-<language>-<version>.<ext>`; `@scope/name`은 `scope-name`, `vendor/name`은 `vendor-name`으로 쓰고, language는 npm package는 `npm`,
-  Composer package는 `php`입니다. `@polyspec/x`는 `polyspec-x-npm-0.0.5.tgz`, `polyspec/x`는 `polyspec-x-php-0.0.5.zip`,
-  `polyspec/x-extension`은 `polyspec-x-extension-php-0.0.5.zip`입니다. 다섯 도구는 archive를 `<package>-<version>.<ext>`로 불렀습니다(ordered-json은 이미
-  language를 가졌음). npm package와 Composer package가 이름을 공유할 수 있으므로 language를 유지합니다.
-- `npm pack`은 출력 이름을 스스로 정합니다. 대상 directory에 새로 생긴 file 하나의 이름을 archive 이름으로 바꿉니다(ordered-json, template). 새 file이 없거나
-  여럿이면 그 이름과 함께 실패합니다. crudui와 orm은 pack report나 package 이름에서 이름을 얻었습니다. 새 file 하나 규칙이 둘을 모두 덮고 npm 출력 형식을 요구하지 않습니다.
+- 이름: packer가 붙인 파일 이름입니다(P39, K980). npm pack의 `scope-name-<version>.tgz`, kit이 만드는 Composer zip의
+  `vendor-name-<version>.zip`, wheel의 PEP 427 이름입니다. 각 package asset은 GitHub label `<vendor>-<product>-<runtime>-<version>`을
+  답니다. vendor는 repositoryUrl의 owner이고, product와 runtime(ts, go, rust, php, php-ext, python)은 config/release.json에 package마다
+  선언하며 이름에서 읽지 않으므로, package manager의 이름이 runtime을 대신하지 않습니다. github.com/polyspec/orm에서 product orm,
+  runtime php-ext인 `polyspec/orm-php-ext`는 label `polyspec-orm-php-ext-0.0.19`를 단 `polyspec-orm-php-ext-0.0.19.zip`이고,
+  runtime ts인 `@polyspec/orm`은 label `polyspec-orm-ts-0.0.19`를 단 `polyspec-orm-0.0.19.tgz`입니다. packages.json은 label을 달지 않습니다.
+  archive 이름이 같거나 product와 runtime이 같은 두 package는 거부합니다.
+- `npm pack`은 출력 이름을 스스로 정하고, 그 이름이 archive 이름입니다. 대상 directory에 새로 생긴 file 하나가 그 이름이어야 하며, 없거나 여럿이거나
+  다른 file이면 그 이름과 함께 실패합니다(K980).
 - Zip: tag한 commit의 package directory를 `git archive --format=zip -0`으로 만들고 `--mtime`을 commit 시각으로, `TZ=UTC`로 둡니다(ordered-json은 고정 상수 시각,
   template은 commit 시각, crudui, hyper, orm은 둘 다 쓰지 않았음). tree에 대한 `git archive`는 `--mtime` 없이는 현재 시각을 쓰고 zip은 local time을 저장합니다.
   같은 tag의 두 번째 실행은 언제 어느 time zone에서든 같은 바이트를 씁니다.

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K980: a release asset keeps the file name its packer gives (npm pack's `scope-name-<version>.tgz`, `vendor-name-<version>.zip` for a Composer zip, PEP 427 for a wheel) and carries the GitHub label `<vendor>-<product>-<runtime>-<version>` (P39), the vendor the owner of repositoryUrl and the product and runtime that each package of config/release.json now declares, so `polyspec/orm-php-ext` is `polyspec-orm-php-ext-0.0.19.zip` instead of `polyspec-orm-php-ext-php-0.0.19.zip`, labelled `polyspec-orm-php-ext-0.0.19`, and kit is `polyspec-kit-<version>.tgz` instead of `polyspec-kit-npm-<version>.tgz`; kit no longer renames the output of npm pack, packages.json carries no label, and two packages with the same archive name or the same product and runtime are refused (K980).
 - K976: link-check judges a manifest path by its text: a path inside the repository, such as file:var/platforms/app, a git-ignored folder that the repository fills with a link to a sibling checkout or a copy, is its own folder and passes; only a path that leaves the repository by its text (../x, an absolute path) is a finding (K976).
 - K975: link-check --project judges only that project, its declared packages with no installed folder and the paths of its own manifests, as link scopes its check, instead of every project of the repository (K975).
 

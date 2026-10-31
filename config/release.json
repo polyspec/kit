@@ -9,7 +9,9 @@
     {
       "kind": "npm",
       "directory": ".",
-      "name": "@polyspec/kit"
+      "name": "@polyspec/kit",
+      "product": "kit",
+      "runtime": "ts"
     }
   ],
   "manifests": {

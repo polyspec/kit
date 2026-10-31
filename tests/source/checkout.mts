@@ -77,7 +77,7 @@ export const runtimePackage = (item: LockEntry): boolean => !item.dev && !item.d
  */
 export function kitConsumer(packed: { version: string; integrity: string }, manifest: Record<string, unknown> = {}) {
   const kit = readFixture<NpmManifest>(ROOT, 'package.json');
-  const asset = `https://github.com/polyspec/kit/releases/download/v${packed.version}/polyspec-kit-npm-${packed.version}.tgz`;
+  const asset = `https://github.com/polyspec/kit/releases/download/v${packed.version}/polyspec-kit-${packed.version}.tgz`;
   const devDependencies = { '@polyspec/kit': asset };
   const lock = {
     name: 'consumer', lockfileVersion: 3, requires: true,

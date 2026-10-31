@@ -21,7 +21,7 @@ export function addSibling(root: string) {
   mkdirSync(path.join(root, 'packages/fixture-validator'), { recursive: true });
   writeFileSync(path.join(root, 'packages/fixture-validator/pyproject.toml'), `[build-system]\nrequires = ["setuptools==84.0.0"]\nbuild-backend = "setuptools.build_meta"\n\n[project]\nname = "${SIBLING}"\nversion = "0.0.1"\n`);
   const config = readJson<ReleaseConfig>(root, 'config/release.json');
-  config.packages.push({ kind: 'wheel', directory: 'packages/fixture-validator', name: SIBLING });
+  config.packages.push({ kind: 'wheel', directory: 'packages/fixture-validator', name: SIBLING, product: 'kit-fixture-validator', runtime: 'python' });
   config.manifests['packages/fixture-validator/pyproject.toml'] = 'archive';
   writeJson(root, 'config/release.json', config);
 }
