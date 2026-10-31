@@ -636,9 +636,10 @@ A release starts by itself (K987): release.yml runs on the workflow_run of each 
 puts its `## X.Y.Z` at the top of the change log with `## Unreleased` empty, which is the tip of its push, so CI runs on it. A
 commit whose top version is tagged on its line, before or after it, ends green with nothing to release, and so does a second
 run of the version commit after its release is public; a re-run of a release that failed after its tag runs it again; a commit whose version commit's CI run still runs waits for it,
-green. A top version that no run released, because the run of its version commit was replaced or cancelled or the version
-commit was not the tip of its push, fails and names the version commit, which a dispatch of release.yml with a green CI run then
-releases; so does a top version tagged off the line of the commit. The concurrency group of the release job runs one release of
+green. A top version that no run released, because the CI of its version commit failed or was replaced or cancelled or the
+version commit was not the tip of its push, is released by the next green commit whose `## Unreleased` is empty, so a failed CI
+costs no version number (K988); a later commit with entries under `## Unreleased` fails and names the version commit, and so does
+a top version tagged off the line of the commit. The concurrency group of the release job runs one release of
 the repository at a time, and `make kit-check` requires the `.github/workflows/ci.yml` of a repository to be named `ci`, the
 workflow that release.yml waits for. The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
 

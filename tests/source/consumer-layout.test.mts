@@ -88,9 +88,9 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   // The make steps of the workflow; a step that checks the runner, as for zip, runs no target.
   const steps = [...workflow.matchAll(/^\s+run: (make .+)$/gm)].map(match => match[1] ?? '');
   const bootstrap = steps.slice(0, steps.indexOf('make release-tools'));
-  assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', 'make release-tag', 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare'], 'the release workflow bootstraps the package, tags the commit of the CI run, installs it again and prepares the release before release-tools (K755, K911)');
+  assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare'], 'the release workflow bootstraps the package, tags the commit of the CI run, installs it again and prepares the release before release-tools (K755, K911)');
   // release-tag reads a CI run with gh (K911); release-tag.test.mts runs it.
-  for (const command of bootstrap.filter(command => command !== 'make release-tag')) {
+  for (const command of bootstrap.filter(command => !command.startsWith('make release-tag'))) {
     const step = spawnSync('sh', ['-c', command], { cwd: consumer, env, encoding: 'utf8' });
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);
   }

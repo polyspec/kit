@@ -51,10 +51,10 @@ export function prepare(ctx: Context, version: string): { sha: string; assets: s
  * tag of every Go module that config/release.json of that commit declares there. Returns the version and what it did per tag.
  *
  * With `auto`, the run started the release by itself, as the workflow_run of a green push run of CI does (K987), so the commit
- * releases only when it is the version commit of the top ## X.Y.Z of its change log: a commit whose top version is tagged at
- * another commit has nothing to release, and a top version that is not tagged and not released by this commit, as when the run of
- * its version commit was replaced or the version commit was not the tip of its push, fails and names that commit, since a version
- * that never releases is no state to pass over.
+ * releases when it is the version commit of the top ## X.Y.Z of its change log: a commit whose top version is tagged on its line
+ * has nothing to release; a top version that no run of its version commit released, as when that CI failed or was replaced or the
+ * version commit was not the tip of its push, is released by a later green commit whose ## Unreleased is empty (K988), and one
+ * with unreleased entries fails and names the version commit, since a version that never releases is no state to pass over.
  */
 export function tagRun(ctx: Context, runId: number, auto = false): { version: string; lines: string[]; release: boolean } {
   if (!Number.isSafeInteger(runId) || runId < 1) throw new Stop(`CI run id ${runId} is not a positive integer`);
@@ -144,7 +144,11 @@ function autoDecision(ctx: Context, commit: string, file: string, runId: number,
   const statuses: unknown = JSON.parse(runs);
   if (!Array.isArray(statuses)) throw new Stop(`GitHub returned no list of the CI runs of ${origin}: ${runs.trim()}`);
   if (statuses.some(status => status !== 'completed')) return nothing(`v${version} waits for the CI run of its version commit ${origin}, whose success releases it`);
-  throw new Stop(`v${version} is not released: the green CI run ${runId} is of ${commit}, not of the version commit ${origin}, and no CI run of ${origin} released it; dispatch release.yml with a green CI run of ${origin}, or of a later commit of main whose ## Unreleased is empty`);
+  // No run of the version commit released it, as when its CI failed, was cancelled or never ran: this later green commit, whose
+  // ## Unreleased is empty, carries the version and nothing else, so it releases it (K988); one with unreleased entries would
+  // release changes that its version does not name.
+  if (!hasUnreleasedEntries(text)) return undefined;
+  throw new Stop(`v${version} is not released: no CI run of its version commit ${origin} released it, and ${file} at ${commit} has entries under ## Unreleased; move them into the section of v${version}, or release v${version} first`);
 }
 
 const USAGE = 'usage: node scripts/kit/release-run.mts prepare VERSION | tag CI_RUN_ID [--auto]';
