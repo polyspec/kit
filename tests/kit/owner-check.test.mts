@@ -350,6 +350,24 @@ test('running the owners refuses outside CI and runs no check; --dry-run prints 
 // fixture logs each parse, so a child make is visible, and it stops a child at parse time, so a regression is bounded at one child.
 // K945: the database is the top-level read of the Makefile, so a make that runs the read has its MAKELEVEL and flags removed in
 // the read, and a Makefile that branches on MAKELEVEL is read as it is read at the top.
+// K945-2: the read keeps the command-line variables of its caller, which make exports in MAKEOVERRIDES and MAKEFLAGS (kit-bootstrap.mk
+// passes KIT to every recursive make, K762), and drops only MAKELEVEL.
+test('makeDatabase keeps the command-line variables of its caller, so a target that they select is read (K945-2)', { timeout: 20_000 }, (t) => {
+  const root = tree(t, { 'Makefile': 'ifdef KIT_PROBE\nprobe-target:\n\t@echo probe\nendif\n' });
+  const invoking = { MAKEOVERRIDES: process.env.MAKEOVERRIDES, MAKEFLAGS: process.env.MAKEFLAGS };
+  // The make that calls the read exports its command-line variable KIT_PROBE=1 as make does.
+  process.env.MAKEOVERRIDES = 'KIT_PROBE=1';
+  process.env.MAKEFLAGS = ' -- KIT_PROBE=1';
+  try {
+    assert.equal(makeDatabase(root).targets.has('probe-target'), true, 'the command-line variable of the caller selects the target');
+  } finally {
+    for (const [name, value] of Object.entries(invoking)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
 test('makeDatabase reads a Makefile that branches on MAKELEVEL as the top-level make reads it, when it is read inside make (K945)', { timeout: 20_000 }, (t) => {
   const root = tree(t, { 'Makefile': [
     'ifeq ($(MAKELEVEL),0)',
