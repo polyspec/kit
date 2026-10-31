@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 7586d87801d29e386c56127ce89b09a9426b1f881085c05baa6a3a04a032fffd -->
+<!-- source-sha256: 65fe136c4be0fa7822ec3fd7a5a45b6aa6f7e52409cdee2615b0ae03696ab4d7 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -113,4 +113,4 @@
 | K968 | implementation의 errors 파일은 symbols entry처럼 checkout에 있으면 되므로, Git이 무시하는 생성된 errors 파일도 통과한다. | `scripts/kit/parity-declaration.mts`, `tests/kit/parity-api.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K968 tests/kit/parity-api.test.mts` fails on the current tree. Green: the same command passes. | [o] |
 | K970 | CI test shard가 K936이 추가한 tests/kit/parity-ledger.test.mts를 실행하므로, 추적되는 kit test 파일이 다시 모두 정확히 한 shard에 있다. | `Makefile`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K718 tests/source/ci-workflow.test.mts` fails on the current tree. Green: the same command passes. | [o] |
 | K971 | link은 pyproject의 각 요구사항 이름을 PEP 508의 이름 pattern으로 읽으므로, marker가 있는 direct reference가 더 이상 make link을 실패시키지 않는다. PEP 508 grammar library는 지운다. | `scripts/kit/pyproject-dependencies.mts`, `package.json`, `package-lock.json`, `config/rebuild.json`, `tests/kit/link.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K971 tests/kit/link.test.mts` fails on the current tree. Green: the same command passes. | [o] |
-| K973 | 실행할 수 없는 go의 parity ledger test는 자기 빈 PATH 폴더로 실행하므로, /usr/bin에 go가 있는 기계에서도 성립한다. | `tests/kit/parity-ledger.test.mts`, `CHANGELOG.md(.ko)` | Red: `PATH=<a folder with a go stub>:/usr/bin:/bin` makes the current test fail. Green: `node --test --test-name-pattern="go cannot start" tests/kit/parity-ledger.test.mts` passes. | [ ] |
+| K973 | 실행할 수 없는 go의 parity ledger test는 자기 빈 PATH 폴더로 실행하므로, /usr/bin에 go가 있는 기계에서도 성립한다. | `tests/kit/parity-ledger.test.mts`, `CHANGELOG.md(.ko)` | Red: `PATH=<a folder with a go stub>:/usr/bin:/bin` makes the current test fail. Green: `node --test --test-name-pattern="go cannot start" tests/kit/parity-ledger.test.mts` passes. | [~] |
