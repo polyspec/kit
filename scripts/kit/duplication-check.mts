@@ -58,8 +58,9 @@ function jscpd(): string {
 /** Runs jscpd over `root` and returns its status and output, which `print` receives; throws when jscpd cannot start. */
 export function duplicationCheck(root: string, print: (text: string) => void = text => process.stdout.write(text)): { status: number; output: string } {
   const excluded = existsSync(path.join(root, CONFIG)) ? readConfig<DuplicationConfig>(root, CONFIG, 'duplication.schema.json').exclude : [];
-  // A generated file repeats what its generator writes for each input; config/generated.json already declares it (K640).
-  const generated = existsSync(path.join(root, GENERATED)) ? (({ paths, exceptions }) => [...paths, ...exceptions])(loadGeneratedConfig(root)) : [];
+  // A generated file repeats what its generator writes for each input; config/generated.json already declares it (K640), and a tracked
+  // generated source is one too, since its single source is the generator (K956).
+  const generated = existsSync(path.join(root, GENERATED)) ? (({ paths, exceptions, tracked = [] }) => [...paths, ...exceptions, ...tracked.map(item => item.path)])(loadGeneratedConfig(root)) : [];
   // --ignore splits its value at each comma, so a brace glob {a,b} would exclude nothing (K310): the globs go whole in a configuration file.
   const folder = mkdtempSync(path.join(tmpdir(), 'kit-jscpd-'));
   const config = path.join(folder, 'jscpd.json');

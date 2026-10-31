@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0aaf0a5f6bf780d7810b62670ccb0a1f63cabbb54a1c3e0646bf0581b8f02049 -->
+<!-- source-sha256: 9a114aff94b1d9832e8ce5624654accfe875eefe0bdd91d95ab277be6d36de09 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K956: 중복 검사는 config/generated.json의 tracked 생성 소스도 paths와 exceptions와 같이 뺍니다. 생성 데이터 표는 본래 반복되며 단일 원본은 생성기이기 때문입니다. red: 수정 전 commit에서 `node --test --test-name-pattern=K956 tests/kit/duplication-check.test.mts`가 "a tracked generated file repeats its generator output"으로 실패합니다. green: 수정 뒤 통과합니다 (K956).
 ## 0.0.81
 
 - K945-2: K945-1이 database read에서 지운 것은 MAKELEVEL만이어야 합니다. MAKEOVERRIDES와 MAKEFLAGS도 지워서 호출자의 명령줄 변수(kit-bootstrap.mk가 모든 재귀 make에 넘기는 KIT와 KIT_EXT, K762)가 사라졌고, main CI의 ci-setup test가 깨졌습니다. 이제 read는 명령줄 변수를 유지하고 MAKELEVEL만 지웁니다. red: 명령줄 변수 KIT_PROBE=1을 export하는 case는 origin/main 87a4dc4d에서 "the command-line variable of the caller selects the target"로 실패합니다. green: 수정 뒤 통과합니다 (K945-2).
