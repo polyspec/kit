@@ -740,12 +740,11 @@ function kitSandbox(t: TestContext): string {
 
 test('make kit-build restores dist when the rename of dist.next fails, and exits 1', (t) => {
   const dir = kitSandbox(t);
-  // K962: the recipe runs $(NODE) to write kit-items.json (K957); a stub node writes the file it is given, as the sandboxes of the release targets also pass a stub node.
-  put(dir, { 'node_modules/.bin/tsc': '#!/bin/sh\nmkdir -p dist.next\n', 'dist/old.js': 'old\n', 'bin/mv': '#!/bin/sh\nif [ "$1" = dist.next ] && [ "$2" = dist ]; then echo "mv: injected failure" >&2; exit 1; fi\nexec /bin/mv "$@"\n', 'bin/node': '#!/bin/sh\necho "{}" > "$2"\n' });
+  // The recipe runs kit-items with $(NODE) (K957), here the node of the test (K964); the sandbox holds a kit-items that writes an empty list.
+  put(dir, { 'node_modules/.bin/tsc': '#!/bin/sh\nmkdir -p dist.next\n', 'dist/old.js': 'old\n', 'bin/mv': '#!/bin/sh\nif [ "$1" = dist.next ] && [ "$2" = dist ]; then echo "mv: injected failure" >&2; exit 1; fi\nexec /bin/mv "$@"\n', 'scripts/kit/kit-items.mts': "import { writeFileSync } from 'node:fs';\nwriteFileSync(process.argv[2] ?? '', '[]\\n');\n" });
   chmodSync(path.join(dir, 'node_modules/.bin/tsc'), 0o755);
   chmodSync(path.join(dir, 'bin/mv'), 0o755);
-  chmodSync(path.join(dir, 'bin/node'), 0o755);
-  const result = spawnSync('make', ['-C', dir, `NODE=${path.join(dir, 'bin/node')}`, 'kit-build'], { encoding: 'utf8', env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}` } });
+  const result = spawnSync('make', ['-C', dir, `NODE=${process.execPath}`, 'kit-build'], { encoding: 'utf8', env: { ...process.env, PATH: `${path.join(dir, 'bin')}:${process.env.PATH}` } });
   assert.notEqual(result.status, 0, result.stderr);
   assert.match(result.stderr, /mv: injected failure/, 'the recipe stopped at the failed rename');
   assert.equal(readFileSync(path.join(dir, 'dist/old.js'), 'utf8'), 'old\n', 'the previous dist is back');

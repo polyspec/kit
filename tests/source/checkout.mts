@@ -137,7 +137,8 @@ export function builtCopy(t: { after: (fn: () => void) => void }) {
   // The copy installs the packages of package-lock.json as a checkout does: npm ci of the npm of mise.toml, offline,
   // from the primed cache.
   run(NPM, ['ci', '--offline', '--cache', primedCache(), '--ignore-scripts', '--no-audit', '--no-fund'], copy);
-  run('make', ['--no-print-directory', 'kit-build'], copy);
+  // The copy installs no tools, so the build runs on the node of the test, as npm pack runs it on the node of npm (K964).
+  run('make', ['--no-print-directory', 'kit-build', `NODE=${process.execPath}`], copy);
   commitSandbox(copy);
   return copy;
 }

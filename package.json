@@ -63,7 +63,7 @@
   },
   "scripts": {
     "build": "make kit-build",
-    "prepack": "make kit-build && node scripts/kit/pack-manifest.mts",
+    "prepack": "make kit-build NODE=\"$npm_node_execpath\" && node scripts/kit/pack-manifest.mts",
     "postpack": "git checkout -- package.json scripts/kit/kit-bootstrap.mk claude/settings.json"
   },
   "devEngines": {
