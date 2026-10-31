@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: fdb84558d596ab228576e0ae68169eddc59cd2c19e6442b98d2ee5d98d1d9839 -->
+<!-- source-sha256: b62f54a5e4fb01c5151fd069cb9d946197df1efeb8f0edcdddae40b04587c222 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -112,4 +112,4 @@
 | K967 | make link은 한 프로세스에서 link하고 hook을 쓰므로, hook이 link가 방금 바꾼 kit에서 시작하지 않는다. | `scripts/kit/link.mts`, `scripts/kit/kit.mk`, `docs/operations/local-links.md(.ko)`, `tests/kit/link.test.mts`, `tests/kit/kit-mk.test.mts`, `tests/kit/project-hook.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K967 tests/kit/kit-mk.test.mts` fails on the current tree. Green: the same command passes, and `node --test --test-name-pattern=K967 tests/kit/project-hook.test.mts` passes. | [o] |
 | K968 | implementation의 errors 파일은 symbols entry처럼 checkout에 있으면 되므로, Git이 무시하는 생성된 errors 파일도 통과한다. | `scripts/kit/parity-declaration.mts`, `tests/kit/parity-api.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K968 tests/kit/parity-api.test.mts` fails on the current tree. Green: the same command passes. | [o] |
 | K970 | CI test shard가 K936이 추가한 tests/kit/parity-ledger.test.mts를 실행하므로, 추적되는 kit test 파일이 다시 모두 정확히 한 shard에 있다. | `Makefile`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K718 tests/source/ci-workflow.test.mts` fails on the current tree. Green: the same command passes. | [o] |
-| K971 | link은 pyproject의 각 요구사항 이름을 PEP 508의 이름 pattern으로 읽으므로, marker가 있는 direct reference가 더 이상 make link을 실패시키지 않는다. PEP 508 grammar library는 지운다. | `scripts/kit/pyproject-dependencies.mts`, `package.json`, `package-lock.json`, `tests/kit/link.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K971 tests/kit/link.test.mts` fails on the current tree. Green: the same command passes. | [ ] |
+| K971 | link은 pyproject의 각 요구사항 이름을 PEP 508의 이름 pattern으로 읽으므로, marker가 있는 direct reference가 더 이상 make link을 실패시키지 않는다. PEP 508 grammar library는 지운다. | `scripts/kit/pyproject-dependencies.mts`, `package.json`, `package-lock.json`, `tests/kit/link.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K971 tests/kit/link.test.mts` fails on the current tree. Green: the same command passes. | [~] |
