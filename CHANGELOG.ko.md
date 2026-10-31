@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: aae6e297dc2136104166acd85812f444a08287a6723943a337770a0608756879 -->
+<!-- source-sha256: b8c7ecf5d199d98899cc0d9ab7b10b28cc269ed85b7d38815d3777ef6e94fee0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K975: link-check --project는 저장소의 모든 project 대신, link가 검사 범위를 정하는 대로 그 project만, 즉 설치 폴더가 없는 선언 패키지와 자기 manifest의 경로만 판단합니다 (K975).
 
 ## 0.0.84
 

@@ -96,8 +96,11 @@ test('a provided package folder that is a copy is a finding, and its link to the
   assert.deepEqual(checked().filter(line => /NOT linked|a link that/.test(line)), [], 'the link to the provider passes');
 });
 
-// K888: link leaves out a Python project without its environment, so the declared provider that no installed folder links is a finding.
-test('a declared provider that no installed folder links is a finding in npm and Python, and its link passes (K888)', (t) => {
+/**
+ * A consumer `cons` whose packages/python declares the Python package polyspec-p of `prepo` and whose packages/db declares the npm
+ * package @polyspec/n of `nrepo`, both in its link declaration and neither installed; uv is a stub that answers uv workspace dir.
+ */
+function unlinkedConsumer(t: TestContext, python = '') {
   const workspace = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-python-')));
   t.after(() => rmSync(workspace, { recursive: true, force: true }));
   const repository = (name: string, files: Record<string, string>) => {
@@ -112,7 +115,7 @@ test('a declared provider that no installed folder links is a finding in npm and
   const provider = repository('prepo', { 'packages/python/pyproject.toml': '[project]\nname = "polyspec-p"\nversion = "0.0.1"\n', 'packages/python/src/polyspec_p/__init__.py': '' });
   repository('nrepo', { 'packages/js/package.json': JSON.stringify({ name: '@polyspec/n', version: '0.0.1' }) });
   const consumer = repository('cons', {
-    'packages/python/pyproject.toml': '[project]\nname = "cons"\nversion = "0.0.0"\ndependencies = ["polyspec-p"]\n',
+    'packages/python/pyproject.toml': `[project]\nname = "cons"\nversion = "0.0.0"\ndependencies = ["polyspec-p"]\n${python}`,
     'packages/db/package.json': JSON.stringify({ name: 'cons-db', dependencies: { '@polyspec/n': '0.0.1' } }),
     '.gitignore': '.venv/\nnode_modules/\n.links\n',
   });
@@ -120,7 +123,12 @@ test('a declared provider that no installed folder links is a finding in npm and
   // The fixture uv answers uv workspace dir with the project, as uv does for a project of no workspace.
   put(workspace, { 'uv': '#!/bin/sh\nif [ "$1 $2" = "workspace dir" ]; then pwd; fi\n' });
   chmodSync(path.join(workspace, 'uv'), 0o755);
-  const env = { ...process.env, UV: path.join(workspace, 'uv') };
+  return { provider, consumer, env: { ...process.env, UV: path.join(workspace, 'uv') } };
+}
+
+// K888: link leaves out a Python project without its environment, so the declared provider that no installed folder links is a finding.
+test('a declared provider that no installed folder links is a finding in npm and Python, and its link passes (K888)', (t) => {
+  const { provider, consumer, env } = unlinkedConsumer(t);
   assert.deepEqual(linkFindings(consumer, env).filter(line => / (polyspec-p|@polyspec\/n): /.test(line)), [
     'npm @polyspec/n: no installed folder of packages/db links it; Fix: make install',
     'python polyspec-p: no installed folder of packages/python links it; Fix: make install',
@@ -130,6 +138,17 @@ test('a declared provider that no installed folder links is a finding in npm and
   mkdirSync(site, { recursive: true });
   symlinkSync(path.join(provider, 'packages/python/src/polyspec_p'), path.join(site, 'polyspec_p'));
   assert.deepEqual(linkFindings(consumer, env).filter(python), [], 'the link to the provider passes');
+});
+
+// K975: link-check --project judges the project as link does, by its own manifests, not every project of the repository.
+test('link-check --project judges only the manifests of that project (K975)', (t) => {
+  const { consumer, env } = unlinkedConsumer(t, '[tool.uv.sources]\nother = { path = "../../../other" }\n');
+  const findings = (project: string) => linkFindings(consumer, env, path.join(consumer, project), true).filter(line => /polyspec-p|@polyspec\/n|other is linked/.test(line)).map(line => line.replace(/ outside.*$/, ''));
+  assert.deepEqual(findings('packages/db'), ['npm @polyspec/n: no installed folder of packages/db links it; Fix: make install']);
+  assert.deepEqual(findings('packages/python'), [
+    'packages/python/pyproject.toml: other is linked by the path ../../../other',
+    'python polyspec-p: no installed folder of packages/python links it; Fix: make install',
+  ]);
 });
 
 // K890: the environment of a uv workspace member is that of its workspace root, which uv installs and link links.

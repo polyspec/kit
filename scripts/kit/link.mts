@@ -373,12 +373,21 @@ function projectFolders(work: Run, consumer: Consumer, project: string, ecosyste
 }
 
 /**
- * K888: the provided packages that the tracked projects of `root` declare and that no installed folder holds, each as a finding of
- * link-check: link leaves out a project whose installer has not run yet, so a project that make install never installed is
- * reported here.
+ * The manifests of `ecosystems` that link judges in `directory`, with `project` those of that project alone (consumerOf): link-check
+ * judges the same ones (K975).
  */
-export function declaredUnlinked(root: string, found: Map<string, Provider>, env: NodeJS.ProcessEnv): string[] {
-  const consumer = consumerOf(root);
+export function consumerManifests(directory: string, project: boolean, ecosystems: readonly Ecosystem[]): string[] {
+  const consumer = consumerOf(directory, project);
+  return ecosystems.flatMap(ecosystem => consumer.manifests(ecosystem, true));
+}
+
+/**
+ * K888: the provided packages that the tracked projects of `directory` declare and that no installed folder holds, each as a finding
+ * of link-check: link leaves out a project whose installer has not run yet, so a project that make install never installed is
+ * reported here. With `project`, only that project is judged, as link judges it (K975).
+ */
+export function declaredUnlinked(directory: string, found: Map<string, Provider>, env: NodeJS.ProcessEnv, project = false): string[] {
+  const consumer = consumerOf(directory, project);
   const work: Run = { found, check: true, print: () => {}, failed: false, env, declared: new Set() };
   const ecosystems: FolderEcosystem[] = ['npm', 'composer', 'python'];
   return linkedProjects(consumer, ecosystems).flatMap((project) => {

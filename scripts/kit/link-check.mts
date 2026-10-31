@@ -13,8 +13,8 @@
 //   node link-check.mts [--project <dir>]
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
-import { declaredUnlinked, link } from './link.mts';
-import { declaredCheckouts, isIgnored, LINKS_FILE, mainCheckout, providers, trackedManifests, workTreeOf } from './link-providers.mts';
+import { consumerManifests, declaredUnlinked, link } from './link.mts';
+import { declaredCheckouts, isIgnored, LINKS_FILE, mainCheckout, providers, workTreeOf } from './link-providers.mts';
 import { isTable, readToml } from './toml.mts';
 import { isMain } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
@@ -24,14 +24,14 @@ const NPM_PATH = /^(?:file|link):/;
 /** A release archive installs a release, not the folder of a checkout. */
 const ARCHIVE = /\.(?:tgz|tar\.gz|zip|whl)$/;
 
-/** The path `target` of the tracked manifest `file` in `root`, when it exists. */
+/** The path `target` of the manifest `file` in `root`, when it exists. */
 function located(file: string, target: string, root: string): string | undefined {
   const full = path.resolve(root, path.dirname(file), target);
   return existsSync(full) ? full : undefined;
 }
 
 /**
- * Whether the path `target` of the tracked manifest `file` leaves the repository of `root`. A target that exists is judged by its
+ * Whether the path `target` of the manifest `file` leaves the repository of `root`. A target that exists is judged by its
  * real path, so an in-repo path through a link out of the repository leaves it too; the text judges the rest.
  */
 function outside(file: string, target: string, root: string): boolean {
@@ -44,7 +44,7 @@ function outside(file: string, target: string, root: string): boolean {
 }
 
 /**
- * K773, K902: the findings of one tracked manifest `file` with its text: each folder outside the repository of `root` that it links by a
+ * K773, K902: the findings of one manifest `file` with its text: each folder outside the repository of `root` that it links by a
  * path, a Composer path repository, an npm file:/link: dependency or a uv source path, whatever the package name, since a clean clone and
  * CI cannot reproduce it. A sibling is linked only by the folder link of make link (docs/operations/local-links.md); a path inside the
  * repository, an own member, and a release archive pass.
@@ -72,31 +72,36 @@ function manifestPathFindings(file: string, text: string, root: string): string[
   });
 }
 
-/** The findings of every tracked composer.json, package.json and pyproject.toml (K773). */
-function trackedManifestPathFindings(root: string): string[] {
-  return trackedManifests(root, ['composer.json', 'package.json', 'pyproject.toml']).flatMap(file => manifestPathFindings(file, readFileSync(path.join(root, file), 'utf8'), root));
+/** The findings of each composer.json, package.json and pyproject.toml that link judges in `directory`, with `project` its own (K773, K975). */
+function manifestsPathFindings(root: string, directory: string, project: boolean): string[] {
+  const top = realpathSync(root);
+  return consumerManifests(directory, project, ['composer', 'npm', 'python']).flatMap(file => manifestPathFindings(path.relative(top, file), readFileSync(file, 'utf8'), root));
 }
 
 /**
  * The findings of `root` beside link's check, sorted: K773's paths of the tracked manifests, the declared packages with no installed
- * folder (K888). link writes no Claude Code settings, so the check judges none (K960).
+ * folder (K888), of the manifests that link judges in `directory`, with `project` those of that project (K975). link writes no Claude
+ * Code settings, so the check judges none (K960).
  */
-export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env): string[] {
+export function linkFindings(root: string, env: NodeJS.ProcessEnv = process.env, directory = root, project = false): string[] {
   const checkouts = declaredCheckouts(root);
   const provided = providers(checkouts ?? [], undefined, root, root);
   // The declaration is a setting of the checkout, which Git ignores (K869).
   const file = path.join(mainCheckout(root), LINKS_FILE);
   const ignored = checkouts === undefined || isIgnored(file) ? [] : [`${file}: Git does not ignore the link declaration; fix: add the line /${LINKS_FILE} to the .gitignore of the repository`];
-  return [...ignored, ...trackedManifestPathFindings(root), ...declaredUnlinked(root, provided, env)].sort();
+  return [...ignored, ...manifestsPathFindings(root, directory, project), ...declaredUnlinked(directory, provided, env, project)].sort();
 }
 
-/** The link check of the checkout of `directory`, or with `project` of the consumer `directory`: link's check, then linkFindings. */
+/**
+ * The link check of the checkout of `directory`, or with `project` of the consumer `directory`: link's check, then linkFindings, of the
+ * whole checkout, or with `project` of that project alone (K975).
+ */
 export function linkCheck(directory: string, project: boolean, print: (text: string) => void, env: NodeJS.ProcessEnv = process.env): boolean {
   // With no declaration, make link links nothing and leaves the release state (K869), which the check compares: no own link (K935).
   const checkouts = declaredCheckouts(directory);
   let ok = link({ checkouts: checkouts ?? [], directories: [directory], check: true, print, env, project, own: checkouts !== undefined });
   const root = workTreeOf(directory);
-  for (const finding of linkFindings(root, env)) {
+  for (const finding of linkFindings(root, env, project ? directory : root, project)) {
     print(`[link-check] ${finding}`);
     ok = false;
   }

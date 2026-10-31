@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K975: link-check --project judges only that project, its declared packages with no installed folder and the paths of its own manifests, as link scopes its check, instead of every project of the repository (K975).
+
 ## 0.0.84
 
 - Kit 0.0.84 carries the options of the command that env runs kept by the Claude hook (K974) and the python symbols read from the disk, so a generated module that Git ignores is public (K977) (K978).
