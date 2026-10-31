@@ -102,7 +102,7 @@ jobs:
         run: make release-prepare
       - name: make release-tools
         run: make release-tools
-      # The tools of var/tools/bin — the Go of the kit pin (toolchain-pins.json) that the release builds with, and whatever else the packages
+      # The tools of var/tools/bin — the Go of mise.toml that the release builds with, and whatever else the packages
       # need — join PATH for the steps that follow; a step's PATH is its own, so the export goes to the file the
       # runner reads between steps.
       - name: put the installed tools on PATH

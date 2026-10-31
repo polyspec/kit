@@ -70,7 +70,7 @@
       }
     },
     "exceptions": {
-      "description": "The declared exceptions to the pins of kit (S4): each names the pinned tool, the channel that its scope uses instead of the pin, the scope (\".\" or a directory of the checkout), the reason and the condition under which the pin is tried again.",
+      "description": "The declared exceptions of the Rust toolchain (S4, K953): the one Rust nightly that parity reads for rustdoc JSON, with the scope (\".\" or a directory of the checkout) that it covers, the reason and the condition under which the stable release is tried again. kit declares no other exception, since it judges no other toolchain version.",
       "type": "array",
       "items": {
         "type": "object",
@@ -85,18 +85,11 @@
         "properties": {
           "tool": {
             "type": "string",
-            "enum": [
-              "node",
-              "python",
-              "php",
-              "go",
-              "rust",
-              "typescript"
-            ]
+            "const": "rust"
           },
           "channel": {
             "type": "string",
-            "pattern": "^(\\d+\\.\\d+(\\.\\d+)?|nightly-\\d{4}-\\d{2}-\\d{2})$"
+            "pattern": "^nightly-\\d{4}-\\d{2}-\\d{2}$"
           },
           "scope": {
             "type": "string",

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: dda8aa382a16feafdff29f394bd62f697b3548767e3eeea145da15ce8535e5ce -->
+<!-- source-sha256: 64cb5e8713769ff6d904c919ad7d5fad7b0ad4dcc961306220361995deadee07 -->
 
 # 도구 목록
 
@@ -90,12 +90,12 @@ PIE는 저장소가 자기 recipe에서 실행하는 도구입니다. 저장소�
 
 | 도구 | 선언 위치 | 설치 또는 검증 |
 |---|---|---|
-| Node.js | `mise.toml`의 `node`(정확한 version), kit pin; `mise.lock`이 nodejs.org의 platform별 archive sha256을 가집니다. bootstrap이 npm보다 먼저 mise로 설치하고 `var/tools/bin/node`를 쓰며, npm의 wrapper와 kit.mk의 모든 recipe(`$(NODE)`)가 이를 실행합니다(K171) | bootstrap에서 mise로 설치 |
+| Node.js | `mise.toml`의 `node`(정확한 version); `mise.lock`이 nodejs.org의 platform별 archive sha256을 가집니다. bootstrap이 npm보다 먼저 mise로 설치하고 `var/tools/bin/node`를 쓰며, npm의 wrapper와 kit.mk의 모든 recipe(`$(NODE)`)가 이를 실행합니다(K171) | bootstrap에서 mise로 설치 |
 | npm | `mise.toml`의 `npm:npm`(정확한 version), `mise.lock`에 lock됨; `var/tools/bin/npm`이 mise.toml의 node로 실행(K938) | mise로 bootstrap에서 설치 |
-| Go | `mise.toml`의 `go`, `scripts/kit/toolchain-pins.json`의 kit pin과 같음; `mise.lock`이 platform별 archive의 sha256을 가짐; 모든 `go.mod`의 `go` 줄은 pin과 같아야 하며 `go mod edit -json`으로 읽음(K78) | mise로 설치 |
+| Go | `mise.toml`의 `go`(정확한 version); `mise.lock`이 platform별 archive의 sha256을 가짐; kit은 `go.mod`의 `go` 줄을 어떤 release와도 비교하지 않음(K953) | mise로 설치 |
 | Rust | 선언된 그대로의 `rust-toolchain.toml`의 `channel`, rustup이 판정함(K840), smol-toml(`readToml`)로 읽음(K78, K73) | 검증 |
 | PHP | `config/toolchain.json`의 `php`(minor release 목록), 없으면 `.php-version`; install-tools는 둘 중 하나가 PHP를 선언하면 PATH의 php를 wrapper로 제공 | wrapper(K283, K862) |
-| Python | `mise.toml`의 `python`(정확한 version), 그 minor는 kit pin; `mise.lock`이 platform별 python-build-standalone build를 URL과 sha256으로 고정 | mise로 설치 |
+| Python | `mise.toml`의 `python`(정확한 version); `mise.lock`이 platform별 python-build-standalone build를 URL과 sha256으로 고정 | mise로 설치 |
 | mise | `config/toolchain.json`의 `mise`: 정확한 `version`과 platform별 archive `mise-v<version>-<os>-<arch>.tar.gz`의 `sha256` | bootstrap에서 설치 |
 | uv, ruff, golangci-lint | `mise.toml`의 `uv`, `ruff`, `golangci-lint`(aqua backend; `mise.lock`이 archive별 sha256을 가짐) | mise로 설치 |
 | alint | `mise.toml`의 `"github:asamarts/alint"`(`mise.lock`이 archive별 sha256을 가짐); `make layout-check`가 실행함(K76) | mise로 설치 |
@@ -118,29 +118,16 @@ PIE는 저장소가 자기 recipe에서 실행하는 도구입니다. 저장소�
 선언합니다. `mise.lock`은 mise의 기록이며 kit은 그것을 판정하지 않습니다(K835). Rust는 `rustup`이 읽는
 자기 파일에 두고, CI의 `setup-node`는 bootstrap을 시작하기 위해서만 `mise.toml`의 node를 읽습니다. 선언하지 않은 도구는 설치도 검증도 하지 않습니다.
 
-### Pin, 하한, 예외(K78)
+### 예외(K78, K953)
 
-kit은 toolchain마다 pin 하나를 `scripts/kit/toolchain-pins.json`에 담아 배포하며(S4), build가 이를 `dist`의
-`toolchain-pins.mts` 옆에 복사합니다. Node.js 26.12.0, Python 3.14, PHP 8.4, Go 1.27.3, Rust 1.99.0, TypeScript 7.0.2입니다.
-pin은 version만 담고,
-digest는 `mise.lock`의 것입니다. pin마다 출처는 하나입니다. kit이 pin을 배포하고, kit을 포함한 모든 checkout의 `mise.toml`은
-Go와 Python을 그 pin으로 선언해야 합니다:
+kit은 toolchain의 version pin을 두지 않고 어떤 version과도 비교하지 않습니다(S4). 각 도구의 version은 저장소가 `mise.toml`,
+`rust-toolchain.toml`, `package.json`, `go.mod` 또는 lock에 선언한 것이며, 판단은 package manager가 합니다.
+선언되는 예외는 Rust nightly 하나뿐입니다. `config/toolchain.json`의 `exceptions`는
+`{ tool: "rust", channel: "nightly-<yyyy-mm-dd>", scope, reason, retry }`를 선언하며(S8), scope는 `.` 또는 checkout의 directory입니다.
+`make install-tools`는 선언된 channel마다 설치합니다. parity는 rustdoc JSON을 위해 nightly를 읽으며, 이 형식은 nightly만 씁니다.
+다른 도구의 예외, nightly가 아닌 channel, checkout의 directory가 아닌 scope는 finding입니다. Rust nightly는 parity가 읽으므로
+stale이 되지 않습니다.
 
-| 값 | 요구 |
-|---|---|
-| `mise.toml`의 `node`, `go`와 `python`의 minor, `rust-toolchain.toml`의 `channel`, `php` | pin |
-| 모든 `package.json`의 `engines.node` | Node.js pin 이상(`>=`) |
-| 모든 `composer.json`의 `require.php`; `composer.lock` 옆에 있는 것의 `config.platform.php` | PHP pin 이상(`>=`); pin 또는 그 patch release(`8.4.1`) |
-| project table이 있는 모든 `pyproject.toml`의 `project.requires-python`(smol-toml) | Python pin 이상(`>=`) |
-| 모든 `go.mod`의 `go`(`go mod edit -json`) | Go pin. `toolchain` 줄은 go tool의 것입니다(K866) |
-| 모든 Cargo package의 `rust-version`(`cargo metadata --no-deps`, workspace 상속 포함) | Rust pin |
-| `package.json` 각 dependency 필드의 `typescript`, `package-lock.json`이 top level이나 workspace에서 resolve하는 `typescript` 중 그 lock 항목(`""` 또는 workspace)이 `typescript`를 선언한 것. npm이 다른 package를 위해 hoist하거나 그 아래에 중첩한 typescript(API Extractor의 TypeScript 등)는 그 도구의 것입니다(S1) | TypeScript pin |
-
-- `config/toolchain.json`의 `exceptions`는 편차를 `{ tool, channel, scope, reason, retry }`로 선언합니다(S8). scope는 `.`
-  또는 checkout의 directory이며, 그 아래의 값은 channel과 같아도 됩니다. workspace의 lock 항목은 lock이 아니라 그 workspace의
-  folder 아래에 있습니다. 예외 없는 편차는 실패하고, 필드가 빠졌거나 pin되지
-  않은 도구, 정밀도가 틀린 channel, 없는 directory를 가리키는 예외와 아무것도 쓰지 않는 예외(stale)도 실패합니다. Rust
-  `nightly-<yyyy-mm-dd>`는 parity가 rustdoc JSON에 읽으므로 stale이 되지 않습니다.
 - TOML은 kit의 유일한 TOML reader인 `toml.mts`의 `readToml`로, smol-toml이 읽습니다(K73).
 - signal로 끝난 version 명령은 `exit status null`이 아니라 `ended by signal SIGKILL`처럼 signal로 보고합니다(K118).
 
@@ -151,7 +138,7 @@ Go와 Python을 그 pin으로 선언해야 합니다:
   wrapper `npm`과 `npx`가 그 설치의 `npm-cli.js`와 `npx-cli.js`를 mise.toml의 node로 실행합니다. 같은
   version에서 digest가 바뀌면 다시 설치합니다(hyper). link나 특수 파일이 든 tarball은 거부합니다(ordered-json). bootstrap은
   기계의 npm을 실행하지 않고 npm을 설치합니다(template).
-- Go: kit pin인 `mise.toml`의 Go를 mise가 Go 내려받기의 archive에서 `mise.lock`의 sha256으로 설치합니다. 기계의 Go는
+- Go: `mise.toml`의 Go를 mise가 Go 내려받기의 archive에서 `mise.lock`의 sha256으로 설치합니다. 기계의 Go는
   관여하지 않으므로 Go가 없는 checkout에도 설치됩니다. kit의 archive 설치와 `toolchain-pins.json`의 `goArchives` digest는 없어졌습니다(K127).
 - Composer: hyper는 SHA-256을 확인한 `composer.phar`를 설치하고, template, crudui, orm은 실행 중인 Composer만 검증합니다.
   mise가 `mise.toml`의 `http:composer` 항목과 선언된 checksum으로 설치합니다(K127).

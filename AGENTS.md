@@ -90,7 +90,7 @@ and states only its own rules. The rules below are kit's own.
   them, a source test that runs a pinned tool needs `make install-tools` first, `make source-test` runs them, and CI runs
   them after `make kit-test`.
   Enforced by: none, mise install --locked checks mise.lock and its sidecars itself (K835)
-- Own: kit's own checks run the tools of its `mise.toml` at the pins of kit, which `make install-tools` installs into
+- Own: kit's own checks run the tools of its `mise.toml` at the versions that it declares, which `make install-tools` installs into
   var/tools/mise, and the Rust of `rust-toolchain.toml`; the Node.js of `mise.toml` is installed by the bootstrap
   (`make install-tools TOOLS=npm`) before npm (K171). Every recipe of kit.mk runs with the environment of mise of the
   checkout and with var/tools/bin and the shims of mise first on PATH, and starts a tool of the checkout by its absolute

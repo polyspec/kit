@@ -1,6 +1,6 @@
 # The tools of kit that mise installs into var/tools/mise (K127): `make toolchain-lock` writes their digests into mise.lock
 # and `make install-tools` installs them with `mise install --locked`; the bootstrap installs node first (K171). node, go and
-# python are at the pins of scripts/kit/toolchain-pins.json; scripts/kit/toolchain-mise.mts names the tools that kit checks.
+# python are the releases that kit installs (K953: kit ships no pins); scripts/kit/toolchain-mise.mts names the tools that kit checks.
 [tools]
 node = "26.12.0"
 "npm:npm" = "12.2.0"

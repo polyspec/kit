@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1fd08f4df936955d1e5cf96f04527c78672dbea79ca5d79d46fc982124cd7197 -->
+<!-- source-sha256: 1ff7c5df0045f1b9cea4fefcf1159f873ad09f6750b6d5d96a063a0f69d71f2b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K953: kit은 toolchain pin과 version 검사를 더 이상 가지지 않습니다(S4): toolchain-exceptions.mts의 Pinning 클래스, 채널 비교와 stale()을 지웠고, toolchain-pins.mts와 toolchain-pins.json 및 그 문서와 config 항목도 지웠습니다. config/toolchain.json exceptions는 Rust nightly만 받으므로 소비자의 typescript 예외는 거부되며, 어떤 check도 Rust가 아닌 toolchain 버전을 읽거나 판단하지 않습니다. Red: 저장소의 typescript 예외가 채널로 판단되며 받아들여졌습니다(K953).
 - K958: config/generated.json의 exception은 tracked와 같이 path와 reason을 가진 object이며, schema가 reason을 요구합니다. 생성 파일 검사와 중복 검사는 exception의 path를 읽습니다. reason이 없는 exception은 schema가 거부합니다. red: 수정 전 commit에서 이유 없는 bare glob이 통과하여 `node --test --test-name-pattern=K958 tests/kit/generated-files.test.mts`가 실패합니다("Missing expected exception"). green: 수정 뒤 통과합니다 (K958).
 - K951: parityMode는 config/ci.json에서만 옵니다. config/parity.json이 없어도 parityMode를 none으로 설정하지 않습니다. 모드가 선언되지 않으면 plan이 해결 방법과 함께 실패하고, parity 선언이 없는 저장소는 `"parityMode": "none"`을 선언합니다. ci.json 스키마가 이를 허용합니다. red: `node --test --test-name-pattern=K951 tests/kit/ci-setup.test.mts`는 parity.json도 parityMode도 없는 plan을 통과시켰습니다 (K951).
 - K957: checklist-kit 규칙은 저장소 옆의 ../kit 대신, kit-build가 쓰는 설치된 kit 패키지의 dist/kit-items.json에서 kit item id를 읽습니다. CI에는 ../kit가 없어서 이 규칙이 CI에서 실행되지 않았습니다. 목록이 없으면 note가 아니라 finding입니다. red: 수정 전 commit에서 `node --test --test-name-pattern=K957 tests/kit/documents.test.mts`가 목록 누락을 finding으로 보고하지 않아 실패합니다. green: 수정 뒤 통과합니다 (K957).

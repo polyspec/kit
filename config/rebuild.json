@@ -404,7 +404,7 @@
     },
     "scripts/kit/toolchain-exceptions.mts": {
       "kind": "policy",
-      "reason": "the declared exceptions to the pins, each with its scope, reason and retry condition (S4, S8, K78)"
+      "reason": "the declared Rust nightly exception that parity reads for rustdoc JSON, with its scope, reason and retry condition (S4, S8, K78, K953)"
     },
     "scripts/kit/toolchain-files.mts": {
       "kind": "ecosystem",
@@ -417,10 +417,6 @@
     "scripts/kit/toolchain-mise.mts": {
       "kind": "policy",
       "reason": "polyspec's set of the tools of mise.toml that kit runs, with their keys and commands; mise.toml is read by smol-toml, and mise.lock is mise's record, which kit does not judge (K127, K835)"
-    },
-    "scripts/kit/toolchain-pins.mts": {
-      "kind": "policy",
-      "reason": "the toolchain pins of polyspec that kit ships (S4, K78)"
     },
     "scripts/kit/tracked-files.mts": {
       "kind": "ecosystem",

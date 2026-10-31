@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 6bfefce040c7aa8c5e37e5727fff95daa379c96c990083907301ff70c4575cae -->
+<!-- source-sha256: 5e22ea61e2a3877c70fe375b1cc8840b812f703b86f3adb6ec7a9fc485a3339c -->
 # 개발
 
 [English](AGENTS.md)
@@ -80,7 +80,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   kit-sync가 vendor하지 않으며, 고정한 도구를 실행하는 source test에는 먼저 `make install-tools`가 필요하고, `make
   source-test`가 실행하며 CI는 `make kit-test` 뒤에 실행합니다.
   Enforced by: none, mise install --locked checks mise.lock and its sidecars itself (K835)
-- Own: kit 자신의 검사는 kit pin에 맞춘 `mise.toml`의 도구를 쓰며, 이것들은 `make install-tools`가 var/tools/mise에 설치합니다.
+- Own: kit 자신의 검사는 `mise.toml`이 선언한 버전의 도구를 쓰며, 이것들은 `make install-tools`가 var/tools/mise에 설치합니다.
   Rust는 `rust-toolchain.toml`의 것을 쓰고, `mise.toml`의 Node.js는 bootstrap(`make install-tools TOOLS=npm`)이 npm보다 먼저
   설치합니다(K171). kit.mk의 모든 recipe는 checkout의 mise 환경으로, var/tools/bin과 mise의 shim을 PATH 맨 앞에 두고
   실행되며, checkout의 도구를 이름만으로가 아니라 절대 경로(`$(NODE)`, `$(NPM)`, `$(ALINT)`)로 실행합니다: make 3.81은 shell

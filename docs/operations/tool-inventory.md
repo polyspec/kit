@@ -95,12 +95,12 @@ has no target that runs PIE (K931).
 
 | Tool | Declared in | Install or verify |
 |---|---|---|
-| Node.js | `node` of `mise.toml` (exact), at the kit pin; `mise.lock` holds the sha256 of each platform's archive of nodejs.org. The bootstrap installs it with mise before npm and writes `var/tools/bin/node`, which the wrappers of npm and every recipe of kit.mk (`$(NODE)`) run (K171) | install with mise, in the bootstrap |
+| Node.js | `node` of `mise.toml` (exact); `mise.lock` holds the sha256 of each platform's archive of nodejs.org. The bootstrap installs it with mise before npm and writes `var/tools/bin/node`, which the wrappers of npm and every recipe of kit.mk (`$(NODE)`) run (K171) | install with mise, in the bootstrap |
 | npm | `npm:npm` of `mise.toml` (exact), locked in `mise.lock`; `var/tools/bin/npm` runs it with the node of `mise.toml` (K938) | install with mise, in the bootstrap |
-| Go | `go` of `mise.toml`, at the kit pin of `scripts/kit/toolchain-pins.json`; `mise.lock` holds the sha256 of each platform's archive; the `go` line of every `go.mod` must equal the pin, read by `go mod edit -json` (K78) | install with mise |
+| Go | `go` of `mise.toml` (exact); `mise.lock` holds the sha256 of each platform's archive; kit reads no `go` line of a `go.mod` against a release (K953) | install with mise |
 | Rust | `channel` of `rust-toolchain.toml` as declared, which rustup judges (K840), read by smol-toml (`readToml`, K78, K73) | verify |
 | PHP | `config/toolchain.json` `php` (minor releases), else `.php-version`; install-tools wraps the php of PATH when either declares PHP | wrap (K283, K862) |
-| Python | `python` of `mise.toml` (exact), whose minor is the kit pin; `mise.lock` pins the python-build-standalone build of each platform by its URL and sha256 | install with mise |
+| Python | `python` of `mise.toml` (exact); `mise.lock` pins the python-build-standalone build of each platform by its URL and sha256 | install with mise |
 | mise | `config/toolchain.json` `mise`: the exact `version` and the `sha256` of the archive `mise-v<version>-<os>-<arch>.tar.gz` of each platform | install in the bootstrap |
 | uv, ruff, golangci-lint | `uv`, `ruff`, `golangci-lint` of `mise.toml` (the aqua backend; `mise.lock` holds the sha256 of each archive) | install with mise |
 | alint | `"github:asamarts/alint"` of `mise.toml` (`mise.lock` holds the sha256 of each archive); `make layout-check` runs it (K76) | install with mise |
@@ -122,29 +122,16 @@ minor releases), `mise` (`version`, `sha256` of each platform's archive), `phpun
 at the release that mise resolves; `mise.lock` is mise's record, which kit does not judge (K835). Rust stays in its own
 file, which `rustup` reads; CI's `setup-node` reads the node of `mise.toml` only to start the bootstrap. A tool that is not declared is neither installed nor checked.
 
-### Pins, floors and exceptions (K78)
+### Exceptions (K78, K953)
 
-kit ships one pin for each toolchain in `scripts/kit/toolchain-pins.json` (S4), which the build copies into `dist` beside
-`toolchain-pins.mts`: Node.js 26.12.0, Python 3.14, PHP 8.4, Go 1.27.3, Rust 1.99.0 and TypeScript 7.0.2. The
-pins hold versions only; the digests are those of `mise.lock`. Each pin has one source: kit ships the pins, and the
-`mise.toml` of every checkout, kit's included, must declare its Go and Python at them:
+kit states no version pin of a toolchain and compares no version with one (S4): each tool's version is the one that its
+repository declares in `mise.toml`, `rust-toolchain.toml`, `package.json`, `go.mod` or its lock, and the package manager judges it.
+The one declared exception is a Rust nightly. `exceptions` of `config/toolchain.json` declares
+`{ tool: "rust", channel: "nightly-<yyyy-mm-dd>", scope, reason, retry }` (S8), where scope is `.` or a directory of the checkout;
+`make install-tools` installs each declared channel. Parity reads the nightly for rustdoc JSON, which only a nightly writes, so it
+fails without one where it needs one. An exception of another tool, a channel that is no nightly, or a scope that is no directory
+of the checkout is a finding. A Rust nightly is never stale: parity reads it.
 
-| Value | Required |
-|---|---|
-| the `node`, the `go` and the minor of the `python` of `mise.toml`, `channel` of `rust-toolchain.toml`, and `php` | the pin |
-| `engines.node` of every `package.json` | `>=` the Node.js pin |
-| `require.php` of every `composer.json`; `config.platform.php` of one beside a `composer.lock` | `>=` the PHP pin; the pin or a patch release of it (`8.4.1`) |
-| `project.requires-python` of every `pyproject.toml` with a project table (smol-toml) | `>=` the Python pin |
-| `go` of every `go.mod` (`go mod edit -json`) | the Go pin; a `toolchain` line is the go tool's (K866) |
-| `rust-version` of every Cargo package (`cargo metadata --no-deps`, workspace inheritance included) | the Rust pin |
-| `typescript` of each dependency field of a `package.json`, and the `typescript` that a `package-lock.json` resolves at its top level or for a workspace whose lock entry (`""` or the workspace) declares `typescript`; a typescript that npm hoists for another package or nests under it, such as the TypeScript of API Extractor, is that tool's (S1) | the TypeScript pin |
-
-- `exceptions` of `config/toolchain.json` declares a deviation as `{ tool, channel, scope, reason, retry }` (S8): the scope is
-  `.` or a directory of the checkout, and a value under it may equal the channel; a lock entry of a workspace is under the
-  folder of that workspace, not of the lock. A deviation without an exception fails,
-  and so do an exception that lacks a field or names an unpinned tool, a channel of the wrong precision or a missing
-  directory, and one that nothing uses (stale). A Rust `nightly-<yyyy-mm-dd>` is never stale: parity reads it for rustdoc
-  JSON.
 - TOML is read by smol-toml through `readToml` of `toml.mts`, the one TOML reader of kit (K73).
 - A version command ended by a signal is reported with the signal, for example `ended by signal SIGKILL`, not
   `exit status null` (K118).
@@ -155,7 +142,7 @@ pins hold versions only; the digests are those of `mise.lock`. Each pin has one 
   ordered-json (the registry tarball, refused unless its SHA-512 is the declared digest) are one install, the second; a
   `npm:npm` of mise.toml is installed by mise (K938). The wrappers `npm` and `npx` start `npm-cli.js` and `npx-cli.js` of that install with the node of mise.toml. A changed digest of the same version reinstalls (hyper). A tarball with a link or a
   special file is refused (ordered-json). The bootstrap installs npm without running any npm of the machine (template).
-- Go: the Go of `mise.toml`, at the kit pin, is installed by mise from the archive of the Go downloads at the sha256 of
+- Go: the Go of `mise.toml` is installed by mise from the archive of the Go downloads at the sha256 of
   `mise.lock`. No Go of the machine takes part, so a checkout without Go installs one. The archive install of kit and the `goArchives` digests of
   `toolchain-pins.json` are gone (K127).
 - Composer: hyper installs `composer.phar` verified by its SHA-256; template, crudui and orm only verify the running
