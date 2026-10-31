@@ -55,11 +55,17 @@ test('an exception of a configuration whose reason names no kind of kit is a fin
   assert.equal(reasonKind('because'), false);
 });
 
+test('a divergence written inside a string literal is data, not a divergence (K954)', () => {
+  const fixture = "const text = \"if (extension_loaded('x')) {\\n  run();\\n}\\n --exclude-group smoke\";\n";
+  assert.deepEqual(run({ 'packages/app/fixture.mts': fixture, 'config/parity.json': JSON.stringify({ implementations: [{ name: 'app', roots: ['packages/app'] }] }) }), []);
+});
+
 test('the tools and tests of kit itself are checked like any other (K315, K954)', () => {
-  const same = "process.platform; extension_loaded('x')";
-  const kit = run({ 'tests/kit/a.test.mts': same, 'config/parity.json': PARITY });
+  const same = "if (extension_loaded('x')) {\n  run();\n}\n";
+  const declared = (root: string) => JSON.stringify({ implementations: [{ name: 'kit', roots: [root] }] });
+  const kit = run({ 'scripts/kit/a.mts': same, 'config/parity.json': declared('scripts/kit') });
   assert.notDeepEqual(kit, []);
-  assert.deepEqual(kit, run({ 'tests/other/a.test.mts': same, 'config/parity.json': PARITY }).map(line => line.replace('tests/other/', 'tests/kit/')));
+  assert.deepEqual(kit, run({ 'packages/other/a.mts': same, 'config/parity.json': declared('packages/other') }).map(line => line.replace('packages/other/', 'scripts/kit/')));
 });
 
 // K883: the polyfill guard of K873, an if whose condition is only !function_exists or !defined of the name that its body alone declares,

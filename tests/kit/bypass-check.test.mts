@@ -33,7 +33,12 @@ test('--no-verify is a finding in a test, a script, a Makefile and a Git hook (K
 });
 
 test('the tools and tests of kit itself are checked like any other (K954)', () => {
-  assert.deepEqual(bypassFindings('tests/kit/ci-only.test.mts', "const env = { GITHUB_ACTIONS: 'true' };\n", GATES), ['tests/kit/ci-only.test.mts:1: CI identity variable set: GITHUB_ACTIONS']);
+  assert.deepEqual(bypassFindings('tests/kit/ci-only.test.mts', "const env = { GITHUB_ACTIONS: 'true' };\n", GATES), ['tests/kit/ci-only.test.mts:1: sets the CI identity outside a workflow; a local run never impersonates CI']);
+});
+
+test('a bypass written inside a string literal of a consumer test is data, not a bypass (K954)', () => {
+  const fixture = 'const text = "const env = { GITHUB_ACTIONS: \'true\' }; git commit --no-verify";\n';
+  assert.deepEqual(bypassFindings('tests/app/fixture.test.mts', fixture, GATES), []);
 });
 
 // K357-1: a consumer includes the kit.mk of the installed kit, so the gates are those of the kit-gates of its Makefile.
