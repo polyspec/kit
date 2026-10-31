@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 941c2b7236dc2c03ef5ee543d7f91fd5697d021860e9b4c5c2c3f0d0c96524b6 -->
+<!-- source-sha256: 41faa05692970870fdd92d8184467b0812f2ddae76e3144a7d16f5888d58853e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,7 +8,8 @@
 
 ## 0.0.82
 
-- Kit 0.0.82는 선택된 job이 skipped이면 실패하는 CI job(K950), config/ci.json에서만 오는 parityMode(K951), toolchain pin과 version 검사의 삭제(K953), bypass-check와 divergence-check가 검사하는 kit 자신의 도구(K954), target이 없으면 실패하는 task(K955), 중복 검사에서 빠지는 생성 소스(K956), 설치된 package의 kit item id(K957, K957-1), 이유를 적는 generated 예외(K958), 한 번씩 실행하는 parity binding(K959), link가 아니라 make hook이 쓰는 Claude Code hook(K960), 한 implementation이 소유하는 suite unit(K961), node를 받는 kit-build rename test(K962), 사본에서 되는 package build(K964)를 담습니다 (K963).
+- Kit 0.0.82는 선택된 job이 skipped이면 실패하는 CI job(K950), config/ci.json에서만 오는 parityMode(K951), toolchain pin과 version 검사의 삭제(K953), bypass-check와 divergence-check가 검사하는 kit 자신의 도구(K954), target이 없으면 실패하는 task(K955), 중복 검사에서 빠지는 생성 소스(K956), 설치된 package의 kit item id(K957, K957-1), 이유를 적는 generated 예외(K958), 한 번씩 실행하는 parity binding(K959), link가 아니라 make hook이 쓰는 Claude Code hook(K960), 한 implementation이 소유하는 suite unit(K961), node를 받는 kit-build rename test(K962), 사본에서 되는 package build(K964), make link의 K383 test(K965)를 담습니다 (K963).
+- K965: kit-mk의 K383 test는 K960이 link 다음에 hook을 실행하게 한 make link의 link 줄과 그 뒤의 hook 줄을 기대합니다 (K965).
 - K964: kit-items는 docs/plans를 폴더에서 읽고, npm pack은 npm을 실행하는 node를 NODE로 넘겨 kit-build를 실행합니다. 그래서 package test처럼 var/tools도 Git 디렉터리도 없는 사본에서 하는 package build가 다시 됩니다. main CI는 K957부터 실패했습니다 (K964).
 - K962: kit-build는 node로 kit-items.json을 쓰고(K957) test sandbox에는 자기 node가 없으므로, kit-build rename test는 stub NODE를 넘깁니다 (K962).
 - K961: case가 한 implementation에만 있는 suite unit은 feature처럼 그 owner를 선언할 수 있어, 다른 implementation은 binding이 필요 없고 실행하지도 않습니다. API unit은 여전히 release package만 owner가 될 수 있습니다 (K961).

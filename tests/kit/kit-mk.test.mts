@@ -164,8 +164,12 @@ test('kit.mk accepts a parity declaration with no implementation targets and sti
 test('link and link-check take the providers from the link declaration, not from arguments (K383, K869)', () => {
   const dryRun = (goal: string, ...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, goal, 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', ...args], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
   assert.match(dryRun('link-check'), /link-check\.mjs$/);
-  assert.match(dryRun('link'), /link\.mjs link$/);
-  assert.match(dryRun('link', 'RUNTIME=ts'), /link\.mjs link --runtime ts$/);
+  // make link runs link, then hook, which writes the Claude Code hook (K960); each line of the dry run is read without its end blanks.
+  const lines = (...args: string[]) => dryRun('link', ...args).split('\n').map(line => line.trim());
+  const [link, hook] = lines();
+  assert.match(link ?? '', /link\.mjs link$/);
+  assert.match(hook ?? '', /link\.mjs hook$/);
+  assert.match(lines('RUNTIME=ts')[0] ?? '', /link\.mjs link --runtime ts$/);
 });
 
 test('kit.mk stops while KIT or KIT_EXT is unset', () => {
