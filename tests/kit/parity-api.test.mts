@@ -481,8 +481,7 @@ test('an invalid node reporter line fails its bindings and later bindings still 
   const invalid = findings.filter(entry => entry.implementation === 'ts' && (entry.unit === 'codec' || entry.unit === 'roundtrip'));
   assert.deepEqual(keys(invalid), ['R3 codec ts', 'R3 roundtrip ts']);
   for (const entry of invalid) {
-    assert.match(entry.message, /invalid reporter output in run 1: the parity node reporter wrote a line that is no case: exit 0/);
-    assert.match(entry.message, /invalid reporter output in run 2: the parity node reporter wrote a line that is no case: exit 0/);
+    assert.match(entry.message, /invalid reporter output: the parity node reporter wrote a line that is no case: exit 0/);
   }
   assert.ok(ledger.runs.some(run => run.unit === 'codec' && run.implementation === 'php'),
     'the suite continued after the malformed reporter output');
@@ -508,9 +507,9 @@ test('R3: a binding that fails, misses a case, adds a case or exits with an erro
   assert.ok(ledger.cases.some(entry => entry.implementation === 'go' && entry.case === 'ascii' && entry.outcome === 'fail'));
 });
 
-test('R3: a binding whose second run executes other cases or other results than the first fails, naming the cases', TIMEOUT, (t) => {
-  // The test counts its runs in var/ (ignored): the first run passes ascii, the second fails it and adds latin1.
-  const flaky = [
+test('R3: each binding executes once, and its cases are checked on that run (K959)', TIMEOUT, (t) => {
+  // The test counts its executions in var/ (ignored), with the cases of the suite.
+  const counted = [
     "import test from 'node:test';",
     "import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';",
     'let runs = 0;',
@@ -518,13 +517,14 @@ test('R3: a binding whose second run executes other cases or other results than 
     "mkdirSync('var', { recursive: true });",
     "writeFileSync('var/ts-runs', String(runs + 1));",
     "test('empty', () => {});",
-    "test('ascii', () => { if (runs) throw new Error('flaky'); });",
-    "if (runs) test('latin1', () => {});",
+    "test('ascii', () => {});",
   ].join('\n');
-  const { findings, ledger } = check(t, { files: { 'ts/tests/codec.mjs': `${flaky}\n` } });
-  assert.deepEqual(keys(findings), ['R3 codec ts']);
-  assert.equal(findingAt(findings, 0).message, 'the second run differs from the first: exit 0 then 1; ascii pass then fail; latin1 only in the second run');
-  assert.deepEqual(ledger.runs.filter(run => run.unit === 'codec' && run.implementation === 'ts').map(run => run.attempt), [1, 2]);
+  const root = repository(t, { files: { 'ts/tests/codec.mjs': `${counted}\n` } });
+  const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['codec'], implementations: ['ts'] });
+  assert.deepEqual(findings, []);
+  assert.equal(readFileSync(path.join(root, 'var/ts-runs'), 'utf8'), '1');
+  assert.equal(ledger.runs.filter(run => run.unit === 'codec' && run.implementation === 'ts').length, 1);
+  assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'codec' && entry.implementation === 'ts').map(entry => `${entry.case} ${entry.outcome}`), ['empty pass', 'ascii pass']);
 });
 
 test('R3: a binding whose runner cannot start fails, and a check of the declarations runs no binding', TIMEOUT, (t) => {
@@ -1123,7 +1123,7 @@ test('K566: a feature owner scope derives its implementation from a declared cov
   const root = repository(t, change);
   const { findings, ledger } = checkParity(root, { execute: true, env: ENV, say: () => {}, units: ['go-native-roundtrip'] });
   assert.deepEqual(findings, []);
-  assert.deepEqual(ledger.runs.map(run => `${run.implementation} ${run.attempt} ${run.status}`), ['go 1 0', 'go 2 0']);
+  assert.deepEqual(ledger.runs.map(run => `${run.implementation} ${run.status}`), ['go 0']);
 });
 
 test('K566 rejects component scope for a shared SQL requirement and an unowned coverage part', TIMEOUT, (t) => {
@@ -1295,7 +1295,7 @@ test('K566: a release-package owner resolves its implementation from config/rele
   };
   const { findings, ledger } = check(t, change);
   assert.deepEqual(findings, []);
-  assert.deepEqual(ledger.runs.filter(run => run.unit === 'ts-native-entry').map(run => `${run.implementation} ${run.attempt} ${run.status}`), ['ts 1 0', 'ts 2 0']);
+  assert.deepEqual(ledger.runs.filter(run => run.unit === 'ts-native-entry').map(run => `${run.implementation} ${run.status}`), ['ts 0']);
   const mismatched = check(t, { ...change, files: { ...files, 'config/release.json': JSON.stringify({ packages: [{ name: 'codec-ts', directory: 'php' }] }) } }, { execute: false });
   assert.ok(mismatched.findings.some(finding => finding.rule === 'declaration' && finding.message.includes('binds an implementation other than php')));
   const unknownPackage = check(t, { ...change, edit: config => {
@@ -1383,7 +1383,7 @@ test('make parity-check and parity-declarations-check pass without a finding; pa
   const make = (target: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, target], { cwd: root, env: ENV, encoding: 'utf8' });
   const passed = make('parity-check');
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
-  assert.match(passed.stdout, /\[parity\] run codec go \(1 of 2\): go test -json -count=1 -run \^TestCodec\$ \.\//);
+  assert.match(passed.stdout, /\[parity\] run codec go: go test -json -count=1 -run \^TestCodec\$ \.\//);
   assert.match(passed.stdout, /\[parity\] every applicable unit holds/);
   writeFileSync(path.join(root, 'python/tests/test_codec.py'), 'PASS test_empty\n# CX-1\n');
   assert.equal(make('parity-declarations-check').status, 0, 'the declarations do not run the bindings');
@@ -1400,12 +1400,12 @@ test('--unit runs only the named unit through the runner of a full run, and repo
   const only = run('--unit', 'codec');
   const viaMake = spawnSync('make', ['--no-print-directory', ...KIT_MAKE, 'parity-check', 'UNITS=codec'], { cwd: root, env: ENV, encoding: 'utf8' });
   assert.notEqual(viaMake.status, 0, viaMake.stdout + viaMake.stderr);
-  assert.match(viaMake.stdout, /\[parity\] run codec go \(1 of 2\)/);
+  assert.match(viaMake.stdout, /\[parity\] run codec go/);
   assert.doesNotMatch(viaMake.stdout, /run width /);
   assert.equal(only.status, 1, only.stdout + only.stderr);
-  assert.match(only.stdout, /\[parity\] run codec go \(1 of 2\): go test -json -count=1 -run \^TestCodec\$ \.\//);
+  assert.match(only.stdout, /\[parity\] run codec go: go test -json -count=1 -run \^TestCodec\$ \.\//);
   assert.doesNotMatch(only.stdout, /run width /);
-  assert.match(only.stdout, /\[parity\] codec python \(1 of 2\): exit 0, 1 of 2 cases passed/);
+  assert.match(only.stdout, /\[parity\] codec python: exit 0, 1 of 2 cases passed/);
   assert.match(only.stderr, /\[parity\] R3 not-executed codec python python\/tests\/test_codec\.py: .*not executed: ascii/);
   assert.match(only.stdout, /\[parity\] --unit codec: only their bindings \(R3\) run; the cross-unit rules \(R1, R2, R4 to R11\) need every unit and do not run/);
   assert.match(only.stderr, /\[parity\] 1 findings/);
@@ -1635,10 +1635,10 @@ test('a php suite binding with the symbol <class>::<method> runs that method alo
   assert.deepEqual(declared('\\Example\\CodecTest::testCodec'), ['declaration: unit codec: the php binding names \\Example\\CodecTest::testCodec, which is no test method <class>::<method> of a fully qualified class']);
 });
 
-test('R3: a case that one run reports twice fails, and the finding names the case (K47)', TIMEOUT, (t) => {
+test('R3: a case that the run reports twice fails, and the finding names the case (K47)', TIMEOUT, (t) => {
   const { findings } = check(t, { files: { 'go/codec_test.go': 'PASS TestCodec/empty\nPASS TestCodec/empty\nPASS TestCodec/ascii\n' } });
   assert.deepEqual(keys(findings), ['R3 codec go']);
-  assert.equal(findingAt(findings, 0).message, 'reported twice in run 1: empty; reported twice in run 2: empty');
+  assert.equal(findingAt(findings, 0).message, 'reported twice: empty');
 });
 
 test('the PHPUnit run names the configuration of its package, phpunit.xml or phpunit.xml.dist, or none (K47)', TIMEOUT, (t) => {
@@ -2015,7 +2015,7 @@ test('PHP extension parity runs library tests with the PHPUnit of the library an
   for (const status of [0, 1]) {
     writeFileSync(path.join(root, 'php/tests/codec.php'), `PASS test_empty\nPASS test_ascii\nEXIT ${status}\n// CX-1\n`);
     const result = checkParity(root, { env: ENV, units: ['codec'], rules: ['R3'] });
-    assert.equal(result.ledger.runs.filter(entry => entry.implementation === 'php').length, 2);
+    assert.equal(result.ledger.runs.filter(entry => entry.implementation === 'php').length, 1);
     assert.equal(result.findings.some(entry => entry.implementation === 'php'), status !== 0, JSON.stringify(result.findings));
   }
 });

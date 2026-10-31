@@ -16,14 +16,12 @@ type Declaration = parity.Declaration;
 type ParityFinding = parity.ParityFinding;
 type UnitJson = parity.UnitJson;
 
-test('the declaration of five implementations passes, with every case of every suite executed twice alike', TIMEOUT, (t) => {
+test('the declaration of five implementations passes, with every case of every suite executed once', TIMEOUT, (t) => {
   const { findings, ledger } = check(t);
   assert.deepEqual(findings, []);
-  assert.deepEqual(ledger.runs.map(run => `${run.unit} ${run.implementation} ${run.attempt} ${run.status}`), [
-    'codec go 1 0', 'codec go 2 0', 'codec rust 1 0', 'codec rust 2 0', 'codec ts 1 0', 'codec ts 2 0', 'codec php 1 0', 'codec php 2 0',
-    'codec python 1 0', 'codec python 2 0', 'width go 1 0', 'width go 2 0', 'width rust 1 0', 'width rust 2 0', 'width ts 1 0', 'width ts 2 0',
-    'width php 1 0', 'width php 2 0', 'width python 1 0', 'width python 2 0', 'size go 1 0', 'size go 2 0', 'size rust 1 0', 'size rust 2 0',
-    'size ts 1 0', 'size ts 2 0', 'size php 1 0', 'size php 2 0', 'size python 1 0', 'size python 2 0',
+  assert.deepEqual(ledger.runs.map(run => `${run.unit} ${run.implementation} ${run.status}`), [
+    'codec go 0', 'codec rust 0', 'codec ts 0', 'codec php 0', 'codec python 0', 'width go 0', 'width rust 0', 'width ts 0',
+    'width php 0', 'width python 0', 'size go 0', 'size rust 0', 'size ts 0', 'size php 0', 'size python 0',
   ]);
   assert.deepEqual(ledger.cases.map(entry => `${entry.unit} ${entry.implementation} ${entry.case} ${entry.outcome}`), [
     'codec go empty pass', 'codec go ascii pass', 'codec rust empty pass', 'codec rust ascii pass',
@@ -39,12 +37,12 @@ test('parity selects runtime implementations without narrowing declaration check
   const selected = check(t, undefined, { implementations: ['go'] });
   assert.deepEqual(selected.findings, []);
   assert.deepEqual([...new Set(selected.ledger.runs.map(run => run.implementation))], ['go']);
-  assert.equal(selected.ledger.runs.length, 6, 'the three Go suite bindings each run twice');
+  assert.equal(selected.ledger.runs.length, 3, 'the three Go suite bindings each run once');
 
   const defaultRun = check(t);
   assert.deepEqual(defaultRun.findings, []);
   assert.deepEqual([...new Set(defaultRun.ledger.runs.map(run => run.implementation))], ['go', 'rust', 'ts', 'php', 'python']);
-  assert.equal(defaultRun.ledger.runs.length, 30);
+  assert.equal(defaultRun.ledger.runs.length, 15);
 
   for (const implementations of [[], ['']]) {
     const empty = check(t, undefined, { implementations });
@@ -141,11 +139,11 @@ test('K702 keeps per-binding arguments isolated on the native runner', TIMEOUT, 
   const { findings, ledger } = check(t, change, { units: ['node-empty', 'node-ascii'], implementations: ['ts'] });
   assert.deepEqual(findings, []);
   const runs = ledger.runs.filter(run => run.implementation === 'ts');
-  assert.equal(runs.length, 4, 'different binding args get separate, repeatable runs');
+  assert.equal(runs.length, 2, 'different binding args get separate runs');
   for (const [index, id] of ['node-empty', 'node-ascii'].entries()) {
     const pair = runs.filter(run => run.unit === id);
     const pattern = index === 0 ? '--test-name-pattern=^empty$' : '--test-name-pattern=^ascii$';
-    assert.equal(pair.length, 2, `${id} runs twice`);
+    assert.equal(pair.length, 1, `${id} runs once`);
     for (const run of pair) {
       assert.equal(run.command, process.execPath);
       assert.deepEqual(run.args.slice(0, 2), ['--no-warnings', pattern]);
@@ -206,7 +204,7 @@ test('a runner value references the invoking environment as ${NAME}, resolved wh
   const commands = Object.fromEntries(ledger.runs.map(run => [`${run.unit} ${run.implementation}`, [run.command, ...run.args]]));
   assert.deepEqual(commands['codec python'], [path.join(root, 'python/.venv/bin/python'), '-B', '-m', 'unittest', '-v', 'python/tests/test_codec.py']);
   assert.deepEqual(commands['codec php'], ['php', '-d', 'extension=php/modules/codec.so', 'php/vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php']);
-  assert.ok(lines.includes('run codec php (1 of 2): php -d extension=${PARITY_PHP}/codec.so php/vendor/bin/phpunit --teamcity --no-configuration php/tests/codec.php (in .)'), lines.join('\n'));
+  assert.ok(lines.includes('run codec php: php -d extension=${PARITY_PHP}/codec.so php/vendor/bin/phpunit --teamcity --no-configuration php/tests/codec.php (in .)'), lines.join('\n'));
   assert.ok(!lines.some(line => line.includes('php/modules') || line.includes(env.PARITY_VENV)), lines.join('\n'));
   const messages = (environment: NodeJS.ProcessEnv) => checkParity(root, { execute: true, env: environment, say: () => {} }).findings.map(finding => `${finding.rule} ${finding.unit} ${finding.implementation}: ${finding.message}`);
   assert.deepEqual(checkParity(root, { execute: false, env: ENV, say: () => {} }).findings, [], 'the declarations do not read the environment');
@@ -260,7 +258,7 @@ test('a support file of an implementation is never a test: it lies in its roots 
   ]);
 });
 
-test('a feature unit holds when the native id of each binding passes in both runs (K75)', TIMEOUT, (t) => {
+test('a feature unit holds when the native id of each binding passes once in its run (K75)', TIMEOUT, (t) => {
   const { findings, ledger } = check(t, feature());
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip').map(entry => `${entry.implementation} ${entry.case} ${entry.outcome}`), [
@@ -426,7 +424,7 @@ test('a timed cargo run whose every declared id passes counts each one as passed
 test('a suite run counts only the declared cases that passed, so a count never exceeds the declared number (K215)', TIMEOUT, (t) => {
   const lines: string[] = [];
   const { findings } = checkParity(repository(t, { files: { 'ts/tests/codec.mjs': `${NODE_CODEC}test('empty', () => {});\ntest('latin1', () => {});\n` } }), { execute: true, env: ENV, say: line => lines.push(line) });
-  const counts = lines.map(line => /^codec ts \(\d of 2\): exit 0, (\d+) of (\d+) cases passed$/.exec(line)).filter(match => match !== null);
+  const counts = lines.map(line => /^codec ts: exit 0, (\d+) of (\d+) cases passed$/.exec(line)).filter(match => match !== null);
   assert.ok(counts.length > 0, lines.join('\n'));
   for (const [, passed, declared] of counts) assert.ok(Number(passed) <= Number(declared), `${passed} passed of ${declared} declared`);
   assert.deepEqual(keys(findings), ['R3 codec ts']);
@@ -492,7 +490,7 @@ test('a binding command that cannot start or exits non-zero is an R3 finding tha
   }));
   assert.deepEqual(keys(failing.findings), ['R3 roundtrip go']);
   assert.match(findingAt(failing.findings, 0).message, /exited with 3: failing run/);
-  assert.deepEqual(failing.ledger.runs.filter(run => run.unit === 'roundtrip' && run.implementation === 'go').map(run => run.command), ['sh', 'sh']);
+  assert.deepEqual(failing.ledger.runs.filter(run => run.unit === 'roundtrip' && run.implementation === 'go').map(run => run.command), ['sh']);
 });
 
 test('a binding with its own runner and its reason runs with that runner and binds its implementation (K422)', TIMEOUT, (t) => {
@@ -602,19 +600,16 @@ test('K720 API and bindings phases cover the same findings as the default check'
   assert.deepEqual(api.ledger.runs, []);
 });
 
-test('K720 bindings phase runs selected native bindings twice without public symbol extraction', TIMEOUT, (t) => {
+test('K720 bindings phase runs selected native bindings once without public symbol extraction', TIMEOUT, (t) => {
   const root = repository(t);
   const lines: string[] = [];
   const { findings, ledger } = checkParity(root, { phase: 'bindings', implementations: ['go'], env: ENV, say: line => lines.push(line) });
   assert.deepEqual(findings, []);
   assert.ok(ledger.runs.length > 0);
   assert.ok(ledger.runs.every(run => run.implementation === 'go'));
-  assert.deepEqual([...new Set(ledger.runs.map(run => run.attempt))].sort((left, right) => left - right), [1, 2]);
-  for (const unit of new Set(ledger.runs.map(run => run.unit))) {
-    assert.deepEqual(ledger.runs.filter(run => run.unit === unit).map(run => run.attempt), [1, 2]);
-  }
+  for (const unit of new Set(ledger.runs.map(run => run.unit))) assert.equal(ledger.runs.filter(run => run.unit === unit).length, 1);
   assert.doesNotMatch(lines.join('\n'), /extract the symbols of /);
-  assert.ok(lines.some(line => line.includes('bindings phase for go: native bindings run twice; public symbol extraction is skipped')));
+  assert.ok(lines.some(line => line.includes('bindings phase for go: native bindings run once; public symbol extraction is skipped')));
 });
 
 test('K720 phase CLI scopes partial passes and rejects unknown phases, invalid selections, missing cases, and declaration conflicts', TIMEOUT, (t) => {
@@ -630,7 +625,7 @@ test('K720 phase CLI scopes partial passes and rejects unknown phases, invalid s
 
   const bindingsPhase = run(root, '--phase', 'bindings', '--implementation', 'go');
   assert.equal(bindingsPhase.status, 0, bindingsPhase.stdout + bindingsPhase.stderr);
-  assert.match(bindingsPhase.stdout, /bindings ran twice/);
+  assert.match(bindingsPhase.stdout, /bindings ran,/);
   assert.match(bindingsPhase.stdout, /bindings phase passed; public API extraction was not run, so this is not a full parity pass/);
   assert.doesNotMatch(bindingsPhase.stdout, /extract the symbols of /);
 
@@ -658,6 +653,6 @@ test('K720 phase CLI scopes partial passes and rejects unknown phases, invalid s
   const missingCase = run(missingCaseRoot, '--phase', 'bindings', '--implementation', 'go');
   assert.equal(missingCase.status, 1, missingCase.stdout + missingCase.stderr);
   assert.match(missingCase.stderr, /R3 not-executed codec go go\/codec_test\.go: not executed: ascii/);
-  assert.match(missingCase.stdout, /bindings ran twice/);
+  assert.match(missingCase.stdout, /bindings ran,/);
   assert.doesNotMatch(missingCase.stdout, /extract the symbols of /);
 });

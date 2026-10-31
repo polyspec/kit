@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b2c4adde313b9e8ca74afab22fd1eba7f7e65988829d4faef0b0710008ee071b -->
+<!-- source-sha256: 3bc6111400166136bff8ed50c5372587962d28d30a0a18db98fa953430481cc7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K959: parity-check는 작성된 모든 test처럼 각 feature와 suite binding을 한 번 실행합니다. 고정 seed와 격리된 database가 실행을 결정적으로 만들며, flaky test는 두 번째 실행이 찾을 대상이 아니라 고칠 결함입니다. 각 feature id의 정확히 한 번 통과 검사, 반복 case 검사, 각 suite의 case 검사는 그 실행에서 유지됩니다 (K959).
 - K955: runtime task는 저장소에 runtime의 package가 하나도 없으면 실패합니다. 예전에는 아무것도 실행하지 않는다고 출력하고 0으로 끝나, package를 잃은 소비자가 통과할 수 있었습니다. runtime이 없는 저장소는 config/ci.json에 `"runtimes": []`를 선언하며, kit이 그렇게 합니다. setup은 여전히 필수입니다. Red: 선언이 없고 target이 0개이면 0으로 종료합니다(K955).
 - K954: kit 자신의 도구와 test도 다른 저장소와 같이 검사합니다. bypass-check와 divergence-check는 더 이상 KIT_OWN을 제외하지 않습니다. TypeScript와 JavaScript 파일은 parser로 읽어 code만 대조하므로 문자열 리터럴 안의 CI identity나 divergence는 data입니다. 실행되는 process의 env 옵션으로 CI identity를 넘기거나 process.env에 대입하면 finding입니다. CI identity를 넣고 실행하던 test는 identity 없이 실행하므로 CI 전용 실행은 로컬에서 설계대로 거부됩니다(K954).
 - K957-1: K957이 class 없이 scripts/kit/kit-items.mts를 추가해 main에서 rebuild-check가 실패했고 모든 land를 막았습니다. config/rebuild.json이 이를 kit의 policy로 선언합니다(K957-1). Red: main에서 make rebuild-check가 "the tool has no class in config/rebuild.json"과 함께 2로 종료합니다. Green: 통과합니다(K957-1).

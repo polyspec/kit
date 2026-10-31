@@ -11,7 +11,7 @@
 //     --declarations  check the declarations only: every rule except R1, R3 and R11; no binding and no extractor runs
 //     --phase all      run every existing phase (the default)
 //     --phase api      run public symbol extractors and all static parity rules; no native bindings run
-//     --phase bindings run native bindings twice and requirement checks; public symbol extractors do not run. May select runtimes with --implementation.
+//     --phase bindings run native bindings once and requirement checks; public symbol extractors do not run. May select runtimes with --implementation.
 //     --unit <id>     run only the bindings (R3) of the named units, through the same runners as a full run; the cross-unit
 //                     rules (R1, R2, R4 to R11) need every unit and do not run. An id that no unit holds is an error (K221).
 //                     With --declarations, the findings that name the units and those of config/parity.json itself count (K400),
@@ -30,8 +30,8 @@
 //                              an implementation gives no symbols
 //   R2 missing-binding         a suite or a feature has no binding of an implementation
 //   R3 not-executed            a binding exits with an error, the cases that passed are not exactly the cases of the suite,
-//                              the id of a feature binding did not pass once (Cargo runs its exact id; other file runners run the file), or the
-//                              second run gives another status, case or result than the first; a run whose environment
+//                              or the id of a feature binding did not pass once (Cargo runs its exact id; other file runners run the
+//                              file); a run whose environment
 //                              reference is unset or empty, or resolves to a path outside the checkout and the kit package
 //                              in use, cannot start
 //   R4 undeclared-suite        a file of the suite globs is the file of no suite unit and lies in no case directory of one
@@ -208,7 +208,7 @@ export function checkParity(root: string, { execute = true, env = process.env, s
   }
   if (phase === 'bindings') {
     if (!execute) return { findings: [finding('declaration', '--phase bindings requires native binding execution; do not use --declarations', { place: DECLARATION })], ledger };
-    say(`bindings phase${implementations === undefined ? '' : ` for ${implementations.join(', ')}`}: native bindings run twice; public symbol extraction is skipped`);
+    say(`bindings phase${implementations === undefined ? '' : ` for ${implementations.join(', ')}`}: native bindings run once; public symbol extraction is skipped`);
     const { findings: requirementTraceFindings, heldUnits } = traceRequirements();
     reportHeldUnits(heldUnits);
     const executed = runBindings(model, root, { env, files, say, units: selected, implementations: implementationSelection, heldUnits });
@@ -273,7 +273,7 @@ if (isMain(import.meta.url)) {
       const selectedPhase = phase;
       const { findings, ledger } = checkParity(repositoryRoot(), { execute: !values.declarations, env: toolsEnvironment(repositoryRoot()), say, units: values.unit, rules: values.rule, ids: values.id, implementations: values.implementation, phase: selectedPhase });
       if (selectedPhase === 'api' && !values.declarations) say('API phase ran no native bindings');
-      else if (!values.declarations) say(`${ledger.runs.length / 2} bindings ran twice, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
+      else if (!values.declarations) say(`${ledger.runs.length} bindings ran, ${ledger.cases.filter(entry => entry.outcome === 'pass').length} cases passed`);
       for (const item of findings) console.error(`[parity] ${findingLine(item)}`);
       if (findings.length) console.error(`[parity] ${findings.length} findings`);
       else if (selectedPhase === 'api') say('API phase passed; native bindings were not run, so this is not a full parity pass');
