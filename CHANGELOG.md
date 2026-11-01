@@ -8,6 +8,7 @@
 ## 0.0.90
 
 - Kit 0.0.90 judges every tracked lock with its own package manager offline (K1005), compares the copies of kit-inject-check with the index (K1007) and prints the providers of any ecosystem from the link declaration (K1008) (K1009).
+- K1010: the kit test shards of the Makefile name tests/kit/lock-check.test.mts, so every tracked test file runs in CI once (K718) (K1010).
 - K1005: `make lock-check-<ecosystem>` judges each tracked lock with its own package manager, offline: npm ci --dry-run with one integrity per resolved URL across the package-lock.json files in kit-gates-static, composer validate in the PHP gate, uv lock --check in the Python gate, go mod tidy -diff in the Go gate and cargo metadata --locked in the Rust gate; go reads the module cache that the new go-downloads-fetch fills, which make install and the setup of the CI go job run as cargo-downloads-fetch runs in the rust job, and a version commit rewrites each composer.lock whose composer.json version changes with composer update --lock; the locks of mise tools are mise's (K1005).
 - K1008: `link providers` takes `--ecosystem npm|composer|python|go`, npm by default, and with no checkout reads the link declaration of the main checkout, so a consumer asks kit for the folder of a Composer provider instead of naming a sibling checkout (S15) (K1008).
 - K1007: `make kit-inject-check` compares the copies with the index, so a staged adoption passes it before its commit; a copy whose working tree differs from the index still fails (K1007).
