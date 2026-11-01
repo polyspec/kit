@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: d4377baf4c3092dc51fd9a90bc3eaab629a063c44697d35ac7c4712bfd382cf0 -->
+<!-- source-sha256: 6252d61c7fb5f406ae9b56cbe6906f18cb5cbefac90a0fe2eca742128e68b4ff -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -148,3 +148,4 @@
 | K1013 | lock-check와 그 download 단계를 삭제한다(K1005, K1010, K1011): kit은 package manager가 아니다 | `scripts/kit/lock-check.mts`, `scripts/kit/fetch-go-downloads.mts`, `scripts/kit/kit.mk`, `scripts/kit/ci-setup.mts`, `CHANGELOG.md(.ko)` | `make kit-check` passes | [o] |
 | K1014 | cargo-downloads-fetch를 삭제한다: crate는 cargo가 스스로 받는다 | `scripts/kit/fetch-cargo-downloads.mts`, `scripts/kit/kit.mk`, `.github/workflows/ci.yml`, `CHANGELOG.md(.ko)` | `make kit-check` passes | [o] |
 | K1015 | lint-rust의 catch-check는 저장소가 정한 CARGO_NET_OFFLINE과 상관없이 cargo가 자기 lock의 crate를 받게 한다 | `scripts/kit/lint-rust.mts`, `tests/kit/catch-check-steps.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1015 tests/kit/catch-check-steps.test.mts` passes | [o] |
+| K1017 | Rust catch check와 그 crate(catch-check-rust)를 K1015의 CARGO_NET_OFFLINE 덮어쓰기와 함께 삭제한다 | `scripts/kit/lint-rust.mts`, `scripts/kit/catch-check-rust/`, `CHANGELOG.md(.ko)` | `make kit-check` passes | [ ] |
