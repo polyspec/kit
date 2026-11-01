@@ -33,7 +33,8 @@ test('every export of the package resolves through the link to its source in scr
   const root = consumer(t);
   symlinkSync(ROOT, path.join(root, 'node_modules/@polyspec/kit'), 'dir');
   const manifest = readFixture<{ exports: Record<string, string> }>(ROOT, 'package.json');
-  const subpaths = Object.keys(manifest.exports).filter(subpath => subpath !== './package.json');
+  // The modules of kit; a configuration or make file that kit exports is included or read, not imported.
+  const subpaths = Object.entries(manifest.exports).filter(([, target]) => target.endsWith('.mts')).map(([subpath]) => subpath);
   assert.ok(subpaths.length > 0, 'the package exports its modules');
   for (const subpath of subpaths) {
     const specifier = `@polyspec/kit/${subpath.slice(2)}`;

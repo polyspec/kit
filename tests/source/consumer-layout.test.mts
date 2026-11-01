@@ -5,7 +5,7 @@
 // targets, which run the sources of ../kit (K613). The consumer holds the copies of kit.copies, which it takes from the tarball.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -41,9 +41,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   mkdirSync(unpacked);
   run('tar', ['-xzf', tarball, '-C', unpacked, '--strip-components=1'], work);
 
-  // The consumer beside the kit checkout ../kit: the copies of kit.copies from the tarball, the release workflow of kit as its own,
-  // a Makefile that includes the kit-bootstrap.mk of ../kit, and a lock that pins the release asset of kit by its integrity.
-  symlinkSync(copy, path.join(work, 'kit'));
+  // The consumer: the copies of kit.copies from the tarball, the release workflow of kit as its own, a Makefile that includes the
+  // kit-bootstrap.mk of its installed kit (S15), and a lock that pins the release asset of kit by its integrity.
   const consumer = path.join(work, 'consumer');
   mkdirSync(path.join(consumer, '.github/workflows'), { recursive: true });
   mkdirSync(path.join(consumer, '.github/actions/kit-bootstrap'), { recursive: true });
@@ -75,7 +74,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   mkdirSync(path.join(consumer, 'config'), { recursive: true });
   writeFileSync(path.join(consumer, 'config/toolchain.json'), `${JSON.stringify({ schema: 1, mise: toolchain.mise }, null, 2)}\n`);
   // Its suite runs the gates of kit, as kit-check asks of every repository.
-  writeFileSync(path.join(consumer, 'Makefile'), 'include ../kit/scripts/kit/kit-bootstrap.mk\nCHECK_TARGETS := kit-gates\n');
+  writeFileSync(path.join(consumer, 'Makefile'), 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\nCHECK_TARGETS := kit-gates\n');
   writeFileSync(path.join(consumer, '.gitignore'), '/node_modules/\n/var/\n');
   commitSandbox(consumer);
   // The npm of mise.toml, the mise of config/toolchain.json and the node of mise.toml are the releases that kit installed:
@@ -97,6 +96,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const bootstrap = steps.slice(0, steps.indexOf('make release-tools'));
   assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare'], 'the release workflow bootstraps the package, tags the commit of the CI run, installs it again and prepares the release before release-tools (K755, K911)');
   // release-tag reads a CI run with gh (K911); release-tag.test.mts runs it.
+  // The bootstrap action installs the locked kit with npm ci before its make commands, so the Makefile can include it.
+  run(NPM, ['ci', '--ignore-scripts', '--allow-remote=root'], consumer, env);
   for (const command of bootstrap.filter(command => !command.startsWith('make release-tag'))) {
     const step = spawnSync('sh', ['-c', command], { cwd: consumer, env, encoding: 'utf8' });
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);
@@ -109,8 +110,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   for (const target of [['kit-sync'], ['kit-check']]) {
     const result = make(...target);
     assert.equal(result.status, 0, `make ${target.join(' ')}: ${result.stdout}${result.stderr}`);
-    // KIT is the real path of the kit checkout beside the consumer (K762).
-    assert.ok(result.stdout.includes(`${path.join(realpathSync(path.join(work, 'kit')), 'scripts/kit')}/`), `make ${target.join(' ')} runs the sources of the kit checkout beside the consumer`);
+    // KIT is the real path of the installed kit (K762).
+    assert.ok(result.stdout.includes(`${realpathSync(path.join(consumer, 'node_modules/@polyspec/kit'))}/`), `make ${target.join(' ')} runs the installed kit`);
   }
   assert.match(make('kit-sync').stdout, new RegExp(`\\[kit-sync\\] unchanged: @polyspec/kit ${packed.version.replaceAll('.', '\\.')}`));
   assert.equal(run('git', ['status', '--porcelain', '-uall'], consumer), '', 'the bootstrap and the gate targets changed the tracked files of the consumer');
