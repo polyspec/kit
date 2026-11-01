@@ -62,6 +62,14 @@
       "kind": "policy",
       "reason": "polyspec's document rules: translation pairs, revisions, relative links and anchors, site interpolation; its Markdown reading is markdown.mts"
     },
+    "scripts/kit/fetch-go-downloads.mts": {
+      "kind": "policy",
+      "reason": "the rule of K1005 that the module cache of every tracked go.mod is filled online, so lock-check-go judges each go.mod offline"
+    },
+    "scripts/kit/lock-check.mts": {
+      "kind": "policy",
+      "reason": "the rule of K1005 that each tracked lock is judged by its own package manager offline before CI installs it, and that one resolved URL has one integrity across the package-lock.json files"
+    },
     "scripts/kit/module-imports.mts": {
       "kind": "ecosystem",
       "tool": "amaro turns TypeScript into JavaScript, acorn parses it and acorn-walk finds the imports and the started modules, for the import graph of owner-check (K191, K867)"

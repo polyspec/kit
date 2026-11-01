@@ -25,13 +25,15 @@ function fixture(): string {
     units: [],
   }));
   writeFileSync(path.join(root, 'Makefile'), [
-    '.PHONY: shared-setup parity-setup go-setup parity-api-check context-prepare context-cleanup',
+    '.PHONY: shared-setup parity-setup go-setup go-downloads-fetch parity-api-check context-prepare context-cleanup',
     'shared-setup:',
     '\t@printf shared >> setup.log',
     'parity-setup:',
     '\t@printf parity >> setup.log',
     'go-setup:',
     '\t@printf go >> setup.log',
+    'go-downloads-fetch:',
+    '\t@printf +modules >> setup.log',
     'parity-api-check:',
     '\t$(NODE) $(KIT)/parity.$(KIT_EXT) --phase api',
     'parity-bindings-go-client-check:',
@@ -59,9 +61,10 @@ function fixture(): string {
 test('K731: CI setup executes only the declared existing runtime targets', () => {
   const root = fixture();
   try {
-    assert.deepEqual(ciSetupInvocations(root, 'runtime', 'go'), [{ target: 'go-setup', args: [] }]);
+    // K1005: after the setup of the repository, kit downloads the modules of every tracked go.mod, which lock-check-go reads offline.
+    assert.deepEqual(ciSetupInvocations(root, 'runtime', 'go'), [{ target: 'go-setup', args: [] }, { target: 'go-downloads-fetch', args: [] }]);
     runCISetup(root, 'runtime', 'go');
-    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'go');
+    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'go+modules');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -205,7 +208,7 @@ test('K859: the default setup of a runtime is the deps target of the repository,
     assert.throws(() => ciSetupInvocations(root, 'runtime', 'go'), /the default setup target deps-go is not present in this Makefile\. Fix: define deps-go in the Makefile as the locked install of the package manager, or declare setup\.runtimes\.go/);
     writeFileSync(path.join(root, 'Makefile'), `${readFileSync(path.join(root, 'Makefile'), 'utf8')}.PHONY: deps-go deps-php\ndeps-go:\n\t@true\ndeps-php:\n\t@true\n`);
     execFileSync('git', ['add', 'Makefile'], { cwd: root });
-    assert.deepEqual(ciSetupInvocations(root, 'runtime', 'go'), [{ target: 'deps-go', args: [] }]);
+    assert.deepEqual(ciSetupInvocations(root, 'runtime', 'go'), [{ target: 'deps-go', args: [] }, { target: 'go-downloads-fetch', args: [] }]);
     assert.deepEqual(ciSetupInvocations(root, 'runtime', 'php'), [{ target: 'deps-php', args: [] }], 'no install wrapper of each locked folder');
     // A runtime with no tracked source is not set up, so a repository defines no deps target for it: deps-node, deps-rust and
     // deps-python stay undefined here and the parity setup still passes.
