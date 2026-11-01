@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e6604dc08de456a64613bf197d7b82406e5ed997b7e41bd8bf38e91e12344114 -->
+<!-- source-sha256: dea66fedd859ac611e84b13d3d21cf27b74872bc2857a5c5409f686398e8b45e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K990: `## Unreleased`가 빈 이후 green commit은 tag 없는 맨 위 version을 version commit의 CI run을 기다리지 않고 곧바로 릴리즈하며, unreleased 항목이 있는 commit만 그 run을 기다립니다 (K990).
 
 ## 0.0.86
 

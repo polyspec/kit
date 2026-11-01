@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: b05f9621a928675e0c652aed0660e5d1fdea8f2161a0e962b81cf6efa433afd9 -->
+<!-- source-sha256: 5fe7c6c63cc93a9f5dc2f3ea619718418eb39ce1a18445d94793cc4b7fd39dae -->
 
 # 도구 목록
 
@@ -579,10 +579,10 @@ release는 스스로 시작합니다(K987). release.yml은 main에서 CI workflo
 실행되어 그 run의 head_sha를 checkout하고 `make release-tag AUTO=1`을 실행합니다. 릴리즈하는 것은 version commit뿐입니다.
 version commit은 `## Unreleased`를 비우고 자기 `## X.Y.Z`를 change log 맨 위에 두는 commit이며, CI가 그 commit에서 돌도록
 push의 tip입니다. 맨 위 version이 자기 line의 앞이나 뒤에서 tag된 commit은 릴리즈할 것이 없다며 green으로 끝나고, release가
-public이 된 뒤 version commit이 다시 돈 run도 그렇게 끝나며, tag 뒤에 실패한 release의 재실행은 release를 다시 실행합니다. version commit의 CI run이 아직 도는 commit은 그
-run을 기다리며 green으로 끝납니다. 어떤 run도 릴리즈하지 않은 맨 위 version은, version commit의 CI가 실패하거나 대체되거나 취소되었거나
-version commit이 push의 tip이 아니었기 때문이므로, `## Unreleased`가 빈 다음 green commit이 릴리즈합니다. 그래서 CI가 실패해도
-version 번호를 버리지 않습니다(K988). `## Unreleased`에 항목이 있는 이후 commit은 version commit을 적으며 실패하고, 맨 위
+public이 된 뒤 version commit이 다시 돈 run도 그렇게 끝나며, tag 뒤에 실패한 release의 재실행은 release를 다시 실행합니다. 어떤 run도 릴리즈하지 않은 맨 위 version은, version commit의 CI가 실패하거나 아직 돌거나 대체되거나
+취소되었거나 version commit이 push의 tip이 아니었기 때문이므로, `## Unreleased`가 빈 다음 green commit이 곧바로 릴리즈합니다.
+그래서 CI가 실패해도 version 번호를 버리지 않습니다(K988, K990). `## Unreleased`에 항목이 있는 이후 commit은 version commit의
+CI run이 아직 도는 동안 green으로 기다리고, 그 뒤에는 version commit을 적으며 실패하고, 맨 위
 version이 commit의 line 밖에서 tag되어도 실패합니다. release job의 concurrency group은 저장소의
 release를 한 번에 하나만 실행하고, `make kit-check`는 저장소의 `.github/workflows/ci.yml` 이름이 release.yml이 기다리는 workflow인
 `ci`이기를 요구합니다. 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):

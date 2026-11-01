@@ -246,11 +246,11 @@ test('release-tag --auto ends green with nothing to release for a commit whose t
   assert.equal(readFileSync(githubEnv, 'utf8'), '', 'no tag is handed to the next steps');
 });
 
-// K988: a top version that no run of its version commit released, as when that CI failed, was cancelled or never ran, is released by
-// a later green commit whose ## Unreleased is empty; one with unreleased entries fails and names the version commit, and while the
-// CI of the version commit still runs a later commit waits for it.
-test('release-tag --auto releases an unreleased version at a later green commit with an empty ## Unreleased, and fails one with entries (K988)', (t) => {
-  for (const later of ['a fix after a version commit whose CI failed', 'an ordinary change after an unreleased version']) {
+// K988, K990: a top version that no run of its version commit released is released by a later green commit whose ## Unreleased is
+// empty, at once, even while the CI of the version commit still runs; a later commit with unreleased entries waits for that CI
+// while it runs, and fails naming the version commit once it ended without a release.
+test('release-tag --auto releases an unreleased version at once at a later green commit with an empty ## Unreleased, and waits or fails for one with entries (K988, K990)', (t) => {
+  for (const later of ['a fix after a version commit whose CI still runs', 'an ordinary change after an unreleased version']) {
     const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
     if (later.startsWith('a fix')) git(box.root, 'commit', '--quiet', '--allow-empty', '-m', later);
     else {
@@ -260,19 +260,17 @@ test('release-tag --auto releases an unreleased version at a later green commit 
     git(box.root, 'push', '--quiet', 'origin', 'main');
     const head = git(box.root, 'rev-parse', 'HEAD');
     const headEnv = { ...env, RELEASE_RUN_RESPONSE: JSON.stringify(candidate({ head_sha: head })) };
-    // While the CI run of the version commit still runs, a later push that finished first waits for it, green.
-    const waiting = tagRun(box.root, { ...headEnv, RELEASE_RUNS_RESPONSE: '["in_progress"]' }, ['tag', '91', '--auto']);
-    assert.equal(waiting.result, 0, waiting.errors.join('\n'));
-    assert.match(waiting.lines.join('\n'), new RegExp(`nothing to release: v0\\.0\\.1 waits for the CI run of its version commit ${box.commit}`), later);
-    const run = tagRun(box.root, { ...headEnv, RELEASE_RUNS_RESPONSE: '["completed"]' }, ['tag', '91', '--auto']);
+    const running = tagRun(box.root, { ...headEnv, RELEASE_RUNS_RESPONSE: '["in_progress"]' }, ['tag', '91', '--auto']);
+    assert.equal(running.result, 0, running.errors.join('\n'));
     if (later.startsWith('a fix')) {
-      assert.equal(run.result, 0, run.errors.join('\n'));
-      assert.equal(git(box.root, 'rev-parse', 'refs/tags/v0.0.1^{commit}'), head, 'the later green commit carries the version');
-    } else {
-      assert.equal(run.result, 1, later);
-      assert.match(run.errors.join('\n'), new RegExp(`v0\\.0\\.1 is not released: no CI run of its version commit ${box.commit} released it, and CHANGELOG\\.md at ${head} has entries under ## Unreleased`), later);
-      assert.equal(git(box.root, 'tag', '--list'), '', later);
+      assert.equal(git(box.root, 'rev-parse', 'refs/tags/v0.0.1^{commit}'), head, 'the later green commit carries the version at once');
+      continue;
     }
+    assert.match(running.lines.join('\n'), new RegExp(`nothing to release: v0\\.0\\.1 waits for the CI run of its version commit ${box.commit}`), later);
+    const ended = tagRun(box.root, { ...headEnv, RELEASE_RUNS_RESPONSE: '["completed"]' }, ['tag', '91', '--auto']);
+    assert.equal(ended.result, 1, later);
+    assert.match(ended.errors.join('\n'), new RegExp(`v0\\.0\\.1 is not released: no CI run of its version commit ${box.commit} released it, and CHANGELOG\\.md at ${head} has entries under ## Unreleased`), later);
+    assert.equal(git(box.root, 'tag', '--list'), '', later);
   }
 });
 

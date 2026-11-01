@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K990: a later green commit whose `## Unreleased` is empty releases the untagged top version at once, without waiting for the CI run of its version commit; only a commit with unreleased entries waits for that run (K990).
+
 ## 0.0.86
 
 - Kit 0.0.86 carries three always-true rules in PRINCIPLES (K981), make install-link and unlink selecting by PROJECT and RUNTIME so a job of one runtime starts no package manager of another (K983), the Claude hook judging named files and make commands in the folder where the command runs (K984), the Composer zip named by its P39 label (K985), a release that starts by itself when the CI run of its version commit succeeds (K987), and a failed CI that costs no version number (K988) (K986).
