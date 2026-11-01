@@ -816,3 +816,4 @@
 | K1009 | Release Kit 0.0.90 | `package.json`, `package-lock.json`, `CHANGELOG.md`, `CHANGELOG.ko.md` | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K1012 | Release Kit 0.0.91 | `package.json`, `package-lock.json`, `CHANGELOG.md`, `CHANGELOG.ko.md` | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K1016 | Release Kit 0.0.92 | `package.json`, `package-lock.json`, `CHANGELOG.md`, `CHANGELOG.ko.md` | `node --test tests/source/release-workflow.test.mts` | [o] |
+| K1019 | Release Kit 0.0.93 | `package.json`, `package-lock.json`, `CHANGELOG.md(.ko)` | GREEN: `make docs-check` passes and package.json declares 0.0.93 | [ ] |
