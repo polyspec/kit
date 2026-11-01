@@ -5,7 +5,11 @@
 
 ## Unreleased
 
+## 0.0.93
+
+- Kit 0.0.93 installs the PHP symbol extractor in ci-setup, so the shared CI pipeline names no language (K1018) (K1019).
 - K1018: ci-setup installs the PHP symbol extractor in the setup of the shared job and of the php runtime job, so the step list of ci-pipeline.yml, which every runtime job shares, names no language (K1018).
+
 ## 0.0.92
 
 - Kit 0.0.92 deletes the Rust catch check with its crate (K1017) (K1016).

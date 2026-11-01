@@ -1,12 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 0fc3ed9c0680e4e09eb72dadd27259a47683be4ada2763541fe33e1908ced40e -->
+<!-- source-sha256: ad45c15d97cb18b177f0381fcd004e38efb45442e9a3d61672c5895f1a4f01a3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.93
+
+- Kit 0.0.93은 PHP symbol extractor를 ci-setup에서 설치해 공유 CI pipeline이 언어를 이름하지 않습니다(K1018) (K1019).
 - K1018: ci-setup이 PHP symbol extractor를 shared job과 php runtime job의 setup에서 설치해, 모든 runtime job이 공유하는 ci-pipeline.yml의 step 목록이 언어를 이름하지 않는다 (K1018).
+
 ## 0.0.92
 
 - Kit 0.0.92는 Rust catch check와 그 crate를 삭제합니다(K1017) (K1016).
