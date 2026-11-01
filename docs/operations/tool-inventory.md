@@ -680,13 +680,7 @@ workflow that release.yml waits for. The repository is data in `config/release.j
 - Change log section: heading, entry required, the anchor lines of the next section removed (template, hyper, ordered-json);
   the link of a long section uses the `<a id>` line above the heading, else the version without its dots (hyper,
   ordered-json); the notes limit is 125000 characters (all).
-- Manifest rules (`manifestProblems`), the union of the rules: every dependency field of npm (`dependencies`,
-  `devDependencies`, `peerDependencies`, `optionalDependencies`) and of Composer (`require`, `require-dev`) (crudui,
-  ordered-json); no path, URL, git source or development version for any dependency (ordered-json); a package of a scope of
-  this repository is one exact version and a package of the repository is the version of the tag (template); no `overrides` in a
-  package.json (ordered-json); a composer.json declares the version of the tag and no `repositories` (template, orm). The
-  scopes are derived from the names in `packages`, so the tool names no scope.
-- `assets`: the manifests of the tagged commit pass the rules before a package is packed (ordered-json), the manifest name
+- `assets`: the manifest name
   equals the name in `config/release.json` (new), and each archive carries the manifest of the commit byte for byte
   (ordered-json, crudui, orm; template compared parsed JSON). The directory is built beside the target and renamed, so a failed
   run leaves no archive.

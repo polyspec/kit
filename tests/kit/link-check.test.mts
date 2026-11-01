@@ -96,6 +96,31 @@ test('a provided package folder that is a copy is a finding, and its link to the
   assert.deepEqual(checked().filter(line => /NOT linked|a link that/.test(line)), [], 'the link to the provider passes');
 });
 
+// K999: .links names any local checkout of a package that a lock installs, a fork of a third-party package as a polyspec provider,
+// so a declared fork that no installed folder links is a finding whatever its scope, and its link passes.
+test('a declared fork of a third-party package that no installed folder links is a finding, and its link passes (K999)', (t) => {
+  const workspace = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-fork-')));
+  t.after(() => rmSync(workspace, { recursive: true, force: true }));
+  const repository = (name: string, files: Record<string, string>) => {
+    const folder = path.join(workspace, name);
+    mkdirSync(folder, { recursive: true });
+    initRepository(folder);
+    put(folder, files);
+    commitAll(folder, 'base');
+    assert.equal(spawnSync('git', ['-C', folder, 'remote', 'add', 'origin', `https://github.com/acme/${name}.git`]).status, 0);
+    return folder;
+  };
+  const fork = repository('json-schema', { 'composer.json': JSON.stringify({ name: 'acme/json-schema' }) });
+  const consumer = repository('cons', { 'composer.json': JSON.stringify({ name: 'cons/app', require: { 'acme/json-schema': 'dev-acme-origin-2.6.0' } }), '.gitignore': 'vendor/\n.links\n' });
+  put(consumer, { 'vendor/composer/installed.json': JSON.stringify({ packages: [] }), '.links': '../json-schema\n' });
+  const env = { ...process.env, COMPOSER_VENDOR_DIR: '' };
+  const fork_ = (line: string) => line.includes('acme/json-schema');
+  assert.deepEqual(linkFindings(consumer, env).filter(fork_), ['composer acme/json-schema: no installed folder of . links it; Fix: make install']);
+  mkdirSync(path.join(consumer, 'vendor/acme'), { recursive: true });
+  symlinkSync(fork, path.join(consumer, 'vendor/acme/json-schema'));
+  assert.deepEqual(linkFindings(consumer, env).filter(fork_), [], 'the link to the fork checkout passes');
+});
+
 /**
  * A consumer `cons` whose packages/python declares the Python package polyspec-p of `prepo` and whose packages/db declares the npm
  * package @polyspec/n of `nrepo`, both in its link declaration and neither installed; uv is a stub that answers uv workspace dir.

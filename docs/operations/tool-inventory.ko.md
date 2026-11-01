@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5cdde242124be029e1ea57c525a2681bc8cd858fc6880fa8bc10c64c844f098f -->
+<!-- source-sha256: 2a24eb4e7e675f90412650c24ef84f6d82cbb3226b0f1c26a622a10c03e5cffe -->
 
 # 도구 목록
 
@@ -620,12 +620,7 @@ go.mod의 module path에 연결합니다.
   content-hash가 `version`을 포함합니다(K180).
 - changelog section: heading, entry 필수, 다음 section의 anchor 줄 제거(template, hyper, ordered-json); 긴 section의 link는 heading 위의
   `<a id>` 줄을 쓰고 없으면 점을 뺀 version을 씁니다(hyper, ordered-json); notes 한도는 125000자입니다(모두).
-- manifest 규칙(`manifestProblems`)은 규칙의 합집합입니다: npm의 모든 dependency field(`dependencies`, `devDependencies`,
-  `peerDependencies`, `optionalDependencies`)와 Composer의 `require`, `require-dev`(crudui, ordered-json); 어떤 dependency도 path, URL, git source,
-  development version이 아님(ordered-json); 이 저장소 scope의 package는 정확한 version 하나이고 저장소의 package는 tag의 version임(template);
-  package.json에 `overrides` 없음(ordered-json); composer.json은 tag의 version을 선언하고 `repositories`가 없음(template, orm). scope는 `packages`의
-  이름에서 얻으므로 도구는 scope 이름을 갖지 않습니다.
-- `assets`: tag한 commit의 manifest가 package를 묶기 전에 규칙을 통과하고(ordered-json), manifest의 name이 `config/release.json`의 name과 같고(신규),
+- `assets`: manifest의 name이 `config/release.json`의 name과 같고(신규),
   각 archive가 commit의 manifest를 바이트 단위로 그대로 담습니다(ordered-json, crudui, orm; template은 파싱한 JSON을 비교했음). directory는
   대상 옆에 만들어 이름을 바꾸므로 실패한 실행은 archive를 남기지 않습니다.
 - `publish`: API로 만든 draft release(원격에서 tag를 찾은 뒤 `gh api --method POST repos/O/R/releases`, `--verify-tag`가 요구하던 대로), 각 archive를 그 release의 upload URL로 올리고 id를 `var/release/<tag>.json`에 기록(K79); 다섯 도구는 `gh release create TAG --verify-tag`를 실행했음; archive 이름은 목록 file이 아니라

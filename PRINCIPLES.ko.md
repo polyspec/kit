@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 6217dec867796be02cfd0ebb74f219074296bf8d298f132086b408014411d03a -->
+<!-- source-sha256: 54b4d852c463b770f91b6bae75b1ea3649730176e65c1ed52c70a6a417a8f40e -->
 # 원칙
 
 [English](PRINCIPLES.md)

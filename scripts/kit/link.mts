@@ -160,10 +160,13 @@ export function installedPackages(record: string): Record<string, unknown>[] {
 
 
 
-/** The polyspec names that the composer.json `file` requires, in require and require-dev. */
+/**
+ * The packages that the composer.json `file` requires, in require and require-dev, whatever their scope: a package that a checkout of
+ * .links provides, a polyspec provider or a fork, is linked (K999); the providers of the run select them.
+ */
 function declaredComposer(file: string): string[] {
   const manifest = readComposerManifestFile(file);
-  return [...Object.keys(manifest.require ?? {}), ...Object.keys(manifest['require-dev'] ?? {})].filter(name => name.startsWith('polyspec/'));
+  return [...Object.keys(manifest.require ?? {}), ...Object.keys(manifest['require-dev'] ?? {})];
 }
 
 /**
