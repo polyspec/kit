@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: e5e597b2dc8ce2e3f1d8904ca99013ce0a7bf20cf87187106e2f459467026eed -->
+<!-- source-sha256: fe469cd39db7062606597388d926985227dacf1671e8c2bc1c1522802cba85cd -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -129,3 +129,4 @@
 | K989 | consumer-layout test가 만드는 consumer는 모든 저장소처럼 vendor된 release.yml 옆에 이름이 ci인 .github/workflows/ci.yml을 가지므로 kit-check가 통과한다. | `tests/source/consumer-layout.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test tests/source/consumer-layout.test.mts` fails on the current tree (CI run 41244541428). Green: the same command passes in CI. | [o] |
 | K990 | release-tag --auto는 ## Unreleased가 빈 이후 green commit에서 tag 없는 맨 위 version을 version commit의 CI run을 기다리지 않고 릴리즈한다. 그 commit의 ## Unreleased에 항목이 있을 때만 기다린다 | `scripts/kit/release-run.mts`, `tests/kit/release-run.test.mts`, `docs/operations/tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K990 tests/kit/release-run.test.mts` fails on the current tree. Green: the same command passes. | [ ] |
 | K991 | CHANGELOG.md와 CHANGELOG.ko.md의 0.0.86 요약 항목은 0.0.86이 담은 다른 행과 함께 K988과 K989를 적는다 | `CHANGELOG.md(.ko)` | Red: `git grep -n "Kit 0.0.86 carries.*K989" -- CHANGELOG.md` matches nothing. Green: it matches, and `make docs-check` passes. | [ ] |
+| K992 | kit은 CI job의 bootstrap을 하나만 제공한다. kit-sync가 .github/actions/kit-bootstrap/action.yml로 vendor하는 composite action(setup-node, 설치된 kit package의 bootstrap, make install-tools TOOLS=npm, make install-packages)이며, ci-pipeline.yml과 release.yml의 모든 job이 이를 실행하고 저장소의 job은 uses로 실행하며, kit-check는 그 대신 bootstrap 문구를 담은 저장소 workflow를 적는다 | `actions/kit-bootstrap/action.yml`, `workflows/ci-pipeline.yml`, `workflows/release.yml`, `.github/`, `scripts/kit/kit-sync.mts`, `scripts/kit/kit-check.mts`, tests, `docs/operations/tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | Red: a kit-check test with a repository ci.yml that copies the bootstrap fails, and `grep -c "bootstrap the installed kit package" workflows/*.yml` counts 7. Green: the test passes and the count is 0 outside the action. | [ ] |
