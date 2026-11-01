@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 27846de500ca40e875e418b310ae7028de51426f3ef4d18518c5fad3c49ab224 -->
+<!-- source-sha256: fb9a34567fef25dc729c7575bb7363cebc0ec02c0b45d71418958ce16c1f338c -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -149,4 +149,4 @@
 | K1014 | cargo-downloads-fetch를 삭제한다: crate는 cargo가 스스로 받는다 | `scripts/kit/fetch-cargo-downloads.mts`, `scripts/kit/kit.mk`, `.github/workflows/ci.yml`, `CHANGELOG.md(.ko)` | `make kit-check` passes | [o] |
 | K1015 | lint-rust의 catch-check는 저장소가 정한 CARGO_NET_OFFLINE과 상관없이 cargo가 자기 lock의 crate를 받게 한다 | `scripts/kit/lint-rust.mts`, `tests/kit/catch-check-steps.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1015 tests/kit/catch-check-steps.test.mts` passes | [o] |
 | K1017 | Rust catch check와 그 crate(catch-check-rust)를 K1015의 CARGO_NET_OFFLINE 덮어쓰기와 함께 삭제한다 | `scripts/kit/lint-rust.mts`, `scripts/kit/catch-check-rust/`, `CHANGELOG.md(.ko)` | `make kit-check` passes | [o] |
-| K1018 | ci-setup이 PHP symbol extractor를 shared와 php runtime setup에서 설치해 ci-pipeline.yml의 step 목록이 언어를 이름하지 않는다 | `workflows/ci-pipeline.yml`, `scripts/kit/ci-setup.mts`, `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1018 tests/kit/ci-setup.test.mts` passes | [~] |
+| K1018 | ci-setup이 PHP symbol extractor를 shared와 php runtime setup에서 설치해 ci-pipeline.yml의 step 목록이 언어를 이름하지 않는다 | `workflows/ci-pipeline.yml`, `scripts/kit/ci-setup.mts`, `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1018 tests/kit/ci-setup.test.mts` passes | [o] |

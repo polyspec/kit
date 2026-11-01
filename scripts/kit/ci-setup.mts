@@ -64,6 +64,18 @@ const parityRunnerTools: Record<string, string[]> = {
   go: ['go'], cargo: ['rust'], python: ['python', 'uv'], php: ['php', 'composer', 'phpunit'], node: [], vitest: [],
 };
 
+/** The symbol extractors that the toolchain declaration of the repository names. */
+function symbolExtractors(declared: Record<string, unknown>): string[] {
+  const declaration = declared.symbolExtractors;
+  return isJsonObject(declaration) && Array.isArray(declaration.extractors)
+    ? declaration.extractors.filter((extractor: unknown): extractor is string => typeof extractor === 'string')
+    : [];
+}
+
+// K1018: the PHP symbol extractor, which divergence-check of the shared gates and lint-php of the php runtime gates read PHP with
+// (K896, K377), is installed by the setup of those two jobs, so the step list of ci-pipeline.yml, which every job shares, names no language.
+const PHP_EXTRACTOR = { target: 'kit-install-symbols', args: ['EXTRACTORS=php'] };
+
 function toolchainNames(root: string): { declared: Record<string, unknown>; names: string[] } {
   const declared: Record<string, unknown> = {
     ...declaredToolchain(root),
@@ -163,10 +175,7 @@ function plan(root: string): CIPlan {
   const parityTools = new Set(parity.implementations.flatMap(implementation => parityRunnerTools[implementation.runner] ?? []).filter(name => names.includes(name)));
   for (const runtime of runtimes) for (const tool of config.tools?.[runtime] ?? []) parityTools.add(tool);
   for (const tool of config.tools?.parity ?? []) parityTools.add(tool);
-  const symbolExtractors = declared.symbolExtractors;
-  const extractors = isJsonObject(symbolExtractors) && Array.isArray(symbolExtractors.extractors)
-    ? symbolExtractors.extractors.filter((extractor: unknown): extractor is string => typeof extractor === 'string')
-    : [];
+  const extractors = symbolExtractors(declared);
   for (const name of [...(extractors.includes('go') ? ['go'] : []), ...(extractors.includes('php') ? ['php', 'composer'] : [])]) if (names.includes(name)) parityTools.add(name);
   // divergence-check of the shared job reads the polyfill guards with the PHP symbol extractor, which is installed with PHP and Composer (K896).
   const sharedTools = extractors.includes('php') ? [...new Set([...commonTools, ...['composer', 'php'].filter(name => names.includes(name))])].sort() : commonTools;
@@ -205,10 +214,11 @@ function runtimeSetup(runtime: Runtime, config: CIConfig, files: readonly string
 
 function invocations(root: string, group: 'shared' | 'parity' | 'runtime', runtime?: Runtime): { target: string; args: string[] }[] {
   const { config, runtimes, files, db } = readAndValidate(root);
-  if (group === 'shared') return config.setup.shared.map(target => ({ target, args: [] }));
+  const php = symbolExtractors(toolchainNames(root).declared).includes('php');
+  if (group === 'shared') return [...(php ? [PHP_EXTRACTOR] : []), ...config.setup.shared.map(target => ({ target, args: [] }))];
   if (group === 'runtime') {
     if (runtime === undefined || !runtimes.includes(runtime)) throw new Error(`make kit-ci-setup GROUP=runtime needs a runtime of the plan (the tracked source files and targets.runtimes); choose ${runtimes.join(', ') || '(none)'}`);
-    return runtimeSetup(runtime, config, files, db.targets);
+    return [...runtimeSetup(runtime, config, files, db.targets), ...(php && runtime === 'php' ? [PHP_EXTRACTOR] : [])];
   }
   // The parity job builds every implementation, so it runs the setup of every runtime, each target once.
   const targets = [...runtimes.flatMap(selected => runtimeSetup(selected, config, files, db.targets)), ...config.setup.parity.map(target => ({ target, args: [] }))];

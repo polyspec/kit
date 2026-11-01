@@ -467,7 +467,7 @@ test('K731: extra pinned tools follow the setup target that needs them and parit
   }
 });
 
-test('K896: the shared job receives PHP and Composer for the PHP symbol extractor that divergence-check reads guards with', () => {
+test('K896, K1018: the shared and the php runtime setup install the PHP symbol extractor, with PHP and Composer for the shared job', () => {
   const root = fixture();
   try {
     mkdirSync(path.join(root, 'packages/php/src'), { recursive: true });
@@ -483,6 +483,11 @@ test('K896: the shared job receives PHP and Composer for the PHP symbol extracto
     assert.ok(plan.runtimes.some(job => job.runtime === 'php'), 'the PHP package selects a PHP runtime job, which owns PHP and Composer');
     assert.deepEqual(plan.extractors, ['php']);
     assert.ok(plan.commonTools.includes('php') && plan.commonTools.includes('composer'), `the shared job installs PHP and Composer: ${plan.commonTools.join(' ')}`);
+    // K1018: the setup of the shared job and of the php runtime job installs the extractor, so the pipeline names no language.
+    const extractor = { target: 'kit-install-symbols', args: ['EXTRACTORS=php'] };
+    assert.deepEqual(ciSetupInvocations(root, 'shared')[0], extractor, 'the shared setup installs the PHP extractor before its targets');
+    assert.deepEqual(ciSetupInvocations(root, 'runtime', 'php').at(-1), extractor, 'the php runtime setup installs the PHP extractor');
+    assert.ok(!ciSetupInvocations(root, 'runtime', 'go').some(invocation => invocation.target === 'kit-install-symbols'), 'a go runtime setup installs no PHP extractor');
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

@@ -232,14 +232,6 @@ test('K815: the shared job computes no commit range and passes no RANGE', () => 
   assert.doesNotMatch(read('scripts/kit/kit.mk'), /\$\(RANGE\)|\$\$RANGE/);
 });
 
-test('K896: the shared job installs the declared PHP symbol extractor before its gates, which divergence-check needs', () => {
-  const shared = workflowJob(read(PIPELINE), 'shared').join('\n');
-  const install = shared.indexOf("if: ${{ contains(steps.plan.outputs.extractors, 'php') }}\n        run: make kit-install-symbols EXTRACTORS=php");
-  assert.notEqual(install, -1, 'the shared job installs the PHP symbol extractor when the plan names it');
-  assert.ok(install > shared.indexOf('make install-tools TOOLS="${{ join(fromJSON(steps.plan.outputs.common_tools)'), 'after the common tools installed PHP and Composer');
-  assert.ok(install < shared.indexOf('kit-gates-static'), 'before the shared gates');
-});
-
 // K853: a harness piece that kit keeps serves a rule, so a rule of AGENTS.md or PRINCIPLES.md names it; a piece that no rule names
 // is kit code that no rule needs.
 test('each kept harness piece is named by a rule of AGENTS.md or PRINCIPLES.md (K853)', () => {
