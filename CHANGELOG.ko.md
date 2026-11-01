@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3a39496d9c8a3f09615a56d1604196471f7ce02e1f29fbde7b9d092c1043ee22 -->
+<!-- source-sha256: 1a5d3837797428fd7f89573f12ec6b18ef48b68f73a6d1bd79aab595d97858bc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K994: K992의 bootstrap action은 owner check를 가집니다. config/owner-checks.json이 그것을 읽는 test인 kit-tools, gates-workflow, kit-bootstrap, consumer-layout과 함께 소유하고, gates-workflow가 release.yml을 소유하며, kit-tools는 action을 통해 shared job을 읽습니다 (K994).
 - K993: pack된 kit으로 시작한 make 실행에서 link가 node_modules/@polyspec/kit을 kit checkout으로 가는 link로 바꾸면, 이후의 모든 recipe와 재귀 make는 옛 경로로 그 dist를 읽지 않고 checkout의 소스를 실행하며, link된 상태로 시작한 실행은 K762처럼 자기 kit을 유지합니다 (K993).
 - K992: kit은 CI job의 bootstrap을 하나만 제공합니다. kit-sync가 vendor하는 composite action `.github/actions/kit-bootstrap/action.yml`이며, ci-pipeline.yml과 release.yml의 모든 job이 이를 실행하고 저장소 job은 `uses: ./.github/actions/kit-bootstrap`으로 실행하며, `make kit-check`는 bootstrap 복사본을 담은 저장소 workflow의 각 줄을 적습니다 (K992).
 - K991: 0.0.86 요약은 0.0.86이 담은 다른 행과 함께 K988과 K989를 적습니다 (K991).

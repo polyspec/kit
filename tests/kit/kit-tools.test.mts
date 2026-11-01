@@ -51,9 +51,13 @@ test('a clean consumer can parse its first npm bootstrap before Node exists and 
   const sharedEnd = workflow.indexOf('\n  parity:', sharedStart + 1);
   assert.ok(sharedStart >= 0 && sharedEnd > sharedStart, 'the copied CI pipeline declares its shared job, which plans the others');
   const discovery = workflow.slice(sharedStart, sharedEnd);
-  const npm = discovery.indexOf('run: make install-tools TOOLS=npm');
-  const packages = discovery.indexOf('run: make install-packages');
+  // K992: the shared job bootstraps with the action of kit, which installs Node and npm, then the locked packages.
+  const uses = discovery.indexOf('uses: ./.github/actions/kit-bootstrap');
   const plan = discovery.indexOf('run: make kit-ci-plan');
-  assert.ok(npm >= 0 && packages > npm && plan > packages, 'the workflow installs Node, installs locked packages, then discovers parity targets');
+  assert.ok(uses >= 0 && plan > uses, 'the workflow bootstraps with the action of kit, then discovers parity targets');
+  const action = readFileSync(path.join(KIT, '../../actions/kit-bootstrap/action.yml'), 'utf8');
+  const npm = action.indexOf('run: make install-tools TOOLS=npm');
+  const packages = action.indexOf('run: make install-packages');
+  assert.ok(action.indexOf('node-version-file: mise.toml') >= 0 && npm > 0 && packages > npm, 'the action installs Node, npm, then the locked packages');
   assert.doesNotMatch(discovery, /NODE=|KIT_NODE/, 'discovery uses the installed Kit Node, with no alternate Node bypass');
 });
