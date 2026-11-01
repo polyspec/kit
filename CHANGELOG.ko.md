@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: a1813dc84dc72b99abbbca3fd85cce1456e0214a016a5bbc4797e04d516800fd -->
+<!-- source-sha256: 6b1b52f03c0e6fd3456bb77c09c88c0a2b05372bfcdc09c9d8b66707bf457a42 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K998: `make kit-gates-static`은 push 전 저장소의 자가진단입니다. push 전과 CI 모두에서 실패가 있어도 모든 shared gate를 실행하고 모두 통과하면 그 줄로 끝납니다. kit-check는 S12(ci.yml이 ci-pipeline.yml을 job kit으로 호출하고, 다른 job은 kit을 needs로 두며, 저장소의 어떤 workflow와 config/ci.json의 어떤 입력도 kit-gates의 gate를 다시 적지 않고, 어떤 workflow도 다른 저장소나 경로를 checkout하거나 clone하지 않음), S11(어떤 Makefile, *.mk, workflow도 npm link나 editable pip, uv 설치를 실행하지 않음), P30(저장소 밖 경로를 적은 추적 manifest 없음)을 판정합니다 (K998).
 - K997: 저장소는 provider를 로컬 checkout에 `.links`와 `make link`로만 연결합니다(P30). make link-check는 package manager가 읽는 모든 manifest에서 저장소 밖 경로로 package를 연결하는 추적 manifest를 적습니다: composer.local.json 같은 이름과 상관없는 Composer manifest, package.json, Cargo.toml의 dependency와 patch path, go.mod의 replace, 추적되는 go.work의 use나 replace, pyproject의 uv source (K997).
 - K996: kit-check는 bootstrap의 npm을 설치하는 workflow 줄(make install-tools TOOLS=npm)도 적으므로, npm ci를 make bootstrap 같은 저장소의 target으로 실행하는 복사본도 적힙니다 (K996).
 

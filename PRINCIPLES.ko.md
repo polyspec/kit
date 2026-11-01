@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 7d5bde08479b089855d933924500075459a048e79e0797d52c83e1f1cad5111d -->
+<!-- source-sha256: 6217dec867796be02cfd0ebb74f219074296bf8d298f132086b408014411d03a -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -139,7 +139,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-inject-
   저장소는 provider를 로컬 checkout에 `.links`와 `make link`로만 연결하고, 그것을 위한 자기 선언을 두지 않는다. 즉 package
   manager의 추적 manifest는 저장소 밖 경로를 적지 않는다(K997). Release 선언과 lock은 배포된 dependency의 기록으로 유지하고,
   kit은 link manifest, version alias, lock metadata를 합성하지 않으며 추적 lock을 통합 배치까지 기다리게 하지 않는다.
-  Enforced by: none, link는 개발 환경에만 있고 거기서 make link-check가 link 선언 .links에 맞춰 검사하며(K869) 저장소 밖 경로를 적은 추적 manifest를 각각 적는다(K773, K997). CI는 아무것도 link하지 않는다 (K824)
+  Enforced by: `make kit-check`가 저장소 밖 경로를 적은 추적 manifest를 각각 적는다(K773, K997, K998). link는 개발 환경에만 있고 거기서 make link-check가 link 선언 .links에 맞춰 검사한다(K869). CI는 아무것도 link하지 않는다 (K824)
 - P31 gate는 우회하지 않는다. test, script, Makefile은 workflow 밖에서 CI identity(`GITHUB_ACTIONS`, `CI`)를 설정하지 않고,
   `make -o`, `--old-file`, `--assume-old`에 kit-gates의 gate를 적지 않으며, `--no-verify`를 쓰지 않는다 (K308).
   Enforced by: `make bypass-check`
@@ -245,14 +245,17 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
 - S11 로컬 링크: 개발 중 각 polyspec 패키지의 설치 폴더(node_modules, vendor, site-packages)는 checkout으로 가는 평범한
   디렉터리 심링크 하나입니다. 패키지 매니저의 링크 단계(npm link, Composer path repository, pip/uv editable)는 쓰지 않습니다
   (K591, K761, K765).
-  Enforced by: none, link는 개발 환경에만 있고 거기서 make link-check가 link 선언 .links에 맞춰 검사하며(K869), CI는 아무것도 link하지 않는다 (K824).
+  Enforced by: `make kit-check`가 package manager의 link 단계를 실행하는 추적 Makefile, *.mk, workflow의 각 줄을 적는다(K998).
+  link는 개발 환경에만 있고 거기서 make link-check가 link 선언 .links에 맞춰 검사하며(K869), CI는 아무것도 link하지 않는다 (K824).
   kit의 K761 link test는 tool log에 npm link, composer update, editable 설치가 없음을 확인합니다
 - S12 저장소의 CI는 파이프라인 하나입니다. 저장소 자신의 ci.yml이 kit이 주는 workflow(`ci-pipeline.yml`)를 job `kit`으로
   호출하고, 그 job은 `make kit-gates`의 prerequisite를 config/ci.json의 targets(`targets.shared`, `targets.parity`,
   `targets.runtimes`)와 함께 한 번 실행하며, 같은 ci.yml의 저장소 job은 `needs: kit`으로 그 뒤를 잇습니다. 저장소의 다른 workflow도,
   ci-targets나 ci-setup이 읽는 입력도 kit-gates의 prerequisite를 다시 지정하지 않습니다. kit 자신을 시험하는 kit의 ci.yml은 소비자
   CI가 아닙니다(K870, K910).
-  Enforced by: none, workflow는 저장소 자신의 파일이며 각 소비자가 채택 행에서 중복을 지운다
+  Enforced by: `make kit-check`가 job kit이 없는 ci.yml, needs: kit이 없는 그 job, 그리고 kit-gates의 gate를 다시 적거나 다른
+  저장소나 경로를 checkout하거나 clone하는 저장소 workflow의 줄과, kit-gates의 gate를 다시 적는 config/ci.json의 입력을
+  적는다(K998)
 - S13 모든 저장소가 공유하는 규칙은 똑같이 주입됩니다. 설치된 kit의 `kit.copies`에 있는 각 사본(이 파일, ci-pipeline.yml,
   release.yml 등)은 package의 byte 그대로이며, `make kit-sync`가 쓰고 kit에서만 고칩니다. scripts/kit은 그 사본만 담습니다.
   kit 자신은 사본의 원천이므로 사본을 갖지 않습니다(K851).

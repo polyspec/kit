@@ -222,7 +222,13 @@ kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-
 # entry point above; these targets are only the disjoint workflow partitions, and the parity job checks every implementation in
 # one run.
 .PHONY: kit-gates-static kit-gates-parity kit-gates-runtime-ts kit-gates-runtime-php kit-gates-runtime-python kit-gates-runtime-go kit-gates-runtime-rust kit-gates-runtime-php-ext
-kit-gates-static: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check ## Run the shared gates
+# kit-gates-static is also the self-diagnosis of a repository before a push (K998): wherever it is a goal, a push or the shared
+# job of CI, it runs each gate past a failure, so one run names every gate that fails, and ends with a line when every gate passed.
+ifneq ($(filter kit-gates-static,$(MAKECMDGOALS)),)
+MAKEFLAGS += -k
+endif
+kit-gates-static: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
+	@echo "[kit-gates-static] every shared gate passed"
 kit-gates-parity: parity-check ## Run the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate
 kit-gates-runtime-php: lint-php ## Run the PHP gate

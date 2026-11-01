@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: bd25f02a76cb7352310f0c9e849845b008ea262d426dfc28bfd07ef214b70f6e -->
+<!-- source-sha256: 3bde9ab79624ad41386b62a379679a11848345a9a06096d5dac776caf3b5693a -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -15,6 +15,10 @@ kit을 쓰는 저장소에서 일하는 agent나 사람의 절차이며, 그 바
    build하지 않는다(K856).
 3. `make install-tools`가 `mise.toml`의 도구를 설치한다.
 4. `kit-gates`의 모든 gate를 실행한다. 실패한 gate는 그 저장소 plan의 다음 item이며 자기 red와 green을 가진다.
+5. 매 push 전에 `make kit-gates-static`이 저장소의 자가진단이다. 실패가 있어도 모든 shared gate를 실행하므로 한 번의 실행이
+   실패한 gate를 각각 적고, 모두 통과하면 `[kit-gates-static] every shared gate passed`로 끝난다. 그 `kit-check`가 규칙 S11,
+   S12, P30을 판정한다. checkout의 root에서 도는 CI pipeline 하나, package manager의 link 단계 없음, 저장소 밖 경로를 적은
+   추적 manifest 없음이다(K998). 테스트는 CI에서 실행한다.
 
 ## 범위
 

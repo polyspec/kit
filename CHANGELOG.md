@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K998: `make kit-gates-static` is the self-diagnosis of a repository before a push: it runs every shared gate past a failure, before a push and in CI alike, and ends with a line when every gate passed; kit-check judges S12 (ci.yml calls ci-pipeline.yml as its job kit, its other jobs need kit, no workflow of the repository and no input of config/ci.json names a gate of kit-gates again, and no workflow checks out another repository or a path, or clones one), S11 (no Makefile, *.mk or workflow runs npm link or an editable pip or uv install) and P30 (no tracked manifest path out of the repository) (K998).
 - K997: a repository links its providers to local checkouts only through `.links` and `make link` (P30); make link-check names each tracked manifest that links a package by a path out of the repository in every manifest a package manager reads: a Composer manifest of any name such as composer.local.json, package.json, Cargo.toml dependency and patch paths, go.mod replace, a tracked go.work use or replace, and pyproject uv sources (K997).
 - K996: kit-check also names each workflow line that installs the npm of the bootstrap (make install-tools TOOLS=npm), so a copy whose npm ci runs through a target of the repository, such as make bootstrap, is named (K996).
 
