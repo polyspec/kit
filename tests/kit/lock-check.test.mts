@@ -74,7 +74,21 @@ test('K1005: each other lock runs the check of its package manager in its folder
   assert.deepEqual(execFileSync('cat', [path.join(bin, 'calls')], { encoding: 'utf8' }).trim().split('\n'), [
     `${path.join(root, 'packages/php')} validate --no-check-publish --no-check-all []`,
     `${path.join(root, 'packages/python')} lock --check --offline []`,
-    `${path.join(root, 'packages/go')} mod tidy -diff [off]`,
+    `${path.join(root, 'packages/go')} mod tidy -e -diff [off]`,
     `${path.join(root, 'packages/rust')} metadata --locked --offline --format-version 1 []`,
   ]);
+});
+
+test('K1011: go judges a go.mod despite an import that only go.work or a generated package provides, and a failure names the first line of go', (t) => {
+  const root = checkout(t, { 'go.mod': 'module example.invalid/m\n' });
+  const bin = path.join(root, 'bin');
+  mkdirSync(bin);
+  // go mod tidy without -e stops at an import it cannot load offline; with -e it judges the requirements it can load.
+  const go = path.join(bin, 'go');
+  writeFileSync(go, '#!/bin/sh\ncase " $* " in *" -e "*) exit 0;; esac\necho "go: finding module for package example.invalid/w/ast" >&2\nexit 1\n');
+  chmodSync(go, 0o755);
+  assert.deepEqual(lockFindings(root, 'go', { ...process.env, GO: go }), [], 'tidy -e reports no finding for an import of the workspace');
+  // A go error with no word "error" is the cause, not the exit status.
+  writeFileSync(go, '#!/bin/sh\necho "go: go.mod requires go >= 1.99 (running go 1.27; GOTOOLCHAIN=local)" >&2\nexit 1\n');
+  assert.deepEqual(lockFindings(root, 'go', { ...process.env, GO: go }), [`go.mod: ${go} mod tidy -e -diff fails: go: go.mod requires go >= 1.99 (running go 1.27; GOTOOLCHAIN=local)`]);
 });

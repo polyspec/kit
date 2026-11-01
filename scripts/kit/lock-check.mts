@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // K1005: each lock of the checkout is judged by its own package manager, offline, so a lock that lags its manifest fails before CI
 // installs it: npm ci --dry-run for a package-lock.json, composer validate for a composer.lock, uv lock --check for a uv.lock,
-// go mod tidy -diff for a go.mod and cargo metadata --locked for a Cargo.lock. npm checks no integrity without the tarball, so the
+// go mod tidy -e -diff for a go.mod and cargo metadata --locked for a Cargo.lock. npm checks no integrity without the tarball, so the
 // npm check also names a resolved URL that two package-lock.json files lock with two integrities. Kit judges no version.
 //
 //   node scripts/kit/lock-check.mts npm|composer|python|go|rust
@@ -17,7 +17,7 @@ const CHECKS = {
   npm: { lock: 'package-lock.json', tool: 'NPM', command: 'npm', args: ['ci', '--dry-run', '--offline', '--ignore-scripts', '--no-audit', '--no-fund'] },
   composer: { lock: 'composer.lock', tool: 'COMPOSER_BIN', command: 'composer', args: ['validate', '--no-check-publish', '--no-check-all'] },
   python: { lock: 'uv.lock', tool: 'UV', command: 'uv', args: ['lock', '--check', '--offline'] },
-  go: { lock: 'go.mod', tool: 'GO', command: 'go', args: ['mod', 'tidy', '-diff'] },
+  go: { lock: 'go.mod', tool: 'GO', command: 'go', args: ['mod', 'tidy', '-e', '-diff'] },
   rust: { lock: 'Cargo.lock', tool: 'CARGO', command: 'cargo', args: ['metadata', '--locked', '--offline', '--format-version', '1'] },
 } as const;
 
@@ -59,7 +59,9 @@ export function lockFindings(root: string, ecosystem: LockEcosystem, env: NodeJS
     if (!result.error && result.status === 0) return [];
     const output = [result.stderr, result.stdout].join('\n').split('\n').map(line => line.trim());
     // The first line that states the cause: a composer item, a uv or cargo error, or the diff header of go mod tidy; never a heading.
-    const cause = result.error?.message ?? output.find(line => !line.startsWith('#') && /error|not up to date|^diff /i.test(line)) ?? `exit status ${result.status}`;
+    // Otherwise the first line of the tool, such as a go error that names no error (K1011).
+    const stated = output.filter(line => line !== '' && !line.startsWith('#'));
+    const cause = result.error?.message ?? stated.find(line => /error|not up to date|^diff /i.test(line)) ?? stated[0] ?? `exit status ${result.status}`;
     return [`${lock}: ${[command, ...check.args].join(' ')} fails: ${cause}`];
   });
   return ecosystem === 'npm' ? [...failures, ...integrityFindings(root, locks)] : failures;
