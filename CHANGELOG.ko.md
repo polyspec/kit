@@ -1,16 +1,17 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dea66fedd859ac611e84b13d3d21cf27b74872bc2857a5c5409f686398e8b45e -->
+<!-- source-sha256: 7d13d9234f6d70711f6f2750141cdc9315f7368843dc3a1438a51d6bcac1a028 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K991: 0.0.86 요약은 0.0.86이 담은 다른 행과 함께 K988과 K989를 적습니다 (K991).
 - K990: `## Unreleased`가 빈 이후 green commit은 tag 없는 맨 위 version을 version commit의 CI run을 기다리지 않고 곧바로 릴리즈하며, unreleased 항목이 있는 commit만 그 run을 기다립니다 (K990).
 
 ## 0.0.86
 
-- Kit 0.0.86은 PRINCIPLES의 언제나 맞는 규칙 세 가지(K981), 한 runtime의 job이 다른 runtime의 package manager를 실행하지 않도록 PROJECT와 RUNTIME으로 고르는 make install-link와 unlink(K983), 명령이 실행되는 폴더에서 지정 파일과 make 명령을 판단하는 Claude hook(K984), P39 label로 이름 짓는 Composer zip(K985), version commit의 CI run이 성공하면 스스로 시작하는 release(K987), CI가 실패해도 버리지 않는 version 번호(K988)를 담습니다 (K986).
+- Kit 0.0.86은 PRINCIPLES의 언제나 맞는 규칙 세 가지(K981), 한 runtime의 job이 다른 runtime의 package manager를 실행하지 않도록 PROJECT와 RUNTIME으로 고르는 make install-link와 unlink(K983), 명령이 실행되는 폴더에서 지정 파일과 make 명령을 판단하는 Claude hook(K984), P39 label로 이름 짓는 Composer zip(K985), version commit의 CI run이 성공하면 스스로 시작하는 release(K987), CI가 실패해도 버리지 않는 version 번호(K988), 이름이 ci인 ci.yml을 가진 consumer-layout fixture(K989)를 담습니다 (K986).
 - K989: consumer-layout test가 만드는 consumer는 K987의 kit-check가 요구하듯 이름이 ci인 ci.yml을 가집니다 (K989).
 - K988: version commit을 어떤 run도 릴리즈하지 않은 맨 위 version은, 예를 들어 그 CI가 실패했으면, `## Unreleased`가 빈 main의 다음 green commit이 릴리즈하므로 CI가 실패해도 version 번호를 버리지 않습니다. unreleased 항목이 있는 이후 commit은 version commit을 적으며 실패하고, consumer-layout test는 release-tag 단계의 AUTO 형태를 읽습니다 (K988).
 - K987: release가 스스로 시작합니다. release.yml은 main에서 CI workflow `ci`의 push 또는 dispatch run이 성공할 때마다 그 workflow_run으로 실행되어 head_sha를 checkout하고, `make release-tag AUTO=1`은 push의 tip인 맨 위 `## X.Y.Z`의 version commit만 릴리즈합니다. 맨 위 version이 자기 line에서 tag되었거나 version commit의 CI run을 기다리는 commit은 릴리즈할 것이 없다며 green으로 끝나고, 릴리즈되지 않은 맨 위 version은 다음 green commit이 릴리즈하며(K988), CI run id를 주는 dispatch는 재실행용으로 남고, `make kit-check`는 `.github/workflows/ci.yml`의 이름이 `ci`이기를 요구합니다 (K987).

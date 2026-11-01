@@ -5,11 +5,12 @@
 
 ## Unreleased
 
+- K991: the summary of 0.0.86 names K988 and K989 with the other rows that 0.0.86 carries (K991).
 - K990: a later green commit whose `## Unreleased` is empty releases the untagged top version at once, without waiting for the CI run of its version commit; only a commit with unreleased entries waits for that run (K990).
 
 ## 0.0.86
 
-- Kit 0.0.86 carries three always-true rules in PRINCIPLES (K981), make install-link and unlink selecting by PROJECT and RUNTIME so a job of one runtime starts no package manager of another (K983), the Claude hook judging named files and make commands in the folder where the command runs (K984), the Composer zip named by its P39 label (K985), a release that starts by itself when the CI run of its version commit succeeds (K987), and a failed CI that costs no version number (K988) (K986).
+- Kit 0.0.86 carries three always-true rules in PRINCIPLES (K981), make install-link and unlink selecting by PROJECT and RUNTIME so a job of one runtime starts no package manager of another (K983), the Claude hook judging named files and make commands in the folder where the command runs (K984), the Composer zip named by its P39 label (K985), a release that starts by itself when the CI run of its version commit succeeds (K987), a failed CI that costs no version number (K988), and a consumer-layout fixture that holds a ci.yml named ci (K989) (K986).
 - K989: the consumer that the consumer-layout test builds holds a ci.yml named ci, as the kit-check of K987 requires (K989).
 - K988: a top version whose version commit no run released, as when its CI failed, is released by the next green commit of main whose `## Unreleased` is empty, so a failed CI costs no version number; a later commit with unreleased entries fails naming the version commit, and the consumer-layout test reads the AUTO form of the release-tag step (K988).
 - K987: a release starts by itself: release.yml runs on the workflow_run of each successful push or dispatch run of the CI workflow `ci` on main, checks out its head_sha, and `make release-tag AUTO=1` releases only the version commit of the top `## X.Y.Z`, which is the tip of its push; a commit whose top version is tagged on its line, or that waits for the CI run of its version commit, ends green with nothing to release, an unreleased top version is released by the next green commit (K988), the dispatch with a CI run id stays for re-runs, and `make kit-check` requires `.github/workflows/ci.yml` to be named `ci` (K987).
