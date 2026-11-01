@@ -91,15 +91,9 @@ kit-install-symbols: ## Install selected declared symbol extractors with EXTRACT
 # same result for the same tree and makes no network query (AGENTS.md, K864). Reading a declaration or a tracked file judges
 # nothing; each target's tool judges its install.
 .PHONY: kit-install-declared
-kit-install-declared: ## Install the declared symbol extractors (install-symbols --declared), with a tracked Cargo.lock its crates and with a tracked go.mod its modules through their targets; ONLINE
+kit-install-declared: ## Install the declared symbol extractors (install-symbols --declared), with a tracked Cargo.lock its crates through their targets; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) --declared
 	@if [ -n "$$(git ls-files -- '*Cargo.lock')" ]; then $(MAKE) --no-print-directory cargo-downloads-fetch; fi
-	@if [ -n "$$(git ls-files -- 'go.mod' '*/go.mod')" ]; then $(MAKE) --no-print-directory go-downloads-fetch; fi
-
-# --- go downloads: go mod download fills the module cache of every tracked go.mod, which lock-check-go reads offline (K1005).
-.PHONY: go-downloads-fetch
-go-downloads-fetch: ## Download the modules of every tracked go.mod with go mod download
-	$(ONLINE) $(NODE) $(KIT)/fetch-go-downloads.$(KIT_EXT)
 
 # --- cargo downloads: cargo fetch --locked downloads the crates of every Cargo.lock; cargo keeps which are present (K864).
 .PHONY: cargo-downloads-fetch
@@ -222,7 +216,7 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, whose partitions below the CI pipeline (workflows/ci-pipeline.yml) runs past failures, so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by.
-kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext lock-check-npm lock-check-composer lock-check-python lock-check-go lock-check-rust ## Run every gate of kit; the CI pipeline runs its partitions in CI
+kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the CI pipeline runs its partitions in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
 # entry point above; these targets are only the disjoint workflow partitions, and the parity job checks every implementation in
@@ -233,20 +227,15 @@ kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-
 ifneq ($(filter kit-gates-static,$(MAKECMDGOALS)),)
 MAKEFLAGS += -k
 endif
-kit-gates-static: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check lock-check-npm ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
+kit-gates-static: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
 	@echo "[kit-gates-static] every shared gate passed"
 kit-gates-parity: parity-check ## Run the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate
-kit-gates-runtime-php: lint-php lock-check-composer ## Run the PHP gate
-kit-gates-runtime-python: lint-python lock-check-python ## Run the Python gate
-kit-gates-runtime-go: lint-go lock-check-go ## Run the Go gate
-kit-gates-runtime-rust: lint-rust lock-check-rust ## Run the Rust gate
+kit-gates-runtime-php: lint-php ## Run the PHP gate
+kit-gates-runtime-python: lint-python ## Run the Python gate
+kit-gates-runtime-go: lint-go ## Run the Go gate
+kit-gates-runtime-rust: lint-rust ## Run the Rust gate
 kit-gates-runtime-php-ext: lint-php-ext test-php-ext ## Run the PHP extension gates
-
-# K1005: each lock is judged by its own package manager, offline; npm with the shared gates, the others in the gate of their runtime.
-.PHONY: lock-check-npm lock-check-composer lock-check-python lock-check-go lock-check-rust
-lock-check-npm lock-check-composer lock-check-python lock-check-go lock-check-rust: ## Fail while a tracked lock of the ecosystem lags its manifest, as its package manager judges offline (K1005)
-	$(NODE) $(KIT)/lock-check.$(KIT_EXT) $(patsubst lock-check-%,%,$@)
 
 .PHONY: kit-ci-plan kit-ci-setup kit-ci-context-prepare kit-ci-context-cleanup
 kit-ci-plan: ## Validate config/ci.json and write the runtime, tool and target plan to GITHUB_OUTPUT for the CI pipeline

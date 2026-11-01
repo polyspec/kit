@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 79379f403ef3547735152ea59544e83a1472a4ac8a4ce05b99047f82296f32e8 -->
+<!-- source-sha256: 2f41c494ce280ec47bd98134293d9fc98df9ee58c349c87f934e3004b2f8bb4e -->
 # 릴리스
 
 [English](release.md)
@@ -18,9 +18,7 @@ Kit의 native npm prepack은 source export와 hook bin을 build된 dist path로 
 후속 변경은 앞선 release의 검증 증거를 무효화하지 않습니다. 현재 version은 자기 CI가 통과하면 완료하고 다음 version을 올려 별도로 검증합니다. 로컬 main commit이 자동으로 원격 release에 포함되는 것은 아니므로 원격 candidate와 해당 CI를 확인합니다. 구현 완료와 소유 검사 통과는 공개를 뜻하지 않으며 release 공개 후에만 release checklist 항목을 완료합니다.
 
 릴리스는 세 단계로 준비하고 진행합니다. (1) commit `chore(release): Release X.Y.Z`가 모든 release manifest와 lock의 버전을 정하고
-`CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. composer.lock의 content-hash는 그 composer.json의 `version`을 포함하므로,
-버전이 바뀌는 각 composer.json의 lock을 `composer update --lock`으로 다시 쓰고 `make lock-check-composer`가 통과합니다(K1005).
-packing 전에 버전을 commit합니다. native packer가 version 파일을
+`CHANGELOG.md(.ko)`의 Unreleased 절을 `## X.Y.Z`로 바꿉니다. packing 전에 버전을 commit합니다. native packer가 version 파일을
 `HEAD`에서 복원하는 package lifecycle script를 실행할 수 있기 때문입니다. tag 없는 candidate archive 전체는 커밋된 `HEAD`에서
 `make release-candidate-assets VERSION=X.Y.Z`로 만듭니다. 이 명령은 tag asset producer와 같은 manifest 검사, 생성 파일 처리 및 native
 packer를 사용하며 tag를 조회하거나 만들지 않습니다. package lifecycle script가 package directory 바깥의 build input도 읽을 수 있으므로

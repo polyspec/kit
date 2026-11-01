@@ -33,7 +33,7 @@ KIT_TEST_FILES_2 := \
 KIT_TEST_FILES_3 := \
 	tests/kit/ci-only.test.mts tests/kit/documents-stamp.test.mts tests/kit/install-symbols.test.mts \
 	tests/kit/kit-tools.test.mts tests/kit/markdown.test.mts tests/kit/parity-requirements.test.mts \
-	tests/kit/lock-check.test.mts tests/kit/recipe-tools.test.mts \
+	tests/kit/recipe-tools.test.mts \
 	tests/kit/release-tag.test.mts tests/kit/run-tests.test.mts \
 	tests/kit/stubs.test.mts tests/kit/suppression-check.test.mts tests/kit/test-output.test.mts \
 	tests/kit/toolchain-mise.test.mts

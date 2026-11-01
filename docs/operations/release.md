@@ -18,9 +18,7 @@ The public module subpaths include `glob`, `parity-declaration`, `land`, `parity
 Later changes do not invalidate an earlier release's evidence. Finish the current version from its own successful CI, then bump the next version and validate it separately. A local main commit is not automatically part of a remote release: check the remote candidate and its CI. Implementation completion and owning tests do not mean publication; update a release checklist item only after the release is public.
 
 A release is prepared and cut in three steps. (1) A commit `chore(release): Release X.Y.Z` sets the version in every release
-manifest and lock, and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`; the content-hash of a composer.lock covers
-the `version` of its composer.json, so `composer update --lock` rewrites the lock of each composer.json whose version changes, and
-`make lock-check-composer` passes (K1005). Commit the version before packing:
+manifest and lock, and turns the Unreleased section of `CHANGELOG.md(.ko)` into `## X.Y.Z`. Commit the version before packing:
 the native packers may run package lifecycle scripts that restore version files from `HEAD`. Build all tagless candidate archives
 from committed `HEAD` with `make release-candidate-assets VERSION=X.Y.Z`. This uses the same manifest validation, generated-file
 handling and native packers as the tagged asset producer; it neither resolves nor creates a tag. Run

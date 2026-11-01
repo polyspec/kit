@@ -7,8 +7,8 @@
 
 ## 0.0.91
 
-- Kit 0.0.91 releases the batch of 0.0.90 with K1011; tag v0.0.90 has no release, because its release run was cancelled for the go false positive that K1011 fixes (K1012).
-- K1011: lock-check-go runs go mod tidy -e -diff, so an import that only the go.work workspace or a generated, ignored package provides is no finding, while a go.sum or go.mod that tidy would change still is; a failure names the first line of go when go states no error (K1011).
+- Kit 0.0.91 releases K1007 and K1008 and deletes lock-check (K1013); tag v0.0.90 has no release (K1012).
+- K1013: lock-check-<ecosystem>, go-downloads-fetch and the download steps of the CI runtime setup are deleted (K1005, K1010, K1011): kit is not a package manager, and whether a lock matches its manifest is the judgment of npm, composer, uv, go and cargo (K1013).
 
 ## 0.0.90
 

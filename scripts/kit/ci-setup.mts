@@ -208,11 +208,7 @@ function invocations(root: string, group: 'shared' | 'parity' | 'runtime', runti
   if (group === 'shared') return config.setup.shared.map(target => ({ target, args: [] }));
   if (group === 'runtime') {
     if (runtime === undefined || !runtimes.includes(runtime)) throw new Error(`make kit-ci-setup GROUP=runtime needs a runtime of the plan (the tracked source files and targets.runtimes); choose ${runtimes.join(', ') || '(none)'}`);
-    // K1005: lock-check-go and lock-check-rust of the runtime gate read the module cache and the crates offline, so after the setup of
-    // the repository kit downloads those of every tracked go.mod or Cargo.lock.
-    const fetch = runtime === 'go' && files.some(file => path.posix.basename(file) === 'go.mod') ? ['go-downloads-fetch']
-      : runtime === 'rust' && files.some(file => path.posix.basename(file) === 'Cargo.lock') ? ['cargo-downloads-fetch'] : [];
-    return [...runtimeSetup(runtime, config, files, db.targets), ...fetch.map(target => ({ target, args: [] }))];
+    return runtimeSetup(runtime, config, files, db.targets);
   }
   // The parity job builds every implementation, so it runs the setup of every runtime, each target once.
   const targets = [...runtimes.flatMap(selected => runtimeSetup(selected, config, files, db.targets)), ...config.setup.parity.map(target => ({ target, args: [] }))];

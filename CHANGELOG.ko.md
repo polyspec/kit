@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: dbc2b60a29960fe5bfcf5cdb26a5ad70db393ce1de7fc3be8666799cb3f6113f -->
+<!-- source-sha256: ebf45a4fbb12c07b0c2400f057c7f1776d0fbaaea949b8434d10c8dc4eddbb86 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,8 +8,8 @@
 
 ## 0.0.91
 
-- Kit 0.0.91은 0.0.90의 batch를 K1011과 함께 릴리즈합니다; tag v0.0.90은 K1011이 고치는 go 오탐 때문에 release run이 취소되어 release가 없습니다 (K1012).
-- K1011: lock-check-go가 go mod tidy -e -diff를 실행하므로 go.work workspace나 생성되고 무시되는 package만 제공하는 import는 finding이 아니며, tidy가 바꿀 go.sum이나 go.mod는 여전히 finding입니다; go가 error를 말하지 않으면 실패는 go의 첫 줄을 이름합니다 (K1011).
+- Kit 0.0.91은 K1007과 K1008을 릴리즈하고 lock-check를 삭제합니다(K1013); tag v0.0.90은 release가 없습니다 (K1012).
+- K1013: lock-check-<ecosystem>, go-downloads-fetch와 CI runtime setup의 download 단계를 삭제합니다(K1005, K1010, K1011): kit은 package manager가 아니며, lock이 manifest와 맞는지는 npm, composer, uv, go, cargo가 판단합니다 (K1013).
 
 ## 0.0.90
 

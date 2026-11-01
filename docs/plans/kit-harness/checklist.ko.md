@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 97e4a9f4a53a2b6cc8c016e97c248d9b2c151c9e6aded1e790eed1e13602b8e0 -->
+<!-- source-sha256: 01f3ea71af53a410276cb00edb1cd993f812d7596699a8e79b1f55438e7c2d20 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -145,4 +145,4 @@
 | K1008 | link providers는 checkout이 주어지지 않으면 main checkout의 .links 선언을 읽고 --ecosystem npm, composer, python, go를 받는다; 기본값은 npm이다 | `scripts/kit/link.mts`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a checkout whose .links names a provider with packages/php-ext/composer.json prints no line for providers --ecosystem composer. Green: `node --test --test-name-pattern=K1008 tests/kit/link.test.mts` passes. | [o] |
 | K1010 | Makefile의 kit test shard가 tests/kit/lock-check.test.mts를 담아 kit 0.0.90의 CI가 통과한다 | `Makefile`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K718 tests/source/ci-workflow.test.mts` passes | [o] |
 | K1011 | lock-check-go가 go mod tidy -e -diff를 실행해 go.work나 생성 package의 import는 finding이 아니며, 실패는 go의 첫 줄을 이름한다 | `scripts/kit/lock-check.mts`, `tests/kit/lock-check.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1011 tests/kit/lock-check.test.mts` passes | [o] |
-| K1013 | lock-check와 그 download 단계를 삭제한다(K1005, K1010, K1011): kit은 package manager가 아니다 | `scripts/kit/lock-check.mts`, `scripts/kit/fetch-go-downloads.mts`, `scripts/kit/kit.mk`, `scripts/kit/ci-setup.mts`, `CHANGELOG.md(.ko)` | `make kit-check` passes | [~] |
+| K1013 | lock-check와 그 download 단계를 삭제한다(K1005, K1010, K1011): kit은 package manager가 아니다 | `scripts/kit/lock-check.mts`, `scripts/kit/fetch-go-downloads.mts`, `scripts/kit/kit.mk`, `scripts/kit/ci-setup.mts`, `CHANGELOG.md(.ko)` | `make kit-check` passes | [o] |
