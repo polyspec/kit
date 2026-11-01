@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: 1e3a934f69b276817e567ec21fdb04d708bed1fafd8b4885975e512a466a65a3 -->
+<!-- source-sha256: ebe58e7f55aa84afc7b36cec71cd9407c9642aa6cab4b477eb11a0e70ad6cee5 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -812,4 +812,4 @@
 | K982 | Kit 0.0.85를 릴리스한다 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K986 | Kit 0.0.86을 릴리즈한다 | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K995 | Kit 0.0.87을 릴리즈한다 | `package.json`, `package-lock.json`, `CHANGELOG.md`, `CHANGELOG.ko.md` | `node --test tests/source/release-workflow.test.mts` | [o] |
-| K1001 | Kit 0.0.88 릴리즈 | `package.json`, `package-lock.json`, `CHANGELOG.md`, `CHANGELOG.ko.md` | `node --test tests/source/release-workflow.test.mts` | [ ] |
+| K1001 | Kit 0.0.88 릴리즈 | `package.json`, `package-lock.json`, `CHANGELOG.md`, `CHANGELOG.ko.md` | `node --test tests/source/release-workflow.test.mts` | [~] |
