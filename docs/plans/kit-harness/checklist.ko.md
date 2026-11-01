@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 39b6fc5e5db3fb5d77f7ade272d26bbf3b84fa56a842e52505fb5a66cfa08fc9 -->
+<!-- source-sha256: f38fa40aef9d7412b3db23e1901772e0f8eeee8af7223b2e4e6156675fff2e47 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -142,4 +142,4 @@
 | K1005 | make kit-gates-static은 추적되는 모든 lock에 대해 각 package manager의 자체 lock 검사를 실행한다: uv lock --check, npm install --package-lock-only와 git diff --exit-code, lock을 포함한 composer validate, cargo metadata --locked, -mod=readonly의 go mod verify. 판단은 도구가 하며 kit은 버전을 판단하지 않는다 | the lock check in `scripts/kit/`, its target in `scripts/kit/kit.mk`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a fixture whose uv.lock or package-lock.json lags its manifest passes `make kit-gates-static`. Green: `node --test --test-name-pattern=K1005 tests/kit/lock-check.test.mts` names each stale lock. | [ ] |
 | K1006 | kit 0.0.89의 CI가 K1002와 함께 통과한다: coupling.mts는 config/rebuild.json에 class가 있고, linked-sources.test는 module export만 해석하며, consumer-layout.test의 consumer는 설치된 kit의 kit-bootstrap.mk를 include한다 | `config/rebuild.json`, `tests/kit/linked-sources.test.mts`, `tests/source/consumer-layout.test.mts`, `CHANGELOG.md(.ko)` | `make rebuild-check`, `node --test tests/kit/linked-sources.test.mts tests/source/consumer-layout.test.mts` and the CI of kit pass. | [o] |
 | K1007 | make kit-inject-check는 사본을 index와 비교하므로, stage된 채택은 commit 전에 통과한다 | the copy comparison in `scripts/kit/`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a staged, uncommitted adoption fails `make kit-inject-check`. Green: its test passes the staged copies. | [o] |
-| K1008 | link providers는 checkout이 주어지지 않으면 main checkout의 .links 선언을 읽고 --ecosystem npm, composer, python, go를 받는다; 기본값은 npm이다 | `scripts/kit/link.mts`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a checkout whose .links names a provider with packages/php-ext/composer.json prints no line for `providers --ecosystem composer`. Green: `node --test --test-name-pattern=K1008 tests/kit/link.test.mts` passes. | [ ] |
+| K1008 | link providers는 checkout이 주어지지 않으면 main checkout의 .links 선언을 읽고 --ecosystem npm, composer, python, go를 받는다; 기본값은 npm이다 | `scripts/kit/link.mts`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a checkout whose .links names a provider with packages/php-ext/composer.json prints no line for `providers --ecosystem composer`. Green: `node --test --test-name-pattern=K1008 tests/kit/link.test.mts` passes. | [~] |
