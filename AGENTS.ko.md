@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 5e22ea61e2a3877c70fe375b1cc8840b812f703b86f3adb6ec7a9fc485a3339c -->
+<!-- source-sha256: 79ce121ec7f7389480d8068fe473f9cc450957515fa3ba7a047144fec30ed919 -->
 # 개발
 
 [English](AGENTS.md)
@@ -65,7 +65,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Refines P15: 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `make duplication-check`(jscpd)는 6줄 이상의
   같은 부분이 두 번 있으면 실패합니다.
   Enforced by: `make duplication-check`
-- Refines P19: 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 오프라인에서 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
+- Refines P19: 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.
   stub은 stub이나 mise shim이 제공하는 명령(go, composer, npm, node, php, python, uv, mise)을 실행하지 않습니다. checkout 밖의
   shim은 PATH의 다음 명령을 실행하기 때문입니다. machine의 archiver는 허용됩니다(`tests/kit/stubs.test.mts`).
@@ -103,8 +103,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   Enforced by: `make parity-declarations-check`
 - Own: 모든 검사는 같은 tree에 같은 결과를 냅니다. 도구는 임시 파일과 rename으로 쓰고, 단계마다 한 줄을 출력하며, 시간 제한이 없습니다. 테스트
   case는 자기 timeout을 가집니다. 네트워크 조회는 make recipe가 `$(ONLINE)`으로 실행하는 명령(예: `install-tools`와
-  `release-assets`의 명령)만 하고, 결과는 commit된 기록, 설치, 또는 저장소 자신의
-  release archive입니다. kit은 다른 저장소의 package를 내려받지 않습니다(K865).
+  `release-assets`의 명령)나 자기 lock이 이름한 것을 받는 package manager(K1014)만 하고, 결과는 commit된 기록, 설치, 또는
+  저장소 자신의 release archive입니다. kit은 다른 저장소의 package를 내려받지 않습니다(K865).
   Enforced by: `make kit-test-shard`
 - Own: dependency advisory는 갱신으로 고칩니다. npm audit, composer audit, cargo audit와 govulncheck가 오래되거나 취약한
   dependency를 보고하며, kit은 version을 비교하지 않고 그 기록도 두지 않습니다.

@@ -7,8 +7,9 @@
 
 ## 0.0.91
 
-- Kit 0.0.91 releases K1007 and K1008 and deletes lock-check (K1013); tag v0.0.90 has no release (K1012).
+- Kit 0.0.91 releases K1007 and K1008 and deletes lock-check and cargo-downloads-fetch (K1013, K1014); tag v0.0.90 has no release (K1012).
 - K1013: lock-check-<ecosystem>, go-downloads-fetch and the download steps of the CI runtime setup are deleted (K1005, K1010, K1011): kit is not a package manager, and whether a lock matches its manifest is the judgment of npm, composer, uv, go and cargo (K1013).
+- K1014: cargo-downloads-fetch is deleted from install-kit and the kit CI, and the catch-check of lint-rust runs without --offline: cargo fetches its own crates (K1014).
 
 ## 0.0.90
 

@@ -39,10 +39,6 @@ jobs:
       # var/tools; kit.mk puts their shims first on PATH in every recipe, so the tests run those tools, not the runner image's.
       - name: install tools
         run: make install-tools
-      # The Rust checks run offline, and some build a fresh target directory, so rustup's toolchain install does not provide their crates.
-      - name: fetch Rust crates
-        if: ${{ !cancelled() }}
-        run: make cargo-downloads-fetch
       # The Composer packages of the PHP symbol extractor, whose autoloader the PHPStan of lint-php reads (K248-4).
       - name: install php symbol packages
         run: make kit-install-symbols-php
@@ -191,13 +187,10 @@ jobs:
       - name: install shard 7 tools
         if: ${{ matrix.shard == 7 && !cancelled() }}
         run: make install-tools TOOLS="php composer"
-      # Shard 6 runs catch-check through offline Cargo and needs Rust plus its locked crate cache.
+      # Shard 6 runs catch-check through Cargo, which fetches the crates of its lock.
       - name: install Rust test toolchain
         if: ${{ matrix.shard == 6 && !cancelled() }}
         run: make install-tools TOOLS=rust
-      - name: fetch Rust crates
-        if: ${{ matrix.shard == 6 && !cancelled() }}
-        run: make cargo-downloads-fetch
       - name: kit tests
         if: ${{ !cancelled() }}
         run: make kit-test-shard SHARD=${{ matrix.shard }}
@@ -260,9 +253,6 @@ jobs:
       - name: install PHP symbol packages
         if: ${{ matrix.group == 'php' && !cancelled() }}
         run: make kit-install-symbols-php
-      - name: fetch Rust crates
-        if: ${{ (matrix.group == 'rust' || matrix.group == 'common-2') && !cancelled() }}
-        run: make cargo-downloads-fetch
       - name: source tests
         if: ${{ !cancelled() }}
         run: make source-test-group GROUP=${{ matrix.group }}

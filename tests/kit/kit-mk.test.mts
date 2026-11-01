@@ -131,24 +131,6 @@ test('K861: install-kit installs the declared symbol extractors; without declara
   assert.equal(none.status, 0, none.stderr);
 });
 
-// K864: offline checks read the crates of every Cargo.lock (P17), so install-kit fetches them when a Cargo.lock is tracked, and
-// no repository adds cargo-downloads-fetch to its own make install.
-test('K864: install-kit runs cargo-downloads-fetch when a Cargo.lock is tracked, and not without one', (t) => {
-  const makefile = `include ${path.join(ROOT, 'scripts/kit/kit-bootstrap.mk')}\n`;
-  const dry = (files: Record<string, string>) => {
-    const root = tree(t, { Makefile: makefile, 'config/toolchain.json': JSON.stringify({ schema: 1 }), ...files });
-    initRepository(root);
-    execFileSync('git', ['add', '-A'], { cwd: root });
-    return spawnSync('make', ['-n', '--no-print-directory', 'install-kit', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
-  };
-  const locked = dry({ 'packages/rust/Cargo.lock': 'version = 4\n' });
-  assert.equal(locked.status, 0, locked.stderr);
-  assert.match(locked.stdout, /fetch-cargo-downloads\.mts$/m, 'the crates of the tracked lock are fetched');
-  const bare = dry({});
-  assert.equal(bare.status, 0, bare.stderr);
-  assert.doesNotMatch(bare.stdout, /fetch-cargo-downloads\.mts$/m, 'no lock, no fetch');
-});
-
 test('kit.mk accepts a parity declaration with no implementation targets and still rejects unreadable names', (t) => {
   const root = tree(t, { 'config/parity.json': JSON.stringify({ implementations: [] }) });
   const args = ['--no-print-directory', '-n', '-f', KIT_MK, 'parity-api-check', `KIT=${path.join(ROOT, 'scripts/kit')}`, 'KIT_EXT=mts', `NODE=${process.execPath}`];

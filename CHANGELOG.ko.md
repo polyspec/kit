@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ebf45a4fbb12c07b0c2400f057c7f1776d0fbaaea949b8434d10c8dc4eddbb86 -->
+<!-- source-sha256: e6f9ff7a80af84459b19388819665cd95e704e1b9f613f46a38292afcc9d99c5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,8 +8,9 @@
 
 ## 0.0.91
 
-- Kit 0.0.91은 K1007과 K1008을 릴리즈하고 lock-check를 삭제합니다(K1013); tag v0.0.90은 release가 없습니다 (K1012).
+- Kit 0.0.91은 K1007과 K1008을 릴리즈하고 lock-check와 cargo-downloads-fetch를 삭제합니다(K1013, K1014); tag v0.0.90은 release가 없습니다 (K1012).
 - K1013: lock-check-<ecosystem>, go-downloads-fetch와 CI runtime setup의 download 단계를 삭제합니다(K1005, K1010, K1011): kit은 package manager가 아니며, lock이 manifest와 맞는지는 npm, composer, uv, go, cargo가 판단합니다 (K1013).
+- K1014: install-kit과 kit CI에서 cargo-downloads-fetch를 삭제하고 lint-rust의 catch-check는 --offline 없이 실행합니다: crate는 cargo가 스스로 받습니다 (K1014).
 
 ## 0.0.90
 

@@ -42,11 +42,10 @@ test('the CI workflow lints kit with make lint-ts, the TypeScript lint of its co
   assert.ok(lint > runs.indexOf('make install-packages'), 'a step runs make lint-ts after npm ci');
 });
 
-test('kit-test shards install only their declared PHP, Composer, runtime and Cargo prerequisites (K78, K127)', () => {
+test('kit-test shards install only their declared PHP, Composer and runtime prerequisites (K78, K127)', () => {
   const kitTestRuns = jobRuns('kit_tests');
   const phpTools = kitTestRuns.indexOf('make install-tools TOOLS="php composer phpunit"');
   const rustTools = kitTestRuns.indexOf('make install-tools TOOLS=rust');
-  const cargoDownloads = kitTestRuns.indexOf('make cargo-downloads-fetch');
   const kitTest = kitTestRuns.indexOf('make kit-test-shard SHARD=${{ matrix.shard }}');
   assert.ok(!jobText('kit_tests').includes('GITHUB_PATH'), 'no step puts var/tools on PATH by hand');
   assert.ok(phpTools >= 0 && phpTools < kitTest, 'the PHP fixture shard installs PHP, Composer and PHPUnit');
@@ -62,30 +61,16 @@ test('kit-test shards install only their declared PHP, Composer, runtime and Car
   }
   assert.match(jobText('kit_tests'), /if: \$\{\{ contains\(fromJSON\('\[1,3,4,5,7\]'\), matrix\.shard\) \}\}[\s\S]*?php-version-file: \.php-version/);
   assert.ok(rustTools >= 0 && rustTools < kitTest, 'the Cargo fixture shard installs Rust');
-  assert.ok(cargoDownloads > rustTools && cargoDownloads < kitTest, 'the Cargo shard fetches its crates before running');
   const phpParser = kitTestRuns.indexOf('make kit-install-symbols-php');
   assert.ok(phpParser > phpTools && phpParser < kitTest, 'the temporary PHP consumer fixtures resolve the parser from the Kit source installation');
   assert.ok(jobText('kit_tests').includes('if: ${{ matrix.shard == 5 && !cancelled() }}\n        run: make kit-install-symbols-php'), 'only shard 5 installs the source parser for its consumer fixtures');
-  assert.match(jobText('kit_tests'), /if: \$\{\{ matrix\.shard == 6 && !cancelled\(\) \}\}[\s\S]*make cargo-downloads-fetch/);
 });
 
-test('Rust source groups install Rust and fetch locked crates only for their selected group', () => {
+test('Rust source groups install Rust before their tests (K1014)', () => {
   const sourceRuns = jobRuns('source_tests');
   const rust = sourceRuns.indexOf('make install-tools TOOLS=rust');
-  const cargoDownloads = sourceRuns.indexOf('make cargo-downloads-fetch');
-  const sourceTest = sourceRuns.indexOf('make source-test-group GROUP=${{ matrix.group }}');
-  assert.ok(rust >= 0 && cargoDownloads > rust && cargoDownloads < sourceTest, 'Rust groups install their toolchain and crates before tests');
-  assert.match(jobText('source_tests'), /if: \$\{\{ \(matrix\.group == 'rust' \|\| matrix\.group == 'common-2'\) && !cancelled\(\) \}\}[\s\S]*make cargo-downloads-fetch/);
+  assert.ok(rust >= 0 && rust < sourceRuns.indexOf('make source-test-group GROUP=${{ matrix.group }}'), 'Rust groups install their toolchain before tests');
   assert.ok(!sourceRuns.includes('rustup toolchain install'), 'install-tools owns Rust toolchain installation');
-});
-
-test('the checks job uses the complete locked toolchain before fetching Rust crates', () => {
-  const checkRuns = jobRuns('checks');
-  const tools = checkRuns.indexOf('make install-tools');
-  const cargoDownloads = checkRuns.indexOf('make cargo-downloads-fetch');
-  assert.ok(cargoDownloads > tools, 'the complete install precedes locked Rust crate fetching');
-  for (const target of ['make lint-ts', 'make lint-rust']) assert.ok(cargoDownloads < checkRuns.indexOf(target), `${target} runs after Cargo dependencies are present`);
-  assert.match(jobText('checks'), /- name: fetch Rust crates\n        if: \$\{\{ !cancelled\(\) \}\}\n        run: make cargo-downloads-fetch/);
 });
 
 test('the CI workflow checks the classes of config/rebuild.json and the owner rules of config/owner-checks.json (K182)', () => {

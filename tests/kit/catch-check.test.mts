@@ -45,9 +45,9 @@ test('a Rust Err arm or if let Err branch without a statement is a finding (K537
   const manifest = path.join(kitPackageRoot(), CATCH_CHECK_MANIFEST);
   const env = { ...process.env, CARGO_TARGET_DIR: path.join(directory, 'target') };
   // The tool is built first: its compile is no part of the check (the timeout of a test bounds the time before its first output).
-  const build = spawnSync('cargo', ['build', '--quiet', '--offline', '--locked', '--manifest-path', manifest], { encoding: 'utf8', env });
+  const build = spawnSync('cargo', ['build', '--quiet', '--locked', '--manifest-path', manifest], { encoding: 'utf8', env });
   assert.equal(build.status, 0, build.stderr);
-  const run = spawnSync('cargo', ['run', '--quiet', '--offline', '--locked', '--manifest-path', manifest, '--', file], { encoding: 'utf8', env });
+  const run = spawnSync('cargo', ['run', '--quiet', '--locked', '--manifest-path', manifest, '--', file], { encoding: 'utf8', env });
   assert.equal(run.status, 1, run.stderr);
   // Each finding is `<file>:<line>: <message>`.
   assert.deepEqual(run.stderr.trim().split('\n').map(line => line.slice(file.length + 1).split(':')[0]), ['4', '8']);
@@ -83,9 +83,9 @@ test('a narrow Err arm, guarded or naming a variant, is no finding (K620)', (t) 
   ].join('\n'));
   const manifest = path.join(kitPackageRoot(), CATCH_CHECK_MANIFEST);
   const env = { ...process.env, CARGO_TARGET_DIR: path.join(directory, 'target') };
-  const build = spawnSync('cargo', ['build', '--quiet', '--offline', '--locked', '--manifest-path', manifest], { encoding: 'utf8', env });
+  const build = spawnSync('cargo', ['build', '--quiet', '--locked', '--manifest-path', manifest], { encoding: 'utf8', env });
   assert.equal(build.status, 0, build.stderr);
-  const run = spawnSync('cargo', ['run', '--quiet', '--offline', '--locked', '--manifest-path', manifest, '--', file], { encoding: 'utf8', env });
+  const run = spawnSync('cargo', ['run', '--quiet', '--locked', '--manifest-path', manifest, '--', file], { encoding: 'utf8', env });
   assert.equal(run.status, 1, run.stderr);
   // Only the arm and the branch of every error remain: `Err(_) => {}` and `if let Err(error) = k() {}`.
   assert.deepEqual(run.stderr.trim().split('\n').map(line => line.slice(file.length + 1).split(':')[0]), ['15', '18']);

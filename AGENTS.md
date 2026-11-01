@@ -73,7 +73,7 @@ and states only its own rules. The rules below are kit's own.
 - Refines P15: A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
   `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
   Enforced by: `make duplication-check`
-- Refines P19: Tests are in `tests/kit/`, run offline with stub commands and the fixture `tests/kit/fixture`, and each test fails
+- Refines P19: Tests are in `tests/kit/`, run with stub commands and the fixture `tests/kit/fixture`, and each test fails
   when its
   behavior breaks. A defect is handled by a failing test that reproduces it, the fix, and keeping the test.
   A stub never runs a command that a stub or a mise shim provides (go, composer, npm, node, php, python, uv, mise), since a
@@ -116,8 +116,8 @@ and states only its own rules. The rules below are kit's own.
 - Own: Every check gives the same result for the same tree. A tool writes through a temporary file and a rename, prints a line
   for each step, and has no time limit; a test case has its own timeout. A network query is made only by a command that a
   make recipe runs through `$(ONLINE)`, such as those of `install-tools` and `release-assets`, and its result is a committed
-  record, an installation or a release archive of the repository itself; kit downloads no package of another repository
-  (K865).
+  record, an installation or a release archive of the repository itself, or by a package manager that fetches what its own
+  lock names (K1014); kit downloads no package of another repository (K865).
   Enforced by: `make kit-test-shard`
 - Own: A dependency advisory is fixed by an update. npm audit, composer audit, cargo audit and govulncheck report
   outdated and vulnerable dependencies; kit compares no versions and keeps no record of them.

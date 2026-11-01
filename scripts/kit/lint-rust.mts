@@ -24,7 +24,7 @@ import { siblingTool } from './paths.mts';
  */
 export const P8_LINTS = ['-D', 'unused_must_use', '-D', 'clippy::let_underscore_must_use', '-D', 'clippy::let_underscore_untyped', '-D', 'clippy::map_err_ignore', '-D', 'clippy::allow_attributes_without_reason'];
 
-/** The manifest of the Rust half of the catch check (K537), a crate of the kit package that syn builds offline. */
+/** The manifest of the Rust half of the catch check (K537), a crate of the kit package that cargo builds with syn. */
 export const CATCH_CHECK_MANIFEST = 'scripts/kit/catch-check-rust/Cargo.toml';
 
 /**
@@ -37,7 +37,7 @@ export function lintSteps(root: string): LintStep[] {
   const catchCheck: LintStep[] = rust.length === 0 ? [] : [{
     label: 'catch-check rust',
     command: 'cargo',
-    args: ['run', '--quiet', '--offline', '--locked', '--manifest-path', path.join(kitPackageRoot(), CATCH_CHECK_MANIFEST), '--', ...rust],
+    args: ['run', '--quiet', '--locked', '--manifest-path', path.join(kitPackageRoot(), CATCH_CHECK_MANIFEST), '--', ...rust],
     cwd: '.',
     env: { CARGO_TARGET_DIR: path.join(root, 'var/kit/catch-check-rust') },
   }];

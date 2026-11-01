@@ -1,6 +1,6 @@
 # The Rust half of the check that no error is swallowed in silence (K537): syn reads each Rust file of the checkout and the tool
 # names an Err(..) arm or an `if let Err(..)` branch whose body holds no statement. clippy has no lint for either. The versions
-# are those that the crates of the polyspec repositories already lock, so the tool builds offline from the cargo cache.
+# are those that the crates of the polyspec repositories already lock; cargo fetches them.
 [package]
 name = "catch-check"
 version = "0.0.0"

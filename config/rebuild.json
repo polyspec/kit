@@ -50,10 +50,6 @@
       "kind": "policy",
       "reason": "the rule of S15 that a part reaches another only through the interface its installed manifest declares and names no path to a sibling checkout (K1002)"
     },
-    "scripts/kit/fetch-cargo-downloads.mts": {
-      "kind": "ecosystem",
-      "tool": "cargo fetch --locked"
-    },
     "scripts/kit/check-commits.mts": {
       "kind": "record",
       "record": "docs/rebuild/check-commits.md"

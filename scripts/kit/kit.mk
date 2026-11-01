@@ -87,18 +87,11 @@ kit-install-symbols: ## Install selected declared symbol extractors with EXTRACT
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) $(EXTRACTORS)
 
 # The tools of the parity rules that every repository shares are kit's, so install-kit installs them from the declarations of the
-# repository through their targets (K861): the symbolExtractors of config/toolchain.json, and the crates of a tracked Cargo.lock, which offline checks read, since a check gives the
-# same result for the same tree and makes no network query (AGENTS.md, K864). Reading a declaration or a tracked file judges
-# nothing; each target's tool judges its install.
+# repository through their targets (K861): the symbolExtractors of config/toolchain.json. Reading a declaration judges nothing; each
+# target's tool judges its install. cargo fetches the crates of a Cargo.lock itself (K1014).
 .PHONY: kit-install-declared
-kit-install-declared: ## Install the declared symbol extractors (install-symbols --declared), with a tracked Cargo.lock its crates through their targets; ONLINE
+kit-install-declared: ## Install the declared symbol extractors (install-symbols --declared) through their targets; ONLINE
 	$(ONLINE) $(NODE) $(KIT)/install-symbols.$(KIT_EXT) --declared
-	@if [ -n "$$(git ls-files -- '*Cargo.lock')" ]; then $(MAKE) --no-print-directory cargo-downloads-fetch; fi
-
-# --- cargo downloads: cargo fetch --locked downloads the crates of every Cargo.lock; cargo keeps which are present (K864).
-.PHONY: cargo-downloads-fetch
-cargo-downloads-fetch: ## Download the crates of every Cargo.lock with cargo fetch --locked
-	$(ONLINE) $(NODE) $(KIT)/fetch-cargo-downloads.$(KIT_EXT)
 # Toolchains (K8.2, K127): the bootstrap (TOOLS=npm) installs mise, and the node and npm of mise.toml; install-tools installs every
 # tool of mise.toml at the digests of mise.lock with mise, then what mise does not install (the wheel backend and the Composer
 # projects; the symbol extractors have their own targets, K861); toolchain-lock writes mise.lock. All three download, so they run ONLINE. Nothing outside
@@ -470,7 +463,7 @@ lint-python: ## Lint the Python of the checkout: ruff with ruff.toml, and vultur
 lint-php: ## Lint the PHP of the checkout: phpcs with phpcs.xml.dist, and PHPStan with phpstan.dist.neon on each Composer package; offline
 	$(NODE) $(KIT)/lint-php.$(KIT_EXT)
 
-lint-rust: ## Lint the Rust of the checkout: cargo clippy with -D warnings in each Cargo workspace; offline once the crates are downloaded
+lint-rust: ## Lint the Rust of the checkout: cargo clippy with -D warnings in each Cargo workspace
 	$(NODE) $(KIT)/lint-rust.$(KIT_EXT)
 
 lint-go: ## Lint the Go of the checkout: golangci-lint with .golangci.yml, and deadcode -test, in each Go module; offline once the modules are downloaded

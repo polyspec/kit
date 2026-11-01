@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 2a24eb4e7e675f90412650c24ef84f6d82cbb3226b0f1c26a622a10c03e5cffe -->
+<!-- source-sha256: 4fe5562230ae9aa6e5998b7eb8a9bd2765dc89f9adcc93d5a60a06fc175f495c -->
 
 # 도구 목록
 
@@ -42,7 +42,7 @@ x64와 arm64의 linux, macOS, Windows 중 archive가 있는 각 platform의 sha2
 것을 설치합니다. PHP는 machine이 제공하며 `install-php.mts`가 그대로 wrapper로 제공하고(K283, K862, 아래), `config/phpunit`과 `config/php-lint`의 Composer project, rustup으로
 설치하는(`install-rust.mts`) `rust-toolchain.toml`의 toolchain과 그 component(checkout에서 파일을 읽는
 `rustup toolchain install --no-self-update`; rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다)와 `exceptions`의
-Rust channel입니다. 이미 설치된 것은 rustup이 판정합니다(K861). `TOOLS` selector가 없으면 기존처럼 전체 도구를 설치합니다. `make install-tools TOOLS="go python"`은 해당 mise 도구와 선언된 prerequisite만 설치합니다. Selector는 `scripts/kit/toolchain-mise.mts`의 `TOOLS`에 있는 정확한 이름입니다. `deadcode`, `govulncheck`, `golangciLint`는 Go도 설치하고, `vulture`는 Python과 uv를 설치하며, Python은 선언된 wheel backend를 설치합니다. PHP Composer 도구는 선언된 PHP wrapper와 Composer를 설치하고, Rust는 stable toolchain과 선언된 exception channel을 설치합니다. 알 수 없거나 비어 있거나 선언되지 않은 selector는 변경 전에 거부합니다. 선택 설치는 다른 기존 설치물을 지우지 않습니다. 전체 설치든 선택 설치든 symbol extractor는 만들지 않으며, 명시적 target `kit-install-symbols`가 이를 설치합니다. `install-kit`이 `kit-install-declared`(`install-symbols --declared`)로 저장소의 선언(`config/toolchain.json`의 `symbolExtractors`)을 읽어 같은 도구를 실행하므로, 어떤 저장소도 호출을 복사하지 않습니다(K861). 추적되는 `Cargo.lock`이 있으면 `kit-install-declared`는 오프라인 검사가 crate를 읽으므로 모든 lock의 `cargo fetch --locked`인 `make cargo-downloads-fetch`도 실행하며, kit은 crate가 있는지 검사하지 않습니다(K864). bootstrap의 `TOOLS=npm`은 그대로입니다.
+Rust channel입니다. 이미 설치된 것은 rustup이 판정합니다(K861). `TOOLS` selector가 없으면 기존처럼 전체 도구를 설치합니다. `make install-tools TOOLS="go python"`은 해당 mise 도구와 선언된 prerequisite만 설치합니다. Selector는 `scripts/kit/toolchain-mise.mts`의 `TOOLS`에 있는 정확한 이름입니다. `deadcode`, `govulncheck`, `golangciLint`는 Go도 설치하고, `vulture`는 Python과 uv를 설치하며, Python은 선언된 wheel backend를 설치합니다. PHP Composer 도구는 선언된 PHP wrapper와 Composer를 설치하고, Rust는 stable toolchain과 선언된 exception channel을 설치합니다. 알 수 없거나 비어 있거나 선언되지 않은 selector는 변경 전에 거부합니다. 선택 설치는 다른 기존 설치물을 지우지 않습니다. 전체 설치든 선택 설치든 symbol extractor는 만들지 않으며, 명시적 target `kit-install-symbols`가 이를 설치합니다. `install-kit`이 `kit-install-declared`(`install-symbols --declared`)로 저장소의 선언(`config/toolchain.json`의 `symbolExtractors`)을 읽어 같은 도구를 실행하므로, 어떤 저장소도 호출을 복사하지 않습니다(K861). bootstrap의 `TOOLS=npm`은 그대로입니다.
 bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)은 반드시 있어야 하는 `+sha512.<digest>`로
 `config/toolchain.json` `mise`의 sha256으로 mise 자체를, 그리고 그와 함께 `mise.toml`의 node와 npm(`npm:npm`, `mise.lock`에 lock됨)을 설치합니다(K938). `install-tool.mts`가 각각을 대상
 옆에서 만들고 거기서 download의 digest를 확인한 뒤 그 digest를 marker(`var/tools/mise-release`의 `.sha256`)에 쓰고 rename하므로, 두 번째 실행은 marker가 선언된 digest를 담은 설치를 유지하고 version은
@@ -715,7 +715,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 | Module | 담는 것 | 대체한 것 | 사용처 |
 |---|---|---|---|
 | `paths.mts` | working directory가 속한 Git work tree의 top level인 `repositoryRoot()`(K144), `isMain(import.meta.url)` | 22개 module이 계산하던 root 경로와 21곳의 `process.argv[1] === ...` 검사 | 기본 root를 쓰는 모든 command와 module |
-| `process.mts` | `execute`, `run`, `Stop` | release의 `run`, `encoding`과 `maxBuffer`를 적은 `spawnSync` 호출 | release, fetch-cargo-downloads, git |
+| `process.mts` | `execute`, `run`, `Stop` | release의 `run`, `encoding`과 `maxBuffer`를 적은 `spawnSync` 호출 | release, git |
 | `git.mts` | `git`, `gitResult` | full-run, push-gate, owner-check, kit-sync, tracked-files, target-report의 `git` helper와 git-hooks, check-commits, push-gate의 직접 `git` 호출 | 위 module들 |
 | `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | 약 25곳의 `JSON.parse(readFileSync(...))`, full-run, kit-sync, target-report, tool-wrappers, git-hooks의 임시 파일과 rename 쓰기 | 위 module들 |
 | `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | check-documents와 kit-check의 `sha256`, install-composer(K127에서 사라짐)의 `digest` | 위 module들 |
