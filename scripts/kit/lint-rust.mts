@@ -39,7 +39,8 @@ export function lintSteps(root: string): LintStep[] {
     command: 'cargo',
     args: ['run', '--quiet', '--locked', '--manifest-path', path.join(kitPackageRoot(), CATCH_CHECK_MANIFEST), '--', ...rust],
     cwd: '.',
-    env: { CARGO_TARGET_DIR: path.join(root, 'var/kit/catch-check-rust') },
+    // The crates of the tool are those of its own lock, which cargo fetches even where the repository keeps its cargo offline (K1015).
+    env: { CARGO_TARGET_DIR: path.join(root, 'var/kit/catch-check-rust'), CARGO_NET_OFFLINE: 'false' },
   }];
   return [...files
     .filter(file => path.posix.basename(file) === 'Cargo.toml' && isTable(readTomlFile(root, file).workspace))

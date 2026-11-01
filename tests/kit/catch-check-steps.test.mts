@@ -15,6 +15,12 @@ test('lint-rust runs the Rust catch check over the Rust files of the checkout (K
   assert.ok(step.args.includes('src/lib.rs'), JSON.stringify(step.args));
 });
 
+test('K1015: the catch-check of lint-rust lets cargo fetch the crates of its own lock in a repository that keeps cargo offline', (t) => {
+  const root = tree(t, { 'Cargo.toml': '[workspace]\nmembers = []\n', 'src/lib.rs': '//! A crate.\n' });
+  const step = rustSteps(root).find(candidate => candidate.label === 'catch-check rust');
+  assert.equal(step?.env?.CARGO_NET_OFFLINE, 'false');
+});
+
 test('lint-ts runs the TypeScript catch check (K537)', (t) => {
   const kit = { name: '@polyspec/kit', version: '1.2.3' };
   const root = tree(t, {

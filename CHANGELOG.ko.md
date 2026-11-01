@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e6f9ff7a80af84459b19388819665cd95e704e1b9f613f46a38292afcc9d99c5 -->
+<!-- source-sha256: 0a74c0fbead2773fcbfa73c7846542e15255fb8dcee1606d677c4085b69d8f43 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1015: lint-rust의 catch-check가 CARGO_NET_OFFLINE=false를 정해, cargo를 offline으로 두는 저장소에서도 cargo가 자기 lock의 crate를 받습니다 (K1015).
 ## 0.0.91
 
 - Kit 0.0.91은 K1007과 K1008을 릴리즈하고 lock-check와 cargo-downloads-fetch를 삭제합니다(K1013, K1014); tag v0.0.90은 release가 없습니다 (K1012).

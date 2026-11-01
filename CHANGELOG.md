@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1015: the catch-check of lint-rust sets CARGO_NET_OFFLINE=false, so cargo fetches the crates of its own lock in a repository that keeps its cargo offline (K1015).
 ## 0.0.91
 
 - Kit 0.0.91 releases K1007 and K1008 and deletes lock-check and cargo-downloads-fetch (K1013, K1014); tag v0.0.90 has no release (K1012).
