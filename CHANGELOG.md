@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+## 0.0.88
+
+- Kit 0.0.88 holds the self-diagnosis of `make kit-gates-static` with the checks of S12, S11 and P30 (K998), the manifest paths of every package manager (K997), the bootstrap copy named by its npm install (K996), the links of forks (K999) and the rule of forks in PRINCIPLES S14 (K1000) (K1001).
 - K1000: PRINCIPLES S14 states the rule of forks: a maintained fork of a third-party package is a package of its own name on a branch that carries its upstream version and is the default branch of the fork; it is linked through `.links` and `make link` in development and installed by the VCS source of the package manager at that branch, with no public registry (K1000).
 - K999: `.links` names a maintained fork of a third-party package like a polyspec provider, and make link-check names a declared Composer package of any scope that a checkout of `.links` provides and no installed folder links; tool-inventory.md no longer describes the release check manifestProblems that K812 deleted (K999).
 - K998: `make kit-gates-static` is the self-diagnosis of a repository before a push: it runs every shared gate past a failure, before a push and in CI alike, and ends with a line when every gate passed; kit-check judges S12 (ci.yml calls ci-pipeline.yml as its job kit, its other jobs need kit, no workflow of the repository and no input of config/ci.json names a gate of kit-gates again, and no workflow checks out another repository or a path, or clones one), S11 (no Makefile, *.mk or workflow runs npm link or an editable pip or uv install) and P30 (no tracked manifest path out of the repository) (K998).
