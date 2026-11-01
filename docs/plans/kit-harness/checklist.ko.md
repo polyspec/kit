@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 2eb067363561ed474fdea4be26438cc8b43f79148e4f625ec38e0cfd77234def -->
+<!-- source-sha256: a8bb7f845e218f0d713a60b283be8194bc5ab7c600f668f7dc0b7c7d5f9b87a4 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -144,4 +144,4 @@
 | K1007 | make kit-inject-check는 사본을 index와 비교하므로, stage된 채택은 commit 전에 통과한다 | the copy comparison in `scripts/kit/`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a staged, uncommitted adoption fails `make kit-inject-check`. Green: its test passes the staged copies. | [o] |
 | K1008 | link providers는 checkout이 주어지지 않으면 main checkout의 .links 선언을 읽고 --ecosystem npm, composer, python, go를 받는다; 기본값은 npm이다 | `scripts/kit/link.mts`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a checkout whose .links names a provider with packages/php-ext/composer.json prints no line for providers --ecosystem composer. Green: `node --test --test-name-pattern=K1008 tests/kit/link.test.mts` passes. | [o] |
 | K1010 | Makefile의 kit test shard가 tests/kit/lock-check.test.mts를 담아 kit 0.0.90의 CI가 통과한다 | `Makefile`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K718 tests/source/ci-workflow.test.mts` passes | [o] |
-| K1011 | lock-check-go가 go mod tidy -e -diff를 실행해 go.work나 생성 package의 import는 finding이 아니며, 실패는 go의 첫 줄을 이름한다 | `scripts/kit/lock-check.mts`, `tests/kit/lock-check.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1011 tests/kit/lock-check.test.mts` passes | [ ] |
+| K1011 | lock-check-go가 go mod tidy -e -diff를 실행해 go.work나 생성 package의 import는 finding이 아니며, 실패는 go의 첫 줄을 이름한다 | `scripts/kit/lock-check.mts`, `tests/kit/lock-check.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1011 tests/kit/lock-check.test.mts` passes | [~] |
