@@ -661,6 +661,30 @@ test('K462: link providers prints each npm provider with its folder, leaving out
   assert.equal(run.stdout, `@polyspec/x\t${path.join(checkout, 'packages/ts')}\n@polyspec/z\t${checkout}\n`);
 });
 
+// K1008: with no checkout, link providers reads the link declaration of the main checkout of its folder, and --ecosystem names the
+// ecosystem whose providers it prints, npm by default; a consumer asks the kit for the folder of a Composer provider too (S15).
+test('K1008: link providers reads .links with no checkout and prints the providers of --ecosystem (K1008)', (t) => {
+  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-link-providers-')));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const checkout = repository(root, 'polyspec', {
+    'packages/ts/package.json': JSON.stringify({ name: '@polyspec/x', version: '0.0.1' }),
+    'packages/php-ext/composer.json': JSON.stringify({ name: 'polyspec/x-php-ext' }),
+  });
+  const consumer = repository(root, 'consumer', { 'README.md': '# consumer\n' });
+  const providersOf = (...args: string[]) => spawnSync(process.execPath, [path.join(KIT, 'scripts/kit/link.mts'), 'providers', ...args], { cwd: consumer, encoding: 'utf8' });
+  const none = providersOf('--ecosystem', 'composer');
+  assert.equal(none.status, 0, none.stderr);
+  assert.equal(none.stdout, '', 'no link declaration declares no provider');
+  writeFileSync(path.join(consumer, '.links'), `${path.relative(consumer, checkout)}\n`);
+  const composer = providersOf('--ecosystem', 'composer');
+  assert.equal(composer.status, 0, composer.stderr);
+  assert.equal(composer.stdout, `polyspec/x-php-ext\t${path.join(checkout, 'packages/php-ext')}\n`);
+  const npm = providersOf();
+  assert.equal(npm.status, 0, npm.stderr);
+  assert.equal(npm.stdout, `@polyspec/x\t${path.join(checkout, 'packages/ts')}\n`, 'npm stays the default');
+  for (const other of ['cargo', 'toString']) assert.notEqual(providersOf('--ecosystem', other).status, 0, `--ecosystem ${other} is refused`);
+});
+
 test('isIgnored is false outside a repository, decided by the absence of a .git entry; a folder inside one is checked by git', (t) => {
   const { root, consumer } = workspace(t);
   assert.equal(isIgnored(path.join(root, 'outside/var/link/go.work')), false);

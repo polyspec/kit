@@ -16,7 +16,7 @@
 // unlink only removes the links and the files that link wrote; make install restores the locked installs, reinstalling each Python
 // distribution whose package folder a removed link left missing (K856).
 //   node link.mjs link [--project <dir>] [--runtime <runtime>] [--hook] | hook [--project <dir>] | unlink [--project <dir>] | packages <dir> python|npm |
-//                 providers <checkout>... | cargo <dir> <args>...
+//                 providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...
 // The providers are the checkouts that the link declaration names (K869): LINKS_FILE at the root of the main checkout, one path per
 // line; with no file nothing is linked. make link-check (link-check.mts) compares the declaration with the state.
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
@@ -828,12 +828,18 @@ if (isMain(import.meta.url)) {
         if (!unlink({ directories, print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
         break;
       case 'providers': {
-        // The npm providers of the checkouts that the arguments name, one line each: the name, a tab and the package folder, sorted by
-        // name. They are read by the rules of link (the excluded paths, a package folder before its root, one provider per name), so a
-        // consumer takes the folder of each polyspec package from the kit (K462).
-        if (rest.length === 0) throw new Error('Usage: link.mjs providers <checkout>...');
-        const npm = [...providers(rest, undefined, process.cwd()).values()].filter(provider => provider.ecosystem === 'npm');
-        for (const provider of npm.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))) print(`${provider.name}\t${provider.folder}`);
+        // The providers of one ecosystem, npm unless --ecosystem names another, one line each: the name, a tab and the package folder,
+        // sorted by name. They are read by the rules of link (the excluded paths, a package folder before its root, one provider per
+        // name), so a consumer takes the folder of each polyspec package from the kit (K462). The checkouts are the arguments, or with
+        // none the link declaration of the main checkout of this folder, which with no file declares none (K1008).
+        const flag = rest.indexOf('--ecosystem');
+        const ecosystem = flag < 0 ? 'npm' : rest[flag + 1];
+        if (ecosystem === undefined || !Object.hasOwn(MANIFESTS, ecosystem)) throw new Error('Usage: link.mjs providers [--ecosystem npm|composer|python|go] [<checkout>...]');
+        const named = flag < 0 ? rest : rest.filter((_, index) => index !== flag && index !== flag + 1);
+        const checkouts = named.length ? named : declaredCheckouts(process.cwd()) ?? [];
+        const go = ecosystem === 'go' ? consumerTool(process.cwd(), 'go', process.env) : undefined;
+        const found = [...providers(checkouts, go, process.cwd()).values()].filter(provider => provider.ecosystem === ecosystem);
+        for (const provider of found.sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0))) print(`${provider.name}\t${provider.folder}`);
         break;
       }
       case 'packages': {
@@ -849,7 +855,7 @@ if (isMain(import.meta.url)) {
         process.exitCode = cargo({ directory, args, checkouts: declaredCheckouts(directory) ?? [] });
         break;
       }
-      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] [--hook] | hook [--project <dir>] | unlink [--project <dir>] | packages <dir> python|npm | providers <checkout>... | cargo <dir> <args>...');
+      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] [--hook] | hook [--project <dir>] | unlink [--project <dir>] | packages <dir> python|npm | providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

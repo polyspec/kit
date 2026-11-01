@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 567d0acb9398ae6c4fe88e69286b754024d3dd01e90b2530ea87064ce280e3f6 -->
+<!-- source-sha256: 25759d8e275b53738d08b0a432f0cf83ecdd767050bcfe3feea5eec6d9058bd9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1008: `link providers`는 `--ecosystem npm|composer|python|go`를 받고(기본값 npm), checkout이 없으면 main checkout의 link 선언을 읽으므로, 소비자는 형제 checkout을 적지 않고 kit에 Composer provider의 폴더를 묻습니다(S15) (K1008).
 - K1007: `make kit-inject-check`는 사본을 index와 비교하므로, stage된 채택은 commit 전에 통과합니다. 작업 tree가 index와 다른 사본은 여전히 실패합니다(K1007).
 ## 0.0.89
 

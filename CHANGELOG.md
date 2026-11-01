@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1008: `link providers` takes `--ecosystem npm|composer|python|go`, npm by default, and with no checkout reads the link declaration of the main checkout, so a consumer asks kit for the folder of a Composer provider instead of naming a sibling checkout (S15) (K1008).
 - K1007: `make kit-inject-check` compares the copies with the index, so a staged adoption passes it before its commit; a copy whose working tree differs from the index still fails (K1007).
 ## 0.0.89
 
