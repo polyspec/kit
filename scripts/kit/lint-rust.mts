@@ -24,28 +24,14 @@ import { siblingTool } from './paths.mts';
  */
 export const P8_LINTS = ['-D', 'unused_must_use', '-D', 'clippy::let_underscore_must_use', '-D', 'clippy::let_underscore_untyped', '-D', 'clippy::map_err_ignore', '-D', 'clippy::allow_attributes_without_reason'];
 
-/** The manifest of the Rust half of the catch check (K537), a crate of the kit package that cargo builds with syn. */
-export const CATCH_CHECK_MANIFEST = 'scripts/kit/catch-check-rust/Cargo.toml';
-
 /**
- * The steps of the lint of `root`: one clippy run for each workspace of the checkout, and the catch check of its Rust files
- * (K537), which refuses an Err(..) arm or `if let Err(..)` branch without a statement, a pattern that clippy does not lint.
+ * The steps of the lint of `root`: one clippy run for each workspace of the checkout.
  */
 export function lintSteps(root: string): LintStep[] {
-  const files = checkedFiles(root);
-  const rust = files.filter(file => file.endsWith('.rs'));
-  const catchCheck: LintStep[] = rust.length === 0 ? [] : [{
-    label: 'catch-check rust',
-    command: 'cargo',
-    args: ['run', '--quiet', '--locked', '--manifest-path', path.join(kitPackageRoot(), CATCH_CHECK_MANIFEST), '--', ...rust],
-    cwd: '.',
-    // The crates of the tool are those of its own lock, which cargo fetches even where the repository keeps its cargo offline (K1015).
-    env: { CARGO_TARGET_DIR: path.join(root, 'var/kit/catch-check-rust'), CARGO_NET_OFFLINE: 'false' },
-  }];
-  return [...files
+  return checkedFiles(root)
     .filter(file => path.posix.basename(file) === 'Cargo.toml' && isTable(readTomlFile(root, file).workspace))
     .map(file => path.posix.dirname(file))
-    .map(folder => ({ label: `cargo clippy ${folder}`, command: process.execPath, args: [siblingTool(import.meta.url, 'link'), 'cargo', '.', 'clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS], cwd: folder, env: { CLIPPY_CONF_DIR: kitPackageRoot() } })), ...catchCheck];
+    .map(folder => ({ label: `cargo clippy ${folder}`, command: process.execPath, args: [siblingTool(import.meta.url, 'link'), 'cargo', '.', 'clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS], cwd: folder, env: { CLIPPY_CONF_DIR: kitPackageRoot() } }));
 }
 
 /** Runs the steps of `root` and returns the labels of those that failed; the output of each step goes through `print`. */

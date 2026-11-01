@@ -7,8 +7,8 @@
 
 ## 0.0.92
 
-- Kit 0.0.92 lets cargo fetch the crates of the catch-check lock in a repository that keeps its cargo offline (K1015) (K1016).
-- K1015: the catch-check of lint-rust sets CARGO_NET_OFFLINE=false, so cargo fetches the crates of its own lock in a repository that keeps its cargo offline (K1015).
+- Kit 0.0.92 deletes the Rust catch check with its crate (K1017) (K1016).
+- K1017: the Rust catch check of lint-rust, its crate catch-check-rust and the CARGO_NET_OFFLINE override of K1015 are deleted: kit builds no tool of its own whose crates a repository must provide; lint-rust is the clippy of each workspace (K1017).
 
 ## 0.0.91
 

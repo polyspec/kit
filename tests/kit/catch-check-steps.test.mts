@@ -1,25 +1,11 @@
-// The lints refuse a catch without a statement (K537): lint-ts and lint-rust each hold a catch-check step, since oxlint
-// no-empty and clippy pass a catch, or an Err(..) arm, that holds only a comment.
+// lint-ts refuses a catch without a statement (K537) with its catch-check step, since oxlint no-empty passes a catch that holds
+// only a comment.
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { lintSteps as rustSteps } from '../../scripts/kit/lint-rust.mts';
 import { lintSteps as tsSteps } from '../../scripts/kit/lint-ts.mts';
 import { tree } from './tree.mts';
-
-test('lint-rust runs the Rust catch check over the Rust files of the checkout (K537)', (t) => {
-  const root = tree(t, { 'Cargo.toml': '[workspace]\nmembers = []\n', 'src/lib.rs': '//! A crate.\n' });
-  const step = rustSteps(root).find(candidate => candidate.label === 'catch-check rust');
-  assert.ok(step, 'lint-rust has no catch-check step');
-  assert.ok(step.args.includes('src/lib.rs'), JSON.stringify(step.args));
-});
-
-test('K1015: the catch-check of lint-rust lets cargo fetch the crates of its own lock in a repository that keeps cargo offline', (t) => {
-  const root = tree(t, { 'Cargo.toml': '[workspace]\nmembers = []\n', 'src/lib.rs': '//! A crate.\n' });
-  const step = rustSteps(root).find(candidate => candidate.label === 'catch-check rust');
-  assert.equal(step?.env?.CARGO_NET_OFFLINE, 'false');
-});
 
 test('lint-ts runs the TypeScript catch check (K537)', (t) => {
   const kit = { name: '@polyspec/kit', version: '1.2.3' };

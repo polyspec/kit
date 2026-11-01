@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f600e20a5f5d10243ee0d97e8887747e145c6bca3fda8579cbef18dc3d42e7d9 -->
+<!-- source-sha256: 8a567b3041728f23b04b10e31c8a5da91aa54de225461296f8ba02f9cd700098 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,8 +8,8 @@
 
 ## 0.0.92
 
-- Kit 0.0.92는 cargo를 offline으로 두는 저장소에서도 cargo가 catch-check lock의 crate를 받게 합니다(K1015) (K1016).
-- K1015: lint-rust의 catch-check가 CARGO_NET_OFFLINE=false를 정해, cargo를 offline으로 두는 저장소에서도 cargo가 자기 lock의 crate를 받습니다 (K1015).
+- Kit 0.0.92는 Rust catch check와 그 crate를 삭제합니다(K1017) (K1016).
+- K1017: lint-rust의 Rust catch check, 그 crate catch-check-rust와 K1015의 CARGO_NET_OFFLINE 덮어쓰기를 삭제합니다: kit은 저장소가 crate를 마련해야 하는 자기 도구를 빌드하지 않으며, lint-rust는 각 workspace의 clippy입니다 (K1017).
 
 ## 0.0.91
 

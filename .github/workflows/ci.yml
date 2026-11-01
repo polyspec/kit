@@ -187,7 +187,6 @@ jobs:
       - name: install shard 7 tools
         if: ${{ matrix.shard == 7 && !cancelled() }}
         run: make install-tools TOOLS="php composer"
-      # Shard 6 runs catch-check through Cargo, which fetches the crates of its lock.
       - name: install Rust test toolchain
         if: ${{ matrix.shard == 6 && !cancelled() }}
         run: make install-tools TOOLS=rust
