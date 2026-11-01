@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1002: PRINCIPLES S15 states loose coupling: a part reaches another part of its scope only through the exports of its installed package.json and finds it through the JSON written at installation; `make kit-check` names each line that reaches an installed package past its exports, each recipe that runs a file of kit that kit does not export, each path of config/ or .github/ out of the repository, each make variable that names a sibling checkout and each module specifier out of the repository; kit exports kit-bootstrap.mk, its shared configurations and the scripts check-commits, ci-targets and parity-node-reporter that consumers run (K1002).
 ## 0.0.88
 
 - Kit 0.0.88 holds the self-diagnosis of `make kit-gates-static` with the checks of S12, S11 and P30 (K998), the manifest paths of every package manager (K997), the bootstrap copy named by its npm install (K996), the links of forks (K999), the rule of forks in PRINCIPLES S14 (K1000) and the manifest paths of a Windows checkout (K1003) (K1001).

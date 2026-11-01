@@ -19,6 +19,7 @@ import { makeDatabase } from './owner-check.mts';
 import { bareToolFindings, testRunnerFindings } from './recipe-tools.mts';
 import { gitResult } from './git.mts';
 import { trackedManifestPathFindings } from './link-check.mts';
+import { couplingFindings } from './coupling.mts';
 
 export const PACKAGE = '@polyspec/kit';
 export const INSTALLED = `node_modules/${PACKAGE}`;
@@ -354,9 +355,10 @@ export function check(root: string): string[] {
   // kit's own ci.yml tests the bootstrap itself on every platform, so it is no consumer CI (S12).
   const source = isSource(root);
   const bootstrap = source ? [] : bootstrapCopyFindings(root, copies);
-  // The rules that held no check (K998): one pipeline (S12), no link step (S11) and no tracked manifest path out of the repository (P30).
+  // The rules that held no check (K998): one pipeline (S12), no link step (S11) and no tracked manifest path out of the repository (P30);
+  // and no part reaching another past its interface (S15, K1002).
   const pipeline = source ? [] : pipelineFindings(root, copies, gateNames(make.targets));
-  return [...checkConfig(root), ...(ci === null ? [] : [ci]), ...bootstrap, ...pipeline, ...linkStepFindings(root, copies), ...trackedManifestPathFindings(root),
+  return [...checkConfig(root), ...(ci === null ? [] : [ci]), ...bootstrap, ...pipeline, ...linkStepFindings(root, copies), ...trackedManifestPathFindings(root), ...couplingFindings(root, source),
     ...bareToolFindings(make), ...testRunnerFindings(make)];
 }
 

@@ -128,3 +128,39 @@ test('kit-check names a Makefile or workflow line that runs a link step of a pac
   assert.deepEqual(linkStepFindings(root, new Set()).map(finding => finding.split(' ')[0]), ['.github/workflows/ci.yml:7', 'Makefile:2', 'Makefile:5', 'Makefile:6', 'make/local.mk:2']);
   assert.match(linkStepFindings(root, new Set())[0] ?? '', /runs a link step of a package manager; link a provider checkout with \.links and make link \(S11\)/);
 });
+
+// K1002: the parts meet only through interfaces (S15). A line that reaches a file of an installed package past the exports that Node
+// resolves, a recipe that runs a file of kit that kit does not export, a path of config/ out of the repository, a sibling checkout
+// that a variable names and a module specifier out of the repository are findings; an export key, a published file at its target,
+// the package.json, a package without exports or not installed, the package of the repository itself, a recipe line that may enter a
+// folder first, a run of a workflow, a path that names its own copy of a package, an extends of its own file, a specifier in a
+// string or a template literal of a fixture, a document and a fixture file pass.
+test('kit-check names a reference past the interface of an installed package and a path to another checkout (K1002, S15)', (t) => {
+  const root = tree(t, {
+    'package.json': '{ "name": "@acme/consumer" }\n',
+    'node_modules/@acme/provider/package.json': '{ "name": "@acme/provider", "exports": { ".": "./src/index.mjs", "./tool.mk": "./scripts/tool.mk", "./styles/*": "./dist/styles/*", "./styles/private/*": null } }\n',
+    'node_modules/@acme/open/package.json': '{ "name": "@acme/open" }\n',
+    'examples/app/node_modules/@acme/nested/package.json': '{ "name": "@acme/nested", "exports": { ".": "./index.mjs" } }\n',
+    'Makefile': 'include node_modules/@acme/provider/scripts/tool.mk\nPROVIDER := ../provider\nfetch:\n\tcargo fetch --manifest-path node_modules/@acme/provider/scripts/crate/Cargo.toml\n\tcd examples/app && cp ../shared/a.json .\n\t$(NODE) $(KIT)/run-tests.$(KIT_EXT)\n\t$(NODE) $(KIT)/hidden.$(KIT_EXT)\n',
+    'src/app.mts': "import { a } from '@acme/provider';\nimport { b } from '@acme/provider/src/internal.mjs';\nimport { c } from '@acme/open/src/any.mjs';\nimport { d } from '@acme/consumer/src/own.mjs';\nimport e from '@acme/provider/styles/site.css';\nimport f from '@acme/provider/styles/private/x.css';\nimport g from '@acme/provider/src/index.mjs';\nimport { h } from '../../provider/src/h.mjs';\nconst i = \"import { j } from '../../../outside.mjs';\";\n",
+    'examples/app/main.mjs': "import { k } from '@acme/nested/lib/k.mjs';\n",
+    'config/layout.yml': "exempt: \"$.repositories[?@.url != '../provider/packages/php']\"\nmessage: \"a path of config/ names ../, which leaves the repository\"\ninside: 'docs/../src'\n",
+    'docs/guide.md': 'Never import @acme/provider/src/internal.mjs.\n',
+    'tests/fixtures/sample.mts': "import { l } from '@acme/provider/src/internal.mjs';\n",
+    'examples/board/node_modules/@acme/provider/package.json': '{ "name": "@acme/provider" }\n',
+    'scripts/copy.mk': 'board:\n\tcat examples/board/node_modules/@acme/provider/src/x.js\n',
+    '.github/workflows/ci.yml': 'jobs:\n  js:\n    steps:\n      - working-directory: packages/js\n        run: node ../../scripts/x.mjs\n      - run: |\n          cd packages/js\n          node ../../scripts/y.mjs\n',
+    'config/tsconfig.json': '{ "extends": "../tsconfig.base.json" }\n{ "include": ["../../outside"] }\n',
+    'tests/fixture-text.mts': "const fixture = `\nimport x from '../../outside/x.mjs';\n`;\nconst quote = 'it\\'s'; import y from '../../outside/y.mjs';\n",
+    'src/tick.mts': "const tick = '`'; // a ` in a comment\nimport z from '../../far/z.mjs';\n",
+    '.github/workflows/lint.yml': 'jobs:\n  lint:\n    steps:\n      - run: echo a\n          ../../x\n        with:\n          path: "../sibling"\n',
+  });
+  initRepository(root);
+  spawnSync('git', ['-C', root, 'add', '-A'], { encoding: 'utf8' });
+  const findings = check(root).filter(finding => finding.endsWith('(S15)'));
+  assert.deepEqual(findings.map(finding => finding.split(' ')[0]), ['.github/workflows/lint.yml:7', 'Makefile:2', 'Makefile:4', 'Makefile:7', 'config/layout.yml:1', 'config/tsconfig.json:2', 'examples/app/main.mjs:1', 'src/app.mts:2', 'src/app.mts:6', 'src/app.mts:7', 'src/app.mts:8', 'src/tick.mts:2', 'tests/fixture-text.mts:4']);
+  assert.match(findings[2] ?? '', /reaches @acme\/provider\/scripts\/crate\/Cargo\.toml, which the package\.json of @acme\/provider does not export/);
+  assert.match(findings[3] ?? '', /runs \$\(KIT\)\/hidden, a file of kit that its package\.json does not export/);
+  assert.match(findings[4] ?? '', /names the path \.\.\/provider\/packages\/php out of the repository/);
+  assert.match(findings[5] ?? '', /names the path \.\.\/\.\.\/outside out of the repository/);
+});
