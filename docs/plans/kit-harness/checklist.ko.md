@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 5fd9337531173aabe03844f6d6e5ab62ad33dc8b0b3fdce85187c9fb1ea98a48 -->
+<!-- source-sha256: e5e597b2dc8ce2e3f1d8904ca99013ce0a7bf20cf87187106e2f459467026eed -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -128,3 +128,4 @@
 | K988 | change log 맨 위 ## X.Y.Z에 tag가 없고 그 version commit의 CI가 실패하거나 취소되거나 돌지 않았으면, ## Unreleased가 빈 main의 이후 green commit의 release가 그 version을 그 commit에서 릴리즈한다. ## Unreleased에 항목이 있는 이후 commit은 version commit을 적으며 실패하고, consumer-layout test는 release.yml이 실행하는 release-tag 단계를 읽는다. | `scripts/kit/release-run.mts`, `tests/kit/release-run.test.mts`, `tests/source/consumer-layout.test.mts`, `docs/operations/tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K988 tests/kit/release-run.test.mts` fails on the current tree. Green: the same command passes. | [o] |
 | K989 | consumer-layout test가 만드는 consumer는 모든 저장소처럼 vendor된 release.yml 옆에 이름이 ci인 .github/workflows/ci.yml을 가지므로 kit-check가 통과한다. | `tests/source/consumer-layout.test.mts`, `CHANGELOG.md(.ko)` | Red: `node --test tests/source/consumer-layout.test.mts` fails on the current tree (CI run 41244541428). Green: the same command passes in CI. | [o] |
 | K990 | release-tag --auto는 ## Unreleased가 빈 이후 green commit에서 tag 없는 맨 위 version을 version commit의 CI run을 기다리지 않고 릴리즈한다. 그 commit의 ## Unreleased에 항목이 있을 때만 기다린다 | `scripts/kit/release-run.mts`, `tests/kit/release-run.test.mts`, `docs/operations/tool-inventory.md(.ko)`, `CHANGELOG.md(.ko)` | Red: `node --test --test-name-pattern=K990 tests/kit/release-run.test.mts` fails on the current tree. Green: the same command passes. | [ ] |
+| K991 | CHANGELOG.md와 CHANGELOG.ko.md의 0.0.86 요약 항목은 0.0.86이 담은 다른 행과 함께 K988과 K989를 적는다 | `CHANGELOG.md(.ko)` | Red: `git grep -n "Kit 0.0.86 carries.*K989" -- CHANGELOG.md` matches nothing. Green: it matches, and `make docs-check` passes. | [ ] |
