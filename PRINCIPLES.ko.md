@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 54b4d852c463b770f91b6bae75b1ea3649730176e65c1ed52c70a6a417a8f40e -->
+<!-- source-sha256: 2397f8e08f2841bb8b08343261d8797361a3991051bcb16774d35a5dd5af1957 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -260,3 +260,11 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   release.yml 등)은 package의 byte 그대로이며, `make kit-sync`가 쓰고 kit에서만 고칩니다. scripts/kit은 그 사본만 담습니다.
   kit 자신은 사본의 원천이므로 사본을 갖지 않습니다(K851).
   Enforced by: `make kit-inject-check`
+- S14 Fork: upstream의 수정을 기다리는 유지 중인 제3자 package의 fork는 자기 이름(`min-0-max/<name>`)의 package입니다. 수정은
+  기반 upstream 버전을 이름에 담은 branch(예: polyspec-origin-2.6.0)에 하며, Composer의 VCS source가 default branch로
+  package 이름을 정하므로 그 branch가 fork의 default branch입니다. master는 upstream 계열로 남고, 더 새 upstream으로 rebase하면
+  새 branch가 default가 됩니다. 개발 중에는 설치 폴더를 `.links`와 `make link`로 개발 checkout에 link합니다(S11). polyspec
+  package는 fork의 이름을 require하고, root는 package manager의 VCS source로 그 branch에서 설치합니다(Composer: `vcs`
+  repository와 `dev-<branch>` require). 공개 registry는 쓰지 않습니다. upstream이 수정을 릴리즈하면 fork를 폐기합니다(K1000).
+  Enforced by: none, link는 개발 환경에만 있고 거기서 make link-check가 어떤 설치 폴더도 link하지 않는 선언된 fork를
+  적지만(K999) CI는 아무것도 link하지 않으므로 어떤 CI도 거기에 닿지 않는다(K824). root가 어느 branch를 설치하는지는 lock의 기록이다(S4)
