@@ -8,19 +8,26 @@
 //     requires; with none, link wrote no go.work;
 //   - a polyspec package that a tracked project declares and a declared checkout provides has an installed folder (K888);
 //   - no tracked manifest names a path out of the repository by its text, whatever the package, which a clean clone cannot reproduce
-//     (K773, K902); a path inside it is the repository's own folder, however the repository fills it (K976);
+//     (K773, K902); a path inside it is the repository's own folder, however the repository fills it (K976); every manifest that a
+//     package manager reads is judged: a Composer manifest of any name, a Cargo.toml, a go.mod and a tracked go.work (K997, P30);
 // Nothing about a version is judged. A finding names the ecosystem and the package or the file.
 //
 //   node link-check.mts [--project <dir>]
 import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { consumerManifests, declaredUnlinked, link } from './link.mts';
-import { declaredCheckouts, isIgnored, LINKS_FILE, mainCheckout, providers, workTreeOf } from './link-providers.mts';
+import { declaredCheckouts, isIgnored, linkGit, LINKS_FILE, mainCheckout, providers, workTreeOf } from './link-providers.mts';
 import { isTable, readToml } from './toml.mts';
 import { isMain } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
 
 const DEPENDENCY_FIELDS = ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies'];
+/** A Composer manifest of any name: composer.json, composer.local.json and the like (K997). */
+const COMPOSER = /^composer(?:\.[^/]+)?\.json$/;
+/** The tables of a Cargo.toml whose entries name a dependency, each also under target.<cfg> (K997). */
+const CARGO_TABLES = ['dependencies', 'dev-dependencies', 'build-dependencies'];
+/** The manifests that link does not list as a project, which a package manager reads too (K997). */
+const OTHER_MANIFESTS = ['composer.*.json', 'Cargo.toml', 'go.mod', 'go.work'];
 const NPM_PATH = /^(?:file|link):/;
 /** A release archive installs a release, not the folder of a checkout. */
 const ARCHIVE = /\.(?:tgz|tar\.gz|zip|whl)$/;
@@ -44,7 +51,10 @@ function outside(file: string, target: string): boolean {
 function manifestPathFindings(file: string, text: string): string[] {
   const finding = (name: string, target: string) => `${file}: ${name} is linked by the path ${target} outside the repository, which a clean clone cannot reproduce; fix: require a release, and link a polyspec checkout with .links and make link (docs/operations/local-links.md)`;
   const linked = (target: string) => !ARCHIVE.test(target) && outside(file, target);
-  if (path.posix.basename(file) === 'pyproject.toml') {
+  const base = path.posix.basename(file);
+  if (base === 'Cargo.toml') return cargoPaths(readToml(text, file)).flatMap(([name, target]) => linked(target) ? [finding(name, target)] : []);
+  if (base === 'go.mod' || base === 'go.work') return goPaths(text).flatMap(([name, target]) => linked(target) ? [finding(name, target)] : []);
+  if (base === 'pyproject.toml') {
     const tool = readToml(text, file).tool;
     const uv = isTable(tool) ? tool.uv : undefined;
     const sources = isTable(uv) ? uv.sources : undefined;
@@ -54,7 +64,7 @@ function manifestPathFindings(file: string, text: string): string[] {
   }
   const manifest: unknown = JSON.parse(text);
   if (!isJsonObject(manifest)) return [];
-  if (path.posix.basename(file) === 'composer.json') {
+  if (COMPOSER.test(base)) {
     const repositories: unknown[] = Array.isArray(manifest.repositories) ? manifest.repositories : isJsonObject(manifest.repositories) ? Object.values(manifest.repositories) : [];
     return repositories.flatMap(item => isJsonObject(item) && item.type === 'path' && typeof item.url === 'string' && linked(item.url) ? [finding('a path repository', item.url)] : []);
   }
@@ -64,10 +74,58 @@ function manifestPathFindings(file: string, text: string): string[] {
   });
 }
 
-/** The findings of each composer.json, package.json and pyproject.toml that link judges in `directory`, with `project` its own (K773, K975). */
+/** The package and path of each dependency of a Cargo.toml that names a path: its dependency tables, those of each target, and patch (K997). */
+function cargoPaths(manifest: Record<string, unknown>): [string, string][] {
+  const target = isTable(manifest.target) ? Object.values(manifest.target).filter(isTable) : [];
+  const patch = isTable(manifest.patch) ? Object.values(manifest.patch).filter(isTable) : [];
+  const workspace = isTable(manifest.workspace) ? [manifest.workspace] : [];
+  const tables = [...[manifest, ...target, ...workspace].flatMap(owner => CARGO_TABLES.map(name => owner[name])), ...patch].filter(isTable);
+  return tables.flatMap(table => Object.entries(table).flatMap(([name, value]) => isTable(value) && typeof value.path === 'string' ? [[name, value.path] as [string, string]] : []));
+}
+
+/**
+ * The module and path of each replace of a go.mod or go.work whose target is a folder, and each use of a go.work, which names a
+ * folder (K997). A replace target that is a module path with a version names no folder; a folder starts with ./, ../ or /.
+ */
+function goPaths(text: string): [string, string][] {
+  const found: [string, string][] = [];
+  let block = '';
+  for (const raw of text.split('\n')) {
+    const line = raw.replace(/\/\/.*$/, '').trim();
+    if (block && line === ')') { block = ''; continue; }
+    const opened = /^(replace|use)\s*\($/.exec(line);
+    if (opened) { block = opened[1] ?? ''; continue; }
+    const directive = /^(replace|use)\s+(.+)$/.exec(line);
+    const [verb, rest] = directive ? [directive[1], directive[2] ?? ''] : [block, line];
+    if (!rest) continue;
+    // A path of go.mod and go.work may be quoted.
+    const unquoted = (word: string) => word.replace(/^(["`])(.*)\1$/, '$2');
+    if (verb === 'use') found.push(['a used module', unquoted(rest)]);
+    else if (verb === 'replace') {
+      const [left = '', right = ''] = rest.split('=>').map(part => part.trim());
+      const target = unquoted(right.split(/\s+/)[0] ?? '');
+      if (/^(?:\.{1,2}\/|\/)/.test(target) || target === '.' || target === '..') found.push([left.split(/\s+/)[0] ?? '', target]);
+    }
+  }
+  return found;
+}
+
+/** The tracked files of `top` that are manifests of OTHER_MANIFESTS other than composer.json, relative to `top` (K997). */
+function otherManifests(top: string): string[] {
+  const outcome = linkGit(top, 'ls-files', '-z', '--', ...OTHER_MANIFESTS.flatMap(name => [name, `*/${name}`]));
+  if (outcome.error || outcome.status !== 0) throw new Error(`git ls-files failed in ${top}: ${outcome.error?.message ?? outcome.stderr.trim()}`);
+  return outcome.stdout.split('\0').filter(file => file && path.posix.basename(file) !== 'composer.json');
+}
+
+/**
+ * The findings of each composer.json, package.json and pyproject.toml that link judges in `directory`, with `project` its own (K773,
+ * K975), and of each other manifest of a package manager there: with `project`, those of its own folder (K997).
+ */
 function manifestsPathFindings(root: string, directory: string, project: boolean): string[] {
   const top = realpathSync(root);
-  return consumerManifests(directory, project, ['composer', 'npm', 'python']).flatMap(file => manifestPathFindings(path.relative(top, file), readFileSync(file, 'utf8')));
+  const scope = path.relative(top, realpathSync(directory));
+  const others = otherManifests(top).filter(file => project ? path.posix.dirname(file) === (scope || '.') : scope === '' || file.startsWith(`${scope}/`)).map(file => path.join(top, file));
+  return [...consumerManifests(directory, project, ['composer', 'npm', 'python']), ...others].flatMap(file => manifestPathFindings(path.relative(top, file), readFileSync(file, 'utf8')));
 }
 
 /**

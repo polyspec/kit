@@ -243,6 +243,40 @@ test('a tracked manifest path outside the repository is a finding whatever the p
   ]);
 });
 
+// K997: a repository links its providers only through .links and make link (P30), so every manifest that a package manager reads is
+// judged: a Composer manifest whatever its name (hyper's composer.local.json), a Cargo dependency or patch path, a go.mod replace and a
+// tracked go.work use or replace; a third-party fork linked by a path is a finding too, with no .links entry to declare.
+test('a Composer manifest of any name, a Cargo path, a go.mod replace and a go.work use outside the repository are findings (K997)', (t) => {
+  const outer = tree(t, { 'composer.json': '{"name":"polyspec/a"}\n' });
+  const root = tree(t, { '.gitignore': 'var/\n' });
+  const away = path.relative(root, outer);
+  const below = path.relative(path.join(root, 'examples/board'), outer);
+  put(root, {
+    'composer.local.json': JSON.stringify({ repositories: [{ type: 'path', url: `${away}/packages/php` }, { type: 'path', url: `${away}/forks/json-schema` }, { type: 'path', url: 'packages/php' }] }),
+    'examples/board/composer.local.json': JSON.stringify({ repositories: { template: { type: 'path', url: below } } }),
+    'Cargo.toml': `[package]\nname = "app"\nversion = "0.0.0"\n\n[dependencies]\npolyspec-a = { path = "${away}" }\nown = { path = "crates/own" }\nserde = "1"\n\n[target.'cfg(unix)'.dev-dependencies]\npolyspec-b = { path = "${away}/b" }\n\n[patch.crates-io]\nserde = { path = "${away}/serde" }\n`,
+    'go.mod': `module example.com/app\n\ngo 1.24\n\nreplace example.com/a => ${away}/a // the provider\n\nreplace (\n\texample.com/b v0.0.1 => ${away}/b\n\texample.com/q => "${away}/q"\n\texample.com/c => example.com/c v0.0.2\n\texample.com/own => ./own\n)\n`,
+    'go.work': `go 1.24\n\nuse (\n\t.\n\t${away}/d\n\t"${away}/f"\n\t\`${away}/g\`\n)\n\nreplace example.com/e => ${away}/e\n`,
+  });
+  commitAll(root, 'fixture');
+  const found = linkFindings(root, process.env).filter(item => / is linked by the path /.test(item)).map(item => item.replace(/ outside.*$/, ''));
+  assert.deepEqual(found, [
+    `Cargo.toml: polyspec-a is linked by the path ${away}`,
+    `Cargo.toml: polyspec-b is linked by the path ${away}/b`,
+    `Cargo.toml: serde is linked by the path ${away}/serde`,
+    `composer.local.json: a path repository is linked by the path ${away}/forks/json-schema`,
+    `composer.local.json: a path repository is linked by the path ${away}/packages/php`,
+    `examples/board/composer.local.json: a path repository is linked by the path ${below}`,
+    `go.mod: example.com/a is linked by the path ${away}/a`,
+    `go.mod: example.com/b is linked by the path ${away}/b`,
+    `go.mod: example.com/q is linked by the path ${away}/q`,
+    `go.work: a used module is linked by the path ${away}/d`,
+    `go.work: a used module is linked by the path ${away}/f`,
+    `go.work: a used module is linked by the path ${away}/g`,
+    `go.work: example.com/e is linked by the path ${away}/e`,
+  ]);
+});
+
 // K869: the link declaration is a setting of the checkout, which Git ignores.
 test('a link declaration that Git does not ignore is a finding (K869)', (t) => {
   const root = tree(t, { '.gitignore': 'var/\n' });

@@ -1,12 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 5fb00b774098275a756ac7ab52d28a2a8c9d235184c68fdbd3453c1a4e5a14f7 -->
+<!-- source-sha256: a1813dc84dc72b99abbbca3fd85cce1456e0214a016a5bbc4797e04d516800fd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K997: 저장소는 provider를 로컬 checkout에 `.links`와 `make link`로만 연결합니다(P30). make link-check는 package manager가 읽는 모든 manifest에서 저장소 밖 경로로 package를 연결하는 추적 manifest를 적습니다: composer.local.json 같은 이름과 상관없는 Composer manifest, package.json, Cargo.toml의 dependency와 patch path, go.mod의 replace, 추적되는 go.work의 use나 replace, pyproject의 uv source (K997).
 - K996: kit-check는 bootstrap의 npm을 설치하는 workflow 줄(make install-tools TOOLS=npm)도 적으므로, npm ci를 make bootstrap 같은 저장소의 target으로 실행하는 복사본도 적힙니다 (K996).
+
 ## 0.0.87
 
 - Kit 0.0.87은 Unreleased가 빈 green commit에서 곧바로 하는 release(K990), K988과 K989를 적은 0.0.86 요약(K991), 모든 CI job의 bootstrap action 하나와 복사된 bootstrap을 적는 kit-check(K992), link가 pack된 kit을 바꾼 뒤 link된 kit을 따르는 make 실행(K993), 그 action의 owner check(K994)를 담습니다 (K995).

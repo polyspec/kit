@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 9a859a8f96804c6ea0bb45ee724b59b1c52ef6ada1dec9c24ebbe27597109e6e -->
+<!-- source-sha256: 7d5bde08479b089855d933924500075459a048e79e0797d52c83e1f1cad5111d -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -136,9 +136,10 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-inject-
   Enforced by: none, 안내하는 규칙이다: 저장소의 target 이름은 저장소의 것이다 (K810).
 - P30 0.0.x 개발 중 앱은 선언된 로컬 provider source를 native package manager의 방식으로 연결한다.
   Package manager가 link, 설치 record, dependency 해석, 생성 metadata를 소유하며 source를 설치된 release version으로 위장하지 않는다.
-  앱이 호환되는 native 개발 선언과 lock을 소유한다. Release 선언과 lock은 배포된 dependency의 기록으로 유지하고,
+  저장소는 provider를 로컬 checkout에 `.links`와 `make link`로만 연결하고, 그것을 위한 자기 선언을 두지 않는다. 즉 package
+  manager의 추적 manifest는 저장소 밖 경로를 적지 않는다(K997). Release 선언과 lock은 배포된 dependency의 기록으로 유지하고,
   kit은 link manifest, version alias, lock metadata를 합성하지 않으며 추적 lock을 통합 배치까지 기다리게 하지 않는다.
-  Enforced by: none, link는 개발 환경에만 있고 거기서 make link-check가 link 선언 .links에 맞춰 검사한다(K869). CI는 아무것도 link하지 않는다 (K824)
+  Enforced by: none, link는 개발 환경에만 있고 거기서 make link-check가 link 선언 .links에 맞춰 검사하며(K869) 저장소 밖 경로를 적은 추적 manifest를 각각 적는다(K773, K997). CI는 아무것도 link하지 않는다 (K824)
 - P31 gate는 우회하지 않는다. test, script, Makefile은 workflow 밖에서 CI identity(`GITHUB_ACTIONS`, `CI`)를 설정하지 않고,
   `make -o`, `--old-file`, `--assume-old`에 kit-gates의 gate를 적지 않으며, `--no-verify`를 쓰지 않는다 (K308).
   Enforced by: `make bypass-check`

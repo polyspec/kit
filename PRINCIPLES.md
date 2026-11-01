@@ -144,10 +144,11 @@ repository.
   Enforced by: none, a guided rule: the names of the targets of a repository are its own (K810).
 - P30 During 0.0.x development, applications connect declared local provider sources through native package-manager
   mechanisms. The package manager owns links, installed records, dependency resolution and generated metadata; a source
-  is not disguised as an installed released version. Applications own compatible native development declarations and
-  locks. Release declarations and locks remain records of released dependencies; kit does not synthesize link manifests,
-  version aliases or lock metadata, and no tracked lock waits for a coordinated batch.
-  Enforced by: none, the links exist only in development, where make link-check checks them against the link declaration .links (K869); CI links nothing (K824)
+  is not disguised as an installed released version. A repository links its providers to local checkouts only through
+  `.links` and `make link`, and declares nothing of its own for that: no tracked manifest of a package manager names a path
+  out of the repository (K997). Release declarations and locks remain records of released dependencies; kit does not
+  synthesize link manifests, version aliases or lock metadata, and no tracked lock waits for a coordinated batch.
+  Enforced by: none, the links exist only in development, where make link-check checks them against the link declaration .links (K869) and names each tracked manifest path out of the repository (K773, K997); CI links nothing (K824)
 - P31 No gate is bypassed: a test, script or Makefile never sets the CI identity (`GITHUB_ACTIONS`, `CI`) outside a workflow, never
   names a gate of kit-gates in `make -o`, `--old-file` or `--assume-old`, and never uses `--no-verify` (K308).
   Enforced by: `make bypass-check`
