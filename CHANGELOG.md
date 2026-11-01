@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+## 0.0.87
+
+- Kit 0.0.87 carries a release at once at a green commit whose Unreleased is empty (K990), the 0.0.86 summary naming K988 and K989 (K991), one bootstrap action for every CI job with kit-check naming each copied bootstrap (K992), a make run that follows the linked kit after its link replaces the packed one (K993), and the owner checks of that action (K994) (K995).
 - K994: the bootstrap action of K992 has its owner checks: config/owner-checks.json owns it with the tests that read it, kit-tools, gates-workflow, kit-bootstrap and consumer-layout, and gates-workflow owns release.yml; kit-tools reads the shared job through the action (K994).
 - K993: a make run that starts with the packed kit and whose link then makes node_modules/@polyspec/kit a link to the kit checkout runs that checkout's sources in every later recipe and recursive make, never its dist through the old path; a run that started linked keeps its kit as K762 does (K993).
 - K992: kit ships one bootstrap for CI jobs, the composite action `.github/actions/kit-bootstrap/action.yml` that kit-sync vendors; ci-pipeline.yml and release.yml run it in every job, a repository job runs it with `uses: ./.github/actions/kit-bootstrap`, and `make kit-check` names each line of a repository workflow that carries its own copy of the bootstrap (K992).
