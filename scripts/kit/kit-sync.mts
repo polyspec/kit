@@ -9,7 +9,8 @@
 // to its path, and a copy that is already the same bytes is not written, so a second sync writes nothing. A file of scripts/kit
 // that the package does not declare is removed: that directory holds the copies of kit only. The command reads
 // no network; it prints a line for each change. With --check (`make kit-inject-check`, S13, K851) it then fails while git
-// status shows a copy path, each copy, scripts/kit or a retired copy, differing from the commit: a copy edited by hand.
+// status shows a copy path, each copy, scripts/kit or a retired copy, whose working tree differs from the index: a copy edited
+// by hand that is neither staged nor committed (K1007).
 import { execFileSync } from 'node:child_process';
 import { lstatSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -60,10 +61,13 @@ export function copyPaths(root: string): string[] {
   return [...kit.copies.map(({ file }) => file), COPY_DIRECTORY, ...RETIRED_COPIES];
 }
 
-/** The lines of git status of `root` for the copy paths, empty when every copy is the committed one. */
+/**
+ * The lines of git status of `root` for the copy paths whose working tree differs from the index, empty when every copy is staged
+ * or committed: a staged copy is the one the commit will hold (K1007).
+ */
 export function changedCopies(root: string): string[] {
   const status = execFileSync('git', ['status', '--porcelain', '--untracked-files=all', '--', ...copyPaths(root)], { cwd: root, encoding: 'utf8' });
-  return status.split('\n').filter(line => line !== '');
+  return status.split('\n').filter(line => line !== '' && line[1] !== ' ');
 }
 
 if (isMain(import.meta.url)) {
@@ -80,7 +84,7 @@ if (isMain(import.meta.url)) {
     const changed = check ? changedCopies(repositoryRoot()) : [];
     for (const line of changed) console.error(`[kit-sync] ${line}`);
     if (changed.length) {
-      console.error(`[kit-sync] these copies differ from the commit; a copy is changed in kit, never by hand: commit the copies that kit-sync wrote, or change them in kit`);
+      console.error(`[kit-sync] these copies differ from the index; a copy is changed in kit, never by hand: stage or commit the copies that kit-sync wrote, or change them in kit`);
       process.exit(1);
     }
   } catch (error) {

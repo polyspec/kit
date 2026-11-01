@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 16e70056f076556a82afddabbbc84184d8d64c4a39d2266b80d763acbcd0e4df -->
+<!-- source-sha256: 87032b6a60525db3aa84a74e10eea741e40bd90930f826d6ef998bf7ce363f26 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -141,4 +141,4 @@
 | K1003 | link-check와 kit-check는 모든 platform에서 manifest를 슬래시를 쓴 저장소 경로로 지정하므로, Windows checkout의 manifest도 종류에 맞게 읽는다(K997) | `scripts/kit/link-check.mts`, `CHANGELOG.md(.ko)` | `make kit-check` exits 0 in the Windows bootstrap job of CI. | [o] |
 | K1005 | make kit-gates-static은 추적되는 모든 lock에 대해 각 package manager의 자체 lock 검사를 실행한다: uv lock --check, npm install --package-lock-only와 git diff --exit-code, lock을 포함한 composer validate, cargo metadata --locked, -mod=readonly의 go mod verify. 판단은 도구가 하며 kit은 버전을 판단하지 않는다 | the lock check in `scripts/kit/`, its target in `scripts/kit/kit.mk`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a fixture whose uv.lock or package-lock.json lags its manifest passes `make kit-gates-static`. Green: `node --test --test-name-pattern=K1005 tests/kit/lock-check.test.mts` names each stale lock. | [ ] |
 | K1006 | kit 0.0.89의 CI가 K1002와 함께 통과한다: coupling.mts는 config/rebuild.json에 class가 있고, linked-sources.test는 module export만 해석하며, consumer-layout.test의 consumer는 설치된 kit의 kit-bootstrap.mk를 include한다 | `config/rebuild.json`, `tests/kit/linked-sources.test.mts`, `tests/source/consumer-layout.test.mts`, `CHANGELOG.md(.ko)` | `make rebuild-check`, `node --test tests/kit/linked-sources.test.mts tests/source/consumer-layout.test.mts` and the CI of kit pass. | [o] |
-| K1007 | make kit-inject-check는 사본을 index와 비교하므로, stage된 채택은 commit 전에 통과한다 | the copy comparison in `scripts/kit/`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a staged, uncommitted adoption fails `make kit-inject-check`. Green: its test passes the staged copies. | [~] |
+| K1007 | make kit-inject-check는 사본을 index와 비교하므로, stage된 채택은 commit 전에 통과한다 | the copy comparison in `scripts/kit/`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a staged, uncommitted adoption fails `make kit-inject-check`. Green: its test passes the staged copies. | [o] |

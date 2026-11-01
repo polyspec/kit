@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1007: `make kit-inject-check` compares the copies with the index, so a staged adoption passes it before its commit; a copy whose working tree differs from the index still fails (K1007).
 ## 0.0.89
 
 - Kit 0.0.89 holds PRINCIPLES S15, loose coupling, with its check in `make kit-check` and the exports of kit that consumers run and include (K1002) (K1004).

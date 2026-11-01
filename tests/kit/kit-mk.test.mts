@@ -378,9 +378,9 @@ test('a consumer that starts with the packed kit runs the linked checkout\'s sou
 });
 
 // K851: the rules that every repository shares are injected identically: kit-inject-check runs kit-sync and fails while git
-// status shows a copy path differing from the commit, so a hand-edited copy is found until the synced copy is committed; kit's
-// own checkout is the source and skips.
-test('K851: kit-inject-check fails on a hand-edited copy of a consumer until the synced copy is committed; kit skips it', (t) => {
+// status shows a copy path whose working tree differs from the index, so a hand-edited copy is found until the synced copy is
+// staged or committed (K1007); kit's own checkout is the source and skips.
+test('K851: kit-inject-check fails on a hand-edited copy of a consumer until the synced copy is staged; kit skips it', (t) => {
   const copy = 'PRINCIPLES.md';
   const root = tree(t, {
     Makefile: `include ${path.join(ROOT, 'scripts/kit/kit-bootstrap.mk')}\n`,
@@ -401,7 +401,11 @@ test('K851: kit-inject-check fails on a hand-edited copy of a consumer until the
   const uncommitted = check();
   assert.notEqual(uncommitted.status, 0, 'the commit still holds the hand edit after kit-sync wrote the copy');
   assert.match(uncommitted.stderr, new RegExp(` M ${copy}`));
-  execFileSync('git', ['commit', '-q', '-am', 'kit-sync'], { cwd: root });
+  // K1007: a staged copy is the one the commit will hold, so the check of an adoption passes before its commit.
+  execFileSync('git', ['add', copy], { cwd: root });
+  const staged = check();
+  assert.equal(staged.status, 0, staged.stdout + staged.stderr);
+  execFileSync('git', ['commit', '-q', '-m', 'kit-sync'], { cwd: root });
   const synced = check();
   assert.equal(synced.status, 0, synced.stdout + synced.stderr);
   const kit = spawnSync('make', ['-n', '--no-print-directory', 'kit-inject-check'], { cwd: ROOT, encoding: 'utf8' });

@@ -75,7 +75,7 @@ kit-check: ## Check the configuration against the schemas of kit, the PHP that a
 # kit, and kit-sync --check then fails while git status shows a copy path, each copy, scripts/kit or a retired copy,
 # differing from the commit: a copy edited by hand. kit's own checkout, whose Makefile sets KIT := scripts/kit, is the
 # source of the copies and holds none.
-kit-inject-check: ## Run kit-sync, then fail while a copy of the installed kit differs from the commit; kit itself has no copies; offline
+kit-inject-check: ## Run kit-sync, then fail while a copy of the installed kit differs from the index, staged or committed; kit itself has no copies; offline
 ifeq ($(KIT),scripts/kit)
 	@echo "[kit-inject-check] kit is the source of the copies; nothing to check"
 else
