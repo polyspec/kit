@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: e9d7451c7b165ad88caa529498e6ae306d75b70de8ff5339b2f916edd4399d43 -->
+<!-- source-sha256: 81b46ccc0968f1536aa7bb19a5c51291a715ad78cbf75d7e68b4b7abbaa9d4e8 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -143,3 +143,4 @@
 | K1006 | kit 0.0.89의 CI가 K1002와 함께 통과한다: coupling.mts는 config/rebuild.json에 class가 있고, linked-sources.test는 module export만 해석하며, consumer-layout.test의 consumer는 설치된 kit의 kit-bootstrap.mk를 include한다 | `config/rebuild.json`, `tests/kit/linked-sources.test.mts`, `tests/source/consumer-layout.test.mts`, `CHANGELOG.md(.ko)` | `make rebuild-check`, `node --test tests/kit/linked-sources.test.mts tests/source/consumer-layout.test.mts` and the CI of kit pass. | [o] |
 | K1007 | make kit-inject-check는 사본을 index와 비교하므로, stage된 채택은 commit 전에 통과한다 | the copy comparison in `scripts/kit/`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a staged, uncommitted adoption fails `make kit-inject-check`. Green: its test passes the staged copies. | [o] |
 | K1008 | link providers는 checkout이 주어지지 않으면 main checkout의 .links 선언을 읽고 --ecosystem npm, composer, python, go를 받는다; 기본값은 npm이다 | `scripts/kit/link.mts`, its test in `tests/kit/`, `CHANGELOG.md(.ko)` | Red: a checkout whose .links names a provider with packages/php-ext/composer.json prints no line for providers --ecosystem composer. Green: `node --test --test-name-pattern=K1008 tests/kit/link.test.mts` passes. | [o] |
+| K1010 | Makefile의 kit test shard가 tests/kit/lock-check.test.mts를 담아 kit 0.0.90의 CI가 통과한다 | `Makefile`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K718 tests/source/ci-workflow.test.mts` passes | [ ] |
