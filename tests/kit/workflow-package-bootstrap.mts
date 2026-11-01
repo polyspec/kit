@@ -6,14 +6,30 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 
-/** Verifies consumer package bootstrap, exact npm selection and the kit source-checkout exception. */
+/** The composite action of kit that every CI job runs for its bootstrap (K992), and the step of a workflow that runs it. */
+export const BOOTSTRAP_ACTION = 'actions/kit-bootstrap/action.yml';
+export const BOOTSTRAP_USES = /^\s+- uses: \.\/\.github\/actions\/kit-bootstrap$/m;
+
+/** The `make` commands of the bootstrap action, in its order. */
+export function bootstrapActionCommands(action = readFileSync(path.join(import.meta.dirname, '../..', BOOTSTRAP_ACTION), 'utf8')): string[] {
+  return [...action.matchAll(/^\s+run: (make .+)$/gm)].map(match => match[1] ?? '');
+}
+
+/**
+ * Verifies that `workflow` runs the bootstrap action before its first Make invocation (K992), and that the action holds the
+ * consumer package bootstrap, exact npm selection and the kit source-checkout exception before its own Make invocations.
+ */
 export function assertWorkflowPackageBootstrap(workflow: string, t: TestContext): void {
-  const match = /^      - name: bootstrap the installed kit package\n        run: \|\n((?:          .*\n)+)/m.exec(workflow);
-  assert.ok(match, 'the workflow installs the package before Make reads its bootstrap');
-  const position = workflow.indexOf(match[0]);
-  assert.ok(position < workflow.search(/^        run: make /m), 'package bootstrap precedes the first Make invocation');
-  assert.doesNotMatch(workflow, /git clone|make -C \.\.\/kit|kit_tag|sibling checkouts/);
-  const script = (match[1] ?? '').split('\n').map(line => line.replace(/^          /, '')).join('\n');
+  const uses = workflow.search(BOOTSTRAP_USES);
+  assert.ok(uses >= 0, 'the workflow runs the bootstrap action of kit');
+  const make = workflow.search(/^\s+run: make /m);
+  assert.ok(make < 0 || uses < make, 'the bootstrap action precedes the first Make invocation');
+  assert.doesNotMatch(workflow, /git clone|make -C \.\.\/kit|kit_tag|sibling checkouts|npm --prefix/);
+  const action = readFileSync(path.join(import.meta.dirname, '../..', BOOTSTRAP_ACTION), 'utf8');
+  const match = /^    - name: bootstrap the installed kit package\n      shell: bash\n      run: \|\n((?:        .*\n)+)/m.exec(action);
+  assert.ok(match, 'the action installs the package before Make reads its bootstrap');
+  assert.ok(action.indexOf(match[0]) < action.search(/^      run: make /m), 'package bootstrap precedes the first Make invocation of the action');
+  const script = (match[1] ?? '').split('\n').map(line => line.replace(/^        /, '')).join('\n');
   // K938-1: the outer npm runs in RUNNER_TEMP, and an unset RUNNER_TEMP stops the step instead of running in the checkout.
   assert.match(script, /cd "\$\{RUNNER_TEMP:\?RUNNER_TEMP is not set\}" &&/, 'the bootstrap step runs npm in RUNNER_TEMP, and fails when it is not set');
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-workflow-bootstrap-')));

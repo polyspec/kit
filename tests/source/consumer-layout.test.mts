@@ -16,6 +16,7 @@ import type { NpmManifest } from '../../scripts/kit/manifests.mts';
 import { declaredMiseTools } from '../../scripts/kit/toolchain-mise.mts';
 import { parse, stringify } from 'smol-toml';
 import { known } from '../kit/known.mts';
+import { BOOTSTRAP_USES, bootstrapActionCommands } from '../kit/workflow-package-bootstrap.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const KIT = readFixture<NpmManifest>(ROOT, 'package.json');
@@ -45,7 +46,9 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   symlinkSync(copy, path.join(work, 'kit'));
   const consumer = path.join(work, 'consumer');
   mkdirSync(path.join(consumer, '.github/workflows'), { recursive: true });
+  mkdirSync(path.join(consumer, '.github/actions/kit-bootstrap'), { recursive: true });
   cpSync(path.join(ROOT, 'workflows/release.yml'), path.join(consumer, '.github/workflows/release.yml'));
+  cpSync(path.join(ROOT, 'actions/kit-bootstrap/action.yml'), path.join(consumer, '.github/actions/kit-bootstrap/action.yml'));
   // A repository's own ci.yml, named ci as release.yml waits for it (K987, K989).
   writeFileSync(path.join(consumer, '.github/workflows/ci.yml'), 'name: ci\non:\n  push:\n    branches: [main]\njobs:\n  ci:\n    uses: ./.github/workflows/ci-pipeline.yml\n');
   const copies = KIT.kit?.copies;
@@ -88,7 +91,9 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   // installed again (K269, K911). The release runs no kit-check of its own: release-tag refuses a commit whose CI run did not pass (K755).
   const workflow = readFileSync(path.join(consumer, '.github/workflows/release.yml'), 'utf8');
   // The make steps of the workflow; a step that checks the runner, as for zip, runs no target.
-  const steps = [...workflow.matchAll(/^\s+run: (make .+)$/gm)].map(match => match[1] ?? '');
+  // The step that runs the bootstrap action of kit (K992) stands for the make commands of the action that kit-sync vendors.
+  const action = readFileSync(path.join(consumer, '.github/actions/kit-bootstrap/action.yml'), 'utf8');
+  const steps = workflow.split('\n').flatMap(line => BOOTSTRAP_USES.test(line) ? bootstrapActionCommands(action) : [...line.matchAll(/^\s+run: (make .+)$/g)].map(match => match[1] ?? ''));
   const bootstrap = steps.slice(0, steps.indexOf('make release-tools'));
   assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare'], 'the release workflow bootstraps the package, tags the commit of the CI run, installs it again and prepares the release before release-tools (K755, K911)');
   // release-tag reads a CI run with gh (K911); release-tag.test.mts runs it.

@@ -841,7 +841,13 @@ Left as it is, with the reason:
   kit's own checkout is not checked, since it is the source of the gates.
 - `workflows/ci-pipeline.yml` (`on: workflow_call`, K910) partitions the same `kit-gates` prerequisites into shared, parity, and
   runtime jobs; the repository's ci.yml calls it as its job `kit`, and a repository job of that ci.yml runs after it with
-  `needs: kit`, so one run holds every job of a commit. A consumer declares
+  `needs: kit`, so one run holds every job of a commit. Every job of the pipeline, of release.yml and of a repository workflow
+  bootstraps with one composite action, `actions/kit-bootstrap/action.yml`, which kit-sync vendors as
+  `.github/actions/kit-bootstrap/action.yml` and a job runs after its checkout with `uses: ./.github/actions/kit-bootstrap`: the
+  Node.js of mise.toml, the locked kit package, the npm of var/tools and the packages; a job that needs PHP for
+  INSTALL_PACKAGES_EXTRA sets PHP up before it in its own job. `make kit-check` names each line of a repository workflow that carries its own
+  copy of the bootstrap, in the form of any kit release (K992). The release of a tag runs the action of the tag's own tree, so a
+  dispatch of a tag older than the repository's adoption of K992 stops red: the action is missing there. A consumer declares
   repository-owned setup targets in `config/ci.json`; each value is an existing Make target name, not a command. The schema is
   `scripts/kit/schema/ci.schema.json` and `kit-check` validates the consumer declaration. A runtime task with no package of a runtime
 fails unless `config/ci.json` declares `"runtimes": []`, which says that the repository has no runtime, as kit does (K955). For example:

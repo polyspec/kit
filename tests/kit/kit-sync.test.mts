@@ -114,7 +114,8 @@ test('kit copies installed shared files and workflows without requiring a siblin
   const expected = {
     'PRINCIPLES.md': 'PRINCIPLES.md', 'PRINCIPLES.ko.md': 'PRINCIPLES.ko.md', '.editorconfig': '.editorconfig',
     '.claude/settings.json': 'claude/settings.json', '.github/workflows/release.yml': 'workflows/release.yml',
-    '.github/workflows/ci-pipeline.yml': 'workflows/ci-pipeline.yml', 'config/layout.kit.yml': 'config/layout.kit.yml',
+    '.github/workflows/ci-pipeline.yml': 'workflows/ci-pipeline.yml', '.github/actions/kit-bootstrap/action.yml': 'actions/kit-bootstrap/action.yml',
+    'config/layout.kit.yml': 'config/layout.kit.yml',
     'config/pyproject.schema.json': 'config/pyproject.schema.json', 'config/composer.schema.json': 'config/composer.schema.json',
     'config/cargo.schema.json': 'config/cargo.schema.json',
   };

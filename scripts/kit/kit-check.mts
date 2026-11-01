@@ -165,11 +165,38 @@ export function ciNameFinding(root: string): string | null {
   return name === waited ? null : `${CI_WORKFLOW} is named ${name ?? '(no name)'}, but ${RELEASE_WORKFLOW} waits for the CI workflow ${waited}, so no CI run starts a release; name it ${waited} (K987)`;
 }
 
-/** The findings of `root`: the configuration, the CI workflow that the release waits for and the recipes; empty when they match. */
+// The folder of the workflows of a repository, and the command that only the bootstrap of kit runs: an npm ci of the locked
+// packages that allows the remote kit package, in each form a kit release gave it, the npm of devEngines with --prefix (K938-1),
+// the earlier npm of packageManager and npm.cmd.
+const WORKFLOWS = '.github/workflows';
+const BOOTSTRAP_COMMAND = /\bnpm(?:\.cmd)?\b.*\bci\b.*--allow-remote=root/;
+
+/**
+ * The findings of the workflows of `root` that carry their own copy of the bootstrap of kit (K992): the composite action that
+ * kit-sync vendors is the one bootstrap of a job, so a kit release that changes it reaches every job; each finding names the
+ * file and line. The copies of kit are left to the copy check.
+ */
+export function bootstrapCopyFindings(root: string, copies: ReadonlySet<string>): string[] {
+  const folder = path.join(root, WORKFLOWS);
+  if (!existsSync(folder)) return [];
+  return readdirSync(folder).filter(name => /\.ya?ml$/.test(name)).sort().flatMap(name => {
+    const file = `${WORKFLOWS}/${name}`;
+    if (copies.has(file)) return [];
+    return readFileSync(path.join(folder, name), 'utf8').split('\n').flatMap((line, index) => BOOTSTRAP_COMMAND.test(line)
+      ? [`${file}:${index + 1} carries a copy of the bootstrap of kit; run the vendored action with \`uses: ./.github/actions/kit-bootstrap\` after the checkout of the job instead (K992)`]
+      : []);
+  });
+}
+
+/** The findings of `root`: the configuration, the workflows of CI and the recipes; empty when they match. */
 export function check(root: string): string[] {
   const make = makeDatabase(root);
   const ci = ciNameFinding(root);
-  return [...checkConfig(root), ...(ci === null ? [] : [ci]), ...bareToolFindings(make), ...testRunnerFindings(make)];
+  const installed = installedKit(root);
+  const copies = new Set('copies' in installed ? installed.copies.map(({ file }) => file) : []);
+  // kit's own ci.yml tests the bootstrap itself on every platform, so it is no consumer CI (S12).
+  const bootstrap = isSource(root) ? [] : bootstrapCopyFindings(root, copies);
+  return [...checkConfig(root), ...(ci === null ? [] : [ci]), ...bootstrap, ...bareToolFindings(make), ...testRunnerFindings(make)];
 }
 
 if (isMain(import.meta.url)) {

@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K992: kit ships one bootstrap for CI jobs, the composite action `.github/actions/kit-bootstrap/action.yml` that kit-sync vendors; ci-pipeline.yml and release.yml run it in every job, a repository job runs it with `uses: ./.github/actions/kit-bootstrap`, and `make kit-check` names each line of a repository workflow that carries its own copy of the bootstrap (K992).
 - K991: the summary of 0.0.86 names K988 and K989 with the other rows that 0.0.86 carries (K991).
 - K990: a later green commit whose `## Unreleased` is empty releases the untagged top version at once, without waiting for the CI run of its version commit; only a commit with unreleased entries waits for that run (K990).
 

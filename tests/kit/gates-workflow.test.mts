@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { assertWorkflowPackageBootstrap } from './workflow-package-bootstrap.mts';
+import { assertWorkflowPackageBootstrap, BOOTSTRAP_ACTION, BOOTSTRAP_USES } from './workflow-package-bootstrap.mts';
 import { fileURLToPath } from 'node:url';
 import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { RETIRED_COPIES } from '../../scripts/kit/kit-check.mts';
@@ -70,7 +70,7 @@ test('the CI pipeline partitions every kit-gates target across shared, parity an
   const named = new Set([...enforced.matchAll(/`make ([a-z0-9-]+)`/g)].map(match => match[1]));
   assert.ok(named.size > 10, 'the rules of PRINCIPLES.md name their checks');
   // A check that only a release runs is in release.yml, which no merge gate runs; every other named check is a kit-gates target (K941-1).
-  const released = new Set([...read('.github/workflows/release.yml').matchAll(/run: make ([a-z0-9-]+)/g)].map(match => match[1] ?? ''));
+  const released = new Set([...`${read('.github/workflows/release.yml')}${read(BOOTSTRAP_ACTION)}`.matchAll(/run: make ([a-z0-9-]+)/g)].map(match => match[1] ?? ''));
   for (const target of named) assert.ok(gates.has(target ?? '') || released.has(target ?? ''), `kit-gates or release.yml runs make ${target}`);
 });
 
@@ -127,9 +127,12 @@ test('K731-1: context preparation surrounds the unchanged required gate and clea
 test('K671-3: gates use the standard root checkout and retain the native installation sequence', () => {
   const workflow = read(PIPELINE);
   assert.doesNotMatch(workflow, /working-directory:|path: \$\{\{ github\.event\.repository\.name/);
-  assert.match(workflow, /node-version-file: mise\.toml/);
-  assert.match(workflow, /run: make install-tools TOOLS=npm/);
-  assert.match(workflow, /run: make install-packages/);
+  // K992: every job bootstraps with the action of kit, which holds the native installation sequence.
+  assert.equal(workflow.match(new RegExp(BOOTSTRAP_USES.source, 'gm'))?.length, 5, 'each of the five jobs runs the bootstrap action');
+  const action = read(BOOTSTRAP_ACTION);
+  assert.match(action, /node-version-file: mise\.toml/);
+  assert.match(action, /run: make install-tools TOOLS=npm/);
+  assert.match(action, /run: make install-packages/);
   assert.doesNotMatch(workflow, /^\s+run: make install$/m, 'the pipeline does not run the full install target');
 });
 

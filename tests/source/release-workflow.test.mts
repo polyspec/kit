@@ -4,7 +4,7 @@
 // PHP of .php-version, which make kit-check requires of a repository that needs PHP (K193). kit does not vendor workflows/, so
 // only the kit runs this case.
 import assert from 'node:assert/strict';
-import { assertWorkflowPackageBootstrap } from '../kit/workflow-package-bootstrap.mts';
+import { assertWorkflowPackageBootstrap, bootstrapActionCommands, BOOTSTRAP_USES } from '../kit/workflow-package-bootstrap.mts';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -13,8 +13,12 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const lines = readFileSync(path.join(ROOT, 'workflows/release.yml'), 'utf8').split('\n');
 
-/** The `run:` commands of the steps in the order the workflow runs them, each with its line number. */
+/**
+ * The `run:` commands of the steps in the order the workflow runs them, each with its line number; a step that runs the bootstrap
+ * action of kit (K992) stands for the make commands of the action, at its own line.
+ */
 const runs = lines.flatMap((line, index) => {
+  if (BOOTSTRAP_USES.test(line)) return bootstrapActionCommands().map(command => ({ command, line: index + 1 }));
   const command = /^\s+run: (.+)$/.exec(line)?.[1];
   return command === undefined ? [] : [{ command, line: index + 1 }];
 });
@@ -90,6 +94,8 @@ test('kit releases itself with the workflow it vendors: .github/workflows/releas
   // config/release.json declares the package @polyspec/kit and its asset; a dispatch runs this workflow, which needs kit's own
   // make targets install-tools and install-packages in the bootstrap order (K79).
   assert.equal(readFileSync(path.join(ROOT, '.github/workflows/release.yml'), 'utf8'), readFileSync(path.join(ROOT, 'workflows/release.yml'), 'utf8'));
+  // The bootstrap action that the release workflow runs is the one kit vendors (K992).
+  assert.equal(readFileSync(path.join(ROOT, '.github/actions/kit-bootstrap/action.yml'), 'utf8'), readFileSync(path.join(ROOT, 'actions/kit-bootstrap/action.yml'), 'utf8'));
   assert.match(readFileSync(path.join(ROOT, 'Makefile'), 'utf8'), /^install-packages:/m);
 });
 
