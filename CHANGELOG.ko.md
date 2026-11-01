@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bfb85b70336ca65242eaedbdbd2e74fdc4bc30385f62272a73a4575f71ab9a67 -->
+<!-- source-sha256: 5fb00b774098275a756ac7ab52d28a2a8c9d235184c68fdbd3453c1a4e5a14f7 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K996: kit-check는 bootstrap의 npm을 설치하는 workflow 줄(make install-tools TOOLS=npm)도 적으므로, npm ci를 make bootstrap 같은 저장소의 target으로 실행하는 복사본도 적힙니다 (K996).
 ## 0.0.87
 
 - Kit 0.0.87은 Unreleased가 빈 green commit에서 곧바로 하는 release(K990), K988과 K989를 적은 0.0.86 요약(K991), 모든 CI job의 bootstrap action 하나와 복사된 bootstrap을 적는 kit-check(K992), link가 pack된 kit을 바꾼 뒤 link된 kit을 따르는 make 실행(K993), 그 action의 owner check(K994)를 담습니다 (K995).

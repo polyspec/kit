@@ -167,9 +167,10 @@ export function ciNameFinding(root: string): string | null {
 
 // The folder of the workflows of a repository, and the command that only the bootstrap of kit runs: an npm ci of the locked
 // packages that allows the remote kit package, in each form a kit release gave it, the npm of devEngines with --prefix (K938-1),
-// the earlier npm of packageManager and npm.cmd.
+// the earlier npm of packageManager and npm.cmd; and the install of the npm of the bootstrap, which a copy runs also when its npm
+// ci runs through a target of the repository, such as make bootstrap (K996).
 const WORKFLOWS = '.github/workflows';
-const BOOTSTRAP_COMMAND = /\bnpm(?:\.cmd)?\b.*\bci\b.*--allow-remote=root/;
+const BOOTSTRAP_COMMANDS = [/\bnpm(?:\.cmd)?\b.*\bci\b.*--allow-remote=root/, /^\s*(?:- )?(?:run: )?make install-tools TOOLS=npm\s*$/];
 
 /**
  * The findings of the workflows of `root` that carry their own copy of the bootstrap of kit (K992): the composite action that
@@ -182,8 +183,8 @@ export function bootstrapCopyFindings(root: string, copies: ReadonlySet<string>)
   return readdirSync(folder).filter(name => /\.ya?ml$/.test(name)).sort().flatMap(name => {
     const file = `${WORKFLOWS}/${name}`;
     if (copies.has(file)) return [];
-    return readFileSync(path.join(folder, name), 'utf8').split('\n').flatMap((line, index) => BOOTSTRAP_COMMAND.test(line)
-      ? [`${file}:${index + 1} carries a copy of the bootstrap of kit; run the vendored action with \`uses: ./.github/actions/kit-bootstrap\` after the checkout of the job instead (K992)`]
+    return readFileSync(path.join(folder, name), 'utf8').split('\n').flatMap((line, index) => BOOTSTRAP_COMMANDS.some(command => command.test(line))
+      ? [`${file}:${index + 1} carries a copy of the bootstrap of kit; run the vendored action with \`uses: ./.github/actions/kit-bootstrap\` after the checkout of the job instead (K992, K996)`]
       : []);
   });
 }

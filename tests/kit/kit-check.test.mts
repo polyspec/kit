@@ -43,6 +43,13 @@ test('kit-check names each workflow line of a repository that copies the bootstr
   const root = tree(t, { '.github/workflows/ci.yml': copy, '.github/workflows/pages.yaml': copy, '.github/workflows/old.yml': earlier, '.github/workflows/ci-pipeline.yml': copy, '.github/workflows/clean.yml': 'jobs:\n  check:\n    steps:\n      - uses: ./.github/actions/kit-bootstrap\n      - run: npm ci --prefix tools\n' });
   const findings = bootstrapCopyFindings(root, new Set(['.github/workflows/ci-pipeline.yml']));
   assert.deepEqual(findings.map(finding => finding.split(' ')[0]), ['.github/workflows/ci.yml:6', '.github/workflows/old.yml:4', '.github/workflows/pages.yaml:6']);
-  assert.match(findings[0] ?? '', /carries a copy of the bootstrap of kit; run the vendored action with `uses: \.\/\.github\/actions\/kit-bootstrap` after the checkout of the job instead \(K992\)/);
+  assert.match(findings[0] ?? '', /carries a copy of the bootstrap of kit; run the vendored action with `uses: \.\/\.github\/actions\/kit-bootstrap` after the checkout of the job instead \(K992, K996\)/);
   assert.deepEqual(bootstrapCopyFindings(tree(t), new Set()), [], 'a repository without workflows has no finding');
+});
+
+// K996: a copy whose npm ci runs through a target of the repository (make bootstrap of hyper) is named by its npm install, the
+// step that only the bootstrap runs; the name of that step and a comment that quotes it are no copy.
+test('kit-check names a bootstrap copy that runs npm ci through make bootstrap (K996)', (t) => {
+  const hyper = 'jobs:\n  check:\n    steps:\n      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1\n      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1\n      - name: make bootstrap\n        run: make bootstrap\n      - name: make install-tools TOOLS=npm\n        run: make install-tools TOOLS=npm\n      - name: make install-packages\n        run: make install-packages\n      - run: |\n          # make install-tools TOOLS=npm\n          make install-tools TOOLS=npm\n';
+  assert.deepEqual(bootstrapCopyFindings(tree(t, { '.github/workflows/ci.yml': hyper }), new Set()).map(finding => finding.split(' ')[0]), ['.github/workflows/ci.yml:9', '.github/workflows/ci.yml:14']);
 });

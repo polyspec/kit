@@ -846,7 +846,9 @@ Left as it is, with the reason:
   `.github/actions/kit-bootstrap/action.yml` and a job runs after its checkout with `uses: ./.github/actions/kit-bootstrap`: the
   Node.js of mise.toml, the locked kit package, the npm of var/tools and the packages; a job that needs PHP for
   INSTALL_PACKAGES_EXTRA sets PHP up before it in its own job. `make kit-check` names each line of a repository workflow that carries its own
-  copy of the bootstrap, in the form of any kit release (K992). The release of a tag runs the action of the tag's own tree, so a
+  copy of the bootstrap, in the form of any kit release, and each line that installs the npm of the bootstrap
+  (`make install-tools TOOLS=npm`), so a copy whose npm ci runs through a target of the repository is named too (K992, K996).
+  The action runs at the root of the workspace, so a job checks the repository out there. The release of a tag runs the action of the tag's own tree, so a
   dispatch of a tag older than the repository's adoption of K992 stops red: the action is missing there. A consumer declares
   repository-owned setup targets in `config/ci.json`; each value is an existing Make target name, not a command. The schema is
   `scripts/kit/schema/ci.schema.json` and `kit-check` validates the consumer declaration. A runtime task with no package of a runtime

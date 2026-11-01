@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 8739e9f320d92931f1b67aa2215f73d6a9c32ee83fad12d7b3af51b54df6e3d2 -->
+<!-- source-sha256: 5cdde242124be029e1ea57c525a2681bc8cd858fc6880fa8bc10c64c844f098f -->
 
 # 도구 목록
 
@@ -767,7 +767,9 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   `actions/kit-bootstrap/action.yml`로 bootstrap합니다. kit-sync가 이를 `.github/actions/kit-bootstrap/action.yml`로 vendor하고,
   job은 checkout 뒤에 `uses: ./.github/actions/kit-bootstrap`으로 실행합니다. mise.toml의 Node.js, lock된 kit package,
   var/tools의 npm과 package를 설치하며, INSTALL_PACKAGES_EXTRA에 PHP가 필요한 job은 그 앞에서 PHP를 설정합니다. `make kit-check`는
-  어느 kit release 형태든 bootstrap 복사본을 담은 저장소 workflow의 각 줄을 적습니다(K992). tag의 release는 tag 자신의 tree에 있는
+  어느 kit release 형태든 bootstrap 복사본을 담은 저장소 workflow의 각 줄과 bootstrap의 npm을 설치하는 각 줄
+  (`make install-tools TOOLS=npm`)을 적으므로, npm ci를 저장소의 target으로 실행하는 복사본도 적힙니다(K992, K996). action은
+  workspace의 root에서 실행되므로 job은 저장소를 그곳에 checkout합니다. tag의 release는 tag 자신의 tree에 있는
   action을 실행하므로, 저장소가 K992를 채택하기 전의 tag를 dispatch하면 action이 없어 red로 멈춥니다. 소비 저장소는
   `config/ci.json`에 저장소별 setup target을 선언합니다. 각 값은 명령문이 아니라 실제 존재하는 Make target 이름입니다.
   schema는 `scripts/kit/schema/ci.schema.json`이며 `kit-check`가 소비 저장소의 선언을 검증합니다. runtime task는 runtime의 package가 하나도 없으면 `config/ci.json`이 `"runtimes": []`를 선언하지 않는 한 실패합니다. 이 선언은 kit처럼 저장소에 runtime이 없다는 뜻입니다(K955). 예:

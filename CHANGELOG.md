@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K996: kit-check also names each workflow line that installs the npm of the bootstrap (make install-tools TOOLS=npm), so a copy whose npm ci runs through a target of the repository, such as make bootstrap, is named (K996).
 ## 0.0.87
 
 - Kit 0.0.87 carries a release at once at a green commit whose Unreleased is empty (K990), the 0.0.86 summary naming K988 and K989 (K991), one bootstrap action for every CI job with kit-check naming each copied bootstrap (K992), a make run that follows the linked kit after its link replaces the packed one (K993), and the owner checks of that action (K994) (K995).
