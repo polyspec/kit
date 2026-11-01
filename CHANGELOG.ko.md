@@ -1,12 +1,15 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ef9adab02e559f291c4b858e9a1c0fba1245c563a808091eaa3a15da021e0cea -->
+<!-- source-sha256: 5edbb765de98eaf20c40d47695b5e719c14aafb113d9780c15a90bd7fd8b2c30 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- K1002: PRINCIPLES S15가 느슨한 결합을 정합니다: part는 같은 scope의 다른 part에 그 설치된 package.json의 export로만 닿고 설치 때 기록된 JSON으로 찾습니다. `make kit-check`는 설치된 package의 export 너머에 닿는 각 줄, kit이 export하지 않는 kit 파일을 실행하는 각 recipe, 저장소를 벗어나는 config/ 또는 .github/의 경로, 형제 checkout을 적는 각 make 변수, 저장소를 벗어나는 각 module specifier를 적으며, kit은 kit-bootstrap.mk, 공유 설정, 소비자가 실행하는 script check-commits, ci-targets, parity-node-reporter를 export합니다(K1002).
+## 0.0.89
+
+- Kit 0.0.89는 PRINCIPLES S15 느슨한 결합과 `make kit-check`의 검사, 소비자가 실행하고 include하는 kit의 export를 담습니다(K1002) (K1004).
+- K1002: PRINCIPLES S15가 느슨한 결합을 정합니다: part는 다른 part에 그 설치된 manifest가 선언한 인터페이스(npm package라면 package.json의 export)로만 닿고 설치 때 기록된 JSON으로 찾습니다. `make kit-check`는 설치된 package의 export 너머에 닿는 각 줄, kit이 export하지 않는 kit 파일을 실행하는 각 recipe, 저장소를 벗어나는 config/ 또는 .github/의 경로, 형제 checkout을 적는 각 make 변수, 저장소를 벗어나는 각 module specifier를 적으며, kit은 kit-bootstrap.mk, 공유 설정, 소비자가 실행하는 script check-commits, ci-targets, parity-node-reporter를 export합니다(K1002).
 ## 0.0.88
 
 - Kit 0.0.88은 S12, S11, P30 검사를 갖춘 `make kit-gates-static` 자가진단(K998), 모든 package manager의 manifest 경로(K997), npm install로 적는 bootstrap 복사본(K996), fork의 link(K999), PRINCIPLES S14의 fork 규칙(K1000), Windows checkout의 manifest 경로(K1003)를 담습니다 (K1001).
