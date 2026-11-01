@@ -1,8 +1,8 @@
-// A repository that consumes kit as the package @polyspec/kit (K71-2) beside a kit checkout (K614). kit is built and packed with the
-// prepack and postpack of the release, an npm cache is primed with the tarball, and a sandbox consumer, a Git repository beside the
-// kit checkout ../kit whose package-lock pins the release asset of the tarball by its integrity, runs the bootstrap steps of its
-// release workflow offline (make install-tools TOOLS=npm with the installer of ../kit, then make install-packages), then the gate
-// targets, which run the sources of ../kit (K613). The consumer holds the copies of kit.copies, which it takes from the tarball.
+// A repository that consumes kit as the package @polyspec/kit (K71-2) and knows it only by its installation (S15). kit is built and
+// packed with the prepack and postpack of the release, an npm cache is primed with the tarball, and a sandbox consumer, a Git
+// repository whose package-lock pins the release asset of the tarball by its integrity, runs the bootstrap steps of its release
+// workflow offline (npm ci, as the bootstrap action does first, then make install-tools TOOLS=npm and make install-packages), then
+// the gate targets, which run the dist of the installed kit. The consumer holds the copies of kit.copies, which it takes from the tarball.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -102,7 +102,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
     const step = spawnSync('sh', ['-c', command], { cwd: consumer, env, encoding: 'utf8' });
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);
   }
-  assert.ok(existsSync(path.join(consumer, 'node_modules/@polyspec/kit/dist/kit.mk')), 'make install-packages installed @polyspec/kit');
+  assert.ok(existsSync(path.join(consumer, 'node_modules/@polyspec/kit/dist/kit.mk')), 'npm ci and make install-packages installed @polyspec/kit');
   // The packages that kit depends on are installed with it, at the versions of its package-lock.
   for (const [entry] of DEPENDENCIES) assert.ok(existsSync(path.join(consumer, entry, 'package.json')), `make install-packages did not install ${entry}`);
   // The lint tools of make lint-ts are dependencies of kit, installed with it and linked into node_modules/.bin.
@@ -110,8 +110,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   for (const target of [['kit-sync'], ['kit-check']]) {
     const result = make(...target);
     assert.equal(result.status, 0, `make ${target.join(' ')}: ${result.stdout}${result.stderr}`);
-    // KIT is the real path of the installed kit (K762).
-    assert.ok(result.stdout.includes(`${realpathSync(path.join(consumer, 'node_modules/@polyspec/kit'))}/`), `make ${target.join(' ')} runs the installed kit`);
+    // KIT is the real dist folder of the installed packed kit.
+    assert.ok(result.stdout.includes(`${realpathSync(path.join(consumer, 'node_modules/@polyspec/kit'))}/dist/`), `make ${target.join(' ')} runs the dist of the installed kit`);
   }
   assert.match(make('kit-sync').stdout, new RegExp(`\\[kit-sync\\] unchanged: @polyspec/kit ${packed.version.replaceAll('.', '\\.')}`));
   assert.equal(run('git', ['status', '--porcelain', '-uall'], consumer), '', 'the bootstrap and the gate targets changed the tracked files of the consumer');

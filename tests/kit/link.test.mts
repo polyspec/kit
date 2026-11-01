@@ -355,7 +355,7 @@ test('K205: link links the checkouts that it is given with no environment variab
   assert.doesNotMatch(recipeOf('install-link').join('\n'), /\$\(MAKE\)[^\n]*build|npm run build/);
 });
 
-// K348-1, K613: a repository includes the kit-bootstrap.mk of the kit checkout beside it, which runs the sources of that checkout: KIT
+// K348-1, K613: a repository includes the kit-bootstrap.mk of its kit, linked to the kit checkout, which runs the sources of that checkout: KIT
 // is the folder of the bootstrap, whatever the repository, and no dist is read.
 test('the bootstrap runs the link source of the kit checkout that holds it, with no dist (K348-1, K613)', (t) => {
   const cwd = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k348-1-')));

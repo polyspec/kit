@@ -68,8 +68,8 @@ Consumers include the bootstrap of the installed `@polyspec/kit` package. Native
 On 2026-10-25 the user approved the removal of the kit-sync copies, and K614 carries it out, with the plain symbolic links of a
 local development checkout:
 
-- The bootstrap layer is no copy: a repository includes `../kit/scripts/kit/kit-bootstrap.mk`, which runs the installer of
-  `scripts/kit/bootstrap` beside it.
+- The bootstrap layer is no copy: a repository includes `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk` of its installed
+  kit (S15), which runs the installer of `scripts/kit/bootstrap` beside it.
 - The PHP lint project `config/php-lint` is read from the kit that runs.
 - `PRINCIPLES.md`, its twin, `.editorconfig` and `.claude/settings.json` are tracked symbolic links to the files of `../kit`.
 - The two workflows stay plain files of each repository, since GitHub follows no symbolic link, and kit-check no longer compares

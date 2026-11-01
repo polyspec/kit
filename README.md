@@ -38,7 +38,7 @@ make kit-inject-check          # kit-sync, then fail while a copy differs from t
 make kit-check                 # check the configuration against the schemas (offline)
 ```
 
-A repository adopts kit with the kit checkout beside it: its Makefile includes `../kit/scripts/kit/kit-bootstrap.mk`, which runs
-the sources of that checkout (K614, K613), and `make kit-sync` writes the copies.
+A repository adopts kit as its installed package: its Makefile includes `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`,
+which `npm ci` or the first step of the bootstrap action installs and which runs that kit (S15, K613), and `make kit-sync` writes the copies.
 
 `kit-sync` at the same tag changes nothing. A vendored file is changed in kit and copied again, never edited in a repository.

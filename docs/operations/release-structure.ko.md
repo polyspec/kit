@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release-structure -->
-<!-- source-sha256: 9bd18ad62dbf0b8c558df6fe655a47667cb62101d409b8367dbcd8450f09f606 -->
+<!-- source-sha256: c9321fc020085259c9eb9538790978b5784cd02eb7004165cde39aa28e21ea68 -->
 # 릴리스 구조
 
 [English](release-structure.md)
@@ -65,7 +65,7 @@ K514는 이미 lint 설정을 사본에서 빼냈습니다. 각 lint는 설정�
 
 2026-10-25 사용자가 kit-sync 복사본의 제거를 승인했고, K614이 local 개발 checkout의 단순 symbolic link로 그것을 실행합니다.
 
-- bootstrap 층은 복사본이 아닙니다. 저장소는 `../kit/scripts/kit/kit-bootstrap.mk`를 include하고, 그것이 곁의
+- bootstrap 층은 복사본이 아닙니다. 저장소는 설치된 kit의 `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include하고(S15), 그것이 곁의
   `scripts/kit/bootstrap` installer를 실행합니다.
 - PHP lint project `config/php-lint`는 실행되는 kit에서 읽습니다.
 - `PRINCIPLES.md`, 그 짝, `.editorconfig`, `.claude/settings.json`은 `../kit`의 파일로 가는 tracked symbolic link입니다.

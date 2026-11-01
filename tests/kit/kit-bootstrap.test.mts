@@ -1,5 +1,5 @@
-// scripts/kit/kit-bootstrap.mk, which a repository includes from the kit checkout beside it (K614): it includes the kit.mk beside
-// it with KIT, the scripts/kit of that checkout, and KIT_EXT := mts, so the repository runs the sources of kit with no build (K613).
+// scripts/kit/kit-bootstrap.mk, which a repository includes from its installed kit, node_modules/@polyspec/kit (S15): it includes the
+// kit.mk beside it with KIT, the scripts/kit of that kit, and KIT_EXT := mts, so the repository runs the sources of kit with no build (K613).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -12,31 +12,32 @@ import { initRepository } from './sandbox-repository.mts';
 import { assertWorkflowPackageBootstrap } from './workflow-package-bootstrap.mts';
 
 const KIT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit');
+// The scripts of the kit that the repository installed.
+const INSTALLED = 'node_modules/@polyspec/kit/scripts/kit';
 
 /**
- * A repository beside a kit checkout that holds the bootstrap and the kit.mk of this kit, whose Makefile includes the bootstrap and
- * then `makefile`; removed with `t.after`.
+ * A repository whose node_modules/@polyspec/kit holds the bootstrap and the kit.mk of this kit, and whose Makefile includes the
+ * bootstrap and then `makefile`; removed with `t.after`.
  */
 function repository(t: TestContext, makefile = '') {
   const parent = mkdtempSync(path.join(tmpdir(), 'kit-bootstrap-'));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
-  mkdirSync(path.join(parent, 'kit/scripts/kit'), { recursive: true });
-  for (const file of ['kit-bootstrap.mk', 'kit.mk']) cpSync(path.join(KIT, file), path.join(parent, 'kit/scripts/kit', file));
   const root = path.join(parent, 'repo');
-  mkdirSync(root);
-  writeFileSync(path.join(root, 'Makefile'), `include ../kit/scripts/kit/kit-bootstrap.mk\n${makefile}`);
+  mkdirSync(path.join(root, INSTALLED), { recursive: true });
+  for (const file of ['kit-bootstrap.mk', 'kit.mk']) cpSync(path.join(KIT, file), path.join(root, INSTALLED, file));
+  writeFileSync(path.join(root, 'Makefile'), `include ${INSTALLED}/kit-bootstrap.mk\n${makefile}`);
   return root;
 }
 
 const make = (root: string, ...args: string[]) => spawnSync('make', ['--no-print-directory', ...args], { cwd: root, encoding: 'utf8' });
 
-// The real path of the scripts of the kit checkout beside `root`, which the bootstrap names as KIT (K762).
-const kit = (root: string) => path.join(realpathSync(path.dirname(root)), 'kit/scripts/kit');
+// The real path of the scripts of the installed kit of `root`, which the bootstrap names as KIT (K762).
+const kit = (root: string) => path.join(realpathSync(root), INSTALLED);
 
 // The absolute path of the tool `file` of var/tools of `root` as make names it, by the real path of the directory (K171).
 const tool = (root: string, file: string) => path.join(realpathSync(root), 'var/tools/bin', file);
 
-test('the bootstrap includes the kit.mk beside it, which runs the sources of the kit checkout beside the repository (K613)', (t) => {
+test('the bootstrap includes the kit.mk beside it, which runs the sources of the installed kit (K613)', (t) => {
   const root = repository(t);
   const dry = make(root, '-n', 'docs-check');
   assert.equal(dry.status, 0, dry.stderr);
