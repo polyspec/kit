@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 533b46a5f842ef2a6bb35c1feb8df218d0cc91357b232b1fbf989b4bf1186733 -->
+<!-- source-sha256: 035439f08af76e6515e7c9ff7b2d744829730426dcd4fa81631ee18b427585f5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,7 +8,8 @@
 
 ## 0.0.88
 
-- Kit 0.0.88은 S12, S11, P30 검사를 갖춘 `make kit-gates-static` 자가진단(K998), 모든 package manager의 manifest 경로(K997), npm install로 적는 bootstrap 복사본(K996), fork의 link(K999), PRINCIPLES S14의 fork 규칙(K1000)을 담습니다 (K1001).
+- Kit 0.0.88은 S12, S11, P30 검사를 갖춘 `make kit-gates-static` 자가진단(K998), 모든 package manager의 manifest 경로(K997), npm install로 적는 bootstrap 복사본(K996), fork의 link(K999), PRINCIPLES S14의 fork 규칙(K1000), Windows checkout의 manifest 경로(K1003)를 담습니다 (K1001).
+- K1003: link-check와 kit-check는 Windows에서도 manifest를 슬래시를 쓴 저장소 경로로 지정하므로, Windows checkout의 manifest를 종류에 맞게 읽습니다(K1003).
 - K1000: PRINCIPLES S14가 fork 규칙을 적습니다. 유지 중인 제3자 package의 fork는 upstream 버전을 담고 fork의 default branch인 branch 위의 자기 이름 package이며, 개발 중에는 `.links`와 `make link`로 link하고 package manager의 VCS source로 그 branch에서 설치하며, 공개 registry는 쓰지 않습니다(K1000).
 - K999: `.links`는 유지 중인 제3자 package의 fork를 polyspec provider처럼 지정하고, make link-check는 `.links`의 checkout이 제공하고 어떤 설치 폴더도 link하지 않는 선언된 Composer package를 scope와 상관없이 적습니다. tool-inventory.md는 K812가 지운 release 검사 manifestProblems를 더 이상 설명하지 않습니다(K999).
 - K998: `make kit-gates-static`은 push 전 저장소의 자가진단입니다. push 전과 CI 모두에서 실패가 있어도 모든 shared gate를 실행하고 모두 통과하면 그 줄로 끝납니다. kit-check는 S12(ci.yml이 ci-pipeline.yml을 job kit으로 호출하고, 다른 job은 kit을 needs로 두며, 저장소의 어떤 workflow와 config/ci.json의 어떤 입력도 kit-gates의 gate를 다시 적지 않고, 어떤 workflow도 다른 저장소나 경로를 checkout하거나 clone하지 않음), S11(어떤 Makefile, *.mk, workflow도 npm link나 editable pip, uv 설치를 실행하지 않음), P30(저장소 밖 경로를 적은 추적 manifest 없음)을 판정합니다 (K998).

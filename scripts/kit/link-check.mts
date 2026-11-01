@@ -123,9 +123,9 @@ function otherManifests(top: string): string[] {
  */
 function manifestsPathFindings(root: string, directory: string, project: boolean): string[] {
   const top = realpathSync(root);
-  const scope = path.relative(top, realpathSync(directory));
+  const scope = path.relative(top, realpathSync(directory)).split(path.sep).join('/');
   const others = otherManifests(top).filter(file => project ? path.posix.dirname(file) === (scope || '.') : scope === '' || file.startsWith(`${scope}/`)).map(file => path.join(top, file));
-  return [...consumerManifests(directory, project, ['composer', 'npm', 'python']), ...others].flatMap(file => manifestPathFindings(path.relative(top, file), readFileSync(file, 'utf8')));
+  return [...consumerManifests(directory, project, ['composer', 'npm', 'python']), ...others].flatMap(file => manifestPathFindings(path.relative(top, file).split(path.sep).join('/'), readFileSync(file, 'utf8')));
 }
 
 /** The findings of every tracked manifest of `root` that names a path out of the repository, which kit-check judges too (P30, K998). */
