@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 91d8a428fc8b9a74676fbfad757eabd3c03e7703d0c0345527c996b4f6d12c65 -->
+<!-- source-sha256: 3e8a2f704fc11915f7c9f4cedf3c977e719d4c311222af1be2990a5ca75dabcb -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.90
+
+- Kit 0.0.90은 추적되는 모든 lock을 그 package manager로 offline 판단하고(K1005), kit-inject-check의 사본을 index와 비교하며(K1007), link 선언에서 모든 ecosystem의 provider를 출력합니다(K1008) (K1009).
 - K1005: `make lock-check-<ecosystem>`은 추적되는 각 lock을 그 package manager로 offline 판단합니다: kit-gates-static에서 npm ci --dry-run과 package-lock.json 전체에 걸친 resolved URL당 하나의 integrity, PHP gate에서 composer validate, Python gate에서 uv lock --check, Go gate에서 go mod tidy -diff, Rust gate에서 cargo metadata --locked; go는 새 go-downloads-fetch가 채운 module cache를 읽으며, make install과 CI go job의 setup이 그것을 실행하고 rust job은 cargo-downloads-fetch를 실행하며, version commit은 composer.json의 version이 바뀌는 각 composer.lock을 composer update --lock으로 다시 씁니다; mise 도구의 lock은 mise가 판단합니다 (K1005).
 - K1008: `link providers`는 `--ecosystem npm|composer|python|go`를 받고(기본값 npm), checkout이 없으면 main checkout의 link 선언을 읽으므로, 소비자는 형제 checkout을 적지 않고 kit에 Composer provider의 폴더를 묻습니다(S15) (K1008).
 - K1007: `make kit-inject-check`는 사본을 index와 비교하므로, stage된 채택은 commit 전에 통과합니다. 작업 tree가 index와 다른 사본은 여전히 실패합니다(K1007).
