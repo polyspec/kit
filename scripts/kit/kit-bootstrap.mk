@@ -11,7 +11,17 @@ KIT_BOOTSTRAP := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))
 # own assignments, so the whole run includes and runs the kit that the link named.
 KIT := $(realpath $(KIT_BOOTSTRAP))
 KIT_EXT := mts
-MAKE := $(MAKE) KIT=$(KIT) KIT_EXT=$(KIT_EXT)
+# K993: the other direction. A run that started with the packed kit, whose KIT is the real dist folder of the package, and whose
+# link then made node_modules/@polyspec/kit a link to the kit checkout would read that checkout's dist, perhaps stale, through
+# the same path. So KIT is the kit the run started with while that path still is its own real path, and otherwise the folder of
+# this bootstrap as it is now, the sources of the linked checkout; each recipe and recursive make reads it when it runs.
+KIT_STARTED := $(KIT)
+KIT_EXT_STARTED := $(KIT_EXT)
+kit-moved = $(if $(filter $(KIT_STARTED),$(realpath $(KIT_STARTED))),,moved)
+override KIT = $(if $(kit-moved),$(realpath $(KIT_BOOTSTRAP)),$(KIT_STARTED))
+override KIT_EXT = $(if $(kit-moved),mts,$(KIT_EXT_STARTED))
+KIT_MAKE := $(MAKE)
+override MAKE = $(KIT_MAKE) KIT=$(KIT) KIT_EXT=$(KIT_EXT)
 ONLINE ?=
 
 include $(KIT)/kit.mk

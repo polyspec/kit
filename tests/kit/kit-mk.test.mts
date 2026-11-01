@@ -10,6 +10,7 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { miseEnvironment } from '../../scripts/kit/bootstrap/install-mise.mts';
+import { packedFiles } from '../../scripts/kit/pack-manifest.mts';
 import { put, tree } from './tree.mts';
 import { initRepository } from './sandbox-repository.mts';
 
@@ -352,6 +353,28 @@ test('a linked consumer runs the sibling kit for the whole make even after npm c
   const result = spawnSync('make', ['--no-print-directory', 'swap'], { cwd: path.join(root, 'app'), encoding: 'utf8' });
   assert.equal(result.status, 0, result.stdout + result.stderr);
   assert.equal(result.stdout.trim().split('\n').at(-1), `${realpathSync(path.join(root, 'kit/scripts/kit'))}|mts`);
+});
+
+// K993: a consumer that starts with the packed kit and whose link then makes node_modules/@polyspec/kit a link to the kit checkout
+// runs that checkout's sources for the rest of the make, in its own recipes and in each recursive make: the path of the packed dist
+// that the run started with now leads into the checkout, whose dist may be stale (template's first make install of orm).
+test('a consumer that starts with the packed kit runs the linked checkout\'s sources after its link replaces the package (K993)', (t) => {
+  const show = 'show:\n\t@echo "$(KIT)|$(KIT_EXT)"\n';
+  const root = tree(t, {
+    'kit/scripts/kit/kit.mk': show,
+    'kit/dist/kit.mk': 'show:\n\t@echo stale\n',
+    'app/node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk': packedFiles(ROOT)['scripts/kit/kit-bootstrap.mk'] ?? '',
+    'app/node_modules/@polyspec/kit/dist/kit.mk': show,
+    'app/Makefile': 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\nlink:\n\trm -r node_modules/@polyspec/kit && ln -s ../../../kit node_modules/@polyspec/kit\nafter: link\n\t@echo "top $(KIT)|$(KIT_EXT)"\n\t@$(MAKE) --no-print-directory show\n',
+  });
+  copyFileSync(path.join(ROOT, 'scripts/kit/kit-bootstrap.mk'), path.join(root, 'kit/scripts/kit/kit-bootstrap.mk'));
+  const app = path.join(root, 'app');
+  // Before the link the run is the packed kit's.
+  assert.equal(spawnSync('make', ['--no-print-directory', 'show'], { cwd: app, encoding: 'utf8' }).stdout.trim(), `${realpathSync(path.join(app, 'node_modules/@polyspec/kit/dist'))}|mjs`);
+  const result = spawnSync('make', ['--no-print-directory', 'after'], { cwd: app, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  const sources = `${realpathSync(path.join(root, 'kit/scripts/kit'))}|mts`;
+  assert.deepEqual(result.stdout.trim().split('\n').slice(-2), [`top ${sources}`, sources]);
 });
 
 // K851: the rules that every repository shares are injected identically: kit-inject-check runs kit-sync and fails while git
