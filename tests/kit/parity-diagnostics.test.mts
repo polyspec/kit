@@ -81,3 +81,25 @@ test('K1032: a zero-exit binding with the wrong cases retains the actual native 
   assert.equal(result.ledger.runs[0]?.status, 0, 'the command succeeded while the declared comparison failed');
   assert.match(lines.join('\n'), /MISMATCHED_VECTOR_OUTPUT/);
 });
+
+test('K1032: malformed support output fails without suppressing later bindings', async t => {
+  const root = repository(t, {
+    files: {
+      'tools/native-wrapper.mjs': "import { spawnSync } from 'node:child_process'; if (process.argv.at(-1) === 'ts/tests/bad-helper.mjs') { console.log('INVALID_SUPPORT_EVENT'); } else { const child = spawnSync(process.execPath, process.argv.slice(2), { stdio: 'inherit' }); if (child.error) throw child.error; process.exitCode = child.status ?? 1; }\n",
+      'ts/tests/bad-helper.mjs': 'export const helper = true;\n',
+    },
+    edit: config => {
+      const implementation = config.implementations.find(entry => entry.name === 'ts');
+      assert.ok(implementation);
+      implementation.command = 'node';
+      implementation.args = ['tools/native-wrapper.mjs'];
+      implementation.support = ['ts/tests/bad-helper.mjs'];
+      return config;
+    },
+  });
+  const lines: string[] = [];
+  const result = await checkParity(root, { execute: true, env: { ...ENV, PATH: `${path.dirname(process.execPath)}${path.delimiter}${ENV.PATH}` }, implementations: ['ts'], phase: 'bindings', say: line => lines.push(line) });
+  assert.ok(result.findings.some(finding => finding.rule === 'R5' && finding.message.includes('invalid reporter output')), JSON.stringify(result.findings));
+  assert.match(lines.join('\n'), /INVALID_SUPPORT_EVENT/);
+  assert.ok(result.ledger.cases.some(entry => entry.unit === 'codec' && entry.outcome === 'pass'));
+});

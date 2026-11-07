@@ -119,7 +119,7 @@ async function runSupport(model: ParityModel, root: string, files: Set<string>, 
       }
       say(`run the support file ${file} of ${implementation.name}: ${run.shown} (in ${run.cwd})`);
       const { result } = await runGuarded(run, root, silenceMs, say);
-      if (result.status !== 0 || result.error || result.stopped !== undefined)
+      if (result.error || result.stopped !== undefined)
         printFailureOutput(`${implementation.name}/${file}`, result, say);
       if (result.stopped === 'silence') {
         found.push(finding('R5', `the support file ${stopSentence(file, silenceMs, result).slice('binding '.length)}`, where));
@@ -129,14 +129,20 @@ async function runSupport(model: ParityModel, root: string, files: Set<string>, 
         found.push(finding('R5', `the support file could not run: ${run.shown}: ${result.error?.message ?? 'its output passed the limit of the ledger, and its process group was stopped'}`, where));
         continue;
       }
+      const problems: string[] = [];
+      let reported: string[] = [];
+      try { reported = outcomesOf(run, result).map(([name]) => name); }
+      // catch-any -- A malformed support report fails this file without suppressing independent bindings.
+      catch (error) { problems.push(`invalid reporter output: ${error instanceof Error ? error.message : String(error)}`); }
+      if (reported.length)
+        problems.push(`the support file reports cases (${reported.join(', ')}); declare it as the test of a binding`);
       if (result.status !== 0) {
-        found.push(finding('R5', `the support file ${file} exited with ${result.status ?? result.signal}: ${run.detail(result).join(' | ')}`, where));
-        continue;
+        const detail = run.detail(result);
+        problems.push(`the support file ${file} exited with ${result.status ?? result.signal}${detail.length ? `: ${detail.join(' | ')}` : ''}`);
       }
-      const reported = outcomesOf(run, result).map(([name]) => name);
-      if (reported.length) {
+      if (problems.length) {
         printFailureOutput(`${implementation.name}/${file}`, result, say);
-        found.push(finding('R5', `the support file reports cases (${reported.join(', ')}); declare it as the test of a binding`, where));
+        found.push(finding('R5', problems.join('; '), where));
       }
     }
   }

@@ -254,7 +254,7 @@ test('a support file of an implementation is never a test: it lies in its roots 
   const reporting = await check(t, { files: { ...files, 'ts/tests/case.mjs': "import test from 'node:test';\ntest('empty', () => {});\n", 'php/tests/cases.php': 'FAIL test_ascii\n' }, edit: declare() });
   assert.deepEqual(reporting.findings.map(finding => `${finding.rule} ${finding.implementation} ${finding.place}: ${finding.message}`), [
     'R5 ts ts/tests/case.mjs: the support file reports cases (empty); declare it as the test of a binding',
-    'R5 php php/tests/cases.php: the support file reports cases (ascii); declare it as the test of a binding',
+    'R5 php php/tests/cases.php: the support file reports cases (ascii); declare it as the test of a binding; the support file php/tests/cases.php exited with 1',
   ]);
 });
 
