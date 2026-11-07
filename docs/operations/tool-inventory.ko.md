@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: cd17d378eb5e886357bf588536d6c19575112771bdd3e4fa41622e6dcd491503 -->
+<!-- source-sha256: 4bbaf5a73153611a5be912eab6614e5c34b14c01a2c0006df1be890e1357450b -->
 
 # 도구 목록
 
@@ -187,9 +187,8 @@ stale이 되지 않습니다.
   `make install-tools TOOLS=npm`, 그다음 `make toolchain-lock`, 다시 `make install-tools TOOLS=npm`을 실행합니다. `make kit-check`는 checkout의 도구(`recipe-tools.mts`: var/tools/bin의 wrapper와 `mise.toml`의
   command)를 이름만으로 실행하는 Makefile의 recipe를 실패시킵니다. package가 설치되기 전에도 `kit-bootstrap.mk`는 kit.mk처럼
   `$(NODE)`와 `$(NPM)`을 정의하므로, install-packages가 필요로 하는 저장소의 recipe는 checkout의 node를 실행합니다(K185).
-- consumer의 package-lock은 `@polyspec/kit`을 release asset의 URL로 고정하며, npm 12는 그것을 `allow-remote=root`일 때만
-  설치합니다. `kit-bootstrap.mk`는 npm이 그 설정으로 읽는 `npm_config_allow_remote=root`를 `install-packages`의
-  recipe에만 export하므로, 설치의 npm ci가 그것을 읽습니다(K189).
+- npm의 `allow-remote`는 저장소가 자기 `.npmrc`에 적는 설정이며, npm은 모든 설치에서 그것을 읽습니다. kit은 아무것도
+  정하지 않습니다(K1045). `@polyspec/kit`을 release asset의 URL로 고정하는 lock은 npm 12에서 적어도 `allow-remote=root`가 필요합니다.
 ## Layout 검사 (K76)
 
 S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 도구가 아니라 release된 도구

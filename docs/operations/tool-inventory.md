@@ -213,9 +213,8 @@ of the checkout is a finding. A Rust nightly is never stale: parity reads it.
   of the checkout (`recipe-tools.mts`: the wrappers of var/tools/bin and the commands of `mise.toml`) by its bare name.
   Before the package is installed, `kit-bootstrap.mk` names `$(NODE)` and `$(NPM)` as kit.mk does, so a recipe of the
   repository that install-packages needs runs the node of the checkout (K185).
-- A consumer's package-lock pins `@polyspec/kit` by the URL of its release asset, which npm 12 installs only with
-  `allow-remote=root`. `kit-bootstrap.mk` exports `npm_config_allow_remote=root`, which npm reads as that setting, to the
-  recipe of `install-packages` only, so the npm ci of the install reads it (K189).
+- npm's `allow-remote` is the repository's own setting in its `.npmrc`, which npm reads for every install; kit sets none
+  (K1045). A lock that pins `@polyspec/kit` by the URL of its release asset needs at least `allow-remote=root` on npm 12.
 ## Layout check (K76)
 
 S5 (folders), the location part of S7 (test placement) and the TypeScript rule of S9 are checked by

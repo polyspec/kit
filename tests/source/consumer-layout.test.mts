@@ -76,6 +76,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   // Its suite runs the gates of kit, as kit-check asks of every repository.
   writeFileSync(path.join(consumer, 'Makefile'), 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\nCHECK_TARGETS := kit-gates\n');
   writeFileSync(path.join(consumer, '.gitignore'), '/node_modules/\n/var/\n');
+  // The consumer pins kit by its release URL, so its own committed .npmrc allows a remote root dependency (K1045).
+  writeFileSync(path.join(consumer, '.npmrc'), 'allow-remote=root\n');
   commitSandbox(consumer);
   // The npm of mise.toml, the mise of config/toolchain.json and the node of mise.toml are the releases that kit installed:
   // the bootstrap keeps a release that is installed, so the first step runs offline and writes the wrappers of the consumer.
@@ -97,7 +99,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare'], 'the release workflow bootstraps the package, tags the commit of the CI run, installs it again and prepares the release before release-tools (K755, K911)');
   // release-tag reads a CI run with gh (K911); release-tag.test.mts runs it.
   // The bootstrap action installs the locked kit with npm ci before its make commands, so the Makefile can include it.
-  run(NPM, ['ci', '--ignore-scripts', '--allow-remote=root'], consumer, env);
+  run(NPM, ['ci', '--ignore-scripts'], consumer, env);
   for (const command of bootstrap.filter(command => !command.startsWith('make release-tag'))) {
     const step = spawnSync('sh', ['-c', command], { cwd: consumer, env, encoding: 'utf8' });
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);

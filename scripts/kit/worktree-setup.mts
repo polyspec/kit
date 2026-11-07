@@ -93,7 +93,7 @@ export function setupWorktree(root: string, row: { name: string; id: string; typ
     // The outer npm writes into its working directory, so it runs in a folder of its own that is removed after the run (K938-1).
     const outer = mkdtempSync(path.join(os.tmpdir(), 'kit-npm-'));
     try {
-      run('npm', ['exec', '--yes', `--package=npm@${version}`, '--', 'npm', '--prefix', folder, 'ci', '--ignore-scripts', '--allow-remote=root'], outer, own);
+      run('npm', ['exec', '--yes', `--package=npm@${version}`, '--', 'npm', '--prefix', folder, 'ci', '--ignore-scripts'], outer, own);
     } finally {
       rmSync(outer, { recursive: true, force: true });
     }

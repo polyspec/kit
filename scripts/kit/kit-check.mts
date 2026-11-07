@@ -169,12 +169,12 @@ export function ciNameFinding(root: string): string | null {
   return name === waited ? null : `${CI_WORKFLOW} is named ${name ?? '(no name)'}, but ${RELEASE_WORKFLOW} waits for the CI workflow ${waited}, so no CI run starts a release; name it ${waited} (K987)`;
 }
 
-// The folder of the workflows of a repository, and the command that only the bootstrap of kit runs: an npm ci of the locked
-// packages that allows the remote kit package, in each form a kit release gave it, the npm of devEngines with --prefix (K938-1),
-// the earlier npm of packageManager and npm.cmd; and the install of the npm of the bootstrap, which a copy runs also when its npm
-// ci runs through a target of the repository, such as make bootstrap (K996).
+// The folder of the workflows of a repository, and the command that only the bootstrap of kit runs: the npm ci of the locked
+// packages by the npm that npm exec installs, the npm of devEngines with --prefix (K938-1) or the earlier npm of packageManager,
+// ci as its own word, so npm run ci-lint is no copy; npm settings such as --allow-remote are the repository's own (K1045); and the
+// install of the npm of the bootstrap, which a copy runs also when its npm ci runs through a target of the repository, such as make bootstrap (K996).
 const WORKFLOWS = '.github/workflows';
-const BOOTSTRAP_COMMANDS = [/\bnpm(?:\.cmd)?\b.*\bci\b.*--allow-remote=root/, /^\s*(?:- )?(?:run: )?make install-tools TOOLS=npm\s*$/];
+const BOOTSTRAP_COMMANDS = [/\bnpm\s+exec\b.*--package=.*\bnpm\b.*\sci(?=\s|$)/, /^\s*(?:- )?(?:run: )?make install-tools TOOLS=npm\s*$/];
 
 /**
  * The findings of the workflows of `root` that carry their own copy of the bootstrap of kit (K992): the composite action that

@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: aa7471d03a6121a89b6631f108b316d22b064ab3a55ece11953d9deae4eadd2e -->
+<!-- source-sha256: 0b65f46cd2920d07c1859e218f8532c321916d9a0b38ee9d6767fb933d56eb8f -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -9,7 +9,7 @@
 kit은 레시피를 강제한다. 레시피 한 벌(`scripts/kit/kit.mk`, `scripts/kit/kit-bootstrap.mk`)을 모든 저장소에 include시키고, 공유 CI에서 자기 검사의 결과를 필수로 요구한다. 모든 저장소가 함께 쓰는 레시피는 저장소마다의 경우를 감당해야 하므로, 새 경우마다 공유 덩어리에 분기, 스위치, 덮어쓰기가 붙었다. `UV_NO_CONFIG`, `MISE_*`, `unexport CARGO_TARGET_DIR`, `INSTALL_PACKAGES_EXTRA`, `npm_config_allow_remote=root`가 그 예다. 명령줄이나 환경변수의 덮어쓰기는 저장소 자신의 설정보다 우선하고, 필수 검사는 예상하지 못한 경우를 거부한다. 어느 쪽이든 저장소에 남는 수는 우회뿐이다.
 
 allow-remote 사례가 그 연쇄를 보여 준다.
-1. kit이 `allow-remote=root`를 강제한다.
+1. kit은 K1045 전까지 `allow-remote=root`를 강제했다.
 2. 제공 라이브러리가 URL로 적은 의존성을 npm이 거부한다.
 3. 제공 라이브러리는 어느 레지스트리도 내주지 않는 버전 번호로 물러선다.
 4. 각 소비자가 그 패키지를 루트에 선언하고, `overrides`로 다시 고정하고, knip의 정확한 "안 쓰는 의존성" 지적을 막는다.
@@ -48,7 +48,6 @@ kit은 어떤 것도 강제하지 않는다. 특히 다음과 같다.
 kit은 자기가 강제하는 것을 지운다. 각 변경은 Red, Green, 커밋을 거치는 체크리스트 행이다. 지금 강제하는 부분은 다음과 같다.
 - **include되는 레시피.** 저장소가 include하는 `scripts/kit/kit.mk`와 `scripts/kit/kit-bootstrap.mk`의 레시피 한 벌, 그리고 AGENTS.md가 kit.mk의 모든 레시피에 대해 적는 mise 환경.
 - **유틸리티 안의 덮어쓰기.** `bootstrap/install-mise.mts`(`miseEnvironment`)는 자기가 실행하는 도구에 `MISE_*`와 `UV_*` 설정을 넣고, `link.mts`와 `run-tests.mts`는 `CARGO_TARGET_DIR`를 지운다. lint 유틸리티는 각 도구를 저장소 자신의 설정 대신 kit의 설정으로 실행한다. golangci-lint는 kit의 `.golangci.yml`로, phpcs는 kit의 `phpcs.xml.dist`로, ruff는 kit의 `ruff.toml`로, clippy는 kit을 가리키는 `CLIPPY_CONF_DIR`로, oxlint와 knip은 kit의 `.oxlintrc.json`과 `knip.json`으로 실행한다.
-- **고정된 npm 정책.** `--allow-remote=root`가 `actions/kit-bootstrap/action.yml`, `worktree-setup.mts`, `kit-check.mts`의 bootstrap 패턴에 고정되어 있다.
 - **저장소의 레시피와 workflow에 대한 검사.** kit-check는 레시피가 도구를 실행하는 방식(`recipe-tools.mts`), Makefile과 workflow의 링크 단계(S11), ci.yml의 모양과 마지막 `ci-passed` job(S12), Makefile의 `$(KIT)/<name>`(S15), manifest 경로(P30)를 판정한다. bypass-check는 Makefile과 스크립트를 판정한다.
 - **복사본.** kit-sync는 kit package.json의 `kit.copies` 항목 전부를 모든 저장소에 쓴다. `PRINCIPLES.md`와 그 짝, `ci-pipeline.yml`, `release.yml`, bootstrap action, `config/layout.kit.yml`, `config/` 아래의 스키마, `.editorconfig`, `.claude/settings.json`이 그 안에 든다. kit-inject-check는 바뀐 복사본을 실패시킨다. 복사본 파이프라인의 마지막 `required` job은 `kit-gates-*` gate를 포함한 파이프라인의 모든 job 결과를 필수로 요구한다.
 - **거부.**

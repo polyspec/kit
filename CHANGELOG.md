@@ -5,12 +5,11 @@
 
 ## Unreleased
 
+- K1045: kit no longer forces npm allow-remote: install-packages, the kit-bootstrap action, worktree-setup and kit's CI run npm ci without --allow-remote=root, so the .npmrc of each repository decides it; docs/examples/native-settings shows the .npmrc of a repository that pins URLs. Breaking: a repository that pins a package by URL, kit included, adds `allow-remote=root` (or `all`) to its own `.npmrc`, or npm 12 refuses its npm ci with EALLOWREMOTE (K1045).
 - K1058: kit-sync --check, which make kit-inject-check runs, writes no file: it names each copy that is missing or differs from the installed kit, each stray file of scripts/kit, each retired copy and each copy path whose working tree differs from the index, and leaves the files as they are; make kit-sync still writes the copies (K1058).
 - K1046: docs/spec/utilities-and-recipes states that kit provides utilities and examples of recipes and native settings, and that kit includes no recipe, sets no setting of another tool, requires no result and checks no recipe of a repository; it lists what kit forces today, which kit removes by its own rows (K1046).
 - Preserve VS Code download results while requesting helper termination and awaiting owned cleanup before returning, with explicit Linux native source evidence (K1044).
-
 - Remove the unused command inactivity deadline and await cooperative output-limit cleanup while preserving its failed outcome and bounded capture (K1043).
-
 - Validate the common native process bootstrap command, deadline and platform coverage independently of its display name (K1042).
 
 ## 0.0.97

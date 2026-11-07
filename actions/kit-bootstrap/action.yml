@@ -24,7 +24,7 @@ runs:
           # devEngines runs outside the checkout with --prefix (K938-1).
           root="$PWD"
           version="$(node -p 'require("./package.json").devEngines.packageManager.version')"
-          (cd "${RUNNER_TEMP:?RUNNER_TEMP is not set}" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
+          (cd "${RUNNER_TEMP:?RUNNER_TEMP is not set}" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts)
         fi
     # The bootstrap order of a repository (K71-2): the mise, node and npm of mise.toml first, then the packages of
     # package-lock.json with it.

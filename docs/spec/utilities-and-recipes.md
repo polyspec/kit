@@ -8,7 +8,7 @@
 kit enforces recipes. It includes one recipe set into every repository (`scripts/kit/kit.mk`, `scripts/kit/kit-bootstrap.mk`), and it requires the results of its checks in the shared CI. A recipe set shared by every repository has to cover each repository's case, so each new case became a branch, a switch or an override in the shared block, such as `UV_NO_CONFIG`, `MISE_*`, `unexport CARGO_TARGET_DIR`, `INSTALL_PACKAGES_EXTRA` and `npm_config_allow_remote=root`. An override on the command line or in the environment outranks the repository's own configuration. A required check refuses a case it did not foresee. Either way, the repository's only move is a workaround.
 
 The allow-remote case shows the chain:
-1. kit forces `allow-remote=root`.
+1. kit forced `allow-remote=root` until K1045.
 2. npm refuses a URL dependency that a provider names.
 3. The provider falls back to bare versions that no registry serves.
 4. Each consumer declares those packages at its root, pins them again in `overrides`, and silences knip's correct "unused dependency" finding.
@@ -47,7 +47,6 @@ kit forces nothing. In particular:
 kit removes what it forces, each change as a checklist row with its Red, Green and commit. These are the forced parts today:
 - **Included recipes.** The recipe set of `scripts/kit/kit.mk` and `scripts/kit/kit-bootstrap.mk`, which repositories include, and the mise environment that AGENTS.md states for every recipe of kit.mk.
 - **Overrides inside utilities.** `bootstrap/install-mise.mts` (`miseEnvironment`) sets the `MISE_*` and `UV_*` settings for the tools it starts, and `link.mts` and `run-tests.mts` delete `CARGO_TARGET_DIR`. The lint utilities run each tool with kit's configuration in place of the repository's own: golangci-lint with kit's `.golangci.yml`, phpcs with kit's `phpcs.xml.dist`, ruff with kit's `ruff.toml`, clippy with `CLIPPY_CONF_DIR` set to kit, and oxlint and knip with kit's `.oxlintrc.json` and `knip.json`.
-- **A fixed npm policy.** `--allow-remote=root` is fixed in `actions/kit-bootstrap/action.yml`, in `worktree-setup.mts`, and in the bootstrap pattern of `kit-check.mts`.
 - **Checks of a repository's recipes and workflows.** kit-check judges how recipes start tools (`recipe-tools.mts`), link steps in Makefiles and workflows (S11), the shape of ci.yml and its final `ci-passed` job (S12), `$(KIT)/<name>` in Makefiles (S15) and manifest paths (P30). bypass-check judges Makefiles and scripts.
 - **Vendored copies.** kit-sync writes every entry of `kit.copies` in kit's package.json into every repository, among them `PRINCIPLES.md` and its twin, `ci-pipeline.yml`, `release.yml`, the bootstrap action, `config/layout.kit.yml`, the schemas under `config/`, `.editorconfig` and `.claude/settings.json`. kit-inject-check fails a changed copy. The closing `required` job of the vendored pipeline requires the results of every job of the pipeline, the `kit-gates-*` gates among them.
 - **Refusals.**

@@ -71,7 +71,7 @@ printf 'install:\\n\\techo "$$MAKEFLAGS|$$MAKELEVEL" > flags.txt\\nlink-check:\\
   chmodSync(path.join(bin, 'npm'), 0o755);
   const env = { ...process.env, PATH: [bin, process.env.PATH].join(path.delimiter), MAKEFLAGS: 's', MAKELEVEL: '1' };
   const folder = setupWorktree(main, { name: 'consumer', id: 'T4', type: 'fix' }, { print: () => {}, env });
-  assert.equal(readFileSync(calls, 'utf8'), `exec --yes --package=npm@12.2.0 -- npm --prefix ${folder} ci --ignore-scripts --allow-remote=root\n`);
+  assert.equal(readFileSync(calls, 'utf8'), `exec --yes --package=npm@12.2.0 -- npm --prefix ${folder} ci --ignore-scripts\n`);
   const [flags = '', level] = readFileSync(path.join(folder, 'flags.txt'), 'utf8').trim().split('|');
   assert.deepEqual([flags.split(/\s+/).includes('s'), level], [false, '1'], 'make install runs as a make of its own, without the -s and the level of the calling make');
   setupWorktree(main, { name: 'consumer', id: 'T4', type: 'fix' }, { print: () => {}, env });

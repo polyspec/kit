@@ -69,13 +69,13 @@ test('a recipe of the repository that runs before install-packages starts the no
   assert.equal(run.stdout, `${tool(root, 'node')} ordered.mjs\nnode of the checkout: ordered.mjs\n${tool(root, 'npm')} ci\nnpm of the checkout: ci\n`);
 });
 
-test('npm of install-packages gets allow-remote=root, so a lock that pins a URL installs (K189)', (t) => {
+test('install-packages sets no npm allow-remote, so the .npmrc of the repository decides it (K1045)', (t) => {
   const root = repository(t);
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
-  for (const file of ['node', 'npm']) writeFileSync(path.join(root, 'var/tools/bin', file), `#!/bin/sh\necho "${file} allow-remote=$npm_config_allow_remote: $*"\n`, { mode: 0o755 });
-  const lines = (...goal: string[]) => make(root, '-s', ...goal).stdout.split('\n').filter(line => line.includes(' allow-remote='));
-  assert.deepEqual(lines('install-packages'), ['npm allow-remote=root: ci']);
-  assert.deepEqual(lines('docs-check'), [`node allow-remote=: ${kit(root)}/check-documents.mts`], 'another recipe does not get it');
+  writeFileSync(path.join(root, 'var/tools/bin/npm'), '#!/bin/sh\necho "npm allow-remote=$npm_config_allow_remote: $*"\n', { mode: 0o755 });
+  const run = make(root, '-s', 'install-packages');
+  assert.equal(run.status, 0, run.stdout + run.stderr);
+  assert.equal(run.stdout, 'npm allow-remote=: ci\n');
 });
 
 test('make install runs the bootstrap of kit first, then the install steps that the repository adds to install (K246-2)', (t) => {
@@ -100,14 +100,14 @@ test('make install-kit runs in a worktree with its own var/tools (K858)', (t) =>
   assert.doesNotMatch(install.stdout, new RegExp(`${realpathSync(root)}/`), 'the install names no file of the main checkout');
 });
 
-test('install-packages runs the targets that INSTALL_PACKAGES_EXTRA names after its npm ci, in order, with the npm of var/tools and the allow-remote setting (K428)', (t) => {
+test('install-packages runs the targets that INSTALL_PACKAGES_EXTRA names after its npm ci, in order, with the npm of var/tools (K428)', (t) => {
   // A tools project outside the workspaces of the repository installs its own lock in a target of the repository.
   const root = repository(t, 'INSTALL_PACKAGES_EXTRA := first-extra second-extra\n.PHONY: first-extra second-extra\nfirst-extra:\n\t$(NPM) extra-one\nsecond-extra:\n\t$(NPM) extra-two\n');
   mkdirSync(path.join(root, 'var/tools/bin'), { recursive: true });
-  writeFileSync(path.join(root, 'var/tools/bin/npm'), '#!/bin/sh\necho "npm allow-remote=$npm_config_allow_remote: $*"\n', { mode: 0o755 });
+  writeFileSync(path.join(root, 'var/tools/bin/npm'), '#!/bin/sh\necho "npm: $*"\n', { mode: 0o755 });
   const run = make(root, '-s', 'install-packages');
   assert.equal(run.status, 0, run.stdout + run.stderr);
-  assert.equal(run.stdout, 'npm allow-remote=root: ci\nnpm allow-remote=root: extra-one\nnpm allow-remote=root: extra-two\n');
+  assert.equal(run.stdout, 'npm: ci\nnpm: extra-one\nnpm: extra-two\n');
 });
 
 test('the CI pipeline bootstraps the installed kit with pinned npm before Make and builds no sibling checkout (K686-2, K910)', (t) => {

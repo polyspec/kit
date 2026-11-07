@@ -50,7 +50,7 @@ export function assertWorkflowPackageBootstrap(workflow: string, t: TestContext)
     assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
     if (name === '@polyspec/kit') assert.equal(existsSync(log), false, 'kit uses its source Makefile without installing its own published package');
     else {
-      assert.equal(readFileSync(log, 'utf8'), `exec --yes --package=npm@11.14.0 -- npm --prefix ${folder} ci --ignore-scripts --allow-remote=root\n`);
+      assert.equal(readFileSync(log, 'utf8'), `exec --yes --package=npm@11.14.0 -- npm --prefix ${folder} ci --ignore-scripts\n`);
       assert.equal(readFileSync(cache, 'utf8'), path.join(folder, 'var/bootstrap/npm-cache'));
     }
   }

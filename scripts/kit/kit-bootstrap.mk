@@ -28,10 +28,7 @@ include $(KIT)/kit.mk
 
 .PHONY: install-packages
 # install-packages runs npm ci of the lock as it is, the release record (K511); make install links after it through install-link.
-# The package-lock pins @polyspec/kit by the URL of its release asset. npm 12 refuses a dependency of a URL unless the project
-# opts in; allow-remote=root allows only the URLs that package.json itself names. npm reads it from npm_config_allow_remote, the
-# one source for every npm that installs or changes the lock: npm ci of install-packages (K189).
-install-packages: export npm_config_allow_remote := root
+# npm's allow-remote is the repository's own setting in its .npmrc, which npm reads for this npm ci; kit sets none (K1045).
 # The extra lock projects of the repository, such as a tools project outside its workspaces with its own package-lock.json, are
 # the make targets that INSTALL_PACKAGES_EXTRA names (K428). They run after npm ci, in order, each with make, and the first one
 # that fails stops the run. They only install: make install links after them through install-link.

@@ -1,17 +1,16 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 53066e5706103f26901b343ed825df90264f1f23f6c419c765b0c7f2f2add433 -->
+<!-- source-sha256: 375f24fa0d7d70b2eee0a397c9f11608a06a6bf349279496d0b300e88f01214e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1045: kit은 더 이상 npm allow-remote를 강제하지 않는다. install-packages, kit-bootstrap action, worktree-setup, kit의 CI는 --allow-remote=root 없이 npm ci를 실행하므로 각 저장소의 .npmrc가 그것을 정한다. docs/examples/native-settings는 URL을 고정하는 저장소의 .npmrc를 보여 준다. 호환되지 않는 변경: kit을 포함해 패키지를 URL로 고정하는 저장소는 자기 `.npmrc`에 `allow-remote=root`(또는 `all`)를 적는다. 그러지 않으면 npm 12가 그 npm ci를 EALLOWREMOTE로 거부한다(K1045).
 - K1058: make kit-inject-check가 실행하는 kit-sync --check는 파일을 쓰지 않습니다. 없거나 설치된 kit과 다른 사본, scripts/kit의 사본이 아닌 파일, 은퇴한 사본, working tree가 index와 다른 사본 경로를 각각 적고 파일은 그대로 둡니다. 사본은 여전히 make kit-sync가 씁니다(K1058).
 - K1046: docs/spec/utilities-and-recipes는 kit이 유틸리티와 레시피·네이티브 설정의 예제를 제공하고, 저장소에 레시피를 include시키지 않고, 다른 도구의 설정을 정하지 않고, 어떤 결과도 필수로 요구하지 않고, 저장소의 레시피를 검사하지 않는다고 적는다. kit이 지금 강제하는 것을 나열하며, kit은 자기 행들로 그것을 지운다(K1046).
 - VS Code 다운로드 결과를 보존하면서 helper 종료를 요청하고 소유 정리를 기다린 뒤 반환하며 Linux native source 증거를 명시한다(K1044).
-
 - 사용하지 않는 command inactivity deadline을 제거하고 출력 제한의 실패 결과와 제한된 수집을 보존하면서 정상 종료 정리를 기다린다(K1043).
-
 - 표시 이름과 독립적으로 공통 native process bootstrap 명령, deadline과 platform 적용을 검증한다(K1042).
 
 ## 0.0.97

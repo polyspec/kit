@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: 3bde9ab79624ad41386b62a379679a11848345a9a06096d5dac776caf3b5693a -->
+<!-- source-sha256: 910e298d5fc6448ffa89eaf92f65c9a8f2f278cc983ffdd1fa7ed6dce9c9113f -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -58,8 +58,11 @@ conductor에게 묻는 것은 kit의 결함(파일과 줄을 적어서)이나 �
    ```sh
    root="$PWD"
    version="$(node -p 'require("./package.json").devEngines.packageManager.version')"
-   (cd "${RUNNER_TEMP:?RUNNER_TEMP is not set}" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
+   (cd "${RUNNER_TEMP:?RUNNER_TEMP is not set}" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts)
    ```
+
+   npm은 이 npm ci에서 저장소 자신의 `.npmrc`를 읽는다. kit이나 다른 패키지를 release URL로 고정하는 저장소는 거기에
+   `allow-remote=root`(또는 `all`)를 적는다. [docs/examples/native-settings](../examples/native-settings.ko.md)가 그 예를 보여 준다. kit은 아무것도 설정하지 않는다(K1045).
 5. `node_modules`가 없는 checkout에는 include할 kit이 없다. worktree는 `make worktree-setup NAME=<name> ID=<id>`로 만들며, 이는 위의
    npm ci를 실행한 뒤 거기서 `make install`과 `make link-check`를 실행한다(K858). devEngines npm을 선언하지 않은 `package.json`은
    worktree나 branch를 만들기 전에, 그리고 npm이나 make를 실행하기 전에 거부한다(K938-1). 일반 clone은 checkout 밖에서 같은 npm ci를 먼저 실행한다.

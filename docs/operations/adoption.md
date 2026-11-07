@@ -60,8 +60,11 @@ A repository takes its npm from `mise.toml`, locked in `mise.lock`, and declares
    ```sh
    root="$PWD"
    version="$(node -p 'require("./package.json").devEngines.packageManager.version')"
-   (cd "${RUNNER_TEMP:?RUNNER_TEMP is not set}" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts --allow-remote=root)
+   (cd "${RUNNER_TEMP:?RUNNER_TEMP is not set}" && npm_config_cache="$root/var/bootstrap/npm-cache" npm exec --yes --package="npm@$version" -- npm --prefix "$root" ci --ignore-scripts)
    ```
+
+   npm reads the repository's own `.npmrc` for this npm ci. A repository that pins kit or another package by a release URL writes
+   `allow-remote=root` (or `all`) there, as [docs/examples/native-settings](../examples/native-settings.md) shows; kit sets none (K1045).
 5. A checkout without `node_modules` has no kit to include. A worktree is made by `make worktree-setup NAME=<name> ID=<id>`, which
    runs the npm ci above, then `make install` and `make link-check` in it (K858). It refuses, before it creates the worktree or its branch and before it runs npm or make, a
    `package.json` that declares no devEngines npm (K938-1). A plain clone runs the same npm ci from outside the checkout first.
