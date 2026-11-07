@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 03bde9b10829925ce555ea706180ba604a033498e01088cb18480162f19926dd -->
+<!-- source-sha256: ef9b72009054971dd11ff869b02fcdf3585239adfa3f2df65ca49fc546292107 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -187,7 +187,7 @@
 | K1056 | docs/spec/utilities-and-recipes의 삭제를 담아 kit을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [ ] |
 | K1058 | kit-sync --check는 파일을 쓰지 않는다. 설치된 kit이나 index와 다른 사본을 각각 보고한다 | `scripts/kit/kit-sync.mts`, `tests/kit/kit-sync.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1058 tests/kit/kit-sync.test.mts` passes | [o] |
 | K1059 | release-run이 저장소의 어느 workflow든 성공한 CI 실행을 태그하게 합니다. workflow 경로는 저장소가 정합니다 | scripts/kit/release-run.mts, tests/kit/release-run.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1059 tests/kit/release-run.test.mts` | [ ] |
-| K1060 | 제거된 npm 판정의 쓰이지 않는 읽기 함수 readNpmConfig를 삭제합니다 | scripts/kit/toolchain-files.mts, CHANGELOG(.ko).md | `make -s lint-ts` | [ ] |
+| K1060 | 제거된 npm 판정의 쓰이지 않는 읽기 함수 readNpmConfig를 삭제합니다 | scripts/kit/toolchain-files.mts, CHANGELOG(.ko).md | `make -s lint-ts` | [~] |
 | K1061 | make help의 land와 item-test 설명을 실제 동작대로 고치고, 제거된 거부 문구를 뺍니다 | scripts/kit/kit.mk, CHANGELOG(.ko).md | `make -s docs-check` | [ ] |
 | K1062 | 심볼릭 링크인 var에도 도구를 설치합니다. var는 저장소가 정합니다 | scripts/kit/install-tools.mts, tests/kit/install-tools.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1062 tests/kit/install-tools.test.mts` | [ ] |
 | K1063 | rules-check가 make recipe 접두사 @, -, +를 읽어, 접두사가 붙은 make 줄도 그 target에 도달하게 합니다 | scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1063 tests/kit/check-rules.test.mts` | [ ] |
