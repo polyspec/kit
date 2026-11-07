@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 3265198260de59b5078347cb0620e35d6c6ec5fe2b3adb7bf89b02280a2da0c5 -->
+<!-- source-sha256: 283986a0ca63a96f322ccc1e73fbbb2330c46a68cd1f93ef400b1b6c8a515eaa -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -154,3 +154,4 @@
 | K1021 | CI fixture는 명시적인 final run을 사용하고 필수 마지막 job을 포함한다 | tests/kit/kit-mk.test.mts, tests/source/consumer-layout.test.mts | `node --test --test-name-pattern="kit-test (fails\|passes)" tests/kit/kit-mk.test.mts` `make bypass-check` | [v] |
 | K1022 | PRINCIPLES S14가 거울, 수정 branch, release하는 line으로 된 fork 규칙을 적고, root는 fork의 release tag를 require한다 | PRINCIPLES.md, PRINCIPLES.ko.md, docs/operations/local-links.md, docs/operations/local-links.ko.md | `make rules-check` `make docs-check` | [o] |
 | K1024 | PRINCIPLES는 fork 규칙을 담지 않는다: 각 fork는 자기 FORK.md에 규칙을 적고 각 root는 설치하는 release를 자기 manifest와 lock에 적는다 | PRINCIPLES.md, PRINCIPLES.ko.md, docs/operations/local-links.md, docs/operations/local-links.ko.md, CHANGELOG.md(.ko) | `make rules-check` `make docs-check` | [o] |
+| K1025 | 같은 build 조건의 parity 대상을 함께 build하고 기록된 실행 파일로 시험하여 반복 build를 없앤다. case 선택, 실패 증거와 정리를 보존한다 (issue 23). | scripts/kit/parity-build.mts; scripts/kit/parity-runners.mts; scripts/kit/parity-ledger.mts; tests/kit/parity-build.test.mts; tests/kit/parity-ledger.test.mts; tests/source/parity-real.test.mts | node --test tests/kit/parity-build.test.mts tests/kit/parity-ledger.test.mts | [ ] |
