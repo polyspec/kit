@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: db0a258590838ff27e2c84f84c1962c34ba76cd0e7ccf10eb70177960b1416d6 -->
+<!-- source-sha256: cf3964061f69281ca66a1ff3dd820df3f05ff3f5eddf8861f3fdd8f86df4fcf5 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -177,3 +177,4 @@
 | K1046 | 스펙: kit은 유틸리티와 예제를 제공하고, 저장소에 레시피를 강제하지 않는다 | `docs/spec/utilities-and-recipes.md(.ko)`, `CHANGELOG.md(.ko)` | `make docs-check` passes | [o] |
 | K1047 | 레시피 검사: 저장소의 레시피를 계약과 공통 규칙에 대어 검사하는 유틸리티 | `scripts/kit/recipe-check.mts`, `tests/kit/recipe-check.test.mts`, `scripts/kit/kit.mk`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1047 tests/kit/recipe-check.test.mts` | [-] 원인: 저장소 레시피의 검사는 kit이 저장소 위에 정하는 규칙이 되므로, docs/spec/utilities-and-recipes는 대신 예제를 제공한다(K1046). |
 | K1048 | 유틸리티는 자기가 실행하는 도구의 환경에 mise나 uv 설정을 넣지 않는다 | `scripts/kit/bootstrap/install-mise.mts`, its callers, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1048 tests/kit/install-mise.test.mts` | [ ] |
+| K1049 | 유틸리티는 CARGO_TARGET_DIR를 환경이 정한 대로 둔다 | `scripts/kit/link.mts`, `scripts/kit/run-tests.mts`, `scripts/kit/kit.mk`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1049 tests/kit/run-tests.test.mts` | [ ] |
