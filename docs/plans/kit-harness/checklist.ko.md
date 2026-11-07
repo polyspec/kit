@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 89883f2ff896504f59c83025437a7ca9f838d3ffa05535b4b36a7dbedd7b548b -->
+<!-- source-sha256: 57945c2922d86be267e417847b026a78e108abaf89aca6dd04b1aeb8626b2ed7 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -183,7 +183,7 @@
 | K1052 | kit-sync는 저장소에 복사본을 쓰지 않고, 복사되던 workflow, action, 설정은 예제가 된다 | `scripts/kit/kit-sync.mts`, `package.json` kit.copies, `workflows/`, `actions/`, `docs/examples/`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1052 tests/kit/kit-sync.test.mts` | [o] |
 | K1053 | 유틸리티는 kit의 규칙으로 명령, 커밋, 트리를 거부하지 않는다 | `scripts/kit/claude-hook.mts`, `scripts/kit/git-hooks.mts`, `scripts/kit/ci-targets.mts`, `scripts/kit/land.mts`, `scripts/kit/plan.mts`, `scripts/kit/ci-setup.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1053 tests/kit/land.test.mts` | [o] |
 | K1054 | kit은 저장소에 레시피를 include시키지 않고, kit.mk와 kit-bootstrap.mk는 예제가 된다 | `scripts/kit/kit.mk`, `scripts/kit/kit-bootstrap.mk`, `Makefile`, `docs/examples/`, `AGENTS.md(.ko)`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1054 tests/kit/kit-bootstrap.test.mts` | [o] |
-| K1055 | PRINCIPLES는 kit이 더는 강제하지 않는 검사를 적지 않는다 | `PRINCIPLES.md(.ko)`, `CHANGELOG.md(.ko)` | `make rules-check` passes | [ ] |
+| K1055 | PRINCIPLES는 kit이 더는 강제하지 않는 검사를 적지 않는다 | `PRINCIPLES.md(.ko)`, `CHANGELOG.md(.ko)` | `make rules-check` passes | [~] |
 | K1056 | docs/spec/utilities-and-recipes의 삭제를 담아 kit을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [ ] |
 | K1058 | kit-sync --check는 파일을 쓰지 않는다. 설치된 kit이나 index와 다른 사본을 각각 보고한다 | `scripts/kit/kit-sync.mts`, `tests/kit/kit-sync.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1058 tests/kit/kit-sync.test.mts` passes | [o] |
 | K1059 | release-run이 저장소의 어느 workflow든 성공한 CI 실행을 태그하게 합니다. workflow 경로는 저장소가 정합니다 | scripts/kit/release-run.mts, tests/kit/release-run.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1059 tests/kit/release-run.test.mts` | [ ] |
