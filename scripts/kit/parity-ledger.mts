@@ -8,8 +8,6 @@
 // reports a case is an R5 finding.
 import path from 'node:path';
 import { runCommand, type RunCommandResult } from './run-command.mts';
-import { START_UP_MS } from './test-gap.mts';
-import { compactSeconds } from './time.mts';
 import { finding, resolveCommand, resolveReferences, supportFiles } from './parity-declaration.mts';
 import type { Environment, Finding, ParityImplementation, ParityModel, Runner } from './parity-declaration.mts';
 import { outcomesOf, runOf } from './parity-runners.mts';
@@ -47,12 +45,6 @@ export interface Ledger {
 /** The most output of a run that the ledger keeps, the same limit as the buffer of execute (process.mts). */
 const MAX_OUTPUT_BYTES = 256 * 1024 * 1024;
 
-/**
- * The longest silence of a binding run (K936): the start-up bound of run-tests (test-gap.mts). A binding that hangs prints nothing, so
- * its run stops there; a test of the ledger passes a shorter one.
- */
-export const SILENCE_MS = START_UP_MS;
-
 /** The run of a binding. */
 interface Attempt {
   result: RunCommandResult;
@@ -60,8 +52,6 @@ interface Attempt {
   cases: Map<string, Outcome>;
   repeated: string[];
   reportError?: string;
-  /** The sentence of a run that the silence limit stopped (K936). */
-  stop?: string;
   /** The build of the tests failed, which is the run (K936). */
   built?: boolean;
 }
@@ -107,7 +97,7 @@ function printFailureOutput(where: string, result: RunCommandResult, say: (line:
 }
 
 /** R5 of the support files: each support file of a node, php or python implementation runs once, exits zero and reports no case. */
-async function runSupport(model: ParityModel, root: string, files: Set<string>, { env, say, implementations, silenceMs }: { env: Environment; say: (line: string) => void; implementations?: ReadonlySet<string> | undefined; silenceMs: number }): Promise<Finding[]> {
+async function runSupport(model: ParityModel, root: string, files: Set<string>, { env, say, implementations }: { env: Environment; say: (line: string) => void; implementations?: ReadonlySet<string> | undefined }): Promise<Finding[]> {
   const found: Finding[] = [];
   for (const implementation of model.config.implementations.filter(entry => (implementations === undefined || implementations.has(entry.name)) && FILE_RUNNERS.has(entry.runner))) {
     for (const file of supportFiles(implementation, files)) {
@@ -118,13 +108,9 @@ async function runSupport(model: ParityModel, root: string, files: Set<string>, 
         continue;
       }
       say(`run the support file ${file} of ${implementation.name}: ${run.shown} (in ${run.cwd})`);
-      const { result } = await runGuarded(run, root, silenceMs, say);
+      const { result } = await runInvocation(run, root, say);
       if (result.error || result.stopped !== undefined)
         printFailureOutput(`${implementation.name}/${file}`, result, say);
-      if (result.stopped === 'silence') {
-        found.push(finding('R5', `the support file ${stopSentence(file, silenceMs, result).slice('binding '.length)}`, where));
-        continue;
-      }
       if (result.error || result.stopped === 'output') {
         found.push(finding('R5', `the support file could not run: ${run.shown}: ${result.error?.message ?? 'its output passed the limit of the ledger, and its process group was stopped'}`, where));
         continue;
@@ -149,21 +135,14 @@ async function runSupport(model: ParityModel, root: string, files: Set<string>, 
   return found;
 }
 
-/** The sentence of a run that the silence limit stopped (K936): the binding, the limit, and the stop of its group. */
-const stopSentence = (place: string, silenceMs: number, result: RunCommandResult): string => `binding ${place} printed nothing for ${silenceMs / 1000} s: it stopped its process group after ${compactSeconds(result.elapsedMs)}`;
-
 /** The finding of a build that failed (K936): the build of the tests exited with its status, and the compiler lines that explain it. */
 const buildSentence = (run: BindingCommand, result: RunCommandResult): string => {
   const detail = run.detail(result);
   return `the build of the tests exited with ${result.status ?? result.signal}${detail.length ? `: ${detail.join(' | ')}` : ''}`;
 };
 
-/**
- * Runs a binding command to its end in its own group (K936). A built-in go or cargo binding builds first, with no bound, as run-tests
- * builds them (K549-1), and its build output goes to `say`: a build that fails is the run, with `built` set. The test run stops when it
- * prints nothing for `silenceMs`.
- */
-async function runGuarded(run: BindingCommand, root: string, silenceMs: number, say: (line: string) => void): Promise<{ result: RunCommandResult; built: boolean }> {
+/** Run native build and test commands to completion, keeping process ownership and captured output. */
+async function runInvocation(run: BindingCommand, root: string, say: (line: string) => void): Promise<{ result: RunCommandResult; built: boolean }> {
   const plain = { command: run.command, cwd: path.join(root, run.cwd), env: run.env, stdout: 'pipe' as const, stderr: 'pipe' as const, maxOutputBytes: MAX_OUTPUT_BYTES };
   if (run.build !== undefined) {
     const built = await runCommand({ ...plain, args: run.build });
@@ -172,17 +151,16 @@ async function runGuarded(run: BindingCommand, root: string, silenceMs: number, 
     if (built.error) return { result: built, built: false };
     if (built.stopped !== undefined || built.status !== 0) return { result: built, built: true };
   }
-  return { result: await runCommand({ ...plain, args: run.args, silenceMs }), built: false };
+  return { result: await runCommand({ ...plain, args: run.args }), built: false };
 }
 
 /**
  * The run of `run`, recorded in `ledger.runs` under `unit` and `implementation`, with `say` printing the step; a reported name
- * that `group` holds is a group of cases, not a case. A run that the silence limit stopped, or whose build failed, reports no case:
- * the stop or the build is the finding (K936).
+ * that `group` holds is a group of cases, not a case. A failed build reports no case and preserves its compiler output.
  */
-async function once(run: BindingCommand & { shown: string }, root: string, where: { unit: string; implementation: string; place: string }, ledger: { runs: LedgerRun[] }, say: (line: string) => void, group: (name: string) => boolean = () => false, silenceMs: number = SILENCE_MS): Promise<Attempt> {
+async function once(run: BindingCommand & { shown: string }, root: string, where: { unit: string; implementation: string; place: string }, ledger: { runs: LedgerRun[] }, say: (line: string) => void, group: (name: string) => boolean = () => false): Promise<Attempt> {
   say(`run ${where.unit} ${where.implementation}: ${run.shown} (in ${run.cwd})`);
-  const { result, built } = await runGuarded(run, root, silenceMs, say);
+  const { result, built } = await runInvocation(run, root, say);
   const status = result.error ? null : result.status;
   let reported: [string, Outcome][] = [];
   let reportError: string | undefined;
@@ -203,7 +181,6 @@ async function once(run: BindingCommand & { shown: string }, root: string, where
     repeated: repeated(reported),
     ...(built ? { built: true } : {}),
     ...(reportError === undefined ? {} : { reportError }),
-    ...(result.stopped === 'silence' ? { stop: stopSentence(where.place, silenceMs, result) } : {}),
   };
 }
 
@@ -214,7 +191,7 @@ const lastLines = ({ stdout, stderr }: { stdout: string; stderr: string }): stri
  * R3 of the feature units: each test file runs once for the native ids that bind it in its implementation, and each id passes
  * once, with the run exiting 0.
  */
-async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, say, units, implementations, heldUnits, silenceMs }: { env: Environment; say: (line: string) => void; units?: ReadonlySet<string> | undefined; implementations?: ReadonlySet<string> | undefined; heldUnits: ReadonlySet<string>; silenceMs: number }): Promise<Finding[]> {
+async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, say, units, implementations, heldUnits }: { env: Environment; say: (line: string) => void; units?: ReadonlySet<string> | undefined; implementations?: ReadonlySet<string> | undefined; heldUnits: ReadonlySet<string> }): Promise<Finding[]> {
   // The bindings of each test file of an implementation, in declaration order.
   const files = new Map<string, { implementation: ParityImplementation; test: string; command: string[] | undefined; args: string[] | undefined; runner: Runner | undefined; bound: { unit: string; id: string }[] }>();
   for (const { unit, implementation } of pairs(model, 'feature')) {
@@ -241,17 +218,11 @@ async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { e
       continue;
     }
     const units = [...new Set(bound.map(entry => entry.unit))].join(', ');
-    const first = await once(run, root, { unit: units, implementation: implementation.name, place: test }, ledger, say, () => false, silenceMs);
+    const first = await once(run, root, { unit: units, implementation: implementation.name, place: test }, ledger, say, () => false);
     // A failed run names the failing tests that no binding declares, read from its output; none readable is said, never silent.
     const outside = named(first.cases, 'fail').filter(name => !bound.some(entry => entry.id === name));
     const failedOutside = first.status === 0 ? '' : `; failed outside the ids: ${outside.length ? outside.join(', ') : `no test name readable from the output; last 20 lines: ${lastLines(first.result)}`}`;
     say(`${units} ${implementation.name}: exit ${first.status ?? 'none'}, ${bound.filter(entry => first.cases.get(entry.id) === 'pass').length} of ${bound.length} ids passed${failedOutside}`);
-    // One finding for a run that the silence limit stopped, however many ids it binds (K936).
-    if (first.stop !== undefined) {
-      printFailureOutput(`${units}/${implementation.name}`, first.result, say);
-      found.push(finding('R3', first.stop, { implementation: implementation.name, place: test }));
-      continue;
-    }
     const failedRun = first.built
       ? [buildSentence(run, first.result)]
       : [
@@ -288,7 +259,7 @@ async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { e
  * The ledger `{ runs, cases }` of every bound suite pair, the R3 findings, and the R5 findings of the support files that
  * report cases; `say` prints a line for each step.
  */
-export async function runBindings(model: ParityModel, root: string, { env, files, say, units, implementations, heldUnits = new Set<string>(), silenceMs = SILENCE_MS }: { env: Environment; files: Set<string>; say: (line: string) => void; units?: ReadonlySet<string> | undefined; implementations?: ReadonlySet<string> | undefined; heldUnits?: ReadonlySet<string> | undefined; silenceMs?: number | undefined }): Promise<{ ledger: Ledger; findings: Finding[] }> {
+export async function runBindings(model: ParityModel, root: string, { env, files, say, units, implementations, heldUnits = new Set<string>() }: { env: Environment; files: Set<string>; say: (line: string) => void; units?: ReadonlySet<string> | undefined; implementations?: ReadonlySet<string> | undefined; heldUnits?: ReadonlySet<string> | undefined }): Promise<{ ledger: Ledger; findings: Finding[] }> {
   const ledger: Ledger = { runs: [], cases: [] };
   const findings: Finding[] = [];
   for (const { unit, implementation } of pairs(model, 'suite')) {
@@ -308,10 +279,10 @@ export async function runBindings(model: ParityModel, root: string, { env, files
     // Go nests a subtest at each /, so it reports each directory above a case of a case directory as a subtest of its own.
     const declared = model.cases.get(unit.id) ?? [];
     const group = (name: string) => (binding.runner ?? implementation.runner) === 'go' && declared.some(entry => entry.startsWith(`${name}/`));
-    const { result, status, cases, reportError, repeated: twice, stop, built } = await once(run, root, { unit: unit.id, implementation: implementation.name, place: binding.test }, ledger, say, group, silenceMs);
+    const { result, status, cases, reportError, repeated: twice, built } = await once(run, root, { unit: unit.id, implementation: implementation.name, place: binding.test }, ledger, say, group);
     say(`${unit.id} ${implementation.name}: ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${expected.filter(name => cases.get(name) === 'pass').length} of ${expected.length} cases passed`);
     for (const [name, outcome] of cases) ledger.cases.push({ unit: unit.id, implementation: implementation.name, case: name, outcome });
-    const problems = stop !== undefined ? [stop] : built ? [buildSentence(run, result)] : [
+    const problems = built ? [buildSentence(run, result)] : [
       result.error && `${run.shown} could not start: ${result.error.message}`,
       !result.error && status !== 0 && `exited with ${status ?? result.signal}${run.detail(result).length ? `: ${run.detail(result).join(' | ')}` : ''}`,
       reportError !== undefined && `invalid reporter output: ${reportError}`,
@@ -327,6 +298,6 @@ export async function runBindings(model: ParityModel, root: string, { env, files
     }
   }
   // The support files belong to no unit, so a run of named units leaves them to the whole-set check.
-  const support = units === undefined ? await runSupport(model, root, files, { env, say, implementations, silenceMs }) : [];
-  return { ledger, findings: [...findings, ...await runFeatures(model, root, ledger, { env, say, units, implementations, heldUnits, silenceMs }), ...support] };
+  const support = units === undefined ? await runSupport(model, root, files, { env, say, implementations }) : [];
+  return { ledger, findings: [...findings, ...await runFeatures(model, root, ledger, { env, say, units, implementations, heldUnits }), ...support] };
 }

@@ -20,8 +20,8 @@ and states only its own rules. The rules below are kit's own.
 - Own: Each phased parity binding job executes the tools and setup targets that its repository explicitly declares in config/ci.json parityBindings. The implementation set must match config/parity.json exactly. Empty arrays mean no setup; kit infers no runtime or extractor installation for a binding. Build units, fixtures and artifacts remain the repository's responsibility. The rules checker uses the validated selection of CI jobs; an unselected job provides no enforcement evidence.
   Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `tests/kit/check-rules.test.mts`
 
-- Own: A failed parity invocation keeps its complete captured stdout and stderr in the target log. Node uses its standard reporter for diagnostics and separate native events for verdicts; a diagnostic never supplies a pass.
-  Enforced by: `tests/kit/parity-diagnostics.test.mts`
+- Own: A failed parity invocation keeps its complete captured stdout and stderr in the target log. Node uses its standard reporter for diagnostics and separate native events for verdicts; a diagnostic never supplies a pass. Parity binding commands have no inactivity deadline; a repository supplies native case deadlines, and checker interruption still ends the process groups.
+  Enforced by: `tests/kit/parity-diagnostics.test.mts`, `tests/kit/parity-operation.test.mts`
 
 - Own: Incoming Kit change requests are tracked in GitHub issues. Keep each issue updated with implementation progress,
   verification evidence and release status, and close it only after its stated acceptance conditions are met.

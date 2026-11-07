@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: da8239014bb38752eb157b9f70f7d078050a8a2979404d8fd2eba05c9a331107 -->
+<!-- source-sha256: c2d2a2ba509daa6ffbe8a5c0969138917f292a0800be8b271907765f7887480c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- CI: parity 처리 전체의 무출력 제한을 제거하고 native case deadline과 중단 정리를 유지하며 실제 Go build 호환성 검사를 source 검사에 둔다(K1033).
 
 - CI: 한 호출의 표준 reporter와 machine reporter로 실패한 parity 출력 전체와 native Node assertion 상세를 보존하고, case가 없는 support 파일의 실패 종료도 거부한다(K1032).
 

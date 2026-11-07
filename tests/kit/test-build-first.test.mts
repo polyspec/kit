@@ -3,11 +3,12 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { signalGroup } from '../../scripts/kit/process-group.mts';
-import { chmodSync, existsSync, mkdirSync, readFileSync, watch, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { run } from '../../scripts/kit/run-tests.mts';
 import { tree } from './tree.mts';
+import { filePublished } from './file-events.mts';
 
 // The tests of the runner's mechanics run whole directories, which only a CI run may do (ci-only.mts).
 const CI = { GITHUB_ACTIONS: 'true' };
@@ -83,12 +84,7 @@ test('pre-test builds survive arbitrary clock advances and stream progress befor
   ` });
   t.mock.timers.enable({ apis: ['setTimeout'] });
   const lines: string[] = [];
-  const ready = new Promise<void>(resolve => {
-    const observer = watch(root, () => {
-      if (existsSync(path.join(root, 'build-ready'))) { observer.close(); resolve(); }
-    });
-    t.after(() => observer.close());
-  });
+  const ready = filePublished(t, path.join(root, 'build-ready'));
   release = () => {
     for (const file of ['build-clock-advanced', 'build-output-observed']) writeFileSync(path.join(root, file), '');
   };

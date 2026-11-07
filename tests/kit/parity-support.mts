@@ -16,7 +16,7 @@ import { readDeclaration, resolveReferences, symbolEntries, type ParityConfig, t
 import { misplacedTests, missingImplementations, undeclaredPublic } from '../../scripts/kit/parity-units.mts';
 import { checkedFiles } from '../../scripts/kit/tracked-files.mts';
 import { type BindingCommand, type RunError, runOf } from '../../scripts/kit/parity-runners.mts';
-import { tree } from './tree.mts';
+import { tree, type FixtureCleanup } from './tree.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { KIT, KIT_MAKE, tool } from './kit-tools.mts';
 import { known } from './known.mts';
@@ -391,7 +391,7 @@ function named(all: Record<string, string | null>, config: { units: { bindings?:
 }
 
 /** A mini repository: FILES with `files` applied (null removes) and the declaration that `edit` returns from a copy of CONFIG. */
-function repository(t: TestContext, { files = {}, edit = config => config }: Change = {}) {
+function repository(t: FixtureCleanup, { files = {}, edit = config => config }: Change = {}) {
   const config = edit(structuredClone(CONFIG));
   const all: Record<string, string | null> = { ...FILES, ...files, 'config/parity.json': `${JSON.stringify(config, null, 2)}\n` };
   named(all, config);
@@ -555,8 +555,6 @@ const output = args.find(arg => arg.startsWith('--outputFile.json=')).slice(18);
 const filter = args[args.length - 1];
 const dir = args.includes('--dir') ? path.resolve(args[args.indexOf('--dir') + 1]) : process.cwd();
 const status = { PASS: 'passed', FAIL: 'failed', SKIP: 'skipped', TODO: 'todo' };
-// A hung globalSetup: the file vitest-hang of the checkout makes the run silent before any event (K936); it ends by itself after 30 s.
-if (fs.existsSync(path.join(process.cwd(), 'vitest-hang'))) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 30000); process.exit(1); }
 const found = [];
 const walk = (folder) => { for (const entry of fs.readdirSync(folder)) { if (entry === 'node_modules') continue; const next = path.join(folder, entry); if (fs.statSync(next).isDirectory()) walk(next); else if (next.endsWith(path.sep + filter)) found.push(next); } };
 walk(dir);

@@ -4,11 +4,13 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import type { TestContext } from 'node:test';
 import { initRepository } from './sandbox-repository.mts';
 
+/** The only capability a temporary fixture needs from its test or source hook. */
+export type FixtureCleanup = { after: (work: () => void) => void };
+
 /** A temporary Git repository holding `files` ({ path: text }), removed with `t.after`. */
-export function tree(t: Pick<TestContext, 'after'>, files: Record<string, string | null> = {}) {
+export function tree(t: FixtureCleanup, files: Record<string, string | null> = {}) {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-tree-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   initRepository(root);
