@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 99ce60708f1b82e851a7c5e97929c9763d2fda6021ef30a3debd96dd77db803d -->
+<!-- source-sha256: de88ace368b26c33ce5c425fcf9ad3c423e7801890ac3a5b4448b0918f7e8e2e -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -171,3 +171,4 @@
 | K1040 | 유효한 native Go fixture의 정상 실행을 확인한 뒤 의도한 compiler 실패 근거를 보존한다. issue 34로 추적한다. | tests/source/parity-go.test.mts; AGENTS.md; AGENTS.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `gh api repos/polyspec/kit/actions/jobs/128437385846 --jq 'if .run_id == 42383994330 and .head_sha == "3c9de8f54a7b30aa932e64f5d6756fa616c5eb4b" and .name == "source tests (go)" and .conclusion == "success" then "verified native Go CI" else error("native Go CI proof missing") end'`; the job log confirms both the exact valid native Go cases and the rejected compiler build with zero executed cases. | [o] |
 | K1041 | POSIX native source 검사는 Linux와 macOS에 명시적으로 배치하고 공통 Windows process 검사와 정확한 source inventory를 유지한다. issue 35로 추적한다. | .github/workflows/ci.yml; Makefile; tests/kit/process-group.test.mts; tests/source/process-group-posix.test.mts; tests/source/ci-workflow.test.mts; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/source/ci-workflow.test.mts tests/kit/process-group.test.mts tests/source/process-group-posix.test.mts tests/kit/run-command.test.mts tests/kit/run-command-signal.test.mts tests/kit/parity-operation.test.mts tests/kit/test-build-first.test.mts` | [o] |
 | K1042 | CI 42383994330에서 발견한 오래된 bootstrap workflow 검증을 수정한다. issue 35의 후속으로 표시 이름에 의존하지 않고 공통 native process 명령과 deadline을 확인한다. | tests/kit/bootstrap-platform.test.mts; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/bootstrap-platform.test.mts tests/source/ci-workflow.test.mts` | [o] |
+| K1043 | issue 28 이후 사용하지 않는 command inactivity deadline을 제거하고 issue 31의 정상 출력 제한 종료를 완성한다. 실패 이유와 관측한 child close를 보존한다. | scripts/kit/run-command.mts; tests/kit/run-command-signal.test.mts; tests/kit/run-command.test.mts; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/run-command.test.mts tests/kit/run-command-signal.test.mts tests/kit/parity-operation.test.mts` | [ ] |
