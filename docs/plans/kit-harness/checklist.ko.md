@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 9f5fc8e1a63b943b5b47748969df2b0b05eac700a7272c02c6c929dadcd6b70c -->
+<!-- source-sha256: e531c5cfb3baa8b6c8b812525093d8ad8d10b9ad828eb16c9762119089c70d20 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -194,3 +194,4 @@
 | K1064 | rules-check에서 다른 Makefile을 실행하는 make(-C, -f)로는 루트 Makefile의 target에 도달하지 않게 합니다 | scripts/kit/recipe-tools.mts, scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1064 tests/kit/check-rules.test.mts` | [o] |
 | K1065 | rules-check가 workflow matrix의 literal include 항목 값을 읽게 합니다 | scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1065 tests/kit/check-rules.test.mts` | [o] |
 | K1057 | rules-check는 저장소의 CI pipeline을 그 workflow 중 하나로 읽으며 config/ci.json에서 고르지 않는다 | `scripts/kit/check-rules.mts`, `tests/kit/check-rules.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1057 tests/kit/check-rules.test.mts` passes | [o] |
+| K1066 | tests/kit/lint-steps.test.mts를 kit의 CI test shard에 넣습니다 | Makefile, CHANGELOG(.ko).md | `node --test --test-name-pattern=K718 tests/source/ci-workflow.test.mts` | [ ] |
