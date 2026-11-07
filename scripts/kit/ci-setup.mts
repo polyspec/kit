@@ -6,6 +6,7 @@ import { appendFileSync, existsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { isMain, repositoryRoot } from './paths.mts';
+import { present } from './present.mts';
 import { readConfig } from './schema-validate.mts';
 import { makeDatabase } from './owner-check.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -194,7 +195,7 @@ function plan(root: string): CIPlan {
     runner: config.runner ?? 'ubuntu-24.04',
     parityMode,
     parityImplementations,
-    parityMatrix: parityMode === 'phases' ? parityBindingMatrix(parityImplementations).map(({ implementation }) => ({ implementation, installTools: config.parityBindings![implementation]!.tools })) : [],
+    parityMatrix: parityMode === 'phases' ? parityBindingMatrix(parityImplementations).map(({ implementation }) => ({ implementation, installTools: present(config.parityBindings?.[implementation], `${CI_CONFIG} parityBindings.${implementation} (declare setup and tools for this implementation)`).tools })) : [],
     runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', installTools: [], targets: [] }],
     commonTools: sharedTools,
     parityTools: [...parityTools].sort(),
@@ -230,7 +231,7 @@ function invocations(root: string, group: SetupGroup, selector?: string): { targ
     if (selector === undefined) throw new Error('make kit-ci-setup GROUP=parity-binding needs IMPLEMENTATION; choose an implementation of config/parity.json');
     if (parityMode !== 'phases') throw new Error(`${CI_CONFIG}: parity-binding setup requires parityMode phases; select that mode before running its binding jobs`);
     if (!parityImplementations.includes(selector)) throw new Error(`unknown binding implementation ${selector}; choose ${parityImplementations.join(', ')}`);
-    return config.parityBindings![selector]!.setup.map(target => ({ target, args: [] }));
+    return present(config.parityBindings?.[selector], `${CI_CONFIG} parityBindings.${selector} (declare setup and tools for this implementation)`).setup.map(target => ({ target, args: [] }));
   }
   const runtime = selector;
   if (group !== 'runtime' && runtime !== undefined) throw new Error(`make kit-ci-setup GROUP=${group} does not accept a selector; omit RUNTIME and IMPLEMENTATION`);

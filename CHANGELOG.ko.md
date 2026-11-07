@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 42fdafb23d7581bb352027140f942dc5ceabb89db6a9ffd7e836d2a66b3eb2dc -->
+<!-- source-sha256: 06f039f5a141b7e15e861843215b3e1526f7f06a111bf40d2a7ec47821a07735 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.96
+
+- CI: 검증한 binding setup을 금지된 non-null assertion 대신 기존의 예외를 내는 accessor로 읽고 선언 누락 실패를 유지한다 (K1028).
 
 - Release: repository가 소유하는 CI 계획의 명시적 parity binding setup을 담는 Kit 0.0.96 후보를 준비한다 (K1027).
 
