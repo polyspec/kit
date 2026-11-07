@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 76051b749a295594d919b566894de12e79d3aae8855fbc29da8575fc08faf295 -->
+<!-- source-sha256: e1f6a81df5e551131d61a643225e01688808c8e0dda24ea9bcc96719f59d077d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -8,7 +8,8 @@
 
 ## 0.0.95
 
-- Kit 0.0.95는 PRINCIPLES S14에 fork가 거울, 수정 branch, release하는 line으로 되어 있고 root가 fork의 release tag를 require한다고 적습니다(K1022) (K1023).
+- Kit 0.0.95는 fork 규칙을 담지 않습니다. 각 fork는 자기를 유지하는 방법을 자기 FORK.md에 적고, 각 root는 설치하는 release를 자기 manifest와 lock에 require합니다(K1022, K1024) (K1023).
+- K1024: PRINCIPLES는 S14를 담지 않는다. S14는 fork가 FORK.md에 적는 것과 root가 manifest와 lock에 적는 것을 어떤 도구도 강제하지 않는 공유 규칙으로 되풀이했다. local-links는 fork를 lock이 설치하는 제3자 package로만 적는다 (K1024).
 - K1022: PRINCIPLES S14가 지금 유지하는 fork 규칙을 적는다. upstream의 거울, type·topic·base로 이름 붙인 수정 하나당 branch 하나, 수정들을 merge하고 default branch이며 v2.6.0-p2 같은 release tag를 받는 line `min-0-max/polyspec/<base>`로 이루어지고, root는 branch가 아니라 fork의 release tag를 require한다 (K1022).
 
 ## 0.0.94

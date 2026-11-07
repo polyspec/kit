@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: e9c372561cc23096a0d2e26a5962b32388928d6685c03fab54c9c0ebf4aec8fd -->
+<!-- source-sha256: 9af8d0e35e83f02b3bedcb182e88e2300274be713cad12e15b2cf5088a99087d -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -14,7 +14,7 @@
 
 - 앱이 dependency 선언과 lock을 소유합니다. package manager가 잠긴 release를 설치하고, kit이 설치된 각 polyspec 패키지 폴더를 디렉터리 심링크 하나로 바꿉니다. link를 위해 package manager가 consumer를 다시 해석하지 않습니다(K761).
 - polyspec 패키지는 모든 checkout에서 link이고, 제3자 패키지는 각 checkout 자신의 lock에서 옵니다. 모든 checkout이 자기 install 뒤 자기 `make link`를 실행하므로 provider의 polyspec 의존성도 link입니다.
-- `.links`는 lock이 설치하는 package의 로컬 checkout을 지정합니다. polyspec provider이거나, lock이 fork의 VCS source에서 그 line(fork의 default branch)의 release tag로 받는 유지 중인 제3자 package의 fork입니다(PRINCIPLES S14). make link는 각각의 설치 폴더를 그 checkout으로 link하고, link-check는 어느 쪽이든 선언했지만 어떤 설치 폴더도 link하지 않는 package를 적습니다(K999).
+- `.links`는 lock이 설치하는 package의 로컬 checkout을 지정합니다. polyspec provider이거나, 유지 중인 fork 같은 제3자 package입니다. 그 release는 root가 자기 manifest와 lock에 require하고, fork를 유지하는 방법은 그 fork의 FORK.md가 적습니다. make link는 각각의 설치 폴더를 그 checkout으로 link하고, link-check는 어느 쪽이든 선언했지만 어떤 설치 폴더도 link하지 않는 package를 적습니다(K999).
 - 개발 중 각 polyspec 패키지의 설치 폴더(node_modules, vendor, site-packages)는 checkout으로 가는 평범한 디렉터리 심링크 하나입니다. 패키지 매니저의 링크 단계(npm link, Composer path repository, pip/uv editable)는 쓰지 않습니다(PRINCIPLES S11).
 - kit은 설치 누락과 복사본을 보고합니다. 제약을 우회하거나 버전을 만들거나 설치 metadata를 수기로 맞추지 않습니다.
 

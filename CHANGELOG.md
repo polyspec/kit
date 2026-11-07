@@ -7,7 +7,8 @@
 
 ## 0.0.95
 
-- Kit 0.0.95 states in PRINCIPLES S14 that a fork is a mirror, fix branches and a released line, and that a root requires a release tag of the fork (K1022) (K1023).
+- Kit 0.0.95 holds no rule of forks: each fork states how it is kept in its own FORK.md, and each root requires the release that it installs in its own manifest and lock (K1022, K1024) (K1023).
+- K1024: PRINCIPLES no longer holds S14, which repeated as a shared rule that no tool enforces what a fork states in its FORK.md and what a root names in its manifest and lock; local-links names a fork only as a third-party package that a lock installs (K1024).
 - K1022: PRINCIPLES S14 states the rule of forks as they are kept: a mirror of upstream, one branch per fix named by its type, topic and base, and a line `min-0-max/polyspec/<base>` that merges the fixes, is the default branch and carries release tags such as v2.6.0-p2; a root requires a release tag of the fork, never a branch (K1022).
 
 ## 0.0.94

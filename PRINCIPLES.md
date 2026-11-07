@@ -290,20 +290,6 @@ tool lands, a standard binds the work as written here.
   file, ci-pipeline.yml, release.yml and the others) is the bytes of the package, written by `make kit-sync` and changed only in kit;
   scripts/kit holds those copies only. kit itself is their source and holds no copies (K851).
   Enforced by: `make kit-inject-check`
-- S14 Forks: a maintained fork of a third-party package, whose fix waits for upstream, is a package of its own name
-  (`min-0-max/<name>`). The branch of the fork that has the name of the default branch of upstream mirrors upstream, takes it
-  only by fast-forward and holds no commit of the fork. Each fix is a branch `min-0-max/<type>/<topic>/<base>` that holds only
-  that fix and its tests, where `<type>` is the commit type and `<base>` is the `git describe --tags` of the upstream commit it
-  starts from. The line `min-0-max/polyspec/<base>` merges the fixes onto that base, holds the only commits of the fork itself
-  (FORK.md and the package name) and is the default branch of the fork, since Composer's VCS source names the package by its
-  default branch; a newer upstream is a new base and a new line. A release is an annotated tag on the line in a form that the
-  package manager reads as a version (Composer: the upstream version and `-p<n>`, such as v2.6.0-p2), and a published tag is
-  never moved. During development its installed folder is linked to the development checkout through `.links` and `make link`
-  (S11). A polyspec package requires the name of the fork, and a root installs a release tag of the fork through the VCS source
-  of its package manager (Composer: a `vcs` repository and a require of the version of the tag, such as 2.6.0-p2), never a
-  branch; no public registry. The fork is retired when upstream releases the fix (K1000, K1022).
-  Enforced by: none, links exist only in development, where make link-check names a declared fork that no installed folder links
-  (K999) and no CI reaches it, since CI links nothing (K824); which release a root installs is the record of its lock (S4)
 - S15 Loose coupling: core, plugins, sidecars, kit, specs and contracts are parts that know each other only through interfaces.
   A part reaches another part only through the interface that the installed manifest of that part declares (for an npm package,
   the `exports` of its package.json), and finds it through the package that installation puts in place and the JSON written at
