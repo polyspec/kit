@@ -290,9 +290,7 @@ export function runCIContext(root: string, phase: 'prepare' | 'cleanup', group: 
 
 // Kept as one small seam for an execution test; commands always contain a validated target name, never config text as shell input.
 function spawnMake(command: string, args: string[], cwd: string): number {
-  // A setup or context target that runs ci-setup again would spawn without end; the marker of the make that ci-setup starts stops it.
-  if (process.env.KIT_CI_DISPATCH) throw new Error(`make ${args.at(-1) ?? ''} runs inside a target that ci-setup started; a setup or context target must not run kit-ci-setup or kit-ci-context again`);
-  const result = spawnSync(command, args, { cwd, stdio: 'inherit', env: { ...process.env, KIT_CI_DISPATCH: '1' } });
+  const result = spawnSync(command, args, { cwd, stdio: 'inherit' });
   if (result.error) throw new Error(`${command} could not start: ${result.error.message}`);
   return result.status ?? 1;
 }

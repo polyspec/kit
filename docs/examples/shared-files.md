@@ -10,7 +10,6 @@ The package `@polyspec/kit` ships files that kit uses for itself and that a repo
 | `workflows/ci-pipeline.yml` | `.github/workflows/ci-pipeline.yml` | the CI pipeline that a repository's `ci.yml` calls as a job; its closing `required` job fails when a job that the plan selected does not succeed |
 | `workflows/release.yml` | `.github/workflows/release.yml` | the release workflow that starts after a green CI run on `main` |
 | `actions/kit-bootstrap/action.yml` | `.github/actions/kit-bootstrap/action.yml` | the bootstrap of a CI job: Node.js of `mise.toml`, the locked kit, the npm of var/tools and the packages |
-| `claude/settings.json` | `.claude/settings.json` | the Claude Code hook `polyspec-kit-hook` before a Bash command |
 | `config/layout.kit.yml`, `config/composer.schema.json` | `config/` | the common alint rules, which `config/layout.yml` extends |
 | `.editorconfig` | `.editorconfig` | the editor settings of kit |
 | `PRINCIPLES.md`, `PRINCIPLES.ko.md` | the root | the working principles, which the repository's AGENTS.md links |

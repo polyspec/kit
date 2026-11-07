@@ -23,7 +23,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { changelogFindings } from './changelog.mts';
-import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { verificationFindings } from './verification.mts';
 import { checklistsFindings, CHECKLIST_COLUMNS, CONFIG as CHECKLIST_CONFIG, loadConfig as loadChecklists, readChecklist, trackersOf, undeclaredChecklists, workingPlanFiles } from './checklist.mts';
 import { KIT_ITEMS, kitItemIds } from './kit-items.mts';
@@ -286,8 +285,7 @@ export function check(root: string, config: DocumentsConfig, progress?: (line: s
   }
   const missing = checklists.flatMap(list => [list.path, list.translation]).filter(file => !existsSync(path.join(root, file)));
   const available = (file: string) => (missing.includes(file) ? undefined : read(file));
-  let database: MakeDatabase | undefined;
-  for (const { file, finding } of [...checklistsFindings(checklists, available), ...verificationFindings(checklists, available, () => (database ??= makeDatabase(root)))]) add(file, finding);
+  for (const { file, finding } of [...checklistsFindings(checklists, available), ...verificationFindings(checklists, available)]) add(file, finding);
   // A row that names a kit item waits on the checklists of the kit (K374); a missing item list of the installed kit package is a finding (K957).
   if (checklists.length > 0) {
     const isKit = packageName(root) === KIT_PACKAGE;

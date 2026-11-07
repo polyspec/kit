@@ -15,7 +15,7 @@ import { providedFolders } from '../../scripts/kit/link-folders.mts';
 import { linkFindings } from '../../scripts/kit/link-check.mts';
 import { acquireHolderLock } from '../../scripts/kit/holder-lock.mts';
 import { cargoMetadataArguments } from '../../scripts/kit/cargo-source.mts';
-import { cargo, link, unlink, writeWorkspaceHook } from '../../scripts/kit/link.mts';
+import { cargo, link, unlink } from '../../scripts/kit/link.mts';
 import { shippedAssets } from '../../scripts/kit/kit-assets.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
@@ -405,14 +405,14 @@ test('link with no declaration and unlink remove only what their runtime selects
   const rust = command(consumer, noUv, LINK, 'unlink', '--runtime', 'rust');
   assert.equal(rust.status, 0, rust.text);
   assert.equal(existsSync(cargoLock), false, 'rust removes the Cargo lock that link wrote');
-  for (const args of [['unlink', '--hook'], ['unlink', 'extra']]) {
+  for (const args of [['unlink', 'extra']]) {
     const refused = command(consumer, noUv, LINK, ...args);
     assert.equal(refused.status, 1, refused.text);
     assert.match(refused.text, /unlink takes no argument but --project and --runtime/);
   }
-  const hook = command(consumer, noUv, LINK, 'hook', '--runtime', 'ts');
+  const hook = command(consumer, noUv, LINK, 'hook');
   assert.equal(hook.status, 1, hook.text);
-  assert.match(hook.text, /hook takes no argument but --project: --runtime ts/);
+  assert.match(hook.text, /Usage: link\.mjs link/, 'link has no hook command (K1053)');
   const all = command(consumer, noUv, LINK, 'link');
   assert.equal(all.status, 1, all.text);
   assert.match(all.text, /no-such-uv workspace dir could not start/, 'a run of every runtime names the uv it cannot start');
@@ -489,14 +489,6 @@ test('K869: the go.work that link writes uses exactly the declared providers tha
   rmSync(path.join(consumer, '.links'));
   const stale = command(consumer, env, LINK_CHECK);
   assert.match(stale.text, /a go\.work that link wrote, though the link declaration names no provider/);
-});
-
-test('link-check judges no Claude Code settings, with or without a declaration (K960)', (t) => {
-  const { kit, consumer, env } = declared(t, null);
-  hookCheckout(kit);
-  assert.doesNotMatch(command(consumer, env, LINK_CHECK).text, /settings\.json/);
-  put(consumer, { '.links': '../prov\n' });
-  assert.doesNotMatch(command(consumer, env, LINK_CHECK).text, /settings\.json/);
 });
 
 // K385: a worktree is its own repository: its packages are its own, and the main checkout of its repository is never a provider.
@@ -926,23 +918,6 @@ test('a consumer workspace package wins over a sibling package with the same nam
   assert.equal(ok, true, lines.join('\n'));
   assert.doesNotMatch(lines.join('\n'), /NOT linked/);
 });
-// K440: a Claude Code session started in the workspace folder (the folder of a checkout and its siblings) loads no
-// .claude/settings.json of a checkout, so `hook` writes the Bash PreToolUse hook of claude-hook into the settings of that folder, run by
-// a kit checkout. K960: link writes no Claude Code settings; make link runs link --hook, which writes it after the link (K967).
-/** The claude-hook and the node of the kit checkout `kit`, as a checkout has them (linked to the hook and node of this checkout). */
-function hookCheckout(kit: string) {
-  mkdirSync(path.join(kit, 'scripts/kit'), { recursive: true });
-  symlinkSync(path.join(KIT, 'scripts/kit/claude-hook.mts'), path.join(kit, 'scripts/kit/claude-hook.mts'));
-  mkdirSync(path.join(kit, 'var/tools/bin'), { recursive: true });
-  symlinkSync(process.execPath, path.join(kit, 'var/tools/bin/node'));
-}
-
-/** The command of the kit checkout `kit` that runs its node and its claude-hook, as `hook` writes it. */
-const hookCommand = (kit: string) => `'${path.join(kit, 'var/tools/bin/node')}' '${path.join(kit, 'scripts/kit/claude-hook.mts')}'`;
-
-/** The Bash PreToolUse entry of the hook command of `kit`. */
-const hookEntry = (kit: string) => ({ matcher: 'Bash', hooks: [{ type: 'command', command: hookCommand(kit) }] });
-
 /** The declaration of the provider and kit checkouts beside `consumer` (K869). */
 const declareSiblings = (consumer: string) => put(consumer, { '.links': '../prov\n../kit\n' });
 
@@ -953,66 +928,13 @@ function linkSiblings(consumer: string, env: NodeJS.ProcessEnv) {
   assert.equal(result.status, 0, result.stderr);
 }
 
-test('link writes no Claude Code settings into the workspace folder, even beside a kit checkout (K960)', (t) => {
+// K1053: kit writes no Claude Code settings: link and its command write none, and link has no hook command.
+test('link writes no Claude Code settings into the workspace folder, even beside a kit checkout (K960, K1053)', (t) => {
   const { kit, consumer, env } = workspace(t);
-  hookCheckout(kit);
+  mkdirSync(kit, { recursive: true });
   linkSiblings(consumer, env);
   assert.equal(existsSync(path.join(path.dirname(consumer), '.claude')), false);
-});
-
-test('hook writes the Bash PreToolUse hook of the kit checkout into the workspace folder, which refuses sleep 240 (K440, K960)', (t) => {
-  const { root, kit, consumer } = workspace(t);
-  hookCheckout(kit);
-  assert.equal(writeWorkspaceHook(root, kit), path.join(root, '.claude/settings.json'));
-  assert.deepEqual(readJsonObject(root, '.claude/settings.json'), { hooks: { PreToolUse: [hookEntry(kit)] } });
-  const hook = spawnSync('/bin/sh', ['-c', hookCommand(kit)], { cwd: consumer, input: JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'sleep 240' }, cwd: consumer }), encoding: 'utf8' });
-  assert.equal(hook.status, 2, hook.stderr);
-  assert.match(hook.stderr, /refuse/);
-});
-
-test('hook keeps the other settings of the workspace folder and replaces its kit hook, so a second run changes nothing (K440)', (t) => {
-  const { root, kit } = workspace(t);
-  hookCheckout(kit);
-  const file = path.join(root, '.claude/settings.json');
-  const other = { matcher: 'Edit', hooks: [{ type: 'command', command: 'echo edit' }] };
-  const stop = [{ hooks: [{ type: 'command', command: 'echo done' }] }];
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify({ model: 'sonnet', hooks: { Stop: stop, PreToolUse: [other, { matcher: 'Bash', hooks: [{ type: 'command', command: '"/old/kit/var/tools/bin/node" "/old/kit/scripts/kit/claude-hook.mts"' }] }] } }));
-  writeWorkspaceHook(root, kit);
-  const first = readFileSync(file, 'utf8');
-  assert.deepEqual(readJsonObject(file), { model: 'sonnet', hooks: { Stop: stop, PreToolUse: [other, hookEntry(kit)] } });
-  writeWorkspaceHook(root, kit);
-  assert.equal(readFileSync(file, 'utf8'), first);
-});
-
-test('hook writes the workspace folder of the kit checkout only, never another folder such as a home folder (K440, K960)', (t) => {
-  const { kit, consumer } = workspace(t);
-  hookCheckout(kit);
-  assert.equal(writeWorkspaceHook(consumer, kit), undefined);
   assert.equal(existsSync(path.join(consumer, '.claude')), false);
-});
-
-test('hook replaces a kit entry of the built package, so one kit entry stays (K960)', (t) => {
-  const { root, kit } = workspace(t);
-  hookCheckout(kit);
-  const file = path.join(root, '.claude/settings.json');
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify({ hooks: { PreToolUse: [{ matcher: 'Bash', hooks: [{ type: 'command', command: "'/old/kit/var/tools/bin/node' '/old/kit/dist/claude-hook.mjs'" }] }] } }));
-  writeWorkspaceHook(root, kit);
-  assert.deepEqual(readJsonObject(file), { hooks: { PreToolUse: [hookEntry(kit)] } });
-});
-
-test('hook refuses a kit checkout whose node is not executable and leaves the settings as they are (K440-2)', (t) => {
-  const { root, kit } = workspace(t);
-  hookCheckout(kit);
-  const file = path.join(root, '.claude/settings.json');
-  writeWorkspaceHook(root, kit);
-  const before = readFileSync(file, 'utf8');
-  const node = path.join(kit, 'var/tools/bin/node');
-  rmSync(node);
-  writeFileSync(node, '#!/bin/sh\n', { mode: 0o644 });
-  assert.throws(() => writeWorkspaceHook(root, kit), new RegExp(`make -C ${realpathSync(kit).replaceAll('.', '\\.')} install-tools`));
-  assert.equal(readFileSync(file, 'utf8'), before);
 });
 
 test('link-check still judges the manifest paths of a checkout, which no hook concerns (K773, K876)', (t) => {

@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: fdfc07a5cb2bc9893b723eda941bb54cfce2d4dad2a5d51f7a18782e970421e9 -->
+<!-- source-sha256: 5b49b73c856a5bff341fe0e65601afa20dc2f54ad083b837efbc5121680eaa2a -->
 
 # 도구 목록
 
@@ -146,7 +146,7 @@ stale이 되지 않습니다.
   crudui, template의 목록을 읽으며, 둘을 서로 비교하지 않습니다(K862). PHP가 필요한 저장소(`config/release.json`의 Composer package나
   Composer consumer, 또는 `config/toolchain.json`의 `php`)는 CI와 release workflow가 설치하는 PHP(`php-version-file`)인
   `.php-version`을 선언합니다. 그렇지 않으면 release가 runner의 PHP로 실행되기 때문입니다(K193). K1051 전까지 kit-check가 이를 요구했습니다.
-- Python (K64, K127): mise가 `mise.lock`이 URL과 sha256으로 고정한 정확한 python-build-standalone build를 `var/tools/mise/installs`에 설치하고, shim `var/tools/mise/shims/python3`이 그것을 실행합니다. 저장소가 `UV_PYTHON_DOWNLOADS=never`를 설정하면 uv는 Python을 설치하지 않으며(kit 자신의 `mise.toml`이 그렇게 설정함, K1048), 저장소가 `UV_PYTHON_PREFERENCE=only-system`을 설정하면 uv는 mise의 python3 shim을 씁니다. kit 자신의 `mise.toml`이 그렇게 설정합니다. mise의 Python도 pip에게는 externally managed이므로 pip는 그 Python의 venv에만 설치합니다. run-tests는 PATH의 Python이 아니라 그 shim을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/mise` 아래의 directory일 때만(link를 따라 읽음) `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44) 또는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`라는 고침과 함께 거부합니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv`는 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
+- Python (K64, K127): mise가 `mise.lock`이 URL과 sha256으로 고정한 정확한 python-build-standalone build를 `var/tools/mise/installs`에 설치하고, shim `var/tools/mise/shims/python3`이 그것을 실행합니다. 저장소가 `UV_PYTHON_DOWNLOADS=never`를 설정하면 uv는 Python을 설치하지 않으며(kit 자신의 `mise.toml`이 그렇게 설정함, K1048), 저장소가 `UV_PYTHON_PREFERENCE=only-system`을 설정하면 uv는 mise의 python3 shim을 씁니다. kit 자신의 `mise.toml`이 그렇게 설정합니다. mise의 Python도 pip에게는 externally managed이므로 pip는 그 Python의 venv에만 설치합니다. run-tests는 PATH의 Python이 아니라 그 shim을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/bin/python`을 주어진 그대로 시작합니다. K1053 전까지는 `pyvenv.cfg`의 `home`이 `var/tools/mise` 밖인 환경을 거부했습니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv`는 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
 - Python venv (K44, K64): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mts`)는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`로 checkout Python의 virtual environment를 만들고, uv가 만든 그대로 link까지 둡니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 실패한 실행은 그것이 만든 directory를 지웁니다.
 - ruff와 vulture(K127): ruff는 mise가 `mise.lock`의 sha256으로 설치하는 GitHub release archive이고, vulture는 mise가 `.mise/locks`의 uv lock으로 환경을 제자리에서 build하는 `pypi:` 도구이므로, 그 console script는 존재하는 interpreter를 가리킵니다.
 - 검증: crudui의 도구 목록과 메시지(선언한 파일, 실행 중인 version, 기대 version, 해결 방법), minor release로 비교하는 PHP와
@@ -257,25 +257,22 @@ alint는 0.x이고 release가 잦습니다. 0.17과 0.18은 설정 key를 바꿨
 ## Gate: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
 K804는 push gate(`push-gate.mts`, pre-push hook, `push-gate-hook`, `push-gate-commit`, `hooks`가 `pre-push`를 포함해야 한다는
-규칙)를 삭제했습니다. push는 검사하지 않으며, message 규칙은 commit-msg hook을 통해 commit 때 실행합니다. 아래 표는 K6.1의 merge를
+규칙)를 삭제했습니다. push는 검사하지 않으며, K1053부터 kit의 어떤 hook도 commit을 검사하지 않습니다. 아래 표는 K6.1의 merge를
 기록합니다.
 
 K240은 `full-run.mts`, 그 record `var/full-run.json`과 target `rerun-failed`를 제거했습니다. Suite command는 CI에서 실행합니다.
-Local final verification은 진행 중인 checklist 항목이 없고 커밋 트리가 깨끗할 때 `make ci-targets FINAL_RUN=1 TARGETS="<target>..."`를 사용합니다.
-최종 acceptance를 위한 이 실행에는 대기 상태 `[ ]` 항목이 남아도 됩니다. 진행 중 `[~]` 항목, 커밋되지 않은 트리,
-읽을 수 없거나 서로 맞지 않는 양언어 checklist는 거부합니다. Guard는 진행 중 항목과 실제 트리 변경을 밝힙니다.
-기존 CI report는 final run을 기록하고 lock은 동시 기록을 막습니다. 범위 내 개발을 커밋한 뒤 한 번 실행하며,
-일반 개발 중에는 소유 unit test만 계속 실행합니다. 아래 표는 K6.1의 merge를 기록합니다.
+K1053은 suite command의 guard(`ci-only.mts`와 FINAL_RUN)를 제거했습니다. `make ci-targets TARGETS="<target>..."`,
+`make owner-check`, 선택 없는 run-tests 실행, suite와 전체 `parity-check`는 시작된 곳 어디서나 실행되며, suite를 언제 실행할지는
+저장소 자신의 레시피입니다. CI report의 lock은 동시 기록을 막습니다. 아래 표는 K6.1의 merge를 기록합니다.
 
 파일: `scripts/kit/checklist.mts`, `git-hooks.mts`, `holder-lock.mts`,
-`schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, 그리고 `kit.mk` 끝의 make target `hooks`, `hooks-check`,
-`staged-generated-hook`입니다.
+`schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, 그리고 `kit.mk`의 make target `hooks`와
+`hooks-check`입니다.
 lock은 crudui, guard와 hook은 template, tracker는 다섯 구현의 합집합을 기반으로 삼았습니다.
 
 ### 정책
 
-verification `[v]`는 구현이 commit되었고 선언한 unit test가 통과했음을 뜻하며, item이 done이 될 때까지 release와 tag 생성을 막습니다. verification이 실패하면 `[~]`로 되돌립니다. pre-commit hook은 generated 파일 검사(K210)를 실행합니다. `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `target`, `dist`, `*.egg-info` segment를 가졌거나 `config/generated.json`의 `paths` glob과 맞는 staged 경로를, `exceptions` glob과 맞지 않으면 거부하고 경로를 이름으로 밝힙니다(AGENTS.md "Generated files"). 전체 실행의 guard는
-항목이 active 상태인 동안, 추적하는 파일에 변경이 있는 동안, 현재 tree의 전체 실행 기록이 있을 때 거부합니다. 이 정책에는 pull
+verification `[v]`는 구현이 commit되었고 선언한 unit test가 통과했음을 뜻하며, item이 done이 될 때까지 release와 tag 생성을 막습니다. verification이 실패하면 `[~]`로 되돌립니다. `generated-files.mts staged`가 generated 파일 검사(K210)이며, 저장소 자신의 pre-commit hook이 이를 실행할 수 있습니다. `node_modules`, `vendor`, `.venv`, `venv`, `__pycache__`, `target`, `dist`, `*.egg-info` segment를 가졌거나 `config/generated.json`의 `paths` glob과 맞는 staged 경로를, `exceptions` glob과 맞지 않으면 보고하고 경로를 이름으로 밝힙니다(AGENTS.md "Generated files"). 이 정책에는 pull
 request, merge queue, ruleset이 없습니다.
 
 ### `config/checklist.json`
@@ -290,7 +287,7 @@ request, merge queue, ruleset이 없습니다.
 K241은 K6.1의 선언된 tracker를 대체했습니다. kit은 checklist를 `docs/plans/<plan>/checklist.md`로 찾고, 각각은 kit의 state 6개를
 가진 table이며, `idPattern`이 checklist의 유일한 선언입니다. orm의 list format은 제거되었습니다.
 
-`hooks`는 `.githooks`에서 추적하는 저장소의 hook 목록입니다. `pre-commit`, `commit-msg`는 kit의 hook으로, 항목 없이 `make hooks`가 씁니다. `make hooks-check`는 make target이 없어진 이전 kit의 `prepare-commit-msg` hook을 보고하고 `git rm .githooks/prepare-commit-msg`를 고칠 방법으로 알려 줍니다(K892). `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
+`hooks`는 `.githooks`에서 추적하는 저장소 자신의 hook 목록입니다. 목록이 hook을 지정하면 `make hooks`가 `core.hooksPath`를 `.githooks`로 가리키고 각 hook을 실행 가능하게 하며, kit은 hook을 쓰지 않습니다(K1053). `config/generated.json`의 `paths`는 kit의 segment 밖에서 생성되는 경로(예: build 산출물 폴더)의 glob 목록이고, `exceptions`는 추적된 채 남는 경로(예: test fixture)의 glob 목록입니다. schema는 `schema/generated.schema.json`입니다. tracker는 `path`, `format`(`table`: `| ID | ... | state |`
 행, `list`: `- [state] ID text` 항목이며 하위 항목은 들여 씁니다), `active`를 가지고, `translation`, `states`(목록 밖의 state는 오류),
 `column`(state가 있는 table 행의 0부터 센 cell, 없으면 마지막 cell)을 가질 수 있습니다. state는 cell이나 항목 앞의 `[x]`이고,
 cell이 `[`로 시작하지 않으면 cell 전체입니다.
@@ -308,11 +305,11 @@ cell이 `[`로 시작하지 않으면 cell 전체입니다.
 | 한국어 짝은 같은 ID를 같은 순서로, 같은 state로 가져야 함 | orm, ordered-json(문서 검사) | 짝을 같은 parser로 읽으므로 gate와 guard도 다른 짝을 거부, 나머지 규칙(marker, 우회 문구)은 K7의 문서 검사가 유지 |
 | 거부 메시지가 파일, ID, 제목, 위치(push하는 ref와 commit 또는 working tree)를 적음 | 전체 | 유지, 어떤 state가 막고 어떤 state가 막지 않는지도 적음, commit은 12자로 표시(ordered-json, orm, template과 hyper는 7자) |
 | `commit <rev>`는 줄마다 GitHub annotation을 출력하고 `%`와 줄바꿈을 escape하며 `$GITHUB_STEP_SUMMARY`에 덧붙이고 hook의 mode 100755를 요구하고 commit이 아닌 revision을 알림 | template, crudui, hyper, ordered-json, orm | 유지, `hooks`의 모든 hook의 mode를 요구(ordered-json은 `pre-commit`도 요구, 나머지는 `pre-push`만) |
-| `hooks-check`는 `core.hooksPath`가 다르거나 hook이 없거나 실행할 수 없으면 실패 | 전체 | `git-hooks.mts check`, `pre-commit` 또는 `pre-push`의 내용이 도구의 hook과 다를 때도 실패 |
-| `make hooks`가 `core.hooksPath`를 설정하고 검사 | template, hyper, ordered-json(`hooks-install`) | `git-hooks.mts install`이 `pre-commit`과 `pre-push`도 쓰고 나열한 hook을 실행 가능하게 함, 두 번째 실행은 아무것도 바꾸지 않음 |
-| make를 호출할 때마다 `core.hooksPath`를 설정 | template, orm | `kit.mk`는 `.githooks/pre-push`를 추적하는 checkout에서만 설정, hook이 없는 checkout은 바꾸지 않음 |
-| `pre-commit`과 `pre-push`의 내용 | 전체가 최상위 directory로의 `cd`와 주석에서 다름 | 내용 하나, `git-hooks install`이 쓰고 `check`가 비교 |
-| commit에 든 generated 경로(orm의 `pre-commit`과 `make staged-check`, 자체 exceptions) | orm | kit의 `pre-commit`이 `make staged-generated-hook`을 실행, exceptions는 `config/generated.json`의 glob (K210) |
+| `hooks-check`는 `core.hooksPath`가 다르거나 hook이 없거나 실행할 수 없으면 실패 | 전체 | `git-hooks.mts check`, K1053 전까지는 `pre-commit` 또는 `pre-push`의 내용이 도구의 hook과 다를 때도 실패 |
+| `make hooks`가 `core.hooksPath`를 설정하고 검사 | template, hyper, ordered-json(`hooks-install`) | `git-hooks.mts install`이 나열한 hook을 실행 가능하게 하고 merge driver를 선언함(K1053 전까지는 `pre-commit`과 `pre-push`도 씀), 두 번째 실행은 아무것도 바꾸지 않음 |
+| make를 호출할 때마다 `core.hooksPath`를 설정 | template, orm | K1053 전까지 `kit.mk`는 `.githooks/pre-push`를 추적하는 checkout에서만 설정, 이제는 `make hooks`만 설정 |
+| `pre-commit`과 `pre-push`의 내용 | 전체가 최상위 directory로의 `cd`와 주석에서 다름 | K1053 전까지 내용 하나, `git-hooks install`이 쓰고 `check`가 비교, 이제는 저장소 자신의 파일 |
+| commit에 든 generated 경로(orm의 `pre-commit`과 `make staged-check`, 자체 exceptions) | orm | K1053 전까지 kit의 `pre-commit`이 `make staged-generated-hook`을 실행, `generated-files.mts staged`는 유틸리티로 남음 (K210) |
 | kit의 `pre-commit`, `pre-push`가 아닌 hook(ordered-json의 `pre-commit`, orm의 `commit-msg`) | ordered-json, orm | `hooks`에 적고 존재와 mode를 검사, 내용은 저장소에 둠 |
 | lock 기록: checkout, process ID, process 시작 시각, 잡은 시각, command, token, 원자적 link, 시작 시각으로 재사용된 process ID와 holder를 구별 | crudui | `holder-lock.mts`의 기반, template과 hyper는 시작 시각을 기록하지 않았음 |
 | 끝난 holder의 lock은 `clear`까지 남음, `clear`는 lock을 옆으로 rename하고 그 사이 새 holder가 잡았으면 되돌림 | crudui(`remove-dead`), template과 hyper(`clear`) | crudui의 제거 방식을 `clear`라는 이름으로 |
@@ -542,8 +539,8 @@ Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 comma
 
 `scripts/kit/check-commits.mts`는 orm의 `scripts/git/check.mjs`를 공유 git 위생 검사로 가져옵니다. template, crudui, hyper,
 ordered-json은 규칙에 같은 메시지 형식을 적었지만 검사는 없습니다. 모든 저장소에 같은 check-commits.mts의 상수 `COMMIT_RULES`는
-make commit이 쓰는 type과 body 폭입니다(K243). commit-msg hook은 AI footer와 identity만 검사하고, done 행의 Red 줄과 fix의 test는 land가
-브랜치의 완료된 커밋마다 `check-commits --range <base>..<head>`로 판정하며(K892), subject 형식은 make commit이 쓰는 안내입니다.
+make commit이 쓰는 type과 body 폭입니다(K243). K1053부터 kit의 hook, make commit, land 어느 것도 이를 실행하지 않습니다.
+`check-commits --range <base>..<head>`와 `--message <file>`은 저장소 자신의 레시피가 실행하는 곳에서 그 규칙의 finding을 보고합니다.
 
 합친 동작:
 
@@ -828,7 +825,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   install-tools가 판정합니다.
   선택 항목인 `contexts` map은 잠긴 setup 뒤, 기존 provider gate를 실행하기 직전에 저장소의 prepare target을 실행하고
   gate 뒤에 cleanup target을 실행합니다. 각 scope에는 두 target이 모두 있어야 합니다. workflow 시작 전에 둘 다 실제 Make
-  target인지 검증합니다. kit-ci-setup이나 kit-ci-context를 다시 실행하는 setup 또는 context target은 그 두 번째 dispatch에서 실패합니다. 예를 들어
+  target인지 검증합니다. 예를 들어
   `"contexts": { "shared": { "prepare": "ci-shared-prepare", "cleanup": "ci-shared-cleanup" } }`는 shared
   context를 선택합니다. `parity`는 선택된 각 parity job에서 따로 실행하고, runtime key는 해당 runtime job에 적용합니다.
   준비 단계에 진입한 뒤에는 Actions `always()`로 cleanup을 실행하므로 prepare 또는 gate가 실패해도 정리합니다. Cleanup 실패도

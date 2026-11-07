@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { execFileSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
 import test from 'node:test';
-import { wrapBody, commitItem, editItem, newItem, newPlan, setState, splitPlan, testItem, verifyDone } from '../../scripts/kit/plan.mts';
+import { wrapBody, commitItem, editItem, newItem, newPlan, setState, splitPlan, testItem } from '../../scripts/kit/plan.mts';
 import { readChecklist, trackersOf } from '../../scripts/kit/checklist.mts';
 import { sha256 } from '../../scripts/kit/bootstrap/digest.mts';
 import { typeErrors } from '../../scripts/kit/ts-typecheck.mts';
@@ -181,36 +181,25 @@ test('item-state to the state an item already has succeeds, writes nothing and r
   assert.equal(again.status, 0, again.stderr);
   assert.match(again.stdout, /T1 is already \[~\]/);
   assert.deepEqual(files(), active);
-  const refused = run('[o]');
-  assert.notEqual(refused.status, 0, 'the failing Verification refuses the done state');
+  const done = run('[o]');
+  assert.equal(done.status, 0, `a move runs no Verification (K1053): ${done.stderr}`);
 });
 
-test('item-state sets done only when the changelog of both languages holds the item, committed or not (K249-2, K808)', (t) => {
-  const root = committed(t, 'T1');
+// K1053: item-state reads no changelog and runs no test; it moves the state along STATE_TRANSITIONS.
+test('item-state sets done without a changelog line and without running the Verification (K1053)', (t) => {
+  const root = plans(t, 'parser');
+  newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(1)"`' }));
   setState(root, { id: 'T1', state: '[~]' });
   commitState(root, 'start');
-  setState(root, { id: 'T1', state: '[v]' });
-  commitState(root, 'verification');
-  // The red of the Verification is recorded before the done state.
-  assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.md holds no line with \(T1\)/);
-  writeFileSync(path.join(root, 'CHANGELOG.md'), `${CHANGELOG}- Parse (T1).\n`);
-  assert.throws(() => setState(root, { id: 'T1', state: '[o]' }), /CHANGELOG.ko.md holds no line with \(T1\)/);
-  writeFileSync(path.join(root, 'CHANGELOG.ko.md'), `${CHANGELOG}- 파싱 (T1).\n`);
-  commitState(root, 'changelog');
   setState(root, { id: 'T1', state: '[o]' });
-  assert.deepEqual(states(root, 'docs/plans/parser/checklist.md'), ['[o] |'], 'a line that HEAD already holds counts');
+  assert.deepEqual(states(root, 'docs/plans/parser/checklist.md'), ['[o] |']);
 });
 
 test('item-state may complete a unit-tested item directly from development without entering verification', (t) => {
   const root = plans(t, 'parser');
   newItem(root, item('parser', 'T1', { verification: '`node -e "process.exit(0)"`' }));
-  writeFileSync(path.join(root, 'CHANGELOG.md'), CHANGELOG);
-  writeFileSync(path.join(root, 'CHANGELOG.ko.md'), CHANGELOG);
   setState(root, { id: 'T1', state: '[~]' });
   commitState(root, 'start');
-  writeFileSync(path.join(root, 'CHANGELOG.md'), `${CHANGELOG}- Parse (T1).\n`);
-  writeFileSync(path.join(root, 'CHANGELOG.ko.md'), `${CHANGELOG}- 파싱 (T1).\n`);
-  verifyDone(root, 'T1', () => {});
   setState(root, { id: 'T1', state: '[o]' });
   assert.deepEqual(states(root, 'docs/plans/parser/checklist.md'), ['[o] |']);
 });
@@ -287,26 +276,6 @@ test('an item test refuses a changed TypeScript file with a type error, and a co
   assert.match(log(root), /^feat\(parser\): Parse the input \(#T1\)/);
 });
 
-// K335: the done state is no word of the agent: the verification of the row runs on the tree that the commit holds, and a failing one refuses.
-test('verifyDone runs the Verification of the row and refuses a failing command and a deliverable that is neither staged nor committed (K335)', (t) => {
-  const root = plans(t, 'parser');
-  newItem(root, item('parser', 'T1', { deliverables: '`a.mts`', verification: '`node -e "process.exit(0)"`' }));
-  newItem(root, item('parser', 'T2', { deliverables: '`a.mts`', verification: '`node -e "process.exit(3)"`' }));
-  const quiet = () => {};
-  // Both rows are active: the transition is checked first (K353-1).
-  for (const file of ['docs/plans/parser/checklist.md', 'docs/plans/parser/checklist.ko.md']) {
-    writeFileSync(path.join(root, file), readFileSync(path.join(root, file), 'utf8').replaceAll(' | [ ] |', ' | [v] |'));
-  }
-  writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
-  assert.throws(() => verifyDone(root, 'T1', quiet), /T1: the verification must run on the tree that the commit holds[\s\S]*\?\? a\.mts/, 'an untracked deliverable');
-  stage(root, 'a.mts');
-  verifyDone(root, 'T1', quiet);
-  assert.throws(() => verifyDone(root, 'T2', quiet), /exit status 3/, 'a failing command refuses');
-  writeFileSync(path.join(root, 'a.mts'), 'export const changed = 1;\n');
-  assert.throws(() => verifyDone(root, 'T1', quiet), /the verification must run on the tree that the commit holds[\s\S]*a\.mts/, 'a change after the staging');
-  assert.throws(() => verifyDone(root, 'T9', quiet), /T9 is no item/);
-});
-
 // K353-2: item-test runs a command in the root, so it judges the files that the command names from the root.
 test('item-test resolves a file of a Verification command from the root, where it runs the command (K353-2)', (t) => {
   const root = plans(t, 'parser');
@@ -370,16 +339,15 @@ test('commit writes the message of an item: the subject, a blank line and the bo
   assert.match(message, /\n\nSecond paragraph\.\n\nCo-Authored-By: Some One <some\.one@example\.com>\nRefs: T1\n+$/);
 });
 
-test('commit refuses what the commit-msg hook refuses, and commits nothing (K249-4)', (t) => {
+// K1053: commit judges no message; git commit takes the message as written.
+test('commit commits the message as written, a footer of an AI tool included (K1053)', (t) => {
   const root = committed(t, 'T1', 'T2');
   const body = path.join(root, 'body.txt');
-  writeFileSync(body, 'Why.\n');
-  const head = log(root);
   writeFileSync(path.join(root, 'a.mts'), 'export {};\n');
   stage(root, 'a.mts');
   writeFileSync(body, 'Why.\n\nCo-Authored-By: Claude <noreply@anthropic.com>\n');
-  assert.throws(() => commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse', bodyFile: body }, identity), /footer of an AI tool/);
-  assert.equal(log(root), head);
+  commitItem(root, { id: 'T1', type: 'feat', scope: 'parser', subject: 'Parse', bodyFile: body }, identity);
+  assert.match(log(root), /^feat\(parser\): Parse \(#T1\)\n\nWhy\.\n\nCo-Authored-By: Claude <noreply@anthropic\.com>/);
 });
 
 test('plan-split moves rows with their sub-items from a plan to another plan, in both languages (K292)', (t) => {

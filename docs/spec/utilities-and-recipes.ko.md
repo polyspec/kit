@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 3058d32cd59985ea6c470d77dc020adf3c9b50158b36d1484785b74f16436f84 -->
+<!-- source-sha256: 95d6036a86b96c7b9a4a0d3f891051506ac3f7c550635918f61637ed0fa928df -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -50,13 +50,14 @@ kit은 자기가 강제하는 것을 지운다. 각 변경은 Red, Green, 커밋
 - **유틸리티 안의 덮어쓰기.** `bootstrap/install-mise.mts`(`miseEnvironment`)와 `mise-tools.mts`(`toolsEnvironment`)는 K1048 전까지 자기가 실행하는 도구에 mise와 uv의 설정(`MISE_LOCKED`, `MISE_AUTO_INSTALL`, `UV_*`, `UV_PYTHON`)을 넣었고, `link.mts`와 `run-tests.mts`는 K1049 전까지 `CARGO_TARGET_DIR`를 지웠다. K1050 전까지 lint 유틸리티는 각 도구를 저장소 자신의 설정 대신 kit의 설정으로 실행했다. golangci-lint는 kit의 `.golangci.yml`로, phpcs는 kit의 `phpcs.xml.dist`로, ruff는 kit의 `ruff.toml`로, clippy는 kit을 가리키는 `CLIPPY_CONF_DIR`로, oxlint와 knip은 kit의 `.oxlintrc.json`과 `knip.json`으로 실행한다.
 - **저장소의 레시피와 workflow에 대한 검사.** K1051 전까지 kit-check는 레시피가 도구를 실행하는 방식(`recipe-tools.mts`), Makefile과 workflow의 링크 단계(S11), ci.yml의 모양과 마지막 `ci-passed` job(S12), Makefile의 `$(KIT)/<name>`(S15), manifest 경로(P30)를 판정했고, bypass-check는 Makefile과 스크립트를 판정했다. 이제 kit-check는 kit 자신의 schema가 있는 config 파일만 검증한다.
 - **복사본.** K1052 전까지 kit-sync는 kit package.json의 `kit.copies` 항목 전부를 모든 저장소에 썼다. `PRINCIPLES.md`와 그 짝, `ci-pipeline.yml`, `release.yml`, bootstrap action, `config/layout.kit.yml`, `config/` 아래의 스키마, `.editorconfig`, `.claude/settings.json`이 그 안에 들었다. kit-inject-check가 바뀐 복사본을 실패시켰으므로, 복사본 파이프라인의 마지막 `required` job은 모든 저장소를 `kit-gates-*` gate를 포함한 파이프라인의 모든 job 결과에 묶었다. 이제 package는 이 파일을 예시로 담는다. 저장소는 원하는 것을 복사해 각 사본을 자기 것으로 가지며, 그 파이프라인과 그 job도 마찬가지다. kit은 어느 것도 쓰거나 비교하지 않는다. 그 파일에 대한 kit.owners의 owner 규칙, lint-ts와 rebuild-check의 사본 제외, 사본 편집에 대한 claude-hook의 거부, layout 규칙 `lint-cargo-lints`와 `config/cargo.schema.json`도 함께 사라졌다.
-- **거부.**
-  - `.claude/settings.json`의 Claude hook(`claude-hook.mts`)은 모든 저장소의 세션에서 명령을 거부한다.
-  - `make hooks`가 쓰는 git hook은 커밋을 거부한다. commit-msg hook과 staged-generated hook이며, `commit` target도 이것들을 실행한다.
-  - FINAL_RUN의 `ci-targets`는 열린 체크리스트 항목이 있는 트리를 거부한다.
-  - `land`는 정적 gate가 실패하는 branch를 거부하고, 자기가 고정한 gate가 저장소 `kit-gates`의 선행 조건에 들어 있기를 요구한다.
-  - `item-state`는 changelog 줄 없는 완료를 거부한다.
-  - `ci-setup`은 `kit-ci-setup`을 다시 실행하는 설정 target을 거부한다.
+- **거부.** K1053 전까지 다음이 거부했다.
+  - `.claude/settings.json`의 Claude hook(`claude-hook.mts`)은 모든 저장소의 세션에서 명령을 거부했고, `make link`와 `make hook`이 그것을 각 checkout과 workspace 폴더의 설정에 썼다.
+  - `make hooks`가 쓴 git hook은 커밋을 거부했다. commit-msg hook과 staged-generated hook이며, `commit` target도 이것들을 실행했다. `make item-test`와 docs-check는 Claude hook이 거부하는 Verification 명령을 거부했다.
+  - `ci-targets`, `owner-check`, 선택 없는 run-tests, runtime-targets의 suite, 전체 `parity-check`는 FINAL_RUN이 깨끗한 커밋 트리를 가리키지 않는 한 CI 밖에서의 실행을 거부했다.
+  - `land`는 정적 gate나 커밋 규칙이 실패하는 branch를 거부했고, 자기가 고정한 gate가 저장소 `kit-gates`의 선행 조건에 들어 있기를 요구했다.
+  - `item-state`는 changelog 줄 없는 완료와, Verification이 통과하지 않은 검증 중 또는 완료로의 이동을 거부했다.
+  - `ci-setup`은 `kit-ci-setup`을 다시 실행하는 설정 target을 거부했다.
+  - `run-tests --venv`는 Python이 checkout의 것이 아닌 환경을 거부했다.
 - **규칙 문장.** 이 검사들을 적는 PRINCIPLES의 `Enforced by:` 줄(S11, S12, S13, S15 등)은 삭제와 함께 바뀌므로, 배포되는 PRINCIPLES는 kit이 더는 강제하지 않는 검사를 주장하지 않는다.
 
 작동하는 부분은 kit에서 지우는 바로 그 변경에서 `docs/examples/`의 예제가 된다. 삭제는 kit의 새 패치 릴리즈로 나간다. 저장소는 자기가 설치하는 kit 릴리즈를 고정하므로, 새 릴리즈를 받을 때까지 지금 릴리즈를 유지하고, 받을 때 예제를 보고 자기 레시피를 쓴다.

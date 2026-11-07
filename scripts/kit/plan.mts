@@ -12,16 +12,15 @@
 //              replaces the Task, Deliverables or Verification cells of the item in both languages, or rewrites the cause and the
 //              retry of a bypassed item (the cause alone of an impossible one) with the checks of item-state
 //   item-state ID=<id> STATE=<state> [CAUSE= RETRY= CAUSE_KO= RETRY_KO=]
-//              moves the item to STATE in both languages along an allowed transition; the done state needs a line with
-//              (<id>) that the working tree adds to each changelog of the commit rules, the bypassed state a cause and a
-//              retry condition, the impossible state a cause; it refuses what the commit-msg hook would refuse
+//              moves the item to STATE in both languages along an allowed transition; the bypassed state needs a cause and a
+//              retry condition, the impossible state a cause; it runs no test and reads no changelog (K1053)
 //   item-test  ID=<id>
 //              runs each command of the Verification cell of the item in order, in the root, and fails on the first that
-//              fails or that the Claude Code hook refuses (verification.mts)
+//              fails (verification.mts)
 //   commit     ID=<id> TYPE=<type> SCOPE=<scope> SUBJECT=<subject> BODY_FILE=<file>
 //              commits the index with the message type(scope): Subject (#id), a blank line and the body of the file, its
-//              paragraphs wrapped at the width of the commit rules and its trailer lines kept; it refuses what the
-//              commit-msg hook would refuse, and git commit runs the hooks again
+//              paragraphs wrapped at the width of the commit rules and its trailer lines kept; it judges neither the message
+//              nor the index (K1053)
 //
 //   plan-split FROM=<slug> TO=<slug> IDS="<id> <id>" [TITLE= TITLE_KO=]
 //              moves the rows of the items, with their text unchanged, from the checklist of FROM to the checklist of TO and
@@ -33,12 +32,9 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { sha256 } from './bootstrap/digest.mts';
-import { BYPASSED, CHECKLIST_HEADER, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATE_TRANSITIONS, STATES, trackersOf, VERIFYING, WAITING, workingPlanFiles } from './checklist.mts';
-import { COMMIT_RULES, indexItemFindings, messageFindings, nextIdentityFindings } from './check-commits.mts';
-import { refusal } from './claude-hook.mts';
-import { makeDatabase, type MakeDatabase } from './owner-check.mts';
+import { BYPASSED, CHECKLIST_HEADER, DONE, IMPOSSIBLE, loadConfig, PLANS, planFindings, readChecklist, STATE_TRANSITIONS, STATES, trackersOf, WAITING, workingPlanFiles } from './checklist.mts';
+import { COMMIT_RULES } from './check-commits.mts';
 import { itemCommands } from './verification.mts';
-import { isFile } from './test-selection.mts';
 import { spawnSync } from 'node:child_process';
 import { changedFiles, foldersOfChanged, typeErrorMessage, typeErrors } from './ts-typecheck.mts';
 import type { Tracker } from './checklist.mts';
@@ -349,23 +345,12 @@ function movableItem(root: string, change: NewState) {
 
 /**
  * Moves the item `change.id` to `change.state` in its checklist and the Korean twin and returns the two files as
- * { path: text }, none when the item already holds the state. Throws, writing nothing, on a state that is not declared, a transition that STATE_TRANSITIONS does not allow,
- * the done state without a line with (<id>) in each changelog of the commit rules, a missing
- * cause or retry condition, and what the commit-msg hook would refuse: a second item whose state differs from HEAD.
+ * { path: text }, none when the item already holds the state. Throws, writing nothing, on a state that is not declared, a transition
+ * that STATE_TRANSITIONS does not allow, and a missing cause or retry condition.
  */
 export function setState(root: string, change: NewState): Record<string, string> {
   const { trackers, entry, already } = movableItem(root, change);
   if (already) return {};
-  const read = (name: string) => readFileSync(path.join(root, name), 'utf8');
-  const rules = COMMIT_RULES;
-  if (change.state === DONE) {
-    const changelogs = rules.changelog ? [rules.changelog.path, ...(rules.changelog.translation ? [rules.changelog.translation] : [])] : [];
-    if (changelogs.length === 0) throw new Error('the commit rules declare no changelog; the done state needs the entry of the item in it');
-    const count = (text: string) => text.split('\n').filter(line => line.includes(`(${change.id})`)).length;
-    for (const file of changelogs) {
-      if (count(existsSync(path.join(root, file)) ? read(file) : '') === 0) throw new Error(`${file} holds no line with (${change.id}); record the item in the changelog of both languages first`);
-    }
-  }
   const files = stateFiles(root, trackers, entry, change.id, stateCells(change));
   for (const [name, text] of Object.entries(files)) writeFileSync(path.join(root, name), text);
   return files;
@@ -373,8 +358,7 @@ export function setState(root: string, change: NewState): Record<string, string>
 
 /**
  * Runs each command of the Verification cell of the item `id` in order, in `root`, with its output on this process, and
- * returns them. Throws on an item that names no command, a command that the Claude Code hook refuses, and the first command
- * that fails, naming it and its status.
+ * returns them. Throws on an item that names no command and on the first command that fails, naming it and its status.
  */
 export function testItem(root: string, id: string, print: (text: string) => void = text => console.log(text)): string[] {
   const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
@@ -382,7 +366,7 @@ export function testItem(root: string, id: string, print: (text: string) => void
   const tracker = trackers.find(entry => readChecklist(read(entry.path), entry).items.some(item => item.id === id));
   if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
   const commands = itemCommands(read(tracker.path), tracker, id);
-  refuseCommands(root, id, commands);
+  if (commands.length === 0) throw new Error(`${id} names no command in backticks in its Verification cell`);
   // The types of the changed TypeScript are checked first (K309): the tests transpile without checking them.
   const typeFailure = typeErrorMessage(typeErrors(root, foldersOfChanged(root, changedFiles(root))));
   if (typeFailure) throw new Error(`${id}: ${typeFailure}`);
@@ -393,54 +377,6 @@ export function testItem(root: string, id: string, print: (text: string) => void
     if (result.status !== 0) throw new Error(`\`${command}\` of ${id} ended with ${result.status === null ? `the signal ${result.signal}` : `exit status ${result.status}`}`);
   }
   return commands;
-}
-
-/** Throws when `commands`, the Verification of `id`, name none, or one that the Claude Code hook refuses (K353-2). */
-function refuseCommands(root: string, id: string, commands: readonly string[]): void {
-  if (commands.length === 0) throw new Error(`${id} names no command in backticks in its Verification cell`);
-  let database: MakeDatabase | undefined;
-  for (const command of commands) {
-    // The command runs in the root, so a file that it names is judged from there (K353-2).
-    const refused = refusal(command, file => isFile(path.resolve(root, file)), () => (database ??= makeDatabase(root)), root);
-    if (refused) throw new Error(`the command \`${command}\` of ${id} is refused by the Claude Code hook: ${refused}`);
-  }
-}
-
-/** The cells of the row of the item `id` in the checklist text `text`, or undefined. */
-function rowCells(text: string, id: string): string[] | undefined {
-  const line = text.split('\n').find(row => row.startsWith(`| ${id} |`));
-  return line?.split(' | ').map(cell => cell.replace(/^\| /, '').replace(/ \|$/, ''));
-}
-
-/**
- * The checks before an item is marked done by the command (K335): the files it delivers have no change that is neither staged nor
- * committed, so the verification below runs on the tree that the commit holds, and the commands of its Verification cell pass
- * (testItem). Throws with the cause; an agent's word that the tests passed closes nothing.
- */
-function verifyForState(root: string, id: string, target: string, print: (text: string) => void): void {
-  const trackers = trackersOf(loadConfig(root), workingPlanFiles(root));
-  const tracker = trackers.find(entry => readChecklist(readFileSync(path.join(root, entry.path), 'utf8'), entry).items.some(item => item.id === id));
-  if (!tracker) throw new Error(`${id} is no item of a checklist of ${PLANS}`);
-  const cells = rowCells(readFileSync(path.join(root, tracker.path), 'utf8'), id);
-  const delivered = (cells?.[2] ?? '').split(/[\s,]+/).map(token => token.replace(/^`|`$/g, '')).filter(token => token !== '' && existsSync(path.join(root, token)));
-  if (delivered.length > 0) {
-    const status = spawnSync('git', ['status', '--porcelain', '-uall', '--', ...delivered], { cwd: root, encoding: 'utf8' });
-    if (status.status !== 0) throw new Error(`git status ended with exit status ${status.status}: ${status.stderr}`);
-    const loose = status.stdout.split('\n').filter(line => line !== '' && (line.startsWith('??') || line[1] !== ' '));
-    if (loose.length > 0) throw new Error(`${id}: the verification must run on the tree that the commit holds; stage or commit these files first:\n${loose.join('\n')}`);
-  }
-  testItem(root, id, print);
-}
-
-
-/** Checks the committed implementation and its Verification commands before entering [v]. */
-export function verifyImplementation(root: string, id: string, print: (text: string) => void = text => console.log(text)): void {
-  verifyForState(root, id, VERIFYING, print);
-}
-
-/** Checks the Verification commands before moving a verified item to done. */
-export function verifyDone(root: string, id: string, print: (text: string) => void = text => console.log(text)): void {
-  verifyForState(root, id, DONE, print);
 }
 
 // A trailer line of a commit message, such as Co-Authored-By: Name <mail>, which git reads by its key and is never wrapped.
@@ -494,9 +430,8 @@ function wrapText(text: string, width: number): string {
 export type ItemCommit = { id: string; type: string; scope: string; subject: string; bodyFile: string };
 
 /**
- * Commits the index of `root` with the message of `commit` and returns the message. Throws, committing nothing, when nothing
- * is staged, the body file is missing or empty, or the message fails the message rules of the commit-msg hook (messageFindings)
- * or the index fails the diff rules against HEAD (indexItemFindings of check-commits.mts), exact here since make commit never amends. `env` adds to the environment of git commit.
+ * Commits the index of `root` with the message of `commit` and returns the message; git commit decides what it accepts, such as an
+ * empty index. `env` adds to the environment of git commit.
  */
 export function commitItem(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv = {}): string {
   // K524: a commit on main holds the lock of land, so it and a land queue instead of one finding the staged change of the other.
@@ -511,15 +446,13 @@ export function commitItem(root: string, commit: ItemCommit, env: NodeJS.Process
   });
 }
 
-/** The body of commitItem: checks the staged change and its message, and commits it (K249-4). */
+/** The body of commitItem: writes the message and commits the index (K249-4). */
 function commitStaged(root: string, commit: ItemCommit, env: NodeJS.ProcessEnv): string {
   const rules = COMMIT_RULES;
   const body = wrapBody(readFileSync(commit.bodyFile, 'utf8'), rules.bodyMax);
   // The red of the row is a line of the body that its author writes, `Red: …` or `No-Red: <reason>` (K624).
   const message = `${commit.type}(${commit.scope}): ${commit.subject} (#${commit.id})\n\n${body}\n`;
-  const findings = [...messageFindings(message), ...nextIdentityFindings(root), ...indexItemFindings(root, message)];
-  if (findings.length) throw new Error(findings.map(finding => finding.message).join('\n'));
-  // K603: a commit checks its message, its rows and its documents; no gate, build or type check runs.
+  // K603, K1053: a commit runs no gate, build, type check or rule of the message.
   const result = spawnSync('git', ['commit', '--quiet', '-F', '-'], { cwd: root, input: message, encoding: 'utf8', env: { ...process.env, ...env } });
   if (result.error) throw new Error(`git commit could not start: ${result.error.message}`);
   if (result.status !== 0) throw new Error(`git commit ended with exit status ${result.status}: ${result.stdout}${result.stderr}`);
@@ -578,11 +511,8 @@ if (isMain(import.meta.url)) {
       for (const file of Object.keys(files)) console.log(`[plan] edited ${id} in ${file}`);
     } else if (command === 'item-state') {
       const change = { id: required(env.ID, 'ID'), state: required(env.STATE, 'STATE'), cause: env.CAUSE, retry: env.RETRY, causeKo: env.CAUSE_KO, retryKo: env.RETRY_KO };
-      // A refused move fails before the verification runs (K937), and the state the item already holds runs nothing (K937-1); the
-      // done state needs the verification of the row to pass on the tree of the commit (K335).
+      // The state the item already holds writes nothing (K937-1); a move runs no test (K1053), which make item-test runs.
       if (movableItem(root, change).already) console.log(`[plan] ${change.id} is already ${change.state}`);
-      else if (change.state === VERIFYING) verifyImplementation(root, change.id);
-      else if (change.state === DONE) verifyDone(root, change.id);
       for (const file of Object.keys(setState(root, change))) console.log(`[plan] set ${change.id} to ${change.state} in ${file}`);
     } else if (command === 'plan-split') {
       const split = { from: required(env.FROM, 'FROM'), to: required(env.TO, 'TO'), ids: required(env.IDS, 'IDS').split(/\s+/), title: env.TITLE, titleKo: env.TITLE_KO };

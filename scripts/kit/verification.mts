@@ -1,13 +1,9 @@
 // The verification of the items of the checklists (K249-3): the Verification cell of an item names, in backticks, the
-// commands that verify it. An open item, waiting or active, names at least one, and none that the Claude Code hook refuses
-// (claude-hook.mts), so no item is verified by a suite or a run without a selection: each runs its own unit tests. A closed
-// item is history and is not read. docs-check reports the findings, and `make item-test` runs the commands.
+// commands that verify it. An open item, waiting or active, names at least one, and none of them is a pipeline. A closed item is
+// history and is not read. docs-check reports the findings, and `make item-test` runs the commands.
 import { ACTIVE, CHECKLIST_COLUMNS, readChecklist, WAITING } from './checklist.mts';
 import type { FileFinding, Tracker } from './checklist.mts';
-import { refusal } from './claude-hook.mts';
-import type { MakeDatabase } from './owner-check.mts';
 import { lineBlocks } from './markdown.mts';
-import path from 'node:path';
 
 const VERIFICATION = CHECKLIST_COLUMNS.indexOf('Verification');
 
@@ -57,11 +53,9 @@ export function itemCommands(text: string, tracker: Tracker, id: string): string
 
 /**
  * The findings of the Verification cells of the open items of the checklists of `trackers` and their translations that
- * `read` gives (undefined for a missing file); `make` gives the database of the Makefile, through which the hook follows a
- * make target. A command is read for its form: a test file that it names may not exist before the item is done, so a path
- * with an extension is a file, and a directory, such as tests/kit, is none.
+ * `read` gives (undefined for a missing file). A command is read for its form only.
  */
-export function verificationFindings(trackers: readonly Tracker[], read: (file: string) => string | undefined, make: () => MakeDatabase | undefined): FileFinding[] {
+export function verificationFindings(trackers: readonly Tracker[], read: (file: string) => string | undefined): FileFinding[] {
   const found: FileFinding[] = [];
   for (const tracker of trackers) {
     for (const file of [tracker.path, tracker.translation]) {
@@ -74,8 +68,6 @@ export function verificationFindings(trackers: readonly Tracker[], read: (file: 
         if (commands.length === 0) add(`the open item ${item.id} names no command in backticks in its Verification cell; name the unit tests that verify it`);
         for (const command of commands) {
           if (hasPipe(command)) add(`the command \`${command}\` of the open item ${item.id} is a pipeline; quote the pattern (e.g. -run 'A|B'), since a pipeline hides the exit status of its first command`);
-          const refused = refusal(command, word => /\.[A-Za-z0-9]+$/.test(path.basename(word)), make);
-          if (refused) add(`the command \`${command}\` of the open item ${item.id} is refused by the Claude Code hook: ${refused}`);
         }
       }
     }

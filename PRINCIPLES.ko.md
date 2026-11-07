@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 20bcc5db48b1ac684689ba322ae418f668b908cc710d0dd08681b556ea9fa582 -->
+<!-- source-sha256: eee6ce5e815a239796d2b4328183c8fcdbb84e6d15381c2f52c0f4d6d936c134 -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -26,7 +26,7 @@ repository는 복사해서 그 사본을 자기 것으로 가지며, kit은 그 
 - P5 잘못된 변경은 의도가 아니라 해로움과 옳음으로 판단합니다. 해로운 변경은 즉시 되돌리고, 해롭지 않지만 틀렸거나 불필요한
   변경은 제거하며, 작업과 무관하지만 옳은 변경은 남겨 실제 이유와 함께 따로 commit하고, 속하지 않은 작업의 일부로 기록하지
   않습니다.
-  Enforced by: none, 안내하는 규칙이다: commit-msg hook은 AI footer와 identity, Red 줄, fix의 test만 검사한다 (K805)
+  Enforced by: none, 안내하는 규칙이다: kit은 어떤 명령도 커밋도 거부하지 않는다 (K1053).
 
 ## 기준
 
@@ -35,7 +35,7 @@ repository는 복사해서 그 사본을 자기 것으로 가지며, kit은 그 
   Enforced by: `make test-markers-check`
 - P7 꼼수는 어떤 경우에도 허락하지 않습니다. 비정상적인 방법으로 이룬 목표는 이룬 것이 아닙니다. 요구를 꼼수로만 채울 수
   있다면 그렇게 하지 않고 그 사실을 정확히 적습니다.
-  Enforced by: `.claude/settings.json`
+  Enforced by: none, 안내하는 규칙이다: kit은 어떤 명령도 커밋도 거부하지 않는다 (K1053).
 - P8 오류는 숨기지 않습니다: 잘못된 입력을 그럴듯한 입력으로 바꾸는 fallback도, 입력이나 출력을 조용히 버리는 것도, 삼킨
   오류도 없습니다. fallback은 정말 필요한 곳에만 그 필요를 적고 둡니다.
   Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`,
@@ -71,12 +71,12 @@ repository는 복사해서 그 사본을 자기 것으로 가지며, kit은 그 
   Enforced by: none, 임시방편인지는 설계 판단입니다.
 - P17 복구, 적용, 변환은 멱등입니다; 변경은 polling으로 찾지 않고 event로 게시합니다; 경로는 선언된 root에서 선언적으로
   결정합니다; multi-platform은 필수 요구이며 platform 꼼수 없이 채웁니다.
-  Enforced by: `.claude/settings.json`(그 hook이 sleep하거나 loop로 polling하는 명령을 거부함, polling 조항의 기다림 쪽; 복구,
-  적용, 변환의 멱등, 변경의 event 게시, 경로의 선언성, platform 꼼수 없음은 모든 저장소가 가진 어떤 check도 닿지 않는 설계 판단)
+  Enforced by: none, 복구, 적용, 변환의 멱등, 변경의 event 게시, 경로의 선언성, platform 꼼수 없음은 모든 저장소가 가진 어떤
+  check도 닿지 않는 설계 판단이다.
 - P18 끝이 정해지지 않은 loop로 주기적으로 살피는 script는 쓰지 않습니다: sleep을 넣은 `until`이나 `while`, `gh run list`를
   감싼 loop, watchdog 모두 쓰지 않습니다. 기다림은 자기 일이 끝을 정하는 명령 하나입니다: `gh run watch <id> --exit-status`,
   완료가 알려지는 background 명령, 또는 그 일을 하는 세션의 메시지.
-  Enforced by: `.claude/settings.json`
+  Enforced by: none, 안내하는 규칙이다: kit은 어떤 명령도 커밋도 거부하지 않는다 (K1053).
 
 ## 검증
 
@@ -84,11 +84,10 @@ repository는 복사해서 그 사본을 자기 것으로 가지며, kit은 그 
   test는 아무것도 증명하지 않으며, 실행되지 않고 통과하는 test는 결함입니다.
   변경으로 낡게 된 주석이나 문서는 그 변경의 commit에서 고칩니다. 행이 끝난 뒤 찾은 것은 Verification이
   `make text-absent FILE=<path> TEXT=<낡은 text>`인 하위 항목으로 두며, 낡은 text가 남아 있는 동안 실패합니다.
-  Enforced by: `.githooks/commit-msg`는 done 행의 Red 줄과 fix의 test에 대해
+  Enforced by: none, 안내하는 규칙이다: kit은 어떤 명령도 커밋도 거부하지 않는다 (K1053).
 - P20 항목은 자기 단위 test의 red, 구현, green으로 완료합니다. 바뀐 것의 소유 검사만 돌리며, 전체 모음은 수정마다, 항목마다,
-  마지막에도 돌리지 않습니다. 전체 모음은 conductor의 명령으로만 돌며, 이는 `.claude/settings.json`의 Claude Code hook이
-  강제합니다.
-  Enforced by: `.claude/settings.json`
+  마지막에도 돌리지 않습니다. 전체 모음은 conductor의 명령으로만 돕니다.
+  Enforced by: none, 안내하는 규칙이다: kit은 어떤 명령도 커밋도 거부하지 않는다 (K1053).
 - P21 어려운 판단이나 새로운 추론은 한 round가 아무것도 찾지 못할 때까지 round마다 적대적으로 검증합니다. 검증의 범위는 첫
   round 전에 정하며, 그 옆의 질문은 자기 항목이 됩니다. 검증에는 반론뿐 아니라 해법도 요구하며, finding은 명제가 틀렸음을
   보이거나, 다른 문서와 모순됨을 보이거나, 명제가 다룬다고 주장하는 case가 빠졌음을 보일 때만 인정합니다.
@@ -122,14 +121,14 @@ repository는 복사해서 그 사본을 자기 것으로 가지며, kit은 그 
   Enforced by: `make docs-check`
 - P26 열린 item은 Verification cell에 자기 unit test의 command를 명시한다. 어떤 item도 suite로 검증하지 않는다. Suite는 CI에서
   실행하거나 모든 checklist item이 종결된 뒤 명시적인 final verification으로 한 번 실행한다. `make item-test`가 그 command를 실행한다.
-  Enforced by: `make docs-check`, `.claude/settings.json`
+  Enforced by: `make docs-check`
 - P27 commit은 최대 한 item을 완료한다. state를 최대 하나 바꾸고, item을 done으로 옮기는 commit은 그것을 CHANGELOG.md와 그
   한국어 짝에 기록한다. commit되지 않은 작업은 최대 한 item이다.
-  Enforced by: none, 안내하는 규칙이다: commit-msg hook은 AI footer와 identity, Red 줄, fix의 test만 검사한다 (K805)
+  Enforced by: none, 안내하는 규칙이다: kit은 어떤 명령도 커밋도 거부하지 않는다 (K1053).
 - P28 commit message는 `type(scope): Subject (#id)`이며, type은 feat, fix, docs, style, refactor, test, chore 중 하나,
   Subject는 대문자로 시작하고 마침표 없이 끝나는 50자 이하, 그 뒤 빈 줄과 72자로 감싼 body이다. `make commit`이 그것을
   쓴다. AI 도구의 footer, 곧 그 co-author나 session trailer는 넣지 않는다. author와 committer는 사람이며 AI 도구가 아니다.
-  Enforced by: `.githooks/commit-msg`는 AI footer와 identity에 대해
+  Enforced by: none, 안내하는 규칙이다: kit은 어떤 명령도 커밋도 거부하지 않는다 (K1053).
 - P29 작업의 make target은 고정된 이름을 가진다. `install`, `build`, `test`, `lint`, `docs-check`와 `packages/`의 runtime마다
   `build-<runtime>`, `test-<runtime>`, `lint-<runtime>`이며, 모두 kit이 정의한다. 저장소는 `build: kit-build`처럼 자기
   prerequisite로 작업에 합류하고, 작업 이름으로 시작하는 다른 target으로 합류하지 않는다 (K246).
@@ -153,7 +152,7 @@ repository는 복사해서 그 사본을 자기 것으로 가지며, kit은 그 
   Enforced by: `make parity-declarations-check`
 - P34 반복된 code는 제외가 아니라 하나의 module로 재구성해서 고친다. tool source는 분류하고, 생성물은 Git에 추적하지 않는다. 다만 consumer가 tagged tree 그 자체로 설치하는 생성 source(Go module, Rust crate)는 추적하고, 그 이유를 config/generated.json에 선언한다.
   배포되는 package가 생성물을 필요로 하면 그 생성 경로마다 그것을 만드는 저장소의 make target을 config/release.json에 선언한다. release는 먼저 tagged commit과 다른 checkout, 변경되었거나 추적되지 않은 경로, 바깥에서 link된 dependency를 거부한다. 그다음 선언된 경로를 지우고 checkout에서 그 target을 실행하며, 선언된 경로가 결과에 없거나 Git에 추적되면 실패한다.
-  Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`, `make release-assets`.
+  Enforced by: `make duplication-check`, `make rebuild-check`, `make release-assets`.
 - P35 로컬 source 개발은 provider release를 기다리지 않는다. Native source 연결 누락은 파일과 행을 밝혀
   kit 결함으로 보고하며 호환되지 않는 dependency requirement는 앱의 native 선언에서 수정한다.
   Release 설치는 개발 source 상태와 독립적으로 lock의 정확한 배포 graph를 사용한다.

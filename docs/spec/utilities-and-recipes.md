@@ -49,13 +49,14 @@ kit removes what it forces, each change as a checklist row with its Red, Green a
 - **Overrides inside utilities.** `bootstrap/install-mise.mts` (`miseEnvironment`) and `mise-tools.mts` (`toolsEnvironment`) set the settings of mise and uv (`MISE_LOCKED`, `MISE_AUTO_INSTALL`, `UV_*`, `UV_PYTHON`) for the tools they start until K1048, and `link.mts` and `run-tests.mts` deleted `CARGO_TARGET_DIR` until K1049. Until K1050 the lint utilities ran each tool with kit's configuration in place of the repository's own: golangci-lint with kit's `.golangci.yml`, phpcs with kit's `phpcs.xml.dist`, ruff with kit's `ruff.toml`, clippy with `CLIPPY_CONF_DIR` set to kit, and oxlint and knip with kit's `.oxlintrc.json` and `knip.json`.
 - **Checks of a repository's recipes and workflows.** Until K1051 kit-check judged how recipes start tools (`recipe-tools.mts`), link steps in Makefiles and workflows (S11), the shape of ci.yml and its final `ci-passed` job (S12), `$(KIT)/<name>` in Makefiles (S15) and manifest paths (P30), and bypass-check judged Makefiles and scripts. kit-check now validates only the config files of kit's own schemas.
 - **Vendored copies.** Until K1052 kit-sync wrote every entry of `kit.copies` in kit's package.json into every repository, among them `PRINCIPLES.md` and its twin, `ci-pipeline.yml`, `release.yml`, the bootstrap action, `config/layout.kit.yml`, the schemas under `config/`, `.editorconfig` and `.claude/settings.json`; kit-inject-check failed a changed copy, so the closing `required` job of the vendored pipeline bound every repository to the results of every job of the pipeline, the `kit-gates-*` gates among them. The package now ships these files as examples: a repository copies the ones it wants and owns each copy, its pipeline and that job included, and kit writes and compares none. The owner rules of kit.owners for those files, the copy exclusions of lint-ts and rebuild-check, the edit refusal of claude-hook for a copy, and the layout rule `lint-cargo-lints` with `config/cargo.schema.json` went with them.
-- **Refusals.**
-  - The Claude hook of `.claude/settings.json` (`claude-hook.mts`) refuses commands in every repository's sessions.
-  - The git hooks that `make hooks` writes refuse commits: the commit-msg hook and the staged-generated hook, which the `commit` target also runs.
-  - `ci-targets` with FINAL_RUN refuses a tree with open checklist items.
-  - `land` refuses a branch whose static gates fail, and it requires its fixed gates among the prerequisites of the repository's `kit-gates`.
-  - `item-state` refuses done without a changelog line.
-  - `ci-setup` refuses a setup target that runs `kit-ci-setup` again.
+- **Refusals.** Until K1053 these refused:
+  - The Claude hook of `.claude/settings.json` (`claude-hook.mts`) refused commands in every repository's sessions, and `make link` and `make hook` wrote it into the settings of each checkout and of the workspace folder.
+  - The git hooks that `make hooks` wrote refused commits: the commit-msg hook and the staged-generated hook, which the `commit` target also ran. `make item-test` and docs-check refused a Verification command that the Claude hook refused.
+  - `ci-targets`, `owner-check`, run-tests without a selection, the suites of runtime-targets and a full `parity-check` refused to run outside CI unless FINAL_RUN named a clean committed tree.
+  - `land` refused a branch whose static gates or commit rules failed, and it required its fixed gates among the prerequisites of the repository's `kit-gates`.
+  - `item-state` refused done without a changelog line, and a move to verifying or done without a passing Verification.
+  - `ci-setup` refused a setup target that ran `kit-ci-setup` again.
+  - `run-tests --venv` refused an environment whose Python was not the checkout's.
 - **Rule texts.** The `Enforced by:` lines of PRINCIPLES that name these checks (S11, S12, S13 and S15 among them) change with the removals, so the shipped PRINCIPLES never claims a check that kit no longer forces.
 
 A part that works becomes an example in `docs/examples/` in the same change that removes it from kit. The removal ships in a new patch release of kit. A repository pins the kit release it installs, so it keeps its current release until it adopts the new one, and then writes its own recipes from the examples.

@@ -26,7 +26,7 @@ in kit, with its grounding.
 - P5 A wrong change is judged by its harm and its correctness, not by its intent. A harmful change is reverted at once; a
   harmless change that is wrong or unneeded is removed; a correct change unrelated to the work is kept and committed on
   its own with its real reason, never recorded as part of the work it did not belong to.
-  Enforced by: none, a guided rule: the commit-msg hook checks only the AI footer and identity, the Red line and the test of a fix (K805)
+  Enforced by: none, a guided rule: kit refuses no command or commit (K1053).
 
 ## Standards
 
@@ -35,7 +35,7 @@ in kit, with its grounding.
   Enforced by: `make test-markers-check`
 - P7 No tricks, in any case. A goal reached by an abnormal method is not reached. When a requirement can be met only by a
   trick, that is stated exactly instead of done.
-  Enforced by: `.claude/settings.json`
+  Enforced by: none, a guided rule: kit refuses no command or commit (K1053).
 - P8 Errors are never hidden: no fallback that turns a wrong input into a plausible one, no silent drop of an input or an
   output, no swallowed error. A fallback stands only where it is truly needed, with that need stated.
   Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`,
@@ -72,13 +72,12 @@ in kit, with its grounding.
   Enforced by: none, whether a measure is a stopgap is a design judgement.
 - P17 Recovery, apply and transformation are idempotent; a change is published as an event, never found by polling; paths are
   resolved declaratively from a declared root; and multi-platform is a hard requirement, met without platform tricks.
-  Enforced by: `.claude/settings.json` (its hook refuses a command that sleeps or polls in a loop, the waiting side of the
-  clause of polling; whether recovery, apply and transformation are idempotent, a change is published as an event, a path is
-  declarative and a platform trick-free is a design judgement that no check of every repository reaches)
+  Enforced by: none, whether recovery, apply and transformation are idempotent, a change is published as an event, a path is
+  declarative and a platform trick-free is a design judgement that no check of every repository reaches.
 - P18 No script polls in a loop with no known end: no `until` or `while` with a sleep, no loop around `gh run list`, no
   watchdog. A wait is one command that its own work bounds, such as `gh run watch <id> --exit-status`, a background
   command whose completion is notified, or a message from the session that does the work.
-  Enforced by: `.claude/settings.json`
+  Enforced by: none, a guided rule: kit refuses no command or commit (K1053).
 
 ## Verification
 
@@ -86,11 +85,10 @@ in kit, with its grounding.
   A test that cannot fail proves nothing, and a test that passes without running is a defect.
   A comment or document that a change makes stale is corrected in the commit of that change; one found after its row is done
   is a sub-item whose Verification is `make text-absent FILE=<path> TEXT=<stale text>`, which fails while the stale text is there.
-  Enforced by: `.githooks/commit-msg` for the Red line of a done row and the test of a fix
+  Enforced by: none, a guided rule: kit refuses no command or commit (K1053).
 - P20 An item is completed by its own unit tests: red, implementation, green. Only the checks that own what changed run; the
-  full suite is not run, neither per fix, per item nor at the end. The full suite runs only on the order of the conductor,
-  which the Claude Code hook in `.claude/settings.json` enforces.
-  Enforced by: `.claude/settings.json`
+  full suite is not run, neither per fix, per item nor at the end. The full suite runs only on the order of the conductor.
+  Enforced by: none, a guided rule: kit refuses no command or commit (K1053).
 - P21 A hard judgement or a new line of reasoning is verified adversarially, in rounds, until a round finds nothing. The scope
   of the review is fixed before the first round; a question beside it becomes its own item. The review is asked for
   solutions as well as objections, and a finding counts only when it shows a proposition wrong, shows it contradicted by
@@ -129,15 +127,15 @@ repository.
   Enforced by: `make docs-check`
 - P26 An open item names, in its Verification cell, the commands of its own unit tests; no item is verified by a suite. A suite runs in CI, or once as an explicit final verification after all checklist
   items are terminal. `make item-test` runs the commands.
-  Enforced by: `make docs-check`, `.claude/settings.json`
+  Enforced by: `make docs-check`
 - P27 A commit completes at most one item: it moves at most one state, and the commit that moves an item to done records it in
   CHANGELOG.md and its Korean twin. The uncommitted work is at most one item.
-  Enforced by: none, a guided rule: the commit-msg hook checks only the AI footer and identity, the Red line and the test of a fix (K805)
+  Enforced by: none, a guided rule: kit refuses no command or commit (K1053).
 - P28 A commit message is `type(scope): Subject (#id)` with a type of feat, fix, docs, style, refactor, test or chore, a Subject
   of at most 50 characters that starts with a capital letter and ends without a period, a blank line and a body wrapped at
   72 characters, with no footer of an AI tool: no co-author or session trailer of one. Its author and committer are a
   person, never an AI tool. `make commit` writes it.
-  Enforced by: `.githooks/commit-msg` for the AI footer and identity
+  Enforced by: none, a guided rule: kit refuses no command or commit (K1053).
 - P29 The make targets of a task have fixed names: `install`, `build`, `test`, `lint`, `docs-check`, and `build-<runtime>`,
   `test-<runtime>` and `lint-<runtime>` for each runtime of `packages/`, all defined by kit. A repository joins a task by a
   prerequisite of its own, such as `build: kit-build`, never by another target that starts with a task's name (K246).
@@ -168,7 +166,7 @@ repository.
   checkout that differs from the tagged commit, holds a changed or untracked path, or links a dependency from outside it; it then
   deletes each declared path, runs that target in the checkout, and fails when a declared path is missing from the result or is
   tracked in Git.
-  Enforced by: `make duplication-check`, `make rebuild-check`, `.githooks/pre-commit`, `make release-assets`.
+  Enforced by: `make duplication-check`, `make rebuild-check`, `make release-assets`.
 - P35 Local source development does not wait for a provider release. Missing native source connections are reported as
   kit defects with their file and line; incompatible dependency requirements are corrected in the application's native
   declarations. Release installs use the exact released graph of their locks, independently of development source state.

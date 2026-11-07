@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // Makes a virtual environment of the checkout's Python with the uv of the checkout (`make python-venv DIR=<directory>`), and
-// holds the rule that run-tests --venv checks (venvProblem): the environment comes from the Python that mise installed for the
+// checks the environment that it makes (venvProblem): the environment comes from the Python that mise installed for the
 // checkout (under var/tools/mise, from mise.toml). The environment is left as uv makes it, its symbolic links included:
 // they are uv's behavior.
 //
 //   node scripts/kit/python-venv.mts <directory>
 //
-// The run is idempotent: an existing directory that already is a venv of the checkout Python (run-tests' rule and the same
+// The run is idempotent: an existing directory that already is a venv of the checkout Python (venvProblem and the same
 // Python version) is accepted unchanged; any other existing directory is an error with its reason and is neither removed nor
 // repaired. An absent directory is made with `uv venv --python python3`, both the shims of mise.toml, and the environment is
 // checked by venvProblem. A failure removes the directory that this run made, so no partial environment is left behind.

@@ -520,15 +520,6 @@ test('K860: ci-setup refuses no tool selector, context scope, parity recipe or m
     // A repository without a parity declaration declares parityMode none (K951), so the setup below reads a valid plan.
     config.parityMode = 'none';
     writeFileSync(file, JSON.stringify(config));
-    // A setup target that runs ci-setup again is stopped at the second dispatch rather than spawning without end.
-    const saved = process.env.KIT_CI_DISPATCH;
-    process.env.KIT_CI_DISPATCH = '1';
-    try {
-      assert.throws(() => runCISetup(root, 'shared'), /runs inside a target that ci-setup started/);
-    } finally {
-      if (saved === undefined) delete process.env.KIT_CI_DISPATCH;
-      else process.env.KIT_CI_DISPATCH = saved;
-    }
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

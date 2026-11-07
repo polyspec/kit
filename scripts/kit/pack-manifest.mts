@@ -5,8 +5,7 @@
 //
 // A repository consumes its installed kit package, which may be a native npm link to sources. A packed install lies under node_modules,
 // where node strips no types, so the package that npm packs runs dist: each export of package.json names its dist module and
-// declarations, and npm creates the hook bin from its dist target. The package ships no make file (K1054).
-// Claude settings always call the native npm bin, so their bytes need no packed-path rewrite. postpack restores the files from Git.
+// declarations. The package ships no make file (K1054). postpack restores the files from Git.
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { kitPackageRoot } from './kit-files.mts';
@@ -23,14 +22,12 @@ function swap(file: string, text: string, from: RegExp, to: string): string {
 
 /** Canonical byte-preserving prepack transformation of the kit package manifest. */
 export function packedPackageManifest(source: string): string {
-  const exports = swap('package.json', source, SOURCE_EXPORT, '"./$1": { "types": "./dist/$1.d.mts", "default": "./dist/$1.mjs" }');
-  return swap('package.json', exports, /("polyspec-kit-hook":\s*)"\.\/scripts\/kit\/claude-hook\.mts"/, '$1"./dist/claude-hook.mjs"');
+  return swap('package.json', source, SOURCE_EXPORT, '"./$1": { "types": "./dist/$1.d.mts", "default": "./dist/$1.mjs" }');
 }
 
-/** The packed text of each file of `root` that names the sources: package.json and claude/settings.json. */
+/** The packed text of each file of `root` that names the sources: package.json. */
 export function packedFiles(root: string): Record<string, string> {
-  const read = (file: string) => readFileSync(path.join(root, file), 'utf8');
-  return { 'package.json': packedPackageManifest(read('package.json')), 'claude/settings.json': read('claude/settings.json') };
+  return { 'package.json': packedPackageManifest(readFileSync(path.join(root, 'package.json'), 'utf8')) };
 }
 
 if (isMain(import.meta.url)) {

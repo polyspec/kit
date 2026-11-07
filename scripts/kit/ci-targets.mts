@@ -4,7 +4,7 @@
 //   node scripts/kit/ci-targets.mts <report directory> <target>...
 //   node scripts/kit/ci-targets.mts --summary <report directory>
 //
-// The run is a suite and runs in CI or an explicit final verification on a clean committed tree with no active checklist items (ci-only.mts). Each target runs as `make -k <target>` to its end, also after an earlier target failed, with its output printed and written
+// The run refuses no tree or place (K1053): it runs wherever it is started. Each target runs as `make -k <target>` to its end, also after an earlier target failed, with its output printed and written
 // to <report directory>/targets/<target>.log; record.json and summary.md name each target with its result and, for a failed
 // target, its first failure lines (scripts/kit/target-report.mts). No target has a time limit. The run holds the lock
 // <report directory>.lock (holder-lock.mts), so two runs never write one report. The command ends with status 1 when a target failed or the
@@ -25,7 +25,6 @@ import { jsonText } from './bootstrap/files.mts';
 import { ConfigError, parseJson, readJsonFile } from './schema-validate.mts';
 import { errorCode } from './process.mts';
 import { present } from './present.mts';
-import { ciRefusal } from './ci-only.mts';
 
 const USAGE = 'usage: node scripts/kit/ci-targets.mts <report directory> <target>...  |  --summary <report directory>';
 
@@ -38,11 +37,6 @@ export async function ciTargets({ root, directory, targets, env = process.env, m
   root: string; directory: string; targets: string[]; env?: NodeJS.ProcessEnv; make?: string; environment?: Record<string, string>;
   print?: (line: string) => void; output?: (text: string, stream: 'stdout' | 'stderr') => void;
 }) {
-  const refused = ciRefusal('make ci-targets', env, root);
-  if (refused) {
-    print(`[ci-targets] refuse: ${refused}`);
-    return 1;
-  }
   const report = path.resolve(root, directory);
   const held = acquireHolderLock(`${report}.lock`, { checkout: root, command: `ci-targets ${targets.join(' ')}` });
   try {

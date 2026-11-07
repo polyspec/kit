@@ -1,5 +1,5 @@
 <!-- doc-id: example-shared-files -->
-<!-- source-sha256: 7955ab9a492e0506d149e009de7aab37ebb118b651ad027cec580b3e18db1c59 -->
+<!-- source-sha256: 740b3490b7865d5148430dedd8e805ac73ccacbe062163bb2102c9e0791bfce2 -->
 # 예제: 공유 파일
 
 [English](shared-files.md)
@@ -11,7 +11,6 @@ package `@polyspec/kit`은 kit이 스스로 쓰고 저장소가 가져갈 수 �
 | `workflows/ci-pipeline.yml` | `.github/workflows/ci-pipeline.yml` | 저장소의 `ci.yml`이 job으로 호출하는 CI 파이프라인. 마지막 `required` job은 plan이 고른 job이 성공하지 않으면 실패합니다 |
 | `workflows/release.yml` | `.github/workflows/release.yml` | `main`의 CI 실행이 통과한 뒤 시작하는 release workflow |
 | `actions/kit-bootstrap/action.yml` | `.github/actions/kit-bootstrap/action.yml` | CI job의 bootstrap: `mise.toml`의 Node.js, lock된 kit, var/tools의 npm과 package |
-| `claude/settings.json` | `.claude/settings.json` | Bash 명령 전에 도는 Claude Code hook `polyspec-kit-hook` |
 | `config/layout.kit.yml`, `config/composer.schema.json` | `config/` | `config/layout.yml`이 extends하는 공통 alint 규칙 |
 | `.editorconfig` | `.editorconfig` | kit의 editor 설정 |
 | `PRINCIPLES.md`, `PRINCIPLES.ko.md` | root | 저장소의 AGENTS.md가 link하는 작업 원칙 |

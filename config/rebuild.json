@@ -98,10 +98,6 @@
       "kind": "policy",
       "reason": "polyspec's checklists and trackers in Markdown tables; the table reading is markdown.mts"
     },
-    "scripts/kit/ci-only.mts": {
-      "kind": "policy",
-      "reason": "the rule of PRINCIPLES.md that the full suite runs only in CI: the refusal of a suite command outside a GitHub Actions run"
-    },
     "scripts/kit/ci-passed.mts": {
       "kind": "policy",
       "reason": "the result of the last job of a polyspec CI workflow over the results of the other jobs"
@@ -109,10 +105,6 @@
     "scripts/kit/ci-targets.mts": {
       "kind": "policy",
       "reason": "runs make targets past failures and writes their report, polyspec's CI contract"
-    },
-    "scripts/kit/claude-hook.mts": {
-      "kind": "policy",
-      "reason": "the rule of PRINCIPLES.md that only the unit tests that own a change run locally, as the Claude Code PreToolUse hook of a repository"
     },
     "scripts/kit/composer-vendor.mts": {
       "kind": "ecosystem",
@@ -324,7 +316,7 @@
     },
     "scripts/kit/recipe-tools.mts": {
       "kind": "policy",
-      "reason": "parses make recipes from GNU make's database and splits them into words by the quoting rules of the POSIX shell with shell-quote, for check-rules, claude-hook, land and owner-check (K179, K184)"
+      "reason": "parses make recipes from GNU make's database and splits them into words by the quoting rules of the POSIX shell with shell-quote, for check-rules, land and owner-check (K179, K184)"
     },
     "scripts/kit/release-run.mts": {
       "kind": "policy",
@@ -361,10 +353,6 @@
     "scripts/kit/target-report.mts": {
       "kind": "policy",
       "reason": "the report of a run of make targets, polyspec's CI contract"
-    },
-    "scripts/kit/test-selection.mts": {
-      "kind": "policy",
-      "reason": "the rule of PRINCIPLES.md that a local test run selects its tests: which arguments of each test runner select a file, a name or an id"
     },
     "scripts/kit/test-exit-deadline.mts": {
       "kind": "ecosystem",
@@ -445,10 +433,6 @@
     "scripts/kit/divergence-check.mts": {
       "kind": "policy",
       "reason": "the rule of P32 and K315 that no implementation diverges from the contract through an escape hatch, a branch on the language, runtime or platform in a test; the patterns are polyspec's"
-    },
-    "scripts/kit/kit-gates.mts": {
-      "kind": "policy",
-      "reason": "the gates of kit-gates that land runs for the paths a change selects (K357-1): which checks are gates is a rule of polyspec"
     },
     "scripts/kit/kit-assets.mts": {
       "kind": "policy",

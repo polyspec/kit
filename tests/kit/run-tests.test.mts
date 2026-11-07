@@ -38,11 +38,8 @@ const RESULTS: JSONSchemaType<Results> = {
 const SPEC = "import test from 'node:test';\n";
 
 const checkout = (t: TestContext, files: Record<string, string>) => tree(t, files);
-// The tests of the runner's mechanics run whole directories, which only a CI run may do (ci-only.mts).
-const CI = { GITHUB_ACTIONS: 'true' };
 const runner = (root: string, args: string[], env: NodeJS.ProcessEnv = {}) => spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/run-tests.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ...env } });
-// A run of a whole directory is CI-only (ci-only.mts), so it runs in-process with the CI identity as its caller environment: the
-// identity is data here, not an environment of a spawned process (K954).
+// A run of a whole directory runs in-process (K954).
 async function runInProcess(root: string, args: string[]): Promise<{ status: number; stdout: string; stderr: string }> {
   let stdout = '';
   // The runner names each case relative to the working directory, which the spawned run had as its checkout.
@@ -50,7 +47,7 @@ async function runInProcess(root: string, args: string[]): Promise<{ status: num
   const real = realpathSync(root);
   process.chdir(real);
   try {
-    const status = await run(args, { root: real, write: (text: string) => { stdout += text; }, callerEnv: CI });
+    const status = await run(args, { root: real, write: (text: string) => { stdout += text; } });
     return { status, stdout, stderr: '' };
   } finally {
     process.chdir(previous);
@@ -559,7 +556,7 @@ async function inProcess(t: TestContext, args: string[], { path: extraPath, root
   const previous = process.env.PATH;
   if (extraPath !== undefined) process.env.PATH = extraPath;
   try {
-    return { status: await run(args, { root, write: (text: string) => lines.push(text), callerEnv: CI }), text: lines.join('') };
+    return { status: await run(args, { root, write: (text: string) => lines.push(text) }), text: lines.join('') };
   } finally {
     process.env.PATH = previous;
   }
@@ -904,7 +901,7 @@ const alive = (pid: number) => {
 
 test('a timeout stops the whole process group of the tool, with SIGKILL after the grace period (K141)', { timeout: 30_000 }, async (t) => {
   const { root, pids } = hangingPython(t, { ignoreTerm: true });
-  const hung = await run(['python', '--timeout', '1', 'tests'], { root, write: () => {}, graceMs: 200, callerEnv: CI });
+  const hung = await run(['python', '--timeout', '1', 'tests'], { root, write: () => {}, graceMs: 200 });
   assert.equal(hung, 1);
   const started = recorded(pids);
   assert.equal(started.length, 2, `expected the stub and its grandchild, actual pids ${started.join(' ')}`);
@@ -1012,17 +1009,6 @@ test('--venv runs the python tests with the interpreter of a virtual environment
   const passed = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root });
   assert.equal(passed.status, 0, passed.text);
   assert.match(passed.text, /✔ python \. tests: 1 passed/);
-});
-
-test('--venv refuses an environment that is not one or comes from another Python (K37)', async (t) => {
-  const missing = tree(t);
-  const none = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: missing });
-  assert.equal(none.status, 1, none.text);
-  assert.match(none.text, /pkg\/\.venv is not a virtual environment \(no pyvenv\.cfg\); make it from the checkout Python, with make python-venv DIR=pkg\/\.venv or var\/tools\/mise\/shims\/uv venv --python var\/tools\/mise\/shims\/python3 pkg\/\.venv/);
-  const other = venvRoot(t, { home: '/usr/bin' });
-  const foreign = await inProcess(t, ['python', '--venv', 'pkg/.venv', 'tests'], { root: other });
-  assert.equal(foreign.status, 1, foreign.text);
-  assert.match(foreign.text, /pkg\/\.venv was made from \/usr\/bin, not from a Python of this checkout \(var\/tools\/mise\)/);
 });
 
 // The links of an environment are the behavior of the tool that made it, such as uv's bin/python3 -> python (K63): run-tests
@@ -1142,15 +1128,14 @@ process.stderr.write('test_a (t.T.test_a) ... ' + ok + '\\n\\n' + '-'.repeat(70)
   assert.match(colored.stdout, /1 passed, 0 failed/);
 });
 
-test('a run without a selection refuses outside CI and runs no tool; a run of a test file runs', async (t) => {
+// K1053: kit refuses no run; a run without a selection runs the whole directory wherever it starts.
+test('a run without a selection runs its tool outside CI (K1053)', async (t) => {
   const root = tree(t, { 'tests/one.test.mjs': "import test from 'node:test';\ntest('one', () => {});\n" });
-  const lines: string[] = [];
-  const refused = await run(['node', '--', 'tests'], { root, write: (text: string) => lines.push(text), callerEnv: {} });
-  assert.equal(refused, 1);
-  assert.match(lines.join(''), /a node run without a selection runs only in CI/);
-  assert.doesNotMatch(lines.join(''), /✔ one/);
-  const selected = await run(['node', '--', 'tests/one.test.mjs'], { root, write: () => {}, callerEnv: {} });
-  assert.equal(selected, 0);
+  // The child reporter writes to the process, so the recorded results show that the file ran.
+  const result = await runInProcess(root, ['node', '--results', 'var/report/all.json', '--', 'tests']);
+  assert.equal(result.status, 0, output(result));
+  const record = readStub(path.join(root, 'var/report/all.json'), RESULTS);
+  assert.deepEqual(record.cases.map(({ id, status }) => [id, status]), [['tests/one.test.mjs › one', 'pass']]);
 });
 
 // A shell that runs no make has no MISE_* variable: the runner must still start its tools with the mise of the checkout (K411).

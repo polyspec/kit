@@ -10,8 +10,6 @@ import { run } from '../../scripts/kit/run-tests.mts';
 import { tree } from './tree.mts';
 import { filePublished } from './file-events.mts';
 
-// The tests of the runner's mechanics run whole directories, which only a CI run may do (ci-only.mts).
-const CI = { GITHUB_ACTIONS: 'true' };
 
 // A pause of the process that runs the line, as compiling takes.
 const pause = (ms: number) => `Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${ms});`;
@@ -46,7 +44,7 @@ async function runTool(root: string, args: string[], options: { path?: string } 
   const previous = process.env.PATH;
   if (options.path !== undefined) process.env.PATH = options.path;
   try {
-    const status = await run(args, { root, write: (text: string) => lines.push(text), callerEnv: CI });
+    const status = await run(args, { root, write: (text: string) => lines.push(text) });
     return { status, text: lines.join('') };
   } finally {
     process.env.PATH = previous;
@@ -88,7 +86,7 @@ test('pre-test builds survive arbitrary clock advances and stream progress befor
   release = () => {
     for (const file of ['build-clock-advanced', 'build-output-observed']) writeFileSync(path.join(root, file), '');
   };
-  const running = run(['go', '--timeout', '2', './...'], { root, callerEnv: CI, write: text => {
+  const running = run(['go', '--timeout', '2', './...'], { root, write: text => {
     lines.push(text);
     if (text.includes('compiling workspace step')) writeFileSync(path.join(root, 'build-output-observed'), '');
   } });

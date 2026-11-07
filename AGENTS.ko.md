@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: b325c254e7d36bcd2c0f03ca894b5b69d2edf00045f4e8090702724e5ada36b4 -->
+<!-- source-sha256: 4695b12c59299b1ef0812121d3870d9a001148716b3cc61835aed066bc41d874 -->
 # 개발
 
 [English](AGENTS.md)
@@ -77,7 +77,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   검사하므로, worktree는 자기 자신의 checkout입니다(K858).
   Enforced by: `tests/kit/link.test.mts`, `tests/kit/worktree-setup.test.mts`
 - Own: `config/owner-checks.json`은 각 추적 경로를 소유하는 검사를 지정하므로, branch의 변경은 그것을 소유한 검사가 검사합니다.
-  `make land`는 바뀐 경로의 owner가 고른 gate를 실행합니다. `make owner-validate`는 어떤 owner도 갖지 않은 추적 경로와 존재하지 않는 검사를 지정한 owner를
+  `make owner-check`는 바뀐 경로의 owner가 고른 검사를 실행합니다. `make owner-validate`는 어떤 owner도 갖지 않은 추적 경로와 존재하지 않는 검사를 지정한 owner를
   실패시킵니다.
   Enforced by: `make owner-validate`
 - Refines P15: 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `make duplication-check`(jscpd)는 6줄 이상의
@@ -140,7 +140,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   다운로드(`var/`)가 포함됩니다. 예외는 저장소가 의도적으로 필요로 하는 파일뿐이며 이것만 추적합니다: lock 파일(`package-lock.json`, `composer.lock`,
   `Cargo.lock`, uv lock, `mise.lock`), 이 문서가 밝히는 커밋된 생성 문서, 테스트 fixture, 그리고 consumer가 tagged tree 그 자체로 설치하는 생성 source(Go module, Rust crate)로서 `config/generated.json`의 `tracked`에 이유와 함께 선언된 파일(P34). 각 `.gitignore`가 이 경로를 덮으며, 새 생성기는 같은 commit에서
   ignore 항목을 추가합니다.
-  Enforced by: `.githooks/pre-commit`
+  Enforced by: `make layout-check`
 
 ## 릴리스
 

@@ -84,7 +84,7 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
   checks its links, so a worktree is a checkout of its own (K858).
   Enforced by: `tests/kit/link.test.mts`, `tests/kit/worktree-setup.test.mts`
 - Own: `config/owner-checks.json` names the checks that own each tracked path, so the changes of a branch are checked by the
-  checks that own them: `make land` runs the gates that the owners of the changed paths select. `make owner-validate` fails a
+  checks that own them: `make owner-check` runs the checks that the owners of the changed paths select. `make owner-validate` fails a
   tracked path that no owner holds and an owner that names a check which does not exist.
   Enforced by: `make owner-validate`
 - Refines P15: A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
@@ -155,7 +155,7 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
   file names, test fixtures, and generated sources that a consumer installs as the tagged tree itself (a Go module, a Rust crate), each declared
   with its reason in `config/generated.json` `tracked` (P34). Each `.gitignore` covers these paths; a new generator adds its ignore entry in the same
   commit.
-  Enforced by: `.githooks/pre-commit`
+  Enforced by: `make layout-check`
 
 ## Release
 

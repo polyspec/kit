@@ -159,10 +159,8 @@ of the checkout is a finding. A Rust nightly is never stale: parity reads it.
   where the repository sets `UV_PYTHON_DOWNLOADS=never` (kit's own `mise.toml` does, K1048), and uv takes the python3 shim of mise where the repository sets `UV_PYTHON_PREFERENCE=only-system`, as kit's own `mise.toml` does. The Python of mise is externally
   managed for pip as before, so pip installs only into a venv of it. run-tests runs that
   shim, never the Python of PATH. A package whose tests import its own installed dependencies runs them with
-  `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg`
-  names as its `home` a directory under `var/tools/mise` (read through links); it refuses any other environment before the
-  tool starts, with the fix `make python-venv DIR=<directory>` (K44) or `var/tools/mise/shims/uv venv --python
-  var/tools/mise/shims/python3 <directory>`. The symbolic links of the environment are the behavior of the tool that made it and are accepted as it made them
+  `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` as given; until K1053 it refused an
+  environment whose `pyvenv.cfg` named a `home` outside `var/tools/mise`. The symbolic links of the environment are the behavior of the tool that made it and are accepted as it made them
   (K63): `uv venv` links `bin/python` to the interpreter and `bin/python3` and `bin/python3.14` to `bin/python`, and run-tests
   runs such an environment without copying, removing or rewriting a link.
 - Python venv (K44, K64): `make python-venv DIR=<directory>` (`scripts/kit/python-venv.mts`) makes a virtual environment of the
@@ -288,27 +286,25 @@ another archive. To raise the version:
 ## Gates: push-gate, full-run, git-hooks, holder-lock (K6.1)
 
 K804 deleted the push gate (`push-gate.mts`, the pre-push hook, `push-gate-hook`, `push-gate-commit` and the rule that
-`hooks` includes `pre-push`): a push is not checked; the message rules run at commit, through the commit-msg hook. The tables
+`hooks` includes `pre-push`): a push is not checked, and since K1053 no hook of kit checks a commit. The tables
 below record the merge of K6.1.
 
 K240 removed `full-run.mts`, its record `var/full-run.json` and the target `rerun-failed`. Suite commands run in CI.
-A local final verification uses `make ci-targets FINAL_RUN=1 TARGETS="<target>..."` on a clean committed tree with no active
-checklist items. Waiting `[ ]` items may remain for this final acceptance run; active `[~]` items, an uncommitted tree, and
-unreadable or mismatched checklist pairs are refused. The guard names active items and actual tree changes. The existing CI
-report records this final run, and its lock prevents concurrent writers. Run it once after the scoped development is committed; ordinary
-development continues to run only the owning unit tests. The table below records the merge of K6.1.
+K1053 removed the guard of suite commands (`ci-only.mts` and FINAL_RUN): `make ci-targets TARGETS="<target>..."`,
+`make owner-check`, a run of run-tests without a selection, the suites and a full `parity-check` run wherever they are started;
+when a suite runs is the repository's own recipe. The lock of the CI report prevents concurrent writers. The table below records
+the merge of K6.1.
 
 Files: `scripts/kit/checklist.mts`, `git-hooks.mts`, `holder-lock.mts`,
-`schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, and the make targets `hooks`, `hooks-check`
-and `staged-generated-hook` at the end of `kit.mk`. The base is crudui for the lock, template for the guard and the hook, and the union of all five for the trackers.
+`schema/checklist.schema.json`, `generated-files.mts`, `schema/generated.schema.json`, and the make targets `hooks` and
+`hooks-check` of `kit.mk`. The base is crudui for the lock, template for the guard and the hook, and the union of all five for the trackers.
 
 ### Policy
 
 The verification state `[v]` means the implementation is committed and its declared unit tests passed; it blocks release and tag
-creation until the item is done. If verification fails, move it back to `[~]`. The pre-commit hook runs the generated-file check (K210): it refuses a staged path with a segment `node_modules`, `vendor`,
+creation until the item is done. If verification fails, move it back to `[~]`. `generated-files.mts staged` is the generated-file check (K210), which a repository's own pre-commit hook may run: it reports a staged path with a segment `node_modules`, `vendor`,
 `.venv`, `venv`, `__pycache__`, `target`, `dist` or `*.egg-info`, or a path that a glob of `paths` in `config/generated.json` matches,
-unless a glob of `exceptions` in that file matches it, and names the path (AGENTS.md "Generated files"). The guard of the full run refuses while an item is in the active state, while tracked files have changes, and when the
-record of a full run of the current tree exists. There is no pull request, merge queue or ruleset in this policy.
+unless a glob of `exceptions` in that file matches it, and names the path (AGENTS.md "Generated files"). There is no pull request, merge queue or ruleset in this policy.
 
 ### `config/checklist.json`
 ```json
@@ -322,9 +318,8 @@ record of a full run of the current tree exists. There is no pull request, merge
 K241 replaced the declared trackers of K6.1: kit finds the checklists as `docs/plans/<plan>/checklist.md`, each a table
 with the six states of kit, and `idPattern` is the one declaration of a checklist; the list format of orm is removed.
 
-`hooks` lists the tracked hooks of `.githooks` of the repository; `pre-commit` and `commit-msg` are kit's own hooks, written by
-`make hooks` without an entry; `make hooks-check` reports a `prepare-commit-msg` hook of an earlier kit, whose make target is gone,
-with `git rm .githooks/prepare-commit-msg` as its fix (K892). `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output
+`hooks` lists the tracked hooks of `.githooks` of the repository, its own files; `make hooks` points `core.hooksPath` at
+`.githooks` when the list names one and makes each executable, and kit writes no hook (K1053). `config/generated.json` holds `paths`, the globs of repository paths that are generated on top of the kit segments (a build output
 folder, for example), and `exceptions`, the globs of paths that stay tracked (test fixtures, for example); its schema is
 `schema/generated.schema.json`. A tracker has `path`, `format` (`table`: a row
 `| ID | ... | state |`; `list`: an item `- [state] ID text`, indented for a sub-item) and `active`; it may have `translation`,
@@ -344,11 +339,11 @@ cell when absent). A state is the leading `[x]` of its cell or item, or the whol
 | The Korean twin must hold the same IDs in the same order and the same states | orm, ordered-json (document checks) | the gate and the guard also refuse a pair that differs, because the pair is read with the same parser; the document checks of K7 keep the other rules (markers, bypass text) |
 | The refusal names the file, the ID, the title and the place (pushed ref and commit, or working tree) | all | kept; it also states which states block and which do not; the commit is shown with 12 characters (ordered-json, orm; template and hyper used 7) |
 | `commit <rev>` prints a GitHub annotation per line, escapes `%` and line breaks, appends to `$GITHUB_STEP_SUMMARY`, requires mode 100755 of the hook, and names a revision that is not a commit | template, crudui, hyper, ordered-json, orm | kept; it requires the mode of every hook in `hooks` (ordered-json required `pre-commit` too; the others only `pre-push`) |
-| `hooks-check` fails when `core.hooksPath` differs, the hook is missing or not executable | all | `git-hooks.mts check`; it also fails when `pre-commit` or `pre-push` has other content than the hook of the tool |
-| `make hooks` sets `core.hooksPath` and checks | template, hyper, ordered-json (`hooks-install`) | `git-hooks.mts install` also writes `pre-commit` and `pre-push` and makes the listed hooks executable; a second run changes nothing |
-| Every make invocation sets `core.hooksPath` | template, orm | `kit.mk` sets it only in a checkout that tracks `.githooks/pre-push`, so a checkout without hooks is not changed |
-| The content of `pre-push` | all differ in the `cd` to the top level and the comment | one content, written by `git-hooks install` and compared by `check` |
-| A generated path in a commit (orm `pre-commit` with `make staged-check`, its own exceptions) | orm | kit's `pre-commit` runs `make staged-generated-hook`; the exceptions are the globs of `config/generated.json` (K210) |
+| `hooks-check` fails when `core.hooksPath` differs, the hook is missing or not executable | all | `git-hooks.mts check`; until K1053 it also failed when `pre-commit` or `pre-push` had other content than the hook of the tool |
+| `make hooks` sets `core.hooksPath` and checks | template, hyper, ordered-json (`hooks-install`) | `git-hooks.mts install` makes the listed hooks executable and declares the merge drivers (until K1053 it also wrote `pre-commit` and `pre-push`); a second run changes nothing |
+| Every make invocation sets `core.hooksPath` | template, orm | until K1053 `kit.mk` set it only in a checkout that tracked `.githooks/pre-push`; now only `make hooks` sets it |
+| The content of `pre-push` | all differ in the `cd` to the top level and the comment | until K1053 one content, written by `git-hooks install` and compared by `check`; now the repository's own file |
+| A generated path in a commit (orm `pre-commit` with `make staged-check`, its own exceptions) | orm | until K1053 kit's `pre-commit` ran `make staged-generated-hook`; `generated-files.mts staged` remains a utility (K210) |
 | Hooks other than kit's `pre-commit` and `pre-push` (`pre-commit` of ordered-json, `commit-msg` of orm) | ordered-json, orm | named in `hooks` and checked for existence and mode; their content stays in the repository |
 | Lock record: checkout, process ID, start time of the process, time taken, command, token; atomic link; start time tells a reused process ID from the holder | crudui | base of `holder-lock.mts`; template and hyper recorded no start time |
 | A lock of an ended holder stays until `clear`; `clear` renames the lock aside and restores it when a new holder took it meanwhile | crudui (`remove-dead`), template and hyper (`clear`) | under the name `clear`, with the claim of flowmark's spec 40 (K28): `clear` links the lock to `<lock>.<first 32 hex digits of the SHA-256 of the record>.clearing` (an existing claim refuses), removes only a lock that still holds the record it checked, and never moves the lock of a running holder; the rename aside left two holders when two clears ran at once |
@@ -593,9 +588,9 @@ Dropped behaviors:
 
 `scripts/kit/check-commits.mts` takes `scripts/git/check.mjs` of orm as the shared git hygiene check; template, crudui, hyper
 and ordered-json state the same message format in their rules but have no check. The constant `COMMIT_RULES` of
-check-commits.mts holds the types and the body width that make commit writes, the same for every repository (K243). The commit-msg
-hook checks only the AI footer and identity; land judges the Red line of a done row and the test of a fix on each finished commit
-of the branch with `check-commits --range <base>..<head>` (K892); the form of the subject is guidance that make commit writes.
+check-commits.mts holds the types and the body width that make commit writes, the same for every repository (K243). Since K1053
+neither a hook of kit, make commit nor land runs it: `check-commits --range <base>..<head>` and `--message <file>` report the
+findings of its rules where a repository's own recipe runs them.
 
 Merged behaviors:
 
@@ -908,7 +903,7 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   selector.
   The optional `contexts` map gives a job a repository-owned prepare and cleanup target after locked setup and immediately
   around its existing provider gate. Each scope requires both targets; both are validated as existing Make targets before the
-  workflow runs. A setup or context target that runs kit-ci-setup or kit-ci-context again fails at that second dispatch. For example,
+  workflow runs. For example,
   `"contexts": { "shared": { "prepare": "ci-shared-prepare", "cleanup": "ci-shared-cleanup" } }` selects a
   shared context. `parity` applies independently in each selected parity job; runtime keys apply to that runtime's job. The
   cleanup step uses Actions `always()` after preparation was entered, so it runs after either prepare or gate failure and its

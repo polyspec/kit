@@ -267,7 +267,7 @@ test("kit's owner rules: a change of what a rule test reads runs that test (K904
   const declaration = readConfig<OwnerDeclaration>(root, 'config/owner-checks.json', 'owner-checks.schema.json');
   const importers = importGraph(root, trackedFiles(root));
   const selected = (file: string) => select(declaration, [file], [], () => true, importers).tests;
-  for (const file of ['PRINCIPLES.md', 'PRINCIPLES.ko.md', 'AGENTS.md', 'Makefile', 'scripts/kit/kit.mk', '.github/workflows/ci.yml', '.githooks/pre-commit']) assert.ok(selected(file).includes('tests/kit/check-rules.test.mts'), file);
+  for (const file of ['PRINCIPLES.md', 'PRINCIPLES.ko.md', 'AGENTS.md', 'Makefile', 'scripts/kit/kit.mk', '.github/workflows/ci.yml']) assert.ok(selected(file).includes('tests/kit/check-rules.test.mts'), file);
   for (const file of ['scripts/kit/kit.mk', 'scripts/kit/glob.mts', 'tests/kit/tree.mts', 'tests/kit/glob.test.mts']) assert.ok(selected(file).includes('tests/kit/isolation.test.mts'), file);
   for (const file of ['tests/kit/tree.mts', 'tests/kit/glob.test.mts']) assert.ok(selected(file).includes('tests/kit/sandbox-repository.test.mts'), file);
 });
@@ -282,9 +282,9 @@ test('the tests run through run-tests.mts or through the declared test target', 
   assert.deepEqual(commandsOf({ checks: [], tests: [] }, {}), []);
 });
 
-// Running the owners is a group of the suite, which runs only in CI (ci-only.mts); `ci` marks the run as one.
-function command(root: string, args: string[], { ci = true }: { ci?: boolean } = {}) {
-  return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/owner-check.mts')), ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, GITHUB_ACTIONS: ci ? 'true' : '' } });
+// The command of owner-check, run as a process.
+function command(root: string, args: string[]) {
+  return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/owner-check.mts')), ...args], { cwd: root, encoding: 'utf8' });
 }
 
 function checkout(t: TestContext, declaration: OwnerDeclaration = DECLARATION, files: Record<string, string> = {}) {
@@ -334,15 +334,13 @@ test('the command fails with the fix when the declaration is missing', (t) => {
   assert.match(run.stderr, /config\/owner-checks\.json does not exist; declare the owner of each path there/);
 });
 
-test('running the owners refuses outside CI and runs no check; --dry-run prints the selection', (t) => {
+// K1053: running the owners refuses no place; outside CI it runs the selected checks.
+test('running the owners runs the selected checks outside CI (K1053)', (t) => {
   const makefile = 'CHECK_TARGETS := first second\nfirst:\n\t@echo ran-first\nsecond:\n\t@echo ran-second\n';
   const root = tree(t, { Makefile: makefile, 'a.txt': 'x', 'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['a.txt'], targets: ['first'] }, { paths: ['Makefile', 'config/**'], targets: ['second'] }] }) });
-  const refused = command(root, ['--paths', 'a.txt'], { ci: false });
-  assert.equal(refused.status, 1, refused.stdout + refused.stderr);
-  assert.match(refused.stderr, /make owner-check runs only in CI/);
-  assert.doesNotMatch(refused.stdout, /ran-first/);
-  const dry = command(root, ['--paths', 'a.txt', '--dry-run'], { ci: false });
-  assert.equal(dry.status, 0, dry.stdout + dry.stderr);
+  const ran = command(root, ['--paths', 'a.txt']);
+  assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+  assert.match(ran.stdout, /ran-first/);
 });
 
 // K945: makeDatabase reads the database of make -pRrq without running a recipe. Under -q, GNU make still runs a recipe line that

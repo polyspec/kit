@@ -194,14 +194,14 @@ test('the summary of a report is written again from its record, also for a run t
   assert.match(readFileSync(path.join(root, 'var/report/ci/summary.md'), 'utf8'), /recorded no run\*\* \(var\/report\/ci\/record\.json: /);
 });
 
-// The command without a CI run: its usage and its summary refuse or read before any CI decision, so they need no CI identity.
+// The command without the CI identity: kit refuses no run by its place (K1053).
 function command(root: string, args: string[]) {
   const environment: NodeJS.ProcessEnv = { ...process.env };
   delete environment.GITHUB_ACTIONS;
   return spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/ci-targets.mts')), ...args], { cwd: root, encoding: 'utf8', env: environment });
 }
 
-// The CI run of the targets, in-process: the command runs ciTargets with its environment, so the CI identity is data here (K954).
+// The run of the targets, in-process: the command runs ciTargets with its environment (K954).
 function runTargets(root: string, directory: string, names: string[], printed: string[]) {
   return ciTargets({ root, directory, targets: names, env: { PATH: process.env.PATH ?? '', GITHUB_ACTIONS: 'true' }, print: line => printed.push(line), output: () => {} });
 }

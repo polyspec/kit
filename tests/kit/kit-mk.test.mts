@@ -138,32 +138,9 @@ test('kit.mk accepts a parity declaration with no implementation targets and sti
 test('link and link-check take the providers from the link declaration, not from arguments (K383, K869)', () => {
   const dryRun = (goal: string, ...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, goal, 'KIT=node_modules/@polyspec/kit/dist', 'KIT_EXT=mjs', ...args], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
   assert.match(dryRun('link-check'), /link-check\.mjs$/);
-  // make link links and then writes the Claude Code hook (K960) in one process (K967).
-  assert.match(dryRun('link'), /link\.mjs link --hook$/);
-  assert.match(dryRun('link', 'RUNTIME=ts'), /link\.mjs link --runtime ts --hook$/);
-});
-
-// The first make link of a consumer that runs the installed kit replaces node_modules/@polyspec/kit, the folder of KIT, with the kit
-// checkout. A stub NODE does what link does to that folder and runs a hook only from a kit that has one: the installed kit has it,
-// the linked kit (whose dist was built before the hook) has none. make link links and writes the hook in one process (K967).
-test('the first make link writes the hook from the kit that linked, not from the kit that the link put in its place (K967)', (t) => {
-  const root = tree(t, {
-    'installed/link.mjs': 'hook\n',
-    'linked/link.mjs': '\n',
-    'node.sh': [
-      '#!/bin/sh',
-      'case "$2" in',
-      '  link) ln -sfn ../../linked node_modules/@polyspec/kit; for a; do [ "$a" = --hook ] && exec grep -q hook installed/link.mjs; done; exit 0;;',
-      '  hook) grep -q hook "$1" || exit 2;;',
-      'esac',
-      '',
-    ].join('\n'),
-  });
-  chmodSync(path.join(root, 'node.sh'), 0o755);
-  mkdirSync(path.join(root, 'node_modules/@polyspec'), { recursive: true });
-  symlinkSync('../../installed', path.join(root, 'node_modules/@polyspec/kit'));
-  const result = spawnSync('make', ['--no-print-directory', '-f', KIT_MK, 'link', 'KIT=node_modules/@polyspec/kit', 'KIT_EXT=mjs', `NODE=${path.join(root, 'node.sh')}`], { cwd: root, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
+  // make link links and writes no Claude Code settings (K1053).
+  assert.match(dryRun('link'), /link\.mjs link$/);
+  assert.match(dryRun('link', 'RUNTIME=ts'), /link\.mjs link --runtime ts$/);
 });
 
 test('kit.mk stops while KIT or KIT_EXT is unset', () => {
@@ -248,8 +225,7 @@ function kitCheckout(t: TestContext, tests: Record<string, string>) {
 test('kit-test fails when its run changes the checkout, and names the path', (t) => {
   const writes = "import test from 'node:test';\nimport { writeFileSync } from 'node:fs';\ntest('writes', () => { writeFileSync('stray.txt', 'x'); });\n";
   const root = kitCheckout(t, { 'tests/kit/writes.test.mts': writes });
-  // The committed sandbox permits an explicit final run; the real checkout is not run as CI.
-  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8', env: { ...process.env, FINAL_RUN: '1' } });
+  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
   assert.notEqual(run.status, 0, run.stdout);
   assert.match(run.stderr, /> \?\? stray\.txt/);
   assert.match(run.stderr, /kit-test: the run changed the checkout/);
@@ -257,8 +233,7 @@ test('kit-test fails when its run changes the checkout, and names the path', (t)
 
 test('kit-test passes when its run leaves the checkout as it was', (t) => {
   const root = kitCheckout(t, { 'tests/kit/clean.test.mts': "import test from 'node:test';\ntest('clean', () => {});\n" });
-  // The committed sandbox permits an explicit final run; the real checkout is not run as CI.
-  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8', env: { ...process.env, FINAL_RUN: '1' } });
+  const run = spawnSync('make', ['--no-print-directory', 'kit-test', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`);
 });
 

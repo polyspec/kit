@@ -25,7 +25,6 @@ import { parseArgs } from 'node:util';
 import { globExpression } from './glob.mts';
 import { trackedFiles } from './tracked-files.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
-import { ciRefusal } from './ci-only.mts';
 import { git } from './git.mts';
 import { toolCommand } from './mise-tools.mts';
 import { readConfig } from './schema-validate.mts';
@@ -33,15 +32,12 @@ import { readNpmManifest } from './manifests.mts';
 import { present } from './present.mts';
 import { moduleImports, moduleReferences, parseModule, resolveRelative } from './module-imports.mts';
 import { expandMake } from './recipe-tools.mts';
-import { INSTALLED } from './kit-check.mts';
 
 export const DECLARATION = 'config/owner-checks.json';
 
 /** A rule of config/owner-checks.json (scripts/kit/schema/owner-checks.schema.json): globs of paths and the checks that own them. */
 export type OwnerRule = {
   paths: string[];
-  // K542: a rule that kit ships (kit.owners), which ownerDeclaration joins; never in config/owner-checks.json.
-  shipped?: true;
   targets?: string[];
   scripts?: string[];
   workspaces?: string[];
@@ -241,8 +237,6 @@ export function validate(declaration: OwnerDeclaration, tracked: string[], proje
   for (const rule of rules) {
     const label = rule.paths.join(' ');
     rule.paths.forEach((glob, index) => {
-      // K542: a rule that kit ships owns what a consumer may hold, so its glob may match nothing of this repository.
-      if (rule.shipped) return;
       // expressions holds the expression of each glob of paths at its index.
       if (!tracked.some(file => present(rule.expressions[index], 'rule.expressions[index]').test(file))) errors.push(`${DECLARATION}: the glob ${glob} matches no tracked path; remove it or correct it`);
     });
@@ -412,15 +406,9 @@ function step(root: string, { name, command, args }: Check) {
   return passed;
 }
 
-/**
- * The owner rules of the checkout `root`: those of its config/owner-checks.json and those that kit ships with its copies (K410-1), the
- * kit.owners of the package installed under `installed`, the checkout that holds node_modules (K522: the staged tree of a commit
- * gate has none). Kit itself declares its own rules, and its copies are paths of its own tree, so it reads no shipped rule.
- */
-export function ownerDeclaration(root: string, installed: string = root): OwnerDeclaration {
-  const own = readConfig<OwnerDeclaration>(root, DECLARATION, 'owner-checks.schema.json');
-  const shipped = existsSync(path.join(installed, INSTALLED, 'package.json')) ? readNpmManifest(installed, `${INSTALLED}/package.json`) : undefined;
-  return { ...own, owners: [...own.owners, ...(shipped?.kit?.owners ?? []).map(rule => ({ ...rule, shipped: true as const }))] };
+/** The owner rules of the checkout `root`, those of its config/owner-checks.json; kit ships no owner rule (K1053). */
+export function ownerDeclaration(root: string): OwnerDeclaration {
+  return readConfig<OwnerDeclaration>(root, DECLARATION, 'owner-checks.schema.json');
 }
 
 if (isMain(import.meta.url)) {
@@ -445,12 +433,6 @@ if (isMain(import.meta.url)) {
   if (values.validate) {
     say(`${DECLARATION} owns every tracked path`);
     process.exit(0);
-  }
-  // Running the owners is a group of the suite and runs only in CI (ci-only.mts); --dry-run prints the selection.
-  const refused = values['dry-run'] ? null : ciRefusal('make owner-check');
-  if (refused) {
-    complain(refused);
-    process.exit(1);
   }
   const changed = changedPaths(root, values);
   const selection = select(declaration, changed, suiteTargets(project.make), exists, importers);

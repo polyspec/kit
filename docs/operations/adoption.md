@@ -88,7 +88,7 @@ Then commit `package.json`, `mise.toml`, `mise.lock`, `.mise/locks/npm-npm/<vers
 
 ## Shared files (K1052)
 
-kit writes no file of a repository. The workflows, the bootstrap action, the Claude Code settings, the layout rules and the
+kit writes no file of a repository. The workflows, the bootstrap action, the layout rules and the
 principles are examples of the package, listed in [docs/examples/shared-files](../examples/shared-files.md); a repository copies
 the ones it wants and commits each copy as its own file. A repository that held copies of kit-sync keeps them as its files; it
 removes `kit-sync` and `kit-inject-check` from its own recipes and workflows.
@@ -97,6 +97,13 @@ rules-check reads a copied pipeline as one of the repository's workflows, by the
 that the example pipeline runs only through an expression, such as a target of config/ci.json or a runtime of a computed
 matrix, is reached when a step names it, when its matrix lists the value, or when the `Enforced by` line names a target that a
 step runs.
+
+## Hooks and checks of a commit (K1053)
+
+kit writes no Git hook and no Claude Code setting, and no utility of kit refuses a commit, a command or the place of a run. A
+repository that wants a check at commit writes its own hook under `.githooks`, lists it in `config/checklist.json` `hooks`, and
+runs `make hooks`; [docs/examples/git-hooks](../examples/git-hooks.md) shows hooks that run the checks of kit. A repository whose
+checkout holds the `.githooks/pre-commit` and `.githooks/commit-msg` of an earlier kit removes them or lists them as its own.
 
 ## Never
 

@@ -15,14 +15,12 @@
 //
 // A unit test stays where the runner of its ecosystem finds it (S1): beside the code in Go, in src or tests of a crate, in the
 // tests of a package elsewhere. The integration and conformance suites cross packages, so they live at the root, where a run
-// in a package never reaches them. A run without CASES runs every unit test of the runtime, which run-tests allows only in CI
-// (test-selection.mts); a suite runs only in CI (ci-only.mts).
+// in a package never reaches them. A run without CASES runs every unit test of the runtime.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject } from './bootstrap/files.mts';
 import { isTestFile } from './check-commits.mts';
-import { ciRefusal } from './ci-only.mts';
 import { DECLARATION as PARITY, implementationFolders, sharedRoots, type ParityConfig } from './parity-declaration.mts';
 import { parseJson } from './schema-validate.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
@@ -309,11 +307,6 @@ if (isMain(import.meta.url)) {
   const venv = (folder: string) => environmentOf(root, folder);
   const suite = (SUITES as readonly string[]).includes(target);
   const caseSensitiveEnv = process.env.CASE_SENSITIVE_ENV || undefined;
-  const refused = suite ? ciRefusal(`make test-${target}`) : null;
-  if (refused) {
-    console.error(`[runtime-targets] ${refused}`);
-    process.exit(1);
-  }
   let runs: Run[];
   const notes: string[] = [];
   try {

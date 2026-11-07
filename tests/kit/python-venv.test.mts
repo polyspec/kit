@@ -4,7 +4,7 @@
 // checkout Python without changing it. The trees are fixtures in a temporary directory; no Python or uv runs.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, mkdirSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readdirSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { makeVenv, venvProblem } from '../../scripts/kit/python-venv.mts';
@@ -73,4 +73,10 @@ test('makeVenv refuses an existing directory that is not a venv of the checkout 
   writeFileSync(path.join(directory, 'keep.txt'), 'x');
   assert.throws(() => makeVenv({ root, directory }), /pkg\/\.venv exists and is not a venv of the checkout Python: .*no pyvenv\.cfg.*; it is neither removed nor repaired/);
   assert.deepEqual(readdirSync(directory), ['keep.txt']);
+});
+
+// K1053: run-tests starts the interpreter of --venv as given; it judges no environment of a repository.
+test('run-tests refuses no virtual environment (K1053)', () => {
+  const source = readFileSync(new URL('../../scripts/kit/run-tests.mts', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /venvProblem|refused before the tool starts/);
 });

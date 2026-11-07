@@ -112,32 +112,19 @@ layout-check: ## Check the folder layout of the checkout (S5) against config/lay
 	$(ALINT) check --config config/layout.yml --color never --compact .
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) installs
 	$(NODE) $(KIT)/generated-files.$(KIT_EXT) tracked
-# ---- The gates: Git hooks -------------------------------------------------------------------------------------------
-# scripts/kit/git-hooks.mts reads config/checklist.json. The full suite runs only in CI, as the targets of
-# `make ci-targets` (ci-only.mts); no target runs it locally.
-.PHONY: hooks hooks-check staged-generated-hook commit-msg-hook
-
-# Git runs the hooks of core.hooksPath. A checkout that tracks .githooks/pre-commit sets it on every make invocation.
-ifneq ($(wildcard .githooks/pre-commit),)
-ifneq ($(shell git config core.hooksPath),.githooks)
-$(shell git config core.hooksPath .githooks)
-endif
-endif
+# ---- Git hooks and merge drivers ---------------------------------------------------------------------------------------
+# scripts/kit/git-hooks.mts reads config/checklist.json, whose hooks are the repository's own files under .githooks; kit writes none
+# (K1053).
+.PHONY: hooks hooks-check
 
 twin-merge: ## The merge drivers that make hooks declares: kit-twin of a Korean changelog or checklist (K354), kit-changelog of CHANGELOG.md, whose Unreleased entries it puts newest first (K354-1), and kit-checklist of a checklist, which merges its task rows by ID (K354-3); git runs it with MERGE="<base> <ours> <theirs> <path>"; offline
 	@$(NODE) $(KIT)/twin-merge.$(KIT_EXT) $(MERGE)
 
-hooks: ## Set core.hooksPath to .githooks, write the pre-commit and commit-msg hooks of kit and check the hooks
+hooks: ## Point core.hooksPath at .githooks when config/checklist.json lists a hook, make each listed hook executable, declare the merge drivers and check them
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) install
 
-hooks-check: ## Fail while core.hooksPath is not .githooks, a hook of config/checklist.json is missing, not executable or changed, or the prepare-commit-msg hook of an earlier kit remains (K892)
+hooks-check: ## Fail while a hook that config/checklist.json lists is not installed or a merge driver of make hooks is not declared
 	$(NODE) $(KIT)/git-hooks.$(KIT_EXT) check
-
-staged-generated-hook: ## The generated-file check of the pre-commit hook: fail while a staged path has a generated segment that config/generated.json does not declare; the hook that make hooks writes runs it
-	$(NODE) $(KIT)/generated-files.$(KIT_EXT) staged
-
-commit-msg-hook: ## The message checks of make commit on the message being committed as MESSAGE (K380); the commit-msg hook that make hooks writes runs it
-	$(NODE) $(KIT)/check-commits.$(KIT_EXT) --message $(MESSAGE)
 
 # --- Rules: every tool has its class (S1) and every rule names the check that enforces it (K248) --------------------------
 .PHONY: build test lint build-go build-js build-php build-python build-rust build-ts lint-js build-php-ext lint-php-ext test-php-ext
@@ -165,8 +152,7 @@ test-php-ext: build-php-ext ## Compare the declarations of the built extension w
 	$(NODE) $(KIT)/php-extension.$(KIT_EXT) test
 
 .PHONY: test-go test-js test-php test-python test-rust test-ts test-integration test-conformance
-# The unit tests of a runtime with CASES=<pattern>, the name filter of its runner; without CASES, every unit test, which
-# run-tests allows only in CI. The suites run only in CI (K244).
+# The unit tests of a runtime with CASES=<pattern>, the name filter of its runner; without CASES, every unit test.
 test-go test-js test-php test-python test-rust test-ts: ## Run the unit tests of each package of the runtime with the name filter CASES=<pattern>; offline
 	CASE_SENSITIVE_ENV="$(CASE_SENSITIVE_ENV)" $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
 
@@ -178,7 +164,7 @@ test-infrastructure: ## Run every tracked root Node infrastructure test through 
 case-sensitive-runner-smoke: ## Smoke the standard Node runner with a temporary verified case-sensitive directory; offline
 	CASE_SENSITIVE_ENV=KIT_CASE_SENSITIVE_SMOKE_DIR $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) case-sensitive-smoke
 
-test-integration test-conformance: ## Run the suite of each runtime under tests/integration or tests/conformance of the root; only in CI
+test-integration test-conformance: ## Run the suite of each runtime under tests/integration or tests/conformance of the root
 	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
 
 .PHONY: kit-gates
@@ -253,7 +239,7 @@ duplication-check: ## Fail while a piece of 6 lines or more of code exists twice
 rebuild-check: ## Check that every tool that config/rebuild.json selects has its class: ecosystem, replaced, record or policy (S1); offline
 	$(NODE) $(KIT)/rebuild-check.$(KIT_EXT)
 
-rules-check: ## Check that every rule of PRINCIPLES.md and AGENTS.md names a check that a CI workflow, a Git hook or the Claude Code hook runs (K248); offline
+rules-check: ## Check that every rule of PRINCIPLES.md and AGENTS.md names a check that a CI workflow or a Git hook runs (K248); offline
 	$(NODE) $(KIT)/check-rules.$(KIT_EXT)
 
 # --- Document, owner and CI report tools (rows K7 and K8.1) ---------------------------------------------------------------
@@ -314,7 +300,7 @@ owner-validate: ## Check that config/owner-checks.json owns every tracked path a
 
 CI_REPORT ?= var/report/ci-targets
 
-ci-targets: ## Run TARGETS past failures in CI, or with FINAL_RUN=1 on a clean committed tree with no active checklist items; write CI_REPORT (logs, record.json, summary.md)
+ci-targets: ## Run TARGETS past failures, wherever it is started; write CI_REPORT (logs, record.json, summary.md)
 	$(NODE) $(KIT)/ci-targets.$(KIT_EXT) $(CI_REPORT) $(TARGETS)
 
 ci-summary: ## Write summary.md of CI_REPORT again from its record, also for a run that stopped; never judges the targets
@@ -386,14 +372,10 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 # lists each provided folder that is a copy or links elsewhere; unlink only removes the links, and make install restores the locked
 # installs (K856). link writes a git-ignored go.work at each Go module, which go reads by itself; unlink removes it.
 .PHONY: link link-check unlink
-link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; then the hook of make hook, in the same process (K967); offline
-	$(NODE) $(KIT)/link.$(KIT_EXT) link $(strip $(if $(PROJECT),--project $(PROJECT)) $(if $(RUNTIME),--runtime $(RUNTIME)) --hook)
+link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; offline
+	$(NODE) $(KIT)/link.$(KIT_EXT) link $(strip $(if $(PROJECT),--project $(PROJECT)) $(if $(RUNTIME),--runtime $(RUNTIME)))
 
-.PHONY: hook
-hook: ## Write the Claude Code hook of the kit checkout that runs it into .claude/settings.local.json at the top of the checkout, or of PROJECT (K498), and, without PROJECT, into .claude/settings.json of the workspace folder of that kit checkout (K440); link writes no Claude Code settings (K960); offline
-	$(NODE) $(KIT)/link.$(KIT_EXT) hook $(if $(PROJECT),--project $(PROJECT))
-
-link-check: ## Fail while the links differ from the link declaration (.links, K869): a declared folder that is not a link to its provider, a link that it does not name, a go.work whose uses differ, a manifest path out of the repository (K773), or a declared package with no installed folder (K888); link writes no Claude Code settings, so no hook is judged (K960); offline
+link-check: ## Fail while the links differ from the link declaration (.links, K869): a declared folder that is not a link to its provider, a link that it does not name, a go.work whose uses differ, a manifest path out of the repository (K773), or a declared package with no installed folder (K888); link writes no Claude Code settings (K960); offline
 	$(NODE) $(KIT)/link-check.$(KIT_EXT) $(if $(PROJECT),--project $(PROJECT))
 
 .PHONY: worktree-setup
@@ -442,17 +424,9 @@ lint-go: ## Lint the Go of the checkout: golangci-lint with .golangci.yml, and d
 lint-ts: ## Lint the TypeScript of the checkout: oxlint and knip with the configuration of the repository, and API Extractor in each package with an api-extractor.json; offline
 	$(NODE) $(KIT)/lint-ts.$(KIT_EXT)
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.
-# Without UNITS the check is a full run, which runs only in CI (ci-only.mts). The guard runs while make reads the makefiles,
-# so no prerequisite that a repository adds to parity-check builds before it; kit-gates runs it in full, so kit-gates runs only in CI.
-ifneq ($(filter parity-check kit-gates kit-gates-parity,$(MAKECMDGOALS)),)
-ifeq ($(UNITS),)
-ifneq ($(shell $(NODE) $(KIT)/ci-only.$(KIT_EXT) make parity-check >&2; echo $$?),0)
-$(error parity-check: a full parity check runs only in CI; name the units with UNITS="<id>...")
-endif
-endif
-endif
+# Without UNITS the check is a full run.
 .PHONY: parity-check parity-declarations-check
-parity-check: ## Run every parity binding and check every rule; UNITS="<id>..." selects units and IMPLEMENTATIONS="<name>..." selects runtime bindings and support files (support files run when UNITS is empty), while static declaration checks stay global; the full check runs only in CI; offline
+parity-check: ## Run every parity binding and check every rule; UNITS="<id>..." selects units and IMPLEMENTATIONS="<name>..." selects runtime bindings and support files (support files run when UNITS is empty), while static declaration checks stay global; offline
 	$(NODE) $(KIT)/parity.$(KIT_EXT) $(foreach unit,$(UNITS),--unit $(unit)) $(foreach implementation,$(IMPLEMENTATIONS),--implementation $(implementation))
 
 # The parity declaration is the source of the native implementation list. Generate an explicit phony target per implementation so

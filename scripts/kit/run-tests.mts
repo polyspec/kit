@@ -11,9 +11,8 @@
 // check can tell a record of the current files from a stale one.
 //
 // --venv runs the python tool with the interpreter of a virtual environment, so a package's tests import its own installed
-// dependencies. The environment must come from the Python of the checkout: its pyvenv.cfg names a directory of var/tools/mise
-// as its home (install-tools installs that Python with mise). Any other environment is refused before the tool starts. Its
-// symbolic links are accepted as the tool that made it left them: `make python-venv DIR=<directory>` (python-venv.mts) makes such
+// dependencies. The runner starts <directory>/bin/python as given and judges no environment (K1053). Its
+// symbolic links are used as the tool that made it left them: `make python-venv DIR=<directory>` (python-venv.mts) makes such
 // an environment with `uv venv`.
 //
 // Tools: node (node --test), vitest, playwright (Playwright Test), go (go test), cargo (cargo test), phpunit and python
@@ -30,7 +29,7 @@
 // group running. PHPUnit's own limit (enforceTimeLimit, php-invoker) does not replace this stop (K899): it is a SIGALRM of
 // pcntl with restarting system calls, which stops a busy loop or sleep() but not a test blocked in a libpq wait, a socket read
 // or a child process, and a test past its limit is only risky, with exit status 0; PHPUnit kills no process, not even with
-// --process-isolation. The deadline extension of php-library only tells this runner the limit of each test. A run that selects no test file, name or id runs only in CI (test-selection.mts, ci-only.mts). A run in which no test passed, failed or ran out of time fails, so a selection
+// --process-isolation. The deadline extension of php-library only tells this runner the limit of each test. A run that selects no test file, name or id runs the whole runtime (K1053). A run in which no test passed, failed or ran out of time fails, so a selection
 // that matches nothing never passes; a file of node tests that registers no test fails.
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -46,15 +45,29 @@ import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { cargoEvents, goEvents, phpunitEvents, pythonEvents, toProgress, type Sink, type TestRef } from './test-output.mts';
 // stopGroup is the group stop of process-group.mts, which run-command shares (K430).
 import { signalGroup, stopGroup, watchRoot, type SpawnedRoot } from './process-group.mts';
-import { venvProblem } from './python-venv.mts';
 import { toolCommand as miseCommand, toolsEnvironment } from './mise-tools.mts';
 import { writeJson } from './bootstrap/files.mts';
 import { isMain, repositoryRoot, siblingTool, TEST_ROOT } from './paths.mts';
 import { inputsDigest } from './tracked-files.mts';
 import { readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
-import { ciRefusal } from './ci-only.mts';
-import { isFile, runnerWords, selects } from './test-selection.mts';
+
+// The options of run-tests.mts, each followed by its value.
+const RUNNER_OPTIONS = ['--timeout', '--php-extension', '--venv', '--module', '--cwd', '--results', '--inputs'];
+
+/**
+ * The options of run-tests.mts in `words`, the words after its tool, each with its value, and the arguments that it passes to the
+ * tool: the words after the options, without a -- that ends them.
+ */
+function runnerWords(words: readonly string[]): { options: [string, string | undefined][]; args: string[] } {
+  const options: [string, string | undefined][] = [];
+  let index = 0;
+  for (let flag = words[0]; flag !== undefined && RUNNER_OPTIONS.includes(flag); flag = words[index]) {
+    options.push([flag, words[index + 1]]);
+    index += 2;
+  }
+  return { options, args: words.slice(words[index] === '--' ? index + 1 : index) };
+}
 
 const TOOLS: readonly string[] = ['node', 'vitest', 'playwright', 'go', 'cargo', 'phpunit', 'python'];
 const USAGE = `Usage: node scripts/kit/run-tests.mts <${TOOLS.join('|')}> [--timeout <seconds>] [--php-extension <file>]... [--venv <directory>] [--module <name>] [--cwd <directory>] [--results <file> [--inputs <path>]...] [--] [<arguments>]`;
@@ -314,18 +327,12 @@ const INTERRUPTS: readonly NodeJS.Signals[] = ['SIGINT', 'SIGTERM', 'SIGHUP'];
 /** How often the runner checks that its parent is still the process that started it. */
 const PARENT_POLL_MS = 200;
 
-export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, callerEnv = process.env, startUpMs = START_UP_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number; callerEnv?: NodeJS.ProcessEnv; startUpMs?: number } = {}): Promise<number> {
+export async function run(argv: string[], { root = repositoryRoot(), write = (text: string): unknown => process.stdout.write(text), graceMs = STOP_GRACE_MS, startUpMs = START_UP_MS }: { root?: string; write?: (text: string) => unknown; graceMs?: number; startUpMs?: number } = {}): Promise<number> {
   const options = parseArguments(argv, root);
   const began = Date.now();
   const { command, args, build } = toolCommand(options, root);
   const label = `${options.tool} ${path.relative(root, options.cwd) || '.'}${options.args.length ? ` ${options.args.join(' ')}` : ''}`;
   write(`▶ ${label} (each test ${options.timeoutSeconds}s)\n`);
-  // A run that selects no test runs a whole runtime, which is a suite and runs only in CI (ci-only.mts).
-  const unselected = !selects(options.tool, options.args, file => isFile(path.resolve(options.cwd, file))) && ciRefusal(`a ${options.tool} run without a selection`, callerEnv, root);
-  if (unselected) {
-    write(`✖ ${label}: ${unselected}\n`);
-    return 1;
-  }
   const unbuilt = options.phpExtensions.find(extension => !existsSync(extension));
   if (unbuilt) {
     write(`✖ ${label}: the PHP extension ${path.relative(root, unbuilt)} is not built; build it before the run\n`);
@@ -334,11 +341,6 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   const unloaded = options.phpExtensions.length ? probeExtensions(options.phpExtensions, miseCommand(root, 'php')) : undefined;
   if (unloaded) {
     write(`✖ ${label}: ${unloaded}\n`);
-    return 1;
-  }
-  const venvRefusal = options.venv && venvProblem(options.venv, root);
-  if (venvRefusal) {
-    write(`✖ ${label}: ${venvRefusal}\n`);
     return 1;
   }
   const reads = ['go', 'cargo', 'phpunit', 'python'].includes(options.tool);

@@ -15,22 +15,21 @@
 // into the consumer is one that Git ignores there, and link writes nothing into .git (K512) (the links in the install folders, var/link, and each go.work).
 // unlink only removes the links and the files that link wrote; make install restores the locked installs, reinstalling each Python
 // distribution whose package folder a removed link left missing (K856).
-//   node link.mjs link [--project <dir>] [--runtime <runtime>] [--hook] | hook [--project <dir>] | unlink [--project <dir>] | packages <dir> python|npm |
+//   node link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | packages <dir> python|npm |
 //                 providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...
 // The providers are the checkouts that the link declaration names (K869): LINKS_FILE at the root of the main checkout, one path per
 // line; with no file nothing is linked. make link-check (link-check.mts) compares the declaration with the state.
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
-import { accessSync, constants, copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync, statSync } from 'node:fs';
+import { copyFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { isJsonObject, readJsonObject, writeAtomic } from './bootstrap/files.mts';
+import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { projectEnvironment, uvLink } from './uv-install.mts';
 import { composerVendorDir, environmentLinks, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
-import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, LINKS_FILE, mainCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workspaceOf, workTreeOf } from './link-providers.mts';
+import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, LINKS_FILE, mainCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand, toolsEnvironment } from './mise-tools.mts';
-import { isMain, siblingTool } from './paths.mts';
-import { kitPackageRoot } from './kit-files.mts';
+import { isMain } from './paths.mts';
 import { errorCode, execute, run } from './process.mts';
 import { acquireHolderLock } from './holder-lock.mts';
 import { cargoMetadataArguments, verifyCargoSources } from './cargo-source.mts';
@@ -684,92 +683,6 @@ export function cargo({ directory, args, checkouts = [], env = process.env }: { 
   }
 }
 
-/** A shell word of one single-quoted argument, as the Claude Code hook command runs it. */
-const quote = (text: string) => `'${text.replaceAll("'", `'\\''`)}'`;
-
-// The Claude Code hook of claude-hook, run by the node of the kit checkout that runs `hook` (K960). Claude Code reads the shared
-// .claude/settings.json only in the folder where a session starts, and .claude/settings.local.json at the top of the Git work tree
-// of a session that starts below it, so `hook` writes the settings.local.json of a checkout (K498), whatever Git ignores there,
-// which is the repository's own business (K966), and, run in a checkout of the workspace, the settings.json of the workspace folder, where a session of the kit and its
-// siblings starts (K440). link writes no Claude Code settings (K960): linking is installation, which a container runs on read-only
-// checkouts, and the hook is a tool of a development session; make link runs link --hook, which writes it after the link in the same process (K967).
-const KIT_HOOK = path.relative(kitPackageRoot(), siblingTool(import.meta.url, 'claude-hook'));
-// The node of a kit checkout that runs the hook: installed by make install-tools (K171, K440-2).
-const KIT_NODE = 'var/tools/bin/node';
-
-/**
- * Whether the node of the kit checkout `kit` can run the hook (K440-2): its path resolves through links to a regular file, and that
- * file is executable.
- */
-function kitNodeRunnable(kit: string): boolean {
-  const node = path.join(kit, KIT_NODE);
-  if (!existsSync(node)) return false;
-  const real = realpathSync(node);
-  if (!statSync(real).isFile()) return false;
-  try {
-    accessSync(real, constants.X_OK);
-    return true;
-  } catch (error) {
-    if (errorCode(error) === 'EACCES') return false;
-    throw error;
-  }
-}
-
-/** The PreToolUse entry of the Bash tool that runs the node and the claude-hook of the kit checkout `kit`, both absolute. */
-function hookEntry(kit: string) {
-  return { matcher: 'Bash', hooks: [{ type: 'command', command: `${quote(path.join(kit, KIT_NODE))} ${quote(path.join(kit, KIT_HOOK))}` }] };
-}
-
-/** Whether a PreToolUse entry runs a claude-hook of kit, of the source or of the built package. */
-const isKitHookEntry = (entry: unknown): boolean => isJsonObject(entry) && Array.isArray(entry.hooks) && entry.hooks.some(hook => isJsonObject(hook) && typeof hook.command === 'string' && /claude-hook\.m[jt]s/.test(hook.command));
-
-/** The settings with the kit hook entry added to PreToolUse, or replacing the entry of an earlier kit checkout; all else is kept. */
-function withHook(settings: Record<string, unknown>, kit: string): Record<string, unknown> {
-  const hooks = isJsonObject(settings.hooks) ? settings.hooks : {};
-  const pre: unknown[] = Array.isArray(hooks.PreToolUse) ? hooks.PreToolUse : [];
-  const entry = hookEntry(kit);
-  const index = pre.findIndex(isKitHookEntry);
-  // The entry replaces the first kit entry, and any further kit entry (of an earlier checkout) is dropped, so one entry stays.
-  const next = index === -1 ? [...pre, entry] : pre.flatMap((item, position) => (position === index ? [entry] : isKitHookEntry(item) ? [] : [item]));
-  return { ...settings, hooks: { ...hooks, PreToolUse: next } };
-}
-
-/** The settings file of a checkout that `hook` writes (K498). */
-const PROJECT_HOOK_FILE = '.claude/settings.local.json';
-
-/**
- * Writes the hook of the kit checkout `kit` into the settings file `name` of `folder`, keeping its other settings, and returns the
- * file. The node of the checkout is checked first: while it is missing or not executable the write is refused and the file is left as
- * it is (K440-2).
- */
-function writeHook(folder: string, name: string, kit: string): string {
-  if (!kitNodeRunnable(kit)) throw new Error(`${path.join(kit, KIT_NODE)} is missing or not executable, so the Claude Code hook cannot run; run make -C ${realpathSync(kit)} install-tools in a kit checkout, or, for the installed package, which has no node, declare ../kit in .links and run make link`);
-  const file = path.join(folder, name);
-  const settings = existsSync(file) ? readJsonObject(folder, name) : {};
-  const next = withHook(settings, kit);
-  if (!existsSync(file) || JSON.stringify(next) !== JSON.stringify(settings)) writeAtomic(file, `${JSON.stringify(next, null, 2)}\n`);
-  return file;
-}
-
-/**
- * Writes the hook of the kit checkout `kit`, by default the one that runs it, into the settings of the workspace folder (K440): the
- * folder of that kit checkout and its siblings. Another folder, such as the home folder of a checkout cloned there, whose
- * .claude/settings.json is the user settings of Claude Code, is not written, and undefined is returned.
- */
-export function writeWorkspaceHook(workspace: string, kit = kitPackageRoot()): string | undefined {
-  if (realpathSync(path.dirname(realpathSync(kit))) !== realpathSync(workspace)) return undefined;
-  return writeHook(workspace, '.claude/settings.json', kit);
-}
-
-/**
- * Writes the hook of the kit checkout `kit`, by default the one that runs it, into the settings.local.json at the top of the work tree
- * of `directory` (K498). Nothing goes into .git, whose common directory of a worktree is the main checkout's (K512); whether Git
- * ignores the file is the repository's own business (K966).
- */
-export function writeProjectHook(directory: string, kit = kitPackageRoot()): string {
-  return writeHook(workTreeOf(directory), PROJECT_HOOK_FILE, kit);
-}
-
 if (isMain(import.meta.url)) {
   const [command, ...rest] = process.argv.slice(2);
   const print: Print = text => process.stdout.write(`${text}\n`);
@@ -779,9 +692,6 @@ if (isMain(import.meta.url)) {
     const projectDirectory = project === -1 ? undefined : rest[project + 1];
     if (project !== -1 && !projectDirectory) throw new Error('Usage: link.mjs ... --project <dir>');
     const runtimeIndex = command === 'link' || command === 'unlink' ? rest.indexOf('--runtime') : -1;
-    // `--hook` makes link write the hook as hook does, in this process, after the link: make link, whose KIT names the folder that
-    // the link replaces, starts no second kit from it (K967).
-    const hook = command === 'link' && rest.includes('--hook');
     const runtimeValue = runtimeIndex === -1 ? undefined : rest[runtimeIndex + 1];
     let runtime: LinkRuntime | undefined;
     if (runtimeIndex !== -1) {
@@ -790,18 +700,7 @@ if (isMain(import.meta.url)) {
       }
       runtime = runtimeValue;
     }
-    const withoutOptions = rest.filter((word, index) => word !== '--hook' && (project === -1 || (index !== project && index !== project + 1)) && (runtimeIndex === -1 || (index !== runtimeIndex && index !== runtimeIndex + 1)));
-    const writeHooks = () => {
-      // The Claude Code hook of the running kit checkout: in the checkout, and without --project in its workspace folder (K960). The kit
-      // is read by its real path when the hook is written: after link --hook the folder this process started from may be a link that
-      // the link just made to the kit checkout, and the hook names that checkout, not the link of one consumer (K967).
-      const kit = realpathSync(kitPackageRoot());
-      print(`[hook] ${writeProjectHook(projectDirectory ?? '.', kit)}`);
-      if (projectDirectory === undefined) {
-        const workspace = writeWorkspaceHook(workspaceOf('.'), kit);
-        if (workspace !== undefined) print(`[hook] ${workspace}`);
-      }
-    };
+    const withoutOptions = rest.filter((word, index) => (project === -1 || (index !== project && index !== project + 1)) && (runtimeIndex === -1 || (index !== runtimeIndex && index !== runtimeIndex + 1)));
     const directories = [projectDirectory ?? '.'];
     switch (command) {
       case 'link': {
@@ -813,16 +712,10 @@ if (isMain(import.meta.url)) {
           if (!unlink({ directories, print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
           print(`no ${LINKS_FILE} in ${mainCheckout(projectDirectory ?? '.')}: nothing is linked; make install restores a released package whose link was removed`);
         } else if (!link({ checkouts, directories, check: false, print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
-        // A failed link writes no hook, as make stopped before hook when link failed.
-        if (hook && process.exitCode !== 1) writeHooks();
         break;
       }
-      case 'hook':
-        if (withoutOptions.length || rest.includes('--hook')) throw new Error(`hook takes no argument but --project: ${rest.join(' ')}`);
-        writeHooks();
-        break;
       case 'unlink':
-        if (withoutOptions.length || rest.includes('--hook')) throw new Error(`unlink takes no argument but --project and --runtime: ${rest.join(' ')}`);
+        if (withoutOptions.length) throw new Error(`unlink takes no argument but --project and --runtime: ${rest.join(' ')}`);
         if (!unlink({ directories, print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
         break;
       case 'providers': {
@@ -853,7 +746,7 @@ if (isMain(import.meta.url)) {
         process.exitCode = cargo({ directory, args, checkouts: declaredCheckouts(directory) ?? [] });
         break;
       }
-      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] [--hook] | hook [--project <dir>] | unlink [--project <dir>] | packages <dir> python|npm | providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...');
+      default: throw new Error('Usage: link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | packages <dir> python|npm | providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...');
     }
   } catch (error) {
     if (!(error instanceof Error)) throw error;

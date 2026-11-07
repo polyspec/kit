@@ -587,7 +587,6 @@ test('K686-6: kit assets accept only the canonical packed manifest', (t) => {
   const box = releaseSandbox(t);
   const file = 'packages/fixture-lib/package.json';
   const source = JSON.stringify({ name: '@polyspec/kit', version: '0.0.1',
-    bin: { 'polyspec-kit-hook': './scripts/kit/claude-hook.mts' },
     exports: { './run-tests': './scripts/kit/run-tests.mts' }, dependencies: { dep: '1.0.0' },
     scripts: { check: 'node check.mjs' } }, null, 2) + '\n';
   writeFileSync(path.join(box.root, file), source);
@@ -595,8 +594,7 @@ test('K686-6: kit assets accept only the canonical packed manifest', (t) => {
   const tag = box.tag('v0.0.1', git(box.root, 'rev-parse', 'HEAD'));
   const config = context(box).config;
   const ctx = context(box, { config: { ...config, packages: config.packages.map(p => p.name === 'fixture-lib' ? { ...p, name: '@polyspec/kit' } : p) } });
-  const expected = source.replace('"./scripts/kit/run-tests.mts"', '{ "types": "./dist/run-tests.d.mts", "default": "./dist/run-tests.mjs" }')
-    .replace('"./scripts/kit/claude-hook.mts"', '"./dist/claude-hook.mjs"');
+  const expected = source.replace('"./scripts/kit/run-tests.mts"', '{ "types": "./dist/run-tests.d.mts", "default": "./dist/run-tests.mjs" }');
   // The tarball carries the packed manifest that a prepack writes (STUB_NPM_PACKED); the commit keeps the source of the tag (K939).
   const packed = path.join(box.root, '.stubs/packed-package.json');
   const packedBy = (text: string) => {
@@ -604,7 +602,7 @@ test('K686-6: kit assets accept only the canonical packed manifest', (t) => {
     return { ...ctx, env: { ...ctx.env, STUB_NPM_PACKED: packed } };
   };
   assert.ok(release.assets(packedBy(expected), tag).includes('polyspec-kit-0.0.1.tgz'));
-  for (const [before, after] of [['./dist/run-tests.mjs', './dist/unexpected.mjs'], ['./dist/claude-hook.mjs', './dist/unexpected-hook.mjs'],
+  for (const [before, after] of [['./dist/run-tests.mjs', './dist/unexpected.mjs'],
     ['"1.0.0"', '"2.0.0"'], ['node check.mjs', 'node other.mjs'], ['"version": "0.0.1"', '"version": "0.0.2"'],
     ['"name": "@polyspec/kit"', '"name": "@polyspec/unexpected"']] as const) {
     stop(() => release.assets(packedBy(expected.replace(before, after)), tag), /the packed package\.json differs/);

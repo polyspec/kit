@@ -5,7 +5,7 @@
 //   node scripts/kit/check-rules.mts [<document>...]   the documents default to PRINCIPLES.md and AGENTS.md
 //
 // A rule is an item of a top-level list of a document. Its last line is `Enforced by: <check>, <check>...`, each check in
-// backticks: `make <target>`, a test file, a Git hook of .githooks or `.claude/settings.json`; or `Enforced by: none, <reason>`
+// backticks: `make <target>`, a test file or a Git hook of .githooks; or `Enforced by: none, <reason>`
 // for a rule that no tool can enforce, which the check lists; `planned <item>` names the open checklist item that builds the
 // check of a rule, which the check lists until the item is done and then fails. A check is reached when a point that cannot be skipped runs it:
 // a step of a workflow of .github/workflows (the CI pipeline of the repository among them, K1057) or a Git hook of .githooks
@@ -265,11 +265,11 @@ function checkFinding(root: string, check: string, make: MakeDatabase, reach: Re
   const target = /^make (\S+)$/.exec(check)?.[1];
   if (target !== undefined) {
     if (!make.targets.has(target)) return `${where}: make ${target} is no target of the Makefile`;
-    if (!reach.targets.has(target) && !mandatoryAggregate(target, make)) return `${where}: make ${target} runs at no point that cannot be skipped: no CI workflow, Git hook or Claude Code hook reaches it`;
+    if (!reach.targets.has(target) && !mandatoryAggregate(target, make)) return `${where}: make ${target} runs at no point that cannot be skipped: no CI workflow or Git hook reaches it`;
     return null;
   }
   if (!existsSync(path.join(root, check))) return `${where}: ${check} does not exist`;
-  if (check === '.claude/settings.json' || check.startsWith('.githooks/')) return null;
+  if (check.startsWith('.githooks/')) return null;
   const covered = [...reach.paths].some(reachedPath => check === reachedPath || check.startsWith(`${reachedPath}/`));
   return covered ? null : `${where}: ${check} runs at no point that cannot be skipped: no recipe of a reached target names it`;
 }

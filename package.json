@@ -35,9 +35,6 @@
     "./.editorconfig": "./.editorconfig",
     "./package.json": "./package.json"
   },
-  "bin": {
-    "polyspec-kit-hook": "./scripts/kit/claude-hook.mts"
-  },
   "files": [
     "dist/",
     "scripts/kit/bootstrap/",
@@ -50,7 +47,6 @@
     "workflows/release.yml",
     "workflows/ci-pipeline.yml",
     "actions/kit-bootstrap/action.yml",
-    "claude/settings.json",
     "PRINCIPLES.md",
     "PRINCIPLES.ko.md"
   ],
@@ -64,7 +60,7 @@
   "scripts": {
     "build": "make kit-build",
     "prepack": "make kit-build NODE=\"$npm_node_execpath\" && node scripts/kit/pack-manifest.mts",
-    "postpack": "git checkout -- package.json claude/settings.json"
+    "postpack": "git checkout -- package.json"
   },
   "devEngines": {
     "packageManager": {
@@ -100,18 +96,6 @@
         "id": "case-sensitive-resource-provisioning",
         "path": "tests/kit/runtime-targets.test.mts",
         "name": "case-sensitive directory uses the platform provisioner and restores the named environment"
-      }
-    ],
-    "comment": "K410-1, K1052: the owner rules that kit ships own the hooks that make hooks writes; a consumer merges them into its owner checks (owner-check reads them from the installed package). kit writes no other file of a repository.",
-    "owners": [
-      {
-        "paths": [
-          ".githooks/pre-commit",
-          ".githooks/commit-msg"
-        ],
-        "targets": [
-          "hooks-check"
-        ]
       }
     ]
   },

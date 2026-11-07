@@ -1,104 +1,47 @@
-// Tests of the Git hooks (scripts/kit/git-hooks.mts): `install` sets core.hooksPath, writes the hooks of kit and makes the
-// listed hooks executable, a second run changes nothing, and `check` fails with the cause and the fix for each hook that is
-// not installed.
+// Tests of the Git hooks and merges (scripts/kit/git-hooks.mts): `install` points core.hooksPath at the listed hooks of the
+// repository, makes them executable and declares the merges; kit writes no hook (K1053); a second run changes nothing, and `check`
+// fails with the cause and the fix for each listed hook or merge that is not installed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { HOOKS_PATH, PRE_COMMIT, PRE_COMMIT_CONTENT, hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
-import { checkout, git, prepared, run } from './gates-checkout.mts';
+import { hooksIssue, installHooks, installMerges, mergeIssue } from '../../scripts/kit/git-hooks.mts';
+import { checkout, git, run } from './gates-checkout.mts';
 import { KIT_MAKEFILE, tool } from './kit-tools.mts';
 import { korean, put, tree } from './tree.mts';
 
 // The configuration of a repository that declares the pattern of its item IDs (K354-3).
 const CONFIG_JSON = '{ "schema": 1, "hooks": [], "idPattern": "T[0-9]+(?:[.-][0-9]+)*" }\n';
 
-// The owner rules of a fixture whose gate is suppression-check, a gate of kit: every path is owned.
-const OWNERS = JSON.stringify({ schema: 1, owners: [{ paths: ['**'], targets: ['suppression-check'] }] }, null, 2) + '\n';
-
 const hooks = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install']);
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'check']);
 
-test('install sets core.hooksPath and writes the executable hooks of kit; check passes', (t) => {
+// K1053: kit writes no hook; with no listed hook, make hooks sets no core.hooksPath and declares only the merges.
+test('install writes no hook and sets no core.hooksPath while config/checklist.json lists none; it declares the merges (K1053)', (t) => {
   const { work } = checkout(t);
-  assert.equal(check(work).status, 1);
+  assert.equal(check(work).status, 1, 'the merges are not declared yet');
   const installed = hooks(work);
   assert.equal(installed.status, 0, installed.stderr);
-  assert.match(installed.stdout, /\[git-hooks\] core\.hooksPath set to \.githooks \(was not set\)\n\[git-hooks\] \.githooks\/pre-commit written\n\[git-hooks\] \.githooks\/commit-msg written\n\[git-hooks\] \.git\/info\/attributes: CHANGELOG\.md merge=kit-changelog, CHANGELOG\.ko\.md merge=kit-twin, docs\/plans\/\*\/checklist\.md merge=kit-checklist, docs\/plans\/\*\/checklist\.ko\.md merge=kit-twin added\n\[git-hooks\] merge\.kit-twin\.name set\n\[git-hooks\] merge\.kit-twin\.driver set\n\[git-hooks\] merge\.kit-changelog\.name set\n\[git-hooks\] merge\.kit-changelog\.driver set\n\[git-hooks\] merge\.kit-checklist\.name set\n\[git-hooks\] merge\.kit-checklist\.driver set\n\[git-hooks\] the hooks are installed: core\.hooksPath is \.githooks/);
-  assert.equal(git(work, 'config', 'core.hooksPath'), HOOKS_PATH);
-  assert.equal(readFileSync(path.join(work, PRE_COMMIT), 'utf8'), PRE_COMMIT_CONTENT);
-  assert.equal(statSync(path.join(work, PRE_COMMIT)).mode & 0o777, 0o755);
+  assert.doesNotMatch(installed.stdout, /core\.hooksPath|written/);
+  assert.notEqual(run(work, 'git', ['config', 'core.hooksPath']).status, 0, 'core.hooksPath stays unset');
+  assert.equal(existsSync(path.join(work, '.githooks/pre-commit')), false);
+  assert.equal(existsSync(path.join(work, '.githooks/commit-msg')), false);
   assert.equal(check(work).status, 0);
-});
-
-// K892: land judges each finished commit, so kit has no prepare-commit-msg hook and no make target for one.
-test('install writes no prepare-commit-msg hook and kit has no prepare-commit-msg-hook target (K892)', (t) => {
-  const { work } = checkout(t);
-  assert.equal(hooks(work).status, 0);
-  assert.equal(existsSync(path.join(work, HOOKS_PATH, 'prepare-commit-msg')), false);
-  assert.doesNotMatch(readFileSync(path.join(import.meta.dirname, '../../scripts/kit/kit.mk'), 'utf8'), /^prepare-commit-msg-hook:/m);
-  // The hook of an earlier kit is a finding of the check that names its removal; a prepare-commit-msg hook of the repository's own is not.
-  const earlier = path.join(work, HOOKS_PATH, 'prepare-commit-msg');
-  writeFileSync(earlier, '#!/bin/sh\nexec make --no-print-directory prepare-commit-msg-hook SOURCE="$2" SHA="$3"\n', { mode: 0o755 });
-  const found = check(work);
-  assert.equal(found.status, 1);
-  assert.match(found.stdout + found.stderr, /\.githooks\/prepare-commit-msg is the hook of an earlier kit.*fix: git rm \.githooks\/prepare-commit-msg and commit/);
-  writeFileSync(earlier, '#!/bin/sh\necho own\n', { mode: 0o755 });
-  assert.equal(check(work).status, 0, 'a hook of the repository passes');
-});
-
-test('a second install changes nothing: no file is rewritten and no setting is touched', (t) => {
-  const { work } = checkout(t);
-  assert.equal(hooks(work).status, 0);
-  const before = statSync(path.join(work, PRE_COMMIT));
   const second = hooks(work);
-  assert.equal(second.status, 0, second.stderr);
-  assert.match(second.stdout, /^\[git-hooks\] nothing to change\n\[git-hooks\] the hooks are installed/);
-  const after = statSync(path.join(work, PRE_COMMIT));
-  assert.equal(after.mtimeMs, before.mtimeMs);
-  assert.equal(after.ino, before.ino);
+  assert.match(second.stdout, /^\[git-hooks\] nothing to change\n/);
   assert.deepEqual(installHooks(work), []);
 });
 
-test('check fails while core.hooksPath is not .githooks, naming the value and make hooks', (t) => {
-  const { work } = checkout(t);
-  hooks(work);
-  git(work, 'config', 'core.hooksPath', 'elsewhere');
-  const failed = check(work);
-  assert.equal(failed.status, 1);
-  assert.match(failed.stderr, /core\.hooksPath is "elsewhere", not \.githooks, so Git does not run the hooks; run make hooks/);
-  git(work, 'config', '--unset', 'core.hooksPath');
-  assert.match(check(work).stderr, /core\.hooksPath is not set, not \.githooks/);
-});
-
-test('check fails while a hook of kit is missing, not executable or changed; install repairs them', (t) => {
-  const { work } = checkout(t);
-  hooks(work);
-  const file = path.join(work, PRE_COMMIT);
-  rmSync(file);
-  assert.match(check(work).stderr, /\.githooks\/pre-commit does not exist; restore it from Git and run make hooks/);
-
-  assert.equal(hooks(work).status, 0);
-  chmodSync(file, 0o644);
-  assert.match(check(work).stderr, /\.githooks\/pre-commit is not executable, so Git does not run it; run make hooks/);
-  assert.equal(hooks(work).status, 0);
-  assert.equal(statSync(file).mode & 0o777, 0o755);
-
-  writeFileSync(file, '#!/bin/sh\nexit 0\n', { mode: 0o755 });
-  assert.match(check(work).stderr, /\.githooks\/pre-commit differs from the hook of scripts\/kit\/git-hooks\.mts; run make hooks and commit the file/);
-  assert.match(hooks(work).stdout, /\.githooks\/pre-commit written/);
-  assert.equal(check(work).status, 0);
-});
-
-test('the listed hooks of the repository are checked and made executable, and a missing one fails the check', (t) => {
+test('the listed hooks of the repository are checked and made executable, core.hooksPath points at them, and a missing one fails the check', (t) => {
   const config = { schema: 1, hooks: ['post-merge'], idPattern: 'T[0-9]+(?:[.-][0-9]+)*' };
   const { work } = checkout(t, { config });
   const failed = hooks(work);
   assert.equal(failed.status, 1);
   assert.match(failed.stderr, /\.githooks\/post-merge does not exist; restore it from Git and run make hooks/);
   const hook = path.join(work, '.githooks/post-merge');
+  mkdirSync(path.dirname(hook), { recursive: true });
   writeFileSync(hook, '#!/bin/sh\nexit 0\n', { mode: 0o644 });
   assert.match(check(work).stderr, /\.githooks\/post-merge is not executable/);
   const installed = hooks(work);
@@ -106,30 +49,11 @@ test('the listed hooks of the repository are checked and made executable, and a 
   assert.match(installed.stdout, /\.githooks\/post-merge made executable/);
   assert.equal(statSync(hook).mode & 0o100, 0o100);
   assert.equal(readFileSync(hook, 'utf8'), '#!/bin/sh\nexit 0\n', 'install does not rewrite a hook of the repository');
-  assert.equal(existsSync(path.join(work, '.githooks/pre-commit')), true);
+  assert.equal(git(work, 'config', 'core.hooksPath'), '.githooks');
+  assert.equal(existsSync(path.join(work, '.githooks/pre-commit')), false, 'kit writes no hook of its own');
   assert.equal(hooksIssue(work), null);
-});
-
-test('check and install fail naming config/generated.json while the pre-commit hook is installed and the repository lacks it (K362)', (t) => {
-  const { work } = checkout(t);
-  const config = path.join(work, 'config/generated.json');
-  const valid = readFileSync(config, 'utf8');
-  rmSync(config);
-  assert.throws(() => installHooks(work), /config\/generated\.json/);
-  assert.notEqual(run(work, 'git', ['config', 'core.hooksPath']).status, 0, 'a refused install writes nothing, so core.hooksPath stays unset');
-  assert.equal(existsSync(path.join(work, PRE_COMMIT)), false, 'a refused install writes no hook');
-
-  writeFileSync(config, valid);
-  assert.equal(hooks(work).status, 0);
-  rmSync(config);
-  assert.match(hooksIssue(work) ?? '', /config\/generated\.json/);
-  assert.match(check(work).stderr, /config\/generated\.json/);
-  assert.equal(check(work).status, 1);
-
-  writeFileSync(config, '{"schema":1,"paths":[],"exceptions":[]}\n');
-  assert.equal(hooks(work).status, 0);
-  assert.equal(hooksIssue(work), null);
-  assert.equal(check(work).status, 0);
+  git(work, 'config', 'core.hooksPath', 'elsewhere');
+  assert.match(check(work).stderr, /core\.hooksPath is "elsewhere", not \.githooks, so Git does not run the hooks; run make hooks/);
 });
 
 test('git-hooks takes only install or check', (t) => {
@@ -137,97 +61,6 @@ test('git-hooks takes only install or check', (t) => {
   const refused = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'remove']);
   assert.equal(refused.status, 2);
   assert.match(refused.stderr, /Usage: node scripts\/kit\/git-hooks\.mts install \| check/);
-});
-
-// K380: kit owns the commit-msg hook, which runs the message checks of make commit on every commit, an amend included.
-test('make hooks writes the commit-msg hook of kit, which refuses the footer of an AI tool at commit time (K380)', (t) => {
-  const { work } = checkout(t, { files: { 'config/owner-checks.json': OWNERS } });
-  assert.equal(hooks(work).status, 0);
-  const hook = path.join(work, '.githooks/commit-msg');
-  assert.equal(statSync(hook).mode & 0o100, 0o100, 'the commit-msg hook is executable');
-  const text = readFileSync(hook, 'utf8');
-  assert.doesNotMatch(text, /scripts\/kit|node_modules|\.mts|\.mjs/);
-  assert.match(text, /^cd "\$\(git rev-parse --show-toplevel\)" \|\| exit 1$/m);
-  assert.match(text, /^exec make --no-print-directory commit-msg-hook MESSAGE="\$1"$/m);
-  assert.equal(check(work).status, 0);
-
-  rmSync(hook);
-  assert.match(hooksIssue(work) ?? '', /\.githooks\/commit-msg does not exist; restore it from Git and run make hooks/);
-  assert.match(check(work).stderr, /\.githooks\/commit-msg does not exist/);
-  assert.equal(hooks(work).status, 0);
-
-  // End to end: a commit with a valid message is made, and an amend that adds the footer of an AI tool is refused. The owner rules are
-  // staged too, since the gates of a commit on main read the index (K404-1).
-  writeFileSync(path.join(work, 'a.txt'), 'a\n');
-  git(work, 'add', '-A');
-  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
-  const valid = 'feat(hooks): Refuse the footer of an AI tool (#T1-1)\n\nThe body names the change.\n';
-  const first = run(work, 'git', [...identity, 'commit', '--quiet', '-m', valid]);
-  assert.equal(first.status, 0, first.stderr);
-  const head = git(work, 'rev-parse', 'HEAD');
-  const footer = `${valid}\nCo-Authored-By: Claude Opus <noreply@anthropic.com>\n`;
-  const amended = run(work, 'git', [...identity, 'commit', '--amend', '--quiet', '-m', footer]);
-  assert.equal(amended.status, 1, 'the commit-msg hook refuses the amend');
-  assert.match(amended.stderr, /commit-ai-footer/);
-  assert.equal(git(work, 'rev-parse', 'HEAD'), head, 'the refused amend changes no commit');
-});
-
-// K380-2, K892: an amend that restages a document of a fix commit passes the commit-msg hook, which judges only the message; a plain
-// fix commit with no test passes it too, and the range check of land refuses it by its sha.
-test('the commit-msg hook judges the message and land the diff of each finished commit (K380-2, K892)', (t) => {
-  const { work } = checkout(t);
-  assert.equal(hooks(work).status, 0);
-  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
-  git(work, 'symbolic-ref', 'HEAD', 'refs/heads/main');
-  git(work, 'add', '-A');
-  const first = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'feat(hooks): Create the repository (#T1-1)\n\nThe body names the change.\n']);
-  assert.equal(first.status, 0, `the first commit creates main: ${first.stderr}`);
-  git(work, 'checkout', '--quiet', '-b', 'fix/name-K380-2');
-
-  mkdirSync(path.join(work, 'src'), { recursive: true });
-  mkdirSync(path.join(work, 'tests'), { recursive: true });
-  mkdirSync(path.join(work, 'docs'), { recursive: true });
-  writeFileSync(path.join(work, 'src/tool.mts'), 'export const tool = 1;\n');
-  writeFileSync(path.join(work, 'tests/tool.test.mts'), "import test from 'node:test';\n");
-  git(work, 'add', '-A');
-  const fix = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'fix(hooks): Check the tool (#T1-1)\n\nThe body names the change.\n']);
-  assert.equal(fix.status, 0, fix.stderr);
-
-  writeFileSync(path.join(work, 'docs/notes.md'), '# Notes\n');
-  git(work, 'add', 'docs/notes.md');
-  const amended = run(work, 'git', [...identity, 'commit', '--amend', '--no-edit', '--quiet']);
-  assert.equal(amended.status, 0, `the amend restages a document of the fix commit, which holds its test: ${amended.stderr}`);
-
-  writeFileSync(path.join(work, 'src/tool.mts'), 'export const tool = 2;\n');
-  git(work, 'add', 'src/tool.mts');
-  const plain = run(work, 'git', [...identity, 'commit', '--quiet', '-m', 'fix(hooks): Change the tool (#T1-1)\n\nThe body names the change.\n']);
-  assert.equal(plain.status, 0, `the hook judges only the message: ${plain.stderr}`);
-  const range = run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/check-commits.mts')), '--range', 'main..HEAD']);
-  assert.equal(range.status, 1, 'the range refuses the plain fix commit that changes no test');
-  assert.match(range.stderr, new RegExp(`commit-fix-test: ${git(work, 'rev-parse', '--short=8', 'HEAD')} fix\\(hooks\\): Change the tool`));
-  assert.doesNotMatch(range.stderr, new RegExp(git(work, 'rev-parse', '--short=8', 'HEAD^')), 'the amended fix commit holds its test');
-});
-
-// K446: work is done on main directly. The commit-msg hook accepts a commit while HEAD is main, as it accepts one on any branch; the
-// gates of land run in make commit instead (K446).
-test('the commit-msg hook accepts a commit while HEAD is main (K446)', (t) => {
-  const { work } = checkout(t, { files: { 'config/owner-checks.json': OWNERS } });
-  assert.equal(hooks(work).status, 0);
-  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
-  const message = 'feat(hooks): Commit on main (#T1-1)\n\nThe body names the change.\n';
-  git(work, 'symbolic-ref', 'HEAD', 'refs/heads/main');
-  git(work, 'add', '-A');
-  const first = run(work, 'git', [...identity, 'commit', '--quiet', '-m', message]);
-  assert.equal(first.status, 0, `the first commit creates main: ${first.stderr}`);
-  writeFileSync(path.join(work, 'a.txt'), 'a\n');
-  git(work, 'add', 'a.txt');
-  const onMain = run(work, 'git', [...identity, 'commit', '--quiet', '-m', message]);
-  assert.equal(onMain.status, 0, onMain.stderr);
-  git(work, 'checkout', '--quiet', '-b', 'fix/name-T1-1');
-  writeFileSync(path.join(work, 'b.txt'), 'b\n');
-  git(work, 'add', 'b.txt');
-  const onBranch = run(work, 'git', [...identity, 'commit', '--quiet', '-m', message]);
-  assert.equal(onBranch.status, 0, onBranch.stderr);
 });
 
 // K354-1: the rebase of a branch puts the changelog entry of the branch above the newer entries of main, in the style of the list of
@@ -381,26 +214,3 @@ test('a rebase merges checklist rows by id, so a row that main closes is kept on
   const ko = readFileSync(path.join(root, english.replace(/\.md$/, '.ko.md')), 'utf8');
   assert.equal(ko, korean(en, en.split('\n').slice(1).join('\n').replace('# P', '# 피')), 'the twin holds the same rows and the marker of the merged English');
 });
-
-// K603: a commit runs no gate, the user's ruling of 2026-10-25: the gates run once, at land. A commit on main that adds a finding of
-// a gate passes the pre-commit hook.
-test('the pre-commit hook on main runs no gate, so a commit that adds a finding of a gate passes (K603)', (t) => {
-  const { work } = prepared(t, { files: { 'config/owner-checks.json': OWNERS } });
-  assert.equal(hooks(work).status, 0);
-  const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
-  const commit = (subject: string) => run(work, 'git', [...identity, 'commit', '--quiet', '-m', `${subject}\n\nThe body names the change.\n`]);
-  mkdirSync(path.join(work, 'scripts'), { recursive: true });
-  writeFileSync(path.join(work, 'scripts/unstaged.mts'), "// eslint-disable-next-line\nexport const flag = 1;\n");
-  writeFileSync(path.join(work, 'scripts/a.mts'), 'export const a = 1;\n');
-  git(work, 'add', 'scripts/a.mts');
-  const clean = commit('feat(hooks): Add a script (#T1-1)');
-  assert.equal(clean.status, 0, `a clean gated commit on main passes: ${clean.stderr}`);
-  const head = git(work, 'rev-parse', 'HEAD');
-
-  writeFileSync(path.join(work, 'scripts/b.mts'), "// eslint-disable-next-line\nexport const flag = 1;\n");
-  git(work, 'add', 'scripts/b.mts');
-  const gated = commit('feat(hooks): Add a flag (#T1-1)');
-  assert.equal(gated.status, 0, `a commit with a finding of a gate passes: ${gated.stderr}`);
-  assert.notEqual(git(work, 'rev-parse', 'HEAD'), head, 'the commit is made');
-});
-

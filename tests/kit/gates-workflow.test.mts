@@ -132,10 +132,10 @@ test('K671-3: gates use the standard root checkout and retain the native install
   assert.doesNotMatch(workflow, /^\s+run: make install$/m, 'the pipeline does not run the full install target');
 });
 
-test('the parity partition runs the full parity check, which runs only in CI, so every implementation runs its bindings in the gates (S6, K272)', () => {
+test('the parity partition runs the full parity check, so every implementation runs its bindings in the gates (S6, K272)', () => {
   const kitMk = read('scripts/kit/kit.mk');
   assert.match(kitMk, /^kit-gates-parity: parity-check /m);
-  assert.match(kitMk, /^ifneq \(\$\(filter parity-check kit-gates kit-gates-parity,\$\(MAKECMDGOALS\)\),\)$/m, 'the CI guard of parity-check covers both aggregate and parity gates');
+  assert.doesNotMatch(kitMk, /ci-only/, 'no guard refuses a full parity check outside CI (K1053)');
   assert.deepEqual(workflowNeeds(workflowJob(read(PIPELINE), 'required'), 'required').sort(), [...REQUIRED_NEEDS].sort());
 });
 

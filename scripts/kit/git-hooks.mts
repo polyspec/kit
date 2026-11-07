@@ -1,46 +1,20 @@
 #!/usr/bin/env node
-// The tracked Git hooks of a checkout. Git runs the hooks of `core.hooksPath`; a checkout sets it to `.githooks`, which
-// holds the hooks that config/checklist.json lists. The hooks `pre-commit` and `commit-msg` belong to kit: `pre-commit` refuses a
-// staged generated path through `make staged-generated-hook`; `commit-msg` runs the message rules of make commit on every commit,
-// an amend included, through `make commit-msg-hook`; each has the content of its constant, so every checkout holds the same file.
-// The other hooks belong to the repository; land judges the diff of each finished commit, so no hook records an amend (K892). make hooks
-// also declares the merges of the changelogs and checklists (K354): a union, and the driver kit-twin for their Korean twins.
+// The Git hooks and the merge drivers of a checkout (`make hooks`). kit writes no hook (K1053): the hooks of a repository are its own
+// tracked files under `.githooks`, which config/checklist.json lists; make hooks points core.hooksPath at `.githooks` when the list
+// names one, and makes each listed hook executable. make hooks also declares the merges of the changelogs and checklists (K354): a
+// union, and the driver kit-twin for their Korean twins.
 //
-//   node scripts/kit/git-hooks.mts install   set core.hooksPath, write the hooks of kit when they differ, make each listed hook
-//                                            executable, then check; a second run changes nothing
-//   node scripts/kit/git-hooks.mts check     fail while a hook is not installed
+//   node scripts/kit/git-hooks.mts install   set core.hooksPath when a hook is listed, make each listed hook executable and
+//                                            declare the merges, then check; a second run changes nothing
+//   node scripts/kit/git-hooks.mts check     fail while a listed hook or a merge is not installed
 import { chmodSync, existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { loadConfig } from './checklist.mts';
-import { CONFIG } from './generated-files.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { writeAtomic } from './bootstrap/files.mts';
 import { gitResult } from './git.mts';
 
-export const HOOKS_PATH = '.githooks';
-export const PRE_COMMIT = `${HOOKS_PATH}/pre-commit`;
-export const COMMIT_MSG = `${HOOKS_PATH}/commit-msg`;
-export const PRE_COMMIT_CONTENT = `#!/bin/sh
-# The pre-commit hook. Git runs it before each commit. The generated-file check refuses a staged path with a generated segment
-# (AGENTS.md "Generated files") that config/generated.json does not declare an exception, and names the path. No gate runs on a
-# commit (K603). Written by \`make hooks\`; do not edit it. It
-# calls the make targets of the checks, which stay across the versions of kit.
-cd "$(git rev-parse --show-toplevel)" || exit 1
-make --no-print-directory staged-generated-hook || exit 1
-`;
-export const COMMIT_MSG_CONTENT = `#!/bin/sh
-# The commit-msg hook. Git runs it with the file of the message being committed as its argument, before each commit, an amend
-# included. The message checks of the commit rules refuse a message with the footer of an AI tool or another rule break (K380).
-# Written by \`make hooks\`; do not edit it. It calls the make target of the check, which stays across the versions of kit.
-cd "$(git rev-parse --show-toplevel)" || exit 1
-exec make --no-print-directory commit-msg-hook MESSAGE="$1"
-`;
-/** The hooks that kit writes into every checkout, with their content. */
-const KIT_HOOKS = [
-  { file: PRE_COMMIT, content: PRE_COMMIT_CONTENT },
-  { file: COMMIT_MSG, content: COMMIT_MSG_CONTENT },
-];
-
+const HOOKS_PATH = '.githooks';
 // The merges of the files that every row changes (K354): the lines of a changelog and the rows of a checklist are independent, so
 // their Korean twins merge with the driver kit-twin of twin-merge.mts, which writes the marker of the merged English file. The
 // English changelog merges with the driver kit-changelog, the union with its Unreleased entries newest first (K354-1), and the
@@ -105,12 +79,6 @@ export function installMerges(root: string): string[] {
   return changes;
 }
 
-/** Why the pre-commit hook cannot run in the checkout `root`, with the fix, or null when config/generated.json exists (K362). */
-function configIssue(root: string) {
-  if (existsSync(path.join(root, CONFIG))) return null;
-  return `${CONFIG} does not exist, and the pre-commit hook needs it; add ${CONFIG} (its schema is scripts/kit/schema/generated.schema.json), then run make hooks`;
-}
-
 function configuredHooksPath(root: string) {
   const run = gitResult(root, 'config', 'core.hooksPath');
   if (run.error) throw run.error;
@@ -118,56 +86,31 @@ function configuredHooksPath(root: string) {
   return run.status === 0 ? run.stdout.trim() : '';
 }
 
-/** Why a hook of the checkout `root` is not installed, with the fix, or null when every hook of `hooks` is installed. */
+/** Why a hook of the checkout `root` is not installed, with the fix, or null when every hook of `hooks` and every merge is. */
 export function hooksIssue(root: string, hooks: string[] = loadConfig(root).hooks) {
-  const missing = configIssue(root);
-  if (missing) return missing;
-  const configured = configuredHooksPath(root);
-  if (configured !== HOOKS_PATH) {
-    return `core.hooksPath is ${configured ? `"${configured}"` : 'not set'}, not ${HOOKS_PATH}, so Git does not run the hooks; run make hooks`;
+  if (hooks.length > 0) {
+    const configured = configuredHooksPath(root);
+    if (configured !== HOOKS_PATH) return `core.hooksPath is ${configured ? `"${configured}"` : 'not set'}, not ${HOOKS_PATH}, so Git does not run the hooks; run make hooks`;
   }
-  const files = [...KIT_HOOKS.map(hook => hook.file), ...hooks.map(name => `${HOOKS_PATH}/${name}`)];
-  for (const file of files) {
-    const absolute = path.join(root, file);
-    if (!existsSync(absolute) || !statSync(absolute).isFile()) return `${file} does not exist; restore it from Git and run make hooks`;
-    if ((statSync(absolute).mode & 0o100) === 0) return `${file} is not executable, so Git does not run it; run make hooks`;
-  }
-  for (const { file, content } of KIT_HOOKS) {
-    if (readFileSync(path.join(root, file), 'utf8') !== content) {
-      return `${file} differs from the hook of scripts/kit/git-hooks.mts; run make hooks and commit the file`;
-    }
-  }
-  // K892: the prepare-commit-msg hook of an earlier kit runs a make target that kit no longer has, so git commit fails while it exists.
-  const earlier = path.join(root, HOOKS_PATH, 'prepare-commit-msg');
-  if (!hooks.includes('prepare-commit-msg') && existsSync(earlier) && readFileSync(earlier, 'utf8').includes('prepare-commit-msg-hook')) {
-    return `${HOOKS_PATH}/prepare-commit-msg is the hook of an earlier kit, whose make target kit no longer has (K892); fix: git rm ${HOOKS_PATH}/prepare-commit-msg and commit`;
+  for (const name of hooks) {
+    const absolute = path.join(root, HOOKS_PATH, name);
+    if (!existsSync(absolute) || !statSync(absolute).isFile()) return `${HOOKS_PATH}/${name} does not exist; restore it from Git and run make hooks`;
+    if ((statSync(absolute).mode & 0o100) === 0) return `${HOOKS_PATH}/${name} is not executable, so Git does not run it; run make hooks`;
   }
   return mergeIssue(root);
 }
 
 /**
- * Installs the hooks of the checkout `root`: sets core.hooksPath, writes each kit hook that differs, and makes each listed
- * hook that exists executable. Returns the lines of what it changed, empty when nothing changed.
+ * Installs the hooks of the checkout `root`: sets core.hooksPath when `hooks` names one, makes each listed hook that exists executable
+ * and declares the merges. Returns the lines of what it changed, empty when nothing changed.
  */
 export function installHooks(root: string, hooks: string[] = loadConfig(root).hooks) {
-  const missing = configIssue(root);
-  if (missing) throw new Error(missing);
   const changes: string[] = [];
   const configured = configuredHooksPath(root);
-  if (configured !== HOOKS_PATH) {
+  if (hooks.length > 0 && configured !== HOOKS_PATH) {
     const run = gitResult(root, 'config', 'core.hooksPath', HOOKS_PATH);
     if (run.status !== 0) throw new Error(`git config core.hooksPath ${HOOKS_PATH} failed in ${root}: ${run.stderr.trim()}`);
     changes.push(`core.hooksPath set to ${HOOKS_PATH} (was ${configured || 'not set'})`);
-  }
-  for (const { file, content } of KIT_HOOKS) {
-    const absolute = path.join(root, file);
-    if (!existsSync(absolute) || readFileSync(absolute, 'utf8') !== content) {
-      writeAtomic(absolute, content, { mode: 0o755 });
-      changes.push(`${file} written`);
-    } else if ((statSync(absolute).mode & 0o100) === 0) {
-      chmodSync(absolute, statSync(absolute).mode | 0o755);
-      changes.push(`${file} made executable`);
-    }
   }
   for (const name of hooks) {
     const file = path.join(root, HOOKS_PATH, name);
@@ -194,7 +137,7 @@ if (isMain(import.meta.url)) {
     }
     const issue = hooksIssue(root);
     if (issue) console.error(`[git-hooks] the hooks are not installed: ${issue}`);
-    else console.log(`[git-hooks] the hooks are installed: core.hooksPath is ${HOOKS_PATH}`);
+    else console.log('[git-hooks] the listed hooks and the merges are installed');
     process.exitCode = issue ? 1 : 0;
   }
 }

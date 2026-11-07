@@ -7,7 +7,7 @@
 //   commit-fix-test    a fix commit changes a test file, or states its red (K257)
 //
 //   node scripts/kit/check-commits.mts --message <file>           the message rules of the message being committed (the commit-msg hook)
-//   node scripts/kit/check-commits.mts --range <base>..<head>     the diff rules of each finished commit of the range (make land)
+//   node scripts/kit/check-commits.mts --range <base>..<head>     the diff rules of each finished commit of the range
 //
 // The diff rules, commit-red and commit-fix-test, judge a finished commit against its parent (K892): an unfinished commit has no
 // change that is known, since an amend replaces HEAD and git names no amend to a hook. make commit, which never amends, judges the

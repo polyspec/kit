@@ -2,7 +2,7 @@
 // The generated-file check of AGENTS.md "Generated files": a staged path with a generated segment (node_modules, vendor, .venv,
 // venv, __pycache__, target, dist or *.egg-info) is refused, naming the path, unless config/generated.json declares it an
 // exception. A staged file whose content starts with the header of an executable object (ELF, Mach-O or PE, K416) is refused
-// the same way, whatever its path. The pre-commit hook that `git-hooks install` writes runs `staged` through `make staged-generated-hook`.
+// the same way, whatever its path. A repository's own pre-commit hook may run `staged`.
 //
 //   node scripts/kit/generated-files.mts staged   fail while a staged path is generated or an executable object, and no exception of
 //                                                 the config allows it

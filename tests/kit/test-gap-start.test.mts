@@ -14,8 +14,6 @@ import { tree } from './tree.mts';
 // The line that a test process writes when it is up: PROCESS_UP of test-gap.mts.
 const PROCESS_UP = 'kit-test-process-up';
 
-// The tests of the runner's mechanics run whole directories, which only a CI run may do (ci-only.mts).
-const CI = { GITHUB_ACTIONS: 'true' };
 
 // A pause of the process that runs the line, which blocks its event loop as a slow start does.
 const pause = (ms: number) => `Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ${ms});`;
@@ -32,7 +30,7 @@ function pythonCheckout(t: TestContext, script: string) {
 
 async function runPython(root: string, startUpMs?: number) {
   const lines: string[] = [];
-  const status = await run(['python', '--timeout', '2', 'tests'], { root, write: (text: string) => lines.push(text), callerEnv: CI, ...(startUpMs === undefined ? {} : { startUpMs }) });
+  const status = await run(['python', '--timeout', '2', 'tests'], { root, write: (text: string) => lines.push(text), ...(startUpMs === undefined ? {} : { startUpMs }) });
   return { status, text: lines.join('') };
 }
 

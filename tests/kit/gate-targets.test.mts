@@ -7,7 +7,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { git, run } from './gates-checkout.mts';
+import { run } from './gates-checkout.mts';
 import { initRepository } from './sandbox-repository.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -62,17 +62,13 @@ test('the source checkout can dry-run the first npm tool install without a parit
   assert.deepEqual(commands(directory, 'install-tools', 'TOOLS=npm'), ['node scripts/kit/bootstrap/bootstrap.mts']);
 });
 
-test('a make invocation sets core.hooksPath in a checkout that tracks the pre-commit hook, and in no other', (t) => {
+// K1053: kit sets core.hooksPath only in make hooks, for the hooks that config/checklist.json lists; a make invocation sets none.
+test('a make invocation sets no core.hooksPath, even in a checkout that tracks a pre-commit hook (K1053)', (t) => {
   const directory = repository(t);
-  commands(directory, 'hooks-check');
-  assert.equal(run(directory, 'git', ['config', 'core.hooksPath']).status, 1, 'a checkout without the hook got a hooks path');
   mkdirSync(path.join(directory, '.githooks'));
   writeFileSync(path.join(directory, '.githooks/pre-commit'), '#!/bin/sh\n');
   commands(directory, 'hooks-check');
-  assert.equal(git(directory, 'config', 'core.hooksPath'), '.githooks');
-  git(directory, 'config', 'core.hooksPath', 'elsewhere');
-  commands(directory, 'hooks-check');
-  assert.equal(git(directory, 'config', 'core.hooksPath'), '.githooks');
+  assert.equal(run(directory, 'git', ['config', 'core.hooksPath']).status, 1, 'a make invocation set a hooks path');
 });
 
 test('kit.mk runs the rebuild check and the rules check in every repository that includes it (K248)', (t) => {

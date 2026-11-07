@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: 48f7f9b850127e05e1bec06363ce23cccccbc06f4523efc490c708a32b7acf91 -->
+<!-- source-sha256: 7a83e432220aeaa5fcfcb45edbb994becfe7721bd5d6c6c982a9ccfcb309a6af -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -85,7 +85,7 @@ kit은 저장소에 레시피를 include시키지 않으며, package는 make 파
 
 ## 공유 파일 (K1052)
 
-kit은 저장소의 파일을 쓰지 않는다. workflow, bootstrap action, Claude Code 설정, layout 규칙, 원칙은 package의 예시이며
+kit은 저장소의 파일을 쓰지 않는다. workflow, bootstrap action, layout 규칙, 원칙은 package의 예시이며
 [docs/examples/shared-files](../examples/shared-files.ko.md)에 목록이 있다. 저장소는 원하는 것을 복사해 각 사본을 자기 파일로
 commit한다. kit-sync의 사본을 가진 저장소는 그것을 자기 파일로 그대로 두고, 자기 레시피와 workflow에서 `kit-sync`와
 `kit-inject-check`를 지운다.
@@ -93,6 +93,13 @@ commit한다. kit-sync의 사본을 가진 저장소는 그것을 자기 파일�
 rules-check는 복사한 pipeline을 저장소의 workflow 중 하나로서 step의 make 명령으로 읽는다(K1057). config/ci.json의 target이나
 계산된 matrix의 runtime처럼 예시 pipeline이 표현식으로만 실행하는 검사는 step이 그것을 적거나, matrix가 그 값을 나열하거나,
 `Enforced by` 줄이 step이 실행하는 target을 적을 때 도달한다.
+
+## commit의 hook과 검사 (K1053)
+
+kit은 Git hook도 Claude Code 설정도 쓰지 않으며, kit의 어떤 유틸리티도 commit, 명령, 실행 장소를 거부하지 않는다. commit 때
+검사를 원하는 저장소는 `.githooks` 아래에 자기 hook을 쓰고, `config/checklist.json`의 `hooks`에 나열하고, `make hooks`를
+실행한다. [docs/examples/git-hooks](../examples/git-hooks.ko.md)가 kit의 검사를 실행하는 hook을 보여 준다. 이전 kit의
+`.githooks/pre-commit`과 `.githooks/commit-msg`가 checkout에 있는 저장소는 그것을 지우거나 자기 hook으로 나열한다.
 
 ## 하지 않는 것
 

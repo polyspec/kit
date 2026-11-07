@@ -1,19 +1,14 @@
 // Tests of scripts/kit/text-absent.mts (K431): the red of a row whose whole change is text. The tool fails with file:line while a
-// tracked file holds the stale text, passes once it is gone, and is a Verification command that the Claude Code hook allows.
+// tracked file holds the stale text and passes once it is gone.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { refusal } from '../../scripts/kit/claude-hook.mts';
-import { makeDatabase } from '../../scripts/kit/owner-check.mts';
-import type { Tracker } from '../../scripts/kit/checklist.mts';
-import { verificationFindings } from '../../scripts/kit/verification.mts';
 import { KIT, KIT_MAKEFILE } from './kit-tools.mts';
 import { put, tree } from './tree.mts';
 
 const TOOL = path.join(KIT, 'text-absent.mts');
-const anyFile = () => true;
 const run = (root: string, args: string[]) => spawnSync(process.execPath, [TOOL, ...args], { cwd: root, encoding: 'utf8' });
 
 test('the pure function finds the line number of each occurrence of the literal text (K431)', async () => {
@@ -47,18 +42,6 @@ test('an untracked file, a missing file and an empty text exit 2 with the reason
   const empty = run(root, ['notes.md', '']);
   assert.equal(empty.status, 2, empty.stdout + empty.stderr);
   assert.match(empty.stderr, /TEXT is empty/);
-});
-
-test('the Claude Code hook takes make text-absent as a Verification command (K431)', (t) => {
-  const root = tree(t, { 'Makefile': KIT_MAKEFILE });
-  const database = makeDatabase(root);
-  const command = 'make text-absent FILE=src/db.c TEXT="throws INTERNAL"';
-  assert.ok(database.targets.has('text-absent'), 'the Makefile of kit declares the target text-absent');
-  assert.equal(refusal(command, anyFile, () => database), null, 'the hook does not refuse it');
-  const tracker: Tracker = { path: 'docs/plans/p/checklist.md', translation: 'docs/plans/p/checklist.ko.md', idPattern: 'T[0-9]+' };
-  const text = '| ID | Task | Deliverables | Verification | State |\n|---|---|---|---|---|\n'
-    + `| T1 | Task | \`src/db.c\` | \`${command}\` | [ ] |\n`;
-  assert.deepEqual(verificationFindings([tracker], file => (file === tracker.path ? text : undefined), () => database), []);
 });
 
 test('kit.mk declares the text-absent target as a tool with a help line that ends in offline (K431)', () => {
