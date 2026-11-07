@@ -1,5 +1,5 @@
 // Tests of the release by the id of a successful CI run (scripts/kit/release-run.mts, K749, K911, K924): release-tag reads the run,
-// accepts only a completed successful push or dispatch run of ci.yml whose commit is on origin/main, and tags that commit
+// accepts only a completed successful push or dispatch run of a workflow of the repository whose commit is on origin/main, and tags that commit
 // with the version of the newest section ## X.Y.Z of the change log of that commit, which the version-bump commit wrote.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -11,7 +11,7 @@ import { main, validateCandidateRun, type CandidateRun } from '../../scripts/kit
 import { git, readJson, releaseSandbox, writeJson } from './release-sandbox.mts';
 import { initRepository } from './sandbox-repository.mts';
 
-const candidate = (overrides: Partial<CandidateRun> = {}): CandidateRun => ({ id: 91, path: '.github/workflows/ci.yml@refs/heads/main', head_sha: 'a'.repeat(40), event: 'push', status: 'completed', conclusion: 'success', head_branch: 'main', ...overrides });
+const candidate = (overrides: Partial<CandidateRun> = {}): CandidateRun => ({ id: 91, workflow_id: 7, path: '.github/workflows/ci.yml@refs/heads/main', head_sha: 'a'.repeat(40), event: 'push', status: 'completed', conclusion: 'success', head_branch: 'main', ...overrides });
 
 // The change log of a version-bump commit: ## Unreleased is empty above the section of the release.
 const RELEASED = '# Changelog\n\n## Unreleased\n\n## 0.0.1\n\n- The first entry of 0.0.1.\n';
@@ -37,16 +37,28 @@ const tagRun = (root: string, env: NodeJS.ProcessEnv, args = ['tag', '91']) => {
   return { result, lines, errors };
 };
 
-test('the release accepts only its successful CI run of ci.yml (K749, K911)', () => {
+test('the release accepts only a successful CI run of the commit (K749, K911)', () => {
   assert.doesNotThrow(() => validateCandidateRun(candidate(), 91));
   assert.doesNotThrow(() => validateCandidateRun(candidate({ event: 'workflow_dispatch' }), 91));
   assert.throws(() => validateCandidateRun(candidate({ conclusion: 'failure' }), 91), /conclusion failure/);
   assert.throws(() => validateCandidateRun(candidate({ conclusion: 'cancelled' }), 91), /conclusion cancelled/);
   assert.throws(() => validateCandidateRun(candidate({ status: 'in_progress', conclusion: null }), 91), /in_progress with conclusion missing/);
   assert.throws(() => validateCandidateRun(candidate({ id: 92 }), 91), /run id/);
-  assert.throws(() => validateCandidateRun(candidate({ path: '.github/workflows/other.yml@refs/heads/main' }), 91), /workflow/);
   assert.throws(() => validateCandidateRun(candidate({ head_branch: 'feature', event: 'pull_request' }), 91), /not a supported CI run/);
   assert.throws(() => validateCandidateRun(candidate({ head_sha: 'main' }), 91), /not a full Git commit SHA/);
+});
+
+// K1059: the workflow of the CI run is the repository's own; the release requires no fixed workflow file.
+test('the release takes a successful CI run of any workflow of the repository (K1059)', () => {
+  assert.doesNotThrow(() => validateCandidateRun(candidate({ path: '.github/workflows/build.yml@refs/heads/main' }), 91));
+  const source = readFileSync(new URL('../../scripts/kit/release-run.mts', import.meta.url), 'utf8');
+  // The wait reads the runs of the workflow of the CI run alone: a run of another workflow, such as the release itself, starts no
+  // later release, so waiting on it would leave the version unreleased.
+  assert.match(source, /actions\/workflows\/\$\{workflowId\}\/runs\?head_sha=\$\{origin\}&branch=main/);
+  assert.doesNotMatch(source, /actions\/runs\?head_sha/);
+  // The run that GitHub returns carries the id of its workflow, which the wait names.
+  assert.match(source, /--jq', '\{id,workflow_id,path,/);
+  assert.doesNotMatch(source, /workflows\/ci\.yml/);
 });
 
 test('release-tag tags the commit of the successful run and of each Go module, and pushes the tags (K911)', (t) => {

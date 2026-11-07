@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 5b49b73c856a5bff341fe0e65601afa20dc2f54ad083b837efbc5121680eaa2a -->
+<!-- source-sha256: 739dcb731d5c9feecdb797f998d1f8f3f32c1f8d832a7eac5bf07343f18e069d -->
 
 # 도구 목록
 
@@ -582,8 +582,7 @@ public이 된 뒤 version commit이 다시 돈 run도 그렇게 끝나며, tag �
 그래서 CI가 실패해도 version 번호를 버리지 않습니다(K988, K990). `## Unreleased`에 항목이 있는 이후 commit은 version commit의
 CI run이 아직 도는 동안 green으로 기다리고, 그 뒤에는 version commit을 적으며 실패하고, 맨 위
 version이 commit의 line 밖에서 tag되어도 실패합니다. release job의 concurrency group은 저장소의
-release를 한 번에 하나만 실행하고, release.yml은 이름이 `ci`인 workflow를 기다리므로 저장소는
-`.github/workflows/ci.yml`의 이름을 `ci`로 둡니다(K1051 전까지 kit-check가 이를 요구했습니다). 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
+release를 한 번에 하나만 실행하고, 예시 release.yml은 kit의 `.github/workflows/ci.yml` 이름인 `ci` workflow를 기다리며, 이를 복사하는 저장소는 자기 CI workflow 이름을 적고, release-run은 저장소의 어느 workflow든 성공한 run을 받습니다(K1059). 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {
@@ -606,7 +605,7 @@ go.mod의 module path에 연결합니다.
 
 - 상수 대신 데이터: template, hyper, ordered-json의 `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `REPOSITORY_URL`과
   changelog는 `config/release.json`입니다. 목록은 명시적이며 빠진 항목은 coverage가 찾습니다.
-- Tag: `release-run tag RUN`은 성공한 ci.yml run RUN의 commit(`origin/main` 이력에 포함되어야 함)에 그 change log의 가장 새로운 section `## X.Y.Z`의
+- Tag: `release-run tag RUN`은 저장소 workflow의 성공한 CI run RUN의 commit(`origin/main` 이력에 포함되어야 함)에 그 change log의 가장 새로운 section `## X.Y.Z`의
   버전으로 tag를 답니다(K911, K924). 그 commit에 있는 config/release.json의 `changelog`와 `goModules`를 읽고, change log에 그런
   section이 없거나 `## Unreleased` 아래 항목이 있는 commit은 거부합니다. maintainer는 run의 id만으로 release workflow를
   dispatch하고(`gh workflow run release.yml -f run=<id>`) 그 workflow가 이를 실행하며, 손으로 push하는 tag는 없습니다.
@@ -633,7 +632,7 @@ go.mod의 module path에 연결합니다.
 - crudui는 `packages/`의 package를 찾고 `private`을 건너뛰었습니다. 명시적 목록으로 대체하여 버렸고, 목록에 빠진 package file은
   coverage가 보고합니다.
 - `checks`의 각 check의 가장 최근 run을 보던 `verify`(template, hyper, ordered-json, crudui, orm)와 단계 `go-tags`: 지웠습니다(K911).
-  릴리스는 commit의 모든 job을 담은 성공한 ci.yml run 하나의 id를 받고 tag를 스스로 만듭니다.
+  릴리스는 commit의 모든 job을 담은 성공한 CI run(kit 자신은 ci.yml) 하나의 id를 받고 tag를 스스로 만듭니다.
 - crudui와 orm은 release 도구 안에서 `make build`, `make typescript-build`, `scripts/package-dist.mjs`를 실행했습니다. 버렸습니다. package의 build는
   저장소가 자기 `release-assets` recipe에 붙이는 선행 단계이므로 도구는 build를 알지 못합니다.
 - crudui `RELEASE_COMMIT`(tag가 생기기 전의 assets)은 합치지 않습니다. archive를 소비자처럼 설치하는 일(template `release-consumer`, crudui

@@ -6,15 +6,14 @@ import { candidateAssets, CONFIG, context, createTags, hasUnreleasedEntries, MAI
 import { repositoryParts } from './github-release.mts';
 import { execute, run, Stop } from './process.mts';
 
-export type CandidateRun = { id: number; path: string; head_sha: string; event: string; status: string; conclusion: string | null; head_branch: string };
+export type CandidateRun = { id: number; workflow_id: number; path: string; head_sha: string; event: string; status: string; conclusion: string | null; head_branch: string };
 
 const VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
-/** Require the successful CI workflow run `id`: its head_sha is the commit that the release tags (K911). */
+/** Require the successful CI run `id` of a workflow of the repository: its head_sha is the commit that the release tags (K911, K1059). */
 export function validateCandidateRun(runInfo: CandidateRun, id: number): void {
   if (runInfo.id !== id) throw new Stop(`CI run id ${runInfo.id} does not match requested run ${id}`);
   if (!/^[0-9a-f]{40}$/.test(runInfo.head_sha)) throw new Stop(`CI run ${id} names the head SHA ${JSON.stringify(runInfo.head_sha)}, not a full Git commit SHA`);
-  if (runInfo.path.replace(/@.*$/, '') !== '.github/workflows/ci.yml') throw new Stop(`CI run ${id} used workflow ${runInfo.path}, not .github/workflows/ci.yml`);
   if (!['push', 'workflow_dispatch'].includes(runInfo.event)) throw new Stop(`CI run ${id} is ${runInfo.event} on ${runInfo.head_branch}, not a supported CI run`);
   if (runInfo.status !== 'completed' || runInfo.conclusion !== 'success') throw new Stop(`CI run ${id} is ${runInfo.status} with conclusion ${runInfo.conclusion ?? 'missing'}, not completed successfully`);
 }
@@ -30,10 +29,10 @@ function parseCandidateRun(output: string): CandidateRun {
   }
   if (!isRecord(value)) throw new Stop('GitHub returned no CI run object');
   const runInfo = value;
-  if (typeof runInfo.id !== 'number' || typeof runInfo.path !== 'string' || typeof runInfo.head_sha !== 'string' || typeof runInfo.event !== 'string' || typeof runInfo.status !== 'string' || !(runInfo.conclusion === null || typeof runInfo.conclusion === 'string') || typeof runInfo.head_branch !== 'string') {
-    throw new Stop('GitHub CI run response is missing a required field: id, path, head_sha, event, status, conclusion or head_branch');
+  if (typeof runInfo.id !== 'number' || typeof runInfo.workflow_id !== 'number' || typeof runInfo.path !== 'string' || typeof runInfo.head_sha !== 'string' || typeof runInfo.event !== 'string' || typeof runInfo.status !== 'string' || !(runInfo.conclusion === null || typeof runInfo.conclusion === 'string') || typeof runInfo.head_branch !== 'string') {
+    throw new Stop('GitHub CI run response is missing a required field: id, workflow_id, path, head_sha, event, status, conclusion or head_branch');
   }
-  return { id: runInfo.id, path: runInfo.path, head_sha: runInfo.head_sha, event: runInfo.event, status: runInfo.status, conclusion: runInfo.conclusion, head_branch: runInfo.head_branch };
+  return { id: runInfo.id, workflow_id: runInfo.workflow_id, path: runInfo.path, head_sha: runInfo.head_sha, event: runInfo.event, status: runInfo.status, conclusion: runInfo.conclusion, head_branch: runInfo.head_branch };
 }
 
 /** The tagless candidate assets of VERSION built from the committed HEAD (`release-run prepare VERSION`), and that commit. */
@@ -46,7 +45,7 @@ export function prepare(ctx: Context, version: string): { sha: string; assets: s
 
 /**
  * The release tags at the commit of the successful CI run `runId` (`make release-tag RUN`, K911, K924): the run is a completed
- * successful push or workflow_dispatch run of .github/workflows/ci.yml, its commit is on origin/main, the version is the
+ * successful push or workflow_dispatch run of a workflow of the repository (K1059), its commit is on origin/main, the version is the
  * newest section ## X.Y.Z of the change log of that commit, whose ## Unreleased holds no entry, and createTags puts vX.Y.Z and the
  * tag of every Go module that config/release.json of that commit declares there. Returns the version and what it did per tag.
  *
@@ -61,7 +60,7 @@ export function tagRun(ctx: Context, runId: number, auto = false): { version: st
   const { repo } = repositoryParts(ctx.config.repositoryUrl);
   const repository = ctx.env.GITHUB_REPOSITORY;
   if (repository && repository.toLowerCase() !== repo.toLowerCase()) throw new Stop(`GITHUB_REPOSITORY ${repository} does not match config/release.json repository ${repo}`);
-  const output = run('gh', ['api', `repos/${repo}/actions/runs/${runId}`, '--jq', '{id,path,head_sha,event,status,conclusion,head_branch}'], { cwd: ctx.root, env: ctx.env });
+  const output = run('gh', ['api', `repos/${repo}/actions/runs/${runId}`, '--jq', '{id,workflow_id,path,head_sha,event,status,conclusion,head_branch}'], { cwd: ctx.root, env: ctx.env });
   const runInfo = parseCandidateRun(output);
   validateCandidateRun(runInfo, runId);
   const commit = runInfo.head_sha;
@@ -74,7 +73,7 @@ export function tagRun(ctx: Context, runId: number, auto = false): { version: st
   const tagged = { ...ctx, config: { ...ctx.config, ...taggedRelease(show(CONFIG), `${CONFIG} at ${commit}`) } };
   const { changelog } = tagged.config;
   if (auto) {
-    const decided = autoDecision(ctx, commit, changelog, runId, repo);
+    const decided = autoDecision(ctx, commit, changelog, runId, runInfo.workflow_id, repo);
     if (decided !== undefined) return decided;
   }
   const version = releasedVersion(show(changelog), `${changelog} at ${commit}`);
@@ -117,7 +116,7 @@ function versionCommit(ctx: Context, commit: string, file: string, version: stri
  * the change log: undefined when the commit releases its top version, as a dispatch does; otherwise the result of nothing to
  * release, or a Stop that names the version commit that did not release.
  */
-function autoDecision(ctx: Context, commit: string, file: string, runId: number, repo: string): { version: string; lines: string[]; release: boolean } | undefined {
+function autoDecision(ctx: Context, commit: string, file: string, runId: number, workflowId: number, repo: string): { version: string; lines: string[]; release: boolean } | undefined {
   const text = run('git', ['show', `${commit}:${file}`], { cwd: ctx.root, env: ctx.env });
   const version = topVersion(text);
   if (version === undefined) return { version: '', lines: [`nothing to release: ${file} at ${commit} has no section ## X.Y.Z`], release: false };
@@ -143,8 +142,9 @@ function autoDecision(ctx: Context, commit: string, file: string, runId: number,
   const origin = versionCommit(ctx, commit, file, version);
   if (origin === commit) throw new Stop(`v${version} is not released: ${file} at ${commit} has entries under ## Unreleased; the version commit moves every entry into the section of the version`);
   // A later commit with unreleased entries would release changes that its version does not name: the CI run of the version
-  // commit may still run, as a later push can finish first, and its success then releases it.
-  const runs = run('gh', ['api', `repos/${repo}/actions/workflows/ci.yml/runs?head_sha=${origin}&branch=main`, '--jq', '[.workflow_runs[].status]'], { cwd: ctx.root, env: ctx.env });
+  // commit may still run, as a later push can finish first, and its success then releases it. Only the runs of the workflow of
+  // this CI run count: its completion starts the release again, and a run of another workflow, the release among them, does not.
+  const runs = run('gh', ['api', `repos/${repo}/actions/workflows/${workflowId}/runs?head_sha=${origin}&branch=main`, '--jq', '[.workflow_runs[].status]'], { cwd: ctx.root, env: ctx.env });
   const statuses: unknown = JSON.parse(runs);
   if (!Array.isArray(statuses)) throw new Stop(`GitHub returned no list of the CI runs of ${origin}: ${runs.trim()}`);
   if (statuses.some(status => status !== 'completed')) return nothing(`v${version} waits for the CI run of its version commit ${origin}, whose success releases it`);

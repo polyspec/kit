@@ -636,8 +636,9 @@ the next green commit whose `## Unreleased` is empty, so a failed CI costs no ve
 entries under `## Unreleased` waits, green, while the CI run of the version commit still runs, then fails and names the version
 commit, and so does
 a top version tagged off the line of the commit. The concurrency group of the release job runs one release of
-the repository at a time, and release.yml waits for the workflow named `ci`, which a repository names its
-`.github/workflows/ci.yml` (kit-check required it until K1051). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
+the repository at a time, and the example release.yml waits for the workflow named `ci`, the name of kit's
+`.github/workflows/ci.yml`; a repository that copies it names its own CI workflow there, and release-run takes a successful run of any
+workflow of the repository (K1059). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {
@@ -660,7 +661,7 @@ the repository at a time, and release.yml waits for the workflow named `ci`, whi
 
 - Data instead of constants: `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `REPOSITORY_URL` and the change
   logs of template, hyper and ordered-json are `config/release.json`. The lists are explicit; coverage detects an omission.
-- Tags: `release-run tag RUN` tags the commit of the successful ci.yml run RUN whose commit is in the history of `origin/main` with the version of the newest section
+- Tags: `release-run tag RUN` tags the commit of the successful CI run RUN of a workflow of the repository whose commit is in the history of `origin/main` with the version of the newest section
   `## X.Y.Z` of its change log (K911, K924): it reads `changelog` and `goModules` of config/release.json at that commit and
   refuses a commit whose change log has no such section or has entries under `## Unreleased`. The maintainer dispatches the
   release workflow with the id of the run alone (`gh workflow run release.yml -f run=<id>`), which runs it, and no tag is
@@ -694,7 +695,7 @@ the repository at a time, and release.yml waits for the workflow named `ci`, whi
 - crudui discovered the packages of `packages/` and skipped `private` ones: dropped for the explicit list; coverage reports
   a package file that the list omits.
 - `verify` with the latest run of each check of `checks` (template, hyper, ordered-json, crudui, orm), and the step `go-tags`:
-  deleted (K911). The release takes the id of one successful ci.yml run, which holds every job of the commit, and creates the
+  deleted (K911). The release takes the id of one successful CI run, kit's ci.yml in its own case, which holds every job of the commit, and creates the
   tags itself.
 - crudui and orm ran `make build`, `make typescript-build` or `scripts/package-dist.mjs` inside the release tool: dropped. The
   build of a package is a prerequisite that the repository adds to its own `release-assets` recipe, so the tool names no build.
