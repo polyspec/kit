@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: a109306107e034ef35ba494421600184df6ae1d6ca3cb077acfa2f6cada940d9 -->
+<!-- source-sha256: 4692d54fd765e059328ac702d196bf890d066eb9f290bd5f54616fb6e233a657 -->
 # 개발
 
 [English](AGENTS.md)
@@ -18,6 +18,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 
 - Own: Phase로 나눈 각 parity binding job은 repository가 config/ci.json의 parityBindings에 명시한 tool과 setup target을 실행합니다. Implementation 집합은 config/parity.json과 정확히 일치해야 합니다. 빈 배열은 setup이 없다는 뜻이며 kit은 binding에 runtime이나 extractor 설치를 추론하여 추가하지 않습니다. Build unit·fixture·artifact는 repository의 책임입니다. 규칙 검사기는 검증된 CI job 선택을 사용한다. 선택되지 않은 job은 강제 증거가 아니다.
   Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `tests/kit/check-rules.test.mts`
+
+- Own: 실패한 parity 호출은 캡처된 stdout과 stderr 전체를 target log에 보존한다. Node는 표준 reporter로 상세를 보고하고 별도의 native event로 판정한다. 상세 출력은 통과 판정을 공급하지 않는다.
+  Enforced by: `tests/kit/parity-diagnostics.test.mts`
 
 - Own: Kit 변경 요청은 GitHub issue에서 추적합니다. 각 issue에 구현 진행 상황, 검증 근거와 release 상태를 기록하고,
   명시된 acceptance 조건을 충족한 뒤에만 닫습니다.

@@ -97,7 +97,16 @@ function resolvedRun(declared: ParityImplementation, root: string, binding: RunT
 // could hold a test that no declaration shows.
 const FILE_RUNNERS = new Set(['node', 'php', 'python']);
 
-/** R5 of the support files: each support file of a node, php or python implementation runs once and reports no case. */
+/** Preserve both captured streams in the target log without interpreting them as verdicts. */
+function printFailureOutput(where: string, result: RunCommandResult, say: (line: string) => void): void {
+  for (const stream of ['stdout', 'stderr'] as const) {
+    if (result[stream] === '') continue;
+    say(`failed command ${stream} (${where}):`);
+    for (const line of result[stream].split('\n')) say(line);
+  }
+}
+
+/** R5 of the support files: each support file of a node, php or python implementation runs once, exits zero and reports no case. */
 async function runSupport(model: ParityModel, root: string, files: Set<string>, { env, say, implementations, silenceMs }: { env: Environment; say: (line: string) => void; implementations?: ReadonlySet<string> | undefined; silenceMs: number }): Promise<Finding[]> {
   const found: Finding[] = [];
   for (const implementation of model.config.implementations.filter(entry => (implementations === undefined || implementations.has(entry.name)) && FILE_RUNNERS.has(entry.runner))) {
@@ -110,6 +119,8 @@ async function runSupport(model: ParityModel, root: string, files: Set<string>, 
       }
       say(`run the support file ${file} of ${implementation.name}: ${run.shown} (in ${run.cwd})`);
       const { result } = await runGuarded(run, root, silenceMs, say);
+      if (result.status !== 0 || result.error || result.stopped !== undefined)
+        printFailureOutput(`${implementation.name}/${file}`, result, say);
       if (result.stopped === 'silence') {
         found.push(finding('R5', `the support file ${stopSentence(file, silenceMs, result).slice('binding '.length)}`, where));
         continue;
@@ -118,8 +129,15 @@ async function runSupport(model: ParityModel, root: string, files: Set<string>, 
         found.push(finding('R5', `the support file could not run: ${run.shown}: ${result.error?.message ?? 'its output passed the limit of the ledger, and its process group was stopped'}`, where));
         continue;
       }
+      if (result.status !== 0) {
+        found.push(finding('R5', `the support file ${file} exited with ${result.status ?? result.signal}: ${run.detail(result).join(' | ')}`, where));
+        continue;
+      }
       const reported = outcomesOf(run, result).map(([name]) => name);
-      if (reported.length) found.push(finding('R5', `the support file reports cases (${reported.join(', ')}); declare it as the test of a binding`, where));
+      if (reported.length) {
+        printFailureOutput(`${implementation.name}/${file}`, result, say);
+        found.push(finding('R5', `the support file reports cases (${reported.join(', ')}); declare it as the test of a binding`, where));
+      }
     }
   }
   return found;
@@ -224,6 +242,7 @@ async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { e
     say(`${units} ${implementation.name}: exit ${first.status ?? 'none'}, ${bound.filter(entry => first.cases.get(entry.id) === 'pass').length} of ${bound.length} ids passed${failedOutside}`);
     // One finding for a run that the silence limit stopped, however many ids it binds (K936).
     if (first.stop !== undefined) {
+      printFailureOutput(`${units}/${implementation.name}`, first.result, say);
       found.push(finding('R3', first.stop, { implementation: implementation.name, place: test }));
       continue;
     }
@@ -236,6 +255,7 @@ async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { e
           ...((runner ?? implementation.runner) === 'cargo' ? (unexpected => unexpected.length ? [`reported outside the exact feature ids: ${unexpected.join(', ')}`] : [])(
             [...first.cases.keys()].filter(name => !bound.some(entry => entry.id === name))) : []),
         ];
+    let outputLogged = first.built === true;
     for (const { unit, id } of bound) {
       const outcome = first.cases.get(id);
       if (outcome !== undefined) ledger.cases.push({ unit, implementation: implementation.name, case: id, outcome });
@@ -246,7 +266,13 @@ async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { e
         outcome === 'skip' && `skipped: ${id}`,
         first.repeated.includes(id) && `reported twice: ${id}`,
       ].filter(Boolean);
-      if (problems.length) found.push(finding('R3', problems.join('; '), where(unit)));
+      if (problems.length) {
+        if (!outputLogged) {
+          printFailureOutput(`${units}/${implementation.name}`, first.result, say);
+          outputLogged = true;
+        }
+        found.push(finding('R3', problems.join('; '), where(unit)));
+      }
     }
   }
   return found;
@@ -289,7 +315,10 @@ export async function runBindings(model: ParityModel, root: string, { env, files
       `not in the suite: ${[...cases.keys()].filter(name => !expected.includes(name)).join(', ')}`,
       `reported twice: ${twice.join(', ')}`,
     ].filter(part => part && !part.endsWith(': '));
-    if (problems.length) findings.push(finding('R3', problems.join('; '), where));
+    if (problems.length) {
+      if (!built) printFailureOutput(`${unit.id}/${implementation.name}`, result, say);
+      findings.push(finding('R3', problems.join('; '), where));
+    }
   }
   // The support files belong to no unit, so a run of named units leaves them to the whole-set check.
   const support = units === undefined ? await runSupport(model, root, files, { env, say, implementations, silenceMs }) : [];

@@ -113,7 +113,7 @@ test('each runner runs the native test of its binding', TIMEOUT, async (t) => {
   assert.deepEqual(commands['codec go'], { cwd: 'go', command: ['go', 'test', '-json', '-count=1', '-run', '^TestCodec$', './'] });
   assert.deepEqual(commands['codec rust'], { cwd: '.', command: ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'codec', '--', '--test-threads=1', 'vectors::'] });
   assert.deepEqual(commands['width rust'], { cwd: '.', command: ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--lib', '--', '--test-threads=1', 'width::tests::vectors::'] });
-  assert.deepEqual(commands['codec ts'], { cwd: '.', command: [process.execPath, '--test', `--test-reporter=${path.join(KIT, 'parity-node-reporter.mts')}`, 'ts/tests/codec.mjs'] });
+  assert.deepEqual(commands['codec ts'], { cwd: '.', command: [process.execPath, '--test', `--test-reporter=${path.join(KIT, 'parity-node-reporter.mts')}`, '--test-reporter-destination=stdout', '--test-reporter=spec', '--test-reporter-destination=stderr', 'ts/tests/codec.mjs'] });
   assert.deepEqual(commands['codec php'], { cwd: '.', command: ['php', 'php/vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php'] });
   assert.deepEqual(commands['codec python'], { cwd: '.', command: [path.join(root, 'var/tools/mise/shims/python3'), '-m', 'unittest', '-v', 'python/tests/test_codec.py'] });
 });
@@ -502,7 +502,7 @@ test('a binding with its own runner and its reason runs with that runner and bin
   const { findings, ledger } = await checkParity(repository(t, { files, edit: declare('the php extension checks the contract of its C engine in node') }), { execute: true, env: ENV, say: () => {} });
   assert.deepEqual(findings, []);
   const run = known(ledger.runs.find(entry => entry.unit === 'size' && entry.implementation === 'php'), 'the php run of size');
-  assert.deepEqual([run.command, ...run.args], [process.execPath, '--test', `--test-reporter=${path.join(KIT, 'parity-node-reporter.mts')}`, 'php/tests/size.test.mjs']);
+  assert.deepEqual([run.command, ...run.args], [process.execPath, '--test', `--test-reporter=${path.join(KIT, 'parity-node-reporter.mts')}`, '--test-reporter-destination=stdout', '--test-reporter=spec', '--test-reporter-destination=stderr', 'php/tests/size.test.mjs']);
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'size' && entry.implementation === 'php').map(entry => `${entry.case} ${entry.outcome}`), ['small pass']);
   const missing = await check(t, { files, edit: declare() });
   assert.deepEqual(keys(missing.findings), ['declaration size php']);

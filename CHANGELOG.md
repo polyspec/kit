@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- CI: preserve complete failed parity output and native Node assertion diagnostics through standard and machine reporters in one invocation; reject failed support modules even when they report no cases (K1032).
+
 - CI: derive rule enforcement from validated job selection, include phased binding checks and reject evidence from unselected pipeline jobs (K1031).
 
 ## 0.0.96

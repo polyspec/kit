@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e6d99e112dd1fe56ffb780c6f7ac751fabcbdcbb7f959a46cbc3391c088490cc -->
+<!-- source-sha256: da8239014bb38752eb157b9f70f7d078050a8a2979404d8fd2eba05c9a331107 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- CI: 한 호출의 표준 reporter와 machine reporter로 실패한 parity 출력 전체와 native Node assertion 상세를 보존하고, case가 없는 support 파일의 실패 종료도 거부한다(K1032).
 
 - CI: 검증된 job 선택으로 규칙 강제를 판정하고 phased binding 검사를 포함하며 선택되지 않은 pipeline job의 증거를 거부한다(K1031).
 

@@ -263,7 +263,7 @@ const RUNNERS: Record<Runner, RunnerOf> = {
   node: {
     program: () => process.execPath,
     run: (root, binding, kind) => ({
-      args: test => [...test, '--test', `--test-reporter=${NODE_REPORTER}`, binding.test],
+      args: test => [...test, '--test', `--test-reporter=${NODE_REPORTER}`, '--test-reporter-destination=stdout', '--test-reporter=spec', '--test-reporter-destination=stderr', binding.test],
       cwd: '.',
       // A case of a suite is a top-level test; a test nested in it is none. A coverage file reports a case once per database item (K231).
       caseOf: kind === 'suite' ? test => (test.name.includes(' › ') ? undefined : withoutItem(test.name)) : test => withoutItem(test.name),

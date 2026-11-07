@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: c2b501989156016db11608ef365a480e4ab745e2ea4d324f2d49a1ca15e287bf -->
+<!-- source-sha256: ed12c467f1d47f4efb07cd018a4d0118c4d632901b2d2f7d0a31b6be33734183 -->
 
 # 도구 목록
 
@@ -1110,6 +1110,8 @@ native binding과 해당 requirement 검사를 실행합니다. 두 phase를 합
 `make parity-declarations-check RULES="<rule> <rule>"`(K414)는 이름 붙은 rule(id 또는 이름)의 finding과 `config/parity.json` 자체의 finding만 보고합니다. 그래서 문서의 사실을 고정하는 행은 다른 rule에 finding이 남아 있어도 자기 rule을 검증합니다.
 `make parity-declarations-check IDS="<requirement> <requirement>"`(K414-1)는 지정한 requirement id를 나타내는 finding을 보고하며, 해당 id를 인용하는 unit의 R2 missing binding도 포함합니다. 각 R2 finding은 unit의 requirement id를 함께 가집니다. `RULES` 또는 `UNITS`와 함께 쓰면 필터가 교차 적용됩니다. `config/parity.json` 자체의 finding은 모든 필터 실행에 남습니다.
 
+Node parity는 한 native 호출에서 stdout의 machine reporter와 stderr의 Node 표준 spec reporter를 사용합니다. ledger는 assertion 상세와 test 출력을 포함해 실패한 실행의 캡처된 stdout과 stderr 전체를 기록합니다. case 판정은 native 완료 이벤트만으로 정합니다. support 파일은 case를 보고하지 않고 종료 코드 0으로 끝나야 합니다. 실패한 support 뒤에도 독립 파일과 binding을 실행합니다.
+
 | Module | 담당 |
 |---|---|
 | `parity.mts` | 명령과 rule의 순서 |
@@ -1152,7 +1154,7 @@ native binding과 해당 requirement 검사를 실행합니다. 두 phase를 합
 |---|---|---|---|
 | `go` | `go.mod`가 있는 가장 가까운 directory에서 `go test -json -count=1 -run ^<symbol>$ ./<directory>`. feature는 `-run` 없이 실행합니다 | 직계 subtest `<symbol>/<case>`의 `pass`, `fail`, `skip` event | test 또는 subtest 이름 `TestX/case` |
 | `cargo` | `<crate>/tests/<name>.rs`이면 `cargo test --manifest-path <crate>/Cargo.toml --test <name>`, 아니면 `--lib`을 사용하고, 이어서 feature의 exact native id를 `-- --exact --test-threads=1` 앞에 둡니다. match가 없는 id는 실행되지 않은 case입니다(R3) | `<symbol>::<case>` test의 출력 줄 `test <name> ... ok`, `FAILED`, `ignored`. libtest-mimic(`harness = false` test target)은 각 이름을 가장 긴 이름에 맞춰 채우므로 `...` 앞의 공백은 몇 칸이든 됩니다. 이름과 결과 사이에 test의 출력이 끼면 결과는 줄 하나에 `ok`, `FAILED`, `ignored`만 적힌 줄이며, 그 줄이 결과로 집계됩니다(K229) | libtest 경로 `module::test` |
-| `node` | `node --test --test-reporter=<scripts/kit/parity-node-reporter.mts> <test>` | reporter가 이름 붙인 최상위 test: node:test 자신의 통과, 실패, skip, todo입니다. 파일 자신의 test는 case가 아닙니다. coverage 파일은 case를 database item마다 `<case> [<database>]`로 보고하며, 그 보고는 case `<case>`의 것이고 모든 보고가 통과해야 통과합니다(K231) | test와 그것을 감싼 suite의 이름을 ` › `로 이은 것 |
+| `node` | `node --test --test-reporter=<scripts/kit/parity-node-reporter.mts> --test-reporter-destination=stdout --test-reporter=spec --test-reporter-destination=stderr <test>` | reporter가 이름 붙인 최상위 test: node:test 자신의 통과, 실패, skip, todo입니다. 파일 자신의 test는 case가 아닙니다. coverage 파일은 case를 database item마다 `<case> [<database>]`로 보고하며, 그 보고는 case `<case>`의 것이고 모든 보고가 통과해야 통과합니다(K231) | test와 그것을 감싼 suite의 이름을 ` › `로 이은 것 |
 | `vitest` | checkout root에서 `node node_modules/vitest/vitest.mjs run <args> --dir <root> --reporter=json --outputFile.json=var/parity/vitest.json <test>`. `--dir`은 test를 가진 implementation의 root이므로 discovery가 var/ 아래 링크를 따라가지 않는다 (K202) | JSON report의 최상위 test: `passed`, `failed`, `skipped` 또는 `pending`, `todo` | `ancestorTitles`와 `title`을 ` › `로 이은 것 |
 | `php` | `php <args> <package>/vendor/bin/phpunit --teamcity <configuration> <test>`를 checkout root에서 실행합니다. `<package>`는 test 위에서 `composer.json`이 있는 가장 가까운 directory이고, `<configuration>`은 `--configuration <package>/phpunit.xml`, `phpunit.xml.dist`만 있으면 `--configuration <package>/phpunit.xml.dist`, 둘 다 없으면 `--no-configuration`입니다. symbol `<class>::<method>`가 있는 suite binding은 `--filter /^<class>::<method>(?: with data set \|$)/`를 더해 그 method만 실행합니다 | symbol이 있으면 TeamCity 메시지의 data set `<method> with data set "<case>"`, 없으면 test method `test_<case>` | test method: binding이 선언한 `<Class>::<method>`(PHPUnit이 보고하는 id) 또는 bare `<method>`입니다. method의 data set은 그 보고들이며, 모두 통과해야 통과하고 하나라도 실패하면 실패합니다(K229) |
 | `python` | `var/tools/mise/shims/python3 <args> -m unittest -v <test>` | 표준 오류의 verbose 출력의 test method `test_<case>` | test method. data set 또는 database item마다 보고되며, 모든 보고가 통과해야 통과합니다(K229) |
