@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d14089a686ad7f546453dfa2086a659f8ad8509fcbf9e2fcd0cd148947c7d17a -->
+<!-- source-sha256: 562d9627f1439e7637f7c662a24354a286ef68da87d49e9c763aa1379337dfa6 -->
 
 # 도구 목록
 
@@ -474,7 +474,7 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
   남깁니다.
 Native defunct-group 관측은 POSIX source test이다. Linux source CI와 macOS bootstrap이 각 platform의 case를 실행하며 모든 bootstrap platform은 공통 native process 소유 검사를 유지한다. CI는 source file과 runner 운영체제 조건을 명시하고 필요한 platform별로 한 번 실행한다.
 
-Export된 `runCommand`는 자신이 시작한 command만 소유한다. POSIX에서 중단 시 새 command를 받지 않고 SIGTERM으로 종료를 요청하며, 소유 child의 close event와 group cleanup을 기다린 뒤 중단 상태로 종료한다. Cleanup grace는 1초이며 그 뒤에도 남은 group에만 SIGKILL을 보낸다. Output이 닫혀도 살아 있는 descendant의 grace를 줄이지 않는다. 정상 완료되어 끝난 group에는 강제 신호를 보내지 않는다. POSIX에서는 모든 member가 종료돼도 group identifier가 남을 수 있다. Cleanup은 native process state를 읽어 Z 또는 X member에는 종료 신호를 보내거나 survivor grace를 기다리지 않고 소유 child의 close event는 계속 기다린다. Orphan zombie는 실행할 수 없으며 system reaper가 회수하므로 살아 있는 survivor가 아니다. 알 수 없는 state는 cleanup 대상으로 유지하고 native POSIX snapshot에는 state field가 있어야 한다. 갑작스러운 process exit에서는 비동기 cleanup을 기다릴 수 없으므로 동기 exit hook은 여전히 소유한 group의 비상 강제 종료만 담당하고 중단 경로로 사용하지 않는다. 종료 검증은 실행 중인 descendant를 거부하며 harness는 중단 완료를 보고하기 전에 자신의 child를 회수해야 한다.
+Export된 `runCommand`는 자신이 시작한 command만 소유한다. 긴 command에는 inactivity deadline option이 없다. 출력 제한을 넘으면 같은 정상 종료 처리를 요청하고 출력 수집을 멈추며, 소유 child의 close를 기다린 뒤 출력 제한 실패를 반환한다. child가 상태 0으로 종료해도 실패로 처리한다. POSIX에서 중단 시 새 command를 받지 않고 SIGTERM으로 종료를 요청하며, 소유 child의 close event와 group cleanup을 기다린 뒤 중단 상태로 종료한다. Cleanup grace는 1초이며 그 뒤에도 남은 group에만 SIGKILL을 보낸다. Output이 닫혀도 살아 있는 descendant의 grace를 줄이지 않는다. 정상 완료되어 끝난 group에는 강제 신호를 보내지 않는다. POSIX에서는 모든 member가 종료돼도 group identifier가 남을 수 있다. Cleanup은 native process state를 읽어 Z 또는 X member에는 종료 신호를 보내거나 survivor grace를 기다리지 않고 소유 child의 close event는 계속 기다린다. Orphan zombie는 실행할 수 없으며 system reaper가 회수하므로 살아 있는 survivor가 아니다. 알 수 없는 state는 cleanup 대상으로 유지하고 native POSIX snapshot에는 state field가 있어야 한다. 갑작스러운 process exit에서는 비동기 cleanup을 기다릴 수 없으므로 동기 exit hook은 여전히 소유한 group의 비상 강제 종료만 담당하고 중단 경로로 사용하지 않는다. 종료 검증은 실행 중인 descendant를 거부하며 harness는 중단 완료를 보고하기 전에 자신의 child를 회수해야 한다.
 
 - `phpunit`은 `composer config vendor-dir`가 `<cwd>`에 주는 vendor directory(`vendor`, crudui처럼 `COMPOSER_VENDOR_DIR`, 또는
   `config.vendor-dir`; K184), 또는 그 위의 가장 가까운 Composer project(monorepo의 root 등, K186)의 `bin/phpunit`을 실행하고, extension은

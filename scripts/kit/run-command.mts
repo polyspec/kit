@@ -1,5 +1,5 @@
 // Run one command of a long operation (a build, a documentation tool, a declared test command, a
-// benchmark driver) to its end. The command has no time limit unless its caller gives a silence limit (K936): its exit ends it
+// benchmark driver) to its end. The command has no time limit: its exit ends it
 // and its status decides the result. It starts in its own process group; when it exits, the processes it leaves
 // behind in that group are stopped, so a process that keeps an output pipe open cannot hold the
 // caller. When the caller is interrupted, its running commands stop with it. The result carries
@@ -37,11 +37,6 @@ export interface RunCommandOptions {
    * ends, so a caller can print it at once, such as with a prefix of the command (K430-1); the output is collected all the same.
    */
   onLine?: ((stream: 'stdout' | 'stderr', line: string) => void) | undefined;
-  /**
-   * The longest time that both piped streams may stay silent (K936): past it the group of the command is stopped, and the result
-   * carries `stopped: 'silence'`. Both streams must be piped, so that every output is seen.
-   */
-  silenceMs?: number | undefined;
 }
 export interface RunCommandResult {
   status: number | null;
@@ -49,7 +44,7 @@ export interface RunCommandResult {
   stdout: string;
   stderr: string;
   elapsedMs: number;
-  stopped?: 'output' | 'silence' | undefined;
+  stopped?: 'output' | undefined;
   error?: Error | undefined;
 }
 
@@ -92,15 +87,13 @@ function untrack(pid: number): void {
 
 /**
  * Runs `command` to its end in its own process group. The result is the status and signal of the command, the captured
- * stdout and stderr, the elapsed time, `stopped: 'output'` when the output passed `maxOutputBytes`, `stopped: 'silence'` when the
- * command printed nothing for `silenceMs`, and `error` when the command did not start.
+ * stdout and stderr, the elapsed time, `stopped: 'output'` when the output passed `maxOutputBytes`,
+ * and `error` when the command did not start.
  */
 export function runCommand(
-  { command, args = [], cwd, env = process.env, stdout = 'inherit', stderr = 'inherit', maxOutputBytes = MAX_OUTPUT_BYTES, onLine, silenceMs }: RunCommandOptions,
+  { command, args = [], cwd, env = process.env, stdout = 'inherit', stderr = 'inherit', maxOutputBytes = MAX_OUTPUT_BYTES, onLine }: RunCommandOptions,
 ): Promise<RunCommandResult> {
   if (interrupted !== undefined) return Promise.resolve({ status: null, signal: null, stdout: '', stderr: '', elapsedMs: 0, error: new Error('command admission stopped because the harness was interrupted; start a new harness invocation to run commands') });
-  // An inherited stream is never seen, so a silence limit would stop a command that writes to it.
-  if (silenceMs !== undefined && (stdout !== 'pipe' || stderr !== 'pipe')) return Promise.reject(new Error('runCommand with a silence limit needs piped stdout and stderr'));
   const started = performance.now();
   return new Promise<RunCommandResult>(resolve => {
     const since = Date.now();
@@ -111,22 +104,9 @@ export function runCommand(
     let stopped: RunCommandResult['stopped'];
     let exit: { status: number | null, signal: NodeJS.Signals | null } | undefined;
     let cleanup: Promise<void> | undefined;
-    // The silence limit: each output re-arms it, and the exit of the command ends it.
-    let silence: NodeJS.Timeout | undefined;
-    const arm = (): void => {
-      if (silenceMs === undefined || exit !== undefined || child.pid === undefined) return;
-      clearTimeout(silence);
-      const pid = child.pid;
-      silence = setTimeout(() => {
-        if (exit !== undefined) return;
-        stopped ??= 'silence';
-        signalGroup(pid, 'SIGKILL', undefined, root);
-      }, silenceMs);
-    };
     const finish = (result: Partial<RunCommandResult>): void => {
       if (done) return;
       done = true;
-      clearTimeout(silence);
       if (child.pid !== undefined) untrack(child.pid);
       resolve({ ...output, elapsedMs: performance.now() - started, stopped, status: null, signal: null, ...result });
     };
@@ -134,19 +114,22 @@ export function runCommand(
     const group: TrackedGroup = { root, closed };
     // A command that did not start has no pid and no group to track.
     if (child.pid !== undefined) track(child.pid, group);
-    arm();
+    let cleanupError: Error | undefined;
+    const beginCleanup = (): void => {
+      if (child.pid !== undefined) cleanup ??= stopTrackedGroup(child.pid, group).catch((error: Error) => { cleanupError = error; });
+    };
     for (const name of ['stdout', 'stderr'] as const) {
       // The text of the stream after its last newline, which waits for the rest of its line.
       let pending = '';
       const stream = child[name]?.setEncoding('utf8');
       stream?.on('data', (chunk: string) => {
+        if (stopped !== undefined) return;
         bytes += Buffer.byteLength(chunk);
         if (bytes > maxOutputBytes) {
-          if (!stopped && child.pid !== undefined) signalGroup(child.pid, 'SIGKILL', undefined, root);
-          stopped ??= 'output';
+          stopped = 'output';
+          beginCleanup();
           return;
         }
-        arm();
         output[name] += chunk;
         if (onLine === undefined) return;
         const lines = `${pending}${chunk}`.split('\n');
@@ -163,14 +146,13 @@ export function runCommand(
     // closes every output pipe they hold, and the result follows the close of the output.
     child.once('exit', (status, signal) => {
       exit = { status, signal };
-      clearTimeout(silence);
-      if (child.pid !== undefined) cleanup = stopTrackedGroup(child.pid, group).catch((error: Error) => finish({ error }));
+      beginCleanup();
     });
     child.once('close', (status, signal) => {
       // A descendant may close its pipes on SIGTERM and keep running. Wait for the
       // cleanup's SIGKILL before returning or removing the group from tracking.
       void (cleanup ?? Promise.resolve()).then(
-        () => finish(exit ?? { status, signal }),
+        () => finish({ ...(exit ?? { status, signal }), ...(cleanupError === undefined ? {} : { error: cleanupError }) }),
         (error: Error) => finish({ error }),
       );
     });
@@ -180,7 +162,6 @@ export function runCommand(
 /** The failure of a finished command in one line, or undefined when it succeeded, as the callers of runCommand print it. */
 export function failureOf(result: Pick<RunCommandResult, 'status' | 'signal' | 'stopped' | 'error'>): string | undefined {
   if (result.stopped === 'output') return 'wrote more than its output limit; stopped its process group';
-  if (result.stopped === 'silence') return 'printed nothing for its silence limit; stopped its process group';
   if (result.error) return result.error.message;
   if (result.status !== 0) return result.status === null ? `ended by ${result.signal}` : `failed with status ${result.status}`;
   return undefined;

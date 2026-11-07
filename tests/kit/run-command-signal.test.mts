@@ -6,6 +6,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { signalGroup } from '../../scripts/kit/process-group.mts';
+import { failureOf, runCommand } from '../../scripts/kit/run-command.mts';
 import { tree } from './tree.mts';
 import { filePublished } from './file-events.mts';
 
@@ -68,6 +69,37 @@ for (const cooperative of [true, false]) {
     const report: unknown = JSON.parse(readFileSync(reportPath, 'utf8'));
     assert.deepEqual(report, [{ closed: true, status: cooperative ? 0 : null, signal: cooperative ? null : 'SIGKILL' }]);
     assert.equal(existsSync(laterPath), false, 'interruption admits no later command');
+    complete = true;
+  });
+}
+
+for (const cooperative of [true, false]) {
+  test(`K1043: output limit ${cooperative ? 'awaits cooperative cleanup' : 'escalates only after requesting termination'}`, { timeout: 10_000 }, async t => {
+    const root = tree(t);
+    const pidPath = path.join(root, 'pid');
+    const termPath = path.join(root, 'termination-request');
+    const body = `
+      const fs = require('node:fs');
+      const hold = fs.watch(${JSON.stringify(root)}, () => {});
+      process.on('SIGTERM', () => {
+        fs.writeFileSync(${JSON.stringify(termPath)}, 'requested');
+        ${cooperative ? 'hold.close();' : ''}
+      });
+      fs.writeFileSync(${JSON.stringify(pidPath)}, String(process.pid));
+      process.stdout.write('x'.repeat(256));
+    `;
+    let complete = false;
+    t.after(() => {
+      if (!complete && existsSync(pidPath)) signalGroup(Number(readFileSync(pidPath, 'utf8')), 'SIGKILL');
+    });
+    const result = await runCommand({ command: process.execPath, args: ['-e', body], stdout: 'pipe', stderr: 'pipe', maxOutputBytes: 128 });
+    assert.equal(existsSync(termPath), true, 'the output bound requests termination before forcing');
+    assert.equal(result.stopped, 'output');
+    assert.equal(result.status, cooperative ? 0 : null);
+    assert.equal(result.signal, cooperative ? null : 'SIGKILL');
+    assert.equal(failureOf(result), 'wrote more than its output limit; stopped its process group', 'cooperative exit still fails the output bound');
+    assert.ok(Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr) <= 128);
+    assert.throws(() => process.kill(Number(readFileSync(pidPath, 'utf8')), 0), { code: 'ESRCH' }, 'the owned child is reaped before returning');
     complete = true;
   });
 }

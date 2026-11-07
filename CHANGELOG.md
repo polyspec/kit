@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Remove the unused command inactivity deadline and await cooperative output-limit cleanup while preserving its failed outcome and bounded capture (K1043).
+
 - Validate the common native process bootstrap command, deadline and platform coverage independently of its display name (K1042).
 
 ## 0.0.97

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: d31755271aa61c1ef33b140592c62cf29ee3a4c1e0c513e8224dee6d96044f30 -->
+<!-- source-sha256: 8daf9e9003338f06145c8c815a57b921b195b599ca920e73ad7969728cc5208e -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 사용하지 않는 command inactivity deadline을 제거하고 출력 제한의 실패 결과와 제한된 수집을 보존하면서 정상 종료 정리를 기다린다(K1043).
 
 - 표시 이름과 독립적으로 공통 native process bootstrap 명령, deadline과 platform 적용을 검증한다(K1042).
 
