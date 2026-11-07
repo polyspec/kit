@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 5ac36e773b711d35ce6ecdaed8f2d1ac8e1ee645bef2d84153f14ff81bb7f5a8 -->
+<!-- source-sha256: f830c90da5f2115df1a77373aeaccb6abbd7ec7a8b809dfa8645c0dbfc8180b9 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -185,4 +185,4 @@
 | K1054 | kit은 저장소에 레시피를 include시키지 않고, kit.mk와 kit-bootstrap.mk는 예제가 된다 | `scripts/kit/kit.mk`, `scripts/kit/kit-bootstrap.mk`, `Makefile`, `docs/examples/`, `AGENTS.md(.ko)`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1054 tests/kit/kit-bootstrap.test.mts` | [ ] |
 | K1055 | PRINCIPLES는 kit이 더는 강제하지 않는 검사를 적지 않는다 | `PRINCIPLES.md(.ko)`, `CHANGELOG.md(.ko)` | `make rules-check` passes | [ ] |
 | K1056 | docs/spec/utilities-and-recipes의 삭제를 담아 kit을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [ ] |
-| K1058 | kit-sync --check는 파일을 쓰지 않는다. 설치된 kit이나 index와 다른 사본을 각각 보고한다 | `scripts/kit/kit-sync.mts`, `tests/kit/kit-sync.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1058 tests/kit/kit-sync.test.mts` passes | [ ] |
+| K1058 | kit-sync --check는 파일을 쓰지 않는다. 설치된 kit이나 index와 다른 사본을 각각 보고한다 | `scripts/kit/kit-sync.mts`, `tests/kit/kit-sync.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1058 tests/kit/kit-sync.test.mts` passes | [~] |
