@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: bea02fab49d847f6af74586602e53690a5aa9514f922bac38db5fe53d596d545 -->
+<!-- source-sha256: 634c1abbe27f250ab89908c4619769e68c753ee76b2f1608686ec3af8ef390d3 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -173,3 +173,4 @@
 | K1042 | CI 42383994330에서 발견한 오래된 bootstrap workflow 검증을 수정한다. issue 35의 후속으로 표시 이름에 의존하지 않고 공통 native process 명령과 deadline을 확인한다. | tests/kit/bootstrap-platform.test.mts; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/bootstrap-platform.test.mts tests/source/ci-workflow.test.mts` | [o] |
 | K1043 | issue 28 이후 사용하지 않는 command inactivity deadline을 제거하고 issue 31의 정상 출력 제한 종료를 완성한다. 실패 이유와 관측한 child close를 보존한다. | scripts/kit/run-command.mts; tests/kit/run-command-signal.test.mts; tests/kit/run-command.test.mts; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/run-command.test.mts tests/kit/run-command-signal.test.mts tests/kit/parity-operation.test.mts` | [o] |
 | K1044 | VS Code 다운로드 결과 수신 직후의 강제 종료를 소유 process의 정상 정리 요청과 관측한 child close로 바꾼다. issue 31의 후속이다. | scripts/kit/install-vscode.mts; tests/source/install-vscode-posix.test.mts; Makefile; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/source/install-vscode-posix.test.mts tests/source/ci-workflow.test.mts` | [o] |
+| K1045 | Kit은 npm allow-remote를 강제하지 않고, 각 저장소가 자기 .npmrc에 적는다 | `scripts/kit/kit-bootstrap.mk`, `actions/kit-bootstrap/action.yml`, `scripts/kit/worktree-setup.mts`, `scripts/kit/kit-check.mts`, `.npmrc`, tests, docs, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1045 tests/kit/kit-bootstrap.test.mts` | [ ] |
