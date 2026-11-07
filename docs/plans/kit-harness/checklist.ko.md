@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: d217a410827dcf278088791333939489450a63e597138697e16c8321657464a5 -->
+<!-- source-sha256: 26359bac7b7f78b9650fe194c218789c0ef42bb68d59b93aed771a8a6deac354 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -174,5 +174,5 @@
 | K1043 | issue 28 이후 사용하지 않는 command inactivity deadline을 제거하고 issue 31의 정상 출력 제한 종료를 완성한다. 실패 이유와 관측한 child close를 보존한다. | scripts/kit/run-command.mts; tests/kit/run-command-signal.test.mts; tests/kit/run-command.test.mts; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/run-command.test.mts tests/kit/run-command-signal.test.mts tests/kit/parity-operation.test.mts` | [o] |
 | K1044 | VS Code 다운로드 결과 수신 직후의 강제 종료를 소유 process의 정상 정리 요청과 관측한 child close로 바꾼다. issue 31의 후속이다. | scripts/kit/install-vscode.mts; tests/source/install-vscode-posix.test.mts; Makefile; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/source/install-vscode-posix.test.mts tests/source/ci-workflow.test.mts` | [o] |
 | K1045 | Kit은 npm allow-remote를 강제하지 않고, 각 저장소가 자기 .npmrc에 적는다 | `scripts/kit/kit-bootstrap.mk`, `actions/kit-bootstrap/action.yml`, `scripts/kit/worktree-setup.mts`, `scripts/kit/kit-check.mts`, `.npmrc`, tests, docs, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1045 tests/kit/kit-bootstrap.test.mts` | [ ] |
-| K1046 | 스펙: kit은 유틸리티를, 각 저장소는 자기 레시피를 갖는다 | `docs/spec/utilities-and-recipes.md(.ko)`, `PRINCIPLES.md(.ko)`, `docs/operations/tool-inventory.md(.ko)`, `docs/operations/adoption.md(.ko)`, `CHANGELOG.md(.ko)` | `make docs-check` passes | [~] |
-| K1047 | 레시피 검사: 저장소의 레시피를 계약과 공통 규칙에 대어 검사하는 유틸리티 | `scripts/kit/recipe-check.mts`, `tests/kit/recipe-check.test.mts`, `scripts/kit/kit.mk`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1047 tests/kit/recipe-check.test.mts` | [ ] |
+| K1046 | 스펙: kit은 유틸리티와 예제를 제공하고, 저장소에 레시피를 강제하지 않는다 | `docs/spec/utilities-and-recipes.md(.ko)`, `CHANGELOG.md(.ko)` | `make docs-check` passes | [o] |
+| K1047 | 레시피 검사: 저장소의 레시피를 계약과 공통 규칙에 대어 검사하는 유틸리티 | `scripts/kit/recipe-check.mts`, `tests/kit/recipe-check.test.mts`, `scripts/kit/kit.mk`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1047 tests/kit/recipe-check.test.mts` | [-] 원인: 저장소 레시피의 검사는 kit이 저장소 위에 정하는 규칙이 되므로, docs/spec/utilities-and-recipes는 대신 예제를 제공한다(K1046). |

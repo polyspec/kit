@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 00476dada73f75182b18502c5b1a2fe3cea75cff119f42e59ee47dc34d64e805 -->
+<!-- source-sha256: 97eb5f6f61954517460a2027edf43c1588f31d5c28c747eeddb03069e93fda4a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1046: docs/spec/utilities-and-recipes는 kit이 유틸리티와 레시피·네이티브 설정의 예제를 제공하고, 저장소에 레시피를 include시키지 않고, 다른 도구의 설정을 정하지 않고, 어떤 결과도 필수로 요구하지 않고, 저장소의 레시피를 검사하지 않는다고 적는다. kit이 지금 강제하는 것을 나열하며, kit은 자기 행들로 그것을 지운다(K1046).
 - VS Code 다운로드 결과를 보존하면서 helper 종료를 요청하고 소유 정리를 기다린 뒤 반환하며 Linux native source 증거를 명시한다(K1044).
 
 - 사용하지 않는 command inactivity deadline을 제거하고 출력 제한의 실패 결과와 제한된 수집을 보존하면서 정상 종료 정리를 기다린다(K1043).

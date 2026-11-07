@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1046: docs/spec/utilities-and-recipes states that kit provides utilities and examples of recipes and native settings, and that kit includes no recipe, sets no setting of another tool, requires no result and checks no recipe of a repository; it lists what kit forces today, which kit removes by its own rows (K1046).
 - Preserve VS Code download results while requesting helper termination and awaiting owned cleanup before returning, with explicit Linux native source evidence (K1044).
 
 - Remove the unused command inactivity deadline and await cooperative output-limit cleanup while preserving its failed outcome and bounded capture (K1043).
