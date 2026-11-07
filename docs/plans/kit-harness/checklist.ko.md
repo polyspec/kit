@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 52cfd6683a4d2ef14631dada4d5f92e81cb1fb77d250de26c6b5610769bef271 -->
+<!-- source-sha256: f500f712d6a5511273f480a39728cd027fed03b9649cfbfde401e1b1474093ff -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -168,4 +168,4 @@
 | K1037 | 정확한 후보 CI 통과 후 수정된 parity 실행과 command 수명주기를 배포하고 ORM 반영 전에 공개 archive를 검증하며 issue 26부터 31까지 갱신한다. | package.json; package-lock.json; CHANGELOG.md; CHANGELOG.ko.md | `gh api repos/polyspec/kit/releases/tags/v0.0.97 --jq 'if .draft == false and .tag_name == "v0.0.97" and any(.assets[]; .name == "polyspec-kit-0.0.97.tgz" and .state == "uploaded") then .html_url else error("expected public Kit archive") end'` | [~] |
 | K1038 | 새 native parity 및 중단 시험을 CI shard에 정확히 한 번씩 등록하고 누락을 거부하는 inventory 검사를 유지한다. CI42379039761 실패를 고치고 issue32로 추적한다. | Makefile; tests/source/ci-workflow.test.mts; AGENTS.md; AGENTS.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/source/ci-workflow.test.mts tests/kit/parity-diagnostics.test.mts tests/kit/parity-operation.test.mts tests/kit/parity-output.test.mts tests/kit/run-command-signal.test.mts` | [o] |
 | K1039 | Native 종료 상태를 관측하여 K682 orphan cleanup 실패 두 개를 고치고 살아 있는 process의 grace와 기존 case deadline을 보존한다. issue33으로 추적한다. | scripts/kit/process-group.mts; tests/kit/process-group.test.mts; tests/kit/test-build-first.test.mts; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; AGENTS.md; AGENTS.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/process-group.test.mts tests/kit/run-command.test.mts tests/kit/run-command-signal.test.mts tests/kit/parity-operation.test.mts tests/kit/test-build-first.test.mts` | [o] |
-| K1040 | 유효한 native Go fixture의 정상 실행을 확인한 뒤 의도한 compiler 실패 근거를 보존한다. issue 34로 추적한다. | tests/source/parity-go.test.mts; AGENTS.md; AGENTS.ko.md; CHANGELOG.md; CHANGELOG.ko.md | CI only: `node --test tests/source/parity-go.test.mts`; record the exact successful source Go CI job before closing. | [ ] |
+| K1040 | 유효한 native Go fixture의 정상 실행을 확인한 뒤 의도한 compiler 실패 근거를 보존한다. issue 34로 추적한다. | tests/source/parity-go.test.mts; AGENTS.md; AGENTS.ko.md; CHANGELOG.md; CHANGELOG.ko.md | CI only: `node --test tests/source/parity-go.test.mts`; record the exact successful source Go CI job before closing. | [~] |

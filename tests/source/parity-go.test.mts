@@ -8,6 +8,16 @@ import test, { after, before } from 'node:test';
 import { reportTestOperation } from '../../scripts/kit/test-gap.mts';
 import { ENV, checkParity, repository } from '../kit/parity-support.mts';
 
+const nativeSuite = (symbol: string, cases: string[]) => `package codec
+import "testing"
+func ${symbol}(t *testing.T) {
+  for _, name := range []string{${cases.map(name => JSON.stringify(name)).join(', ')}} {
+    t.Run(name, func(t *testing.T) {})
+  }
+}
+`;
+
+let baseline: Awaited<ReturnType<typeof checkParity>> | undefined;
 let observed: Awaited<ReturnType<typeof checkParity>> | undefined;
 before(async () => {
   const id = 'parity/native-go-build';
@@ -23,14 +33,34 @@ before(async () => {
     assert.notEqual(realGo, '', 'Go is missing; run make install-tools TOOLS=go before source-test');
     writeFileSync(path.join(dir, 'go'), `#!/bin/sh\nexec "${realGo}" "$@"\n`);
     chmodSync(path.join(dir, 'go'), 0o755);
-    observed = await checkParity(repository({ after }, { files: { 'go/codec_test.go': 'package codec\n\nfunc broken( {\n' } }), {
+    const root = repository({ after }, { files: {
+      'go/codec_test.go': nativeSuite('TestCodec', ['empty', 'ascii']),
+      'go/width_test.go': nativeSuite('TestWidth', ['narrow', 'wide']),
+      'go/size_test.go': nativeSuite('TestSize', ['small']),
+    } });
+    const execute = () => checkParity(root, {
       execute: true, env: { ...ENV, PATH: `${dir}${path.delimiter}${ENV.PATH}` }, units: ['codec'], implementations: ['go'],
       say: line => console.log(`[native-go] ${line}`),
     });
+    console.log('[native-go] valid package: started');
+    baseline = await execute();
+    console.log('[native-go] valid package: completed');
+    writeFileSync(path.join(root, 'go/codec_test.go'), 'package codec\n\n// CX-1\nfunc broken( {\n');
+    console.log('[native-go] malformed codec: started');
+    observed = await execute();
+    console.log('[native-go] malformed codec: completed');
   } finally {
     console.log('[native-go] compiler invocation: completed');
     reportTestOperation({ kind: 'operation-end', id });
   }
+});
+
+test('a valid native Go package reports the exact selected cases', () => {
+  assert.ok(baseline);
+  assert.deepEqual(baseline.findings, []);
+  assert.deepEqual(baseline.ledger.cases.map(entry => [entry.case, entry.outcome]), [['empty', 'pass'], ['ascii', 'pass']]);
+  assert.equal(baseline.ledger.runs.length, 1);
+  assert.equal(baseline.ledger.runs[0]?.status, 0);
 });
 
 test('a failed native Go build preserves its exit and reports no executed case', () => {

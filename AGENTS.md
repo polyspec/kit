@@ -88,6 +88,9 @@ and states only its own rules. The rules below are kit's own.
 - Refines P15: A function or constant that two tools need lives in one module of `scripts/kit/` that both import.
   `make duplication-check` (jscpd) fails when a piece of 6 lines or more exists twice.
   Enforced by: `make duplication-check`
+- Own: Native compiler compatibility tests use valid source for the complete package input. A successful native baseline precedes the intended source mutation; its failure must retain the expected diagnostic and no executed cases. Stub directives are never native compiler input.
+  Enforced by: `tests/source/parity-go.test.mts`
+
 - Refines P19: Tests are in `tests/kit/`, run with stub commands and the fixture `tests/kit/fixture`, and each test fails
   when its
   behavior breaks. A defect is handled by a failing test that reproduces it, the fix, and keeping the test.

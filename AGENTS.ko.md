@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 24130b6929b61ccf9c0a45204b86b03a8cd802b01a424e48bb7311864ef96cda -->
+<!-- source-sha256: 771c7fe0b797c586da20a0ff9279e35fb83a7e3d775f32ed79624d70c21ec73e -->
 # 개발
 
 [English](AGENTS.md)
@@ -80,6 +80,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Refines P15: 두 도구가 필요로 하는 함수나 상수는 둘 다 import하는 `scripts/kit/`의 module 하나에 둡니다. `make duplication-check`(jscpd)는 6줄 이상의
   같은 부분이 두 번 있으면 실패합니다.
   Enforced by: `make duplication-check`
+- Own: Native compiler 호환성 test는 package 입력 전체에 유효한 source를 사용한다. 정상 native baseline 뒤에 의도한 source 변경을 수행하고 그 실패는 예상 진단과 실행되지 않은 case를 보존해야 한다. Stub 지시문을 native compiler 입력으로 사용하지 않는다.
+  Enforced by: `tests/source/parity-go.test.mts`
+
 - Refines P19: 테스트는 `tests/kit/`에 있고, stub 명령과 fixture `tests/kit/fixture`로 실행하며, 각 테스트는 동작이 깨지면 실패합니다. 결함은
   재현하는 실패 테스트를 먼저 추가하고, 고치고, 테스트를 유지합니다.
   stub은 stub이나 mise shim이 제공하는 명령(go, composer, npm, node, php, python, uv, mise)을 실행하지 않습니다. checkout 밖의

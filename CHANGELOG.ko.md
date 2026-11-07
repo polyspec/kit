@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c6c9f097787eee078a4023b6dc3c6c033252b0960aaeafbff926ac4b5a43e2cc -->
+<!-- source-sha256: 7977689327c4ff2b47581061cd926b12d8ad79a6fe583b3f63633ec0331f97d3 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.97
+
+- CI: native Go 호환성 검사에서 의도한 compiler 실패 전에 유효한 package baseline을 확인하고 정확한 case와 진단 검증을 유지한다(K1040).
 
 - CI: cleanup 시 종료된 POSIX group member와 살아 있는 survivor를 구분하고 소유 child의 종료를 회수하며 survivor grace와 기존 orphan case deadline을 유지한다(K1039).
 
