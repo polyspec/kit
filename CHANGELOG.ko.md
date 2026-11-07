@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 09931882b91916ad1740d488edfe7704c2656af0faab08a89f2c4dde1b110946 -->
+<!-- source-sha256: 1e18f3e3595be8c42e33bdc034304d209db5249623599a61467fc2fdae0b867d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.97
+
+- Release: 검증한 parity 실행과 정상 command 종료 처리의 후보를 소비 repository 반영용으로 준비한다(K1037).
 
 - CI: 중단 시 command의 정상 종료를 요청하고 소유 child의 종료를 회수하며 후속 command를 막고 cleanup grace 뒤에만 SIGKILL로 강제 종료한다(K1036).
 

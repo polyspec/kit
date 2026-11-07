@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.97
+
+- Release: prepare the verified parity execution and graceful command-lifecycle candidate for consumer adoption (K1037).
+
 - CI: request graceful command termination on interruption, await owned child closure, block later commands and reserve SIGKILL for cleanup-grace escalation (K1036).
 
 - CI: invoke each native parity binding once without a redundant Go/Cargo prebuild; retain native compiler failures, diagnostics and exact case outcomes (K1035).
