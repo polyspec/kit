@@ -9,9 +9,7 @@ for (const kind of ['suite', 'feature'] as const) {
   test(`K1032: ${kind} preserves failed assertion diagnostics and later native cases`, async t => {
     const failed = "console.log('FIXTURE_STDOUT'); console.error('FIXTURE_STDERR'); assert.deepEqual({ actualMarker: 17 }, { expectedMarker: 23 }, 'NATIVE_ASSERTION');";
     const source = kind === 'suite'
-      ? `import assert from 'node:assert/strict'; import test from 'node:test';
-import { readFileSync } from 'node:fs';
-import path from 'node:path'; test('empty', () => { ${failed} }); test('ascii', () => { console.log('LATER_CASE_EXECUTED'); });\n`
+      ? `import assert from 'node:assert/strict'; import test from 'node:test'; test('empty', () => { ${failed} }); test('ascii', () => { console.log('LATER_CASE_EXECUTED'); });\n`
       : `import assert from 'node:assert/strict'; import { describe, test } from 'node:test'; describe('roundtrip', () => { test('bytes', () => { ${failed} }); test('text', () => { console.log('LATER_CASE_EXECUTED'); }); });\n`;
     const change = kind === 'suite' ? { files: { 'ts/tests/codec.mjs': source } } : feature({ 'ts/tests/roundtrip.test.mjs': source }, unit => {
       assert.ok(unit.bindings);

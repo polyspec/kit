@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: a1940687fa55b7394002063d9a240fc361e1afb48f5ad697e69ddac0ea0b4bc6 -->
+<!-- source-sha256: 0f119b1c4f05f6003908e343e38197770e5d8643fb0a96db32cc1fdc387be8d6 -->
 
 # 도구 목록
 
@@ -1111,7 +1111,7 @@ native binding과 해당 requirement 검사를 실행합니다. 두 phase를 합
 `make parity-declarations-check RULES="<rule> <rule>"`(K414)는 이름 붙은 rule(id 또는 이름)의 finding과 `config/parity.json` 자체의 finding만 보고합니다. 그래서 문서의 사실을 고정하는 행은 다른 rule에 finding이 남아 있어도 자기 rule을 검증합니다.
 `make parity-declarations-check IDS="<requirement> <requirement>"`(K414-1)는 지정한 requirement id를 나타내는 finding을 보고하며, 해당 id를 인용하는 unit의 R2 missing binding도 포함합니다. 각 R2 finding은 unit의 requirement id를 함께 가집니다. `RULES` 또는 `UNITS`와 함께 쓰면 필터가 교차 적용됩니다. `config/parity.json` 자체의 finding은 모든 필터 실행에 남습니다.
 
-Node parity는 한 native 호출에서 stdout의 machine reporter와 stderr의 Node 표준 spec reporter를 사용합니다. ledger는 assertion 상세와 test 출력을 포함해 실패한 실행의 캡처된 stdout과 stderr 전체를 기록합니다. case 판정은 native 완료 이벤트만으로 정합니다. support 파일은 case를 보고하지 않고 종료 코드 0으로 끝나야 합니다. 실패한 support 뒤에도 독립 파일과 binding을 실행합니다.
+Node parity는 한 native 호출에서 stdout의 machine reporter와 stderr의 Node 표준 spec reporter를 사용합니다. ledger는 실행 중 assertion 상세와 test 출력을 포함한 stdout과 stderr를 한 번씩 전달하고, 판정 파싱에는 원본 캡처를 사용합니다. case 판정은 native 완료 이벤트만으로 정합니다. support 파일은 case를 보고하지 않고 종료 코드 0으로 끝나야 합니다. 실패한 support 뒤에도 독립 파일과 binding을 실행합니다.
 
 | Module | 담당 |
 |---|---|

@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c2d2a2ba509daa6ffbe8a5c0969138917f292a0800be8b271907765f7887480c -->
+<!-- source-sha256: c185b5f993b2ffde8adb68da8dc2395c68f270c139101754b79faf6478133c1a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- CI: 명령 실행 중 native parity 출력을 전달하고 원본 판정 입력을 보존하며 완료 로그 중복을 없앤다(K1034).
 
 - CI: parity 처리 전체의 무출력 제한을 제거하고 native case deadline과 중단 정리를 유지하며 실제 Go build 호환성 검사를 source 검사에 둔다(K1033).
 

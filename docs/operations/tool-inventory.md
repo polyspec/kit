@@ -1202,7 +1202,7 @@ The checker trusts three inputs that it does not produce itself. Other checks cl
   error of unittest, or an echoed `##teamcity[` message of PHPUnit. For those three the checker trusts the tool to print only
   its own results, and review enforces it; no check of the output closes it.
 
-Node parity uses its machine reporter on stdout and Node's standard spec reporter on stderr in one native invocation. The ledger logs the complete captured stdout and stderr of a failed run, including assertion diagnostics and test output; native completion events alone determine case outcomes. Support files must exit zero and report no case; independent files and bindings still run after failed support.
+Node parity uses its machine reporter on stdout and Node's standard spec reporter on stderr in one native invocation. The ledger streams stdout and stderr once during execution, including assertion diagnostics and test output, and parses the original captures; native completion events alone determine case outcomes. Support files must exit zero and report no case; independent files and bindings still run after failed support.
 
 Make targets: `parity-check` runs the bindings and the symbol extractors and checks every rule. `parity-declarations-check`
 checks every rule except R1, R3 and R11 and runs nothing. Both are offline, print a line for each step and each finding, and exit with 1 when a finding exists.
