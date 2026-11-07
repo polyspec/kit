@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: d089574bff9b1c0ca012fb9e02ecb02f3549bec518aadbe904a2f9d91a4d2e49 -->
+<!-- source-sha256: 0990c0caf1761765d08a5b484ae4d73e5dcdf6d71dd93c549741e0dbeacf9c9d -->
 
 # 도구 목록
 
@@ -786,7 +786,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   }
   ```
 
-  runtime setup target은 해당 runtime job과 parity job에서 실행됩니다. parity는 추적된 모든 runtime을 실행하기 때문입니다.
+  Runtime setup target은 해당 runtime job과 전체 또는 API parity job에서 실행됩니다. Binding phase는 아래의 별도 명시적 setup을 사용합니다.
   비어 있지 않은 runtime 목록은 Kit 기본값을 대체하므로, 해당 runtime이 필요한 setup과 추적된 native package lock을
   모두 포함해야 합니다. 목록이 비어 있으면 저장소 자신의 `deps-<runtime>` target(ts는 `deps-node`, `deps-go`, `deps-rust`,
   php와 php-ext는 `deps-php`, `deps-python`)을 실행합니다. 이는 package manager의 lock 설치를 얇게 부르는 target이며, 없으면
@@ -804,6 +804,14 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   파이프라인의 모든 job을 needs로 하고, plan이 선택한 job이 성공하지 않으면(skip된 경우 포함, K950) 실패합니다. plan이 고르지 않은 job은 skip되며 결과가 아닙니다.
   kit-ci-verify-gates는 없습니다.
   선택 항목인 `targets` map은 각 job에서 저장소 자신의 check target을 이름합니다. `shared`는 shared job에서 `kit-gates-static` 뒤에,
+  Phases 모드의 config/ci.json은 `parityBindings`에서 config/parity.json의 모든 implementation 이름을
+  `{ "setup": ["existing-target"], "tools": ["tool-selector"] }`에 대응시킵니다. Key 집합은 정확히 일치해야 하며
+  누락되거나 추가된 항목은 계획이 거절합니다. 빈 배열은 setup이나 tool을 요구하지 않는다는 명시적 선언입니다.
+  각 binding matrix job은 해당 항목의 tool만 설치하고
+  `make kit-ci-setup GROUP=parity-binding IMPLEMENTATION=<name>`으로 해당 setup만 실행합니다.
+  Symbol extractor를 암묵적으로 설치하거나 runtime·API setup을 상속하지 않습니다. Repository는 context target의
+  prerequisite를 포함해 binding에 필요한 준비를 모두 나열합니다. API와 전체 parity는 완전한 준비를 유지합니다.
+  이는 repository 선언의 실행이며 build artifact나 cache 관리가 아닙니다.
   `parity`는 parity job(`parityMode` full)에서 `kit-gates-parity` 뒤에, 또는 parity-api job(`phases`)에서 `parity-api-check` 뒤에(bindings job은
   `targets.parity`를 실행하지 않습니다), `runtimes.<runtime>`은 그 runtime job에서
   `kit-gates-runtime-<runtime>` 뒤에 실행됩니다. `targets.runtimes`에 이름이 있는 runtime은 tracked 파일이 고르지 않아도 job을 가집니다.

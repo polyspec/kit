@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 1d2ba60f0bb2c24e59c84c522c2bdd43eed1adcd0613cd6e83f92c90207b730e -->
+<!-- source-sha256: 05c97694a607b6c1863d9f241198769abfc75a91b9e19e1110bd2fdb2e0ca913 -->
 # 개발
 
 [English](AGENTS.md)
@@ -12,6 +12,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 같은 원칙을 가집니다; 각 저장소의 AGENTS.md는 그것으로 link하고 자기만의 규칙만 적습니다. 아래 규칙은 kit 자신의 것입니다.
 
 ## 규칙
+
+- Own: Phase로 나눈 각 parity binding job은 repository가 config/ci.json의 parityBindings에 명시한 tool과 setup target을 실행합니다. Implementation 집합은 config/parity.json과 정확히 일치해야 합니다. 빈 배열은 setup이 없다는 뜻이며 kit은 binding에 runtime이나 extractor 설치를 추론하여 추가하지 않습니다. Build unit·fixture·artifact는 repository의 책임입니다.
+  Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`
 
 - Own: Kit 변경 요청은 GitHub issue에서 추적합니다. 각 issue에 구현 진행 상황, 검증 근거와 release 상태를 기록하고,
   명시된 acceptance 조건을 충족한 뒤에만 닫습니다.

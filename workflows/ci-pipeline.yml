@@ -157,7 +157,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962
-        if: ${{ contains(needs.shared.outputs.parity_tools, 'php') }}
+        if: ${{ contains(matrix.installTools, 'php') }}
         with:
           php-version-file: .php-version
           tools: none
@@ -165,13 +165,10 @@ jobs:
       # The bootstrap of kit (K992): the Node.js of mise.toml, the locked kit package, the npm of var/tools and the packages.
       - uses: ./.github/actions/kit-bootstrap
       - name: install parity toolchains
-        if: ${{ needs.shared.outputs.parity_tools != '[]' }}
-        run: make install-tools TOOLS="${{ join(fromJSON(needs.shared.outputs.parity_tools), ' ') }}"
-      - name: install symbol extractors
-        if: ${{ needs.shared.outputs.extractors != '[]' }}
-        run: make kit-install-symbols EXTRACTORS="${{ join(fromJSON(needs.shared.outputs.extractors), ' ') }}"
+        if: ${{ join(matrix.installTools, ' ') != '' }}
+        run: make install-tools TOOLS="${{ join(matrix.installTools, ' ') }}"
       - name: install parity prerequisites
-        run: make kit-ci-setup GROUP=parity
+        run: make kit-ci-setup GROUP=parity-binding IMPLEMENTATION=${{ matrix.implementation }}
       - id: context_prepare
         name: prepare parity CI context
         run: make kit-ci-context-prepare GROUP=parity

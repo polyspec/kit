@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1026: parity binding jobs install only repository-declared tools and setup targets, require an exact implementation map and inherit no unrelated runtime setup or symbol extractors.
+
 ## 0.0.95
 
 - Kit 0.0.95 holds no rule of forks: each fork states how it is kept in its own FORK.md, and each root requires the release that it installs in its own manifest and lock (K1022, K1024) (K1023).

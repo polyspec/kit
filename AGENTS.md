@@ -14,6 +14,9 @@ and states only its own rules. The rules below are kit's own.
 
 ## Rules
 
+- Own: Each phased parity binding job executes the tools and setup targets that its repository explicitly declares in config/ci.json parityBindings. The implementation set must match config/parity.json exactly. Empty arrays mean no setup; kit infers no runtime or extractor installation for a binding. Build units, fixtures and artifacts remain the repository's responsibility.
+  Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`
+
 - Own: Incoming Kit change requests are tracked in GitHub issues. Keep each issue updated with implementation progress,
   verification evidence and release status, and close it only after its stated acceptance conditions are met.
   Enforced by: none, issue updates require the judgement of the agent

@@ -11,6 +11,17 @@
     "runner": { "description": "The supported GitHub-hosted runner of the parity and runtime jobs of the CI pipeline. The default is Ubuntu 24.04 x64; repositories may select Ubuntu 26.04 ARM when their native database tooling requires it. The shared job, which writes the plan that names the runner, runs on Ubuntu 24.04 x64 (K910).", "type": "string", "enum": ["ubuntu-24.04", "ubuntu-26.04-arm"] },
     "runtimes": { "description": "The runtimes that the repository declares (K955). A repository whose tasks find no target fails unless this is an empty list, which declares that it has no runtime, such as kit; a repository with runtimes whose packages are missing fails too.", "type": "array", "uniqueItems": true, "items": { "type": "string", "enum": ["go", "js", "php", "php-ext", "python", "rust", "ts"] } },
     "parityMode": { "description": "The parity path of the CI pipeline. `full` (default) runs complete parity-check; `phases` runs the global API phase and one binding phase for every implementation in config/parity.json; `none` runs no parity job and is the declaration of a repository without config/parity.json (K951).", "type": "string", "enum": ["full", "phases", "none"] },
+    "parityBindings": {
+      "description": "Phased binding job declarations, keyed by the exact implementation names of config/parity.json. Every implementation requires explicit setup and tools arrays; empty arrays mean no work, with no inferred runtime or extractor setup.",
+      "type": "object",
+      "propertyNames": { "pattern": "^[a-z][a-z0-9-]*$" },
+      "additionalProperties": {
+        "type": "object",
+        "required": ["setup", "tools"],
+        "additionalProperties": false,
+        "properties": { "setup": { "$ref": "#/$defs/targets" }, "tools": { "$ref": "#/$defs/tools" } }
+      }
+    },
     "setup": {
       "type": "object",
       "required": ["shared", "parity", "runtimes"],

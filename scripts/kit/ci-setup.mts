@@ -20,10 +20,13 @@ export const CI_CONFIG = 'config/ci.json';
 export const RUNTIMES = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
 type Runtime = (typeof RUNTIMES)[number];
 type CIJob = 'shared' | 'parity' | Runtime;
+type SetupGroup = 'shared' | 'parity' | 'runtime' | 'parity-binding';
+type BindingSetup = { setup: string[]; tools: string[] };
 type ParityMode = 'full' | 'phases' | 'none';
 type Runner = 'ubuntu-24.04' | 'ubuntu-26.04-arm';
 type CIConfig = {
   parityMode?: ParityMode;
+  parityBindings?: Record<string, BindingSetup>;
   runner?: Runner;
   setup: { shared: string[]; parity: string[]; runtimes: Record<Runtime, string[]> };
   tools?: Partial<Record<CIJob, string[]>>;
@@ -35,7 +38,7 @@ export type CIPlan = {
   runner: Runner;
   parityMode: ParityMode;
   parityImplementations: string[];
-  parityMatrix: { implementation: string }[];
+  parityMatrix: { implementation: string; installTools: string[] }[];
   runtimes: RuntimeJob[];
   commonTools: string[];
   parityTools: string[];
@@ -108,6 +111,7 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
   const setupEntries = [
     ['setup.shared', config.setup.shared], ['setup.parity', config.setup.parity],
     ...RUNTIMES.map(runtime => [`setup.runtimes.${runtime}`, config.setup.runtimes[runtime]] as [string, string[]]),
+    ...Object.entries(config.parityBindings ?? {}).map(([implementation, binding]) => [`parityBindings.${implementation}.setup`, binding.setup] as [string, string[]]),
   ] as [string, string[]][];
   for (const [where, targets] of setupEntries) {
     for (const target of targets) {
@@ -135,6 +139,13 @@ function readAndValidate(root: string): { config: CIConfig; runtimes: Runtime[];
     const parity = readConfig<{ implementations: { name: string }[] }>(root, 'config/parity.json', 'parity.schema.json');
     implementationNames = parity.implementations.map(({ name }) => name);
     parityBindingMatrix(implementationNames);
+  }
+  if (parityMode === 'phases') {
+    const names = Object.keys(config.parityBindings ?? {});
+    const missing = implementationNames.filter(name => !names.includes(name));
+    const unknown = names.filter(name => !implementationNames.includes(name));
+    if (missing.length || unknown.length)
+      throw new Error(`${CI_CONFIG}: parityBindings has missing implementations ${missing.join(', ') || '(none)'} and unknown implementations ${unknown.join(', ') || '(none)'}; declare exactly the implementations of config/parity.json with explicit setup and tools arrays`);
   }
   return { config, runtimes, files, folders, db, parityMode, parityImplementations: implementationNames };
 }
@@ -183,7 +194,7 @@ function plan(root: string): CIPlan {
     runner: config.runner ?? 'ubuntu-24.04',
     parityMode,
     parityImplementations,
-    parityMatrix: parityImplementations.length ? parityBindingMatrix(parityImplementations) : [],
+    parityMatrix: parityMode === 'phases' ? parityBindingMatrix(parityImplementations).map(({ implementation }) => ({ implementation, installTools: config.parityBindings![implementation]!.tools })) : [],
     runtimes: runtimeJobs.length ? runtimeJobs : [{ runtime: 'none', installTools: [], targets: [] }],
     commonTools: sharedTools,
     parityTools: [...parityTools].sort(),
@@ -200,6 +211,7 @@ export function ciConfigTargets(root: string): string[] {
   const config = readConfig<CIConfig>(root, CI_CONFIG, 'ci.schema.json');
   return [...new Set([
     ...config.setup.shared, ...config.setup.parity, ...Object.values(config.setup.runtimes).flat(),
+    ...Object.values(config.parityBindings ?? {}).flatMap(binding => binding.setup),
     ...Object.values(config.contexts ?? {}).flatMap(({ prepare, cleanup }) => [prepare, cleanup]),
     ...(config.targets?.shared ?? []), ...(config.targets?.parity ?? []), ...Object.values(config.targets?.runtimes ?? {}).flat(),
   ])];
@@ -212,12 +224,20 @@ function runtimeSetup(runtime: Runtime, config: CIConfig, files: readonly string
   return setup;
 }
 
-function invocations(root: string, group: 'shared' | 'parity' | 'runtime', runtime?: Runtime): { target: string; args: string[] }[] {
-  const { config, runtimes, files, db } = readAndValidate(root);
+function invocations(root: string, group: SetupGroup, selector?: string): { target: string; args: string[] }[] {
+  const { config, runtimes, files, db, parityMode, parityImplementations } = readAndValidate(root);
+  if (group === 'parity-binding') {
+    if (selector === undefined) throw new Error('make kit-ci-setup GROUP=parity-binding needs IMPLEMENTATION; choose an implementation of config/parity.json');
+    if (parityMode !== 'phases') throw new Error(`${CI_CONFIG}: parity-binding setup requires parityMode phases; select that mode before running its binding jobs`);
+    if (!parityImplementations.includes(selector)) throw new Error(`unknown binding implementation ${selector}; choose ${parityImplementations.join(', ')}`);
+    return config.parityBindings![selector]!.setup.map(target => ({ target, args: [] }));
+  }
+  const runtime = selector;
+  if (group !== 'runtime' && runtime !== undefined) throw new Error(`make kit-ci-setup GROUP=${group} does not accept a selector; omit RUNTIME and IMPLEMENTATION`);
   const php = symbolExtractors(toolchainNames(root).declared).includes('php');
   if (group === 'shared') return [...(php ? [PHP_EXTRACTOR] : []), ...config.setup.shared.map(target => ({ target, args: [] }))];
   if (group === 'runtime') {
-    if (runtime === undefined || !runtimes.includes(runtime)) throw new Error(`make kit-ci-setup GROUP=runtime needs a runtime of the plan (the tracked source files and targets.runtimes); choose ${runtimes.join(', ') || '(none)'}`);
+    if (runtime === undefined || !isRuntime(runtime) || !runtimes.includes(runtime)) throw new Error(`make kit-ci-setup GROUP=runtime needs a runtime of the plan (the tracked source files and targets.runtimes); choose ${runtimes.join(', ') || '(none)'}`);
     return [...runtimeSetup(runtime, config, files, db.targets), ...(php && runtime === 'php' ? [PHP_EXTRACTOR] : [])];
   }
   // The parity job builds every implementation, so it runs the setup of every runtime, each target once.
@@ -225,7 +245,7 @@ function invocations(root: string, group: 'shared' | 'parity' | 'runtime', runti
   return [...new Map(targets.map(invocation => [invocation.target, invocation])).values()];
 }
 
-export function ciSetupInvocations(root: string, group: 'shared' | 'parity' | 'runtime', runtime?: Runtime) {
+export function ciSetupInvocations(root: string, group: SetupGroup, runtime?: string) {
   return invocations(root, group, runtime);
 }
 
@@ -251,8 +271,8 @@ function writePlan(root: string): void {
   for (const [key, value] of Object.entries(outputs)) appendFileSync(output, `${key}=${typeof value === 'string' ? value : JSON.stringify(value)}\n`);
 }
 
-export function runCISetup(root: string, group: 'shared' | 'parity' | 'runtime', runtimeName?: Runtime): void {
-  if (!['shared', 'parity', 'runtime'].includes(group)) throw new Error(`unknown CI setup group ${group}; choose shared, parity or runtime`);
+export function runCISetup(root: string, group: SetupGroup, runtimeName?: string): void {
+  if (!['shared', 'parity', 'runtime', 'parity-binding'].includes(group)) throw new Error(`unknown CI setup group ${group}; choose shared, parity, parity-binding or runtime`);
   const runtime = runtimeName;
   const commands = invocations(root, group, runtime);
   for (const { target, args } of commands) {
@@ -297,10 +317,10 @@ if (isMain(import.meta.url)) {
       if (contextRuntime !== '' && !isRuntime(contextRuntime)) throw new Error(`unknown runtime ${contextRuntime}; choose ${RUNTIMES.join(', ')}`);
       runCIContext(root, mode === '--context-prepare' ? 'prepare' : 'cleanup', contextGroup, contextRuntime === '' ? undefined : contextRuntime);
     } else if (mode === '--setup') {
-      if (group !== 'shared' && group !== 'parity' && group !== 'runtime') throw new Error(`unknown CI setup group ${group}; choose shared, parity or runtime`);
-      if (runtime !== '' && !isRuntime(runtime)) throw new Error(`unknown runtime ${runtime}; choose ${RUNTIMES.join(', ')}`);
+      if (group !== 'shared' && group !== 'parity' && group !== 'runtime' && group !== 'parity-binding') throw new Error(`unknown CI setup group ${group}; choose shared, parity, parity-binding or runtime`);
+      if (group === 'runtime' && runtime !== '' && !isRuntime(runtime)) throw new Error(`unknown runtime ${runtime}; choose ${RUNTIMES.join(', ')}`);
       runCISetup(root, group, runtime === '' ? undefined : runtime);
-    } else throw new Error(`unknown CI setup mode ${mode}; use --plan, --setup GROUP [RUNTIME], --context-prepare GROUP [RUNTIME], or --context-cleanup GROUP [RUNTIME]`);
+    } else throw new Error(`unknown CI setup mode ${mode}; use --plan, --setup GROUP [RUNTIME|IMPLEMENTATION], --context-prepare GROUP [RUNTIME], or --context-cleanup GROUP [RUNTIME]`);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     console.error(`[ci-setup] ${error.message}`);

@@ -865,7 +865,7 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   }
   ```
 
-  Runtime setup targets are run in that runtime's job and in the parity job, since parity executes every tracked runtime.
+  Runtime setup targets are run in that runtime's job and in the full or API parity job. Binding phases use their own explicit setup below.
   A nonempty runtime list replaces Kit's defaults and must include all setup that runtime needs, including its tracked native
   package locks. An empty runtime list runs the repository's own `deps-<runtime>` target (`deps-node` for ts, `deps-go`,
   `deps-rust`, `deps-php` for php and php-ext, `deps-python`), a thin call of the locked install of its package manager; a
@@ -880,6 +880,13 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   `parityMode` is optional and defaults to `full`. `full` runs the complete provider `parity-check`; `phases` runs the provider
   `parity-api-check` once and a `parity-bindings-<implementation>-check` matrix whose names come exactly from
   `config/parity.json`. A phase consumer adds setup prerequisites to those concrete targets.
+  In phases mode, `parityBindings` in config/ci.json maps every implementation name from config/parity.json to
+  `{ "setup": ["existing-target"], "tools": ["tool-selector"] }`. The key set must match exactly; missing or extra entries
+  fail planning. Empty arrays explicitly request no setup or tools. Each binding matrix job installs only that entry's
+  tools and runs only its setup through `make kit-ci-setup GROUP=parity-binding IMPLEMENTATION=<name>`.
+  It installs no symbol extractor implicitly and inherits no runtime or API setup. The repository lists every prerequisite
+  its binding needs, including prerequisites of its context targets. API and full parity keep their complete preparation.
+  This is execution of repository declarations, not build artifact or cache management.
   Without `config/parity.json` the plan has no default: `parityMode` must be declared, as `none` when the repository has no
   parity declaration (K951); a missing file with no declared mode fails the plan.
   `kit-check` requires `CHECK_TARGETS` to select either the full target once or the complete API-plus-bindings partition, never both.

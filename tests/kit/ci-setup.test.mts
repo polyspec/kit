@@ -6,11 +6,11 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { initRepository } from './sandbox-repository.mts';
-import { ciPlan, ciSetupInvocations, parityBindingMatrix, runCIContext, runCISetup } from '../../scripts/kit/ci-setup.mts';
+import { ciConfigTargets, ciPlan, ciSetupInvocations, parityBindingMatrix, runCIContext, runCISetup } from '../../scripts/kit/ci-setup.mts';
 import { readConfig } from '../../scripts/kit/schema-validate.mts';
 
 const runtimes = ['go', 'php', 'php-ext', 'python', 'rust', 'ts'] as const;
-type FixtureConfig = { parityMode?: 'full' | 'phases' | 'none'; runner?: 'ubuntu-24.04' | 'ubuntu-26.04-arm'; setup: { shared: string[]; parity: string[]; runtimes: Record<string, string[]> }; tools?: Record<string, string[]>; contexts?: Record<string, { prepare?: string; cleanup?: string }>; targets?: { shared?: string[]; parity?: string[]; runtimes?: Record<string, string[]> } };
+type FixtureConfig = { parityBindings?: Record<string, { setup: string[]; tools: string[] }>; parityMode?: 'full' | 'phases' | 'none'; runner?: 'ubuntu-24.04' | 'ubuntu-26.04-arm'; setup: { shared: string[]; parity: string[]; runtimes: Record<string, string[]> }; tools?: Record<string, string[]>; contexts?: Record<string, { prepare?: string; cleanup?: string }>; targets?: { shared?: string[]; parity?: string[]; runtimes?: Record<string, string[]> } };
 const fixtureConfig = (root: string) => readConfig<FixtureConfig>(root, 'config/ci.json', 'ci.schema.json');
 
 function fixture(): string {
@@ -44,6 +44,7 @@ function fixture(): string {
   ].join('\n'));
   const config = {
     schema: 1,
+    parityBindings: { 'go-client': { setup: [], tools: [] } },
     setup: {
       shared: ['shared-setup'],
       parity: ['parity-setup'],
@@ -222,7 +223,7 @@ test('K731: the plan discovers tracked runtime packages and separates configured
     assert.deepEqual(result.runtimes.map(job => job.runtime), ['go']);
     assert.equal(result.parityMode, 'full');
     assert.deepEqual(result.parityImplementations, ['go-client']);
-    assert.deepEqual(result.parityMatrix, [{ implementation: 'go-client' }]);
+    assert.deepEqual(result.parityMatrix, []);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -238,13 +239,13 @@ test('K734: phase mode plans one API job and the exact implementation matrix fro
     const result = ciPlan(root);
     assert.equal(result.parityMode, 'phases');
     assert.deepEqual(result.parityImplementations, ['go-client']);
-    assert.deepEqual(result.parityMatrix, [{ implementation: 'go-client' }]);
+    assert.deepEqual(result.parityMatrix, [{ implementation: 'go-client', installTools: [] }]);
     const output = path.join(root, 'github-output');
     const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../scripts/kit/ci-setup.mts');
     execFileSync(process.execPath, [script, '--plan'], { cwd: root, env: { ...process.env, GITHUB_OUTPUT: output } });
     const actionOutputs = readFileSync(output, 'utf8');
     assert.match(actionOutputs, /^parity_mode=phases$/m);
-    assert.match(actionOutputs, /^parity_matrix=\[{"implementation":"go-client"}\]$/m);
+    assert.match(actionOutputs, /^parity_matrix=\[{"implementation":"go-client","installTools":\[\]}\]$/m);
     assert.deepEqual(parityBindingMatrix(['go', 'php-extension']), [{ implementation: 'go' }, { implementation: 'php-extension' }]);
     assert.throws(() => parityBindingMatrix([]), /declares no implementations/);
     assert.throws(() => parityBindingMatrix(['go', 'go']), /duplicate implementation names/);
@@ -531,4 +532,82 @@ test('K860: ci-setup refuses no tool selector, context scope, parity recipe or m
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+
+test('K1026: binding jobs execute only explicit setup and pass tool selectors without language inference', () => {
+  const root = fixture();
+  try {
+    const makefile = path.join(root, 'Makefile');
+    writeFileSync(makefile, readFileSync(makefile, 'utf8') + 'binding-only-setup:\n\t@printf binding >> setup.log\n');
+    const config = fixtureConfig(root);
+    config.parityMode = 'phases';
+    config.parityBindings = { 'go-client': { setup: ['binding-only-setup'], tools: ['rust'] } };
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    assert.deepEqual(ciPlan(root).parityMatrix, [{ implementation: 'go-client', installTools: ['rust'] }]);
+    assert.deepEqual(ciSetupInvocations(root, 'parity-binding', 'go-client'), [{ target: 'binding-only-setup', args: [] }]);
+    assert.ok(ciConfigTargets(root).includes('binding-only-setup'), 'the rules checker sees binding-only prerequisites');
+    runCISetup(root, 'parity-binding', 'go-client');
+    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'binding');
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1026: empty binding declarations perform no runtime default setup', () => {
+  const root = fixture();
+  try {
+    const config = fixtureConfig(root);
+    config.parityMode = 'phases';
+    config.parityBindings = { 'go-client': { setup: [], tools: [] } };
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    assert.deepEqual(ciPlan(root).parityMatrix, [{ implementation: 'go-client', installTools: [] }]);
+    assert.deepEqual(ciSetupInvocations(root, 'parity-binding', 'go-client'), []);
+    runCISetup(root, 'parity-binding', 'go-client');
+    assert.equal(existsSync(path.join(root, 'setup.log')), false);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test('K1026: phased binding declarations exactly cover implementations and validate setup targets', () => {
+  const root = fixture();
+  try {
+    const config = fixtureConfig(root);
+    config.parityMode = 'phases';
+    const file = path.join(root, 'config/ci.json');
+    writeFileSync(file, JSON.stringify(config));
+    delete config.parityBindings;
+    writeFileSync(file, JSON.stringify(config));
+    assert.throws(() => ciPlan(root), /parityBindings.*missing.*go-client/);
+    config.parityBindings = { 'go-client': { setup: [], tools: [] }, other: { setup: [], tools: [] } };
+    writeFileSync(file, JSON.stringify(config));
+    assert.throws(() => ciPlan(root), /parityBindings.*unknown.*other/);
+    config.parityBindings = { 'go-client': { setup: ['missing-setup'], tools: [] } };
+    writeFileSync(file, JSON.stringify(config));
+    assert.throws(() => ciPlan(root), /parityBindings.go-client.setup.*missing-setup.*not a Make target/);
+    config.parityBindings = { 'go-client': { setup: [], tools: [] } };
+    writeFileSync(file, JSON.stringify(config));
+    assert.throws(() => ciSetupInvocations(root, 'parity-binding', 'other'), /unknown.*other.*go-client/);
+    assert.throws(() => ciSetupInvocations(root, 'parity-binding'), /needs.*IMPLEMENTATION/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+
+test('K1026: the CLI and Make setup entry pass the binding implementation to the same planner', () => {
+  const root = fixture();
+  try {
+    const config = fixtureConfig(root);
+    config.parityMode = 'phases';
+    config.parityBindings = { 'go-client': { setup: ['shared-setup'], tools: [] } };
+    writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+    const script = path.resolve(import.meta.dirname, '../../scripts/kit/ci-setup.mts');
+    execFileSync(process.execPath, [script, '--setup', 'parity-binding', 'go-client'], { cwd: root, stdio: 'pipe' });
+    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'shared');
+    unlinkSync(path.join(root, 'setup.log'));
+    const makefile = path.join(root, 'Makefile');
+    const kit = path.resolve(import.meta.dirname, '../../scripts/kit');
+    writeFileSync(makefile, `override NODE := ${process.execPath}\nKIT := ${kit}\nKIT_EXT := mts\ninclude ${kit}/kit.mk\n${readFileSync(makefile, 'utf8')}`);
+    execFileSync('git', ['add', 'Makefile'], { cwd: root });
+    execFileSync('make', ['kit-ci-setup', 'GROUP=parity-binding', 'IMPLEMENTATION=go-client', `NODE=${process.execPath}`], { cwd: root, stdio: 'pipe' });
+    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'shared');
+    assert.throws(() => execFileSync(process.execPath, [script, '--setup', 'parity-binding', 'other'], { cwd: root, stdio: 'pipe' }), /unknown binding implementation other/);
+    assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'shared', 'unknown selectors execute nothing');
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });

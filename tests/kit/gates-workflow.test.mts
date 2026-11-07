@@ -240,3 +240,12 @@ test('each kept harness piece is named by a rule of AGENTS.md or PRINCIPLES.md (
   const pieces = ['owner-validate', 'install-link', 'catch-check', 'release-run', 'tool-wrappers', 'worktree-setup', 'uv-install'];
   assert.deepEqual(pieces.filter(piece => !rules.some(rule => rule.includes(piece))), []);
 });
+
+
+test('K1026: binding jobs use the explicit matrix tools and setup selector without global installers', () => {
+  const block = workflowJob(read(PIPELINE), 'parity-bindings').join('\n');
+  assert.match(block, /run: make install-tools TOOLS="\$\{\{ join\(matrix\.installTools, ' '\) \}\}"/);
+  assert.match(block, /if: \$\{\{ contains\(matrix\.installTools, 'php'\) \}\}/);
+  assert.match(block, /run: make kit-ci-setup GROUP=parity-binding IMPLEMENTATION=\$\{\{ matrix\.implementation \}\}/);
+  assert.doesNotMatch(block, /needs\.shared\.outputs\.(parity_tools|extractors)|kit-install-symbols|kit-ci-setup GROUP=parity\n/);
+});

@@ -234,8 +234,8 @@ kit-gates-runtime-php-ext: lint-php-ext test-php-ext ## Run the PHP extension ga
 kit-ci-plan: ## Validate config/ci.json and write the runtime, tool and target plan to GITHUB_OUTPUT for the CI pipeline
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --plan
 
-kit-ci-setup: ## Run the locked setup targets declared by config/ci.json; GROUP=shared|parity|runtime and RUNTIME=<runtime>
-	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --setup $(GROUP) $(RUNTIME)
+kit-ci-setup: ## Run the locked setup targets declared by config/ci.json; GROUP=shared|parity|parity-binding|runtime, RUNTIME=<runtime> or IMPLEMENTATION=<name>
+	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --setup $(GROUP) $(if $(filter parity-binding,$(GROUP)),$(IMPLEMENTATION),$(RUNTIME))
 
 kit-ci-context-prepare: ## Run the optional repository context preparation target for GROUP and RUNTIME
 	$(NODE) $(KIT)/ci-setup.$(KIT_EXT) --context-prepare $(GROUP) $(RUNTIME)
