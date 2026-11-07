@@ -17,8 +17,11 @@ and states only its own rules. The rules below are kit's own.
 - Own: Every tracked test file belongs to exactly one CI shard in the repository Makefile: KIT_TEST_FILES for kit tests and SOURCE_TEST_FILES for source tests. Adding a test includes declaring its shard; the exact-once CI inventory check is a unit test of that declaration. A test that ran locally but is absent from CI is incomplete.
   Enforced by: `tests/source/ci-workflow.test.mts`
 
+- Own: Platform-specific native observations belong to source tests with explicit CI platform assignments. Linux source CI owns the POSIX defunct-group check on Linux and macOS bootstrap owns it on macOS; all bootstrap platforms retain common process ownership checks. Select applicability with the runner operating-system context.
+  Enforced by: `tests/source/ci-workflow.test.mts`, `tests/source/process-group-posix.test.mts`
+
 - Own: On POSIX, an interrupted command harness stops admitting commands, requests termination of its owned groups and awaits child close and cleanup before exiting with interrupted status. Force is escalation after the declared cleanup grace, never a substitute for cooperative cleanup. A synchronous forced-exit hook is emergency cleanup only. A group identifier containing only native defunct members is not a live survivor; cleanup still awaits owned child close and leaves orphan reaping to the operating system.
-  Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/kit/parity-operation.test.mts`
+  Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/source/process-group-posix.test.mts`, `tests/kit/parity-operation.test.mts`
 
 - Refines S12: `workflows/ci-pipeline.yml` plans its job data separately from running checks. Shared, parity and runtime checks depend only on the plan outputs, use their own checkout and setup, and run independently; a failed shared check suppresses no independent result. The final required job judges planning, shared checks and every selected job, and fails on a skipped selected job.
   Enforced by: `tests/kit/gates-workflow.test.mts`

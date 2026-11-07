@@ -247,3 +247,16 @@ test('a shard selection probe drops inherited GNU Make variables (K721)', (t) =>
     SHARD: null,
   });
 });
+
+test('K1041: POSIX source coverage runs in Linux source CI and macOS bootstrap while common process checks remain on Windows', () => {
+  assert.match(jobText('source_tests'), /runs-on: ubuntu-24\.04/);
+  const steps = jobText('bootstrap').split(/(?=^      - name:)/m);
+  const commonCommand = 'run: node --test tests/kit/process.test.mts tests/kit/process-group.test.mts';
+  const common = steps.find(step => step.includes(commonCommand));
+  assert.ok(common, 'every platform retains the common process ownership checks');
+  assert.ok(!common.includes('runner.os') && !common.includes('matrix.runner'), 'common process checks have no platform exclusion');
+  const command = 'run: node --test tests/source/process-group-posix.test.mts';
+  const posix = steps.filter(step => step.includes(command));
+  assert.equal(posix.length, 1, 'one macOS bootstrap step owns its POSIX source case');
+  assert.ok(posix[0]?.includes("if: ${{ !cancelled() && runner.os == 'macOS' }}"), 'Linux source CI owns Linux execution, macOS owns its bootstrap execution, Windows retains its own native process contract');
+});

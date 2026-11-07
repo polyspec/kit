@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: e3062d361771af3ef0201d3816578ba2c283d3558288b545f00cea9ca607880c -->
+<!-- source-sha256: d14089a686ad7f546453dfa2086a659f8ad8509fcbf9e2fcd0cd148947c7d17a -->
 
 # 도구 목록
 
@@ -24,6 +24,8 @@
 | install-tools | 189 | 없음 | 없음 | `toolchains.py` | 없음 | template |
 | 의존성 상태, 검토, 게이트 | v0.0.2부터 kit에 있음 | 317, 288, 185 | 없음 | 없음 | 없음 | 제거(K784, K786): npm, composer, uv, cargo audit와 govulncheck가 오래되거나 취약한 dependency를 보고함 |
 | github-ruleset | 182 | 없음 | 164 | 없음 | 없음 | 제거(0.x에는 ruleset이 없음) |
+
+Native defunct-group 관측은 POSIX source test이다. Linux source CI와 macOS bootstrap이 각 platform의 case를 실행하며 모든 bootstrap platform은 공통 native process 소유 검사를 유지한다. CI는 source file과 runner 운영체제 조건을 명시하고 필요한 platform별로 한 번 실행한다.
 
 Export된 `runCommand`는 자신이 시작한 command만 소유한다. POSIX에서 중단 시 새 command를 받지 않고 SIGTERM으로 종료를 요청하며, 소유 child의 close event와 group cleanup을 기다린 뒤 중단 상태로 종료한다. Cleanup grace는 1초이며 그 뒤에도 남은 group에만 SIGKILL을 보낸다. Output이 닫혀도 살아 있는 descendant의 grace를 줄이지 않는다. 정상 완료되어 끝난 group에는 강제 신호를 보내지 않는다. POSIX에서는 모든 member가 종료돼도 group identifier가 남을 수 있다. Cleanup은 native process state를 읽어 Z 또는 X member에는 종료 신호를 보내거나 survivor grace를 기다리지 않고 소유 child의 close event는 계속 기다린다. Orphan zombie는 실행할 수 없으며 system reaper가 회수하므로 살아 있는 survivor가 아니다. 알 수 없는 state는 cleanup 대상으로 유지하고 native POSIX snapshot에는 state field가 있어야 한다. 갑작스러운 process exit에서는 비동기 cleanup을 기다릴 수 없으므로 동기 exit hook은 여전히 소유한 group의 비상 강제 종료만 담당하고 중단 경로로 사용하지 않는다. 종료 검증은 실행 중인 descendant를 거부하며 harness는 중단 완료를 보고하기 전에 자신의 child를 회수해야 한다.
 

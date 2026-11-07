@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 7977689327c4ff2b47581061cd926b12d8ad79a6fe583b3f63633ec0331f97d3 -->
+<!-- source-sha256: 47addc5057c7e08aa2319f3084b9a55e2314d8fd03fdfb45bd52f61ea687eaa8 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.97
+
+- CI: POSIX native source 검사를 Linux와 macOS별로 한 번씩 명시하고 native case를 skip하지 않으며 공통 Windows process 검사를 유지한다(K1041).
 
 - CI: native Go 호환성 검사에서 의도한 compiler 실패 전에 유효한 package baseline을 확인하고 정확한 case와 진단 검증을 유지한다(K1040).
 

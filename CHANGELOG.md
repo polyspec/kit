@@ -7,6 +7,8 @@
 
 ## 0.0.97
 
+- CI: declare POSIX native source checks once per Linux/macOS platform while retaining common Windows process checks, without skipped native cases (K1041).
+
 - CI: give native Go compatibility checks a valid package baseline before the intended compiler failure; preserve exact case and diagnostic assertions (K1040).
 
 - CI: distinguish defunct POSIX group members from live survivors during cleanup, await owned child closure and retain the full survivor grace and existing orphan-case deadlines (K1039).

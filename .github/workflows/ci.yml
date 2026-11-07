@@ -299,9 +299,12 @@ jobs:
       - name: install pinned Go and Rust toolchains
         run: node scripts/kit/install-tools.mts go rust
       # K830: a hung process test fails this step by its limit instead of holding the job until the limit of GitHub.
-      - name: verify the Windows .cmd process path
+      - name: verify common process ownership and native wrappers
         timeout-minutes: 10
         run: node --test tests/kit/process.test.mts tests/kit/process-group.test.mts
+      - name: verify native POSIX defunct groups on macOS
+        if: ${{ !cancelled() && runner.os == 'macOS' }}
+        run: node --test tests/source/process-group-posix.test.mts
       # K919: the runner reads the result line of a real Go benchmark on each platform, whose pipes split it differently.
       # K923: the go shim of mise reaches mise only by the PATH of kit.mk, so Git Bash make runs the test.
       - name: verify the Go benchmark result line
