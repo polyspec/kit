@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f8b901020df1c9107a93a917efdefa13c6245021c1c29e8107b774594f43e40a -->
+<!-- source-sha256: 2506c3104a11703e3fa555a42202cdf15b7545f510c76916dfabce982788924a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1049: kit.mk, link cargo, run-tests cargo는 환경의 CARGO_TARGET_DIR를 그대로 둔다. 그 값은 저장소나 그 .cargo/config.toml이 정한다. 아무 값도 없으면 Cargo는 checkout마다 자기 target을 쓴다. 호환되지 않는 변경: 다른 checkout을 위해 export한 것 같은 주변의 CARGO_TARGET_DIR가 이제 공유된다. checkout마다 target을 원하는 저장소는 그 값을 비워 두거나 자기 .cargo/config.toml에 build.target-dir를 적는다(K1049).
 - K1048: miseEnvironment와 kit.mk는 mise와 uv의 설정(MISE_LOCKED, MISE_AUTO_INSTALL, UV_PYTHON_DOWNLOADS, UV_NO_CONFIG, UV_CACHE_DIR)을 넣지 않고 toolsEnvironment는 UV_PYTHON을 정하지 않으므로 각 저장소의 mise.toml과 uv 설정이 그것을 정한다. kit 자신의 mise.toml은 [settings]와 [env]에 그것을 적고, docs/examples/native-settings가 그 형식을 보여 준다. 호환되지 않는 변경: 그 설정에 기대던 저장소는 자기 mise.toml에 그것을 적는다(K1048).
 - K1045: kit은 더 이상 npm allow-remote를 강제하지 않는다. install-packages, kit-bootstrap action, worktree-setup, kit의 CI는 --allow-remote=root 없이 npm ci를 실행하므로 각 저장소의 .npmrc가 그것을 정한다. docs/examples/native-settings는 URL을 고정하는 저장소의 .npmrc를 보여 준다. 호환되지 않는 변경: kit을 포함해 패키지를 URL로 고정하는 저장소는 자기 `.npmrc`에 `allow-remote=root`(또는 `all`)를 적는다. 그러지 않으면 npm 12가 그 npm ci를 EALLOWREMOTE로 거부한다(K1045).
 - K1058: make kit-inject-check가 실행하는 kit-sync --check는 파일을 쓰지 않습니다. 없거나 설치된 kit과 다른 사본, scripts/kit의 사본이 아닌 파일, 은퇴한 사본, working tree가 index와 다른 사본 경로를 각각 적고 파일은 그대로 둡니다. 사본은 여전히 make kit-sync가 씁니다(K1058).

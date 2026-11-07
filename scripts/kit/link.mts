@@ -624,14 +624,12 @@ function declaredUrl(checkout: string): string {
 
 /**
  * Runs one cargo command in `directory`; with checkouts given, the polyspec git sources of those checkouts are patched to
- * their packages, and the lock of the tree is copied to var/link, so the patches resolve against it. Native arguments remain unchanged;
- * ambient CARGO_TARGET_DIR is omitted so Cargo resolves its own workspace target.
+ * their packages, and the lock of the tree is copied to var/link, so the patches resolve against it. Native arguments and the
+ * environment, CARGO_TARGET_DIR among them, remain unchanged (K1049).
  */
 export function cargo({ directory, args, checkouts = [], env = process.env }: { directory: string; args: readonly string[]; checkouts?: readonly string[]; env?: NodeJS.ProcessEnv }): number {
   const consumer = consumerOf(directory);
-  const cargoEnv = { ...env };
-  delete cargoEnv.CARGO_TARGET_DIR;
-  const tool = consumerTool(consumer.top, 'cargo', cargoEnv);
+  const tool = consumerTool(consumer.top, 'cargo', env);
   const channel = args[0]?.startsWith('+') ? [args[0]] : [];
   const commandArgs = channel.length ? args.slice(1) : args;
   const graphArgs = cargoMetadataArguments(args);

@@ -1219,7 +1219,7 @@ test('a PHP extension built for another PHP fails the probe naming its path, its
   assert.match(problem, /20240924/);
 });
 
-test('K676 standalone Cargo build and test omit inherited targets while preserving native CLI arguments', async (t) => {
+test('Cargo build and test keep the CARGO_TARGET_DIR of the environment and the native CLI arguments (K1049)', async (t) => {
   const root = tree(t);
   const binary = path.join(root, 'bin/cargo');
   const log = path.join(root, 'cargo-environments.jsonl');
@@ -1235,7 +1235,7 @@ test('K676 standalone Cargo build and test omit inherited targets while preservi
     assert.equal(calls.length, 2, 'the compile step and requested test both run');
     for (const call of calls) {
       assert.ok(typeof call === 'object' && call !== null && 'args' in call && Array.isArray(call.args) && 'target' in call);
-      assert.equal(call.target, null);
+      assert.equal(call.target, path.join(root, '../other/target'));
       assert.equal(call.args[call.args.indexOf('--target-dir') + 1], explicit);
     }
   } finally {

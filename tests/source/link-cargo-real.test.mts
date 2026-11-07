@@ -41,7 +41,7 @@ test('K664-3 native Cargo selects an unreleased path source repeatedly without c
   assert.equal(existsSync(path.join(consumer, 'target')), false, 'metadata compiles nothing');
 });
 
-test('K676 native Cargo chooses each checkout workspace target without inheriting another checkout target', t => {
+test('native Cargo chooses the workspace target of each checkout when the environment sets none (K676, K1049)', t => {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-cargo-target-')));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const main = path.join(root, 'main');
@@ -49,7 +49,9 @@ test('K676 native Cargo chooses each checkout workspace target without inheritin
   mkdirSync(main);
   initRepository(main, '--initial-branch=main');
   put(main, { 'Cargo.toml': '[workspace]\nmembers=["crate"]\nresolver="3"\n', 'crate/Cargo.toml': '[package]\nname="target-proof"\nversion="0.0.1"\nedition="2024"\n', 'crate/src/lib.rs': 'pub fn value() -> u8 { 1 }\n' });
-  const env = { ...process.env, CARGO_NET_OFFLINE: 'true', CARGO_TARGET_DIR: path.join(root, 'other-checkout/target') };
+  // Without a CARGO_TARGET_DIR of its own environment, Cargo resolves the target of each checkout (K1049).
+  const env: NodeJS.ProcessEnv = { ...process.env, CARGO_NET_OFFLINE: 'true' };
+  delete env.CARGO_TARGET_DIR;
   assert.equal(spawnSync('cargo', ['+1.99.0', 'generate-lockfile', '--offline'], { cwd: main, env }).status, 0);
   for (const args of [['add', '-A'], ['commit', '--quiet', '-m', 'base'], ['worktree', 'add', '--quiet', '-b', 'proof', worktree]]) {
     const result = spawnSync('git', args, { cwd: main, encoding: 'utf8' });
@@ -65,5 +67,4 @@ test('K676 native Cargo chooses each checkout workspace target without inheritin
     assert.equal(readFileSync(path.join(checkout, 'Cargo.lock'), 'utf8'), lock);
     assert.equal(existsSync(path.join(checkout, 'target')), false, 'metadata compiles no crate');
   }
-  assert.equal(existsSync(env.CARGO_TARGET_DIR), false);
 });

@@ -362,8 +362,6 @@ export async function run(argv: string[], { root = repositoryRoot(), write = (te
   // The ini file of the extensions lives in the folder of the results, which the run removes at its end (K900).
   Object.assign(env, phpExtensionScan(options.phpExtensions, results, env));
   if (reporter) env[TEST_EVENTS] = String(TEST_EVENTS_FD);
-  // Native Cargo resolves its workspace target unless the caller supplied an explicit CLI target argument (K676).
-  if (cargo) delete env.CARGO_TARGET_DIR;
   delete env.NODE_TEST_CONTEXT;
   // The signal that interrupted the run, which the runner ends on once the tool's group is stopped.
   let interrupted: NodeJS.Signals | undefined;

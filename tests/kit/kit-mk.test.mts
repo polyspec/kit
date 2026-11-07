@@ -306,12 +306,12 @@ test('kit.mk sets no Rust wrapper and no cargo jobs, also for a checkout that de
   assert.equal(env.CARGO_BUILD_JOBS ?? '', '');
 });
 
-test('K676 kit recipes do not inherit another checkout Cargo target directory', (t) => {
+test('kit recipes keep the CARGO_TARGET_DIR of the environment (K1049)', (t) => {
   const root = realpathSync(tree(t, { Makefile: `KIT := scripts/kit\nKIT_EXT := mts\ninclude ${KIT_MK}\nshow:\n\t@env\n` }));
   const home = path.join(root, 'cargo-home');
   const shown = spawnSync('make', ['--no-print-directory', 'show'], { cwd: root, encoding: 'utf8', env: { ...process.env, CARGO_TARGET_DIR: path.join(root, '../other/target'), CARGO_HOME: home } });
   assert.equal(shown.status, 0, shown.stderr);
-  assert.doesNotMatch(shown.stdout, /^CARGO_TARGET_DIR=/m);
+  assert.ok(shown.stdout.split('\n').includes(`CARGO_TARGET_DIR=${path.join(root, '../other/target')}`), shown.stdout);
   assert.ok(shown.stdout.split('\n').includes(`CARGO_HOME=${home}`), shown.stdout);
 });
 

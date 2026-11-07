@@ -1365,7 +1365,7 @@ test('K671-7 missing build targets accept GNU make quote variants while prerequi
   }
 });
 
-test('K676 Cargo drops only an inherited target directory and retains explicit native target arguments', (t) => {
+test('Cargo keeps the CARGO_TARGET_DIR of the environment and the explicit native target arguments (K1049)', (t) => {
   const { consumer, env } = workspace(t);
   assert.ok(env.CARGO);
   const captured = path.join(consumer, 'cargo-environment.txt');
@@ -1376,7 +1376,7 @@ test('K676 Cargo drops only an inherited target directory and retains explicit n
   const caller = { ...env, CARGO_TARGET_DIR: inherited, CARGO_HOME: cargoHome };
   assert.equal(cargo({ directory: consumer, args: ['check', '--target-dir', explicit], env: caller }), 0);
   const seen = readFileSync(captured, 'utf8');
-  assert.doesNotMatch(seen, /^CARGO_TARGET_DIR=/m);
+  assert.ok(seen.split('\n').includes(`CARGO_TARGET_DIR=${inherited}`), seen);
   assert.ok(seen.split('\n').includes(`CARGO_HOME=${cargoHome}`), seen);
   assert.equal(caller.CARGO_TARGET_DIR, inherited, 'the caller environment is not mutated');
   assert.match(readFileSync(path.join(consumer, 'cargo-target.log'), 'utf8'), new RegExp(`cargo check --target-dir ${explicit}`));
