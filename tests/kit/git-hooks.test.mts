@@ -15,8 +15,8 @@ import { korean, put, tree } from './tree.mts';
 // The configuration of a repository that declares the pattern of its item IDs (K354-3).
 const CONFIG_JSON = '{ "schema": 1, "hooks": [], "idPattern": "T[0-9]+(?:[.-][0-9]+)*" }\n';
 
-// The owner rules of a fixture whose gate is bypass-check, the kit gate that fails on a --no-verify in a script: every path is owned.
-const OWNERS = JSON.stringify({ schema: 1, owners: [{ paths: ['**'], targets: ['bypass-check'] }] }, null, 2) + '\n';
+// The owner rules of a fixture whose gate is suppression-check, a gate of kit: every path is owned.
+const OWNERS = JSON.stringify({ schema: 1, owners: [{ paths: ['**'], targets: ['suppression-check'] }] }, null, 2) + '\n';
 
 const hooks = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'install']);
 const check = (work: string) => run(work, process.execPath, [tool(import.meta.resolve('../../scripts/kit/git-hooks.mts')), 'check']);
@@ -390,14 +390,14 @@ test('the pre-commit hook on main runs no gate, so a commit that adds a finding 
   const identity = ['-c', 'user.name=test', '-c', 'user.email=test@example.com'];
   const commit = (subject: string) => run(work, 'git', [...identity, 'commit', '--quiet', '-m', `${subject}\n\nThe body names the change.\n`]);
   mkdirSync(path.join(work, 'scripts'), { recursive: true });
-  writeFileSync(path.join(work, 'scripts/unstaged.mts'), "export const flag = '--no-verify';\n");
+  writeFileSync(path.join(work, 'scripts/unstaged.mts'), "// eslint-disable-next-line\nexport const flag = 1;\n");
   writeFileSync(path.join(work, 'scripts/a.mts'), 'export const a = 1;\n');
   git(work, 'add', 'scripts/a.mts');
   const clean = commit('feat(hooks): Add a script (#T1-1)');
   assert.equal(clean.status, 0, `a clean gated commit on main passes: ${clean.stderr}`);
   const head = git(work, 'rev-parse', 'HEAD');
 
-  writeFileSync(path.join(work, 'scripts/b.mts'), "export const flag = '--no-verify';\n");
+  writeFileSync(path.join(work, 'scripts/b.mts'), "// eslint-disable-next-line\nexport const flag = 1;\n");
   git(work, 'add', 'scripts/b.mts');
   const gated = commit('feat(hooks): Add a flag (#T1-1)');
   assert.equal(gated.status, 0, `a commit with a finding of a gate passes: ${gated.stderr}`);

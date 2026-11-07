@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: dcbb95d18413979b6472f774de8ec7c2deda3bb02dcd9823fe17175eadac761d -->
+<!-- source-sha256: d35bda534cc47fabcb1eed74e6db39edeb694ec87dde7a2481919c6f6ea069b0 -->
 # 개발
 
 [English](AGENTS.md)
@@ -74,7 +74,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   외부 도구가 만드는 link는 위 규칙이 받아들이는 그 도구의 동작이며, 이 저장소가 만드는 것이 아닙니다.
   테스트는 link가 그 대상일 때만 link를 만듭니다(link를 거쳐 가리키는 path, link를 담은 archive). 테스트는 이 checkout의 도구를
   sandbox에 link하지 않고 sandbox에서 실행합니다(`tests/kit/kit-tools.mts`).
-  Enforced by: `make kit-check`
+  Enforced by: none, 안내 규칙: kit은 저장소의 recipe, workflow, 파일을 검사하지 않는다(K1051).
 - Own: `make install`은 `install-link`로 끝납니다. 이 target은 설치된 polyspec package를 개발 checkout에 link합니다
   (`docs/operations/local-links.md`). `make worktree-setup`은 행의 worktree를 만들고 거기서 `make install`을 실행한 뒤 link를
   검사하므로, worktree는 자기 자신의 checkout입니다(K858).
@@ -108,7 +108,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   Rust는 `rust-toolchain.toml`의 것을 쓰고, `mise.toml`의 Node.js는 bootstrap(`make install-tools TOOLS=npm`)이 npm보다 먼저
   설치합니다(K171). kit.mk의 모든 recipe는 checkout의 mise 환경으로, var/tools/bin과 mise의 shim을 PATH 맨 앞에 두고
   실행되며, checkout의 도구를 이름만으로가 아니라 절대 경로(`$(NODE)`, `$(NPM)`, `$(ALINT)`)로 실행합니다: make 3.81은 shell
-  문법이 없는 recipe 줄을 make가 시작할 때의 PATH에서 찾습니다. 그렇게 하지 않는 recipe는 `make kit-check`가 실패시킵니다. mise가 설치하지 않는 두 toolchain은 machine이나 CI runner가 제공합니다. `make install-tools`가
+  문법이 없는 recipe 줄을 make가 시작할 때의 PATH에서 찾습니다. mise가 설치하지 않는 두 toolchain은 machine이나 CI runner가 제공합니다. `make install-tools`가
   rustup으로 `rust-toolchain.toml`의 toolchain을 그 component와 함께 설치하고(checkout에서 파일을 읽는 `rustup toolchain install`;
   rustup 1.28은 cargo가 처음 실행될 때 더는 설치하지 않습니다), config/toolchain.json `exceptions`가 선언한 Rust channel도
   설치합니다. rustup이 없으면 그 설치 방법과 함께 실패하고, 설치되지 않은 toolchain은 cargo가 실행될 때 rustup이 이름으로
@@ -117,7 +117,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   php-config, phpize와 함께 var/tools/bin에 wrapper로 쓰고, release를 비교하지 않습니다. PATH에 php가 없거나
   `packages/php-ext`에 php-config나 phpize가 없으면 실패합니다. PHP가 필요한 저장소는 CI setup-php의 입력인 `.php-version`을
   둡니다. 이 파일이 없으면 setup-php는 조용히 다른 PHP를 설치합니다(K193).
-  Enforced by: `tests/kit/install-rust.test.mts`, `tests/kit/install-tools.test.mts`, `tests/kit/install-php.test.mts`, `make kit-check` (phpVersionFinding, K193)
+  Enforced by: `tests/kit/install-rust.test.mts`, `tests/kit/install-tools.test.mts`, `tests/kit/install-php.test.mts`
 - Own: var/tools/bin의 도구는 설치된 파일을 이 checkout 설치의 environment(checkout의 mise data 폴더 같은)와 함께 절대 경로로
   실행하는 wrapper script이며, environment를 담지 못하는 symbolic link가 아닙니다. 한 checkout의 도구는 다른 checkout의 도구로
   실행되지 않습니다(`scripts/kit/bootstrap/tool-wrappers.mts`).
@@ -160,4 +160,4 @@ kit은 release workflow가 성공한 CI run의 정확한 commit이 `origin/main`
   (그런 section이 없거나 `## Unreleased` 아래 항목이 있는 commit은 거부한다) 그 commit과 그 `goModules`의 module에 tag를 단다. version을 비교하지 않는다(S4, K911, K924).
   Enforced by: `tests/kit/release-run.test.mts`
 - Own: 모든 저장소는 vendor된 `workflows/release.yml`로 릴리스하며 그것을 편집하지 않는다.
-  Enforced by: `make kit-check`
+  Enforced by: none, 안내 규칙: kit은 저장소의 recipe, workflow, 파일을 검사하지 않는다(K1051).

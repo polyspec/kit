@@ -102,10 +102,6 @@ jobs:
       - name: rules check
         if: ${{ !cancelled() }}
         run: make rules-check
-      # No test, script or Makefile impersonates CI, assumes a gate up to date or skips a hook (K308).
-      - name: bypass check
-        if: ${{ !cancelled() }}
-        run: make bypass-check
       # No implementation diverges through a branch, a narrowing, a feature state or an exception without a kind (K315).
       - name: divergence check
         if: ${{ !cancelled() }}

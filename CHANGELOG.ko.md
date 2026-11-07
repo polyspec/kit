@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 24cd95b059a7aa07f7eaf58d33e47df9b7e8cb7bddf145ddefc7e6dc77a9cf49 -->
+<!-- source-sha256: 72dd1f3533621370738a22d835f172b37ecfc5c761811a4d668b00d76991ae8f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1051: kit-check는 kit schema의 config 파일만 검증합니다. 저장소의 Makefile recipe(도구 이름만 쓴 실행, `$(KIT)/<name>`, link 단계), workflow(ci.yml 이름과 `ci-passed` job, bootstrap 복사본, PHP version 파일), 추적 manifest 경로를 더 이상 판정하지 않으며, bypass-check, coupling.mts, recipe-tools의 finding을 지웠습니다. Breaking: `make bypass-check`는 더 이상 없으며, 저장소는 이 규칙 중 원하는 것을 자기 검사에 둡니다(K1051).
 - K1050: lint-go, lint-python, lint-php, lint-rust, lint-ts는 각 도구를 도구가 스스로 찾는 저장소의 설정으로 실행한다. kit 패키지의 --config, --standard, --configuration, -c, CLIPPY_CONF_DIR도, kit의 규칙 플래그(-D warnings와 P8 lint, --deny-warnings, --extend-exclude, --min-confidence, 그리고 kit의 .oxlintrc.json이 이제 options.typeAware로 정하는 --type-aware)도 넘기지 않는다. lint-ts는 catch-check를 실행하지 않으며, kit의 CI가 자신을 위해 그것을 실행한다. 패키지 폴더에 설정이 없으면 lint-php는 PHPStan에 저장소 루트의 phpstan.dist.neon을 준다. config/knip-entries.json, var/lint-ts/knip.json, knip-ignore-hints reporter는 삭제되었다. kit-sync는 더 이상 저장소의 lint 설정을 지우지 않고, 패키지는 그것을 담지 않는다. docs/examples/native-settings는 kit 자신의 파일과 Cargo [lints]를 예제로 보여 준다. 호환되지 않는 변경: 자기 설정이 없는 저장소는 각 도구의 기본값으로 lint한다. 그런 저장소는 예제를 복사하고, config/knip-entries.json을 자기 knip.json으로 옮긴다(K1050).
 - K1049: kit.mk, link cargo, run-tests cargo는 환경의 CARGO_TARGET_DIR를 그대로 둔다. 그 값은 저장소나 그 .cargo/config.toml이 정한다. 아무 값도 없으면 Cargo는 checkout마다 자기 target을 쓴다. 호환되지 않는 변경: 다른 checkout을 위해 export한 것 같은 주변의 CARGO_TARGET_DIR가 이제 공유된다. checkout마다 target을 원하는 저장소는 그 값을 비워 두거나 자기 .cargo/config.toml에 build.target-dir를 적는다(K1049).
 - K1048: miseEnvironment와 kit.mk는 mise와 uv의 설정(MISE_LOCKED, MISE_AUTO_INSTALL, UV_PYTHON_DOWNLOADS, UV_NO_CONFIG, UV_CACHE_DIR)을 넣지 않고 toolsEnvironment는 UV_PYTHON을 정하지 않으므로 각 저장소의 mise.toml과 uv 설정이 그것을 정한다. kit 자신의 mise.toml은 [settings]와 [env]에 그것을 적고, docs/examples/native-settings가 그 형식을 보여 준다. 호환되지 않는 변경: 그 설정에 기대던 저장소는 자기 mise.toml에 그것을 적는다(K1048).

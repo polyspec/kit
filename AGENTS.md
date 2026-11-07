@@ -82,7 +82,7 @@ and states only its own rules. The rules below are kit's own.
   The links that an outside tool creates are its behavior, which the rule above accepts, not what this repository creates.
   A test creates a link only when the link is its subject (a path named through a link, an archive that holds a link); a
   test runs the tools of this checkout in its sandbox (`tests/kit/kit-tools.mts`) instead of linking them there.
-  Enforced by: `make kit-check`
+  Enforced by: none, a guided rule: kit checks no recipe, workflow or file of a repository (K1051).
 - Own: `make install` ends with `install-link`, which links the installed polyspec packages to their development checkouts
   (`docs/operations/local-links.md`), and `make worktree-setup` makes the worktree of a row, runs `make install` in it and then
   checks its links, so a worktree is a checkout of its own (K858).
@@ -119,7 +119,7 @@ and states only its own rules. The rules below are kit's own.
   (`make install-tools TOOLS=npm`) before npm (K171). Every recipe of kit.mk runs with the environment of mise of the
   checkout and with var/tools/bin and the shims of mise first on PATH, and starts a tool of the checkout by its absolute
   path (`$(NODE)`, `$(NPM)`, `$(ALINT)`), never by its bare name: make 3.81 looks up a recipe line without shell syntax on
-  the PATH that make started with; `make kit-check` fails a recipe that does. A machine or CI runner provides the two toolchains
+  the PATH that make started with. A machine or CI runner provides the two toolchains
   that mise does not install. `make install-tools` installs, with rustup, the toolchain of `rust-toolchain.toml` with its
   components (`rustup toolchain install` in the checkout, which reads the file; rustup 1.28 no longer installs it as cargo
   first runs) and each Rust channel that config/toolchain.json `exceptions` declares; a missing rustup fails with its
@@ -128,7 +128,7 @@ and states only its own rules. The rules below are kit's own.
   `php` of PATH as it is with php-config and phpize beside it in var/tools/bin and compares no release; it fails when php is
   not on PATH, or when `packages/php-ext` lacks php-config or phpize. A repository that needs PHP keeps `.php-version`,
   the input of CI's setup-php, which silently sets up another PHP without it (K193).
-  Enforced by: `tests/kit/install-rust.test.mts`, `tests/kit/install-tools.test.mts`, `tests/kit/install-php.test.mts`, `make kit-check` (phpVersionFinding, K193)
+  Enforced by: `tests/kit/install-rust.test.mts`, `tests/kit/install-tools.test.mts`, `tests/kit/install-php.test.mts`
 - Own: A tool of var/tools/bin is a wrapper script that starts the installed file by its absolute path with the environment
   of this checkout's install, such as the mise data folder of the checkout, never a symbolic link, which carries no
   environment: a tool of one checkout never runs with the tools of another (`scripts/kit/bootstrap/tool-wrappers.mts`).
@@ -177,4 +177,4 @@ kit is released by the annotated tag `vX.Y.Z` that the release workflow creates 
   with entries under `## Unreleased`, and then tags that commit and the modules of its `goModules`; it compares no version (S4, K911, K924).
   Enforced by: `tests/kit/release-run.test.mts`
 - Own: Every repository releases through the vendored `workflows/release.yml`, which it never edits.
-  Enforced by: `make kit-check`
+  Enforced by: none, a guided rule: kit checks no recipe, workflow or file of a repository (K1051).

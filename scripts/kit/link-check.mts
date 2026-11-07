@@ -128,11 +128,6 @@ function manifestsPathFindings(root: string, directory: string, project: boolean
   return [...consumerManifests(directory, project, ['composer', 'npm', 'python']), ...others].flatMap(file => manifestPathFindings(path.relative(top, file).split(path.sep).join('/'), readFileSync(file, 'utf8')));
 }
 
-/** The findings of every tracked manifest of `root` that names a path out of the repository, which kit-check judges too (P30, K998). */
-export function trackedManifestPathFindings(root: string): string[] {
-  return manifestsPathFindings(root, root, false);
-}
-
 /**
  * The findings of `root` beside link's check, sorted: K773's paths of the tracked manifests, the declared packages with no installed
  * folder (K888), of the manifests that link judges in `directory`, with `project` those of that project (K975). link writes no Claude

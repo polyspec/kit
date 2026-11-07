@@ -68,8 +68,8 @@ macOS arm64 and Windows x64, including a repeatability check and native wrapper/
 These pins and smoke cases do not establish that every Kit gate runs on Windows or that a Windows PHP extension SDK is supported.
 
 PHP is wrapped, not installed (K283, K862). `.php-version` or `config/toolchain.json` `php` declares that the checkout uses
-PHP; `.php-version` is read as written, as the input of CI's setup-php, and `make kit-check` requires it of a repository that
-needs PHP (K193, below).
+PHP; `.php-version` is read as written, as the input of CI's setup-php, which a repository that needs PHP declares
+(K193, below).
 `install-php.mts` takes the `php` of the PATH of the bootstrap (without `var/tools/bin`, so it never finds its own wrapper) as it
 is and compares no release: a PHP that the packages' `require` excludes is refused by Composer's platform check, and what
 remains is the repository's own checks. It writes `var/tools/bin/php`
@@ -152,8 +152,7 @@ of the checkout is a finding. A Rust nightly is never stale: parity reads it.
   `.php-version` (ordered-json, orm) and the list of crudui and template, and compares neither with the other (K862). A
   repository that needs PHP (a Composer package or the Composer consumer of `config/release.json`, or `php` of
   `config/toolchain.json`) declares `.php-version`, the PHP that CI and the release workflow set up
-  (`php-version-file`); `make kit-check`, which the release workflow runs before any release step, fails without it,
-  since the release otherwise ran the PHP of the runner (K193).
+  (`php-version-file`), since the release otherwise runs the PHP of the runner (K193); kit-check required it until K1051.
 - Python (K64, K127): mise installs the exact python-build-standalone build that `mise.lock` pins by its URL and sha256 into
   `var/tools/mise/installs`, and the shim `var/tools/mise/shims/python3` runs it. uv installs no Python
   where the repository sets `UV_PYTHON_DOWNLOADS=never` (kit's own `mise.toml` does, K1048), and uv takes the python3 shim of mise where the repository sets `UV_PYTHON_PREFERENCE=only-system`, as kit's own `mise.toml` does. The Python of mise is externally
@@ -209,8 +208,8 @@ of the checkout is a finding. A Rust nightly is never stale: parity reads it.
   node of the machine, which only starts the bootstrap: the bootstrap installs mise and then the node of the checkout from
   `mise.lock`. `make toolchain-lock` runs the mise that the bootstrap installed (K836), so a checkout whose `mise.lock` pins
   no node runs `make install-tools TOOLS=npm`, which installs mise and stops at the node, then `make toolchain-lock`, then
-  `make install-tools TOOLS=npm` again. `make kit-check` fails a recipe of the Makefile that starts a tool
-  of the checkout (`recipe-tools.mts`: the wrappers of var/tools/bin and the commands of `mise.toml`) by its bare name.
+  `make install-tools TOOLS=npm` again. Until K1051 `make kit-check` failed a recipe of the Makefile that started a tool
+  of the checkout by its bare name; a repository now keeps that rule in its own recipes.
   Before the package is installed, `kit-bootstrap.mk` names `$(NODE)` and `$(NPM)` as kit.mk does, so a recipe of the
   repository that install-packages needs runs the node of the checkout (K185).
 - npm's `allow-remote` is the repository's own setting in its `.npmrc`, which npm reads for every install; kit sets none
@@ -642,8 +641,8 @@ the next green commit whose `## Unreleased` is empty, so a failed CI costs no ve
 entries under `## Unreleased` waits, green, while the CI run of the version commit still runs, then fails and names the version
 commit, and so does
 a top version tagged off the line of the commit. The concurrency group of the release job runs one release of
-the repository at a time, and `make kit-check` requires the `.github/workflows/ci.yml` of a repository to be named `ci`, the
-workflow that release.yml waits for. The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
+the repository at a time, and release.yml waits for the workflow named `ci`, which a repository names its
+`.github/workflows/ci.yml` (kit-check required it until K1051). The repository is data in `config/release.json` (schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {
@@ -839,9 +838,8 @@ Left as it is, with the reason:
   bootstraps with one composite action, `actions/kit-bootstrap/action.yml`, which kit-sync vendors as
   `.github/actions/kit-bootstrap/action.yml` and a job runs after its checkout with `uses: ./.github/actions/kit-bootstrap`: the
   Node.js of mise.toml, the locked kit package, the npm of var/tools and the packages; a job that needs PHP for
-  INSTALL_PACKAGES_EXTRA sets PHP up before it in its own job. `make kit-check` names each line of a repository workflow that carries its own
-  copy of the bootstrap, in the form of any kit release, and each line that installs the npm of the bootstrap
-  (`make install-tools TOOLS=npm`), so a copy whose npm ci runs through a target of the repository is named too (K992, K996).
+  INSTALL_PACKAGES_EXTRA sets PHP up before it in its own job. Until K1051 `make kit-check` named each line of a repository
+  workflow that carried its own copy of the bootstrap (K992, K996).
   The action runs at the root of the workspace, so a job checks the repository out there. The release of a tag runs the action of the tag's own tree, so a
   dispatch of a tag older than the repository's adoption of K992 stops red: the action is missing there. A consumer declares
   repository-owned setup targets in `config/ci.json`; each value is an existing Make target name, not a command. The schema is

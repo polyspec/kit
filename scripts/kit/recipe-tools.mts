@@ -1,27 +1,8 @@
-// A recipe of make starts a tool of the checkout by its absolute path, never by its bare name (K171): make 3.81 looks up a
-// recipe line without shell syntax on the PATH that make started with, not on the PATH that kit.mk exports, so a bare `node`
-// ran the node of the machine. kit.mk names each tool that its recipes start by a variable of its absolute path (NODE, NPM,
-// ALINT); a repository's own recipes use them, or another absolute path. The tools of the checkout are the wrappers that
-// the bootstrap and install-tools write into var/tools/bin and the commands of the tools of mise.toml that kit runs
-// (MISE_TOOLS); a repository's other mise tools pass through to mise (K839), so a bare name of one of them is not found here.
-//
-// The recipes are read from the database that GNU make prints (makeDatabase of owner-check.mts), as written, before make
-// expands them, and split into words by the quoting rules of the POSIX shell with shell-quote, so an operator inside quotes
-// is text (K179, K184). Each command of a line counts: the first word of the line and of each part after &&, ||, ;, |, ( and {, after the prefixes
-// @, - and +, $(ONLINE) and the variable assignments before the command.
-import { MISE_WRAPPER, NODE_WRAPPER } from './bootstrap/install-mise.mts';
-import { NPM_WRAPPERS } from './bootstrap/install-mise.mts';
-import { PHP_LINT_WRAPPERS } from './install-php-lint.mts';
-import { PHPUNIT_WRAPPERS } from './install-phpunit.mts';
+// The words of make recipes and command lines (K171, K179, K184): the expansion of the variables of make, the command parts of a
+// line split by the quoting rules of the POSIX shell with shell-quote, so an operator inside quotes is text, and the targets
+// and assignments of the arguments of a make command. The hook, the rules check, land and the owner check read commands with
+// them; kit judges no recipe of a repository with them (K1051).
 import { parse } from 'shell-quote';
-import { type MakeDatabase } from './owner-check.mts';
-import { MISE_TOOLS } from './toolchain-mise.mts';
-
-/** The commands of the tools of a checkout, which a recipe must not start by their bare names. */
-export const CHECKOUT_TOOLS: ReadonlySet<string> = new Set([
-  NODE_WRAPPER, MISE_WRAPPER, ...Object.keys(NPM_WRAPPERS), ...Object.keys(PHPUNIT_WRAPPERS), ...Object.keys(PHP_LINT_WRAPPERS),
-  ...Object.values(MISE_TOOLS).map(tool => tool.command),
-]);
 
 // The control operators of shell-quote that end a command and start the next one (POSIX shell, 2.9 Shell Commands); a
 // redirection operator only takes the word after it.
@@ -230,70 +211,6 @@ export function commandParts(line: string): string[][] {
     }
   }
   return parts;
-}
-
-/** The words of the command part `part` from its command on: no prefix of make, reserved brace, $(ONLINE) or variable assignment. */
-function commandOf(part: readonly string[]): string[] {
-  // The prefixes @, - and + of make precede the command; $(ONLINE) and the variable assignments only prefix it.
-  const words = part.map((word, index) => (index === 0 ? word.replace(/^[@+-]+/, '') : word)).filter(Boolean);
-  // { and } are reserved words of the shell where a command starts (2.4 Reserved Words), and no command.
-  while (words[0] === '{' || words[0] === '}') words.shift();
-  const start = words.findIndex(word => word !== '$(ONLINE)' && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(word));
-  return start === -1 ? [] : words.slice(start);
-}
-
-/** The command words of the recipe line `line`. */
-export function commandWords(line: string): string[] {
-  return commandParts(line).flatMap((part) => {
-    const command = commandOf(part)[0];
-    return command === undefined ? [] : [command];
-  });
-}
-
-/** One finding for each recipe line of `make` that starts a tool of the checkout by its bare name. */
-export function bareToolFindings(make: MakeDatabase): string[] {
-  return [...make.targets].flatMap(([target, { recipe }]) => recipe.split('\n').flatMap(line => commandWords(line)
-    .filter(word => CHECKOUT_TOOLS.has(word))
-    .map(word => `make target ${target} starts ${word} by its bare name: \`${line.trim()}\`; make 3.81 looks it up on the PATH that make started with, so it runs the ${word} of the machine. Fix: start it by its absolute path, such as $(NODE) of kit.mk for node`)));
-}
-
-// The last segment of a path, as the shell looks a command up by it.
-const baseName = (word: string): string => word.slice(word.lastIndexOf('/') + 1);
-
-// The commands that run the command after them: env with its assignments and options, exec and command.
-const PREFIXES = new Set(['env', 'exec', 'command']);
-// The options of env that take the next word as their value.
-const ENV_VALUED = new Set(['-u', '--unset', '-C', '--chdir', '-S', '--split-string']);
-// A shell that runs its -c string, with -c alone or in combined flags such as -ec.
-const SHELL = /^(?:ba|z|da)?sh$/;
-const SHELL_STRING = /^-[a-z]*c[a-z]*$/;
-const PHPUNIT = /^phpunit(?:\.phar)?$/;
-
-/** Whether the command `words` starts PHPUnit: PHPUnit itself, a php interpreter that runs it, or either behind env, exec, command or sh -c. */
-function startsPhpunit(words: readonly string[]): boolean {
-  let rest = [...words];
-  while (rest.length > 0 && PREFIXES.has(baseName(rest[0] ?? ''))) {
-    rest = rest.slice(1);
-    while (rest.length > 0 && ((rest[0] ?? '').startsWith('-') || /^[A-Za-z_][A-Za-z0-9_]*=/.test(rest[0] ?? ''))) rest = rest.slice(ENV_VALUED.has(rest[0] ?? '') ? 2 : 1);
-  }
-  const command = baseName(rest[0] ?? '');
-  if (SHELL.test(command)) {
-    const flag = rest.findIndex(word => SHELL_STRING.test(word));
-    const script = flag === -1 ? undefined : rest[flag + 1];
-    return script !== undefined && commandParts(script).some(part => startsPhpunit(commandOf(part)));
-  }
-  return PHPUNIT.test(command) || (/^php[0-9.]*$/.test(command) && rest.slice(1).some(word => PHPUNIT.test(baseName(word))));
-}
-
-/** One finding for each recipe command of `make` that starts PHPUnit outside run-tests. */
-// run-tests gives each test its timeout and stops the process group of the tool when a test outlives it (K371), with SIGKILL
-// after a grace period, so a test that waits inside a C call, such as a lock wait of libpq that retries its poll on EINTR,
-// still ends at its timeout (K436). A recipe that starts PHPUnit itself has no limit, and such a test sleeps until someone
-// ends it. The lines are read with the variables of make expanded, so a variable that holds the command counts.
-export function testRunnerFindings(make: MakeDatabase): string[] {
-  return [...make.targets].flatMap(([target, { recipe }]) => recipe.split('\n').flatMap(line => commandParts(expandMake(line, make.variables))
-    .filter(part => startsPhpunit(commandOf(part)))
-    .map(() => `make target ${target} starts PHPUnit outside run-tests: \`${line.trim()}\`; a test that hangs there has no time limit. Fix: run it as $(RUN_TESTS) phpunit [--php-extension <file>] -- <arguments>, which stops a test at its timeout`)));
 }
 
 // The options of make that take the next word as their value.

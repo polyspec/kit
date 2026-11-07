@@ -60,7 +60,7 @@ BOOTSTRAP_NODE := node
 kit-sync: ## Write the copies of the installed @polyspec/kit (kit.copies of its package.json), the version of package-lock.json; offline
 	$(NODE) $(KIT)/kit-sync.$(KIT_EXT)
 
-kit-check: ## Check the configuration against the schemas of kit, the PHP that a PHP repository declares and the tool recipes; offline
+kit-check: ## Check the configuration of kit's utilities (config/*.json) against their schemas; offline
 	$(NODE) $(KIT)/kit-check.$(KIT_EXT)
 
 .PHONY: kit-inject-check
@@ -201,7 +201,7 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, whose partitions below the CI pipeline (workflows/ci-pipeline.yml) runs past failures, so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by.
-kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check bypass-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the CI pipeline runs its partitions in CI
+kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the CI pipeline runs its partitions in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
 # entry point above; these targets are only the disjoint workflow partitions, and the parity job checks every implementation in
@@ -212,7 +212,7 @@ kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-
 ifneq ($(filter kit-gates-static,$(MAKECMDGOALS)),)
 MAKEFLAGS += -k
 endif
-kit-gates-static: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check bypass-check suppression-check divergence-check ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
+kit-gates-static: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check suppression-check divergence-check ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
 	@echo "[kit-gates-static] every shared gate passed"
 kit-gates-parity: parity-check ## Run the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate
@@ -238,10 +238,6 @@ kit-ci-context-cleanup: ## Run the optional repository context cleanup target fo
 .PHONY: suppression-check
 suppression-check: ## Fail on a tracked suppression of a lint finding (eslint-disable, oxlint-disable, noqa, @phpstan-ignore, phpcs:ignore, nolint, allow) that states no reason in the form of its tool (P8, K334); offline
 	$(NODE) $(KIT)/suppression-check.$(KIT_EXT)
-
-.PHONY: bypass-check
-bypass-check: ## Fail on a tracked test, script or Makefile that sets the CI identity, assumes a gate of kit-gates up to date with make -o, or skips a Git hook with the flag that git commit takes for that (K308); offline
-	$(NODE) $(KIT)/bypass-check.$(KIT_EXT)
 
 # The red of a row whose whole change is text (K431): the Verification of P19's sub-item. It is no gate of kit-gates.
 .PHONY: text-absent

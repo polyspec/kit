@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 105c7795ebdd4074c30946c2095d01dbee9dda90bb0e2a318170e16e4c32eef0 -->
+<!-- source-sha256: 2fe9ae619109516861ec84f8f18e161da15ac89fac7f5ebfcd03c71ae18c1791 -->
 
 # 도구 목록
 
@@ -63,8 +63,8 @@ kit `.github/workflows/ci.yml`의 job `bootstrap`(K912)은 Ubuntu x64, macOS arm
 Windows에서 동작하거나 Windows PHP extension SDK를 지원한다고 입증하지는 않습니다.
 
 PHP는 설치하지 않고 wrapper로 제공합니다(K283, K862). `.php-version`이나 `config/toolchain.json`의 `php`는 checkout이 PHP를
-쓴다는 선언입니다. `.php-version`은 CI setup-php의 입력으로서 적힌 그대로 읽으며, PHP가 필요한 저장소에는 `make kit-check`가 이를
-요구합니다(K193, 아래).
+쓴다는 선언입니다. `.php-version`은 CI setup-php의 입력으로서 적힌 그대로 읽으며, PHP가 필요한 저장소가 이를
+선언합니다(K193, 아래).
 `install-php.mts`는 bootstrap의 PATH(`var/tools/bin` 제외, 자기 wrapper를 찾지 않기 위해)의 `php`를 그대로 쓰며 release를
 비교하지 않습니다. 패키지의 `require`가 제외하는 PHP는 Composer의 platform 검사가 거부하고, 나머지는 저장소 자신의 검사가
 맡습니다. 절대 경로를 담은 exec wrapper로
@@ -145,8 +145,7 @@ stale이 되지 않습니다.
   `mise.toml`의 도구로 정확한 release로 선언합니다(K127). PHP는 설정을 먼저 읽고 없으면 `.php-version`(ordered-json, orm)과
   crudui, template의 목록을 읽으며, 둘을 서로 비교하지 않습니다(K862). PHP가 필요한 저장소(`config/release.json`의 Composer package나
   Composer consumer, 또는 `config/toolchain.json`의 `php`)는 CI와 release workflow가 설치하는 PHP(`php-version-file`)인
-  `.php-version`을 선언합니다. release workflow가 어떤 release 단계보다 먼저 실행하는 `make kit-check`는 그것이 없으면 실패합니다.
-  그렇지 않으면 release가 runner의 PHP로 실행되었기 때문입니다(K193).
+  `.php-version`을 선언합니다. 그렇지 않으면 release가 runner의 PHP로 실행되기 때문입니다(K193). K1051 전까지 kit-check가 이를 요구했습니다.
 - Python (K64, K127): mise가 `mise.lock`이 URL과 sha256으로 고정한 정확한 python-build-standalone build를 `var/tools/mise/installs`에 설치하고, shim `var/tools/mise/shims/python3`이 그것을 실행합니다. 저장소가 `UV_PYTHON_DOWNLOADS=never`를 설정하면 uv는 Python을 설치하지 않으며(kit 자신의 `mise.toml`이 그렇게 설정함, K1048), 저장소가 `UV_PYTHON_PREFERENCE=only-system`을 설정하면 uv는 mise의 python3 shim을 씁니다. kit 자신의 `mise.toml`이 그렇게 설정합니다. mise의 Python도 pip에게는 externally managed이므로 pip는 그 Python의 venv에만 설치합니다. run-tests는 PATH의 Python이 아니라 그 shim을 실행합니다. 테스트가 자기에게 설치된 의존성을 import하는 package는 `run-tests python --venv <directory>`로 실행합니다(K37): runner는 `<directory>/pyvenv.cfg`의 `home`이 `var/tools/mise` 아래의 directory일 때만(link를 따라 읽음) `<directory>/bin/python`을 시작하며, 다른 환경은 tool을 시작하기 전에 `make python-venv DIR=<directory>`(K44) 또는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`라는 고침과 함께 거부합니다. 환경의 symbolic link는 그 환경을 만든 tool의 동작이므로 만들어진 그대로 받아들입니다(K63): `uv venv`는 `bin/python`을 interpreter로, `bin/python3`과 `bin/python3.14`를 `bin/python`으로 link하며, run-tests는 link를 복사하거나 지우거나 고쳐 쓰지 않고 그 환경을 실행합니다.
 - Python venv (K44, K64): `make python-venv DIR=<directory>`(`scripts/kit/python-venv.mts`)는 `var/tools/mise/shims/uv venv --python var/tools/mise/shims/python3 <directory>`로 checkout Python의 virtual environment를 만들고, uv가 만든 그대로 link까지 둡니다. 실행은 멱등입니다: 이미 checkout Python의 venv인 기존 `<directory>`(run-tests의 규칙, 같은 Python 버전)는 바꾸지 않고 그렇다고 보고하며, 그 밖의 기존 `<directory>`는 이유와 함께 오류이고 지우거나 고치지 않습니다. 실패한 실행은 그것이 만든 directory를 지웁니다.
 - ruff와 vulture(K127): ruff는 mise가 `mise.lock`의 sha256으로 설치하는 GitHub release archive이고, vulture는 mise가 `.mise/locks`의 uv lock으로 환경을 제자리에서 build하는 `pypi:` 도구이므로, 그 console script는 존재하는 interpreter를 가리킵니다.
@@ -184,8 +183,8 @@ stale이 되지 않습니다.
   실행했습니다. kit.mk는 이를 `$(NODE)`, `$(NPM)`, `$(ALINT)`로 부르며, `BOOTSTRAP_NODE`는 bootstrap만
   시작하는 machine의 node입니다. bootstrap은 mise를 설치한 뒤 `mise.lock`에서 checkout의 node를 설치합니다. `make toolchain-lock`은
   bootstrap이 설치한 mise를 실행하므로(K836), `mise.lock`이 node를 고정하지 않은 checkout은 mise를 설치하고 node에서 멈추는
-  `make install-tools TOOLS=npm`, 그다음 `make toolchain-lock`, 다시 `make install-tools TOOLS=npm`을 실행합니다. `make kit-check`는 checkout의 도구(`recipe-tools.mts`: var/tools/bin의 wrapper와 `mise.toml`의
-  command)를 이름만으로 실행하는 Makefile의 recipe를 실패시킵니다. package가 설치되기 전에도 `kit-bootstrap.mk`는 kit.mk처럼
+  `make install-tools TOOLS=npm`, 그다음 `make toolchain-lock`, 다시 `make install-tools TOOLS=npm`을 실행합니다. K1051 전까지 `make kit-check`는 checkout의 도구를
+  이름만으로 실행하는 Makefile의 recipe를 실패시켰으며, 이제 그 규칙은 저장소가 자기 recipe에 둡니다. package가 설치되기 전에도 `kit-bootstrap.mk`는 kit.mk처럼
   `$(NODE)`와 `$(NPM)`을 정의하므로, install-packages가 필요로 하는 저장소의 recipe는 checkout의 node를 실행합니다(K185).
 - npm의 `allow-remote`는 저장소가 자기 `.npmrc`에 적는 설정이며, npm은 모든 설치에서 그것을 읽습니다. kit은 아무것도
   정하지 않습니다(K1045). `@polyspec/kit`을 release asset의 URL로 고정하는 lock은 npm 12에서 적어도 `allow-remote=root`가 필요합니다.
@@ -586,8 +585,8 @@ public이 된 뒤 version commit이 다시 돈 run도 그렇게 끝나며, tag �
 그래서 CI가 실패해도 version 번호를 버리지 않습니다(K988, K990). `## Unreleased`에 항목이 있는 이후 commit은 version commit의
 CI run이 아직 도는 동안 green으로 기다리고, 그 뒤에는 version commit을 적으며 실패하고, 맨 위
 version이 commit의 line 밖에서 tag되어도 실패합니다. release job의 concurrency group은 저장소의
-release를 한 번에 하나만 실행하고, `make kit-check`는 저장소의 `.github/workflows/ci.yml` 이름이 release.yml이 기다리는 workflow인
-`ci`이기를 요구합니다. 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
+release를 한 번에 하나만 실행하고, release.yml은 이름이 `ci`인 workflow를 기다리므로 저장소는
+`.github/workflows/ci.yml`의 이름을 `ci`로 둡니다(K1051 전까지 kit-check가 이를 요구했습니다). 저장소는 `config/release.json`의 데이터입니다(schema `scripts/kit/schema/release.schema.json`):
 
 ```json
 {
@@ -762,9 +761,8 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   저장소의 ci.yml이 이를 job `kit`으로 호출하고, 독립적인 저장소 job은 함께 실행합니다. 마지막 `ci-passed` job은 다른 모든 job을 needs로 요구하므로 run 하나가 commit의 모든 job을 담습니다. 파이프라인, release.yml, 저장소 workflow의 모든 job은 composite action 하나인
   `actions/kit-bootstrap/action.yml`로 bootstrap합니다. kit-sync가 이를 `.github/actions/kit-bootstrap/action.yml`로 vendor하고,
   job은 checkout 뒤에 `uses: ./.github/actions/kit-bootstrap`으로 실행합니다. mise.toml의 Node.js, lock된 kit package,
-  var/tools의 npm과 package를 설치하며, INSTALL_PACKAGES_EXTRA에 PHP가 필요한 job은 그 앞에서 PHP를 설정합니다. `make kit-check`는
-  어느 kit release 형태든 bootstrap 복사본을 담은 저장소 workflow의 각 줄과 bootstrap의 npm을 설치하는 각 줄
-  (`make install-tools TOOLS=npm`)을 적으므로, npm ci를 저장소의 target으로 실행하는 복사본도 적힙니다(K992, K996). action은
+  var/tools의 npm과 package를 설치하며, INSTALL_PACKAGES_EXTRA에 PHP가 필요한 job은 그 앞에서 PHP를 설정합니다. K1051 전까지
+  `make kit-check`는 bootstrap 복사본을 담은 저장소 workflow의 각 줄을 적었습니다(K992, K996). action은
   workspace의 root에서 실행되므로 job은 저장소를 그곳에 checkout합니다. tag의 release는 tag 자신의 tree에 있는
   action을 실행하므로, 저장소가 K992를 채택하기 전의 tag를 dispatch하면 action이 없어 red로 멈춥니다. 소비 저장소는
   `config/ci.json`에 저장소별 setup target을 선언합니다. 각 값은 명령문이 아니라 실제 존재하는 Make target 이름입니다.

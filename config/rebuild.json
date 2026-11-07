@@ -46,10 +46,6 @@
       "kind": "ecosystem",
       "tool": "Node.js filesystem, OS and path APIs; hdiutil Case-sensitive APFS on macOS and fsutil.exe NTFS per-directory case sensitivity on Windows"
     },
-    "scripts/kit/coupling.mts": {
-      "kind": "policy",
-      "reason": "the rule of S15 that a part reaches another only through the interface its installed manifest declares and names no path to a sibling checkout (K1002)"
-    },
     "scripts/kit/check-commits.mts": {
       "kind": "record",
       "record": "docs/rebuild/check-commits.md"
@@ -332,7 +328,7 @@
     },
     "scripts/kit/recipe-tools.mts": {
       "kind": "policy",
-      "reason": "polyspec's rule that a make recipe starts a tool of the checkout by its absolute path (K171); the recipes come from GNU make's database through owner-check.mts, split into words by the quoting rules of the POSIX shell with the parse of shell-quote (K179, K184)"
+      "reason": "parses make recipes from GNU make's database and splits them into words by the quoting rules of the POSIX shell with shell-quote, for check-rules, claude-hook, land and owner-check (K179, K184)"
     },
     "scripts/kit/release-run.mts": {
       "kind": "policy",
@@ -445,10 +441,6 @@
     "scripts/kit/symbols/python.py": {
       "kind": "ecosystem",
       "tool": "ast of the Python standard library on the installed file list of importlib.metadata (K75, K788)"
-    },
-    "scripts/kit/bypass-check.mts": {
-      "kind": "policy",
-      "reason": "the rule of P31 that no test, script or Makefile bypasses a gate (CI identity, make -o of a gate, --no-verify); no ecosystem tool checks a bypass of polyspec's gates (K308)"
     },
     "scripts/kit/ci-setup.mts": {
       "kind": "policy",
