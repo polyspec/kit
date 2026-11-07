@@ -1176,8 +1176,11 @@ from the tree.
 - It runs the binding of each suite and feature in each implementation itself and keeps an in-memory ledger of the runs
   and of the cases and test IDs that each run reported. It reads no saved report. A binding command is an operation without
   a time limit, including quiet compilation and initialization before its native cases. Each repository supplies the native
-  case deadlines. Interrupting the checker ends its process groups; the output bound still rejects excessive output. A built-in
-  Go or Cargo binding builds first and reports build failure before reading any case.
+  case deadlines. Interrupting the checker ends its process groups; the output bound still rejects excessive output.
+  Kit invokes the native test command once, without an implicit prebuild.
+  The native tool owns compilation and reports compiler failure through its exit status and diagnostics; no native case event means no executed case.
+  Repository recipes own explicit preparation and reusable build outputs.
+  The separate prebuild existed only to exclude compilation from the removed binding inactivity deadline.
 - It reads the public symbols of each implementation with the standard tool of its ecosystem (go/packages, API Extractor,
   nikic/php-parser, Python's ast, rustdoc JSON). It reads no committed snapshot.
 - It reads the error codes from the generated artifact of each implementation.

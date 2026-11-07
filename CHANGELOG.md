@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- CI: invoke each native parity binding once without a redundant Go/Cargo prebuild; retain native compiler failures, diagnostics and exact case outcomes (K1035).
+
 - CI: stream native parity output while commands run, preserve original verdict input and remove duplicate completion logs (K1034).
 
 - CI: remove parity whole-operation inactivity deadlines, retain native case deadlines and interruption cleanup, and keep real Go build compatibility in source checks (K1033).

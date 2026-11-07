@@ -38,5 +38,5 @@ test('a failed native Go build preserves its exit and reports no executed case',
   assert.equal(observed.ledger.cases.length, 0, 'failed compilation reports no executed case');
   const messages = observed.findings.map(finding => finding.message);
   assert.match(messages.join('\n'), /codec_test\.go/, 'the real compiler diagnosed the malformed source');
-  assert.ok(messages.some(message => /the build of the tests exited with [1-9]/.test(message)), JSON.stringify(messages));
+  assert.ok(messages.some(message => /exited with [1-9]/.test(message)), JSON.stringify(messages));
 });

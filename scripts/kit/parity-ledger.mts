@@ -52,8 +52,6 @@ interface Attempt {
   cases: Map<string, Outcome>;
   repeated: string[];
   reportError?: string;
-  /** The build of the tests failed, which is the run (K936). */
-  built?: boolean;
 }
 
 /** The names of `cases` (a map from case to outcome) whose outcome is `outcome`. */
@@ -123,26 +121,14 @@ async function runSupport(model: ParityModel, root: string, files: Set<string>, 
   return found;
 }
 
-/** The finding of a build that failed (K936): the build of the tests exited with its status, and the compiler lines that explain it. */
-const buildSentence = (run: BindingCommand, result: RunCommandResult): string => {
-  const detail = run.detail(result);
-  return `the build of the tests exited with ${result.status ?? result.signal}${detail.length ? `: ${detail.join(' | ')}` : ''}`;
-};
-
-/** Run native build and test commands to completion, keeping process ownership and captured output. */
-async function runInvocation(run: BindingCommand, root: string, say: (line: string) => void): Promise<{ result: RunCommandResult; built: boolean }> {
-  const plain = {
-    command: run.command, cwd: path.join(root, run.cwd), env: run.env,
-    stdout: 'pipe' as const, stderr: 'pipe' as const, maxOutputBytes: MAX_OUTPUT_BYTES,
+/** Run the native test command once, keeping process ownership and captured output. */
+async function runInvocation(run: BindingCommand, root: string, say: (line: string) => void): Promise<{ result: RunCommandResult }> {
+  const result = await runCommand({
+    command: run.command, args: run.args, cwd: path.join(root, run.cwd), env: run.env,
+    stdout: 'pipe', stderr: 'pipe', maxOutputBytes: MAX_OUTPUT_BYTES,
     onLine: (stream: 'stdout' | 'stderr', line: string) => say(`[${stream}] ${line}`),
-  };
-  if (run.build !== undefined) {
-    const built = await runCommand({ ...plain, args: run.build });
-    // A program that cannot start is the error of the run, as for a binding without a build (K393-2).
-    if (built.error) return { result: built, built: false };
-    if (built.stopped !== undefined || built.status !== 0) return { result: built, built: true };
-  }
-  return { result: await runCommand({ ...plain, args: run.args }), built: false };
+  });
+  return { result };
 }
 
 /**
@@ -151,13 +137,13 @@ async function runInvocation(run: BindingCommand, root: string, say: (line: stri
  */
 async function once(run: BindingCommand & { shown: string }, root: string, where: { unit: string; implementation: string; place: string }, ledger: { runs: LedgerRun[] }, say: (line: string) => void, group: (name: string) => boolean = () => false): Promise<Attempt> {
   say(`run ${where.unit} ${where.implementation}: ${run.shown} (in ${run.cwd})`);
-  const { result, built } = await runInvocation(run, root, say);
+  const { result } = await runInvocation(run, root, say);
   const status = result.error ? null : result.status;
   let reported: [string, Outcome][] = [];
   let reportError: string | undefined;
-  // A failed build is the run's result: no case is read from its output (K936).
-  if (result.stopped === 'output' && !built) reportError = 'its output passed the limit of the ledger, and its process group was stopped';
-  else if (!built && !result.error && result.stopped === undefined) {
+  // Only native case events establish execution; compiler diagnostics remain failure details.
+  if (result.stopped === 'output') reportError = 'its output passed the limit of the ledger, and its process group was stopped';
+  else if (!result.error && result.stopped === undefined) {
     try { reported = outcomesOf(run, result).filter(([name]) => !group(name)); }
     // catch-any -- Malformed child output is a binding finding, not a reason to abort the remaining bindings.
     catch (error) {
@@ -170,7 +156,6 @@ async function once(run: BindingCommand & { shown: string }, root: string, where
     status,
     cases: new Map(reported),
     repeated: repeated(reported),
-    ...(built ? { built: true } : {}),
     ...(reportError === undefined ? {} : { reportError }),
   };
 }
@@ -214,9 +199,7 @@ async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { e
     const outside = named(first.cases, 'fail').filter(name => !bound.some(entry => entry.id === name));
     const failedOutside = first.status === 0 ? '' : `; failed outside the ids: ${outside.length ? outside.join(', ') : `no test name readable from the output; last 20 lines: ${lastLines(first.result)}`}`;
     say(`${units} ${implementation.name}: exit ${first.status ?? 'none'}, ${bound.filter(entry => first.cases.get(entry.id) === 'pass').length} of ${bound.length} ids passed${failedOutside}`);
-    const failedRun = first.built
-      ? [buildSentence(run, first.result)]
-      : [
+    const failedRun = [
           first.result.error && `${run.shown} could not start: ${first.result.error.message}`,
           !first.result.error && first.status !== 0 && `exited with ${first.status ?? first.result.signal}${run.detail(first.result).length ? `: ${run.detail(first.result).join(' | ')}` : ''}`,
           first.reportError !== undefined && `invalid reporter output: ${first.reportError}`,
@@ -265,10 +248,10 @@ export async function runBindings(model: ParityModel, root: string, { env, files
     // Go nests a subtest at each /, so it reports each directory above a case of a case directory as a subtest of its own.
     const declared = model.cases.get(unit.id) ?? [];
     const group = (name: string) => (binding.runner ?? implementation.runner) === 'go' && declared.some(entry => entry.startsWith(`${name}/`));
-    const { result, status, cases, reportError, repeated: twice, built } = await once(run, root, { unit: unit.id, implementation: implementation.name, place: binding.test }, ledger, say, group);
+    const { result, status, cases, reportError, repeated: twice } = await once(run, root, { unit: unit.id, implementation: implementation.name, place: binding.test }, ledger, say, group);
     say(`${unit.id} ${implementation.name}: ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${expected.filter(name => cases.get(name) === 'pass').length} of ${expected.length} cases passed`);
     for (const [name, outcome] of cases) ledger.cases.push({ unit: unit.id, implementation: implementation.name, case: name, outcome });
-    const problems = built ? [buildSentence(run, result)] : [
+    const problems = [
       result.error && `${run.shown} could not start: ${result.error.message}`,
       !result.error && status !== 0 && `exited with ${status ?? result.signal}${run.detail(result).length ? `: ${run.detail(result).join(' | ')}` : ''}`,
       reportError !== undefined && `invalid reporter output: ${reportError}`,

@@ -543,7 +543,8 @@ test('R3: a Go package that does not build names the compiler output', TIMEOUT, 
   const { findings } = await check(t, { files: { 'go/codec_test.go': 'BUILD ./codec_test.go:7:2: undefined: undefinedThing\n' } });
   assert.deepEqual(keys(findings), ['R3 codec go', 'R3 width go', 'R3 size go']);
   // A build that fails is the finding of its run, with the compiler output; no case of it is read (K936).
-  assert.equal(findingAt(findings, 0).message, 'the build of the tests exited with 1: ./codec_test.go:7:2: undefined: undefinedThing');
+  assert.match(findingAt(findings, 0).message, /exited with 1: .*undefinedThing/);
+  assert.match(findingAt(findings, 0).message, /not executed: empty, ascii/);
 });
 
 test('a case name that a runner cannot report, and a Go symbol that is no test function, fail the declaration', TIMEOUT, async (t) => {
@@ -1406,10 +1407,10 @@ test('a declaration that names what does not exist or holds a stale entry fails,
   ]) assert.ok(messages.some(message => expected.test(message)), `${expected} in\n${messages.join('\n')}`);
 });
 
-test('make parity-check and parity-declarations-check pass without a finding; parity.mts exits 1 on one', TIMEOUT, (t) => {
+test('make parity-check selects every fixture unit and parity-declarations-check stays static; parity.mts exits 1 on a missing case', TIMEOUT, (t) => {
   const root = repository(t);
-  // A full parity-check runs only in CI (ci-only.mts), so the run is marked as one.
-  const make = (target: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, target], { cwd: root, env: ENV, encoding: 'utf8' });
+  // Select all four fixture units explicitly: this unit test runs stub tools, not a repository suite.
+  const make = (target: string) => spawnSync('make', ['--no-print-directory', ...KIT_MAKE, target, 'UNITS=codec width size encode'], { cwd: root, env: ENV, encoding: 'utf8' });
   const passed = make('parity-check');
   assert.equal(passed.status, 0, passed.stdout + passed.stderr);
   assert.match(passed.stdout, /\[parity\] run codec go: go test -json -count=1 -run \^TestCodec\$ \.\//);

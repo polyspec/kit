@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 28bc69e6fa7340beb053ee261b41eb334b1dc646e5a6c95bc03bfc074c54fb5d -->
+<!-- source-sha256: 8c4f7b8118186eb12a31cd72149feea145f02ad5d8fdcd264b4db96d40e7197a -->
 # 개발
 
 [English](AGENTS.md)
@@ -19,8 +19,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Own: Phase로 나눈 각 parity binding job은 repository가 config/ci.json의 parityBindings에 명시한 tool과 setup target을 실행합니다. Implementation 집합은 config/parity.json과 정확히 일치해야 합니다. 빈 배열은 setup이 없다는 뜻이며 kit은 binding에 runtime이나 extractor 설치를 추론하여 추가하지 않습니다. Build unit·fixture·artifact는 repository의 책임입니다. 규칙 검사기는 검증된 CI job 선택을 사용한다. 선택되지 않은 job은 강제 증거가 아니다.
   Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `tests/kit/check-rules.test.mts`
 
-- Own: parity 호출은 실행 중 stdout과 stderr를 target log로 한 번씩 전달하고 native 판정 파싱을 위해 원본 캡처를 유지한다. Node는 표준 reporter로 상세를 보고하고 별도의 native event로 판정한다. 상세 출력은 통과 판정을 공급하지 않는다. parity binding 명령에는 무출력 제한이 없다. 저장소가 native case deadline을 제공하며 checker 중단은 process group을 계속 정리한다.
-  Enforced by: `tests/kit/parity-diagnostics.test.mts`, `tests/kit/parity-operation.test.mts`, `tests/kit/parity-output.test.mts`
+- Own: parity 호출은 실행 중 stdout과 stderr를 target log로 한 번씩 전달하고 native 판정 파싱을 위해 원본 캡처를 유지한다. Node는 표준 reporter로 상세를 보고하고 별도의 native event로 판정한다. 상세 출력은 통과 판정을 공급하지 않는다. parity binding 명령에는 무출력 제한이 없다. 저장소가 native case deadline을 제공하며 checker 중단은 process group을 계속 정리한다. Parity invocation은 암묵적인 사전 build 없이 native test command를 한 번 호출하고, 명시적인 준비와 재사용 build output은 repository recipe가 담당한다.
+  Enforced by: `tests/kit/parity-diagnostics.test.mts`, `tests/kit/parity-operation.test.mts`, `tests/kit/parity-output.test.mts`, `tests/kit/parity-ledger.test.mts`
 
 - Own: Kit 변경 요청은 GitHub issue에서 추적합니다. 각 issue에 구현 진행 상황, 검증 근거와 release 상태를 기록하고,
   명시된 acceptance 조건을 충족한 뒤에만 닫습니다.

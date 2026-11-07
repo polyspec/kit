@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0f119b1c4f05f6003908e343e38197770e5d8643fb0a96db32cc1fdc387be8d6 -->
+<!-- source-sha256: 9d7bdaa025aad75662d32d9d15277c8610ea160ee35b537a33fadbb6c90001ac -->
 
 # 도구 목록
 
@@ -1077,7 +1077,7 @@ feature unit과 case가 한 implementation에만 있는 suite unit(K961)은 기�
 - 각 implementation에서 각 suite와 feature의 binding을 직접 실행하고, 실행과 각 실행이 보고한 case와 test id의 ledger를 memory에
   둡니다. 저장된 report는 읽지 않습니다. binding 명령은 native case 전의 조용한 compile과 초기화를 포함해 시간 제한이 없는 처리입니다.
   각 저장소가 native case deadline을 제공합니다. checker 중단은 process group을 끝내고, 출력 한도는 과도한 출력을 계속 거부합니다.
-  built-in Go와 Cargo binding은 먼저 build하고, case를 읽기 전에 build 실패를 보고합니다.
+  Kit은 암묵적인 사전 build 없이 native test command를 한 번 호출합니다. Native tool이 compilation을 담당하며 종료 상태와 진단으로 compiler 실패를 보고합니다. Native case event가 없으면 실행된 case도 없습니다. 명시적인 준비와 재사용 build output은 repository recipe가 담당합니다. 별도 사전 build는 제거된 binding inactivity deadline에서 compilation을 제외하기 위해 존재했습니다.
 - 각 implementation의 public symbol을 그 생태계의 표준 도구(go/packages, API Extractor, nikic/php-parser, Python의 ast, rustdoc
   JSON)로 읽습니다. commit된 snapshot은 읽지 않습니다.
 - 각 implementation의 생성물에서 error code를 읽습니다.

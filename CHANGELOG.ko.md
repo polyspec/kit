@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: c185b5f993b2ffde8adb68da8dc2395c68f270c139101754b79faf6478133c1a -->
+<!-- source-sha256: 67f04ffdac1edb12f3bc26e00b368fa9a9375d32831de8e10a9f575df5c0c43a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- CI: 중복 Go/Cargo 사전 build 없이 native parity binding을 한 번 호출하고 native compiler 실패, 진단과 정확한 case 결과를 보존한다(K1035).
 
 - CI: 명령 실행 중 native parity 출력을 전달하고 원본 판정 입력을 보존하며 완료 로그 중복을 없앤다(K1034).
 
