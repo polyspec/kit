@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 1dfddbfc4409b1d74e40b56f1f1c0ee572b24c56efdddb2ea7e5c0ce744a6b04 -->
+<!-- source-sha256: 0fc62d793817dc4b05e1c9ea0e566e70e55f499d7abd3d275121aff77732d0d2 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -180,3 +180,4 @@
 | K1049 | 유틸리티는 CARGO_TARGET_DIR를 환경이 정한 대로 둔다 | `scripts/kit/link.mts`, `scripts/kit/run-tests.mts`, `scripts/kit/kit.mk`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1049 tests/kit/run-tests.test.mts` | [ ] |
 | K1050 | lint 유틸리티는 각 도구를 저장소의 설정으로 실행하고, kit의 설정은 예제가 된다 | `scripts/kit/lint-*.mts`, `docs/examples/`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1050 tests/kit/lint-steps.test.mts` | [ ] |
 | K1051 | kit-check와 bypass-check는 저장소의 레시피와 workflow를 판정하지 않는다 | `scripts/kit/kit-check.mts`, `scripts/kit/recipe-tools.mts`, `scripts/kit/bypass-check.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1051 tests/kit/kit-check.test.mts` | [ ] |
+| K1052 | kit-sync는 저장소에 복사본을 쓰지 않고, 복사되던 workflow, action, 설정은 예제가 된다 | `scripts/kit/kit-sync.mts`, `package.json` kit.copies, `workflows/`, `actions/`, `docs/examples/`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1052 tests/kit/kit-sync.test.mts` | [ ] |
