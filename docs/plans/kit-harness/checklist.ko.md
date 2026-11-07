@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 0dbe5a7e0751eb8d7d40236413807e49054d4cc9ba92dea230219c117195817c -->
+<!-- source-sha256: 10d0c62aecfaa47b678791d0ec3beeb572a3a9d0d0b50710c5b89b06cfda8d10 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -159,3 +159,4 @@
 | K1028 | CI 42359978457이 보고한 binding setup의 금지된 non-null assertion 네 곳을 고친다. Lint나 binding 검증을 약화하지 않고 K1026 동작을 보존한다. | scripts/kit/ci-setup.mts, CHANGELOG.md, CHANGELOG.ko.md | `node node_modules/oxlint/bin/oxlint --type-aware --deny-warnings -c .oxlintrc.json scripts/kit/ci-setup.mts`; `node --test tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts` | [o] |
 | K1029 | CI 계획을 shared 검사와 분리해 독립 parity·runtime job이 계획 데이터만 기다리게 한다. 선택된 모든 검사·실패 판정·context·report를 보존하고 issue #25에서 추적한다. | workflows/ci-pipeline.yml, scripts/kit/schema/ci.schema.json, tests/kit/gates-workflow.test.mts, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, AGENTS.md, AGENTS.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/gates-workflow.test.mts tests/kit/ci-setup.test.mts` | [o] |
 | K1030 | CI 42361318294 실패를 고친다. S12 구체화에 provider workflow 경로를 명시하고 bootstrap 순서를 약화하지 않으면서 별도 계획·검사 job에 맞는 실행 증거로 갱신한다. | AGENTS.md, AGENTS.ko.md, tests/kit/kit-tools.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `make rules-check`; `node --test tests/kit/kit-tools.test.mts tests/kit/gates-workflow.test.mts tests/kit/ci-setup.test.mts tests/kit/check-rules.test.mts` | [o] |
+| K1031 | 선택된 phased parity binding 검사의 CI 규칙 도달성 판정을 수정한다. issue 26을 추적하고 선택되지 않은 선언의 거부를 유지한다. | scripts/kit/ci-setup.mts; scripts/kit/check-rules.mts; tests/kit/ci-setup.test.mts; tests/kit/check-rules.test.mts; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/ci-setup.test.mts tests/kit/check-rules.test.mts` | [ ] |
