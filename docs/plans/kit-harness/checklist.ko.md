@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 359e6e9b014c3f9d15248ada3acd64fd2c2cfdb340300acd6a52f7aab67f4c56 -->
+<!-- source-sha256: 27a98175260ffbaf4bb56b88543666cc610ee88d1cfbe1134cfffb28eda16fe1 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -155,3 +155,4 @@
 | K1022 | PRINCIPLES S14가 거울, 수정 branch, release하는 line으로 된 fork 규칙을 적고, root는 fork의 release tag를 require한다 | PRINCIPLES.md, PRINCIPLES.ko.md, docs/operations/local-links.md, docs/operations/local-links.ko.md | `make rules-check` `make docs-check` | [o] |
 | K1024 | PRINCIPLES는 fork 규칙을 담지 않는다: 각 fork는 자기 FORK.md에 규칙을 적고 각 root는 설치하는 release를 자기 manifest와 lock에 적는다 | PRINCIPLES.md, PRINCIPLES.ko.md, docs/operations/local-links.md, docs/operations/local-links.ko.md, CHANGELOG.md(.ko) | `make rules-check` `make docs-check` | [o] |
 | K1026 | Parity binding job에 repository가 선언한 setup target과 tool만 제공하고 전체 runtime 설치를 제거한다. Issue #24에서 matrix·CLI·workflow 전달을 검증한다. | scripts/kit/ci-setup.mts, scripts/kit/schema/ci.schema.json, scripts/kit/kit.mk, workflows/ci-pipeline.yml, tests/kit/ci-setup.test.mts, tests/kit/gates-workflow.test.mts, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, AGENTS.md, AGENTS.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts` | [o] |
+| K1027 | Repository가 소유하는 parity binding setup을 Kit 0.0.96으로 배포한다. 정확한 후보 CI 성공 후 공식 배포하고 ORM 채택 전에 공개 archive를 확인하며 issue #24를 갱신한다. | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `gh release view v0.0.96 --repo polyspec/kit --json isDraft,tagName,url` | [ ] |
