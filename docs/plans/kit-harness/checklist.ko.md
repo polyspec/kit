@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 26359bac7b7f78b9650fe194c218789c0ef42bb68d59b93aed771a8a6deac354 -->
+<!-- source-sha256: db0a258590838ff27e2c84f84c1962c34ba76cd0e7ccf10eb70177960b1416d6 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -176,3 +176,4 @@
 | K1045 | Kit은 npm allow-remote를 강제하지 않고, 각 저장소가 자기 .npmrc에 적는다 | `scripts/kit/kit-bootstrap.mk`, `actions/kit-bootstrap/action.yml`, `scripts/kit/worktree-setup.mts`, `scripts/kit/kit-check.mts`, `.npmrc`, tests, docs, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1045 tests/kit/kit-bootstrap.test.mts` | [ ] |
 | K1046 | 스펙: kit은 유틸리티와 예제를 제공하고, 저장소에 레시피를 강제하지 않는다 | `docs/spec/utilities-and-recipes.md(.ko)`, `CHANGELOG.md(.ko)` | `make docs-check` passes | [o] |
 | K1047 | 레시피 검사: 저장소의 레시피를 계약과 공통 규칙에 대어 검사하는 유틸리티 | `scripts/kit/recipe-check.mts`, `tests/kit/recipe-check.test.mts`, `scripts/kit/kit.mk`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1047 tests/kit/recipe-check.test.mts` | [-] 원인: 저장소 레시피의 검사는 kit이 저장소 위에 정하는 규칙이 되므로, docs/spec/utilities-and-recipes는 대신 예제를 제공한다(K1046). |
+| K1048 | 유틸리티는 자기가 실행하는 도구의 환경에 mise나 uv 설정을 넣지 않는다 | `scripts/kit/bootstrap/install-mise.mts`, its callers, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1048 tests/kit/install-mise.test.mts` | [ ] |
