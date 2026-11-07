@@ -156,7 +156,7 @@ of the checkout is a finding. A Rust nightly is never stale: parity reads it.
   since the release otherwise ran the PHP of the runner (K193).
 - Python (K64, K127): mise installs the exact python-build-standalone build that `mise.lock` pins by its URL and sha256 into
   `var/tools/mise/installs`, and the shim `var/tools/mise/shims/python3` runs it. uv installs no Python
-  (`UV_PYTHON_DOWNLOADS=never`), and the uv of kit runs on the Python of mise (`UV_PYTHON`). The Python of mise is externally
+  where the repository sets `UV_PYTHON_DOWNLOADS=never` (kit's own `mise.toml` does, K1048), and uv takes the python3 shim of mise where the repository sets `UV_PYTHON_PREFERENCE=only-system`, as kit's own `mise.toml` does. The Python of mise is externally
   managed for pip as before, so pip installs only into a venv of it. run-tests runs that
   shim, never the Python of PATH. A package whose tests import its own installed dependencies runs them with
   `run-tests python --venv <directory>` (K37): the runner starts `<directory>/bin/python` only when `<directory>/pyvenv.cfg`
@@ -1512,9 +1512,10 @@ lock and its hashes.
 
 - **Release archive (K64, K127):** mise installs uv from its release archive `uv-<target>.tar.gz` (the aqua backend), with the
   sha256 of linux-x64, linux-arm64, macos-arm64 and macos-x64 in `mise.lock`. uv installs no Python since K127: the Python is a tool of `mise.toml`.
-- **State under `var/tools`, never the home:** the environment of mise of the checkout (kit.mk, `miseEnvironment`) sets
+- **Settings of uv are the repository's own (K1048):** kit sets none. kit's own `mise.toml` sets in its `[env]`
   `UV_CACHE_DIR=var/tools/mise/cache/uv`, `UV_PYTHON_DOWNLOADS=never` (uv downloads no interpreter) and `UV_NO_CONFIG=1` (no
-  `uv.toml` of the home or of the system is read), and `toolsEnvironment` adds `UV_PYTHON`, the python3 of mise.
+  `uv.toml` of the home or of the system is read), as [docs/examples/native-settings](../examples/native-settings.md) shows;
+  `UV_PYTHON_PREFERENCE=only-system` makes uv take the python3 of mise, which `toolsEnvironment` puts first on PATH.
 
 ## Editor tools (K80)
 

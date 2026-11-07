@@ -16,6 +16,7 @@ import type { TestContext } from 'node:test';
 import { KIT } from './kit-tools.mts';
 import { toolchainCheckout } from './toolchain-checkout.mts';
 import { miseEnvironment, TOOLS_GO_MOD, trustConfig } from '../../scripts/kit/bootstrap/install-mise.mts';
+import { toolsEnvironment } from '../../scripts/kit/mise-tools.mts';
 import { archiveTar, toolsPath } from '../../scripts/kit/bootstrap/tool-wrappers.mts';
 import { lintCommands } from '../../scripts/kit/lint-steps.mts';
 import { toolchainStubs } from './toolchain-stubs.mts';
@@ -86,11 +87,6 @@ test('the bootstrap installs the declared mise with its sha256 checked, wraps it
     MISE_CONFIG_DIR: path.join(tools, 'mise/config'),
     MISE_GLOBAL_CONFIG_FILE: path.join(root, 'mise.toml'),
     MISE_GLOBAL_CONFIG_ROOT: root,
-    MISE_LOCKED: '1',
-    MISE_AUTO_INSTALL: '0',
-    UV_PYTHON_DOWNLOADS: 'never',
-    UV_NO_CONFIG: '1',
-    UV_CACHE_DIR: path.join(tools, 'mise/cache/uv'),
     GOPATH: path.join(tools, 'mise/go'),
     GOCACHE: path.join(tools, 'mise/cache/go-build'),
     GOFLAGS: '-mod=readonly -modcacherw',
@@ -240,4 +236,12 @@ test('the Windows bootstrap extracts with the bsdtar of Windows, which reads dri
   assert.equal(archiveTar('win32', {}), 'C:\\Windows\\System32\\tar.exe');
   assert.equal(archiveTar('darwin', { SystemRoot: 'C:\\Windows' }), 'tar');
   assert.equal(archiveTar('linux', {}), 'tar');
+});
+
+test('miseEnvironment and kit.mk set no setting of mise or uv; the mise.toml and uv configuration of the repository decide them (K1048)', () => {
+  const settings = ['MISE_LOCKED', 'MISE_AUTO_INSTALL', 'UV_PYTHON_DOWNLOADS', 'UV_NO_CONFIG', 'UV_CACHE_DIR'];
+  assert.deepEqual(Object.keys(miseEnvironment('/checkout')).filter(name => settings.includes(name)), []);
+  assert.equal(toolsEnvironment('/checkout', {}).UV_PYTHON, undefined, 'kit names no Python for uv');
+  const make = readFileSync(new URL('../../scripts/kit/kit.mk', import.meta.url), 'utf8');
+  assert.deepEqual(settings.filter(name => new RegExp(`\\b${name}\\b`).test(make)), []);
 });

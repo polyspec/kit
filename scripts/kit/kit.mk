@@ -25,12 +25,7 @@ export MISE_CONFIG_DIR := $(KIT_TOOLS)/mise/config
 export MISE_GLOBAL_CONFIG_FILE := $(CURDIR)/mise.toml
 # mise install records the trust of the root of the global config, the home directory unless this names the checkout (K397-1).
 export MISE_GLOBAL_CONFIG_ROOT := $(CURDIR)
-export MISE_LOCKED := 1
-export MISE_AUTO_INSTALL := 0
-export UV_PYTHON_DOWNLOADS := never
-export UV_NO_CONFIG := 1
-export UV_CACHE_DIR := $(KIT_TOOLS)/mise/cache/uv
-MISE_ENVIRONMENT := MISE_DATA_DIR MISE_CACHE_DIR MISE_STATE_DIR MISE_CONFIG_DIR MISE_GLOBAL_CONFIG_FILE MISE_GLOBAL_CONFIG_ROOT MISE_LOCKED MISE_AUTO_INSTALL UV_PYTHON_DOWNLOADS UV_NO_CONFIG UV_CACHE_DIR
+MISE_ENVIRONMENT := MISE_DATA_DIR MISE_CACHE_DIR MISE_STATE_DIR MISE_CONFIG_DIR MISE_GLOBAL_CONFIG_FILE MISE_GLOBAL_CONFIG_ROOT
 # On Windows a shim of mise starts mise.exe by its PATH name, and var/tools/bin holds only the batch wrapper mise.cmd, which
 # a native shim cannot start, so the directory of the binary of mise is on PATH beside it (K820).
 ifeq ($(OS),Windows_NT)
@@ -110,7 +105,7 @@ endif
 # TOOLS=npm, K174); var/tools/bin and the shims of mise come first on the PATH of every recipe (PATH above). mise locks a pypi:
 # tool with uv, which takes the first uv on PATH and a managed Python of the home before PATH (measured with mise 2026.10.10:
 # the machine uv and CPython 3.14.7 of ~/.local/share/uv). So mise first locks uv and python, which locks nothing when mise.toml
-# declares neither; mise lists a tool only once it is locked (MISE_LOCKED of the wrapper). It then installs each of them that it
+# declares neither; mise lists a tool only once it is locked (the locked setting of mise.toml). It then installs each of them that it
 # lists, under any key form, and when it lists python the full lock names that Python as UV_PYTHON. mise records the archives
 # that each platform has.
 TOOLCHAIN_LOCK_PLATFORMS := linux-x64,linux-arm64,macos-arm64,macos-x64,windows-x64,windows-arm64

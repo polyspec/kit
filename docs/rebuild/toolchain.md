@@ -48,8 +48,8 @@ The gaps that the measurement found, each with its decision:
   musl binaries for Linux), measured with mise 2026.10.8 at nextest 0.9.146 and cargo-deny 0.20.2.
 - govulncheck and deadcode are built by the `go:` backend, and `mise.lock` records their release only. Their integrity is that
   of Go, which checks every module against its checksum database (`GOSUMDB`, no module exempt) with `GOFLAGS=-mod=readonly`.
-- Python: `mise.lock` pins the exact python-build-standalone build by its URL and sha256. uv no longer installs a Python:
-  `UV_PYTHON_DOWNLOADS=never`, and the uv of kit runs on the Python of mise (`UV_PYTHON`). `pythonBuild` and `uv` left
+- Python: `mise.lock` pins the exact python-build-standalone build by its URL and sha256. uv installs no Python where the
+  repository sets `UV_PYTHON_DOWNLOADS=never`, as kit's own `mise.toml` does, and takes the python3 shim of mise where the repository sets `UV_PYTHON_PREFERENCE=only-system` (K1048). `pythonBuild` and `uv` left
   `config/toolchain.json`.
 - vulture is a `pypi:` tool: `mise.lock` holds the digest of the uv lock that mise writes under `.mise/locks`. mise builds its
   environment in place, so its console script names the interpreter that exists (the move that broke the script of K77 does

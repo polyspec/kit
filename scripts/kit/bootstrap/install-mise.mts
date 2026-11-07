@@ -3,8 +3,8 @@
 // mise installs every other tool of the checkout from mise.toml and mise.lock, so it is installed first by the bootstrap, which
 // then installs the node and the npm of mise.toml with it (installNode), before any package (K171, K938). The archive is mise-v<version>-<os>-<arch>.tar.gz of the GitHub release of mise for
 // this platform (`.tar.gz` on POSIX and `.zip` on Windows); the download is refused unless its sha256 is the digest that the declaration gives for the platform. The
-// wrapper keeps every directory that mise reads or writes under var/tools, records the trust of the config of the checkout (trustConfig) and installs only
-// what mise.lock pins (MISE_LOCKED), so nothing of the machine changes and no config of the home is read.
+// wrapper keeps every directory that mise reads or writes under var/tools and records the trust of the config of the checkout
+// (trustConfig); the settings of mise, such as locked, are the repository's own in its mise.toml (K1048).
 import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, rmSync } from 'node:fs';
 import { writeAtomic } from './files.mts';
@@ -71,11 +71,9 @@ export const miseArchiveUrl = (version: string, asset: string, extension = 'tar.
 /**
  * The environment in which the tools of mise run from its shims, var/tools/mise/shims, for the checkout `root`: the directories
  * of mise under var/tools/mise, mise.toml of the checkout as the global configuration, so a shim runs the tool of the
- * checkout from any directory instead of the next command of its name on PATH, the trusted config of the checkout, only what
- * mise.lock pins and no install on its own (a
- * missing tool is an error until make install-tools), and no uv that downloads a Python or reads a uv.toml of the home or the
- * system; uv keeps its cache in var/tools/mise. A tool that mise runs from uv gets the Python of mise from mise; the uv of a check gets it from UV_PYTHON
- * (toolsEnvironment of mise-tools.mts). var/tools is the checkout's own, a linked worktree's too (toolsPath, K858).
+ * checkout from any directory instead of the next command of its name on PATH, and the trusted config of the checkout. The
+ * settings of mise and uv (locked, auto_install, python-downloads, the uv cache) are the repository's own, in the [settings] and
+ * [env] of its mise.toml or its uv configuration; kit sets none (K1048). A tool that mise runs from uv gets the Python of mise from mise. var/tools is the checkout's own, a linked worktree's too (toolsPath, K858).
  */
 export function miseEnvironment(root: string): Record<string, string> {
   return {
@@ -86,11 +84,6 @@ export function miseEnvironment(root: string): Record<string, string> {
     MISE_GLOBAL_CONFIG_FILE: path.join(root, 'mise.toml'),
     // mise install records the trust of the root of the global config, the home directory unless this names the checkout (K397-1).
     MISE_GLOBAL_CONFIG_ROOT: root,
-    MISE_LOCKED: '1',
-    MISE_AUTO_INSTALL: '0',
-    UV_PYTHON_DOWNLOADS: 'never',
-    UV_NO_CONFIG: '1',
-    UV_CACHE_DIR: toolsPath(root, 'mise', 'cache', 'uv'),
   };
 }
 

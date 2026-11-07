@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 141f75de08efda87d7dcfba30e21fcbe84615c8f59c48aae7fa3f4bf0a694d99 -->
+<!-- source-sha256: 4b8404a5ee7d565f701de34086794ea1ca2c36c6cafabe40263fbc9f52928df9 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -176,7 +176,7 @@
 | K1045 | Kit은 npm allow-remote를 강제하지 않고, 각 저장소가 자기 .npmrc에 적는다 | `scripts/kit/kit-bootstrap.mk`, `actions/kit-bootstrap/action.yml`, `scripts/kit/worktree-setup.mts`, `scripts/kit/kit-check.mts`, `docs/examples/native-settings.md(.ko)`, tests, docs, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1045 tests/kit/kit-bootstrap.test.mts` | [o] |
 | K1046 | 스펙: kit은 유틸리티와 예제를 제공하고, 저장소에 레시피를 강제하지 않는다 | `docs/spec/utilities-and-recipes.md(.ko)`, `CHANGELOG.md(.ko)` | `make docs-check` passes | [o] |
 | K1047 | 레시피 검사: 저장소의 레시피를 계약과 공통 규칙에 대어 검사하는 유틸리티 | `scripts/kit/recipe-check.mts`, `tests/kit/recipe-check.test.mts`, `scripts/kit/kit.mk`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1047 tests/kit/recipe-check.test.mts` | [-] 원인: 저장소 레시피의 검사는 kit이 저장소 위에 정하는 규칙이 되므로, docs/spec/utilities-and-recipes는 대신 예제를 제공한다(K1046). |
-| K1048 | 유틸리티는 자기가 실행하는 도구의 환경에 mise나 uv 설정을 넣지 않는다 | `scripts/kit/bootstrap/install-mise.mts`, its callers, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1048 tests/kit/install-mise.test.mts` | [~] |
+| K1048 | 유틸리티는 자기가 실행하는 도구의 환경에 mise나 uv 설정을 넣지 않는다 | `scripts/kit/bootstrap/install-mise.mts`, its callers, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1048 tests/kit/install-mise.test.mts` | [o] |
 | K1049 | 유틸리티는 CARGO_TARGET_DIR를 환경이 정한 대로 둔다 | `scripts/kit/link.mts`, `scripts/kit/run-tests.mts`, `scripts/kit/kit.mk`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1049 tests/kit/run-tests.test.mts` | [ ] |
 | K1050 | lint 유틸리티는 각 도구를 저장소의 설정으로 실행하고, kit의 설정은 예제가 된다 | `scripts/kit/lint-*.mts`, `docs/examples/`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1050 tests/kit/lint-steps.test.mts` | [ ] |
 | K1051 | kit-check와 bypass-check는 저장소의 레시피와 workflow를 판정하지 않는다 | `scripts/kit/kit-check.mts`, `scripts/kit/recipe-tools.mts`, `scripts/kit/bypass-check.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1051 tests/kit/kit-check.test.mts` | [ ] |

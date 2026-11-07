@@ -62,7 +62,7 @@ test('Windows Make recipes use the Node.js selected by mise and its npm CLI, whi
   const mise = path.join(tools, 'mise-release/mise/bin/mise.exe');
   mkdirSync(path.dirname(mise), { recursive: true });
   if (process.platform === 'win32') copyFileSync(process.execPath, mise);
-  else writeFileSync(mise, '#!/bin/sh\nprintf \'%s\\n\' "$MISE_DATA_DIR|$MISE_CACHE_DIR|$MISE_STATE_DIR|$MISE_CONFIG_DIR|$MISE_GLOBAL_CONFIG_FILE|$MISE_GLOBAL_CONFIG_ROOT|$MISE_LOCKED|$MISE_AUTO_INSTALL|$UV_PYTHON_DOWNLOADS|$UV_NO_CONFIG|$UV_CACHE_DIR" >&2\nprintf \'%s\\n\' "$KIT_MISE_NODE_DIR"\n', { mode: 0o755 });
+  else writeFileSync(mise, '#!/bin/sh\nprintf \'%s\\n\' "$MISE_DATA_DIR|$MISE_CACHE_DIR|$MISE_STATE_DIR|$MISE_CONFIG_DIR|$MISE_GLOBAL_CONFIG_FILE|$MISE_GLOBAL_CONFIG_ROOT" >&2\nprintf \'%s\\n\' "$KIT_MISE_NODE_DIR"\n', { mode: 0o755 });
   const nodeDirectory = process.platform === 'win32' ? path.join(tools, 'fake-node') : 'D:\\kit-sdk\\node\\26.12.0';
   const node = process.platform === 'win32' ? path.join(nodeDirectory, 'node.exe') : path.join(ROOT, 'D:/kit-sdk/node/26.12.0/node.exe');
   mkdirSync(path.dirname(node), { recursive: true });
@@ -74,7 +74,7 @@ test('Windows Make recipes use the Node.js selected by mise and its npm CLI, whi
   const where = path.join(ROOT, 'where');
   assert.equal(existsSync(where), false, 'the fixture has an uncontested name for mise where');
   t.after(() => rmSync(where, { force: true }));
-  if (process.platform === 'win32') writeFileSync(where, `console.error(['MISE_DATA_DIR', 'MISE_CACHE_DIR', 'MISE_STATE_DIR', 'MISE_CONFIG_DIR', 'MISE_GLOBAL_CONFIG_FILE', 'MISE_GLOBAL_CONFIG_ROOT', 'MISE_LOCKED', 'MISE_AUTO_INSTALL', 'UV_PYTHON_DOWNLOADS', 'UV_NO_CONFIG', 'UV_CACHE_DIR'].map(name => process.env[name] ?? '').join('|'));\nconsole.log(process.env.KIT_MISE_NODE_DIR);\n`);
+  if (process.platform === 'win32') writeFileSync(where, `console.error(['MISE_DATA_DIR', 'MISE_CACHE_DIR', 'MISE_STATE_DIR', 'MISE_CONFIG_DIR', 'MISE_GLOBAL_CONFIG_FILE', 'MISE_GLOBAL_CONFIG_ROOT'].map(name => process.env[name] ?? '').join('|'));\nconsole.log(process.env.KIT_MISE_NODE_DIR);\n`);
   const makeTools = tools.replaceAll('\\', '/');
   const makefile = readFileSync(KIT_MK, 'utf8');
   assert.match(makefile, /KIT_MISE_BINARY := .*mise\.exe/);
@@ -95,11 +95,6 @@ test('Windows Make recipes use the Node.js selected by mise and its npm CLI, whi
     normalized(path.join(tools, 'mise/config')),
     normalized(path.join(ROOT, 'mise.toml')),
     normalized(ROOT),
-    '1',
-    '0',
-    'never',
-    '1',
-    normalized(path.join(tools, 'mise/cache/uv')),
   ]);
 
   const runner = spawnSync('make', ['-n', '--no-print-directory', '-f', path.join(ROOT, 'Makefile'), 'install-packages', 'OS=Windows_NT', `KIT_TOOLS=${makeTools}`], { cwd: ROOT, encoding: 'utf8', env });

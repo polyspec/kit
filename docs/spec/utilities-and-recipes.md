@@ -31,7 +31,7 @@ The allow-remote case shows the chain:
 kit forces nothing. In particular:
 
 - kit includes no recipe into a repository.
-- kit sets no setting of another tool, on the command line, in the environment, or in the environment of the tools a utility starts.
+- kit sets no setting of another tool, on the command line, in the environment, or in the environment of the tools a utility starts. A tool installer states where it puts what it installs, and that is its own job: the installer of mise names the directories of the mise it installs and the configuration file of the checkout that its shims read (`MISE_DATA_DIR`, `MISE_CACHE_DIR`, `MISE_STATE_DIR`, `MISE_CONFIG_DIR`, `MISE_GLOBAL_CONFIG_FILE`, `MISE_GLOBAL_CONFIG_ROOT`), and the Go that builds a tool under `var/tools` gets its own module cache and checksum database (`GOPATH`, `GOCACHE`, `GOFLAGS`, `GOSUMDB`). None of these chooses how the repository's tools behave.
 - kit requires no result in a repository's CI, hook or gate.
 - kit provides no check of a repository's recipes or examples.
 
@@ -46,7 +46,7 @@ kit forces nothing. In particular:
 
 kit removes what it forces, each change as a checklist row with its Red, Green and commit. These are the forced parts today:
 - **Included recipes.** The recipe set of `scripts/kit/kit.mk` and `scripts/kit/kit-bootstrap.mk`, which repositories include, and the mise environment that AGENTS.md states for every recipe of kit.mk.
-- **Overrides inside utilities.** `bootstrap/install-mise.mts` (`miseEnvironment`) sets the `MISE_*` and `UV_*` settings for the tools it starts, and `link.mts` and `run-tests.mts` delete `CARGO_TARGET_DIR`. The lint utilities run each tool with kit's configuration in place of the repository's own: golangci-lint with kit's `.golangci.yml`, phpcs with kit's `phpcs.xml.dist`, ruff with kit's `ruff.toml`, clippy with `CLIPPY_CONF_DIR` set to kit, and oxlint and knip with kit's `.oxlintrc.json` and `knip.json`.
+- **Overrides inside utilities.** `bootstrap/install-mise.mts` (`miseEnvironment`) and `mise-tools.mts` (`toolsEnvironment`) set the settings of mise and uv (`MISE_LOCKED`, `MISE_AUTO_INSTALL`, `UV_*`, `UV_PYTHON`) for the tools they start until K1048, and `link.mts` and `run-tests.mts` delete `CARGO_TARGET_DIR`. The lint utilities run each tool with kit's configuration in place of the repository's own: golangci-lint with kit's `.golangci.yml`, phpcs with kit's `phpcs.xml.dist`, ruff with kit's `ruff.toml`, clippy with `CLIPPY_CONF_DIR` set to kit, and oxlint and knip with kit's `.oxlintrc.json` and `knip.json`.
 - **Checks of a repository's recipes and workflows.** kit-check judges how recipes start tools (`recipe-tools.mts`), link steps in Makefiles and workflows (S11), the shape of ci.yml and its final `ci-passed` job (S12), `$(KIT)/<name>` in Makefiles (S15) and manifest paths (P30). bypass-check judges Makefiles and scripts.
 - **Vendored copies.** kit-sync writes every entry of `kit.copies` in kit's package.json into every repository, among them `PRINCIPLES.md` and its twin, `ci-pipeline.yml`, `release.yml`, the bootstrap action, `config/layout.kit.yml`, the schemas under `config/`, `.editorconfig` and `.claude/settings.json`. kit-inject-check fails a changed copy. The closing `required` job of the vendored pipeline requires the results of every job of the pipeline, the `kit-gates-*` gates among them.
 - **Refusals.**
