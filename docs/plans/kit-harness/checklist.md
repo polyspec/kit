@@ -188,3 +188,4 @@
 | K1059 | Tag a successful CI run of any workflow of the repository in release-run; the workflow path is the repository's | scripts/kit/release-run.mts, tests/kit/release-run.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | node --test --test-name-pattern=K1059 tests/kit/release-run.test.mts | [ ] |
 | K1060 | Delete readNpmConfig, the unused reader of the removed npm judgment | scripts/kit/toolchain-files.mts, CHANGELOG(.ko).md | make -s lint-ts | [ ] |
 | K1061 | Describe land and item-test in make help as they run, with no removed refusal | scripts/kit/kit.mk, CHANGELOG(.ko).md | make -s docs-check | [ ] |
+| K1062 | Install tools into a var that is a symbolic link; the repository chooses its var | scripts/kit/install-tools.mts, tests/kit/install-tools.test.mts, CHANGELOG(.ko).md | node --test --test-name-pattern=K1062 tests/kit/install-tools.test.mts | [ ] |
