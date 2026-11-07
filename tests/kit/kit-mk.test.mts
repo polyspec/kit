@@ -359,8 +359,8 @@ test('a consumer that starts with the packed kit runs the linked checkout\'s sou
   assert.deepEqual(result.stdout.trim().split('\n').slice(-2), [`top ${sources}`, sources]);
 });
 
-// K851: the rules that every repository shares are injected identically: kit-inject-check runs kit-sync and fails while git
-// status shows a copy path whose working tree differs from the index, so a hand-edited copy is found until the synced copy is
+// K851: the rules that every repository shares are injected identically: kit-inject-check fails on a copy that differs from
+// the installed kit, writing nothing (K1058), and while git status shows a copy path whose working tree differs from the index, so a hand-edited copy is found until the synced copy is
 // staged or committed (K1007); kit's own checkout is the source and skips.
 test('K851: kit-inject-check fails on a hand-edited copy of a consumer until the synced copy is staged; kit skips it', (t) => {
   const copy = 'PRINCIPLES.md';
@@ -380,9 +380,14 @@ test('K851: kit-inject-check fails on a hand-edited copy of a consumer until the
   const edited = check();
   assert.notEqual(edited.status, 0, 'a hand-edited copy fails');
   assert.match(edited.stderr, new RegExp(`${copy}`));
-  const uncommitted = check();
-  assert.notEqual(uncommitted.status, 0, 'the commit still holds the hand edit after kit-sync wrote the copy');
-  assert.match(uncommitted.stderr, new RegExp(` M ${copy}`));
+  // K1058: the check writes no file, so the hand edit stays and a second check fails the same way.
+  assert.equal(readFileSync(path.join(root, copy), 'utf8'), '# Principles, edited by hand\n');
+  assert.notEqual(check().status, 0, 'the check wrote nothing, so the copy still differs');
+  // kit-sync writes the copy; until it is staged the working tree differs from the index (K1007).
+  assert.equal(spawnSync('make', ['--no-print-directory', 'kit-sync', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' }).status, 0);
+  const unstaged = check();
+  assert.notEqual(unstaged.status, 0, 'the commit still holds the hand edit after kit-sync wrote the copy');
+  assert.match(unstaged.stderr, new RegExp(` M ${copy}`));
   // K1007: a staged copy is the one the commit will hold, so the check of an adoption passes before its commit.
   execFileSync('git', ['add', copy], { cwd: root });
   const staged = check();

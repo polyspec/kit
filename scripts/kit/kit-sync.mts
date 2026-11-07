@@ -8,9 +8,9 @@
 // to give. Each copy of `kit.copies` (the package.json of the package) is written
 // to its path, and a copy that is already the same bytes is not written, so a second sync writes nothing. A file of scripts/kit
 // that the package does not declare is removed: that directory holds the copies of kit only. The command reads
-// no network; it prints a line for each change. With --check (`make kit-inject-check`, S13, K851) it then fails while git
-// status shows a copy path, each copy, scripts/kit or a retired copy, whose working tree differs from the index: a copy edited
-// by hand that is neither staged nor committed (K1007).
+// no network; it prints a line for each change. With --check (`make kit-inject-check`, S13, K851) it writes no file (K1058):
+// it fails on each copy that is missing or differs from the installed kit, each file of scripts/kit that the package does not
+// declare, each retired copy that is present, and each copy path whose working tree differs from the index (K1007).
 import { execFileSync } from 'node:child_process';
 import { lstatSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -62,6 +62,26 @@ export function copyPaths(root: string): string[] {
 }
 
 /**
+ * The findings of `root` against the installed kit, without writing a file (K1058): each copy that is missing or whose bytes
+ * differ from the package, each file of scripts/kit that the package does not declare, and each retired copy that is present.
+ */
+export function copyFindings(root: string): string[] {
+  const kit = installedKit(root);
+  if ('finding' in kit) throw new Error(kit.finding);
+  const found: string[] = [];
+  for (const { file, from } of kit.copies) {
+    const target = path.join(root, file);
+    const entry = lstatSync(target, { throwIfNoEntry: false });
+    if (entry === undefined) found.push(`${file} is missing; run make kit-sync`);
+    else if (!entry.isFile()) found.push(`${file} is not a file; run make kit-sync`);
+    else if (!readFileSync(target).equals(readFileSync(path.join(root, INSTALLED, from)))) found.push(`${file} differs from the installed kit; run make kit-sync`);
+  }
+  for (const file of strayCopies(root, kit.copies)) found.push(`${file} is not a copy of the installed kit; run make kit-sync`);
+  for (const file of RETIRED_COPIES) if (existsSync(path.join(root, file))) found.push(`${file} is retired; run make kit-sync`);
+  return found;
+}
+
+/**
  * The lines of git status of `root` for the copy paths whose working tree differs from the index, empty when every copy is staged
  * or committed: a staged copy is the one the commit will hold (K1007).
  */
@@ -77,16 +97,22 @@ if (isMain(import.meta.url)) {
     process.exit(2);
   }
   try {
+    if (check) {
+      const root = repositoryRoot();
+      if (isSource(root)) throw new Error('kit is the source of the copies; nothing to check');
+      const found = [...copyFindings(root), ...changedCopies(root)];
+      for (const line of found) console.error(`[kit-sync] ${line}`);
+      if (found.length) {
+        console.error('[kit-sync] the copies differ from the installed kit or from the index; kit-sync --check writes no file');
+        process.exit(1);
+      }
+      console.log('[kit-sync] the copies match the installed kit and the index');
+      process.exit(0);
+    }
     const changes = sync(repositoryRoot());
     for (const line of changes) console.log(`[kit-sync] ${line}`);
     const { version } = readNpmManifest(repositoryRoot(), `${INSTALLED}/package.json`);
     console.log(changes.length ? `[kit-sync] ${changes.length} changes from ${PACKAGE} ${version}` : `[kit-sync] unchanged: ${PACKAGE} ${version}`);
-    const changed = check ? changedCopies(repositoryRoot()) : [];
-    for (const line of changed) console.error(`[kit-sync] ${line}`);
-    if (changed.length) {
-      console.error(`[kit-sync] these copies differ from the index; a copy is changed in kit, never by hand: stage or commit the copies that kit-sync wrote, or change them in kit`);
-      process.exit(1);
-    }
   } catch (error) {
     if (!(error instanceof Error)) throw error;
     // The installed package, the copies and the writes fail with an Error.

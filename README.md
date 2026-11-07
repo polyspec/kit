@@ -34,7 +34,7 @@ byte-for-byte copies of the files that `kit.copies` of its `package.json` lists;
 make install-tools TOOLS=npm   # install mise, and the node and npm of mise.toml, with the copied bootstrap (online)
 make install-packages          # npm ci with that npm, @polyspec/kit included (online)
 make kit-sync                  # write the copies of the installed package, the version of package-lock.json (offline)
-make kit-inject-check          # kit-sync, then fail while a copy differs from the index (offline, K851, K1007)
+make kit-inject-check          # fail on a copy that differs from the installed kit or the index; writes nothing (offline, K851, K1007, K1058)
 make kit-check                 # check the configuration against the schemas (offline)
 ```
 

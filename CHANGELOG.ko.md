@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 97eb5f6f61954517460a2027edf43c1588f31d5c28c747eeddb03069e93fda4a -->
+<!-- source-sha256: 53066e5706103f26901b343ed825df90264f1f23f6c419c765b0c7f2f2add433 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1058: make kit-inject-check가 실행하는 kit-sync --check는 파일을 쓰지 않습니다. 없거나 설치된 kit과 다른 사본, scripts/kit의 사본이 아닌 파일, 은퇴한 사본, working tree가 index와 다른 사본 경로를 각각 적고 파일은 그대로 둡니다. 사본은 여전히 make kit-sync가 씁니다(K1058).
 - K1046: docs/spec/utilities-and-recipes는 kit이 유틸리티와 레시피·네이티브 설정의 예제를 제공하고, 저장소에 레시피를 include시키지 않고, 다른 도구의 설정을 정하지 않고, 어떤 결과도 필수로 요구하지 않고, 저장소의 레시피를 검사하지 않는다고 적는다. kit이 지금 강제하는 것을 나열하며, kit은 자기 행들로 그것을 지운다(K1046).
 - VS Code 다운로드 결과를 보존하면서 helper 종료를 요청하고 소유 정리를 기다린 뒤 반환하며 Linux native source 증거를 명시한다(K1044).
 

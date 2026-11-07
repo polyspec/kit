@@ -1,5 +1,5 @@
 <!-- doc-id: readme -->
-<!-- source-sha256: 5d459d74165c76ca5d1d7ecc9e5f7039d6f660915f4ccf56c008441a0caa6eee -->
+<!-- source-sha256: 2d390d0f7ab63158aa8e244c65eed4b6f2286936433e39d57f69c08bb62d92b0 -->
 # polyspec/kit
 
 모든 polyspec 저장소가 공유하는 도구입니다. 저장소는 이를 package `@polyspec/kit`으로 설치하고, 그 `package.json`의 `kit.copies`가 나열하는
@@ -33,7 +33,7 @@
 make install-tools TOOLS=npm   # install mise, and the node and npm of mise.toml, with the copied bootstrap (online)
 make install-packages          # npm ci with that npm, @polyspec/kit included (online)
 make kit-sync                  # write the copies of the installed package, the version of package-lock.json (offline)
-make kit-inject-check          # kit-sync, then fail while a copy differs from the index (offline, K851, K1007)
+make kit-inject-check          # fail on a copy that differs from the installed kit or the index; writes nothing (offline, K851, K1007, K1058)
 make kit-check                 # check the configuration against the schemas (offline)
 ```
 

@@ -264,3 +264,15 @@ test('owner-validate passes a consumer that tracks some of the paths that the sh
   const stale = { paths: ['ruff.toml'], targets: ['owner-validate'] };
   assert.deepEqual(validate({ owners: [own, stale, ...shipped] }, [...owned, ...some], project, exists), ['config/owner-checks.json: the glob ruff.toml matches no tracked path; remove it or correct it']);
 });
+
+// K1058: the check of the copies writes no file: a copy that differs from the installed kit is named and left as it is.
+test('kit-sync --check names a copy that differs from the installed kit and writes no file (K1058)', (t) => {
+  const root = repository(t);
+  spawnSync('git', ['init', '--quiet'], { cwd: root });
+  write(root, '.github/workflows/release.yml', 'on: pull_request\n');
+  const cli = spawnSync(process.execPath, [path.join(import.meta.dirname, '../../scripts/kit/kit-sync.mts'), '--check'], { cwd: root, encoding: 'utf8' });
+  assert.equal(cli.status, 1, cli.stdout + cli.stderr);
+  assert.match(cli.stderr, /\.github\/workflows\/release\.yml differs from the installed kit/);
+  assert.equal(readFileSync(path.join(root, '.github/workflows/release.yml'), 'utf8'), 'on: pull_request\n', 'the copy is left as it was');
+  assert.equal(existsSync(path.join(root, 'scripts/kit/kit-bootstrap.mk')), false, 'a missing copy is not added');
+});

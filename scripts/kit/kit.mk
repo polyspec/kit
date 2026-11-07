@@ -71,11 +71,10 @@ kit-check: ## Check the configuration against the schemas of kit, the PHP that a
 	$(NODE) $(KIT)/kit-check.$(KIT_EXT)
 
 .PHONY: kit-inject-check
-# The rules that every repository shares are injected identically (S13, K851): kit-sync writes the copies of the installed
-# kit, and kit-sync --check then fails while git status shows a copy path, each copy, scripts/kit or a retired copy,
-# differing from the commit: a copy edited by hand. kit's own checkout, whose Makefile sets KIT := scripts/kit, is the
+# The rules that every repository shares are injected identically (S13, K851): kit-sync --check compares the copies with the
+# installed kit and the index and writes nothing (K1058), failing on a copy that differs from either; make kit-sync writes them. kit's own checkout, whose Makefile sets KIT := scripts/kit, is the
 # source of the copies and holds none.
-kit-inject-check: ## Run kit-sync, then fail while a copy of the installed kit differs from the index, staged or committed; kit itself has no copies; offline
+kit-inject-check: ## Fail on a copy that differs from the installed kit or from the index, writing no file (K1058); kit itself has no copies; offline
 ifeq ($(KIT),scripts/kit)
 	@echo "[kit-inject-check] kit is the source of the copies; nothing to check"
 else
