@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 938302211f199a325386da46e19c0f50808f99e2e50cd3007954c8eeb8daccab -->
+<!-- source-sha256: 2830a40b512639840550c48737503190704fb74399de359ff8feaf80d893c97b -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -151,3 +151,4 @@
 | K1017 | Rust catch check와 그 crate(catch-check-rust)를 K1015의 CARGO_NET_OFFLINE 덮어쓰기와 함께 삭제한다 | `scripts/kit/lint-rust.mts`, `scripts/kit/catch-check-rust/`, `CHANGELOG.md(.ko)` | `make kit-check` passes | [o] |
 | K1018 | ci-setup이 PHP symbol extractor를 shared와 php runtime setup에서 설치해 ci-pipeline.yml의 step 목록이 언어를 이름하지 않는다 | `workflows/ci-pipeline.yml`, `scripts/kit/ci-setup.mts`, `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1018 tests/kit/ci-setup.test.mts` passes | [o] |
 | K1020 | 통합된 성공 CI commit을 그대로 release하고 독립 CI job은 마지막 결과에서 합친다 | scripts/kit/release-run.mts, scripts/kit/kit-check.mts, workflows/release.yml, tests/kit/release-run.test.mts, tests/kit/kit-check.test.mts, PRINCIPLES.md, PRINCIPLES.ko.md | `node --test tests/kit/release-run.test.mts tests/kit/kit-check.test.mts tests/source/release-workflow.test.mts` | [v] |
+| K1021 | kit-test 샌드박스는 CI 신원을 설정하지 않고 명시적인 final run을 사용한다 | tests/kit/kit-mk.test.mts | `node --test --test-name-pattern="kit-test (fails\|passes)" tests/kit/kit-mk.test.mts` `make bypass-check` | [ ] |
