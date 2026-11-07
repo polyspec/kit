@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: cbb0cfd670fe0f99c093356c0eabd89b09edaa89fdf70da160f269e7cfe4781b -->
+<!-- source-sha256: 08f350a4af76c12d0d7fa0a57f67f711bcc970ac7afa329fa1de39786e60e70d -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -157,3 +157,4 @@
 | K1026 | Parity binding job에 repository가 선언한 setup target과 tool만 제공하고 전체 runtime 설치를 제거한다. Issue #24에서 matrix·CLI·workflow 전달을 검증한다. | scripts/kit/ci-setup.mts, scripts/kit/schema/ci.schema.json, scripts/kit/kit.mk, workflows/ci-pipeline.yml, tests/kit/ci-setup.test.mts, tests/kit/gates-workflow.test.mts, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, AGENTS.md, AGENTS.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts` | [o] |
 | K1027 | Repository가 소유하는 parity binding setup을 Kit 0.0.96으로 배포한다. 정확한 후보 CI 성공 후 공식 배포하고 ORM 채택 전에 공개 archive를 확인하며 issue #24를 갱신한다. | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `gh release view v0.0.96 --repo polyspec/kit --json isDraft,tagName,url` | [~] |
 | K1028 | CI 42359978457이 보고한 binding setup의 금지된 non-null assertion 네 곳을 고친다. Lint나 binding 검증을 약화하지 않고 K1026 동작을 보존한다. | scripts/kit/ci-setup.mts, CHANGELOG.md, CHANGELOG.ko.md | `node node_modules/oxlint/bin/oxlint --type-aware --deny-warnings -c .oxlintrc.json scripts/kit/ci-setup.mts`; `node --test tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts` | [o] |
+| K1029 | CI 계획을 shared 검사와 분리해 독립 parity·runtime job이 계획 데이터만 기다리게 한다. 선택된 모든 검사·실패 판정·context·report를 보존하고 issue #25에서 추적한다. | workflows/ci-pipeline.yml, tests/kit/gates-workflow.test.mts, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, AGENTS.md, AGENTS.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/gates-workflow.test.mts tests/kit/ci-setup.test.mts` | [ ] |
