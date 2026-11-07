@@ -1,16 +1,21 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: f29c9e0143f360afaee15ca58878655c00258e87b1794e122d7546860e6eb3c5 -->
+<!-- source-sha256: 50109f73ad2d5304aaf35c33b91d25334be01e7f5547b8e9f394d38852851a41 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.98
+
+- Release: kit은 유틸리티와 예시를 담고 저장소에 아무것도 강제하지 않는다. docs/spec/utilities-and-recipes의 삭제(K1045, K1048–K1055, K1057, K1059–K1062), rules-check 수정 K1063–K1065, K1042–K1044의 process 수정을 담는다(K1056).
 - K1065: rules-check는 이제 package의 의존성인 YAML parser yaml로 각 workflow를 읽고, step을 자기 job의 matrix에 있는 literal 값으로 펼칩니다. 각 목록과 include 목록 각 항목의 scalar를 읽으므로 `${{ matrix.targets }}`를 적는 step은 각 항목의 target에 도달하고, job은 다른 job의 matrix 값에 도달하지 않습니다(K1065).
-- K1064: rules-check는 다른 folder의 -C나 --directory, 또는 다른 파일의 -f, --file, --makefile로 다른 Makefile을 실행하는 make로는 루트 Makefile의 target에 도달하지 않습니다(K1064).
 - K1064: rules-check는 다른 folder의 -C나 --directory, 또는 다른 파일의 -f, --file, --makefile로 다른 Makefile을 실행하는 make로는 루트 Makefile의 target에 도달하지 않습니다. ./Makefile이나 $(CURDIR)처럼 루트나 그 makefile을 가리키는 경로는 같은 Makefile입니다(K1064).
 - K1063: rules-check는 recipe 줄을 변수 전개 뒤 make 접두사 @, -, + 없이 읽고 백슬래시로 끝나는 줄을 다음 줄과 이어 읽으므로, `@$(MAKE) -k gates`도 그 make가 실행하는 gate에 도달합니다(K1063).
+- K1062: 수정: install-tools는 심볼릭 링크인 var에도 설치합니다. var는 저장소가 정하며, install-tools는 그것을 다른 checkout의 var라며 거부하지 않습니다(K1062).
+- K1061: make help는 land를 실제 동작대로 rebase, fast-forward merge, gate 없는 정리로, item-test를 Verification 명령의 실행으로 설명하며 K1053이 지운 거부를 적지 않습니다(K1061).
 - K1060: toolchain-files는 제거된 npm 검사가 쓰던 프로젝트 .npmrc 읽기 함수이자 아무도 부르지 않는 readNpmConfig를 export하지 않습니다(K1060).
+- K1059: release-run은 저장소의 어느 workflow든 성공한 CI run을 태그합니다. 더 이상 .github/workflows/ci.yml을 요구하지 않으며, version commit의 run을 기다릴 때 그 commit의 모든 workflow run을 읽습니다(K1059).
 - K1055: PRINCIPLES는 저장소를 kit의 부분에 묶지 않습니다. S12는 저장소 자신의 파이프라인 하나를 말하고 kit의 ci-pipeline.yml은 그 한 예시이며, P31은 kit-gates가 아니라 저장소의 gate를 말하고, S13은 K1053이 지운 Claude Code 설정을 적지 않으며, 저장소는 원칙의 사본을 자기 파일로 바꿉니다(K1055).
 - K1053: kit은 자기 규칙으로 어떤 명령, 커밋, 실행도 거부하지 않는다. claude-hook.mts, kit-sync가 복사하고 make link와 make hook이 쓰던 Claude Code 설정, link의 hook 명령, FINAL_RUN을 포함한 ci-only.mts, make hooks가 쓰던 commit-msg hook과 pre-commit hook은 삭제되었다. make hooks는 이제 config/checklist.json이 나열한 hook으로 core.hooksPath를 가리키고 merge driver를 선언하며, kit.mk는 더 이상 core.hooksPath를 설정하지 않는다. land는 rebase하고 fast-forward로 merge하고 정리하며, gate도 커밋 규칙도 실행하지 않는다. make commit은 메시지도 index도 판정하지 않는다. item-state는 changelog 줄을 요구하지 않고 Verification을 실행하지 않는다. item-test와 docs-check는 어떤 Verification 명령도 거부하지 않는다. ci-targets, owner-check, 선택 없는 run-tests, suite, 전체 parity-check는 CI 밖에서도 실행된다. ci-setup은 중첩된 dispatch를 거부하지 않는다. docs/examples/git-hooks는 kit의 검사를 실행하는 저장소의 hook을 보여 준다. 호환되지 않는 변경: 이 거부에 기대던 저장소는 자기 hook과 레시피를 쓰고, 이전 kit의 .githooks/pre-commit, .githooks/commit-msg, .claude/settings.json을 지우거나 자기 것으로 유지한다(K1053).
 - K1057: rules-check는 저장소의 CI pipeline인 .github/workflows/ci-pipeline.yml을 그 workflow 중 하나로서 step의 make 명령으로 읽으며 config/ci.json을 읽지 않습니다. K1052부터 pipeline은 저장소 자신의 파일이므로 그 step이 적는 target은 도달하고, config/ci.json의 선택은 그 자체로 아무것에도 도달하지 않습니다. ci-setup의 ciConfigTargets를 지웠고, step의 ${{ matrix.runtime }}은 kit의 runtime 목록이 아니라 자기 matrix가 나열한 값만 받습니다. run-tests --venv는 환경의 Python을 검사하지 않고 그 interpreter를 그대로 시작합니다. Breaking: 검사를 config/ci.json만 적는 규칙은 workflow step이 그것을 실행할 때까지 rules-check에서 실패합니다(K1057).
@@ -21,7 +26,6 @@
 - K1049: kit.mk, link cargo, run-tests cargo는 환경의 CARGO_TARGET_DIR를 그대로 둔다. 그 값은 저장소나 그 .cargo/config.toml이 정한다. 아무 값도 없으면 Cargo는 checkout마다 자기 target을 쓴다. 호환되지 않는 변경: 다른 checkout을 위해 export한 것 같은 주변의 CARGO_TARGET_DIR가 이제 공유된다. checkout마다 target을 원하는 저장소는 그 값을 비워 두거나 자기 .cargo/config.toml에 build.target-dir를 적는다(K1049).
 - K1048: miseEnvironment와 kit.mk는 mise와 uv의 설정(MISE_LOCKED, MISE_AUTO_INSTALL, UV_PYTHON_DOWNLOADS, UV_NO_CONFIG, UV_CACHE_DIR)을 넣지 않고 toolsEnvironment는 UV_PYTHON을 정하지 않으므로 각 저장소의 mise.toml과 uv 설정이 그것을 정한다. kit 자신의 mise.toml은 [settings]와 [env]에 그것을 적고, docs/examples/native-settings가 그 형식을 보여 준다. 호환되지 않는 변경: 그 설정에 기대던 저장소는 자기 mise.toml에 그것을 적는다(K1048).
 - K1045: kit은 더 이상 npm allow-remote를 강제하지 않는다. install-packages, kit-bootstrap action, worktree-setup, kit의 CI는 --allow-remote=root 없이 npm ci를 실행하므로 각 저장소의 .npmrc가 그것을 정한다. docs/examples/native-settings는 URL을 고정하는 저장소의 .npmrc를 보여 준다. 호환되지 않는 변경: kit을 포함해 패키지를 URL로 고정하는 저장소는 자기 `.npmrc`에 `allow-remote=root`(또는 `all`)를 적는다. 그러지 않으면 npm 12가 그 npm ci를 EALLOWREMOTE로 거부한다(K1045).
-- K1058: make kit-inject-check가 실행하는 kit-sync --check는 파일을 쓰지 않습니다. 없거나 설치된 kit과 다른 사본, scripts/kit의 사본이 아닌 파일, 은퇴한 사본, working tree가 index와 다른 사본 경로를 각각 적고 파일은 그대로 둡니다. 사본은 여전히 make kit-sync가 씁니다(K1058).
 - K1046: docs/spec/utilities-and-recipes는 kit이 유틸리티와 레시피·네이티브 설정의 예제를 제공하고, 저장소에 레시피를 include시키지 않고, 다른 도구의 설정을 정하지 않고, 어떤 결과도 필수로 요구하지 않고, 저장소의 레시피를 검사하지 않는다고 적는다. kit이 지금 강제하는 것을 나열하며, kit은 자기 행들로 그것을 지운다(K1046).
 - VS Code 다운로드 결과를 보존하면서 helper 종료를 요청하고 소유 정리를 기다린 뒤 반환하며 Linux native source 증거를 명시한다(K1044).
 - 사용하지 않는 command inactivity deadline을 제거하고 출력 제한의 실패 결과와 제한된 수집을 보존하면서 정상 종료 정리를 기다린다(K1043).
