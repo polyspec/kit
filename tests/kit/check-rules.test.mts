@@ -277,6 +277,27 @@ test('a make that runs another Makefile reaches no target of the root Makefile (
   assert.deepEqual(findings.map(finding => /make (\w+) runs at no point/.exec(finding)?.[1]), ['first', 'second', 'third'], findings.join('\n'));
 });
 
+// K1065: the include entries of a matrix written in the workflow are literal values, so a step that names one reaches each.
+test('a step reaches the targets of each literal include entry of its matrix (K1065)', (t) => {
+  const agents = rules('- Own: First.\n  Enforced by: `make first`', '- Own: Second.\n  Enforced by: `make second`', '- Own: Third.\n  Enforced by: `make third`');
+  const workflow = 'name: ci\non: push\njobs:\n  gates:\n    runs-on: ubuntu-24.04\n    strategy:\n      matrix:\n        include:\n          - name: one\n            targets: first second\n          - name: two\n            targets: "third"\n    steps:\n      - run: make ci-targets TARGETS="${{ matrix.targets }}"\n';
+  const root = tree(t, {
+    Makefile: 'ci-targets:\n\t@$(MAKE) -k $(TARGETS)\nfirst:\n\t@echo first\nsecond:\n\t@echo second\nthird:\n\t@echo third\n',
+    '.github/workflows/ci.yml': workflow,
+    '.github/workflows/README.md': 'The ci: workflow runs: make.\n',
+    'AGENTS.md': agents,
+    'AGENTS.ko.md': agents,
+  });
+  // The README.md beside the workflow is no workflow, so it is not read.
+  assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
+  // The compact list under include:, a list of the key before the include entries, and a second job with a list of its own: each
+  // job reaches the values of its own matrix only.
+  const jobs = 'name: ci\non: push\njobs:\n  one:\n    runs-on: ubuntu-24.04\n    strategy:\n      matrix:\n        targets: [first]\n        include:\n        - targets: second  # the second\n    steps:\n      - run: |\n          make ci-targets TARGETS="${{ matrix.targets }}"\n  two:\n    runs-on: ubuntu-24.04\n    strategy:\n      matrix:\n        shard: [third]\n    steps:\n      - run: make ci-targets TARGETS="${{ matrix.targets }}"\n';
+  const scoped = checkRules(tree(t, { Makefile: 'ci-targets:\n\t@$(MAKE) -k $(TARGETS)\nfirst:\n\t@echo first\nsecond:\n\t@echo second\nthird:\n\t@echo third\n', '.github/workflows/ci.yml': jobs, 'AGENTS.md': agents, 'AGENTS.ko.md': agents }), ['AGENTS.md']).findings;
+  assert.equal(scoped.length, 1, scoped.join('\n'));
+  assert.match(scoped[0] ?? '', /make third runs at no point/);
+});
+
 // K359: the working guidelines of the owner are rules of PRINCIPLES.md, each with its Enforced by line in the same rule, and the
 // Korean twin holds the same rule ids. Each phrase is a short part of the rule it belongs to.
 const GUIDELINE_RULES: Array<[id: string, phrase: string]> = [

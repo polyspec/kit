@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1065: rules-check reads each workflow with the YAML parser yaml, now a dependency of the package, and expands a step by the literal values of the matrix of its own job: the scalars of each list and of each entry of an include list, so a step that names `${{ matrix.targets }}` reaches the targets of each entry, and a job reaches no value of the matrix of another job (K1065).
+- K1064: rules-check reaches no target of the root Makefile from a make that runs another Makefile, by -C or --directory of another folder or by -f, --file or --makefile of another file (K1064).
 - K1064: rules-check reaches no target of the root Makefile from a make that runs another Makefile, by -C or --directory of another folder or by -f, --file or --makefile of another file; a path of the root or of its makefile, such as ./Makefile or $(CURDIR), names the same one (K1064).
 - K1063: rules-check reads a recipe line without its make prefixes @, - and +, after the expansion, and joins a line that ends in a backslash with the next, so `@$(MAKE) -k gates` reaches the gates that its make runs (K1063).
 - K1059: release-run tags a successful CI run of any workflow of the repository; it no longer requires .github/workflows/ci.yml, and the wait for the run of a version commit reads the runs of every workflow of that commit (K1059).

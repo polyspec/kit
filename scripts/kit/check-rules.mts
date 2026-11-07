@@ -15,6 +15,7 @@
 // restatement of a principle is a finding (K300). The Korean twin of a document (<name>.ko.md) names the same checks for each rule.
 import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { parse as parseYaml } from 'yaml';
 import { lineBlocks } from './markdown.mts';
 import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
 import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
@@ -154,51 +155,50 @@ const plannedOf = (enforced: string) => [...enforced.matchAll(/\bplanned (\S+?)(
 /** The words of the commands of `text`, a recipe or a script, line by line. */
 const commandsOf = (text: string) => text.split('\n').flatMap(line => commandParts(line)).filter(words => words.length > 0);
 
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
+const isScalar = (value: unknown): value is string | number | boolean => ['string', 'number', 'boolean'].includes(typeof value);
+
 /**
- * The values of each key of a `matrix:` block of the workflow whose value is a literal list, such as `shard: [1, 2]` (K941-1).
- * A matrix declared by an expression has no literal values, so the steps that name it stay one line each.
+ * The literal values of each key of the matrix `matrix` of one job: the scalars of a list, such as `shard: [1, 2]` (K941-1), and
+ * the scalar of the key in each entry of an include list (K1065). A matrix, a list or a value written as an expression `${{ … }}`
+ * has no literal values, so the steps that name it stay one line each.
  */
-function literalMatrix(lines: readonly string[]): Map<string, string[]> {
+function matrixValues(matrix: unknown): Map<string, string[]> {
   const found = new Map<string, string[]>();
-  lines.forEach((line, index) => {
-    const head = /^(\s*)matrix:\s*$/.exec(line);
-    if (!head) return;
-    const indent = head[1]?.length ?? 0;
-    for (const next of lines.slice(index + 1)) {
-      if (next.trim() !== '' && next.length - next.trimStart().length <= indent) break;
-      const entry = /^\s+([a-z][a-z0-9_-]*):\s*\[([^\]]*)\]\s*$/.exec(next);
-      if (entry?.[1] !== undefined) found.set(entry[1], (entry[2] ?? '').split(',').map(value => value.trim()).filter(Boolean));
-    }
-  });
+  if (!isObject(matrix)) return found;
+  const add = (key: string, value: unknown) => {
+    if (isScalar(value) && !String(value).includes('${{')) found.set(key, [...(found.get(key) ?? []), String(value)]);
+  };
+  for (const [key, value] of Object.entries(matrix)) {
+    if (key === 'exclude' || !Array.isArray(value)) continue;
+    if (key !== 'include') for (const item of value) add(key, item);
+    else for (const entry of value) if (isObject(entry)) for (const [name, item] of Object.entries(entry)) add(name, item);
+  }
   return found;
 }
 
 /**
- * The shell lines of the steps of the workflow `text`: the value of each `run:`, on its line or in the block below it. A line
- * that names `${{ matrix.runtime }}` runs once for each runtime the runtime job of the CI pipeline can hold, since its shared job fills that matrix
- * with the runtimes of the repository (K757). Any other expression `${{ … }}`, which GitHub replaces before the shell reads the
- * line, is one word.
+ * The shell lines of the steps of the workflow `text` (`file` names it in an error): each line of the `run:` of each step of each
+ * job, which runs once for each literal value of each key of the matrix of its own job that it names as `${{ matrix.<key> }}`.
+ * Any other expression `${{ … }}`, which GitHub replaces before the shell reads the line, is one word.
  */
-function workflowLines(text: string): string[] {
-  const lines = text.split('\n');
-  const literal = literalMatrix(lines);
-  const result: string[] = [];
-  lines.forEach((line, index) => {
-    const run = /^(\s*)(?:- )?run:\s*(.*)$/.exec(line);
-    if (!run) return;
-    const [, indent = '', value = ''] = run;
-    if (!/^[|>][-+]?$/.test(value)) {
-      result.push(value);
-      return;
-    }
-    for (const next of lines.slice(index + 1)) {
-      if (next.trim() !== '' && next.length - next.trimStart().length <= indent.length) break;
-      result.push(next.trim());
-    }
-  });
-  return result
-    .flatMap(line => [...literal].reduce<string[]>((variants, [key, values]) => (line.includes(`matrix.${key} `) || line.includes(`matrix.${key}}`) ? variants.flatMap(variant => values.map(value => variant.replace(new RegExp(`\\$\\{\\{\\s*matrix\\.${key}\\s*\\}\\}`, 'g'), value))) : variants), [line]))
-    .map(line => line.replace(/\$\{\{[^}]*\}\}/g, 'GITHUB_EXPRESSION'));
+function workflowLines(text: string, file: string): string[] {
+  let workflow: unknown;
+  try {
+    workflow = parseYaml(text);
+  } catch (error) {
+    throw new Error(`${file} is no YAML: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+  }
+  const jobs = isObject(workflow) && isObject(workflow.jobs) ? Object.values(workflow.jobs) : [];
+  return jobs.filter(isObject).flatMap(job => {
+    const values = matrixValues(isObject(job.strategy) ? job.strategy.matrix : undefined);
+    const steps = Array.isArray(job.steps) ? job.steps.filter(isObject) : [];
+    return steps.flatMap(step => (typeof step.run === 'string' ? step.run.split('\n').map(line => line.trim()) : []))
+      .flatMap(line => [...values].reduce<string[]>((variants, [key, list]) => {
+        const reference = new RegExp(`\\$\\{\\{\\s*matrix\\.${key}\\s*\\}\\}`, 'g');
+        return reference.test(line) ? variants.flatMap(variant => list.map(value => variant.replace(reference, value))) : variants;
+      }, [line]));
+  }).map(line => line.replace(/\$\{\{[^}]*\}\}/g, 'GITHUB_EXPRESSION'));
 }
 
 /** The make targets and the paths that the points that cannot be skipped reach in `root`. */
@@ -235,8 +235,11 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
     const directory = path.join(root, folder);
     if (!existsSync(directory)) continue;
     for (const entry of readdirSync(directory).sort()) {
+      // GitHub runs only the .yml and .yaml files of the workflow folder; a note beside them is no workflow (K1065).
+      const workflow = folder === '.github/workflows';
+      if (workflow && !/\.ya?ml$/.test(entry)) continue;
       const text = readFileSync(path.join(directory, entry), 'utf8');
-      const script = folder === '.github/workflows' ? workflowLines(text).join('\n') : text;
+      const script = workflow ? workflowLines(text, path.join(folder, entry)).join('\n') : text;
       for (const words of commandsOf(script)) enter(words, new Map());
     }
   }
