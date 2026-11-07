@@ -26,6 +26,15 @@ The allow-remote case shows the chain:
 
    An example shows one working way. A repository copies it, changes it, or ignores it.
 
+## Native event identity (K1091)
+
+A native event parser preserves the framework's complete test identity. For PHPUnit TeamCity messages,
+`TestRef.id` is the fully qualified class, method and data set from `locationHint`, without its leading namespace
+separator; `TestRef.name` retains the native display name. The parser keeps simultaneous event flows separate.
+Two classes in different namespaces remain distinct even when their class basename, method and data set are equal.
+A qualified parity binding is compared with that qualified identity; another namespace is never treated as its alias.
+Repositories own their explicit invocation, selection and expected case inventory. This utility adds none of those policies.
+
 ## What kit does not do
 
 kit forces nothing. In particular:

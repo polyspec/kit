@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 4695b12c59299b1ef0812121d3870d9a001148716b3cc61835aed066bc41d874 -->
+<!-- source-sha256: 2e4515dfce541846214ca11c0d0016f2b21cda453a586bb91d3b8d219ab3bb28 -->
 # 개발
 
 [English](AGENTS.md)
@@ -12,6 +12,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 [PRINCIPLES.md](PRINCIPLES.md)와 그 한국어 쌍도 그런 예시로 담습니다. 저장소의 AGENTS.md는 자기 사본으로 link하고 자기만의 규칙만 적습니다. 아래 규칙은 kit 자신의 것입니다.
 
 ## 규칙
+
+- Own: Native event parser는 framework의 완전한 identity와 flow를 보존한다. PHPUnit은 fully qualified class, method, data set을 유지하며 parity는 다른 namespace를 qualified binding의 alias로 취급하지 않는다. Selection과 expected case는 repository recipe가 소유한다.
+  Enforced by: `tests/kit/phpunit-identity.test.mts`
 
 - Own: 추적하는 모든 test file은 repository Makefile의 CI shard 하나에 정확히 한 번 속한다. Kit test는 KIT_TEST_FILES에, source test는 SOURCE_TEST_FILES에 선언한다. Test 추가에는 shard 선언이 포함되며 exact-once CI inventory 검사는 그 선언의 unit test이다. 로컬에서 실행했어도 CI에 없으면 미완료이다.
   Enforced by: `tests/source/ci-workflow.test.mts`

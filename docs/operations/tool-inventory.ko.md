@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 739dcb731d5c9feecdb797f998d1f8f3f32c1f8d832a7eac5bf07343f18e069d -->
+<!-- source-sha256: e505667d05be7a9318227a490c4d37ba87dd9377d57aff3c899eb166d3a1f18e -->
 
 # 도구 목록
 
@@ -448,6 +448,8 @@ Makefile, workflow의 `--exclude-group`, `contracts/features.json`의 `partial`�
 `scripts/kit/run-tests.mts`는 template, crudui, hyper의 `run-tests.mts`와 ordered-json의 `test.py`를 대체합니다. 진행 reporter는
 `test-progress.mts`, `node-reporter.mts`, `vitest-reporter.mts`이며, go, cargo, PHPUnit, unittest 출력의 parser는 `test-output.mts`에 있고 언어 패리티 검사도 같은 함수로 읽습니다(K47). `test-exit-deadline.mts`는 각 node test 파일에 preload되어, 마지막 test 뒤 test timeout이 지나도 살아 있는 파일을 열린 handle 이름과 함께 실패시키며(K72),
 `test-hooks.mts`는 test의 `setup`과 `teardown` helper입니다.
+
+PHPUnit TeamCity event는 fully qualified class, method, data set을 `TestRef.id`로, native display name을 `TestRef.name`으로 보존한다. 각 flow는 실행 중인 identity를 별도로 유지한다. 서로 다른 namespace의 같은 basename은 구별하며 qualified parity binding은 자신의 namespace만 받아들인다(K1091).
 
 합친 동작:
 

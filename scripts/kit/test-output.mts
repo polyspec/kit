@@ -310,7 +310,7 @@ const unescapeTeamcity = (value: string): string => value.replace(/\|(['|\][nr])
  */
 export function phpunitEvents(sink: Sink): (line: string) => unknown {
   const failures = new Map<string | undefined, string>();
-  // A test is named by its class and method; testFinished repeats only the method name.
+  // A start names its fully qualified class and method; finish repeats only the method name within its flow.
   const ids = new Map<string | undefined, string | undefined>();
   // Suites without a location (the configuration and the test suites) are printed as groups. A class or a data provider
   // method has a location on its start only, so its finish is matched by this set.
@@ -319,34 +319,36 @@ export function phpunitEvents(sink: Sink): (line: string) => unknown {
   const ignored = new Set<string | undefined>();
   const qualified = (attributes: Record<string, string>): string | undefined => {
     const hint = /::\\?([^:]+)::(.+)$/.exec(attributes.locationHint ?? '');
-    // Both groups always take part in a match, and split returns at least one part.
-    return hint ? `${present(hint[1], 'hint[1]').split('\\').pop()}::${hint[2]}` : attributes.name;
+    // Both capture groups take part in a matching native location.
+    return hint ? `${hint[1]}::${hint[2]}` : attributes.name;
   };
   return line => {
     const message = /^##teamcity\[(\w+)((?: \w+='(?:[^'|]|\|.)*')*)\]$/.exec(line.trim());
     if (!message) return line.trim() ? sink.line(line) : undefined;
     // The groups of both patterns always take part in a match.
     const attributes = Object.fromEntries([...present(message[2], 'message[2]').matchAll(/ (\w+)='((?:[^'|]|\|.)*)'/g)].map(([, key, value]) => [present(key, 'key'), unescapeTeamcity(present(value, 'value'))]));
-    if (message[1] === 'testStarted') ids.set(attributes.name, qualified(attributes));
-    const id = ids.get(attributes.name) ?? attributes.name;
+    const address = JSON.stringify([attributes.flowId ?? '', attributes.name]);
+    if (message[1] === 'testStarted') ids.set(address, qualified(attributes));
+    const id = ids.get(address) ?? attributes.name;
+    const event = JSON.stringify([attributes.flowId ?? '', id]);
     // PHPUnit names each test and suite; a message without a name, such as testCount, reaches only the default case.
     const test = (): TestRef => ({ id: present(id, 'the id of a PHPUnit test'), name: present(attributes.name, 'the name of a PHPUnit test') });
     switch (message[1]) {
       case 'testSuiteStarted': {
         if (attributes.locationHint) return undefined;
-        groups.add(id);
+        groups.add(event);
         return sink.start(test(), { group: true });
       }
-      case 'testSuiteFinished': return groups.delete(id) ? sink.pass(test()) : undefined;
+      case 'testSuiteFinished': return groups.delete(event) ? sink.pass(test()) : undefined;
       case 'testStarted': return sink.start(test());
       // PHPUnit reports a test that ran out of its time limit and also made no assertion twice.
-      case 'testFailed': failures.set(id, [failures.get(id), attributes.message ?? '', attributes.details ?? ''].filter(Boolean).join('\n')); return undefined;
-      case 'testIgnored': ignored.add(id); return sink.skip(test());
+      case 'testFailed': failures.set(event, [failures.get(event), attributes.message ?? '', attributes.details ?? ''].filter(Boolean).join('\n')); return undefined;
+      case 'testIgnored': ignored.add(event); return sink.skip(test());
       case 'testFinished': {
         const duration = Number(attributes.duration);
-        if (ignored.delete(id)) return undefined;
+        if (ignored.delete(event)) return undefined;
         // has() above makes the failure text exist.
-        if (failures.has(id)) { const text = present(failures.get(id), 'failures.get(id)'); failures.delete(id); return sink.fail(test(), duration, text); }
+        if (failures.has(event)) { const text = present(failures.get(event), 'failures.get(event)'); failures.delete(event); return sink.fail(test(), duration, text); }
         return sink.pass(test(), duration);
       }
       default: return undefined;

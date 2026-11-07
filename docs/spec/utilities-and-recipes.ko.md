@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: 6e6b8e821df2f9b276907c3e5f97a988c49b5ad600cba4ac454a002e2d741edb -->
+<!-- source-sha256: 8dc30494f48bc6eef0c4db6c007cd16d87ec94acfa68050d49790ffd8d3d0dc0 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -26,6 +26,15 @@ allow-remote 사례가 그 연쇄를 보여 준다.
    - 체크리스트 row를 Red부터 커밋까지 어떻게 진행하는가
 
    예제는 작동하는 방법 하나를 보여 준다. 저장소는 그것을 복사하거나, 바꾸거나, 무시한다.
+
+## Native event identity (K1091)
+
+Native event parser는 framework의 완전한 test identity를 보존한다. PHPUnit TeamCity message의
+`TestRef.id`는 `locationHint`의 fully qualified class, method, data set이며 맨 앞 namespace separator만 제외한다.
+`TestRef.name`은 native display name을 유지한다. Parser는 동시에 진행되는 event flow를 구분한다.
+서로 다른 namespace의 class는 class basename, method, data set이 같아도 구별된다.
+Qualified parity binding은 qualified identity와 비교하며 다른 namespace를 alias로 취급하지 않는다.
+명시적 invocation, selection, expected case inventory는 repository가 소유하며 이 utility는 해당 정책을 추가하지 않는다.
 
 ## kit이 하지 않는 것
 

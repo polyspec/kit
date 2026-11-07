@@ -1659,7 +1659,7 @@ test('a php suite binding with the symbol <class>::<method> runs that method alo
   const namespaced = runOf({ name: 'php', runner: 'php' }, root, { test: 'php/tests/codec.php', symbol: 'Example\\Tests\\CodecTest::testCodec' }, 'suite', ENV);
   if (namespaced.error) throw new Error(namespaced.error);
   assert.equal(namespaced.args.at(-2), '/^Example\\\\Tests\\\\CodecTest::testCodec(?: with data set |$)/');
-  assert.deepEqual(['testCodec with data set "a/b"', 'testCodec with data set #0', 'testCodec', 'testCodecExtra with data set "a"'].map(name => namespaced.caseOf({ id: name, name })), ['a/b', '#0', undefined, undefined]);
+  assert.deepEqual(['testCodec with data set "a/b"', 'testCodec with data set #0', 'testCodec', 'testCodecExtra with data set "a"'].map(name => namespaced.caseOf({ id: `Example\\Tests\\CodecTest::${name}`, name })), ['a/b', '#0', undefined, undefined]);
   const declared = async (symbol: string) => (await check(t, { edit: (config) => { binding(config, 'codec', 'php').symbol = symbol; return config; } }, { execute: false })).findings.map(finding => `${finding.rule}: ${finding.message}`);
   assert.deepEqual(await declared('testCodec'), ['declaration: unit codec: the php binding names testCodec, which is no test method <class>::<method> of a fully qualified class']);
   assert.deepEqual(await declared('\\Example\\CodecTest::testCodec'), ['declaration: unit codec: the php binding names \\Example\\CodecTest::testCodec, which is no test method <class>::<method> of a fully qualified class']);

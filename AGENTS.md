@@ -13,6 +13,9 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
 
 ## Rules
 
+- Own: Native event parsers preserve the framework's complete identity and flow. PHPUnit keeps its fully qualified class, method and data set; parity never aliases another namespace to a qualified binding. Repository recipes own selection and expected cases.
+  Enforced by: `tests/kit/phpunit-identity.test.mts`
+
 - Own: Every tracked test file belongs to exactly one CI shard in the repository Makefile: KIT_TEST_FILES for kit tests and SOURCE_TEST_FILES for source tests. Adding a test includes declaring its shard; the exact-once CI inventory check is a unit test of that declaration. A test that ran locally but is absent from CI is incomplete.
   Enforced by: `tests/source/ci-workflow.test.mts`
 

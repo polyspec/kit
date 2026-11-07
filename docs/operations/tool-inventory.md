@@ -492,6 +492,8 @@ reporters are `test-progress.mts`, `node-reporter.mts` and `vitest-reporter.mts`
 unittest output are in `test-output.mts`, which the language-parity check reads with the same functions (K47); `test-exit-deadline.mts` is preloaded into
 each node test file and fails a file whose process outlives its last test by the test timeout, naming its open handles (K72), and `test-hooks.mts` is the `setup` and `teardown` helper of tests.
 
+PHPUnit TeamCity events preserve the fully qualified class, method and data set as `TestRef.id`, and the native display name as `TestRef.name`. A flow retains its own running identities. Equal basenames in different namespaces are distinct; a qualified parity binding accepts only its own namespace (K1091).
+
 Merged behaviors:
 
 - Tools: `node`, `vitest`, `go`, `cargo`, `phpunit` (template and crudui) and `python` (K17); hyper has the first, the last and `vitest`. Each test

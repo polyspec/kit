@@ -143,11 +143,7 @@ const featureCase = (ids: readonly string[] = []) => (test: TestRef): string => 
   // The data set of a method is the method's case: `<method> with data set "<set>"` names the method `<method>`.
   const method = (name: string) => name.replace(/ with data set [\s\S]*$/, '');
   const candidates = [test.id, method(test.id), test.name, method(test.name)];
-  const shortClass = (id: string): string => {
-    const [className, ...methodName] = id.split('::');
-    return methodName.length ? `${present(className, 'className').split('\\').pop()}::${methodName.join('::')}` : id;
-  };
-  return ids.find(id => candidates.includes(id) || candidates.includes(shortClass(id))) ?? test.id;
+  return ids.find(id => candidates.includes(id)) ?? test.id;
 };
 
 /**
@@ -173,10 +169,8 @@ const phpFeatureFilter = (ids: readonly string[]): string => {
  * integer key `<method> with data set #<n>` names `#<n>`, which no suite declares; the method without a data set is no case.
  */
 function dataSetCase(symbol: string): (test: TestRef) => string | undefined {
-  // The declaration requires `<class>::<method>`, so the symbol has a method part.
-  const method = present(symbol.split('::')[1], 'symbol.split(\'::\')[1]');
   return (test) => {
-    const set = after(`${method} with data set `, test.name);
+    const set = after(`${symbol} with data set `, test.id);
     return set === undefined ? undefined : /^"(.*)"$/s.exec(set)?.[1] ?? set;
   };
 }

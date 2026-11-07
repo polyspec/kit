@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 41dad8b5c066ed2b4d95e020b89a7c24044bbb98a64003738b7f4239e7d76dd7 -->
+<!-- source-sha256: 8bd0069ba5e15e9094a4654e7c440566a400faf7b46fca7b0de294ec7d2c732d -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -218,3 +218,4 @@
 | K1088 | language-check는 언어 규칙을 저장소가 선언한 대로만 적용한다 | scripts/kit/language-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1088 tests/kit/language-check.test.mts` | [ ] |
 | K1089 | plan은 plan slug 패턴을 저장소가 선언한 대로만 적용한다 | scripts/kit/plan.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1089 tests/kit/plan.test.mts` | [ ] |
 | K1090 | plan item-state는 저장소가 요청한 상태로 항목을 옮기며, 저장소 자신의 상태 변경을 거부하는 kit 고정 전이표가 없다 | scripts/kit/plan.mts, scripts/kit/checklist.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1090 tests/kit/plan.test.mts` | [ ] |
+| K1091 | (957ef0bc) Namespace 충돌 없이 완전한 PHPUnit event identity를 보존한다 | scripts/kit/test-output.mts; scripts/kit/parity-runners.mts; scripts/kit/php-library/phpunit-deadline-subscriber.php; tests/kit/phpunit-identity.test.mts; tests/source/phpunit-identity.test.mts; Makefile; EN/KO specification and development rules | `node --test tests/kit/phpunit-identity.test.mts` (Red: namespace collisions, flow overwrite and a qualified suite accepted another namespace; Green: 4/4); `node --test --test-name-pattern="phpunit\|PHPUnit" tests/kit/run-tests.test.mts` (13/13); `node --test --test-name-pattern="a php suite binding" tests/kit/parity-api.test.mts` (1/1); `node --test tests/source/phpunit-identity.test.mts` (1/1 native, 2 PHPUnit cases); `node --test tests/source/ci-workflow.test.mts` (21/21); docs-check and targeted TypeScript lint passed | [o] |

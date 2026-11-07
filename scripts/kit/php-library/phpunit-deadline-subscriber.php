@@ -46,8 +46,7 @@ final class DeadlineSubscriber implements PreparationStartedSubscriber
         }
 
         $class = $test->className();
-        $separator = strrpos($class, '\\');
-        $id = ($separator === false ? $class : substr($class, $separator + 1)) . '::' . $test->name();
+        $id = $class . '::' . $test->name();
         $event = json_encode(
             ['kind' => 'timeout', 'id' => $id, 'timeoutMs' => $seconds * 1000],
             JSON_THROW_ON_ERROR,

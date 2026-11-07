@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Preserve fully qualified PHPUnit event identities and independent flows; remove namespace aliasing from parity mapping (K1091).
+
 ## 0.0.98
 
 - Release: kit ships utilities and examples and forces nothing on a repository: the removals of docs/spec/utilities-and-recipes (K1045, K1048–K1055, K1057, K1059–K1062), the corrections of rules-check K1063–K1065 and the process corrections of K1042–K1044 (K1056).

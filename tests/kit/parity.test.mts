@@ -308,7 +308,7 @@ test('K692: a php feature filters a shared file to its declared methods', TIMEOU
   ]);
   assert.equal(run.caseOf({ id: 'CodecTest::test_bytes', name: 'test_bytes' }), 'test_bytes');
   assert.equal(run.caseOf({ id: 'CodecTest::test_ascii with data set "sample"', name: 'test_ascii with data set "sample"' }), 'CodecTest::test_ascii');
-  assert.equal(run.caseOf({ id: 'CodecTest::test_regex+method with data set "sample"', name: 'test_regex+method with data set "sample"' }), 'Example\\Tests\\CodecTest::test_regex+method');
+  assert.equal(run.caseOf({ id: 'Example\\Tests\\CodecTest::test_regex+method with data set "sample"', name: 'test_regex+method with data set "sample"' }), 'Example\\Tests\\CodecTest::test_regex+method');
 });
 
 test('K695: a short PHPUnit class id selects its namespaced class exactly', TIMEOUT, (t) => {

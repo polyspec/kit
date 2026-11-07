@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 3ba914873a979e8695c8d2a20f2e5fcd16a5d6df3ba23f0b8473e9a662b5d0cc -->
+<!-- source-sha256: edb2d118e2bbcf13f558316213fb3af0db4c41c72b3a184b335f524009df4eda -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- PHPUnit event의 fully qualified identity와 독립된 flow를 보존하고 parity mapping의 namespace aliasing을 제거한다(K1091).
 
 ## 0.0.98
 

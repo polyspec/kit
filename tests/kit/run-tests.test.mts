@@ -224,13 +224,13 @@ test('PHPUnit deadline events accept only a named case and a positive integer ti
 test('a namespaced PHPUnit data-provider deadline matches its TeamCity case identity', () => {
   const lines: string[] = [];
   const progress = createProgress({ write: text => lines.push(text), heartbeatMs: 10_000, timeoutMs: 30_000, resultFile: '' });
-  progress.timeout('NamespacedSmallTest::testCases with data set "alpha"', 6_000);
+  progress.timeout('Deadline\\Fixture\\NamespacedSmallTest::testCases with data set "alpha"', 6_000);
   const feed = phpunitEvents(toProgress(progress));
   feed(`##teamcity[testStarted name='testCases with data set "alpha"' locationHint='php_qn:///tmp/NamespacedSmallTest.php::\\Deadline\\Fixture\\NamespacedSmallTest::testCases with data set "alpha"' flowId='1']`);
   feed(`##teamcity[testFinished name='testCases with data set "alpha"' duration='12' flowId='1']`);
   const result = progress.close('phpunit');
   assert.equal(result.ok, true);
-  assert.deepEqual(result.cases.map(({ id, status }) => [id, status]), [['NamespacedSmallTest::testCases with data set "alpha"', 'pass']]);
+  assert.deepEqual(result.cases.map(({ id, status }) => [id, status]), [['Deadline\\Fixture\\NamespacedSmallTest::testCases with data set "alpha"', 'pass']]);
   assert.match(lines.join(''), /NamespacedSmallTest::testCases with data set "alpha" \(timeout 6\.0s\)/);
 });
 
@@ -500,7 +500,7 @@ test('the phpunit events of a skipped test pass it as skipped only, as PHPUnit r
   const { calls, sink } = recording();
   const feed = phpunitEvents(sink);
   // The TeamCity messages of PHPUnit 11.5 for a test that markTestSkipped: testIgnored, then testFinished.
-  feed("##teamcity[testStarted name='test_skipped' locationHint='php_qn://php/tests/codec.php::\\\\Codec::test_skipped' flowId='1']");
+  feed("##teamcity[testStarted name='test_skipped' locationHint='php_qn://php/tests/codec.php::\\Codec::test_skipped' flowId='1']");
   feed("##teamcity[testIgnored name='test_skipped' message='later' duration='1' flowId='1']");
   feed("##teamcity[testFinished name='test_skipped' duration='1' flowId='1']");
   assert.deepEqual(calls, ['start Codec::test_skipped', 'skip Codec::test_skipped']);
@@ -520,8 +520,8 @@ test('the phpunit events pair tests, join the failure messages and print other l
   feed(message('testSuiteFinished', { name: 'all' }));
   feed('Tests: 2, Warnings: 1.');
   const text = lines.join('');
-  assert.match(text, /✔ FooTest::testOk/);
-  assert.match(text, /✖ FooTest::testBad/);
+  assert.match(text, /✔ Pkg\\FooTest::testOk/);
+  assert.match(text, /✖ Pkg\\FooTest::testBad/);
   assert.match(text, /Failed asserting\n\s+1 is 2/);
   assert.match(text, /Tests: 2, Warnings: 1\./);
   assert.equal(progress.close('phpunit').ok, false);
