@@ -186,3 +186,4 @@
 | K1056 | Release kit with the removals of docs/spec/utilities-and-recipes | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [ ] |
 | K1058 | kit-sync --check writes no file: it reports each copy that differs from the installed kit or from the index | `scripts/kit/kit-sync.mts`, `tests/kit/kit-sync.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1058 tests/kit/kit-sync.test.mts` passes | [o] |
 | K1059 | Tag a successful CI run of any workflow of the repository in release-run; the workflow path is the repository's | scripts/kit/release-run.mts, tests/kit/release-run.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | node --test --test-name-pattern=K1059 tests/kit/release-run.test.mts | [ ] |
+| K1060 | Delete readNpmConfig, the unused reader of the removed npm judgment | scripts/kit/toolchain-files.mts, CHANGELOG(.ko).md | make -s lint-ts | [ ] |

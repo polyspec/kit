@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 891f8fae6e7d2b061207d0d5e428f4187af51fa5af4c3bd449b0408ad8bc1ce8 -->
+<!-- source-sha256: 1c0598c8a2b75794e8f4a9ee8c864d212aac8ca47dca4cbbf72c4c82f0977d1f -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -187,3 +187,4 @@
 | K1056 | docs/spec/utilities-and-recipes의 삭제를 담아 kit을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [ ] |
 | K1058 | kit-sync --check는 파일을 쓰지 않는다. 설치된 kit이나 index와 다른 사본을 각각 보고한다 | `scripts/kit/kit-sync.mts`, `tests/kit/kit-sync.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1058 tests/kit/kit-sync.test.mts` passes | [o] |
 | K1059 | release-run이 저장소의 어느 workflow든 성공한 CI 실행을 태그하게 합니다. workflow 경로는 저장소가 정합니다 | scripts/kit/release-run.mts, tests/kit/release-run.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | node --test --test-name-pattern=K1059 tests/kit/release-run.test.mts | [ ] |
+| K1060 | 제거된 npm 판정의 쓰이지 않는 읽기 함수 readNpmConfig를 삭제합니다 | scripts/kit/toolchain-files.mts, CHANGELOG(.ko).md | make -s lint-ts | [ ] |
