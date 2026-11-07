@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.94
+
+- K1020: Release the exact successful CI commit after it reaches main, regardless of its CI branch; independent CI jobs run alongside kit and the final job requires every result.
+
 ## 0.0.93
 
 - Kit 0.0.93 installs the PHP symbol extractor in ci-setup, so the shared CI pipeline names no language (K1018) (K1019).

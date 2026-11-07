@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 1643f9cf52d233c0c9e42ad9bdfa07a0b620f768d9f76582ab95226bb0c13315 -->
+<!-- source-sha256: d78ee67fb1b3948581ae2d27a978660cfd6ad5d3bf395f80803e106f66d1aec6 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -150,4 +150,4 @@
 | K1015 | lint-rust의 catch-check는 저장소가 정한 CARGO_NET_OFFLINE과 상관없이 cargo가 자기 lock의 crate를 받게 한다 | `scripts/kit/lint-rust.mts`, `tests/kit/catch-check-steps.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1015 tests/kit/catch-check-steps.test.mts` passes | [o] |
 | K1017 | Rust catch check와 그 crate(catch-check-rust)를 K1015의 CARGO_NET_OFFLINE 덮어쓰기와 함께 삭제한다 | `scripts/kit/lint-rust.mts`, `scripts/kit/catch-check-rust/`, `CHANGELOG.md(.ko)` | `make kit-check` passes | [o] |
 | K1018 | ci-setup이 PHP symbol extractor를 shared와 php runtime setup에서 설치해 ci-pipeline.yml의 step 목록이 언어를 이름하지 않는다 | `workflows/ci-pipeline.yml`, `scripts/kit/ci-setup.mts`, `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1018 tests/kit/ci-setup.test.mts` passes | [o] |
-| K1020 | 통합된 성공 CI commit을 그대로 release하고 독립 CI job은 마지막 결과에서 합친다 | scripts/kit/release-run.mts, scripts/kit/kit-check.mts, workflows/release.yml, tests/kit/release-run.test.mts, tests/kit/kit-check.test.mts, PRINCIPLES.md, PRINCIPLES.ko.md | node --test tests/kit/release-run.test.mts tests/kit/kit-check.test.mts tests/source/release-workflow.test.mts | [ ] |
+| K1020 | 통합된 성공 CI commit을 그대로 release하고 독립 CI job은 마지막 결과에서 합친다 | scripts/kit/release-run.mts, scripts/kit/kit-check.mts, workflows/release.yml, tests/kit/release-run.test.mts, tests/kit/kit-check.test.mts, PRINCIPLES.md, PRINCIPLES.ko.md | `node --test tests/kit/release-run.test.mts tests/kit/kit-check.test.mts tests/source/release-workflow.test.mts` | [~] |

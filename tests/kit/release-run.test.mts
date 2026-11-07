@@ -1,5 +1,5 @@
 // Tests of the release by the id of a successful CI run (scripts/kit/release-run.mts, K749, K911, K924): release-tag reads the run,
-// accepts only a completed successful push or dispatch run of ci.yml on main whose commit is on origin/main, and tags that commit
+// accepts only a completed successful push or dispatch run of ci.yml whose commit is on origin/main, and tags that commit
 // with the version of the newest section ## X.Y.Z of the change log of that commit, which the version-bump commit wrote.
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
@@ -37,7 +37,7 @@ const tagRun = (root: string, env: NodeJS.ProcessEnv, args = ['tag', '91']) => {
   return { result, lines, errors };
 };
 
-test('the release accepts only its successful CI run of ci.yml on main (K749, K911)', () => {
+test('the release accepts only its successful CI run of ci.yml (K749, K911)', () => {
   assert.doesNotThrow(() => validateCandidateRun(candidate(), 91));
   assert.doesNotThrow(() => validateCandidateRun(candidate({ event: 'workflow_dispatch' }), 91));
   assert.throws(() => validateCandidateRun(candidate({ conclusion: 'failure' }), 91), /conclusion failure/);
@@ -45,7 +45,7 @@ test('the release accepts only its successful CI run of ci.yml on main (K749, K9
   assert.throws(() => validateCandidateRun(candidate({ status: 'in_progress', conclusion: null }), 91), /in_progress with conclusion missing/);
   assert.throws(() => validateCandidateRun(candidate({ id: 92 }), 91), /run id/);
   assert.throws(() => validateCandidateRun(candidate({ path: '.github/workflows/other.yml@refs/heads/main' }), 91), /workflow/);
-  assert.throws(() => validateCandidateRun(candidate({ head_branch: 'feature', event: 'pull_request' }), 91), /not a supported CI run on main/);
+  assert.throws(() => validateCandidateRun(candidate({ head_branch: 'feature', event: 'pull_request' }), 91), /not a supported CI run/);
   assert.throws(() => validateCandidateRun(candidate({ head_sha: 'main' }), 91), /not a full Git commit SHA/);
 });
 
@@ -101,8 +101,8 @@ test('release-tag orders the versions numerically, so v0.0.10 is greater than v0
   assert.equal(git(box.root, 'rev-parse', 'refs/tags/v0.0.10^{commit}'), box.commit);
 });
 
-test('release-tag tags an earlier commit of main whose run passed, after main moved on (K911)', (t) => {
-  const { box, env } = runBox(t, commit => candidate({ head_sha: commit }));
+test('release-tag tags the successful branch CI commit after main moved on (K911)', (t) => {
+  const { box, env } = runBox(t, commit => candidate({ head_sha: commit, head_branch: 'integration', event: 'workflow_dispatch', path: '.github/workflows/ci.yml@refs/heads/integration' }));
   git(box.root, 'commit', '--quiet', '--allow-empty', '-m', 'later');
   git(box.root, 'push', '--quiet', 'origin', 'main');
   const run = tagRun(box.root, env);

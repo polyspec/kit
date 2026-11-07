@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 4fe5562230ae9aa6e5998b7eb8a9bd2765dc89f9adcc93d5a60a06fc175f495c -->
+<!-- source-sha256: d089574bff9b1c0ca012fb9e02ecb02f3549bec518aadbe904a2f9d91a4d2e49 -->
 
 # 도구 목록
 
@@ -608,7 +608,7 @@ go.mod의 module path에 연결합니다.
 
 - 상수 대신 데이터: template, hyper, ordered-json의 `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `REPOSITORY_URL`과
   changelog는 `config/release.json`입니다. 목록은 명시적이며 빠진 항목은 coverage가 찾습니다.
-- Tag: `release-run tag RUN`은 `main` 위에서 성공한 ci.yml run RUN의 commit에 그 change log의 가장 새로운 section `## X.Y.Z`의
+- Tag: `release-run tag RUN`은 성공한 ci.yml run RUN의 commit(`origin/main` 이력에 포함되어야 함)에 그 change log의 가장 새로운 section `## X.Y.Z`의
   버전으로 tag를 답니다(K911, K924). 그 commit에 있는 config/release.json의 `changelog`와 `goModules`를 읽고, change log에 그런
   section이 없거나 `## Unreleased` 아래 항목이 있는 commit은 거부합니다. maintainer는 run의 id만으로 release workflow를
   dispatch하고(`gh workflow run release.yml -f run=<id>`) 그 workflow가 이를 실행하며, 손으로 push하는 tag는 없습니다.
@@ -757,8 +757,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   partition이 완전하면 parity prerequisite를 대신 충족합니다. 언어의 lint와 PHP extension의 lint·test는 그 code를 가진 저장소에서만
   요구합니다. kit의 checkout은 gate의 source이므로 검사하지 않습니다.
 - `workflows/ci-pipeline.yml`(`on: workflow_call`, K910)은 같은 `kit-gates` prerequisite를 shared, parity, runtime job으로 나눕니다.
-  저장소의 ci.yml이 이를 job `kit`으로 호출하고, 그 ci.yml의 저장소 job은 `needs: kit`으로 뒤에 실행되므로 run 하나가 commit의 모든
-  job을 담습니다. 파이프라인, release.yml, 저장소 workflow의 모든 job은 composite action 하나인
+  저장소의 ci.yml이 이를 job `kit`으로 호출하고, 독립적인 저장소 job은 함께 실행합니다. 마지막 `ci-passed` job은 다른 모든 job을 needs로 요구하므로 run 하나가 commit의 모든 job을 담습니다. 파이프라인, release.yml, 저장소 workflow의 모든 job은 composite action 하나인
   `actions/kit-bootstrap/action.yml`로 bootstrap합니다. kit-sync가 이를 `.github/actions/kit-bootstrap/action.yml`로 vendor하고,
   job은 checkout 뒤에 `uses: ./.github/actions/kit-bootstrap`으로 실행합니다. mise.toml의 Node.js, lock된 kit package,
   var/tools의 npm과 package를 설치하며, INSTALL_PACKAGES_EXTRA에 PHP가 필요한 job은 그 앞에서 PHP를 설정합니다. `make kit-check`는

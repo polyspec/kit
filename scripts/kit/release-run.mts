@@ -10,12 +10,12 @@ export type CandidateRun = { id: number; path: string; head_sha: string; event: 
 
 const VERSION = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
-/** Require the CI workflow run `id` that passed on main: its head_sha is the commit that the release tags (K911). */
+/** Require the successful CI workflow run `id`: its head_sha is the commit that the release tags (K911). */
 export function validateCandidateRun(runInfo: CandidateRun, id: number): void {
   if (runInfo.id !== id) throw new Stop(`CI run id ${runInfo.id} does not match requested run ${id}`);
   if (!/^[0-9a-f]{40}$/.test(runInfo.head_sha)) throw new Stop(`CI run ${id} names the head SHA ${JSON.stringify(runInfo.head_sha)}, not a full Git commit SHA`);
   if (runInfo.path.replace(/@.*$/, '') !== '.github/workflows/ci.yml') throw new Stop(`CI run ${id} used workflow ${runInfo.path}, not .github/workflows/ci.yml`);
-  if (runInfo.head_branch !== 'main' || !['push', 'workflow_dispatch'].includes(runInfo.event)) throw new Stop(`CI run ${id} is ${runInfo.event} on ${runInfo.head_branch}, not a supported CI run on main`);
+  if (!['push', 'workflow_dispatch'].includes(runInfo.event)) throw new Stop(`CI run ${id} is ${runInfo.event} on ${runInfo.head_branch}, not a supported CI run`);
   if (runInfo.status !== 'completed' || runInfo.conclusion !== 'success') throw new Stop(`CI run ${id} is ${runInfo.status} with conclusion ${runInfo.conclusion ?? 'missing'}, not completed successfully`);
 }
 
@@ -46,7 +46,7 @@ export function prepare(ctx: Context, version: string): { sha: string; assets: s
 
 /**
  * The release tags at the commit of the successful CI run `runId` (`make release-tag RUN`, K911, K924): the run is a completed
- * successful push or workflow_dispatch run of .github/workflows/ci.yml on main, its commit is on origin/main, the version is the
+ * successful push or workflow_dispatch run of .github/workflows/ci.yml, its commit is on origin/main, the version is the
  * newest section ## X.Y.Z of the change log of that commit, whose ## Unreleased holds no entry, and createTags puts vX.Y.Z and the
  * tag of every Go module that config/release.json of that commit declares there. Returns the version and what it did per tag.
  *

@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ad45c15d97cb18b177f0381fcd004e38efb45442e9a3d61672c5895f1a4f01a3 -->
+<!-- source-sha256: 1a305c9fbcb8dabfc26316e072227533422196966e1ad070f1f73756933802ff -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.94
+
+- K1020: 성공한 CI의 정확한 commit이 main 이력에 포함되면 CI branch와 관계없이 release한다. 독립 CI job은 kit과 함께 실행하고 마지막 job이 모든 결과를 요구한다.
 
 ## 0.0.93
 

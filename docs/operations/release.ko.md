@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release -->
-<!-- source-sha256: 2f41c494ce280ec47bd98134293d9fc98df9ee58c349c87f934e3004b2f8bb4e -->
+<!-- source-sha256: c0a97800f4782add8e5fa35845fad5bc13859c7c17f2044d3e250c4908d6e6c0 -->
 # 릴리스
 
 [English](release.md)
@@ -24,10 +24,10 @@ Kit의 native npm prepack은 source export와 hook bin을 build된 dist path로 
 packer를 사용하며 tag를 조회하거나 만들지 않습니다. package lifecycle script가 package directory 바깥의 build input도 읽을 수 있으므로
 candidate command는 tracked 변경과 ignore되지 않은 untracked 파일이 없는 checkout을 요구합니다. 거부되면 source 변경을 commit한 뒤 candidate
 command를 다시 실행합니다. 버전 변경은 package-manager lock을 다시 씁니다. `composer.lock`의 content-hash가 `version`을 포함하므로,
-composer.json의 버전 변경은 그 directory에서 `composer update --lock`으로 다시 lock합니다. 이 commit은 `main`에 들어가고 그 `.github/workflows/ci.yml` CI run이 success로 끝납니다. (2) release workflow를 그 run의 id만으로
+composer.json의 버전 변경은 그 directory에서 `composer update --lock`으로 다시 lock합니다. 이 commit은 개발 branch 또는 `main`에서 `.github/workflows/ci.yml` CI를 통과하고 release 전에 `origin/main`의 이력에 포함됩니다. Release는 main이 앞서가도 검증된 정확한 commit에 tag를 붙이며, 통합 때문에 같은 commit의 CI를 반복할 필요는 없습니다. (2) release workflow를 그 run의 id만으로
 dispatch합니다(`gh workflow run release.yml -f run=<id>`, 또는 GitHub API의 workflow dispatch). tag push는 이 workflow를 시작하지
 않습니다. 그 `make release-tag`(`release-run tag RUN`)는 run id의 형식과 config/release.json의 저장소를 검사하고, `gh api`로 run을 읽어
-`main` 위 ci.yml의 push 또는 dispatch run이 성공으로 끝났고 그 commit이 `origin/main`에 있는지를 요구하고, 그 commit에서 config/release.json의 `changelog`와 `goModules`(그 두 field만 검사합니다)와
+개발 branch 또는 `main` 위 ci.yml의 push 또는 dispatch run이 성공으로 끝났고 그 commit이 `origin/main`에 있는지를 요구하고, 그 commit에서 config/release.json의 `changelog`와 `goModules`(그 두 field만 검사합니다)와
 그 change log의 첫 section `## X.Y.Z`로 X.Y.Z를 읽은 뒤(`git show`, 그런 section이 없거나 `## Unreleased` 아래 항목이 있는 commit은 거부합니다) 그 commit에 tag를 달고, 뒤 step을
 위해 `TAG=vX.Y.Z`와 `VERSION=X.Y.Z`를 `GITHUB_ENV`에 덧붙입니다(K924). 먼저 `vX.Y.Z`와 root 아래 모든 Go module의 tag `<directory>/vX.Y.Z`를 검사해 하나라도 다른 commit에 있으면
 멈추고, 없는 tag를 annotated tag(`git tag -a vX.Y.Z -m vX.Y.Z`)로 만들어 한 번의 push로 올립니다. 이미 그 commit에 있는 tag는

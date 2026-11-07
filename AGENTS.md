@@ -139,8 +139,7 @@ and states only its own rules. The rules below are kit's own.
 
 ## Release
 
-kit is released by the annotated tag `vX.Y.Z` that the release workflow creates on the commit of a successful CI run of
-`main`; the procedure is
+kit is released by the annotated tag `vX.Y.Z` that the release workflow creates on the exact commit of a successful CI run, after that commit is included in `origin/main`; the procedure is
 [docs/operations/release.md](docs/operations/release.md).
 
 - Own: A release tag is annotated, lies on a commit of `main` whose CI concluded success, and a published tag is never moved.
@@ -149,7 +148,7 @@ kit is released by the annotated tag `vX.Y.Z` that the release workflow creates 
   Enforced by: `make release-publish`, `make release-undraft`
 - Own: A release takes the id of a successful CI run and nothing else (`gh workflow run release.yml -f run=<id>`) and runs
   no other test; `make release-tag` checks the format of RUN, the repository of config/release.json, that RUN is a
-  completed successful push or dispatch run of ci.yml on `main` whose commit is on `origin/main`, reads the version from the
+  completed successful push or dispatch run of ci.yml whose commit is on `origin/main`, reads the version from the
   newest section `## X.Y.Z` of the change log that `changelog` of config/release.json at that commit names, refusing a commit without one or
   with entries under `## Unreleased`, and then tags that commit and the modules of its `goModules`; it compares no version (S4, K911, K924).
   Enforced by: `tests/kit/release-run.test.mts`

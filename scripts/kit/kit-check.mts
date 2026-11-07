@@ -270,8 +270,7 @@ function ciInputTargets(root: string): string[] {
 }
 
 /**
- * S12, K998: the findings of the CI of the consumer `root`. Its ci.yml calls ci-pipeline.yml as its job kit and each other job
- * follows with needs: kit; no workflow of the repository and no input of config/ci.json names a gate of `gates` again, as a make
+ * S12, K998: the findings of the CI of the consumer `root`. Its ci.yml calls ci-pipeline.yml as its job kit and ci-passed joins every other job; independent jobs run concurrently; no workflow of the repository and no input of config/ci.json names a gate of `gates` again, as a make
  * target or a word of TARGETS, and no workflow checks out another repository or to a path, or clones a repository, so one
  * pipeline at the root of the checkout runs the gates. The copies of kit are left to the copy check, and a repository without
  * workflows has no CI to judge.
@@ -283,8 +282,13 @@ export function pipelineFindings(root: string, copies: ReadonlySet<string>, gate
   if (ci) {
     const jobs = workflowJobs(ci.lines);
     if (!jobs.some(job => job.name === 'kit' && job.body.some(line => line.trim() === `uses: ${PIPELINE_USES}`))) found.push(`${CI_WORKFLOW} has no job kit that calls ${PIPELINE_USES} (S12)`);
-    for (const job of jobs.filter(job => job.name !== 'kit' && !jobNeeds(job.body).includes('kit'))) {
-      found.push(`${CI_WORKFLOW}: job ${job.name} does not follow the job kit with needs: kit (S12)`);
+    const required = jobs.find(job => job.name === 'ci-passed');
+    if (!required) found.push(`${CI_WORKFLOW}: job ci-passed is missing; join every CI job before reporting success (S12)`);
+    else {
+      const dependencies = new Set(jobNeeds(required.body));
+      for (const job of jobs.filter(job => job.name !== 'ci-passed' && !dependencies.has(job.name))) {
+        found.push(`${CI_WORKFLOW}: job ci-passed does not require job ${job.name}; include it in needs (S12)`);
+      }
     }
   }
   for (const { file, lines } of own) {

@@ -665,7 +665,7 @@ workflow that release.yml waits for. The repository is data in `config/release.j
 
 - Data instead of constants: `PACKAGES`, `MANIFESTS`, `NOT_RELEASED`, `GO_MODULES`, `REPOSITORY_URL` and the change
   logs of template, hyper and ordered-json are `config/release.json`. The lists are explicit; coverage detects an omission.
-- Tags: `release-run tag RUN` tags the commit of the successful ci.yml run RUN on `main` with the version of the newest section
+- Tags: `release-run tag RUN` tags the commit of the successful ci.yml run RUN whose commit is in the history of `origin/main` with the version of the newest section
   `## X.Y.Z` of its change log (K911, K924): it reads `changelog` and `goModules` of config/release.json at that commit and
   refuses a commit whose change log has no such section or has entries under `## Unreleased`. The maintainer dispatches the
   release workflow with the id of the run alone (`gh workflow run release.yml -f run=<id>`), which runs it, and no tag is
@@ -834,8 +834,7 @@ Left as it is, with the reason:
   below. The lint of a language, and the lint and test of a PHP extension, are required only in a repository that holds code of it.
   kit's own checkout is not checked, since it is the source of the gates.
 - `workflows/ci-pipeline.yml` (`on: workflow_call`, K910) partitions the same `kit-gates` prerequisites into shared, parity, and
-  runtime jobs; the repository's ci.yml calls it as its job `kit`, and a repository job of that ci.yml runs after it with
-  `needs: kit`, so one run holds every job of a commit. Every job of the pipeline, of release.yml and of a repository workflow
+  runtime jobs; the repository's ci.yml calls it as its job `kit`, and independent repository jobs run alongside it. The final `ci-passed` job requires every other job, so one run holds every job of a commit. Every job of the pipeline, of release.yml and of a repository workflow
   bootstraps with one composite action, `actions/kit-bootstrap/action.yml`, which kit-sync vendors as
   `.github/actions/kit-bootstrap/action.yml` and a job runs after its checkout with `uses: ./.github/actions/kit-bootstrap`: the
   Node.js of mise.toml, the locked kit package, the npm of var/tools and the packages; a job that needs PHP for
