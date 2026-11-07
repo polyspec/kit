@@ -260,15 +260,13 @@ test('the make target install-tools runs its tools online, and TOOLS=npm runs th
   assert.equal(dry('install-tools', 'TOOLS=npm').stdout.trim(), 'online-wrapper node scripts/kit/bootstrap/bootstrap.mts');
 });
 
-// K469-1: a var that is a symbolic link is the var of another checkout, so install-tools refuses it: each checkout keeps its own
-// var/tools and its own mise state, and a worktree never writes the var of the main checkout.
-test('install-tools refuses a var that is a symbolic link, so it never writes the var of another checkout (K469-1)', (t) => {
+// K1062: the repository chooses its var; install-tools installs into a var that is a symbolic link as into a directory.
+test('install-tools installs into a var that is a symbolic link (K1062)', (t) => {
   const { root, stubs } = checkout(t, '[tools]\nruff = "0.17.0"\n');
   const shared = path.join(root, 'shared-var');
   renameSync(path.join(root, 'var'), shared);
   symlinkSync(shared, path.join(root, 'var'));
   const result = start(INSTALL_TOOLS, root, stubs.env);
-  assert.notEqual(result.status, 0, result.stdout);
-  assert.match(result.stderr, /var is a symbolic link; each checkout keeps its own var, so make install-tools refuses to write the var of another checkout \(K469-1\)/);
-  assert.deepEqual(stubs.calls(), [], 'no mise call runs through the shared var');
+  assert.doesNotMatch(result.stderr, /is a symbolic link/);
+  assert.notDeepEqual(stubs.calls(), [], 'mise runs through the linked var');
 });

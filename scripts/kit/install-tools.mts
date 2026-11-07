@@ -12,7 +12,7 @@
 // when it is declared, and each tool judges what is already installed. The tools of the machine are never changed. Node.js is a tool of mise.toml, which
 // the bootstrap installs first (K171); PHP is provided by the machine: install-php.mts wraps the php of PATH as it is (K283, K862). With no selectors the command installs all tools. A selector list of the tool names of toolchain-mise.mts installs only those pinned tools and their prerequisites, for example `make install-tools TOOLS="go python"`. Unknown, empty and undeclared selectors fail before the checkout is changed. `TOOLS=npm` remains the bootstrap. It prints a line for each
 // step and has no time limit.
-import { existsSync, lstatSync, readdirSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { MISE_WRAPPER, NODE_WRAPPER, miseBinary, miseInstallEnvironment, removeForeignTrusts } from './bootstrap/install-mise.mts';
 import { NPM_WRAPPERS } from './bootstrap/install-mise.mts';
@@ -86,9 +86,6 @@ function installSelection(root: string, selected: readonly string[] | undefined)
 /** Installs the tools of mise.lock and the declared tools that mise does not install into var/tools of `root`. */
 export function installTools({ root = repositoryRoot(), tools, print = () => {} }: { root?: string; tools?: readonly string[]; print?: (text: string) => void } = {}): void {
   const selection = installSelection(root, tools);
-  // A var that is a symbolic link belongs to another checkout: each checkout keeps its own var/tools and its own mise state (K469-1).
-  const variables = path.join(root, 'var');
-  if (existsSync(variables) && lstatSync(variables).isSymbolicLink()) throw new Error(`${variables} is a symbolic link; each checkout keeps its own var, so make install-tools refuses to write the var of another checkout (K469-1)`);
   const mise = process.platform === 'win32' ? miseBinary(toolsPath(root, 'mise-release')) : toolsPath(root, 'bin', 'mise');
   if (!existsSync(mise)) throw new Error(`${path.relative(root, mise)} is missing; run make install-tools TOOLS=npm, the bootstrap that installs mise`);
   // The trusted-configs of mise keep the trust of this checkout only: the entries of the home directory, of other checkouts and of removed worktrees go (K397).

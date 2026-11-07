@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1062: Fixed: install-tools installs into a var that is a symbolic link; the repository chooses its var, and install-tools no longer refuses one as the var of another checkout (K1062).
 - K1061: make help describes land as it runs, a rebase, a fast-forward merge and the cleanup with no gate, and item-test as the run of the Verification commands, naming no refusal that K1053 removed (K1061).
 - K1060: toolchain-files exports no readNpmConfig, the reader of the project .npmrc that served a removed npm check and that nothing calls (K1060).
 - K1055: PRINCIPLES binds no repository to a part of kit: S12 states one pipeline of the repository's own, with kit's ci-pipeline.yml as one example; P31 names the gates of the repository, not kit-gates; S13 lists no Claude Code settings, which K1053 removed; and a repository changes its copy of the principles as its own file (K1055).
