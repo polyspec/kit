@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 08e3852e0deb492cb30567cf9664a5681d4af521149935d79770509a912f682e -->
+<!-- source-sha256: 508818745deb183c823d3a4fe3d4a9b39f2f2596b1c07dce2bdb1179ce24c8fb -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -161,3 +161,4 @@
 | K1030 | CI 42361318294 실패를 고친다. S12 구체화에 provider workflow 경로를 명시하고 bootstrap 순서를 약화하지 않으면서 별도 계획·검사 job에 맞는 실행 증거로 갱신한다. | AGENTS.md, AGENTS.ko.md, tests/kit/kit-tools.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `make rules-check`; `node --test tests/kit/kit-tools.test.mts tests/kit/gates-workflow.test.mts tests/kit/ci-setup.test.mts tests/kit/check-rules.test.mts` | [o] |
 | K1031 | 선택된 phased parity binding 검사의 CI 규칙 도달성 판정을 수정한다. issue 26을 추적하고 선택되지 않은 선언의 거부를 유지한다. | scripts/kit/ci-setup.mts; scripts/kit/check-rules.mts; tests/kit/ci-setup.test.mts; tests/kit/check-rules.test.mts; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; AGENTS.md; AGENTS.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/ci-setup.test.mts tests/kit/check-rules.test.mts` | [o] |
 | K1032 | native Node parity 실패 상세와 실패 명령의 전체 출력을 보존한다. case 판정을 바꾸지 않고 실패한 support module을 거부하며 독립 작업을 계속한다. issue 27을 추적한다. | scripts/kit/parity-runners.mts; scripts/kit/parity-ledger.mts; tests/kit/parity.test.mts; tests/kit/parity-diagnostics.test.mts; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/parity-diagnostics.test.mts tests/kit/parity.test.mts` | [o] |
+| K1033 | native case deadline, 출력 한도, process 정리, build 실패를 유지하면서 parity 처리 전체의 무출력 제한을 제거한다. issue 28을 추적한다. | scripts/kit/parity.mts; scripts/kit/parity-ledger.mts; tests/kit/parity-ledger.test.mts; tests/source/parity-go.test.mts; tests/kit/parity-support.mts; tests/kit/file-events.mts; tests/kit/test-build-first.test.mts; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; AGENTS.md; AGENTS.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/parity-ledger.test.mts`; `node --test --test-name-pattern=K682 tests/kit/test-build-first.test.mts` | [ ] |
