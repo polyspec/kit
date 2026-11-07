@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 283986a0ca63a96f322ccc1e73fbbb2330c46a68cd1f93ef400b1b6c8a515eaa -->
+<!-- source-sha256: e0823ccc058b9ea519c6cf6f5166be0e58edf674a0a447ac41fb08730f9e8846 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -154,4 +154,4 @@
 | K1021 | CI fixture는 명시적인 final run을 사용하고 필수 마지막 job을 포함한다 | tests/kit/kit-mk.test.mts, tests/source/consumer-layout.test.mts | `node --test --test-name-pattern="kit-test (fails\|passes)" tests/kit/kit-mk.test.mts` `make bypass-check` | [v] |
 | K1022 | PRINCIPLES S14가 거울, 수정 branch, release하는 line으로 된 fork 규칙을 적고, root는 fork의 release tag를 require한다 | PRINCIPLES.md, PRINCIPLES.ko.md, docs/operations/local-links.md, docs/operations/local-links.ko.md | `make rules-check` `make docs-check` | [o] |
 | K1024 | PRINCIPLES는 fork 규칙을 담지 않는다: 각 fork는 자기 FORK.md에 규칙을 적고 각 root는 설치하는 release를 자기 manifest와 lock에 적는다 | PRINCIPLES.md, PRINCIPLES.ko.md, docs/operations/local-links.md, docs/operations/local-links.ko.md, CHANGELOG.md(.ko) | `make rules-check` `make docs-check` | [o] |
-| K1025 | 같은 build 조건의 parity 대상을 함께 build하고 기록된 실행 파일로 시험하여 반복 build를 없앤다. case 선택, 실패 증거와 정리를 보존한다 (issue 23). | scripts/kit/parity-build.mts; scripts/kit/parity-runners.mts; scripts/kit/parity-ledger.mts; tests/kit/parity-build.test.mts; tests/kit/parity-ledger.test.mts; tests/source/parity-real.test.mts | node --test tests/kit/parity-build.test.mts tests/kit/parity-ledger.test.mts | [ ] |
+| K1025 | build 조건이 같은 Go와 Cargo parity 대상을 함께 build하고 보관한 native binary로 각 binding이 선언한 case 선택, runner, environment와 target을 유지해 실행한다. 독립적인 실패 증거와 정리를 유지하고 build와 execution 시간을 나누어 보고한다 (issue 23). | scripts/kit/parity-build.mts; scripts/kit/parity-executable.mts; scripts/kit/cargo-config.mts; scripts/kit/cargo-cfg.mts; scripts/kit/schema/cargo-build-message.schema.json; scripts/kit/schema/parity-executable.schema.json; scripts/kit/parity-runners.mts; scripts/kit/parity-ledger.mts; tests/kit/parity-build.test.mts; tests/kit/parity-ledger.test.mts; tests/kit/parity.test.mts; tests/kit/parity-support.mts; tests/source/parity-real.test.mts | `node --test tests/kit/parity-build.test.mts tests/kit/parity-ledger.test.mts` | [~] |

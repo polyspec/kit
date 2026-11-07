@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["reason"],
+  "properties": { "reason": { "type": "string" } },
+  "additionalProperties": true,
+  "allOf": [{
+    "if": { "properties": { "reason": { "const": "compiler-artifact" } }, "required": ["reason"] },
+    "then": {
+      "type": "object",
+      "required": ["manifest_path", "target", "profile", "executable"],
+      "properties": {
+        "manifest_path": { "type": "string", "minLength": 1 },
+        "executable": { "type": ["string", "null"], "minLength": 1 },
+        "profile": {
+          "type": "object", "required": ["test"],
+          "properties": { "test": { "type": "boolean" } }, "additionalProperties": true
+        },
+        "target": {
+          "type": "object", "required": ["name", "kind", "src_path"],
+          "properties": {
+            "name": { "type": "string", "minLength": 1 },
+            "kind": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+            "src_path": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    }
+  }]
+}

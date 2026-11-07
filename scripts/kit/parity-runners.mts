@@ -32,6 +32,7 @@ import { readJsonFile } from './schema-validate.mts';
 import { present } from './present.mts';
 import { composerVendor, packageVendorFile } from './composer-vendor.mts';
 import { isTable, readToml } from './toml.mts';
+import type { CompiledBinding } from './parity-build.mts';
 
 // The node:test reporter of the node runner.
 const NODE_REPORTER = siblingTool(import.meta.url, 'parity-node-reporter');
@@ -57,6 +58,8 @@ export interface BindingRun {
    * cargo (run-tests.mts, K549-1). A runner without a separate build has none.
    */
   build?: (test: string[]) => string[];
+  /** The build inputs independent of case selection, and the package directory in which its tests run. */
+  compiled?: (test: string[]) => CompiledBinding;
   cwd: string;
   caseOf: (test: TestRef) => string | undefined;
   /**
@@ -84,7 +87,7 @@ interface RunnerOf {
 export type RunTarget = Pick<ParityBinding, 'test' | 'symbol' | 'command' | 'args' | 'runner'> & { ids?: string[] };
 
 /** The run of a binding that runOf gives: the command, its arguments and its environment. */
-export type BindingCommand = Omit<BindingRun, 'args' | 'error' | 'build'> & { error?: never; args: string[]; command: string; env: Environment; build?: string[] | undefined };
+export type BindingCommand = Omit<BindingRun, 'args' | 'error' | 'build' | 'compiled'> & { error?: never; args: string[]; command: string; env: Environment; build?: string[] | undefined; compiled?: CompiledBinding | undefined };
 
 /** The directory of the nearest `marker` file above `file` (repository-relative), or undefined when the repository has none. */
 function nearest(root: string, file: string, marker: string): string | undefined {
@@ -223,6 +226,8 @@ const RUNNERS: Record<Runner, RunnerOf> = {
         args: test => ['test', ...test, '-json', '-count=1', ...goRun(kind, binding), `./${directory}`],
         // The build of the package with `-exec=true`, which runs each test binary with `true`: the build is compiled and no test runs (run-tests, K549-1).
         build: test => ['test', ...test, '-exec=true', '-count=1', ...goRun(kind, binding), `./${directory}`],
+        compiled: test => ({ runner: 'go', options: ['test', ...test], target: [`./${directory}`],
+          selection: ['-count=1', ...goRun(kind, binding)], testCwd: path.posix.join(module, directory) }),
         cwd: module,
         // A subtest nested below a case keeps its `/`, so R3 names it as a case that the suite does not declare.
         caseOf: kind === 'suite' ? test => after(`${binding.symbol}/`, test.name) : itself,
@@ -253,6 +258,8 @@ const RUNNERS: Record<Runner, RunnerOf> = {
         args: test => [...selected(test), '--', '--test-threads=1', ...(kind === 'suite' ? [`${binding.symbol}::`] : []), ...(kind === 'feature' ? ['--exact'] : [])],
         // The build of the test targets with `--no-run`, which compiles them and runs no test (run-tests, K549-1).
         build: test => [...selected(test), '--no-run'],
+        compiled: test => ({ runner: 'cargo', options: ['test', ...test, '--manifest-path', path.posix.join(crate, 'Cargo.toml')],
+          target, selection: ['--test-threads=1', ...(kind === 'suite' ? [`${binding.symbol}::`] : [...new Set(binding.ids ?? []), '--exact'])], testCwd: crate }),
         cwd: '.',
         caseOf: kind === 'suite' ? test => after(`${binding.symbol}::`, test.name) : itself,
         read: ({ stdout }, sink) => cargoEvents(sink).stdout(`${stdout}\n`),
@@ -396,7 +403,7 @@ export function runOf(implementation: Partial<ParityImplementation> & Pick<Parit
     const program = present(first, 'binding.command[0]');
     const directory = implementationRoot(implementation.roots ?? [], binding.test);
     if (directory === undefined) return { error: `${binding.test} lies under none of the declared roots (${(implementation.roots ?? []).join(', ') || 'none declared'})` };
-    return { ...run, build: undefined, cwd: directory, args: words, command: program.includes('/') ? path.resolve(root, program) : program, env };
+    return { ...run, build: undefined, compiled: undefined, cwd: directory, args: words, command: program.includes('/') ? path.resolve(root, program) : program, env };
   }
   // The program and the arguments of the implementation apply to its own runner only. A runner that cannot start is the error of the
   // run, an R3 finding, not an error that ends the check (K393-2).
@@ -404,5 +411,5 @@ export function runOf(implementation: Partial<ParityImplementation> & Pick<Parit
   const command = declared === undefined ? runner.program(root) : declared.includes('/') ? path.resolve(root, declared) : declared;
   const prefix = [...(own ? [] : implementation.args ?? []), ...(binding.args ?? [])];
   const args = run.args(prefix);
-  return { ...run, args, build: run.build?.(prefix), command, env };
+  return { ...run, args, build: run.build?.(prefix), compiled: run.compiled?.(prefix), command, env };
 }

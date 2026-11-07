@@ -5,7 +5,7 @@
 // PHPUnit 13.4.2.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, realpathSync, symlinkSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -393,4 +393,90 @@ test('K42 reads the case directories of a suite from real go as nested subtests'
   const { findings, ledger } = await checkParity(root, { execute: true, env: toolsEnvironment(root), say: () => {} });
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.map(entry => `${entry.case} ${entry.outcome}`).sort(), ['echo/bool pass', 'echo/html-escape-five-chars pass', 'if/true pass']);
+});
+
+test('K1025 real Go shares one build between suite and feature bindings', async t => {
+  const config = {
+    ...REAL_CONFIG,
+    implementations: REAL_CONFIG.implementations.filter(entry => entry.name === 'go'),
+    testPatterns: REAL_CONFIG.testPatterns.filter(entry => entry.runner === 'go'),
+    units: [
+      { ...REAL_CONFIG.units[0], bindings: [{ implementation: 'go', test: 'go/codec_test.go', symbol: 'TestCodec' }] },
+      trace([{ implementation: 'go', test: 'go/trace_test.go', id: 'TestTrace' }]),
+    ],
+  };
+  const root = tree(t, {
+    '.gitignore': 'var/\n',
+    'docs/spec/codec.md': SPEC,
+    'config/parity.json': declared(config),
+    'tests/vectors/codec.json': JSON.stringify({ requirement: 'CX-1', vectors: [{ name: 'empty' }, { name: 'ascii' }] }),
+    'go/go.mod': 'module example.com/codec\n\ngo 1.21\n',
+    'go/codec_test.go': 'package codec\nimport "testing"\nfunc TestCodec(t *testing.T) { t.Run("empty", func(t *testing.T) {}); t.Run("ascii", func(t *testing.T) {}) }\n',
+    'go/trace_test.go': 'package codec\nimport "testing"\n// CX-1\nfunc TestTrace(t *testing.T) {}\n',
+  });
+  sandboxShims(root, ['go']);
+  sandboxMise(root);
+  const progress: string[] = [];
+  const result = await checkParity(root, { execute: true, env: toolsEnvironment(root), say: line => progress.push(line) });
+  assert.deepEqual(result.findings, []);
+  assert.deepEqual(result.ledger.cases.map(entry => `${entry.unit} ${entry.case} ${entry.outcome}`).sort(),
+    ['codec ascii pass', 'codec empty pass', 'trace TestTrace pass']);
+  assert.equal(progress.filter(line => line.startsWith('Go group build:')).length, 1);
+  assert.equal(result.ledger.runs.length, 2);
+  for (const run of result.ledger.runs) assert.deepEqual(run.args.slice(0, 3), ['tool', 'test2json', '-t']);
+});
+
+
+test('K1025 real Cargo retains its environment while suite and feature share one build',async t=>{
+  for (const customRunner of [undefined, 'array', 'string']) await t.test(customRunner ? `configured ${customRunner} runner` : 'native runner', async t => {
+  const config={...REAL_CONFIG,
+    implementations:REAL_CONFIG.implementations.filter(entry=>entry.name==='rust'),
+    testPatterns:REAL_CONFIG.testPatterns.filter(entry=>entry.runner==='cargo'),
+    units:[{...REAL_CONFIG.units[0],bindings:[{implementation:'rust',test:'rust/tests/codec.rs',symbol:'vectors'}]},
+      trace([{implementation:'rust',test:'rust/tests/codec.rs',id:'trace'}])],
+  };
+  const root=tree(t,{
+    '.gitignore':'var/\ntarget/\n',
+    'rust-toolchain.toml':readFileSync(path.join(ROOT,'rust-toolchain.toml'),'utf8'),
+    '.cargo/config.toml':'[env]\nKIT_CAPTURE_TEST="native-cargo-value"\n',
+    'docs/spec/codec.md':SPEC,
+    'config/parity.json':declared(config),
+    'tests/vectors/codec.json':JSON.stringify({requirement:'CX-1',vectors:[{name:'empty'},{name:'ascii'}]}),
+    'rust/Cargo.toml':'[package]\nname="codec"\nversion="0.1.0"\nedition="2021"\n[workspace]\n',
+    'rust/src/lib.rs':'',
+    'rust/tests/codec.rs':'mod vectors { #[test] fn empty() { assert_eq!(std::env::var("KIT_CAPTURE_TEST").unwrap(), "native-cargo-value"); } #[test] fn ascii() {} }\n// CX-1\n#[test] fn trace() { assert_eq!(std::env::var("KIT_CAPTURE_TEST").unwrap(), "native-cargo-value"); }\n',
+  });
+  sandboxMise(root);
+  const env={...toolsEnvironment(root),CARGO_NET_OFFLINE:'true',CARGO_TARGET_DIR:path.join(root,'target')};
+  const runnerLog=path.join(root,'var','runner.jsonl');
+  if (customRunner) {
+    const version=spawnSync('cargo',['-vV'],{cwd:root,env,encoding:'utf8'});
+    assert.equal(version.status,0,version.stdout+version.stderr);
+    const host=version.stdout.match(/^host: (.+)$/m)?.[1];
+    assert.ok(host,'Cargo reports its native host');
+    const runner=path.join(root,'runner.mjs');
+    const marker=customRunner==='array'?'argument with spaces':'argument-without-spaces';
+    writeFileSync(runner,`import assert from 'node:assert/strict';
+import {appendFileSync,mkdirSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+import path from 'node:path';
+const [flag,binary,...args]=process.argv.slice(2);
+assert.equal(flag,${JSON.stringify(marker)});
+mkdirSync(path.dirname(${JSON.stringify(runnerLog)}),{recursive:true});
+appendFileSync(${JSON.stringify(runnerLog)},JSON.stringify({flag,binary,args})+'\\n');
+const result=spawnSync(binary,args,{stdio:'inherit',env:process.env});
+if(result.error)throw result.error;
+process.exitCode=result.status??1;
+`);
+    writeFileSync(path.join(root,'.cargo/config.toml'),'[env]\nKIT_CAPTURE_TEST="native-cargo-value"\n[target.'+JSON.stringify(host)+']\nrunner='+JSON.stringify(customRunner==='array'?[process.execPath,runner,marker]:[process.execPath,runner,marker].join(' '))+'\n');
+  }
+  const progress:string[]=[];
+  const result=await checkParity(root,{execute:true,env,say:line=>progress.push(line)});
+  assert.deepEqual(result.findings,[]);
+  assert.deepEqual(result.ledger.cases.map(entry=>entry.unit+' '+entry.case+' '+entry.outcome).sort(),['codec ascii pass','codec empty pass','trace trace pass']);
+  assert.equal(progress.filter(line=>line.startsWith('Cargo group build:')).length,1);
+  assert.equal(result.ledger.runs.length,2);
+  assert.ok(result.ledger.runs.every(run=>customRunner ? run.command===process.execPath && run.args.some(arg=>arg.endsWith('test-binary')) : run.command.endsWith('test-binary')));
+  if(customRunner) assert.equal(readFileSync(runnerLog,'utf8').trim().split('\n').length,2,'the original runner executes each selected binding once');
+  });
 });

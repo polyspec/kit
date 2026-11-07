@@ -7,6 +7,9 @@
 // reference is unset or empty cannot start. Each support file of a file runner (node, php, python) runs once, and one that
 // reports a case is an R5 finding.
 import path from 'node:path';
+import { mkdirSync } from 'node:fs';
+import { buildGroups, cargoNativeContexts, runCargoGroup, runGoGroup, type BuildGroup, type BuildRequest } from './parity-build.mts';
+import { cargoCommandConfig, cargoConfigFiles, readCargoConfig } from './cargo-config.mts';
 import { runCommand, type RunCommandResult } from './run-command.mts';
 import { START_UP_MS } from './test-gap.mts';
 import { compactSeconds } from './time.mts';
@@ -18,10 +21,13 @@ import { pairs } from './parity-units.mts';
 import { present } from './present.mts';
 
 /** A run with `shown`, its command line as declared, or a run that cannot start. */
+type PreparedRun = { target?: string; buildFailure?: RunCommandResult; result: RunCommandResult; built: boolean; execution?: { command: string; args: string[]; cwd: string } };
+
 type ResolvedRun = (BindingCommand & { shown: string }) | RunError;
 
 /** A run of the ledger. */
 export interface LedgerRun {
+  target?: string;
   unit: string;
   implementation: string;
   command: string;
@@ -32,6 +38,7 @@ export interface LedgerRun {
 
 /** A case of the ledger, with its outcome. */
 export interface LedgerCase {
+  target?: string;
   unit: string;
   implementation: string;
   case: string;
@@ -55,6 +62,7 @@ export const SILENCE_MS = START_UP_MS;
 
 /** The run of a binding. */
 interface Attempt {
+  buildFailure?: string;
   result: RunCommandResult;
   status: number | null;
   cases: Map<string, Outcome>;
@@ -156,9 +164,9 @@ async function runGuarded(run: BindingCommand, root: string, silenceMs: number, 
  * that `group` holds is a group of cases, not a case. A run that the silence limit stopped, or whose build failed, reports no case:
  * the stop or the build is the finding (K936).
  */
-async function once(run: BindingCommand & { shown: string }, root: string, where: { unit: string; implementation: string; place: string }, ledger: { runs: LedgerRun[] }, say: (line: string) => void, group: (name: string) => boolean = () => false, silenceMs: number = SILENCE_MS): Promise<Attempt> {
-  say(`run ${where.unit} ${where.implementation}: ${run.shown} (in ${run.cwd})`);
-  const { result, built } = await runGuarded(run, root, silenceMs, say);
+async function once(run: BindingCommand & { shown: string }, root: string, where: { unit: string; implementation: string; place: string }, ledger: { runs: LedgerRun[] }, say: (line: string) => void, group: (name: string) => boolean = () => false, silenceMs: number = SILENCE_MS, prepared?: PreparedRun): Promise<Attempt> {
+  say(`run ${where.unit} ${where.implementation}${prepared?.target ? ` target ${prepared.target}` : ''}: ${run.shown} (in ${run.cwd})`);
+  const { result, built } = prepared ?? await runGuarded(run, root, silenceMs, say);
   const status = result.error ? null : result.status;
   let reported: [string, Outcome][] = [];
   let reportError: string | undefined;
@@ -171,8 +179,9 @@ async function once(run: BindingCommand & { shown: string }, root: string, where
       reportError = error instanceof Error ? error.message : String(error);
     }
   }
-  ledger.runs.push({ unit: where.unit, implementation: where.implementation, command: run.command, args: run.args, cwd: run.cwd, status });
+  ledger.runs.push({ ...(prepared?.target ? { target: prepared.target } : {}), unit: where.unit, implementation: where.implementation, command: prepared?.execution?.command ?? run.command, args: prepared?.execution?.args ?? run.args, cwd: prepared?.execution?.cwd ?? run.cwd, status });
   return {
+    ...(prepared?.buildFailure ? { buildFailure: buildSentence(run, prepared.buildFailure) } : {}),
     result,
     status,
     cases: new Map(reported),
@@ -186,11 +195,83 @@ async function once(run: BindingCommand & { shown: string }, root: string, where
 /** The last 20 non-blank lines of a run's standard output and then its standard error, joined by ' | ' (K215). */
 const lastLines = ({ stdout, stderr }: { stdout: string; stderr: string }): string => [stdout ?? '', stderr ?? ''].join('\n').split('\n').filter(line => line.trim()).slice(-20).join(' | ');
 
+/** Retain each Cargo target and runner before installing its capture adapter. */
+async function prepareCargoGroups(group: BuildGroup, selections: ReadonlyMap<string, readonly string[]>, parent: string, silenceMs: number, say: (line: string) => void) {
+  const config = readCargoConfig(cargoConfigFiles(group.cwd, group.env));
+  const command = cargoCommandConfig(group.options, group.cwd);
+  const contexts = await cargoNativeContexts(group, config, command);
+  const completed = [];
+  for (const native of contexts) {
+    // Each target has a different compiler output and native runner. An explicit CLI target overrides build.target.
+    const options: string[] = [];
+    for (let index = 0; index < group.options.length; index++) {
+      const word = group.options[index];
+      if (word === '--target') { index++; continue; }
+      if (word?.startsWith('--target=')) continue;
+      if (word !== undefined) options.push(word);
+    }
+    const selected = contexts.length > 1 ? { ...group, options: [...options, '--target', native.triple] } : group;
+    completed.push({ ...(contexts.length > 1 ? { target: native.triple } : {}),
+      completed: await runCargoGroup(selected, selections, parent, native, silenceMs, say) });
+  }
+  return completed;
+}
+
+/** Prepare compatible native bindings before their ledger results are compared. */
+async function prepareNativeRuns(runs: readonly ResolvedRun[], root: string, silenceMs: number, say: (line: string) => void) {
+  const prepared = new Map<BindingCommand, PreparedRun[]>();
+  const requests: BuildRequest[] = [];
+  const native = new Map<string, BindingCommand>();
+  const selections = new Map<string, readonly string[]>();
+  for (const [index, run] of runs.entries()) {
+    if (run.error || !run.compiled) continue;
+    const id = String(index);
+    requests.push({ id, runner: run.compiled.runner, command: run.command, cwd: path.join(root, run.cwd), env: run.env,
+      options: run.compiled.options, target: run.compiled.target });
+    native.set(id, run);
+    selections.set(id, run.compiled.selection);
+  }
+  if (requests.length) {
+    const parent = path.join(root, 'var');
+    mkdirSync(parent, { recursive: true });
+    for (const group of buildGroups(requests)) {
+      try {
+        const groups = group.runner === 'go'
+          ? [{ completed: await runGoGroup(group, selections, parent, silenceMs, say) }]
+          : await prepareCargoGroups(group, selections, parent, silenceMs, say);
+        for (const entry of groups) {
+          const { completed } = entry;
+          const target = 'target' in entry && typeof entry.target === 'string' ? { target: entry.target } : {};
+          for (const request of group.requests) {
+            const run = native.get(request.id);
+            if (!run) throw new Error(`compiled binding ${request.id} lost its planned run`);
+            const result = completed.runs.get(request.id);
+            const problem = completed.errors.get(request.id);
+            if (!result && completed.build.error) {
+              prepared.set(run, [...prepared.get(run) ?? [], { ...target, result: completed.build, built: false }]);
+              continue;
+            }
+            prepared.set(run, [...prepared.get(run) ?? [], result ? { ...target, ...(completed.build.status !== 0 ? { buildFailure: completed.build } : {}), result, built: false, execution: result.execution } : { ...target, result: { ...completed.build,
+              status: completed.build.status || 1, stderr: `${completed.build.stderr}\n${problem ?? 'no executable was reported'}` }, built: true }]);
+          }
+        }
+      } catch (error) {
+        if (!(error instanceof Error)) throw error;
+        for (const request of group.requests) {
+          const run = native.get(request.id);
+          if (run) prepared.set(run, [...prepared.get(run) ?? [], { result: { status: 1, signal: null, stdout: '', stderr: error.message, elapsedMs: 0 }, built: true }]);
+        }
+      }
+    }
+  }
+  return prepared;
+}
+
 /**
  * R3 of the feature units: each test file runs once for the native ids that bind it in its implementation, and each id passes
  * once, with the run exiting 0.
  */
-async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { env, say, units, implementations, heldUnits, silenceMs }: { env: Environment; say: (line: string) => void; units?: ReadonlySet<string> | undefined; implementations?: ReadonlySet<string> | undefined; heldUnits: ReadonlySet<string>; silenceMs: number }): Promise<Finding[]> {
+function planFeatures(model: ParityModel, root: string, { env, units, implementations, heldUnits }: { env: Environment; units?: ReadonlySet<string> | undefined; implementations?: ReadonlySet<string> | undefined; heldUnits: ReadonlySet<string> }) {
   // The bindings of each test file of an implementation, in declaration order.
   const files = new Map<string, { implementation: ParityImplementation; test: string; command: string[] | undefined; args: string[] | undefined; runner: Runner | undefined; bound: { unit: string; id: string }[] }>();
   for (const { unit, implementation } of pairs(model, 'feature')) {
@@ -208,45 +289,53 @@ async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { e
       files.set(key, entry);
     }
   }
+  const planned = [...files.values()].map(entry => ({ ...entry, run: resolvedRun(entry.implementation, root, { test: entry.test, command: entry.command, args: entry.args, runner: entry.runner, ids: entry.bound.map(bound => bound.id) }, 'feature', env) }));
+  return planned;
+}
+
+async function runFeatures(root: string, ledger: Ledger, planned: ReturnType<typeof planFeatures>, prepared: Awaited<ReturnType<typeof prepareNativeRuns>>, say: (line: string) => void, silenceMs: number): Promise<Finding[]> {
   const found: Finding[] = [];
-  for (const { implementation, test, command, args, runner, bound } of files.values()) {
+  for (const { implementation, test, bound, runner, run } of planned) {
     const where = (unit: string) => ({ unit, implementation: implementation.name, place: test });
-    const run = resolvedRun(implementation, root, { test, command, args, runner, ids: bound.map(entry => entry.id) }, 'feature', env);
     if (run.error) {
       found.push(...bound.map(entry => finding('R3', run.error, where(entry.unit))));
       continue;
     }
     const units = [...new Set(bound.map(entry => entry.unit))].join(', ');
-    const first = await once(run, root, { unit: units, implementation: implementation.name, place: test }, ledger, say, () => false, silenceMs);
-    // A failed run names the failing tests that no binding declares, read from its output; none readable is said, never silent.
-    const outside = named(first.cases, 'fail').filter(name => !bound.some(entry => entry.id === name));
-    const failedOutside = first.status === 0 ? '' : `; failed outside the ids: ${outside.length ? outside.join(', ') : `no test name readable from the output; last 20 lines: ${lastLines(first.result)}`}`;
-    say(`${units} ${implementation.name}: exit ${first.status ?? 'none'}, ${bound.filter(entry => first.cases.get(entry.id) === 'pass').length} of ${bound.length} ids passed${failedOutside}`);
-    // One finding for a run that the silence limit stopped, however many ids it binds (K936).
-    if (first.stop !== undefined) {
-      found.push(finding('R3', first.stop, { implementation: implementation.name, place: test }));
-      continue;
-    }
-    const failedRun = first.built
-      ? [buildSentence(run, first.result)]
-      : [
-          first.result.error && `${run.shown} could not start: ${first.result.error.message}`,
-          !first.result.error && first.status !== 0 && `exited with ${first.status ?? first.result.signal}${run.detail(first.result).length ? `: ${run.detail(first.result).join(' | ')}` : ''}`,
-          first.reportError !== undefined && `invalid reporter output: ${first.reportError}`,
-          ...((runner ?? implementation.runner) === 'cargo' ? (unexpected => unexpected.length ? [`reported outside the exact feature ids: ${unexpected.join(', ')}`] : [])(
-            [...first.cases.keys()].filter(name => !bound.some(entry => entry.id === name))) : []),
-        ];
-    for (const { unit, id } of bound) {
-      const outcome = first.cases.get(id);
-      if (outcome !== undefined) ledger.cases.push({ unit, implementation: implementation.name, case: id, outcome });
-      const problems = [
-        ...failedRun,
-        outcome === undefined && `not executed: ${id}`,
-        outcome === 'fail' && `failed: ${id}`,
-        outcome === 'skip' && `skipped: ${id}`,
-        first.repeated.includes(id) && `reported twice: ${id}`,
-      ].filter(Boolean);
-      if (problems.length) found.push(finding('R3', problems.join('; '), where(unit)));
+    for (const attempt of prepared.get(run) ?? [undefined]) {
+      const target = attempt?.target ? { target: attempt.target } : {};
+      const first = await once(run, root, { unit: units, implementation: implementation.name, place: test }, ledger, say, () => false, silenceMs, attempt);
+      // A failed run names the failing tests that no binding declares, read from its output; none readable is said, never silent.
+      const outside = named(first.cases, 'fail').filter(name => !bound.some(entry => entry.id === name));
+      const failedOutside = first.status === 0 ? '' : `; failed outside the ids: ${outside.length ? outside.join(', ') : `no test name readable from the output; last 20 lines: ${lastLines(first.result)}`}`;
+      say(`${units} ${implementation.name}: exit ${first.status ?? 'none'}, ${bound.filter(entry => first.cases.get(entry.id) === 'pass').length} of ${bound.length} ids passed${failedOutside}`);
+      // One finding for a run that the silence limit stopped, however many ids it binds (K936).
+      if (first.stop !== undefined) {
+        found.push(finding('R3', first.stop, { implementation: implementation.name, place: test }));
+        continue;
+      }
+      const failedRun = first.built
+        ? [buildSentence(run, first.result)]
+        : [
+            first.result.error && `${run.shown} could not start: ${first.result.error.message}`,
+            !first.result.error && first.status !== 0 && `exited with ${first.status ?? first.result.signal}${run.detail(first.result).length ? `: ${run.detail(first.result).join(' | ')}` : ''}`,
+            first.reportError !== undefined && `invalid reporter output: ${first.reportError}`,
+            ...((runner ?? implementation.runner) === 'cargo' ? (unexpected => unexpected.length ? [`reported outside the exact feature ids: ${unexpected.join(', ')}`] : [])(
+              [...first.cases.keys()].filter(name => !bound.some(entry => entry.id === name))) : []),
+          ];
+      for (const { unit, id } of bound) {
+        const outcome = first.cases.get(id);
+        if (outcome !== undefined) ledger.cases.push({ ...target, unit, implementation: implementation.name, case: id, outcome });
+        const problems = [
+          ...failedRun,
+        first.buildFailure,
+          outcome === undefined && `not executed: ${id}`,
+          outcome === 'fail' && `failed: ${id}`,
+          outcome === 'skip' && `skipped: ${id}`,
+          first.repeated.includes(id) && `reported twice: ${id}`,
+        ].filter(Boolean);
+        if (problems.length) found.push(finding('R3', `${attempt?.target ? `target ${attempt.target}: ` : ''}${problems.join('; ')}`, where(unit)));
+      }
     }
   }
   return found;
@@ -259,6 +348,7 @@ async function runFeatures(model: ParityModel, root: string, ledger: Ledger, { e
 export async function runBindings(model: ParityModel, root: string, { env, files, say, units, implementations, heldUnits = new Set<string>(), silenceMs = SILENCE_MS }: { env: Environment; files: Set<string>; say: (line: string) => void; units?: ReadonlySet<string> | undefined; implementations?: ReadonlySet<string> | undefined; heldUnits?: ReadonlySet<string> | undefined; silenceMs?: number | undefined }): Promise<{ ledger: Ledger; findings: Finding[] }> {
   const ledger: Ledger = { runs: [], cases: [] };
   const findings: Finding[] = [];
+  const planned = [];
   for (const { unit, implementation } of pairs(model, 'suite')) {
     if (heldUnits.has(unit.id)) continue;
     if (units !== undefined && !units.has(unit.id)) continue;
@@ -266,8 +356,14 @@ export async function runBindings(model: ParityModel, root: string, { env, files
     if (unit.bindings === undefined) throw new Error(`config/parity.json: the suite unit ${unit.id} has no bindings; readDeclaration reports it before the bindings run`);
     const binding = unit.bindings.find(entry => entry.implementation === implementation.name);
     if (!binding) continue;
-    const where = { unit: unit.id, implementation: implementation.name, place: binding.test };
     const run = resolvedRun(implementation, root, binding, 'suite', env);
+    planned.push({ unit, implementation, binding, run });
+  }
+  const features = planFeatures(model, root, { env, units, implementations, heldUnits });
+  const prepared = await prepareNativeRuns([...planned.map(entry => entry.run), ...features.map(entry => entry.run)], root, silenceMs, say);
+  // Resolve every selected binding before execution so compatible native targets can share their build.
+  for (const { unit, implementation, binding, run } of planned) {
+    const where = { unit: unit.id, implementation: implementation.name, place: binding.test };
     if (run.error) {
       findings.push(finding('R3', run.error, where));
       continue;
@@ -276,22 +372,26 @@ export async function runBindings(model: ParityModel, root: string, { env, files
     // Go nests a subtest at each /, so it reports each directory above a case of a case directory as a subtest of its own.
     const declared = model.cases.get(unit.id) ?? [];
     const group = (name: string) => (binding.runner ?? implementation.runner) === 'go' && declared.some(entry => entry.startsWith(`${name}/`));
-    const { result, status, cases, reportError, repeated: twice, stop, built } = await once(run, root, { unit: unit.id, implementation: implementation.name, place: binding.test }, ledger, say, group, silenceMs);
-    say(`${unit.id} ${implementation.name}: ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${expected.filter(name => cases.get(name) === 'pass').length} of ${expected.length} cases passed`);
-    for (const [name, outcome] of cases) ledger.cases.push({ unit: unit.id, implementation: implementation.name, case: name, outcome });
-    const problems = stop !== undefined ? [stop] : built ? [buildSentence(run, result)] : [
+    for (const attempt of prepared.get(run) ?? [undefined]) {
+      const target = attempt?.target ? { target: attempt.target } : {};
+      const { result, status, cases, reportError, repeated: twice, stop, built, buildFailure } = await once(run, root, { unit: unit.id, implementation: implementation.name, place: binding.test }, ledger, say, group, silenceMs, attempt);
+      say(`${unit.id} ${implementation.name}: ${status === 0 ? 'exit 0' : `exit ${status ?? 'none'}`}, ${expected.filter(name => cases.get(name) === 'pass').length} of ${expected.length} cases passed`);
+      for (const [name, outcome] of cases) ledger.cases.push({ ...target, unit: unit.id, implementation: implementation.name, case: name, outcome });
+      const problems = stop !== undefined ? [stop] : built ? [buildSentence(run, result)] : [
+        buildFailure,
       result.error && `${run.shown} could not start: ${result.error.message}`,
-      !result.error && status !== 0 && `exited with ${status ?? result.signal}${run.detail(result).length ? `: ${run.detail(result).join(' | ')}` : ''}`,
-      reportError !== undefined && `invalid reporter output: ${reportError}`,
-      named(cases, 'fail').length && `failed: ${named(cases, 'fail').join(', ')}`,
-      named(cases, 'skip').length && `skipped: ${named(cases, 'skip').join(', ')}`,
-      `not executed: ${expected.filter(name => !cases.has(name)).join(', ')}`,
-      `not in the suite: ${[...cases.keys()].filter(name => !expected.includes(name)).join(', ')}`,
-      `reported twice: ${twice.join(', ')}`,
-    ].filter(part => part && !part.endsWith(': '));
-    if (problems.length) findings.push(finding('R3', problems.join('; '), where));
+        !result.error && status !== 0 && `exited with ${status ?? result.signal}${run.detail(result).length ? `: ${run.detail(result).join(' | ')}` : ''}`,
+        reportError !== undefined && `invalid reporter output: ${reportError}`,
+        named(cases, 'fail').length && `failed: ${named(cases, 'fail').join(', ')}`,
+        named(cases, 'skip').length && `skipped: ${named(cases, 'skip').join(', ')}`,
+        `not executed: ${expected.filter(name => !cases.has(name)).join(', ')}`,
+        `not in the suite: ${[...cases.keys()].filter(name => !expected.includes(name)).join(', ')}`,
+        `reported twice: ${twice.join(', ')}`,
+      ].filter(part => part && !part.endsWith(': '));
+      if (problems.length) findings.push(finding('R3', `${attempt?.target ? `target ${attempt.target}: ` : ''}${problems.join('; ')}`, where));
+    }
   }
   // The support files belong to no unit, so a run of named units leaves them to the whole-set check.
   const support = units === undefined ? await runSupport(model, root, files, { env, say, implementations, silenceMs }) : [];
-  return { ledger, findings: [...findings, ...await runFeatures(model, root, ledger, { env, say, units, implementations, heldUnits, silenceMs }), ...support] };
+  return { ledger, findings: [...findings, ...await runFeatures(root, ledger, features, prepared, say, silenceMs), ...support] };
 }

@@ -70,12 +70,14 @@ type Change = { files?: Record<string, string | null>; edit?: (config: Declarati
 const GO_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
-const args = process.argv.slice(2);
+const raw = process.argv.slice(2);
+const reporting = raw[0] === 'tool' && raw[1] === 'test2json';
+const args = reporting ? raw.slice(4).flatMap(arg => { const native = arg.replace(/^-test\\./, '-'); const equal = native.indexOf('='); return equal < 0 ? [native] : [native.slice(0,equal),native.slice(equal+1)]; }) : raw;
 const symbol = args.includes('-run') ? args[args.indexOf('-run') + 1].replace(/^\\^|\\$$/g, '') : undefined;
 // An alternation (a feature run) selects the top-level tests it names with all their subtests; a suite symbol selects its subtests (K214).
 const ids = symbol !== undefined && symbol.startsWith('(') ? symbol.slice(1, -1).split('|') : undefined;
 const selected = name => symbol === undefined || (ids ? ids.includes(name.split('/')[0]) : name.startsWith(symbol + '/'));
-const directory = args[args.length - 1];
+const directory = reporting ? '.' : args[args.length - 1];
 let exit = 0;
 // A line \`BUILD <message>\` makes the package fail to build, with the events that go 1.27 writes, observed with a real module.
 const build = fs.readdirSync(directory).filter(name => name.endsWith('_test.go')).sort()
@@ -92,6 +94,16 @@ if (build.length) {
 }
 // The build of the tests (go test -exec=true) compiles them and runs no test: a failing test fails the run, not the build (K936).
 if (args.includes('-exec=true')) process.exit(0);
+if (args.includes('-exec')) {
+  const command = args[args.indexOf('-exec')+1];
+  const words = command.match(/"[^"]*"|'[^']*'|[^ ]+/g).map(word => word.replace(/^["']|["']$/g,''));
+  const output = words[words.length-1];
+  import(${JSON.stringify(new URL('../../scripts/kit/parity-executable.mts', import.meta.url).href)}).then(({captureExecutable}) => {
+    captureExecutable(output,__filename,['-test.v=test2json','-test.timeout=0'],{cwd:fs.realpathSync(directory),env:process.env});
+  }).catch(error=>{console.error(error);process.exitCode=1;});
+  return;
+}
+
 console.log(JSON.stringify({ Action: 'start', Package: 'example' }));
 for (const file of fs.readdirSync(directory).filter(name => name.endsWith('_test.go')).sort()) {
   for (const line of fs.readFileSync(path.join(directory, file), 'utf8').split('\\n')) {
@@ -129,7 +141,12 @@ console.log(JSON.stringify(fs.readFileSync(path.join(process.argv[2], 'symbols.t
 const CARGO_STUB = `#!/usr/bin/env node
 const fs = require('fs');
 const path = require('path');
-const args = process.argv.slice(2);
+const raw = process.argv.slice(2);
+if(raw[0]==='-vV'){console.log('host: fixture-native');process.exit(0);}
+const replay=process.env.KIT_CARGO_TEST_SOURCE;
+const exactReplay=raw.includes('--exact');
+const nativeFilter=raw.find(arg=>!arg.startsWith('-'))||'';
+const args=replay?['test','--manifest-path',process.env.CARGO_MANIFEST_PATH,...(process.env.KIT_CARGO_TEST_TARGET==='lib'?['--lib']:['--test',process.env.KIT_CARGO_TEST_TARGET]),...(exactReplay?[nativeFilter]:[]),'--',...raw]:raw;
 if (args[1] === 'rustdoc') {
   if (args[0] !== '+nightly-2026-10-01') { process.stderr.write("error: toolchain '" + args[0].slice(1) + "' is not installed\\n"); process.exit(1); }
   const crate = path.dirname(args[args.indexOf('--manifest-path') + 1]);
@@ -148,15 +165,31 @@ if (args[1] === 'rustdoc') {
   process.exit(0);
 }
 const crate = path.dirname(args[args.indexOf('--manifest-path') + 1]);
+if(!replay && args.includes('--config')) {
+  const config=args[args.indexOf('--config')+1];
+  const capture=JSON.parse(config.slice(config.indexOf('=')+1));
+  const targets=[];for(let i=0;i<args.length;i++){if(args[i]==='--test')targets.push({name:args[++i],kind:'test'});else if(args[i]==='--lib')targets.push({name:'lib',kind:'lib'});}
+  const directory=path.join(crate,'target');fs.mkdirSync(directory,{recursive:true});
+  import(${JSON.stringify(new URL('../../scripts/kit/parity-executable.mts', import.meta.url).href)}).then(({captureExecutable})=>{
+    for(const target of targets){
+      const source=target.kind==='lib'?path.join(crate,'src/lib.rs'):fs.existsSync(path.join(crate,'tests',target.name+'.rs'))?path.join(crate,'tests',target.name+'.rs'):path.join(crate,'tests',target.name,'main.rs');
+      const binary=path.resolve(directory,'stub-'+target.name+'.cjs');fs.copyFileSync(__filename,binary);fs.chmodSync(binary,0o755);
+      captureExecutable(capture.at(-1),binary,[],{cwd:fs.realpathSync(crate),env:{...process.env,CARGO_MANIFEST_PATH:path.resolve(crate,'Cargo.toml'),CARGO_MANIFEST_DIR:fs.realpathSync(crate),KIT_CARGO_TEST_SOURCE:path.resolve(source),KIT_CARGO_TEST_TARGET:target.name,KIT_CARGO_EXECUTION_TARGET:args.includes('--target')?args[args.indexOf('--target')+1]:args.find(arg=>arg.startsWith('--target='))?.slice(9)||'fixture-native'}});
+      console.log(JSON.stringify({reason:'compiler-artifact',manifest_path:path.resolve(crate,'Cargo.toml'),target:{name:target.name,kind:[target.kind],src_path:path.resolve(source)},profile:{test:target.kind==='lib'},executable:binary}));
+    }
+  }).catch(error=>{console.error(error);process.exitCode=1;});return;
+}
 const target = args[args.indexOf('--test') + 1];
 // A test target is tests/<name>.rs or, in Cargo's layout of a target with modules, tests/<name>/main.rs.
-const file = args.includes('--lib') ? path.join(crate, 'src/lib.rs') : fs.existsSync(path.join(crate, 'tests', target + '.rs')) ? path.join(crate, 'tests', target + '.rs') : path.join(crate, 'tests', target, 'main.rs');
+const file = replay || (args.includes('--lib') ? path.join(crate, 'src/lib.rs') : fs.existsSync(path.join(crate, 'tests', target + '.rs')) ? path.join(crate, 'tests', target + '.rs') : path.join(crate, 'tests', target, 'main.rs'));
 const separator = args.indexOf('--');
 const exact = separator !== -1 && args.slice(separator + 1).includes('--exact');
 const filter = exact ? args[separator - 1] : args[args.length - 1].startsWith('--') ? '' : args[args.length - 1];
 const source = fs.readFileSync(file, 'utf8');
 const ignoresExact = source.split('\\n').includes('HARNESS ignores-exact');
+const targetFailures=source.split('\\n').flatMap(line=>{const match=/^FAIL_ON_TARGET (\\S+) (\\S+)$/.exec(line);return match&&match[1]===process.env.KIT_CARGO_EXECUTION_TARGET?[match[2]]:[];});
 const tests = source.split('\\n').map(line => /^(PASS|FAIL) (\\S+)$/.exec(line)).filter(match => match && (exact && !ignoresExact ? match[2] === filter : match[2].startsWith(filter)));
+for(const match of tests)if(targetFailures.includes(match[2]))match[1]='FAIL';
 process.stderr.write('   Compiling codec v0.1.0\\n    Finished \\x60test\\x60 profile [unoptimized + debuginfo] target(s) in 0.01s\\n     Running ' + file + '\\n');
 if (args.includes('--no-run')) process.exit(0);
 process.stdout.write('\\nrunning ' + tests.length + ' tests\\n');

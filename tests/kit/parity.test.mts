@@ -1,6 +1,7 @@
 // Native runner and exact-binding behavior of the parity checker.
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { realpathSync } from 'node:fs';
 import * as parity from './parity-support.mts';
 const {
   CONFIG, ENV, KIT, KIT_MAKE,
@@ -110,9 +111,17 @@ test('each runner runs the native test of its binding', TIMEOUT, async (t) => {
   const root = repository(t);
   const { ledger } = await checkParity(root, { execute: true, env: ENV, say: () => {} });
   const commands = Object.fromEntries(ledger.runs.map(run => [`${run.unit} ${run.implementation}`, { cwd: run.cwd, command: [run.command, ...run.args] }]));
-  assert.deepEqual(commands['codec go'], { cwd: 'go', command: ['go', 'test', '-json', '-count=1', '-run', '^TestCodec$', './'] });
-  assert.deepEqual(commands['codec rust'], { cwd: '.', command: ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'codec', '--', '--test-threads=1', 'vectors::'] });
-  assert.deepEqual(commands['width rust'], { cwd: '.', command: ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--lib', '--', '--test-threads=1', 'width::tests::vectors::'] });
+  const go = known(commands['codec go'], 'the Go execution');
+  assert.equal(go.cwd, realpathSync(path.join(root, 'go')));
+  assert.deepEqual(go.command.slice(0, 4), ['go', 'tool', 'test2json', '-t']);
+  assert.match(go.command[4] ?? '', /test-binary$/);
+  assert.deepEqual(go.command.slice(5), ['-test.v=test2json', '-test.timeout=0', '-test.count=1', '-test.run=^TestCodec$']);
+  for (const [unit, filter] of [['codec', 'vectors::'], ['width', 'width::tests::vectors::']]) {
+    const rust = known(commands[`${unit} rust`], 'the Rust execution');
+    assert.equal(rust.cwd, realpathSync(path.join(root, 'rust')));
+    assert.match(rust.command[0] ?? '', /test-binary$/);
+    assert.deepEqual(rust.command.slice(1), ['--test-threads=1', filter]);
+  }
   assert.deepEqual(commands['codec ts'], { cwd: '.', command: [process.execPath, '--test', `--test-reporter=${path.join(KIT, 'parity-node-reporter.mts')}`, 'ts/tests/codec.mjs'] });
   assert.deepEqual(commands['codec php'], { cwd: '.', command: ['php', 'php/vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php'] });
   assert.deepEqual(commands['codec python'], { cwd: '.', command: [path.join(root, 'var/tools/mise/shims/python3'), '-m', 'unittest', '-v', 'python/tests/test_codec.py'] });
@@ -177,8 +186,18 @@ test('an implementation declares the command, the arguments and the environment 
   const commands = Object.fromEntries(ledger.runs.map(run => [`${run.unit} ${run.implementation}`, [run.command, ...run.args]]));
   assert.deepEqual(commands['codec python'], [path.join(root, 'python/.venv/bin/python'), '-B', '-m', 'unittest', '-v', 'python/tests/test_codec.py']);
   assert.deepEqual(commands['codec php'], ['php', '-d', 'extension=php/modules/codec.so', 'php/vendor/bin/phpunit', '--teamcity', '--no-configuration', 'php/tests/codec.php']);
-  assert.deepEqual(commands['codec go'], ['go', 'test', '-tags', 'parity', '-json', '-count=1', '-run', '^TestCodec$', './']);
-  assert.deepEqual(commands['codec rust'], ['cargo', 'test', '--features', 'vectors', '--manifest-path', 'rust/Cargo.toml', '--test', 'codec', '--', '--test-threads=1', 'vectors::']);
+  assert.deepEqual(commands['codec go']?.slice(0, 4), ['go', 'tool', 'test2json', '-t']);
+  assert.deepEqual(commands['codec go']?.slice(5), ['-test.v=test2json', '-test.timeout=0', '-test.count=1', '-test.run=^TestCodec$']);
+  assert.match(commands['codec rust']?.[0] ?? '', /test-binary$/);
+  assert.deepEqual(commands['codec rust']?.slice(1), ['--test-threads=1', 'vectors::']);
+  const declared = known(readDeclaration(root, new Set(checkedFiles(root))).model, 'the declared runner configuration').config;
+  for (const [name, options] of [['go', ['-tags', 'parity']], ['rust', ['--features', 'vectors']]] as const) {
+    const implementation = itemWhere(declared.implementations, entry => entry.name === name);
+    const codec = itemWhere(declared.units, entry => entry.id === 'codec');
+    const selected = itemWhere(codec.bindings ?? [], entry => entry.implementation === name);
+    const native = commandOf(runOf(implementation, root, selected, 'suite', ENV), 'the declared native build');
+    assert.deepEqual(native.compiled?.options.slice(1, 3), options);
+  }
   assert.equal(process.env.REQUIRE_SOURCE, undefined, 'the environment of an implementation reaches only its runs');
   const other = repository(t, { files, edit: declare(false) });
   chmodSync(path.join(other, 'python/.venv/bin/python'), 0o755);
@@ -265,8 +284,11 @@ test('a feature unit holds when the native id of each binding passes once in its
     'go TestRoundtrip/bytes pass', 'rust roundtrip::bytes pass', 'ts roundtrip › bytes pass', 'php test_bytes pass', 'python test_bytes pass',
   ]);
   const commands = Object.fromEntries(ledger.runs.filter(run => run.unit === 'roundtrip').map(run => [run.implementation, [run.command, ...run.args]]));
-  assert.deepEqual(commands.go, ['go', 'test', '-json', '-count=1', '-run', '^(TestRoundtrip)$', './']);
-  assert.deepEqual(commands.rust, ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', 'roundtrip::bytes', '--', '--test-threads=1', '--exact']);
+  assert.deepEqual(commands.go?.slice(0,4), ['go','tool','test2json','-t']);
+  assert.match(commands.go?.[4]??'', /test-binary$/);
+  assert.deepEqual(commands.go?.slice(5), ['-test.v=test2json','-test.timeout=0','-test.count=1','-test.run=^(TestRoundtrip)$']);
+  assert.match(commands.rust?.[0]??'', /test-binary$/);
+  assert.deepEqual(commands.rust?.slice(1), ['--test-threads=1','roundtrip::bytes','--exact']);
 });
 
 test('K566: a Cargo feature executes only its exact native test id', TIMEOUT, async (t) => {
@@ -274,7 +296,8 @@ test('K566: a Cargo feature executes only its exact native test id', TIMEOUT, as
   assert.deepEqual(findings, []);
   assert.deepEqual(ledger.cases.filter(entry => entry.unit === 'roundtrip' && entry.implementation === 'rust').map(entry => `${entry.case} ${entry.outcome}`), ['roundtrip::bytes pass']);
   const rustRun = known(ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'rust'), 'the cargo feature run');
-  assert.deepEqual([rustRun.command, ...rustRun.args], ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', 'roundtrip::bytes', '--', '--test-threads=1', '--exact']);
+  assert.match(rustRun.command, /test-binary$/);
+  assert.deepEqual(rustRun.args, ['--test-threads=1', 'roundtrip::bytes', '--exact']);
 
   const zeroMatches = await check(t, feature({ 'rust/tests/roundtrip.rs': 'PASS roundtrip::other\n' }));
   assert.deepEqual(keys(zeroMatches.findings), ['R3 roundtrip rust']);
@@ -404,6 +427,28 @@ test('a go feature run names its ids in one -run alternation, and a go suite run
   assert.deepEqual(suite.args, ['test', '-json', '-count=1', '-run', '^TestCodec$', './']);
 });
 
+test('compiled bindings separate shared build options from native case selection (K1025)', TIMEOUT, (t) => {
+  const root = repository(t);
+  const rust = (id: string) => commandOf(runOf({ runner: 'cargo', args: ['--features', 'faults'] }, root,
+    { test: 'rust/tests/roundtrip.rs', ids: [id] }, 'feature', ENV), 'the compiled Rust binding');
+  const first = known(rust('roundtrip::bytes').compiled, 'the Rust build plan');
+  const second = known(rust('roundtrip::text').compiled, 'the other Rust build plan');
+  assert.deepEqual(first.options, ['test', '--features', 'faults', '--manifest-path', 'rust/Cargo.toml']);
+  assert.deepEqual(first.options, second.options);
+  assert.deepEqual(first.target, ['--test', 'roundtrip']);
+  assert.deepEqual(first.selection, ['--test-threads=1', 'roundtrip::bytes', '--exact']);
+  assert.equal(first.testCwd, 'rust', 'Cargo executes tests in their package directory');
+  const go = commandOf(runOf({ runner: 'go', args: ['-tags', 'contract'] }, root,
+    { test: 'go/codec_test.go', symbol: 'TestCodec' }, 'suite', ENV), 'the compiled Go binding');
+  assert.deepEqual(go.compiled?.options, ['test', '-tags', 'contract']);
+  assert.deepEqual(go.compiled?.selection, ['-count=1', '-run', '^TestCodec$']);
+  assert.deepEqual(go.compiled?.target, ['./']);
+  assert.equal(go.compiled?.testCwd, 'go');
+  const custom = commandOf(runOf({ runner: 'go', roots: ['go'] }, root,
+    { test: 'go/codec_test.go', symbol: 'TestCodec', command: ['custom-check'] }, 'suite', ENV), 'the declared custom command');
+  assert.equal(custom.compiled, undefined, 'a declared command owns its build behavior');
+});
+
 test('a failed feature run that names no test prints the last 20 lines of its output (K215)', TIMEOUT, async (t) => {
   const lines: string[] = [];
   await checkParity(repository(t, feature({ 'go/roundtrip_test.go': Array.from({ length: 25 }, (_, i) => `BUILD ./roundtrip_test.go:${i + 1}:1: boom`).join('\n') + '\n' })), { execute: true, env: ENV, say: line => lines.push(line) });
@@ -445,7 +490,8 @@ test('a cargo test target of tests/<name>/main.rs runs as --test <name> and its 
   }, (unit) => { itemAt(unit.bindings ?? [], 1).test = 'rust/tests/roundtrip/main.rs'; return unit; }));
   assert.deepEqual(findings, []);
   const rust = known(ledger.runs.find(run => run.unit === 'roundtrip' && run.implementation === 'rust'), 'ledger.runs.find(run => run.unit === … && run.implementation === …)');
-  assert.deepEqual([rust.command, ...rust.args], ['cargo', 'test', '--manifest-path', 'rust/Cargo.toml', '--test', 'roundtrip', 'roundtrip::bytes', '--', '--test-threads=1', '--exact']);
+  assert.match(rust.command, /test-binary$/);
+  assert.deepEqual(rust.args, ['--test-threads=1', 'roundtrip::bytes', '--exact']);
 });
 
 test('a cargo source with an explicit target path selects the matching manifest target (K694)', TIMEOUT, (t) => {

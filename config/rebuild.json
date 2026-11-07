@@ -557,6 +557,22 @@
     "scripts/kit/linked-build.mts": {
       "kind": "policy",
       "reason": "rebuilds after main moves what the consumers that link main live read (K551, K609): the dist of kit when a build input changed, and a stale npm build output through link-build; no ecosystem tool knows which outputs a move of main makes stale for linked consumers"
+    },
+    "scripts/kit/parity-build.mts": {
+      "kind": "ecosystem",
+      "tool": "go test -exec, go tool test2json and cargo test --message-format=json-render-diagnostics with native runner capture"
+    },
+    "scripts/kit/parity-executable.mts": {
+      "kind": "ecosystem",
+      "tool": "Node.js filesystem and process APIs retain and execute the binary and invocation that the native test tool supplies"
+    },
+    "scripts/kit/cargo-config.mts": {
+      "kind": "policy",
+      "reason": "the parity harness must retain the declared Cargo runner before temporarily substituting its capture adapter; stable Cargo has no configuration query that returns this execution context"
+    },
+    "scripts/kit/cargo-cfg.mts": {
+      "kind": "policy",
+      "reason": "the parity harness selects the declared Cargo cfg runner from native rustc --print=cfg facts before capturing and replaying that runner; it adds no repository behavior rule"
     }
   }
 }

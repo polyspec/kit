@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e1f6a81df5e551131d61a643225e01688808c8e0dda24ea9bcc96719f59d077d -->
+<!-- source-sha256: fa805e42f1863ce5e139b5ff41854eff8ec9f6b040eaad86ac2bac0b827030cd -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1025: build 조건이 같은 Go와 Cargo parity binding이 native build를 공유하고 보관한 binary로 선언된 case를 실행한다. native working directory와 environment를 유지하고 Cargo target마다 별도로 검증하며 build와 execution 시간을 나누어 보고한다 (K1025).
 
 ## 0.0.95
 

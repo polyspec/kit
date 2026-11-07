@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1025: Compatible Go and Cargo parity bindings share native builds and reuse captured binaries for their declared selections. Native working directories and environments are retained, each Cargo target is verified separately, and build and execution times are reported separately (K1025).
+
 ## 0.0.95
 
 - Kit 0.0.95 holds no rule of forks: each fork states how it is kept in its own FORK.md, and each root requires the release that it installs in its own manifest and lock (K1022, K1024) (K1023).
