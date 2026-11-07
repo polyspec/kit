@@ -187,3 +187,4 @@
 | K1058 | kit-sync --check writes no file: it reports each copy that differs from the installed kit or from the index | `scripts/kit/kit-sync.mts`, `tests/kit/kit-sync.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1058 tests/kit/kit-sync.test.mts` passes | [o] |
 | K1059 | Tag a successful CI run of any workflow of the repository in release-run; the workflow path is the repository's | scripts/kit/release-run.mts, tests/kit/release-run.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | node --test --test-name-pattern=K1059 tests/kit/release-run.test.mts | [ ] |
 | K1060 | Delete readNpmConfig, the unused reader of the removed npm judgment | scripts/kit/toolchain-files.mts, CHANGELOG(.ko).md | make -s lint-ts | [ ] |
+| K1061 | Describe land and item-test in make help as they run, with no removed refusal | scripts/kit/kit.mk, CHANGELOG(.ko).md | make -s docs-check | [ ] |

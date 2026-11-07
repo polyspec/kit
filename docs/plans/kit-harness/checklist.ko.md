@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 1c0598c8a2b75794e8f4a9ee8c864d212aac8ca47dca4cbbf72c4c82f0977d1f -->
+<!-- source-sha256: 8b89235d603eedf71374f63881687acd55badad118e9f5ed7d49cafbb228858d -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -188,3 +188,4 @@
 | K1058 | kit-sync --check는 파일을 쓰지 않는다. 설치된 kit이나 index와 다른 사본을 각각 보고한다 | `scripts/kit/kit-sync.mts`, `tests/kit/kit-sync.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1058 tests/kit/kit-sync.test.mts` passes | [o] |
 | K1059 | release-run이 저장소의 어느 workflow든 성공한 CI 실행을 태그하게 합니다. workflow 경로는 저장소가 정합니다 | scripts/kit/release-run.mts, tests/kit/release-run.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | node --test --test-name-pattern=K1059 tests/kit/release-run.test.mts | [ ] |
 | K1060 | 제거된 npm 판정의 쓰이지 않는 읽기 함수 readNpmConfig를 삭제합니다 | scripts/kit/toolchain-files.mts, CHANGELOG(.ko).md | make -s lint-ts | [ ] |
+| K1061 | make help의 land와 item-test 설명을 실제 동작대로 고치고, 제거된 거부 문구를 뺍니다 | scripts/kit/kit.mk, CHANGELOG(.ko).md | make -s docs-check | [ ] |
