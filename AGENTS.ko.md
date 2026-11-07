@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 45d3e7c967f9bf53a1c32a993a42985065daaf1c44ad3e90d1f62ab4f6724f6b -->
+<!-- source-sha256: 24130b6929b61ccf9c0a45204b86b03a8cd802b01a424e48bb7311864ef96cda -->
 # 개발
 
 [English](AGENTS.md)
@@ -16,7 +16,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Own: 추적하는 모든 test file은 repository Makefile의 CI shard 하나에 정확히 한 번 속한다. Kit test는 KIT_TEST_FILES에, source test는 SOURCE_TEST_FILES에 선언한다. Test 추가에는 shard 선언이 포함되며 exact-once CI inventory 검사는 그 선언의 unit test이다. 로컬에서 실행했어도 CI에 없으면 미완료이다.
   Enforced by: `tests/source/ci-workflow.test.mts`
 
-- Own: POSIX에서 중단된 command harness는 새 command를 받지 않고 소유 group의 종료를 요청하며 child close와 cleanup을 기다린 뒤 중단 상태로 종료한다. 강제 종료는 선언된 cleanup grace 뒤의 단계이며 협조적인 cleanup을 대신하지 않는다. 동기 강제 exit hook은 비상 cleanup만 담당한다.
+- Own: POSIX에서 중단된 command harness는 새 command를 받지 않고 소유 group의 종료를 요청하며 child close와 cleanup을 기다린 뒤 중단 상태로 종료한다. 강제 종료는 선언된 cleanup grace 뒤의 단계이며 협조적인 cleanup을 대신하지 않는다. 동기 강제 exit hook은 비상 cleanup만 담당한다. Native 종료 상태인 member만 남은 group identifier는 살아 있는 survivor가 아니며 cleanup은 소유 child의 close를 계속 기다리고 orphan 회수는 운영체제가 담당한다.
   Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/kit/parity-operation.test.mts`
 
 - Refines S12: `workflows/ci-pipeline.yml`은 검사 실행과 별도로 job 데이터를 계획합니다. Shared·parity·runtime 검사는 계획 출력에만 의존하고 자신의 checkout과 setup으로 독립적으로 실행합니다. Shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 job을 판정하며 선택된 job이 건너뛰어도 실패합니다.

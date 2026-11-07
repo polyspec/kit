@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ec5ad692b4a34dace3df19423c92af7a7ef8b061da094a1eaf4e198b49186788 -->
+<!-- source-sha256: c6c9f097787eee078a4023b6dc3c6c033252b0960aaeafbff926ac4b5a43e2cc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.97
+
+- CI: cleanup 시 종료된 POSIX group member와 살아 있는 survivor를 구분하고 소유 child의 종료를 회수하며 survivor grace와 기존 orphan case deadline을 유지한다(K1039).
 
 - CI: 새 parity 진단·처리·실시간 출력·중단·native Go compiler 시험을 shard에 정확히 한 번씩 배치하고 kit와 source inventory를 독립적으로 검사한다(K1038).
 

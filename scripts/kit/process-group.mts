@@ -167,6 +167,8 @@ export interface ProcessEntry {
   pid: number;
   ppid: number;
   pgid: number;
+  /** Native POSIX STAT; Windows snapshots have no zombie state. */
+  state?: string;
   started?: bigint | null;
 }
 
@@ -191,12 +193,12 @@ export function processTable(): ProcessEntry[] {
       return { pid, ppid, pgid: pid, started: started === null ? null : BigInt(started) };
     });
   }
-  const listed = spawnSync('ps', ['-axo', 'pid=,ppid=,pgid='], { encoding: 'utf8', maxBuffer: 1 << 28 });
+  const listed = spawnSync('ps', ['-axo', 'pid=,ppid=,pgid=,stat='], { encoding: 'utf8', maxBuffer: 1 << 28 });
   if (listed.error || listed.status !== 0) throw new Error(`ps could not list the processes: ${listed.error?.message ?? listed.stderr}`);
   return listed.stdout.split('\n').filter(line => line.trim() !== '').map((line) => {
-    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s*$/.exec(line);
-    if (match === null) throw new Error(`ps printed a line that is no process entry: ${line}`);
-    return { pid: Number(match[1]), ppid: Number(match[2]), pgid: Number(match[3]) };
+    const match = /^\s*(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s*$/.exec(line);
+    if (match === null || match[4] === undefined) throw new Error(`ps printed a line that is no process entry: ${line}`);
+    return { pid: Number(match[1]), ppid: Number(match[2]), pgid: Number(match[3]), state: match[4] };
   });
 }
 
@@ -297,26 +299,31 @@ export async function stopDescendants(root: number, { table = processTable, kill
  * errors (signalGroup). run-tests and run-command (K430) stop their groups with it. `spawned` is what the spawner
  * knows of `pgid` (watchRoot).
  */
-export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs: number, kill?: Kill, spawned?: SpawnedRoot): Promise<void> {
-  if (signalGroup(pgid, 0, kill, spawned) === 'ended') return;
+export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs: number, kill?: Kill, spawned?: SpawnedRoot, table: () => ProcessEntry[] = processTable): Promise<void> {
+  const ended = () => {
+    if (signalGroup(pgid, 0, kill, spawned) === 'ended') return true;
+    if (process.platform === 'win32') return false;
+    return !table().some(entry => entry.pgid === pgid && !entry.state?.startsWith('Z') && !entry.state?.startsWith('X'));
+  };
+  if (ended()) { await closed; return; }
   // The descendants outside pgid go first (K454): a descendant that leads a group of its own is no member of pgid, and once the
   // SIGTERM of the group has ended the leader, such a descendant is reparented to launchd and no longer found. The members of pgid
   // are left to the group signal below.
-  await stopDescendants(pgid, { kill, skipGroup: pgid, spawned });
-  if (signalGroup(pgid, 'SIGTERM', kill, spawned) === 'ended') return;
+  await stopDescendants(pgid, { table, kill, skipGroup: pgid, spawned });
+  if (signalGroup(pgid, 'SIGTERM', kill, spawned) === 'ended') { await closed; return; }
   let timer: NodeJS.Timeout | undefined;
   const grace = new Promise<void>(resolve => { timer = setTimeout(resolve, graceMs); });
   try {
     await Promise.race([closed, grace]);
-    if (signalGroup(pgid, 0, kill, spawned) === 'ended') return;
+    if (ended()) { await closed; return; }
     // Closed output is not completed cleanup: surviving group members get the full grace.
     await grace;
+    if (ended()) { await closed; return; }
   } finally {
     clearTimeout(timer);
   }
-  // SIGKILL cannot be caught, so the group ends; the caller's close is awaited so that no stopped process is still listed or
-  // unreaped when stopGroup returns (K754).
-  if (signalGroup(pgid, 'SIGKILL', kill, spawned) === 'ended') return;
+  // Await the owned root's close after escalation. Defunct orphan members cannot execute; their system reaper owns their removal.
+  signalGroup(pgid, 'SIGKILL', kill, spawned);
   await closed;
 }
 
