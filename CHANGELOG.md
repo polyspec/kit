@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1022: PRINCIPLES S14 states the rule of forks as they are kept: a mirror of upstream, one branch per fix named by its type, topic and base, and a line `min-0-max/polyspec/<base>` that merges the fixes, is the default branch and carries release tags such as v2.6.0-p2; a root requires a release tag of the fork, never a branch.
+
 ## 0.0.94
 
 - K1021: The committed kit-test sandbox uses FINAL_RUN without setting a CI identity, and the packed consumer fixture joins its kit job in ci-passed.

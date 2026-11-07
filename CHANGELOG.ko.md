@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 485baeb68dacd7b1c6dcb727102a402a9262757f3ceb7714bd0b0201909bcd50 -->
+<!-- source-sha256: 9df26ab6e1156631f17291f7087fb03269ef19541811c8c68b4d1e76cde440f9 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- K1022: PRINCIPLES S14가 지금 유지하는 fork 규칙을 적는다. upstream의 거울, type·topic·base로 이름 붙인 수정 하나당 branch 하나, 수정들을 merge하고 default branch이며 v2.6.0-p2 같은 release tag를 받는 line `min-0-max/polyspec/<base>`로 이루어지고, root는 branch가 아니라 fork의 release tag를 require한다.
 
 ## 0.0.94
 
