@@ -5,6 +5,9 @@
 
 ## Unreleased
 
+## 0.0.95
+
+- Kit 0.0.95 states in PRINCIPLES S14 that a fork is a mirror, fix branches and a released line, and that a root requires a release tag of the fork (K1022) (K1023).
 - K1022: PRINCIPLES S14 states the rule of forks as they are kept: a mirror of upstream, one branch per fix named by its type, topic and base, and a line `min-0-max/polyspec/<base>` that merges the fixes, is the default branch and carries release tags such as v2.6.0-p2; a root requires a release tag of the fork, never a branch (K1022).
 
 ## 0.0.94

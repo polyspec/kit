@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-common-standard -->
-<!-- source-sha256: babb9fe102be0577a6ec530dc032b23964387a0ae2215973209417199c4df4b0 -->
+<!-- source-sha256: 5d5edd64f29efada38077ba1bdbb913cfde3ecd1d8d5beeb97cb4dd3a969b1b5 -->
 # 공통 표준 체크리스트
 
 ## Kit
@@ -818,4 +818,4 @@
 | K1012 | Kit 0.0.91 릴리즈 | `package.json`, `package-lock.json`, `CHANGELOG.md`, `CHANGELOG.ko.md` | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K1016 | Kit 0.0.92 릴리즈 | `package.json`, `package-lock.json`, `CHANGELOG.md`, `CHANGELOG.ko.md` | `node --test tests/source/release-workflow.test.mts` | [o] |
 | K1019 | Kit 0.0.93 릴리즈 | `package.json`, `package-lock.json`, `CHANGELOG.md(.ko)` | GREEN: `make docs-check` passes and package.json declares 0.0.93 | [o] |
-| K1023 | Kit 0.0.95 릴리즈 | `package.json`, `package-lock.json`, `CHANGELOG.md(.ko)` | GREEN: `make docs-check` passes and package.json declares 0.0.95 | [~] |
+| K1023 | Kit 0.0.95 릴리즈 | `package.json`, `package-lock.json`, `CHANGELOG.md(.ko)` | GREEN: `make docs-check` passes and package.json declares 0.0.95 | [o] |

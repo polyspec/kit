@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: b84ed117535b8f5580ee7ffa44899ed358744b25f37ccbfb311ccf821df19d6e -->
+<!-- source-sha256: 76051b749a295594d919b566894de12e79d3aae8855fbc29da8575fc08faf295 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+## 0.0.95
+
+- Kit 0.0.95는 PRINCIPLES S14에 fork가 거울, 수정 branch, release하는 line으로 되어 있고 root가 fork의 release tag를 require한다고 적습니다(K1022) (K1023).
 - K1022: PRINCIPLES S14가 지금 유지하는 fork 규칙을 적는다. upstream의 거울, type·topic·base로 이름 붙인 수정 하나당 branch 하나, 수정들을 merge하고 default branch이며 v2.6.0-p2 같은 release tag를 받는 line `min-0-max/polyspec/<base>`로 이루어지고, root는 branch가 아니라 fork의 release tag를 require한다 (K1022).
 
 ## 0.0.94
