@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e4c3d68dd8752104bde6aa0ea3ed37f4c8804d16f75ac8177483a5dc6015002d -->
+<!-- source-sha256: 498cc39df864216a565ff7c8e7ba09584a75ccd831c75fc7a2d3ff37d23f277f -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1055: PRINCIPLES는 저장소를 kit의 부분에 묶지 않습니다. S12는 저장소 자신의 파이프라인 하나를 말하고 kit의 ci-pipeline.yml은 그 한 예시이며, P31은 kit-gates가 아니라 저장소의 gate를 말하고, S13은 K1053이 지운 Claude Code 설정을 적지 않으며, 저장소는 원칙의 사본을 자기 파일로 바꿉니다(K1055).
 - K1053: kit은 자기 규칙으로 어떤 명령, 커밋, 실행도 거부하지 않는다. claude-hook.mts, kit-sync가 복사하고 make link와 make hook이 쓰던 Claude Code 설정, link의 hook 명령, FINAL_RUN을 포함한 ci-only.mts, make hooks가 쓰던 commit-msg hook과 pre-commit hook은 삭제되었다. make hooks는 이제 config/checklist.json이 나열한 hook으로 core.hooksPath를 가리키고 merge driver를 선언하며, kit.mk는 더 이상 core.hooksPath를 설정하지 않는다. land는 rebase하고 fast-forward로 merge하고 정리하며, gate도 커밋 규칙도 실행하지 않는다. make commit은 메시지도 index도 판정하지 않는다. item-state는 changelog 줄을 요구하지 않고 Verification을 실행하지 않는다. item-test와 docs-check는 어떤 Verification 명령도 거부하지 않는다. ci-targets, owner-check, 선택 없는 run-tests, suite, 전체 parity-check는 CI 밖에서도 실행된다. ci-setup은 중첩된 dispatch를 거부하지 않는다. docs/examples/git-hooks는 kit의 검사를 실행하는 저장소의 hook을 보여 준다. 호환되지 않는 변경: 이 거부에 기대던 저장소는 자기 hook과 레시피를 쓰고, 이전 kit의 .githooks/pre-commit, .githooks/commit-msg, .claude/settings.json을 지우거나 자기 것으로 유지한다(K1053).
 - K1057: rules-check는 저장소의 CI pipeline인 .github/workflows/ci-pipeline.yml을 그 workflow 중 하나로서 step의 make 명령으로 읽으며 config/ci.json을 읽지 않습니다. K1052부터 pipeline은 저장소 자신의 파일이므로 그 step이 적는 target은 도달하고, config/ci.json의 선택은 그 자체로 아무것에도 도달하지 않습니다. ci-setup의 ciConfigTargets를 지웠고, step의 ${{ matrix.runtime }}은 kit의 runtime 목록이 아니라 자기 matrix가 나열한 값만 받습니다. run-tests --venv는 환경의 Python을 검사하지 않고 그 interpreter를 그대로 시작합니다. Breaking: 검사를 config/ci.json만 적는 규칙은 workflow step이 그것을 실행할 때까지 rules-check에서 실패합니다(K1057).
 - K1054: kit은 저장소에 recipe를 include시키지 않습니다. package는 make 파일을 싣지 않으므로 package.json은 kit-bootstrap.mk를 export하지 않고, kit-build는 kit.mk를 dist에 복사하지 않으며, prepack은 아무것도 고쳐 쓰지 않습니다. scripts/kit/kit.mk는 kit 자신의 Makefile의 recipe이고, bootstrap은 예시 docs/examples/bootstrap.mk이며, 저장소는 원하는 kit.mk target 곁에 이를 복사할 수 있고 docs/operations/adoption이 이를 가리킵니다. kit의 toolchain-lock은 UV_PYTHON을 적지 않으며, kit의 mise.toml `[env]`가 정합니다. Breaking: node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk나 dist/kit.mk를 include하는 Makefile은 실패합니다. 저장소는 예를 들어 위 사본으로 자기 recipe를 씁니다. 예시 workflow와 action은 make target(install-tools, install-packages, kit-ci-*와 release-* target)을 실행하므로, 그것을 복사하는 저장소는 그 target을 예를 들어 kit.mk에서 가져와 자기 Makefile에 정의합니다(K1054).

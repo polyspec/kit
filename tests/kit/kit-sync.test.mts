@@ -21,3 +21,14 @@ test('kit writes no copy into a repository and compares none (K1052)', () => {
   // K1053: kit writes no hook, so it ships no owner rule either.
   assert.equal(manifest.kit.owners, undefined, 'package.json of kit declares no kit.owners');
 });
+
+// K1055: the principles that kit ships as an example state no rule that only kit's own machinery could hold: no pipeline of
+// kit that every CI must call, no gate set of kit, no shipped Claude Code settings and no rule that only kit may change a copy.
+test('the principles of kit bind no repository to a part of kit (K1055)', () => {
+  for (const file of ['PRINCIPLES.md', 'PRINCIPLES.ko.md']) {
+    const text = readFileSync(path.join(KIT_ROOT, file), 'utf8').replace(/\s+/g, ' ');
+    for (const forced of [/the workflow that kit gives it/, /kit이 주는 workflow/, /gate of kit-gates/, /kit-gates의 gate/, /the Claude Code settings/, /Claude Code 설정/, /changed only in kit/, /kit에서만/, /all defined by kit/, /모두 kit이 정의한다/, /only through `\.links` and `make link`/, /`make link`로만/]) {
+      assert.doesNotMatch(text, forced, `${file} still states ${forced}`);
+    }
+  }
+});

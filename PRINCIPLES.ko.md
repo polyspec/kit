@@ -1,12 +1,13 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: eee6ce5e815a239796d2b4328183c8fcdbb84e6d15381c2f52c0f4d6d936c134 -->
+<!-- source-sha256: 40d654891bff8859f2ec72b78788af816571950f00d4c304f08c4dfdc43cf55a -->
 # 원칙
 
 [English](PRINCIPLES.md)
 
 이것은 모든 polyspec repository의 작업 원칙입니다. kit은 이 파일을 package에 예시로 담습니다. 이 파일을 받는
 repository는 복사해서 그 사본을 자기 것으로 가지며, kit은 그 사본을 쓰지도 비교하지도 않습니다(K1052). repository의 AGENTS.md는
-여기로 link하고 자기만의 규칙만 적습니다. 원칙은 owner에게서 옵니다; 원칙은 kit에서만, 근거와 함께 바꿉니다.
+여기로 link하고 자기만의 규칙만 적습니다. 원칙은 owner에게서 옵니다. kit은 자기 사본을 근거와 함께 바꾸고,
+repository는 자기 사본을 자기 파일로 바꿉니다(K1055).
 
 ## 책임
 
@@ -126,21 +127,21 @@ repository는 복사해서 그 사본을 자기 것으로 가지며, kit은 그 
   한국어 짝에 기록한다. commit되지 않은 작업은 최대 한 item이다.
   Enforced by: none, 안내하는 규칙이다: kit은 어떤 명령도 커밋도 거부하지 않는다 (K1053).
 - P28 commit message는 `type(scope): Subject (#id)`이며, type은 feat, fix, docs, style, refactor, test, chore 중 하나,
-  Subject는 대문자로 시작하고 마침표 없이 끝나는 50자 이하, 그 뒤 빈 줄과 72자로 감싼 body이다. `make commit`이 그것을
-  쓴다. AI 도구의 footer, 곧 그 co-author나 session trailer는 넣지 않는다. author와 committer는 사람이며 AI 도구가 아니다.
+  Subject는 대문자로 시작하고 마침표 없이 끝나는 50자 이하, 그 뒤 빈 줄과 72자로 감싼 body이다. kit의 `make commit`은 그것을
+  쓰는 한 방법이다. AI 도구의 footer, 곧 그 co-author나 session trailer는 넣지 않는다. author와 committer는 사람이며 AI 도구가 아니다.
   Enforced by: none, 안내하는 규칙이다: kit은 어떤 명령도 커밋도 거부하지 않는다 (K1053).
 - P29 작업의 make target은 고정된 이름을 가진다. `install`, `build`, `test`, `lint`, `docs-check`와 `packages/`의 runtime마다
-  `build-<runtime>`, `test-<runtime>`, `lint-<runtime>`이며, 모두 kit이 정의한다. 저장소는 `build: kit-build`처럼 자기
-  prerequisite로 작업에 합류하고, 작업 이름으로 시작하는 다른 target으로 합류하지 않는다 (K246).
+  `build-<runtime>`, `test-<runtime>`, `lint-<runtime>`이다. 저장소는 `build: site-assets`처럼 자기
+  prerequisite로 작업에 합류하고, 작업 이름으로 시작하는 다른 target으로 합류하지 않는다 (K246, K1055).
   Enforced by: none, 안내하는 규칙이다: 저장소의 target 이름은 저장소의 것이다 (K810).
 - P30 0.0.x 개발 중 앱은 선언된 로컬 provider source를 native package manager의 방식으로 연결한다.
   Package manager가 link, 설치 record, dependency 해석, 생성 metadata를 소유하며 source를 설치된 release version으로 위장하지 않는다.
-  저장소는 provider를 로컬 checkout에 `.links`와 `make link`로만 연결하고, 그것을 위한 자기 선언을 두지 않는다. 즉 package
-  manager의 추적 manifest는 저장소 밖 경로를 적지 않는다(K997). Release 선언과 lock은 배포된 dependency의 기록으로 유지하고,
+  저장소는 provider를 로컬 checkout에 native 로컬 개발 방식으로 연결하며 추적되는 선언으로 연결하지 않는다. 즉 package
+  manager의 추적 manifest는 저장소 밖 경로를 적지 않는다(K997). kit의 `.links`와 `make link`는 한 방법이다(K1055). Release 선언과 lock은 배포된 dependency의 기록으로 유지하고,
   kit은 link manifest, version alias, lock metadata를 합성하지 않으며 추적 lock을 통합 배치까지 기다리게 하지 않는다.
   Enforced by: none, 안내 규칙: link는 개발 환경에만 있고 거기서 make link-check가 link 선언 .links에 맞춰 검사한다(K869). CI는 아무것도 link하지 않는다 (K824)
 - P31 gate는 우회하지 않는다. test, script, Makefile은 workflow 밖에서 CI identity(`GITHUB_ACTIONS`, `CI`)를 설정하지 않고,
-  `make -o`, `--old-file`, `--assume-old`에 kit-gates의 gate를 적지 않으며, `--no-verify`를 쓰지 않는다 (K308).
+  `make -o`, `--old-file`, `--assume-old`에 저장소의 gate를 적지 않으며, `--no-verify`를 쓰지 않는다 (K308).
   Enforced by: none, 안내 규칙: 저장소의 recipe와 script는 그 저장소의 것이다(K1051).
 - P32 범위: 공유 contract 동작은 모든 구현에 있고(S6, S10) test와 함께 구현한다. 언어나 runtime에 고유한 통합은 docs/spec에
   중립적인 규칙 하나로 쓰고, 적용되는 각 구현이 자기 고유한 형태를 거기에 묶는다. component나 artifact에만 해당하는 requirement는
@@ -213,7 +214,7 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   `packages/<component>/`, 그 port는 `packages/<component>/<runtime>/`에 두며, 폴더 이름에 repository prefix를 붙이지
   않습니다. runtime 폴더는 source 언어를 이름으로 가지며(TypeScript는 `ts`), test 폴더는 `tests/`, AGENTS, CHANGELOG,
   Makefile은 root에 두고, `docs/`는 `spec/`, `operations/`, `plans/`, `rebuild/`, `features.md`와 VitePress site의 파일을
-  가집니다(K245). `make layout-check`가 alint로 `config/layout.yml`(kit 공통 rule 위에 레포의 map을 더한 설정)에 맞춰 검사하며,
+  가집니다(K245). `make layout-check`가 alint로 `config/layout.yml`(자기 config/layout.kit.yml 사본의 공통 rule 위에 레포의 map을 더한 설정)에 맞춰 검사하며,
   그 안의 예외는 모두 이유를 가집니다.
   Enforced by: `make layout-check`
 - S6 언어 parity: repository의 모든 구현은 공유 feature unit, vector, API를 같은 수준으로 test하고, docs/spec이 정의하는 각 requirement(list item, 곧 글머리 기호나 번호 목록의 `**<id>**` 또는 heading `<id>`)는 unit이 인용합니다. scope가 없는 unit은 모든 구현에 binding합니다. component나 artifact에만 해당하는 requirement는 `contracts/features.json`의 coverage part 또는 `config/release.json`의 package에서 도출한 owner 하나, 또는 한 feature의 명시적이고 비어 있지 않은 coverage-part owner 집합에만 feature unit을 scope할 수 있습니다. 해석된 각 implementation에는 자체 native binding이 있어야 하고, requirement는 각 owner 또는 그 owner가 test를 명시적으로 공유하는 implementation을 이름으로 말하며, 각 native test는 requirement를 인용합니다. 임의 profile, implementation 허용 목록, exclusion, native-only symbol은 scope가 아닙니다. directory suite의 case는 자신이 test하는 requirement를 `case.json`에 나열합니다.
@@ -247,13 +248,11 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   Enforced by: none, 안내 규칙: kit은 저장소의 recipe나 workflow를 검사하지 않는다(K1051).
   link는 개발 환경에만 있고 거기서 make link-check가 link 선언 .links에 맞춰 검사하며(K869), CI는 아무것도 link하지 않는다 (K824).
   kit의 K761 link test는 tool log에 npm link, composer update, editable 설치가 없음을 확인합니다
-- S12 저장소의 CI는 파이프라인 하나입니다. 저장소 자신의 ci.yml이 kit이 주는 workflow(`ci-pipeline.yml`)를 job `kit`으로
-  호출하고, 그 job은 `make kit-gates`의 prerequisite를 config/ci.json의 targets(`targets.shared`, `targets.parity`,
-  `targets.runtimes`)와 함께 한 번 실행하며, 독립적인 저장소 job은 병렬로 실행합니다. 마지막 `ci-passed` job은 다른 모든 job을 needs로 요구하며, 앞선 결과를 사용하는 작업만 순서대로 실행합니다. 저장소의 다른 workflow도,
-  ci-targets나 ci-setup이 읽는 입력도 kit-gates의 prerequisite를 다시 지정하지 않습니다. kit 자신을 시험하는 kit의 ci.yml은 소비자
-  CI가 아닙니다(K870, K910).
+- S12 저장소의 CI는 자기 파이프라인 하나입니다. run 하나가 commit의 모든 job을 담고, 각 gate는 그 안에서 한 번 실행되며, 독립적인
+  job은 병렬로 실행하고, 앞선 결과를 사용하는 작업만 순서대로 실행하며, 마지막 job이 다른 모든 job을 요구합니다.
+  kit의 `ci-pipeline.yml`은 그런 파이프라인의 한 예시입니다(K910, K1052, K1055).
   Enforced by: none, 안내 규칙: kit은 저장소의 recipe, workflow, 파일을 검사하지 않는다(K1051).
-- S13 공유 파일은 예시입니다. kit은 이 파일, ci-pipeline.yml, release.yml, bootstrap action, Claude Code 설정,
+- S13 공유 파일은 예시입니다. kit은 이 파일, ci-pipeline.yml, release.yml, bootstrap action,
   config/layout.kit.yml을 package에 담습니다. 그중 하나를 받는 저장소는 복사해서 그 사본을 자기 것으로 가지며, kit은 저장소의
   파일을 쓰지도 비교하지도 않습니다(K1052).
   Enforced by: none, 저장소가 어떤 예시를 받고 그 사본을 어떻게 바꿀지는 저장소의 선택입니다.

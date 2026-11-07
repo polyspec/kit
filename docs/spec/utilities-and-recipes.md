@@ -57,6 +57,6 @@ kit removes what it forces, each change as a checklist row with its Red, Green a
   - `item-state` refused done without a changelog line, and a move to verifying or done without a passing Verification.
   - `ci-setup` refused a setup target that ran `kit-ci-setup` again.
   - `run-tests --venv` refused an environment whose Python was not the checkout's.
-- **Rule texts.** The `Enforced by:` lines of PRINCIPLES that name these checks (S11, S12, S13 and S15 among them) change with the removals, so the shipped PRINCIPLES never claims a check that kit no longer forces.
+- **Rule texts.** The `Enforced by:` lines of PRINCIPLES named these checks (S11, S12, S13 and S15 among them) and changed with each removal; until K1055 the text of PRINCIPLES also bound every repository to kit's pipeline (S12), to the gates of kit (P31) and to changes made only in kit. The shipped PRINCIPLES now claims no check that kit no longer forces.
 
 A part that works becomes an example in `docs/examples/` in the same change that removes it from kit. The removal ships in a new patch release of kit. A repository pins the kit release it installs, so it keeps its current release until it adopts the new one, and then writes its own recipes from the examples.

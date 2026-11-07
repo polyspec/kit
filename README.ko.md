@@ -1,5 +1,5 @@
 <!-- doc-id: readme -->
-<!-- source-sha256: 2d390d0f7ab63158aa8e244c65eed4b6f2286936433e39d57f69c08bb62d92b0 -->
+<!-- source-sha256: 634d93220b7e36d54d9c6e431f902540502835fbd44f9c6eb15483c2d245352a -->
 # polyspec/kit
 
 모든 polyspec 저장소가 공유하는 도구입니다. 저장소는 이를 package `@polyspec/kit`으로 설치합니다. package는 예시(`workflows/`의

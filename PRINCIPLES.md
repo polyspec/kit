@@ -5,8 +5,8 @@
 
 These are the working principles of every polyspec repository. kit ships this file in its package as an example; a
 repository that takes it copies it and owns the copy, which kit neither writes nor compares (K1052). A repository's
-AGENTS.md links here and states only the rules of its own. The principles come from the owner; a principle is changed only
-in kit, with its grounding.
+AGENTS.md links here and states only the rules of its own. The principles come from the owner; kit changes its own copy with
+its grounding, and a repository changes its copy as its own file (K1055).
 
 ## Responsibility
 
@@ -134,21 +134,21 @@ repository.
 - P28 A commit message is `type(scope): Subject (#id)` with a type of feat, fix, docs, style, refactor, test or chore, a Subject
   of at most 50 characters that starts with a capital letter and ends without a period, a blank line and a body wrapped at
   72 characters, with no footer of an AI tool: no co-author or session trailer of one. Its author and committer are a
-  person, never an AI tool. `make commit` writes it.
+  person, never an AI tool. kit's `make commit` is one way to write it.
   Enforced by: none, a guided rule: kit refuses no command or commit (K1053).
 - P29 The make targets of a task have fixed names: `install`, `build`, `test`, `lint`, `docs-check`, and `build-<runtime>`,
-  `test-<runtime>` and `lint-<runtime>` for each runtime of `packages/`, all defined by kit. A repository joins a task by a
-  prerequisite of its own, such as `build: kit-build`, never by another target that starts with a task's name (K246).
+  `test-<runtime>` and `lint-<runtime>` for each runtime of `packages/`. A repository joins a task by a prerequisite of its
+  own, such as `build: site-assets`, never by another target that starts with a task's name (K246, K1055).
   Enforced by: none, a guided rule: the names of the targets of a repository are its own (K810).
 - P30 During 0.0.x development, applications connect declared local provider sources through native package-manager
   mechanisms. The package manager owns links, installed records, dependency resolution and generated metadata; a source
-  is not disguised as an installed released version. A repository links its providers to local checkouts only through
-  `.links` and `make link`, and declares nothing of its own for that: no tracked manifest of a package manager names a path
-  out of the repository (K997). Release declarations and locks remain records of released dependencies; kit does not
+  is not disguised as an installed released version. A repository links its providers to local checkouts by a native
+  local-development mechanism, never by a tracked declaration: no tracked manifest of a package manager names a path out of
+  the repository (K997); kit's `.links` and `make link` are one way (K1055). Release declarations and locks remain records of released dependencies; kit does not
   synthesize link manifests, version aliases or lock metadata, and no tracked lock waits for a coordinated batch.
   Enforced by: none, a guided rule: the links exist only in development, where make link-check checks them against the link declaration .links (K869); CI links nothing (K824)
 - P31 No gate is bypassed: a test, script or Makefile never sets the CI identity (`GITHUB_ACTIONS`, `CI`) outside a workflow, never
-  names a gate of kit-gates in `make -o`, `--old-file` or `--assume-old`, and never uses `--no-verify` (K308).
+  names a gate of the repository in `make -o`, `--old-file` or `--assume-old`, and never uses `--no-verify` (K308).
   Enforced by: none, a guided rule: a repository's own recipes and scripts are its own (K1051).
 - P32 Scope: shared contract behaviour exists in every implementation (S6, S10), implemented with its tests. A language- or
   runtime-native integration is written once as a neutral rule in docs/spec, and each applicable implementation binds its native form
@@ -232,7 +232,7 @@ tool lands, a standard binds the work as written here.
   `packages/<component>/` and their ports in `packages/<component>/<runtime>/`; folder names carry no repository prefix. A
   runtime folder names the language of its sources (TypeScript in `ts`), a folder of tests is `tests/`, AGENTS, CHANGELOG
   and Makefile lie at the root, and `docs/` holds `spec/`, `operations/`, `plans/`, `rebuild/`, `features.md` and the files
-  of a VitePress site (K245). `make layout-check` checks it with alint against `config/layout.yml`, the map of the repository over kit's common rules;
+  of a VitePress site (K245). `make layout-check` checks it with alint against `config/layout.yml`, the map of the repository over the common rules of its copy of config/layout.kit.yml;
   each exception there carries its reason.
   Enforced by: `make layout-check`
 - S6 Language parity: every implementation of a repository tests the same shared feature units, vectors and API at the same
@@ -276,14 +276,12 @@ tool lands, a standard binds the work as written here.
   Enforced by: none, a guided rule: kit checks no recipe or workflow of a repository (K1051); the links exist only in
   development, where make link-check checks them against the link declaration .links (K869), and CI links nothing (K824); the
   K761 link test of kit finds no npm link, composer update or editable install in the tool log
-- S12 A repository's CI is one pipeline: its own ci.yml calls the workflow that kit gives it (`ci-pipeline.yml`) as its
-  job `kit`, which runs the prerequisites of `make kit-gates` once with the targets of config/ci.json (`targets.shared`,
-  `targets.parity`, `targets.runtimes`), and independent repository jobs run concurrently. The final `ci-passed` job requires every other job; dependencies order only work that consumes preceding results. No other workflow
-  of the repository, and no input that ci-targets or ci-setup reads, names a prerequisite of kit-gates again. kit's own ci.yml,
-  which tests kit itself, is no consumer CI (K870, K910).
+- S12 A repository's CI is one pipeline of its own: one run holds every job of a commit, each gate runs once in it, independent
+  jobs run concurrently, dependencies order only work that consumes preceding results, and a final job requires every other job.
+  kit's `ci-pipeline.yml` is one example of such a pipeline (K910, K1052, K1055).
   Enforced by: none, a guided rule: kit checks no recipe, workflow or file of a repository (K1051).
-- S13 Shared files are examples: kit ships this file, ci-pipeline.yml, release.yml, the bootstrap action, the Claude Code
-  settings and config/layout.kit.yml in its package; a repository that takes one copies it and owns the copy, and kit writes
+- S13 Shared files are examples: kit ships this file, ci-pipeline.yml, release.yml, the bootstrap action and
+  config/layout.kit.yml in its package; a repository that takes one copies it and owns the copy, and kit writes
   no file of a repository and compares none (K1052).
   Enforced by: none, which example a repository takes and how it changes its copy is the repository's choice.
 - S15 Loose coupling: core, plugins, sidecars, kit, specs and contracts are parts that know each other only through interfaces.
