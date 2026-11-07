@@ -17,8 +17,8 @@ and states only its own rules. The rules below are kit's own.
 - Refines S12: `workflows/ci-pipeline.yml` plans its job data separately from running checks. Shared, parity and runtime checks depend only on the plan outputs, use their own checkout and setup, and run independently; a failed shared check suppresses no independent result. The final required job judges planning, shared checks and every selected job, and fails on a skipped selected job.
   Enforced by: `tests/kit/gates-workflow.test.mts`
 
-- Own: Each phased parity binding job executes the tools and setup targets that its repository explicitly declares in config/ci.json parityBindings. The implementation set must match config/parity.json exactly. Empty arrays mean no setup; kit infers no runtime or extractor installation for a binding. Build units, fixtures and artifacts remain the repository's responsibility.
-  Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`
+- Own: Each phased parity binding job executes the tools and setup targets that its repository explicitly declares in config/ci.json parityBindings. The implementation set must match config/parity.json exactly. Empty arrays mean no setup; kit infers no runtime or extractor installation for a binding. Build units, fixtures and artifacts remain the repository's responsibility. The rules checker uses the validated selection of CI jobs; an unselected job provides no enforcement evidence.
+  Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `tests/kit/check-rules.test.mts`
 
 - Own: Incoming Kit change requests are tracked in GitHub issues. Keep each issue updated with implementation progress,
   verification evidence and release status, and close it only after its stated acceptance conditions are met.

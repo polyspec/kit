@@ -225,9 +225,9 @@ test('a target is expanded for each set of variables it is called with, so every
 // that config/ci.json names is reached while the repository holds the pipeline, and not without it.
 test('K910: a target that config/ci.json declares is reached through the CI pipeline that the repository holds', (t) => {
   const agents = rules('- Own: Go tests.\n  Enforced by: `make test-go`', '- Own: Docs.\n  Enforced by: `make own-docs`');
-  const config = JSON.stringify({ schema: 1, setup: { shared: [], parity: [], runtimes: { go: [], php: [], 'php-ext': [], python: [], rust: [], ts: [] } }, targets: { shared: ['own-docs'], runtimes: { go: ['test-go'] } } });
+  const config = JSON.stringify({ schema: 1, parityMode: 'none', setup: { shared: [], parity: [], runtimes: { go: [], php: [], 'php-ext': [], python: [], rust: [], ts: [] } }, targets: { shared: ['own-docs'], runtimes: { go: ['test-go'] } } });
   const files = {
-    Makefile: 'test-go:\n\t@echo go\nown-docs:\n\t@echo docs\n',
+    Makefile: 'test-go:\n\t@echo go\nown-docs:\n\t@echo docs\ndeps-go:\n\t@echo deps\n',
     'config/ci.json': config,
     '.github/workflows/ci.yml': 'name: ci\non: push\njobs:\n  kit:\n    uses: ./.github/workflows/ci-pipeline.yml\n',
     'AGENTS.md': agents,
@@ -311,3 +311,25 @@ test('no Enforced by line of PRINCIPLES.md names a path under tests/ or scripts/
   const lines = readFileSync(new URL('../../PRINCIPLES.md', import.meta.url), 'utf8').split('\n').filter(line => line.startsWith('  Enforced by: '));
   assert.deepEqual(lines.filter(line => /(?:^|[\s,(])(?:tests|scripts)\/\S/.test(line)), []);
 });
+
+for (const mode of ['phases', 'none'] as const) {
+  test(`K1031: the copied pipeline reaches only selected ${mode} parity checks`, t => {
+    const config = {
+      schema: 1, parityMode: mode,
+      parityBindings: { 'go-client': { setup: [], tools: [] } },
+      setup: { shared: [], parity: [], runtimes: { go: ['setup-go'], php: [], 'php-ext': [], python: [], rust: [], ts: [] } },
+    };
+    const agents = rules('- Own: Client behavior.\n  Enforced by: `make parity-bindings-go-client-check`', '- Own: Unselected behavior.\n  Enforced by: `make parity-bindings-other-check`', '- Own: API behavior.\n  Enforced by: `make parity-api-check`', '- Own: Inactive runtime.\n  Enforced by: `make kit-gates-runtime-rust`');
+    const root = tree(t, {
+      Makefile: 'setup-go:\n\t@echo setup\nparity-bindings-go-client-check:\n\t@echo selected\nparity-bindings-other-check:\n\t@echo unselected\nparity-api-check:\n\t@echo api\nkit-gates-runtime-rust:\n\t@echo rust\n',
+      'config/ci.json': JSON.stringify(config),
+      'config/parity.json': JSON.stringify({ schema: 1, implementations: [{ name: 'go-client', runner: 'go', roots: ['packages/go'] }], requirements: { pattern: 'REQ-[0-9]+' }, units: [] }),
+      'packages/go/go.mod': 'module example.invalid/client\n',
+      '.github/workflows/ci-pipeline.yml': readFileSync(fileURLToPath(new URL('../../workflows/ci-pipeline.yml', import.meta.url)), 'utf8'),
+      'AGENTS.md': agents, 'AGENTS.ko.md': agents,
+    });
+    const findings = checkRules(root, ['AGENTS.md']).findings;
+    assert.equal(findings.length, mode === 'phases' ? 2 : 4, findings.join('\n'));
+    assert.ok(findings.some(finding => finding.includes('make parity-bindings-other-check runs at no point')));
+  });
+}

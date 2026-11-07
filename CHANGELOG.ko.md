@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ad272e2f4b44b50eefd53f2f0d4a490a7f89e0c2c2c03fe421a5645984a3134c -->
+<!-- source-sha256: ef752e1510069e0c318b3bbbc55b43c00187d894ab24b89c5da526e0e31ad458 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- CI: 검증된 job 선택으로 규칙 강제를 판정하고 phased binding 검사를 포함하며 선택되지 않은 pipeline job의 증거를 거부한다(K1031, issue #26).
 
 ## 0.0.96
 

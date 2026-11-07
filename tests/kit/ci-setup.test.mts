@@ -611,3 +611,29 @@ test('K1026: the CLI and Make setup entry pass the binding implementation to the
     assert.equal(readFileSync(path.join(root, 'setup.log'), 'utf8'), 'shared', 'unknown selectors execute nothing');
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+for (const mode of ['phases', 'full', 'none'] as const) {
+  test(`K1031: reached CI targets match selected ${mode} jobs`, () => {
+    const root = fixture();
+    try {
+      const file = path.join(root, 'Makefile');
+      writeFileSync(file, readFileSync(file, 'utf8') + 'binding-only-setup:\n\t@echo binding\ninactive-setup:\n\t@echo inactive\n');
+      const config = fixtureConfig(root);
+      config.parityMode = mode;
+      config.parityBindings = { 'go-client': { setup: ['binding-only-setup'], tools: [] } };
+      config.setup.runtimes.rust = ['inactive-setup'];
+      writeFileSync(path.join(root, 'config/ci.json'), JSON.stringify(config));
+      const targets = ciConfigTargets(root);
+      assert.equal(targets.includes('parity-bindings-go-client-check'), mode === 'phases');
+      assert.equal(targets.includes('parity-api-check'), mode === 'phases');
+      assert.equal(targets.includes('kit-gates-parity'), mode === 'full');
+      assert.equal(targets.includes('binding-only-setup'), mode === 'phases');
+      assert.equal(targets.includes('parity-setup'), mode !== 'none');
+      assert.equal(targets.includes('inactive-setup'), false);
+      assert.equal(targets.includes('kit-gates-runtime-rust'), false);
+      assert.equal(targets.includes('kit-gates-runtime-go'), true);
+      assert.equal(targets.includes('shared-setup'), true);
+      assert.equal(targets.includes('kit-gates-static'), true);
+    } finally { rmSync(root, { recursive: true, force: true }); }
+  });
+}

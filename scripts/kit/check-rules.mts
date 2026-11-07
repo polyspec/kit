@@ -236,6 +236,8 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
     const directory = path.join(root, folder);
     if (!existsSync(directory)) continue;
     for (const entry of readdirSync(directory).sort()) {
+      // The copied pipeline selects jobs from config/ci.json; scanning all its branches would count unselected checks.
+      if (path.posix.join(folder, entry) === PIPELINE) continue;
       const text = readFileSync(path.join(directory, entry), 'utf8');
       const script = folder === '.github/workflows' ? workflowLines(text).join('\n') : text;
       for (const words of commandsOf(script)) enter(words, new Map());

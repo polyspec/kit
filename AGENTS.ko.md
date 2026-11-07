@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 2e57d84a1ef84212d725d9112d2c423f94cfda93c3b1723f80b0a3cca97b3e39 -->
+<!-- source-sha256: a109306107e034ef35ba494421600184df6ae1d6ca3cb077acfa2f6cada940d9 -->
 # 개발
 
 [English](AGENTS.md)
@@ -16,8 +16,8 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Refines S12: `workflows/ci-pipeline.yml`은 검사 실행과 별도로 job 데이터를 계획합니다. Shared·parity·runtime 검사는 계획 출력에만 의존하고 자신의 checkout과 setup으로 독립적으로 실행합니다. Shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 job을 판정하며 선택된 job이 건너뛰어도 실패합니다.
   Enforced by: `tests/kit/gates-workflow.test.mts`
 
-- Own: Phase로 나눈 각 parity binding job은 repository가 config/ci.json의 parityBindings에 명시한 tool과 setup target을 실행합니다. Implementation 집합은 config/parity.json과 정확히 일치해야 합니다. 빈 배열은 setup이 없다는 뜻이며 kit은 binding에 runtime이나 extractor 설치를 추론하여 추가하지 않습니다. Build unit·fixture·artifact는 repository의 책임입니다.
-  Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`
+- Own: Phase로 나눈 각 parity binding job은 repository가 config/ci.json의 parityBindings에 명시한 tool과 setup target을 실행합니다. Implementation 집합은 config/parity.json과 정확히 일치해야 합니다. 빈 배열은 setup이 없다는 뜻이며 kit은 binding에 runtime이나 extractor 설치를 추론하여 추가하지 않습니다. Build unit·fixture·artifact는 repository의 책임입니다. 규칙 검사기는 검증된 CI job 선택을 사용한다. 선택되지 않은 job은 강제 증거가 아니다.
+  Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `tests/kit/check-rules.test.mts`
 
 - Own: Kit 변경 요청은 GitHub issue에서 추적합니다. 각 issue에 구현 진행 상황, 검증 근거와 release 상태를 기록하고,
   명시된 acceptance 조건을 충족한 뒤에만 닫습니다.

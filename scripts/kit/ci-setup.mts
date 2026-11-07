@@ -207,15 +207,27 @@ function plan(root: string): CIPlan {
 
 export function ciPlan(root: string = repositoryRoot()): CIPlan { return plan(root); }
 
-/** Every Make target that config/ci.json names, which the CI pipeline runs: the setup, context and declared targets (K910). */
+/** The checks, setup and contexts of only the jobs selected by the validated CI declarations. */
 export function ciConfigTargets(root: string): string[] {
-  const config = readConfig<CIConfig>(root, CI_CONFIG, 'ci.schema.json');
-  return [...new Set([
-    ...config.setup.shared, ...config.setup.parity, ...Object.values(config.setup.runtimes).flat(),
-    ...Object.values(config.parityBindings ?? {}).flatMap(binding => binding.setup),
-    ...Object.values(config.contexts ?? {}).flatMap(({ prepare, cleanup }) => [prepare, cleanup]),
-    ...(config.targets?.shared ?? []), ...(config.targets?.parity ?? []), ...Object.values(config.targets?.runtimes ?? {}).flat(),
-  ])];
+  const { config, runtimes, files, db, parityMode, parityImplementations } = readAndValidate(root);
+  const contexts = (scope: CIJob): string[] => Object.values(config.contexts?.[scope] ?? {});
+  const targets = ['kit-gates-static', ...config.setup.shared, ...(config.targets?.shared ?? []), ...contexts('shared')];
+  if (parityMode !== 'none') {
+    targets.push(...config.setup.parity, ...(config.targets?.parity ?? []), ...contexts('parity'));
+    if (parityMode === 'full') targets.push('kit-gates-parity');
+    else {
+      targets.push('parity-api-check');
+      for (const implementation of parityImplementations) {
+        targets.push(`parity-bindings-${implementation}-check`,
+          ...present(config.parityBindings?.[implementation], `${CI_CONFIG} parityBindings.${implementation}`).setup);
+      }
+    }
+  }
+  for (const runtime of runtimes) {
+    targets.push(`kit-gates-runtime-${runtime}`, ...runtimeSetup(runtime, config, files, db.targets).map(entry => entry.target),
+      ...(config.targets?.runtimes?.[runtime] ?? []), ...contexts(runtime));
+  }
+  return [...new Set(targets)];
 }
 
 /** The setup of `runtime`: its declared targets or its deps target. */

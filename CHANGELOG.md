@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- CI: derive rule enforcement from validated job selection, include phased binding checks and reject evidence from unselected pipeline jobs (K1031, issue #26).
+
 ## 0.0.96
 
 - CI: name the provider workflow in its repository rule and keep bootstrap verification on the separate planning job and every independent check job (K1030).
