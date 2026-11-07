@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.96
+
+- Release: prepare Kit 0.0.96 with explicit parity binding setup for repository-owned CI plans (K1027).
+
 - CI: parity binding jobs install only repository-declared tools and setup targets, require an exact implementation map and inherit no unrelated runtime setup or symbol extractors (K1026).
 
 ## 0.0.95

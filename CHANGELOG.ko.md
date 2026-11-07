@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: e0b2f05cc5b435eaa374a832a5e3596194aacff41c6454a85e9663f4b75a4bf4 -->
+<!-- source-sha256: 42fdafb23d7581bb352027140f942dc5ceabb89db6a9ffd7e836d2a66b3eb2dc -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.96
+
+- Release: repository가 소유하는 CI 계획의 명시적 parity binding setup을 담는 Kit 0.0.96 후보를 준비한다 (K1027).
 
 - CI: parity binding job은 repository가 선언한 tool과 setup target만 설치하고 정확한 implementation 대응을 요구하며 관계없는 runtime setup이나 symbol extractor를 상속하지 않는다 (K1026).
 
