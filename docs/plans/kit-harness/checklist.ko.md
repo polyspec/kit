@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 0fc62d793817dc4b05e1c9ea0e566e70e55f499d7abd3d275121aff77732d0d2 -->
+<!-- source-sha256: d78accd04af82d81462a728391591e79adc51d3bdcf67df88538ac38e7822ca0 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -181,3 +181,4 @@
 | K1050 | lint 유틸리티는 각 도구를 저장소의 설정으로 실행하고, kit의 설정은 예제가 된다 | `scripts/kit/lint-*.mts`, `docs/examples/`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1050 tests/kit/lint-steps.test.mts` | [ ] |
 | K1051 | kit-check와 bypass-check는 저장소의 레시피와 workflow를 판정하지 않는다 | `scripts/kit/kit-check.mts`, `scripts/kit/recipe-tools.mts`, `scripts/kit/bypass-check.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1051 tests/kit/kit-check.test.mts` | [ ] |
 | K1052 | kit-sync는 저장소에 복사본을 쓰지 않고, 복사되던 workflow, action, 설정은 예제가 된다 | `scripts/kit/kit-sync.mts`, `package.json` kit.copies, `workflows/`, `actions/`, `docs/examples/`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1052 tests/kit/kit-sync.test.mts` | [ ] |
+| K1053 | 유틸리티는 kit의 규칙으로 명령, 커밋, 트리를 거부하지 않는다 | `scripts/kit/claude-hook.mts`, `scripts/kit/git-hooks.mts`, `scripts/kit/ci-targets.mts`, `scripts/kit/land.mts`, `scripts/kit/plan.mts`, `scripts/kit/ci-setup.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1053 tests/kit/land.test.mts` | [ ] |
