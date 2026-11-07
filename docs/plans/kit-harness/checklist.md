@@ -183,3 +183,4 @@
 | K1053 | Utilities refuse no command, commit or tree by a rule of kit | `scripts/kit/claude-hook.mts`, `scripts/kit/git-hooks.mts`, `scripts/kit/ci-targets.mts`, `scripts/kit/land.mts`, `scripts/kit/plan.mts`, `scripts/kit/ci-setup.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1053 tests/kit/land.test.mts` | [ ] |
 | K1054 | kit includes no recipe into a repository; kit.mk and kit-bootstrap.mk become examples | `scripts/kit/kit.mk`, `scripts/kit/kit-bootstrap.mk`, `Makefile`, `docs/examples/`, `AGENTS.md(.ko)`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1054 tests/kit/kit-bootstrap.test.mts` | [ ] |
 | K1055 | PRINCIPLES names no check that kit no longer forces | `PRINCIPLES.md(.ko)`, `CHANGELOG.md(.ko)` | `make rules-check` passes | [ ] |
+| K1056 | Release kit with the removals of docs/spec/utilities-and-recipes | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [ ] |

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 065aa430ae38860ae5db2b6e3f46fe6ff322862481b56a9bbfd3109d30992676 -->
+<!-- source-sha256: b9fb165c8cf1c095249a27bb08ecde2c1a86e4936cc055b171121be96b45800a -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -184,3 +184,4 @@
 | K1053 | 유틸리티는 kit의 규칙으로 명령, 커밋, 트리를 거부하지 않는다 | `scripts/kit/claude-hook.mts`, `scripts/kit/git-hooks.mts`, `scripts/kit/ci-targets.mts`, `scripts/kit/land.mts`, `scripts/kit/plan.mts`, `scripts/kit/ci-setup.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1053 tests/kit/land.test.mts` | [ ] |
 | K1054 | kit은 저장소에 레시피를 include시키지 않고, kit.mk와 kit-bootstrap.mk는 예제가 된다 | `scripts/kit/kit.mk`, `scripts/kit/kit-bootstrap.mk`, `Makefile`, `docs/examples/`, `AGENTS.md(.ko)`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1054 tests/kit/kit-bootstrap.test.mts` | [ ] |
 | K1055 | PRINCIPLES는 kit이 더는 강제하지 않는 검사를 적지 않는다 | `PRINCIPLES.md(.ko)`, `CHANGELOG.md(.ko)` | `make rules-check` passes | [ ] |
+| K1056 | docs/spec/utilities-and-recipes의 삭제를 담아 kit을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [ ] |
