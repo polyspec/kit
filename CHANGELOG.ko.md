@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 50109f73ad2d5304aaf35c33b91d25334be01e7f5547b8e9f394d38852851a41 -->
+<!-- source-sha256: 71014335078a8168b99318fa07386d34238c4145aa4101cba193fb56d07d1d3d -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -9,6 +9,7 @@
 ## 0.0.98
 
 - Release: kit은 유틸리티와 예시를 담고 저장소에 아무것도 강제하지 않는다. docs/spec/utilities-and-recipes의 삭제(K1045, K1048–K1055, K1057, K1059–K1062), rules-check 수정 K1063–K1065, K1042–K1044의 process 수정을 담는다(K1056).
+- K1066: kit의 CI test shard는 K1050이 추가한 tests/kit/lint-steps.test.mts를 담으므로, CI의 shard 목록이 tests/kit의 모든 test file을 담습니다(K1066).
 - K1065: rules-check는 이제 package의 의존성인 YAML parser yaml로 각 workflow를 읽고, step을 자기 job의 matrix에 있는 literal 값으로 펼칩니다. 각 목록과 include 목록 각 항목의 scalar를 읽으므로 `${{ matrix.targets }}`를 적는 step은 각 항목의 target에 도달하고, job은 다른 job의 matrix 값에 도달하지 않습니다(K1065).
 - K1064: rules-check는 다른 folder의 -C나 --directory, 또는 다른 파일의 -f, --file, --makefile로 다른 Makefile을 실행하는 make로는 루트 Makefile의 target에 도달하지 않습니다. ./Makefile이나 $(CURDIR)처럼 루트나 그 makefile을 가리키는 경로는 같은 Makefile입니다(K1064).
 - K1063: rules-check는 recipe 줄을 변수 전개 뒤 make 접두사 @, -, + 없이 읽고 백슬래시로 끝나는 줄을 다음 줄과 이어 읽으므로, `@$(MAKE) -k gates`도 그 make가 실행하는 gate에 도달합니다(K1063).
