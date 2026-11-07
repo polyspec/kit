@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url';
 import { lint, lintSteps } from '../../scripts/kit/lint-ts.mts';
 import { runLint } from '../../scripts/kit/lint-steps.mts';
 import { readFixture } from '../kit/json-fixture.mts';
+import { readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 import { known } from '../kit/known.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -44,8 +45,7 @@ const GOOD: Record<string, string> = {
   'benchmarks/run.mts': "console.log('run');\n",
   // The project covers every TypeScript file that lint-ts lints, the tests and the scripts too, so oxlint-tsgolint checks
   // their types: a file outside it has no types, and each call of an import is an unsafe call of an error type (K157). The
-  // build emits only src. The project leaves out the copies of kit in scripts/kit (KIT_COPIES), which lint-ts leaves out of
-  // oxlint (K157).
+  // build emits only src.
   'tsconfig.json': JSON.stringify(TSCONFIG, null, 2),
   'tsconfig.build.json': JSON.stringify(TSCONFIG_BUILD, null, 2),
   'api-extractor.json': '',
@@ -87,11 +87,8 @@ const VIOLATIONS: { name: string; files: Record<string, string>; finding: RegExp
   { name: 'a catch that only rethrows', files: { [INDEX]: `${DOUBLE}\n/**\n * Doubles one.\n */\nexport function rethrow(): number {\n  try {\n    return double(1);\n  } catch (error) {\n    throw error;\n  }\n}\n` }, finding: /eslint\(no-useless-catch\)/, step: 'oxlint' },
 ];
 
-// The package.json of this checkout: the version of kit that the lock of the repository resolves, and the copies of kit in
-// TypeScript that a consumer holds (kit.copies, which kit-sync writes): the path in the consumer and the file of kit.
-const KIT = readFixture<{ version: string; kit: { copies: Record<string, string> } }>(ROOT, 'package.json');
-const KIT_COPIES = Object.entries(KIT.kit.copies).filter(([file]) => file.endsWith('.mts'));
-const COPY = 'scripts/kit/legacy-helper.mts';
+// The package.json of this checkout: the version of kit that the lock of the repository resolves.
+const KIT = readFixture<{ version: string }>(ROOT, 'package.json');
 
 /** Writes `files` below `root`. */
 function write(root: string, files: Record<string, string>) {
@@ -108,32 +105,24 @@ const run = (root: string, command: string, ...args: string[]) => spawnSync(path
  * checkout and its node_modules; the package is built and its API report written, as a repository commits it. `report`
  * false makes the api-extractor.json of the package turn the report off.
  */
-function repository(t: TestContext, files: Record<string, string> = {}, { report = true, legacyCopy = false } = {}): string {
+function repository(t: TestContext, files: Record<string, string> = {}, { report = true } = {}): string {
   const root = mkdtempSync(path.join(tmpdir(), 'kit-lint-ts-real-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const extractor = { extends: path.join(root, 'config/api-extractor.kit.json'), mainEntryPointFilePath: '<projectFolder>/dist/index.d.ts', ...(report ? {} : { apiReport: { enabled: false } }) };
-  // The copies of kit come first, so that `files` can plant a violation into one. node_modules holds the packages of this
-  // checkout and, as @polyspec/kit, this checkout, the version that package-lock.json resolves, as make install-packages
-  // installs it in a consumer.
-  for (const [file, from] of KIT_COPIES) {
-    mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
-    copyFileSync(path.join(ROOT, from), path.join(root, file));
-  }
+  // node_modules holds the packages of this checkout and, as @polyspec/kit, this checkout, the version that package-lock.json
+  // resolves, as make install-packages installs it in a consumer.
   const lock = { lockfileVersion: 3, packages: { 'node_modules/@polyspec/kit': { version: KIT.version } } };
   write(root, { ...GOOD, 'api-extractor.json': JSON.stringify(extractor, null, 2), 'package-lock.json': JSON.stringify(lock), ...files });
   mkdirSync(path.join(root, 'config'), { recursive: true });
   for (const file of ['.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json']) copyFileSync(path.join(ROOT, file), path.join(root, file));
+  // The consumer runs @polyspec/kit only through the include of its Makefile, which knip does not read, so its own knip.json
+  // names it among the dependencies that knip ignores (K1050).
+  const knip = readJsonObject(root, 'knip.json');
+  const ignored: unknown[] = Array.isArray(knip.ignoreDependencies) ? knip.ignoreDependencies.filter((name: unknown) => typeof name === 'string') : [];
+  writeFileSync(path.join(root, 'knip.json'), `${JSON.stringify({ ...knip, ignoreDependencies: [...ignored, '@polyspec/kit'] }, null, 2)}\n`);
   mkdirSync(path.join(root, 'node_modules/@polyspec'), { recursive: true });
   for (const entry of readdirSync(path.join(ROOT, 'node_modules'))) symlinkSync(path.join(ROOT, 'node_modules', entry), path.join(root, 'node_modules', entry));
-  const installedKit = path.join(root, 'node_modules/@polyspec/kit');
-  if (legacyCopy) {
-    // Older kit releases declared TypeScript copies. Keep that supported installation contract explicit in this fixture.
-    mkdirSync(installedKit);
-    for (const entry of readdirSync(ROOT)) {
-      if (entry !== 'package.json') symlinkSync(path.join(ROOT, entry), path.join(installedKit, entry));
-    }
-    writeFileSync(path.join(installedKit, 'package.json'), JSON.stringify({ ...KIT, kit: { ...KIT.kit, copies: { ...KIT.kit.copies, [COPY]: COPY } } }));
-  } else symlinkSync(ROOT, installedKit);
+  symlinkSync(ROOT, path.join(root, 'node_modules/@polyspec/kit'));
   const build = run(root, 'tsc', '-p', 'tsconfig.build.json');
   assert.equal(build.status, 0, `${build.stdout}${build.stderr}`);
   // The API report that a repository commits in etc/: --local writes it, also for a planted violation, whose error still fails.
@@ -197,11 +186,11 @@ test('the TypeScript lint passes on toExponential(25), which ES2018 allows', (t)
   assert.deepEqual(failed, [], output);
 });
 
-// The copies of kit are kit's to lint, with its tsconfig and the types of node; kit-check proves that they are its bytes. A
-// violation in a copy passes the lint of the consumer, and the same violation in a file of the consumer fails (K157).
-test('the TypeScript lint of a consumer leaves out the copies of kit and lints its own files (K157)', (t) => {
-  const copy = lintOf(repository(t, { [COPY]: 'export const legacy = 1;\ndebugger;\n' }, { legacyCopy: true }));
-  assert.deepEqual(copy.failed, [], copy.output);
+// Every file of a consumer is its own, one under scripts/kit too: a violation there fails the lint (K1052).
+test('the TypeScript lint of a consumer lints every file of the consumer (K1052)', (t) => {
+  const kit = lintOf(repository(t, { 'scripts/kit/helper.mts': 'export const helper = 1;\ndebugger;\n' }));
+  assert.ok(kit.failed.includes('oxlint'), kit.output);
+  assert.match(kit.output, /scripts\/kit\/helper\.mts:.*eslint\(no-debugger\)/);
   const own = lintOf(repository(t, { 'scripts/build.mts': "console.log('build');\ndebugger;\n" }));
   assert.deepEqual(own.failed, ['oxlint'], own.output);
   assert.match(own.output, /scripts\/build\.mts:.*eslint\(no-debugger\)/);

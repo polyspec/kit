@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 2fe9ae619109516861ec84f8f18e161da15ac89fac7f5ebfcd03c71ae18c1791 -->
+<!-- source-sha256: cfc3bb9122118fa96253f5f2bb20eaac4ac582e9e57f3ae556420f2a020faf39 -->
 
 # 도구 목록
 
@@ -196,8 +196,8 @@ S5(폴더), S7(test 위치)의 위치 부분, S9의 TypeScript 규칙은 kit의 
 
 - `make layout-check`는 `var/tools/mise/shims/alint check --config config/layout.yml .`을 실행합니다(offline). `mise.toml`의
   `"github:asamarts/alint"`가 release를 선언하고 `mise.lock`이 platform별 archive의 sha256을 고정합니다(K127).
-- `config/layout.kit.yml`은 공통 rule과 template을 담습니다. 사본(package.json의 `kit.copies`)이므로 kit-sync가 설치된 package에서 쓰고
-  레포는 이 파일을 고치지 않습니다. alint는 `extends:` 대상을 그것을 적은 설정의 폴더에서만 읽기
+- `config/layout.kit.yml`은 공통 rule과 template을 담습니다. package는 이를 예시로 담습니다. 그 rule을 원하는 저장소는 복사해
+  사본을 자기 것으로 가지며, kit은 그 사본을 쓰지도 비교하지도 않습니다(K1052). alint는 `extends:` 대상을 그것을 적은 설정의 폴더에서만 읽기
   때문에 이 파일은 `config/`에 있습니다.
 - 레포의 `config/layout.yml`은 이 파일을 extends하고 자기 map을 더합니다. 자기 이름으로 template `no-repository-prefix`와
   `go-module-path`의 instance를 두고, port가 있는 component마다 `component-ports` instance를 하나 두며, rule id로 override합니다
@@ -391,8 +391,8 @@ K809가 쌍의 규칙을 지웠습니다: `pair-missing`, `doc-id`, `revision`, 
 찾고, `config/rebuild.json`은 그것을 분류만 한다(`tools`, `kind`는 `ecosystem`, `replaced`, `record`, `policy`이며 kind마다
 필요한 field가 있다). path 목록이 없으므로 저장소는 gate가 보는 범위를 좁힐 수 없다. tool source는 `scripts/`, `packages/*/`와
 `packages/*/*/`의 `scripts|tools|bin`, `benchmarks/`, `examples/` 아래의 script와 program(`mts`, `mjs`, `cjs`, `js`, `ts`,
-`py`, `php`, `sh`, `mk`), `*_generate.go`와 `*.generate.<script>` generator, `tests/fixtures/*/generate.*`이다. test 파일,
-`.d.ts`, kit이 아닌 저장소에 있는 kit의 copy(`kit.copies`)는 아니다. class가 없는 tool source는 finding이고, tracked가 아닌
+`py`, `php`, `sh`, `mk`), `*_generate.go`와 `*.generate.<script>` generator, `tests/fixtures/*/generate.*`이다. test 파일과
+`.d.ts`는 아니다. 그 밖의 파일은 kit에서 복사한 것도 저장소 자신의 것이다(K1052). class가 없는 tool source는 finding이고, tracked가 아닌
 파일의 class도 finding이다.
 
 ## Divergence check (K315)
@@ -628,8 +628,7 @@ go.mod의 module path에 연결합니다.
   설정에서 옵니다(orm은 `assets.txt`를 썼음).
 - `coverage`: 추적되거나 새로운 모든 package.json, composer.json, Cargo.toml, pyproject.toml, go.mod, VERSION file은 `manifests`, `notReleased`,
   `goModules` 중 하나에 있습니다(template test, orm `unlistedManifests`); 목록에 있지만 없는 file과 두 목록에 있는 file은 결과로 보고합니다(orm, 더 넓음).
-  kit이 쓰는 file은 릴리스되지 않으며 항목이 필요 없습니다(K167): Node의 `@polyspec/kit/package.json` self-reference로 찾은 실행 중인
-  package의 `kit.copies` 사본(make kit-sync), PHPUnit의 Composer project `config/phpunit/composer.json`(make install-tools),
+  kit이 쓰는 file은 릴리스되지 않으며 항목이 필요 없습니다(K167): PHPUnit의 Composer project `config/phpunit/composer.json`(make install-tools),
   `.mise/locks/` 아래 mise의 lock tree(make toolchain-lock)입니다.
 
 ### 버린 동작
@@ -717,8 +716,8 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
 |---|---|---|---|
 | `paths.mts` | working directory가 속한 Git work tree의 top level인 `repositoryRoot()`(K144), `isMain(import.meta.url)` | 22개 module이 계산하던 root 경로와 21곳의 `process.argv[1] === ...` 검사 | 기본 root를 쓰는 모든 command와 module |
 | `process.mts` | `execute`, `run`, `Stop` | release의 `run`, `encoding`과 `maxBuffer`를 적은 `spawnSync` 호출 | release, git |
-| `git.mts` | `git`, `gitResult` | full-run, push-gate, owner-check, kit-sync, tracked-files, target-report의 `git` helper와 git-hooks, check-commits, push-gate의 직접 `git` 호출 | 위 module들 |
-| `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | 약 25곳의 `JSON.parse(readFileSync(...))`, full-run, kit-sync, target-report, tool-wrappers, git-hooks의 임시 파일과 rename 쓰기 | 위 module들 |
+| `git.mts` | `git`, `gitResult` | full-run, push-gate, owner-check, tracked-files, target-report의 `git` helper와 git-hooks, check-commits, push-gate의 직접 `git` 호출 | 위 module들 |
+| `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | 약 25곳의 `JSON.parse(readFileSync(...))`, full-run, target-report, tool-wrappers, git-hooks의 임시 파일과 rename 쓰기 | 위 module들 |
 | `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | check-documents와 kit-check의 `sha256`, install-composer(K127에서 사라짐)의 `digest` | 위 module들 |
 | `time.mts` | `now`, `seconds`, `compactSeconds` | ci-targets와 full-run의 `now`, full-run과 target-report의 `seconds`(`1.2 s`), test-progress와 test-hooks의 `seconds`(`1.2s`) | 위 module들 |
 | `findings.mts` | `finding` | status-table과 changelog의 `finding` | status-table, changelog |
@@ -759,7 +758,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   요구합니다. kit의 checkout은 gate의 source이므로 검사하지 않습니다.
 - `workflows/ci-pipeline.yml`(`on: workflow_call`, K910)은 같은 `kit-gates` prerequisite를 shared, parity, runtime job으로 나눕니다.
   저장소의 ci.yml이 이를 job `kit`으로 호출하고, 독립적인 저장소 job은 함께 실행합니다. 마지막 `ci-passed` job은 다른 모든 job을 needs로 요구하므로 run 하나가 commit의 모든 job을 담습니다. 파이프라인, release.yml, 저장소 workflow의 모든 job은 composite action 하나인
-  `actions/kit-bootstrap/action.yml`로 bootstrap합니다. kit-sync가 이를 `.github/actions/kit-bootstrap/action.yml`로 vendor하고,
+  `actions/kit-bootstrap/action.yml`로 bootstrap합니다. 이는 저장소가 `.github/actions/kit-bootstrap/action.yml`로 복사해 자기 것으로 가지는 예시이며(K1052),
   job은 checkout 뒤에 `uses: ./.github/actions/kit-bootstrap`으로 실행합니다. mise.toml의 Node.js, lock된 kit package,
   var/tools의 npm과 package를 설치하며, INSTALL_PACKAGES_EXTRA에 PHP가 필요한 job은 그 앞에서 PHP를 설정합니다. K1051 전까지
   `make kit-check`는 bootstrap 복사본을 담은 저장소 workflow의 각 줄을 적었습니다(K992, K996). action은
@@ -854,8 +853,8 @@ ruff pin은 pyproject.toml에 두지 않습니다. wheel을 배포하는 라이�
 
 K1050부터 각 lint 유틸리티는 kit의 설정이나 규칙 없이 도구를 실행합니다. golangci-lint, ruff, phpcs, PHPStan, clippy,
 oxlint, knip은 도구 자신의 탐색 규칙으로 저장소의 설정(`.golangci.yml`, `ruff.toml` 또는 `[tool.ruff]`, `phpcs.xml.dist`,
-`phpstan.dist.neon`, `Cargo.toml`의 `[lints]`와 `clippy.toml`, `.oxlintrc.json`, `knip.json`)을 읽고, kit-sync는 그중 어느 것도
-지우지 않습니다. 아래에 적힌 파일은 kit 자신의 설정이며, [docs/examples/native-settings](../examples/native-settings.ko.md)가
+`phpstan.dist.neon`, `Cargo.toml`의 `[lints]`와 `clippy.toml`, `.oxlintrc.json`, `knip.json`)을 읽고, kit은 그중 어느 것도
+쓰지 않습니다. 아래에 적힌 파일은 kit 자신의 설정이며, [docs/examples/native-settings](../examples/native-settings.ko.md)가
 작동하는 예제로 제공합니다. `config/knip-entries.json`, `var/lint-ts/knip.json`, reporter `knip-ignore-hints.mts`는 삭제되었습니다.
 저장소는 entry, binary, ignore, workspace를 자기 `knip.json`에 적습니다. 아래 문단은 K1050 이전의 설계를 기록합니다.
 
@@ -869,7 +868,7 @@ fixture이며, 각 fixture는 자기 위반에서 실패합니다. 모든 도구
 |---|---|---|---|
 | Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml` | `lint-python.mts`: 루트에서 ruff, 각 package의 Python 파일에 그 폴더에서 vulture, 각각 저장소의 설정으로(K1050) |
 | PHP | phpcs 4.0.4, PHPStan 2.3.1, phpstan/extension-installer 1.4.3, spaze/phpstan-disallowed-calls 4.15.0, shipmonk/phpstan-rules 4.4.1 (Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon` (ShipMonk의 caught-exception cause rule만 활성화); `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: checkout의 PHP 파일에 phpcs; 각 Composer package에 그 package 또는 그 위의 가장 가까운 Composer project(Composer monorepo의 root development project 등)의 `vendor/autoload.php`로 PHPStan(`composer-vendor.mts`, run-tests와 공유; `COMPOSER_VENDOR_DIR`는 다른 vendor directory를 지정) |
-| Rust | `rust-toolchain.toml`의 cargo clippy | `lint-cargo-lints` (`config/cargo.schema.json`), `clippy.toml` (P8: `Result::ok`, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`에 대한 `disallowed-methods`) | `lint-rust.mts`: 각 workspace에서 그 `Cargo.toml`의 `[lints]`로 `cargo clippy --workspace --all-targets --locked`(K1050); `kit-gates`의 member |
+| Rust | `rust-toolchain.toml`의 cargo clippy | `clippy.toml` (P8: `Result::ok`, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`에 대한 `disallowed-methods`) | `lint-rust.mts`: 각 workspace에서 그 `Cargo.toml`의 `[lints]`로 `cargo clippy --workspace --all-targets --locked`(K1050); `kit-gates`의 member |
 | Go | golangci-lint 2.14.0, golang.org/x/tools 0.52.0의 deadcode (`mise.toml`) | `.golangci.yml`: error string은 spec의 대소문자를 유지하는 cross-port message이므로 ST1005 없는 staticcheck, 모든 finding 보고(`max-same-issues`와 `max-issues-per-linter` 0; K164) | `lint-go.mts`: 각 module에서 golangci-lint와 `deadcode -test ./...` |
 | TypeScript | oxlint 1.90.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (kit의 dependencies, kit과 함께 설치) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: oxlint(`.oxlintrc.json`의 `options.typeAware`로 type-aware), knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
 | 전체 | — | `.editorconfig` | 없음: 각 언어의 formatter가 같은 규칙을 강제합니다 |
@@ -906,10 +905,10 @@ Go의 `%v`/`%w` 쌍은 format된 오류 wrapping을 검사하지만 같은 sourc
 
 TypeScript lint는 설치된 kit provider에서 Node의 native package lookup으로 선언된 dependency package를 해석해요. 각 package가 선언한 실행 파일을 실행하고 native backend bin directory를 oxlint에 제공해요. Linked source 설치와 packed 설치는 같은 lookup을 사용하며 consumer root의 transitive bin link를 요구하지 않아요.
 
-make target과 사본(`kit.copies`)은 kit package 위에서 연결합니다. bootstrap 이후에 `toolchain-mise.mts`가 `mise.toml`의 lint 도구를,
+make target은 kit package 위에서 연결합니다. bootstrap 이후에 `toolchain-mise.mts`가 `mise.toml`의 lint 도구를,
 `toolchain-lint.mts`가 PHP lint를 읽고, `make install-tools`가 vulture, golangci-lint, deadcode, 그리고
 PHP를 선언한 저장소(config/toolchain.json의 `php` 또는 `.php-version`)에서 `config/php-lint/composer.lock`이 고정한 release의
-phpcs와 PHPStan을 설치합니다. 모든 저장소가 그 사본을 가지며, 저장소가 선언하지 않은 도구는 설치하지 않습니다.
+phpcs와 PHPStan을 설치합니다. 저장소가 선언하지 않은 도구는 설치하지 않습니다.
 
 ### 결정
 
@@ -986,13 +985,9 @@ phpcs와 PHPStan을 설치합니다. 모든 저장소가 그 사본을 가지며
   `no-floating-promises`는 typescript-eslint가 node:test를 위해 둔 option, package `node:test`의 `test`, `describe`, `it`,
   `suite`, `skip`, `only`, `todo`를 담은 `allowForKnownSafeCalls`를 받습니다(K138): 최상위 등록은 runner가 기다리는 promise를
   돌려주는데 이 규칙이 그 하나하나를 실패시켰고(crudui에서 516개), test 파일에서 await하지 않은 `fetch`는 여전히 실패합니다
-  (fixture). subtest `t.test`도 이름이 `test`이며, Node 26의 runner는 그것을 기다립니다. consumer의 tsconfig는 자기 script를
-  담고 `scripts/kit`의 kit 사본은 담지 않으므로, oxlint-tsgolint는 그 사본을 project 밖에서 node의 type 없이 검사하게 되고
-  거기서는 모든 `node:*` import가 `any`입니다(K150). 그래서 consumer에서 lint-ts는 설치된 package의 `kit.copies`, 곧 kit-sync가
-  쓰는 기록의 각 파일마다 oxlint에 `--ignore-pattern`을 하나씩 줍니다: kit은 자기 사본을 자기
-  tsconfig로 lint합니다. 설정 파일의 pattern은 그 파일의 directory를 기준으로 하므로 pattern은 명령줄로 갑니다. fixture
-  consumer에서 사본에 심은 위반은 통과하고 자기 script의 같은 위반은 실패하며, 설치된 kit이 lock된 version이 아니면
-  kit-check처럼 실패합니다(K157). type의 비상구는 실패합니다(K155): `ban-ts-comment`는 `@ts-ignore`와
+  (fixture). subtest `t.test`도 이름이 `test`이며, Node 26의 runner는 그것을 기다립니다. K1052 전까지 lint-ts는 consumer의
+  kit 사본마다 oxlint에 `--ignore-pattern`을 하나씩 주었습니다(K150, K157). 이제 kit은 사본을 쓰지 않으므로 oxlint는 저장소의
+  모든 파일을 lint하며, 그 tsconfig가 그것을 담습니다. type의 비상구는 실패합니다(K155): `ban-ts-comment`는 `@ts-ignore`와
   `@ts-nocheck`를 금지하고 `@ts-expect-error`에 설명을 요구하며(아무 error도 없으면 tsc 자신이 실패시킵니다),
   `no-explicit-any`와 `no-unnecessary-type-assertion`이 켜져 있습니다. fixture가 각각을 심습니다. `oxc/number-arg-out-of-range`는 꺼져
   있습니다(K161): 이 rule은 `toFixed`와 `toExponential`의 소수 자릿수 0에서 20, precision 1에서 21만 허용하는데, 이는 ES2018이
@@ -1034,10 +1029,10 @@ link하며(make install-link, docs/operations/local-links.md) 아무것도 내�
 
 ## Release workflow, tool과 draft (K38)
 
-- `workflows/release.yml`은 사본 `.github/workflows/release.yml`의 원본입니다(package.json의 `kit.copies`). `make kit-sync`가 설치된 package에서 이를 씁니다.
+- `workflows/release.yml`은 저장소가 `.github/workflows/release.yml`로 복사해 자기 것으로 가지는 예시입니다(K1052).
 - `make release-prepare`는 sibling release의 checkout처럼 저장소의 release가 release-tools 전에 필요로 하는 준비를 실행합니다:
   kit.mk는 이를 일이 없는 double-colon target으로 선언하고, 저장소는 Makefile에 `release-prepare::` 규칙을 더합니다(K132).
-  vendor된 release workflow는 install-packages 다음에 이를 실행합니다.
+  예시 release workflow는 install-packages 다음에 이를 실행합니다.
 - `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에 Composer package, wheel 또는 Go module이 있으면
   install-tools를 실행합니다. npm package에 필요한 npm은 bootstrap의 npm입니다. packages/php-ext가 있으면 install-kit처럼,
   make entry(K930)는 단계를 더하지 않습니다. target이 PHP를 필요로 하는 저장소는 `release-prepare::` 규칙에서 `make install-tools TOOLS="php"`로 설치합니다.
@@ -1330,7 +1325,7 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
 
 ### Repository 연결
 
-1. `make kit-sync` 뒤에 `config/parity.json`을 씁니다. 모든 implementation, vector 파일마다 suite unit, 공개 개념마다
+1. `config/parity.json`을 씁니다. 모든 implementation, vector 파일마다 suite unit, 공개 개념마다
    API unit을 선언합니다. shared unit은 모든 implementation에서 성립하고 owner-scoped feature나 suite는 선언된 owner에서 성립합니다.
 2. 각 binding의 native test가 suite의 case마다 runner의 이름으로 그 case를 보고하게 합니다(Runner 표 참고). Go에서는 subtest
    `<symbol>/<case>`, cargo에서는 test `<symbol>::<case>`, node:test에서는 이름이 `<case>`인 최상위 test, PHPUnit에서는 binding이

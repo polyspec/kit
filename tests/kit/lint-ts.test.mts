@@ -1,7 +1,7 @@
 // Tests of the TypeScript lint: oxlint type-aware and knip run from the root with the configuration of the repository
 // (K1050), API Extractor in each package with an api-extractor.json, but not for the base configuration of kit; every step
-// runs after an earlier one failed, and a missing tool fails with the fix. In a consumer oxlint leaves out the copies of kit,
-// the files of kit.copies of the installed package (K157); kit itself lints them. The tools are stubs.
+// runs after an earlier one failed, and a missing tool fails with the fix. oxlint lints every file of the repository, which
+// owns each one (K1052). The tools are stubs.
 import assert from 'node:assert/strict';
 import { chmodSync, mkdirSync, renameSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -17,8 +17,8 @@ const FILES: Record<string, string> = {
   'packages/ts/src/index.ts': '',
 };
 
-// The installed @polyspec/kit of a consumer: the version that package-lock.json resolves and the copies that it declares.
-const KIT = { name: '@polyspec/kit', version: '1.2.3', kit: { copies: { 'scripts/kit/bootstrap/files.mts': 'scripts/kit/bootstrap/files.mts', '.oxlintrc.json': '.oxlintrc.json' } } };
+// The installed @polyspec/kit of a consumer: the version that package-lock.json resolves.
+const KIT = { name: '@polyspec/kit', version: '1.2.3' };
 const MANIFEST = { name: 'consumer', devDependencies: { '@polyspec/kit': KIT.version } };
 const LOCK = { lockfileVersion: 3, packages: { 'node_modules/@polyspec/kit': { version: KIT.version } } };
 
@@ -51,7 +51,7 @@ function checkout(t: TestContext, { installed = ['oxlint', 'knip', 'api-extracto
 }
 
 const OXLINT = 'oxlint --format unix';
-const ALL = [`${OXLINT} --ignore-pattern=/scripts/kit/bootstrap/files.mts --ignore-pattern=/.oxlintrc.json [root]`, 'knip --no-progress [root]', 'api-extractor run [ts]'];
+const ALL = [`${OXLINT} [root]`, 'knip --no-progress [root]', 'api-extractor run [ts]'];
 
 test('oxlint and knip run from the root, and API Extractor in each package but not for the base configuration', (t) => {
   const { root, calls } = checkout(t);
@@ -59,18 +59,10 @@ test('oxlint and knip run from the root, and API Extractor in each package but n
   assert.deepEqual(calls(), ALL);
 });
 
-test('oxlint leaves out no file in kit itself, the source of the copies (K157)', (t) => {
-  const { root, calls } = checkout(t);
-  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: '@polyspec/kit', version: KIT.version, kit: KIT.kit }));
+test('oxlint leaves out no file of a consumer, and a consumer without package-lock.json lints too (K1052)', (t) => {
+  const { root, calls } = checkout(t, { omit: 'package-lock.json' });
   assert.deepEqual(lint(root, () => {}), []);
   assert.equal(calls()[0], `${OXLINT} [root]`);
-});
-
-test('a consumer without package-lock.json fails as kit-check does; another installed version passes (K157, K267)', (t) => {
-  const { root } = checkout(t);
-  writeFileSync(path.join(root, 'package-lock.json'), JSON.stringify({ lockfileVersion: 3, packages: { 'node_modules/@polyspec/kit': { version: '0.0.1' } } }));
-  assert.doesNotThrow(() => lintSteps(root));
-  assert.throws(() => lintSteps(checkout(t, { omit: 'package-lock.json' }).root), /package-lock\.json is missing; it locks @polyspec\/kit/);
 });
 
 // K309: vitest and node transpile without checking the types, so the gate runs tsc --noEmit in each project.

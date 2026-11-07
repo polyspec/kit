@@ -13,7 +13,6 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { matchesAny } from './glob.mts';
 import { isTestFile } from './check-commits.mts';
-import { installedKit, isSource } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { readConfigFindings } from './schema-validate.mts';
 import { trackedFiles } from './tracked-files.mts';
@@ -41,21 +40,16 @@ const TOOL_SOURCES = [
 // A test is no tool, and a fixture generator is the one test-side tool.
 const isToolSource = (file: string) => matchesAny(TOOL_SOURCES, file) && !file.endsWith('.d.ts') && (!isTestFile(file) || matchesAny(['tests/fixtures/*/generate.*'], file));
 
-/**
- * The tracked tool sources of `root`: the files of the layout, except the copies of the installed kit in a repository other than
- * kit (kit-check reports a repository whose kit is not installed).
- */
-export function toolSources(root: string, tracked: readonly string[]): string[] {
-  const kit = isSource(root) ? undefined : installedKit(root);
-  const copies = new Set(kit === undefined || 'finding' in kit ? [] : kit.copies.map(({ file }) => file));
-  return tracked.filter(file => isToolSource(file) && !copies.has(file));
+/** The tracked tool sources: the files of the layout; every one is the repository's own (K1052). */
+function toolSources(tracked: readonly string[]): string[] {
+  return tracked.filter(isToolSource);
 }
 
 /** The findings of `declaration` against the tracked files of `root`, sorted. */
 export function rebuildFindings(root: string, declaration: RebuildDeclaration, tracked: string[]): string[] {
   const findings: string[] = [];
   const files = new Set(tracked);
-  for (const file of toolSources(root, tracked)) {
+  for (const file of toolSources(tracked)) {
     if (!Object.hasOwn(declaration.tools, file)) findings.push(`${file}: the tool has no class in ${DECLARATION}; declare it ecosystem, replaced, record or policy`);
   }
   for (const [file, entry] of Object.entries(declaration.tools)) {

@@ -1,11 +1,11 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: 21c03ddc547be5b1d27af1a0ca235b2b15783ce62e3e1957d2eaf16803b2136c -->
+<!-- source-sha256: 20bcc5db48b1ac684689ba322ae418f668b908cc710d0dd08681b556ea9fa582 -->
 # 원칙
 
 [English](PRINCIPLES.md)
 
-이것은 모든 polyspec repository의 작업 원칙입니다. kit은 자기 tool을 받는 각 repository에 이 파일을 byte 그대로
-vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-inject-check`는 차이가 있으면 실패합니다. repository의 AGENTS.md는
+이것은 모든 polyspec repository의 작업 원칙입니다. kit은 이 파일을 package에 예시로 담습니다. 이 파일을 받는
+repository는 복사해서 그 사본을 자기 것으로 가지며, kit은 그 사본을 쓰지도 비교하지도 않습니다(K1052). repository의 AGENTS.md는
 여기로 link하고 자기만의 규칙만 적습니다. 원칙은 owner에게서 옵니다; 원칙은 kit에서만, 근거와 함께 바꿉니다.
 
 ## 책임
@@ -254,10 +254,10 @@ owner가 2026-10-13에 이 기준을 승인했습니다. 각 기준은 위반 �
   ci-targets나 ci-setup이 읽는 입력도 kit-gates의 prerequisite를 다시 지정하지 않습니다. kit 자신을 시험하는 kit의 ci.yml은 소비자
   CI가 아닙니다(K870, K910).
   Enforced by: none, 안내 규칙: kit은 저장소의 recipe, workflow, 파일을 검사하지 않는다(K1051).
-- S13 모든 저장소가 공유하는 규칙은 똑같이 주입됩니다. 설치된 kit의 `kit.copies`에 있는 각 사본(이 파일, ci-pipeline.yml,
-  release.yml 등)은 package의 byte 그대로이며, `make kit-sync`가 쓰고 kit에서만 고칩니다. scripts/kit은 그 사본만 담습니다.
-  kit 자신은 사본의 원천이므로 사본을 갖지 않습니다(K851).
-  Enforced by: `make kit-inject-check`
+- S13 공유 파일은 예시입니다. kit은 이 파일, ci-pipeline.yml, release.yml, bootstrap action, Claude Code 설정,
+  config/layout.kit.yml을 package에 담습니다. 그중 하나를 받는 저장소는 복사해서 그 사본을 자기 것으로 가지며, kit은 저장소의
+  파일을 쓰지도 비교하지도 않습니다(K1052).
+  Enforced by: none, 저장소가 어떤 예시를 받고 그 사본을 어떻게 바꿀지는 저장소의 선택입니다.
 - S15 느슨한 결합: core, plugin, sidecar, kit, spec, contract는 인터페이스로만 서로를 아는 part입니다. part는 다른 part의 설치된
   manifest가 선언한 인터페이스(npm package라면 package.json의 `exports`)로만 그 part에 닿고, 설치가 놓은 package와 설치 때 기록된
   JSON으로 그 part를 찾습니다. 그 인터페이스 너머의 다른 part 파일을 import, include, 읽기, build, 실행하지 않으며, 다른 checkout의

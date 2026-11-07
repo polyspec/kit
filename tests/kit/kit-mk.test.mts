@@ -2,7 +2,7 @@
 // a repository's kit-bootstrap.mk sets the built package (node_modules/@polyspec/kit/dist, mjs). kit.mk stops while either
 // is unset, and kit-test is kit's own target, since a repository holds no tests/kit.
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -12,7 +12,6 @@ import { fileURLToPath } from 'node:url';
 import { miseEnvironment } from '../../scripts/kit/bootstrap/install-mise.mts';
 import { packedFiles } from '../../scripts/kit/pack-manifest.mts';
 import { put, tree } from './tree.mts';
-import { initRepository } from './sandbox-repository.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const KIT_MK = path.join(ROOT, 'scripts/kit/kit.mk');
@@ -354,43 +353,3 @@ test('a consumer that starts with the packed kit runs the linked checkout\'s sou
   assert.deepEqual(result.stdout.trim().split('\n').slice(-2), [`top ${sources}`, sources]);
 });
 
-// K851: the rules that every repository shares are injected identically: kit-inject-check fails on a copy that differs from
-// the installed kit, writing nothing (K1058), and while git status shows a copy path whose working tree differs from the index, so a hand-edited copy is found until the synced copy is
-// staged or committed (K1007); kit's own checkout is the source and skips.
-test('K851: kit-inject-check fails on a hand-edited copy of a consumer until the synced copy is staged; kit skips it', (t) => {
-  const copy = 'PRINCIPLES.md';
-  const root = tree(t, {
-    Makefile: `include ${path.join(ROOT, 'scripts/kit/kit-bootstrap.mk')}\n`,
-    'package.json': `${JSON.stringify({ name: 'consumer', private: true, devDependencies: { '@polyspec/kit': '0.1.0' } })}\n`,
-    'package-lock.json': `${JSON.stringify({ name: 'consumer', lockfileVersion: 3, packages: { '': { name: 'consumer' }, 'node_modules/@polyspec/kit': { version: '0.1.0', dev: true } } })}\n`,
-    'node_modules/@polyspec/kit/package.json': `${JSON.stringify({ name: '@polyspec/kit', version: '0.1.0', kit: { copies: { [copy]: copy } } })}\n`,
-    [`node_modules/@polyspec/kit/${copy}`]: '# Principles\n',
-    '.gitignore': 'node_modules/\n',
-    [copy]: '# Principles, edited by hand\n',
-  });
-  initRepository(root);
-  execFileSync('git', ['add', '-A'], { cwd: root });
-  execFileSync('git', ['commit', '-q', '-m', 'consumer'], { cwd: root });
-  const check = () => spawnSync('make', ['--no-print-directory', 'kit-inject-check', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
-  const edited = check();
-  assert.notEqual(edited.status, 0, 'a hand-edited copy fails');
-  assert.match(edited.stderr, new RegExp(`${copy}`));
-  // K1058: the check writes no file, so the hand edit stays and a second check fails the same way.
-  assert.equal(readFileSync(path.join(root, copy), 'utf8'), '# Principles, edited by hand\n');
-  assert.notEqual(check().status, 0, 'the check wrote nothing, so the copy still differs');
-  // kit-sync writes the copy; until it is staged the working tree differs from the index (K1007).
-  assert.equal(spawnSync('make', ['--no-print-directory', 'kit-sync', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' }).status, 0);
-  const unstaged = check();
-  assert.notEqual(unstaged.status, 0, 'the commit still holds the hand edit after kit-sync wrote the copy');
-  assert.match(unstaged.stderr, new RegExp(` M ${copy}`));
-  // K1007: a staged copy is the one the commit will hold, so the check of an adoption passes before its commit.
-  execFileSync('git', ['add', copy], { cwd: root });
-  const staged = check();
-  assert.equal(staged.status, 0, staged.stdout + staged.stderr);
-  execFileSync('git', ['commit', '-q', '-m', 'kit-sync'], { cwd: root });
-  const synced = check();
-  assert.equal(synced.status, 0, synced.stdout + synced.stderr);
-  const kit = spawnSync('make', ['-n', '--no-print-directory', 'kit-inject-check'], { cwd: ROOT, encoding: 'utf8' });
-  assert.equal(kit.status, 0, kit.stderr);
-  assert.doesNotMatch(kit.stdout, /kit-sync/, 'kit is the source of the copies and runs no kit-sync');
-});

@@ -50,7 +50,7 @@ Each lint tool reads its configuration from the repository by its own rules. A r
 | phpcs, PHPStan | `phpcs.xml.dist`, `phpstan.dist.neon` | [`phpcs.xml.dist`](../../phpcs.xml.dist), [`phpstan.dist.neon`](../../phpstan.dist.neon) |
 | golangci-lint | `.golangci.yml` | [`.golangci.yml`](../../.golangci.yml) |
 | clippy | `[lints]` of `Cargo.toml`, `clippy.toml` | [`clippy.toml`](../../clippy.toml) |
-| oxlint, knip | `.oxlintrc.json`, `knip.json` | [`.oxlintrc.json`](../../.oxlintrc.json), [`knip.json`](../../knip.json) |
+| oxlint, knip | `.oxlintrc.json`, `knip.json` | [`.oxlintrc.json`](../../.oxlintrc.json), [`knip.json`](../../knip.json); a repository that runs kit's tools only from make lists `@polyspec/kit` in `ignoreDependencies` of its knip.json, since knip reads no Makefile |
 
 A Cargo workspace that denies warnings and the error-hiding lints writes:
 

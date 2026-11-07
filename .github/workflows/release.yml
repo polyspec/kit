@@ -1,5 +1,5 @@
-# Release workflow of a repository that adopts kit. kit-sync copies this file from the installed package @polyspec/kit to
-# .github/workflows/release.yml, and kit-check fails when the checkout differs from it; a repository never edits it.
+# Release workflow of a repository that adopts kit. The package @polyspec/kit ships this file as an example; a repository that
+# wants it copies it to .github/workflows/release.yml and owns the copy, which kit neither writes nor compares (K1052).
 #
 # The workflow starts by itself when a push run of the CI workflow ci succeeds on main (K987): it checks out the head_sha of that
 # run, and release-tag with AUTO releases it only when it is the version commit of the top ## X.Y.Z of its change log, which is

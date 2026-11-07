@@ -1,7 +1,6 @@
 // Tests of the Claude Code hook beyond the suite (K248): it refuses a command that skips the Git hooks or polls with no known
-// end, and an edit of a file that kit vendors into a consumer repository.
+// end; an edit of any file passes (K1052).
 import assert from 'node:assert/strict';
-import path from 'node:path';
 import test from 'node:test';
 import { refusal, toolRefusal } from '../../scripts/kit/claude-hook.mts';
 import { tree } from './tree.mts';
@@ -56,25 +55,9 @@ test('a test or ls in a for loop over a list is allowed, and in a while or until
   }
 });
 
-test('an edit of a file that kit vendors is refused in a consumer and allowed in kit itself', (t) => {
-  const kitPackage = { name: '@polyspec/kit', version: '0.0.1', kit: { copies: { 'PRINCIPLES.md': 'PRINCIPLES.md', '.claude/settings.json': 'claude/settings.json' } } };
-  const consumer = tree(t, {
-    'package.json': JSON.stringify({ name: 'consumer', devDependencies: { '@polyspec/kit': '0.0.1' } }),
-    'node_modules/@polyspec/kit/package.json': JSON.stringify(kitPackage),
-    'PRINCIPLES.md': '# Principles\n',
-    'src/a.ts': '',
-  });
-  const edit = (file: string, tool = 'Edit') => toolRefusal({ tool_name: tool, tool_input: { file_path: path.join(consumer, file) } }, consumer);
-  assert.match(edit('PRINCIPLES.md') ?? '', /vendors .*PRINCIPLES\.md.*make kit-sync/);
-  assert.match(edit('.claude/settings.json', 'Write') ?? '', /vendors/);
-  assert.equal(edit('src/a.ts'), null);
-  const kit = tree(t, { 'package.json': JSON.stringify(kitPackage), 'PRINCIPLES.md': '# Principles\n' });
-  assert.equal(toolRefusal({ tool_name: 'Edit', tool_input: { file_path: path.join(kit, 'PRINCIPLES.md') } }, kit), null, 'kit is the source of the copies');
-});
-
 test('a Bash input runs the command check, and another tool passes', () => {
-  assert.match(toolRefusal({ tool_name: 'Bash', tool_input: { command: 'make check' }, cwd: '/' }, '/') ?? '', /CI/);
-  assert.equal(toolRefusal({ tool_name: 'Read', tool_input: { file_path: '/x' } }, '/'), null);
+  assert.match(toolRefusal({ tool_name: 'Bash', tool_input: { command: 'make check' }, cwd: '/' }) ?? '', /CI/);
+  assert.equal(toolRefusal({ tool_name: 'Read', tool_input: { file_path: '/x' } }), null);
 });
 
 // K984: Claude Code runs a command in the folder of the session, the cwd of the hook input, which may be another checkout than the
@@ -83,7 +66,7 @@ test('a Bash input runs the command check, and another tool passes', () => {
 test('a named test file is judged in the cwd of the hook input and a missing one is named (K984)', (t) => {
   const session = tree(t, { 'tests/a.test.mts': '', Makefile: 'unit:\n\tnode --test\n' });
   const started = tree(t, { Makefile: 'other:\n\ttrue\n' });
-  const bash = (command: string, cwd?: string) => toolRefusal({ tool_name: 'Bash', tool_input: { command }, ...(cwd === undefined ? {} : { cwd }) }, started);
+  const bash = (command: string, cwd?: string) => toolRefusal({ tool_name: 'Bash', tool_input: { command }, ...(cwd === undefined ? {} : { cwd }) });
   assert.equal(bash('PATH=$PWD/var/tools/bin:$PATH node --test tests/a.test.mts 2>&1 | grep -E "x"', session), null);
   assert.match(bash('node --test tests/a.test.mts', started) ?? '', new RegExp(`without a selection; tests/a\\.test\\.mts is no file in ${started}`));
   assert.match(bash('node --test tests/a.test.mts') ?? '', /names no absolute cwd/);

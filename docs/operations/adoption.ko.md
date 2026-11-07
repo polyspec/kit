@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: 910e298d5fc6448ffa89eaf92f65c9a8f2f278cc983ffdd1fa7ed6dce9c9113f -->
+<!-- source-sha256: af6f786bda5fcb01736de58e2693a03cd2da418241c75405b5cec7e18a0fec2e -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -9,13 +9,11 @@ kit을 쓰는 저장소에서 일하는 agent나 사람의 절차이며, 그 바
 
 ## item 경계마다
 
-1. `make kit-sync`가 설치된 kit의 파일을 복사한다(P30: 개발 checkout의 설치된 kit은 local kit으로 가는 link이므로 kit의 landing은
-   중계 없이 이렇게 저장소에 닿는다).
-2. 저장소가 link로 쓰는 각 provider는 자기 target으로 build한다([local-links.ko.md](local-links.ko.md)); link는 아무것도
+1. 저장소가 link로 쓰는 각 provider는 자기 target으로 build한다([local-links.ko.md](local-links.ko.md)); link는 아무것도
    build하지 않는다(K856).
-3. `make install-tools`가 `mise.toml`의 도구를 설치한다.
-4. `kit-gates`의 모든 gate를 실행한다. 실패한 gate는 그 저장소 plan의 다음 item이며 자기 red와 green을 가진다.
-5. 매 push 전에 `make kit-gates-static`이 저장소의 자가진단이다. 실패가 있어도 모든 shared gate를 실행하므로 한 번의 실행이
+2. `make install-tools`가 `mise.toml`의 도구를 설치한다.
+3. `kit-gates`의 모든 gate를 실행한다. 실패한 gate는 그 저장소 plan의 다음 item이며 자기 red와 green을 가진다.
+4. 매 push 전에 `make kit-gates-static`이 저장소의 자가진단이다. 실패가 있어도 모든 shared gate를 실행하므로 한 번의 실행이
    실패한 gate를 각각 적고, 모두 통과하면 `[kit-gates-static] every shared gate passed`로 끝난다. 그 `kit-check`가 규칙 S11,
    S12, P30을 판정한다. checkout의 root에서 도는 CI pipeline 하나, package manager의 link 단계 없음, 저장소 밖 경로를 적은
    추적 manifest 없음이다(K998). 테스트는 CI에서 실행한다.
@@ -78,6 +76,13 @@ conductor에게 묻는 것은 kit의 결함(파일과 줄을 적어서)이나 �
 - `make install`은 나머지를 설치한다.
 
 그다음 `package.json`, `mise.toml`, `mise.lock`, `.mise/locks/npm-npm/<version>/`과 workflow 줄을 한 변경으로 커밋한다.
+
+## 공유 파일 (K1052)
+
+kit은 저장소의 파일을 쓰지 않는다. workflow, bootstrap action, Claude Code 설정, layout 규칙, 원칙은 package의 예시이며
+[docs/examples/shared-files](../examples/shared-files.ko.md)에 목록이 있다. 저장소는 원하는 것을 복사해 각 사본을 자기 파일로
+commit한다. kit-sync의 사본을 가진 저장소는 그것을 자기 파일로 그대로 두고, 자기 레시피와 workflow에서 `kit-sync`와
+`kit-inject-check`를 지운다.
 
 ## 하지 않는 것
 

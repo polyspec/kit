@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-// The Claude Code PreToolUse hook of every repository that takes kit (.claude/settings.json, vendored from
-// claude/settings.json). It reads the hook input on stdin and refuses, with exit status 2 and the reason on stderr, a Bash
+// The Claude Code PreToolUse hook of a repository whose .claude/settings.json runs it, as the example
+// claude/settings.json of kit does. It reads the hook input on stdin and refuses, with exit status 2 and the reason on stderr, a Bash
 // command that runs a suite, a whole test runtime without a selection, or sets the variable that marks a CI run (the suite
 // runs only in CI, ci-only.mts, and locally only the unit tests that own a change run, K240); a Bash command that skips the
 // Git hooks or changes their path (K248); a Bash command that waits, with a sleep or in a loop that sleeps or polls for a
-// process or a file (K386); and, in a consumer repository, an edit of a file
-// that kit vendors, which `make kit-sync` writes (K248).
+// process or a file (K386). A file that a repository took from kit is its own, so an edit passes (K1052).
 //
 //   node scripts/kit/claude-hook.mts < <hook input JSON>
 //
@@ -16,9 +15,6 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isMain } from './paths.mts';
 import { isJsonObject } from './bootstrap/files.mts';
-import { copiesOf, INSTALLED, isSource } from './kit-check.mts';
-import { readNpmManifest } from './manifests.mts';
-import { existsSync } from 'node:fs';
 import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
 import { makeDatabase, type MakeDatabase } from './owner-check.mts';
 import { isFile, missingFiles, runnerWords, selects } from './test-selection.mts';
@@ -37,7 +33,6 @@ const HOOKS = 'skips the Git hooks, which enforce the rules at the commit and th
 // The Git commands whose hooks --no-verify skips.
 const VERIFIED = new Set(['commit', 'push', 'merge', 'am', 'rebase']);
 // The tools of Claude Code that change a file, by the field that names it.
-const EDITS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 
 const assigned = (word: string) => /^[A-Za-z_][A-Za-z0-9_]*=/.test(word);
 const marker = (word: string) => CI_MARKERS.has(word.slice(0, word.indexOf('=')));
@@ -298,11 +293,9 @@ export function refusal(command: string, isFileAt: (file: string) => boolean = i
 }
 
 /**
- * The refusal of the tool call `input` in the repository `root`, or null: a Bash command by `refusal`, and an edit of a file
- * that kit vendors. kit itself is the source of the copies and edits them; a consumer without the installed package has no
- * known copies, and its kit-check names a changed copy.
+ * The refusal of the tool call `input`, or null: a Bash command by `refusal`; every other tool passes.
  */
-export function toolRefusal(input: unknown, root: string): string | null {
+export function toolRefusal(input: unknown): string | null {
   if (!isJsonObject(input) || !isJsonObject(input.tool_input)) return null;
   const tool = input.tool_name;
   if (tool === 'Bash') {
@@ -315,12 +308,7 @@ export function toolRefusal(input: unknown, root: string): string | null {
     let database: MakeDatabase | undefined;
     return refusal(input.tool_input.command, file => isFile(path.resolve(cwd, file)), () => (database ??= makeDatabase(cwd)), cwd);
   }
-  if (typeof tool !== 'string' || !EDITS.has(tool)) return null;
-  const file = input.tool_input.file_path ?? input.tool_input.notebook_path;
-  if (typeof file !== 'string' || isSource(root) || !existsSync(path.join(root, INSTALLED, 'package.json'))) return null;
-  const relative = path.relative(root, path.resolve(root, file));
-  const copy = copiesOf(readNpmManifest(root, `${INSTALLED}/package.json`)).find(item => item.file === relative);
-  return copy ? `kit vendors ${relative}; change it in kit and write it with make kit-sync` : null;
+  return null;
 }
 
 if (isMain(import.meta.url)) {
@@ -331,7 +319,7 @@ if (isMain(import.meta.url)) {
     console.error(`[kit claude-hook] refuse: the hook input on stdin is no JSON (${error instanceof Error ? error.message : String(error)})`);
     process.exit(2);
   }
-  const refused = toolRefusal(input, process.env.CLAUDE_PROJECT_DIR ?? process.cwd());
+  const refused = toolRefusal(input);
   if (refused) {
     console.error(`[kit claude-hook] refuse: ${refused}`);
     process.exit(2);

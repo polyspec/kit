@@ -6,11 +6,10 @@
 ## Purpose
 
 kit holds the tools that every polyspec repository shares: the release, dependency, document and install
-tools. A repository installs them as the package `@polyspec/kit` and holds byte-for-byte copies of the files that
-`kit.copies` of its `package.json` lists, written by `make kit-sync`; a repository differs from another only in
-`config/*.json`. kit depends on no repository. kit also carries the working principles of every polyspec repository, [PRINCIPLES.md](PRINCIPLES.md) and its Korean twin,
-and vendors them at the same paths, so every repository holds the same principles; each repository's AGENTS.md links to them
-and states only its own rules. The rules below are kit's own.
+tools. A repository installs them as the package `@polyspec/kit`; the package also ships examples, such as the workflows,
+the bootstrap action and the Claude Code settings, which a repository copies when it wants them and then owns (K1052). kit
+depends on no repository. kit also carries the working principles of every polyspec repository, [PRINCIPLES.md](PRINCIPLES.md)
+and its Korean twin, as such an example; a repository's AGENTS.md links to its copy and states only its own rules. The rules below are kit's own.
 
 ## Rules
 
@@ -52,10 +51,6 @@ and states only its own rules. The rules below are kit's own.
   another repository. A value that differs between repositories is data in
   `config/<name>.json` with a schema in `scripts/kit/schema/`, which ajv validates (draft 2020-12, strict mode, every error).
   Enforced by: `tests/kit/isolation.test.mts`
-- Own: A vendored file is changed in kit and copied with `make kit-sync`, which writes the copies of the installed package (npm
-  ci installs the version of package-lock.json by its integrity), never edited in a repository: `make kit-inject-check` fails on a changed or missing vendored file, and
-  on a file of `scripts/kit/` that is no copy, since that directory holds the copies of kit only; `make kit-sync` removes it.
-  Enforced by: `make kit-inject-check` (S13), `.claude/settings.json`
 - Own: Use conventional package-manager installation, dependency locks and versioned releases. Before implementing a request that departs from those conventions, report the departure and its consequences and propose the conventional alternative, even when the request explicitly asks for the departure. Local source links remain a development mechanism.
   Enforced by: none, the choice and explanation require review.
 - Refines P14: The ecosystem principle of [PRINCIPLES.md](PRINCIPLES.md) applies to the tools of `scripts/kit/`: uv for Python interpreters,
@@ -68,7 +63,7 @@ and states only its own rules. The rules below are kit's own.
   since uv writes and deletes through a link (K539), and then runs the native locked install of its lock (`uv sync --locked`,
   or `uv pip install` of a pylock.toml) with the flags of `SYNC` as written; a symlinked development folder is never damaged.
   Enforced by: `tests/kit/uv-install.test.mts`, `tests/source/uv-link-real.test.mts`
-- Own: Tracked shared root files and workflows are regular copies of the installed kit package, managed by `make kit-sync`. Consumers include
+- Own: A file that a repository copies from an example of the package is its own file (K1052). Consumers include
   `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`; they install the locked npm dependencies before the first Make invocation.
   Local development links the provider checkouts that the git-ignored `.links` of the main checkout names, one per line: `make link`
   makes each installed folder of their packages one plain directory symlink to its provider (`docs/operations/local-links.md`,
@@ -110,7 +105,7 @@ and states only its own rules. The rules below are kit's own.
   says; `mise install --locked` itself fails without it (K192), so kit adds no check of mise.lock (K835). A wheel is built by uv build from the
   build-system.requires of its own pyproject.toml; kit pins no build backend (K788). A vendored test checks a consumer's declaration only against
   this rule. The vendored dependency tests read go and Composer through stubs that answer from records of the real tools,
-  never by running them. The kit's own tests of its real tools are in `tests/source`: kit-sync does not vendor
+  never by running them. The kit's own tests of its real tools are in `tests/source`: the package does not ship
   them, a source test that runs a pinned tool needs `make install-tools` first, `make source-test` runs them, and CI runs
   them after `make kit-test`.
   Enforced by: none, mise install --locked checks mise.lock and its sidecars itself (K835)
@@ -176,5 +171,3 @@ kit is released by the annotated tag `vX.Y.Z` that the release workflow creates 
   newest section `## X.Y.Z` of the change log that `changelog` of config/release.json at that commit names, refusing a commit without one or
   with entries under `## Unreleased`, and then tags that commit and the modules of its `goModules`; it compares no version (S4, K911, K924).
   Enforced by: `tests/kit/release-run.test.mts`
-- Own: Every repository releases through the vendored `workflows/release.yml`, which it never edits.
-  Enforced by: none, a guided rule: kit checks no recipe, workflow or file of a repository (K1051).

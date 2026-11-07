@@ -56,7 +56,7 @@ jobs:
         if: ${{ !cancelled() }}
         run: make duplication-check
       # kit lints itself with the TypeScript lint that its consumers get (K142): oxlint type-aware with .oxlintrc.json and
-      # knip with knip.json, over scripts/kit (the copies of scripts/kit/bootstrap included) and the tests.
+      # knip with knip.json, over scripts/kit and the tests.
       - name: lint
         if: ${{ !cancelled() }}
         run: make lint-ts
@@ -129,10 +129,6 @@ jobs:
       - name: kit check
         if: ${{ !cancelled() }}
         run: make kit-check
-      # A prerequisite of kit-gates like the others: in kit, the source of the copies, it reports that there is nothing to check (K851).
-      - name: kit inject check
-        if: ${{ !cancelled() }}
-        run: make kit-inject-check
       - name: release coverage
         if: ${{ !cancelled() }}
         run: make release-coverage

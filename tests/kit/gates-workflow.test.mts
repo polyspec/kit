@@ -1,5 +1,5 @@
-// Tests of the CI pipeline that kit vendors to every repository (workflows/ci-pipeline.yml, K270, K910): the repository's ci.yml
-// calls it, it partitions every gate named by PRINCIPLES.md with the targets that config/ci.json declares for each job, and a
+// Tests of the CI pipeline that kit ships as an example (workflows/ci-pipeline.yml, K270, K910, K1052): the ci.yml of a
+// repository that copies it calls it, it partitions every gate named by PRINCIPLES.md with the targets that config/ci.json declares for each job, and a
 // final job fails when a job of the pipeline failed or was cancelled.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -8,8 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { assertWorkflowPackageBootstrap, BOOTSTRAP_ACTION, BOOTSTRAP_USES } from './workflow-package-bootstrap.mts';
 import { fileURLToPath } from 'node:url';
-import { isJsonObject, readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
-import { RETIRED_COPIES } from '../../scripts/kit/kit-check.mts';
+import { readJsonObject } from '../../scripts/kit/bootstrap/files.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (file: string) => readFileSync(path.join(ROOT, file), 'utf8');
@@ -74,14 +73,10 @@ test('the CI pipeline partitions every kit-gates target across shared, parity an
   for (const target of named) assert.ok(gates.has(target ?? '') || released.has(target ?? ''), `kit-gates or release.yml runs make ${target}`);
 });
 
-test('kit ships the CI pipeline with its npm package and copies it in place of the gates workflow (K270, K614, K910)', () => {
+test('kit ships the CI pipeline with its npm package as an example and no gates workflow (K270, K614, K910, K1052)', () => {
   const manifest = readJsonObject(ROOT, 'package.json');
   assert.ok(Array.isArray(manifest.files) && manifest.files.includes(PIPELINE), 'the published package ships the CI pipeline');
   assert.ok(!(Array.isArray(manifest.files) && manifest.files.includes('workflows/gates.yml')), 'the package ships no gates workflow');
-  const copies = isJsonObject(manifest.kit) && isJsonObject(manifest.kit.copies) ? manifest.kit.copies : {};
-  assert.equal(copies['.github/workflows/ci-pipeline.yml'], PIPELINE);
-  assert.equal(copies['.github/workflows/gates.yml'], undefined);
-  assert.ok((RETIRED_COPIES as readonly string[]).includes('.github/workflows/gates.yml'), 'kit-sync removes the gates workflow of an earlier kit');
   const workflow = read(PIPELINE);
   assert.match(workflow, /^name: ci-pipeline$/m);
   assert.match(workflow, /^on:\n {2}workflow_call:\n\n/m, 'the repository ci.yml calls it; it has no trigger of its own');

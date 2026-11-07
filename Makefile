@@ -99,7 +99,7 @@ kit-test-shard: ## Run one declared kit unit-test shard; CI supplies SHARD=1..6;
 	$(NODE) scripts/kit/run-tests.mts node -- $(KIT_TEST_FILES_$(SHARD))
 	@git status --porcelain -uall | diff var/kit-test-status-$(SHARD) - >&2 && git diff --binary HEAD | git hash-object --stdin | cmp -s var/kit-test-diff-$(SHARD) - || { echo "kit-test-shard: the run changed the checkout: the status lines above, or a change of these tracked files: $$(git diff --name-only HEAD | tr '\n' ' ')" >&2; exit 1; }
 
-# The kit's own tests (tests/source) check the kit's real Python and wheel path. kit-sync does not vendor them, so a consumer never runs them.
+# The kit's own tests (tests/source) check the kit's real Python and wheel path. The package does not ship them, so a consumer never runs them.
 source-test: ## Run the kit's own tests (tests/source) through the test runner, with the tools of mise.toml; offline after make install-tools, except uv build, which installs the build-system.requires of each wheel it builds
 	$(NODE) scripts/kit/run-tests.mts node -- tests/source
 

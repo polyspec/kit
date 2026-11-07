@@ -32,7 +32,7 @@ and kit's files are examples (docs/examples/native-settings), so a change of kit
 | `.editorconfig` | yes: an editor reads it from the root of the repository | a copy |
 | `PRINCIPLES.md`, `PRINCIPLES.ko.md` | no: a document that a reader follows by a link | a link document to the package |
 | `config/layout.kit.yml` | no: only the tools of kit read it | read from the package, as K514 |
-| `config/composer.schema.json`, `config/cargo.schema.json` | no: only the layout check of kit reads them | read from the package, as K514 |
+| `config/composer.schema.json` | no: only the layout check of kit reads them | read from the package, as K514 |
 | `config/php-lint/composer.json`, `composer.lock` | no: install-tools reads them to install the PHP lint into var/tools | read from the package, as K514 |
 
 ## The structure that each part takes
@@ -61,7 +61,7 @@ their callers, and the link document of the principles. Point 1 is a rule of the
 
 ## Current package bootstrap (K671)
 
-Consumers include the bootstrap of the installed `@polyspec/kit` package. Native npm installs the locked package before the first Make invocation. Shared principles, editor and Claude settings, and release/CI pipeline workflows are regular copies written by kit-sync. A sibling source checkout is optional and can be connected through native `npm link ../kit`. This supersedes the sibling bootstrap and tracked shared links recorded below.
+Consumers include the bootstrap of the installed `@polyspec/kit` package. Native npm installs the locked package before the first Make invocation. Shared principles, editor and Claude settings, and release/CI pipeline workflows are examples of the package, which a repository copies and owns (K1052). A sibling source checkout is optional and can be connected through native `npm link ../kit`. This supersedes the sibling bootstrap and tracked shared links recorded below.
 
 ## What K614 did
 
@@ -74,7 +74,14 @@ local development checkout:
 - `PRINCIPLES.md`, its twin, `.editorconfig` and `.claude/settings.json` are tracked symbolic links to the files of `../kit`.
 - The two workflows stay plain files of each repository, since GitHub follows no symbolic link, and kit-check no longer compares
   them.
-- `config/layout.kit.yml` and the three manifest schemas that it names stay copies that kit-sync writes: alint 0.18.2 refuses
+- `config/layout.kit.yml` and the three manifest schemas that it names stayed copies that kit-sync wrote until K1052: alint 0.18.2 refuses
   every way to read them from kit. An `extends:` outside the repository fails with "`extends:` target … resolves to … which is
   outside the lint root", a symbolic link to the file fails with the same error, and a second `--config` fails with "`--config`
   may be given at most once".
+
+## What K1052 did
+
+K1052 removed kit-sync, kit-inject-check and `kit.copies`: kit writes no file of a repository and compares none. The files that
+kit-sync wrote are examples of the package: a repository copies the ones it wants and owns each copy, so a change of an example
+costs a repository no row until it chooses to take the change. The rule `lint-cargo-lints` and `config/cargo.schema.json` were
+deleted with them, since kit holds no Cargo.toml of its own; docs/examples/native-settings shows the Cargo `[lints]`.

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": ".claude/settings.json",
-  "description": "The Claude Code settings that kit vendors from claude/settings.json: the PreToolUse hook that runs scripts/kit/claude-hook.mts before a Bash command.",
+  "description": "The Claude Code settings of a repository, such as the example claude/settings.json of kit: the PreToolUse hook that runs scripts/kit/claude-hook.mts before a Bash command.",
   "type": "object",
   "required": ["hooks"],
   "additionalProperties": false,

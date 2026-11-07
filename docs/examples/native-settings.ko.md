@@ -1,5 +1,5 @@
 <!-- doc-id: example-native-settings -->
-<!-- source-sha256: d6bcdb4c3fd7b4b61fc01684638b2f781b13d84f43bdd73f1dbe3f70fcb5c43b -->
+<!-- source-sha256: b0992d6c92dc5924976bd72ded4c44c0bacca2960b2b428f9e298b4325df75ba -->
 # 예제: 네이티브 설정
 
 [English](native-settings.md)
@@ -51,7 +51,7 @@ UV_CACHE_DIR = "{{config_root}}/var/tools/mise/cache/uv"
 | phpcs, PHPStan | `phpcs.xml.dist`, `phpstan.dist.neon` | [`phpcs.xml.dist`](../../phpcs.xml.dist), [`phpstan.dist.neon`](../../phpstan.dist.neon) |
 | golangci-lint | `.golangci.yml` | [`.golangci.yml`](../../.golangci.yml) |
 | clippy | `Cargo.toml`의 `[lints]`, `clippy.toml` | [`clippy.toml`](../../clippy.toml) |
-| oxlint, knip | `.oxlintrc.json`, `knip.json` | [`.oxlintrc.json`](../../.oxlintrc.json), [`knip.json`](../../knip.json) |
+| oxlint, knip | `.oxlintrc.json`, `knip.json` | [`.oxlintrc.json`](../../.oxlintrc.json), [`knip.json`](../../knip.json). kit의 도구를 make로만 실행하는 저장소는 knip이 Makefile을 읽지 않으므로 knip.json의 `ignoreDependencies`에 `@polyspec/kit`을 적습니다 |
 
 경고와 오류를 숨기는 lint를 거부하는 Cargo workspace는 다음처럼 적는다.
 

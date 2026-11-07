@@ -42,7 +42,7 @@ import { type ComposerManifest, type NpmManifest } from './manifests.mts';
 import { buildWheel, metadataProblems, wheelMetadata, wheelName } from './release-wheel.mts';
 import { parseJson, readConfig, readConfigFindings } from './schema-validate.mts';
 import { checkedFiles } from './tracked-files.mts';
-import { PACKAGE, copiesOf, runningKit, writtenByKit } from './kit-check.mts';
+import { PACKAGE, writtenByKit } from './kit-check.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { execute, run, Stop } from './process.mts';
 import { present } from './present.mts';
@@ -712,9 +712,8 @@ export function coverage(ctx: Context): string[] {
       if (!files.includes(key)) problems.push(`${key} is listed in ${list} of ${CONFIG} but is not a package file of the checkout; remove it from the list`);
     }
   }
-  const kitFile = writtenByKit(copiesOf(runningKit()));
   for (const file of files) {
-    if (!where.has(file) && !kitFile(file)) problems.push(`${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in ${CONFIG}`);
+    if (!where.has(file) && !writtenByKit(file)) problems.push(`${file} is neither released nor listed as not released; add it to manifests, notReleased or goModules in ${CONFIG}`);
   }
   return problems;
 }

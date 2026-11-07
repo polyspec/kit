@@ -2,7 +2,8 @@
 // packed with the prepack and postpack of the release, an npm cache is primed with the tarball, and a sandbox consumer, a Git
 // repository whose package-lock pins the release asset of the tarball by its integrity, runs the bootstrap steps of its release
 // workflow offline (npm ci, as the bootstrap action does first, then make install-tools TOOLS=npm and make install-packages), then
-// the gate targets, which run the dist of the installed kit. The consumer holds the copies of kit.copies, which it takes from the tarball.
+// the gate targets, which run the dist of the installed kit. The consumer takes the example workflows and action from the tarball as
+// its own files (K1052).
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -41,21 +42,16 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   mkdirSync(unpacked);
   run('tar', ['-xzf', tarball, '-C', unpacked, '--strip-components=1'], work);
 
-  // The consumer: the copies of kit.copies from the tarball, the release workflow of kit as its own, a Makefile that includes the
+  // The consumer: the example workflows and action of the tarball as its own files, a Makefile that includes the
   // kit-bootstrap.mk of its installed kit (S15), and a lock that pins the release asset of kit by its integrity.
   const consumer = path.join(work, 'consumer');
   mkdirSync(path.join(consumer, '.github/workflows'), { recursive: true });
   mkdirSync(path.join(consumer, '.github/actions/kit-bootstrap'), { recursive: true });
-  cpSync(path.join(ROOT, 'workflows/release.yml'), path.join(consumer, '.github/workflows/release.yml'));
-  cpSync(path.join(ROOT, 'actions/kit-bootstrap/action.yml'), path.join(consumer, '.github/actions/kit-bootstrap/action.yml'));
+  for (const [file, from] of [['.github/workflows/release.yml', 'workflows/release.yml'], ['.github/workflows/ci-pipeline.yml', 'workflows/ci-pipeline.yml'], ['.github/actions/kit-bootstrap/action.yml', 'actions/kit-bootstrap/action.yml']]) {
+    cpSync(path.join(unpacked, from ?? ''), path.join(consumer, file ?? ''));
+  }
   // A repository's own ci.yml, named ci as release.yml waits for it (K987, K989).
   writeFileSync(path.join(consumer, '.github/workflows/ci.yml'), 'name: ci\non:\n  push:\n    branches: [main]\njobs:\n  kit:\n    uses: ./.github/workflows/ci-pipeline.yml\n  ci-passed:\n    needs: [kit]\n    runs-on: ubuntu-24.04\n    steps:\n      - run: test "${{ needs.kit.result }}" = success\n');
-  const copies = KIT.kit?.copies;
-  assert.ok(copies, 'package.json of kit declares no kit.copies');
-  for (const [file, from] of Object.entries(copies)) {
-    mkdirSync(path.dirname(path.join(consumer, file)), { recursive: true });
-    cpSync(path.join(unpacked, from), path.join(consumer, file));
-  }
   const { manifest, lock } = kitConsumer(packed, { devEngines: KIT.devEngines, engines: { node: `>=${NODE}` } });
   writeFileSync(path.join(consumer, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   writeFileSync(path.join(consumer, 'package-lock.json'), `${JSON.stringify(lock, null, 2)}\n`);
@@ -92,7 +88,7 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   // installed again (K269, K911). The release runs no kit-check of its own: release-tag refuses a commit whose CI run did not pass (K755).
   const workflow = readFileSync(path.join(consumer, '.github/workflows/release.yml'), 'utf8');
   // The make steps of the workflow; a step that checks the runner, as for zip, runs no target.
-  // The step that runs the bootstrap action of kit (K992) stands for the make commands of the action that kit-sync vendors.
+  // The step that runs the bootstrap action of kit (K992) stands for the make commands of the action.
   const action = readFileSync(path.join(consumer, '.github/actions/kit-bootstrap/action.yml'), 'utf8');
   const steps = workflow.split('\n').flatMap(line => BOOTSTRAP_USES.test(line) ? bootstrapActionCommands(action) : [...line.matchAll(/^\s+run: (make .+)$/g)].map(match => match[1] ?? ''));
   const bootstrap = steps.slice(0, steps.indexOf('make release-tools'));
@@ -109,12 +105,9 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   for (const [entry] of DEPENDENCIES) assert.ok(existsSync(path.join(consumer, entry, 'package.json')), `make install-packages did not install ${entry}`);
   // The lint tools of make lint-ts are dependencies of kit, installed with it and linked into node_modules/.bin.
   for (const tool of ['oxlint', 'tsgolint', 'knip', 'api-extractor']) assert.ok(existsSync(path.join(consumer, 'node_modules/.bin', tool)), `make install-packages did not install node_modules/.bin/${tool}`);
-  for (const target of [['kit-sync'], ['kit-check']]) {
-    const result = make(...target);
-    assert.equal(result.status, 0, `make ${target.join(' ')}: ${result.stdout}${result.stderr}`);
-    // KIT is the real dist folder of the installed packed kit.
-    assert.ok(result.stdout.includes(`${realpathSync(path.join(consumer, 'node_modules/@polyspec/kit'))}/dist/`), `make ${target.join(' ')} runs the dist of the installed kit`);
-  }
-  assert.match(make('kit-sync').stdout, new RegExp(`\\[kit-sync\\] unchanged: @polyspec/kit ${packed.version.replaceAll('.', '\\.')}`));
+  const result = make('kit-check');
+  assert.equal(result.status, 0, `make kit-check: ${result.stdout}${result.stderr}`);
+  // KIT is the real dist folder of the installed packed kit.
+  assert.ok(result.stdout.includes(`${realpathSync(path.join(consumer, 'node_modules/@polyspec/kit'))}/dist/`), 'make kit-check runs the dist of the installed kit');
   assert.equal(run('git', ['status', '--porcelain', '-uall'], consumer), '', 'the bootstrap and the gate targets changed the tracked files of the consumer');
 });

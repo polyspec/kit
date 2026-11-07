@@ -55,24 +55,10 @@ endif
 ALINT := $(KIT_TOOLS)/mise/shims/alint
 BOOTSTRAP_NODE := node
 
-.PHONY: kit-sync kit-check
-
-kit-sync: ## Write the copies of the installed @polyspec/kit (kit.copies of its package.json), the version of package-lock.json; offline
-	$(NODE) $(KIT)/kit-sync.$(KIT_EXT)
+.PHONY: kit-check
 
 kit-check: ## Check the configuration of kit's utilities (config/*.json) against their schemas; offline
 	$(NODE) $(KIT)/kit-check.$(KIT_EXT)
-
-.PHONY: kit-inject-check
-# The rules that every repository shares are injected identically (S13, K851): kit-sync --check compares the copies with the
-# installed kit and the index and writes nothing (K1058), failing on a copy that differs from either; make kit-sync writes them. kit's own checkout, whose Makefile sets KIT := scripts/kit, is the
-# source of the copies and holds none.
-kit-inject-check: ## Fail on a copy that differs from the installed kit or from the index, writing no file (K1058); kit itself has no copies; offline
-ifeq ($(KIT),scripts/kit)
-	@echo "[kit-inject-check] kit is the source of the copies; nothing to check"
-else
-	$(NODE) $(KIT)/kit-sync.$(KIT_EXT) --check
-endif
 
 .PHONY: kit-install-symbols
 kit-install-symbols: ## Install selected declared symbol extractors with EXTRACTORS="go php"; their pinned tools must be installed first; ONLINE
@@ -122,7 +108,7 @@ toolchain-lock: ## Write mise.lock with mise lock: the digests of the tools of m
 
 # ---- Folder layout (S5) ---------------------------------------------------------------------------------------------
 # alint (mise.toml, installed by install-tools) checks the tree against config/layout.yml, which extends
-# the common rules of kit in the vendored config/layout.kit.yml with the map of the repository.
+# the common rules of the repository, such as the config/layout.kit.yml that kit ships as an example, with its map.
 .PHONY: layout-check
 layout-check: ## Check the folder layout of the checkout (S5) against config/layout.yml with the alint of mise.toml, and that Git ignores each install directory (K372), and that no tracked file is generated (K426); offline
 	@test -x $(ALINT) || { echo "layout-check: $(ALINT) is missing; run make install-tools"; exit 1; }
@@ -201,7 +187,7 @@ test-integration test-conformance: ## Run the suite of each runtime under tests/
 .PHONY: kit-gates
 # The gates of every repository, whose partitions below the CI pipeline (workflows/ci-pipeline.yml) runs past failures, so that one run shows every failure
 # (K270): each make target that a rule of PRINCIPLES.md is enforced by.
-kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the CI pipeline runs its partitions in CI
+kit-gates: kit-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check parity-check suppression-check divergence-check lint-ts lint-php lint-python lint-go lint-rust lint-php-ext test-php-ext ## Run every gate of kit; the CI pipeline runs its partitions in CI
 
 # CI partitions the same gate set so each job installs only the tools it uses. `kit-gates` remains the complete local/consumer
 # entry point above; these targets are only the disjoint workflow partitions, and the parity job checks every implementation in
@@ -212,7 +198,7 @@ kit-gates: kit-check kit-inject-check layout-check docs-check rules-check owner-
 ifneq ($(filter kit-gates-static,$(MAKECMDGOALS)),)
 MAKEFLAGS += -k
 endif
-kit-gates-static: kit-check kit-inject-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check suppression-check divergence-check ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
+kit-gates-static: kit-check layout-check docs-check rules-check owner-validate rebuild-check language-check test-markers-check duplication-check parity-declarations-check suppression-check divergence-check ## Run the shared gates; the self-diagnosis of a repository before a push, past failures
 	@echo "[kit-gates-static] every shared gate passed"
 kit-gates-parity: parity-check ## Run the full parity gate in its own job
 kit-gates-runtime-ts: lint-ts ## Run the TypeScript gate

@@ -223,9 +223,9 @@ no rebuild record for it; this section records the choice.
 
 - `make layout-check` runs `var/tools/mise/shims/alint check --config config/layout.yml .` (offline). `"github:asamarts/alint"`
   of `mise.toml` declares the release and `mise.lock` pins the sha256 of the archive of each platform (K127).
-- `config/layout.kit.yml` holds the common rules and templates. It is a copy (`kit.copies` of package.json), so kit-sync
-  writes it from the installed package; a repository never edits it. It lies in `config/` because alint reads an `extends:`
-  target only from the folder of the config that names it.
+- `config/layout.kit.yml` holds the common rules and templates. The package ships it as an example: a repository that wants
+  the rules copies it and owns the copy, which kit neither writes nor compares (K1052). It lies in `config/` because alint
+  reads an `extends:` target only from the folder of the config that names it.
 - `config/layout.yml` of a repository extends it and adds its map: the instances of the templates `no-repository-prefix` and
   `go-module-path` with its name, one `component-ports` instance for each component with ports, and overrides by rule id (its
   components in `layout-packages`, its runners in `layout-root-tests`, its S9 exceptions). An override of `paths` replaces
@@ -431,8 +431,7 @@ among the tracked files, and `config/rebuild.json` only classifies them (`tools`
 or `policy` and the field each kind needs); it has no list of paths, so a repository cannot narrow what the gate sees. The
 tool sources are the scripts and programs (`mts`, `mjs`, `cjs`, `js`, `ts`, `py`, `php`, `sh`, `mk`) under `scripts/`, under
 `scripts|tools|bin` of `packages/*/` and `packages/*/*/`, under `benchmarks/` and under `examples/`, the `*_generate.go` and
-`*.generate.<script>` generators, and `tests/fixtures/*/generate.*`; a test file is none, nor a `.d.ts`, nor a copy of kit
-(`kit.copies`) in a repository other than kit. An unclassified tool source is a finding; so is a class of a file that is not
+`*.generate.<script>` generators, and `tests/fixtures/*/generate.*`; a test file is none, nor a `.d.ts`; every other file is the repository's own, one that it copied from kit too (K1052). An unclassified tool source is a finding; so is a class of a file that is not
 tracked.
 
 ## Divergence check (K315)
@@ -690,8 +689,7 @@ the repository at a time, and release.yml waits for the workflow named `ci`, whi
   from the configuration, not from a list file (orm wrote `assets.txt`).
 - `coverage`: every tracked or new package.json, composer.json, Cargo.toml, pyproject.toml, go.mod and VERSION file is in
   `manifests`, `notReleased` or `goModules` (template test, orm `unlistedManifests`); a listed file that does not exist and a file
-  in two lists are findings (orm, wider). A file that kit writes is not released and needs no entry (K167): a copy of
-  `kit.copies` of the package that runs, found by Node's self-reference of `@polyspec/kit/package.json` (make kit-sync), the
+  in two lists are findings (orm, wider). A file that kit writes is not released and needs no entry (K167): the
   Composer project of PHPUnit, `config/phpunit/composer.json` (make install-tools), and the lock tree of mise under
   `.mise/locks/` (make toolchain-lock).
 
@@ -789,8 +787,8 @@ The check also leaves out the S10 stub of a PHP extension, `packages/php-ext/src
 |---|---|---|---|
 | `paths.mts` | `repositoryRoot()`, the top level of the Git work tree of the working directory (K144), `isMain(import.meta.url)` | the root path that 22 modules computed and the `process.argv[1] === ...` test of 21 | every command and module with a default root |
 | `process.mts` | `execute`, `run`, `Stop` | `run` of release, the `spawnSync` calls with `encoding` and `maxBuffer` | release, git |
-| `git.mts` | `git`, `gitResult` | the `git` helper of full-run, push-gate, owner-check, kit-sync, tracked-files and target-report, and the direct `git` calls of git-hooks, check-commits, push-gate | those modules |
-| `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, kit-sync, target-report, tool-wrappers and git-hooks | those modules |
+| `git.mts` | `git`, `gitResult` | the `git` helper of full-run, push-gate, owner-check, tracked-files and target-report, and the direct `git` calls of git-hooks, check-commits, push-gate | those modules |
+| `bootstrap/files.mts` | `readJson`, `writeAtomic`, `jsonText`, `writeJson` | about 25 `JSON.parse(readFileSync(...))`, the temporary-file-and-rename writes of full-run, target-report, tool-wrappers and git-hooks | those modules |
 | `bootstrap/digest.mts` | `digest`, `sha256`, `fileDigest` | `sha256` of check-documents and kit-check, `digest` of install-composer (gone in K127) | those modules |
 | `time.mts` | `now`, `seconds`, `compactSeconds` | `now` of ci-targets and full-run, `seconds` of full-run and target-report (`1.2 s`), `seconds` of test-progress and test-hooks (`1.2s`) | those modules |
 | `findings.mts` | `finding` | `finding` of status-table and changelog | status-table, changelog |
@@ -835,8 +833,8 @@ Left as it is, with the reason:
   kit's own checkout is not checked, since it is the source of the gates.
 - `workflows/ci-pipeline.yml` (`on: workflow_call`, K910) partitions the same `kit-gates` prerequisites into shared, parity, and
   runtime jobs; the repository's ci.yml calls it as its job `kit`, and independent repository jobs run alongside it. The final `ci-passed` job requires every other job, so one run holds every job of a commit. Every job of the pipeline, of release.yml and of a repository workflow
-  bootstraps with one composite action, `actions/kit-bootstrap/action.yml`, which kit-sync vendors as
-  `.github/actions/kit-bootstrap/action.yml` and a job runs after its checkout with `uses: ./.github/actions/kit-bootstrap`: the
+  bootstraps with one composite action, `actions/kit-bootstrap/action.yml`, an example that a repository copies to
+  `.github/actions/kit-bootstrap/action.yml` and owns (K1052), and a job runs after its checkout with `uses: ./.github/actions/kit-bootstrap`: the
   Node.js of mise.toml, the locked kit package, the npm of var/tools and the packages; a job that needs PHP for
   INSTALL_PACKAGES_EXTRA sets PHP up before it in its own job. Until K1051 `make kit-check` named each line of a repository
   workflow that carried its own copy of the bootstrap (K992, K996).
@@ -935,7 +933,7 @@ is set by hand in `mise.toml` and locked with `make toolchain-lock`.
 Since K1050 each lint utility runs its tool with no configuration and no rule of kit: golangci-lint, ruff, phpcs, PHPStan,
 clippy, oxlint and knip read the configuration of the repository by their own discovery (`.golangci.yml`, `ruff.toml` or
 `[tool.ruff]`, `phpcs.xml.dist`, `phpstan.dist.neon`, the `[lints]` of `Cargo.toml` and `clippy.toml`, `.oxlintrc.json`,
-`knip.json`), and kit-sync removes none of them. The files named below are kit's own configuration, which
+`knip.json`), and kit writes none of them. The files named below are kit's own configuration, which
 [docs/examples/native-settings](../examples/native-settings.md) offers as working examples. `config/knip-entries.json`,
 `var/lint-ts/knip.json` and the reporter `knip-ignore-hints.mts` are removed: a repository writes its entries, binaries,
 ignores and workspaces into its own `knip.json`. The paragraphs below record the design before K1050.
@@ -951,7 +949,7 @@ violation; every tool is the latest stable release, checked on the pins of S4.
 |---|---|---|---|
 | Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml` | `lint-python.mts`: ruff from the root and vulture on the Python files of each package, from its folder, each with the configuration of the repository (K1050) |
 | PHP | phpcs 4.0.4, PHPStan 2.3.1, phpstan/extension-installer 1.4.3, spaze/phpstan-disallowed-calls 4.15.0, shipmonk/phpstan-rules 4.4.1 (the Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon` (only ShipMonk's caught-exception cause rule is enabled); `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: phpcs on the PHP files of the checkout; PHPStan on each Composer package with the `vendor/autoload.php` of the package or of the nearest Composer project above it, such as the root development project of a Composer monorepo (`composer-vendor.mts`, shared with run-tests; `COMPOSER_VENDOR_DIR` names another vendor directory) |
-| Rust | cargo clippy of `rust-toolchain.toml` | `lint-cargo-lints` (`config/cargo.schema.json`), `clippy.toml` (P8: `disallowed-methods` for `Result::ok`, `unwrap_or`, `unwrap_or_default` and `unwrap_or_else`) | `lint-rust.mts`: `cargo clippy --workspace --all-targets --locked` in each workspace, with the `[lints]` of its `Cargo.toml` (K1050); a member of `kit-gates` |
+| Rust | cargo clippy of `rust-toolchain.toml` | `clippy.toml` (P8: `disallowed-methods` for `Result::ok`, `unwrap_or`, `unwrap_or_default` and `unwrap_or_else`) | `lint-rust.mts`: `cargo clippy --workspace --all-targets --locked` in each workspace, with the `[lints]` of its `Cargo.toml` (K1050); a member of `kit-gates` |
 | Go | golangci-lint 2.14.0, deadcode of golang.org/x/tools 0.52.0 (`mise.toml`) | `.golangci.yml`: staticcheck without ST1005, since an error string is a cross-port message of the spec that keeps its capitalization, and every finding reported (`max-same-issues` and `max-issues-per-linter` 0; K164) | `lint-go.mts`: golangci-lint and `deadcode -test ./...` in each module |
 | TypeScript | oxlint 1.90.0 with oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (dependencies of kit, installed with it) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: oxlint (type-aware by `options.typeAware` of `.oxlintrc.json`), knip, and API Extractor in each package with an `api-extractor.json` |
 | All | — | `.editorconfig` | none: the formatters of each language enforce the same rules |
@@ -985,11 +983,10 @@ automatically attaches the handled exception as `__context__`, while `raise ... 
 checks traceback preservation rather than PHP's explicit-constructor-argument pattern ([Python exception chaining](https://docs.python.org/3/reference/simple_stmts.html#exception-chaining)). Rust's `map_err` fixture checks that an error is not ignored, not caught-cause forwarding.
 The pinned Python 3.14.8 runtime was checked for both implicit `__context__` and the `from None` suppression flag.
 
-The make targets and the copies (`kit.copies`) are wired on the kit package. `toolchain-mise.mts` reads the lint tools of
+The make targets are wired on the kit package. `toolchain-mise.mts` reads the lint tools of
 `mise.toml` and `toolchain-lint.mts` the PHP lint, after the bootstrap, and `make install-tools` installs
 vulture, golangci-lint, deadcode, and phpcs and PHPStan at the releases that `config/php-lint/composer.lock` holds, in a repository that
-declares PHP (`php` of config/toolchain.json or `.php-version`): every repository holds the copy, and a tool that a repository
-does not declare is not installed.
+declares PHP (`php` of config/toolchain.json or `.php-version`): a tool that a repository does not declare is not installed.
 
 TypeScript lint resolves its declared dependency packages with Node's native package lookup from the installed kit provider. It runs each package's declared executable and exposes the native backend bin directory to oxlint. Linked source installations and packed installations use the same lookup; consumer root transitive bin links are not required.
 
@@ -1075,14 +1072,9 @@ TypeScript lint resolves its declared dependency packages with Node's native pac
   `no-floating-promises` takes the option of typescript-eslint for node:test, `allowForKnownSafeCalls` with `test`,
   `describe`, `it`, `suite`, `skip`, `only` and `todo` of the package `node:test` (K138): a top-level registration returns a
   promise that the runner awaits, and the rule failed each one (516 in crudui), while an un-awaited `fetch` in a test file
-  still fails (a fixture). The subtest `t.test` shares the name `test`; the runner of Node 26 waits for it. A consumer's
-  tsconfig covers its own scripts, not the copies of kit in `scripts/kit`, so oxlint-tsgolint would check those copies
-  outside the project, without the types of node, where every `node:*` import is `any` (K150). In a consumer lint-ts
-  therefore gives oxlint one `--ignore-pattern` for each file of `kit.copies` of the installed package, the record that
-  kit-sync writes: kit lints its copies with its own tsconfig. A pattern of a
-  configuration file is rooted at the directory of that file, so the patterns go on the command line. A violation planted
-  in a copy passes the lint of the fixture consumer, the same violation in its own script fails, and an installed kit that
-  is not the locked version fails as kit-check does (K157). The escape
+  still fails (a fixture). The subtest `t.test` shares the name `test`; the runner of Node 26 waits for it. Until K1052 lint-ts
+  gave oxlint one `--ignore-pattern` for each copy of kit in a consumer (K150, K157); kit writes no copy now, so oxlint lints
+  every file of the repository, which its tsconfig covers. The escape
   hatches from the types fail (K155): `ban-ts-comment` forbids `@ts-ignore` and `@ts-nocheck` and requires a description of
   `@ts-expect-error`, which tsc itself fails once nothing errs, and `no-explicit-any` and `no-unnecessary-type-assertion`
   are on; a fixture plants each one. `oxc/number-arg-out-of-range` is off (K161): it allows 0 to 20 fraction digits
@@ -1125,11 +1117,10 @@ docs/operations/release.md), so the consumer names only the tag. kit-check reads
 
 ## Release workflow, tools and draft (K38)
 
-- `workflows/release.yml` is the source of the copy `.github/workflows/release.yml` (`kit.copies` of package.json): `make kit-sync`
-  writes it from the installed package.
+- `workflows/release.yml` is an example that a repository copies to `.github/workflows/release.yml` and owns (K1052).
 - `make release-prepare` runs the preparation that a repository's release needs before release-tools, such as the checkout of a
   sibling release: kit.mk declares it as a double-colon target with no work, and a repository adds a `release-prepare::` rule
-  to its Makefile (K132). The vendored release workflow runs it after install-packages.
+  to its Makefile (K132). The example release workflow runs it after install-packages.
 - `make release-tools` (`scripts/kit/release-tools.mts`) runs install-tools when config/release.json has a Composer package, a
   wheel or a Go module; npm, which an npm package needs, is the npm of the bootstrap. A make entry adds no step (K930): a repository whose make target needs the PHP installs it in its release-prepare rule with `make install-tools TOOLS="php"`.
 - `release-publish` creates the release as a draft and records its id in `var/release/<tag>.json`. `release-undraft` reads the
@@ -1463,7 +1454,7 @@ such as the other fields of an entry. An example is `^- code: (\w+)$|^  \w+: .*$
 
 ### Wiring a repository
 
-1. After `make kit-sync`, write `config/parity.json`. Declare every implementation, a suite unit for each vector
+1. Write `config/parity.json`. Declare every implementation, a suite unit for each vector
    file and an API unit for each public concept. Shared units hold in every implementation; an owner-scoped feature or suite holds in its declared owner.
 2. Make each binding's native test report each case of a suite under the name of its runner (see Runners): a subtest
    `<symbol>/<case>` in Go, a test `<symbol>::<case>` in cargo, a top-level node:test test named `<case>`, a data set named

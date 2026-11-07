@@ -188,11 +188,7 @@
     },
     "scripts/kit/kit-check.mts": {
       "kind": "policy",
-      "reason": "ties the copies of a repository to the version of @polyspec/kit that package-lock resolves (K71-2); npm checks the installed package, not the copies"
-    },
-    "scripts/kit/kit-sync.mts": {
-      "kind": "policy",
-      "reason": "writes the copies that the package @polyspec/kit declares in kit.copies (K71-2); npm installs the package, and no npm tool writes files of a package into the repository"
+      "reason": "checks the configuration of a repository against the schemas of @polyspec/kit (K71-2, K1052); no ecosystem tool knows these schemas"
     },
     "scripts/kit/kit.mk": {
       "kind": "policy",

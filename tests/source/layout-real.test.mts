@@ -12,7 +12,7 @@ import { installedBinary, sandboxShims } from './real-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // The files of kit that the layout rules read: the rules and the schemas of their json_schema_passes rules.
-const KIT_FILES = ['config/layout.kit.yml', 'config/composer.schema.json', 'config/cargo.schema.json'];
+const KIT_FILES = ['config/layout.kit.yml', 'config/composer.schema.json'];
 // The alint binary that mise installed for this checkout, which the shim of a sandbox runs.
 const ALINT = installedBinary('alint');
 
@@ -39,7 +39,7 @@ rules:
 // The autoload of a library (S2): PSR-4 for the package, autoload-dev PSR-4 for its tests, files for namespaced functions.
 const PSR4 = { autoload: { 'psr-4': { 'Polyspec\\Demo\\': 'src/' }, files: ['src/functions.php'] }, 'autoload-dev': { 'psr-4': { 'Polyspec\\Demo\\Tests\\': 'tests/' } } };
 
-// The lints of a Rust workspace (config/cargo.schema.json).
+// The lints of a Rust workspace.
 const WORKSPACE_LINTS = '[workspace.lints.rust]\nunsafe_code = "deny"\n\n[workspace.lints.clippy]\nallow_attributes_without_reason = "deny"\n';
 
 // A repository that follows the layout: its path dependencies stay inside it, its Go modules resolve each other through
@@ -100,11 +100,6 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'lint-composer-policy', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', type: 'library', autoload: PSR4.autoload }) } },
   { rule: 'lint-composer-policy', files: { 'packages/php/composer.json': JSON.stringify({ name: 'polyspec/demo', autoload: { files: ['src/functions.php'] }, 'autoload-dev': PSR4['autoload-dev'] }) } },
   { rule: 'lint-composer-policy', files: { 'packages/php-ext/composer.json': JSON.stringify({ name: 'polyspec/demo-ext', type: 'php-ext', autoload: { classmap: ['stubs/'] } }) } },
-  // A workspace denies unsafe code and an allow without its reason, and every package takes the lints of its workspace.
-  { rule: 'lint-cargo-lints', files: { 'Cargo.toml': '[workspace]\nmembers = ["packages/rust", "packages/codec/rust"]\n' } },
-  { rule: 'lint-cargo-lints', files: { 'Cargo.toml': `[workspace]\nmembers = ["packages/rust", "packages/codec/rust"]\n\n${WORKSPACE_LINTS.replace('"deny"', '"warn"')}` } },
-  { rule: 'lint-cargo-lints', files: { 'packages/codec/rust/Cargo.toml': '[package]\nname = "demo-codec"\n' } },
-  { rule: 'lint-cargo-lints', files: { 'packages/codec/rust/Cargo.toml': '[package]\nname = "demo-codec"\n\n[lints.rust]\nunsafe_code = "allow"\n' } },
   // An override of the paths of layout-root-files replaces the list of kit and drops every root file that kit adds later, even
   // while the files of the tree still pass (K145); a repository adds its root files through vars.root_files.
   { rule: 'layout-root-files-additive', files: { 'config/layout.yml': `${LAYOUT}  - id: layout-root-files\n    paths: ["*", "!README.md", "!Makefile", "!.gitignore", "!go.work", "!Cargo.toml"]\n` } },

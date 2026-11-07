@@ -1,7 +1,7 @@
-// The release workflow source of kit (workflows/release.yml), which kit-sync vendors to every consumer as
-// .github/workflows/release.yml. The order is fixed: the tools of the repository are installed first; the release is created
+// The release workflow of kit (workflows/release.yml), the example that a repository copies to its
+// .github/workflows/release.yml (K1052). The order is fixed: the tools of the repository are installed first; the release is created
 // as a draft with its archives and then made public. The steps after release-tools run on the tools it installed, and on the
-// PHP of .php-version, which make kit-check requires of a repository that needs PHP (K193). kit does not vendor workflows/, so
+// PHP of .php-version, which make kit-check requires of a repository that needs PHP (K193). The package ships no tests/source, so
 // only the kit runs this case.
 import assert from 'node:assert/strict';
 import { assertWorkflowPackageBootstrap, bootstrapActionCommands, BOOTSTRAP_USES } from '../kit/workflow-package-bootstrap.mts';

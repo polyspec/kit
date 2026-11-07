@@ -3,8 +3,8 @@
 
 [한국어](PRINCIPLES.ko.md)
 
-These are the working principles of every polyspec repository. kit vendors this file byte for byte to each repository that
-takes its tools, so each repository holds the same text and `make kit-inject-check` fails on a difference. A repository's
+These are the working principles of every polyspec repository. kit ships this file in its package as an example; a
+repository that takes it copies it and owns the copy, which kit neither writes nor compares (K1052). A repository's
 AGENTS.md links here and states only the rules of its own. The principles come from the owner; a principle is changed only
 in kit, with its grounding.
 
@@ -284,10 +284,10 @@ tool lands, a standard binds the work as written here.
   of the repository, and no input that ci-targets or ci-setup reads, names a prerequisite of kit-gates again. kit's own ci.yml,
   which tests kit itself, is no consumer CI (K870, K910).
   Enforced by: none, a guided rule: kit checks no recipe, workflow or file of a repository (K1051).
-- S13 The rules that every repository shares are injected identically: each copy of `kit.copies` of the installed kit (this
-  file, ci-pipeline.yml, release.yml and the others) is the bytes of the package, written by `make kit-sync` and changed only in kit;
-  scripts/kit holds those copies only. kit itself is their source and holds no copies (K851).
-  Enforced by: `make kit-inject-check`
+- S13 Shared files are examples: kit ships this file, ci-pipeline.yml, release.yml, the bootstrap action, the Claude Code
+  settings and config/layout.kit.yml in its package; a repository that takes one copies it and owns the copy, and kit writes
+  no file of a repository and compares none (K1052).
+  Enforced by: none, which example a repository takes and how it changes its copy is the repository's choice.
 - S15 Loose coupling: core, plugins, sidecars, kit, specs and contracts are parts that know each other only through interfaces.
   A part reaches another part only through the interface that the installed manifest of that part declares (for an npm package,
   the `exports` of its package.json), and finds it through the package that installation puts in place and the JSON written at

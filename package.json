@@ -47,7 +47,6 @@
     ".editorconfig",
     "config/api-extractor.kit.json",
     "config/composer.schema.json",
-    "config/cargo.schema.json",
     "config/php-lint/composer.json",
     "config/php-lint/composer.lock",
     "workflows/release.yml",
@@ -105,59 +104,8 @@
         "name": "case-sensitive directory uses the platform provisioner and restores the named environment"
       }
     ],
-    "copies": {
-      "PRINCIPLES.md": "PRINCIPLES.md",
-      "PRINCIPLES.ko.md": "PRINCIPLES.ko.md",
-      ".editorconfig": ".editorconfig",
-      ".claude/settings.json": "claude/settings.json",
-      ".github/workflows/release.yml": "workflows/release.yml",
-      ".github/workflows/ci-pipeline.yml": "workflows/ci-pipeline.yml",
-      ".github/actions/kit-bootstrap/action.yml": "actions/kit-bootstrap/action.yml",
-      "config/layout.kit.yml": "config/layout.kit.yml",
-      "config/composer.schema.json": "config/composer.schema.json",
-      "config/cargo.schema.json": "config/cargo.schema.json"
-    },
-    "comment": "K410-1: the owner rules that kit ships with its copies and with the hooks that make hooks writes; a consumer merges them into its owner checks (owner-check reads them from the installed package), and the test of tests/kit/kit-sync.test.mts fails a copy that no rule owns.",
+    "comment": "K410-1, K1052: the owner rules that kit ships own the hooks that make hooks writes; a consumer merges them into its owner checks (owner-check reads them from the installed package). kit writes no other file of a repository.",
     "owners": [
-      {
-        "paths": [
-          ".github/workflows/release.yml",
-          ".github/workflows/ci-pipeline.yml",
-          ".github/actions/kit-bootstrap/action.yml",
-          ".claude/settings.json",
-          ".editorconfig"
-        ],
-        "targets": [
-          "layout-check"
-        ]
-      },
-      {
-        "paths": [
-          "PRINCIPLES.md"
-        ],
-        "targets": [
-          "rules-check"
-        ]
-      },
-      {
-        "paths": [
-          "PRINCIPLES.ko.md"
-        ],
-        "targets": [
-          "docs-check"
-        ]
-      },
-      {
-        "paths": [
-          "config/layout.kit.yml",
-          "config/composer.schema.json",
-          "config/cargo.schema.json"
-        ],
-        "targets": [
-          "layout-check",
-          "kit-check"
-        ]
-      },
       {
         "paths": [
           ".githooks/pre-commit",

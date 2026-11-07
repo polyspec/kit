@@ -1,15 +1,15 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: d35bda534cc47fabcb1eed74e6db39edeb694ec87dde7a2481919c6f6ea069b0 -->
+<!-- source-sha256: 5cdf5f466f09e381f4b6c77baf19799988ba25f681c62903f61396d15cca47ea -->
 # 개발
 
 [English](AGENTS.md)
 
 ## 목적
 
-kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release, 의존성, 문서, 설치 도구입니다. 저장소는 `scripts/kit/`와
-`tests/kit/` 대신 package `@polyspec/kit`을 설치하고, 그 `package.json`의 `kit.copies`가 나열하는 파일의 사본을 byte 단위로 같게 두며, 사본은 `make kit-sync`가 씁니다. 저장소끼리 다른 것은
-`config/*.json`뿐입니다. kit은 어느 저장소에도 의존하지 않습니다. kit은 모든 polyspec 저장소의 작업 원칙인 [PRINCIPLES.md](PRINCIPLES.md)와 그 한국어 쌍도 담아 같은 경로로 vendor하므로, 모든 저장소가
-같은 원칙을 가집니다; 각 저장소의 AGENTS.md는 그것으로 link하고 자기만의 규칙만 적습니다. 아래 규칙은 kit 자신의 것입니다.
+kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release, 의존성, 문서, 설치 도구입니다. 저장소는 이 도구를 package
+`@polyspec/kit`으로 설치합니다. package는 workflow, bootstrap action, Claude Code 설정 같은 예시도 담으며, 저장소는 원할 때
+그것을 복사해 자기 것으로 가집니다(K1052). kit은 어느 저장소에도 의존하지 않습니다. kit은 모든 polyspec 저장소의 작업 원칙인
+[PRINCIPLES.md](PRINCIPLES.md)와 그 한국어 쌍도 그런 예시로 담습니다. 저장소의 AGENTS.md는 자기 사본으로 link하고 자기만의 규칙만 적습니다. 아래 규칙은 kit 자신의 것입니다.
 
 ## 규칙
 
@@ -49,10 +49,6 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   fixture와 `tests/kit/isolation.test.mts`를 뺀 어떤 도구나 테스트도 다른 저장소의 이름을 쓰지 않습니다. 저장소마다 다른 값은 `config/<name>.json`의 데이터이며, schema는 `scripts/kit/schema/`에 있습니다.
   schema는 ajv가 검증합니다(draft 2020-12, strict mode, 모든 error).
   Enforced by: `tests/kit/isolation.test.mts`
-- Own: vendored 파일은 kit에서 고치고 설치된 package의 사본을 쓰는 `make kit-sync`로 복사합니다(npm ci가 package-lock.json의 version을 integrity로 설치합니다). 저장소에서
-  직접 고치지 않으며, 고치면 `make kit-inject-check`가 바뀐 파일이나 빠진 파일로 실패합니다. `scripts/kit/`은 kit의 사본만 담으므로
-  사본이 아닌 그 안의 파일에도 실패하며, `make kit-sync`가 그 파일을 지웁니다.
-  Enforced by: `make kit-inject-check` (S13), `.claude/settings.json`
 - Own: 일반적인 package manager 설치, dependency lock, version release를 따른다. 이를 벗어나는 요청은 명시적인 사용자 요청이라도 구현 전에 이탈 지점과 영향을 보고하고 정석적인 대안을 제시한다. 로컬 source link는 개발 수단으로 유지한다.
   Enforced by: none, 선택과 설명은 검토가 필요하다.
 - Refines P14: [PRINCIPLES.md](PRINCIPLES.md)의 생태계 원칙을 `scripts/kit/`의 도구에 적용합니다: Python interpreter, environment, lock은 uv, PHP 의존성은 Composer를
@@ -61,7 +57,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Own: 저장소는 uv를 `make uv-install`로 실행합니다. 이 target은 uv가 link를 거쳐 쓰고 지우므로(K539) uv가 쓰기 전에 uv가 쓸 environment의
   package link를 제거하고(`SYNC`의 `--project`, `--directory`, `--active`가 고르는 environment 포함), lock의 native locked 설치(`uv sync --locked`, 또는 pylock.toml의 `uv pip install`)를 `SYNC`의 flag 그대로 실행합니다. symlink된 개발 폴더는 손상되지 않습니다.
   Enforced by: `tests/kit/uv-install.test.mts`, `tests/source/uv-link-real.test.mts`
-- Own: 추적되는 공유 root 파일과 workflow는 설치된 kit package의 일반 파일 사본이며 `make kit-sync`가 관리합니다. 소비자는
+- Own: 저장소가 package의 예시에서 복사한 파일은 그 저장소의 파일입니다(K1052). 소비자는
   `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include하며 첫 Make 실행 전에 lock에 고정된 npm dependency를 설치합니다.
   로컬 개발은 main checkout의 git-ignored `.links`가 한 줄에 하나씩 지정한 provider checkout을 link합니다. `make link`는
   그 패키지의 설치된 folder마다 provider로 가는 평범한 directory symlink 하나로 만듭니다(`docs/operations/local-links.md`, K869).
@@ -101,7 +97,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   없으면 `mise install --locked`가 스스로 실패하므로(K192) kit은 mise.lock을 검사하지 않습니다(K835). wheel은 uv build가 자기 pyproject.toml의 build-system.requires로
   build하며, kit은 build backend를 고정하지 않습니다(K788). vendored test는 consumer의 선언을 이 규칙으로만 검사합니다. vendored dependency test는 go와 Composer를 실제 도구의
   기록으로 답하는 stub으로 읽으며, 실제 도구를 실행하지 않습니다. kit 자신의 실제 도구 test는 `tests/source`에 있습니다.
-  kit-sync가 vendor하지 않으며, 고정한 도구를 실행하는 source test에는 먼저 `make install-tools`가 필요하고, `make
+  package가 담지 않으며, 고정한 도구를 실행하는 source test에는 먼저 `make install-tools`가 필요하고, `make
   source-test`가 실행하며 CI는 `make kit-test` 뒤에 실행합니다.
   Enforced by: none, mise install --locked checks mise.lock and its sidecars itself (K835)
 - Own: kit 자신의 검사는 `mise.toml`이 선언한 버전의 도구를 쓰며, 이것들은 `make install-tools`가 var/tools/mise에 설치합니다.
@@ -159,5 +155,3 @@ kit은 release workflow가 성공한 CI run의 정확한 commit이 `origin/main`
   끝났고 그 commit이 `origin/main`에 있는지를 검사하고, 그 commit에 있는 config/release.json의 `changelog`가 가리키는 change log에서 가장 새로운 section `## X.Y.Z`로 버전을 읽은 뒤
   (그런 section이 없거나 `## Unreleased` 아래 항목이 있는 commit은 거부한다) 그 commit과 그 `goModules`의 module에 tag를 단다. version을 비교하지 않는다(S4, K911, K924).
   Enforced by: `tests/kit/release-run.test.mts`
-- Own: 모든 저장소는 vendor된 `workflows/release.yml`로 릴리스하며 그것을 편집하지 않는다.
-  Enforced by: none, 안내 규칙: kit은 저장소의 recipe, workflow, 파일을 검사하지 않는다(K1051).

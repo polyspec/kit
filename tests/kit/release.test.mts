@@ -709,8 +709,7 @@ test('coverage names each package file that no list classifies, each stale entry
   assert.ok(later.includes('package.json is in both manifests and notReleased of config/release.json; list it once'), later.join('\n'));
 });
 
-// K167: kit writes files of every repository: the copies of kit.copies of the package that runs (make kit-sync), the Composer
-// project of PHPUnit that install-tools installs and the lock tree of mise under .mise/locks (make toolchain-lock). Coverage
+// K167: kit writes files of every repository: the Composer project of PHPUnit that install-tools installs and the lock tree of mise under .mise/locks (make toolchain-lock). Coverage
 // takes them as not released, so no repository lists them by hand; a package file of the repository is still reported.
 test('coverage takes the files that kit writes as not released, and still names a package file of the repository (K167)', (t) => {
   const box = releaseSandbox(t);

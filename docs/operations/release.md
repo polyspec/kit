@@ -6,8 +6,7 @@
 The procedure of a release of kit; the rules are those of AGENTS.md.
 
 kit is released by tag `vX.Y.Z` on a commit of `main` whose CI run concluded `ci` success. `package.json` holds the version of the
-tree. A repository adopts a release by updating `@polyspec/kit` in its package-lock and running `make install-packages` and
-`make kit-sync`.
+tree. A repository adopts a release by updating `@polyspec/kit` in its package-lock and running `make install-packages`.
 
 Consumers include `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`. On a clean checkout, the shared workflow first runs native `npm ci --ignore-scripts` of the npm version that `devEngines.packageManager` declares, from a temporary folder outside the checkout with `--prefix`, since npm 11 refuses to run in a folder whose devEngines names another version (K938-1); then it runs the existing tool installation and package installation targets. It never clones a sibling kit checkout. A local `npm link ../kit` uses the same installed package path with the source bootstrap; kit itself uses its own source Makefile.
 
@@ -39,8 +38,8 @@ vendored `workflows/release.yml` itself, then checks out the tag, builds the off
 `make release-assets TAG=vX.Y.Z`, the only source for publication, publishes them on the GitHub Release as a draft and makes it
 public. A repository pins that asset's URL with its integrity. A published tag is never moved.
 
-kit vendors the release workflow `workflows/release.yml` to `.github/workflows/release.yml` of every repository (`kit.copies` of
-package.json). A repository never edits it; `make kit-sync` rewrites it. The workflow sets up the PHP of `.php-version` when
+kit ships the release workflow `workflows/release.yml` as an example; a repository that wants it copies it to
+`.github/workflows/release.yml` and owns the copy (K1052). The workflow sets up the PHP of `.php-version` when
 the repository declares one, runs `make release-tag` on `main`, checks out the tag and installs the kit and the packages of the
 tag, then runs `make release-prepare` (the preparation that the repository's release declares with a
 `release-prepare::` rule of its Makefile, none by default), `make release-tools` (the tools that config/release.json needs; a make entry adds none), `make release-tools-path` (which

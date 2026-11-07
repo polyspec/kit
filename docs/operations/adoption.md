@@ -8,13 +8,11 @@ This is the procedure of an agent or a person who works in a repository that tak
 
 ## At every item boundary
 
-1. `make kit-sync` copies the files of the installed kit (P30: the installed kit of a development checkout is a link to the local
-   kit, so a landing of kit reaches the repository this way, with no relay).
-2. Each provider that the repository consumes through links is built by its own targets ([local-links.md](local-links.md)); link
+1. Each provider that the repository consumes through links is built by its own targets ([local-links.md](local-links.md)); link
    builds nothing (K856).
-3. `make install-tools` installs the tools of `mise.toml`.
-4. Every gate of `kit-gates` runs. A gate that fails is the next item of the plan of the repository, with its own red and green.
-5. Before each push, `make kit-gates-static` is the self-diagnosis of the repository: it runs every shared gate past a failure,
+2. `make install-tools` installs the tools of `mise.toml`.
+3. Every gate of `kit-gates` runs. A gate that fails is the next item of the plan of the repository, with its own red and green.
+4. Before each push, `make kit-gates-static` is the self-diagnosis of the repository: it runs every shared gate past a failure,
    so one run names each gate that fails, and ends with `[kit-gates-static] every shared gate passed`. Its `kit-check` judges
    the rules S11, S12 and P30: one CI pipeline at the root of the checkout, no link step of a package manager and no tracked
    manifest path out of the repository (K998). The tests run in CI.
@@ -80,6 +78,13 @@ The sequence of a first adoption (K938-1):
 - `make install` installs the rest.
 
 Then commit `package.json`, `mise.toml`, `mise.lock`, `.mise/locks/npm-npm/<version>/` and the workflow lines in one change.
+
+## Shared files (K1052)
+
+kit writes no file of a repository. The workflows, the bootstrap action, the Claude Code settings, the layout rules and the
+principles are examples of the package, listed in [docs/examples/shared-files](../examples/shared-files.md); a repository copies
+the ones it wants and commits each copy as its own file. A repository that held copies of kit-sync keeps them as its files; it
+removes `kit-sync` and `kit-inject-check` from its own recipes and workflows.
 
 ## Never
 

@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release-structure -->
-<!-- source-sha256: 48e4d2122cfb5e2e4f2351c7df9aaacd5af36ae9e47b6c97b876453ba9997ede -->
+<!-- source-sha256: 9175996f01706aa3628741ce41488f0ba34b3618fda726b0abd1c2a2d2b7574e -->
 # 릴리스 구조
 
 [English](release-structure.md)
@@ -32,7 +32,7 @@ K514는 lint 설정을 사본에서 빼냈습니다. K1050부터 각 lint 도구
 | `.editorconfig` | 예: 편집기가 저장소 루트에서 읽는다 | 사본 |
 | `PRINCIPLES.md`, `PRINCIPLES.ko.md` | 아니오: 독자가 link로 따라가는 문서 | 패키지로 가는 link 문서 |
 | `config/layout.kit.yml` | 아니오: kit의 도구만 읽는다 | K514처럼 패키지에서 읽음 |
-| `config/composer.schema.json`, `config/cargo.schema.json` | 아니오: kit의 layout check만 읽는다 | K514처럼 패키지에서 읽음 |
+| `config/composer.schema.json` | 아니오: kit의 layout check만 읽는다 | K514처럼 패키지에서 읽음 |
 | `config/php-lint/composer.json`, `composer.lock` | 아니오: install-tools가 PHP lint를 var/tools에 설치하려고 읽는다 | K514처럼 패키지에서 읽음 |
 
 ## 각 부분이 가질 구조
@@ -59,7 +59,7 @@ K514는 lint 설정을 사본에서 빼냈습니다. K1050부터 각 lint 도구
 
 ## 현재 package bootstrap (K671)
 
-소비자는 설치된 `@polyspec/kit` package의 bootstrap을 include합니다. 첫 Make 실행 전에 native npm이 lock의 package를 설치합니다. 공유 principles, editor와 Claude 설정, release/CI 파이프라인 workflow는 kit-sync가 쓰는 일반 사본입니다. 옆의 source checkout은 선택 사항이며 native `npm link ../kit`으로 연결할 수 있습니다. 이 동작은 아래에 기록된 sibling bootstrap과 추적된 공유 link를 대체합니다.
+소비자는 설치된 `@polyspec/kit` package의 bootstrap을 include합니다. 첫 Make 실행 전에 native npm이 lock의 package를 설치합니다. 공유 principles, editor와 Claude 설정, release/CI 파이프라인 workflow는 package의 예시이며, 저장소가 복사해 자기 것으로 가집니다(K1052). 옆의 source checkout은 선택 사항이며 native `npm link ../kit`으로 연결할 수 있습니다. 이 동작은 아래에 기록된 sibling bootstrap과 추적된 공유 link를 대체합니다.
 
 ## K614이 한 일
 
@@ -70,6 +70,13 @@ K514는 lint 설정을 사본에서 빼냈습니다. K1050부터 각 lint 도구
 - PHP lint project `config/php-lint`는 실행되는 kit에서 읽습니다.
 - `PRINCIPLES.md`, 그 짝, `.editorconfig`, `.claude/settings.json`은 `../kit`의 파일로 가는 tracked symbolic link입니다.
 - 두 workflow는 GitHub가 symbolic link를 따르지 않으므로 각 저장소의 일반 파일로 남고, kit-check는 더 비교하지 않습니다.
-- `config/layout.kit.yml`과 그것이 이름 붙인 manifest schema 세 개는 kit-sync가 쓰는 복사본으로 남습니다. alint 0.18.2가
+- `config/layout.kit.yml`과 그것이 이름 붙인 manifest schema 세 개는 K1052 전까지 kit-sync가 쓰는 복사본으로 남았습니다. alint 0.18.2가
   kit에서 읽는 모든 방법을 거부합니다. 저장소 밖의 `extends:`는 "`extends:` target … resolves to … which is outside the lint
   root"로, 그 파일로 가는 symbolic link도 같은 오류로, 두 번째 `--config`는 "`--config` may be given at most once"로 실패합니다.
+
+## K1052가 한 일
+
+K1052는 kit-sync, kit-inject-check, `kit.copies`를 지웠습니다. kit은 저장소의 파일을 쓰지도 비교하지도 않습니다. kit-sync가
+쓰던 파일은 package의 예시입니다. 저장소는 원하는 것을 복사해 각 사본을 자기 것으로 가지므로, 예시가 바뀌어도 저장소가 그 변경을
+받기로 할 때까지 행이 들지 않습니다. 규칙 `lint-cargo-lints`와 `config/cargo.schema.json`도 함께 지웠습니다. kit에는 자기
+Cargo.toml이 없고, Cargo의 `[lints]`는 docs/examples/native-settings가 보여 줍니다.
