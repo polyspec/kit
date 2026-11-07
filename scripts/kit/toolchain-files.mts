@@ -6,8 +6,7 @@
 // A reader that cannot run or read its file throws an Error that names the file and the cause. The Rust declaration of a
 // checkout is read here, not in bootstrap/toolchain-declared.mts, because only the npm and Node.js pins are read before the
 // tools are installed; the Go release is a tool of mise.toml (toolchain-mise.mts).
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Declared } from './bootstrap/toolchain-declared.mts';
 import { execute } from './process.mts';
@@ -58,24 +57,6 @@ export function goWorkFile(root: string, directory: string, env: NodeJS.ProcessE
 /** The packages of the Cargo workspace of the Cargo.toml `file` of `root`, as `cargo metadata --no-deps` prints them. */
 export const readCargoPackages = (root: string, file: string, env: NodeJS.ProcessEnv): CargoPackage[] =>
   parseJson<{ packages: CargoPackage[] }>(output(file, '`cargo metadata`', 'cargo', ['metadata', '--no-deps', '--format-version', '1', '--offline', '--manifest-path', path.join(root, file)], env), 'cargo-metadata.schema.json', `cargo metadata ${file}`).packages;
-
-/**
- * The value of each npm configuration key of `keys` that the .npmrc `file` of `root` gives the project of its directory, as
- * `npm config get` prints it there. The configuration of the user, of npm itself and of the environment does not count:
- * the npm_config_ variables are removed, and the user and global files are named where none exists.
- */
-export function readNpmConfig(root: string, file: string, keys: string[], env: NodeJS.ProcessEnv): Record<string, string> {
-  const none = mkdtempSync(path.join(tmpdir(), 'kit-npmrc-'));
-  try {
-    const project = Object.fromEntries(Object.entries(env).filter(([key]) => !/^npm_config_/i.test(key)));
-    const isolated = { ...project, npm_config_userconfig: path.join(none, 'user'), npm_config_globalconfig: path.join(none, 'global') };
-    const cwd = path.join(root, path.dirname(file));
-    const npm = toolCommand(root, 'npm');
-    return Object.fromEntries(keys.map(key => [key, output(file, `\`npm config get ${key}\``, npm, ['config', 'get', key], isolated, cwd).trim()]));
-  } finally {
-    rmSync(none, { recursive: true, force: true });
-  }
-}
 
 /** The Rust release that the checkout declares: the channel of rust-toolchain.toml as it declares it, which rustup judges (K840); undefined without the file. */
 export function declaredRust(root: string): Declared | undefined {
