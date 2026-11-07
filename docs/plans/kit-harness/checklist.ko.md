@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: dd1e8dd5a48461d890230d520778bf3d0446872e3e29e2ffe281013b4f748a0e -->
+<!-- source-sha256: e26673ae1f224a94857b30db8c4040a07173dcab353b3c28925305750fdcee72 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -170,4 +170,4 @@
 | K1039 | Native 종료 상태를 관측하여 K682 orphan cleanup 실패 두 개를 고치고 살아 있는 process의 grace와 기존 case deadline을 보존한다. issue33으로 추적한다. | scripts/kit/process-group.mts; tests/kit/process-group.test.mts; tests/kit/test-build-first.test.mts; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; AGENTS.md; AGENTS.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/process-group.test.mts tests/kit/run-command.test.mts tests/kit/run-command-signal.test.mts tests/kit/parity-operation.test.mts tests/kit/test-build-first.test.mts` | [o] |
 | K1040 | 유효한 native Go fixture의 정상 실행을 확인한 뒤 의도한 compiler 실패 근거를 보존한다. issue 34로 추적한다. | tests/source/parity-go.test.mts; AGENTS.md; AGENTS.ko.md; CHANGELOG.md; CHANGELOG.ko.md | CI only: `node --test tests/source/parity-go.test.mts`; record the exact successful source Go CI job before closing. | [~] |
 | K1041 | POSIX native source 검사는 Linux와 macOS에 명시적으로 배치하고 공통 Windows process 검사와 정확한 source inventory를 유지한다. issue 35로 추적한다. | .github/workflows/ci.yml; Makefile; tests/kit/process-group.test.mts; tests/source/process-group-posix.test.mts; tests/source/ci-workflow.test.mts; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/source/ci-workflow.test.mts tests/kit/process-group.test.mts tests/source/process-group-posix.test.mts tests/kit/run-command.test.mts tests/kit/run-command-signal.test.mts tests/kit/parity-operation.test.mts tests/kit/test-build-first.test.mts` | [o] |
-| K1042 | CI 42383994330에서 발견한 오래된 bootstrap workflow 검증을 수정한다. issue 35의 후속으로 표시 이름에 의존하지 않고 공통 native process 명령과 deadline을 확인한다. | tests/kit/bootstrap-platform.test.mts; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/bootstrap-platform.test.mts tests/source/ci-workflow.test.mts` | [ ] |
+| K1042 | CI 42383994330에서 발견한 오래된 bootstrap workflow 검증을 수정한다. issue 35의 후속으로 표시 이름에 의존하지 않고 공통 native process 명령과 deadline을 확인한다. | tests/kit/bootstrap-platform.test.mts; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/bootstrap-platform.test.mts tests/source/ci-workflow.test.mts` | [~] |

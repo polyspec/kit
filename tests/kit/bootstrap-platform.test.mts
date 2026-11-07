@@ -62,6 +62,12 @@ test('the platform smoke installs pinned packages before SDK tools and requires 
   // K820: on Windows a mise shim run through Git Bash make reaches mise.exe by the PATH of kit.mk.
   assert.match(workflow, /run a mise shim through Git Bash Make on Windows[\s\S]*?shell: bash[\s\S]*?\$\(KIT_TOOLS\)\/mise\/shims\/go version/);
   // K830: the process tests start real processes; a hang fails the step by its limit.
-  assert.match(workflow, /verify the Windows \.cmd process path\n\s+timeout-minutes: 10\n/);
+  const processSteps = workflow.split(/\n {6}- /).filter(step =>
+    /^ {8}run: node --test tests\/kit\/process\.test\.mts tests\/kit\/process-group\.test\.mts$/m.test(step));
+  assert.equal(processSteps.length, 1, 'one common step executes the native process tests');
+  const processStep = processSteps[0];
+  assert.ok(processStep);
+  assert.match(processStep, /^ {8}timeout-minutes: 10$/m);
+  assert.doesNotMatch(processStep, /^ {8}if:/m, 'every platform executes common process tests');
   assert.match(ci, /\n {2}kit:\n[\s\S]*?needs: \[[^\]]*\bbootstrap\b[^\]]*\][\s\S]*?RESULTS: \$\{\{ toJSON\(needs\) \}\}/, 'the final job kit requires the result of every OS');
 });

@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Validate the common native process bootstrap command, deadline and platform coverage independently of its display name (K1042).
+
 ## 0.0.97
 
 - CI: declare POSIX native source checks once per Linux/macOS platform while retaining common Windows process checks, without skipped native cases (K1041).

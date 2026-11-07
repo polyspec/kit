@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 47addc5057c7e08aa2319f3084b9a55e2314d8fd03fdfb45bd52f61ea687eaa8 -->
+<!-- source-sha256: d31755271aa61c1ef33b140592c62cf29ee3a4c1e0c513e8224dee6d96044f30 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- 표시 이름과 독립적으로 공통 native process bootstrap 명령, deadline과 platform 적용을 검증한다(K1042).
 
 ## 0.0.97
 
