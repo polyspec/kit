@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 4f6d2e27cd22a0ca2228dd58c2c39de48c7a628cce5b9340f521a3904a72e81f -->
+<!-- source-sha256: 45d3e7c967f9bf53a1c32a993a42985065daaf1c44ad3e90d1f62ab4f6724f6b -->
 # 개발
 
 [English](AGENTS.md)
@@ -12,6 +12,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 같은 원칙을 가집니다; 각 저장소의 AGENTS.md는 그것으로 link하고 자기만의 규칙만 적습니다. 아래 규칙은 kit 자신의 것입니다.
 
 ## 규칙
+
+- Own: 추적하는 모든 test file은 repository Makefile의 CI shard 하나에 정확히 한 번 속한다. Kit test는 KIT_TEST_FILES에, source test는 SOURCE_TEST_FILES에 선언한다. Test 추가에는 shard 선언이 포함되며 exact-once CI inventory 검사는 그 선언의 unit test이다. 로컬에서 실행했어도 CI에 없으면 미완료이다.
+  Enforced by: `tests/source/ci-workflow.test.mts`
 
 - Own: POSIX에서 중단된 command harness는 새 command를 받지 않고 소유 group의 종료를 요청하며 child close와 cleanup을 기다린 뒤 중단 상태로 종료한다. 강제 종료는 선언된 cleanup grace 뒤의 단계이며 협조적인 cleanup을 대신하지 않는다. 동기 강제 exit hook은 비상 cleanup만 담당한다.
   Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/kit/parity-operation.test.mts`

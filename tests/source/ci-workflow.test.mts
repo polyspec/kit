@@ -184,7 +184,7 @@ test('the kit required check aggregates independent checks, kit tests and source
   assert.ok(!checks.includes('make kit-test') && !checks.includes('make source-test'));
 });
 
-test('CI test shard declarations cover every tracked kit and source test file exactly once (K718)', () => {
+function assertShardInventory(prefix: string, directory: string, groups: string[]): void {
   const makefile = readFileSync(path.join(ROOT, 'Makefile'), 'utf8');
   const assignments = new Map([...makefile.matchAll(/^([A-Za-z][A-Za-z0-9_-]*) := ((?:[^\n]*\\\n)*[^\n]*)/gm)]
     .map(match => [known(match[1], 'match[1]'), known(match[2], 'match[2]').replace(/\\\n/g, ' ').split(/\s+/).filter(Boolean)]));
@@ -196,10 +196,16 @@ test('CI test shard declarations cover every tracked kit and source test file ex
     assert.equal(new Set(declared).size, declared.length, `${label} repeats no file`);
     assert.deepEqual([...declared].sort(), expected, `${label} includes every tracked test file exactly once`);
   };
-  assert.deepEqual(names('KIT_TEST_FILES_').sort(), ['KIT_TEST_FILES_1', 'KIT_TEST_FILES_2', 'KIT_TEST_FILES_3', 'KIT_TEST_FILES_4', 'KIT_TEST_FILES_5', 'KIT_TEST_FILES_6', 'KIT_TEST_FILES_7']);
-  assertExactOnce(files('KIT_TEST_FILES_'), tracked('tests/kit'), 'kit shards');
-  assert.deepEqual(names('SOURCE_TEST_FILES_').sort(), ['SOURCE_TEST_FILES_common-1', 'SOURCE_TEST_FILES_common-2', 'SOURCE_TEST_FILES_common-3', 'SOURCE_TEST_FILES_go', 'SOURCE_TEST_FILES_php', 'SOURCE_TEST_FILES_python', 'SOURCE_TEST_FILES_rust', 'SOURCE_TEST_FILES_ts']);
-  assertExactOnce(files('SOURCE_TEST_FILES_'), tracked('tests/source'), 'source groups');
+  assert.deepEqual(names(prefix).sort(), groups.map(group => `${prefix}${group}`).sort());
+  assertExactOnce(files(prefix), tracked(directory), `${directory} shards`);
+}
+
+test('CI test shard declarations cover every tracked kit test file exactly once (K718, K1038)', () => {
+  assertShardInventory('KIT_TEST_FILES_', 'tests/kit', ['1', '2', '3', '4', '5', '6', '7']);
+});
+
+test('CI test shard declarations cover every tracked source test file exactly once (K718, K1038)', () => {
+  assertShardInventory('SOURCE_TEST_FILES_', 'tests/source', ['common-1', 'common-2', 'common-3', 'go', 'php', 'python', 'rust', 'ts']);
 });
 
 test('the CI shard targets reject an empty or unknown selection before starting the runner (K718)', () => {

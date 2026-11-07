@@ -28,6 +28,7 @@ KIT_TEST_FILES_2 := \
 	tests/kit/install-php.test.mts tests/kit/kit-mk.test.mts tests/kit/link-folders.test.mts \
 	tests/kit/link.test.mts tests/kit/owner-check.test.mts tests/kit/pack-manifest.test.mts \
 	tests/kit/rebuild-check.test.mts tests/kit/release-root.test.mts \
+	tests/kit/parity-diagnostics.test.mts tests/kit/parity-operation.test.mts tests/kit/parity-output.test.mts tests/kit/run-command-signal.test.mts \
 	tests/kit/release-tools.test.mts tests/kit/test-selection.test.mts tests/kit/text-absent.test.mts \
 	tests/kit/toolchain-exceptions.test.mts tests/kit/uv-install.test.mts
 KIT_TEST_FILES_3 := \
@@ -68,7 +69,7 @@ SOURCE_TEST_GROUPS := ts php rust go python common-1 common-2 common-3
 SOURCE_TEST_FILES_ts := tests/source/lint-ts-real.test.mts tests/source/node-real.test.mts tests/source/symbols-ts-real.test.mts
 SOURCE_TEST_FILES_php := tests/source/link-composer-real.test.mts tests/source/lint-php-real.test.mts tests/source/symbols-php-real.test.mts
 SOURCE_TEST_FILES_rust := tests/source/link-cargo-real.test.mts tests/source/lint-rust-real.test.mts
-SOURCE_TEST_FILES_go := tests/source/go-bench-output-real.test.mts tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
+SOURCE_TEST_FILES_go := tests/source/parity-go.test.mts tests/source/go-bench-output-real.test.mts tests/source/lint-go-real.test.mts tests/source/tools-go-mod-real.test.mts
 SOURCE_TEST_FILES_python := tests/source/lint-python-real.test.mts tests/source/python-real.test.mts tests/source/python-venv-real.test.mts tests/source/symbols-python-real.test.mts tests/source/uv-link-real.test.mts tests/source/wheel-metadata-real.test.mts
 SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-audit-online-real.test.mts tests/source/tool-records-real.test.mts tests/source/ci-workflow.test.mts
 SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts tests/source/parity-real.test.mts

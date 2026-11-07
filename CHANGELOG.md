@@ -7,6 +7,8 @@
 
 ## 0.0.97
 
+- CI: schedule every new parity diagnostic, operation, live-output, interruption and native Go compiler test exactly once; check kit and source inventories independently (K1038).
+
 - Release: prepare the verified parity execution and graceful command-lifecycle candidate for consumer adoption (K1037).
 
 - CI: request graceful command termination on interruption, await owned child closure, block later commands and reserve SIGKILL for cleanup-grace escalation (K1036).

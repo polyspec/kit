@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1e18f3e3595be8c42e33bdc034304d209db5249623599a61467fc2fdae0b867d -->
+<!-- source-sha256: ec5ad692b4a34dace3df19423c92af7a7ef8b061da094a1eaf4e198b49186788 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.97
+
+- CI: 새 parity 진단·처리·실시간 출력·중단·native Go compiler 시험을 shard에 정확히 한 번씩 배치하고 kit와 source inventory를 독립적으로 검사한다(K1038).
 
 - Release: 검증한 parity 실행과 정상 command 종료 처리의 후보를 소비 repository 반영용으로 준비한다(K1037).
 

@@ -14,6 +14,9 @@ and states only its own rules. The rules below are kit's own.
 
 ## Rules
 
+- Own: Every tracked test file belongs to exactly one CI shard in the repository Makefile: KIT_TEST_FILES for kit tests and SOURCE_TEST_FILES for source tests. Adding a test includes declaring its shard; the exact-once CI inventory check is a unit test of that declaration. A test that ran locally but is absent from CI is incomplete.
+  Enforced by: `tests/source/ci-workflow.test.mts`
+
 - Own: On POSIX, an interrupted command harness stops admitting commands, requests termination of its owned groups and awaits child close and cleanup before exiting with interrupted status. Force is escalation after the declared cleanup grace, never a substitute for cooperative cleanup. A synchronous forced-exit hook is emergency cleanup only.
   Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/kit/parity-operation.test.mts`
 
