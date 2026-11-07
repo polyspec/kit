@@ -13,7 +13,7 @@
 // of it. A rule of PRINCIPLES.md begins with an id, P<n> or S<n>. A rule of AGENTS.md begins with `Own:` or `Refines <id>:`; a
 // refining rule names, in backticks, a term of the repository that PRINCIPLES.md lacks (an existing path or a make target), so a
 // restatement of a principle is a finding (K300). The Korean twin of a document (<name>.ko.md) names the same checks for each rule.
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { lineBlocks } from './markdown.mts';
 import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
@@ -221,7 +221,14 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
       for (const word of args) if (make.targets.has(word)) queue.push({ target: word, variables: new Map(variables) });
       return;
     }
-    const { targets: named, assignments } = makeArguments(args);
+    const { targets: named, assignments, directory, file } = makeArguments(args);
+    // A make of another Makefile runs none of the targets of this one: its -C names another folder, or its -f a file that is not
+    // the makefile of the root by any path (K1064).
+    // The paths compare as real paths, since make names its CURDIR by the real path of the root.
+    const real = (target: string) => (existsSync(target) ? realpathSync(target) : path.resolve(target));
+    const top = real(root);
+    if (real(path.resolve(root, directory ?? '.')) !== top) return;
+    if (file !== undefined && !['GNUmakefile', 'makefile', 'Makefile'].map(name => path.join(top, name)).includes(real(path.resolve(root, file)))) return;
     for (const target of named) queue.push({ target, variables: new Map([...variables, ...assignments]) });
   };
   for (const folder of ENTRY_FOLDERS) {

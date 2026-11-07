@@ -263,6 +263,20 @@ test('a recipe line prefixed with @, - or +, literally or by a variable, reaches
   assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
 });
 
+// K1064: make -C DIR and make -f FILE run another Makefile, so the targets that such a make names are none of the root Makefile;
+// a path that names the root or its Makefile, as ./Makefile or $(CURDIR), runs the same one.
+test('a make that runs another Makefile reaches no target of the root Makefile (K1064)', (t) => {
+  const agents = rules('- Own: First.\n  Enforced by: `make first`', '- Own: Second.\n  Enforced by: `make second`', '- Own: Third.\n  Enforced by: `make third`', '- Own: Fourth.\n  Enforced by: `make fourth`', '- Own: Fifth.\n  Enforced by: `make fifth`', '- Own: Sixth.\n  Enforced by: `make sixth`');
+  const root = tree(t, {
+    Makefile: 'gates:\n\t$(MAKE) -C sub first\n\t$(MAKE) --directory=sub second\n\t$(MAKE) -f other.mk third\n\t$(MAKE) -C . fourth\n\t$(MAKE) -f ./Makefile fifth\n\t$(MAKE) -C "$(CURDIR)" sixth\nfifth:\n\t@echo fifth\nsixth:\n\t@echo sixth\nfirst:\n\t@echo first\nsecond:\n\t@echo second\nthird:\n\t@echo third\nfourth:\n\t@echo fourth\n',
+    '.github/workflows/ci.yml': 'name: ci\non: push\njobs:\n  gates:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: make gates\n',
+    'AGENTS.md': agents,
+    'AGENTS.ko.md': agents,
+  });
+  const findings = checkRules(root, ['AGENTS.md']).findings;
+  assert.deepEqual(findings.map(finding => /make (\w+) runs at no point/.exec(finding)?.[1]), ['first', 'second', 'third'], findings.join('\n'));
+});
+
 // K359: the working guidelines of the owner are rules of PRINCIPLES.md, each with its Enforced by line in the same rule, and the
 // Korean twin holds the same rule ids. Each phrase is a short part of the rule it belongs to.
 const GUIDELINE_RULES: Array<[id: string, phrase: string]> = [

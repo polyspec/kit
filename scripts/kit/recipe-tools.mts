@@ -214,19 +214,32 @@ export function commandParts(line: string): string[][] {
 }
 
 // The options of make that take the next word as their value.
-const MAKE_VALUED = new Set(['-C', '-f', '--file', '--makefile', '-j', '--jobs', '-I', '-o', '-W']);
+const MAKE_VALUED = new Set(['-C', '--directory', '-f', '--file', '--makefile', '-j', '--jobs', '-I', '-o', '-W']);
 
-/** The targets and the variable assignments of the arguments `args` of a make command. */
-export function makeArguments(args: readonly string[]): { targets: string[]; assignments: Map<string, string> } {
+/**
+ * The targets and the variable assignments of the arguments `args` of a make command, with the folder of its -C or --directory
+ * and the file of its -f, --file or --makefile as written, without quotes (K1064).
+ */
+export function makeArguments(args: readonly string[]): { targets: string[]; assignments: Map<string, string>; directory?: string; file?: string } {
   const targets: string[] = [];
   const assignments = new Map<string, string>();
-  let value = false;
+  const found: { directory?: string; file?: string } = {};
+  const note = (option: string, value: string) => {
+    const bare = value.replace(/^(["'])(.*)\1$/, '$2');
+    if (option === '-C' || option === '--directory') found.directory = bare;
+    else if (option === '-f' || option === '--file' || option === '--makefile') found.file = bare;
+  };
+  let valued: string | undefined;
   for (const arg of args) {
-    if (value) value = false;
-    else if (MAKE_VALUED.has(arg)) value = true;
-    else if (arg.startsWith('-')) continue;
-    else if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(arg)) assignments.set(arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1));
+    if (valued !== undefined) {
+      note(valued, arg);
+      valued = undefined;
+    } else if (MAKE_VALUED.has(arg)) valued = arg;
+    else if (arg.startsWith('-')) {
+      const attached = /^(--directory|--file|--makefile)=(.*)$/.exec(arg) ?? /^(-[Cf])(.+)$/.exec(arg);
+      if (attached?.[1] !== undefined) note(attached[1], attached[2] ?? '');
+    } else if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(arg)) assignments.set(arg.slice(0, arg.indexOf('=')), arg.slice(arg.indexOf('=') + 1));
     else targets.push(arg);
   }
-  return { targets, assignments };
+  return { targets, assignments, ...found };
 }

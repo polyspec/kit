@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 977b79efdfb49d6eca672ef0da0e107a1d3bdbe9e51a7bcbc1e2127438d73660 -->
+<!-- source-sha256: a695154abeba4de9a8d8525cb26fb6bbbb2d5be573e11dfd129fddc07f62c464 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1064: rules-check는 다른 folder의 -C나 --directory, 또는 다른 파일의 -f, --file, --makefile로 다른 Makefile을 실행하는 make로는 루트 Makefile의 target에 도달하지 않습니다. ./Makefile이나 $(CURDIR)처럼 루트나 그 makefile을 가리키는 경로는 같은 Makefile입니다(K1064).
 - K1063: rules-check는 recipe 줄을 변수 전개 뒤 make 접두사 @, -, + 없이 읽고 백슬래시로 끝나는 줄을 다음 줄과 이어 읽으므로, `@$(MAKE) -k gates`도 그 make가 실행하는 gate에 도달합니다(K1063).
 - K1060: toolchain-files는 제거된 npm 검사가 쓰던 프로젝트 .npmrc 읽기 함수이자 아무도 부르지 않는 readNpmConfig를 export하지 않습니다(K1060).
 - K1055: PRINCIPLES는 저장소를 kit의 부분에 묶지 않습니다. S12는 저장소 자신의 파이프라인 하나를 말하고 kit의 ci-pipeline.yml은 그 한 예시이며, P31은 kit-gates가 아니라 저장소의 gate를 말하고, S13은 K1053이 지운 Claude Code 설정을 적지 않으며, 저장소는 원칙의 사본을 자기 파일로 바꿉니다(K1055).
