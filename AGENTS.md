@@ -23,6 +23,9 @@ and states only its own rules. The rules below are kit's own.
 - Own: On POSIX, an interrupted command harness stops admitting commands, requests termination of its owned groups and awaits child close and cleanup before exiting with interrupted status. Force is escalation after the declared cleanup grace, never a substitute for cooperative cleanup. A synchronous forced-exit hook is emergency cleanup only. The output limit uses the same cooperative shutdown and still fails after a cooperative exit; collection stops at the limit and the result awaits child close. Long commands expose no inactivity deadline. A group identifier containing only native defunct members is not a live survivor; cleanup still awaits owned child close and leaves orphan reaping to the operating system.
   Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/source/process-group-posix.test.mts`, `tests/kit/parity-operation.test.mts`
 
+- Own: A settled VS Code download keeps its result while its owned helper group receives a termination request. The installer awaits child close and cleanup, escalating only after the one-second grace. Native POSIX lifecycle evidence runs in the Linux source CI group.
+  Enforced by: `tests/source/install-vscode-posix.test.mts`, `tests/source/ci-workflow.test.mts`
+
 - Refines S12: `workflows/ci-pipeline.yml` plans its job data separately from running checks. Shared, parity and runtime checks depend only on the plan outputs, use their own checkout and setup, and run independently; a failed shared check suppresses no independent result. The final required job judges planning, shared checks and every selected job, and fails on a skipped selected job.
   Enforced by: `tests/kit/gates-workflow.test.mts`
 

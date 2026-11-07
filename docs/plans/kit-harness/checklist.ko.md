@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: aefaa24e447b6ac96f453259459f95aa2d3f656b7d2f7629b6b47d61bfe7f90f -->
+<!-- source-sha256: 26e5bca60739960679d0b60e9086be646593382a34441cf92103dbaa042bfcad -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -172,4 +172,4 @@
 | K1041 | POSIX native source 검사는 Linux와 macOS에 명시적으로 배치하고 공통 Windows process 검사와 정확한 source inventory를 유지한다. issue 35로 추적한다. | .github/workflows/ci.yml; Makefile; tests/kit/process-group.test.mts; tests/source/process-group-posix.test.mts; tests/source/ci-workflow.test.mts; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/source/ci-workflow.test.mts tests/kit/process-group.test.mts tests/source/process-group-posix.test.mts tests/kit/run-command.test.mts tests/kit/run-command-signal.test.mts tests/kit/parity-operation.test.mts tests/kit/test-build-first.test.mts` | [o] |
 | K1042 | CI 42383994330에서 발견한 오래된 bootstrap workflow 검증을 수정한다. issue 35의 후속으로 표시 이름에 의존하지 않고 공통 native process 명령과 deadline을 확인한다. | tests/kit/bootstrap-platform.test.mts; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/bootstrap-platform.test.mts tests/source/ci-workflow.test.mts` | [o] |
 | K1043 | issue 28 이후 사용하지 않는 command inactivity deadline을 제거하고 issue 31의 정상 출력 제한 종료를 완성한다. 실패 이유와 관측한 child close를 보존한다. | scripts/kit/run-command.mts; tests/kit/run-command-signal.test.mts; tests/kit/run-command.test.mts; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/kit/run-command.test.mts tests/kit/run-command-signal.test.mts tests/kit/parity-operation.test.mts` | [o] |
-| K1044 | VS Code 다운로드 결과 수신 직후의 강제 종료를 소유 process의 정상 정리 요청과 관측한 child close로 바꾼다. issue 31의 후속이다. | scripts/kit/install-vscode.mts; tests/kit/install-vscode.test.mts; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test --test-name-pattern=K1044 tests/kit/install-vscode.test.mts` | [ ] |
+| K1044 | VS Code 다운로드 결과 수신 직후의 강제 종료를 소유 process의 정상 정리 요청과 관측한 child close로 바꾼다. issue 31의 후속이다. | scripts/kit/install-vscode.mts; tests/source/install-vscode-posix.test.mts; Makefile; AGENTS.md; AGENTS.ko.md; docs/operations/tool-inventory.md; docs/operations/tool-inventory.ko.md; CHANGELOG.md; CHANGELOG.ko.md | `node --test tests/source/install-vscode-posix.test.mts tests/source/ci-workflow.test.mts` | [~] |

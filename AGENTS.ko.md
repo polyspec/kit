@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 86d118cc0501358e25efd29adef860e895c20d1e08c668095b57a9d813cbeb50 -->
+<!-- source-sha256: dcbb95d18413979b6472f774de8ec7c2deda3bb02dcd9823fe17175eadac761d -->
 # 개발
 
 [English](AGENTS.md)
@@ -21,6 +21,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 
 - Own: POSIX에서 중단된 command harness는 새 command를 받지 않고 소유 group의 종료를 요청하며 child close와 cleanup을 기다린 뒤 중단 상태로 종료한다. 강제 종료는 선언된 cleanup grace 뒤의 단계이며 협조적인 cleanup을 대신하지 않는다. 동기 강제 exit hook은 비상 cleanup만 담당한다. 출력 제한도 같은 정상 종료 요청을 사용하며 정상 종료해도 실패로 처리한다. 제한에 도달하면 수집을 멈추고 결과는 child close를 기다린다. 긴 command는 inactivity deadline을 제공하지 않는다. Native 종료 상태인 member만 남은 group identifier는 살아 있는 survivor가 아니며 cleanup은 소유 child의 close를 계속 기다리고 orphan 회수는 운영체제가 담당한다.
   Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/source/process-group-posix.test.mts`, `tests/kit/parity-operation.test.mts`
+
+- Own: VS Code 다운로드 결과를 보존한 채 소유 helper group에 종료를 요청한다. installer는 child close와 cleanup을 기다리며 1초 유예 뒤에만 강제 종료한다. native POSIX 수명 증거는 Linux source CI group에서 실행한다.
+  Enforced by: `tests/source/install-vscode-posix.test.mts`, `tests/source/ci-workflow.test.mts`
 
 - Refines S12: `workflows/ci-pipeline.yml`은 검사 실행과 별도로 job 데이터를 계획합니다. Shared·parity·runtime 검사는 계획 출력에만 의존하고 자신의 checkout과 setup으로 독립적으로 실행합니다. Shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 job을 판정하며 선택된 job이 건너뛰어도 실패합니다.
   Enforced by: `tests/kit/gates-workflow.test.mts`

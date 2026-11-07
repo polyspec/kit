@@ -8,7 +8,7 @@
 // integration run reads the copy with installedExecutable and never downloads. An install of a complete copy does nothing.
 // @vscode/test-electron downloads into the copy's own directory, so a new copy is downloaded into <tools>/.next-<pid> and
 // renamed into place: a reader finds no copy or a complete one, and two installs at once keep the copy of the first.
-// The command runs the download in a process of its own (K173), whose process group it kills once the download settles.
+// The command runs the download in a process of its own (K173), then requests owned cleanup once the download settles.
 import { fork } from 'node:child_process';
 import { existsSync, mkdirSync, renameSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -17,6 +17,7 @@ import util from '@vscode/test-electron/out/util.js';
 import { readNpmManifestFile } from './manifests.mts';
 import { isMain } from './paths.mts';
 import { present } from './present.mts';
+import { stopGroup, watchRoot } from './process-group.mts';
 
 // The file that @vscode/test-electron writes into a copy after its last file.
 const COMPLETE = 'is-complete';
@@ -87,22 +88,30 @@ const isSettled = (message: unknown): message is Settled =>
  * downloadAndUnzipVSCode in a process of its own. @vscode/test-electron 3.1.0 pipes a .tar.gz download into a
  * `tar -xzf -` child and neither ends nor kills that child when the response fails ("aborted"): the child waits on its
  * input and keeps the event loop alive after a retry succeeds, so the install never exited (K173). The download process
- * leads its own process group, which is killed once the download has settled, so a tar that it left ends with it; it
+ * leads its own process group, which receives a termination request once the download has settled, so a tar that it left ends with it; it
  * ends itself when the install goes away first. A failed download fails with its error.
  */
 export const downloadInOwnProcess: Download = (options) =>
   new Promise((resolve, reject) => {
+    const since = Date.now();
     const child = fork(fileURLToPath(import.meta.url), [DOWNLOAD, options.version, options.platform, options.cachePath], { detached: true, stdio: ['ignore', 'inherit', 'inherit', 'ipc'] });
+    const root = watchRoot(child, since);
+    const closed = new Promise<void>(resolveClosed => child.once('close', () => resolveClosed()));
+    let shutdown: Promise<void> | undefined;
+    let cleanupError: unknown;
     let settled: Settled | undefined;
     child.on('message', (message: unknown) => {
-      if (!isSettled(message)) return;
+      if (settled !== undefined || !isSettled(message)) return;
       settled = message;
-      // The group is the download process and every child that it started; a negative pid names the group.
-      process.kill(-present(child.pid, 'child.pid'), 'SIGKILL');
+      // Settlement preserves the result while the owned group gets one second to close before escalation.
+      if (child.pid !== undefined) shutdown = stopGroup(child.pid, closed, 1000, undefined, root).catch(error => { cleanupError = error; });
     });
     child.on('error', reject);
-    child.on('exit', (code, signal) => {
-      if (settled === undefined) reject(new Error(`the download process of VS Code ${options.version} ended with ${code ?? signal} before its result`));
+    child.on('close', async (code, signal) => {
+      await shutdown;
+      if (cleanupError !== undefined) {
+        reject(new AggregateError([...(settled !== undefined && 'error' in settled ? [new Error(settled.error)] : []), cleanupError], `the download process of VS Code ${options.version} could not be cleaned up`, { cause: cleanupError }));
+      } else if (settled === undefined) reject(new Error(`the download process of VS Code ${options.version} ended with ${code ?? signal} before its result`));
       else if ('executable' in settled) resolve(settled.executable);
       else reject(new Error(settled.error));
     });

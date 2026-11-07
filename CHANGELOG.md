@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- Preserve VS Code download results while requesting helper termination and awaiting owned cleanup before returning, with explicit Linux native source evidence (K1044).
+
 - Remove the unused command inactivity deadline and await cooperative output-limit cleanup while preserving its failed outcome and bounded capture (K1043).
 
 - Validate the common native process bootstrap command, deadline and platform coverage independently of its display name (K1042).

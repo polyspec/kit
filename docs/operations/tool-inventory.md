@@ -1527,8 +1527,7 @@ repository runs it from its own make target. The check of the editor boundaries 
 ### VS Code installer
 
 `scripts/kit/install-vscode.mts <extension package directory> <tools directory>` installs the minimum of `engines.vscode`
-(`^X.Y.Z`; any other form fails) in the layout of `@vscode/test-electron`, which does the download. The tool adds two
-things that the library lacks:
+(`^X.Y.Z`; any other form fails) in the layout of `@vscode/test-electron`, which does the download. The tool adds the following behavior:
 - `installedExecutable`, the offline read of the integration run. It fails with `run make install-vscode` when the copy is
   missing.
 - A download into `<tools>/.next-<pid>` that is renamed into place. The library unzips into the final directory, so two
@@ -1536,8 +1535,11 @@ things that the library lacks:
 - The download in a process of its own (K173). `@vscode/test-electron` 3.1.0 pipes a `.tar.gz` download into a
   `tar -xzf -` child and neither ends nor kills that child when the response fails ("aborted"); the child kept the event
   loop alive after a retry succeeded, so the install never exited. The command forks itself with `--download`, in a
-  process group of its own, and kills that group once the download has settled; a failed download fails the install with
-  its error. The download process ends when the install goes away first.
+  process group of its own. After settlement it requests SIGTERM and waits for owned child close and group cleanup;
+  survivors receive SIGKILL after a one-second grace. A failed download fails the install with its original error.
+  The download process ends when the install goes away first.
+
+`tests/source/install-vscode-posix.test.mts` observes successful and failed settlement with cooperative and uncooperative real Node helpers, without downloading VS Code. Linux source CI executes it exactly once.
 
 `@vscode/test-electron` is an optional peer dependency of kit: a repository that installs VS Code declares it.
 `tests/kit/install-vscode.test.mts` replaces the download with a function, so no test reaches the network; its tests of

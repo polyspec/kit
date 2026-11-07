@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 8daf9e9003338f06145c8c815a57b921b195b599ca920e73ad7969728cc5208e -->
+<!-- source-sha256: 00476dada73f75182b18502c5b1a2fe3cea75cff119f42e59ee47dc34d64e805 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- VS Code 다운로드 결과를 보존하면서 helper 종료를 요청하고 소유 정리를 기다린 뒤 반환하며 Linux native source 증거를 명시한다(K1044).
 
 - 사용하지 않는 command inactivity deadline을 제거하고 출력 제한의 실패 결과와 제한된 수집을 보존하면서 정상 종료 정리를 기다린다(K1043).
 
