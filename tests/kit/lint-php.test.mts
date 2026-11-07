@@ -10,7 +10,6 @@ import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-php.mts';
 import { declaredToolchain } from '../../scripts/kit/bootstrap/toolchain-declared.mts';
 import { runLint } from '../../scripts/kit/lint-steps.mts';
-import { kitFile } from '../../scripts/kit/kit-files.mts';
 import { repositoryRoot } from '../../scripts/kit/paths.mts';
 import { present } from '../../scripts/kit/present.mts';
 import { initRepository } from './sandbox-repository.mts';
@@ -51,8 +50,8 @@ ${failing ? `case "${tool}" in "${failing}") echo "found a problem" >&2; exit 1;
 }
 
 const ALL = [
-  `phpcs -q -s --report=emacs --standard=${kitFile('phpcs.xml.dist')} packages/php/src/Demo.php packages/php/tests/DemoTest.php [root]`,
-  `phpstan analyse --no-progress --error-format=raw --memory-limit=-1 --configuration=${kitFile('phpstan.dist.neon')} --autoload-file=vendor/autoload.php src/Demo.php tests/DemoTest.php [php]`,
+  `phpcs -q -s --report=emacs packages/php/src/Demo.php packages/php/tests/DemoTest.php [root]`,
+  `phpstan analyse --no-progress --error-format=raw --memory-limit=-1 --autoload-file=vendor/autoload.php src/Demo.php tests/DemoTest.php [php]`,
 ];
 
 test('the PHP extractor used for autoload-file lint is declared for install-tools', () => {
@@ -201,12 +200,10 @@ if (!function_exists('\\Polyspec\\OrderedJson\\stringify')) {
   }
 });
 
-// K514: phpcs and PHPStan read the phpcs.xml.dist and phpstan.dist.neon of the kit package that runs, never a copy.
-test('phpcs and PHPStan read the configurations of the kit package, and a checkout without them lints (K514)', (t) => {
-  const root = checkout(t).root;
-  const steps = lintSteps(root);
-  assert.ok(steps.find(step => step.label === 'phpcs')?.args.includes(`--standard=${kitFile('phpcs.xml.dist')}`), JSON.stringify(steps));
-  assert.ok(steps.filter(step => step.label.startsWith('phpstan')).every(step => step.args.includes(`--configuration=${kitFile('phpstan.dist.neon')}`)), JSON.stringify(steps));
+// K1050: phpcs and PHPStan read the phpcs.xml.dist and phpstan.dist.neon of the repository; the lint names none.
+test('phpcs and PHPStan run with no configuration of kit (K1050)', (t) => {
+  const steps = lintSteps(checkout(t).root);
+  assert.ok(steps.every(step => !step.args.some(arg => arg.startsWith('--standard') || arg.startsWith('--configuration'))), JSON.stringify(steps));
 });
 
 for (const status of [0, 7]) {

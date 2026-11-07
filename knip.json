@@ -8,8 +8,15 @@
       "tests/kit/standard-case-sensitive-smoke.mts"
     ]
   },
+  "ignoreBinaries": [
+    "make",
+    "rustup",
+    "taskkill.exe",
+    "shasum",
+    "php",
+    "openssl"
+  ],
   "ignoreDependencies": [
-    "@polyspec/kit",
     "oxlint",
     "oxlint-tsgolint",
     "jscpd"

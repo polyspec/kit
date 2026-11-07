@@ -1,9 +1,8 @@
-# The golangci-lint configuration of every polyspec repository, read from the kit package (K514); no repository holds a
-# copy. make lint-go runs golangci-lint with --config of this file in each Go module of the repository.
+# kit's own golangci-lint configuration; docs/examples/native-settings offers it as an example (K1050). make lint-go runs golangci-lint in each Go module, and
+# golangci-lint finds this file by its search from the module folder upward.
 version: "2"
 run:
-  # The paths of the findings are those of the repository: the configuration is read from the kit package (K514), not from the
-  # root of the repository, so they are taken from the git root, as when this file lay there.
+  # The paths of the findings are taken from the git root, so a finding of a nested module names its path in the repository.
   relative-path-mode: gitroot
 linters:
   # The standard set: errcheck, govet, ineffassign, staticcheck and unused; errcheck refuses an unchecked error (K256).

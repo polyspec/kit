@@ -1,5 +1,5 @@
-# The PHPStan configuration of every polyspec repository, read from the kit package (K514); no repository holds a copy.
-# make lint-php runs PHPStan with this file on each Composer package, with the autoloader of the package. It runs the disallowed calls of S2
+# kit's own PHPStan configuration; docs/examples/native-settings offers it as an example (K1050). make lint-php runs PHPStan on each Composer package with this
+# root file when the package folder holds none, and with the autoloader of the package. It runs the disallowed calls of S2
 # only: customRulesetUsed loads no rule level, so the result depends on no level a package may later choose for itself.
 # phpstan/extension-installer loads spaze/phpstan-disallowed-calls and shipmonk/phpstan-rules (config/php-lint).
 # Only ShipMonk's caught-exception cause rule is enabled below.

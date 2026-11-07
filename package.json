@@ -44,16 +44,8 @@
     "scripts/kit/kit-bootstrap.mk",
     "scripts/kit/bootstrap/",
     "config/layout.kit.yml",
-    "ruff.toml",
-    "phpcs.xml.dist",
-    "phpstan.dist.neon",
-    ".golangci.yml",
-    "clippy.toml",
-    ".oxlintrc.json",
-    "knip.json",
     ".editorconfig",
     "config/api-extractor.kit.json",
-    "config/pyproject.schema.json",
     "config/composer.schema.json",
     "config/cargo.schema.json",
     "config/php-lint/composer.json",
@@ -122,7 +114,6 @@
       ".github/workflows/ci-pipeline.yml": "workflows/ci-pipeline.yml",
       ".github/actions/kit-bootstrap/action.yml": "actions/kit-bootstrap/action.yml",
       "config/layout.kit.yml": "config/layout.kit.yml",
-      "config/pyproject.schema.json": "config/pyproject.schema.json",
       "config/composer.schema.json": "config/composer.schema.json",
       "config/cargo.schema.json": "config/cargo.schema.json"
     },
@@ -159,7 +150,6 @@
       {
         "paths": [
           "config/layout.kit.yml",
-          "config/pyproject.schema.json",
           "config/composer.schema.json",
           "config/cargo.schema.json"
         ],

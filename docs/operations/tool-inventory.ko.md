@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: b4d22fcf4adcc0c0ff774df994b08402b6cef3ee260f83c4196b1e0751c3240a -->
+<!-- source-sha256: 105c7795ebdd4074c30946c2095d01dbee9dda90bb0e2a318170e16e4c32eef0 -->
 
 # 도구 목록
 
@@ -854,6 +854,13 @@ ruff pin은 pyproject.toml에 두지 않습니다. wheel을 배포하는 라이�
 
 ## Lint 설정 (K77)
 
+K1050부터 각 lint 유틸리티는 kit의 설정이나 규칙 없이 도구를 실행합니다. golangci-lint, ruff, phpcs, PHPStan, clippy,
+oxlint, knip은 도구 자신의 탐색 규칙으로 저장소의 설정(`.golangci.yml`, `ruff.toml` 또는 `[tool.ruff]`, `phpcs.xml.dist`,
+`phpstan.dist.neon`, `Cargo.toml`의 `[lints]`와 `clippy.toml`, `.oxlintrc.json`, `knip.json`)을 읽고, kit-sync는 그중 어느 것도
+지우지 않습니다. 아래에 적힌 파일은 kit 자신의 설정이며, [docs/examples/native-settings](../examples/native-settings.ko.md)가
+작동하는 예제로 제공합니다. `config/knip-entries.json`, `var/lint-ts/knip.json`, reporter `knip-ignore-hints.mts`는 삭제되었습니다.
+저장소는 entry, binary, ignore, workspace를 자기 `knip.json`에 적습니다. 아래 문단은 K1050 이전의 설계를 기록합니다.
+
 kit은 모든 저장소의 lint 설정과 언어마다 runner 하나를 가집니다(standards plan, §1 항목 5). 도구가 고정 경로에서 읽는 설정은
 kit의 파일이고, 저장소는 그 사본을 가집니다. 각 runner는 그 설정을 명시적으로 넘깁니다. kit이 복사할 수 없는 manifest 안에 사는
 규칙은 `config/layout.kit.yml`의 규칙이며, `make layout-check`가 alint로 실행합니다. 대부분 `config/`의 JSON Schema를 쓰는
@@ -862,11 +869,11 @@ fixture이며, 각 fixture는 자기 위반에서 실패합니다. 모든 도구
 
 | 언어 | 도구 (pin) | 설정 | Runner |
 |---|---|---|---|
-| Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: `--config ruff.toml`로 ruff; 각 package의 Python 파일에 그 폴더에서 confidence 60으로 vulture |
+| Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml` | `lint-python.mts`: 루트에서 ruff, 각 package의 Python 파일에 그 폴더에서 vulture, 각각 저장소의 설정으로(K1050) |
 | PHP | phpcs 4.0.4, PHPStan 2.3.1, phpstan/extension-installer 1.4.3, spaze/phpstan-disallowed-calls 4.15.0, shipmonk/phpstan-rules 4.4.1 (Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon` (ShipMonk의 caught-exception cause rule만 활성화); `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: checkout의 PHP 파일에 phpcs; 각 Composer package에 그 package 또는 그 위의 가장 가까운 Composer project(Composer monorepo의 root development project 등)의 `vendor/autoload.php`로 PHPStan(`composer-vendor.mts`, run-tests와 공유; `COMPOSER_VENDOR_DIR`는 다른 vendor directory를 지정) |
-| Rust | `rust-toolchain.toml`의 cargo clippy | `lint-cargo-lints` (`config/cargo.schema.json`), `clippy.toml` (P8: `Result::ok`, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`에 대한 `disallowed-methods`) | `lint-rust.mts`: 각 workspace에서 `cargo clippy --workspace --all-targets --locked -- -D warnings`와 P8 lint(`unused_must_use`, `let_underscore_must_use`, `let_underscore_untyped`, `map_err_ignore`, `allow_attributes_without_reason`); `kit-gates`의 member |
+| Rust | `rust-toolchain.toml`의 cargo clippy | `lint-cargo-lints` (`config/cargo.schema.json`), `clippy.toml` (P8: `Result::ok`, `unwrap_or`, `unwrap_or_default`, `unwrap_or_else`에 대한 `disallowed-methods`) | `lint-rust.mts`: 각 workspace에서 그 `Cargo.toml`의 `[lints]`로 `cargo clippy --workspace --all-targets --locked`(K1050); `kit-gates`의 member |
 | Go | golangci-lint 2.14.0, golang.org/x/tools 0.52.0의 deadcode (`mise.toml`) | `.golangci.yml`: error string은 spec의 대소문자를 유지하는 cross-port message이므로 ST1005 없는 staticcheck, 모든 finding 보고(`max-same-issues`와 `max-issues-per-linter` 0; K164) | `lint-go.mts`: 각 module에서 golangci-lint와 `deadcode -test ./...` |
-| TypeScript | oxlint 1.88.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (kit의 dependencies, kit과 함께 설치) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
+| TypeScript | oxlint 1.90.0과 oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (kit의 dependencies, kit과 함께 설치) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: oxlint(`.oxlintrc.json`의 `options.typeAware`로 type-aware), knip, `api-extractor.json`이 있는 각 package에서 API Extractor |
 | 전체 | — | `.editorconfig` | 없음: 각 언어의 formatter가 같은 규칙을 강제합니다 |
 
 ### 공통 lint 의무와 native 증거

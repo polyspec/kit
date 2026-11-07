@@ -1,5 +1,5 @@
 <!-- doc-id: principles -->
-<!-- source-sha256: bdd8a2c14dd559b0d01c780565e06e0f966a39236d1f0a48b175c59be69e1dbd -->
+<!-- source-sha256: ce9719ec17f1ea22d1b669f773496af9b5861643248a4338783bbada6b2a161e -->
 # 원칙
 
 [English](PRINCIPLES.md)
@@ -39,7 +39,7 @@ vendor하므로, 모든 repository가 같은 text를 가지며 `make kit-inject-
 - P8 오류는 숨기지 않습니다: 잘못된 입력을 그럴듯한 입력으로 바꾸는 fallback도, 입력이나 출력을 조용히 버리는 것도, 삼킨
   오류도 없습니다. fallback은 정말 필요한 곳에만 그 필요를 적고 둡니다.
   Enforced by: `make lint-ts`, `make lint-python`, `make lint-go`, `make lint-php`, `make lint-rust`, `make suppression-check`,
-  catch-check(`make lint-ts`의 한 단계: 문장 없는 catch 금지)
+  그리고 kit 자신의 CI에서 catch-check(문장 없는 catch 금지)
 - P9 올바름이 먼저입니다; 빠름은 올바름을 지킬 때만 좇습니다.
   Enforced by: none, 올바름과 빠름의 순서는 판단입니다.
 - P10 main에 작업이 들어가는 길은 둘입니다. main에서 직접 하는 작업은 P38의 commit으로 들어갑니다. 병렬이나 격리된

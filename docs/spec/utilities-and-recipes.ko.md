@@ -1,5 +1,5 @@
 <!-- doc-id: spec-utilities-and-recipes -->
-<!-- source-sha256: b5def4f10dacf2ca48a241421edc46518c9924f3ab9a127720b66e3cd6f5b5ba -->
+<!-- source-sha256: 36273f3c86a413392bd9c131b39fe77d4ae474f5531dddacd010de9c7dfd5c88 -->
 # 유틸리티와 예제
 
 [English](utilities-and-recipes.md)
@@ -32,7 +32,7 @@ allow-remote 사례가 그 연쇄를 보여 준다.
 kit은 어떤 것도 강제하지 않는다. 특히 다음과 같다.
 
 - kit은 저장소에 레시피를 include시키지 않는다.
-- kit은 다른 도구의 설정을 정하지 않는다. 명령줄에서도, 환경변수에서도, 유틸리티가 실행하는 도구의 환경에서도 그렇다. 도구 설치기는 자기가 설치하는 것을 어디에 두는지 정하며, 그것은 설치기 자신의 일이다. mise 설치기는 자기가 설치하는 mise의 디렉터리와 그 shim이 읽는 checkout의 설정 파일을 정하고(`MISE_DATA_DIR`, `MISE_CACHE_DIR`, `MISE_STATE_DIR`, `MISE_CONFIG_DIR`, `MISE_GLOBAL_CONFIG_FILE`, `MISE_GLOBAL_CONFIG_ROOT`), `var/tools` 아래에 도구를 빌드하는 Go는 자기 module cache와 checksum database를 받는다(`GOPATH`, `GOCACHE`, `GOFLAGS`, `GOSUMDB`). 이 중 어느 것도 저장소의 도구가 어떻게 동작할지를 정하지 않는다.
+- kit은 다른 도구의 설정을 정하지 않는다. 명령줄에서도, 환경변수에서도, 유틸리티가 실행하는 도구의 환경에서도 그렇다. 도구 설치기는 자기가 설치하는 것을 어디에 두는지 정하며, 그것은 설치기 자신의 일이다. mise 설치기는 자기가 설치하는 mise의 디렉터리와 그 shim이 읽는 checkout의 설정 파일을 정하고(`MISE_DATA_DIR`, `MISE_CACHE_DIR`, `MISE_STATE_DIR`, `MISE_CONFIG_DIR`, `MISE_GLOBAL_CONFIG_FILE`, `MISE_GLOBAL_CONFIG_ROOT`), `var/tools` 아래에 도구를 빌드하는 Go는 자기 module cache와 checksum database를 받는다(`GOPATH`, `GOCACHE`, `GOFLAGS`, `GOSUMDB`). 이 중 어느 것도 저장소의 도구가 어떻게 동작할지를 정하지 않는다. 같은 방식으로 PHP의 lint는 PHPStan에 메모리 제한을 두지 않게 하고(`--memory-limit=-1`), 패키지의 Composer가 쓴 autoloader를 준다(`--autoload-file`). 메모리 제한은 PHPStan이 어떤 설정 파일에서도 읽지 않는 프로세스의 한계다.
 - kit은 저장소의 CI, hook, gate에 어떤 결과도 필수로 요구하지 않는다.
 - kit은 저장소의 레시피나 예제를 검사하는 기능을 제공하지 않는다.
 
@@ -47,7 +47,7 @@ kit은 어떤 것도 강제하지 않는다. 특히 다음과 같다.
 
 kit은 자기가 강제하는 것을 지운다. 각 변경은 Red, Green, 커밋을 거치는 체크리스트 행이다. 지금 강제하는 부분은 다음과 같다.
 - **include되는 레시피.** 저장소가 include하는 `scripts/kit/kit.mk`와 `scripts/kit/kit-bootstrap.mk`의 레시피 한 벌, 그리고 AGENTS.md가 kit.mk의 모든 레시피에 대해 적는 mise 환경.
-- **유틸리티 안의 덮어쓰기.** `bootstrap/install-mise.mts`(`miseEnvironment`)와 `mise-tools.mts`(`toolsEnvironment`)는 K1048 전까지 자기가 실행하는 도구에 mise와 uv의 설정(`MISE_LOCKED`, `MISE_AUTO_INSTALL`, `UV_*`, `UV_PYTHON`)을 넣었고, `link.mts`와 `run-tests.mts`는 K1049 전까지 `CARGO_TARGET_DIR`를 지웠다. lint 유틸리티는 각 도구를 저장소 자신의 설정 대신 kit의 설정으로 실행한다. golangci-lint는 kit의 `.golangci.yml`로, phpcs는 kit의 `phpcs.xml.dist`로, ruff는 kit의 `ruff.toml`로, clippy는 kit을 가리키는 `CLIPPY_CONF_DIR`로, oxlint와 knip은 kit의 `.oxlintrc.json`과 `knip.json`으로 실행한다.
+- **유틸리티 안의 덮어쓰기.** `bootstrap/install-mise.mts`(`miseEnvironment`)와 `mise-tools.mts`(`toolsEnvironment`)는 K1048 전까지 자기가 실행하는 도구에 mise와 uv의 설정(`MISE_LOCKED`, `MISE_AUTO_INSTALL`, `UV_*`, `UV_PYTHON`)을 넣었고, `link.mts`와 `run-tests.mts`는 K1049 전까지 `CARGO_TARGET_DIR`를 지웠다. K1050 전까지 lint 유틸리티는 각 도구를 저장소 자신의 설정 대신 kit의 설정으로 실행했다. golangci-lint는 kit의 `.golangci.yml`로, phpcs는 kit의 `phpcs.xml.dist`로, ruff는 kit의 `ruff.toml`로, clippy는 kit을 가리키는 `CLIPPY_CONF_DIR`로, oxlint와 knip은 kit의 `.oxlintrc.json`과 `knip.json`으로 실행한다.
 - **저장소의 레시피와 workflow에 대한 검사.** kit-check는 레시피가 도구를 실행하는 방식(`recipe-tools.mts`), Makefile과 workflow의 링크 단계(S11), ci.yml의 모양과 마지막 `ci-passed` job(S12), Makefile의 `$(KIT)/<name>`(S15), manifest 경로(P30)를 판정한다. bypass-check는 Makefile과 스크립트를 판정한다.
 - **복사본.** kit-sync는 kit package.json의 `kit.copies` 항목 전부를 모든 저장소에 쓴다. `PRINCIPLES.md`와 그 짝, `ci-pipeline.yml`, `release.yml`, bootstrap action, `config/layout.kit.yml`, `config/` 아래의 스키마, `.editorconfig`, `.claude/settings.json`이 그 안에 든다. kit-inject-check는 바뀐 복사본을 실패시킨다. 복사본 파이프라인의 마지막 `required` job은 `kit-gates-*` gate를 포함한 파이프라인의 모든 job 결과를 필수로 요구한다.
 - **거부.**

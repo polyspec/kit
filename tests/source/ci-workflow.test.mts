@@ -74,7 +74,7 @@ test('Rust source groups install Rust before their tests (K1014)', () => {
 });
 
 test('the CI workflow checks the classes of config/rebuild.json and the owner rules of config/owner-checks.json (K182)', () => {
-  // Without them in CI, four tools of scripts/kit went without a class from K156 and config/knip-entries.json without an
+  // Without them in CI, four tools of scripts/kit went without a class from K156 and a config file without an
   // owner from K173 while every run passed.
   assert.ok(runs.includes('make rebuild-check'), 'a step runs make rebuild-check');
   assert.ok(runs.includes('make owner-validate'), 'a step runs make owner-validate');

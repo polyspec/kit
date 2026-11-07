@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: eb9a54da9b3773788df346dbd34b2b59c1ef95e34ee615ff4f847c649b2001e9 -->
+<!-- source-sha256: 8d83752210d42f97a4149a5847bcaea5bafeede0d6944f4d31462b3dadc73e42 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -178,7 +178,7 @@
 | K1047 | 레시피 검사: 저장소의 레시피를 계약과 공통 규칙에 대어 검사하는 유틸리티 | `scripts/kit/recipe-check.mts`, `tests/kit/recipe-check.test.mts`, `scripts/kit/kit.mk`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1047 tests/kit/recipe-check.test.mts` | [-] 원인: 저장소 레시피의 검사는 kit이 저장소 위에 정하는 규칙이 되므로, docs/spec/utilities-and-recipes는 대신 예제를 제공한다(K1046). |
 | K1048 | 유틸리티는 자기가 실행하는 도구의 환경에 mise나 uv 설정을 넣지 않는다 | `scripts/kit/bootstrap/install-mise.mts`, its callers, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1048 tests/kit/install-mise.test.mts` | [o] |
 | K1049 | 유틸리티는 CARGO_TARGET_DIR를 환경이 정한 대로 둔다 | `scripts/kit/link.mts`, `scripts/kit/run-tests.mts`, `scripts/kit/kit.mk`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1049 tests/kit/run-tests.test.mts` | [o] |
-| K1050 | lint 유틸리티는 각 도구를 저장소의 설정으로 실행하고, kit의 설정은 예제가 된다 | `scripts/kit/lint-*.mts`, `docs/examples/`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1050 tests/kit/lint-steps.test.mts` | [~] |
+| K1050 | lint 유틸리티는 각 도구를 저장소의 설정으로 실행하고, kit의 설정은 예제가 된다 | `scripts/kit/lint-*.mts`, `docs/examples/`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1050 tests/kit/lint-steps.test.mts` | [o] |
 | K1051 | kit-check와 bypass-check는 저장소의 레시피와 workflow를 판정하지 않는다 | `scripts/kit/kit-check.mts`, `scripts/kit/recipe-tools.mts`, `scripts/kit/bypass-check.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1051 tests/kit/kit-check.test.mts` | [ ] |
 | K1052 | kit-sync는 저장소에 복사본을 쓰지 않고, 복사되던 workflow, action, 설정은 예제가 된다 | `scripts/kit/kit-sync.mts`, `package.json` kit.copies, `workflows/`, `actions/`, `docs/examples/`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1052 tests/kit/kit-sync.test.mts` | [ ] |
 | K1053 | 유틸리티는 kit의 규칙으로 명령, 커밋, 트리를 거부하지 않는다 | `scripts/kit/claude-hook.mts`, `scripts/kit/git-hooks.mts`, `scripts/kit/ci-targets.mts`, `scripts/kit/land.mts`, `scripts/kit/plan.mts`, `scripts/kit/ci-setup.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1053 tests/kit/land.test.mts` | [ ] |

@@ -1,5 +1,5 @@
-// The base API Extractor configuration of every polyspec TypeScript package, read from the kit package (K514); change it in kit, never in a
-// copy. The api-extractor.json of a package extends it and names its mainEntryPointFilePath; make lint-ts runs API Extractor
+// kit's base API Extractor configuration, which a package may extend by its path in the installed package; docs/examples/native-settings offers it as an example (K1050).
+// The api-extractor.json of a package extends it and names its mainEntryPointFilePath; make lint-ts runs API Extractor
 // on each such package, after its build wrote the .d.ts. The API report is enabled because ae-undocumented fires only through
 // it: without the report an undocumented export passes in silence. addToApiReportFile false makes ae-undocumented and
 // ae-forgotten-export errors instead of lines of the report. The report of a package (etc/<package>.api.md) is committed, so

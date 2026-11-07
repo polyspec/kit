@@ -116,7 +116,7 @@ test('kit copies installed shared files and workflows without requiring a siblin
     '.claude/settings.json': 'claude/settings.json', '.github/workflows/release.yml': 'workflows/release.yml',
     '.github/workflows/ci-pipeline.yml': 'workflows/ci-pipeline.yml', '.github/actions/kit-bootstrap/action.yml': 'actions/kit-bootstrap/action.yml',
     'config/layout.kit.yml': 'config/layout.kit.yml',
-    'config/pyproject.schema.json': 'config/pyproject.schema.json', 'config/composer.schema.json': 'config/composer.schema.json',
+    'config/composer.schema.json': 'config/composer.schema.json',
     'config/cargo.schema.json': 'config/cargo.schema.json',
   };
   assert.deepEqual(manifest.kit?.copies, expected);
@@ -215,15 +215,16 @@ test('every file that kit-sync writes is owned by a rule that kit ships (K410-1)
   }
 });
 
-// K514: the lint configurations are read from the kit package and no longer copied; a sync removes the copy that an earlier kit
-// wrote, and kit.copies of the package names none of them.
-test('kit-sync removes the lint configurations that kit no longer copies, and the package copies none of them (K514)', (t) => {
+// K1050: the lint configurations are the repository's own files, which the lint tools read; kit-sync leaves them, and
+// kit.copies of the package names no retired copy.
+test('kit-sync keeps the lint configurations of the repository, and the package copies no retired file (K1050)', (t) => {
   const root = repository(t);
-  for (const file of ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json']) write(root, file, 'an old copy\n');
+  const own = ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json'];
+  for (const file of own) write(root, file, 'the configuration of the repository\n');
   const changes = sync(root);
-  for (const file of ['ruff.toml', 'phpcs.xml.dist', 'phpstan.dist.neon', '.golangci.yml', 'clippy.toml', '.oxlintrc.json', 'knip.json', 'config/api-extractor.kit.json']) {
-    assert.equal(existsSync(path.join(root, file)), false, file);
-    assert.ok(changes.includes(`removed ${file}`), changes.join('\n'));
+  for (const file of own) {
+    assert.equal(readFileSync(path.join(root, file), 'utf8'), 'the configuration of the repository\n', file);
+    assert.ok(!changes.includes(`removed ${file}`), changes.join('\n'));
   }
   const manifest: unknown = JSON.parse(readFileSync(path.join(import.meta.dirname, '../../package.json'), 'utf8'));
   const copies = isJsonObject(manifest) && isJsonObject(manifest.kit) && isJsonObject(manifest.kit.copies) ? Object.keys(manifest.kit.copies) : [];

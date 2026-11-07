@@ -43,7 +43,7 @@ export function sync(root: string): string[] {
     changes.push(`removed ${file}`);
     for (let directory = path.dirname(file); directory !== COPY_DIRECTORY && readdirSync(path.join(root, directory)).length === 0; directory = path.dirname(directory)) rmSync(path.join(root, directory), { recursive: true });
   }
-  // A file that an earlier kit copied and that this kit reads from its package (K514) is removed, with the folder it leaves empty.
+  // A file that an earlier kit copied and that no kit copies now is removed, with the folder it leaves empty.
   for (const file of RETIRED_COPIES) {
     if (!existsSync(path.join(root, file))) continue;
     rmSync(path.join(root, file));

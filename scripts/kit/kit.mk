@@ -445,9 +445,8 @@ release-assets release-candidate-assets: export GOWORK = $(if $(shell git ls-fil
 
 
 # ---- Lint (K77) ------------------------------------------------------------------------------------------------------
-# Each target runs the lint of one language with the configuration of the kit package (K514: ruff.toml, phpcs.xml.dist,
-# phpstan.dist.neon, .golangci.yml, .oxlintrc.json, knip.json, config/api-extractor.kit.json) and the tools of var/tools
-# (make install-tools) or node_modules (npm ci). config/layout.kit.yml checks the lint rules that live in manifests.
+# Each target runs the lint of one language with the configuration of the repository, which each tool reads by its own
+# discovery (K1050), and the tools of var/tools (make install-tools) or node_modules (npm ci). config/layout.kit.yml checks the lint rules that live in manifests.
 .PHONY: lint-python lint-php lint-rust lint-go lint-ts
 lint-python: ## Lint the Python of the checkout: ruff with ruff.toml, and vulture on each package; offline
 	$(NODE) $(KIT)/lint-python.$(KIT_EXT)
@@ -455,13 +454,13 @@ lint-python: ## Lint the Python of the checkout: ruff with ruff.toml, and vultur
 lint-php: ## Lint the PHP of the checkout: phpcs with phpcs.xml.dist, and PHPStan with phpstan.dist.neon on each Composer package; offline
 	$(NODE) $(KIT)/lint-php.$(KIT_EXT)
 
-lint-rust: ## Lint the Rust of the checkout: cargo clippy with -D warnings in each Cargo workspace
+lint-rust: ## Lint the Rust of the checkout: cargo clippy in each Cargo workspace, with the lints of its Cargo.toml
 	$(NODE) $(KIT)/lint-rust.$(KIT_EXT)
 
 lint-go: ## Lint the Go of the checkout: golangci-lint with .golangci.yml, and deadcode -test, in each Go module; offline once the modules are downloaded
 	$(NODE) $(KIT)/lint-go.$(KIT_EXT)
 
-lint-ts: ## Lint the TypeScript of the checkout: oxlint type-aware, knip, and API Extractor in each package with an api-extractor.json; offline
+lint-ts: ## Lint the TypeScript of the checkout: oxlint and knip with the configuration of the repository, and API Extractor in each package with an api-extractor.json; offline
 	$(NODE) $(KIT)/lint-ts.$(KIT_EXT)
 # --- language parity: config/parity.json declares the implementations and the units that each of them holds.
 # Without UNITS the check is a full run, which runs only in CI (ci-only.mts). The guard runs while make reads the makefiles,

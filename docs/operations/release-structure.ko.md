@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release-structure -->
-<!-- source-sha256: c9321fc020085259c9eb9538790978b5784cd02eb7004165cde39aa28e21ea68 -->
+<!-- source-sha256: 48e4d2122cfb5e2e4f2351c7df9aaacd5af36ae9e47b6c97b876453ba9997ede -->
 # 릴리스 구조
 
 [English](release-structure.md)
@@ -19,7 +19,7 @@ checkout으로 패키지를 link하므로(`make link`, docs/operations/local-lin
 - consumer가 경로로 extends하거나 이름 붙이는 파일의 변경, 그 경로가 바뀔 때: crudui의 `api-extractor.json` 일곱 개는 C17.11과
   C17.11-1까지 은퇴한 사본 `config/api-extractor.kit.json`을 extends했습니다.
 
-K514는 이미 lint 설정을 사본에서 빼냈습니다. 각 lint는 설정을 패키지에서 읽으므로(`kitFile`), lint 설정의 변경은 어느 저장소에도 아무것도
+K514는 lint 설정을 사본에서 빼냈습니다. K1050부터 각 lint 도구는 저장소의 설정을 읽고 kit의 파일은 예제(docs/examples/native-settings)이므로, kit의 lint 설정의 변경은 어느 저장소에도 아무것도
 치르게 하지 않습니다.
 
 ## 도구가 저장소에 그것을 필요로 하는지에 따른 사본
@@ -32,7 +32,7 @@ K514는 이미 lint 설정을 사본에서 빼냈습니다. 각 lint는 설정�
 | `.editorconfig` | 예: 편집기가 저장소 루트에서 읽는다 | 사본 |
 | `PRINCIPLES.md`, `PRINCIPLES.ko.md` | 아니오: 독자가 link로 따라가는 문서 | 패키지로 가는 link 문서 |
 | `config/layout.kit.yml` | 아니오: kit의 도구만 읽는다 | K514처럼 패키지에서 읽음 |
-| `config/pyproject.schema.json`, `config/composer.schema.json`, `config/cargo.schema.json` | 아니오: kit의 layout check만 읽는다 | K514처럼 패키지에서 읽음 |
+| `config/composer.schema.json`, `config/cargo.schema.json` | 아니오: kit의 layout check만 읽는다 | K514처럼 패키지에서 읽음 |
 | `config/php-lint/composer.json`, `composer.lock` | 아니오: install-tools가 PHP lint를 var/tools에 설치하려고 읽는다 | K514처럼 패키지에서 읽음 |
 
 ## 각 부분이 가질 구조

@@ -12,7 +12,7 @@ import { installedBinary, sandboxShims } from './real-tools.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 // The files of kit that the layout rules read: the rules and the schemas of their json_schema_passes rules.
-const KIT_FILES = ['config/layout.kit.yml', 'config/pyproject.schema.json', 'config/composer.schema.json', 'config/cargo.schema.json'];
+const KIT_FILES = ['config/layout.kit.yml', 'config/composer.schema.json', 'config/cargo.schema.json'];
 // The alint binary that mise installed for this checkout, which the shim of a sandbox runs.
 const ALINT = installedBinary('alint');
 
@@ -105,12 +105,6 @@ const VIOLATIONS: { rule: string; files: Record<string, string> }[] = [
   { rule: 'lint-cargo-lints', files: { 'Cargo.toml': `[workspace]\nmembers = ["packages/rust", "packages/codec/rust"]\n\n${WORKSPACE_LINTS.replace('"deny"', '"warn"')}` } },
   { rule: 'lint-cargo-lints', files: { 'packages/codec/rust/Cargo.toml': '[package]\nname = "demo-codec"\n' } },
   { rule: 'lint-cargo-lints', files: { 'packages/codec/rust/Cargo.toml': '[package]\nname = "demo-codec"\n\n[lints.rust]\nunsafe_code = "allow"\n' } },
-  // The Python lint runs ruff with the root ruff.toml, which a nested configuration would escape in an editor or a plain ruff run.
-  { rule: 'lint-ruff-nested', files: { 'packages/python/pyproject.toml': '[project]\nname = "polyspec-demo"\n\n[tool.ruff.lint]\nselect = ["E"]\n' } },
-  { rule: 'lint-ruff-files', files: { 'packages/python/ruff.toml': '[lint]\nselect = ["E"]\n' } },
-  { rule: 'lint-ruff-files', files: { 'packages/python/.ruff.toml': '[lint]\nselect = ["E"]\n' } },
-  // A package excludes generated code from vulture and nothing else: no ignored names or decorators, no confidence of its own.
-  { rule: 'lint-vulture-config', files: { 'packages/python/pyproject.toml': '[project]\nname = "polyspec-demo"\n\n[tool.vulture]\nignore_names = ["triple"]\n' } },
   // An override of the paths of layout-root-files replaces the list of kit and drops every root file that kit adds later, even
   // while the files of the tree still pass (K145); a repository adds its root files through vars.root_files.
   { rule: 'layout-root-files-additive', files: { 'config/layout.yml': `${LAYOUT}  - id: layout-root-files\n    paths: ["*", "!README.md", "!Makefile", "!.gitignore", "!go.work", "!Cargo.toml"]\n` } },

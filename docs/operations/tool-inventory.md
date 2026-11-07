@@ -934,6 +934,14 @@ is set by hand in `mise.toml` and locked with `make toolchain-lock`.
 
 ## Lint configuration (K77)
 
+Since K1050 each lint utility runs its tool with no configuration and no rule of kit: golangci-lint, ruff, phpcs, PHPStan,
+clippy, oxlint and knip read the configuration of the repository by their own discovery (`.golangci.yml`, `ruff.toml` or
+`[tool.ruff]`, `phpcs.xml.dist`, `phpstan.dist.neon`, the `[lints]` of `Cargo.toml` and `clippy.toml`, `.oxlintrc.json`,
+`knip.json`), and kit-sync removes none of them. The files named below are kit's own configuration, which
+[docs/examples/native-settings](../examples/native-settings.md) offers as working examples. `config/knip-entries.json`,
+`var/lint-ts/knip.json` and the reporter `knip-ignore-hints.mts` are removed: a repository writes its entries, binaries,
+ignores and workspaces into its own `knip.json`. The paragraphs below record the design before K1050.
+
 kit holds the lint configuration of every repository and a runner for each language (standards plan, §1 item 5). A
 configuration that a tool reads from a fixed path is a file of kit that a repository holds as a copy; each runner passes it
 explicitly. A rule that lives inside a manifest, which kit cannot copy, is a rule of `config/layout.kit.yml` that `make
@@ -943,11 +951,11 @@ violation; every tool is the latest stable release, checked on the pins of S4.
 
 | Language | Tools (pin) | Configuration | Runner |
 |---|---|---|---|
-| Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml`; `lint-ruff-nested`, `lint-ruff-files`, `lint-vulture-config` (`config/pyproject.schema.json`) | `lint-python.mts`: ruff with `--config ruff.toml`; vulture at confidence 60 on the Python files of each package, from its folder |
+| Python | ruff 0.17.0, vulture 2.16 (`mise.toml`) | `ruff.toml` | `lint-python.mts`: ruff from the root and vulture on the Python files of each package, from its folder, each with the configuration of the repository (K1050) |
 | PHP | phpcs 4.0.4, PHPStan 2.3.1, phpstan/extension-installer 1.4.3, spaze/phpstan-disallowed-calls 4.15.0, shipmonk/phpstan-rules 4.4.1 (the Composer project `config/php-lint`) | `phpcs.xml.dist`, `phpstan.dist.neon` (only ShipMonk's caught-exception cause rule is enabled); `lint-composer-policy` (`config/composer.schema.json`) | `lint-php.mts`: phpcs on the PHP files of the checkout; PHPStan on each Composer package with the `vendor/autoload.php` of the package or of the nearest Composer project above it, such as the root development project of a Composer monorepo (`composer-vendor.mts`, shared with run-tests; `COMPOSER_VENDOR_DIR` names another vendor directory) |
-| Rust | cargo clippy of `rust-toolchain.toml` | `lint-cargo-lints` (`config/cargo.schema.json`), `clippy.toml` (P8: `disallowed-methods` for `Result::ok`, `unwrap_or`, `unwrap_or_default` and `unwrap_or_else`) | `lint-rust.mts`: `cargo clippy --workspace --all-targets --locked -- -D warnings` and the P8 lints (`unused_must_use`, `let_underscore_must_use`, `let_underscore_untyped`, `map_err_ignore`, `allow_attributes_without_reason`) in each workspace; a member of `kit-gates` |
+| Rust | cargo clippy of `rust-toolchain.toml` | `lint-cargo-lints` (`config/cargo.schema.json`), `clippy.toml` (P8: `disallowed-methods` for `Result::ok`, `unwrap_or`, `unwrap_or_default` and `unwrap_or_else`) | `lint-rust.mts`: `cargo clippy --workspace --all-targets --locked` in each workspace, with the `[lints]` of its `Cargo.toml` (K1050); a member of `kit-gates` |
 | Go | golangci-lint 2.14.0, deadcode of golang.org/x/tools 0.52.0 (`mise.toml`) | `.golangci.yml`: staticcheck without ST1005, since an error string is a cross-port message of the spec that keeps its capitalization, and every finding reported (`max-same-issues` and `max-issues-per-linter` 0; K164) | `lint-go.mts`: golangci-lint and `deadcode -test ./...` in each module |
-| TypeScript | oxlint 1.88.0 with oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (dependencies of kit, installed with it) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: `oxlint --type-aware --deny-warnings`, knip, and API Extractor in each package with an `api-extractor.json` |
+| TypeScript | oxlint 1.90.0 with oxlint-tsgolint 7.0.2004, knip 6.41.0, API Extractor 7.59.4 (dependencies of kit, installed with it) | `.oxlintrc.json`, `knip.json`, `config/api-extractor.kit.json` | `lint-ts.mts`: oxlint (type-aware by `options.typeAware` of `.oxlintrc.json`), knip, and API Extractor in each package with an `api-extractor.json` |
 | All | — | `.editorconfig` | none: the formatters of each language enforce the same rules |
 
 ### Shared lint obligations and native evidence

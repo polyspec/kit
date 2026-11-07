@@ -9,7 +9,6 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-python.mts';
-import { kitFile } from '../../scripts/kit/kit-files.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { tree } from './tree.mts';
 
@@ -45,9 +44,9 @@ ${failing ? `case "${tool} $1" in "${failing}"*) echo "found a problem" >&2; exi
 }
 
 const ALL = [
-  `ruff check --config ${kitFile('ruff.toml')} --extend-exclude var . [kit-lint-python-`,
-  `ruff format --check --config ${kitFile('ruff.toml')} --extend-exclude var . [kit-lint-python-`,
-  'vulture --min-confidence 60 src/demo/__init__.py tests/test_demo.py vulture_whitelist.py [python]',
+  'ruff check . [kit-lint-python-',
+  'ruff format --check . [kit-lint-python-',
+  'vulture src/demo/__init__.py tests/test_demo.py vulture_whitelist.py [python]',
 ];
 const shape = (calls: string[]) => calls.map(call => call.replace(/\[kit-lint-python-[^\]]*\]$/, '[kit-lint-python-'));
 
@@ -61,7 +60,7 @@ test('every step runs after an earlier one failed, and each failure is named', (
   const { root, calls } = checkout(t, { failing: 'ruff check' });
   assert.deepEqual(lint(root, () => {}), ['ruff check .']);
   assert.deepEqual(shape(calls()), ALL);
-  const vulture = checkout(t, { failing: 'vulture --min-confidence' });
+  const vulture = checkout(t, { failing: 'vulture src' });
   assert.deepEqual(lint(vulture.root, () => {}), ['vulture packages/python']);
 });
 
@@ -74,11 +73,8 @@ test('a repository without Python sources lints nothing, with no tool and no con
   assert.deepEqual(lintSteps(tree(t, { 'docs/a.md': '# a\n' })), []);
 });
 
-// K514: the configuration is the file of the kit package that runs, never a copy of the repository: ruff reads the ruff.toml of
-// the package, with its cache in the var of the checkout.
-test('ruff reads the ruff.toml of the kit package, and a checkout without one lints (K514)', (t) => {
+// K1050: ruff and vulture read the configuration of the repository by their own discovery; the lint names none.
+test('ruff and vulture run with no configuration or confidence of kit (K1050)', (t) => {
   const steps = lintSteps(checkout(t).root);
-  const ruff = steps.filter(step => step.label.startsWith('ruff'));
-  assert.equal(ruff.length, 2);
-  for (const step of ruff) assert.deepEqual(step.args.slice(step.args.indexOf('--config'), step.args.indexOf('--config') + 2), ['--config', kitFile('ruff.toml')]);
+  assert.deepEqual(steps.filter(step => step.label.startsWith('ruff')).map(step => step.args), [['check', '.'], ['format', '--check', '.']]);
 });

@@ -1,5 +1,5 @@
-// The oxlint configuration of every polyspec repository, read from the kit package (K514); no repository holds a copy.
-// make lint-ts runs oxlint with -c of this file, --type-aware (oxlint-tsgolint, which reads the TypeScript 7 project) and --deny-warnings. The
+// kit's own oxlint configuration, which docs/examples/native-settings offers as an example (K1050). make lint-ts runs oxlint,
+// which reads this file from the root; options.typeAware turns on oxlint-tsgolint, which reads the TypeScript 7 project. The
 // correctness rules fail, and so does a promise that is neither awaited nor handled: it lets a test end before its work does.
 // allowForKnownSafeCalls is the option of typescript-eslint for node:test (K138): test, describe, it and suite, with skip,
 // only and todo, return a promise that the runner itself awaits, so a top-level registration is no floating promise. The
@@ -12,7 +12,7 @@
 // narrowed by a check.
 // No swallowed error (K256): no empty block, an empty catch included, and no catch that only rethrows; an error thrown in a
 // catch carries the caught one as its cause (preserve-caught-error, P8, K334). no-empty passes a catch that holds only a
-// comment, so catch-check, a step of lint-ts, refuses a catch without a statement (K537).
+// comment, so catch-check, a step of kit's own CI, refuses a catch without a statement (K537).
 // No non-null assertion (K156): a value whose type admits undefined or null is read with a check, or with a throwing accessor
 // that names what it expects (present of scripts/kit/present.mts in kit), never asserted away with `!`.
 // oxc/number-arg-out-of-range is off: it allows toFixed and toExponential 0 to 20 and toPrecision 1 to 21, the limits before
@@ -25,6 +25,9 @@
 // (the type_aware rules of oxlint --rules) and the override of TypeScript enables them with the rules above; the rules
 // without types (ban-ts-comment, no-explicit-any, no-non-null-assertion and the rest of correctness) apply to every file.
 {
+  "options": {
+    "typeAware": true
+  },
   "categories": {
     "correctness": "error"
   },

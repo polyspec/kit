@@ -1,4 +1,4 @@
-// Tests of the Rust lint: cargo clippy runs with -D warnings in the folder of each Cargo workspace of the checkout, a member
+// Tests of the Rust lint: cargo clippy runs in the folder of each Cargo workspace of the checkout, a member
 // package has no run of its own, the kit fixture is not read, and every run happens after an earlier one failed. cargo is a
 // stub on PATH.
 import assert from 'node:assert/strict';
@@ -7,8 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
-import { lint, lintSteps, P8_LINTS } from '../../scripts/kit/lint-rust.mts';
-import { kitPackageRoot } from '../../scripts/kit/kit-files.mts';
+import { lint, lintSteps } from '../../scripts/kit/lint-rust.mts';
 import { siblingTool } from '../../scripts/kit/paths.mts';
 import { initRepository } from './sandbox-repository.mts';
 
@@ -31,15 +30,15 @@ function checkout(t: TestContext): string {
   return root;
 }
 
-const CLIPPY = ['clippy', '--workspace', '--all-targets', '--locked', '--', '-D', 'warnings', ...P8_LINTS];
+const CLIPPY = ['clippy', '--workspace', '--all-targets', '--locked'];
 // K802: clippy runs through the cargo link with the checkouts of the link declaration (K448-5), so in a linked checkout a
 // polyspec git dependency compiles against the sibling checkout, not against its tag.
 const LINKED = [siblingTool(new URL('../../scripts/kit/lint-rust.mts', import.meta.url).href, 'link'), 'cargo', '.', ...CLIPPY];
 
-test('cargo clippy runs with -D warnings in each workspace folder through the cargo link with the siblings, and not for a member or the kit fixture (K802)', (t) => {
+test('cargo clippy runs in each workspace folder through the cargo link with the siblings, and not for a member or the kit fixture (K802)', (t) => {
   assert.deepEqual(lintSteps(checkout(t)), [
-    { label: 'cargo clippy .', command: process.execPath, args: LINKED, cwd: '.', env: { CLIPPY_CONF_DIR: kitPackageRoot() } },
-    { label: 'cargo clippy benchmarks/rust', command: process.execPath, args: LINKED, cwd: 'benchmarks/rust', env: { CLIPPY_CONF_DIR: kitPackageRoot() } },
+    { label: 'cargo clippy .', command: process.execPath, args: LINKED, cwd: '.' },
+    { label: 'cargo clippy benchmarks/rust', command: process.execPath, args: LINKED, cwd: 'benchmarks/rust' },
   ]);
 });
 
@@ -57,8 +56,7 @@ test('every workspace runs after an earlier one failed, and each failure is name
   assert.equal(readFileSync(log, 'utf8').split('\n').filter(Boolean).length, 2);
 });
 
-// K514: clippy reads the clippy.toml of the kit package that runs, through CLIPPY_CONF_DIR, never a copy of the repository.
-test('clippy reads the clippy.toml of the kit package (K514)', (t) => {
-  for (const step of lintSteps(checkout(t))) assert.deepEqual(step.env, { CLIPPY_CONF_DIR: kitPackageRoot() });
-  assert.ok(readFileSync(path.join(kitPackageRoot(), 'clippy.toml'), 'utf8').includes('disallowed-methods'));
+// K1050: the lints and their levels are the [lints] of Cargo.toml and the clippy.toml of the repository; the lint sets none.
+test('clippy runs with no lint level and no configuration of kit (K1050)', (t) => {
+  for (const step of lintSteps(checkout(t))) assert.equal(step.env, undefined);
 });

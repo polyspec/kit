@@ -38,3 +38,34 @@ UV_CACHE_DIR = "{{config_root}}/var/tools/mise/cache/uv"
 ```
 
 A repository with a `uv.toml` of its own leaves out `UV_NO_CONFIG`, which would make uv skip that file too.
+
+## Lint tools: their own configuration files
+
+Each lint tool reads its configuration from the repository by its own rules. A repository that wants the rules kit uses for itself copies kit's files and changes them as it needs. Most tools search from the folder they lint upward; PHPStan reads only the folder of the package, so lint-php gives it the root `phpstan.dist.neon` when the package folder holds none:
+
+| Tool | File | kit's own file |
+|---|---|---|
+| ruff | `ruff.toml` or `[tool.ruff]` of `pyproject.toml` | [`ruff.toml`](../../ruff.toml) |
+| vulture | `[tool.vulture]` of the package's `pyproject.toml` | — |
+| phpcs, PHPStan | `phpcs.xml.dist`, `phpstan.dist.neon` | [`phpcs.xml.dist`](../../phpcs.xml.dist), [`phpstan.dist.neon`](../../phpstan.dist.neon) |
+| golangci-lint | `.golangci.yml` | [`.golangci.yml`](../../.golangci.yml) |
+| clippy | `[lints]` of `Cargo.toml`, `clippy.toml` | [`clippy.toml`](../../clippy.toml) |
+| oxlint, knip | `.oxlintrc.json`, `knip.json` | [`.oxlintrc.json`](../../.oxlintrc.json), [`knip.json`](../../knip.json) |
+
+A Cargo workspace that denies warnings and the error-hiding lints writes:
+
+```toml
+[workspace.lints.rust]
+warnings = "deny"
+unsafe_code = "deny"
+unused_must_use = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+allow_attributes_without_reason = "deny"
+let_underscore_must_use = "deny"
+let_underscore_untyped = "deny"
+map_err_ignore = "deny"
+```
+
+oxlint fails on a rule set to `error`; `"categories": { "correctness": "error" }` in `.oxlintrc.json` makes every correctness finding fail.

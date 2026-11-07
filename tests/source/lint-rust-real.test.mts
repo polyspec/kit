@@ -1,6 +1,6 @@
-// The real Rust lint: lint-rust.mts runs cargo clippy with -D warnings on each workspace of a repository whose
-// rust-toolchain.toml pins Rust 1.99.0, the pin of S4 (rustup toolchain install 1.99.0 --component clippy). The workspace holds
-// the lints that config/cargo.schema.json requires. A crate that follows them passes; each violation planted into a copy fails
+// The real Rust lint: lint-rust.mts runs cargo clippy on each workspace of a repository whose rust-toolchain.toml pins Rust
+// 1.99.0, the pin of S4 (rustup toolchain install 1.99.0 --component clippy). The workspace holds its own lints, the [lints]
+// of docs/examples/native-settings, and its own clippy.toml (K1050). A crate that follows them passes; each violation planted into a copy fails
 // with the lint that names it, including the transmute_copy of the plan's verification. Nothing is stubbed.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -16,11 +16,11 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 
 const LIB = 'packages/rust/src/lib.rs';
 
-// A workspace with the lints of kit and one member that takes them.
+// A workspace with its own lints, those of docs/examples/native-settings, and one member that takes them.
 const GOOD: Record<string, string> = {
   '.gitignore': 'target/\n',
   'rust-toolchain.toml': '[toolchain]\nchannel = "1.99.0"\ncomponents = ["clippy"]\n',
-  'Cargo.toml': '[workspace]\nmembers = ["packages/rust"]\nresolver = "3"\n\n[workspace.lints.rust]\nunsafe_code = "deny"\n\n[workspace.lints.clippy]\nallow_attributes_without_reason = "deny"\n',
+  'Cargo.toml': '[workspace]\nmembers = ["packages/rust"]\nresolver = "3"\n\n[workspace.lints.rust]\nwarnings = "deny"\nunsafe_code = "deny"\nunused_must_use = "deny"\n\n[workspace.lints.clippy]\nall = { level = "deny", priority = -1 }\nallow_attributes_without_reason = "deny"\nlet_underscore_must_use = "deny"\nlet_underscore_untyped = "deny"\nmap_err_ignore = "deny"\n',
   'packages/rust/Cargo.toml': '[package]\nname = "demo"\nversion = "0.0.1"\nedition = "2024"\n\n[lints]\nworkspace = true\n',
   [LIB]: '/// Doubles a value.\npub fn double(value: u32) -> u32 {\n    value * 2\n}\n',
 };

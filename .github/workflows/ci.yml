@@ -60,6 +60,10 @@ jobs:
       - name: lint
         if: ${{ !cancelled() }}
         run: make lint-ts
+      # No catch without a statement (K537): oxlint no-empty passes a catch that holds only a comment; kit runs its own check (K1050).
+      - name: catch check
+        if: ${{ !cancelled() }}
+        run: var/tools/bin/node scripts/kit/catch-check.mts
       # The PHP lint of every repository (S2): phpcs and PHPStan over the PHP of the checkout, the extractor of the symbols.
       - name: php lint
         if: ${{ !cancelled() }}

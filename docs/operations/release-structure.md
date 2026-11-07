@@ -19,8 +19,8 @@ step:
 - a change of a file that a consumer extends or names by path, when the path changes: the seven `api-extractor.json` files of
   crudui extended the retired copy `config/api-extractor.kit.json` until C17.11 and C17.11-1.
 
-K514 already moved the lint configurations out of the copies: each lint reads its configuration from the package
-(`kitFile`), so a change of a lint configuration costs no repository anything.
+K514 moved the lint configurations out of the copies; since K1050 each lint tool reads the configuration of the repository,
+and kit's files are examples (docs/examples/native-settings), so a change of kit's lint configuration changes no repository.
 
 ## The copies, by whether a tool needs them in the repository
 
@@ -32,7 +32,7 @@ K514 already moved the lint configurations out of the copies: each lint reads it
 | `.editorconfig` | yes: an editor reads it from the root of the repository | a copy |
 | `PRINCIPLES.md`, `PRINCIPLES.ko.md` | no: a document that a reader follows by a link | a link document to the package |
 | `config/layout.kit.yml` | no: only the tools of kit read it | read from the package, as K514 |
-| `config/pyproject.schema.json`, `config/composer.schema.json`, `config/cargo.schema.json` | no: only the layout check of kit reads them | read from the package, as K514 |
+| `config/composer.schema.json`, `config/cargo.schema.json` | no: only the layout check of kit reads them | read from the package, as K514 |
 | `config/php-lint/composer.json`, `composer.lock` | no: install-tools reads them to install the PHP lint into var/tools | read from the package, as K514 |
 
 ## The structure that each part takes

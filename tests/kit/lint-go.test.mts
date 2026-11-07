@@ -8,7 +8,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { lint, lintSteps } from '../../scripts/kit/lint-go.mts';
-import { kitFile, kitPackageRoot } from '../../scripts/kit/kit-files.mts';
+import { kitFile } from '../../scripts/kit/kit-files.mts';
 import { initRepository } from './sandbox-repository.mts';
 
 const FILES: Record<string, string> = {
@@ -45,9 +45,9 @@ test('golangci-lint and deadcode -test run in each Go module folder, and not in 
   const { root, calls } = checkout(t);
   assert.deepEqual(lint(root, () => {}), []);
   assert.deepEqual(calls(), [
-    `golangci-lint run --config=${kitFile('.golangci.yml')} ./... [codec]`,
+    `golangci-lint run ./... [codec]`,
     'deadcode -test ./... [codec]',
-    `golangci-lint run --config=${kitFile('.golangci.yml')} ./... [packages]`,
+    `golangci-lint run ./... [packages]`,
     'deadcode -test ./... [packages]',
   ]);
 });
@@ -61,10 +61,10 @@ test('lint-go lints the files behind each build tag that the module declares (K4
   });
   assert.deepEqual(lint(root, () => {}), []);
   assert.deepEqual(calls(), [
-    `golangci-lint run --config=${kitFile('.golangci.yml')} ./... [codec]`,
+    `golangci-lint run ./... [codec]`,
     'deadcode -test ./... [codec]',
-    `golangci-lint run --config=${kitFile('.golangci.yml')} ./... [packages]`,
-    `golangci-lint run --config=${kitFile('.golangci.yml')} --build-tags=extra ./... [packages]`,
+    `golangci-lint run ./... [packages]`,
+    `golangci-lint run --build-tags=extra ./... [packages]`,
     'deadcode -test ./... [packages]',
     'deadcode -test -tags=extra ./... [packages]',
   ]);
@@ -82,12 +82,11 @@ test('a missing tool fails with its fix', (t) => {
   assert.throws(() => lintSteps(checkout(t, { installed: ['golangci-lint'] }).root), /var\/tools\/mise\/shims\/deadcode is missing; declare go, golangci-lint and go:golang\.org\/x\/tools\/cmd\/deadcode in mise\.toml and run make install-tools/);
 });
 
-// K514: golangci-lint reads the .golangci.yml of the kit package that runs, never a copy of the repository.
-test('golangci-lint reads the .golangci.yml of the kit package, and a checkout without one lints (K514)', (t) => {
+// K1050: golangci-lint reads the .golangci.yml of the repository by its own search; the lint names no configuration.
+test('golangci-lint runs with no --config, so it reads the configuration of the repository (K1050)', (t) => {
   const steps = lintSteps(checkout(t).root).filter(step => step.label.startsWith('golangci-lint'));
   assert.ok(steps.length > 0);
-  for (const step of steps) assert.ok(step.args.includes(`--config=${kitFile('.golangci.yml')}`), step.args.join(' '));
-  assert.equal(kitPackageRoot(), path.dirname(kitFile('.golangci.yml')));
+  for (const step of steps) assert.ok(!step.args.some(arg => arg.startsWith('--config')), step.args.join(' '));
 });
 
 // K536: deadcode runs untagged and once per build tag of the module, and go list names the files of each run; a function is unreachable
@@ -110,7 +109,7 @@ test('lint-go judges deadcode over the union of the build tags of a module (K536
   assert.doesNotMatch(output, /Live/, 'a function that the run of a tag reaches is live');
 });
 
-// K866: go.mod is the go tool's: a replace and a toolchain line are its directives, so the kit configuration bans neither.
-test('the kit golangci-lint configuration does not ban the go.mod directives replace and toolchain (K866)', () => {
+// K866: go.mod is the go tool's: a replace and a toolchain line are its directives, so kit's own configuration bans neither.
+test('the golangci-lint configuration of kit does not ban the go.mod directives replace and toolchain (K866)', () => {
   assert.doesNotMatch(readFileSync(kitFile('.golangci.yml'), 'utf8'), /gomoddirectives|replace-local|toolchain-forbidden/);
 });
