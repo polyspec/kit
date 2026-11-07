@@ -277,7 +277,7 @@ item-edit: ## Replace the Verification cell of the item ID with VERIFICATION, it
 item-state: ## Move the item ID to STATE in both languages along an allowed transition; done needs its changelog line, bypassed CAUSE, RETRY, CAUSE_KO and RETRY_KO, impossible CAUSE and CAUSE_KO; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) item-state
 
-item-test: ## Run the commands of the Verification cell of the item ID in order; each must be a run of its own unit tests that the Claude Code hook allows; offline
+item-test: ## Run the commands of the Verification cell of the item ID in order; offline
 	$(NODE) $(KIT)/plan.$(KIT_EXT) item-test
 
 commit: ## Commit the index for the item ID as TYPE(SCOPE): SUBJECT (#ID) with the body of BODY_FILE wrapped, after the checks of the commit-msg hook; offline
@@ -385,7 +385,7 @@ worktree-setup: ## Create or reuse the row worktree from main, run make install 
 # WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of
 # orm). land runs it, with make in the worktree, before it removes the worktree; a failing stop keeps the worktree.
 .PHONY: land
-land: ## Land the branch BRANCH on main (K394): refuses unless the main checkout is on main and clean and the branch is rebased on main and has a worktree; runs the static gates of kit-gates that its changed paths select, with docs-check, in its worktree (no test: parity-check and test- targets are printed as not run, K394-1); a gate that fails there is refused only on a finding that main does not have, compared with the same gate run on main; merges fast-forward, then runs the WORKTREE_STOP targets of the worktree and removes it, refused while a process runs in it (K429), and removes the branch; offline
+land: ## Land the branch BRANCH on main (K394): rebases it on main in its worktree when main has moved, merges it fast-forward under a lock, runs the WORKTREE_STOP targets of its worktree, removes the worktree, kept while it has an uncommitted change or a process runs in it (K429), and deletes the branch; runs no gate and judges no commit (K1053); offline
 	$(NODE) $(KIT)/land.$(KIT_EXT) $(BRANCH)
 
 
