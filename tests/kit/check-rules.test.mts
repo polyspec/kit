@@ -221,32 +221,35 @@ test('a target is expanded for each set of variables it is called with, so every
   assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
 });
 
-// K910: the CI pipeline runs the targets that config/ci.json declares, which its steps name only as expressions, so a target
-// that config/ci.json names is reached while the repository holds the pipeline, and not without it.
-test('K910: a target that config/ci.json declares is reached through the CI pipeline that the repository holds', (t) => {
-  const agents = rules('- Own: Go tests.\n  Enforced by: `make test-go`', '- Own: Docs.\n  Enforced by: `make own-docs`');
-  const config = JSON.stringify({ schema: 1, parityMode: 'none', setup: { shared: [], parity: [], runtimes: { go: [], php: [], 'php-ext': [], python: [], rust: [], ts: [] } }, targets: { shared: ['own-docs'], runtimes: { go: ['test-go'] } } });
-  const files = {
-    Makefile: 'test-go:\n\t@echo go\nown-docs:\n\t@echo docs\ndeps-go:\n\t@echo deps\n',
+// K1057: the CI pipeline is a workflow of the repository like any other (K1052): a target that one of its steps names is
+// reached, and config/ci.json, which kit's example pipeline reads, reaches nothing by itself.
+test('the CI pipeline of a repository is read as one of its workflows, and config/ci.json reaches no target (K1057)', (t) => {
+  const agents = rules('- Own: Docs.\n  Enforced by: `make own-docs`', '- Own: Go tests.\n  Enforced by: `make test-go`');
+  const config = JSON.stringify({ schema: 1, parityMode: 'none', setup: { shared: [], parity: [], runtimes: { go: [], php: [], 'php-ext': [], python: [], rust: [], ts: [] } }, targets: { shared: [], runtimes: { go: ['test-go'] } } });
+  const root = tree(t, {
+    Makefile: 'test-go:\n\t@echo go\nown-docs:\n\t@echo docs\n',
     'config/ci.json': config,
     '.github/workflows/ci.yml': 'name: ci\non: push\njobs:\n  kit:\n    uses: ./.github/workflows/ci-pipeline.yml\n',
-    'AGENTS.md': agents,
-    'AGENTS.ko.md': agents,
-  };
-  assert.deepEqual(checkRules(tree(t, { ...files, '.github/workflows/ci-pipeline.yml': 'name: ci-pipeline\non:\n  workflow_call:\n' }), ['AGENTS.md']).findings, []);
-  assert.equal(checkRules(tree(t, files), ['AGENTS.md']).findings.length, 2);
-});
-
-test('a step that names ${{ matrix.runtime }} reaches the target of every runtime of the gates matrix (K757)', (t) => {
-  const makefile = 'kit-gates-runtime-go: lint-go\nkit-gates-runtime-rust: lint-rust\nlint-go:\n\t@echo go\nlint-rust:\n\t@echo rust\n';
-  const agents = rules('- Own: Go lints.\n  Enforced by: `make lint-go`', '- Own: Rust lints.\n  Enforced by: `make lint-rust`');
-  const root = tree(t, {
-    Makefile: makefile,
-    '.github/workflows/gates.yml': 'name: gates\non: push\njobs:\n  runtime:\n    runs-on: ubuntu-24.04\n    strategy:\n      matrix:\n        runtime: ${{ fromJson(needs.discover.outputs.runtimes) }}\n    steps:\n      - run: make -k kit-gates-runtime-${{ matrix.runtime }}\n',
+    '.github/workflows/ci-pipeline.yml': 'name: ci-pipeline\non:\n  workflow_call:\njobs:\n  shared:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: make own-docs\n',
     'AGENTS.md': agents,
     'AGENTS.ko.md': agents,
   });
-  assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
+  const findings = checkRules(root, ['AGENTS.md']).findings;
+  assert.equal(findings.length, 1, findings.join('\n'));
+  assert.match(findings[0] ?? '', /make test-go runs at no point/);
+});
+
+// K1057: a step that names ${{ matrix.runtime }} reaches the targets of the values that its own matrix lists, and no list of
+// runtimes of kit: a matrix of a computed value reaches no runtime target.
+test('a step that names ${{ matrix.runtime }} reaches only the runtimes that its own matrix lists (K1057)', (t) => {
+  const makefile = 'kit-gates-runtime-go: lint-go\nkit-gates-runtime-rust: lint-rust\nlint-go:\n\t@echo go\nlint-rust:\n\t@echo rust\n';
+  const agents = rules('- Own: Go lints.\n  Enforced by: `make lint-go`', '- Own: Rust lints.\n  Enforced by: `make lint-rust`');
+  const workflow = (runtime: string) => `name: gates\non: push\njobs:\n  runtime:\n    runs-on: ubuntu-24.04\n    strategy:\n      matrix:\n        runtime: ${runtime}\n    steps:\n      - run: make -k kit-gates-runtime-\${{ matrix.runtime }}\n`;
+  const listed = checkRules(tree(t, { Makefile: makefile, '.github/workflows/gates.yml': workflow('[go]'), 'AGENTS.md': agents, 'AGENTS.ko.md': agents }), ['AGENTS.md']).findings;
+  assert.equal(listed.length, 1, listed.join('\n'));
+  assert.match(listed[0] ?? '', /make lint-rust runs at no point/);
+  const computed = checkRules(tree(t, { Makefile: makefile, '.github/workflows/gates.yml': workflow('${{ fromJson(needs.discover.outputs.runtimes) }}'), 'AGENTS.md': agents, 'AGENTS.ko.md': agents }), ['AGENTS.md']).findings;
+  assert.equal(computed.length, 2, computed.join('\n'));
 });
 
 // K359: the working guidelines of the owner are rules of PRINCIPLES.md, each with its Enforced by line in the same rule, and the
@@ -312,24 +315,3 @@ test('no Enforced by line of PRINCIPLES.md names a path under tests/ or scripts/
   assert.deepEqual(lines.filter(line => /(?:^|[\s,(])(?:tests|scripts)\/\S/.test(line)), []);
 });
 
-for (const mode of ['phases', 'none'] as const) {
-  test(`K1031: the copied pipeline reaches only selected ${mode} parity checks`, t => {
-    const config = {
-      schema: 1, parityMode: mode,
-      parityBindings: { 'go-client': { setup: [], tools: [] } },
-      setup: { shared: [], parity: [], runtimes: { go: ['setup-go'], php: [], 'php-ext': [], python: [], rust: [], ts: [] } },
-    };
-    const agents = rules('- Own: Client behavior.\n  Enforced by: `make parity-bindings-go-client-check`', '- Own: Unselected behavior.\n  Enforced by: `make parity-bindings-other-check`', '- Own: API behavior.\n  Enforced by: `make parity-api-check`', '- Own: Inactive runtime.\n  Enforced by: `make kit-gates-runtime-rust`');
-    const root = tree(t, {
-      Makefile: 'setup-go:\n\t@echo setup\nparity-bindings-go-client-check:\n\t@echo selected\nparity-bindings-other-check:\n\t@echo unselected\nparity-api-check:\n\t@echo api\nkit-gates-runtime-rust:\n\t@echo rust\n',
-      'config/ci.json': JSON.stringify(config),
-      'config/parity.json': JSON.stringify({ schema: 1, implementations: [{ name: 'go-client', runner: 'go', roots: ['packages/go'] }], requirements: { pattern: 'REQ-[0-9]+' }, units: [] }),
-      'packages/go/go.mod': 'module example.invalid/client\n',
-      '.github/workflows/ci-pipeline.yml': readFileSync(fileURLToPath(new URL('../../workflows/ci-pipeline.yml', import.meta.url)), 'utf8'),
-      'AGENTS.md': agents, 'AGENTS.ko.md': agents,
-    });
-    const findings = checkRules(root, ['AGENTS.md']).findings;
-    assert.equal(findings.length, mode === 'phases' ? 2 : 4, findings.join('\n'));
-    assert.ok(findings.some(finding => finding.includes('make parity-bindings-other-check runs at no point')));
-  });
-}

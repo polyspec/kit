@@ -93,6 +93,11 @@ principles are examples of the package, listed in [docs/examples/shared-files](.
 the ones it wants and commits each copy as its own file. A repository that held copies of kit-sync keeps them as its files; it
 removes `kit-sync` and `kit-inject-check` from its own recipes and workflows.
 
+rules-check reads a copied pipeline as one of the repository's workflows, by the make commands of its steps (K1057). A check
+that the example pipeline runs only through an expression, such as a target of config/ci.json or a runtime of a computed
+matrix, is reached when a step names it, when its matrix lists the value, or when the `Enforced by` line names a target that a
+step runs.
+
 ## Never
 
 No polling loop, no deferral, no run of a full suite, no push, tag or release, and no tool but the utilities of kit for plans,

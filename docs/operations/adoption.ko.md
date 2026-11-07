@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: d7607e7138110aa231a5d20dc90a2e8799b0ab62348a09f32a553d870f0d776f -->
+<!-- source-sha256: 48f7f9b850127e05e1bec06363ce23cccccbc06f4523efc490c708a32b7acf91 -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -89,6 +89,10 @@ kit은 저장소의 파일을 쓰지 않는다. workflow, bootstrap action, Clau
 [docs/examples/shared-files](../examples/shared-files.ko.md)에 목록이 있다. 저장소는 원하는 것을 복사해 각 사본을 자기 파일로
 commit한다. kit-sync의 사본을 가진 저장소는 그것을 자기 파일로 그대로 두고, 자기 레시피와 workflow에서 `kit-sync`와
 `kit-inject-check`를 지운다.
+
+rules-check는 복사한 pipeline을 저장소의 workflow 중 하나로서 step의 make 명령으로 읽는다(K1057). config/ci.json의 target이나
+계산된 matrix의 runtime처럼 예시 pipeline이 표현식으로만 실행하는 검사는 step이 그것을 적거나, matrix가 그 값을 나열하거나,
+`Enforced by` 줄이 step이 실행하는 target을 적을 때 도달한다.
 
 ## 하지 않는 것
 

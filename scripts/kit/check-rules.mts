@@ -8,9 +8,8 @@
 // backticks: `make <target>`, a test file, a Git hook of .githooks or `.claude/settings.json`; or `Enforced by: none, <reason>`
 // for a rule that no tool can enforce, which the check lists; `planned <item>` names the open checklist item that builds the
 // check of a rule, which the check lists until the item is done and then fails. A check is reached when a point that cannot be skipped runs it:
-// a step of a workflow of .github/workflows or a Git hook of .githooks starts make with it, config/ci.json names it for the CI
-// pipeline that the repository holds (K910), it is a prerequisite of a reached
-// target, a reached recipe names it after the expansion of its variables, or a reached recipe names the test file or a folder
+// a step of a workflow of .github/workflows (the CI pipeline of the repository among them, K1057) or a Git hook of .githooks
+// starts make with it, it is a prerequisite of a reached target, a reached recipe names it after the expansion of its variables, or a reached recipe names the test file or a folder
 // of it. A rule of PRINCIPLES.md begins with an id, P<n> or S<n>. A rule of AGENTS.md begins with `Own:` or `Refines <id>:`; a
 // refining rule names, in backticks, a term of the repository that PRINCIPLES.md lacks (an existing path or a make target), so a
 // restatement of a principle is a finding (K300). The Korean twin of a document (<name>.ko.md) names the same checks for each rule.
@@ -20,7 +19,6 @@ import { lineBlocks } from './markdown.mts';
 import { makeDatabase, suiteTargets, type MakeDatabase } from './owner-check.mts';
 import { commandParts, expandMake, makeArguments } from './recipe-tools.mts';
 import { isMain, repositoryRoot } from './paths.mts';
-import { CI_CONFIG, ciConfigTargets, RUNTIMES } from './ci-setup.mts';
 import { CONFIG, DONE, IMPOSSIBLE, loadConfig, readChecklist, trackersOf, workingPlanFiles } from './checklist.mts';
 
 /** A rule of a document: its first line and the text of its `Enforced by:` line, or null. */
@@ -36,8 +34,6 @@ const ENFORCED = /^\s*Enforced by:\s*(.*)$/;
 const DEFAULT_DOCUMENTS = ['PRINCIPLES.md', 'AGENTS.md'];
 // The points that cannot be skipped: the folders whose files start make.
 const ENTRY_FOLDERS = ['.github/workflows', '.githooks'];
-// The CI pipeline that kit copies into a repository (K910).
-const PIPELINE = '.github/workflows/ci-pipeline.yml';
 
 /** Whether a recipe-free aggregate names only existing suite targets through an acyclic prerequisite graph. */
 function mandatoryAggregate(target: string, make: MakeDatabase): boolean {
@@ -158,9 +154,6 @@ const plannedOf = (enforced: string) => [...enforced.matchAll(/\bplanned (\S+?)(
 /** The words of the commands of `text`, a recipe or a script, line by line. */
 const commandsOf = (text: string) => text.split('\n').flatMap(line => commandParts(line)).filter(words => words.length > 0);
 
-/** The expression of the runtime of the gates matrix. */
-const MATRIX_RUNTIME = /\$\{\{\s*matrix\.runtime\s*\}\}/g;
-
 /**
  * The values of each key of a `matrix:` block of the workflow whose value is a literal list, such as `shard: [1, 2]` (K941-1).
  * A matrix declared by an expression has no literal values, so the steps that name it stay one line each.
@@ -204,7 +197,6 @@ function workflowLines(text: string): string[] {
     }
   });
   return result
-    .flatMap(line => (line.search(MATRIX_RUNTIME) >= 0 ? RUNTIMES.map(runtime => line.replaceAll(MATRIX_RUNTIME, runtime)) : [line]))
     .flatMap(line => [...literal].reduce<string[]>((variants, [key, values]) => (line.includes(`matrix.${key} `) || line.includes(`matrix.${key}}`) ? variants.flatMap(variant => values.map(value => variant.replace(new RegExp(`\\$\\{\\{\\s*matrix\\.${key}\\s*\\}\\}`, 'g'), value))) : variants), [line]))
     .map(line => line.replace(/\$\{\{[^}]*\}\}/g, 'GITHUB_EXPRESSION'));
 }
@@ -236,15 +228,11 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
     const directory = path.join(root, folder);
     if (!existsSync(directory)) continue;
     for (const entry of readdirSync(directory).sort()) {
-      // The copied pipeline selects jobs from config/ci.json; scanning all its branches would count unselected checks.
-      if (path.posix.join(folder, entry) === PIPELINE) continue;
       const text = readFileSync(path.join(directory, entry), 'utf8');
       const script = folder === '.github/workflows' ? workflowLines(text).join('\n') : text;
       for (const words of commandsOf(script)) enter(words, new Map());
     }
   }
-  // The CI pipeline runs the setup, context and declared targets of config/ci.json, which its steps name only as expressions (K910).
-  if (existsSync(path.join(root, PIPELINE)) && existsSync(path.join(root, CI_CONFIG))) for (const target of ciConfigTargets(root)) queue.push({ target, variables: new Map() });
   // A target is expanded once for each set of variables it is called with (K312): `make ci-targets TARGETS="a"` and
   // `make ci-targets TARGETS="b"` run different targets through one recipe.
   const expanded = new Set<string>();

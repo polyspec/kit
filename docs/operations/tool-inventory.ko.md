@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: ff80604acc2e8eb5f049f6775b51f2a7cdd6d7830cf0eaeda55c852c21f3988f -->
+<!-- source-sha256: fdfc07a5cb2bc9893b723eda941bb54cfce2d4dad2a5d51f7a18782e970421e9 -->
 
 # 도구 목록
 
@@ -809,7 +809,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 parity/runtime
   job을 항상 판정하며 선택된 job이 건너뛰거나 취소되어도 실패합니다. 이 제어 의존성을 제거해도 GitHub의 runner
   동시 실행 한도는 늘어나지 않습니다.
-  규칙 도달성은 검증된 CI 선택을 읽는다. shared 검사, 선택된 parity mode와 implementation, 선택된 runtime의 준비와 context가 대상이다. 선택되지 않은 job은 강제 증거가 아니다. 복사된 pipeline은 조건부 template job을 모두 실행한 것으로 취급하지 않고 이 선언으로 해석한다.
+  규칙 도달성은 저장소의 CI pipeline을 그 workflow 중 하나로서 step의 make 명령으로 읽는다. 예시 pipeline이 읽는 config/ci.json은 그 자체로 어떤 target에도 도달하지 않는다(K1057).
   Phases 모드의 config/ci.json은 `parityBindings`에서 config/parity.json의 모든 implementation 이름을
   `{ "setup": ["existing-target"], "tools": ["tool-selector"] }`에 대응시킵니다. Key 집합은 정확히 일치해야 하며
   누락되거나 추가된 항목은 계획이 거절합니다. 빈 배열은 setup이나 tool을 요구하지 않는다는 명시적 선언입니다.

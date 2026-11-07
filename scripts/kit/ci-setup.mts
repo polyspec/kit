@@ -207,29 +207,6 @@ function plan(root: string): CIPlan {
 
 export function ciPlan(root: string = repositoryRoot()): CIPlan { return plan(root); }
 
-/** The checks, setup and contexts of only the jobs selected by the validated CI declarations. */
-export function ciConfigTargets(root: string): string[] {
-  const { config, runtimes, files, db, parityMode, parityImplementations } = readAndValidate(root);
-  const contexts = (scope: CIJob): string[] => Object.values(config.contexts?.[scope] ?? {});
-  const targets = ['kit-gates-static', ...config.setup.shared, ...(config.targets?.shared ?? []), ...contexts('shared')];
-  if (parityMode !== 'none') {
-    targets.push(...config.setup.parity, ...(config.targets?.parity ?? []), ...contexts('parity'));
-    if (parityMode === 'full') targets.push('kit-gates-parity');
-    else {
-      targets.push('parity-api-check');
-      for (const implementation of parityImplementations) {
-        targets.push(`parity-bindings-${implementation}-check`,
-          ...present(config.parityBindings?.[implementation], `${CI_CONFIG} parityBindings.${implementation}`).setup);
-      }
-    }
-  }
-  for (const runtime of runtimes) {
-    targets.push(`kit-gates-runtime-${runtime}`, ...runtimeSetup(runtime, config, files, db.targets).map(entry => entry.target),
-      ...(config.targets?.runtimes?.[runtime] ?? []), ...contexts(runtime));
-  }
-  return [...new Set(targets)];
-}
-
 /** The setup of `runtime`: its declared targets or its deps target. */
 function runtimeSetup(runtime: Runtime, config: CIConfig, files: readonly string[], targets: { has(name: string): boolean }): { target: string; args: string[] }[] {
   const configured = config.setup.runtimes[runtime];
