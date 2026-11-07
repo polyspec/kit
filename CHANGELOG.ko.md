@@ -1,12 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 155744dbb219988099340b27be4b10973ecb477aea7eac3e4e1d0e1c135c05f4 -->
+<!-- source-sha256: e0b2f05cc5b435eaa374a832a5e3596194aacff41c6454a85e9663f4b75a4bf4 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
-- K1026: parity binding job은 repository가 선언한 tool과 setup target만 설치하고 정확한 implementation 대응을 요구하며 관계없는 runtime setup이나 symbol extractor를 상속하지 않는다.
+- CI: parity binding job은 repository가 선언한 tool과 setup target만 설치하고 정확한 implementation 대응을 요구하며 관계없는 runtime setup이나 symbol extractor를 상속하지 않는다 (K1026).
 
 ## 0.0.95
 

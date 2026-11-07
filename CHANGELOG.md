@@ -5,7 +5,7 @@
 
 ## Unreleased
 
-- K1026: parity binding jobs install only repository-declared tools and setup targets, require an exact implementation map and inherit no unrelated runtime setup or symbol extractors.
+- CI: parity binding jobs install only repository-declared tools and setup targets, require an exact implementation map and inherit no unrelated runtime setup or symbol extractors (K1026).
 
 ## 0.0.95
 
