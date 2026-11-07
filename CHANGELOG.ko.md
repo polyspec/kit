@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 1a305c9fbcb8dabfc26316e072227533422196966e1ad070f1f73756933802ff -->
+<!-- source-sha256: 485baeb68dacd7b1c6dcb727102a402a9262757f3ceb7714bd0b0201909bcd50 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.94
+
+- K1021: 커밋된 kit-test 샌드박스는 CI 신원 설정 없이 FINAL_RUN을 사용하고, 배포 패키지 소비자 fixture는 ci-passed에서 kit job의 결과를 확인한다.
 
 - K1020: 성공한 CI의 정확한 commit이 main 이력에 포함되면 CI branch와 관계없이 release한다. 독립 CI job은 kit과 함께 실행하고 마지막 job이 모든 결과를 요구한다.
 

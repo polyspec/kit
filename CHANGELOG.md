@@ -7,6 +7,8 @@
 
 ## 0.0.94
 
+- K1021: The committed kit-test sandbox uses FINAL_RUN without setting a CI identity, and the packed consumer fixture joins its kit job in ci-passed.
+
 - K1020: Release the exact successful CI commit after it reaches main, regardless of its CI branch; independent CI jobs run alongside kit and the final job requires every result.
 
 ## 0.0.93
