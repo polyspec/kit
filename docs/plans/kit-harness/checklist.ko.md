@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 8f0558612dea7f6b869b0df4ec57ffe9e34bd210d82b7a365e70bd025be7a2ae -->
+<!-- source-sha256: 3e12e642a4e74c5ee5b3f6263bc781af3ba1cb6661b3c782aefd1273458ef1a5 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -190,3 +190,4 @@
 | K1060 | 제거된 npm 판정의 쓰이지 않는 읽기 함수 readNpmConfig를 삭제합니다 | scripts/kit/toolchain-files.mts, CHANGELOG(.ko).md | `make -s lint-ts` | [ ] |
 | K1061 | make help의 land와 item-test 설명을 실제 동작대로 고치고, 제거된 거부 문구를 뺍니다 | scripts/kit/kit.mk, CHANGELOG(.ko).md | `make -s docs-check` | [ ] |
 | K1062 | 심볼릭 링크인 var에도 도구를 설치합니다. var는 저장소가 정합니다 | scripts/kit/install-tools.mts, tests/kit/install-tools.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1062 tests/kit/install-tools.test.mts` | [ ] |
+| K1063 | rules-check가 make recipe 접두사 @, -, +를 읽어, 접두사가 붙은 make 줄도 그 target에 도달하게 합니다 | scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1063 tests/kit/check-rules.test.mts` | [ ] |

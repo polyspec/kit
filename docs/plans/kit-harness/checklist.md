@@ -189,3 +189,4 @@
 | K1060 | Delete readNpmConfig, the unused reader of the removed npm judgment | scripts/kit/toolchain-files.mts, CHANGELOG(.ko).md | `make -s lint-ts` | [ ] |
 | K1061 | Describe land and item-test in make help as they run, with no removed refusal | scripts/kit/kit.mk, CHANGELOG(.ko).md | `make -s docs-check` | [ ] |
 | K1062 | Install tools into a var that is a symbolic link; the repository chooses its var | scripts/kit/install-tools.mts, tests/kit/install-tools.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1062 tests/kit/install-tools.test.mts` | [ ] |
+| K1063 | Read the make recipe prefixes @, - and + in rules-check, so a prefixed make line reaches its targets | scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1063 tests/kit/check-rules.test.mts` | [ ] |
