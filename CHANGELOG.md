@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1063: rules-check reads a recipe line without its make prefixes @, - and +, after the expansion, and joins a line that ends in a backslash with the next, so `@$(MAKE) -k gates` reaches the gates that its make runs (K1063).
 - K1059: release-run tags a successful CI run of any workflow of the repository; it no longer requires .github/workflows/ci.yml, and the wait for the run of a version commit reads the runs of every workflow of that commit (K1059).
 - K1062: Fixed: install-tools installs into a var that is a symbolic link; the repository chooses its var, and install-tools no longer refuses one as the var of another checkout (K1062).
 - K1061: make help describes land as it runs, a rebase, a fast-forward merge and the cleanup with no gate, and item-test as the run of the Verification commands, naming no refusal that K1053 removed (K1061).

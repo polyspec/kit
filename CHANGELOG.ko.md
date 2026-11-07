@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 12a2b19ce6720ff85d2dc130796705c8eb501f663c37e356aa2cb2aafdd14824 -->
+<!-- source-sha256: 977b79efdfb49d6eca672ef0da0e107a1d3bdbe9e51a7bcbc1e2127438d73660 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1063: rules-check는 recipe 줄을 변수 전개 뒤 make 접두사 @, -, + 없이 읽고 백슬래시로 끝나는 줄을 다음 줄과 이어 읽으므로, `@$(MAKE) -k gates`도 그 make가 실행하는 gate에 도달합니다(K1063).
 - K1060: toolchain-files는 제거된 npm 검사가 쓰던 프로젝트 .npmrc 읽기 함수이자 아무도 부르지 않는 readNpmConfig를 export하지 않습니다(K1060).
 - K1055: PRINCIPLES는 저장소를 kit의 부분에 묶지 않습니다. S12는 저장소 자신의 파이프라인 하나를 말하고 kit의 ci-pipeline.yml은 그 한 예시이며, P31은 kit-gates가 아니라 저장소의 gate를 말하고, S13은 K1053이 지운 Claude Code 설정을 적지 않으며, 저장소는 원칙의 사본을 자기 파일로 바꿉니다(K1055).
 - K1053: kit은 자기 규칙으로 어떤 명령, 커밋, 실행도 거부하지 않는다. claude-hook.mts, kit-sync가 복사하고 make link와 make hook이 쓰던 Claude Code 설정, link의 hook 명령, FINAL_RUN을 포함한 ci-only.mts, make hooks가 쓰던 commit-msg hook과 pre-commit hook은 삭제되었다. make hooks는 이제 config/checklist.json이 나열한 hook으로 core.hooksPath를 가리키고 merge driver를 선언하며, kit.mk는 더 이상 core.hooksPath를 설정하지 않는다. land는 rebase하고 fast-forward로 merge하고 정리하며, gate도 커밋 규칙도 실행하지 않는다. make commit은 메시지도 index도 판정하지 않는다. item-state는 changelog 줄을 요구하지 않고 Verification을 실행하지 않는다. item-test와 docs-check는 어떤 Verification 명령도 거부하지 않는다. ci-targets, owner-check, 선택 없는 run-tests, suite, 전체 parity-check는 CI 밖에서도 실행된다. ci-setup은 중첩된 dispatch를 거부하지 않는다. docs/examples/git-hooks는 kit의 검사를 실행하는 저장소의 hook을 보여 준다. 호환되지 않는 변경: 이 거부에 기대던 저장소는 자기 hook과 레시피를 쓰고, 이전 kit의 .githooks/pre-commit, .githooks/commit-msg, .claude/settings.json을 지우거나 자기 것으로 유지한다(K1053).

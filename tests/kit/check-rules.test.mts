@@ -249,6 +249,20 @@ test('a step that names ${{ matrix.runtime }} reaches only the runtimes that its
   assert.equal(computed.length, 2, computed.join('\n'));
 });
 
+// K1063: make runs a recipe line without its prefixes @, - and +, read after the expansion and with blanks between them, so
+// the make that such a line runs reaches its targets.
+test('a recipe line prefixed with @, - or +, literally or by a variable, reaches the targets of its make (K1063)', (t) => {
+  const agents = rules('- Own: First.\n  Enforced by: `make first`', '- Own: Second.\n  Enforced by: `make second`', '- Own: Third.\n  Enforced by: `make third`', '- Own: Fourth.\n  Enforced by: `make fourth`', '- Own: Fifth.\n  Enforced by: `make fifth`');
+  const root = tree(t, {
+    Makefile: 'Q := @\ngates:\n\t@$(MAKE) -k first\n\t-+$(MAKE) second\n\t$(Q)$(MAKE) third\n\t- @$(MAKE) fourth\n\t@$(MAKE) \\\n\t\t-k fifth\nfirst:\n\t@echo first\nsecond:\n\t@echo second\nthird:\n\t@echo third\nfourth:\n\t@echo fourth\nfifth:\n\t@echo fifth\n',
+    '.github/workflows/ci.yml': 'name: ci\non: push\njobs:\n  gates:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: make gates\n',
+    'AGENTS.md': agents,
+    'AGENTS.ko.md': agents,
+  });
+  // A line that ends in a backslash and the line after it are one command, so its make reaches fifth.
+  assert.deepEqual(checkRules(root, ['AGENTS.md']).findings, []);
+});
+
 // K359: the working guidelines of the owner are rules of PRINCIPLES.md, each with its Enforced by line in the same rule, and the
 // Korean twin holds the same rule ids. Each phrase is a short part of the rule it belongs to.
 const GUIDELINE_RULES: Array<[id: string, phrase: string]> = [

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: abd9b64a1c7f8c09fa56f506c746b598aefe2e31c55131fdcbee5c19ad7bc85b -->
+<!-- source-sha256: cc6bce8c3b91830813b5f1606590a988212142164de72bdfe3764fb8834c0732 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -190,7 +190,7 @@
 | K1060 | 제거된 npm 판정의 쓰이지 않는 읽기 함수 readNpmConfig를 삭제합니다 | scripts/kit/toolchain-files.mts, CHANGELOG(.ko).md | `make -s lint-ts` | [o] |
 | K1061 | make help의 land와 item-test 설명을 실제 동작대로 고치고, 제거된 거부 문구를 뺍니다 | scripts/kit/kit.mk, CHANGELOG(.ko).md | `make -s docs-check` | [ ] |
 | K1062 | 심볼릭 링크인 var에도 도구를 설치합니다. var는 저장소가 정합니다 | scripts/kit/install-tools.mts, tests/kit/install-tools.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1062 tests/kit/install-tools.test.mts` | [ ] |
-| K1063 | rules-check가 make recipe 접두사 @, -, +를 읽어, 접두사가 붙은 make 줄도 그 target에 도달하게 합니다 | scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1063 tests/kit/check-rules.test.mts` | [~] |
+| K1063 | rules-check가 make recipe 접두사 @, -, +를 읽어, 접두사가 붙은 make 줄도 그 target에 도달하게 합니다 | scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1063 tests/kit/check-rules.test.mts` | [o] |
 | K1064 | rules-check에서 다른 Makefile을 실행하는 make(-C, -f)로는 루트 Makefile의 target에 도달하지 않게 합니다 | scripts/kit/recipe-tools.mts, scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1064 tests/kit/check-rules.test.mts` | [ ] |
 | K1065 | rules-check가 workflow matrix의 literal include 항목 값을 읽게 합니다 | scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1065 tests/kit/check-rules.test.mts` | [ ] |
 | K1057 | rules-check는 저장소의 CI pipeline을 그 workflow 중 하나로 읽으며 config/ci.json에서 고르지 않는다 | `scripts/kit/check-rules.mts`, `tests/kit/check-rules.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1057 tests/kit/check-rules.test.mts` passes | [o] |

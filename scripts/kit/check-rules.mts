@@ -244,7 +244,11 @@ export function reached(root: string, make: MakeDatabase): { targets: Set<string
     targets.add(item.target);
     const variables = new Map([...make.variables, ...item.variables]);
     for (const prerequisite of rule.prerequisites) queue.push({ target: prerequisite, variables: item.variables });
-    for (const words of commandsOf(expandMake(rule.recipe, variables))) enter(words.flatMap(word => word.split(/\s+/)).filter(Boolean), item.variables);
+    // make runs each recipe line without its prefixes @ (silent), - (ignore errors) and + (run under -n), which it reads after
+    // the expansion, with blanks between them, as `$(Q)$(MAKE)` with Q := @ shows (K1063).
+    // A line that ends in a backslash continues into the next one, which is one command of the shell.
+    const recipe = expandMake(rule.recipe, variables).replace(/\\\n\s*/g, ' ').split('\n').map(line => line.replace(/^[\s@+-]+/, '')).join('\n');
+    for (const words of commandsOf(recipe)) enter(words.flatMap(word => word.split(/\s+/)).filter(Boolean), item.variables);
   }
   return { targets, paths };
 }
