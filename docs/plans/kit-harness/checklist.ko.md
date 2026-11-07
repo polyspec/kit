@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: d394d034cdd825a2527376c815a09c56a7f048667ba840da27f30d4f0eceb502 -->
+<!-- source-sha256: f629bb7635f52c49bb73889a621139baedbdcf329bd381a857b3e819343af103 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -152,4 +152,4 @@
 | K1018 | ci-setup이 PHP symbol extractor를 shared와 php runtime setup에서 설치해 ci-pipeline.yml의 step 목록이 언어를 이름하지 않는다 | `workflows/ci-pipeline.yml`, `scripts/kit/ci-setup.mts`, `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1018 tests/kit/ci-setup.test.mts` passes | [o] |
 | K1020 | 통합된 성공 CI commit을 그대로 release하고 독립 CI job은 마지막 결과에서 합친다 | scripts/kit/release-run.mts, scripts/kit/kit-check.mts, workflows/release.yml, tests/kit/release-run.test.mts, tests/kit/kit-check.test.mts, PRINCIPLES.md, PRINCIPLES.ko.md | `node --test tests/kit/release-run.test.mts tests/kit/kit-check.test.mts tests/source/release-workflow.test.mts` | [v] |
 | K1021 | CI fixture는 명시적인 final run을 사용하고 필수 마지막 job을 포함한다 | tests/kit/kit-mk.test.mts, tests/source/consumer-layout.test.mts | `node --test --test-name-pattern="kit-test (fails\|passes)" tests/kit/kit-mk.test.mts` `make bypass-check` | [v] |
-| K1022 | PRINCIPLES S14가 거울, 수정 branch, release하는 line으로 된 fork 규칙을 적고, root는 fork의 release tag를 require한다 | PRINCIPLES.md, PRINCIPLES.ko.md, docs/operations/local-links.md, docs/operations/local-links.ko.md | `make rules-check` `make docs-check` | [~] |
+| K1022 | PRINCIPLES S14가 거울, 수정 branch, release하는 line으로 된 fork 규칙을 적고, root는 fork의 release tag를 require한다 | PRINCIPLES.md, PRINCIPLES.ko.md, docs/operations/local-links.md, docs/operations/local-links.ko.md | `make rules-check` `make docs-check` | [o] |
