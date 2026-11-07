@@ -7,6 +7,8 @@
 
 ## 0.0.96
 
+- CI: name the provider workflow in its repository rule and keep bootstrap verification on the separate planning job and every independent check job (K1030).
+
 - CI: separate job planning from shared checks so independent parity and runtime jobs start from plan data, while the final required job still judges every selected result (K1029).
 
 - CI: read validated binding setup with the existing throwing accessor instead of forbidden non-null assertions, retaining missing-declaration failures (K1028).

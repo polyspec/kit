@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 6837d3029d698772bbb726438634653e17bb290cc48d269713840bea1f5f379a -->
+<!-- source-sha256: ad272e2f4b44b50eefd53f2f0d4a490a7f89e0c2c2c03fe421a5645984a3134c -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.96
+
+- CI: repository 규칙에 provider workflow 경로를 명시하고 별도 계획 job과 독립 검사 job 각각에서 bootstrap 검증을 유지한다 (K1030).
 
 - CI: job 계획을 shared 검사와 분리하여 독립 parity·runtime job이 계획 데이터로 시작하게 하고 마지막 required job은 선택된 모든 결과를 계속 판정한다 (K1029).
 

@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 171448866165842e82190a7246d49ffbc3afd99f51f78ba15f29fc900b9f0245 -->
+<!-- source-sha256: c7721aa036b9c41ee401ce651e9d75135e08b52842b2dc8628a1b97e7cedf06d -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -158,4 +158,4 @@
 | K1027 | Repository가 소유하는 parity binding setup을 Kit 0.0.96으로 배포한다. 정확한 후보 CI 성공 후 공식 배포하고 ORM 채택 전에 공개 archive를 확인하며 issue #24를 갱신한다. | package.json, package-lock.json, CHANGELOG.md, CHANGELOG.ko.md | `gh release view v0.0.96 --repo polyspec/kit --json isDraft,tagName,url` | [~] |
 | K1028 | CI 42359978457이 보고한 binding setup의 금지된 non-null assertion 네 곳을 고친다. Lint나 binding 검증을 약화하지 않고 K1026 동작을 보존한다. | scripts/kit/ci-setup.mts, CHANGELOG.md, CHANGELOG.ko.md | `node node_modules/oxlint/bin/oxlint --type-aware --deny-warnings -c .oxlintrc.json scripts/kit/ci-setup.mts`; `node --test tests/kit/ci-setup.test.mts tests/kit/gates-workflow.test.mts` | [o] |
 | K1029 | CI 계획을 shared 검사와 분리해 독립 parity·runtime job이 계획 데이터만 기다리게 한다. 선택된 모든 검사·실패 판정·context·report를 보존하고 issue #25에서 추적한다. | workflows/ci-pipeline.yml, scripts/kit/schema/ci.schema.json, tests/kit/gates-workflow.test.mts, docs/operations/tool-inventory.md, docs/operations/tool-inventory.ko.md, AGENTS.md, AGENTS.ko.md, CHANGELOG.md, CHANGELOG.ko.md | `node --test tests/kit/gates-workflow.test.mts tests/kit/ci-setup.test.mts` | [o] |
-| K1030 | CI 42361318294 실패를 고친다. S12 구체화에 provider workflow 경로를 명시하고 bootstrap 순서를 약화하지 않으면서 별도 계획·검사 job에 맞는 실행 증거로 갱신한다. | AGENTS.md, AGENTS.ko.md, tests/kit/kit-tools.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `make rules-check`; `node --test tests/kit/kit-tools.test.mts tests/kit/gates-workflow.test.mts tests/kit/ci-setup.test.mts tests/kit/check-rules.test.mts` | [ ] |
+| K1030 | CI 42361318294 실패를 고친다. S12 구체화에 provider workflow 경로를 명시하고 bootstrap 순서를 약화하지 않으면서 별도 계획·검사 job에 맞는 실행 증거로 갱신한다. | AGENTS.md, AGENTS.ko.md, tests/kit/kit-tools.test.mts, CHANGELOG.md, CHANGELOG.ko.md | `make rules-check`; `node --test tests/kit/kit-tools.test.mts tests/kit/gates-workflow.test.mts tests/kit/ci-setup.test.mts tests/kit/check-rules.test.mts` | [~] |
