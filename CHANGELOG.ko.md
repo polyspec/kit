@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 06f039f5a141b7e15e861843215b3e1526f7f06a111bf40d2a7ec47821a07735 -->
+<!-- source-sha256: 6837d3029d698772bbb726438634653e17bb290cc48d269713840bea1f5f379a -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -7,6 +7,8 @@
 ## Unreleased
 
 ## 0.0.96
+
+- CI: job 계획을 shared 검사와 분리하여 독립 parity·runtime job이 계획 데이터로 시작하게 하고 마지막 required job은 선택된 모든 결과를 계속 판정한다 (K1029).
 
 - CI: 검증한 binding setup을 금지된 non-null assertion 대신 기존의 예외를 내는 accessor로 읽고 선언 누락 실패를 유지한다 (K1028).
 

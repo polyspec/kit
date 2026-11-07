@@ -14,7 +14,7 @@ import { RETIRED_COPIES } from '../../scripts/kit/kit-check.mts';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const read = (file: string) => readFileSync(path.join(ROOT, file), 'utf8');
 const PIPELINE = 'workflows/ci-pipeline.yml';
-const REQUIRED_NEEDS = ['shared', 'parity', 'parity-api', 'parity-bindings', 'runtime'];
+const REQUIRED_NEEDS = ['plan', 'shared', 'parity', 'parity-api', 'parity-bindings', 'runtime'];
 
 function workflowJob(source: string, name: string): string[] {
   const lines = source.split('\n');
@@ -50,9 +50,9 @@ test('the CI pipeline partitions every kit-gates target across shared, parity an
   assert.match(workflow, /run: make ci-targets TARGETS="kit-gates-runtime-\$\{\{ matrix\.runtime \}\} /);
   assert.match(workflow, /run: make kit-ci-plan/, 'the tracked setup planner selects runtime jobs and pinned tools');
   assert.match(workflow, /runner: \$\{\{ steps\.plan\.outputs\.runner \}\}/, 'gate runner selection comes from the validated CI plan');
-  for (const name of ['shared', 'required']) assert.ok(workflowJob(workflow, name).includes('    runs-on: ubuntu-24.04'), `${name} runs on the supported default runner`);
+  for (const name of ['plan', 'shared', 'required']) assert.ok(workflowJob(workflow, name).includes('    runs-on: ubuntu-24.04'), `${name} runs on the supported default runner`);
   for (const name of ['parity', 'parity-api', 'parity-bindings', 'runtime']) {
-    assert.match(workflowJob(workflow, name).join('\n'), /runs-on: \$\{\{ needs\.shared\.outputs\.runner \}\}/, `${name} uses the selected supported runner`);
+    assert.match(workflowJob(workflow, name).join('\n'), /runs-on: \$\{\{ needs\.plan\.outputs\.runner \}\}/, `${name} uses the selected supported runner`);
   }
   assert.match(workflow, /run: make kit-ci-setup GROUP=shared/);
   assert.match(workflow, /run: make kit-ci-setup GROUP=parity/);
@@ -63,7 +63,7 @@ test('the CI pipeline partitions every kit-gates target across shared, parity an
   assert.match(setup, /declaredToolchain\(root\)/);
   assert.match(setup, /trackedFiles\(root\)/);
   assert.match(setup, /implementationFolders\(files\)/);
-  assert.match(workflow, /include: \$\{\{ fromJSON\(needs\.shared\.outputs\.runtimes\) \}\}/);
+  assert.match(workflow, /include: \$\{\{ fromJSON\(needs\.plan\.outputs\.runtimes\) \}\}/);
   assert.match(setup, /declared\.symbolExtractors/);
   assert.match(setup, /`deps-\$\{/, 'the default setup of a runtime is the deps target of the repository (K859)');
   const enforced = read('PRINCIPLES.md').split('\n').filter(line => line.trim().startsWith('Enforced by:')).join('\n');
@@ -128,7 +128,8 @@ test('K671-3: gates use the standard root checkout and retain the native install
   const workflow = read(PIPELINE);
   assert.doesNotMatch(workflow, /working-directory:|path: \$\{\{ github\.event\.repository\.name/);
   // K992: every job bootstraps with the action of kit, which holds the native installation sequence.
-  assert.equal(workflow.match(new RegExp(BOOTSTRAP_USES.source, 'gm'))?.length, 5, 'each of the five jobs runs the bootstrap action');
+  for (const name of REQUIRED_NEEDS)
+    assert.equal(workflowJob(workflow, name).join('\n').match(new RegExp(BOOTSTRAP_USES.source, 'gm'))?.length, 1, `${name} runs the bootstrap action exactly once`);
   const action = read(BOOTSTRAP_ACTION);
   assert.match(action, /node-version-file: mise\.toml/);
   assert.match(action, /run: make install-tools TOOLS=npm/);
@@ -149,10 +150,10 @@ test('K734: the pipeline selects exactly one parity path and its final job needs
   const api = workflowJob(workflow, 'parity-api');
   const bindings = workflowJob(workflow, 'parity-bindings');
   const required = workflowJob(workflow, 'required');
-  assert.ok(full.includes("    if: ${{ needs.shared.outputs.parity_mode == 'full' }}"));
-  assert.ok(api.includes("    if: ${{ needs.shared.outputs.parity_mode == 'phases' }}"));
-  assert.ok(bindings.includes("    if: ${{ needs.shared.outputs.parity_mode == 'phases' }}"));
-  assert.ok(bindings.includes('        include: ${{ fromJSON(needs.shared.outputs.parity_matrix) }}'));
+  assert.ok(full.includes("    if: ${{ needs.plan.outputs.parity_mode == 'full' }}"));
+  assert.ok(api.includes("    if: ${{ needs.plan.outputs.parity_mode == 'phases' }}"));
+  assert.ok(bindings.includes("    if: ${{ needs.plan.outputs.parity_mode == 'phases' }}"));
+  assert.ok(bindings.includes('        include: ${{ fromJSON(needs.plan.outputs.parity_matrix) }}'));
   assert.ok(bindings.some(line => line.includes('run: make ci-targets TARGETS="parity-bindings-${{ matrix.implementation }}-check"')));
   assert.ok(api.some(line => line.includes('run: make ci-targets TARGETS="parity-api-check ')));
   assert.deepEqual(workflowNeeds(required, 'required').sort(), [...REQUIRED_NEEDS].sort());
@@ -163,7 +164,7 @@ test('K734: the pipeline selects exactly one parity path and its final job needs
 // The jobs that required judges, in the order of its needs: the result of each job and whether the plan selected it. The run
 // of required reads them from its environment, and RESULTS, the join of the results as the earlier judgement read them, is set
 // too, so that the judgement of the earlier script runs and fails the cases below.
-const JOBS = ['SHARED', 'PARITY', 'PARITY_API', 'PARITY_BINDINGS', 'RUNTIME'] as const;
+const JOBS = ['PLAN', 'SHARED', 'PARITY', 'PARITY_API', 'PARITY_BINDINGS', 'RUNTIME'] as const;
 function requiredJudgement(required: readonly string[]) {
   const run = required.slice(required.findIndex(line => line === '        run: |') + 1).map(line => line.replace(/^ {10}/, '')).join('\n');
   return (results: Record<(typeof JOBS)[number], string>, selected: Record<(typeof JOBS)[number], boolean>) => {
@@ -181,19 +182,19 @@ test('K910: required runs always on the default runner and fails on a failed or 
   assert.ok(required.includes('    if: ${{ always() }}'));
   assert.doesNotMatch(required.join('\n'), /actions\/checkout|make /, 'required installs nothing');
   const judge = requiredJudgement(required);
-  const full = { SHARED: true, PARITY: true, PARITY_API: false, PARITY_BINDINGS: false, RUNTIME: true };
-  assert.equal(judge({ SHARED: 'success', PARITY: 'success', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'success' }, full), 0);
-  assert.equal(judge({ SHARED: 'success', PARITY: 'failure', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'success' }, full), 1);
-  assert.equal(judge({ SHARED: 'success', PARITY: 'success', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'cancelled' }, full), 1);
+  const full = { PLAN: true, SHARED: true, PARITY: true, PARITY_API: false, PARITY_BINDINGS: false, RUNTIME: true };
+  assert.equal(judge({ PLAN: 'success', SHARED: 'success', PARITY: 'success', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'success' }, full), 0);
+  assert.equal(judge({ PLAN: 'success', SHARED: 'success', PARITY: 'failure', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'success' }, full), 1);
+  assert.equal(judge({ PLAN: 'success', SHARED: 'success', PARITY: 'success', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'cancelled' }, full), 1);
 });
 
 // K950: required judges only the jobs that the plan selected (shared, the parity path of parity_mode, runtime when the
 // repository has one). A selected job that is skipped fails the pipeline, a job the plan did not select is not a result.
 test('K950: required fails when a job the plan selected is skipped, and judges no job the plan did not select', () => {
   const judge = requiredJudgement(workflowJob(read(PIPELINE), 'required'));
-  const none = { SHARED: true, PARITY: false, PARITY_API: false, PARITY_BINDINGS: false, RUNTIME: false };
-  const phases = { SHARED: true, PARITY: false, PARITY_API: true, PARITY_BINDINGS: true, RUNTIME: true };
-  const skipped = { SHARED: 'success', PARITY: 'skipped', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'skipped' } as const;
+  const none = { PLAN: true, SHARED: true, PARITY: false, PARITY_API: false, PARITY_BINDINGS: false, RUNTIME: false };
+  const phases = { PLAN: true, SHARED: true, PARITY: false, PARITY_API: true, PARITY_BINDINGS: true, RUNTIME: true };
+  const skipped = { PLAN: 'success', SHARED: 'success', PARITY: 'skipped', PARITY_API: 'skipped', PARITY_BINDINGS: 'skipped', RUNTIME: 'skipped' } as const;
   assert.equal(judge(skipped, none), 0, 'no job is selected, so none is a result');
   assert.equal(judge({ ...skipped, PARITY: 'success' }, { ...none, PARITY: true }), 0);
   assert.equal(judge(skipped, { ...none, PARITY: true }), 1, 'a selected parity job that is skipped fails the pipeline');
@@ -203,14 +204,13 @@ test('K950: required fails when a job the plan selected is skipped, and judges n
   assert.equal(judge({ ...skipped, SHARED: 'failure' }, none), 1, 'a failed shared job fails the pipeline');
 });
 
-// K910: every job after shared needs it, so a red shared job holds one runner, and each job passes the targets that
-// config/ci.json declares for its group to make ci-targets after kit's gate.
-test('K910: the parity and runtime jobs need shared and run the declared targets of their group', () => {
+// K1029: independent checks consume plan data, not shared check results. Each still runs its declared targets.
+test('K1029: independent jobs need only plan and run the declared targets of their group', () => {
   const workflow = read(PIPELINE);
-  for (const name of ['parity', 'parity-api', 'parity-bindings', 'runtime']) assert.ok(workflowJob(workflow, name).includes('    needs: shared'), `${name} needs shared`);
-  assert.match(workflowJob(workflow, 'shared').join('\n'), /TARGETS="kit-gates-static \$\{\{ join\(fromJSON\(steps\.plan\.outputs\.shared_targets\), ' '\) \}\}"/);
-  assert.match(workflowJob(workflow, 'parity').join('\n'), /TARGETS="kit-gates-parity \$\{\{ join\(fromJSON\(needs\.shared\.outputs\.parity_targets\), ' '\) \}\}"/);
-  assert.match(workflowJob(workflow, 'parity-api').join('\n'), /TARGETS="parity-api-check \$\{\{ join\(fromJSON\(needs\.shared\.outputs\.parity_targets\), ' '\) \}\}"/);
+  for (const name of ['shared', 'parity', 'parity-api', 'parity-bindings', 'runtime']) assert.deepEqual(workflowNeeds(workflowJob(workflow, name), name), ['plan'], `${name} needs only the plan`);
+  assert.match(workflowJob(workflow, 'shared').join('\n'), /TARGETS="kit-gates-static \$\{\{ join\(fromJSON\(needs\.plan\.outputs\.shared_targets\), ' '\) \}\}"/);
+  assert.match(workflowJob(workflow, 'parity').join('\n'), /TARGETS="kit-gates-parity \$\{\{ join\(fromJSON\(needs\.plan\.outputs\.parity_targets\), ' '\) \}\}"/);
+  assert.match(workflowJob(workflow, 'parity-api').join('\n'), /TARGETS="parity-api-check \$\{\{ join\(fromJSON\(needs\.plan\.outputs\.parity_targets\), ' '\) \}\}"/);
   assert.match(workflowJob(workflow, 'runtime').join('\n'), /TARGETS="kit-gates-runtime-\$\{\{ matrix\.runtime \}\} \$\{\{ join\(matrix\.targets, ' '\) \}\}"/);
   for (const name of ['shared', 'parity', 'parity-api', 'parity-bindings', 'runtime']) assert.ok(workflowJob(workflow, name).some(line => line.includes('uses: actions/upload-artifact@')), `${name} uploads its report`);
   assert.doesNotMatch(workflow, /name: report-/, 'the reports of the pipeline carry the prefix kit-, apart from those of repository jobs');
@@ -247,5 +247,27 @@ test('K1026: binding jobs use the explicit matrix tools and setup selector witho
   assert.match(block, /run: make install-tools TOOLS="\$\{\{ join\(matrix\.installTools, ' '\) \}\}"/);
   assert.match(block, /if: \$\{\{ contains\(matrix\.installTools, 'php'\) \}\}/);
   assert.match(block, /run: make kit-ci-setup GROUP=parity-binding IMPLEMENTATION=\$\{\{ matrix\.implementation \}\}/);
-  assert.doesNotMatch(block, /needs\.shared\.outputs\.(parity_tools|extractors)|kit-install-symbols|kit-ci-setup GROUP=parity\n/);
+  assert.doesNotMatch(block, /needs\.plan\.outputs\.(parity_tools|extractors)|kit-install-symbols|kit-ci-setup GROUP=parity\n/);
+});
+
+
+test('K1029: planning emits job data without running checks, runtime setup or contexts', () => {
+  const plan = workflowJob(read(PIPELINE), 'plan').join('\n');
+  assert.match(plan, /run: make kit-ci-plan/);
+  assert.doesNotMatch(plan, /ci-targets|kit-ci-setup|kit-ci-context|install-tools|kit-install-symbols/);
+  for (const output of ['common_tools', 'shared_targets', 'runtimes', 'runner', 'parity_mode', 'parity_matrix', 'has_runtimes', 'parity_tools', 'parity_targets', 'extractors'])
+    assert.ok(plan.includes(`${output}: \${{ steps.plan.outputs.${output} }}`), `plan publishes ${output}`);
+  assert.doesNotMatch(read(PIPELINE), /needs\.shared\.outputs/);
+});
+
+test('K1029: every selected job including planning fails required on failure, cancellation or skipping', () => {
+  const required = workflowJob(read(PIPELINE), 'required');
+  const judge = requiredJudgement(required);
+  assert.deepEqual(workflowNeeds(required, 'required').sort(), [...REQUIRED_NEEDS].sort());
+  const selected = { PLAN: true, SHARED: true, PARITY: false, PARITY_API: true, PARITY_BINDINGS: true, RUNTIME: true };
+  const passed = { PLAN: 'success', SHARED: 'success', PARITY: 'skipped', PARITY_API: 'success', PARITY_BINDINGS: 'success', RUNTIME: 'success' };
+  assert.equal(judge(passed, selected), 0);
+  for (const job of JOBS.filter(job => selected[job]))
+    for (const result of ['failure', 'cancelled', 'skipped'])
+      assert.equal(judge({ ...passed, [job]: result }, selected), 1, `${job} ${result} must fail required`);
 });

@@ -7,6 +7,8 @@
 
 ## 0.0.96
 
+- CI: separate job planning from shared checks so independent parity and runtime jobs start from plan data, while the final required job still judges every selected result (K1029).
+
 - CI: read validated binding setup with the existing throwing accessor instead of forbidden non-null assertions, retaining missing-declaration failures (K1028).
 
 - Release: prepare Kit 0.0.96 with explicit parity binding setup for repository-owned CI plans (K1027).

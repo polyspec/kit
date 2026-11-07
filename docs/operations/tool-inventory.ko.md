@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 0990c0caf1761765d08a5b484ae4d73e5dcdf6d71dd93c549741e0dbeacf9c9d -->
+<!-- source-sha256: 336f6b96ea5710bc2ff46bff059ff4663b9eca3754d3240477909c288f419192 -->
 
 # 도구 목록
 
@@ -804,6 +804,12 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   파이프라인의 모든 job을 needs로 하고, plan이 선택한 job이 성공하지 않으면(skip된 경우 포함, K950) 실패합니다. plan이 고르지 않은 job은 skip되며 결과가 아닙니다.
   kit-ci-verify-gates는 없습니다.
   선택 항목인 `targets` map은 각 job에서 저장소 자신의 check target을 이름합니다. `shared`는 shared job에서 `kit-gates-static` 뒤에,
+  Pipeline은 계획과 검사를 분리합니다. 작은 `plan` job은 고정된 package를 bootstrap하고 kit-ci-plan을 실행하며
+  job 선언을 게시하지만 검사나 runtime setup을 실행하지 않습니다. Shared 검사·선택된 parity job·runtime job은
+  계획 출력에만 의존하여 runner 여유가 있을 때 독립적으로 시작합니다. Shared 검사의 artifact를 주고받지 않으므로
+  shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 parity/runtime
+  job을 항상 판정하며 선택된 job이 건너뛰거나 취소되어도 실패합니다. 이 제어 의존성을 제거해도 GitHub의 runner
+  동시 실행 한도는 늘어나지 않습니다.
   Phases 모드의 config/ci.json은 `parityBindings`에서 config/parity.json의 모든 implementation 이름을
   `{ "setup": ["existing-target"], "tools": ["tool-selector"] }`에 대응시킵니다. Key 집합은 정확히 일치해야 하며
   누락되거나 추가된 항목은 계획이 거절합니다. 빈 배열은 setup이나 tool을 요구하지 않는다는 명시적 선언입니다.

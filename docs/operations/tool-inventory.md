@@ -880,6 +880,12 @@ fails unless `config/ci.json` declares `"runtimes": []`, which says that the rep
   `parityMode` is optional and defaults to `full`. `full` runs the complete provider `parity-check`; `phases` runs the provider
   `parity-api-check` once and a `parity-bindings-<implementation>-check` matrix whose names come exactly from
   `config/parity.json`. A phase consumer adds setup prerequisites to those concrete targets.
+  The pipeline separates planning from checks. A small `plan` job bootstraps the locked package and runs kit-ci-plan;
+  it publishes the job declarations but runs no check or runtime setup. Shared checks, selected parity jobs and runtime
+  jobs depend only on those plan outputs and start independently when runner capacity permits. They exchange no shared
+  check artifact. A failed shared check therefore does not suppress independent results. The final required job always
+  judges the plan, shared checks and every selected parity/runtime job, including skipped or cancelled selected jobs.
+  Removing this control dependency does not increase GitHub's runner concurrency limit.
   In phases mode, `parityBindings` in config/ci.json maps every implementation name from config/parity.json to
   `{ "setup": ["existing-target"], "tools": ["tool-selector"] }`. The key set must match exactly; missing or extra entries
   fail planning. Empty arrays explicitly request no setup or tools. Each binding matrix job installs only that entry's

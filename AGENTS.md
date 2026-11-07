@@ -14,6 +14,9 @@ and states only its own rules. The rules below are kit's own.
 
 ## Rules
 
+- Refines S12: The provider plans its job data separately from running checks. Shared, parity and runtime checks depend only on the plan outputs, use their own checkout and setup, and run independently; a failed shared check suppresses no independent result. The final required job judges planning, shared checks and every selected job, and fails on a skipped selected job.
+  Enforced by: `tests/kit/gates-workflow.test.mts`
+
 - Own: Each phased parity binding job executes the tools and setup targets that its repository explicitly declares in config/ci.json parityBindings. The implementation set must match config/parity.json exactly. Empty arrays mean no setup; kit infers no runtime or extractor installation for a binding. Build units, fixtures and artifacts remain the repository's responsibility.
   Enforced by: `tests/kit/ci-setup.test.mts`, `tests/kit/gates-workflow.test.mts`
 
