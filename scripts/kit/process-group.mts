@@ -293,8 +293,7 @@ export async function stopDescendants(root: number, { table = processTable, kill
 }
 
 /**
- * Stops the process group `pgid`: SIGTERM, then SIGKILL once `closed` resolves (the tool has closed) or the grace period has
- * passed, whichever comes first, so that no member that survived SIGTERM or outlived the tool remains. ESRCH and EPERM are not
+ * Stops the process group `pgid`: SIGTERM, then SIGKILL after the grace period when the group remains, so that no member that survived SIGTERM or outlived the tool remains. ESRCH and EPERM are not
  * errors (signalGroup). run-tests and run-command (K430) stop their groups with it. `spawned` is what the spawner
  * knows of `pgid` (watchRoot).
  */
@@ -306,8 +305,15 @@ export async function stopGroup(pgid: number, closed: Promise<unknown>, graceMs:
   await stopDescendants(pgid, { kill, skipGroup: pgid, spawned });
   if (signalGroup(pgid, 'SIGTERM', kill, spawned) === 'ended') return;
   let timer: NodeJS.Timeout | undefined;
-  await Promise.race([closed, new Promise((resolve) => { timer = setTimeout(resolve, graceMs); })]);
-  clearTimeout(timer);
+  const grace = new Promise<void>(resolve => { timer = setTimeout(resolve, graceMs); });
+  try {
+    await Promise.race([closed, grace]);
+    if (signalGroup(pgid, 0, kill, spawned) === 'ended') return;
+    // Closed output is not completed cleanup: surviving group members get the full grace.
+    await grace;
+  } finally {
+    clearTimeout(timer);
+  }
   // SIGKILL cannot be caught, so the group ends; the caller's close is awaited so that no stopped process is still listed or
   // unreaped when stopGroup returns (K754).
   if (signalGroup(pgid, 'SIGKILL', kill, spawned) === 'ended') return;

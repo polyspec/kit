@@ -11,7 +11,17 @@ const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 /** How long the processes that a command leaves in its group have to close after SIGTERM before SIGKILL. */
 const LEFT_GRACE_MS = 1000;
 // The running groups, each with what its spawn knows of its leader (watchRoot).
-const groups = new Map<number, SpawnedRoot>();
+interface TrackedGroup {
+  root: SpawnedRoot;
+  closed: Promise<void>;
+  stopping?: Promise<void>;
+}
+const groups = new Map<number, TrackedGroup>();
+let interrupted: number | undefined;
+
+function stopTrackedGroup(pid: number, group: TrackedGroup): Promise<void> {
+  return group.stopping ??= stopGroup(pid, group.closed, LEFT_GRACE_MS, undefined, group.root).then(() => group.closed);
+}
 
 export interface RunCommandOptions {
   command: string;
@@ -45,21 +55,31 @@ export interface RunCommandResult {
 
 export const formatSeconds = (milliseconds: number): string => `${(milliseconds / 1000).toFixed(1)}s`;
 
-// An interrupted or ending caller takes its running commands with it.
+// A forced synchronous exit cannot await cleanup; this emergency hook stops only still-owned groups.
+// Handled interruption uses graceful cleanup and child close events instead.
 function stopAll() {
-  for (const [pid, root] of groups) signalGroup(pid, 'SIGKILL', undefined, root);
+  for (const [pid, group] of groups) signalGroup(pid, 'SIGKILL', undefined, group.root);
 }
 const onSignal = (signal: NodeJS.Signals): void => {
-  stopAll();
-  process.exit(signal === 'SIGINT' ? 130 : 143);
+  if (interrupted !== undefined) return;
+  interrupted = signal === 'SIGINT' ? 130 : 143;
+  const status = interrupted;
+  void Promise.allSettled([...groups].map(([pid, group]) => stopTrackedGroup(pid, group))).then(results => {
+    for (const result of results) {
+      if (result.status !== 'rejected') continue;
+      const error: unknown = result.reason;
+      process.stderr.write(`[run-command] interruption cleanup failed: ${error instanceof Error ? error.message : String(error)}\n`);
+    }
+    process.exit(status);
+  });
 };
-function track(pid: number, root: SpawnedRoot): void {
+function track(pid: number, group: TrackedGroup): void {
   if (groups.size === 0) {
     process.on('SIGINT', onSignal);
     process.on('SIGTERM', onSignal);
     process.on('exit', stopAll);
   }
-  groups.set(pid, root);
+  groups.set(pid, group);
 }
 function untrack(pid: number): void {
   groups.delete(pid);
@@ -78,6 +98,7 @@ function untrack(pid: number): void {
 export function runCommand(
   { command, args = [], cwd, env = process.env, stdout = 'inherit', stderr = 'inherit', maxOutputBytes = MAX_OUTPUT_BYTES, onLine, silenceMs }: RunCommandOptions,
 ): Promise<RunCommandResult> {
+  if (interrupted !== undefined) return Promise.resolve({ status: null, signal: null, stdout: '', stderr: '', elapsedMs: 0, error: new Error('command admission stopped because the harness was interrupted; start a new harness invocation to run commands') });
   // An inherited stream is never seen, so a silence limit would stop a command that writes to it.
   if (silenceMs !== undefined && (stdout !== 'pipe' || stderr !== 'pipe')) return Promise.reject(new Error('runCommand with a silence limit needs piped stdout and stderr'));
   const started = performance.now();
@@ -109,10 +130,11 @@ export function runCommand(
       if (child.pid !== undefined) untrack(child.pid);
       resolve({ ...output, elapsedMs: performance.now() - started, stopped, status: null, signal: null, ...result });
     };
-    // A command that did not start has no pid and no group to track.
-    if (child.pid !== undefined) track(child.pid, root);
-    arm();
     const closed = new Promise<void>(resolveClosed => child.once('close', () => resolveClosed()));
+    const group: TrackedGroup = { root, closed };
+    // A command that did not start has no pid and no group to track.
+    if (child.pid !== undefined) track(child.pid, group);
+    arm();
     for (const name of ['stdout', 'stderr'] as const) {
       // The text of the stream after its last newline, which waits for the rest of its line.
       let pending = '';
@@ -142,7 +164,7 @@ export function runCommand(
     child.once('exit', (status, signal) => {
       exit = { status, signal };
       clearTimeout(silence);
-      if (child.pid !== undefined) cleanup = stopGroup(child.pid, closed, LEFT_GRACE_MS, undefined, root).catch((error: Error) => finish({ error }));
+      if (child.pid !== undefined) cleanup = stopTrackedGroup(child.pid, group).catch((error: Error) => finish({ error }));
     });
     child.once('close', (status, signal) => {
       // A descendant may close its pipes on SIGTERM and keep running. Wait for the

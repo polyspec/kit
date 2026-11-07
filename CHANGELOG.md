@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- CI: request graceful command termination on interruption, await owned child closure, block later commands and reserve SIGKILL for cleanup-grace escalation (K1036).
+
 - CI: invoke each native parity binding once without a redundant Go/Cargo prebuild; retain native compiler failures, diagnostics and exact case outcomes (K1035).
 
 - CI: stream native parity output while commands run, preserve original verdict input and remove duplicate completion logs (K1034).

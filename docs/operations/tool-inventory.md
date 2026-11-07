@@ -518,7 +518,7 @@ Merged behaviors:
   interpreter that the mise shim runs. The runner stops the group with SIGTERM and, when the tool has not closed after 5 s,
   with SIGKILL: at a test's timeout, and when the runner receives SIGINT, SIGTERM or SIGHUP, after which it ends on that
   signal. Only a SIGKILL of the runner itself leaves the group running.
-The exported `runCommand` waits for process group cleanup after output closes: a descendant that closes its pipes on SIGTERM is still sent SIGKILL before the result returns. Stopped-process tests accept an unreaped zombie as terminated; they reject any executing descendant (K430-2).
+The exported `runCommand` owns only the commands it starts. On POSIX interruption it stops admitting commands, requests termination with SIGTERM and waits for owned child close events and group cleanup before exiting with the interrupted status. Its cleanup grace is one second; only a group that remains after that grace receives SIGKILL. Output closure alone does not shorten the grace of a surviving descendant. Normal completion sends no forceful signal to a group that has ended. An abrupt process exit cannot await asynchronous cleanup; its synchronous exit hook is an emergency force-stop of still-owned groups, not the interruption path. Stopped-process tests reject executing descendants; the harness must reap its own children before reporting interruption complete.
 
 - `phpunit` runs `bin/phpunit` of the vendor directory that `composer config vendor-dir` gives `<cwd>` (`vendor`,
   `COMPOSER_VENDOR_DIR` as in crudui, or `config.vendor-dir`; K184), or the nearest Composer project above it, such as the

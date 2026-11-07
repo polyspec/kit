@@ -1,10 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 67f04ffdac1edb12f3bc26e00b368fa9a9375d32831de8e10a9f575df5c0c43a -->
+<!-- source-sha256: 09931882b91916ad1740d488edfe7704c2656af0faab08a89f2c4dde1b110946 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+- CI: 중단 시 command의 정상 종료를 요청하고 소유 child의 종료를 회수하며 후속 command를 막고 cleanup grace 뒤에만 SIGKILL로 강제 종료한다(K1036).
 
 - CI: 중복 Go/Cargo 사전 build 없이 native parity binding을 한 번 호출하고 native compiler 실패, 진단과 정확한 case 결과를 보존한다(K1035).
 

@@ -14,6 +14,9 @@ and states only its own rules. The rules below are kit's own.
 
 ## Rules
 
+- Own: On POSIX, an interrupted command harness stops admitting commands, requests termination of its owned groups and awaits child close and cleanup before exiting with interrupted status. Force is escalation after the declared cleanup grace, never a substitute for cooperative cleanup. A synchronous forced-exit hook is emergency cleanup only.
+  Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/kit/parity-operation.test.mts`
+
 - Refines S12: `workflows/ci-pipeline.yml` plans its job data separately from running checks. Shared, parity and runtime checks depend only on the plan outputs, use their own checkout and setup, and run independently; a failed shared check suppresses no independent result. The final required job judges planning, shared checks and every selected job, and fails on a skipped selected job.
   Enforced by: `tests/kit/gates-workflow.test.mts`
 

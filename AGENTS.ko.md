@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 8c4f7b8118186eb12a31cd72149feea145f02ad5d8fdcd264b4db96d40e7197a -->
+<!-- source-sha256: 4f6d2e27cd22a0ca2228dd58c2c39de48c7a628cce5b9340f521a3904a72e81f -->
 # 개발
 
 [English](AGENTS.md)
@@ -12,6 +12,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 같은 원칙을 가집니다; 각 저장소의 AGENTS.md는 그것으로 link하고 자기만의 규칙만 적습니다. 아래 규칙은 kit 자신의 것입니다.
 
 ## 규칙
+
+- Own: POSIX에서 중단된 command harness는 새 command를 받지 않고 소유 group의 종료를 요청하며 child close와 cleanup을 기다린 뒤 중단 상태로 종료한다. 강제 종료는 선언된 cleanup grace 뒤의 단계이며 협조적인 cleanup을 대신하지 않는다. 동기 강제 exit hook은 비상 cleanup만 담당한다.
+  Enforced by: `tests/kit/run-command-signal.test.mts`, `tests/kit/process-group.test.mts`, `tests/kit/parity-operation.test.mts`
 
 - Refines S12: `workflows/ci-pipeline.yml`은 검사 실행과 별도로 job 데이터를 계획합니다. Shared·parity·runtime 검사는 계획 출력에만 의존하고 자신의 checkout과 setup으로 독립적으로 실행합니다. Shared 검사 실패가 독립 결과를 막지 않습니다. 마지막 required job은 계획·shared 검사·선택된 모든 job을 판정하며 선택된 job이 건너뛰어도 실패합니다.
   Enforced by: `tests/kit/gates-workflow.test.mts`

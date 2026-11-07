@@ -289,3 +289,21 @@ test('stopGroup terminates a real root and descendant process tree', PROCESS_TIM
     lines.close();
   }
 });
+
+test('K1036: closed output does not shorten a surviving group cleanup grace', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const probed = Promise.withResolvers<void>();
+  const calls: (NodeJS.Signals | number)[] = [];
+  const kill: Kill = (_pid, signal) => {
+    calls.push(signal);
+    if (signal === 0 && calls.filter(entry => entry === 0).length === 2) probed.resolve();
+  };
+  const stopping = stopGroup(2_147_483_647, Promise.resolve(), 1000, kill);
+  await probed.promise;
+  assert.equal(calls.includes('SIGKILL'), false);
+  t.mock.timers.tick(999);
+  assert.equal(calls.includes('SIGKILL'), false);
+  t.mock.timers.tick(1);
+  await stopping;
+  assert.deepEqual(calls, [0, 'SIGTERM', 0, 'SIGKILL']);
+});
