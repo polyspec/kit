@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: aa3e63721e17f214f4a9f8c16da922c74a2080a29d726d8f8e820e12ae181a54 -->
+<!-- source-sha256: 41dad8b5c066ed2b4d95e020b89a7c24044bbb98a64003738b7f4239e7d76dd7 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -196,3 +196,25 @@
 | K1057 | rules-check는 저장소의 CI pipeline을 그 workflow 중 하나로 읽으며 config/ci.json에서 고르지 않는다 | `scripts/kit/check-rules.mts`, `tests/kit/check-rules.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1057 tests/kit/check-rules.test.mts` passes | [o] |
 | K1066 | tests/kit/lint-steps.test.mts를 kit의 CI test shard에 넣습니다 | Makefile, CHANGELOG(.ko).md | `node --test --test-name-pattern=K718 tests/source/ci-workflow.test.mts` | [o] |
 | K1067 | release.yml에 AUTO가 top version을 그 version commit 또는 Unreleased가 빈 이후의 green commit에서 릴리즈한다고 적습니다 | workflows/release.yml, .github/workflows/release.yml, CHANGELOG(.ko).md | `make -s docs-check` | [o] |
+| K1069 | kit 스키마는 그 도구가 읽는 키만 검사한다: additionalProperties false도, 도구가 쓰지 않는 필수 키도 없다 | scripts/kit/schema/*.schema.json, scripts/kit/schema-validate.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1069 tests/kit/schema-validate.test.mts` | [ ] |
+| K1070 | kit-check는 저장소의 config/<name>.json을 같은 이름의 kit 스키마로 검사하지 않는다 | scripts/kit/kit-check.mts, tests/kit, docs, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1070 tests/kit/kit-check.test.mts` | [ ] |
+| K1071 | install-symbols는 EXTRACTORS 인수가 이름 붙인 추출기를 설치하며, config/toolchain.json이 그것을 되풀이하기를 요구하지 않는다 | scripts/kit/install-symbols.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1071 tests/kit/install-symbols.test.mts` | [ ] |
+| K1072 | install-tools는 설치하는 도구의 toolchain 예외만 읽으므로, 선택되지 않은 도구의 예외가 실행을 거부하지 않는다 | scripts/kit/install-tools.mts, scripts/kit/toolchain-exceptions.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1072 tests/kit/install-tools.test.mts` | [ ] |
+| K1073 | generated-files staged는 config/generated.json을 요구하지 않고 stage된 경로를 읽는다 | scripts/kit/generated-files.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1073 tests/kit/generated-files.test.mts` | [ ] |
+| K1074 | runtime-targets는 config/parity.json에서 roots만 읽고 배치를 강제하지 않는다: 엄격한 parity 스키마, roots의 테스트 요구, __init__.py 규칙, packages/<runtime> 배치, 추적된 smoke fixture, go.work 모듈 규칙이 없다 | scripts/kit/runtime-targets.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1074 tests/kit/runtime-targets.test.mts` | [ ] |
+| K1075 | php-extension은 packages/php-ext가 선언한 확장을 빌드하며, Composer 이름과 확장 이름에 대한 이름 규칙을 두지 않는다 | scripts/kit/php-extension.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1075 tests/kit/php-extension.test.mts` | [ ] |
+| K1076 | toolchain-declared는 config/toolchain.json이 선언한 버전을 읽으며, 그 형태에 대한 규칙을 두지 않는다 | scripts/kit/bootstrap/toolchain-declared.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1076 tests/kit/toolchain-declared.test.mts` | [ ] |
+| K1077 | install-vscode는 semver가 최솟값을 주는 모든 범위 형식의 engines.vscode에서 최소 버전을 읽는다 | scripts/kit/install-vscode.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1077 tests/kit/install-vscode.test.mts` | [ ] |
+| K1078 | worktree-setup은 devEngines.packageManager가 필요한 이유를 삭제된 kit include가 아니라 자신이 실행하는 것으로 밝힌다 | scripts/kit/worktree-setup.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1078 tests/kit/worktree-setup.test.mts` | [ ] |
+| K1079 | divergence-check는 예외 사유와 기능 상태를 저장소가 선언한 규칙으로 판단하며, kit에 고정된 종류 목록이나 기능 상태 규칙이 없다 | scripts/kit/divergence-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1079 tests/kit/divergence-check.test.mts` | [ ] |
+| K1080 | rebuild-check는 config/rebuild.json이 선언한 도구를 검사하며, 모든 저장소가 분류해야 하는 kit 고정 도구 목록이 없다 | scripts/kit/rebuild-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1080 tests/kit/rebuild-check.test.mts` | [ ] |
+| K1081 | check-documents는 저장소가 선언한 문서를 검사하며, 행이 kit checklist 항목을 이름 붙여야 한다는 요구와 kit에 고정된 checklist 위치가 없다 | scripts/kit/check-documents.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1081 tests/kit/check-documents.test.mts` | [ ] |
+| K1082 | checklist는 저장소의 plan 폴더를 읽으며, plan 폴더가 가져야 하는 파일의 고정 목록이 없다 | scripts/kit/checklist.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1082 tests/kit/checklist.test.mts` | [ ] |
+| K1083 | generated-files는 저장소가 선언한 무시 대상 설치 폴더를 검사하며, kit에 고정된 무시 목록이 없다 | scripts/kit/generated-files.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1083 tests/kit/generated-files.test.mts` | [ ] |
+| K1084 | release는 태그와 변경 기록에서 파싱하는 것만 요구하며, 그 이상으로 kit에 고정된 태그 형식이나 변경 기록 형식이 없다 | scripts/kit/release.mts, scripts/kit/changelog.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1084 tests/kit/release.test.mts` | [ ] |
+| K1085 | parity-declaration은 저장소가 그 규칙을 선언할 때만 owner를 config/release.json과 contracts/features.json에 대조한다 | scripts/kit/parity-declaration.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1085 tests/kit/parity-declaration.test.mts` | [ ] |
+| K1086 | release coverage는 저장소가 그 규칙을 선언할 때만 추적된 모든 manifest를 분류한다 | scripts/kit/release.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1086 tests/kit/release-coverage.test.mts` | [ ] |
+| K1087 | check-commits는 fix 커밋의 No-Red 규칙을 저장소가 선언한 대로만 적용한다 | scripts/kit/check-commits.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1087 tests/kit/check-commits.test.mts` | [ ] |
+| K1088 | language-check는 언어 규칙을 저장소가 선언한 대로만 적용한다 | scripts/kit/language-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1088 tests/kit/language-check.test.mts` | [ ] |
+| K1089 | plan은 plan slug 패턴을 저장소가 선언한 대로만 적용한다 | scripts/kit/plan.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1089 tests/kit/plan.test.mts` | [ ] |
+| K1090 | plan item-state는 저장소가 요청한 상태로 항목을 옮기며, 저장소 자신의 상태 변경을 거부하는 kit 고정 전이표가 없다 | scripts/kit/plan.mts, scripts/kit/checklist.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1090 tests/kit/plan.test.mts` | [ ] |
