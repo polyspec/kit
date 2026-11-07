@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 63ebc86b2008d0cb17fd0aaf289e33826676b3c3e4c17120b1047b16f91ab877 -->
+<!-- source-sha256: ab51ec0f931f990e03516d3e493687c4880e3d1148463c3ba84f0c560d9e2e68 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -195,3 +195,4 @@
 | K1065 | rules-check가 workflow matrix의 literal include 항목 값을 읽게 합니다 | scripts/kit/check-rules.mts, tests/kit/check-rules.test.mts, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1065 tests/kit/check-rules.test.mts` | [o] |
 | K1057 | rules-check는 저장소의 CI pipeline을 그 workflow 중 하나로 읽으며 config/ci.json에서 고르지 않는다 | `scripts/kit/check-rules.mts`, `tests/kit/check-rules.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1057 tests/kit/check-rules.test.mts` passes | [o] |
 | K1066 | tests/kit/lint-steps.test.mts를 kit의 CI test shard에 넣습니다 | Makefile, CHANGELOG(.ko).md | `node --test --test-name-pattern=K718 tests/source/ci-workflow.test.mts` | [o] |
+| K1067 | release.yml에 AUTO가 top version을 그 version commit 또는 Unreleased가 빈 이후의 green commit에서 릴리즈한다고 적습니다 | workflows/release.yml, .github/workflows/release.yml, CHANGELOG(.ko).md | `make -s docs-check` | [ ] |
