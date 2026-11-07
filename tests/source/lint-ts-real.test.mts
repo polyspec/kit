@@ -37,10 +37,10 @@ const TSCONFIG_BUILD = { extends: './tsconfig.json', compilerOptions: { noEmit: 
 // as in every polyspec repository: the base configuration turns ae-missing-release-tag off (K139).
 const GOOD: Record<string, string> = {
   '.gitignore': 'node_modules/\ndist/\nvar/\n',
-  // kit comes in through the include of its Makefile and its copies, which knip does not read (K142).
+  // kit comes in through its copies, which knip does not read (K142).
   'package.json': JSON.stringify(MANIFEST, null, 2),
   // make runs a script of S9, a copy of kit and a benchmark program, which nothing imports (K142).
-  'Makefile': 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\n\nbuild:\n\tnode scripts/build.mts\n\tnode scripts/kit/bootstrap/bootstrap.mts\n\tnode benchmarks/run.mts\n',
+  'Makefile': 'build:\n\tnode scripts/build.mts\n\tnode scripts/kit/bootstrap/bootstrap.mts\n\tnode benchmarks/run.mts\n',
   'scripts/build.mts': "console.log('build');\n",
   'benchmarks/run.mts': "console.log('run');\n",
   // The project covers every TypeScript file that lint-ts lints, the tests and the scripts too, so oxlint-tsgolint checks

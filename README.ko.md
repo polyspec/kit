@@ -8,7 +8,7 @@ workflow, `actions/`의 bootstrap action, `claude/settings.json`, `config/layout
 
 ## 도구
 
-| 관심사 | 도구(`scripts/kit/`) | make target(`scripts/kit/kit.mk`) |
+| 관심사 | 도구(`scripts/kit/`) | kit의 make target(`scripts/kit/kit.mk`) |
 |---|---|---|
 | 설정 | `kit-check.mts` | `kit-check` |
 | Toolchain | bootstrap(`bootstrap/bootstrap.mts`: mise, 그리고 mise.toml의 node와 npm), `install-tools.mts`(`mise.toml`과 `mise.lock`의 `mise install --locked`, 이어서 wheel backend, Composer project, `install-rust.mts`의 Rust channel), `mise-tools.mts`, `toolchain-mise.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock` |
@@ -23,7 +23,7 @@ workflow, `actions/`의 bootstrap action, `claude/settings.json`, `config/layout
 
 ## 구조
 
-- `scripts/kit/` — 도구와, 저장소가 Makefile에 include하는 `kit.mk`입니다. `scripts/kit/schema/`에 각 `config/<name>.json`의 JSON Schema가 있습니다.
+- `scripts/kit/` — 도구와, package가 싣지 않는 kit 자신의 Makefile recipe인 `kit.mk`입니다(K1054). `scripts/kit/schema/`에 각 `config/<name>.json`의 JSON Schema가 있습니다.
 - `tests/kit/` — 도구의 테스트입니다. `tests/kit/fixture/`는 테스트가 실행되는 fixture monorepo입니다.
 - `config/layout.kit.yml` — 저장소가 복사할 수 있는 예시인 공통 layout rule(S5)입니다. `config/layout.yml`이 kit의 map을 더합니다.
 - `package.json` — kit의 버전과 package가 담는 파일입니다.
@@ -36,6 +36,5 @@ make install-packages          # npm ci with that npm, @polyspec/kit included (o
 make kit-check                 # check the configuration against the schemas (offline)
 ```
 
-저장소는 설치된 package로 kit을 도입합니다: 그 Makefile은 `npm ci`나 bootstrap action의 첫 단계가 설치하고 그 kit을 실행하는
-`node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include합니다(S15, K613). 원하는 예시는 설치된 package에서
-복사하고, 그 사본은 자기 파일로 고칩니다.
+저장소는 설치된 package로 kit을 도입하고 위 recipe를 자기 Makefile에 둡니다. kit은 저장소에 recipe를 include시키지 않습니다(K1054).
+한 가지 방법은 설치된 package의 도구를 실행하는 `docs/examples/bootstrap.mk`입니다. 원하는 예시는 복사하고, 그 사본은 자기 파일로 고칩니다.

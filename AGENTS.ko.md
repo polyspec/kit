@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 5cdf5f466f09e381f4b6c77baf19799988ba25f681c62903f61396d15cca47ea -->
+<!-- source-sha256: b325c254e7d36bcd2c0f03ca894b5b69d2edf00045f4e8090702724e5ada36b4 -->
 # 개발
 
 [English](AGENTS.md)
@@ -57,8 +57,9 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Own: 저장소는 uv를 `make uv-install`로 실행합니다. 이 target은 uv가 link를 거쳐 쓰고 지우므로(K539) uv가 쓰기 전에 uv가 쓸 environment의
   package link를 제거하고(`SYNC`의 `--project`, `--directory`, `--active`가 고르는 environment 포함), lock의 native locked 설치(`uv sync --locked`, 또는 pylock.toml의 `uv pip install`)를 `SYNC`의 flag 그대로 실행합니다. symlink된 개발 폴더는 손상되지 않습니다.
   Enforced by: `tests/kit/uv-install.test.mts`, `tests/source/uv-link-real.test.mts`
-- Own: 저장소가 package의 예시에서 복사한 파일은 그 저장소의 파일입니다(K1052). 소비자는
-  `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include하며 첫 Make 실행 전에 lock에 고정된 npm dependency를 설치합니다.
+- Own: 저장소가 package의 예시에서 복사한 파일은 그 저장소의 파일입니다(K1052). kit은 recipe를
+  include시키지 않으므로 저장소는 자기 recipe를 자기 Makefile에 두며(K1054, 한 가지 방법은 `docs/examples/bootstrap.mk`), 첫 Make
+  실행 전에 lock에 고정된 npm dependency를 설치합니다.
   로컬 개발은 main checkout의 git-ignored `.links`가 한 줄에 하나씩 지정한 provider checkout을 link합니다. `make link`는
   그 패키지의 설치된 folder마다 provider로 가는 평범한 directory symlink 하나로 만듭니다(`docs/operations/local-links.md`, K869).
   이 link는 추적되지 않고 release output에 들어가지 않습니다. `.links`가 없으면 아무것도 link하지 않고 설치된 릴리즈가 실행됩니다.
@@ -102,7 +103,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
   Enforced by: none, mise install --locked checks mise.lock and its sidecars itself (K835)
 - Own: kit 자신의 검사는 `mise.toml`이 선언한 버전의 도구를 쓰며, 이것들은 `make install-tools`가 var/tools/mise에 설치합니다.
   Rust는 `rust-toolchain.toml`의 것을 쓰고, `mise.toml`의 Node.js는 bootstrap(`make install-tools TOOLS=npm`)이 npm보다 먼저
-  설치합니다(K171). kit.mk의 모든 recipe는 checkout의 mise 환경으로, var/tools/bin과 mise의 shim을 PATH 맨 앞에 두고
+  설치합니다(K171). 어느 저장소도 include하지 않는 kit 자신의 kit.mk(K1054)의 모든 recipe는 checkout의 mise 환경으로, var/tools/bin과 mise의 shim을 PATH 맨 앞에 두고
   실행되며, checkout의 도구를 이름만으로가 아니라 절대 경로(`$(NODE)`, `$(NPM)`, `$(ALINT)`)로 실행합니다: make 3.81은 shell
   문법이 없는 recipe 줄을 make가 시작할 때의 PATH에서 찾습니다. mise가 설치하지 않는 두 toolchain은 machine이나 CI runner가 제공합니다. `make install-tools`가
   rustup으로 `rust-toolchain.toml`의 toolchain을 그 component와 함께 설치하고(checkout에서 파일을 읽는 `rustup toolchain install`;

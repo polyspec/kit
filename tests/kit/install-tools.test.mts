@@ -209,27 +209,25 @@ test('a rust-toolchain.toml without rustup fails with the one prerequisite of th
   assert.match(result.stderr, /\[install-tools\] rust-toolchain\.toml declares the Rust toolchain, and rustup is missing; rustup is the one tool that the machine provides \(AGENTS\.md\): install it from https:\/\/rustup\.rs/);
 });
 
-// K836: make toolchain-lock is mise lock with the mise of the bootstrap. mise locks a pypi: tool with the first uv on PATH, and uv
-// takes a managed Python of the home before PATH (measured), so mise first locks uv and python; it installs each that it then lists,
-// under any key form, and when it lists python the full lock names that Python as UV_PYTHON; var/tools/bin and the shims
-// come first on PATH.
+// K836: make toolchain-lock is mise lock with the mise of the bootstrap. mise locks a pypi: tool with the first uv on PATH, so mise
+// first locks uv and python; it installs each that it then lists, under any key form, and locks the rest with no UV_PYTHON, which
+// the [env] of mise.toml decides (K1054); var/tools/bin and the shims come first on PATH.
 const PLATFORMS = 'linux-x64,linux-arm64,macos-arm64,macos-x64,windows-x64,windows-arm64';
-const MISE_PYTHON = '/checkout/var/tools/mise/installs/python/3.14.8/bin/python3';
 const listed = (declared: boolean) => JSON.stringify(declared ? [{ requested_version: '1.0.0' }] : [], null, 2);
 const lockRun = (t: TestContext, uv: boolean, python: boolean) => {
   const { root, stubs } = checkout(t, '[tools]\n');
-  miseStub(root, { 'which python3': MISE_PYTHON, 'ls --global --json uv': listed(uv), 'ls --global --json python': listed(python) });
+  miseStub(root, { 'ls --global --json uv': listed(uv), 'ls --global --json python': listed(python) });
   const log = path.join(stubs.directory, 'env.log');
-  // A UV_PYTHON of the caller, such as the one that run-tests sets (toolsEnvironment), would reach the stub; the recipe alone names it (K881).
+  // A UV_PYTHON of the caller would reach the stub; the run leaves it unset, so the recipe is seen to name none (K1054).
   const make = spawnSync('make', ['--no-print-directory', '-f', path.join(KIT, 'kit.mk'), `KIT=${KIT}`, 'KIT_EXT=mts', 'toolchain-lock'], { cwd: root, env: { ...stubs.env, STUB_MISE_ENV_LOG: log, UV_PYTHON: undefined }, encoding: 'utf8' });
   assert.equal(make.status, 0, `${make.stdout}${make.stderr}`);
   return { root, calls: readStubLines(log, MISE_CALL) };
 };
 
-test('toolchain-lock locks and installs the uv and the Python that mise lists, and locks with that Python (K836)', (t) => {
+test('toolchain-lock locks and installs the uv and the Python that mise lists, then locks with no UV_PYTHON (K836, K1054)', (t) => {
   const { root, calls } = lockRun(t, true, true);
-  assert.deepEqual(calls.map(call => call.args.join(' ')), [`lock uv python --global --platform ${PLATFORMS}`, 'ls --global --json uv', 'ls --global --json python', 'install --locked uv python', 'which python3', `lock --global --platform ${PLATFORMS}`]);
-  assert.equal(calls.at(-1)?.UV_PYTHON, MISE_PYTHON, 'uv resolves with the Python of mise.toml');
+  assert.deepEqual(calls.map(call => call.args.join(' ')), [`lock uv python --global --platform ${PLATFORMS}`, 'ls --global --json uv', 'ls --global --json python', 'install --locked uv python', `lock --global --platform ${PLATFORMS}`]);
+  assert.equal(calls.at(-1)?.UV_PYTHON, undefined, 'the recipe names no UV_PYTHON; the [env] of mise.toml decides the Python of uv');
   for (const call of calls) assert.deepEqual(call.PATH.split(path.delimiter).slice(0, 2), [path.join(root, 'var/tools/bin'), path.join(root, 'var/tools/mise/shims')], 'var/tools/bin and the shims come first');
 });
 
@@ -239,8 +237,8 @@ test('toolchain-lock without the uv and the Python in mise.toml is one mise lock
   assert.deepEqual(uv.calls.map(call => call.args.join(' ')), [`lock uv python --global --platform ${PLATFORMS}`, 'ls --global --json uv', 'ls --global --json python', 'install --locked uv', `lock --global --platform ${PLATFORMS}`]);
   assert.equal(uv.calls.at(-1)?.UV_PYTHON, undefined, 'no Python is named while mise.toml declares none');
   const python = lockRun(t, false, true);
-  assert.deepEqual(python.calls.map(call => call.args.join(' ')), [`lock uv python --global --platform ${PLATFORMS}`, 'ls --global --json uv', 'ls --global --json python', 'install --locked python', 'which python3', `lock --global --platform ${PLATFORMS}`]);
-  assert.equal(python.calls.at(-1)?.UV_PYTHON, MISE_PYTHON);
+  assert.deepEqual(python.calls.map(call => call.args.join(' ')), [`lock uv python --global --platform ${PLATFORMS}`, 'ls --global --json uv', 'ls --global --json python', 'install --locked python', `lock --global --platform ${PLATFORMS}`]);
+  assert.equal(python.calls.at(-1)?.UV_PYTHON, undefined);
 });
 
 test('toolchain-lock without the mise of the bootstrap names make install-tools TOOLS=npm (K174, K836)', (t) => {

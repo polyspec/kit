@@ -1,5 +1,5 @@
 // kit as the npm package @polyspec/kit (K71-2): make kit-build emits the tools of scripts/kit as JavaScript into dist/ with
-// kit.mk, the schemas and the symbol extractors, npm pack packs exactly the declared files, and a repository that installs the tarball imports
+// the schemas and the symbol extractors and no make file (K1054), npm pack packs exactly the declared files, and a repository that installs the tarball imports
 // the exported module and runs a tool from dist with the result of the source. The checks run on a copy of the checkout,
 // so neither the build nor the pack writes into this checkout.
 import assert from 'node:assert/strict';
@@ -23,7 +23,7 @@ const EXPORTS: JSONSchemaType<{ resolved: string; names: string[] }> = { type: '
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 
-test('make kit-build emits every tool of scripts/kit into dist as .mjs with .mjs imports, with kit.mk and the schemas', (t) => {
+test('make kit-build emits every tool of scripts/kit into dist as .mjs with .mjs imports, with the schemas and no make file (K1054)', (t) => {
   const copy = builtCopy(t);
   const sources = walk(path.join(ROOT, 'scripts/kit')).filter(file => file.endsWith('.mts'));
   assert.ok(sources.length > 50, `scripts/kit holds ${sources.length} modules`);
@@ -32,7 +32,7 @@ test('make kit-build emits every tool of scripts/kit into dist as .mjs with .mjs
   for (const file of built.filter(name => name.endsWith('.mjs'))) {
     assert.doesNotMatch(readFileSync(path.join(copy, 'dist', file), 'utf8'), /from '\.{1,2}\/[^']*\.mts'|import\('\.{1,2}\/[^']*\.mts'\)/, `${file} imports a .mts file`);
   }
-  assert.equal(readFileSync(path.join(copy, 'dist/kit.mk'), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/kit.mk'), 'utf8'));
+  assert.deepEqual(built.filter(file => file.endsWith('.mk')), [], 'dist holds no make file');
   const schemas = walk(path.join(ROOT, 'scripts/kit/schema'));
   assert.ok(schemas.length > 0);
   for (const schema of schemas) assert.equal(readFileSync(path.join(copy, 'dist/schema', schema), 'utf8'), readFileSync(path.join(ROOT, 'scripts/kit/schema', schema), 'utf8'), `dist/schema/${schema}`);

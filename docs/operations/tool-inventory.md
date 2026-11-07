@@ -51,7 +51,8 @@ keeps an installation whose marker holds the declared digest and compares no ver
 binary swapped while its marker stays passes the check. mise keeps its data, cache, state and config,
 its installs and its shims in `var/tools/mise`, and the wrapper `var/tools/bin/mise` sets that environment; nothing outside the
 checkout changes. A tool of `mise.toml` is reached through its shim in `var/tools/mise/shims` (`scripts/kit/mise-tools.mts`):
-kit.mk exports the environment of mise of the checkout to every recipe and puts `var/tools/bin` and the shims first on PATH.
+kit's own kit.mk exports the environment of mise of the checkout to each of its recipes and puts `var/tools/bin` and the shims
+first on PATH; a repository sets its own recipes (K1054).
 `var/tools/bin` holds only the wrappers that kit writes for the declarations of the checkout: mise, npm and npx of the
 bootstrap, php, php-config and phpize of the declared PHP, phpunit, phpcs and phpstan of the declared Composer projects. `make install-tools` removes every other file there
 before it installs, such as a wrapper of an older kit for a tool that now comes from mise, which would shadow its shim (K149).
@@ -210,8 +211,8 @@ of the checkout is a finding. A Rust nightly is never stale: parity reads it.
   no node runs `make install-tools TOOLS=npm`, which installs mise and stops at the node, then `make toolchain-lock`, then
   `make install-tools TOOLS=npm` again. Until K1051 `make kit-check` failed a recipe of the Makefile that started a tool
   of the checkout by its bare name; a repository now keeps that rule in its own recipes.
-  Before the package is installed, `kit-bootstrap.mk` names `$(NODE)` and `$(NPM)` as kit.mk does, so a recipe of the
-  repository that install-packages needs runs the node of the checkout (K185).
+  The example `docs/examples/bootstrap.mk` includes a copy of kit.mk, which names `$(NODE)` and `$(NPM)`, so a recipe of the
+  repository that install-packages needs runs the node of the checkout (K185, K1054).
 - npm's `allow-remote` is the repository's own setting in its `.npmrc`, which npm reads for every install; kit sets none
   (K1045). A lock that pins `@polyspec/kit` by the URL of its release asset needs at least `allow-remote=root` on npm 12.
 ## Layout check (K76)
@@ -769,7 +770,7 @@ Several tools of `scripts/kit` held their own copy of the same helper. Each help
 import. `make duplication-check` fails when a piece of 6 lines or more exists twice: jscpd reads the tokens of scripts/kit, so
 it also finds a repeated piece inside a function, which the test that it replaced (`tests/kit/duplication.test.mts`, whole
 functions only) did not (K126). The base had no pair that long; the shortest pair was the 4 lines of `startReport`. Since
-K248-3 the check is a tool of kit, `duplication-check.mts` in kit.mk, so every repository runs it: jscpd, a dependency of the
+K248-3 the check is a tool of kit, `duplication-check.mts` in kit.mk, which a repository runs from its own recipe (K1054): jscpd, a dependency of the
 package, reads the code of the checkout that .gitignore leaves, in the formats of the runtimes, outside the folders that
 `config/duplication.json` excludes, each with its reason; kit excludes `tests/`, since a test states its case in full.
 
@@ -835,8 +836,8 @@ Left as it is, with the reason:
   runtime jobs; the repository's ci.yml calls it as its job `kit`, and independent repository jobs run alongside it. The final `ci-passed` job requires every other job, so one run holds every job of a commit. Every job of the pipeline, of release.yml and of a repository workflow
   bootstraps with one composite action, `actions/kit-bootstrap/action.yml`, an example that a repository copies to
   `.github/actions/kit-bootstrap/action.yml` and owns (K1052), and a job runs after its checkout with `uses: ./.github/actions/kit-bootstrap`: the
-  Node.js of mise.toml, the locked kit package, the npm of var/tools and the packages; a job that needs PHP for
-  INSTALL_PACKAGES_EXTRA sets PHP up before it in its own job. Until K1051 `make kit-check` named each line of a repository
+  Node.js of mise.toml, the locked kit package, the npm of var/tools and the packages; a job whose install needs PHP
+  sets PHP up before it in its own job. Until K1051 `make kit-check` named each line of a repository
   workflow that carried its own copy of the bootstrap (K992, K996).
   The action runs at the root of the workspace, so a job checks the repository out there. The release of a tag runs the action of the tag's own tree, so a
   dispatch of a tag older than the repository's adoption of K992 stops red: the action is missing there. A consumer declares
@@ -1464,8 +1465,8 @@ such as the other fields of an entry. An example is `^- code: (\w+)$|^  \w+: .*$
 3. Declare `symbols` (`extractor`, `entry`) of each implementation, and generate the error codes of each implementation from
    the catalog.
 4. Add `parity-declarations-check` to the check targets of the repository and `parity-check` to its CI, so both run before a push
-   lands. Run them after the checks that regenerate the error-code artifacts (the trust boundary). The kit.mk of the installed
-   package already holds the targets.
+   lands. Run them after the checks that regenerate the error-code artifacts (the trust boundary). The kit.mk of kit holds the
+   targets, which a repository copies into its own recipes (K1054).
 
 ```json
 {

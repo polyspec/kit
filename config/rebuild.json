@@ -178,9 +178,9 @@
       "kind": "ecosystem",
       "tool": "@vscode/test-electron downloads the VS Code build of the extension tests (K80)"
     },
-    "scripts/kit/kit-bootstrap.mk": {
+    "docs/examples/bootstrap.mk": {
       "kind": "policy",
-      "reason": "the bootstrap order of a repository before the package @polyspec/kit is installed (K71-2)"
+      "reason": "an example of the bootstrap recipes of a repository that runs its installed @polyspec/kit, which a repository may copy (K1054); kit includes it nowhere"
     },
     "scripts/kit/kit-items.mts": {
       "kind": "policy",
@@ -192,7 +192,7 @@
     },
     "scripts/kit/kit.mk": {
       "kind": "policy",
-      "reason": "the make targets of polyspec that run the tools of kit"
+      "reason": "the make targets of kit's own Makefile that run the tools of kit; the package ships no make file (K1054)"
     },
     "scripts/kit/lint-go.mts": {
       "kind": "ecosystem",
@@ -536,7 +536,7 @@
     },
     "scripts/kit/pack-manifest.mts": {
       "kind": "policy",
-      "reason": "writes the packed form of the files that name the sources of kit (the exports of package.json, the KIT of kit-bootstrap.mk and the Claude hook) in the prepack step of npm pack (K613); npm runs the step, and no npm tool rewrites what a package names from its sources to its built files"
+      "reason": "writes the packed form of the files that name the sources of kit (the exports of package.json and the Claude hook) in the prepack step of npm pack (K613); npm runs the step, and no npm tool rewrites what a package names from its sources to its built files"
     },
     "scripts/kit/linked-build.mts": {
       "kind": "policy",

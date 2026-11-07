@@ -1,5 +1,5 @@
 <!-- doc-id: operations-release-structure -->
-<!-- source-sha256: 9175996f01706aa3628741ce41488f0ba34b3618fda726b0abd1c2a2d2b7574e -->
+<!-- source-sha256: a5bc3298e6906d457dc497a648872b5e24f85248ac9707a504de04a593256811 -->
 # 릴리스 구조
 
 [English](release-structure.md)
@@ -26,7 +26,7 @@ K514는 lint 설정을 사본에서 빼냈습니다. K1050부터 각 lint 도구
 
 | 사본 | 저장소에 필요 | 구조 |
 | --- | --- | --- |
-| `scripts/kit/kit-bootstrap.mk`, `scripts/kit/bootstrap/*.mts` (파일 9개) | 예: 패키지가 설치되기 전에 실행된다(`make install-tools TOOLS=npm`, `make install-packages`) | 안정된 bootstrap 층 |
+| `scripts/kit/kit-bootstrap.mk`(K1054 전까지, 지금은 예시 `docs/examples/bootstrap.mk`), `scripts/kit/bootstrap/*.mts` (파일 9개) | 예: 패키지가 설치되기 전에 실행된다(`make install-tools TOOLS=npm`, `make install-packages`) | 안정된 bootstrap 층 |
 | `.github/workflows/gates.yml`, `.github/workflows/release.yml` | 예: GitHub는 workflow를 저장소에서 읽는다 | kit의 재사용 workflow를 부르는 caller |
 | `.claude/settings.json` | 예: Claude Code가 저장소에서 읽는다 | 사본 |
 | `.editorconfig` | 예: 편집기가 저장소 루트에서 읽는다 | 사본 |
@@ -65,8 +65,8 @@ K514는 lint 설정을 사본에서 빼냈습니다. K1050부터 각 lint 도구
 
 2026-10-25 사용자가 kit-sync 복사본의 제거를 승인했고, K614이 local 개발 checkout의 단순 symbolic link로 그것을 실행합니다.
 
-- bootstrap 층은 복사본이 아닙니다. 저장소는 설치된 kit의 `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를 include하고(S15), 그것이 곁의
-  `scripts/kit/bootstrap` installer를 실행합니다.
+- bootstrap 층은 복사본이 아닙니다. K1054 전까지 저장소는 설치된 kit의 `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`를
+  include했고(S15), 그것이 곁의 `scripts/kit/bootstrap` installer를 실행했습니다. 이제 각 저장소가 자기 recipe를 둡니다.
 - PHP lint project `config/php-lint`는 실행되는 kit에서 읽습니다.
 - `PRINCIPLES.md`, 그 짝, `.editorconfig`, `.claude/settings.json`은 `../kit`의 파일로 가는 tracked symbolic link입니다.
 - 두 workflow는 GitHub가 symbolic link를 따르지 않으므로 각 저장소의 일반 파일로 남고, kit-check는 더 비교하지 않습니다.

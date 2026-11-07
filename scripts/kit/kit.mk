@@ -1,8 +1,8 @@
-# The targets of kit that every repository includes. A repository includes it through the kit-bootstrap.mk of the kit checkout
-# beside it, which sets KIT to the scripts/kit of that checkout and KIT_EXT := mts (K613); the Makefile of kit sets KIT :=
-# scripts/kit and KIT_EXT := mts; both run the sources. Every tool runs as node $(KIT)/<tool>.$(KIT_EXT).
+# The recipes of kit's own Makefile, which sets KIT := scripts/kit and KIT_EXT := mts and runs the sources. No repository includes
+# it and the package ships no make file (K1054); a repository may copy targets of it into its own make file, as the example
+# docs/examples/bootstrap.mk shows. Every tool runs as node $(KIT)/<tool>.$(KIT_EXT).
 ifeq ($(and $(KIT),$(KIT_EXT)),)
-$(error kit.mk needs KIT and KIT_EXT; include it through kit-bootstrap.mk, or set both as the Makefile of kit does)
+$(error kit.mk needs KIT and KIT_EXT; set both as the Makefile of kit does)
 endif
 ONLINE ?=
 
@@ -87,11 +87,11 @@ endif
 
 # toolchain-lock is mise lock (K836) with the mise of config/toolchain.json, which the bootstrap installs (make install-tools
 # TOOLS=npm, K174); var/tools/bin and the shims of mise come first on the PATH of every recipe (PATH above). mise locks a pypi:
-# tool with uv, which takes the first uv on PATH and a managed Python of the home before PATH (measured with mise 2026.10.10:
-# the machine uv and CPython 3.14.7 of ~/.local/share/uv). So mise first locks uv and python, which locks nothing when mise.toml
-# declares neither; mise lists a tool only once it is locked (the locked setting of mise.toml). It then installs each of them that it
-# lists, under any key form, and when it lists python the full lock names that Python as UV_PYTHON. mise records the archives
-# that each platform has.
+# tool with the first uv on PATH, so mise first locks uv and python, which locks nothing when mise.toml declares neither; mise lists
+# a tool only once it is locked (the locked setting of mise.toml). It then installs each of them that it lists, under any key form,
+# and locks the rest; uv takes the Python of the shims because the [env] of kit's mise.toml prefers a Python of the system to a
+# managed one (UV_PYTHON_PREFERENCE, K1048), so the recipe names no UV_PYTHON (K1054). mise records the archives that each
+# platform has.
 TOOLCHAIN_LOCK_PLATFORMS := linux-x64,linux-arm64,macos-arm64,macos-x64,windows-x64,windows-arm64
 toolchain-lock: ## Write mise.lock with mise lock: the digests of the tools of mise.toml for each platform of linux, macOS and Windows on x64 and arm64 that has their archive; ONLINE
 	@test -x $(KIT_TOOLS)/bin/mise || { echo "[toolchain-lock] $(KIT_TOOLS)/bin/mise is missing; run make install-tools TOOLS=npm, the bootstrap that installs the mise of config/toolchain.json" >&2; exit 1; }
@@ -101,10 +101,7 @@ toolchain-lock: ## Write mise.lock with mise lock: the digests of the tools of m
 	  case "$$listed" in *'"requested_version"'*) tools="$$tools $$tool";; esac; \
 	done; \
 	if [ -n "$$tools" ]; then $(ONLINE) $(KIT_TOOLS)/bin/mise install --locked $$tools || exit 1; fi; \
-	case "$$tools" in \
-	  *python) python="$$($(KIT_TOOLS)/bin/mise which python3)" || exit 1; UV_PYTHON="$$python" $(ONLINE) $(KIT_TOOLS)/bin/mise lock --global --platform $(TOOLCHAIN_LOCK_PLATFORMS);; \
-	  *) $(ONLINE) $(KIT_TOOLS)/bin/mise lock --global --platform $(TOOLCHAIN_LOCK_PLATFORMS);; \
-	esac
+	$(ONLINE) $(KIT_TOOLS)/bin/mise lock --global --platform $(TOOLCHAIN_LOCK_PLATFORMS)
 
 # ---- Folder layout (S5) ---------------------------------------------------------------------------------------------
 # alint (mise.toml, installed by install-tools) checks the tree against config/layout.yml, which extends

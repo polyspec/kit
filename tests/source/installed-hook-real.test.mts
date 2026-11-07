@@ -1,4 +1,4 @@
-// A consumer includes its installed kit and runs the native npm hook bin in linked-source and packed installs, without ../kit.
+// A consumer runs the native npm hook bin of its installed kit in linked-source and packed installs, without ../kit.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
@@ -13,9 +13,9 @@ import { readFixture } from '../kit/json-fixture.mts';
 
 const ROOT = path.resolve(import.meta.dirname, '../..');
 
-describe('installed kit bootstrap and hook bin (K671-1)', () => {
+describe('installed kit hook bin (K671-1)', () => {
   let directory: string;
-  const observations: { kind: string; bootstrap: string; target: string; settings: string; allowed: number | null; refused: number | null; refusal: string }[] = [];
+  const observations: { kind: string; target: string; settings: string; allowed: number | null; refused: number | null; refusal: string }[] = [];
   const run = (command: string, args: string[], cwd: string) => {
     process.stdout.write(`[installed-hook] ${path.basename(cwd)}: ${command} ${args.join(' ')}: started\n`);
     const result = spawnSync(command, args, { cwd, encoding: 'utf8', env: { ...process.env, npm_config_offline: 'true' } });
@@ -55,7 +55,6 @@ describe('installed kit bootstrap and hook bin (K671-1)', () => {
       mkdirSync(path.join(consumer, 'var/tools/bin'), { recursive: true });
       copyFileSync(toolsPath(ROOT, 'bin', 'node'), path.join(consumer, 'var/tools/bin/node'));
       chmodSync(path.join(consumer, 'var/tools/bin/node'), 0o755);
-      writeFileSync(path.join(consumer, 'Makefile'), 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\nshow:\n\t@printf "%s|%s\\n" "$(KIT)" "$(KIT_EXT)"\n');
       const settings = readFileSync(path.join(consumer, '.claude/settings.json'), 'utf8');
       const hooks = readFixture<{ hooks: { PreToolUse: { hooks: { command: string }[] }[] } }>(consumer, '.claude/settings.json');
       const command = hooks.hooks.PreToolUse[0]?.hooks[0]?.command;
@@ -66,12 +65,12 @@ describe('installed kit bootstrap and hook bin (K671-1)', () => {
       });
       const allowed = invoke('printf ok');
       const refused = invoke('make check');
-      observations.push({ kind, settings, bootstrap: run('make', ['--no-print-directory', 'show'], consumer),
+      observations.push({ kind, settings,
         target: realpathSync(path.join(consumer, 'node_modules/.bin/polyspec-kit-hook')), allowed: allowed.status, refused: refused.status, refusal: refused.stderr });
     }
   });
   teardown('the installed-hook consumer fixtures', () => { if (directory) rmSync(directory, { recursive: true, force: true }); });
-  test('source and packed consumers include the installed package and enforce the same native npm hook command', () => {
+  test('source and packed consumers enforce the same native npm hook command', () => {
     assert.equal(observations.length, 2);
     for (const result of observations) {
       assert.equal(result.allowed, 0, result.kind);
@@ -79,9 +78,6 @@ describe('installed kit bootstrap and hook bin (K671-1)', () => {
       assert.match(result.refusal, /refuse:/);
       assert.match(result.settings, /node_modules\/\.bin\/polyspec-kit-hook/);
       assert.doesNotMatch(result.settings, /scripts\/kit\/claude-hook|dist\/claude-hook|\.\.\/kit/);
-      // KIT is the real path of the included kit (K762): the checkout through the source link, the installed dist of the packed kit.
-      assert.equal(result.bootstrap, result.kind === 'source'
-        ? `${path.join(directory, 'provider/scripts/kit')}|mts` : `${path.join(directory, 'packed-consumer/node_modules/@polyspec/kit/dist')}|mjs`);
       // The packed consumer runs the bin of the release; the source consumer runs the source bin of the checkout, which link writes from
       // the linked package.json (K767).
       if (result.kind === 'source') assert.equal(result.target, path.join(realpathSync(directory), 'provider/scripts/kit/claude-hook.mts'));

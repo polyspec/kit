@@ -1,4 +1,5 @@
-# The kit repository: its own tests and the shared targets of scripts/kit/kit.mk, which runs the sources of scripts/kit.
+# The kit repository: its own tests and the recipes of scripts/kit/kit.mk, which run the sources of scripts/kit. No repository
+# includes kit.mk and the package ships no make file (K1054); docs/examples/bootstrap.mk names kit.mk as an example to copy.
 KIT := scripts/kit
 KIT_EXT := mts
 include scripts/kit/kit.mk
@@ -48,7 +49,7 @@ KIT_TEST_FILES_4 := \
 	tests/kit/toolchain-files.test.mts
 KIT_TEST_FILES_5 := \
 	tests/kit/divergence-check.test.mts tests/kit/duplication-check.test.mts tests/kit/git-hooks.test.mts \
-	tests/kit/install-packages.test.mts tests/kit/lint-php.test.mts \
+	tests/kit/lint-php.test.mts \
 	tests/kit/php-ext.test.mts tests/kit/plan.test.mts \
 	tests/kit/process-group.test.mts \
 	tests/kit/release-wheel.test.mts tests/kit/retained-branches.test.mts tests/kit/sandbox-repository.test.mts \
@@ -74,8 +75,8 @@ SOURCE_TEST_FILES_common-1 := tests/source/package.test.mts tests/source/npm-aud
 SOURCE_TEST_FILES_common-2 := tests/source/consumer-layout.test.mts tests/source/parity-real.test.mts
 SOURCE_TEST_FILES_common-3 := tests/source/process-group-posix.test.mts tests/source/install-vscode-posix.test.mts tests/source/checklist-real.test.mts tests/source/checkout.test.mts tests/source/fresh-checkout.test.mts tests/source/installed-hook-real.test.mts tests/source/layout-real.test.mts tests/source/mise-env-real.test.mts tests/source/mise-trust-real.test.mts tests/source/npm-locked-link-real.test.mts tests/source/npm-source-link-real.test.mts tests/source/release-workflow.test.mts tests/source/tracked-var.test.mts
 
-# The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm, as in a
-# repository (kit-bootstrap.mk); the release workflow that kit vendors and runs for itself calls it.
+# The packages of package-lock.json with the npm of var/tools, the step after make install-tools TOOLS=npm; the release
+# workflow that kit runs for itself calls it.
 install-packages: ## Install the packages of package-lock.json with the npm of var/tools; ONLINE
 	$(ONLINE) $(NPM) ci
 
@@ -112,7 +113,7 @@ kit-tool-record: ## Write tests/kit/tool-records.json, what the pinned go and Co
 	$(NODE) tests/kit/record-tools.mts
 
 .PHONY: typecheck
-# kit holds no runtime of packages/; its build, tests and lints join the fixed tasks of kit.mk as prerequisites (K246).
+# kit holds no runtime of packages/; its build, tests and lints join the tasks of kit.mk as prerequisites (K246).
 build: kit-build
 test: kit-test source-test
 lint: lint-ts lint-php lint-python lint-go
@@ -120,7 +121,6 @@ lint: lint-ts lint-php lint-python lint-go
 kit-build: ## Build the package @polyspec/kit into dist/ through dist.next/ and a rename, so a consumer that links kit never reads a half-built dist; offline after npm ci
 	rm -rf dist.next dist.old
 	$(CURDIR)/node_modules/.bin/tsc -p tsconfig.build.json --outDir dist.next
-	cp scripts/kit/kit.mk dist.next/kit.mk
 	cp -R scripts/kit/schema dist.next/schema
 	cp -R scripts/kit/php-library dist.next/php-library
 	tar -C scripts/kit --exclude=vendor -cf - symbols | tar -C dist.next -xf -

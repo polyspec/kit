@@ -33,7 +33,7 @@ test('a clean consumer can parse its first npm bootstrap before Node exists and 
     requirements: { pattern: 'REQ-[0-9]+' },
     units: [],
   }));
-  writeFileSync(path.join(root, 'Makefile'), `include ${path.join(KIT, 'kit-bootstrap.mk')}\n`);
+  writeFileSync(path.join(root, 'Makefile'), `KIT := ${KIT}\nKIT_EXT := mts\ninclude ${KIT}/kit.mk\n`);
   initRepository(root);
 
   const node = path.join(root, 'var/tools/bin/node');

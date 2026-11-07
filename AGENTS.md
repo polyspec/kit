@@ -63,8 +63,9 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
   since uv writes and deletes through a link (K539), and then runs the native locked install of its lock (`uv sync --locked`,
   or `uv pip install` of a pylock.toml) with the flags of `SYNC` as written; a symlinked development folder is never damaged.
   Enforced by: `tests/kit/uv-install.test.mts`, `tests/source/uv-link-real.test.mts`
-- Own: A file that a repository copies from an example of the package is its own file (K1052). Consumers include
-  `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`; they install the locked npm dependencies before the first Make invocation.
+- Own: A file that a repository copies from an example of the package is its own file (K1052). A repository keeps
+  its recipes in its own Makefile, since kit includes none (K1054; `docs/examples/bootstrap.mk` shows one way), and installs the
+  locked npm dependencies before the first Make invocation.
   Local development links the provider checkouts that the git-ignored `.links` of the main checkout names, one per line: `make link`
   makes each installed folder of their packages one plain directory symlink to its provider (`docs/operations/local-links.md`,
   K869). Such links are untracked and stay out of released output. With no `.links` nothing is linked and the installed release runs.
@@ -111,7 +112,7 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
   Enforced by: none, mise install --locked checks mise.lock and its sidecars itself (K835)
 - Own: kit's own checks run the tools of its `mise.toml` at the versions that it declares, which `make install-tools` installs into
   var/tools/mise, and the Rust of `rust-toolchain.toml`; the Node.js of `mise.toml` is installed by the bootstrap
-  (`make install-tools TOOLS=npm`) before npm (K171). Every recipe of kit.mk runs with the environment of mise of the
+  (`make install-tools TOOLS=npm`) before npm (K171). Every recipe of kit's own kit.mk, which no repository includes (K1054), runs with the environment of mise of the
   checkout and with var/tools/bin and the shims of mise first on PATH, and starts a tool of the checkout by its absolute
   path (`$(NODE)`, `$(NPM)`, `$(ALINT)`), never by its bare name: make 3.81 looks up a recipe line without shell syntax on
   the PATH that make started with. A machine or CI runner provides the two toolchains

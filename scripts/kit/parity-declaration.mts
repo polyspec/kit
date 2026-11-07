@@ -332,7 +332,7 @@ const NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 /**
  * The first path of `value` that leaves the checkout `root`: a word (the parts between =, : and whitespace) that starts with ~,
  * an absolute path outside `root` and outside the kit package in use, or a path with a .. segment; or undefined. A linked
- * repository runs the kit checkout beside it (kit-bootstrap.mk, KIT), so a tool of kit that a reference names lies there (K922).
+ * repository runs the kit checkout beside it (its KIT), so a tool of kit that a reference names lies there (K922).
  * Non-file URI values are data, not runner paths; file URLs are converted to paths and checked. The schema rejects paths
  * written in the declaration, and this rejects one that a reference brings in.
  */

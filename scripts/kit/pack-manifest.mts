@@ -5,7 +5,7 @@
 //
 // A repository consumes its installed kit package, which may be a native npm link to sources. A packed install lies under node_modules,
 // where node strips no types, so the package that npm packs runs dist: each export of package.json names its dist module and
-// declarations, the kit-bootstrap.mk sets KIT to dist and KIT_EXT to mjs, and npm creates the hook bin from its dist target.
+// declarations, and npm creates the hook bin from its dist target. The package ships no make file (K1054).
 // Claude settings always call the native npm bin, so their bytes need no packed-path rewrite. postpack restores the files from Git.
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -27,14 +27,10 @@ export function packedPackageManifest(source: string): string {
   return swap('package.json', exports, /("polyspec-kit-hook":\s*)"\.\/scripts\/kit\/claude-hook\.mts"/, '$1"./dist/claude-hook.mjs"');
 }
 
-/** The packed text of each file of `root` that names the sources: package.json, scripts/kit/kit-bootstrap.mk and claude/settings.json. */
+/** The packed text of each file of `root` that names the sources: package.json and claude/settings.json. */
 export function packedFiles(root: string): Record<string, string> {
   const read = (file: string) => readFileSync(path.join(root, file), 'utf8');
-  const manifest = packedPackageManifest(read('package.json'));
-  const kitLine = swap('scripts/kit/kit-bootstrap.mk', read('scripts/kit/kit-bootstrap.mk'), /^KIT := \$\(realpath \$\(KIT_BOOTSTRAP\)\)$/m, 'KIT := $(realpath $(KIT_BOOTSTRAP:%/scripts/kit=%/dist))');
-  const bootstrap = swap('scripts/kit/kit-bootstrap.mk', kitLine, /^KIT_EXT := mts$/m, 'KIT_EXT := mjs');
-  const settings = read('claude/settings.json');
-  return { 'package.json': manifest, 'scripts/kit/kit-bootstrap.mk': bootstrap, 'claude/settings.json': settings };
+  return { 'package.json': packedPackageManifest(read('package.json')), 'claude/settings.json': read('claude/settings.json') };
 }
 
 if (isMain(import.meta.url)) {

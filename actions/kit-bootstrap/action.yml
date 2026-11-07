@@ -1,8 +1,8 @@
 # The one bootstrap of every CI job of a repository (K992): the package ships it as an example, which a repository copies to
 # .github/actions/kit-bootstrap/action.yml and owns (K1052), and ci-pipeline.yml, release.yml and the jobs of the repository's own workflows run it after their checkout with
 # `uses: ./.github/actions/kit-bootstrap`, so no workflow carries a copy of these steps that a kit release leaves behind. The
-# parity, runtime and release jobs set PHP up before it; the shared job of ci-pipeline sets it up after, so a repository whose
-# INSTALL_PACKAGES_EXTRA needs PHP declares that in its own job.
+# parity, runtime and release jobs set PHP up before it; the shared job of ci-pipeline sets it up after. Its make steps run
+# targets that the repository's own Makefile defines, as docs/examples/bootstrap.mk and kit.mk show (K1054).
 name: kit bootstrap
 description: Sets up the Node.js of mise.toml, installs the locked kit package, then the npm of var/tools and the packages of package-lock.json.
 runs:

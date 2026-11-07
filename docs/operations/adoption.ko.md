@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: af6f786bda5fcb01736de58e2693a03cd2da418241c75405b5cec7e18a0fec2e -->
+<!-- source-sha256: d7607e7138110aa231a5d20dc90a2e8799b0ab62348a09f32a553d870f0d776f -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -38,6 +38,12 @@ release workflow 실행을 하지 않는다([local-links.ko.md](local-links.ko.m
 
 conductor에게 묻는 것은 kit의 결함(파일과 줄을 적어서)이나 서로 모순되는 두 규칙뿐이다(P23). 없는 규칙은 kit에서 먼저 만든다.
 
+## 레시피 (K1054)
+
+kit은 저장소에 레시피를 include시키지 않으며, package는 make 파일을 싣지 않는다. 저장소는 자기가 실행하는 target을 자기 경우의
+변수, 설정, 환경과 함께 자기 Makefile에 쓴다. [docs/examples/bootstrap.mk](../examples/bootstrap.mk)가 한 가지 방법을 보인다.
+저장소가 원하는 kit의 `scripts/kit/kit.mk` target 사본 곁에 그 사본을 두면, 설치된 package의 dist에서 도구를 실행한다.
+
 ## mise.toml의 npm 채택 (K938)
 
 저장소는 npm을 `mise.toml`에서 가져오고 `mise.lock`에 잠그며, 같은 version을 `package.json`에 선언한다. `packageManager` 필드는
@@ -61,7 +67,7 @@ conductor에게 묻는 것은 kit의 결함(파일과 줄을 적어서)이나 �
 
    npm은 이 npm ci에서 저장소 자신의 `.npmrc`를 읽는다. kit이나 다른 패키지를 release URL로 고정하는 저장소는 거기에
    `allow-remote=root`(또는 `all`)를 적는다. [docs/examples/native-settings](../examples/native-settings.ko.md)가 그 예를 보여 준다. kit은 아무것도 설정하지 않는다(K1045).
-5. `node_modules`가 없는 checkout에는 include할 kit이 없다. worktree는 `make worktree-setup NAME=<name> ID=<id>`로 만들며, 이는 위의
+5. `node_modules`가 없는 checkout에는 레시피가 실행할 도구의 kit이 없다. worktree는 `make worktree-setup NAME=<name> ID=<id>`로 만들며, 이는 위의
    npm ci를 실행한 뒤 거기서 `make install`과 `make link-check`를 실행한다(K858). devEngines npm을 선언하지 않은 `package.json`은
    worktree나 branch를 만들기 전에, 그리고 npm이나 make를 실행하기 전에 거부한다(K938-1). 일반 clone은 checkout 밖에서 같은 npm ci를 먼저 실행한다.
 
@@ -70,8 +76,8 @@ conductor에게 묻는 것은 kit의 결함(파일과 줄을 적어서)이나 �
 - `package.json`과 `mise.toml`(1, 2단계), 그다음 `--prefix`를 쓰는 npm ci(4단계).
 - `make install-tools TOOLS=npm`: 첫 실행은 mise를 설치한 뒤 멈춘다. mise.lock이 아직 node와 npm:npm을 고정하지 않으므로
   bootstrap이 `make toolchain-lock`을 이름한다. 기대한 동작이며 고칠 것이 없다.
-- `make toolchain-lock`은 `mise.lock`과 sidecar를 쓴다. bootstrap의 `var/tools/bin/mise`와, 레시피가 kit의 include를 거쳐
-  실행되므로 `node_modules` 안의 kit이 필요하다.
+- `make toolchain-lock`은 `mise.lock`과 sidecar를 쓴다. bootstrap의 `var/tools/bin/mise`와, 저장소의 레시피가 도구를
+  실행하는 `node_modules` 안의 kit이 필요하다.
 - `make install-tools TOOLS=npm`은 lock이 고정한 node와 npm:npm을 설치한다.
 - `make install`은 나머지를 설치한다.
 

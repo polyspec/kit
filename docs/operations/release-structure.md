@@ -26,7 +26,7 @@ and kit's files are examples (docs/examples/native-settings), so a change of kit
 
 | Copy | Needed in the repository | Structure |
 | --- | --- | --- |
-| `scripts/kit/kit-bootstrap.mk`, `scripts/kit/bootstrap/*.mts` (9 files) | yes: they run before the package is installed (`make install-tools TOOLS=npm`, `make install-packages`) | the stable bootstrap layer |
+| `scripts/kit/kit-bootstrap.mk` (until K1054, now the example `docs/examples/bootstrap.mk`), `scripts/kit/bootstrap/*.mts` (9 files) | yes: they run before the package is installed (`make install-tools TOOLS=npm`, `make install-packages`) | the stable bootstrap layer |
 | `.github/workflows/gates.yml`, `.github/workflows/release.yml` | yes: GitHub reads a workflow from the repository | a caller of a reusable workflow of kit |
 | `.claude/settings.json` | yes: Claude Code reads it from the repository | a copy |
 | `.editorconfig` | yes: an editor reads it from the root of the repository | a copy |
@@ -68,8 +68,8 @@ Consumers include the bootstrap of the installed `@polyspec/kit` package. Native
 On 2026-10-25 the user approved the removal of the kit-sync copies, and K614 carries it out, with the plain symbolic links of a
 local development checkout:
 
-- The bootstrap layer is no copy: a repository includes `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk` of its installed
-  kit (S15), which runs the installer of `scripts/kit/bootstrap` beside it.
+- The bootstrap layer is no copy: until K1054 a repository included `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk` of its
+  installed kit (S15), which ran the installer of `scripts/kit/bootstrap` beside it; now each repository keeps its own recipes.
 - The PHP lint project `config/php-lint` is read from the kit that runs.
 - `PRINCIPLES.md`, its twin, `.editorconfig` and `.claude/settings.json` are tracked symbolic links to the files of `../kit`.
 - The two workflows stay plain files of each repository, since GitHub follows no symbolic link, and kit-check no longer compares

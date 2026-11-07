@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 386b151fc429a2fa0b2df43de7c0b74e674cb9e58d1f63c554d9beede155b794 -->
+<!-- source-sha256: 898e941e3f318be75719fcf4758086bf43b7b912e90f08a5833be0dc19fcf17c -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -182,7 +182,7 @@
 | K1051 | kit-check와 bypass-check는 저장소의 레시피와 workflow를 판정하지 않는다 | `scripts/kit/kit-check.mts`, `scripts/kit/recipe-tools.mts`, `scripts/kit/bypass-check.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1051 tests/kit/kit-check.test.mts` | [o] |
 | K1052 | kit-sync는 저장소에 복사본을 쓰지 않고, 복사되던 workflow, action, 설정은 예제가 된다 | `scripts/kit/kit-sync.mts`, `package.json` kit.copies, `workflows/`, `actions/`, `docs/examples/`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1052 tests/kit/kit-sync.test.mts` | [o] |
 | K1053 | 유틸리티는 kit의 규칙으로 명령, 커밋, 트리를 거부하지 않는다 | `scripts/kit/claude-hook.mts`, `scripts/kit/git-hooks.mts`, `scripts/kit/ci-targets.mts`, `scripts/kit/land.mts`, `scripts/kit/plan.mts`, `scripts/kit/ci-setup.mts`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1053 tests/kit/land.test.mts` | [ ] |
-| K1054 | kit은 저장소에 레시피를 include시키지 않고, kit.mk와 kit-bootstrap.mk는 예제가 된다 | `scripts/kit/kit.mk`, `scripts/kit/kit-bootstrap.mk`, `Makefile`, `docs/examples/`, `AGENTS.md(.ko)`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1054 tests/kit/kit-bootstrap.test.mts` | [~] |
+| K1054 | kit은 저장소에 레시피를 include시키지 않고, kit.mk와 kit-bootstrap.mk는 예제가 된다 | `scripts/kit/kit.mk`, `scripts/kit/kit-bootstrap.mk`, `Makefile`, `docs/examples/`, `AGENTS.md(.ko)`, tests, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1054 tests/kit/kit-bootstrap.test.mts` | [o] |
 | K1055 | PRINCIPLES는 kit이 더는 강제하지 않는 검사를 적지 않는다 | `PRINCIPLES.md(.ko)`, `CHANGELOG.md(.ko)` | `make rules-check` passes | [ ] |
 | K1056 | docs/spec/utilities-and-recipes의 삭제를 담아 kit을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [ ] |
 | K1058 | kit-sync --check는 파일을 쓰지 않는다. 설치된 kit이나 index와 다른 사본을 각각 보고한다 | `scripts/kit/kit-sync.mts`, `tests/kit/kit-sync.test.mts`, `CHANGELOG.md(.ko)` | `node --test --test-name-pattern=K1058 tests/kit/kit-sync.test.mts` passes | [o] |

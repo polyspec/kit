@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: cfc3bb9122118fa96253f5f2bb20eaac4ac582e9e57f3ae556420f2a020faf39 -->
+<!-- source-sha256: ff80604acc2e8eb5f049f6775b51f2a7cdd6d7830cf0eaeda55c852c21f3988f -->
 
 # 도구 목록
 
@@ -47,8 +47,8 @@ bootstrap(`make install-tools TOOLS=npm`, `scripts/kit/bootstrap/bootstrap.mts`)
 옆에서 만들고 거기서 download의 digest를 확인한 뒤 그 digest를 marker(`var/tools/mise-release`의 `.sha256`)에 쓰고 rename하므로, 두 번째 실행은 marker가 선언된 digest를 담은 설치를 유지하고 version은
 비교하지 않습니다(K933). marker만 읽으므로 marker가 남은 채 바뀐 binary는 검사를 통과합니다. mise는 data, cache, state, config와 설치물, shim을 `var/tools/mise`에 두며, wrapper
 `var/tools/bin/mise`가 그 환경을 정합니다. checkout 밖은 아무것도 바뀌지 않습니다. `mise.toml`의 도구는 `var/tools/mise/shims`의
-shim으로 실행합니다(`scripts/kit/mise-tools.mts`). kit.mk는 checkout의 mise 환경을 모든 recipe에 export하고 `var/tools/bin`과 shim을
-PATH 맨 앞에 둡니다. `var/tools/bin`에는 kit이 checkout의 선언에 따라 쓰는 wrapper만 있습니다: bootstrap의 mise, npm, npx와
+shim으로 실행합니다(`scripts/kit/mise-tools.mts`). kit 자신의 kit.mk는 checkout의 mise 환경을 자기 각 recipe에 export하고 `var/tools/bin`과 shim을
+PATH 맨 앞에 둡니다. 저장소는 자기 recipe를 정합니다(K1054). `var/tools/bin`에는 kit이 checkout의 선언에 따라 쓰는 wrapper만 있습니다: bootstrap의 mise, npm, npx와
 선언된 PHP의 php, php-config, phpize, 선언된 Composer project의 phpunit, phpcs, phpstan입니다. 전체 `make install-tools`는 설치 전에 그 밖의 file을 모두 지웁니다. 예를
 들어 이제 mise에서 오는 도구에 대해 이전 kit이 쓴 wrapper는 그 shim을 가립니다(K149). 설치된 도구를 검사하는 target은 없습니다. 도구가 없으면 그 도구를 실행하는 target이 실패합니다(K854). bootstrap과 mise가 설치하지 않는
 도구의 선언은 `scripts/kit/bootstrap/toolchain-declared.mts`가, `mise.toml`의 도구와 `mise.lock`의 digest는
@@ -184,8 +184,8 @@ stale이 되지 않습니다.
   시작하는 machine의 node입니다. bootstrap은 mise를 설치한 뒤 `mise.lock`에서 checkout의 node를 설치합니다. `make toolchain-lock`은
   bootstrap이 설치한 mise를 실행하므로(K836), `mise.lock`이 node를 고정하지 않은 checkout은 mise를 설치하고 node에서 멈추는
   `make install-tools TOOLS=npm`, 그다음 `make toolchain-lock`, 다시 `make install-tools TOOLS=npm`을 실행합니다. K1051 전까지 `make kit-check`는 checkout의 도구를
-  이름만으로 실행하는 Makefile의 recipe를 실패시켰으며, 이제 그 규칙은 저장소가 자기 recipe에 둡니다. package가 설치되기 전에도 `kit-bootstrap.mk`는 kit.mk처럼
-  `$(NODE)`와 `$(NPM)`을 정의하므로, install-packages가 필요로 하는 저장소의 recipe는 checkout의 node를 실행합니다(K185).
+  이름만으로 실행하는 Makefile의 recipe를 실패시켰으며, 이제 그 규칙은 저장소가 자기 recipe에 둡니다. 예시 `docs/examples/bootstrap.mk`는
+  `$(NODE)`와 `$(NPM)`을 정의하는 kit.mk 사본을 include하므로, install-packages가 필요로 하는 저장소의 recipe는 checkout의 node를 실행합니다(K185, K1054).
 - npm의 `allow-remote`는 저장소가 자기 `.npmrc`에 적는 설정이며, npm은 모든 설치에서 그것을 읽습니다. kit은 아무것도
   정하지 않습니다(K1045). `@polyspec/kit`을 release asset의 URL로 고정하는 lock은 npm 12에서 적어도 `allow-remote=root`가 필요합니다.
 ## Layout 검사 (K76)
@@ -698,7 +698,7 @@ finding 하나입니다.
 `make duplication-check`는 6줄 이상의 같은 부분이 두 번 있으면 실패합니다. jscpd가 scripts/kit의 token을 읽으므로 함수 안에서
 되풀이된 부분도 찾는데, 이것이 대신한 test(`tests/kit/duplication.test.mts`, 함수 전체만 비교)는 찾지 못했습니다(K126). 기준 코드에는
 그만큼 긴 쌍이 없었고, 가장 짧은 쌍은 `startReport`의 4줄이었습니다. K248-3부터 이 check는 kit.mk의 kit 도구
-`duplication-check.mts`이므로 모든 저장소가 실행합니다. package의 dependency인 jscpd가 .gitignore가 남기는 checkout의 code를
+`duplication-check.mts`이며, 저장소는 자기 recipe로 실행합니다(K1054). package의 dependency인 jscpd가 .gitignore가 남기는 checkout의 code를
 runtime의 format으로, `config/duplication.json`이 각자의 이유와 함께 제외하는 folder 밖에서 읽습니다. kit은 test가 자기 case를
 온전히 기술하므로 `tests/`를 제외합니다.
 
@@ -760,7 +760,7 @@ check는 S10 PHP extension의 stub, `packages/php-ext/src/polyspec_*.stub.php`�
   저장소의 ci.yml이 이를 job `kit`으로 호출하고, 독립적인 저장소 job은 함께 실행합니다. 마지막 `ci-passed` job은 다른 모든 job을 needs로 요구하므로 run 하나가 commit의 모든 job을 담습니다. 파이프라인, release.yml, 저장소 workflow의 모든 job은 composite action 하나인
   `actions/kit-bootstrap/action.yml`로 bootstrap합니다. 이는 저장소가 `.github/actions/kit-bootstrap/action.yml`로 복사해 자기 것으로 가지는 예시이며(K1052),
   job은 checkout 뒤에 `uses: ./.github/actions/kit-bootstrap`으로 실행합니다. mise.toml의 Node.js, lock된 kit package,
-  var/tools의 npm과 package를 설치하며, INSTALL_PACKAGES_EXTRA에 PHP가 필요한 job은 그 앞에서 PHP를 설정합니다. K1051 전까지
+  var/tools의 npm과 package를 설치하며, 설치에 PHP가 필요한 job은 그 앞에서 PHP를 설정합니다. K1051 전까지
   `make kit-check`는 bootstrap 복사본을 담은 저장소 workflow의 각 줄을 적었습니다(K992, K996). action은
   workspace의 root에서 실행되므로 job은 저장소를 그곳에 checkout합니다. tag의 release는 tag 자신의 tree에 있는
   action을 실행하므로, 저장소가 K992를 채택하기 전의 tag를 dispatch하면 action이 없어 red로 멈춥니다. 소비 저장소는
@@ -1334,7 +1334,7 @@ catalog pattern은 catalog에서 빈 줄도 주석(`#` 또는 `//`로 시작하�
    않습니다.
 3. 각 implementation의 `symbols`(`extractor`, `entry`)를 선언하고, 각 implementation의 error code를 catalog에서 생성합니다.
 4. `parity-declarations-check`를 repository의 검사 target에, `parity-check`를 CI에 추가해 둘 다 push가 반영되기 전에 실행되게
-   합니다. error code 생성물을 다시 만드는 검사 뒤에 실행합니다(신뢰 경계). 설치된 package의 kit.mk에 target이 이미 있습니다.
+   합니다. error code 생성물을 다시 만드는 검사 뒤에 실행합니다(신뢰 경계). kit의 kit.mk에 target이 있으며, 저장소는 이를 자기 recipe로 복사합니다(K1054).
 
 ```json
 {

@@ -40,6 +40,13 @@ complete ([local-links.md](local-links.md)).
 A question goes to the conductor only for a defect of kit, with its file and line, or for two rules that contradict each other
 (P23). A rule that is missing is made in kit first.
 
+## Recipes (K1054)
+
+kit includes no recipe into a repository, and the package ships no make file. A repository writes the targets it runs in its own
+Makefile, with the variables, settings and environment of its own case. [docs/examples/bootstrap.mk](../examples/bootstrap.mk)
+shows one way: a copy of it beside a copy of the targets of kit's `scripts/kit/kit.mk` that the repository wants runs the tools of
+the installed package from its dist.
+
 ## Adopting the npm of mise.toml (K938)
 
 A repository takes its npm from `mise.toml`, locked in `mise.lock`, and declares the same version in `package.json`. It holds no
@@ -63,7 +70,7 @@ A repository takes its npm from `mise.toml`, locked in `mise.lock`, and declares
 
    npm reads the repository's own `.npmrc` for this npm ci. A repository that pins kit or another package by a release URL writes
    `allow-remote=root` (or `all`) there, as [docs/examples/native-settings](../examples/native-settings.md) shows; kit sets none (K1045).
-5. A checkout without `node_modules` has no kit to include. A worktree is made by `make worktree-setup NAME=<name> ID=<id>`, which
+5. A checkout without `node_modules` has no kit whose tools its recipes run. A worktree is made by `make worktree-setup NAME=<name> ID=<id>`, which
    runs the npm ci above, then `make install` and `make link-check` in it (K858). It refuses, before it creates the worktree or its branch and before it runs npm or make, a
    `package.json` that declares no devEngines npm (K938-1). A plain clone runs the same npm ci from outside the checkout first.
 
@@ -73,7 +80,7 @@ The sequence of a first adoption (K938-1):
 - `make install-tools TOOLS=npm`: the first run stops after mise is installed; mise.lock does not pin node and npm:npm yet, so
   the bootstrap names `make toolchain-lock`. This is expected and needs no fix.
 - `make toolchain-lock` writes `mise.lock` and the sidecar. It needs `var/tools/bin/mise` of the bootstrap and the kit
-  inside `node_modules`, since its recipes run through the include of kit.
+  inside `node_modules`, whose tools the recipes of the repository run.
 - `make install-tools TOOLS=npm` installs the node and npm:npm that the lock pins.
 - `make install` installs the rest.
 

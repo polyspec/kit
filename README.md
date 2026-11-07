@@ -8,7 +8,7 @@ them and then owns; kit writes no file of a repository (K1052). kit depends on n
 
 ## Tools
 
-| Concern | Tools (`scripts/kit/`) | Make targets (`scripts/kit/kit.mk`) |
+| Concern | Tools (`scripts/kit/`) | Make targets of kit (`scripts/kit/kit.mk`) |
 |---|---|---|
 | Configuration | `kit-check.mts` | `kit-check` |
 | Toolchains | the bootstrap (`bootstrap/bootstrap.mts`: mise, and the node and npm of mise.toml), `install-tools.mts` (`mise install --locked` of `mise.toml` and `mise.lock`, then the wheel backend, the Composer projects and the Rust channels of `install-rust.mts`), `mise-tools.mts`, `toolchain-mise.mts` | `install-tools TOOLS=npm`, `install-tools`, `toolchain-lock` |
@@ -23,7 +23,7 @@ them and then owns; kit writes no file of a repository (K1052). kit depends on n
 
 ## Layout
 
-- `scripts/kit/` — the tools and `kit.mk`, which a repository includes in its Makefile; `scripts/kit/schema/` holds the JSON Schema
+- `scripts/kit/` — the tools and `kit.mk`, the recipes of kit's own Makefile, which the package does not ship (K1054); `scripts/kit/schema/` holds the JSON Schema
   of each `config/<name>.json`.
 - `tests/kit/` — the tests of the tools; `tests/kit/fixture/` is the fixture monorepo that they run on.
 - `config/layout.kit.yml` — the common layout rules (S5), an example that a repository may copy; `config/layout.yml` adds the map of kit.
@@ -37,6 +37,6 @@ make install-packages          # npm ci with that npm, @polyspec/kit included (o
 make kit-check                 # check the configuration against the schemas (offline)
 ```
 
-A repository adopts kit as its installed package: its Makefile includes `node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk`,
-which `npm ci` or the first step of the bootstrap action installs and which runs that kit (S15, K613). It copies the examples it
-wants from the installed package and changes its copies as its own files.
+A repository adopts kit as its installed package and keeps the recipes above in its own Makefile: kit includes no recipe into a
+repository (K1054). `docs/examples/bootstrap.mk` is one way, which runs the tools of the installed package. It copies the examples it
+wants and changes its copies as its own files.

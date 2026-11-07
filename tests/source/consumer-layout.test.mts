@@ -42,8 +42,8 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   mkdirSync(unpacked);
   run('tar', ['-xzf', tarball, '-C', unpacked, '--strip-components=1'], work);
 
-  // The consumer: the example workflows and action of the tarball as its own files, a Makefile that includes the
-  // kit-bootstrap.mk of its installed kit (S15), and a lock that pins the release asset of kit by its integrity.
+  // The consumer: the example workflows and action of the tarball as its own files, a Makefile that includes its own copies of
+  // the example docs/examples/bootstrap.mk and of kit.mk (K1054), and a lock that pins the release asset of kit by its integrity.
   const consumer = path.join(work, 'consumer');
   mkdirSync(path.join(consumer, '.github/workflows'), { recursive: true });
   mkdirSync(path.join(consumer, '.github/actions/kit-bootstrap'), { recursive: true });
@@ -70,7 +70,10 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   mkdirSync(path.join(consumer, 'config'), { recursive: true });
   writeFileSync(path.join(consumer, 'config/toolchain.json'), `${JSON.stringify({ schema: 1, mise: toolchain.mise }, null, 2)}\n`);
   // Its suite runs the gates of kit, as kit-check asks of every repository.
-  writeFileSync(path.join(consumer, 'Makefile'), 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\nCHECK_TARGETS := kit-gates\n');
+  mkdirSync(path.join(consumer, 'make'), { recursive: true });
+  cpSync(path.join(ROOT, 'docs/examples/bootstrap.mk'), path.join(consumer, 'make/bootstrap.mk'));
+  cpSync(path.join(ROOT, 'scripts/kit/kit.mk'), path.join(consumer, 'make/kit.mk'));
+  writeFileSync(path.join(consumer, 'Makefile'), 'include make/bootstrap.mk\nCHECK_TARGETS := kit-gates\n');
   writeFileSync(path.join(consumer, '.gitignore'), '/node_modules/\n/var/\n');
   // The consumer pins kit by its release URL, so its own committed .npmrc allows a remote root dependency (K1045).
   writeFileSync(path.join(consumer, '.npmrc'), 'allow-remote=root\n');
@@ -94,13 +97,13 @@ test('a consumer installs the packed kit offline and runs the bootstrap order an
   const bootstrap = steps.slice(0, steps.indexOf('make release-tools'));
   assert.deepEqual(bootstrap, ['make install-tools TOOLS=npm', 'make install-packages', "make release-tag ${{ github.event_name == 'workflow_run' && 'AUTO=1' || '' }}", 'make install-tools TOOLS=npm', 'make install-packages', 'make release-prepare'], 'the release workflow bootstraps the package, tags the commit of the CI run, installs it again and prepares the release before release-tools (K755, K911)');
   // release-tag reads a CI run with gh (K911); release-tag.test.mts runs it.
-  // The bootstrap action installs the locked kit with npm ci before its make commands, so the Makefile can include it.
+  // The bootstrap action installs the locked kit with npm ci before its make commands, so the recipes find its tools.
   run(NPM, ['ci', '--ignore-scripts'], consumer, env);
   for (const command of bootstrap.filter(command => !command.startsWith('make release-tag'))) {
     const step = spawnSync('sh', ['-c', command], { cwd: consumer, env, encoding: 'utf8' });
     assert.equal(step.status, 0, `${command}: ${step.stdout}${step.stderr}`);
   }
-  assert.ok(existsSync(path.join(consumer, 'node_modules/@polyspec/kit/dist/kit.mk')), 'npm ci and make install-packages installed @polyspec/kit');
+  assert.ok(existsSync(path.join(consumer, 'node_modules/@polyspec/kit/dist/link.mjs')), 'npm ci and make install-packages installed @polyspec/kit');
   // The packages that kit depends on are installed with it, at the versions of its package-lock.
   for (const [entry] of DEPENDENCIES) assert.ok(existsSync(path.join(consumer, entry, 'package.json')), `make install-packages did not install ${entry}`);
   // The lint tools of make lint-ts are dependencies of kit, installed with it and linked into node_modules/.bin.

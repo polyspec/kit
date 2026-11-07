@@ -293,9 +293,8 @@ test('runtime links use only the selected native managers in a mixed-language co
 });
 
 // K983: with no link declaration link removes the links of an earlier one; a runtime selects them, so a job of one runtime, as the node
-// job of a CI without uv, starts no package manager of another, while a run of every runtime that cannot start uv says so. make
-// install-link passes PROJECT and RUNTIME to link as make link does, with no hook.
-test('unlink honors the runtime and starts no uv for ts, and install-link passes PROJECT and RUNTIME without a hook (K983)', (t) => {
+// job of a CI without uv, starts no package manager of another, while a run of every runtime that cannot start uv says so.
+test('unlink honors the runtime and starts no uv for ts (K983)', (t) => {
   const { consumer, env } = workspace(t);
   const noUv = { ...env, UV: path.join(consumer, 'no-such-uv') };
   const lines: string[] = [];
@@ -303,9 +302,6 @@ test('unlink honors the runtime and starts no uv for ts, and install-link passes
   assert.throws(() => unlink({ directories: [consumer], print: () => {}, env: noUv }), /no-such-uv workspace dir could not start/);
   // A project of PROJECT reads only its own manifests, so a TypeScript project starts no uv with no runtime given.
   assert.equal(unlink({ directories: [path.join(consumer, 'packages/own')], project: true, print: () => {}, env: noUv }), true);
-  const dryRun = (...args: string[]) => spawnSync('make', ['-n', '--no-print-directory', '-f', 'scripts/kit/kit-bootstrap.mk', 'install-link', 'NODE=node', ...args], { cwd: KIT, encoding: 'utf8' }).stdout.trim();
-  assert.match(dryRun(), /link\.mts link$/);
-  assert.match(dryRun('PROJECT=examples/board', 'RUNTIME=ts'), /link\.mts link --project examples\/board --runtime ts$/);
 });
 
 test('link rejects an unknown runtime before writing consumer links', (t) => {
@@ -329,54 +325,12 @@ test('K670-4: a Python library with no polyspec dependency does not sync an ambi
   assert.ok(!result.text.includes('uv development: synchronizing'), result.text);
 });
 
-test('K205: link links the checkouts that it is given with no environment variable, install-packages only installs, and install links last (K360-1, K360-2)', (t) => {
+test('K205: link links the checkouts that it is given with no environment variable (K360-1)', (t) => {
   const { provider, kit, consumer, env } = workspace(t);
   const lines: string[] = [];
   const ok = link({ checkouts: [provider, kit, consumer], directories: [consumer], check: false, print: text => lines.push(text), env });
   assert.equal(ok, true, lines.join('\n'));
   assert.equal(npmTarget(path.join(consumer, 'node_modules/@polyspec/x')), path.join(provider, 'packages/ts'));
-  const bootstrap = readFileSync(path.join(KIT, 'scripts/kit/kit-bootstrap.mk'), 'utf8').split('\n');
-  // The recipe lines of a rule: the lines after its head that start with a tab; a target-specific variable line is no head.
-  const recipeOf = (target: string): string[] => {
-    const start = bootstrap.findIndex(line => line.startsWith(`${target}:`) && !line.includes(':='));
-    assert.ok(start >= 0, `${target} has a rule`);
-    const out: string[] = [];
-    for (let index = start + 1; index < bootstrap.length && bootstrap[index]?.startsWith('\t'); index += 1) out.push(bootstrap[index] ?? '');
-    return out;
-  };
-  // Before the package is installed there is no Go, so install-packages must not link: only npm ci.
-  const packages = recipeOf('install-packages').join('\n');
-  // install-packages installs the tracked lock with npm ci, the release record, and links nothing (K511).
-  assert.match(packages, /\$\(ONLINE\) \$\(NPM\) ci/);
-  assert.doesNotMatch(packages, /link/);
-  // install-kit installs only; the recipe of install links, after all its prerequisites, the steps of the repository included.
-  assert.doesNotMatch(recipeOf('install-kit').join('\n'), /link/);
-  assert.deepEqual(recipeOf('install'), ['\t$(MAKE) --no-print-directory install-link']);
-  assert.doesNotMatch(recipeOf('install-link').join('\n'), /\$\(MAKE\)[^\n]*build|npm run build/);
-});
-
-// K348-1, K613: a repository includes the kit-bootstrap.mk of its kit, linked to the kit checkout, which runs the sources of that checkout: KIT
-// is the folder of the bootstrap, whatever the repository, and no dist is read.
-test('the bootstrap runs the link source of the kit checkout that holds it, with no dist (K348-1, K613)', (t) => {
-  const cwd = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k348-1-')));
-  t.after(() => rmSync(cwd, { recursive: true, force: true }));
-  const sources = path.join(KIT, 'scripts/kit');
-  const dry = spawnSync('make', ['-n', '-f', path.join(sources, 'kit-bootstrap.mk'), 'install-link', 'NODE=node'], { cwd, encoding: 'utf8' });
-  assert.equal(dry.status, 0, dry.stderr);
-  assert.ok(dry.stdout.split('\n').includes(`node ${sources}/link.mts link`), dry.stdout);
-});
-
-// K360-2: a step of the repository, which installs an environment that the link reads, runs before the link.
-test('make install runs the steps of the repository before the link (K360-2)', (t) => {
-  const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-k360-2-')));
-  t.after(() => rmSync(root, { recursive: true, force: true }));
-  const cwd = path.join(root, 'cons');
-  mkdirSync(cwd, { recursive: true });
-  writeFileSync(path.join(cwd, 'Makefile'), `include ${path.join(KIT, 'scripts/kit/kit-bootstrap.mk')}\ninstall: cons-install\ncons-install: install-kit\n\t@echo the step of the repository\n`);
-  const run = spawnSync('make', ['-n', 'install', 'KIT_EXT=mjs', 'NODE=node', 'NPM=npm', 'ONLINE='], { cwd, encoding: 'utf8' });
-  const step = run.stdout.indexOf('the step of the repository');
-  const linked = run.stdout.indexOf('link.mjs link');
-  assert.ok(step >= 0 && linked > step, `the step of the repository runs before the link:\n${run.stdout}${run.stderr}`);
 });
 
 // K869 (Decision 8 of the kit-harness plan): one git-ignored file per checkout, .links, names the provider checkouts; make link applies
@@ -814,7 +768,7 @@ function kitSandbox(t: TestContext): string {
   copyFileSync(path.join(KIT, 'Makefile'), path.join(dir, 'Makefile'));
   // Every folder that the build ships, as the Makefile names it (K421), so a folder that a later row adds to the build is there too.
   for (const asset of shippedAssets(readFileSync(path.join(KIT, 'Makefile'), 'utf8'))) {
-    if (asset !== 'kit.mk') mkdirSync(path.join(dir, 'scripts/kit', asset), { recursive: true });
+    mkdirSync(path.join(dir, 'scripts/kit', asset), { recursive: true });
   }
   copyFileSync(path.join(KIT, 'scripts/kit/kit.mk'), path.join(dir, 'scripts/kit/kit.mk'));
   return dir;

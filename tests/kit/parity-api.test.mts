@@ -850,7 +850,7 @@ test('URI-valued environment references are not split into runner paths, while a
 });
 
 test('a reference may resolve into the kit package in use, which a linked repository reaches outside itself, and nowhere else outside the repository (K922)', TIMEOUT, () => {
-  // A linked repository runs the kit checkout beside it (kit-bootstrap.mk KIT := $(realpath ...)), so $(KIT)/<tool> lies outside it.
+  // A linked repository runs the kit checkout beside it (its KIT names that checkout), so $(KIT)/<tool> lies outside it.
   const kit = kitPackageRoot();
   const repo = path.join(path.dirname(kit), 'consumer-of-kit');
   const implementation: ParityImplementation = { name: 'ts', runner: 'node', roots: ['ts'], command: 'node', args: ['--test-reporter=${NODE_REPORTER}'] };

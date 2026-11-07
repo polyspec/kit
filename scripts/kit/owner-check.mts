@@ -143,7 +143,7 @@ export function makeDatabase(root: string): MakeDatabase {
   // Instead of Execution), so a default goal that calls $(MAKE) recursed without bound. The input starts with a newline, so a
   // Makefile whose last line ends in a backslash cannot join the first injected line (K945). The MAKELEVEL of the make that calls the
   // read is removed, so the read is the top-level make; its command-line variables stay, since make exports them in MAKEOVERRIDES and
-  // MAKEFLAGS and kit-bootstrap.mk passes KIT to every recursive make (K945-2).
+  // MAKEFLAGS, as a Makefile that passes KIT to every recursive make does (K945-2).
   const environment = Object.fromEntries(Object.entries(process.env).filter(([name]) => name !== 'MAKELEVEL'));
   const result = spawnSync('make', ['-pRrq', '-f', 'Makefile', '-f', '-'], { cwd: root, encoding: 'utf8', maxBuffer: 1 << 28, env: environment, input: `\n.DEFAULT_GOAL := ${DATABASE_GOAL}\n${DATABASE_GOAL}: ;\n` });
   if (result.error) throw new Error(`make could not start: ${result.error.message}`);

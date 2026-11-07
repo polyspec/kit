@@ -131,7 +131,7 @@ test('worktree-setup refuses a consumer without devEngines npm before it creates
 
 test('worktree-setup refuses a package.json with no devEngines.packageManager of npm, before it runs npm or make, and names what to declare (K938-1)', (t) => {
   const main = repository(t, {
-    'Makefile': 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\n',
+    'Makefile': 'include make/bootstrap.mk\n',
     'package.json': JSON.stringify({ packageManager: 'npm@12.2.0+sha512.00' }),
     'package-lock.json': '{}\n',
     '.gitignore': '/node_modules/\n/var/\n',

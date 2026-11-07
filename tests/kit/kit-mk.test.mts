@@ -1,6 +1,6 @@
 // scripts/kit/kit.mk runs every tool as `$(NODE) $(KIT)/<tool>.$(KIT_EXT)`, the node of the checkout by its absolute path (K171): kit's Makefile sets the sources (scripts/kit, mts),
-// a repository's kit-bootstrap.mk sets the built package (node_modules/@polyspec/kit/dist, mjs). kit.mk stops while either
-// is unset, and kit-test is kit's own target, since a repository holds no tests/kit.
+// and a copy in a repository may set the built package (node_modules/@polyspec/kit/dist, mjs), as docs/examples/bootstrap.mk does
+// (K1054). kit.mk stops while either is unset, and kit-test is kit's own target, since a repository holds no tests/kit.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { chmodSync, copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -10,7 +10,6 @@ import test from 'node:test';
 import type { TestContext } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { miseEnvironment } from '../../scripts/kit/bootstrap/install-mise.mts';
-import { packedFiles } from '../../scripts/kit/pack-manifest.mts';
 import { put, tree } from './tree.mts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -110,12 +109,10 @@ test('consumer kit.mk exposes the selective symbol installer', () => {
   assert.equal(symbols.stdout.trim(), `${path.join(ROOT, 'var/tools/bin/node')} node_modules/@polyspec/kit/dist/install-symbols.mjs go`);
 });
 
-// K861: the parity tools are kit's, so install-kit installs them from the declarations of the repository, and no repository
-// copies the calls into its own make install.
-test('K861: install-kit installs the declared symbol extractors; without declarations none', (t) => {
-  const bootstrap = path.join(ROOT, 'scripts/kit/kit-bootstrap.mk');
-  const makefile = `include ${bootstrap}\n`;
-  const dry = (root: string) => spawnSync('make', ['-n', '--no-print-directory', 'install-kit', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
+// K861: the parity tools are kit's, so kit-install-declared installs them from the declarations of the repository.
+test('K861: kit-install-declared installs the declared symbol extractors; without declarations none', (t) => {
+  const makefile = `KIT := ${path.join(ROOT, 'scripts/kit')}\nKIT_EXT := mts\ninclude ${KIT_MK}\n`;
+  const dry = (root: string) => spawnSync('make', ['-n', '--no-print-directory', 'kit-install-declared', `NODE=${process.execPath}`], { cwd: root, encoding: 'utf8' });
   const declared = tree(t, { Makefile: makefile, 'config/toolchain.json': JSON.stringify({ schema: 1, symbolExtractors: ['go', 'php'] }), 'packages/php-ext/src/config.m4': '' });
   const both = dry(declared);
   assert.equal(both.status, 0, both.stderr);
@@ -173,7 +170,7 @@ test('kit.mk stops while KIT or KIT_EXT is unset', () => {
   for (const args of [[], ['KIT=scripts/kit'], ['KIT_EXT=mts']]) {
     const dry = spawnSync('make', ['-n', '--no-print-directory', '-f', KIT_MK, 'docs-check', ...args], { cwd: ROOT, encoding: 'utf8' });
     assert.equal(dry.status, 2, `${args.join(' ')}: ${dry.stdout}`);
-    assert.match(dry.stderr, /kit\.mk needs KIT and KIT_EXT; include it through kit-bootstrap\.mk, or set both as the Makefile of kit does/, args.join(' '));
+    assert.match(dry.stderr, /kit\.mk needs KIT and KIT_EXT; set both as the Makefile of kit does/, args.join(' '));
   }
 });
 
@@ -312,44 +309,5 @@ test('kit recipes keep the CARGO_TARGET_DIR of the environment (K1049)', (t) => 
   assert.equal(shown.status, 0, shown.stderr);
   assert.ok(shown.stdout.split('\n').includes(`CARGO_TARGET_DIR=${path.join(root, '../other/target')}`), shown.stdout);
   assert.ok(shown.stdout.split('\n').includes(`CARGO_HOME=${home}`), shown.stdout);
-});
-
-test('a linked consumer runs the sibling kit for the whole make even after npm ci replaces node_modules/@polyspec/kit (K762)', (t) => {
-  // npm ci of make install puts the packed release copy where the link was; the recursive makes after it must still include and
-  // run the kit that the link named (hyper, template).
-  const root = tree(t, {
-    'kit/scripts/kit/kit.mk': 'show:\n\t@echo "$(KIT)|$(KIT_EXT)"\n',
-    'copy/scripts/kit/kit-bootstrap.mk': 'KIT_BOOTSTRAP := $(patsubst %/,%,$(dir $(lastword $(MAKEFILE_LIST))))\nKIT := $(KIT_BOOTSTRAP)\nKIT_EXT := mjs\ninclude $(KIT)/kit.mk\n',
-    'copy/scripts/kit/kit.mk': 'show:\n\t@echo copy\n',
-    'app/Makefile': 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\nswap:\n\trm node_modules/@polyspec/kit && cp -R ../copy node_modules/@polyspec/kit\n\t@$(MAKE) --no-print-directory show\n',
-  });
-  copyFileSync(path.join(ROOT, 'scripts/kit/kit-bootstrap.mk'), path.join(root, 'kit/scripts/kit/kit-bootstrap.mk'));
-  mkdirSync(path.join(root, 'app/node_modules/@polyspec'), { recursive: true });
-  symlinkSync('../../../kit', path.join(root, 'app/node_modules/@polyspec/kit'));
-  const result = spawnSync('make', ['--no-print-directory', 'swap'], { cwd: path.join(root, 'app'), encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  assert.equal(result.stdout.trim().split('\n').at(-1), `${realpathSync(path.join(root, 'kit/scripts/kit'))}|mts`);
-});
-
-// K993: a consumer that starts with the packed kit and whose link then makes node_modules/@polyspec/kit a link to the kit checkout
-// runs that checkout's sources for the rest of the make, in its own recipes and in each recursive make: the path of the packed dist
-// that the run started with now leads into the checkout, whose dist may be stale (template's first make install of orm).
-test('a consumer that starts with the packed kit runs the linked checkout\'s sources after its link replaces the package (K993)', (t) => {
-  const show = 'show:\n\t@echo "$(KIT)|$(KIT_EXT)"\n';
-  const root = tree(t, {
-    'kit/scripts/kit/kit.mk': show,
-    'kit/dist/kit.mk': 'show:\n\t@echo stale\n',
-    'app/node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk': packedFiles(ROOT)['scripts/kit/kit-bootstrap.mk'] ?? '',
-    'app/node_modules/@polyspec/kit/dist/kit.mk': show,
-    'app/Makefile': 'include node_modules/@polyspec/kit/scripts/kit/kit-bootstrap.mk\nlink:\n\trm -r node_modules/@polyspec/kit && ln -s ../../../kit node_modules/@polyspec/kit\nafter: link\n\t@echo "top $(KIT)|$(KIT_EXT)"\n\t@$(MAKE) --no-print-directory show\n',
-  });
-  copyFileSync(path.join(ROOT, 'scripts/kit/kit-bootstrap.mk'), path.join(root, 'kit/scripts/kit/kit-bootstrap.mk'));
-  const app = path.join(root, 'app');
-  // Before the link the run is the packed kit's.
-  assert.equal(spawnSync('make', ['--no-print-directory', 'show'], { cwd: app, encoding: 'utf8' }).stdout.trim(), `${realpathSync(path.join(app, 'node_modules/@polyspec/kit/dist'))}|mjs`);
-  const result = spawnSync('make', ['--no-print-directory', 'after'], { cwd: app, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stdout + result.stderr);
-  const sources = `${realpathSync(path.join(root, 'kit/scripts/kit'))}|mts`;
-  assert.deepEqual(result.stdout.trim().split('\n').slice(-2), [`top ${sources}`, sources]);
 });
 

@@ -153,5 +153,5 @@ test('builtCopy installs its own dependency tree and builds the package', (t) =>
   // npm owns workspace and executable links; the dependency root is local to this copy.
   assert.ok(!lstatSync(path.join(copy, 'node_modules')).isSymbolicLink(), 'node_modules of the copy is a link');
   assert.ok(existsSync(path.join(copy, 'node_modules/typescript/package.json')), 'the copy holds the packages of package-lock.json');
-  assert.ok(existsSync(path.join(copy, 'dist/kit.mk')), 'make kit-build ran in the copy');
+  assert.ok(existsSync(path.join(copy, 'dist/link.mjs')), 'make kit-build ran in the copy');
 });

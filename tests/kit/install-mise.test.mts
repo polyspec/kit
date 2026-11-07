@@ -62,7 +62,7 @@ function checkout(t: TestContext, sha256: string) {
   return root;
 }
 
-// The bootstrap of kit runs in the checkout, as kit-bootstrap.mk runs the copy of a repository.
+// The bootstrap of kit runs in the checkout, as the install-tools recipe of a repository runs it.
 const BOOTSTRAP = path.join(KIT, 'bootstrap/bootstrap.mts');
 const bootstrap = (root: string, env: NodeJS.ProcessEnv) => spawnSync(process.execPath, [BOOTSTRAP], { cwd: root, env, encoding: 'utf8' });
 

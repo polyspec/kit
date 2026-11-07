@@ -1,6 +1,6 @@
 // The one way kit reaches a tool that mise installs (K127): the shim of mise in var/tools/mise/shims, which runs the release of
 // mise.lock for the checkout. A shim needs the environment of mise of the checkout (miseEnvironment of
-// bootstrap/install-mise.mts), which kit.mk exports to every recipe; toolsEnvironment builds it for a command that kit starts
+// bootstrap/install-mise.mts), which kit.mk exports to every recipe of kit; toolsEnvironment builds it for a command that kit starts
 // itself, with var/tools/bin (npm, npx, mise and the wrappers of the Composer projects) and the shims first on PATH, so a uv
 // whose repository prefers the Python of the system (UV_PYTHON_PREFERENCE=only-system) takes the python3 shim of mise; kit names
 // no Python for uv (K1048). A shim resolves the tools from the directory that it runs in, so a tool of mise runs in the
