@@ -69,8 +69,9 @@ A repository takes its npm from `mise.toml`, locked in `mise.lock`, and declares
    npm reads the repository's own `.npmrc` for this npm ci. A repository that pins kit or another package by a release URL writes
    `allow-remote=root` (or `all`) there, as [docs/examples/native-settings](../examples/native-settings.md) shows; kit sets none (K1045).
 5. A checkout without `node_modules` has no kit whose tools its recipes run. A worktree is made by `make worktree-setup NAME=<name> ID=<id>`, which
-   runs the npm ci above, then `make install` and `make link-check` in it (K858). It refuses, before it creates the worktree or its branch and before it runs npm or make, a
-   `package.json` that declares no devEngines npm (K938-1). A plain clone runs the same npm ci from outside the checkout first.
+   runs the preparation and the make targets that its `WORKTREE_DECLARATION` names in it: kit's own runs npm ci when the worktree has no
+   `node_modules`, then `make install` and `make link-check` (K858, K1107). A repository may name its own folder, branch, base, preparation
+   and targets to `worktree-setup.mts`. A plain clone runs the same npm ci first.
 
 The sequence of a first adoption (K938-1):
 

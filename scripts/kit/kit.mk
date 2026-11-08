@@ -382,9 +382,16 @@ link: ## Connect provided development sources through native package managers, u
 link-check: ## Fail while the links differ from the link declaration (.links, K869): a declared folder that is not a link to its provider, a link that it does not name, a go.work whose uses differ, or a declared package with no installed folder (K888); link writes no Claude Code settings (K960); offline
 	$(NODE) $(KIT)/link-check.$(KIT_EXT) $(if $(PROJECT),--project $(PROJECT))
 
+# WORKTREE_DECLARATION (K1107): kit's own worktree of a row, ../<main checkout>-<NAME>-<ID> on <TYPE or fix>/<NAME>-<ID> from main; a
+# worktree without node_modules first gets npm ci of the npm of var/tools, then make install and make link-check run in it.
+# WORKTREE_ENVIRONMENT (K858): the worktree runs its own tools in a make of its own, so the recipe drops the flags of this make
+# (MAKEFLAGS, MFLAGS, MAKELEVEL) and the var/tools of this checkout from PATH; kit's declaration, which worktree-setup only runs.
+WORKTREE_MAIN = $(patsubst %/.git,%,$(shell git rev-parse --path-format=absolute --git-common-dir))
+WORKTREE_DECLARATION = --folder $(WORKTREE_MAIN)-$(NAME)-$(ID) --branch $(or $(TYPE),fix)/$(NAME)-$(ID) --base main --prepare 'test -d node_modules || PATH="$(KIT_TOOLS)/bin:$$PATH" $(NPM) ci --ignore-scripts' --make install --make link-check
+WORKTREE_ENVIRONMENT = env -u MAKEFLAGS -u MFLAGS -u MAKELEVEL PATH="$$(printf '%s' "$$PATH" | awk -v RS=: -v ORS=: -v tools='$(KIT_TOOLS)' 'index($$0, tools) != 1' | sed 's/:$$//')"
 .PHONY: worktree-setup
-worktree-setup: ## Create or reuse the row worktree from main, run make install in it, which installs its own tools, packages and links, then make link-check (K858, K869); ONLINE
-	$(ONLINE) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(NAME) $(ID) $(or $(TYPE),fix)
+worktree-setup: ## Create or reuse the worktree that WORKTREE_DECLARATION names and run its preparation and make targets in it (K858, K869, K1107); ONLINE
+	$(ONLINE) $(WORKTREE_ENVIRONMENT) $(NODE) $(KIT)/worktree-setup.$(KIT_EXT) $(WORKTREE_DECLARATION)
 
 # WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of
 # orm). land runs it, with make in the worktree, before it removes the worktree; a failing stop keeps the worktree.

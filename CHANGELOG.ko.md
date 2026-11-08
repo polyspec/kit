@@ -1,11 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: caf5170055e5cff03bc357c0d856f68d787a050cec29148828d65266495954fa -->
+<!-- source-sha256: 65c003293512a743938066dc96124f4c3f3dc19a0a90d8fc95089d8bb816c4a0 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1107: kit 자신의 worktree-setup 레시피는 K858을 자기 선언으로 유지합니다. WORKTREE_ENVIRONMENT가 worktree-setup을 실행하기 전에 main checkout의 var/tools를 PATH에서 빼고 호출한 make의 flag를 버립니다. 첫 install 전에 package를 link하던 consumer는 --make link --make install --make link-check를 선언하며, 이는 --prepare 뒤에 주어진 순서대로 실행됩니다(K1107).
+- K1107: worktree-setup은 준비와 make target을 호출자의 환경 그대로 실행합니다. main checkout의 var/tools를 PATH에서 빼거나 호출한 make의 flag를 버리지 않으며(kit의 레시피가 env -u로 버립니다), make install 전에 설치된 kit을 checkout으로 link하지도 않습니다(저장소 자신의 make install이 합니다). 인자 없는 호출은 사용 오류인 exit 2로 끝납니다(K1107).
+- K1107: worktree-setup은 호출자가 --folder, --branch, --base로 선언한 worktree를 만들고 그 안에서 호출자의 --prepare 명령과 --make target을 실행하며, 넘기지 않으면 아무것도 실행하지 않습니다. 폴더 ../<repository>-<name>-<id>와 branch <type>/<name>-<id>를 정하지 않고, devEngines npm을 읽지 않고, 자기 npm ci도 실행하지 않습니다. kit의 WORKTREE_DECLARATION이 그 폴더, branch, npm ci, make install과 make link-check를 유지합니다(K1107).
 - K1100: branch나 대상 branch 없는 land는 사용 오류인 exit 2로 끝납니다. land는 land한 worktree와 branch만 지우고 다른 worktree나 branch는 지우지 않으므로 removeMerged를 삭제했으며, process 때문에 남은 worktree는 그 branch를 다시 land할 때 지워집니다(K1100).
 - K1100: land는 고정된 main이 아니라 호출자가 넘긴 대상 branch에 land합니다(`land.mts <branch> <target>`, `land(root, branch, into)`). rebase 충돌은 한국어 쌍의 source-sha256 줄만의 충돌이라도 중단되고 거부되므로 land는 documents-stamp도 `git add -u`도 실행하지 않습니다. kit의 `make land`는 main을 넘깁니다(K1100).
 - K1099: 선언 없는 git-hooks install이나 check는 사용 오류인 exit 2로 끝납니다. config/checklist.json과 그 schema에는 더 이상 hooks 키가 없으므로 저장소는 그 키를 지우고 hook을 자기 hooks 레시피에 적습니다. 선언된 driver마다 merge.<name>.name은 kit이 설명을 쓰던 자리에 이제 driver 이름 그대로입니다(K1099).

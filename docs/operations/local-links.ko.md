@@ -1,5 +1,5 @@
 <!-- doc-id: local-links -->
-<!-- source-sha256: 3a42639e10ebb52d689644ecdf3443bebd747e6df71774c00c794714ff429ebc -->
+<!-- source-sha256: 32cb5f62d0341c003a5035c125ef67017778945cf8709ab60c7a3e6b4ca22c4f -->
 # 0.0.x 개발의 로컬 링크
 
 [English](local-links.md)
@@ -64,7 +64,7 @@ Source 개발 계약은 배포된 dependency와 같은 version의 source 수정,
 ## Worktree
 
 - worktree branch는 `main`에서 만든 `<type>/<name>-<id>`이고(P10) `make land`로 `main`에 들어갑니다. worktree는 그 자체로 checkout이며 `var/tools`, dependency tree와 link가 모두 자기 것입니다(K858).
-- `make worktree-setup`은 worktree를 만들고 다른 checkout처럼 거기서 온라인으로 `make install`을 실행합니다. `make install`은 `mise.toml`과 `mise.lock`의 도구를 자기 `var/tools`에, lock의 package, 저장소의 단계, link를 설치합니다. 그다음 `make link-check`를 실행합니다. `node_modules`가 없는 worktree는 CI 파이프라인의 clean checkout처럼 먼저 `devEngines.packageManager`가 지정한 npm으로 `npm ci --ignore-scripts`를 실행하므로, 설치된 kit은 `make install-link`가 주는 link, 곧 main checkout의 link 선언이 지정한 kit checkout으로 가는 link를 한 단계 먼저 받으므로, `node_modules`에서 kit을 include하는 Makefile은 live kit을 실행합니다. 선언이 없으면 설치된 릴리즈가 실행됩니다. main checkout의 `var/tools`와 lock은 바뀌지 않습니다. `make install`과 `make install-tools`도 worktree에서 바로 실행됩니다. K858 전에 만든 worktree는 자기 도구를 갖도록 `make install`을 한 번 실행합니다.
+- `make worktree-setup`은 `WORKTREE_DECLARATION`이 지정한 worktree를 만들고 거기서 그 준비와 make target을 실행합니다. 폴더, branch, base, 준비, target은 호출자가 `worktree-setup.mts`에 넘기는 인자이며 호출자의 환경 그대로 실행됩니다(K1107). kit 자신의 선언은 다른 checkout처럼 거기서 온라인으로 `make install`을 실행합니다. `make install`은 `mise.toml`과 `mise.lock`의 도구를 자기 `var/tools`에, lock의 package, 저장소의 단계, link를 설치합니다. 그다음 `make link-check`를 실행합니다. `node_modules`가 없는 worktree는 CI 파이프라인의 clean checkout처럼 먼저 `var/tools`의 npm으로 `npm ci --ignore-scripts`를 실행하고, 그다음 `make install`이 설치된 kit으로 실행되어 link를 만들며, kit의 `WORKTREE_ENVIRONMENT`가 호출한 make의 flag와 main checkout의 `var/tools`를 PATH에서 버립니다(K858). 첫 install 전에 package를 link하는 consumer는 `--make link --make install --make link-check`를 선언하며, target은 `--prepare` 뒤에 주어진 순서대로 실행됩니다. main checkout의 `var/tools`와 lock은 바뀌지 않습니다. `make install`과 `make install-tools`도 worktree에서 바로 실행됩니다. K858 전에 만든 worktree는 자기 도구를 갖도록 `make install`을 한 번 실행합니다.
 - worktree-setup은 main checkout의 `var/`에서 아무것도 worktree로 link하지 않습니다. kit은 package를 내려받지 않으므로 worktree는 다른 checkout처럼 필요한 것을 설치합니다(K865). 설치된 vendor tree를 link하거나 metadata를 합성하지 않습니다(K690). Python environment는 link된 package가 worktree source를 실행해야 하므로 main environment로 가는 단일 directory link일 수 없습니다. make timestamp stamp는 새 checkout을 건너 이어질 수 없으며 거기서 유효해야 하는 stamp는 내용으로 판단합니다.
 - `make land`는 branch를 `main`에 fast-forward로 merge합니다(K495). 두 번째 land는 첫 번째의 lock을 기다리고, `main`보다 뒤처진 branch는 그 worktree에서 rebase됩니다. rebase 충돌은 중단되고 거부되며, land는 충돌을 고쳐 쓰지 않습니다(K1100). kit의 `make land`는 `land.mts <branch> <target>`에 대상 branch로 `main`을 넘깁니다.
 - worktree와 branch는 branch가 `main`에 merge되면 바로 지웁니다. `make land`는 land한 worktree와 branch만 지우고 다른 worktree나 branch는 지우지 않습니다(K1100). process가 아직 실행 중인 worktree는 그 branch를 다시 land할 때까지 남습니다(K626).

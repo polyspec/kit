@@ -1,14 +1,15 @@
-// Tests of scripts/kit/worktree-setup.mts (K348, K858): the worktree of a row is made from main beside the main checkout, and make install
-// and make link-check run in it, so it installs its own tools, packages and links; a second run converges.
+// Tests of scripts/kit/worktree-setup.mts (K348, K858, K1107): the worktree that the caller declares is made from its base, and the
+// preparation and the make targets of the caller run in it, so it installs its own tools, packages and links; a second run converges.
 import assert from 'node:assert/strict';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { spawnSync } from 'node:child_process';
-import { setupWorktree } from '../../scripts/kit/worktree-setup.mts';
+import { declarationOf, setupWorktree, type WorktreeDeclaration } from '../../scripts/kit/worktree-setup.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
+import { tool } from './kit-tools.mts';
 
 const git = (cwd: string, ...args: string[]) => {
   const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd, encoding: 'utf8' });
@@ -28,173 +29,88 @@ function repository(t: TestContext, files: Record<string, string>, name = 'repo'
   return main;
 }
 
+/** The declaration of kit's own recipe for the row `name`-`id` of `main`: beside it, on fix/<name>-<id> from main (K1107). */
+const row = (main: string, name: string, id: string, extra: Partial<WorktreeDeclaration> = {}): WorktreeDeclaration =>
+  ({ folder: `${main}-${name}-${id}`, branch: `fix/${name}-${id}`, base: 'main', targets: ['install', 'link-check'], ...extra });
+
 test('worktree-setup makes the worktree of a row from main, runs make install and make link-check in it, and a second run converges (K348, K858)', (t) => {
   // make install writes its own var/tools; link-check reads it, so the check fails unless the install ran in the worktree first.
   const main = repository(t, {
-    'Makefile': 'install:\n\tmkdir -p var/tools && echo "$(CURDIR)" >> var/tools/installs.txt && echo "$$PATH" > var/tools/path.txt\nlink-check:\n\ttest -f var/tools/installs.txt\n',
+    'Makefile': 'install:\n\tmkdir -p var/tools && echo "$(CURDIR)" >> var/tools/installs.txt\nlink-check:\n\ttest -f var/tools/installs.txt\n',
     '.gitignore': '/var/\n',
   });
   const quiet = { print: () => {} };
-  const mainTools = path.join(main, 'var/tools/bin');
-  const folder = setupWorktree(main, { name: 'parser', id: 'T1', type: 'fix' }, { ...quiet, env: { ...process.env, PATH: [mainTools, process.env.PATH].join(path.delimiter) } });
-  assert.equal(readFileSync(path.join(folder, 'var/tools/path.txt'), 'utf8').split(path.delimiter).includes(mainTools), false, 'make install runs none of the tools of the main checkout');
+  const folder = setupWorktree(main, row(main, 'parser', 'T1'), quiet);
   assert.equal(folder, path.join(path.dirname(main), 'repo-parser-T1'));
   assert.equal(git(folder, 'rev-parse', '--abbrev-ref', 'HEAD'), 'fix/parser-T1');
   assert.equal(git(folder, 'rev-parse', 'HEAD'), git(main, 'rev-parse', 'main'), 'the branch starts at main');
   assert.equal(readFileSync(path.join(folder, 'var/tools/installs.txt'), 'utf8'), `${folder}\n`, 'make install ran in the worktree');
   assert.equal(existsSync(path.join(main, 'var')), false, 'the main checkout is unchanged');
   const listed = git(main, 'worktree', 'list', '--porcelain');
-  assert.equal(setupWorktree(folder, { name: 'parser', id: 'T1', type: 'fix' }, quiet), folder, 'a second run, also from the worktree, finds the same worktree');
+  assert.equal(setupWorktree(folder, row(main, 'parser', 'T1'), quiet), folder, 'a second run, also from the worktree, finds the same worktree');
   assert.equal(git(main, 'worktree', 'list', '--porcelain'), listed, 'and leaves the same worktrees');
 });
 
-test('worktree-setup runs npm ci of the npm that devEngines.packageManager names in a worktree without node_modules, and make without the flags of the calling make (K858)', (t) => {
-  // The Makefile includes a file that only npm ci writes, as a consumer includes kit from node_modules.
+// K1107: the folder, the branch, its base and every command are the caller's, and they run with the caller's environment as it is.
+// The preparation runs in the worktree before the make targets; a declaration without targets runs no make, an incomplete one
+// creates nothing, and a bare call of the command is a usage error (exit 2).
+test('worktree-setup runs the preparation and the make targets that its caller declares, and none without them (K1107)', (t) => {
   const main = repository(t, {
     'Makefile': 'include node_modules/kit.mk\n',
-    'package.json': JSON.stringify({ devEngines: { packageManager: { name: 'npm', version: '12.2.0' } } }),
-    'package-lock.json': '{}\n',
     '.gitignore': '/node_modules/\n/var/\n',
   });
-  const bin = path.join(path.dirname(main), 'bin');
-  // K938-1: the npm of the devEngines refuses to run in a folder that declares devEngines (EBADDEVENGINES of npm 11 in a consumer), so
-  // npm ci runs from outside the folder with --prefix; the fake writes its calls and its installed kit to the paths that the call names.
-  const calls = path.join(path.dirname(main), 'npm-calls.txt');
-  put(bin, { 'npm': `#!/bin/sh
-if [ -f "$PWD/package.json" ] && grep -q devEngines "$PWD/package.json"; then echo "EBADDEVENGINES" >&2; exit 1; fi
-echo "$@" >> ${calls}
-prefix=.
-while [ $# -gt 0 ]; do if [ "$1" = --prefix ]; then prefix=$2; fi; shift; done
-mkdir -p "$prefix/node_modules"
-printf 'install:\\n\\techo "$$MAKEFLAGS|$$MAKELEVEL" > flags.txt\\nlink-check:\\n\\ttrue\\n' > "$prefix/node_modules/kit.mk"
-` });
-  chmodSync(path.join(bin, 'npm'), 0o755);
-  const env = { ...process.env, PATH: [bin, process.env.PATH].join(path.delimiter), MAKEFLAGS: 's', MAKELEVEL: '1' };
-  const folder = setupWorktree(main, { name: 'consumer', id: 'T4', type: 'fix' }, { print: () => {}, env });
-  assert.equal(readFileSync(calls, 'utf8'), `exec --yes --package=npm@12.2.0 -- npm --prefix ${folder} ci --ignore-scripts\n`);
-  const [flags = '', level] = readFileSync(path.join(folder, 'flags.txt'), 'utf8').trim().split('|');
-  assert.deepEqual([flags.split(/\s+/).includes('s'), level], [false, '1'], 'make install runs as a make of its own, without the -s and the level of the calling make');
-  setupWorktree(main, { name: 'consumer', id: 'T4', type: 'fix' }, { print: () => {}, env });
-  assert.equal(readFileSync(calls, 'utf8').split('\n').length, 2, 'a worktree with node_modules gets no second npm ci');
+  const prepare = 'mkdir -p node_modules && printf \'install:\\n\\techo "$$KIT_K1107" > flags.txt\\n\' > node_modules/kit.mk && pwd >> ../prepared.txt';
+  const env = { ...process.env, KIT_K1107: 'kept' };
+  const declared = declarationOf(['--folder', '../repo-own', '--branch', 'feature/own', '--base', 'main', '--prepare', prepare, '--make', 'install']);
+  const folder = setupWorktree(main, declared, { print: () => {}, env });
+  assert.equal(folder, path.join(path.dirname(main), 'repo-own'), 'the folder is the caller\'s, against the checkout it runs in');
+  assert.equal(git(folder, 'rev-parse', '--abbrev-ref', 'HEAD'), 'feature/own');
+  assert.equal(readFileSync(path.join(path.dirname(main), 'prepared.txt'), 'utf8'), `${folder}\n`, 'the preparation runs in the worktree');
+  assert.equal(readFileSync(path.join(folder, 'flags.txt'), 'utf8'), 'kept\n', 'make runs with the environment of the caller as it is');
+  const bare = setupWorktree(main, { folder: '../repo-bare', branch: 'bare', base: 'main', targets: [] }, { print: () => {} });
+  assert.equal(existsSync(path.join(bare, 'node_modules')), false, 'no preparation and no make run without a declaration');
+  assert.throws(() => setupWorktree(main, declarationOf(['--branch', 'none']), { print: () => {} }), /needs --folder, --branch and --base/);
+  assert.throws(() => declarationOf(['--folder', 'a', '--folder', 'b']), /unexpected argument "--folder"/);
+  assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/none'], { cwd: main }).status, 1, 'the refused declaration creates no branch');
+  const call = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/worktree-setup.mts'))], { cwd: main, encoding: 'utf8' });
+  assert.equal(call.status, 2, 'a bare call is a usage error');
 });
 
-test('worktree-setup refuses a devEngines.packageManager of npm without a version, naming the field, before it runs any npm (K938)', (t) => {
+// K858, K869: the order is the caller's: the preparation first, then each --make target in the order given, so a consumer that links
+// its packages before the first install declares --make link --make install --make link-check.
+test('worktree-setup runs the --make targets in the order given, after the preparation (K858, K869, K1107)', (t) => {
   const main = repository(t, {
-    'Makefile': 'include node_modules/kit.mk\n',
-    'package.json': JSON.stringify({ devEngines: { packageManager: { name: 'npm' } } }),
-    'package-lock.json': '{}\n',
-    '.gitignore': '/node_modules/\n/var/\n',
+    'Makefile': ['link:', '\techo link >> ../order.txt', 'install:', '\techo install >> ../order.txt', 'link-check:', '\techo link-check >> ../order.txt', ''].join('\n'),
   });
-  assert.throws(() => setupWorktree(main, { name: 'consumer', id: 'T6', type: 'fix' }, { print: () => {} }), /devEngines\.packageManager of package\.json names npm without a version; declare the npm version there/);
+  const declared = declarationOf(['--folder', '../repo-order', '--branch', 'order', '--base', 'main', '--prepare', 'echo prepare >> ../order.txt', '--make', 'link', '--make', 'install', '--make', 'link-check']);
+  setupWorktree(main, declared, { print: () => {} });
+  assert.equal(readFileSync(path.join(path.dirname(main), 'order.txt'), 'utf8'), 'prepare\nlink\ninstall\nlink-check\n');
 });
 
-// K938-1: a consumer that adopted no npm:npm declares only packageManager (orm); its worktree has no node_modules, so worktree-setup
-// has no npm to run npm ci with. The refusal comes before any npm or make runs, and names what to declare.
-// K938-1: the outer npm of npm ci writes into its working directory, so it runs in a folder of its own under the temporary root and
-// nothing it writes stays in that root (a stray node_modules there broke every mkdtemp user of Node resolution).
-test('worktree-setup runs the outer npm in a temporary folder of its own and leaves nothing in the temporary root (K938-1)', (t) => {
+// K858: kit's own recipe runs worktree-setup in WORKTREE_ENVIRONMENT, so make install in the worktree runs none of the tools of the
+// main checkout and none of the flags of the calling make. The definition is read from kit.mk and run in a make that, as kit.mk does,
+// puts its var/tools first on PATH.
+test('make install runs none of the tools of the main checkout: kit\'s recipe drops its var/tools and the flags of make (K858)', (t) => {
+  const kitMk = readFileSync(new URL('../../scripts/kit/kit.mk', import.meta.url), 'utf8');
+  const definition = /^WORKTREE_ENVIRONMENT = .*$/m.exec(kitMk)?.[0];
+  assert.ok(definition, 'kit.mk defines WORKTREE_ENVIRONMENT');
   const main = repository(t, {
-    'Makefile': 'include node_modules/kit.mk\n',
-    'package.json': JSON.stringify({ devEngines: { packageManager: { name: 'npm', version: '12.2.0' } } }),
-    'package-lock.json': '{}\n',
-    '.gitignore': '/node_modules/\n/var/\n',
+    'Makefile': ['KIT_TOOLS := $(CURDIR)/var/tools', 'export PATH := $(KIT_TOOLS)/bin:$(KIT_TOOLS)/mise/shims:$(PATH)', definition, 'probe:', '\t@$(WORKTREE_ENVIRONMENT) sh -c \'printf "%s|%s|%s" "$$PATH" "$$MAKEFLAGS" "$$MAKELEVEL"\' > probe.txt', ''].join('\n'),
   });
-  const bin = path.join(path.dirname(main), 'bin');
-  const box = path.join(path.dirname(main), 'tmp-root');
-  mkdirSync(box);
-  const savedTmpdir = process.env.TMPDIR;
-  process.env.TMPDIR = box;
-  t.after(() => { if (savedTmpdir === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = savedTmpdir; });
-  // The fake npm writes into its working directory, as npm does, and installs the kit file into the prefix that the call names.
-  put(bin, { 'npm': '#!/bin/sh\nmkdir -p "$PWD/node_modules"\ntouch "$PWD/node_modules/leak.txt"\nprefix=.\nwhile [ $# -gt 0 ]; do if [ "$1" = --prefix ]; then prefix=$2; fi; shift; done\nmkdir -p "$prefix/node_modules"\nprintf \'install:\\n\\ttrue\\nlink-check:\\n\\ttrue\\n\' > "$prefix/node_modules/kit.mk"\n' });
-  chmodSync(path.join(bin, 'npm'), 0o755);
-  const env = { ...process.env, TMPDIR: box, PATH: [bin, process.env.PATH].join(path.delimiter) };
-  setupWorktree(main, { name: 'tmpfolder', id: 'T8', type: 'fix' }, { print: () => {}, env });
-  assert.deepEqual(readdirSync(box), [], 'the temporary root holds nothing after the run');
-});
-
-// K938-1: a refusal comes before anything is created, so a refused run leaves no worktree and no branch behind.
-test('worktree-setup refuses a consumer without devEngines npm before it creates the worktree or its branch (K938-1)', (t) => {
-  const main = repository(t, {
-    'Makefile': 'include node_modules/kit.mk\n',
-    'package.json': JSON.stringify({ packageManager: 'npm@12.2.0+sha512.00' }),
-    'package-lock.json': '{}\n',
-    '.gitignore': '/node_modules/\n/var/\n',
-  });
-  const worktrees = git(main, 'worktree', 'list', '--porcelain');
-  const branchExists = () => spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/fix/refused-T9'], { cwd: main }).status === 0;
-  assert.throws(() => setupWorktree(main, { name: 'refused', id: 'T9', type: 'fix' }, { print: () => {} }), /declares no devEngines\.packageManager of npm/);
-  assert.equal(git(main, 'worktree', 'list', '--porcelain'), worktrees, 'git worktree list is unchanged');
-  assert.equal(branchExists(), false, 'the branch was not created');
-  assert.equal(existsSync(path.join(path.dirname(main), 'repo-refused-T9')), false, 'the folder was not created');
-});
-
-test('worktree-setup refuses a package.json with no devEngines.packageManager of npm, before it runs npm or make, and names what to declare (K938-1)', (t) => {
-  const main = repository(t, {
-    'Makefile': 'include make/bootstrap.mk\n',
-    'package.json': JSON.stringify({ packageManager: 'npm@12.2.0+sha512.00' }),
-    'package-lock.json': '{}\n',
-    '.gitignore': '/node_modules/\n/var/\n',
-  });
-  const bin = path.join(path.dirname(main), 'bin');
-  put(bin, { 'npm': `#!/bin/sh\necho "$@" >> ${path.join(path.dirname(main), 'npm-calls.txt')}\n` });
-  chmodSync(path.join(bin, 'npm'), 0o755);
-  const env = { ...process.env, PATH: [bin, process.env.PATH].join(path.delimiter) };
-  const printed: string[] = [];
-  assert.throws(
-    () => setupWorktree(main, { name: 'adopt', id: 'T7', type: 'fix' }, { print: text => printed.push(text), env }),
-    /package\.json declares no devEngines\.packageManager of npm.*"devEngines".*"npm:npm" = "12\.2\.0" in mise\.toml/,
-  );
-  assert.equal(printed.some(text => text.includes('make --no-print-directory') || text.includes('make install')), false, 'no make runs');
-  assert.equal(existsSync(path.join(path.dirname(main), 'npm-calls.txt')), false, 'no npm runs');
-});
-
-// K1078: the refusal gives the reason that worktree-setup itself has: it runs npm ci with the npm of devEngines, so the utilities of
-// @polyspec/kit that the recipes of make install run are in node_modules of the new worktree; kit is included by no Makefile.
-test('K1078: the refusal of a package.json without devEngines npm names the npm ci of worktree-setup, not an include of kit', (t) => {
-  const main = repository(t, { 'Makefile': 'install:\n', 'package.json': JSON.stringify({ name: 'consumer' }), '.gitignore': '/node_modules/\n/var/\n' });
-  assert.throws(() => setupWorktree(main, { name: 'reason', id: 'T10', type: 'fix' }, { print: () => {} }), (error: unknown) => {
-    assert.ok(error instanceof Error);
-    assert.doesNotMatch(error.message, /include of kit/);
-    assert.match(error.message, /worktree-setup runs npm ci in the new worktree with the npm that devEngines\.packageManager names/);
-    return true;
-  });
-});
-
-test('worktree-setup links the installed kit to the kit checkout that the link declaration of the main checkout names before make install, as install-link does, and leaves a release copy with none (K858, K869)', (t) => {
-  // npm ci installs the release copy of the lock, whose make install refuses; the live kit checkout beside the consumer passes.
-  const consumer = (name: string) => repository(t, {
-    'Makefile': 'include node_modules/@polyspec/kit/kit.mk\n',
-    'package.json': JSON.stringify({ name: 'consumer', devEngines: { packageManager: { name: 'npm', version: '12.2.0' } } }),
-    'package-lock.json': '{}\n',
-    '.gitignore': '/node_modules/\n/var/\n/.links\n',
-  }, name);
-  const npm = (parent: string) => {
-    // K938-1: npm ci runs with --prefix from outside the folder, so the fake installs into the prefix the call names.
-    put(path.join(parent, 'bin'), { 'npm': '#!/bin/sh\nprefix=.\nwhile [ $# -gt 0 ]; do if [ "$1" = --prefix ]; then prefix=$2; fi; shift; done\nmkdir -p "$prefix/node_modules/@polyspec/kit"\nprintf \'{"name":"@polyspec/kit"}\' > "$prefix/node_modules/@polyspec/kit/package.json"\nprintf \'install:\\n\\texit 7\\nlink-check:\\n\\ttrue\\n\' > "$prefix/node_modules/@polyspec/kit/kit.mk"\n' });
-    chmodSync(path.join(parent, 'bin', 'npm'), 0o755);
-    return { ...process.env, PATH: [path.join(parent, 'bin'), process.env.PATH].join(path.delimiter) };
-  };
-  const linked = consumer('linked');
-  const parent = path.dirname(linked);
-  const kit = path.join(parent, 'kit');
-  initRepository(kit, '--initial-branch=main');
-  put(kit, { 'package.json': JSON.stringify({ name: '@polyspec/kit' }), 'kit.mk': 'install:\n\ttrue\nlink-check:\n\ttrue\n' });
-  git(kit, 'add', '-A');
-  git(kit, 'commit', '--quiet', '-m', 'base');
-  put(linked, { '.links': '../kit\n' });
-  const folder = setupWorktree(linked, { name: 'live', id: 'T5', type: 'fix' }, { print: () => {}, env: npm(parent) });
-  assert.equal(realpathSync(path.join(folder, 'node_modules/@polyspec/kit')), realpathSync(kit), 'make install ran the kit checkout');
-  assert.equal(path.isAbsolute(readlinkSync(path.join(folder, 'node_modules/@polyspec/kit'))), false, 'a relative link, as install-link makes');
-  const alone = consumer('alone');
-  assert.throws(() => setupWorktree(alone, { name: 'release', id: 'T6', type: 'fix' }, { print: () => {}, env: npm(path.dirname(alone)) }), /make --no-print-directory install ended with exit status 2/, 'with no link declaration the release copy runs');
+  const probe = spawnSync('make', ['-s', 'probe', 'NAME=x'], { cwd: main, encoding: 'utf8' });
+  assert.equal(probe.status, 0, probe.stderr);
+  const [entries = '', flags, level] = readFileSync(path.join(main, 'probe.txt'), 'utf8').split('|');
+  const tools = path.join(main, 'var/tools');
+  assert.deepEqual(entries.split(':').filter(entry => entry.startsWith(tools)), [], 'no var/tools of the main checkout on PATH');
+  assert.ok(entries.split(':').length > 0 && entries !== '', 'the rest of PATH stays');
+  assert.deepEqual([flags, level], ['', ''], 'no flag and no level of the calling make');
 });
 
 test('worktree-setup fails with the target whose make fails, and refuses a folder that is no worktree of the branch (K858)', (t) => {
   const main = repository(t, { 'Makefile': 'install:\n\texit 3\nlink-check:\n\ttrue\n' });
-  assert.throws(() => setupWorktree(main, { name: 'broken', id: 'T2', type: 'fix' }, { print: () => {} }), /make --no-print-directory install ended with exit status 2 in /);
+  assert.throws(() => setupWorktree(main, row(main, 'broken', 'T2'), { print: () => {} }), /make --no-print-directory install ended with exit status 2 in /);
   put(path.dirname(main), { 'repo-taken-T3/file': 'x' });
-  assert.throws(() => setupWorktree(main, { name: 'taken', id: 'T3', type: 'fix' }, { print: () => {} }), /exists and is no worktree of fix\/taken-T3/);
+  assert.throws(() => setupWorktree(main, row(main, 'taken', 'T3'), { print: () => {} }), /exists and is no worktree of fix\/taken-T3/);
 });
 
 // K865: kit downloads no package and links nothing of var/ between checkouts; a worktree installs its own, as any checkout does.
@@ -203,7 +119,7 @@ test('worktree-setup links nothing of the var/ of the main checkout into the wor
   const asset = (name: string, directory: string) => ({ name, version: '0.0.1', url: `https://example.invalid/v{version}/${name}-{version}.zip`, sha256: '0'.repeat(64), directory });
   const main = repository(t, { 'config/release-assets.json': JSON.stringify({ schema: 1, assets: [asset('ext', 'var/products'), asset('orm', 'var/composer-artifacts')] }), 'Makefile': 'install:\n\ttrue\nlink-check:\n\ttrue\n', '.gitignore': '/var/\n' });
   put(main, { 'var/products/ext-0.0.1.zip': 'ext zip\n', 'var/composer-artifacts/orm-0.0.1.zip': 'orm zip\n' });
-  const folder = setupWorktree(main, { name: 'artifacts', id: 'K865', type: 'fix' }, { print: () => {} });
+  const folder = setupWorktree(main, row(main, 'artifacts', 'K865'), { print: () => {} });
   assert.equal(existsSync(path.join(folder, 'var/products')), false);
   assert.equal(existsSync(path.join(folder, 'var/composer-artifacts')), false);
 });

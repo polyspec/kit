@@ -1,5 +1,5 @@
 <!-- doc-id: adoption -->
-<!-- source-sha256: d20ba7edab9b4f328494322fae35275a2861ca7854c25373e7ab9c2530fc1dc8 -->
+<!-- source-sha256: b1597023d0ab62251d5d15885570e77aacbbe7b8643f531a699445588f666590 -->
 # kit을 채택한 저장소에서 일하기
 
 [English](adoption.md)
@@ -66,8 +66,9 @@ kit은 저장소에 레시피를 include시키지 않으며, package는 make 파
    npm은 이 npm ci에서 저장소 자신의 `.npmrc`를 읽는다. kit이나 다른 패키지를 release URL로 고정하는 저장소는 거기에
    `allow-remote=root`(또는 `all`)를 적는다. [docs/examples/native-settings](../examples/native-settings.ko.md)가 그 예를 보여 준다. kit은 아무것도 설정하지 않는다(K1045).
 5. `node_modules`가 없는 checkout에는 레시피가 실행할 도구의 kit이 없다. worktree는 `make worktree-setup NAME=<name> ID=<id>`로 만들며, 이는 위의
-   npm ci를 실행한 뒤 거기서 `make install`과 `make link-check`를 실행한다(K858). devEngines npm을 선언하지 않은 `package.json`은
-   worktree나 branch를 만들기 전에, 그리고 npm이나 make를 실행하기 전에 거부한다(K938-1). 일반 clone은 checkout 밖에서 같은 npm ci를 먼저 실행한다.
+   거기서 `WORKTREE_DECLARATION`이 지정한 준비와 make target을 실행한다. kit 자신의 선언은 worktree에 `node_modules`가 없으면 npm ci를
+   실행한 뒤 `make install`과 `make link-check`를 실행한다(K858, K1107). 저장소는 자기 폴더, branch, base, 준비, target을
+   `worktree-setup.mts`에 넘길 수 있다. 일반 clone은 같은 npm ci를 먼저 실행한다.
 
 첫 채택의 순서는 다음과 같다(K938-1).
 
