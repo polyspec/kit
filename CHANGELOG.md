@@ -5,6 +5,10 @@
 
 ## Unreleased
 
+## 0.0.101
+
+- Release: kit 0.0.101 with the rows K1131 and K1132, which delete the refusals of owner-check that read a repository's recipe text and the docs-check rule checklist-verification (K1133).
+
 - K1132: docs-check no longer requires a command in the Verification cell of an open item: the rule checklist-verification ran with no flag that a repository could leave out. `make item-test` keeps running the commands of a cell (K1132).
 
 - K1131: owner-check no longer reads a repository's recipe text to refuse a target: a target whose recipe starts ci-targets and a rule that selects every target of CHECK_TARGETS pass; the targets that the repository's `fullSuite` names are still refused (K1131).

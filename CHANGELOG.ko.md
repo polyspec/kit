@@ -1,10 +1,14 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: bdd6ffb7b7e254fb5d41c1745a983b2b5c1202b7fb6c93922fe678dedf8f9bbc -->
+<!-- source-sha256: 3fbf858508f4c9b20d3e97e34fc5bc867e282c06810911a71e85bc9ddd870e31 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
+
+## 0.0.101
+
+- Release: 행 K1131과 K1132로 kit 0.0.101, 저장소의 recipe 문장을 읽는 owner-check의 거부와 docs-check 규칙 checklist-verification을 지운다(K1133).
 
 - K1132: docs-check는 열린 item의 Verification cell에 command를 더 이상 요구하지 않는다: 규칙 checklist-verification은 저장소가 뺄 수 있는 flag 없이 실행되었다. `make item-test`는 cell의 command를 계속 실행합니다(K1132).
 

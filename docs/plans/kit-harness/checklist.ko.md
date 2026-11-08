@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 795bc93ec4c94e96464ac0a854cc30e34d73520e9766c7d19a598d7931eed7b3 -->
+<!-- source-sha256: a06aef90f5e8ecedadc8e5a4fd7dc05041cba3873d92178c8aed67899ab36e17 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -260,3 +260,4 @@
 | K1130 | K1129 행을 담아 kit 0.0.100을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` passes | [o] |
 | K1131 | 저장소의 recipe 문장을 읽는 owner-check의 거부 삭제: recipe가 ci-targets를 시작하는 target과 CHECK_TARGETS의 모든 target을 고르는 규칙은 더 이상 거부하지 않으며, 저장소가 선언한 fullSuite는 여전히 거부한다 | `scripts/kit/owner-check.mts` | `tests/kit/owner-check.test.mts` | [o] |
 | K1132 | docs-check 규칙 checklist-verification 삭제: docs-check는 열린 item의 Verification cell에 command를 요구하지 않는다. 이 규칙은 저장소가 뺄 수 있는 flag 없이 실행되었다 | `scripts/kit/verification.mts`, `scripts/kit/check-documents.mts` | `tests/kit/verification.test.mts`, `tests/kit/documents.test.mts` | [o] |
+| K1133 | K1131, K1132 행을 담아 kit 0.0.101을 릴리즈한다 | the version of package.json and its lock, `CHANGELOG.md(.ko)` | `make docs-check` | [o] |
