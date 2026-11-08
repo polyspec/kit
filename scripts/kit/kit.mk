@@ -239,7 +239,7 @@ rules-check: ## Check that every rule of PRINCIPLES.md and AGENTS.md names a che
 DOCS_CHECKS_BEGIN = $(if $(strip $(DOCS_CHECKS)),status=0; failed=; )
 DOCS_CHECKS_END = $(if $(strip $(DOCS_CHECKS)), || { status=1; failed=check-documents; }; for target in $(DOCS_CHECKS); do $(MAKE) --no-print-directory $$target || { status=1; failed="$$failed $$target"; }; done; if [ $$status -ne 0 ]; then echo "[docs-check] failed:$$failed" >&2; fi; exit $$status)
 # The rules of kit for check-documents (K1081): items outside a plan folder are a finding.
-DOCUMENT_RULES := --checklist-place
+DOCUMENT_RULES := --checklist-place --private-path /Users/ --private-path /home/ --kit-rows
 docs-check: ## Check the documents declared in config/documents.json: translation pairs, revisions, links, and the checklists of config/checklist.json, then the document checks that a repository adds with DOCS_CHECKS += <target> (K419); offline
 	$(DOCS_CHECKS_BEGIN)$(NODE) $(KIT)/check-documents.$(KIT_EXT) $(DOCUMENT_RULES)$(DOCS_CHECKS_END)
 

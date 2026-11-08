@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 41b81e3082fe348ba350668f02a24b1c3a721ffb16c2695ce1b9676e1d2388d1 -->
+<!-- source-sha256: d628a023dc8412fcf5b50b754259ba81e9f6ebb1cb4d52e8aa62b552cc397125 -->
 
 # 도구 목록
 
@@ -367,7 +367,7 @@ K809가 쌍의 규칙을 지웠습니다: `pair-missing`, `doc-id`, `revision`, 
 | section identifier | ordered-json (`<a id>` anchor) | anchor가 두 파일에서 같고 한 번씩만 나옴 |
 | fenced block | template, crudui, hyper: 내용만; ordered-json: info string과 내용, `~~~`, 닫히지 않은 fence | ordered-json 동작: info string과 내용 비교, 두 fence 문자 지원, 닫히지 않은 fence는 실패 |
 | link | 모두: inline link; ordered-json: reference link, autolink, `href`, query, 저장소 밖으로 나가는 link, explicit anchor; template: `.md`, `.ko.md`, `index.md` 후보와 `/` 건너뜀; crudui: `/` 거부 | 모든 link 형식; code는 읽지 않음; anchor는 explicit anchor 또는 heading anchor; static site의 `/`와 확장자 없는 link 동작은 `siteLinks` |
-| private path | ordered-json | home directory 경로는 실패 (`private-path`) |
+| private path | ordered-json | 저장소가 `--private-path`로 선언한 prefix 아래 경로는 실패 (`private-path`); 선언이 없으면 실패하지 않음 (K1109) |
 | `{{` | template (VitePress) | `interpolation` glob이 정한 문서에서 fenced block 밖의 `{{`는 실패 |
 | checklist, table | template, crudui, hyper | task row, 마지막 cell의 state, marker는 state에만, 그 밖의 줄은 실패; crudui와 hyper의 구분 줄(`:---:`) 허용; ID pattern은 checklist의 `idPattern` |
 | checklist, list | orm | `- [o] ID text` 항목, 하위 항목, 이어지는 줄, `[!]`의 `Cause:`와 `Retry:`; 두 형식 모두 한국어 label 허용 |

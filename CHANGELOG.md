@@ -5,6 +5,7 @@
 
 ## Unreleased
 
+- K1109: check-documents judges private paths only under the prefixes that the caller declares with `--private-path`, and the kit item ids of checklist rows (checklist-kit) only with `--kit-rows`; kit's own recipe declares `/Users/`, `/home/` and `--kit-rows`. A repository that calls check-documents bare keeps neither rule. A Windows home path (`X:\Users\<name>\`) is no longer matched, since development targets this Mac only.
 - K1108: make link-check no longer judges the paths that a tracked manifest names (npm file:/link:, Composer path repositories, uv sources, Cargo paths, go.mod replace, go.work); what a manifest names is the repository's own. Nor does it judge whether Git ignores `.links`, which is the repository's own .gitignore. The links against `.links` are still checked.
 - K1082: kit fixes no files of a plan folder: checklist exports no planFindings or PLAN_FILES, and plan-new writes a plan without judging what the other plan folders hold (K1082).
 - K1081: check-documents finds checklist items outside a plan folder only when its caller passes `--checklist-place`; kit's recipe passes it (K1081).

@@ -15,8 +15,8 @@ import { pair, put, tree } from './tree.mts';
 import { tool } from './kit-tools.mts';
 
 const CONFIG = { schema: 1, include: ['**/*.md'] };
-// The rules that kit's own recipe declares (K1081).
-const RULES = { checklistPlace: true };
+// The rules that kit's own recipe declares (K1081, K1109).
+const RULES = { checklistPlace: true, privatePaths: ['/Users/', '/home/'], kitRows: true };
 const run = (root: string, config: Parameters<typeof check>[1] = CONFIG): string[] => check(root, config, undefined, RULES).findings;
 const has = (findings: string[], text: string) => assert.ok(findings.some(line => line === text), `expected ${text}\nin\n${findings.join('\n')}`);
 // The item list that the installed kit package ships beside a consumer, written from the checklists of the kit checkout `kit` (K957).
@@ -346,6 +346,17 @@ test('checklist-kit reads the kit item list of the installed kit package, and a 
   const found = check(root, CONFIG, undefined, RULES).findings.filter(line => line.includes('checklist-kit'));
   assert.equal(found.length, 2, found.join('\n'));
   assert.ok(found.every(line => /the kit item K99999/.test(line)), found.join('\n'));
+});
+
+test('private-path and checklist-kit are rules the caller declares: with neither declared, neither finds anything (K1109)', (t) => {
+  const rows = ['| ID | Task | Deliverables | Verification | State |', '| --- | --- | --- | --- | --- |', '| T1 | waits on K99999 | `a.mts` | `node --test a.test.mts` | [ ] |'];
+  const root = tree(t, { ...pair('a.md', 'alpha', 'Run /Users/someone/work/run.sh now.\n'), ...pair(CHECKLIST, 'checklist', `${rows.join('\n')}\n`), ...pair(`${PLAN}/plan.md`, 'plan', 'The plan.\n'), 'config/checklist.json': JSON.stringify({ schema: 1, hooks: ['pre-push'], idPattern: ID_PATTERN }) });
+  const undeclared = check(root, CONFIG).findings;
+  assert.deepEqual(undeclared.filter(line => /private-path|checklist-kit/.test(line)), [], undeclared.join('\n'));
+  // A prefix that the repository declares is its own rule: /someone/ is private here, /Users/ is not.
+  const own = check(root, CONFIG, undefined, { privatePaths: ['/someone/'] }).findings.filter(line => line.includes('private-path'));
+  assert.ok(own.length > 0 && own.every(line => line.includes('the path /someone/work/,')), own.join('\n'));
+  hasPart(check(root, CONFIG, undefined, { kitRows: true }).findings, 'node_modules/@polyspec/kit/dist/kit-items.json: checklist-kit');
 });
 
 test('checklist-place is a rule the caller declares: with no --checklist-place, items outside a plan folder are no finding (K1081)', (t) => {

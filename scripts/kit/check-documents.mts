@@ -5,14 +5,15 @@
 //   sections        an explicit anchor <a id="..."></a> appears once in its file
 //   fences          every fenced code block closes
 //   link            every relative link resolves to a file, a directory, an explicit anchor or a heading anchor
-//   private-path    no document holds a path into a user's home directory
+//   private-path    no document holds a path under a prefix that the caller declares with --private-path, such as /Users/, followed
+//                   by a name and a separator (K1109)
 //   interpolation   no {{ outside a fenced code block in the documents that a site renderer evaluates
 //   raw-tag         in the same documents, every raw HTML tag outside code is paired, unless it is void or self-closing (K895)
 //   checklist-*     the checklists of the plan folders hold only tasks and their markers and states are valid (the strict reading
 //                   of scripts/kit/checklist.mts), an item ID is unique among them and a sub-item has its parent in its checklist
 //                   (checklist-cross), and, when the caller passes --checklist-place, no other document under docs/ holds
 //                   checklist items (checklist-place, K1081)
-//   checklist-kit   a task row names in its Task, Verification or state a kit item id (K<n> or K<n>-<m>) that the checklists of
+//   checklist-kit   when the caller passes --kit-rows (K1109), a task row names in its Task, Verification or state a kit item id (K<n> or K<n>-<m>) that the checklists of
 //                   the kit hold none of (K374); the kit is this checkout, or else the item list dist/kit-items.json of the installed
 //                   kit package, which a missing list fails (K957)
 //   status-table    the status tables have the declared cells and values
@@ -40,7 +41,6 @@ import { errorCode } from './process.mts';
 import { compactSeconds } from './time.mts';
 
 export const CONFIG = 'config/documents.json';
-const PRIVATE_PATH = /(?:\/(?:Users|home)\/[^/\s"'<>`)]+\/|[A-Za-z]:\\Users\\[^\\\s"'<>`)]+\\)/g;
 
 /** The configuration of config/documents.json (scripts/kit/schema/documents.schema.json). */
 export type DocumentsConfig = {
@@ -53,7 +53,7 @@ export type DocumentsConfig = {
 };
 
 /** The rules that the caller declares with the arguments of its recipe; a rule that is not declared finds nothing (K1081). */
-export type DocumentRules = { checklistPlace?: boolean };
+export type DocumentRules = { checklistPlace?: boolean; privatePaths?: readonly string[]; kitRows?: boolean };
 
 /** A finding of a file, with the line and column it names when it names them. */
 export type DocumentFinding = { rule: string; message: string; line?: number | undefined; column?: number | undefined };
@@ -71,9 +71,11 @@ const position = (text: string, offset: number) => {
   return { line: before.length, column: present(before[before.length - 1], 'before[before.length - 1]').length + 1 };
 };
 
-/** The private-path findings of the document `text`: each path into a home directory, which the plan utilities refuse too (K373). */
-export function privatePaths(text: string): { line: number; column: number; rule: string; message: string }[] {
-  return [...text.matchAll(PRIVATE_PATH)].map(match => ({ ...position(text, match.index), rule: 'private-path', message: `the document holds the path ${match[0]} into a home directory; write a repository-relative path` }));
+/** The private-path findings of the document `text`: each path under one of the declared `prefixes` with a name and a separator after it (K1109). */
+export function privatePaths(text: string, prefixes: readonly string[]): { line: number; column: number; rule: string; message: string }[] {
+  if (prefixes.length === 0) return [];
+  const pattern = new RegExp(`(?:${prefixes.map(prefix => prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})[^/\\\\\\s"'<>\`)]+[/\\\\]`, 'g');
+  return [...text.matchAll(pattern)].map(match => ({ ...position(text, match.index), rule: 'private-path', message: `the document holds the path ${match[0]}, under a private prefix that the repository declares; write a repository-relative path` }));
 }
 
 /** A finding of `file` as the line the command prints. */
@@ -123,7 +125,7 @@ function linkFindings(root: string, config: DocumentsConfig, file: string, link:
 }
 
 /** The findings of the document `file` as `[file, finding]` entries; `english` is the English document whose pattern selected it. */
-function documentFindings(root: string, config: DocumentsConfig, file: string, english: string, read: Read) {
+function documentFindings(root: string, config: DocumentsConfig, file: string, english: string, read: Read, rules: DocumentRules) {
   const found: [string, DocumentFinding][] = [];
   const add = (entry: DocumentFinding) => found.push([file, entry]);
   const text = read(file);
@@ -135,7 +137,7 @@ function documentFindings(root: string, config: DocumentsConfig, file: string, e
   const read1 = links(text);
   for (const problem of read1.problems) add({ ...problem, rule: 'link' });
   for (const link of read1.links) for (const entry of linkFindings(root, config, file, link, read)) add(entry);
-  for (const finding of privatePaths(text)) add(finding);
+  for (const finding of privatePaths(text, rules.privatePaths ?? [])) add(finding);
   if (matchesAny(config.interpolation ?? [], english)) {
     text.split('\n').forEach((line, index) => {
       if (fences.fenced[index]) return;
@@ -265,7 +267,7 @@ export function check(root: string, config: DocumentsConfig, progress?: (line: s
   progress?.('step document pairs: started');
   const documents = documentsOf(root, config);
   for (const english of documents) {
-    for (const file of [english, koreanOf(english)]) if (existsSync(path.join(root, file))) found.push(...documentFindings(root, config, file, english, read));
+    for (const file of [english, koreanOf(english)]) if (existsSync(path.join(root, file))) found.push(...documentFindings(root, config, file, english, read, rules));
   }
   progress?.(`step document pairs: ${found.length ? `${found.length} findings` : 'passed'} (${compactSeconds(performance.now() - documentsStarted)})`);
 
@@ -290,8 +292,9 @@ export function check(root: string, config: DocumentsConfig, progress?: (line: s
   const missing = checklists.flatMap(list => [list.path, list.translation]).filter(file => !existsSync(path.join(root, file)));
   const available = (file: string) => (missing.includes(file) ? undefined : read(file));
   for (const { file, finding } of [...checklistsFindings(checklists, available), ...verificationFindings(checklists, available)]) add(file, finding);
-  // A row that names a kit item waits on the checklists of the kit (K374); a missing item list of the installed kit package is a finding (K957).
-  if (checklists.length > 0) {
+  // A row that names a kit item waits on the checklists of the kit (K374), when the caller declares the rule (K1109); a missing item
+  // list of the installed kit package is then a finding (K957).
+  if (rules.kitRows && checklists.length > 0) {
     const isKit = packageName(root) === KIT_PACKAGE;
     const ids = kitItemsOf(root, isKit);
     if (ids === undefined) add(KIT_LIST, { rule: 'checklist-kit', message: `${KIT_LIST} is missing; make kit-build writes the item IDs of kit into the package, and the rows that name kit items cannot be checked without them` });
@@ -338,9 +341,10 @@ if (isMain(import.meta.url)) {
   }
   const config = readConfig<DocumentsConfig>(root, CONFIG, 'documents.schema.json');
   console.log(`[check-documents] reading the documents selected by ${CONFIG}`);
-  // The rules of the repository, from the arguments of its recipe (K1081).
-  const { values } = parseArgs({ options: { 'checklist-place': { type: 'boolean' } } });
-  const { findings, documents, checklists } = check(root, config, line => console.log(`[check-documents] ${line}`), { checklistPlace: values['checklist-place'] ?? false });
+  // The rules of the repository, from the arguments of its recipe (K1081, K1109).
+  const { values } = parseArgs({ options: { 'checklist-place': { type: 'boolean' }, 'private-path': { type: 'string', multiple: true }, 'kit-rows': { type: 'boolean' } } });
+  const rules = { checklistPlace: values['checklist-place'] ?? false, privatePaths: values['private-path'] ?? [], kitRows: values['kit-rows'] ?? false };
+  const { findings, documents, checklists } = check(root, config, line => console.log(`[check-documents] ${line}`), rules);
   for (const line of findings) console.error(`[check-documents] ${line}`);
   if (findings.length) {
     console.error(`[check-documents] ${findings.length} findings in ${documents} document pairs`);

@@ -404,7 +404,7 @@ Merged behaviors (the wider behavior is taken):
 | Section identifiers | ordered-json (`<a id>` anchors) | anchors are equal in both files and appear once |
 | Fenced blocks | template, crudui, hyper: content only; ordered-json: info string and content, `~~~`, unclosed fence | ordered-json behavior: info string and content are compared, both fence characters are read, an unclosed fence fails |
 | Links | all: inline links; ordered-json: reference links, autolinks, `href`, a query or an escape of the repository, explicit anchors; template: `.md`, `.ko.md` and `index.md` candidates and skips `/`; crudui: rejects `/` | all link forms; code is not read; an anchor is an explicit anchor or a heading anchor; the `/` and extension-less behavior of a static site is `siteLinks` |
-| Private paths | ordered-json | a path into a home directory fails (`private-path`) |
+| Private paths | ordered-json | a path under a prefix that the repository declares with `--private-path` fails (`private-path`); with none declared, nothing fails (K1109) |
 | `{{` | template (VitePress) | `interpolation` globs name the documents in which `{{` outside a fenced block fails |
 | Checklist, table | template, crudui, hyper | task rows, state in the last cell, markers only in the state, other lines fail; the header separators of crudui and hyper (`:---:`) are accepted; the ID pattern is `idPattern` of the checklist |
 | Checklist, list | orm | `- [o] ID text` items with sub-items and continuation lines, `Cause:` and `Retry:` for `[!]`; the Korean labels are accepted in both styles |

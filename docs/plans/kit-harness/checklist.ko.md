@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 39dab6415b5a8beff7b62df3ed912f4d00608ebf8db7abe400b1cc5f08a69913 -->
+<!-- source-sha256: fc2d7238e59af16570e55826da3d55f2d9ceb62f6c1a1bee82438893dff6f6a1 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -236,7 +236,7 @@
 | K1106 | runtime-targets는 런타임, 빌드 명령, 테스트 경로, 플래그를 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/runtime-targets.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1106 tests/kit/runtime-targets.test.mts` | [o] |
 | K1107 | worktree-setup은 worktree 폴더와 기준 브랜치를 호출자에게서 받으며 kit에 고정된 것은 없다 | scripts/kit/worktree-setup.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1107 tests/kit/worktree-setup.test.mts` | [ ] |
 | K1108 | link-check는 링크를 링크 선언과만 대조하며 kit에 고정된 다른 규칙이 없다 | scripts/kit/link-check.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1108 tests/kit/link-check.test.mts` | [o] |
-| K1109 | check-documents는 건너뛰는 private 경로를 저장소에서 읽고 kit에 고정된 것은 없으며, kit 항목을 이름 붙이는 행은 저장소가 그 규칙을 선언할 때만 요구한다 | scripts/kit/check-documents.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1109 tests/kit/check-documents.test.mts` | [ ] |
+| K1109 | check-documents는 건너뛰는 private 경로를 저장소에서 읽고 kit에 고정된 것은 없으며, kit 항목을 이름 붙이는 행은 저장소가 그 규칙을 선언할 때만 요구한다 | scripts/kit/check-documents.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1109 tests/kit/check-documents.test.mts` | [o] |
 | K1110 | checklist는 항목 상태와 표 형식을 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/checklist.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1110 tests/kit/checklist.test.mts` | [ ] |
 | K1111 | ci-passed는 저장소가 그 규칙을 선언할 때만 건너뛴 job을 실패로 본다 | scripts/kit/ci-passed.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1111 tests/kit/ci-passed.test.mts` | [ ] |
 | K1112 | owner-check는 저장소가 그 규칙을 선언할 때만 추적된 모든 경로에 owner를 요구한다 | scripts/kit/owner-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1112 tests/kit/owner-check.test.mts` | [ ] |
