@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1100: land without the branch or the target branch exits 2, a usage error; land removes only the worktree and the branch that it lands and no other worktree or branch, so removeMerged is deleted and a worktree kept while a process ran in it goes with a land of its branch again (K1100).
+- K1100: land lands on the target branch that its caller names (`land.mts <branch> <target>`, `land(root, branch, into)`) and no longer on a fixed main; a rebase conflict, also one of only the source-sha256 line of a Korean twin, is aborted and refused, so land runs no documents-stamp and no `git add -u`; kit's `make land` names main (K1100).
 - K1099: a git-hooks install or check without a declaration exits 2, a usage error; config/checklist.json and its schema have no hooks key any more, so a repository removes it and names its hooks in its hooks recipe; merge.<name>.name of each declared driver is now the bare driver name, where kit wrote a description (K1099).
 - K1099: git-hooks installs and checks the hooks folder, hooks, merge attributes and merge drivers that its caller passes as --hooks-path, --hook, --merge and --driver, and none without them; kit's own recipe declares the merges and drivers of its changelogs and checklists, and a repository that kept hooks in config/checklist.json names them in its hooks recipe (K1099).
 - K1090: plan item-state moves an item to the state the repository asks for, from any state; kit fixes no transition table, and only a bypassed or impossible state still needs its cause, which the tool writes (K1090).

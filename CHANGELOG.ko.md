@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: cfe61fd7096d19c84a2494bff9e981fc81970c33b0512c3201c34b5808b7f8cc -->
+<!-- source-sha256: caf5170055e5cff03bc357c0d856f68d787a050cec29148828d65266495954fa -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1100: branch나 대상 branch 없는 land는 사용 오류인 exit 2로 끝납니다. land는 land한 worktree와 branch만 지우고 다른 worktree나 branch는 지우지 않으므로 removeMerged를 삭제했으며, process 때문에 남은 worktree는 그 branch를 다시 land할 때 지워집니다(K1100).
+- K1100: land는 고정된 main이 아니라 호출자가 넘긴 대상 branch에 land합니다(`land.mts <branch> <target>`, `land(root, branch, into)`). rebase 충돌은 한국어 쌍의 source-sha256 줄만의 충돌이라도 중단되고 거부되므로 land는 documents-stamp도 `git add -u`도 실행하지 않습니다. kit의 `make land`는 main을 넘깁니다(K1100).
 - K1099: 선언 없는 git-hooks install이나 check는 사용 오류인 exit 2로 끝납니다. config/checklist.json과 그 schema에는 더 이상 hooks 키가 없으므로 저장소는 그 키를 지우고 hook을 자기 hooks 레시피에 적습니다. 선언된 driver마다 merge.<name>.name은 kit이 설명을 쓰던 자리에 이제 driver 이름 그대로입니다(K1099).
 - K1099: git-hooks는 호출자가 --hooks-path, --hook, --merge, --driver로 넘긴 hook 폴더, hook, merge attribute, merge driver를 설치하고 검사하며, 넘기지 않으면 아무것도 하지 않습니다. kit 자신의 레시피는 changelog와 checklist의 merge와 driver를 선언하며, config/checklist.json에 hook을 두었던 저장소는 그것을 자기 hooks 레시피에 적습니다(K1099).
 - K1090: plan item-state는 항목을 어떤 상태에서든 저장소가 요청한 상태로 옮깁니다. kit은 전이표를 고정하지 않으며, 도구가 적는 원인이 필요한 bypassed와 impossible 상태만 원인을 요구합니다(K1090).

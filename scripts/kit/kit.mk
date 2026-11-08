@@ -389,8 +389,8 @@ worktree-setup: ## Create or reuse the row worktree from main, run make install 
 # WORKTREE_STOP (K441): a repository sets WORKTREE_STOP to the make target that stops the servers of its worktree (the server-stop target of
 # orm). land runs it, with make in the worktree, before it removes the worktree; a failing stop keeps the worktree.
 .PHONY: land
-land: ## Land the branch BRANCH on main (K394): rebases it on main in its worktree when main has moved, merges it fast-forward under a lock, runs the WORKTREE_STOP targets of its worktree, removes the worktree, kept while it has an uncommitted change or a process runs in it (K429), and deletes the branch; runs no gate and judges no commit (K1053); offline
-	$(NODE) $(KIT)/land.$(KIT_EXT) $(BRANCH)
+land: ## Land the branch BRANCH on main (K394): rebases it on main in its worktree when main has moved and refuses a conflict (K1100), merges it fast-forward under a lock, runs the WORKTREE_STOP targets of its worktree, removes the worktree, kept while it has an uncommitted change or a process runs in it (K429), and deletes the branch; runs no gate and judges no commit (K1053); offline
+	$(NODE) $(KIT)/land.$(KIT_EXT) $(BRANCH) main
 
 
 # uv-install follows application source/workspace declarations with native locked sync and installed-distribution checks.

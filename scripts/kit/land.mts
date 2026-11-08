@@ -1,12 +1,13 @@
 #!/usr/bin/env node
-// Lands a branch on main (K394): `make land BRANCH=<branch>`, run in the main checkout. A branch that main has left behind is rebased
-// onto main in its worktree first (K495-1); then main merges it fast-forward, the worktree is removed when it has no uncommitted change
-// (an ignored install does not count) and the branch is deleted. land runs no gate and judges no commit (K1053): what a branch must
-// pass before it lands is the repository's own recipe, which runs before make land. A branch that main already contains skips the
-// merge, and only what is left is removed. Before a worktree is removed, the make targets that WORKTREE_STOP names in its Makefile stop
-// its servers (K441); a stop that fails keeps the worktree. A lock in the common git folder covers the rebase and the merge (K495).
+// Lands a branch on the target branch that its caller names (K394, K1100): `land.mts <branch> <target>`. A branch that the target has
+// left behind is rebased onto the target in its worktree first (K495-1); a rebase that conflicts is aborted and refused, and land
+// rewrites no conflict (K1100). Then the target merges it fast-forward, the worktree is removed when it has no uncommitted change (an
+// ignored install does not count) and the branch is deleted. land runs no gate and judges no commit (K1053): what a branch must pass
+// before it lands is the repository's own recipe, which runs before land. A branch that the target already contains skips the merge,
+// and only its worktree and branch are removed; land removes no other worktree or branch (K1100). Before a worktree is removed, the
+// make targets that WORKTREE_STOP names in its Makefile stop its servers (K441); a stop that fails keeps the worktree. A lock in the common git folder covers the rebase and the merge (K495).
 //
-//   node scripts/kit/land.mts <branch>
+//   node scripts/kit/land.mts <branch> <target>
 import { spawnSync } from 'node:child_process';
 import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -197,7 +198,8 @@ let lockHeld = false;
  */
 export function withLandLock<T>(root: string, holder: string, outcome: string, work: () => T, { print = (text: string) => console.log(`[plan] ${text}`), sleep = sleepFor }: { print?: (text: string) => void; sleep?: (ms: number) => void } = {}): T {
   if (lockHeld) return work();
-  const release = takeLandLock(mainCheckout(root), 'main', print, sleep, { name: holder, outcome });
+  // The lock lies in the common git folder, which every worktree of the repository shares (K1100).
+  const release = takeLandLock(root, holder, print, sleep, { name: holder, outcome });
   lockHeld = true;
   try {
     return work();
@@ -208,134 +210,71 @@ export function withLandLock<T>(root: string, holder: string, outcome: string, w
 }
 
 /**
- * Rebases `branch` onto main in its worktree `folder` under the land lock (K495-1). A worktree with uncommitted changes cannot be
- * rebased; a rebase that conflicts is aborted, so the branch stays as it was, and the conflicting files are named.
+ * Rebases `branch` onto `into` in its worktree `folder` under the land lock (K495-1). A worktree with uncommitted changes cannot be
+ * rebased; a rebase that conflicts is aborted, so the branch stays as it was, and the conflicting files are named (K1100).
  */
-async function rebaseOnMain(folder: string, branch: string, print: (text: string) => void): Promise<void> {
-  if (git(folder, 'status', '--porcelain').trim() !== '') throw new Error(`${branch} is not rebased on main and its worktree ${folder} has uncommitted changes; commit them, then land again`);
-  let rebased = await runOperation('git', folder, ['rebase', '--quiet', 'main'], print);
-  // K634: a conflict that is only the source-sha256 line of Korean twins keeps one line, is stamped again and the rebase continues.
-  for (let conflicts = conflictsOf(folder); rebased.status !== 0 && conflicts.length > 0 && conflicts.every(file => onlyRevisionConflict(path.join(folder, file))); conflicts = conflictsOf(folder)) {
-    for (const file of conflicts) writeFileSync(path.join(folder, file), keepOneRevision(readFileSync(path.join(folder, file), 'utf8')));
-    const stamp = await runMake(folder, ['--no-print-directory', 'documents-stamp', `PATHS=${conflicts.join(' ')}`], print);
-    if (stamp.status !== 0) break;
-    git(folder, 'add', '-u');
-    print(`resolved the source-sha256 line of ${conflicts.join(', ')} and stamped it again`);
-    rebased = await runOperation('git', folder, ['-c', 'core.editor=true', 'rebase', '--continue'], print);
-  }
+async function rebaseOnto(folder: string, branch: string, into: string, print: (text: string) => void): Promise<void> {
+  if (git(folder, 'status', '--porcelain').trim() !== '') throw new Error(`${branch} is not rebased on ${into} and its worktree ${folder} has uncommitted changes; commit them, then land again`);
+  const rebased = await runOperation('git', folder, ['rebase', '--quiet', into], print);
   if (rebased.status !== 0) {
-    const conflicts = conflictsOf(folder);
+    const conflicts = git(folder, 'diff', '--name-only', '--diff-filter=U').split('\n').filter(line => line !== '');
     await runOperation('git', folder, ['rebase', '--abort'], print);
-    throw new Error(`${branch} does not rebase on main without a conflict (${conflicts.length > 0 ? conflicts.join(', ') : rebased.stderr.trim()}); rebase it by hand and land it again; nothing is merged`);
+    throw new Error(`${branch} does not rebase on ${into} without a conflict (${conflicts.length > 0 ? conflicts.join(', ') : rebased.stderr.trim()}); rebase it by hand and land it again; nothing is merged`);
   }
-  print(`rebased ${branch} on main (${git(folder, 'rev-parse', '--short', 'main').trim()})`);
+  print(`rebased ${branch} on ${into} (${git(folder, 'rev-parse', '--short', into).trim()})`);
 }
-
-/** The files of `folder` with a conflict of the rebase in progress. */
-const conflictsOf = (folder: string): string[] => git(folder, 'diff', '--name-only', '--diff-filter=U').split('\n').filter(line => line !== '');
-
-// The revision marker of a Korean twin: the sha256 of its English file (check-documents).
-const REVISION_LINE = /^<!-- source-sha256: [0-9a-f]* -->$/;
-
-/** Whether every conflict of the file `file` is a Korean twin's revision marker on both sides (K634). */
-function onlyRevisionConflict(file: string): boolean {
-  if (!file.endsWith('.ko.md')) return false;
-  const hunks = [...readFileSync(file, 'utf8').matchAll(/^<<<<<<< [^\n]*\n([\s\S]*?)^=======\n([\s\S]*?)^>>>>>>> [^\n]*\n/gm)];
-  return hunks.length > 0 && hunks.every(([, ours = '', theirs = '']) => [ours, theirs].every(side => side.split('\n').filter(line => line !== '').every(line => REVISION_LINE.test(line))));
-}
-
-/** `text` with each conflict of revision markers replaced by its first side, which documents-stamp then writes again (K634). */
-const keepOneRevision = (text: string): string => text.replace(/^<<<<<<< [^\n]*\n([\s\S]*?)^=======\n[\s\S]*?^>>>>>>> [^\n]*\n/gm, '$1');
 
 /**
- * Lands `branch` on main in the repository of `root` (the main checkout); throws, merging nothing, when the rebase or the merge fails.
- * A branch that main contains skips the merge.
+ * Lands `branch` on the branch `into` that the caller names (K1100) in the repository of `root`; throws, merging nothing, when the
+ * rebase or the merge fails. A branch that `into` contains skips the merge.
  */
-export async function land(root: string, branch: string, { print = (text: string) => console.log(`[land] ${text}`), sleep = sleepFor }: { print?: (text: string) => void; sleep?: (ms: number) => void } = {}): Promise<void> {
-  if (branch === '') throw new Error('no branch: make land BRANCH=<branch>');
-  // K516: land lands into the checkout that has main checked out, wherever it is called from.
-  await landBranch(mainCheckout(root), branch, print, sleep);
+export async function land(root: string, branch: string, into: string, { print = (text: string) => console.log(`[land] ${text}`), sleep = sleepFor }: { print?: (text: string) => void; sleep?: (ms: number) => void } = {}): Promise<void> {
+  if (branch === '' || into === '') throw new Error('land needs a branch and the target branch: land.mts <branch> <target>');
+  // K516: land lands into the checkout that has the target checked out, wherever it is called from.
+  await landBranch(targetCheckout(root, into), branch, into, print, sleep);
 }
 
-/** The checkout of the repository of `root` whose branch is main, from git worktree list; throws when no checkout has main checked out. */
-function mainCheckout(root: string): string {
+/** The checkout of the repository of `root` whose branch is `into`, from git worktree list; throws when no checkout has it checked out. */
+function targetCheckout(root: string, into: string): string {
   const entries = git(root, 'worktree', 'list', '--porcelain').split('\n\n');
-  const main = entries.find(entry => entry.split('\n').includes('branch refs/heads/main'));
-  const folder = main?.split('\n').find(line => line.startsWith('worktree '))?.slice('worktree '.length);
-  if (folder === undefined) throw new Error(`no checkout has main checked out among the worktrees of ${root}; check out main in the main checkout and land from there`);
+  const target = entries.find(entry => entry.split('\n').includes(`branch refs/heads/${into}`));
+  const folder = target?.split('\n').find(line => line.startsWith('worktree '))?.slice('worktree '.length);
+  if (folder === undefined) throw new Error(`no checkout has ${into} checked out among the worktrees of ${root}; check out ${into} and land from there`);
   return folder;
 }
 
 
 
 /**
- * The run of a land: under the land lock, a branch that main has left behind is rebased in its worktree and main merges it
+ * The run of a land: under the land lock, a branch that `into` has left behind is rebased in its worktree and `into` merges it
  * fast-forward; then the worktree and the branch are removed.
  */
-async function landBranch(root: string, branch: string, print: (text: string) => void, sleep: (ms: number) => void): Promise<void> {
+async function landBranch(root: string, branch: string, into: string, print: (text: string) => void, sleep: (ms: number) => void): Promise<void> {
   retainedBranches(root);
   if (gitResult(root, 'rev-parse', '--verify', '--quiet', `refs/heads/${branch}`).status !== 0) throw new Error(`the branch ${branch} does not exist`);
   const folder = worktreeOf(root, branch);
   const stop = folder === undefined ? undefined : stopTargetOf(folder);
-  if (gitResult(root, 'merge-base', '--is-ancestor', branch, 'main').status === 0) {
-    print(`${branch} is contained in main already: nothing is merged`);
+  if (gitResult(root, 'merge-base', '--is-ancestor', branch, into).status === 0) {
+    print(`${branch} is contained in ${into} already: nothing is merged`);
   } else {
-    const from = git(root, 'rev-parse', 'main').trim();
+    const from = git(root, 'rev-parse', into).trim();
     const release = takeLandLock(root, branch, print, sleep);
     try {
-      if (gitResult(root, 'merge-base', '--is-ancestor', 'main', branch).status !== 0) {
-        if (folder === undefined) throw new Error(`${branch} is behind main and no worktree has it checked out, so it cannot be rebased; rebase it, then land it again; nothing is merged`);
-        await rebaseOnMain(folder, branch, print);
+      if (gitResult(root, 'merge-base', '--is-ancestor', into, branch).status !== 0) {
+        if (folder === undefined) throw new Error(`${branch} is behind ${into} and no worktree has it checked out, so it cannot be rebased; rebase it, then land it again; nothing is merged`);
+        await rebaseOnto(folder, branch, into, print);
       }
       const result = await runOperation('git', root, ['merge', '--ff-only', branch], print);
       if (result.status !== 0) throw new Error(`git merge --ff-only ${branch} exited with ${result.status}: ${result.stderr.trim()}; nothing is merged`);
     } finally {
       release();
     }
-    print(`merged ${branch} into main`);
-    // K609: every consumer links main live, so the land refreshes what they read, as a commit on main does (K583).
-    refreshLinked(root, git(root, 'diff', '--name-only', `${from}..main`).split('\n').filter(file => file !== ''), print);
+    print(`merged ${branch} into ${into}`);
+    // K609: every consumer links its checkout live, so the land refreshes what they read, as a commit does (K583).
+    refreshLinked(root, git(root, 'diff', '--name-only', `${from}..${into}`).split('\n').filter(file => file !== ''), print);
   }
+  // K1100: land removes the worktree and the branch that it lands, and no other worktree or branch.
   await removeLanded(root, branch, folder, stop, print);
-  removeMerged(root, branch, print);
-}
-
-// A reflog entry of a commit made on a branch: a rebase or a fast-forward moves it onto commits of main and makes none of its own.
-const OWN_COMMIT = /^(?:commit|cherry-pick|revert)\b/;
-// A reflog entry that starts a branch anew: its creation, or a reset that moves it, as onto main for the next row.
-const NEW_START = /^(?:branch: (?:Created|Reset)|reset: moving to)\b/;
-
-/**
- * Whether `branch` is merged (K628): its reflog records commits of its own since its creation or its latest reset, and main contains
- * every commit of it. A fresh branch, a row about to start, has none, though main contains it.
- */
-function ownCommitsMerged(root: string, branch: string): boolean {
-  const entries = git(root, 'reflog', 'show', '--format=%gs', `refs/heads/${branch}`).split('\n').filter(line => line !== '');
-  const start = entries.findIndex(entry => NEW_START.test(entry));
-  if (!entries.slice(0, start === -1 ? entries.length : start).some(entry => OWN_COMMIT.test(entry))) return false;
-  return git(root, 'rev-list', branch, '^main').trim() === '';
-}
-
-/**
- * Removes the worktree and deletes the branch of each other branch that main contains, whose worktree is clean and in which no process
- * runs: a worktree that an earlier land kept while a process ran in it (K626); a fresh branch is no merged one (K628).
- */
-export function removeMerged(root: string, landed: string, print: (text: string) => void): void {
-  const retained = retainedBranches(root);
-  const entries = git(root, 'worktree', 'list', '--porcelain').split('\n\n').map(entry => ({ folder: /^worktree (.*)$/m.exec(entry)?.[1], branch: /^branch refs\/heads\/(.*)$/m.exec(entry)?.[1] }));
-  for (const { folder, branch } of entries) {
-    if (folder === undefined || branch === undefined || branch === 'main' || branch === landed || path.resolve(folder) === path.resolve(root)) continue;
-    const declaration = retainedBranch(retained, branch);
-    if (declaration) {
-      print(`kept ${branch} at ${declaration.commit} by ${RETAINED_BRANCHES_CONFIG}: ${declaration.reason}; remove when ${declaration.removalCondition}`);
-      continue;
-    }
-    if (!ownCommitsMerged(root, branch)) continue;
-    if (git(folder, 'status', '--porcelain').trim() !== '' || worktreeProcesses(folder, machineListing()).length > 0) continue;
-    git(root, 'worktree', 'remove', folder);
-    git(root, 'branch', '-d', branch);
-    print(`removed the worktree ${folder} of ${branch}, which main contains and in which no process runs any longer`);
-  }
 }
 
 /** Removes the worktree `folder` of the landed `branch`, after stopping its servers with `stop`, and deletes the branch. */
@@ -350,11 +289,11 @@ export async function removeLanded(root: string, branch: string, folder: string 
   if (folder !== undefined) {
     if (git(folder, 'status', '--porcelain').trim() === '') {
       if (stop !== undefined) await stopServers(folder, stop, print);
-      // K626: a process that still runs in the worktree keeps it and its branch; the next land removes them once it ends.
+      // K626: a process that still runs in the worktree keeps it and its branch; a land of the branch again removes them once it ends.
       const live = worktreeProcesses(folder, machineListing());
       if (live.length > 0) {
         kept = true;
-        print(`kept the worktree ${folder} and ${branch}: ${live.length} processes run in it, and the next land removes them once they end:\n${live.map(({ pid, command }) => `${pid} ${command}`).join('\n')}`);
+        print(`kept the worktree ${folder} and ${branch}: ${live.length} processes run in it; land ${branch} again once they end to remove them:\n${live.map(({ pid, command }) => `${pid} ${command}`).join('\n')}`);
       } else {
         const removed = await runOperation('git', root, ['worktree', 'remove', folder], print);
         if (removed.status !== 0) throw new Error(`git worktree remove ${folder} failed: ${removed.stderr}`);
@@ -375,8 +314,13 @@ export async function removeLanded(root: string, branch: string, folder: string 
 // The entry point runs last: it calls land when the module loads, so every constant that land uses must be initialized before it
 // (K463).
 if (isMain(import.meta.url)) {
-  const [branch = ''] = process.argv.slice(2);
-  land(repositoryRoot(), branch).catch((error: unknown) => {
+  const [branch = '', into = ''] = process.argv.slice(2);
+  // A call without the branch or the target branch is a usage error (exit 2): kit names no target of its own (K1100).
+  if (branch === '' || into === '') {
+    console.error('[land] usage: node scripts/kit/land.mts <branch> <target>');
+    process.exit(2);
+  }
+  land(repositoryRoot(), branch, into).catch((error: unknown) => {
     if (!(error instanceof Error)) throw error;
     console.error(`[land] ${error.message}`);
     process.exitCode = 1;

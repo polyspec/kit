@@ -3,13 +3,14 @@
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { land, machineListing, removeLanded, removeMerged, worktreeProcesses } from '../../scripts/kit/land.mts';
+import { land, machineListing, removeLanded, worktreeProcesses } from '../../scripts/kit/land.mts';
 import { initRepository } from './sandbox-repository.mts';
 import { put } from './tree.mts';
+import { tool } from './kit-tools.mts';
 
 // The checklist declaration of every kit repository, which the commit rules of land read (K892).
 const CHECKLIST = { 'config/checklist.json': JSON.stringify({ schema: 1, idPattern: '[A-Z][0-9]+' }) };
@@ -19,7 +20,7 @@ const git = (cwd: string, ...args: string[]) => {
   assert.equal(result.status, 0, result.stderr);
   return result.stdout.trim();
 };
-test('both land cleanup paths retain a declared backup branch and its worktree', async (t) => {
+test('the land cleanup retains a declared backup branch and its worktree', async (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-retained-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
@@ -40,11 +41,10 @@ test('both land cleanup paths retain a declared backup branch and its worktree',
   git(main, 'commit', '--quiet', '-m', 'declare retained backup');
 
   const printed: string[] = [];
-  removeMerged(main, 'another-branch', line => printed.push(line));
   await removeLanded(main, 'backup/cancelled-T1', folder, undefined, line => printed.push(line));
   assert.equal(git(main, 'rev-parse', 'refs/heads/backup/cancelled-T1'), pinned);
   assert.equal(existsSync(folder), true);
-  assert.equal(printed.filter(line => line.includes('kept backup/cancelled-T1 at')).length, 2, printed.join('\n'));
+  assert.equal(printed.filter(line => line.includes('kept backup/cancelled-T1 at')).length, 1, printed.join('\n'));
 });
 
 test('make land merges a rebased branch fast-forward and removes its branch and worktree (K394)', async (t) => {
@@ -72,7 +72,7 @@ test('make land merges a rebased branch fast-forward and removes its branch and 
   git(folderA, 'add', '-A');
   git(folderA, 'commit', '--quiet', '-m', 'a');
   const branchA = git(main, 'rev-parse', 'feat/a');
-  await land(main, 'feat/a', quiet);
+  await land(main, 'feat/a', 'main', quiet);
   assert.equal(git(main, 'rev-parse', 'main'), branchA, 'main fast-forwards to the branch');
   assert.equal(existsSync(folderA), false, 'the worktree is removed');
   assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat/a'], { cwd: main }).status, 1, 'the branch is deleted');
@@ -86,7 +86,7 @@ test('make land merges a rebased branch fast-forward and removes its branch and 
   put(folderC, { 'src/c.txt': 'c\n' });
   git(folderC, 'add', '-A');
   git(folderC, 'commit', '--quiet', '-m', 'c');
-  await land(main, 'feat/c', quiet);
+  await land(main, 'feat/c', 'main', quiet);
   assert.equal(git(main, 'log', '-1', '--format=%s', 'main'), 'c', 'the rebased branch lands');
   assert.equal(git(main, 'rev-parse', 'main^'), mainBefore, 'on top of main');
 });
@@ -114,7 +114,7 @@ test('make land fast-forwards and cleans up without invoking either build (K603)
   git(folder, 'commit', '--quiet', '-m', 'landed');
   const branch = git(main, 'rev-parse', 'feat/k603');
 
-  await land(main, 'feat/k603', { print: () => {} });
+  await land(main, 'feat/k603', 'main', { print: () => {} });
 
   assert.equal(git(main, 'rev-parse', 'main'), branch, 'main fast-forwards to the branch');
   assert.equal(existsSync(folder), false, 'the worktree is removed');
@@ -138,7 +138,7 @@ test('land leaves its own ancestors out of the processes of the worktree (K429-1
 // K626: land reads the branch, not its worktree, so a process that runs in the worktree (a working directory inside it, an open file or
 // an executable there, K441-1) blocks no merge; the worktree and its branch are kept, and the next land removes them once no process
 // runs there. The unit case feeds fixed ps and lsof outputs; the real case starts a process in the worktree.
-test('land merges while a process runs in the worktree, keeps it, and the next land removes it (K626)', async (t) => {
+test('land merges while a process runs in the worktree, keeps it, and a land of the branch again removes it (K626, K1100)', async (t) => {
   const folder = '/work/kit/repo-x';
   const ps = [
     '  101     1 node server.mjs --datadir=/work/kit/repo-x/.runtime/db',
@@ -174,7 +174,7 @@ test('land merges while a process runs in the worktree, keeps it, and the next l
   t.after(() => child.kill());
   assert.equal(typeof child.pid, 'number', 'the child process starts');
   const lines: string[] = [];
-  await land(main, 'feat-x', { print: line => lines.push(line) });
+  await land(main, 'feat-x', 'main', { print: line => lines.push(line) });
   assert.notEqual(git(main, 'rev-parse', 'main'), mainBefore, 'the branch is merged while a process runs in its worktree');
   assert.ok(lines.some(line => line.includes(`${child.pid} `) && line.includes('kept the worktree')), lines.join('\n'));
   assert.equal(existsSync(folderX), true, 'the worktree is kept while its process runs');
@@ -189,10 +189,12 @@ test('land merges while a process runs in the worktree, keeps it, and the next l
   // K628: a fresh branch, made from main with no commit of its own, is a row about to start; main contains it, but it is not merged.
   const folderZ = path.join(parent, 'repo-z');
   git(main, 'worktree', 'add', '--quiet', folderZ, '-b', 'feat-z', 'main');
-  await land(main, 'feat-y', { print: () => {} });
+  await land(main, 'feat-y', 'main', { print: () => {} });
   assert.equal(existsSync(folderZ), true, 'a fresh worktree is kept (K628)');
   assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-z'], { cwd: main }).status, 0, 'and its branch (K628)');
-  assert.equal(existsSync(folderX), false, 'the next land removes the kept worktree once no process runs in it');
+  assert.equal(existsSync(folderX), true, 'a land of another branch removes no other worktree (K1100)');
+  await land(main, 'feat-x', 'main', { print: () => {} });
+  assert.equal(existsSync(folderX), false, 'a land of the branch again removes the kept worktree once no process runs in it');
   assert.notEqual(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-x'], { cwd: main }).status, 0, 'and deletes its branch');
 });
 
@@ -249,7 +251,7 @@ test('make land stops the servers of the worktree before it removes the worktree
   const exited = once(child, 'exit');
   put(folder, { 'server.pid': `${child.pid}\n` });
   const head = git(main, 'rev-parse', 'feat-srv');
-  await land(main, 'feat-srv', { print: () => {} });
+  await land(main, 'feat-srv', 'main', { print: () => {} });
   await exited;
   assert.equal(child.signalCode, 'SIGTERM', 'stop-servers kills the server before the removal');
   assert.equal(git(main, 'rev-parse', 'main'), head, 'main fast-forwards to the branch');
@@ -277,7 +279,7 @@ test('make land keeps the worktree and names the stop target when it fails (K441
   put(folder, { 'src/a.txt': 'a\n' });
   git(folder, 'add', '-A');
   git(folder, 'commit', '--quiet', '-m', 'broken');
-  await assert.rejects(() => land(main, 'feat-broken', { print: () => {} }), (error: Error) => error.message.includes('stop-broken') && error.message.includes('the servers do not stop'));
+  await assert.rejects(() => land(main, 'feat-broken', 'main', { print: () => {} }), (error: Error) => error.message.includes('stop-broken') && error.message.includes('the servers do not stop'));
   assert.equal(existsSync(folder), true, 'the worktree is kept');
   assert.equal(spawnSync('git', ['rev-parse', '--verify', '--quiet', 'refs/heads/feat-broken'], { cwd: main }).status, 0, 'the branch is kept');
 });
@@ -314,7 +316,7 @@ test('a land waits for the land that holds the lock and lands after it (K495)', 
   let waits = 0;
   // The first land finishes while the second waits: its lock goes away.
   const options = { print: (text: string) => printed.push(text), sleep: () => { waits += 1; rmSync(lock); } };
-  await land(main, 'feat/x', options);
+  await land(main, 'feat/x', 'main', options);
   assert.ok(printed.some(text => text.includes(`waits for the land of feat/other (pid ${holder.pid})`)), printed.join('\n'));
   assert.ok(waits >= 1, 'the land waited');
   assert.equal(git(main, 'rev-parse', 'main'), branch, 'the waiting land lands after the first');
@@ -326,7 +328,7 @@ test('a land removes the lock of a land that no longer runs (K495)', async (t) =
   const gone = spawnSync('true').pid;
   writeFileSync(lock, JSON.stringify({ pid: gone, branch: 'feat/gone' }));
   const printed: string[] = [];
-  await land(main, 'feat/x', { print: text => printed.push(text) });
+  await land(main, 'feat/x', 'main', { print: text => printed.push(text) });
   assert.ok(printed.some(text => text.includes(`removed the lock of the land of feat/gone (pid ${gone})`)), printed.join('\n'));
   assert.equal(git(main, 'rev-parse', 'main'), branch);
   assert.equal(existsSync(lock), false);
@@ -341,7 +343,7 @@ test('land rebases a branch behind main in its worktree and lands it, and refuse
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'other');
   const printed: string[] = [];
-  await land(main, 'feat/x', { print: text => printed.push(text) });
+  await land(main, 'feat/x', 'main', { print: text => printed.push(text) });
   assert.ok(printed.some(text => /rebased feat\/x on main/.test(text)), printed.join('\n'));
   assert.equal(git(main, 'log', '-1', '--format=%s', 'main'), 'x', 'main holds the rebased branch');
   assert.equal(git(main, 'log', '-2', '--format=%s', 'main').split('\n')[1], 'other', 'on top of the commit that moved main');
@@ -357,7 +359,7 @@ test('land rebases a branch behind main in its worktree and lands it, and refuse
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'main changes x');
   const mainBefore = git(main, 'rev-parse', 'main');
-  await assert.rejects(() => land(main, 'feat/y', { print: () => {} }), /src\/x\.txt/);
+  await assert.rejects(() => land(main, 'feat/y', 'main', { print: () => {} }), /src\/x\.txt/);
   assert.equal(git(main, 'rev-parse', 'main'), mainBefore, 'nothing is merged');
   assert.equal(git(main, 'rev-parse', 'feat/y'), branchY, 'the branch is as it was');
   assert.equal(git(folder, 'status', '--porcelain'), '', 'the aborted rebase leaves the worktree clean');
@@ -384,10 +386,10 @@ test('K516: land called from a detached worktree lands into the main checkout (K
   git(folder, 'add', '-A');
   git(folder, 'commit', '--quiet', '-m', 'x');
   const tip = git(main, 'rev-parse', 'feat/k516');
-  await land(detached, 'feat/k516', { print: () => {} });
+  await land(detached, 'feat/k516', 'main', { print: () => {} });
   assert.equal(git(main, 'rev-parse', 'main'), tip, 'main of the main checkout moves to the branch');
   git(main, 'checkout', '--quiet', '--detach');
-  await assert.rejects(() => land(detached, 'feat/none', { print: () => {} }), /no checkout has main checked out/);
+  await assert.rejects(() => land(detached, 'feat/none', 'main', { print: () => {} }), /no checkout has main checked out/);
 });
 
 // K646: consumers run the sources of kit (K613) and npm's prepack builds dist at release, so a land into kit builds nothing. The Makefile
@@ -412,48 +414,59 @@ test('a land into kit that changes one of its sources builds no dist (K646)', as
   put(folder, { 'scripts/kit/a.mts': 'export const a = 2;\n' });
   git(folder, 'add', '-A');
   git(folder, 'commit', '--quiet', '-m', 'a');
-  await land(main, 'feat/k609', { print: () => {} });
+  await land(main, 'feat/k609', 'main', { print: () => {} });
   assert.equal(existsSync(marker), false, 'no make kit-build runs after the merge');
 });
 
-// K634: the source-sha256 line of a Korean twin is the hash of its English file, so two rows that change the English file conflict on it in
-// every rebase. land keeps one line, stamps it again with make documents-stamp and continues; a conflict in any other line still refuses.
-test('land resolves a rebase conflict that is only the source-sha256 line of a Korean twin (K634)', async (t) => {
+// K1100: land rewrites no conflict: a rebase whose only conflict is the source-sha256 line of a Korean twin is aborted and refused like
+// any other, and land runs no make target to resolve it. The target branch is the caller's: a branch lands on a release branch as on main.
+test('land refuses every rebase conflict and lands on the target branch that its caller names (K1100)', async (t) => {
   const parent = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-land-')));
   t.after(() => rmSync(parent, { recursive: true, force: true }));
   const main = path.join(parent, 'repo');
   initRepository(main, '--initial-branch=main');
-  put(main, CHECKLIST);
-  // documents-stamp writes the sha256 of README.md into the marker of README.ko.md, as the stamp of kit does.
-  // It stamps only the twins of PATHS (K877), so the land must name the conflicted twin.
-  const stamp = 'documents-stamp:\n\t@test "$(PATHS)" = README.ko.md\n\t@sum=$$(shasum -a 256 README.md | cut -d" " -f1); sed -i.bak "s/source-sha256: [0-9a-f]*/source-sha256: $$sum/" $(PATHS) && rm -f $(PATHS).bak';
+  const marker = path.join(parent, 'stamped');
   put(main, {
-    'Makefile': ['kit-gates: docs-check commits-check', 'docs-check:', '\ttrue', 'commits-check:', '\ttrue', stamp, ''].join('\n'),
-    'config/owner-checks.json': JSON.stringify({ schema: 1, owners: [{ paths: ['README.md', 'README.ko.md', 'Makefile'], targets: ['docs-check'] }] }, null, 2) + '\n',
+    'Makefile': `documents-stamp:\n\ttouch ${marker}\n`,
     '.gitignore': 'var/\n',
-    'README.md': 'one\n\ntwo\n\nthree\n',
-    'README.ko.md': '<!-- source-sha256: 0 -->\n하나\n\n둘\n\n셋\n',
+    'README.ko.md': '<!-- source-sha256: 0 -->\n하나\n',
   });
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'base');
-  const stamped = (folder: string) => spawnSync('make', ['--no-print-directory', 'documents-stamp', 'PATHS=README.ko.md'], { cwd: folder, encoding: 'utf8' }).status;
   const folder = path.join(parent, 'repo-x');
   git(main, 'worktree', 'add', '--quiet', folder, '-b', 'feat-x', 'main');
-  put(folder, { 'README.md': 'one\n\ntwo\n\nthree, changed by the branch\n' });
-  assert.equal(stamped(folder), 0);
+  put(folder, { 'README.ko.md': '<!-- source-sha256: 1 -->\n하나\n' });
   git(folder, 'add', '-A');
   git(folder, 'commit', '--quiet', '-m', 'x');
-  put(main, { 'README.md': 'one, changed by main\n\ntwo\n\nthree\n' });
-  assert.equal(stamped(main), 0);
+  put(main, { 'README.ko.md': '<!-- source-sha256: 2 -->\n하나\n' });
   git(main, 'add', '-A');
   git(main, 'commit', '--quiet', '-m', 'main moves');
-  await land(main, 'feat-x', { print: () => {} });
-  const readme = readFileSync(path.join(main, 'README.md'), 'utf8');
-  assert.equal(readme, 'one, changed by main\n\ntwo\n\nthree, changed by the branch\n', 'both changes of the English file land');
-  const sum = spawnSync('shasum', ['-a', '256', 'README.md'], { cwd: main, encoding: 'utf8' }).stdout.split(' ')[0];
-  assert.equal(readFileSync(path.join(main, 'README.ko.md'), 'utf8').split('\n')[0], `<!-- source-sha256: ${sum} -->`, 'the marker is stamped for the merged English file');
+  const before = git(main, 'rev-parse', 'main');
+  await assert.rejects(() => land(main, 'feat-x', 'main', { print: () => {} }), /README\.ko\.md/);
+  assert.equal(git(main, 'rev-parse', 'main'), before, 'nothing is merged');
+  assert.equal(existsSync(marker), false, 'no documents-stamp runs');
+  assert.equal(git(folder, 'status', '--porcelain'), '', 'the rebase is aborted');
+  // The main working tree moves to release/1 and main sits in a linked worktree, which release/1 then contains: the land into
+  // release/1 removes neither that worktree nor main.
+  git(main, 'checkout', '--quiet', '-b', 'release/1');
+  const onMain = path.join(parent, 'repo-main');
+  git(main, 'worktree', 'add', '--quiet', onMain, 'main');
+  const other = path.join(parent, 'repo-y');
+  git(main, 'worktree', 'add', '--quiet', other, '-b', 'feat-y', 'release/1');
+  put(other, { 'y.txt': 'y\n' });
+  git(other, 'add', '-A');
+  git(other, 'commit', '--quiet', '-m', 'y');
+  const tip = git(main, 'rev-parse', 'feat-y');
+  await land(onMain, 'feat-y', 'release/1', { print: () => {} });
+  assert.equal(git(main, 'rev-parse', 'release/1'), tip, 'the target branch fast-forwards to the branch');
+  assert.equal(git(main, 'rev-parse', 'main'), before, 'main stays');
+  assert.equal(existsSync(onMain), true, 'the linked worktree of main stays');
+  assert.equal(existsSync(other), false, 'the worktree of the landed branch is removed');
+  assert.equal(existsSync(folder), true, 'the worktree of another branch stays');
+  await assert.rejects(() => land(main, 'feat-x', '', { print: () => {} }), /needs a branch and the target branch/);
+  const bare = spawnSync(process.execPath, [tool(import.meta.resolve('../../scripts/kit/land.mts')), 'feat-x'], { cwd: main, encoding: 'utf8' });
+  assert.equal(bare.status, 2, 'a call without the target branch is a usage error');
 });
-
 
 // K1053: land runs no gate and judges no commit message; it rebases, merges fast-forward and cleans up, so a branch whose Makefile
 // declares a failing gate and whose commit breaks a commit rule of kit lands as it is.
@@ -472,7 +485,7 @@ test('land merges a branch without running its gates or judging its commits (K10
   git(folder, 'commit', '--quiet', '-m', 'fix(core): Keep the state (#S1)');
   const tip = git(main, 'rev-parse', 'any');
   const lines: string[] = [];
-  await land(main, 'any', { print: text => lines.push(text) });
+  await land(main, 'any', 'main', { print: text => lines.push(text) });
   assert.equal(git(main, 'rev-parse', 'main'), tip, 'the branch lands as it is');
   assert.doesNotMatch(lines.join('\n'), /docs-check in /, 'no gate runs');
   assert.equal(existsSync(folder), false, 'the worktree is removed');
