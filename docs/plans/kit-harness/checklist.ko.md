@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 68e2a2a7e88bbaa50da5b4401d60c450d3bb87aaa0277800797e6f972b5a3176 -->
+<!-- source-sha256: 49e74aa2308d9a279d52fb66200d99acb40ccb2f25232dc718d8ee703cdea0ed -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -240,3 +240,4 @@
 | K1110 | checklist는 항목 상태와 표 형식을 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/checklist.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1110 tests/kit/checklist.test.mts` | [ ] |
 | K1111 | ci-passed는 저장소가 그 규칙을 선언할 때만 건너뛴 job을 실패로 본다 | scripts/kit/ci-passed.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1111 tests/kit/ci-passed.test.mts` | [ ] |
 | K1112 | owner-check는 저장소가 그 규칙을 선언할 때만 추적된 모든 경로에 owner를 요구한다 | scripts/kit/owner-check.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1112 tests/kit/owner-check.test.mts` | [ ] |
+| K1113 | 테스트 sandbox는 호출자의 GIT_* 환경 없이 git을 실행하므로, git rebase -x나 hook 아래의 실행이 그것을 시작한 저장소에 쓰지 않는다 | tests/kit/sandbox-repository.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1113 tests/kit/sandbox-repository.test.mts` | [ ] |
