@@ -366,7 +366,7 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 link: ## Connect provided development sources through native package managers, using application source declarations and compatible requirements (PROJECT names the consumer); no product build target; offline
 	$(NODE) $(KIT)/link.$(KIT_EXT) link $(strip $(if $(PROJECT),--project $(PROJECT)) $(if $(RUNTIME),--runtime $(RUNTIME)))
 
-link-check: ## Fail while the links differ from the link declaration (.links, K869): a declared folder that is not a link to its provider, a link that it does not name, a go.work whose uses differ, a manifest path out of the repository (K773), or a declared package with no installed folder (K888); link writes no Claude Code settings (K960); offline
+link-check: ## Fail while the links differ from the link declaration (.links, K869): a declared folder that is not a link to its provider, a link that it does not name, a go.work whose uses differ, or a declared package with no installed folder (K888); link writes no Claude Code settings (K960); offline
 	$(NODE) $(KIT)/link-check.$(KIT_EXT) $(if $(PROJECT),--project $(PROJECT))
 
 .PHONY: worktree-setup

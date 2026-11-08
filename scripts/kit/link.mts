@@ -375,15 +375,6 @@ function projectFolders(work: Run, consumer: Consumer, project: string, ecosyste
 }
 
 /**
- * The manifests of `ecosystems` that link judges in `directory`, with `project` those of that project alone (consumerOf): link-check
- * judges the same ones (K975).
- */
-export function consumerManifests(directory: string, project: boolean, ecosystems: readonly Ecosystem[]): string[] {
-  const consumer = consumerOf(directory, project);
-  return ecosystems.flatMap(ecosystem => consumer.manifests(ecosystem, true));
-}
-
-/**
  * K888: the provided packages that the tracked projects of `directory` declare and that no installed folder holds, each as a finding
  * of link-check: link leaves out a project whose installer has not run yet, so a project that make install never installed is
  * reported here. With `project`, only that project is judged, as link judges it (K975).
@@ -562,8 +553,7 @@ function outsideLinks(consumer: Consumer, env: NodeJS.ProcessEnv, ecosystems: re
   // package managers.
   const npmPackages = (folder: string) => entries(folder).flatMap(item => (path.basename(item).startsWith('@') && lstatSync(item).isDirectory() ? entries(item) : [item]));
   const composerPackages = (folder: string) => entries(folder).filter(item => !['bin', 'composer'].includes(path.basename(item)) && lstatSync(item).isDirectory()).flatMap(entries);
-  // A package folder that links out of the checkout is kit's (K869): K773 keeps a tracked manifest from naming a path out of the
-  // repository, so the links of the consumer's own workspace point into the checkout.
+  // A package folder that links out of the checkout is kit's (K869); the links of the consumer's own workspace point into the checkout.
   const found = [...npmFolders.flatMap(npmPackages), ...composerFolders.flatMap(composerPackages)]
     .filter(entry => lstatSync(entry).isSymbolicLink() && outside(entry));
   const pythonFiles = ecosystems.includes('python') ? consumer.manifests('python').filter(file => declaredPython(file).length) : [];

@@ -424,7 +424,6 @@ test('K869: with no declaration, nothing is linked and any link fails link-check
   assert.equal(linked.status, 0, linked.text);
   assert.match(linked.text, /no \.links in .*: nothing is linked/);
   assert.equal(lstatSync(path.join(consumer, 'node_modules/@polyspec/x')).isSymbolicLink(), false);
-  // The fixture's manifests also name path sources (K773), which are findings of their own; the links are judged here.
   const linkLinesOf = (text: string) => text.split('\n').filter(item => /NOT linked|a link that the link declaration/.test(item));
   assert.deepEqual(linkLinesOf(command(consumer, env, LINK_CHECK).text), [], 'the release state has no link');
   const folder = path.join(consumer, 'node_modules/@polyspec/x');
@@ -935,14 +934,6 @@ test('link writes no Claude Code settings into the workspace folder, even beside
   linkSiblings(consumer, env);
   assert.equal(existsSync(path.join(path.dirname(consumer), '.claude')), false);
   assert.equal(existsSync(path.join(consumer, '.claude')), false);
-});
-
-test('link-check still judges the manifest paths of a checkout, which no hook concerns (K773, K876)', (t) => {
-  const { kit, env } = workspace(t);
-  put(kit, { 'tools/package.json': JSON.stringify({ name: 'tools', private: true, dependencies: { '@polyspec/x': 'file:../../prov' } }) });
-  git(kit, 'add', 'tools/package.json');
-  assert.deepEqual(linkFindings(kit, env).filter(finding => finding.includes('tools/package.json')).map(finding => finding.replace(/ outside.*$/, '')),
-    ['tools/package.json: @polyspec/x is linked by the path file:../../prov']);
 });
 
 test('link cargo with a declaration runs cargo with the sibling crates patched and the arguments unchanged (K448-5)', (t) => {
