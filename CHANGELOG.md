@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1088: language-check exits 2, a usage error, for a call without --forbid and for a --forbid that is no regular expression (K1088).
+- K1088: language-check forbids the text that its --forbid argument declares, a regular expression such as `\p{Script=Hangul}`, and forbids nothing without it; kit's own recipe declares Hangul, and a repository that keeps the rule names it in its recipe (K1088).
 - K1087: check-commits --range applies only the diff rules that its --rules argument names, commit-red and commit-fix-test, and none without it; the rules apply as the caller declares them (K1087).
 - K1087: check-commits exits 2, a usage error, for a call without --message or --range, a --range without --rules and a --rules name that is no diff rule (K1087).
 - K1087: no commit rule is always on: check-commits --message applies only the message rules commit-ai-footer and commit-ai-identity that --rules names, and a --message without --rules, a --rules that names no rule of its mode (an empty value, a lone comma) and a rule of the other mode exit 2; a commit-msg hook that kept them passes --rules commit-ai-footer,commit-ai-identity (K1087).

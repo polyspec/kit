@@ -1,18 +1,19 @@
 #!/usr/bin/env node
-// The language check of the code (`make language-check`, K252): PRINCIPLES.md requires English comments, identifiers, logs,
-// error messages and test names, so Hangul in them fails. A string that is data, such as a Korean phrase that a tool writes
-// into a Korean document, is not read. A TypeScript or JavaScript file, JSX and TSX included, is read with its parser (script-ast.mts): its
+// The language check of the code (`make language-check`, K252): the text that the caller forbids with --forbid <regular
+// expression> (K1088), such as `\p{Script=Hangul}` for a repository whose rules ask for English comments, identifiers, logs,
+// error messages and test names, fails in them; a call without --forbid, or with a --forbid that is no regular expression, is a usage
+// error (exit 2). A string that is data, such as a Korean
+// phrase that a tool writes into a Korean document, is not read. A TypeScript or JavaScript file, JSX and TSX included, is read with its parser (script-ast.mts): its
 // comments, identifiers, the text of an Error or a console call and the name of a test; a file of Go, Python, PHP or Rust is
 // read line by line: its comments, and Hangul outside a string literal, which is an identifier. The commit messages are
 // checked by the commit check (check-commits.mts).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import { calleeName, isNode, parseScript, stringText, walk } from './script-ast.mts';
 import { isMain, repositoryRoot } from './paths.mts';
 import { trackedFiles } from './tracked-files.mts';
 
-/** Hangul: the syllables and the jamo of Korean. */
-export const HANGUL = /[가-힣ㄱ-ㆎ]/;
 const SCRIPT = /\.[cm]?[jt]sx?$/;
 const REGISTRATIONS = new Set(['test', 'it', 'describe', 'suite']);
 
@@ -28,17 +29,17 @@ const LINE_LANGUAGES: { files: RegExp; line: string[]; block?: [string, string];
 type Kind = 'a comment' | 'an identifier' | 'an error or log message' | 'a test name';
 
 /** The findings of a script: its comments, identifiers, Error and console texts and test names, each by its line. */
-function scriptFindings(file: string, text: string): { line: number; kind: Kind }[] {
+function scriptFindings(file: string, text: string, forbid: RegExp): { line: number; kind: Kind }[] {
   const lineOf = (offset: number) => text.slice(0, offset).split('\n').length;
   const { program, comments } = parseScript(file, text);
-  const found: { line: number; kind: Kind }[] = comments.filter(comment => HANGUL.test(comment.value)).map(comment => ({ line: lineOf(comment.start), kind: 'a comment' }));
+  const found: { line: number; kind: Kind }[] = comments.filter(comment => forbid.test(comment.value)).map(comment => ({ line: lineOf(comment.start), kind: 'a comment' }));
   walk(program, (node) => {
-    if ((node.type === 'Identifier' || node.type === 'JSXIdentifier') && typeof node.name === 'string' && HANGUL.test(node.name)) found.push({ line: lineOf(node.start), kind: 'an identifier' });
+    if ((node.type === 'Identifier' || node.type === 'JSXIdentifier') && typeof node.name === 'string' && forbid.test(node.name)) found.push({ line: lineOf(node.start), kind: 'an identifier' });
     if ((node.type !== 'CallExpression' && node.type !== 'NewExpression') || !Array.isArray(node.arguments)) return;
     const name = calleeName(node.callee);
     if (/(?:^|\.)\w*Error$/.test(name) || name.startsWith('console.')) {
-      for (const arg of node.arguments) if (isNode(arg) && HANGUL.test(stringText(arg) ?? '')) found.push({ line: lineOf(arg.start), kind: 'an error or log message' });
-    } else if (REGISTRATIONS.has(name.split('.')[0] ?? '') && HANGUL.test(stringText(node.arguments[0]) ?? '')) {
+      for (const arg of node.arguments) if (isNode(arg) && forbid.test(stringText(arg) ?? '')) found.push({ line: lineOf(arg.start), kind: 'an error or log message' });
+    } else if (REGISTRATIONS.has(name.split('.')[0] ?? '') && forbid.test(stringText(node.arguments[0]) ?? '')) {
       found.push({ line: lineOf(node.start), kind: 'a test name' });
     }
   });
@@ -49,7 +50,7 @@ function scriptFindings(file: string, text: string): { line: number; kind: Kind 
 const withoutStrings = (line: string) => line.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""');
 
 /** The findings of a file of another language: its comments, and Hangul outside a string, which is an identifier. */
-function lineFindings(text: string, language: (typeof LINE_LANGUAGES)[number]): { line: number; kind: Kind }[] {
+function lineFindings(text: string, language: (typeof LINE_LANGUAGES)[number], forbid: RegExp): { line: number; kind: Kind }[] {
   const found: { line: number; kind: Kind }[] = [];
   let inBlock = false;
   // A raw string becomes an empty string with its line breaks kept, so every line keeps its number.
@@ -78,27 +79,45 @@ function lineFindings(text: string, language: (typeof LINE_LANGUAGES)[number]): 
       comment += code.slice(at);
       code = code.slice(0, at);
     }
-    if (HANGUL.test(comment)) found.push({ line: index + 1, kind: 'a comment' });
-    if (HANGUL.test(code)) found.push({ line: index + 1, kind: 'an identifier' });
+    if (forbid.test(comment)) found.push({ line: index + 1, kind: 'a comment' });
+    if (forbid.test(code)) found.push({ line: index + 1, kind: 'an identifier' });
   });
   return found;
 }
 
-/** The findings of the code file `file` with the text `text`, each as `file:line: Hangul in <kind>`; a document has none. */
-export function languageFindings(file: string, text: string): string[] {
+/** The findings of the code file `file` with the text `text`, each as `file:line: forbidden text in <kind>`; a document has none. */
+export function languageFindings(file: string, text: string, forbid: RegExp): string[] {
   const language = LINE_LANGUAGES.find(entry => entry.files.test(file));
-  const found = SCRIPT.test(file) ? scriptFindings(file, text) : language ? lineFindings(text, language) : [];
+  const found = SCRIPT.test(file) ? scriptFindings(file, text, forbid) : language ? lineFindings(text, language, forbid) : [];
   const seen = new Set<string>();
-  return found.sort((a, b) => a.line - b.line).map(entry => `${file}:${entry.line}: Hangul in ${entry.kind}`).filter(line => !seen.has(line) && seen.add(line));
+  return found.sort((a, b) => a.line - b.line).map(entry => `${file}:${entry.line}: forbidden text in ${entry.kind}`).filter(line => !seen.has(line) && seen.add(line));
+}
+
+/** Ends the run with a usage error (exit 2): the call declares no text to forbid, or no valid one (K1088). */
+function usage(text: string): never {
+  console.error(`[language-check] ${text}; usage: node scripts/kit/language-check.mts --forbid <regular expression>`);
+  process.exit(2);
 }
 
 if (isMain(import.meta.url)) {
-  const root = repositoryRoot();
-  const found = trackedFiles(root).flatMap(file => languageFindings(file, readFileSync(path.join(root, file), 'utf8')));
-  for (const line of found) console.error(`[language-check] ${line}`);
-  if (found.length) {
-    console.error(`[language-check] ${found.length} findings; comments, identifiers, logs, error messages and test names are English`);
-    process.exit(1);
+  const { values } = parseArgs({ options: { forbid: { type: 'string' } } });
+  if (values.forbid === undefined) {
+    usage('no --forbid: the caller declares the text it forbids');
+  } else {
+    let forbid = /$^/u;
+    try {
+      forbid = new RegExp(values.forbid, 'u');
+    } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      usage(`--forbid ${values.forbid} is no regular expression: ${error.message}`);
+    }
+    const root = repositoryRoot();
+    const found = trackedFiles(root).flatMap(file => languageFindings(file, readFileSync(path.join(root, file), 'utf8'), forbid));
+    for (const line of found) console.error(`[language-check] ${line}`);
+    if (found.length) {
+      console.error(`[language-check] ${found.length} findings of ${values.forbid} in comments, identifiers, logs, error messages and test names`);
+      process.exit(1);
+    }
+    console.log(`[language-check] no comment, identifier, message or test name of the code holds ${values.forbid}`);
   }
-  console.log('[language-check] the comments, identifiers, messages and test names of the code are English');
 }

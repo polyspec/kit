@@ -206,8 +206,8 @@ divergence-check: ## Fail on an implementation that diverges through a branch on
 	$(NODE) $(KIT)/divergence-check.$(KIT_EXT) $(DIVERGENCE_RULES) --roots
 
 .PHONY: language-check
-language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252); offline
-	$(NODE) $(KIT)/language-check.$(KIT_EXT)
+language-check: ## Fail on Hangul in a comment, an identifier, an error or log message or a test name of the code (K252, K1088); offline
+	$(NODE) $(KIT)/language-check.$(KIT_EXT) --forbid '\p{Script=Hangul}'
 
 .PHONY: test-markers-check
 test-markers-check: ## Fail on a test that a marker skips or narrows: test.skip, it.only, t.Skip, unittest.skip, markTestSkipped, #[ignore] (K255); offline

@@ -1,11 +1,13 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2bf0218c997fdba889675351dce945de614dc8c94b21db7d941455c7b9c62f67 -->
+<!-- source-sha256: 33870bb0228b031c9631d2898647742ea4a18194e91527bff7b69ec67682ced5 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1088: language-check는 --forbid 없는 호출과 정규식이 아닌 --forbid에 사용 오류인 exit 2로 끝납니다(K1088).
+- K1088: language-check는 --forbid 인수가 선언한 텍스트(`\p{Script=Hangul}` 같은 정규식)를 금지하고, 인수가 없으면 아무것도 금지하지 않습니다. kit 자신의 레시피가 한글을 선언하며, 규칙을 유지하는 저장소는 자기 레시피에 그것을 적습니다(K1088).
 - K1087: check-commits --range는 --rules 인수가 이름 붙인 diff 규칙(commit-red, commit-fix-test)만 적용하고, 인수가 없으면 아무 규칙도 적용하지 않습니다. 규칙은 호출자가 선언한 대로 적용됩니다(K1087).
 - K1087: check-commits는 --message도 --range도 없는 호출, --rules 없는 --range, diff 규칙이 아닌 --rules 이름에 사용 오류인 exit 2로 끝납니다(K1087).
 - K1087: 항상 켜진 commit 규칙은 없습니다. check-commits --message는 --rules가 이름 붙인 메시지 규칙 commit-ai-footer와 commit-ai-identity만 적용하며, --rules 없는 --message, 그 mode의 규칙이 하나도 없는 --rules(빈 값, 쉼표 하나), 다른 mode의 규칙은 exit 2로 끝납니다. 그 규칙을 쓰던 commit-msg hook은 --rules commit-ai-footer,commit-ai-identity를 넘깁니다(K1087).
