@@ -251,5 +251,5 @@
 | K1121 | kit.mk names no file of kit's tests: case-sensitive-runner-smoke, which runs kit's own smoke file, is a target of kit's Makefile | `scripts/kit/kit.mk`, `Makefile` | the ci workflow passes | [o] |
 | K1122 | runtime-targets reads a root with a trailing slash as its folder: tools/ and tools run once, in tools | `scripts/kit/runtime-targets.mts` | the ci workflow passes | [o] |
 | K1123 | php-extension leaves out the files below a folder that the caller skips whether they are tracked or only on the disk | `scripts/kit/php-extension.mts` | the ci workflow passes | [o] |
-| K1124 | checklist.schema.json refuses no key of states that it does not describe (K1069) | `scripts/kit/schema/checklist.schema.json` | the ci workflow passes | [ ] |
+| K1124 | checklist.schema.json refuses no key of states that it does not describe (K1069) | `scripts/kit/schema/checklist.schema.json` | the ci workflow passes | [o] |
 | K1125 | The tests pass what the caller declares since K1069-K1118: the private paths, document rules, rebuild sources, packageFiles, fixtures, extension layout, mise environment, PATH and concurrency of the caller, no hook install, no NODE_TEST_CONTEXT in a nested run, initRepository for every repository, and no K958 reason test | `tests/kit`, `tests/source` | the ci workflow passes | [ ] |

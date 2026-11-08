@@ -14,7 +14,6 @@
       "description": "The markers of the six states of an item, each a bracketed marker such as [o] (K1110); without it the plan utilities read and write [ ], [~], [v], [o], [!] and [-].",
       "type": "object",
       "required": ["waiting", "active", "verifying", "done", "bypassed", "impossible"],
-      "additionalProperties": false,
       "properties": {
         "waiting": { "$ref": "#/$defs/marker" },
         "active": { "$ref": "#/$defs/marker" },

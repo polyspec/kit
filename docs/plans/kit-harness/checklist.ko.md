@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 73efcb587abd365291583bdbce270e8c470b2b341faab2886ced7c1c3039039f -->
+<!-- source-sha256: ed585466d9d4722e20a33a6a8fb16982b65c1351c17e8c14c88008d9ea3f8e9f -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -252,5 +252,5 @@
 | K1121 | kit.mk는 kit 시험 파일을 이름 짓지 않는다: kit 자신의 smoke 파일을 실행하는 case-sensitive-runner-smoke는 kit Makefile의 target이다 | `scripts/kit/kit.mk`, `Makefile` | the ci workflow passes | [o] |
 | K1122 | runtime-targets는 끝에 slash가 붙은 root를 그 folder로 읽는다: tools/와 tools는 tools에서 한 번 실행된다 | `scripts/kit/runtime-targets.mts` | the ci workflow passes | [o] |
 | K1123 | php-extension은 호출자가 건너뛰는 folder 아래 파일을 추적되든 disk에만 있든 뺀다 | `scripts/kit/php-extension.mts` | the ci workflow passes | [o] |
-| K1124 | checklist.schema.json은 states에서 설명하지 않는 key를 거부하지 않는다(K1069) | `scripts/kit/schema/checklist.schema.json` | the ci workflow passes | [ ] |
+| K1124 | checklist.schema.json은 states에서 설명하지 않는 key를 거부하지 않는다(K1069) | `scripts/kit/schema/checklist.schema.json` | the ci workflow passes | [o] |
 | K1125 | 시험은 K1069-K1118 이후 호출자가 선언하는 것을 넘긴다: 호출자의 private path, 문서 규칙, rebuild source, packageFiles, fixture, extension layout, mise 환경, PATH와 concurrency, hook 설치 없음, 중첩 실행의 NODE_TEST_CONTEXT 없음, 모든 저장소의 initRepository, K958 reason 시험 삭제 | `tests/kit`, `tests/source` | the ci workflow passes | [ ] |
