@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Compares the links of a checkout with its link declaration (`make link-check`, K869, P30): LINKS_FILE at the root of the main
-// checkout names the provider checkouts, and make link applies it. The comparison:
+// Compares the links of a checkout with its link declaration (`make link-check`, K869, P30): LINKS_FILE at the root of the
+// checkout itself (K1118) names the provider checkouts, and make link applies it. The comparison:
 //   - each installed npm, Composer and Python folder of a package that a declared checkout provides is a link to its provider, never
 //     a copy (link's check, folderFindings), and a polyspec package that a linked npm provider loads is a link in it too (K761);
 //   - no install folder holds a link out of the checkout that the declaration does not name; with no file, none holds one;

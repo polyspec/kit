@@ -460,14 +460,16 @@ test('K869: make link and link-check leave the links into the checkout and the b
   assert.doesNotMatch(command(consumer, env, LINK_CHECK).text, /a link that the link declaration/);
 });
 
-test('K869: a worktree reads the declaration of its main checkout and writes none', (t) => {
-  const { provider, kit, consumer } = declared(t, ['../prov', path.join('..', 'kit')]);
+test('K1118: a checkout reads only its own declaration; a worktree without one declares nothing, whatever its main checkout declares', (t) => {
+  const { provider, consumer } = declared(t, ['../prov']);
   const worktree = path.join(path.dirname(consumer), 'cons-wt');
   git(consumer, 'worktree', 'add', '--quiet', worktree, '-b', 'wt');
-  assert.deepEqual(declaredCheckouts(worktree), [provider, kit]);
-  assert.equal(existsSync(path.join(worktree, '.links')), false);
+  assert.equal(declaredCheckouts(worktree), undefined, 'the release state: the worktree installs what its locks name');
   put(consumer, { '.links': '../missing\n' });
-  assert.throws(() => declaredCheckouts(worktree), /the declared checkout \.\.\/missing does not exist/);
+  assert.equal(declaredCheckouts(worktree), undefined, 'the declaration of the main checkout is not read');
+  put(worktree, { '.links': '../prov\n' });
+  assert.deepEqual(declaredCheckouts(worktree), [provider], 'its own declaration, resolved against the worktree');
+  assert.throws(() => declaredCheckouts(consumer), /the declared checkout \.\.\/missing does not exist/);
 });
 
 test('K869: the go.work that link writes uses exactly the declared providers that the module requires', (t) => {
@@ -606,7 +608,7 @@ test('K462: link providers prints each npm provider with its folder, leaving out
   assert.equal(run.stdout, `@polyspec/x\t${path.join(checkout, 'packages/ts')}\n@polyspec/z\t${checkout}\n`);
 });
 
-// K1008: with no checkout, link providers reads the link declaration of the main checkout of its folder, and --ecosystem names the
+// K1008: with no checkout, link providers reads the checkout's own link declaration (K1118), and --ecosystem names the
 // ecosystem whose providers it prints, npm by default; a consumer asks the kit for the folder of a Composer provider too (S15).
 test('K1008: link providers reads .links with no checkout and prints the providers of --ecosystem (K1008)', (t) => {
   const root = realpathSync(mkdtempSync(path.join(tmpdir(), 'kit-link-providers-')));

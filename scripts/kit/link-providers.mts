@@ -132,27 +132,22 @@ export type Provider = { ecosystem: Ecosystem; name: string; folder: string; rep
 /** The key of a package name of an ecosystem. */
 export const providerKey = (ecosystem: Ecosystem, name: string): string => `${ecosystem}:${name}`;
 
-/** The link declaration of a checkout (K869): a git-ignored file at the root of its main checkout. */
+/** The link declaration of a checkout (K869): a git-ignored file at the root of that checkout, its own, which no other checkout reads (K1118). */
 export const LINKS_FILE = '.links';
-
-/** The main checkout of `directory`: the folder of its common Git directory, else its own work tree (outside Git or a bare repository). */
-export function mainCheckout(directory: string): string {
-  const repository = repositoryOf(directory);
-  return path.basename(repository) === '.git' ? path.dirname(repository) : workTreeOf(directory);
-}
 
 /**
  * The provider checkouts that the link declaration of the checkout of `directory` names (K869), as real paths: one path per line of
- * LINKS_FILE at the root of its main checkout, a relative one resolved against that root; a blank line and a `#` line are ignored.
- * A worktree reads the file of its main checkout and never writes one. Undefined when there is no file: nothing is linked, the release
- * state. A declared path that does not exist throws with its line, since a declaration names a checkout.
+ * LINKS_FILE at the root of that checkout, a main checkout or a worktree, a relative one resolved against that root; a blank line and
+ * a `#` line are ignored. A checkout reads only its own file, never the one of its main checkout or of another worktree (K1118).
+ * Undefined when there is no file: nothing is linked, the release state that the locks install. A declared path that does not exist
+ * throws with its line, since a declaration names a checkout.
  */
 export function declaredCheckouts(directory: string): string[] | undefined {
-  const main = mainCheckout(directory);
-  const file = path.join(main, LINKS_FILE);
+  const top = workTreeOf(directory);
+  const file = path.join(top, LINKS_FILE);
   if (!existsSync(file)) return undefined;
   return readFileSync(file, 'utf8').split('\n').map(line => line.trim()).filter(line => line !== '' && !line.startsWith('#')).map((line) => {
-    const checkout = path.resolve(main, line);
+    const checkout = path.resolve(top, line);
     if (!existsSync(checkout)) throw new Error(`${file}: the declared checkout ${line} does not exist`);
     return realpathSync(checkout);
   });

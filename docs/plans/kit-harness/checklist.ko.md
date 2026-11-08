@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 4b569f887f71b722e80f264b44dd057970cb16791440972205d0fd8225e1d67d -->
+<!-- source-sha256: acd8e034f5f532b9a417996060cfffc6045e64d967e5d66638dcd9204cdee244 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -241,7 +241,7 @@
 | K1115 | release record 경로는 호출자에게서 온다 | scripts/kit/release.mts, scripts/kit/kit.mk, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1115 tests/kit/release.test.mts` | [o] |
 | K1116 | item-edit은 호출자가 그 규칙을 선언할 때만 완료된 항목을 거부한다 | scripts/kit/plan.mts, scripts/kit/kit.mk, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1116 tests/kit/plan.test.mts` | [o] |
 | K1117 | kit은 stub 경로를 빼지 않고 packages/php-ext 폴더를 검사하지 않는다. 저장소가 config/duplication.json에서 자기 stub을 제외하며, R6와 parity 공유는 고정된 layout이 아니라 저장소의 선언을 기술한다 | scripts/kit/duplication-check.mts, scripts/kit/install-php.mts, config/duplication.json, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1117 tests/kit/duplication-check.test.mts tests/kit/install-php.test.mts` | [o] |
-| K1118 | 각 checkout은 자기 .links만 읽는다. .links가 있는 checkout은 그것이 이름한 checkout을 link하고, 없는 checkout은 lock의 release package를 설치한다. 지금은 declaredCheckouts(link-providers)가 worktree에서 main checkout의 .links를 읽는다 | scripts/kit/link-providers.mts, scripts/kit/link.mts, scripts/kit/link-check.mts, scripts/kit/worktree-setup.mts, tests/kit, docs/operations/local-links(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1118 tests/kit/link.test.mts tests/kit/worktree-setup.test.mts` | [ ] |
+| K1118 | 각 checkout은 자기 .links만 읽는다. .links가 있는 checkout은 그것이 이름한 checkout을 link하고, 없는 checkout은 lock의 release package를 설치한다. 지금은 declaredCheckouts(link-providers)가 worktree에서 main checkout의 .links를 읽는다 | scripts/kit/link-providers.mts, scripts/kit/link.mts, scripts/kit/link-check.mts, scripts/kit/worktree-setup.mts, tests/kit, docs/operations/local-links(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1118 tests/kit/link.test.mts tests/kit/worktree-setup.test.mts` | [o] |
 | K1108 | link-check는 링크를 링크 선언과만 대조하며 kit에 고정된 다른 규칙이 없다 | scripts/kit/link-check.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1108 tests/kit/link-check.test.mts` | [o] |
 | K1109 | check-documents는 건너뛰는 private 경로를 저장소에서 읽고 kit에 고정된 것은 없으며, kit 항목을 이름 붙이는 행은 저장소가 그 규칙을 선언할 때만 요구한다 | scripts/kit/check-documents.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1109 tests/kit/check-documents.test.mts` | [o] |
 | K1110 | checklist는 항목 상태와 표 형식을 저장소에서 읽으며 kit에 고정된 것은 없다 | scripts/kit/checklist.mts, config, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1110 tests/kit/checklist.test.mts` | [o] |

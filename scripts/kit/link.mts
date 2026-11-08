@@ -17,7 +17,7 @@
 // distribution whose package folder a removed link left missing (K856).
 //   node link.mjs link [--project <dir>] [--runtime <runtime>] | unlink [--project <dir>] | packages <dir> python|npm |
 //                 providers [--ecosystem npm|composer|python|go] [<checkout>...] | cargo <dir> <args>...
-// The providers are the checkouts that the link declaration names (K869): LINKS_FILE at the root of the main checkout, one path per
+// The providers are the checkouts that the link declaration names (K869): LINKS_FILE at the root of the checkout itself (K1118), one path per
 // line; with no file nothing is linked. make link-check (link-check.mts) compares the declaration with the state.
 // --project limits link, check and unlink to the manifests directly in <dir>, never a nested project (S-426), and fails when
 // <dir> holds none (K212); without it the whole tree of the working directory is the consumer.
@@ -26,7 +26,7 @@ import path from 'node:path';
 import { isJsonObject, readJsonObject } from './bootstrap/files.mts';
 import { projectEnvironment, uvLink } from './uv-install.mts';
 import { composerVendorDir, environmentLinks, folderFindings, hasPythonPackages, linkFolders, type ProvidedFolder, providedFolders, providerDependencyFindings } from './link-folders.mts';
-import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, LINKS_FILE, mainCheckout, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf } from './link-providers.mts';
+import { assertIgnored, declaredCheckouts, type Ecosystem, EXCLUDED, goModule, LINKS_FILE, mainCheckouts, MANIFESTS, type Provider, providerKey, providers, readTomlFile, repositoryOf, type Tool, trackedManifests, workTreeOf } from './link-providers.mts';
 import { readComposerManifestFile } from './manifests.mts';
 import { toolCommand } from './mise-tools.mts';
 import { isMain } from './paths.mts';
@@ -700,7 +700,7 @@ if (isMain(import.meta.url)) {
         const checkouts = declaredCheckouts(projectDirectory ?? '.');
         if (checkouts === undefined) {
           if (!unlink({ directories, print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
-          print(`no ${LINKS_FILE} in ${mainCheckout(projectDirectory ?? '.')}: nothing is linked; make install restores a released package whose link was removed`);
+          print(`no ${LINKS_FILE} in ${workTreeOf(projectDirectory ?? '.')}: nothing is linked; make install restores a released package whose link was removed`);
         } else if (!link({ checkouts, directories, check: false, print, project: projectDirectory !== undefined, ...(runtime === undefined ? {} : { runtime }) })) process.exitCode = 1;
         break;
       }
@@ -712,7 +712,7 @@ if (isMain(import.meta.url)) {
         // The providers of one ecosystem, npm unless --ecosystem names another, one line each: the name, a tab and the package folder,
         // sorted by name. They are read by the rules of link (the excluded paths, a package folder before its root, one provider per
         // name), so a consumer takes the folder of each polyspec package from the kit (K462). The checkouts are the arguments, or with
-        // none the link declaration of the main checkout of this folder, which with no file declares none (K1008).
+        // none the link declaration of the checkout of this folder, which with no file declares none (K1008).
         const flag = rest.indexOf('--ecosystem');
         const ecosystem = flag < 0 ? 'npm' : rest[flag + 1];
         if (ecosystem === undefined || !Object.hasOwn(MANIFESTS, ecosystem)) throw new Error('Usage: link.mjs providers [--ecosystem npm|composer|python|go] [<checkout>...]');

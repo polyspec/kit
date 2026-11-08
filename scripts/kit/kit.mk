@@ -370,7 +370,7 @@ python-venv: ## Make the virtual environment DIR from the python3 of mise.toml w
 	$(NODE) $(KIT)/python-venv.$(KIT_EXT) $(DIR)
 
 # --- link: the local links of 0.0.x development (docs/operations/local-links.md, K201, K205, K869). The git-ignored .links
-# of the main checkout names the checkouts that provide the packages (scripts/kit/link.mts); PROJECT, when given, names the consumer whose manifests directly in it
+# of the checkout itself (K1118) names the checkouts that provide the packages (scripts/kit/link.mts); PROJECT, when given, names the consumer whose manifests directly in it
 # are linked, else the whole tree of the checkout. Native package managers connect declared development sources;
 # application requirements remain their inputs and link invokes no product build target (K664); link-check
 # lists each provided folder that is a copy or links elsewhere; unlink only removes the links, and make install restores the locked

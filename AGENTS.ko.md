@@ -1,5 +1,5 @@
 <!-- doc-id: agents -->
-<!-- source-sha256: 2e4515dfce541846214ca11c0d0016f2b21cda453a586bb91d3b8d219ab3bb28 -->
+<!-- source-sha256: 7f49463acc65700948216f0dc8871d7a5b10c3e1aab9892c90e77a27c37dc2b3 -->
 # 개발
 
 [English](AGENTS.md)
@@ -63,7 +63,7 @@ kit은 모든 polyspec 저장소가 공유하는 도구를 담습니다. release
 - Own: 저장소가 package의 예시에서 복사한 파일은 그 저장소의 파일입니다(K1052). kit은 recipe를
   include시키지 않으므로 저장소는 자기 recipe를 자기 Makefile에 두며(K1054, 한 가지 방법은 `docs/examples/bootstrap.mk`), 첫 Make
   실행 전에 lock에 고정된 npm dependency를 설치합니다.
-  로컬 개발은 main checkout의 git-ignored `.links`가 한 줄에 하나씩 지정한 provider checkout을 link합니다. `make link`는
+  로컬 개발은 각 checkout의 git-ignored `.links`가 그 checkout 하나에 대해 한 줄에 하나씩 지정한 provider checkout을 link합니다(K1118). `make link`는
   그 패키지의 설치된 folder마다 provider로 가는 평범한 directory symlink 하나로 만듭니다(`docs/operations/local-links.md`, K869).
   이 link는 추적되지 않고 release output에 들어가지 않습니다. `.links`가 없으면 아무것도 link하지 않고 설치된 릴리즈가 실행됩니다.
   kit 자체는 자기 source를 실행하며 자기의 공개 package를 설치하지 않습니다. 이 저장소가

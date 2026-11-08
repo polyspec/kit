@@ -69,7 +69,7 @@ and its Korean twin, as such an example; a repository's AGENTS.md links to its c
 - Own: A file that a repository copies from an example of the package is its own file (K1052). A repository keeps
   its recipes in its own Makefile, since kit includes none (K1054; `docs/examples/bootstrap.mk` shows one way), and installs the
   locked npm dependencies before the first Make invocation.
-  Local development links the provider checkouts that the git-ignored `.links` of the main checkout names, one per line: `make link`
+  Local development links the provider checkouts that the git-ignored `.links` of each checkout names, one per line, for that checkout alone (K1118): `make link`
   makes each installed folder of their packages one plain directory symlink to its provider (`docs/operations/local-links.md`,
   K869). Such links are untracked and stay out of released output. With no `.links` nothing is linked and the installed release runs.
   kit itself runs its own sources and does not install a published copy of itself. A path

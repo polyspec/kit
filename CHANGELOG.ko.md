@@ -1,11 +1,12 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: 2dc1814b2f316d83a0ab9ee9e9e3dfc2f36a754cb539c8933c83c38e1a32383f -->
+<!-- source-sha256: 890330c266f69913430ddfc46189c237855c59d9ab78527453b7911a029b992b -->
 # 변경 기록
 
 [English](CHANGELOG.md)
 
 ## Unreleased
 
+- K1118: 각 checkout은 자기 `.links`만 읽습니다. worktree는 더 이상 main checkout의 선언을 읽지 않으므로, 자기 `.links`가 없는 worktree는 릴리즈 상태이며 그 설치(uv-install, npm, make install)는 lock이 지정한 package를 받고 link-check는 그 릴리즈 상태와 비교합니다. 자기 `.links`가 있는 worktree는 선언대로 link합니다. 쓰이지 않는 link-providers의 `mainCheckout` export를 지웁니다(K1118).
 - 테스트 sandbox에서 호출자의 GIT_DIR, GIT_WORK_TREE 등 저장소 위치를 정하는 git 변수를 지워, `git rebase -x`나 hook 아래의 kit-test 실행이 그것을 시작한 저장소에 쓰지 않게 한다(K1113).
 - K1116: item-edit은 호출자가 DONE_STAYS=1을 선언할 때만 done item의 Verification이나 Deliverables 수정을 거부합니다. kit의 item-edit 레시피는 이를 선언하며, 그 거부를 유지하려는 저장소는 자기 레시피에서 DONE_STAYS=1을 넘깁니다(K1116).
 - K1107: kit 자신의 worktree-setup 레시피는 K858을 자기 선언으로 유지합니다. WORKTREE_ENVIRONMENT가 worktree-setup을 실행하기 전에 main checkout의 var/tools를 PATH에서 빼고 호출한 make의 flag를 버립니다. 첫 install 전에 package를 link하던 consumer는 --make link --make install --make link-check를 선언하며, 이는 --prepare 뒤에 주어진 순서대로 실행됩니다(K1107).
