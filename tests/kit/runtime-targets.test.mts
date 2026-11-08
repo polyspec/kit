@@ -29,7 +29,6 @@ test('each package of a runtime runs its runner with the name filter of CASES in
   assert.deepEqual(runtimeRuns(FILES, 'python', 'parses', node), [{ cwd: 'packages/python', tool: 'python', args: ['-k', 'parses'] }]);
   assert.deepEqual(runtimeRuns(FILES, 'rust', 'parses', node), [{ cwd: 'packages/rust', tool: 'cargo', args: ['parses'] }]);
   assert.deepEqual(runtimeRuns(FILES, 'go', undefined, node), [{ cwd: 'packages/validator/go', tool: 'go', args: ['./...'] }], 'without CASES every unit test runs');
-  assert.throws(() => runtimeRuns(FILES, 'js', 'x', node), /no package of the runtime js/);
 });
 
 // PHPUnit's answer to `--list-tests --filter <CASES>` for each library: the tests named `Class::method` that the filter selects.
@@ -81,35 +80,21 @@ test('test-php-ext takes the selection of CASES from PHPUnit, so a #[Test] metho
   assert.deepEqual(notes, []);
 });
 
-test('the test directories of a Python package are packages, which unittest discovers only as such (K298)', () => {
-  const ok = ['packages/python/pyproject.toml', 'packages/python/tests/__init__.py', 'packages/python/tests/test_a.py', 'packages/python/tests/sub/__init__.py', 'packages/python/tests/sub/test_b.py'];
-  assert.deepEqual(runtimeRuns(ok, 'python', 'parses', node), [{ cwd: 'packages/python', tool: 'python', args: ['-k', 'parses'] }]);
-  const flat = ['packages/python/pyproject.toml', 'packages/python/tests/test_a.py'];
-  assert.throws(() => runtimeRuns(flat, 'python', 'parses', node), /packages\/python\/tests: unittest discovers a directory only as a package; add packages\/python\/tests\/__init__\.py/);
-  const nested = ['packages/python/tests/__init__.py', 'packages/python/tests/sub/test_b.py'];
-  assert.throws(() => runtimeRuns(nested, 'python', undefined, node), /add packages\/python\/tests\/sub\/__init__\.py/);
-  assert.deepEqual(runtimeRuns(['packages/python/pyproject.toml'], 'python', undefined, node), [{ cwd: 'packages/python', tool: 'python', args: [] }]);
-});
-
 test('a suite runs the folder of each runtime under tests/<suite>/ of the root (K244)', () => {
   assert.deepEqual(suiteRuns(FILES, 'integration', node), [{ cwd: 'tests/integration/go', tool: 'go', args: ['./...'] }]);
   assert.deepEqual(suiteRuns(FILES, 'conformance', node), [{ cwd: 'tests/conformance/ts', tool: 'node', args: ['a.test.ts'] }]);
 });
 
 test('the Go workspace is the source of truth for every standard module test and build (K739)', () => {
-  const files = ['go.work', 'packages/go/go.mod', 'examples/go.mod', 'tests/conformance/go/go.mod'];
   const directories = ['examples', 'packages/go', 'tests/conformance/go'];
-  assert.deepEqual(goWorkspaceRuns(files, directories), [{ cwd: '.', tool: 'go', args: ['./examples/...', './packages/go/...', './tests/conformance/go/...'] }]);
-  assert.deepEqual(goWorkspaceRuns(['go.work', 'go.mod'], ['.']), [{ cwd: '.', tool: 'go', args: ['./...'] }]);
-  assert.deepEqual(goWorkspaceBuilds(files, directories), directories.map(cwd => ({ cwd, command: 'go', args: ['build', './...'] })));
-  assert.throws(() => goWorkspaceRuns(files, ['packages/go', 'missing']), /without a tracked go.mod: missing/);
-  assert.throws(() => goWorkspaceRuns(files, []), /go.work declares no modules/);
+  assert.deepEqual(goWorkspaceRuns(directories), [{ cwd: '.', tool: 'go', args: ['./examples/...', './packages/go/...', './tests/conformance/go/...'] }]);
+  assert.deepEqual(goWorkspaceRuns(['.']), [{ cwd: '.', tool: 'go', args: ['./...'] }]);
+  assert.deepEqual(goWorkspaceBuilds(directories), directories.map(cwd => ({ cwd, command: 'go', args: ['build', './...'] })));
 });
 
 test('CASES selects the tests of the one workspace go test by -run, as it does in each module (K832)', () => {
-  const files = ['go.work', 'packages/go/go.mod', 'examples/go.mod'];
-  assert.deepEqual(goWorkspaceRuns(files, ['examples', 'packages/go'], 'TestToken|TestLock'), [{ cwd: '.', tool: 'go', args: ['-run', 'TestToken|TestLock', './examples/...', './packages/go/...'] }]);
-  assert.deepEqual(goWorkspaceRuns(files, ['examples', 'packages/go'], undefined), [{ cwd: '.', tool: 'go', args: ['./examples/...', './packages/go/...'] }]);
+  assert.deepEqual(goWorkspaceRuns(['examples', 'packages/go'], 'TestToken|TestLock'), [{ cwd: '.', tool: 'go', args: ['-run', 'TestToken|TestLock', './examples/...', './packages/go/...'] }]);
+  assert.deepEqual(goWorkspaceRuns(['examples', 'packages/go'], undefined), [{ cwd: '.', tool: 'go', args: ['./examples/...', './packages/go/...'] }]);
 });
 
 test('the infrastructure target discovers every tracked Node test and rejects an empty inventory (K739)', () => {
@@ -119,10 +104,10 @@ test('the infrastructure target discovers every tracked Node test and rejects an
   assert.throws(() => infrastructureRuns(['tests/helper.mts']), /no tracked Node infrastructure tests/);
 });
 
-test('the platform smoke requires its tracked fixture and uses the standard Node runner (K739)', () => {
+test('the platform smoke runs the files that the caller names with the standard Node runner (K739, K1074)', () => {
   const fixture = 'tests/kit/standard-case-sensitive-smoke.mts';
   assert.deepEqual(caseSensitiveSmokeRuns([fixture]), [{ cwd: '.', tool: 'node', args: [fixture] }]);
-  assert.throws(() => caseSensitiveSmokeRuns([]), /is not tracked/);
+  assert.throws(() => caseSensitiveSmokeRuns([]), /needs the smoke files as arguments/);
 });
 
 test('case-sensitive directory uses the platform provisioner and restores the named environment', () => {
@@ -279,14 +264,39 @@ test('an extension without a parity declaration of packages/php-ext fails with t
   assert.throws(() => runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], other), /declares no implementation with the root packages\/php-ext/);
 });
 
-// K905: the extension run reads the declaration as parity-check does, against its schema, and drops no entry that it cannot read.
-test('a broken parity declaration fails the extension run with the file named, and declared folders without a test fail too (K905)', () => {
+// K905: a parity declaration that is no JSON fails the extension run with the file named.
+test('a broken parity declaration fails the extension run with the file named (K905)', () => {
   const files = ['packages/php-ext/src/a.c', 'packages/php/tests/ATest.php'];
-  const typo = (file: string) => (file === 'config/parity.json' ? declaration([{ name: 'php', runner: 'phpp', roots: ['packages/php'] }, { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'] }]) : undefined);
-  assert.throws(() => runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], typo), /config\/parity\.json: .*runner/);
   const broken = (file: string) => (file === 'config/parity.json' ? '{' : undefined);
   assert.throws(() => runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], broken), /config\/parity\.json is no JSON/);
-  assert.throws(() => runtimeRuns(['packages/php-ext/src/a.c'], 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], parity('packages/php')), /packages\/php, packages\/php-ext, which config\/parity\.json declares for packages\/php-ext, hold no test file/);
+});
+
+// K1074: the run reads config/parity.json only for the roots, so a key it does not read never fails it; it imposes no layout:
+// a runtime without a package has no run, a Python test folder without __init__.py runs, go.work modules pass as declared, and
+// declared roots without a test file run nothing instead of failing.
+test('K1074 runtime-targets reads only the roots of the parity declaration and imposes no layout', () => {
+  const files = ['packages/php-ext/src/a.c', 'packages/php/tests/ATest.php'];
+  const unknown = (file: string) => (file === 'config/parity.json' ? declaration([{ name: 'php', runner: 'php', roots: ['packages/php'], extra: true }, { name: 'php-ext', runner: 'php', roots: ['packages/php-ext'], unread: { any: 1 } }]) : undefined);
+  assert.deepEqual(runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], unknown).map(run => run.cwd), ['packages/php']);
+  assert.deepEqual(runtimeRuns(['packages/php-ext/src/a.c'], 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], parity('packages/php')), []);
+  assert.deepEqual(runtimeRuns(FILES, 'js', 'x', node), []);
+  const flat = ['packages/python/pyproject.toml', 'packages/python/tests/test_a.py'];
+  assert.deepEqual(runtimeRuns(flat, 'python', 'parses', node), [{ cwd: 'packages/python', tool: 'python', args: ['-k', 'parses'] }]);
+  assert.deepEqual(goWorkspaceRuns(['packages/go', 'missing']), [{ cwd: '.', tool: 'go', args: ['./missing/...', './packages/go/...'] }]);
+  assert.deepEqual(goWorkspaceRuns([]), []);
+  // A field that the run reads and that is malformed fails with its place; no implementation is left out (K1074).
+  const malformed: [unknown, RegExp][] = [
+    [{ schema: 1 }, /implementations is no array/],
+    [{ implementations: [{ runner: 'php', roots: ['packages/php-ext'] }] }, /implementations\[0\]\.name is no name/],
+    [{ implementations: [{ name: 'php-ext', runner: 'php', roots: 'packages/php-ext' }] }, /implementations\[0\]\.roots is no list of folders/],
+    [{ implementations: [{ name: 'php-ext', runner: 'php', roots: ['packages/php-ext', 3] }] }, /implementations\[0\]\.roots is no list of folders/],
+    [{ implementations: [{ name: 'php-ext', roots: ['packages/php-ext'] }] }, /implementations\[0\]\.runner is no runner/],
+    [{ implementations: [{ name: 'php-ext', runner: 'php', roots: ['packages/php-ext'], shares: 1 }] }, /implementations\[0\]\.shares is no name/],
+  ];
+  for (const [value, message] of malformed) {
+    const read = (file: string) => (file === 'config/parity.json' ? JSON.stringify(value) : undefined);
+    assert.throws(() => runtimeRuns(files, 'php-ext', undefined, node, '/r/x.so', undefined, undefined, [], read), message);
+  }
 });
 
 test('test-php runs the tests of a PHP package of type project as a package of its own (K433)', () => {

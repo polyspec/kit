@@ -1,5 +1,5 @@
 <!-- doc-id: changelog -->
-<!-- source-sha256: ee61687a579fa035d3cfa1a61e0d510f6a233d700391ea5a48f0afcdd95ae874 -->
+<!-- source-sha256: 0ade4e2f6ab81d933a6928cb3023daa30fd7854f447666c2100aee0888382d12 -->
 # 변경 기록
 
 [English](CHANGELOG.md)
@@ -35,6 +35,7 @@
 - K1073: generated-files staged와 tracked는 config/generated.json 없이도 path와 exception이 없는 선언으로 실행된다. 생성 segment는 전과 같이 거부한다(K1073).
 - K1083: generated-files installs는 인수가 선언한 설치 폴더를 검사한다. root의 폴더 이름 그대로, 또는 추적된 manifest마다 그 옆의 <manifest>=<directory>이다. 선언이 없거나 a=b=c처럼 다른 형식의 항목이 있으면 사용법 오류(exit 2)이며, kit의 layout-check는 var, package.json=node_modules, pyproject.toml=.venv, composer.json=vendor를 선언한다. checkedFiles는 설치 폴더 목록을 두지 않는다. Git이 그 폴더를 무시한다(K1083).
 - K1075: php-extension은 이름 규칙을 두지 않는다. extension은 packages/php-ext/src/config.m4의 PHP_NEW_EXTENSION이 선언한 것이고, stub은 src/*.stub.php 파일이며, 각 arginfo header는 자기 stub과 대조하고, extension과 library의 Composer 이름은 저장소가 정한다(K1075).
+- K1074: runtime-targets는 config/parity.json에서 roots만 읽고 배치를 강제하지 않는다. package가 없는 runtime은 아무것도 실행하지 않고, Python test 폴더에 __init__.py가 필요 없으며, go.work module은 선언대로 넘기고, test 파일이 없는 선언된 root는 아무것도 실행하지 않으며, case-sensitive-smoke는 recipe가 이름 붙인 파일을 실행한다. 읽는 선언 field가 잘못되면 그 위치와 함께 실패하고, 아무것도 실행하지 않는 test target은 여전히 실패한다(K1074).
 - PHPUnit event의 fully qualified identity와 독립된 flow를 보존하고 parity mapping의 namespace aliasing을 제거한다(K1091).
 
 ## 0.0.98

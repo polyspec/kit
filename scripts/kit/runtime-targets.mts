@@ -21,7 +21,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { isJsonObject } from './bootstrap/files.mts';
 import { isTestFile } from './check-commits.mts';
-import { DECLARATION as PARITY, implementationFolders, sharedRoots, type ParityConfig } from './parity-declaration.mts';
+import { DECLARATION as PARITY, implementationFolders, sharedRoots, type SharingImplementation } from './parity-declaration.mts';
 import { parseJson } from './schema-validate.mts';
 import { isMain, repositoryRoot, siblingTool } from './paths.mts';
 import { extensionNames } from './php-extension.mts';
@@ -50,36 +50,45 @@ type Reader = (file: string) => string | undefined;
 const noFile: Reader = () => undefined;
 
 /**
+ * The implementations of the config/parity.json text `text` with the fields that the runs read (K1074): name, roots, runner and
+ * shares. Only those fields are read, so the rest of the declaration is the repository's own; a field of them that is malformed
+ * fails with its place, and no implementation is left out.
+ */
+function parityRoots(text: string): SharingImplementation[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${PARITY} is no JSON: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
+  }
+  if (!isJsonObject(parsed) || !Array.isArray(parsed.implementations)) throw new Error(`${PARITY}: implementations is no array`);
+  return parsed.implementations.map((entry: unknown, index: number) => {
+    const where = `${PARITY}: implementations[${index}]`;
+    if (!isJsonObject(entry)) throw new Error(`${where} is no object`);
+    if (typeof entry.name !== 'string' || entry.name === '') throw new Error(`${where}.name is no name`);
+    if (!Array.isArray(entry.roots) || !entry.roots.every((root): root is string => typeof root === 'string' && root !== '')) throw new Error(`${where}.roots is no list of folders`);
+    if (typeof entry.runner !== 'string' || entry.runner === '') throw new Error(`${where}.runner is no runner`);
+    if (entry.shares !== undefined && typeof entry.shares !== 'string') throw new Error(`${where}.shares is no name`);
+    const implementation: SharingImplementation = { name: entry.name, roots: entry.roots, runner: entry.runner };
+    if (typeof entry.shares === 'string') implementation.shares = entry.shares;
+    return implementation;
+  });
+}
+
+/**
  * The folders whose PHPUnit files test the PHP extension `folder`, as config/parity.json declares them (K905): the roots of the
  * implementation whose roots hold `folder` and the roots whose tests it shares (sharedRoots, the PHP implementations by S10), as
- * parity-check reads them, each that holds a test file. Without that declaration it throws with the fix.
+ * parity-check reads them, each that holds a test file. Without an implementation that holds `folder` it throws, since the run
+ * has no folder to start from.
  */
 export function phpExtensionFolders(files: readonly string[], folder: string, read: Reader = noFile): string[] {
   const text = read(PARITY);
-  const declared = text === undefined ? [] : parseJson<ParityConfig>(text, 'parity.schema.json', PARITY).implementations;
+  const declared = text === undefined ? [] : parityRoots(text);
   const implementations = new Map(declared.map(entry => [entry.name, entry]));
   const extension = declared.find(entry => entry.roots.includes(folder));
   if (extension === undefined) throw new Error(`${PARITY} declares no implementation with the root ${folder}; declare the extension and the PHP implementations whose tests it runs there`);
   const places = [...new Set([...sharedRoots(extension, implementations), ...extension.roots])].sort();
-  const tested = places.filter(place => files.some(file => file.startsWith(`${place}/`) && isTestFile(file)));
-  if (tested.length === 0) throw new Error(`${places.join(', ')}, which ${PARITY} declares for ${folder}, hold no test file; add the tests of the extension there`);
-  return tested;
-}
-
-/**
- * Throws when a test directory of the Python package `folder` is no package: unittest discovers a directory only as a package,
- * so `make test-python` over a tests/ without __init__.py finds no test and ends with "no test ran" (K298).
- */
-function pythonPackages(files: readonly string[], folder: string): void {
-  const depth = folder.split('/').length;
-  const tests = files.filter(file => file.startsWith(`${folder}/tests/`) && /(?:^|\/)test_[^/]*\.py$/.test(file));
-  const directories = new Set(tests.flatMap((file) => {
-    const parts = path.posix.dirname(file).split('/');
-    return parts.slice(depth).map((_, index) => parts.slice(0, depth + index + 1).join('/'));
-  }));
-  for (const directory of [...directories].sort()) {
-    if (!files.includes(`${directory}/__init__.py`)) throw new Error(`${directory}: unittest discovers a directory only as a package; add ${directory}/__init__.py`);
-  }
+  return places.filter(place => files.some(file => file.startsWith(`${place}/`) && isTestFile(file)));
 }
 
 /**
@@ -126,7 +135,6 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
       for (const run of runs.filter(run => !selected.includes(run))) notes.push(`${run.cwd}: no case selected by CASES`);
       return selected;
     case 'python':
-      pythonPackages(files, folder);
       // The tests run in the environment of the package (K324): the mise python alone holds none of its dependencies.
       const environment = venv?.(folder);
       return [{ cwd: folder, tool: 'python', ...(environment === undefined ? {} : { options: ['--venv', environment] }), args: filter('-k') }];
@@ -135,13 +143,12 @@ function runsOf(files: readonly string[], runtime: string, folder: string, cases
 }
 
 /**
- * The runs of the unit tests of the packages of `runtime` among the tracked `files`; throws when no package has it.
+ * The runs of the unit tests of the packages of `runtime` among the tracked `files`; none when no package has it (K1074).
  * `extension` is the built library of the PHP extension, `listed` tells the tests that a run of PHPUnit selects, and
  * `notes` gets the PHP libraries that CASES selects no test in (K390).
  */
 export function runtimeRuns(files: readonly string[], runtime: string, cases: string | undefined, vitest: (folder: string) => boolean, extension?: string, venv?: (folder: string) => string | undefined, listed?: Listed, notes?: string[], read?: Reader): Run[] {
   const folders = implementationFolders(files).filter(folder => path.posix.basename(folder) === runtime);
-  if (folders.length === 0) throw new Error(`no package of the runtime ${runtime}: packages/${runtime} or packages/<component>/${runtime}`);
   return folders.flatMap(folder => runsOf(files, runtime, folder, cases, vitest, extension, venv, listed, notes, read));
 }
 
@@ -190,33 +197,28 @@ export function infrastructureRuns(files: readonly string[], platform: NodeJS.Pl
   return [{ cwd: '.', tool: 'node', args: selected }];
 }
 
-/** One tracked fixture for the platform workflow to smoke the actual resource-context and standard Node runner. */
-export function caseSensitiveSmokeRuns(files: readonly string[]): Run[] {
-  const fixture = 'tests/kit/standard-case-sensitive-smoke.mts';
-  if (!files.includes(fixture)) throw new Error(`${fixture} is not tracked; add the standard runner smoke fixture`);
-  return [{ cwd: '.', tool: 'node', args: [fixture] }];
+/** The smoke of the resource context and the standard Node runner with the files that the caller names (K1074). */
+export function caseSensitiveSmokeRuns(fixtures: readonly string[]): Run[] {
+  if (fixtures.length === 0) throw new Error('case-sensitive-smoke needs the smoke files as arguments');
+  return [{ cwd: '.', tool: 'node', args: [...fixtures] }];
 }
 
-/** The modules of a tracked go.work, each with a tracked go.mod, including modules outside packages/. */
-function goWorkspaceModules(files: readonly string[], directories: readonly string[]): string[] {
-  const modules = new Set(directories.map(directory => path.posix.normalize(directory)));
-  const tracked = new Set(files.filter(file => path.posix.basename(file) === 'go.mod').map(file => path.posix.dirname(file)));
-  const missing = [...modules].filter(directory => !tracked.has(directory)).sort();
-  if (missing.length) throw new Error(`go.work uses modules without a tracked go.mod: ${missing.join(', ')}`);
-  if (modules.size === 0) throw new Error('go.work declares no modules');
-  return [...modules].sort();
+/** The modules that go.work uses, including modules outside packages/ (K1074: go itself judges the workspace). */
+function goWorkspaceModules(directories: readonly string[]): string[] {
+  return [...new Set(directories.map(directory => path.posix.normalize(directory)))].sort();
 }
 
 /** One go test of every go.work module from the root (K751): Go resolves the workspace, and a build-only module counts with the
  * suites of the others, so only a run in which no module has a test is empty. `cases` selects its tests by -run (K832). */
-export function goWorkspaceRuns(files: readonly string[], directories: readonly string[], cases?: string): Run[] {
-  const modules = goWorkspaceModules(files, directories).map(module => (module === '.' ? './...' : `./${module}/...`));
+export function goWorkspaceRuns(directories: readonly string[], cases?: string): Run[] {
+  const modules = goWorkspaceModules(directories).map(module => (module === '.' ? './...' : `./${module}/...`));
+  if (modules.length === 0) return [];
   return [{ cwd: '.', tool: 'go', args: [...(cases === undefined ? [] : ['-run', cases]), ...modules] }];
 }
 
 /** Build commands for every module named by go.work, with no package or path filter. */
-export function goWorkspaceBuilds(files: readonly string[], directories: readonly string[]): Build[] {
-  return goWorkspaceModules(files, directories).map(cwd => ({ cwd, command: 'go', args: ['build', './...'] }));
+export function goWorkspaceBuilds(directories: readonly string[]): Build[] {
+  return goWorkspaceModules(directories).map(cwd => ({ cwd, command: 'go', args: ['build', './...'] }));
 }
 
 function workspaceDirectories(root: string): string[] {
@@ -266,7 +268,7 @@ function declaredRuntimes(root: string): string[] | undefined {
 
 if (isMain(import.meta.url)) {
   const root = repositoryRoot();
-  const [target = '', name = ''] = process.argv.slice(2);
+  const [target = '', name = '', ...more] = process.argv.slice(2);
   const files = trackedFiles(root);
   if (target === 'task') {
     const targets = taskTargets(files, name);
@@ -286,7 +288,7 @@ if (isMain(import.meta.url)) {
   if (target === 'build') {
     let builds: Build[];
     try {
-      builds = name === 'go' && files.includes('go.work') ? goWorkspaceBuilds(files, workspaceDirectories(root)) : buildRuns(files, name);
+      builds = name === 'go' && files.includes('go.work') ? goWorkspaceBuilds(workspaceDirectories(root)) : buildRuns(files, name);
     } catch (error) {
       console.error(`[runtime-targets] ${error instanceof Error ? error.message : String(error)}`);
       process.exit(1);
@@ -317,10 +319,10 @@ if (isMain(import.meta.url)) {
     const read = (file: string) => (files.includes(file) ? readFileSync(path.join(root, file), 'utf8') : undefined);
     if (caseSensitiveEnv !== undefined && target !== 'go' && target !== 'infrastructure' && target !== 'case-sensitive-smoke') throw new Error('CASE_SENSITIVE_ENV is supported only by test-go, test-infrastructure and case-sensitive-smoke');
     if (target === 'infrastructure') runs = infrastructureRuns(files);
-    else if (target === 'case-sensitive-smoke') runs = caseSensitiveSmokeRuns(files);
+    else if (target === 'case-sensitive-smoke') runs = caseSensitiveSmokeRuns([name, ...more].filter(Boolean));
     else if (suite) runs = suiteRuns(files, target, vitest, venv);
     else if (target === 'go' && files.includes('go.work')) {
-      runs = goWorkspaceRuns(files, workspaceDirectories(root), process.env.CASES || undefined);
+      runs = goWorkspaceRuns(workspaceDirectories(root), process.env.CASES || undefined);
     } else runs = runtimeRuns(files, target, process.env.CASES || undefined, vitest, extension, venv, listed, notes, read);
   } catch (error) {
     if (!(error instanceof Error)) throw error;
@@ -329,7 +331,8 @@ if (isMain(import.meta.url)) {
   }
   for (const note of notes) console.log(note);
   if (runs.length === 0) {
-    console.error(`[runtime-targets] tests/${target}/ holds no folder of a runtime`);
+    // A test target that runs nothing has tested nothing, so it does not pass (K1074 keeps this result check, without a layout rule).
+    console.error(`[runtime-targets] make test-${target} found nothing to run`);
     process.exit(1);
   }
   const execute = () => {

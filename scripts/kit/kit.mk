@@ -157,7 +157,7 @@ test-infrastructure: ## Run every tracked root Node infrastructure test through 
 
 .PHONY: case-sensitive-runner-smoke
 case-sensitive-runner-smoke: ## Smoke the standard Node runner with a temporary verified case-sensitive directory; offline
-	CASE_SENSITIVE_ENV=KIT_CASE_SENSITIVE_SMOKE_DIR $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) case-sensitive-smoke
+	CASE_SENSITIVE_ENV=KIT_CASE_SENSITIVE_SMOKE_DIR $(NODE) $(KIT)/runtime-targets.$(KIT_EXT) case-sensitive-smoke tests/kit/standard-case-sensitive-smoke.mts
 
 test-integration test-conformance: ## Run the suite of each runtime under tests/integration or tests/conformance of the root
 	$(NODE) $(KIT)/runtime-targets.$(KIT_EXT) $(@:test-%=%)
