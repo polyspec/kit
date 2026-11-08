@@ -5,6 +5,8 @@
 
 ## Unreleased
 
+- K1132: docs-check no longer requires a command in the Verification cell of an open item: the rule checklist-verification ran with no flag that a repository could leave out. `make item-test` keeps running the commands of a cell (K1132).
+
 - K1131: owner-check no longer reads a repository's recipe text to refuse a target: a target whose recipe starts ci-targets and a rule that selects every target of CHECK_TARGETS pass; the targets that the repository's `fullSuite` names are still refused (K1131).
 
 ## 0.0.100

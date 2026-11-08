@@ -149,6 +149,12 @@ test('checklist table: a document without task rows fails', (t) => {
   hasPart(run2(withChecklist(t, checklist(''))), 'checklist-empty: the checklist has no task whose ID matches');
 });
 
+// K1132: docs-check requires no command in the Verification cell of an open item; make item-test reads the cell when it runs.
+test('K1132 an open item whose Verification cell names no command passes', (t) => {
+  const text = '# Plan\n\n| ID | Task | Deliverables | Verification | State |\n| --- | --- | --- | --- | --- |\n| T1 | a | `a.mts` | a red test | [ ] |\n| T2 | b | `b.mts` | | [~] |\n';
+  assert.deepEqual(run2(withChecklist(t, text)), []);
+});
+
 test('checklist: a task ID may be followed by a code span', (t) => {
   const rows = '| T1.1 `parallel` | a | [o] |\n| T1.2 | b | [~] |';
   assert.deepEqual(run2(withChecklist(t, checklist(rows))).filter(line => line.includes('checklist-')), []);
