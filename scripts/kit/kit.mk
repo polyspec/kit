@@ -308,9 +308,11 @@ ci-passed: ## Fail unless every job of RESULTS, the JSON of toJSON(needs), has t
 # vX.Y.Z, which release-tag appends to GITHUB_ENV with VERSION. The release workflow runs the steps in this order.
 .PHONY: release-prepare release-tools release-tag release-assets release-candidate-assets release-publish release-undraft release-coverage
 
-# kit's own release names its main ref and its asset folder, which the release tools take from the caller and never fix (K1102).
+# kit's own release names its main ref, its asset folder and the folder of its release records, which the release tools take
+# from the caller and never fix (K1102, K1115).
 RELEASE_MAIN ?= origin/main
 RELEASE_ASSETS ?= var/release/assets
+RELEASE_RECORDS ?= var/release
 
 # Freeze the native candidate before CI; the release then tags the exact commit of its successful run without another test run.
 .PHONY: release-candidate
@@ -347,11 +349,11 @@ release-candidate-assets: ## Build the archive of every package from committed H
 
 release-publish: ## Create the GitHub Release of TAG as a draft with the notes and the files of release-assets, the archives and packages.json; a draft of an earlier run is replaced
 	@test -n "$$TAG" || { echo "release-publish: TAG is required, for example make release-publish TAG=v0.0.1"; exit 1; }
-	RELEASE_ASSETS="$(RELEASE_ASSETS)" $(NODE) $(KIT)/release.$(KIT_EXT) publish "$$TAG"
+	RELEASE_ASSETS="$(RELEASE_ASSETS)" RELEASE_RECORDS="$(RELEASE_RECORDS)" $(NODE) $(KIT)/release.$(KIT_EXT) publish "$$TAG"
 
 release-undraft: ## Make the draft release of TAG public
 	@test -n "$$TAG" || { echo "release-undraft: TAG is required, for example make release-undraft TAG=v0.0.1"; exit 1; }
-	$(NODE) $(KIT)/release.$(KIT_EXT) undraft "$$TAG"
+	RELEASE_RECORDS="$(RELEASE_RECORDS)" $(NODE) $(KIT)/release.$(KIT_EXT) undraft "$$TAG"
 
 release-coverage: ## Require every package file of the checkout to be classified in config/release.json; offline
 	$(NODE) $(KIT)/release.$(KIT_EXT) coverage

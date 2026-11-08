@@ -929,6 +929,29 @@ test('publish replaces the draft of an earlier run and never replaces a public r
   stop(() => release.publish(context(box), tag), /the release v0\.0\.1 is already public; a public release is not replaced/);
 });
 
+test('K1115: publish and undraft keep the release record in the folder that the caller names in RELEASE_RECORDS, and a call that names none exits 2', (t) => {
+  const box = releaseSandbox(t);
+  const tag = box.tag('v0.0.1');
+  box.ghState({ byId: { 42: { id: 42, tag_name: tag, draft: true, assets: [] } } });
+  box.releases([]);
+  const records = mkdtempSync(path.join(tmpdir(), 'kit-release-records-'));
+  t.after(() => rmSync(records, { recursive: true, force: true }));
+  writeFileSync(path.join(records, 'v0.0.1.json'), JSON.stringify({ id: 42 }));
+  const lines: string[] = [];
+  assert.equal(release.main(['undraft', tag], { root: box.root, env: { ...box.env, RELEASE_RECORDS: records }, print: line => lines.push(line), error: line => lines.push(line) }), 0, lines.join('\n'));
+  assert.deepEqual(box.state().byId?.['42']?.draft, false, 'undraft read the record of the named folder');
+  // A call that names no record folder, unset or empty, is a usage error for the steps that write or read the record.
+  const { RELEASE_RECORDS: _named, ...bare } = box.env;
+  for (const env of [bare, { ...bare, RELEASE_RECORDS: '' }]) {
+    for (const mode of ['publish', 'undraft']) {
+      const refused: string[] = [];
+      assert.equal(release.main([mode, tag], { root: box.root, env, print: line => refused.push(line), error: line => refused.push(line) }), 2, mode);
+      assert.match(refused.join('\n'), /needs the folder of the release record; name it in RELEASE_RECORDS/);
+    }
+  }
+  assert.equal(existsSync(path.join(box.root, 'var/release')), false, 'kit fixes no record folder of its own');
+});
+
 test('undraft finds the draft by the id that publish recorded, also while the list of releases does not show it yet (K79)', (t) => {
   const box = releaseSandbox(t);
   const tag = box.tag('v0.0.1');

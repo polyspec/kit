@@ -21,7 +21,7 @@
 // bytes without placing generated contents in argv. Each archive carries its unchanged manifest, except kit uses its
 // canonical source-to-dist prepack transformation. `publish` creates the draft
 // release of the tag through the API with the archives (github-release.mts createDraft) and records its id in
-// var/release/<tag>.json; the notes are the section X.Y.Z, or one line that links the section when it is longer than
+// <records>/<tag>.json, in the folder that the caller names in RELEASE_RECORDS (K1115); the notes are the section X.Y.Z, or one line that links the section when it is longer than
 // NOTES_LIMIT characters, the limit of a release body. `undraft` reads the draft by that id: the
 // list of releases shows a new draft only after a while, and its tag does not address it.
 // A release with a Composer package also writes packages.json beside the archives (K871): one flat Composer repository, since
@@ -124,6 +124,8 @@ export interface Context {
   main: string | undefined;
   /** The folder of the assets, relative to the checkout or absolute, as the caller names it; none when unnamed (K1102). */
   assets: string | undefined;
+  /** The folder of the release records, relative to the checkout or absolute, as the caller names it; none when unnamed (K1115). */
+  records: string | undefined;
 }
 
 /** A parsed manifest, package.json (NpmManifest) or composer.json (ComposerManifest), in the fields that the release reads. */
@@ -212,11 +214,11 @@ const at = (ctx: Context) => ({ cwd: ctx.root, env: ctx.env });
 
 /**
  * A command context: the repository root, its configuration, the environment of its commands, a log function, and the main ref
- * and the asset folder that the caller names, in its options or in RELEASE_MAIN and RELEASE_ASSETS of the environment; kit names
- * neither, and an empty value names none (K1102).
+ * the asset folder and the folder of the release records that the caller names, in its options or in RELEASE_MAIN, RELEASE_ASSETS
+ * and RELEASE_RECORDS of the environment; kit names none of them, and an empty value names none (K1102, K1115).
  */
-export function context(root: string, { config = loadConfig(root), env = process.env, log = () => {}, main = env.RELEASE_MAIN || undefined, assets = env.RELEASE_ASSETS || undefined }: { config?: ReleaseConfig; env?: NodeJS.ProcessEnv; log?: (text: string) => void; main?: string | undefined; assets?: string | undefined } = {}): Context {
-  return { root, config, env, log, main, assets };
+export function context(root: string, { config = loadConfig(root), env = process.env, log = () => {}, main = env.RELEASE_MAIN || undefined, assets = env.RELEASE_ASSETS || undefined, records = env.RELEASE_RECORDS || undefined }: { config?: ReleaseConfig; env?: NodeJS.ProcessEnv; log?: (text: string) => void; main?: string | undefined; assets?: string | undefined; records?: string | undefined } = {}): Context {
+  return { root, config, env, log, main, assets, records };
 }
 
 /** The asset folder of `ctx`, which a step that builds or publishes the assets needs; the caller names it in RELEASE_ASSETS (K1102). */
@@ -669,13 +671,18 @@ export function candidateAssets(ctx: Context, version: string): string[] {
 }
 
 /** The record of the draft release that publish created for `tag`, relative to the checkout: `{ "id": <id> }`. */
-export const releaseRecord = (tag: string) => `var/release/${tag}.json`;
+/** The record of the draft release of `tag` in the folder of the release records that the caller names (RELEASE_RECORDS, K1115). */
+export function releaseRecord(ctx: Pick<Context, 'records'>, tag: string): string {
+  if (ctx.records === undefined) throw new Stop('no folder of the release records is named; the caller names it in RELEASE_RECORDS');
+  return path.join(ctx.records, `${tag}.json`);
+}
 
 /** The release that publish created for `tag`, read by the id of its record; a missing record is an error. */
-export function recordedRelease(ctx: Pick<Context, 'root' | 'env' | 'config'>, tag: string): GitHubRelease {
-  const file = releaseRecord(tag);
-  if (!existsSync(path.join(ctx.root, file))) throw new Stop(`${file} is missing; make release-publish writes it`);
-  const record = readConfig<{ id: number }>(ctx.root, file, 'release-record.schema.json');
+export function recordedRelease(ctx: Pick<Context, 'root' | 'env' | 'config' | 'records'>, tag: string): GitHubRelease {
+  const file = releaseRecord(ctx, tag);
+  if (!existsSync(path.resolve(ctx.root, file))) throw new Stop(`${file} is missing; make release-publish writes it`);
+  // The folder may lie outside the checkout, so the record is read relative to the checkout whatever its place.
+  const record = readConfig<{ id: number }>(ctx.root, path.relative(ctx.root, path.resolve(ctx.root, file)), 'release-record.schema.json');
   return releaseById({ cwd: ctx.root, env: ctx.env }, ctx.config.repositoryUrl, record.id);
 }
 
@@ -706,8 +713,9 @@ export function publish(ctx: Context, tag: string): string[] {
     // Only a package archive carries a label; packages.json is a file of the release, not a package (P39).
     const labels = assetLabels(config, version);
     const id = createDraft(at(ctx), config.repositoryUrl, tag, notesFile, names.map((name, index) => ({ file: path.join(target, name), label: labels[index] })));
-    writeJson(path.join(root, releaseRecord(tag)), { id });
-    ctx.log(`[release] ${tag}: the draft release ${id} is recorded in ${releaseRecord(tag)}`);
+    const record = releaseRecord(ctx, tag);
+    writeJson(path.resolve(root, record), { id });
+    ctx.log(`[release] ${tag}: the draft release ${id} is recorded in ${record}`);
   } finally {
     rmSync(folder, { recursive: true, force: true });
   }
@@ -778,6 +786,11 @@ export function main(argv: string[], { root = repositoryRoot(), env = process.en
       error(`[release] ${mode} failed: ${unusable}`);
       return 2;
     }
+  }
+  // publish writes the record of its draft and undraft reads it, in the folder that the caller names; without it nothing runs (K1115).
+  if ((mode === 'publish' || mode === 'undraft') && !env.RELEASE_RECORDS) {
+    error(`[release] ${mode} failed: ${mode} needs the folder of the release record; name it in RELEASE_RECORDS`);
+    return 2;
   }
   try {
     const ctx = context(root, { env, log: print });

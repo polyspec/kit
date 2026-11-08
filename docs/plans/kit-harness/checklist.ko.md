@@ -1,5 +1,5 @@
 <!-- doc-id: checklist-kit-harness -->
-<!-- source-sha256: 3e7451b438e99ecebd1633592e31bee9439f3c61f8166b361bf14107e84f2e49 -->
+<!-- source-sha256: 4f4a4b0451cf76095d5f586aaee3bdf7a6a9c3d206bad5fdb41d806e53e576f6 -->
 # 공통 규칙과 하네스로서의 kit 체크리스트
 
 | ID | Task | Deliverables | Verification | State |
@@ -238,7 +238,7 @@
 | K1113 | 테스트 sandbox는 호출자의 GIT_* 환경 없이 git을 실행하므로, git rebase -x나 hook 아래의 실행이 그것을 시작한 저장소에 쓰지 않는다 | tests/kit/sandbox-repository.mts, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1113 tests/kit/sandbox-repository.test.mts` | [ ] |
 | K1068 | ci-setup은 config/ci.json이 선언한 것만 계획하고 준비하며, config/parity.json과 대조하지 않고 parityMode나 parityBindings를 요구하지 않으며 target을 Makefile과 대조하지 않습니다 | scripts/kit/ci-setup.mts, scripts/kit/schema/ci.schema.json, tests/kit/ci-setup.test.mts, docs/operations/tool-inventory(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1068 tests/kit/ci-setup.test.mts` | [o] |
 | K1114 | ci-setup, divergence-check, parity는 구현 폴더를 호출자(--parity roots)에게서 받는다. release 목록 PACKAGE_FILES, PHPUNIT_MANIFEST, MISE_LOCKS, KIT_FIXTURE는 config/release.json에서 오며 kit은 자기 것을 선언한다 | scripts/kit/ci-setup.mts, scripts/kit/divergence-check.mts, scripts/kit/parity.mts, scripts/kit/release.mts, config/release.json, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1114 tests/kit/ci-setup.test.mts tests/kit/divergence-check.test.mts tests/kit/gates-workflow.test.mts tests/kit/parity-api.test.mts tests/kit/release.test.mts` | [o] |
-| K1115 | release record 경로는 호출자에게서 온다 | scripts/kit/release.mts, scripts/kit/kit.mk, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1115 tests/kit/release.test.mts` | [ ] |
+| K1115 | release record 경로는 호출자에게서 온다 | scripts/kit/release.mts, scripts/kit/kit.mk, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1115 tests/kit/release.test.mts` | [o] |
 | K1116 | item-edit은 호출자가 그 규칙을 선언할 때만 완료된 항목을 거부한다 | scripts/kit/plan.mts, scripts/kit/kit.mk, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1116 tests/kit/plan.test.mts` | [ ] |
 | K1117 | kit은 stub 경로를 빼지 않고 packages/php-ext 폴더를 검사하지 않는다. 저장소가 config/duplication.json에서 자기 stub을 제외하며, R6와 parity 공유는 고정된 layout이 아니라 저장소의 선언을 기술한다 | scripts/kit/duplication-check.mts, scripts/kit/install-php.mts, config/duplication.json, tests/kit, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1117 tests/kit/duplication-check.test.mts tests/kit/install-php.test.mts` | [o] |
 | K1118 | 각 checkout은 자기 .links만 읽는다. .links가 있는 checkout은 그것이 이름한 checkout을 link하고, 없는 checkout은 lock의 release package를 설치한다. 지금은 declaredCheckouts(link-providers)가 worktree에서 main checkout의 .links를 읽는다 | scripts/kit/link-providers.mts, scripts/kit/link.mts, scripts/kit/link-check.mts, scripts/kit/worktree-setup.mts, tests/kit, docs/operations/local-links(.ko).md, CHANGELOG(.ko).md | `node --test --test-name-pattern=K1118 tests/kit/link.test.mts tests/kit/worktree-setup.test.mts` | [ ] |

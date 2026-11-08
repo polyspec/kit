@@ -1,5 +1,5 @@
 <!-- doc-id: tool-inventory -->
-<!-- source-sha256: 3a896e6c182403b7951ac004078461df3da175c3cc17bb9d8bcba49f0677c6a5 -->
+<!-- source-sha256: 8d5fccb587b04351db6b729fa513dfd6839914be42d80a5e5be881937df43764 -->
 
 # 도구 목록
 
@@ -638,7 +638,7 @@ go.mod의 module path에 연결합니다.
 - `assets`: manifest의 name이 `config/release.json`의 name과 같고(신규),
   각 archive가 commit의 manifest를 바이트 단위로 그대로 담습니다(ordered-json, crudui, orm; template은 파싱한 JSON을 비교했음). directory는
   대상 옆에 만들어 이름을 바꾸므로 실패한 실행은 archive를 남기지 않습니다.
-- `publish`: API로 만든 draft release(원격에서 tag를 찾은 뒤 `gh api --method POST repos/O/R/releases`, `--verify-tag`가 요구하던 대로), 각 archive를 그 release의 upload URL로 올리고 id를 `var/release/<tag>.json`에 기록(K79); 다섯 도구는 `gh release create TAG --verify-tag`를 실행했음; archive 이름은 목록 file이 아니라
+- `publish`: API로 만든 draft release(원격에서 tag를 찾은 뒤 `gh api --method POST repos/O/R/releases`, `--verify-tag`가 요구하던 대로), 각 archive를 그 release의 upload URL로 올리고 id를 `<records>/<tag>.json`에 기록(`<records>`는 `RELEASE_RECORDS`가 지정한 폴더, K79, K1115); 다섯 도구는 `gh release create TAG --verify-tag`를 실행했음; archive 이름은 목록 file이 아니라
   설정에서 옵니다(orm은 `assets.txt`를 썼음).
 - `coverage`: `config/release.json`의 `packageFiles`가 이름을 나열한 추적되거나 새로운 모든 file(package.json, composer.json, Cargo.toml,
   pyproject.toml, go.mod, VERSION 등)은 `manifests`, `notReleased`, `goModules` 중 하나에 있습니다(template test, orm `unlistedManifests`);
@@ -1055,10 +1055,10 @@ link하며(make install-link, docs/operations/local-links.md) 아무것도 내�
 - `make release-tools`(`scripts/kit/release-tools.mts`)는 config/release.json에 Composer package, wheel 또는 Go module이 있으면
   install-tools를 실행합니다. npm package에 필요한 npm은 bootstrap의 npm입니다. packages/php-ext가 있으면 install-kit처럼,
   make entry(K930)는 단계를 더하지 않습니다. target이 PHP를 필요로 하는 저장소는 `release-prepare::` 규칙에서 `make install-tools TOOLS="php"`로 설치합니다.
-- `release-publish`는 release를 draft로 만들고 그 id를 `var/release/<tag>.json`에 기록합니다. `release-undraft`는 release 목록에서
+- `release-publish`는 release를 draft로 만들고 그 id를 `<records>/<tag>.json`에 기록합니다. `<records>`는 호출자가 `RELEASE_RECORDS`로 지정한 폴더입니다(kit.mk는 `var/release`를 지정하며, 지정하지 않은 호출은 status 2로 끝납니다; K1115). `release-undraft`는 release 목록에서
   tag로 찾지 않고 그 id로 draft를 읽습니다(`repos/O/R/releases/<id>`). 목록은 새 draft를 한동안 보여 주지 않고(0.0.38 run은 생성 3초
-  뒤에 실패했습니다), tag는 draft를 가리키지 않기 때문입니다. 기록이 없으면 `var/release/<tag>.json is missing; make release-publish
-  writes it`로 실패합니다. `release-undraft`는 id로 release를 공개하며 공개된 release는 바꾸지 않습니다. 이전 run의 draft는 교체하고,
+  뒤에 실패했습니다), tag는 draft를 가리키지 않기 때문입니다. 기록이 없으면 `<records>/<tag>.json is missing; make release-publish
+  writes it`로 실패합니다(`<records>`는 `RELEASE_RECORDS`가 지정한 폴더). `release-undraft`는 id로 release를 공개하며 공개된 release는 바꾸지 않습니다. 이전 run의 draft는 교체하고,
   공개된 release는 절대 교체하지 않습니다.
 
 ## Wheel package (K29)

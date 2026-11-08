@@ -703,7 +703,7 @@ workflow of the repository (K1059). The repository is data in `config/release.js
   run leaves no archive.
 - `publish`: the draft release through the API (`gh api --method POST repos/O/R/releases` after the tag is found on the remote,
   as `--verify-tag` required), each archive uploaded to the upload URL of that release, and its id recorded in
-  `var/release/<tag>.json` (K79); the five tools ran `gh release create TAG --verify-tag`. The archive names come
+  `<records>/<tag>.json`, `<records>` the folder named in `RELEASE_RECORDS` (K79, K1115); the five tools ran `gh release create TAG --verify-tag`. The archive names come
   from the configuration, not from a list file (orm wrote `assets.txt`).
 - `coverage`: every tracked or new file whose name `packageFiles` of `config/release.json` lists (such as package.json, composer.json,
   Cargo.toml, pyproject.toml, go.mod and VERSION) is in `manifests`, `notReleased` or `goModules` (template test, orm
@@ -1147,10 +1147,10 @@ docs/operations/release.md), so the consumer names only the tag.
   to its Makefile (K132). The example release workflow runs it after install-packages.
 - `make release-tools` (`scripts/kit/release-tools.mts`) runs install-tools when config/release.json has a Composer package, a
   wheel or a Go module; npm, which an npm package needs, is the npm of the bootstrap. A make entry adds no step (K930): a repository whose make target needs the PHP installs it in its release-prepare rule with `make install-tools TOOLS="php"`.
-- `release-publish` creates the release as a draft and records its id in `var/release/<tag>.json`. `release-undraft` reads the
+- `release-publish` creates the release as a draft and records its id in `<records>/<tag>.json`, `<records>` the folder that the caller names in `RELEASE_RECORDS` (kit.mk names `var/release`; a call that names none exits 2, K1115). `release-undraft` reads the
   draft by that id (`repos/O/R/releases/<id>`), never by searching the list of releases for its tag: the list shows a new draft
   only after a while (the 0.0.38 run failed three seconds after the create), and the tag does not address a draft. A missing
-  record fails with `var/release/<tag>.json is missing; make release-publish writes it`. `release-undraft` makes the release
+  record fails with `<records>/<tag>.json is missing; make release-publish writes it`, `<records>` the folder named in `RELEASE_RECORDS`. `release-undraft` makes the release
   public by its id and changes nothing for a public release. A draft of an earlier run is replaced; a public release is never
   replaced.
 
